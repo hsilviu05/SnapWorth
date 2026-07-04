@@ -1,0 +1,22 @@
+import Foundation
+
+enum Config {
+    // ── API ──────────────────────────────────────────────────────────────────
+    /// Set to your deployed backend URL before submitting to the App Store.
+    static let baseURL = URL(string: "http://localhost:8000")!
+
+    /// When true, ScanAPIClient returns canned JSON — no network required.
+    /// Flip to false once your backend is deployed and the URL above is set.
+    static let mockMode = false
+
+    // ── Subscription ─────────────────────────────────────────────────────────
+    static let weeklyProductID  = "com.snapworth.weekly"
+    static let yearlyProductID  = "com.snapworth.yearly"
+
+    // ── Free tier ────────────────────────────────────────────────────────────
+    static let freeScansAllowed = 3
+
+    // ── RevenueCat ───────────────────────────────────────────────────────────
+    /// Paste your RevenueCat iOS public SDK key here.
+    static let revenueCatAPIKey = "appl_YOUR_REVENUECAT_KEY"
+}

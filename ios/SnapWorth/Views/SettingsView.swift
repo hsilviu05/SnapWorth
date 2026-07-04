@@ -1,0 +1,166 @@
+import SwiftUI
+import SwiftData
+
+struct SettingsView: View {
+    let purchaseService: any PurchaseService
+    @Environment(\.modelContext) private var modelContext
+    @Query private var results: [ScanResult]
+    @State private var vm = SettingsViewModel()
+    @State private var showPaywall = false
+    @State private var showDeleteAlert = false
+
+    var body: some View {
+        NavigationStack {
+            List {
+                // ── Subscription card ──────────────────────────────────────
+                Section {
+                    SubscriptionCard(
+                        isSubscribed: purchaseService.isSubscribed,
+                        onUpgrade: { showPaywall = true }
+                    )
+                }
+                .listRowInsets(EdgeInsets())
+                .listRowBackground(Color.clear)
+
+                // ── Account ────────────────────────────────────────────────
+                Section("Account") {
+                    SettingsRow(icon: "arrow.clockwise", label: "Restore purchases") {
+                        Task { await vm.restorePurchases(service: purchaseService) }
+                    }
+                    SettingsRow(icon: "star", label: "Rate SnapWorth") {
+                        vm.openURL("https://apps.apple.com/app/idYOUR_APP_ID")
+                    }
+                }
+
+                // ── Legal ──────────────────────────────────────────────────
+                Section("Legal") {
+                    SettingsRow(icon: "lock.shield", label: "Privacy Policy") {
+                        vm.openURL("https://snapworth.com/privacy")
+                    }
+                    SettingsRow(icon: "doc.text", label: "Terms of Service") {
+                        vm.openURL("https://snapworth.com/terms")
+                    }
+                }
+
+                // ── Support ────────────────────────────────────────────────
+                Section("Support") {
+                    SettingsRow(icon: "envelope", label: "Contact us") {
+                        vm.sendFeedback()
+                    }
+                }
+
+                // ── Data ───────────────────────────────────────────────────
+                Section("Data") {
+                    SettingsRow(icon: "trash", label: "Clear scan history", destructive: true) {
+                        showDeleteAlert = true
+                    }
+                }
+
+                // App version
+                Section {
+                    HStack {
+                        Spacer()
+                        Text("SnapWorth · v1.0.0")
+                            .font(.snapCaption)
+                            .foregroundStyle(Color.snapWarmGray)
+                        Spacer()
+                    }
+                }
+                .listRowBackground(Color.clear)
+            }
+            .scrollContentBackground(.hidden)
+            .background(Color.snapBackground)
+            .navigationTitle("Settings")
+            .navigationBarTitleDisplayMode(.large)
+        }
+        .sheet(isPresented: $showPaywall) {
+            PaywallView(purchaseService: purchaseService)
+        }
+        .alert("Restore purchases", isPresented: $vm.showRestoreAlert) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(vm.restoreMessage ?? "")
+        }
+        .alert("Clear history?", isPresented: $showDeleteAlert) {
+            Button("Delete all", role: .destructive) {
+                results.forEach { modelContext.delete($0) }
+                try? modelContext.save()
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("This will permanently delete all \(results.count) saved scans.")
+        }
+    }
+}
+
+// MARK: - Subscription Card
+private struct SubscriptionCard: View {
+    let isSubscribed: Bool
+    let onUpgrade: () -> Void
+
+    var body: some View {
+        HStack(spacing: 16) {
+            Image(systemName: isSubscribed ? "crown.fill" : "crown")
+                .font(.system(size: 24))
+                .foregroundStyle(Color.snapAmber)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(isSubscribed ? "SnapWorth Pro" : "Free Plan")
+                    .font(.dmSans(16, weight: .semibold))
+                    .foregroundStyle(Color.snapEspresso)
+                Text(isSubscribed
+                     ? "Unlimited scans · Active"
+                     : "3 free scans · Upgrade for unlimited"
+                )
+                .font(.snapCaption)
+                .foregroundStyle(Color.snapWarmGray)
+            }
+
+            Spacer()
+
+            if !isSubscribed {
+                Button("Upgrade", action: onUpgrade)
+                    .font(.dmSans(13, weight: .semibold))
+                    .foregroundStyle(Color.snapBackground)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 7)
+                    .background(Color.snapTerracotta)
+                    .clipShape(Capsule())
+            }
+        }
+        .padding(16)
+        .background(Color.snapCard)
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .padding(.horizontal, 16)
+        .padding(.vertical, 8)
+    }
+}
+
+// MARK: - Settings Row
+private struct SettingsRow: View {
+    let icon: String
+    let label: String
+    var destructive: Bool = false
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 14) {
+                Image(systemName: icon)
+                    .font(.system(size: 16, weight: .medium))
+                    .foregroundStyle(destructive ? Color.red : Color.snapTerracotta)
+                    .frame(width: 24)
+
+                Text(label)
+                    .font(.snapBody)
+                    .foregroundStyle(destructive ? Color.red : Color.snapEspresso)
+
+                Spacer()
+
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(Color.snapBorder)
+            }
+        }
+    }
+}
