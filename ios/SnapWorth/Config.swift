@@ -3,7 +3,7 @@ import Foundation
 enum Config {
     // ── API ──────────────────────────────────────────────────────────────────
     /// Set to your deployed backend URL before submitting to the App Store.
-    static let baseURL = URL(string: "http://localhost:8000")!
+    static let baseURL = URL(string: "http://192.168.1.32:8000")!
 
     /// When true, ScanAPIClient returns canned JSON — no network required.
     /// Flip to false once your backend is deployed and the URL above is set.
