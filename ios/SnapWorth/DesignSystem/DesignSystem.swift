@@ -68,17 +68,20 @@ extension Font {
         return .system(size: size, weight: weight, design: .serif)
     }
 
-    // ── DM Sans ───────────────────────────────────────────────────────
+    // ── DM Sans (variable font — loaded via descriptor) ───────────────────
     static func dmSans(_ size: CGFloat, weight: Font.Weight = .regular) -> Font {
-        let postscriptName: String
+        let uiWeight: UIFont.Weight
         switch weight {
-        case .bold, .heavy, .black: postscriptName = "DMSans-Bold"
-        case .semibold:             postscriptName = "DMSans-SemiBold"
-        case .medium:               postscriptName = "DMSans-Medium"
-        default:                    postscriptName = "DMSans-Regular"
+        case .bold, .heavy, .black: uiWeight = .bold
+        case .semibold:             uiWeight = .semibold
+        case .medium:               uiWeight = .medium
+        default:                    uiWeight = .regular
         }
-        if UIFont(name: postscriptName, size: size) != nil {
-            return .custom(postscriptName, size: size)
+        let desc = UIFontDescriptor(fontAttributes: [.family: "DM Sans"])
+            .addingAttributes([.traits: [UIFontDescriptor.TraitKey.weight: uiWeight.rawValue]])
+        let uiFont = UIFont(descriptor: desc, size: size)
+        if uiFont.familyName.lowercased().contains("dm sans") {
+            return Font(uiFont)
         }
         return .system(size: size, weight: weight, design: .default)
     }

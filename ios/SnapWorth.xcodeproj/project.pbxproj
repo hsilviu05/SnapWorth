@@ -30,6 +30,8 @@
 		AA00000000000000000000E9 /* HistoryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000000E8 /* HistoryView.swift */; };
 		AA00000000000000000000EB /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000000EA /* SettingsView.swift */; };
 		AA00000000000000000000ED /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000000EC /* Assets.xcassets */; };
+		AA00000000000000000000F2 /* Fraunces-Variable.ttf in Resources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000000F1 /* Fraunces-Variable.ttf */; };
+		AA00000000000000000000F4 /* DMSans-Variable.ttf in Resources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000000F3 /* DMSans-Variable.ttf */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -58,6 +60,8 @@
 		AA00000000000000000000EA /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		AA00000000000000000000EC /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		AA00000000000000000000EE /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		AA00000000000000000000F1 /* Fraunces-Variable.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Fraunces-Variable.ttf"; sourceTree = "<group>"; };
+		AA00000000000000000000F3 /* DMSans-Variable.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "DMSans-Variable.ttf"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -78,6 +82,7 @@
 				AA00000000000000000000C2 /* Config.swift */,
 				AA00000000000000000000EC /* Assets.xcassets */,
 				AA00000000000000000000EE /* Info.plist */,
+				AA00000000000000000000F5 /* Fonts */,
 				AA00000000000000000000B8 /* DesignSystem */,
 				AA00000000000000000000B9 /* Models */,
 				AA00000000000000000000BA /* Services */,
@@ -94,6 +99,15 @@
 				AA00000000000000000000AE /* SnapWorth.app */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		AA00000000000000000000F5 /* Fonts */ = {
+			isa = PBXGroup;
+			children = (
+				AA00000000000000000000F1 /* Fraunces-Variable.ttf */,
+				AA00000000000000000000F3 /* DMSans-Variable.ttf */,
+			);
+			path = Fonts;
 			sourceTree = "<group>";
 		};
 		AA00000000000000000000B8 /* DesignSystem */ = {
@@ -225,6 +239,8 @@
 			buildActionMask = 2147483647;
 			files = (
 				AA00000000000000000000ED /* Assets.xcassets in Resources */,
+				AA00000000000000000000F2 /* Fraunces-Variable.ttf in Resources */,
+				AA00000000000000000000F4 /* DMSans-Variable.ttf in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

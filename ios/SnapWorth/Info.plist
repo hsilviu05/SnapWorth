@@ -30,14 +30,8 @@
 	<!-- Custom fonts registered with UIKit -->
 	<key>UIAppFonts</key>
 	<array>
-		<!-- Download from fonts.google.com and add .ttf files to the Fonts/ group -->
-		<string>Fraunces-Regular.ttf</string>
-		<string>Fraunces-SemiBold.ttf</string>
-		<string>Fraunces-Bold.ttf</string>
-		<string>DMSans-Regular.ttf</string>
-		<string>DMSans-Medium.ttf</string>
-		<string>DMSans-SemiBold.ttf</string>
-		<string>DMSans-Bold.ttf</string>
+		<string>Fraunces-Variable.ttf</string>
+		<string>DMSans-Variable.ttf</string>
 	</array>
 
 	<key>UILaunchScreen</key>
