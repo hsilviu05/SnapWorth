@@ -4,6 +4,10 @@ import SwiftUI
 final class ResultViewModel {
     var didCopyListing: Bool = false
 
+    func shareText(result: ScanResult) -> String {
+        "Found a \(result.itemName) worth \(result.formattedRange) 🏷️\n\n\(result.listingTitle)\n\(result.listingDescription)\n\nValued with SnapWorth"
+    }
+
     func copyListing(result: ScanResult) {
         let text = """
         \(result.listingTitle)

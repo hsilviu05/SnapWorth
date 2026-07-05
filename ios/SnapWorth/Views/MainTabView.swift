@@ -1,5 +1,9 @@
 import SwiftUI
 
+extension Notification.Name {
+    static let snapSwitchToScan = Notification.Name("snapSwitchToScan")
+}
+
 struct MainTabView: View {
     let purchaseService: any PurchaseService
     @State private var selectedTab = 0
@@ -25,5 +29,8 @@ struct MainTabView: View {
                 .tag(2)
         }
         .tint(Color.snapTerracotta)
+        .onReceive(NotificationCenter.default.publisher(for: .snapSwitchToScan)) { _ in
+            selectedTab = 0
+        }
     }
 }

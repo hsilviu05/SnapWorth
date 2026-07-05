@@ -137,6 +137,12 @@ struct ResultView: View {
             .navigationTitle("Result")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    ShareLink(item: vm.shareText(result: result)) {
+                        Image(systemName: "square.and.arrow.up")
+                            .foregroundStyle(Color.snapTerracotta)
+                    }
+                }
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button("Done") { onDismiss() }
                         .font(.dmSans(16, weight: .semibold))

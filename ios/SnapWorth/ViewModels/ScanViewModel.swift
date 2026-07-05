@@ -64,10 +64,12 @@ final class ScanViewModel {
                 freeScansUsed += 1
             }
 
+            UINotificationFeedbackGenerator().notificationOccurred(.success)
             scanResult = result
 
         } catch {
-            errorMessage = error.localizedDescription
+            UINotificationFeedbackGenerator().notificationOccurred(.error)
+            errorMessage = friendlyError(error)
         }
     }
 
@@ -78,6 +80,20 @@ final class ScanViewModel {
             capturedImage = image
         }
         selectedPhotoItem = nil
+    }
+
+    private func friendlyError(_ error: Error) -> String {
+        let msg = error.localizedDescription.lowercased()
+        if msg.contains("429") || msg.contains("rate limit") {
+            return "You've hit the scan limit. Try again in an hour."
+        }
+        if msg.contains("network") || msg.contains("offline") || msg.contains("internet") {
+            return "No internet connection. Check your network and try again."
+        }
+        if msg.contains("timeout") || msg.contains("timed out") {
+            return "The request timed out. Please try again."
+        }
+        return "Something went wrong. Please try again."
     }
 
     func reset() {

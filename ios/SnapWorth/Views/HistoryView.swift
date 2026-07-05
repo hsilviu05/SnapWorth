@@ -123,6 +123,17 @@ private struct EmptyFindsView: View {
                 .font(.snapBody)
                 .foregroundStyle(Color.snapWarmGray)
                 .multilineTextAlignment(.center)
+
+            Button("Start scanning") {
+                NotificationCenter.default.post(name: .snapSwitchToScan, object: nil)
+            }
+            .font(.dmSans(15, weight: .semibold))
+            .foregroundStyle(Color.snapBackground)
+            .padding(.horizontal, 28)
+            .padding(.vertical, 12)
+            .background(Color.snapTerracotta)
+            .clipShape(Capsule())
+            .padding(.top, 4)
         }
     }
 }

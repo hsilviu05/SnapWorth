@@ -18,9 +18,9 @@ final class OnboardingViewModel {
             rotation: 3.5
         ),
         OnboardingSlide(
-            headline: "Join 12,000+\nthrifters flipping smarter.",
-            body: "Save every find to your closet and track exactly how much value you've uncovered.",
-            symbolName: "person.3.fill",
+            headline: "Save finds.\nTrack your value.",
+            body: "Every scan is saved to your closet. See exactly how much hidden value you've uncovered over time.",
+            symbolName: "bag.fill",
             rotation: -2.5
         ),
     ]
