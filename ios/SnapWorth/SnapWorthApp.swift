@@ -4,7 +4,9 @@ import SwiftData
 @main
 struct SnapWorthApp: App {
     // ── Purchase service ──────────────────────────────────────────────────────
-    @StateObject private var purchaseService = RevenueCatPurchaseService()
+    // TODO: Switch to RevenueCatPurchaseService() once Apple Developer account
+    // is active and Config.revenueCatAPIKey is set to the appl_ iOS key.
+    @StateObject private var purchaseService = MockPurchaseService(forcedSubscribed: false)
 
     // ── Onboarding state ──────────────────────────────────────────────────────
     @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding = false
