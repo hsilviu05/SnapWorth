@@ -38,6 +38,7 @@ RATE_MAX_REQUESTS = 20
 
 
 def _check_rate_limit(device_id: str) -> None:
+    device_id = device_id[:64]  # cap length before using as dict key
     now = time.time()
     timestamps = _rate_store[device_id]
     timestamps[:] = [t for t in timestamps if now - t < RATE_WINDOW_SECS]
@@ -141,7 +142,7 @@ when posted on this page.</p>
 
 <h2>Contact</h2>
 <p>If you have questions about this Privacy Policy, contact us at
-<a href="mailto:hello@snapworth.com">hello@snapworth.com</a>.</p>
+<a href="mailto:silh6767@gmail.com">silh6767@gmail.com</a>.</p>
 </body></html>"""
 
 
@@ -176,7 +177,7 @@ EXTENT PERMITTED BY LAW, WE DISCLAIM ALL WARRANTIES, EXPRESS OR IMPLIED.</p>
 
 <h2>Contact</h2>
 <p>Questions? Email us at
-<a href="mailto:hello@snapworth.com">hello@snapworth.com</a>.</p>
+<a href="mailto:silh6767@gmail.com">silh6767@gmail.com</a>.</p>
 </body></html>"""
 
 
@@ -203,11 +204,18 @@ async def scan(
 
     image_part = {"mime_type": content_type, "data": base64.standard_b64encode(image_bytes).decode()}
 
-    try:
-        response = _model.generate_content([SCAN_PROMPT, image_part])
-        raw = response.text.strip()
-    except Exception as exc:
-        raise HTTPException(status_code=502, detail=f"AI service error: {exc}")
+    last_exc: Exception | None = None
+    for attempt in range(2):
+        try:
+            response = await _model.generate_content_async([SCAN_PROMPT, image_part])
+            raw = response.text.strip()
+            break
+        except Exception as exc:
+            last_exc = exc
+            if attempt == 0:
+                await __import__("asyncio").sleep(1.5)
+    else:
+        raise HTTPException(status_code=502, detail=f"AI service error: {last_exc}")
 
     if raw.startswith("```"):
         lines = raw.splitlines()

@@ -33,6 +33,13 @@ actor ScanAPIClient {
     static let shared = ScanAPIClient()
     private init() {}
 
+    private let session: URLSession = {
+        let config = URLSessionConfiguration.default
+        config.timeoutIntervalForRequest = 30
+        config.timeoutIntervalForResource = 35
+        return URLSession(configuration: config)
+    }()
+
     private let deviceID: String = {
         if let stored = UserDefaults.standard.string(forKey: "snapworth_device_id") {
             return stored
@@ -105,7 +112,7 @@ actor ScanAPIClient {
         }
 
         let endpoint = Config.baseURL.appendingPathComponent("scan")
-        var request = URLRequest(url: endpoint, timeoutInterval: 60)
+        var request = URLRequest(url: endpoint)
         request.httpMethod = "POST"
         request.setValue(deviceID, forHTTPHeaderField: "x-device-id")
 
@@ -113,7 +120,7 @@ actor ScanAPIClient {
         request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
         request.httpBody = buildMultipart(data: jpegData, boundary: boundary)
 
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let (data, response) = try await session.data(for: request)
 
         guard let http = response as? HTTPURLResponse else {
             throw URLError(.badServerResponse)

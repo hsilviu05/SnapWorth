@@ -13,6 +13,7 @@ final class CameraManager: NSObject, ObservableObject {
     let session = AVCaptureSession()
     private let photoOutput = AVCapturePhotoOutput()
     private var sessionQueue = DispatchQueue(label: "com.snapworth.camera")
+    private var isConfigured = false
 
     override init() {
         super.init()
@@ -22,12 +23,12 @@ final class CameraManager: NSObject, ObservableObject {
     func requestPermissionAndSetup() {
         switch AVCaptureDevice.authorizationStatus(for: .video) {
         case .authorized:
-            setupSession()
+            setupSessionIfNeeded()
         case .notDetermined:
             AVCaptureDevice.requestAccess(for: .video) { [weak self] granted in
                 DispatchQueue.main.async {
                     self?.authStatus = granted ? .authorized : .denied
-                    if granted { self?.setupSession() }
+                    if granted { self?.setupSessionIfNeeded() }
                 }
             }
         case .denied, .restricted:
@@ -35,6 +36,14 @@ final class CameraManager: NSObject, ObservableObject {
         @unknown default:
             break
         }
+    }
+
+    private func setupSessionIfNeeded() {
+        guard !isConfigured else {
+            startSession()
+            return
+        }
+        setupSession()
     }
 
     private func setupSession() {
@@ -65,6 +74,7 @@ final class CameraManager: NSObject, ObservableObject {
             }
 
             self.session.commitConfiguration()
+            self.isConfigured = true
             self.session.startRunning()
         }
     }

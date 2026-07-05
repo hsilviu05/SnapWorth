@@ -441,13 +441,14 @@ struct PlanCard: View {
 
 struct ScanHistoryCard: View {
     let result: ScanResult
+    @State private var thumbnail: UIImage?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             // Thumbnail
             Group {
-                if let data = result.imageData, let uiImg = UIImage(data: data) {
-                    Image(uiImage: uiImg)
+                if let img = thumbnail {
+                    Image(uiImage: img)
                         .resizable()
                         .scaledToFill()
                 } else {
@@ -461,6 +462,12 @@ struct ScanHistoryCard: View {
             }
             .frame(height: 120)
             .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .task(id: result.id) {
+                guard thumbnail == nil, let data = result.imageData else { return }
+                thumbnail = await Task.detached(priority: .utility) {
+                    UIImage(data: data)
+                }.value
+            }
 
             Text(result.itemName)
                 .font(.dmSans(13, weight: .medium))

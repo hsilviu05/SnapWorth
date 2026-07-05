@@ -93,26 +93,22 @@ struct PaywallView: View {
                         .font(.snapBody)
                         .foregroundStyle(Color.snapWarmGray)
 
-                        HStack(spacing: 4) {
-                            Text("By subscribing you agree to our")
-                                .font(.dmSans(11))
-                                .foregroundStyle(Color.snapWarmGray.opacity(0.7))
-                            Button("Terms") { showTerms = true }
-                                .font(.dmSans(11))
-                                .foregroundStyle(Color.snapWarmGray.opacity(0.7))
-                                .underline()
-                            Text("and")
-                                .font(.dmSans(11))
-                                .foregroundStyle(Color.snapWarmGray.opacity(0.7))
-                            Button("Privacy Policy") { showPrivacy = true }
-                                .font(.dmSans(11))
-                                .foregroundStyle(Color.snapWarmGray.opacity(0.7))
-                                .underline()
-                            Text(".")
-                                .font(.dmSans(11))
-                                .foregroundStyle(Color.snapWarmGray.opacity(0.7))
+                        VStack(spacing: 4) {
+                            (Text("By subscribing you agree to our ")
+                             + Text("Terms of Service").underline()
+                             + Text(" and ")
+                             + Text("Privacy Policy").underline()
+                             + Text("."))
+                            .font(.dmSans(11))
+                            .foregroundStyle(Color.snapWarmGray.opacity(0.7))
+                            .multilineTextAlignment(.center)
+                            HStack(spacing: 16) {
+                                Button("Terms") { showTerms = true }
+                                Button("Privacy") { showPrivacy = true }
+                            }
+                            .font(.dmSans(11, weight: .semibold))
+                            .foregroundStyle(Color.snapWarmGray)
                         }
-                        .multilineTextAlignment(.center)
                     }
                     .padding(.horizontal, 20)
                     .padding(.top, 24)
