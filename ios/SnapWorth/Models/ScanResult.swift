@@ -49,9 +49,7 @@ final class ScanResult {
     }
 
     var formattedRange: String {
-        let fmt = NumberFormatter()
-        fmt.numberStyle = .currency
-        fmt.maximumFractionDigits = 0
+        let fmt = NumberFormatter.snapCurrency
         let lo = fmt.string(from: NSNumber(value: valueLow)) ?? "$\(Int(valueLow))"
         let hi = fmt.string(from: NSNumber(value: valueHigh)) ?? "$\(Int(valueHigh))"
         return "\(lo)–\(hi)"

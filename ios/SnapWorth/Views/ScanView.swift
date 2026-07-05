@@ -6,6 +6,7 @@ struct ScanView: View {
     let purchaseService: any PurchaseService
 
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.horizontalSizeClass) private var hSizeClass
     @StateObject private var cameraManager = CameraManager()
     @State private var vm = ScanViewModel()
     @State private var showResult = false
@@ -49,8 +50,8 @@ struct ScanView: View {
 
                 Spacer()
 
-                // Viewfinder frame guide
-                let viewfinderSide: CGFloat = min(UIScreen.main.bounds.width * 0.78, 320)
+                // Viewfinder frame guide — compact = phone, regular = iPad
+                let viewfinderSide: CGFloat = hSizeClass == .regular ? 320 : 300
                 RoundedRectangle(cornerRadius: 24, style: .continuous)
                     .strokeBorder(Color.snapBackground.opacity(0.5), lineWidth: 2)
                     .frame(width: viewfinderSide, height: viewfinderSide)

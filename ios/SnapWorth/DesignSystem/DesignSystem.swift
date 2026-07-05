@@ -68,7 +68,7 @@ extension Font {
         return .system(size: size, weight: weight, design: .serif)
     }
 
-    // ── DM Sans (variable font — loaded via descriptor) ───────────────────
+    // ── DM Sans (variable font — loaded via descriptor, cached) ─────────────
     static func dmSans(_ size: CGFloat, weight: Font.Weight = .regular) -> Font {
         let uiWeight: UIFont.Weight
         switch weight {
@@ -77,10 +77,15 @@ extension Font {
         case .medium:               uiWeight = .medium
         default:                    uiWeight = .regular
         }
+        let key = "\(size)-\(uiWeight.rawValue)" as NSString
+        if let cached = _dmSansCache.object(forKey: key) {
+            return Font(cached)
+        }
         let desc = UIFontDescriptor(fontAttributes: [.family: "DM Sans"])
             .addingAttributes([.traits: [UIFontDescriptor.TraitKey.weight: uiWeight.rawValue]])
         let uiFont = UIFont(descriptor: desc, size: size)
         if uiFont.familyName.lowercased().contains("dm sans") {
+            _dmSansCache.setObject(uiFont, forKey: key)
             return Font(uiFont)
         }
         return .system(size: size, weight: weight, design: .default)
@@ -95,6 +100,19 @@ extension Font {
     static let snapCaption    = dmSans(13)
     static let snapLabel      = dmSans(13, weight: .semibold)
     static let snapButton     = dmSans(17, weight: .semibold)
+}
+
+// UIFont cache for DM Sans — avoids descriptor allocation on every render
+private let _dmSansCache = NSCache<NSString, UIFont>()
+
+// Shared currency formatter — NumberFormatter is expensive to allocate
+extension NumberFormatter {
+    static let snapCurrency: NumberFormatter = {
+        let f = NumberFormatter()
+        f.numberStyle = .currency
+        f.maximumFractionDigits = 0
+        return f
+    }()
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -216,9 +234,7 @@ struct ValueRangeView: View {
     let high: Double
 
     private var formatted: String {
-        let fmt = NumberFormatter()
-        fmt.numberStyle = .currency
-        fmt.maximumFractionDigits = 0
+        let fmt = NumberFormatter.snapCurrency
         let lo = fmt.string(from: NSNumber(value: low))  ?? "$\(Int(low))"
         let hi = fmt.string(from: NSNumber(value: high)) ?? "$\(Int(high))"
         return "\(lo)–\(hi)"
@@ -301,6 +317,7 @@ extension View {
 struct AnalyzingOverlay: View {
     @State private var messageIndex = 0
     @State private var opacity: Double = 1
+    @State private var rotationTask: Task<Void, Never>?
 
     private let messages = [
         "Reading the label…",
@@ -315,7 +332,6 @@ struct AnalyzingOverlay: View {
                 .ignoresSafeArea()
 
             VStack(spacing: 20) {
-                // Pulsing circle
                 Circle()
                     .strokeBorder(Color.snapTerracotta, lineWidth: 2)
                     .frame(width: 72, height: 72)
@@ -333,17 +349,20 @@ struct AnalyzingOverlay: View {
                     .animation(.easeInOut(duration: 0.35), value: opacity)
             }
         }
-        .onAppear { startRotating() }
-    }
-
-    private func startRotating() {
-        Timer.scheduledTimer(withTimeInterval: 1.8, repeats: true) { _ in
-            withAnimation { opacity = 0 }
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
-                messageIndex = (messageIndex + 1) % messages.count
-                withAnimation { opacity = 1 }
+        .onAppear {
+            rotationTask = Task { @MainActor in
+                while !Task.isCancelled {
+                    try? await Task.sleep(for: .seconds(1.8))
+                    guard !Task.isCancelled else { break }
+                    withAnimation { opacity = 0 }
+                    try? await Task.sleep(for: .seconds(0.4))
+                    guard !Task.isCancelled else { break }
+                    messageIndex = (messageIndex + 1) % messages.count
+                    withAnimation { opacity = 1 }
+                }
             }
         }
+        .onDisappear { rotationTask?.cancel() }
     }
 }
 

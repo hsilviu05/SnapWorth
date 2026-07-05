@@ -57,7 +57,11 @@ final class CameraManager: NSObject, ObservableObject {
             // Output
             if self.session.canAddOutput(self.photoOutput) {
                 self.session.addOutput(self.photoOutput)
-                self.photoOutput.isHighResolutionCaptureEnabled = true
+                if #available(iOS 16.0, *) {
+                    self.photoOutput.maxPhotoDimensions = CMVideoDimensions(width: 4032, height: 3024)
+                } else {
+                    self.photoOutput.isHighResolutionCaptureEnabled = true
+                }
             }
 
             self.session.commitConfiguration()
