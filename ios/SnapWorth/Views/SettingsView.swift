@@ -27,18 +27,15 @@ struct SettingsView: View {
                     SettingsRow(icon: "arrow.clockwise", label: "Restore purchases") {
                         Task { await vm.restorePurchases(service: purchaseService) }
                     }
-                    SettingsRow(icon: "star", label: "Rate SnapWorth") {
-                        vm.openURL("https://apps.apple.com/app/idYOUR_APP_ID")
-                    }
                 }
 
                 // ── Legal ──────────────────────────────────────────────────
                 Section("Legal") {
                     SettingsRow(icon: "lock.shield", label: "Privacy Policy") {
-                        vm.openURL("https://snapworth.com/privacy")
+                        vm.openURL("https://snapworth-backend-production.up.railway.app/privacy")
                     }
                     SettingsRow(icon: "doc.text", label: "Terms of Service") {
-                        vm.openURL("https://snapworth.com/terms")
+                        vm.openURL("https://snapworth-backend-production.up.railway.app/terms")
                     }
                 }
 
@@ -46,6 +43,9 @@ struct SettingsView: View {
                 Section("Support") {
                     SettingsRow(icon: "envelope", label: "Contact us") {
                         vm.sendFeedback()
+                    }
+                    SettingsRow(icon: "star", label: "Rate SnapWorth") {
+                        vm.openURL("https://apps.apple.com/search?term=snapworth")
                     }
                 }
 

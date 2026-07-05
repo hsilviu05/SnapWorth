@@ -14,6 +14,7 @@ import google.generativeai as genai
 from dotenv import load_dotenv
 from fastapi import FastAPI, File, Header, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, Field
 
 load_dotenv()
@@ -93,6 +94,90 @@ class ScanResponse(BaseModel):
 @app.get("/health")
 def health() -> dict:
     return {"status": "ok", "version": "1.0.0"}
+
+
+_STYLE = """
+  body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+       max-width:680px;margin:48px auto;padding:0 24px;color:#2B211C;line-height:1.7}
+  h1{font-size:1.8rem;margin-bottom:4px} h2{font-size:1.1rem;margin-top:2rem}
+  p,li{font-size:.95rem;color:#5a4a42} a{color:#D96C47}
+"""
+
+@app.get("/privacy", response_class=HTMLResponse)
+def privacy():
+    return f"""<!DOCTYPE html><html><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Privacy Policy — SnapWorth</title><style>{_STYLE}</style></head><body>
+<h1>Privacy Policy</h1>
+<p>Last updated: July 5, 2026</p>
+<p>SnapWorth ("we", "our", or "us") operates the SnapWorth mobile application.
+This page informs you of our policies regarding the collection, use, and
+disclosure of personal data when you use our Service.</p>
+
+<h2>Information We Collect</h2>
+<p>We collect photos you submit for valuation. Photos are sent to our server,
+processed by an AI model to identify the item and estimate resale value, and
+are not stored after the response is returned.</p>
+<p>We collect an anonymous device identifier (UUID) solely for rate-limiting
+purposes (20 scans per hour). This ID is not linked to your identity.</p>
+
+<h2>How We Use Your Information</h2>
+<p>Photos are used only to generate the valuation response you requested.
+We do not sell, rent, or share your photos or device identifier with third parties,
+except as required by law.</p>
+
+<h2>Data Retention</h2>
+<p>Photos and scan results are processed in real time and are not retained on our
+servers. Scan history is stored locally on your device and can be deleted at any
+time from the app's Settings.</p>
+
+<h2>Children's Privacy</h2>
+<p>SnapWorth is not directed to children under 13. We do not knowingly collect
+personal information from children under 13.</p>
+
+<h2>Changes to This Policy</h2>
+<p>We may update this Privacy Policy from time to time. Changes are effective
+when posted on this page.</p>
+
+<h2>Contact</h2>
+<p>If you have questions about this Privacy Policy, contact us at
+<a href="mailto:hello@snapworth.com">hello@snapworth.com</a>.</p>
+</body></html>"""
+
+
+@app.get("/terms", response_class=HTMLResponse)
+def terms():
+    return f"""<!DOCTYPE html><html><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Terms of Service — SnapWorth</title><style>{_STYLE}</style></head><body>
+<h1>Terms of Service</h1>
+<p>Last updated: July 5, 2026</p>
+<p>By downloading or using SnapWorth you agree to these Terms. If you disagree,
+please do not use the app.</p>
+
+<h2>Use of Service</h2>
+<p>SnapWorth provides AI-generated resale value estimates for informational
+purposes only. Estimates are not guarantees of actual sale prices. We are not
+responsible for any financial decisions made based on our estimates.</p>
+
+<h2>Subscriptions</h2>
+<p>SnapWorth offers auto-renewing subscriptions (weekly and yearly). Subscriptions
+are charged to your Apple ID account. You can cancel at any time in your device's
+subscription settings. Cancellation takes effect at the end of the current
+billing period. A 3-day free trial is available for new subscribers.</p>
+
+<h2>Prohibited Use</h2>
+<p>You may not use SnapWorth to submit illegal content, attempt to reverse-engineer
+the service, or abuse the rate limits.</p>
+
+<h2>Disclaimer</h2>
+<p>THE SERVICE IS PROVIDED "AS IS" WITHOUT WARRANTIES OF ANY KIND. TO THE MAXIMUM
+EXTENT PERMITTED BY LAW, WE DISCLAIM ALL WARRANTIES, EXPRESS OR IMPLIED.</p>
+
+<h2>Contact</h2>
+<p>Questions? Email us at
+<a href="mailto:hello@snapworth.com">hello@snapworth.com</a>.</p>
+</body></html>"""
 
 
 @app.post("/scan", response_model=ScanResponse)

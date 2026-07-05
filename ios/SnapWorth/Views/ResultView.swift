@@ -122,17 +122,14 @@ struct ResultView: View {
                     .snapCard()
                     .padding(.horizontal, 20)
 
-                    // ── Save button ────────────────────────────────────────
-                    GhostButton(title: "Saved to closet") { }
-                        .padding(.horizontal, 20)
-                        .disabled(true)
-                        .opacity(0.6)
-
-                    Text("This scan was automatically saved to My Finds.")
-                        .font(.snapCaption)
-                        .foregroundStyle(Color.snapWarmGray)
-                        .multilineTextAlignment(.center)
-                        .padding(.bottom, 32)
+                    HStack(spacing: 6) {
+                        Image(systemName: "checkmark.circle.fill")
+                            .foregroundStyle(Color.snapSage)
+                        Text("Saved to My Finds")
+                            .font(.snapCaption)
+                            .foregroundStyle(Color.snapWarmGray)
+                    }
+                    .padding(.bottom, 32)
                 }
                 .padding(.top, 12)
             }

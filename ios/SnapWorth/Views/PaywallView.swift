@@ -91,10 +91,21 @@ struct PaywallView: View {
                         .font(.snapBody)
                         .foregroundStyle(Color.snapWarmGray)
 
-                        Text("By subscribing you agree to our Terms and Privacy Policy.")
-                            .font(.dmSans(11))
-                            .foregroundStyle(Color.snapWarmGray.opacity(0.7))
-                            .multilineTextAlignment(.center)
+                        Group {
+                            Text("By subscribing you agree to our ")
+                            + Text("Terms").underline()
+                            + Text(" and ")
+                            + Text("Privacy Policy").underline()
+                            + Text(".")
+                        }
+                        .font(.dmSans(11))
+                        .foregroundStyle(Color.snapWarmGray.opacity(0.7))
+                        .multilineTextAlignment(.center)
+                        .onTapGesture {
+                            UIApplication.shared.open(
+                                URL(string: "https://snapworth-backend-production.up.railway.app/privacy")!
+                            )
+                        }
                     }
                     .padding(.horizontal, 20)
                     .padding(.top, 24)

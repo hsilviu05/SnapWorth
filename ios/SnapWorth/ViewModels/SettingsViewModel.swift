@@ -32,12 +32,8 @@ final class SettingsViewModel {
     }
 
     func sendFeedback() {
-        let subject = "SnapWorth Feedback"
-        let body = "Hi SnapWorth team,"
-        let encoded = "mailto:hello@snapworth.com?subject=\(subject)&body=\(body)"
-            .addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
-        guard let url = URL(string: "mailto:hello@snapworth.com") else { return }
+        let raw = "mailto:silh6767@gmail.com?subject=SnapWorth%20Feedback&body=Hi%20SnapWorth%20team%2C"
+        guard let url = URL(string: raw) else { return }
         UIApplication.shared.open(url)
-        _ = encoded
     }
 }
