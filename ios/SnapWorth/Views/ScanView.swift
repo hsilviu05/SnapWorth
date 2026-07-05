@@ -35,7 +35,7 @@ struct ScanView: View {
                     // Free scan counter (only shown when not subscribed)
                     if !purchaseService.isSubscribed {
                         let remaining = max(0, Config.freeScansAllowed - vm.freeScansUsed)
-                        Text("\(remaining) free scans left")
+                        Text("\(remaining) free scan\(remaining == 1 ? "" : "s") left")
                             .font(.snapCaption)
                             .foregroundStyle(Color.snapBackground.opacity(0.8))
                             .padding(.horizontal, 10)
@@ -50,13 +50,11 @@ struct ScanView: View {
                 Spacer()
 
                 // Viewfinder frame guide
+                let viewfinderSide: CGFloat = min(UIScreen.main.bounds.width * 0.78, 320)
                 RoundedRectangle(cornerRadius: 24, style: .continuous)
                     .strokeBorder(Color.snapBackground.opacity(0.5), lineWidth: 2)
-                    .frame(width: 280, height: 280)
-                    .overlay(
-                        // Corner accents
-                        CornerAccents()
-                    )
+                    .frame(width: viewfinderSide, height: viewfinderSide)
+                    .overlay(CornerAccents())
 
                 Text("Center the item — tags & logos help")
                     .font(.snapCaption)

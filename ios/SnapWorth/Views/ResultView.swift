@@ -134,7 +134,7 @@ struct ResultView: View {
                 .padding(.top, 12)
             }
             .background(Color.snapBackground)
-            .navigationTitle("Result")
+            .navigationTitle(result.itemName.isEmpty ? "Result" : result.itemName)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {

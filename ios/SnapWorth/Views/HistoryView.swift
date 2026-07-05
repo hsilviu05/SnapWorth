@@ -32,20 +32,33 @@ struct HistoryView: View {
                     }
 
                     // ── Search ─────────────────────────────────────────────
-                    HStack {
-                        Image(systemName: "magnifyingglass")
-                            .foregroundStyle(Color.snapWarmGray)
-                        TextField("Search finds…", text: $vm.searchText)
-                            .font(.snapBody)
+                    if !results.isEmpty {
+                        HStack {
+                            Image(systemName: "magnifyingglass")
+                                .foregroundStyle(Color.snapWarmGray)
+                            TextField("Search finds…", text: $vm.searchText)
+                                .font(.snapBody)
+                            if !vm.searchText.isEmpty {
+                                Button {
+                                    vm.searchText = ""
+                                } label: {
+                                    Image(systemName: "xmark.circle.fill")
+                                        .foregroundStyle(Color.snapWarmGray)
+                                }
+                            }
+                        }
+                        .padding(12)
+                        .background(Color.snapCard)
+                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                        .padding(.horizontal, 20)
                     }
-                    .padding(12)
-                    .background(Color.snapCard)
-                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                    .padding(.horizontal, 20)
 
                     // ── Grid ───────────────────────────────────────────────
-                    if filteredResults.isEmpty {
+                    if results.isEmpty {
                         EmptyFindsView()
+                            .padding(.top, 60)
+                    } else if filteredResults.isEmpty {
+                        NoSearchResultsView(query: vm.searchText)
                             .padding(.top, 60)
                     } else {
                         LazyVGrid(columns: columns, spacing: 12) {
@@ -104,6 +117,28 @@ private struct TotalBanner: View {
             RoundedRectangle(cornerRadius: 20, style: .continuous)
                 .strokeBorder(Color.snapSage.opacity(0.2), lineWidth: 1)
         )
+    }
+}
+
+// MARK: - No search results
+private struct NoSearchResultsView: View {
+    let query: String
+
+    var body: some View {
+        VStack(spacing: 16) {
+            Image(systemName: "magnifyingglass")
+                .font(.system(size: 48, weight: .light))
+                .foregroundStyle(Color.snapBorder)
+
+            Text("No results for \"\(query)\"")
+                .font(.fraunces(20, weight: .bold))
+                .foregroundStyle(Color.snapEspresso)
+
+            Text("Try a different item name or brand.")
+                .font(.snapBody)
+                .foregroundStyle(Color.snapWarmGray)
+                .multilineTextAlignment(.center)
+        }
     }
 }
 
