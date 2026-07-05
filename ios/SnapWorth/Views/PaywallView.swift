@@ -3,6 +3,8 @@ import SwiftUI
 struct PaywallView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var vm = PaywallViewModel()
+    @State private var showPrivacy = false
+    @State private var showTerms = false
     let purchaseService: any PurchaseService
 
     var body: some View {
@@ -91,21 +93,26 @@ struct PaywallView: View {
                         .font(.snapBody)
                         .foregroundStyle(Color.snapWarmGray)
 
-                        Group {
-                            Text("By subscribing you agree to our ")
-                            + Text("Terms").underline()
-                            + Text(" and ")
-                            + Text("Privacy Policy").underline()
-                            + Text(".")
+                        HStack(spacing: 4) {
+                            Text("By subscribing you agree to our")
+                                .font(.dmSans(11))
+                                .foregroundStyle(Color.snapWarmGray.opacity(0.7))
+                            Button("Terms") { showTerms = true }
+                                .font(.dmSans(11))
+                                .foregroundStyle(Color.snapWarmGray.opacity(0.7))
+                                .underline()
+                            Text("and")
+                                .font(.dmSans(11))
+                                .foregroundStyle(Color.snapWarmGray.opacity(0.7))
+                            Button("Privacy Policy") { showPrivacy = true }
+                                .font(.dmSans(11))
+                                .foregroundStyle(Color.snapWarmGray.opacity(0.7))
+                                .underline()
+                            Text(".")
+                                .font(.dmSans(11))
+                                .foregroundStyle(Color.snapWarmGray.opacity(0.7))
                         }
-                        .font(.dmSans(11))
-                        .foregroundStyle(Color.snapWarmGray.opacity(0.7))
                         .multilineTextAlignment(.center)
-                        .onTapGesture {
-                            UIApplication.shared.open(
-                                URL(string: "https://snapworth-backend-production.up.railway.app/privacy")!
-                            )
-                        }
                     }
                     .padding(.horizontal, 20)
                     .padding(.top, 24)
@@ -135,6 +142,14 @@ struct PaywallView: View {
         .onAppear { vm.startCloseButtonTimer() }
         .onChange(of: vm.isPurchaseComplete) { _, complete in
             if complete { dismiss() }
+        }
+        .sheet(isPresented: $showPrivacy) {
+            NavigationStack { PrivacyPolicyView() }
+                .presentationDetents([.large])
+        }
+        .sheet(isPresented: $showTerms) {
+            NavigationStack { TermsOfServiceView() }
+                .presentationDetents([.large])
         }
     }
 }

@@ -31,11 +31,15 @@ struct SettingsView: View {
 
                 // ── Legal ──────────────────────────────────────────────────
                 Section("Legal") {
-                    SettingsRow(icon: "lock.shield", label: "Privacy Policy") {
-                        vm.openURL("https://snapworth-backend-production.up.railway.app/privacy")
+                    NavigationLink {
+                        PrivacyPolicyView()
+                    } label: {
+                        SettingsRowLabel(icon: "lock.shield", label: "Privacy Policy")
                     }
-                    SettingsRow(icon: "doc.text", label: "Terms of Service") {
-                        vm.openURL("https://snapworth-backend-production.up.railway.app/terms")
+                    NavigationLink {
+                        TermsOfServiceView()
+                    } label: {
+                        SettingsRowLabel(icon: "doc.text", label: "Terms of Service")
                     }
                 }
 
@@ -133,6 +137,25 @@ private struct SubscriptionCard: View {
         .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
         .padding(.horizontal, 16)
         .padding(.vertical, 8)
+    }
+}
+
+// MARK: - Settings Row Label (used inside NavigationLink — no extra chevron)
+private struct SettingsRowLabel: View {
+    let icon: String
+    let label: String
+
+    var body: some View {
+        HStack(spacing: 14) {
+            Image(systemName: icon)
+                .font(.system(size: 16, weight: .medium))
+                .foregroundStyle(Color.snapTerracotta)
+                .frame(width: 24)
+
+            Text(label)
+                .font(.snapBody)
+                .foregroundStyle(Color.snapEspresso)
+        }
     }
 }
 
