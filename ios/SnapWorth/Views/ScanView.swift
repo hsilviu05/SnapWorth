@@ -77,6 +77,7 @@ struct ScanView: View {
                                     .foregroundStyle(Color.snapBackground)
                             )
                     }
+                    .accessibilityLabel("Choose photo from library")
                     .onChange(of: vm.selectedPhotoItem) { _, _ in
                         Task {
                             await vm.loadSelectedPhoto()
@@ -102,6 +103,7 @@ struct ScanView: View {
                         }
                     }
                     .disabled(vm.isAnalyzing)
+                    .accessibilityLabel(vm.isAnalyzing ? "Analyzing item" : "Take photo to scan")
 
                     Spacer()
 
@@ -139,13 +141,21 @@ struct ScanView: View {
         .sheet(isPresented: $vm.showPaywall) {
             PaywallView(purchaseService: purchaseService)
         }
-        .alert("Error", isPresented: Binding(
+        .alert("Scan Failed", isPresented: Binding(
             get: { vm.errorMessage != nil },
             set: { if !$0 { vm.errorMessage = nil } }
         )) {
             Button("OK", role: .cancel) { vm.errorMessage = nil }
         } message: {
             Text(vm.errorMessage ?? "")
+        }
+        .alert("Camera Error", isPresented: Binding(
+            get: { cameraManager.error != nil },
+            set: { if !$0 { cameraManager.error = nil } }
+        )) {
+            Button("OK", role: .cancel) { cameraManager.error = nil }
+        } message: {
+            Text(cameraManager.error?.errorDescription ?? "")
         }
     }
 

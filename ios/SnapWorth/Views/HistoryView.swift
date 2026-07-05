@@ -95,6 +95,7 @@ struct HistoryView: View {
                 .padding(.top, 8)
                 .padding(.bottom, 32)
             }
+            .scrollDismissesKeyboard(.immediately)
             .background(Color.snapBackground)
             .navigationTitle("My Finds")
             .navigationBarTitleDisplayMode(.large)

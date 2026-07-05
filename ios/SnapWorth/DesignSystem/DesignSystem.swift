@@ -480,5 +480,7 @@ struct ScanHistoryCard: View {
         }
         .padding(12)
         .snapCard()
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(result.itemName), estimated \(result.formattedRange)")
     }
 }

@@ -36,6 +36,7 @@ struct OnboardingView: View {
                         title: vm.isLastPage ? "Get Started" : "Next"
                     ) {
                         if vm.isLastPage {
+                            UIImpactFeedbackGenerator(style: .medium).impactOccurred()
                             onFinish()
                         } else {
                             vm.advance()

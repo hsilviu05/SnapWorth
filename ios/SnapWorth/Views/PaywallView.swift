@@ -139,6 +139,7 @@ struct PaywallView: View {
         }
         .animation(.spring(duration: 0.3), value: vm.showCloseButton)
         .onAppear { vm.startCloseButtonTimer() }
+        .onDisappear { vm.cancelTimer() }
         .onChange(of: vm.isPurchaseComplete) { _, complete in
             if complete { dismiss() }
         }

@@ -10,12 +10,19 @@ final class PaywallViewModel {
     var showCloseButton: Bool = false
     var isPurchaseComplete: Bool = false
 
-    // Delay before showing the X close button
+    private var closeButtonTask: Task<Void, Never>?
+
     func startCloseButtonTimer() {
-        Task {
+        closeButtonTask = Task {
             try? await Task.sleep(for: .seconds(2))
+            guard !Task.isCancelled else { return }
             withAnimation { showCloseButton = true }
         }
+    }
+
+    func cancelTimer() {
+        closeButtonTask?.cancel()
+        closeButtonTask = nil
     }
 
     func purchase(service: any PurchaseService) async {
