@@ -30,6 +30,7 @@
 		AA00000000000000000000E9 /* HistoryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000000E8 /* HistoryView.swift */; };
 		AA00000000000000000000EB /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000000EA /* SettingsView.swift */; };
 		AA00000000000000000000F7 /* LegalView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000000F6 /* LegalView.swift */; };
+		AA00000000000000000000FA /* RevenueCat in Frameworks */ = {isa = PBXBuildFile; productRef = AA00000000000000000000F9 /* RevenueCat */; };
 		AA00000000000000000000ED /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000000EC /* Assets.xcassets */; };
 		AA00000000000000000000F2 /* Fraunces-Variable.ttf in Resources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000000F1 /* Fraunces-Variable.ttf */; };
 		AA00000000000000000000F4 /* DMSans-Variable.ttf in Resources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000000F3 /* DMSans-Variable.ttf */; };
@@ -71,6 +72,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				AA00000000000000000000FA /* RevenueCat in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -199,6 +201,9 @@
 			dependencies = (
 			);
 			name = SnapWorth;
+			packageProductDependencies = (
+				AA00000000000000000000F9 /* RevenueCat */,
+			);
 			productName = SnapWorth;
 			productReference = AA00000000000000000000AE /* SnapWorth.app */;
 			productType = "com.apple.product-type.application";
@@ -228,6 +233,9 @@
 			);
 			mainGroup = AA00000000000000000000F0 /* root */;
 			productRefGroup = AA00000000000000000000AC /* Products */;
+			packageReferences = (
+				AA00000000000000000000F8 /* XCRemoteSwiftPackageReference "purchases-ios" */,
+			);
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
@@ -478,6 +486,25 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		AA00000000000000000000F8 /* XCRemoteSwiftPackageReference "purchases-ios" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/RevenueCat/purchases-ios";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 5.0.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		AA00000000000000000000F9 /* RevenueCat */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = AA00000000000000000000F8 /* XCRemoteSwiftPackageReference "purchases-ios" */;
+			productName = RevenueCat;
+		};
+/* End XCSwiftPackageProductDependency section */
 
 	};
 	rootObject = AA00000000000000000000AA /* Project object */;

@@ -24,6 +24,11 @@ struct SettingsView: View {
 
                 // ── Account ────────────────────────────────────────────────
                 Section("Account") {
+                    if purchaseService.isSubscribed {
+                        SettingsRow(icon: "creditcard", label: "Manage subscription") {
+                            vm.openURL("https://apps.apple.com/account/subscriptions")
+                        }
+                    }
                     SettingsRow(icon: "arrow.clockwise", label: "Restore purchases") {
                         Task { await vm.restorePurchases(service: purchaseService) }
                     }

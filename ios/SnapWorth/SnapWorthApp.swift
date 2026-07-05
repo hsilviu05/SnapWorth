@@ -4,13 +4,10 @@ import SwiftData
 @main
 struct SnapWorthApp: App {
     // ── Purchase service ──────────────────────────────────────────────────────
-    // Swap MockPurchaseService for RevenueCatPurchaseService once RevenueCat
-    // is added via SPM and Config.revenueCatAPIKey is filled in.
-    @StateObject private var purchaseService = MockPurchaseService(forcedSubscribed: false)
+    @StateObject private var purchaseService = RevenueCatPurchaseService()
 
     // ── Onboarding state ──────────────────────────────────────────────────────
     @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding = false
-    @AppStorage("hasSeenPaywall") private var hasSeenPaywall = false
 
     // ── SwiftData container ───────────────────────────────────────────────────
     var sharedModelContainer: ModelContainer = {
