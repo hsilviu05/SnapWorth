@@ -1,6 +1,5 @@
 import AVFoundation
 import SwiftUI
-import Combine
 
 // MARK: - Camera Manager
 
@@ -74,8 +73,9 @@ final class CameraManager: NSObject, ObservableObject {
             }
 
             self.session.commitConfiguration()
-            self.isConfigured = true
             self.session.startRunning()
+            // isConfigured is @MainActor — must hop back to main thread to write it
+            DispatchQueue.main.async { self.isConfigured = true }
         }
     }
 

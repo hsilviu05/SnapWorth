@@ -6,6 +6,7 @@ struct HistoryView: View {
     @Query private var results: [ScanResult]
     @State private var vm = HistoryViewModel()
     @State private var selectedResult: ScanResult?
+    @State private var isEditing = false
 
     private let columns = [
         GridItem(.flexible(), spacing: 12),
@@ -58,7 +59,10 @@ struct HistoryView: View {
                         LazyVGrid(columns: columns, spacing: 12) {
                             ForEach(filteredResults) { result in
                                 ScanHistoryCard(result: result)
-                                    .onTapGesture { selectedResult = result }
+                                    .onTapGesture {
+                                        guard !isEditing else { return }
+                                        selectedResult = result
+                                    }
                                     .contextMenu {
                                         Button(role: .destructive) {
                                             vm.delete(result, context: modelContext)
@@ -66,16 +70,26 @@ struct HistoryView: View {
                                             Label("Delete", systemImage: "trash")
                                         }
                                     }
-                                    .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-                                        Button(role: .destructive) {
-                                            vm.delete(result, context: modelContext)
-                                        } label: {
-                                            Label("Delete", systemImage: "trash")
+                                    .overlay(alignment: .topTrailing) {
+                                        if isEditing {
+                                            Button {
+                                                withAnimation(.spring(duration: 0.2)) {
+                                                    vm.delete(result, context: modelContext)
+                                                }
+                                            } label: {
+                                                Image(systemName: "minus.circle.fill")
+                                                    .font(.system(size: 22))
+                                                    .foregroundStyle(.white, Color.red)
+                                                    .background(Color.white.clipShape(Circle()))
+                                            }
+                                            .offset(x: 8, y: -8)
+                                            .transition(.scale.combined(with: .opacity))
                                         }
                                     }
                             }
                         }
                         .padding(.horizontal, 20)
+                        .animation(.spring(duration: 0.25), value: isEditing)
                     }
                 }
                 .padding(.top, 8)
@@ -86,6 +100,15 @@ struct HistoryView: View {
             .navigationBarTitleDisplayMode(.large)
             .toolbar {
                 if !results.isEmpty {
+                    ToolbarItem(placement: .navigationBarLeading) {
+                        Button(isEditing ? "Done" : "Edit") {
+                            withAnimation(.spring(duration: 0.25)) {
+                                isEditing.toggle()
+                            }
+                        }
+                        .font(.dmSans(16, weight: isEditing ? .semibold : .regular))
+                        .foregroundStyle(Color.snapTerracotta)
+                    }
                     ToolbarItem(placement: .navigationBarTrailing) {
                         Menu {
                             ForEach(HistorySortOrder.allCases, id: \.self) { order in
@@ -104,8 +127,12 @@ struct HistoryView: View {
                             Image(systemName: "arrow.up.arrow.down")
                                 .foregroundStyle(Color.snapTerracotta)
                         }
+                        .disabled(isEditing)
                     }
                 }
+            }
+            .onChange(of: results.count) { _, _ in
+                if results.isEmpty { isEditing = false }
             }
         }
         .sheet(item: $selectedResult) { result in

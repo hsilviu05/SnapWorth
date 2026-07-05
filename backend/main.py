@@ -7,6 +7,7 @@ GET  /health → liveness check
 import asyncio
 import base64
 import json
+import logging
 import os
 import re
 import time
@@ -14,14 +15,24 @@ from collections import defaultdict
 
 import google.generativeai as genai
 from dotenv import load_dotenv
-from fastapi import FastAPI, File, Header, HTTPException, UploadFile
+from fastapi import FastAPI, File, Header, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, Field
 
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s %(name)s — %(message)s",
+    datefmt="%Y-%m-%dT%H:%M:%S",
+)
+log = logging.getLogger("snapworth")
+
 load_dotenv()
 
-genai.configure(api_key=os.environ.get("GEMINI_API_KEY", ""))
+_api_key = os.environ.get("GEMINI_API_KEY", "")
+if not _api_key:
+    log.warning("GEMINI_API_KEY is not set — scan requests will fail")
+genai.configure(api_key=_api_key)
 
 app = FastAPI(title="SnapWorth API", version="1.0.0")
 
@@ -122,7 +133,7 @@ def _extract_json(text: str) -> dict:
 # ── Endpoints ────────────────────────────────────────────────────────────────
 @app.get("/health")
 def health() -> dict:
-    return {"status": "ok", "version": "1.0.0"}
+    return {"status": "ok", "version": "1.0.0", "ai_key_set": bool(_api_key)}
 
 
 _STYLE = """
@@ -214,6 +225,7 @@ async def scan(
     file: UploadFile = File(...),
     x_device_id: str = Header(default="anonymous", alias="x-device-id"),
 ) -> ScanResponse:
+    device_short = x_device_id[:8]
     _check_rate_limit(x_device_id)
 
     content_type = file.content_type or "application/octet-stream"
@@ -225,10 +237,14 @@ async def scan(
         )
 
     image_bytes = await file.read()
+    image_kb = len(image_bytes) // 1024
     if len(image_bytes) > 10 * 1024 * 1024:
         raise HTTPException(status_code=400, detail="Image exceeds 10 MB limit.")
     if len(image_bytes) == 0:
         raise HTTPException(status_code=400, detail="Empty image file.")
+
+    log.info("scan start device=%s size=%dKB type=%s", device_short, image_kb, content_type)
+    t0 = time.monotonic()
 
     image_part = {"mime_type": content_type, "data": base64.standard_b64encode(image_bytes).decode()}
 
@@ -241,14 +257,17 @@ async def scan(
             break
         except Exception as exc:
             last_exc = exc
+            log.warning("gemini attempt %d failed: %s", attempt + 1, exc)
             if attempt == 0:
                 await asyncio.sleep(1.5)
     else:
+        log.error("gemini failed after retries: %s", last_exc)
         raise HTTPException(status_code=502, detail="The AI service is temporarily unavailable. Please try again.")
 
     try:
         data = _extract_json(raw)
     except (json.JSONDecodeError, ValueError) as exc:
+        log.error("json parse error: %s | raw: %.200s", exc, raw)
         raise HTTPException(status_code=500, detail=f"Could not parse AI response: {exc}")
 
     low = _safe_float(data.get("est_value_low_usd", 0))
@@ -257,6 +276,11 @@ async def scan(
         low, high = high, low
     if low == high:
         high = low * 1.5 if low > 0 else 1.0
+
+    elapsed = time.monotonic() - t0
+    log.info("scan ok device=%s item=%r value=$%.0f–$%.0f conf=%s elapsed=%.1fs",
+             device_short, data.get("item_name", "?"), low, high,
+             data.get("confidence", "?"), elapsed)
 
     return ScanResponse(
         item_name=str(data.get("item_name", "Unknown Item")),
