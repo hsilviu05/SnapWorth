@@ -24,7 +24,7 @@ struct MainTabView: View {
 
             SettingsView(purchaseService: purchaseService)
                 .tabItem {
-                    Label("Settings", systemImage: "gearshape")
+                    Label("Settings", systemImage: selectedTab == 2 ? "gearshape.fill" : "gearshape")
                 }
                 .tag(2)
         }

@@ -12,6 +12,7 @@ struct PaywallView: View {
             ScrollView {
                 VStack(spacing: 0) {
                     // ── Header ─────────────────────────────────────────────
+                    let isYearly = vm.selectedProductID == Config.yearlyProductID
                     VStack(spacing: 16) {
                         Image(systemName: "sparkle")
                             .font(.system(size: 44, weight: .light))
@@ -19,14 +20,16 @@ struct PaywallView: View {
                             .symbolRenderingMode(.hierarchical)
                             .padding(.top, 56)
 
-                        Text("Try SnapWorth\nfree for 3 days")
+                        Text(isYearly ? "Try SnapWorth\nfree for 3 days" : "Unlock\nSnapWorth Pro")
                             .font(.fraunces(32, weight: .bold))
                             .foregroundStyle(Color.snapEspresso)
                             .multilineTextAlignment(.center)
+                            .animation(.easeInOut(duration: 0.2), value: isYearly)
 
-                        Text("Then auto-renews. Cancel anytime.")
+                        Text(isYearly ? "Then $39.99/yr. Cancel anytime." : "$4.99/week. Cancel anytime.")
                             .font(.snapCaption)
                             .foregroundStyle(Color.snapWarmGray)
+                            .animation(.easeInOut(duration: 0.2), value: isYearly)
                     }
                     .padding(.bottom, 32)
 

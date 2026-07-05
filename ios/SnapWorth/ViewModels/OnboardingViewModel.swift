@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 @Observable
 final class OnboardingViewModel {
@@ -28,9 +29,9 @@ final class OnboardingViewModel {
     var isLastPage: Bool { currentPage == slides.count - 1 }
 
     func advance() {
-        if currentPage < slides.count - 1 {
-            currentPage += 1
-        }
+        guard currentPage < slides.count - 1 else { return }
+        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+        currentPage += 1
     }
 }
 

@@ -3,7 +3,7 @@ import SwiftData
 
 struct HistoryView: View {
     @Environment(\.modelContext) private var modelContext
-    @Query(sort: \ScanResult.timestamp, order: .reverse) private var results: [ScanResult]
+    @Query private var results: [ScanResult]
     @State private var vm = HistoryViewModel()
     @State private var selectedResult: ScanResult?
 
@@ -12,13 +12,7 @@ struct HistoryView: View {
         GridItem(.flexible(), spacing: 12),
     ]
 
-    var filteredResults: [ScanResult] {
-        guard !vm.searchText.isEmpty else { return results }
-        return results.filter {
-            $0.itemName.localizedCaseInsensitiveContains(vm.searchText) ||
-            $0.brand.localizedCaseInsensitiveContains(vm.searchText)
-        }
-    }
+    var filteredResults: [ScanResult] { vm.filtered(results) }
 
     var body: some View {
         NavigationStack {
@@ -72,6 +66,13 @@ struct HistoryView: View {
                                             Label("Delete", systemImage: "trash")
                                         }
                                     }
+                                    .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                                        Button(role: .destructive) {
+                                            vm.delete(result, context: modelContext)
+                                        } label: {
+                                            Label("Delete", systemImage: "trash")
+                                        }
+                                    }
                             }
                         }
                         .padding(.horizontal, 20)
@@ -83,6 +84,29 @@ struct HistoryView: View {
             .background(Color.snapBackground)
             .navigationTitle("My Finds")
             .navigationBarTitleDisplayMode(.large)
+            .toolbar {
+                if !results.isEmpty {
+                    ToolbarItem(placement: .navigationBarTrailing) {
+                        Menu {
+                            ForEach(HistorySortOrder.allCases, id: \.self) { order in
+                                Button {
+                                    vm.sortOrder = order
+                                } label: {
+                                    HStack {
+                                        Text(order.rawValue)
+                                        if vm.sortOrder == order {
+                                            Image(systemName: "checkmark")
+                                        }
+                                    }
+                                }
+                            }
+                        } label: {
+                            Image(systemName: "arrow.up.arrow.down")
+                                .foregroundStyle(Color.snapTerracotta)
+                        }
+                    }
+                }
+            }
         }
         .sheet(item: $selectedResult) { result in
             ResultView(result: result, onDismiss: { selectedResult = nil })

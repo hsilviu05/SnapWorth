@@ -26,6 +26,7 @@ struct SnapWorthApp: App {
     var body: some Scene {
         WindowGroup {
             RootView(purchaseService: purchaseService)
+                .preferredColorScheme(.light)
         }
         .modelContainer(sharedModelContainer)
     }

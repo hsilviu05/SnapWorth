@@ -93,6 +93,12 @@ final class ScanViewModel {
         if msg.contains("timeout") || msg.contains("timed out") {
             return "The request timed out. Please try again."
         }
+        if msg.contains("502") || msg.contains("temporarily unavailable") || msg.contains("ai service") {
+            return "Our AI is temporarily unavailable. Please try again in a moment."
+        }
+        if msg.contains("500") || msg.contains("server error") {
+            return "Something went wrong on our end. Please try again."
+        }
         return "Something went wrong. Please try again."
     }
 

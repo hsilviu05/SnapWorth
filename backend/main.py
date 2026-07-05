@@ -4,9 +4,11 @@ POST /scan  →  identify item, estimate resale value
 GET  /health → liveness check
 """
 
+import asyncio
 import base64
 import json
 import os
+import re
 import time
 from collections import defaultdict
 
@@ -35,11 +37,21 @@ app.add_middleware(
 _rate_store: dict[str, list[float]] = defaultdict(list)
 RATE_WINDOW_SECS = 3600
 RATE_MAX_REQUESTS = 20
+_last_cleanup = time.time()
 
 
 def _check_rate_limit(device_id: str) -> None:
-    device_id = device_id[:64]  # cap length before using as dict key
+    global _last_cleanup
+    device_id = device_id[:64]
     now = time.time()
+
+    # Prune stale device entries every 10 minutes to prevent unbounded growth
+    if now - _last_cleanup > 600:
+        stale = [k for k, v in _rate_store.items() if not v or now - max(v) > RATE_WINDOW_SECS]
+        for k in stale:
+            del _rate_store[k]
+        _last_cleanup = now
+
     timestamps = _rate_store[device_id]
     timestamps[:] = [t for t in timestamps if now - t < RATE_WINDOW_SECS]
     if len(timestamps) >= RATE_MAX_REQUESTS:
@@ -71,7 +83,9 @@ Required JSON schema:
 Rules:
 - Base value estimates ONLY on real, recent sold listings — not asking prices
 - If brand is clearly visible, weight values to that brand's specific secondhand market
+- est_value_low_usd must always be less than est_value_high_usd
 - sold_listings_count is your estimate of how many comparable sold listings you're basing the range on (use 0 if truly unknown)
+- If the image is blurry, shows multiple items, or is not a resalable item, set confidence to "Low" and provide your best estimate anyway
 - Never return values outside the JSON object"""
 
 _model = genai.GenerativeModel("gemini-2.5-flash")
@@ -89,6 +103,20 @@ class ScanResponse(BaseModel):
     sold_listings_count: int = Field(ge=0, default=0)
     listing_title: str
     listing_description: str
+
+
+def _extract_json(text: str) -> dict:
+    """Extract the first JSON object from the model response, handling markdown fences."""
+    text = text.strip()
+    # Strip markdown code fences if present
+    match = re.search(r"```(?:json)?\s*([\s\S]*?)```", text)
+    if match:
+        text = match.group(1).strip()
+    # Find the outermost JSON object
+    obj_match = re.search(r"\{[\s\S]*\}", text)
+    if obj_match:
+        text = obj_match.group(0)
+    return json.loads(text)
 
 
 # ── Endpoints ────────────────────────────────────────────────────────────────
@@ -165,7 +193,7 @@ responsible for any financial decisions made based on our estimates.</p>
 <p>SnapWorth offers auto-renewing subscriptions (weekly and yearly). Subscriptions
 are charged to your Apple ID account. You can cancel at any time in your device's
 subscription settings. Cancellation takes effect at the end of the current
-billing period. A 3-day free trial is available for new subscribers.</p>
+billing period. A 3-day free trial is available for new yearly subscribers.</p>
 
 <h2>Prohibited Use</h2>
 <p>You may not use SnapWorth to submit illegal content, attempt to reverse-engineer
@@ -205,6 +233,7 @@ async def scan(
     image_part = {"mime_type": content_type, "data": base64.standard_b64encode(image_bytes).decode()}
 
     last_exc: Exception | None = None
+    raw: str = ""
     for attempt in range(2):
         try:
             response = await _model.generate_content_async([SCAN_PROMPT, image_part])
@@ -213,26 +242,29 @@ async def scan(
         except Exception as exc:
             last_exc = exc
             if attempt == 0:
-                await __import__("asyncio").sleep(1.5)
+                await asyncio.sleep(1.5)
     else:
-        raise HTTPException(status_code=502, detail=f"AI service error: {last_exc}")
-
-    if raw.startswith("```"):
-        lines = raw.splitlines()
-        raw = "\n".join(lines[1:-1] if lines[-1] == "```" else lines[1:])
+        raise HTTPException(status_code=502, detail="The AI service is temporarily unavailable. Please try again.")
 
     try:
-        data = json.loads(raw)
-    except json.JSONDecodeError as exc:
-        raise HTTPException(status_code=500, detail=f"Could not parse AI response as JSON: {exc}")
+        data = _extract_json(raw)
+    except (json.JSONDecodeError, ValueError) as exc:
+        raise HTTPException(status_code=500, detail=f"Could not parse AI response: {exc}")
+
+    low = _safe_float(data.get("est_value_low_usd", 0))
+    high = _safe_float(data.get("est_value_high_usd", 0))
+    if low > high:
+        low, high = high, low
+    if low == high:
+        high = low * 1.5 if low > 0 else 1.0
 
     return ScanResponse(
         item_name=str(data.get("item_name", "Unknown Item")),
         brand=str(data.get("brand", "Unknown")),
         category=str(data.get("category", "other")),
         condition_notes=str(data.get("condition_notes", "Condition unknown")),
-        est_value_low_usd=_safe_float(data.get("est_value_low_usd", 0)),
-        est_value_high_usd=_safe_float(data.get("est_value_high_usd", 0)),
+        est_value_low_usd=low,
+        est_value_high_usd=high,
         confidence=str(data.get("confidence", "Low")),
         sold_listings_count=int(data.get("sold_listings_count", 0)),
         listing_title=str(data.get("listing_title", "")),
