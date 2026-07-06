@@ -40,9 +40,9 @@ app = FastAPI(title="SnapWorth API", version="1.0.0")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_credentials=False,
+    allow_methods=["POST", "GET", "OPTIONS"],
+    allow_headers=["Content-Type", "x-device-id"],
 )
 
 
@@ -237,7 +237,6 @@ async def scan(
     x_device_id: str = Header(default="anonymous", alias="x-device-id"),
 ) -> ScanResponse:
     device_short = x_device_id[:8]
-    _check_rate_limit(x_device_id)
 
     content_type = file.content_type or "application/octet-stream"
     allowed_types = {"image/jpeg", "image/png", "image/gif", "image/webp"}
@@ -253,6 +252,9 @@ async def scan(
         raise HTTPException(status_code=400, detail="Image exceeds 10 MB limit.")
     if len(image_bytes) == 0:
         raise HTTPException(status_code=400, detail="Empty image file.")
+
+    # Gate on rate limit only after validation — bad requests don't burn quota
+    _check_rate_limit(x_device_id)
 
     log.info("scan start device=%s size=%dKB type=%s", device_short, image_kb, content_type)
     t0 = time.monotonic()
