@@ -58,7 +58,7 @@ final class ScanViewModel {
             )
 
             context.insert(result)
-            try? context.save()
+            try context.save()
 
             if !purchaseService.isSubscribed {
                 freeScansUsed += 1

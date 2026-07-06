@@ -49,6 +49,7 @@ final class ScanResult {
     }
 
     var formattedRange: String {
+        guard valueLow.isFinite && valueHigh.isFinite else { return "Price unavailable" }
         let fmt = NumberFormatter.snapCurrency
         let lo = fmt.string(from: NSNumber(value: valueLow)) ?? "$\(Int(valueLow))"
         let hi = fmt.string(from: NSNumber(value: valueHigh)) ?? "$\(Int(valueHigh))"

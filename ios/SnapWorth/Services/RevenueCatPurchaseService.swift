@@ -3,9 +3,14 @@ import Foundation
 
 @MainActor
 final class RevenueCatPurchaseService: PurchaseService, ObservableObject {
-    @Published private(set) var isSubscribed: Bool = false
+    @Published private(set) var isSubscribed: Bool
+
+    private static let cacheKey = "snapworth_is_subscribed"
 
     init() {
+        // Restore last known status instantly so subscribed users never see
+        // the free-tier UI while the async RevenueCat check is in flight.
+        self.isSubscribed = UserDefaults.standard.bool(forKey: Self.cacheKey)
         Purchases.configure(withAPIKey: Config.revenueCatAPIKey)
         refreshSubscriptionStatus()
     }
@@ -20,19 +25,24 @@ final class RevenueCatPurchaseService: PurchaseService, ObservableObject {
         }
 
         let result = try await Purchases.shared.purchase(package: package)
-        isSubscribed = result.customerInfo.entitlements["premium"]?.isActive == true
+        setSubscribed(result.customerInfo.entitlements["premium"]?.isActive == true)
     }
 
     func restorePurchases() async throws {
         let info = try await Purchases.shared.restorePurchases()
-        isSubscribed = info.entitlements["premium"]?.isActive == true
+        setSubscribed(info.entitlements["premium"]?.isActive == true)
     }
 
     private func refreshSubscriptionStatus() {
         Task {
             if let info = try? await Purchases.shared.customerInfo() {
-                isSubscribed = info.entitlements["premium"]?.isActive == true
+                setSubscribed(info.entitlements["premium"]?.isActive == true)
             }
         }
+    }
+
+    private func setSubscribed(_ value: Bool) {
+        isSubscribed = value
+        UserDefaults.standard.set(value, forKey: Self.cacheKey)
     }
 }

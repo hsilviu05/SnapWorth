@@ -8,6 +8,7 @@ import asyncio
 import base64
 import json
 import logging
+import math
 import os
 import re
 import time
@@ -308,6 +309,9 @@ async def scan(
 
 def _safe_float(value: object) -> float:
     try:
-        return max(0.0, float(value))  # type: ignore[arg-type]
+        result = float(value)  # type: ignore[arg-type]
+        if math.isnan(result) or math.isinf(result):
+            return 0.0
+        return max(0.0, result)
     except (TypeError, ValueError):
         return 0.0

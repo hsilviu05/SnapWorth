@@ -10,6 +10,7 @@ enum HistorySortOrder: String, CaseIterable {
 final class HistoryViewModel {
     var searchText: String = ""
     var sortOrder: HistorySortOrder = .newest
+    var deleteError: String?
 
     func sorted(_ results: [ScanResult]) -> [ScanResult] {
         switch sortOrder {
@@ -36,6 +37,8 @@ final class HistoryViewModel {
 
     func delete(_ result: ScanResult, context: ModelContext) {
         context.delete(result)
-        try? context.save()
+        do { try context.save() } catch {
+            deleteError = "Could not delete item. Please try again."
+        }
     }
 }

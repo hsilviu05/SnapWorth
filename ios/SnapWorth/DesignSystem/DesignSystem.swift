@@ -236,6 +236,7 @@ struct ValueRangeView: View {
     let high: Double
 
     private var formatted: String {
+        guard low.isFinite && high.isFinite else { return "Price unavailable" }
         let fmt = NumberFormatter.snapCurrency
         let lo = fmt.string(from: NSNumber(value: low))  ?? "$\(Int(low))"
         let hi = fmt.string(from: NSNumber(value: high)) ?? "$\(Int(high))"

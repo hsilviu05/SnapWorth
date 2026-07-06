@@ -353,10 +353,11 @@ class TestSafeFloat:
     def test_nan_string_returns_zero(self):
         assert _safe_float("NaN") == 0.0
 
-    def test_infinity_string_returns_infinity(self):
-        # Python float("inf") is valid — backend should handle gracefully
-        result = _safe_float("inf")
-        assert result >= 0  # At minimum, not negative
+    def test_infinity_string_clamped_to_zero(self):
+        # inf would crash iOS Int() conversion — must be clamped
+        assert _safe_float("inf") == 0.0
+        assert _safe_float("-inf") == 0.0
+        assert _safe_float("infinity") == 0.0
 
     def test_dict_returns_zero(self):
         assert _safe_float({"nested": "object"}) == 0.0
