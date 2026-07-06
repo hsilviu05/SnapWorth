@@ -82,7 +82,7 @@ final class ScanViewModel {
         selectedPhotoItem = nil
     }
 
-    private func friendlyError(_ error: Error) -> String {
+    func friendlyError(_ error: Error) -> String {
         let msg = error.localizedDescription.lowercased()
         if msg.contains("429") || msg.contains("rate limit") {
             return "You've hit the scan limit. Try again in an hour."
