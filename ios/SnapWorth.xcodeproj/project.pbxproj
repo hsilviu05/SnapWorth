@@ -38,6 +38,16 @@
 		AA00000000000000000000F4 /* DMSans-Variable.ttf in Resources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000000F3 /* DMSans-Variable.ttf */; };
 /* End PBXBuildFile section */
 
+/* Begin PBXContainerItemProxy section */
+		AA0000000000000000000108 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = AA00000000000000000000AA /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = AA00000000000000000000AD;
+			remoteInfo = SnapWorth;
+		};
+/* End PBXContainerItemProxy section */
+
 /* Begin PBXFileReference section */
 		AA00000000000000000000AE /* SnapWorth.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = SnapWorth.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		AA0000000000000000000101 /* SnapWorthTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = SnapWorthTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -242,6 +252,7 @@
 			buildRules = (
 			);
 			dependencies = (
+				AA0000000000000000000109 /* PBXTargetDependency */,
 			);
 			name = SnapWorthTests;
 			productName = SnapWorthTests;
@@ -350,6 +361,14 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		AA0000000000000000000109 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = AA00000000000000000000AD /* SnapWorth */;
+			targetProxy = AA0000000000000000000108 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		AA00000000000000000000B1 /* Debug */ = {
