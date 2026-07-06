@@ -69,14 +69,15 @@ struct ScanView: View {
                     // Photo library picker
                     PhotosPicker(selection: $vm.selectedPhotoItem, matching: .images) {
                         RoundedRectangle(cornerRadius: 8, style: .continuous)
-                            .fill(Color.snapBackground.opacity(0.2))
+                            .fill(Color.snapBackground.opacity(vm.isAnalyzing ? 0.1 : 0.2))
                             .frame(width: 52, height: 52)
                             .overlay(
                                 Image(systemName: "photo.on.rectangle")
                                     .font(.system(size: 22, weight: .light))
-                                    .foregroundStyle(Color.snapBackground)
+                                    .foregroundStyle(Color.snapBackground.opacity(vm.isAnalyzing ? 0.4 : 1))
                             )
                     }
+                    .disabled(vm.isAnalyzing)
                     .accessibilityLabel("Choose photo from library")
                     .onChange(of: vm.selectedPhotoItem) { _, _ in
                         Task {

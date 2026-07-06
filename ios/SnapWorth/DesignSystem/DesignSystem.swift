@@ -110,6 +110,8 @@ extension NumberFormatter {
     static let snapCurrency: NumberFormatter = {
         let f = NumberFormatter()
         f.numberStyle = .currency
+        f.currencyCode = "USD"
+        f.locale = Locale(identifier: "en_US")
         f.maximumFractionDigits = 0
         return f
     }()
