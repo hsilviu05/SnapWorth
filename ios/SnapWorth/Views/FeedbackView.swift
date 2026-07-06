@@ -3,7 +3,6 @@ import SwiftUI
 struct FeedbackView: View {
     var initialType: FeedbackType = .featureRequest
 
-    @Environment(\.dismiss) private var dismiss
     @State private var feedbackType: FeedbackType = .featureRequest
     @State private var message: String = ""
     @State private var didSend: Bool = false

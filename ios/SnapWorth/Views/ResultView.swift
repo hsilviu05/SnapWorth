@@ -62,12 +62,14 @@ struct ResultView: View {
                                 .first?
                                 .trimmingCharacters(in: .whitespaces)
                                 .prefix(20)
-                                .description ?? result.conditionNotes
-                            ChipView(
-                                label: conditionLabel,
-                                color: Color.snapBorder,
-                                textColor: Color.snapEspresso
-                            )
+                                .description ?? ""
+                            if !conditionLabel.isEmpty {
+                                ChipView(
+                                    label: conditionLabel,
+                                    color: Color.snapBorder,
+                                    textColor: Color.snapEspresso
+                                )
+                            }
                         }
 
                         Divider()

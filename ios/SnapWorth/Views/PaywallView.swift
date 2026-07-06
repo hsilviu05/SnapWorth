@@ -89,12 +89,13 @@ struct PaywallView: View {
                         ) {
                             Task { await vm.purchase(service: purchaseService) }
                         }
+                        .disabled(vm.isPurchasing || vm.isRestoring)
 
-                        Button("Restore purchase") {
+                        GhostButton(title: "Restore purchase", isLoading: vm.isRestoring) {
                             Task { await vm.restore(service: purchaseService) }
                         }
-                        .font(.snapBody)
-                        .foregroundStyle(Color.snapWarmGray)
+                        .frame(height: 44)
+                        .disabled(vm.isPurchasing || vm.isRestoring)
 
                         VStack(spacing: 8) {
                             Text("Subscription automatically renews unless cancelled at least 24 hours before the end of the current period. Your Apple ID account will be charged for renewal within 24 hours prior to the end of the current period. Manage or cancel anytime in your Apple ID Account Settings. Any unused portion of a free trial will be forfeited upon purchase.")
