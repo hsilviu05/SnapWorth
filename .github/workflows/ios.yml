@@ -1,0 +1,92 @@
+name: iOS
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'ios/**'
+      - '.github/workflows/ios.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'ios/**'
+      - '.github/workflows/ios.yml'
+
+jobs:
+  build-test:
+    name: Build & Test
+    runs-on: macos-15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Select Xcode 16
+        run: sudo xcode-select -s /Applications/Xcode_16.3.app
+
+      - name: Resolve Swift package dependencies
+        run: |
+          xcodebuild -resolvePackageDependencies \
+            -project ios/SnapWorth.xcodeproj \
+            -scheme SnapWorth \
+            -clonedSourcePackagesDirPath ~/spm-cache
+
+      - name: Build & run unit tests
+        run: |
+          set -o pipefail
+          xcodebuild test \
+            -project ios/SnapWorth.xcodeproj \
+            -scheme SnapWorth \
+            -destination 'platform=iOS Simulator,name=iPhone 16,OS=latest' \
+            -clonedSourcePackagesDirPath ~/spm-cache \
+            -enableCodeCoverage YES \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            ONLY_ACTIVE_ARCH=YES \
+            2>&1 | grep -E '(error:|warning: |Build succeeded|Test Suite|passed|failed|FAILED)' || true
+          # Re-run without filter to capture exit code
+          xcodebuild test \
+            -project ios/SnapWorth.xcodeproj \
+            -scheme SnapWorth \
+            -destination 'platform=iOS Simulator,name=iPhone 16,OS=latest' \
+            -clonedSourcePackagesDirPath ~/spm-cache \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            ONLY_ACTIVE_ARCH=YES \
+            -quiet
+
+  # ── Security gate: no real keys committed ───────────────────────────────────
+  secrets-check:
+    name: No secrets in source
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: RevenueCat iOS key must be placeholder
+        run: |
+          # Real iOS keys start with appl_ followed by 20+ alphanum chars
+          if grep -rE 'appl_[A-Za-z0-9]{20,}' ios/SnapWorth/; then
+            echo "::error::Real RevenueCat appl_ key found — replace with placeholder"
+            exit 1
+          fi
+
+      - name: RevenueCat server secret must not be in iOS source
+        run: |
+          if grep -rE 'sk_[A-Za-z0-9]{20,}' ios/SnapWorth/; then
+            echo "::error::RevenueCat server secret (sk_) found in iOS source — this is a critical security leak"
+            exit 1
+          fi
+
+      - name: Gemini API key must not be in source
+        run: |
+          if grep -rE 'AIzaSy[A-Za-z0-9_-]{33}' .; then
+            echo "::error::Gemini API key found in source — use .env only"
+            exit 1
+          fi
+
+      - name: .env must not be tracked
+        run: |
+          if git ls-files --error-unmatch backend/.env 2>/dev/null; then
+            echo "::error::backend/.env is tracked — rotate the API key immediately"
+            exit 1
+          fi
