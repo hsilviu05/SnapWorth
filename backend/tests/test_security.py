@@ -16,7 +16,7 @@ from fastapi.testclient import TestClient
 import sys, os
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
-from main import app, _check_rate_limit, _rate_store, _extract_json, _safe_float
+from main import app, _check_rate_limit, _rate_store, _extract_json, _safe_float, _safe_int
 
 client = TestClient(app)
 
@@ -370,6 +370,34 @@ class TestSafeFloat:
 
     def test_large_value_preserved(self):
         assert _safe_float(999_999) == 999_999.0
+
+
+# ── _safe_int edge cases ──────────────────────────────────────────────────────
+
+class TestSafeInt:
+    def test_integer_passthrough(self):
+        assert _safe_int(38) == 38
+
+    def test_float_truncated(self):
+        assert _safe_int(38.9) == 38
+
+    def test_string_integer(self):
+        assert _safe_int("42") == 42
+
+    def test_string_float(self):
+        assert _safe_int("38.5") == 38
+
+    def test_negative_clamped(self):
+        assert _safe_int(-5) == 0
+
+    def test_none_returns_zero(self):
+        assert _safe_int(None) == 0
+
+    def test_string_text_returns_zero(self):
+        assert _safe_int("about 40") == 0
+
+    def test_dict_returns_zero(self):
+        assert _safe_int({"n": 5}) == 0
 
 
 # ── Rate limit store memory safety ───────────────────────────────────────────

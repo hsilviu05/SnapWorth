@@ -301,10 +301,17 @@ async def scan(
         est_value_low_usd=low,
         est_value_high_usd=high,
         confidence=str(data.get("confidence", "Low")),
-        sold_listings_count=int(data.get("sold_listings_count", 0)),
+        sold_listings_count=_safe_int(data.get("sold_listings_count", 0)),
         listing_title=str(data.get("listing_title", "")),
         listing_description=str(data.get("listing_description", "")),
     )
+
+
+def _safe_int(value: object) -> int:
+    try:
+        return max(0, int(float(value)))  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        return 0
 
 
 def _safe_float(value: object) -> float:

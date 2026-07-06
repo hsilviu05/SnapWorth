@@ -92,7 +92,8 @@ struct ScanView: View {
                     }
                     .disabled(vm.isAnalyzing)
                     .accessibilityLabel("Choose photo from library")
-                    .onChange(of: vm.selectedPhotoItem) { _, _ in
+                    .onChange(of: vm.selectedPhotoItem) { _, newItem in
+                        guard newItem != nil else { return }
                         Task {
                             await vm.loadSelectedPhoto()
                             if let img = vm.capturedImage {

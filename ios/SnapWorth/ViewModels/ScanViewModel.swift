@@ -29,7 +29,7 @@ final class ScanViewModel {
 
     // ── Scan trigger ─────────────────────────────────────────────────
     func startScan(image: UIImage, purchaseService: any PurchaseService, context: ModelContext) async {
-        // Gate on subscription or free scan budget
+        guard !isAnalyzing else { return }
         guard purchaseService.isSubscribed || hasFreeScanRemaining else {
             showPaywall = true
             return
