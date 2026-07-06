@@ -94,7 +94,6 @@ struct PaywallView: View {
                         GhostButton(title: "Restore purchase", isLoading: vm.isRestoring) {
                             Task { await vm.restore(service: purchaseService) }
                         }
-                        .frame(height: 44)
                         .disabled(vm.isPurchasing || vm.isRestoring)
 
                         VStack(spacing: 8) {

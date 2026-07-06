@@ -105,9 +105,12 @@ struct FeedbackView: View {
                             .padding(10)
                     }
 
-                    Text("Minimum 10 characters.")
-                        .font(.dmSans(11))
-                        .foregroundStyle(Color.snapWarmGray.opacity(0.6))
+                    if !canSend {
+                        Text("\(max(0, 10 - message.trimmingCharacters(in: .whitespacesAndNewlines).count)) more character\(10 - message.trimmingCharacters(in: .whitespacesAndNewlines).count == 1 ? "" : "s") needed.")
+                            .font(.dmSans(11))
+                            .foregroundStyle(Color.snapWarmGray.opacity(0.6))
+                            .transition(.opacity)
+                    }
                 }
                 .padding(.horizontal, 20)
 

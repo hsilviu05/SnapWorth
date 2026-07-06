@@ -191,10 +191,6 @@ private struct SettingsRow: View {
                     .foregroundStyle(destructive ? Color.red : Color.snapEspresso)
 
                 Spacer()
-
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(Color.snapBorder)
             }
         }
     }

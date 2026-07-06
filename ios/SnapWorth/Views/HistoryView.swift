@@ -129,6 +129,7 @@ struct HistoryView: View {
                                 .foregroundStyle(Color.snapTerracotta)
                         }
                         .disabled(isEditing)
+                        .opacity(isEditing ? 0.4 : 1)
                     }
                 }
             }

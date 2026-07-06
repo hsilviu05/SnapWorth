@@ -455,11 +455,8 @@ struct ScanHistoryCard: View {
                         .scaledToFill()
                 } else {
                     Rectangle()
-                        .fill(Color.snapBorder)
-                        .overlay(
-                            Image(systemName: "photo")
-                                .foregroundStyle(Color.snapWarmGray)
-                        )
+                        .fill(Color.snapBorder.opacity(0.6))
+                        .shimmering()
                 }
             }
             .frame(height: 120)
