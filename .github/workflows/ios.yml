@@ -21,7 +21,11 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Select Xcode 16
-        run: sudo xcode-select -s /Applications/Xcode_16.3.app
+        run: |
+          # Pick the latest installed Xcode 16.x
+          XCODE=$(ls /Applications/ | grep -E "^Xcode_16" | sort -V | tail -1)
+          sudo xcode-select -s "/Applications/$XCODE"
+          xcodebuild -version
 
       - name: Resolve Swift package dependencies
         run: |
@@ -30,25 +34,48 @@ jobs:
             -scheme SnapWorth \
             -clonedSourcePackagesDirPath ~/spm-cache
 
+      - name: Prepare iOS Simulator
+        id: sim
+        run: |
+          echo "=== Available runtimes ==="
+          xcrun simctl list runtimes
+          echo "=== Available devices ==="
+          xcrun simctl list devices available
+
+          # Find an available iPhone simulator UDID
+          UDID=$(xcrun simctl list devices available \
+            | grep "iPhone" \
+            | head -1 \
+            | grep -oE '[A-F0-9]{8}-[A-F0-9]{4}-[A-F0-9]{4}-[A-F0-9]{4}-[A-F0-9]{12}' \
+            || true)
+
+          if [ -z "$UDID" ]; then
+            echo "No available iPhone simulator found — creating one from installed runtime"
+            RT=$(xcrun simctl list runtimes \
+              | grep "iOS" \
+              | grep -v "unavailable" \
+              | tail -1 \
+              | awk '{print $NF}')
+            echo "Runtime identifier: $RT"
+            UDID=$(xcrun simctl create "CI-iPhone" \
+              com.apple.CoreSimulator.SimDeviceType.iPhone-16 \
+              "$RT")
+            echo "Created simulator: $UDID"
+          fi
+
+          echo "Booting simulator $UDID"
+          xcrun simctl boot "$UDID" 2>/dev/null || true
+          echo "udid=$UDID" >> "$GITHUB_OUTPUT"
+
       - name: Build & run unit tests
         run: |
           set -o pipefail
           xcodebuild test \
             -project ios/SnapWorth.xcodeproj \
             -scheme SnapWorth \
-            -destination 'platform=iOS Simulator,name=iPhone 16,OS=latest' \
+            -destination "platform=iOS Simulator,id=${{ steps.sim.outputs.udid }}" \
             -clonedSourcePackagesDirPath ~/spm-cache \
             -enableCodeCoverage YES \
-            CODE_SIGN_IDENTITY="" \
-            CODE_SIGNING_REQUIRED=NO \
-            ONLY_ACTIVE_ARCH=YES \
-            2>&1 | grep -E '(error:|warning: |Build succeeded|Test Suite|passed|failed|FAILED)' || true
-          # Re-run without filter to capture exit code
-          xcodebuild test \
-            -project ios/SnapWorth.xcodeproj \
-            -scheme SnapWorth \
-            -destination 'platform=iOS Simulator,name=iPhone 16,OS=latest' \
-            -clonedSourcePackagesDirPath ~/spm-cache \
             CODE_SIGN_IDENTITY="" \
             CODE_SIGNING_REQUIRED=NO \
             ONLY_ACTIVE_ARCH=YES \
