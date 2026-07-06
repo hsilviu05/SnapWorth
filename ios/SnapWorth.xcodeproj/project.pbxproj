@@ -33,12 +33,15 @@
 		AA00000000000000000000FA /* RevenueCat in Frameworks */ = {isa = PBXBuildFile; productRef = AA00000000000000000000F9 /* RevenueCat */; };
 		AA00000000000000000000FC /* FeedbackView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000000FB /* FeedbackView.swift */; };
 		AA00000000000000000000ED /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000000EC /* Assets.xcassets */; };
+		AA0000000000000000000100 /* SnapWorthTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000102 /* SnapWorthTests.swift */; };
 		AA00000000000000000000F2 /* Fraunces-Variable.ttf in Resources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000000F1 /* Fraunces-Variable.ttf */; };
 		AA00000000000000000000F4 /* DMSans-Variable.ttf in Resources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000000F3 /* DMSans-Variable.ttf */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
 		AA00000000000000000000AE /* SnapWorth.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = SnapWorth.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		AA0000000000000000000101 /* SnapWorthTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = SnapWorthTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		AA0000000000000000000102 /* SnapWorthTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SnapWorthTests.swift; sourceTree = "<group>"; };
 		AA00000000000000000000C0 /* SnapWorthApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SnapWorthApp.swift; sourceTree = "<group>"; };
 		AA00000000000000000000C2 /* Config.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Config.swift; sourceTree = "<group>"; };
 		AA00000000000000000000C4 /* DesignSystem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DesignSystem.swift; sourceTree = "<group>"; };
@@ -78,6 +81,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		AA0000000000000000000106 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -103,6 +113,7 @@
 			isa = PBXGroup;
 			children = (
 				AA00000000000000000000AE /* SnapWorth.app */,
+				AA0000000000000000000101 /* SnapWorthTests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -184,8 +195,17 @@
 			isa = PBXGroup;
 			children = (
 				AA00000000000000000000AB /* SnapWorth */,
+				AA0000000000000000000103 /* SnapWorthTests */,
 				AA00000000000000000000AC /* Products */,
 			);
+			sourceTree = "<group>";
+		};
+		AA0000000000000000000103 /* SnapWorthTests */ = {
+			isa = PBXGroup;
+			children = (
+				AA0000000000000000000102 /* SnapWorthTests.swift */,
+			);
+			path = SnapWorthTests;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -211,6 +231,23 @@
 			productReference = AA00000000000000000000AE /* SnapWorth.app */;
 			productType = "com.apple.product-type.application";
 		};
+		AA0000000000000000000104 /* SnapWorthTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = AA000000000000000000010A /* Build configuration list for PBXNativeTarget "SnapWorthTests" */;
+			buildPhases = (
+				AA0000000000000000000105 /* Sources */,
+				AA0000000000000000000106 /* Frameworks */,
+				AA0000000000000000000107 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = SnapWorthTests;
+			productName = SnapWorthTests;
+			productReference = AA0000000000000000000101 /* SnapWorthTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -223,6 +260,10 @@
 				TargetAttributes = {
 					AA00000000000000000000AD = {
 						CreatedOnToolsVersion = 15.0;
+					};
+					AA0000000000000000000104 = {
+						CreatedOnToolsVersion = 15.0;
+						TestTargetID = AA00000000000000000000AD;
 					};
 				};
 			};
@@ -243,6 +284,7 @@
 			projectRoot = "";
 			targets = (
 				AA00000000000000000000AD /* SnapWorth */,
+				AA0000000000000000000104 /* SnapWorthTests */,
 			);
 		};
 /* End PBXProject section */
@@ -255,6 +297,13 @@
 				AA00000000000000000000ED /* Assets.xcassets in Resources */,
 				AA00000000000000000000F2 /* Fraunces-Variable.ttf in Resources */,
 				AA00000000000000000000F4 /* DMSans-Variable.ttf in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		AA0000000000000000000107 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -289,6 +338,14 @@
 				AA00000000000000000000EB /* SettingsView.swift in Sources */,
 				AA00000000000000000000F7 /* LegalView.swift in Sources */,
 				AA00000000000000000000FC /* FeedbackView.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		AA0000000000000000000105 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				AA0000000000000000000100 /* SnapWorthTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -468,6 +525,48 @@
 			};
 			name = Release;
 		};
+		AA000000000000000000010B /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = "";
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.snapworth.appTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/SnapWorth.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/SnapWorth";
+			};
+			name = Debug;
+		};
+		AA000000000000000000010C /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = "";
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.snapworth.appTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/SnapWorth.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/SnapWorth";
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -485,6 +584,15 @@
 			buildConfigurations = (
 				AA00000000000000000000B3 /* Debug */,
 				AA00000000000000000000B4 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		AA000000000000000000010A /* Build configuration list for PBXNativeTarget "SnapWorthTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				AA000000000000000000010B /* Debug */,
+				AA000000000000000000010C /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
