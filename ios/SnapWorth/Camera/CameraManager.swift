@@ -9,8 +9,8 @@ final class CameraManager: NSObject, ObservableObject {
     @Published var authStatus: AVAuthorizationStatus = .notDetermined
     @Published var error: CameraError?
 
-    let session = AVCaptureSession()
-    private let photoOutput = AVCapturePhotoOutput()
+    nonisolated(unsafe) let session = AVCaptureSession()
+    nonisolated(unsafe) private let photoOutput = AVCapturePhotoOutput()
     private var sessionQueue = DispatchQueue(label: "com.snapworth.camera")
     private var isConfigured = false
 
@@ -25,7 +25,7 @@ final class CameraManager: NSObject, ObservableObject {
             setupSessionIfNeeded()
         case .notDetermined:
             AVCaptureDevice.requestAccess(for: .video) { [weak self] granted in
-                DispatchQueue.main.async {
+                Task { @MainActor [weak self] in
                     self?.authStatus = granted ? .authorized : .denied
                     if granted { self?.setupSessionIfNeeded() }
                 }
@@ -57,7 +57,7 @@ final class CameraManager: NSObject, ObservableObject {
                 let input = try? AVCaptureDeviceInput(device: device),
                 self.session.canAddInput(input)
             else {
-                DispatchQueue.main.async { self.error = .setupFailed }
+                Task { @MainActor [weak self] in self?.error = .setupFailed }
                 return
             }
             self.session.addInput(input)
@@ -74,8 +74,7 @@ final class CameraManager: NSObject, ObservableObject {
 
             self.session.commitConfiguration()
             self.session.startRunning()
-            // isConfigured is @MainActor — must hop back to main thread to write it
-            DispatchQueue.main.async { self.isConfigured = true }
+            Task { @MainActor [weak self] in self?.isConfigured = true }
         }
     }
 

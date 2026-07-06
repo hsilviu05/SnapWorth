@@ -12,6 +12,7 @@ struct ScanView: View {
     @State private var showResult = false
 
     var body: some View {
+        let isAnalyzing = vm.isAnalyzing
         ZStack {
             // ── Camera background (warm charcoal) ─────────────────────────
             Color.snapCharcoal.ignoresSafeArea()
@@ -81,12 +82,12 @@ struct ScanView: View {
                     // Photo library picker
                     PhotosPicker(selection: $vm.selectedPhotoItem, matching: .images) {
                         RoundedRectangle(cornerRadius: 8, style: .continuous)
-                            .fill(Color.snapBackground.opacity(vm.isAnalyzing ? 0.1 : 0.2))
+                            .fill(Color.snapBackground.opacity(isAnalyzing ? 0.1 : 0.2))
                             .frame(width: 52, height: 52)
                             .overlay(
                                 Image(systemName: "photo.on.rectangle")
                                     .font(.system(size: 22, weight: .light))
-                                    .foregroundStyle(Color.snapBackground.opacity(vm.isAnalyzing ? 0.4 : 1))
+                                    .foregroundStyle(Color.snapBackground.opacity(isAnalyzing ? 0.4 : 1))
                             )
                     }
                     .disabled(vm.isAnalyzing)

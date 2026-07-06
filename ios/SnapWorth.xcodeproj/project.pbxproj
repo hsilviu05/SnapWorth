@@ -36,6 +36,7 @@
 		AA0000000000000000000100 /* SnapWorthTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000102 /* SnapWorthTests.swift */; };
 		AA00000000000000000000F2 /* Fraunces-Variable.ttf in Resources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000000F1 /* Fraunces-Variable.ttf */; };
 		AA00000000000000000000F4 /* DMSans-Variable.ttf in Resources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000000F3 /* DMSans-Variable.ttf */; };
+		AA000000000000000000010E /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = AA000000000000000000010D /* PrivacyInfo.xcprivacy */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -51,6 +52,7 @@
 /* Begin PBXFileReference section */
 		AA00000000000000000000AE /* SnapWorth.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = SnapWorth.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		AA0000000000000000000101 /* SnapWorthTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = SnapWorthTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		AA000000000000000000010D /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		AA0000000000000000000102 /* SnapWorthTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SnapWorthTests.swift; sourceTree = "<group>"; };
 		AA00000000000000000000C0 /* SnapWorthApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SnapWorthApp.swift; sourceTree = "<group>"; };
 		AA00000000000000000000C2 /* Config.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Config.swift; sourceTree = "<group>"; };
@@ -108,6 +110,7 @@
 				AA00000000000000000000C2 /* Config.swift */,
 				AA00000000000000000000EC /* Assets.xcassets */,
 				AA00000000000000000000EE /* Info.plist */,
+				AA000000000000000000010D /* PrivacyInfo.xcprivacy */,
 				AA00000000000000000000F5 /* Fonts */,
 				AA00000000000000000000B8 /* DesignSystem */,
 				AA00000000000000000000B9 /* Models */,
@@ -308,6 +311,7 @@
 				AA00000000000000000000ED /* Assets.xcassets in Resources */,
 				AA00000000000000000000F2 /* Fraunces-Variable.ttf in Resources */,
 				AA00000000000000000000F4 /* DMSans-Variable.ttf in Resources */,
+				AA000000000000000000010E /* PrivacyInfo.xcprivacy in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
