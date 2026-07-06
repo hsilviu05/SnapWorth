@@ -33,16 +33,28 @@ struct ScanView: View {
 
                     Spacer()
 
-                    // Free scan counter (only shown when not subscribed)
+                    // Free scan counter / upgrade CTA
                     if !purchaseService.isSubscribed {
                         let remaining = max(0, Config.freeScansAllowed - vm.freeScansUsed)
-                        Text("\(remaining) free scan\(remaining == 1 ? "" : "s") left")
-                            .font(.snapCaption)
-                            .foregroundStyle(Color.snapBackground.opacity(0.8))
-                            .padding(.horizontal, 10)
-                            .padding(.vertical, 5)
-                            .background(Color.snapCharcoal.opacity(0.5))
-                            .clipShape(Capsule())
+                        if remaining == 0 {
+                            Button { vm.showPaywall = true } label: {
+                                Text("Upgrade to Pro")
+                                    .font(.snapCaption.bold())
+                                    .foregroundStyle(Color.snapBackground)
+                                    .padding(.horizontal, 10)
+                                    .padding(.vertical, 5)
+                                    .background(Color.snapTerracotta)
+                                    .clipShape(Capsule())
+                            }
+                        } else {
+                            Text("\(remaining) free scan\(remaining == 1 ? "" : "s") left")
+                                .font(.snapCaption)
+                                .foregroundStyle(Color.snapBackground.opacity(0.8))
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 5)
+                                .background(Color.snapCharcoal.opacity(0.5))
+                                .clipShape(Capsule())
+                        }
                     }
                 }
                 .padding(.horizontal, 20)

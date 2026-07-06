@@ -50,8 +50,15 @@ struct SettingsView: View {
 
                 // ── Support ────────────────────────────────────────────────
                 Section("Support") {
-                    SettingsRow(icon: "envelope", label: "Contact us") {
-                        vm.sendFeedback()
+                    NavigationLink {
+                        FeedbackView(initialType: .featureRequest)
+                    } label: {
+                        SettingsRowLabel(icon: "lightbulb", label: "Suggest a feature")
+                    }
+                    NavigationLink {
+                        FeedbackView(initialType: .bugReport)
+                    } label: {
+                        SettingsRowLabel(icon: "ant", label: "Report a bug")
                     }
                     SettingsRow(icon: "star", label: "Rate SnapWorth") {
                         vm.openURL("https://apps.apple.com/search?term=snapworth")
