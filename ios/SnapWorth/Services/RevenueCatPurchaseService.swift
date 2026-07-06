@@ -24,8 +24,16 @@ final class RevenueCatPurchaseService: PurchaseService, ObservableObject {
             throw PurchaseError.failed("Product not found in RevenueCat offerings.")
         }
 
-        let result = try await Purchases.shared.purchase(package: package)
-        setSubscribed(result.customerInfo.entitlements["premium"]?.isActive == true)
+        do {
+            let result = try await Purchases.shared.purchase(package: package)
+            setSubscribed(result.customerInfo.entitlements["premium"]?.isActive == true)
+        } catch {
+            let nsErr = error as NSError
+            if nsErr.code == ErrorCode.purchaseCancelledError.rawValue {
+                throw PurchaseError.cancelled
+            }
+            throw PurchaseError.failed(nsErr.localizedDescription)
+        }
     }
 
     func restorePurchases() async throws {

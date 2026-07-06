@@ -140,6 +140,14 @@ struct HistoryView: View {
         .sheet(item: $selectedResult) { result in
             ResultView(result: result, onDismiss: { selectedResult = nil })
         }
+        .alert("Delete Failed", isPresented: Binding(
+            get: { vm.deleteError != nil },
+            set: { if !$0 { vm.deleteError = nil } }
+        )) {
+            Button("OK", role: .cancel) { vm.deleteError = nil }
+        } message: {
+            Text(vm.deleteError ?? "")
+        }
     }
 }
 

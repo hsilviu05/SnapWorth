@@ -246,6 +246,15 @@ async def scan(
             detail=f"Unsupported file type '{content_type}'. Use JPEG, PNG, GIF, or WebP.",
         )
 
+    # Reject oversized uploads before reading the body to avoid buffering huge payloads.
+    raw_cl = file.headers.get("content-length") if file.headers else None
+    if raw_cl is not None:
+        try:
+            if int(raw_cl) > 10 * 1024 * 1024:
+                raise HTTPException(status_code=400, detail="Image exceeds 10 MB limit.")
+        except ValueError:
+            pass
+
     image_bytes = await file.read()
     image_kb = len(image_bytes) // 1024
     if len(image_bytes) > 10 * 1024 * 1024:

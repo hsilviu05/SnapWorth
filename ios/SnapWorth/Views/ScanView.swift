@@ -118,7 +118,7 @@ struct ScanView: View {
                                 .frame(width: 94, height: 94)
                         }
                     }
-                    .disabled(vm.isAnalyzing)
+                    .disabled(vm.isAnalyzing || cameraManager.authStatus != .authorized)
                     .accessibilityLabel(vm.isAnalyzing ? "Analyzing item" : "Take photo to scan")
 
                     Spacer()

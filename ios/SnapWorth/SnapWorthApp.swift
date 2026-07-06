@@ -18,7 +18,10 @@ struct SnapWorthApp: App {
         do {
             return try ModelContainer(for: schema, configurations: [config])
         } catch {
-            fatalError("Could not create ModelContainer: \(error)")
+            // Persistent store is corrupt or unreadable; fall back to in-memory
+            // so the app stays functional rather than crash-looping on every launch.
+            let fallback = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
+            return try! ModelContainer(for: schema, configurations: [fallback])
         }
     }()
 

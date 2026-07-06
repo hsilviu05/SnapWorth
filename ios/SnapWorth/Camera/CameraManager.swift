@@ -94,7 +94,7 @@ final class CameraManager: NSObject, ObservableObject {
 
     func capturePhoto() {
         sessionQueue.async { [weak self] in
-            guard let self else { return }
+            guard let self, self.session.isRunning else { return }
             let settings = AVCapturePhotoSettings()
             settings.flashMode = .auto
             self.photoOutput.capturePhoto(with: settings, delegate: self)
