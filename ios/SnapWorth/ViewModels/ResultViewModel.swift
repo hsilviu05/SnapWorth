@@ -1,11 +1,15 @@
 import SwiftUI
 
+@MainActor
 @Observable
 final class ResultViewModel {
     var didCopyListing: Bool = false
 
+    @ObservationIgnored
+    private var resetTask: Task<Void, Never>?
+
     func shareText(result: ScanResult) -> String {
-        "Found a \(result.itemName) worth \(result.formattedRange) 🏷️\n\n\(result.listingTitle)\n\(result.listingDescription)\n\nValued with SnapWorth"
+        "Found a \(result.itemName) worth \(result.formattedRange)\n\n\(result.listingTitle)\n\(result.listingDescription)\n\nValued with SnapWorth"
     }
 
     func copyListing(result: ScanResult) {
@@ -19,12 +23,12 @@ final class ResultViewModel {
         """
         UIPasteboard.general.string = text
 
-        withAnimation {
-            didCopyListing = true
-        }
-        // Reset the confirmation after 2 seconds
-        Task {
+        withAnimation { didCopyListing = true }
+
+        resetTask?.cancel()
+        resetTask = Task {
             try? await Task.sleep(for: .seconds(2))
+            guard !Task.isCancelled else { return }
             withAnimation { didCopyListing = false }
         }
     }

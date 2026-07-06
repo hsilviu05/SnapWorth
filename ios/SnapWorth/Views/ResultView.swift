@@ -5,6 +5,7 @@ struct ResultView: View {
     var onDismiss: () -> Void
 
     @State private var vm = ResultViewModel()
+    @State private var photo: UIImage?
 
     var body: some View {
         NavigationStack {
@@ -13,8 +14,8 @@ struct ResultView: View {
 
                     // ── Photo card ─────────────────────────────────────────
                     Group {
-                        if let data = result.imageData, let uiImg = UIImage(data: data) {
-                            Image(uiImage: uiImg)
+                        if let img = photo {
+                            Image(uiImage: img)
                                 .resizable()
                                 .scaledToFill()
                         } else {
@@ -31,6 +32,12 @@ struct ResultView: View {
                     .clipped()
                     .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
                     .padding(.horizontal, 20)
+                    .task(id: result.id) {
+                        guard let data = result.imageData else { return }
+                        photo = await Task.detached(priority: .userInitiated) {
+                            UIImage(data: data)
+                        }.value
+                    }
 
                     // ── Item details card ──────────────────────────────────
                     VStack(alignment: .leading, spacing: 16) {
@@ -50,8 +57,14 @@ struct ResultView: View {
                                     textColor: Color.snapTerracotta
                                 )
                             }
+                            let conditionLabel = result.conditionNotes
+                                .components(separatedBy: CharacterSet(charactersIn: "—–-"))
+                                .first?
+                                .trimmingCharacters(in: .whitespaces)
+                                .prefix(20)
+                                .description ?? result.conditionNotes
                             ChipView(
-                                label: result.conditionNotes.components(separatedBy: "—").first?.trimmingCharacters(in: .whitespaces) ?? result.conditionNotes,
+                                label: conditionLabel,
                                 color: Color.snapBorder,
                                 textColor: Color.snapEspresso
                             )
@@ -98,29 +111,35 @@ struct ResultView: View {
                     .padding(.horizontal, 20)
 
                     // ── Listing draft card ─────────────────────────────────
-                    VStack(alignment: .leading, spacing: 12) {
-                        Text("Listing Draft")
-                            .snapSectionHeader()
+                    if !result.listingTitle.isEmpty || !result.listingDescription.isEmpty {
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text("Listing Draft")
+                                .snapSectionHeader()
 
-                        Text(result.listingTitle)
-                            .font(.dmSans(15, weight: .semibold))
-                            .foregroundStyle(Color.snapEspresso)
+                            if !result.listingTitle.isEmpty {
+                                Text(result.listingTitle)
+                                    .font(.dmSans(15, weight: .semibold))
+                                    .foregroundStyle(Color.snapEspresso)
+                            }
 
-                        Text(result.listingDescription)
-                            .font(.snapBody)
-                            .foregroundStyle(Color.snapWarmGray)
-                            .fixedSize(horizontal: false, vertical: true)
+                            if !result.listingDescription.isEmpty {
+                                Text(result.listingDescription)
+                                    .font(.snapBody)
+                                    .foregroundStyle(Color.snapWarmGray)
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
 
-                        PrimaryButton(
-                            title: vm.didCopyListing ? "Copied!" : "Copy listing draft"
-                        ) {
-                            vm.copyListing(result: result)
+                            PrimaryButton(
+                                title: vm.didCopyListing ? "Copied!" : "Copy listing draft"
+                            ) {
+                                vm.copyListing(result: result)
+                            }
+                            .animation(.spring(duration: 0.2), value: vm.didCopyListing)
                         }
-                        .animation(.spring(duration: 0.2), value: vm.didCopyListing)
+                        .padding(20)
+                        .snapCard()
+                        .padding(.horizontal, 20)
                     }
-                    .padding(20)
-                    .snapCard()
-                    .padding(.horizontal, 20)
 
                     HStack(spacing: 6) {
                         Image(systemName: "checkmark.circle.fill")
