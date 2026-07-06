@@ -28,6 +28,8 @@ struct OnboardingView: View {
                             .animation(.spring(duration: 0.3), value: vm.currentPage)
                     }
                 }
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel("Page \(vm.currentPage + 1) of \(vm.slides.count)")
                 .padding(.top, 24)
 
                 // ── CTA ───────────────────────────────────────────────────

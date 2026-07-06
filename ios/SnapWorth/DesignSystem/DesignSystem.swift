@@ -258,17 +258,25 @@ struct ValueRangeView: View {
 struct ConfidenceBadge: View {
     let confidence: String
 
+    private var accentColor: Color {
+        switch confidence.lowercased() {
+        case "high":   return Color.snapSage
+        case "medium": return Color.snapAmber
+        default:       return Color.snapTerracotta
+        }
+    }
+
     var body: some View {
         Text("\(confidence) confidence")
             .font(.snapLabel)
             .foregroundStyle(Color.snapEspresso)
             .padding(.horizontal, 12)
             .padding(.vertical, 6)
-            .background(Color.snapAmber.opacity(0.25))
+            .background(accentColor.opacity(0.18))
             .clipShape(Capsule())
             .overlay(
                 Capsule()
-                    .strokeBorder(Color.snapAmber, lineWidth: 1)
+                    .strokeBorder(accentColor, lineWidth: 1)
             )
     }
 }
@@ -481,5 +489,6 @@ struct ScanHistoryCard: View {
         .snapCard()
         .accessibilityElement(children: .combine)
         .accessibilityLabel("\(result.itemName), estimated \(result.formattedRange)")
+        .accessibilityAddTraits(.isButton)
     }
 }

@@ -38,20 +38,22 @@ struct PaywallView: View {
                         PlanCard(
                             title: "Yearly",
                             price: "$39.99/yr",
-                            priceDetail: "$0.77 per week",
+                            priceDetail: "$0.77 per week · 3-day free trial",
                             badge: "BEST VALUE",
                             isSelected: vm.selectedProductID == Config.yearlyProductID
                         ) {
+                            UISelectionFeedbackGenerator().selectionChanged()
                             vm.selectedProductID = Config.yearlyProductID
                         }
 
                         PlanCard(
                             title: "Weekly",
                             price: "$4.99/wk",
-                            priceDetail: "Billed weekly",
+                            priceDetail: "Flexible, cancel anytime",
                             badge: nil,
                             isSelected: vm.selectedProductID == Config.weeklyProductID
                         ) {
+                            UISelectionFeedbackGenerator().selectionChanged()
                             vm.selectedProductID = Config.weeklyProductID
                         }
                     }

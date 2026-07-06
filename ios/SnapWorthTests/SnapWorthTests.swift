@@ -1,4 +1,5 @@
 import XCTest
+import UIKit
 @testable import SnapWorth
 
 // MARK: - ScanResult Tests
@@ -213,5 +214,204 @@ final class NumberFormatterTests: XCTestCase {
     func test_snapCurrency_largeValue() {
         let result = NumberFormatter.snapCurrency.string(from: 1500)
         XCTAssertEqual(result, "$1,500")
+    }
+}
+
+// MARK: - Config Security Tests
+
+final class ConfigSecurityTests: XCTestCase {
+
+    func test_baseURL_usesHTTPS() {
+        XCTAssertEqual(Config.baseURL.scheme, "https",
+                       "Backend URL must use HTTPS — never HTTP")
+    }
+
+    func test_baseURL_hasHost() {
+        XCTAssertFalse(Config.baseURL.host?.isEmpty ?? true,
+                       "baseURL must have a non-empty host")
+    }
+
+    func test_revenueCatAPIKey_isPlaceholder_notCommitted() {
+        // Source-controlled placeholder must contain "REPLACE" so no real key is checked in
+        XCTAssertTrue(
+            Config.revenueCatAPIKey.contains("REPLACE"),
+            "RevenueCat iOS key must remain a placeholder in git — set the real appl_ key at runtime"
+        )
+    }
+
+    func test_revenueCatAPIKey_notServerSecret() {
+        // Server secret keys (sk_…) must never live in the iOS bundle
+        XCTAssertFalse(
+            Config.revenueCatAPIKey.hasPrefix("sk_"),
+            "sk_ is the RevenueCat server secret — it must never be placed in the iOS app"
+        )
+    }
+
+    func test_freeScansAllowed_isPositive() {
+        XCTAssertGreaterThan(Config.freeScansAllowed, 0,
+                             "freeScansAllowed must be > 0 or the free tier is broken")
+    }
+
+    func test_mockMode_isDisabled() {
+        XCTAssertFalse(Config.mockMode,
+                       "mockMode must be false before App Store submission")
+    }
+
+    func test_productIDs_areNonEmpty() {
+        XCTAssertFalse(Config.weeklyProductID.isEmpty)
+        XCTAssertFalse(Config.yearlyProductID.isEmpty)
+    }
+
+    func test_productIDs_areDistinct() {
+        XCTAssertNotEqual(Config.weeklyProductID, Config.yearlyProductID)
+    }
+}
+
+// MARK: - ScanViewModel Security Tests
+
+@MainActor
+final class ScanViewModelSecurityTests: XCTestCase {
+
+    var vm: ScanViewModel!
+    private let freeScansKey = "snapworth_free_scans_used"
+
+    override func setUp() {
+        super.setUp()
+        UserDefaults.standard.removeObject(forKey: freeScansKey)
+        vm = ScanViewModel()
+    }
+
+    override func tearDown() {
+        UserDefaults.standard.removeObject(forKey: freeScansKey)
+        super.tearDown()
+    }
+
+    func test_hasFreeScanRemaining_trueWhenUnderLimit() {
+        vm.freeScansUsed = 0
+        XCTAssertTrue(vm.hasFreeScanRemaining)
+    }
+
+    func test_hasFreeScanRemaining_falseAtExactLimit() {
+        vm.freeScansUsed = Config.freeScansAllowed
+        XCTAssertFalse(vm.hasFreeScanRemaining,
+                       "Gate must fire when count reaches the limit, not after")
+    }
+
+    func test_hasFreeScanRemaining_falseAboveLimit() {
+        vm.freeScansUsed = Config.freeScansAllowed + 100
+        XCTAssertFalse(vm.hasFreeScanRemaining)
+    }
+
+    func test_freeScansUsed_defaultsToZero_neverNegative() {
+        UserDefaults.standard.removeObject(forKey: freeScansKey)
+        let fresh = ScanViewModel()
+        XCTAssertGreaterThanOrEqual(fresh.freeScansUsed, 0,
+                                    "Scan counter must never be negative")
+    }
+
+    func test_reset_clearsCapturedImage() {
+        vm.capturedImage = UIImage()
+        vm.reset()
+        XCTAssertNil(vm.capturedImage)
+    }
+
+    func test_reset_clearsScanResult() {
+        vm.reset()
+        XCTAssertNil(vm.scanResult)
+    }
+
+    func test_reset_clearsErrorMessage() {
+        vm.errorMessage = "Leftover error from previous scan"
+        vm.reset()
+        XCTAssertNil(vm.errorMessage, "Stale error must be cleared on reset")
+    }
+
+    func test_reset_setsIsAnalyzingToFalse() {
+        vm.isAnalyzing = true
+        vm.reset()
+        XCTAssertFalse(vm.isAnalyzing)
+    }
+
+    func test_friendlyError_neverExposesFilePaths() {
+        let internalErr = makeError("/private/var/containers/Bundle/app/module.swift:42: fatal error")
+        let msg = vm.friendlyError(internalErr)
+        XCTAssertFalse(msg.contains("/private"), "Error must not leak filesystem paths")
+        XCTAssertFalse(msg.contains(".swift"), "Error must not leak source file names")
+    }
+
+    func test_friendlyError_neverExposesAPIKeys() {
+        let keyErr = makeError("API key AIzaSyFAKE123 rejected by server")
+        let msg = vm.friendlyError(keyErr)
+        XCTAssertFalse(msg.contains("AIzaSy"), "Error must not echo back API key material")
+    }
+
+    func test_friendlyError_neverEmpty_allCases() {
+        let inputs = [
+            "completely unknown error xyz_123",
+            "",
+            "429",
+            "502",
+            "timeout",
+            "null",
+            "undefined",
+        ]
+        for desc in inputs {
+            let msg = vm.friendlyError(makeError(desc))
+            XCTAssertFalse(msg.isEmpty, "friendlyError(\"\(desc)\") must never return empty string")
+        }
+    }
+
+    func test_friendlyError_rateLimitMessageIsSafe() {
+        let msg = vm.friendlyError(makeError("429 rate limit exceeded"))
+        XCTAssertFalse(msg.contains("GEMINI"), "Rate-limit message must not reveal backend tech")
+        XCTAssertFalse(msg.contains("API"), "Rate-limit message must not expose implementation")
+    }
+
+    private func makeError(_ description: String) -> Error {
+        NSError(domain: "test", code: 0, userInfo: [NSLocalizedDescriptionKey: description])
+    }
+}
+
+// MARK: - ScanResult Security Tests (edge values)
+
+final class ScanResultEdgeTests: XCTestCase {
+
+    func test_formattedRange_zeroValues() {
+        let r = makeScanResult(low: 0, high: 0)
+        // Must return a non-empty string without crashing
+        XCTAssertFalse(r.formattedRange.isEmpty)
+    }
+
+    func test_formattedRange_noNegativeSymbol() {
+        let r = makeScanResult(low: 10, high: 50)
+        XCTAssertFalse(r.formattedRange.contains("-"),
+                       "Formatted range must not contain a minus sign")
+    }
+
+    func test_midpointValue_neverNegative() {
+        let r = makeScanResult(low: 0, high: 0)
+        XCTAssertGreaterThanOrEqual(r.midpointValue, 0)
+    }
+
+    func test_midpointValue_betweenLowAndHigh() {
+        let r = makeScanResult(low: 20, high: 80)
+        XCTAssertGreaterThanOrEqual(r.midpointValue, 20)
+        XCTAssertLessThanOrEqual(r.midpointValue, 80)
+    }
+
+    func test_formattedRange_doesNotContainScriptTags() {
+        // Verifies the formatter never passes item metadata through unescaped
+        let r = makeScanResult(low: 10, high: 50)
+        XCTAssertFalse(r.formattedRange.contains("<"))
+        XCTAssertFalse(r.formattedRange.contains(">"))
+    }
+
+    private func makeScanResult(low: Double, high: Double) -> ScanResult {
+        ScanResult(
+            itemName: "Test", brand: "Brand", category: "clothing",
+            conditionNotes: "Good", valueLow: low, valueHigh: high,
+            confidence: "High", soldListingsCount: 5,
+            listingTitle: "", listingDescription: ""
+        )
     }
 }

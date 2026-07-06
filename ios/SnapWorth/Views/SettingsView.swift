@@ -1,9 +1,11 @@
 import SwiftUI
 import SwiftData
+import StoreKit
 
 struct SettingsView: View {
     let purchaseService: any PurchaseService
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.requestReview) private var requestReview
     @Query private var results: [ScanResult]
     @State private var vm = SettingsViewModel()
     @State private var showPaywall = false
@@ -61,7 +63,7 @@ struct SettingsView: View {
                         SettingsRowLabel(icon: "ant", label: "Report a bug")
                     }
                     SettingsRow(icon: "star", label: "Rate SnapWorth") {
-                        vm.openURL("https://apps.apple.com/search?term=snapworth")
+                        requestReview()
                     }
                 }
 

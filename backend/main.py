@@ -44,6 +44,16 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
+@app.middleware("http")
+async def security_headers(request: Request, call_next):
+    response = await call_next(request)
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    response.headers["X-XSS-Protection"] = "1; mode=block"
+    return response
+
 # ── Rate limiting (in-memory; swap for Redis in production) ──────────────────
 _rate_store: dict[str, list[float]] = defaultdict(list)
 RATE_WINDOW_SECS = 3600
@@ -268,7 +278,7 @@ async def scan(
         data = _extract_json(raw)
     except (json.JSONDecodeError, ValueError) as exc:
         log.error("json parse error: %s | raw: %.200s", exc, raw)
-        raise HTTPException(status_code=500, detail=f"Could not parse AI response: {exc}")
+        raise HTTPException(status_code=500, detail="Could not parse the AI response. Please try again.")
 
     low = _safe_float(data.get("est_value_low_usd", 0))
     high = _safe_float(data.get("est_value_high_usd", 0))

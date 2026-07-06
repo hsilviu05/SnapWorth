@@ -104,6 +104,7 @@ struct ScanView: View {
 
                     // Shutter button
                     Button {
+                        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
                         cameraManager.capturePhoto()
                     } label: {
                         ZStack {
@@ -141,14 +142,14 @@ struct ScanView: View {
         }
         .onAppear { cameraManager.requestPermissionAndSetup() }
         .onDisappear { cameraManager.stopSession() }
-        .sheet(isPresented: $showResult) {
+        .sheet(isPresented: $showResult, onDismiss: {
+            // Runs whether the user taps "Done" or swipes down
+            vm.reset()
+            cameraManager.capturedImage = nil
+        }) {
             if let result = vm.scanResult {
-                ResultView(result: result, onDismiss: {
-                    showResult = false
-                    vm.reset()
-                    cameraManager.capturedImage = nil
-                })
-                .presentationDetents([.large])
+                ResultView(result: result, onDismiss: { showResult = false })
+                    .presentationDetents([.large])
             }
         }
         .sheet(isPresented: $vm.showPaywall) {
