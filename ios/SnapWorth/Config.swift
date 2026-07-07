@@ -3,7 +3,7 @@ import Foundation
 enum Config {
     // ── API ──────────────────────────────────────────────────────────────────
     /// Set to your deployed backend URL before submitting to the App Store.
-    static let baseURL = URL(string: "https://snapworth-backend-production.up.railway.app")!
+    static let baseURL = URL(string: "https://api.snapworth.eu")!
 
     /// When true, ScanAPIClient returns canned JSON — no network required.
     /// Flip to false once your backend is deployed and the URL above is set.
