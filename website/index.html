@@ -13,111 +13,146 @@
   <link rel="canonical" href="https://snapworth.eu">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,700;9..144,900&family=DM+Sans:ital,wght@0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,ital,wght@9..144,0,400;9..144,0,700;9..144,0,900;9..144,1,700&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet">
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     :root {
-      --bg:         #FAF7F4;
-      --card:       #F3EDE8;
-      --terracotta: #D96C47;
-      --terracotta-dark: #C05A38;
-      --espresso:   #2B211C;
-      --sage:       #7A9E7E;
-      --warm-gray:  #8B7B75;
-      --border:     #E8DDD7;
-      --charcoal:   #3D2E28;
-      --white:      #FFFFFF;
+      --bg:          #FAF7F4;
+      --card:        #F3EDE8;
+      --dark:        #1C1410;
+      --dark2:       #2B211C;
+      --terracotta:  #D96C47;
+      --terra-dim:   rgba(217,108,71,0.12);
+      --sage:        #7A9E7E;
+      --sage-dim:    rgba(122,158,126,0.12);
+      --warm-gray:   #8B7B75;
+      --border:      #E8DDD7;
+      --border-dark: rgba(255,255,255,0.08);
+      --white:       #FFFFFF;
+      --text-muted:  #A89990;
     }
 
     html { scroll-behavior: smooth; }
 
     body {
       background: var(--bg);
-      color: var(--espresso);
+      color: var(--dark2);
       font-family: 'DM Sans', sans-serif;
       font-size: 16px;
       line-height: 1.6;
       -webkit-font-smoothing: antialiased;
+      overflow-x: hidden;
     }
 
     /* ── Nav ──────────────────────────────────────────────────────── */
     nav {
-      position: sticky;
-      top: 0;
+      position: fixed;
+      top: 0; left: 0; right: 0;
       z-index: 100;
-      background: rgba(250,247,244,0.92);
-      backdrop-filter: blur(12px);
-      -webkit-backdrop-filter: blur(12px);
-      border-bottom: 1px solid var(--border);
-      padding: 0 24px;
+      padding: 0 32px;
     }
     .nav-inner {
-      max-width: 1100px;
-      margin: 0 auto;
-      height: 64px;
+      max-width: 1080px;
+      margin: 16px auto 0;
+      height: 52px;
       display: flex;
       align-items: center;
       justify-content: space-between;
+      background: rgba(250,247,244,0.85);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 0 20px;
     }
     .nav-logo {
       font-family: 'Fraunces', serif;
-      font-size: 22px;
+      font-size: 20px;
       font-weight: 700;
-      color: var(--espresso);
+      color: var(--dark2);
       text-decoration: none;
       letter-spacing: -0.3px;
     }
+    .nav-right { display: flex; align-items: center; gap: 12px; }
+    .nav-link {
+      font-size: 14px;
+      font-weight: 500;
+      color: var(--warm-gray);
+      text-decoration: none;
+      transition: color 0.15s;
+    }
+    .nav-link:hover { color: var(--dark2); }
     .nav-cta {
-      background: var(--espresso);
+      background: var(--dark2);
       color: var(--bg);
-      font-family: 'DM Sans', sans-serif;
       font-size: 14px;
       font-weight: 600;
-      padding: 9px 20px;
-      border-radius: 100px;
+      padding: 8px 18px;
+      border-radius: 10px;
       text-decoration: none;
-      transition: background 0.18s;
+      transition: opacity 0.15s;
     }
-    .nav-cta:hover { background: var(--charcoal); }
+    .nav-cta:hover { opacity: 0.85; }
 
     /* ── Hero ─────────────────────────────────────────────────────── */
     .hero {
-      max-width: 1100px;
+      background: var(--dark);
+      padding: 140px 32px 100px;
+      position: relative;
+      overflow: hidden;
+    }
+    .hero::before {
+      content: '';
+      position: absolute;
+      top: -200px; right: -100px;
+      width: 600px; height: 600px;
+      background: radial-gradient(circle, rgba(217,108,71,0.15) 0%, transparent 65%);
+      pointer-events: none;
+    }
+    .hero::after {
+      content: '';
+      position: absolute;
+      bottom: -150px; left: -50px;
+      width: 400px; height: 400px;
+      background: radial-gradient(circle, rgba(122,158,126,0.1) 0%, transparent 65%);
+      pointer-events: none;
+    }
+    .hero-inner {
+      max-width: 1080px;
       margin: 0 auto;
-      padding: 80px 24px 60px;
       display: grid;
       grid-template-columns: 1fr 420px;
-      gap: 60px;
+      gap: 80px;
       align-items: center;
+      position: relative;
+      z-index: 1;
     }
-    .hero-eyebrow {
+    .hero-tag {
       display: inline-flex;
       align-items: center;
-      gap: 8px;
-      background: var(--sage);
-      color: var(--white);
+      gap: 7px;
+      background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(255,255,255,0.1);
+      color: rgba(255,255,255,0.7);
       font-size: 13px;
-      font-weight: 600;
-      letter-spacing: 0.5px;
-      text-transform: uppercase;
-      padding: 5px 14px;
-      border-radius: 100px;
-      margin-bottom: 24px;
+      font-weight: 500;
+      padding: 5px 12px;
+      border-radius: 8px;
+      margin-bottom: 28px;
     }
-    .hero-eyebrow-dot {
+    .hero-tag-dot {
       width: 6px; height: 6px;
-      background: var(--white);
+      background: var(--sage);
       border-radius: 50%;
-      opacity: 0.8;
     }
     .hero h1 {
       font-family: 'Fraunces', serif;
-      font-size: clamp(38px, 5vw, 60px);
+      font-size: clamp(42px, 5.5vw, 68px);
       font-weight: 900;
-      line-height: 1.08;
-      letter-spacing: -1.5px;
-      color: var(--espresso);
+      line-height: 1.05;
+      letter-spacing: -2px;
+      color: var(--white);
       margin-bottom: 24px;
     }
     .hero h1 em {
@@ -125,503 +160,457 @@
       color: var(--terracotta);
     }
     .hero-sub {
-      font-size: 18px;
-      color: var(--warm-gray);
-      max-width: 460px;
-      line-height: 1.65;
+      font-size: 17px;
+      color: rgba(255,255,255,0.5);
+      max-width: 420px;
+      line-height: 1.7;
       margin-bottom: 40px;
     }
-    .hero-actions {
-      display: flex;
-      align-items: center;
-      gap: 16px;
-      flex-wrap: wrap;
-    }
+    .hero-actions { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
     .btn-primary {
       display: inline-flex;
       align-items: center;
-      gap: 10px;
+      gap: 8px;
       background: var(--terracotta);
       color: var(--white);
-      font-family: 'DM Sans', sans-serif;
-      font-size: 16px;
-      font-weight: 600;
-      padding: 14px 28px;
-      border-radius: 100px;
-      text-decoration: none;
-      transition: background 0.18s, transform 0.12s;
-      white-space: nowrap;
-    }
-    .btn-primary:hover { background: var(--terracotta-dark); transform: translateY(-1px); }
-    .btn-primary svg { flex-shrink: 0; }
-    .hero-note {
-      font-size: 14px;
-      color: var(--warm-gray);
-    }
-
-    /* ── Phone mockup ─────────────────────────────────────────────── */
-    .phone-wrap {
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      position: relative;
-    }
-    .phone {
-      width: 280px;
-      height: 560px;
-      background: var(--espresso);
-      border-radius: 44px;
-      padding: 14px;
-      box-shadow:
-        0 30px 80px rgba(43,33,28,0.25),
-        0 2px 8px rgba(43,33,28,0.15),
-        inset 0 0 0 1px rgba(255,255,255,0.08);
-      position: relative;
-    }
-    .phone-screen {
-      width: 100%;
-      height: 100%;
-      background: #1C1614;
-      border-radius: 34px;
-      overflow: hidden;
-      position: relative;
-      display: flex;
-      flex-direction: column;
-    }
-    .phone-notch {
-      width: 90px; height: 28px;
-      background: var(--espresso);
-      border-radius: 0 0 18px 18px;
-      margin: 0 auto;
-      flex-shrink: 0;
-    }
-    .phone-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      padding: 10px 18px 4px;
-      flex-shrink: 0;
-    }
-    .phone-header-title {
-      font-family: 'Fraunces', serif;
       font-size: 15px;
-      font-weight: 700;
-      color: var(--bg);
-    }
-    .phone-badge {
-      background: var(--terracotta);
-      color: var(--white);
-      font-size: 9px;
       font-weight: 600;
-      padding: 3px 8px;
-      border-radius: 100px;
+      padding: 13px 24px;
+      border-radius: 12px;
+      text-decoration: none;
+      transition: opacity 0.15s, transform 0.12s;
     }
-    .phone-viewfinder {
-      flex: 1;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      padding: 16px;
-    }
-    .viewfinder-frame {
-      width: 180px; height: 180px;
-      border: 1.5px solid rgba(250,247,244,0.4);
-      border-radius: 18px;
-      position: relative;
-    }
-    .vf-corner {
-      position: absolute;
-      width: 18px; height: 18px;
-      border-color: var(--bg);
-      border-style: solid;
-    }
-    .vf-corner.tl { top: -1px; left: -1px; border-width: 2.5px 0 0 2.5px; border-radius: 4px 0 0 0; }
-    .vf-corner.tr { top: -1px; right: -1px; border-width: 2.5px 2.5px 0 0; border-radius: 0 4px 0 0; }
-    .vf-corner.bl { bottom: -1px; left: -1px; border-width: 0 0 2.5px 2.5px; border-radius: 0 0 0 4px; }
-    .vf-corner.br { bottom: -1px; right: -1px; border-width: 0 2.5px 2.5px 0; border-radius: 0 0 4px 0; }
-    .viewfinder-item {
-      width: 80px; height: 80px;
-      background: rgba(122,158,126,0.2);
-      border-radius: 10px;
-      margin: auto;
+    .btn-primary:hover { opacity: 0.9; transform: translateY(-1px); }
+    .btn-ghost {
+      font-size: 14px;
+      font-weight: 500;
+      color: rgba(255,255,255,0.45);
+      text-decoration: none;
       display: flex;
       align-items: center;
-      justify-content: center;
-      font-size: 36px;
+      gap: 5px;
+      transition: color 0.15s;
     }
-    .phone-hint {
-      font-size: 10px;
-      color: rgba(250,247,244,0.6);
-      text-align: center;
-      margin-top: 10px;
-    }
-    .phone-controls {
-      padding: 8px 18px 20px;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      flex-shrink: 0;
-    }
-    .phone-gallery {
-      width: 38px; height: 38px;
-      background: rgba(250,247,244,0.15);
-      border-radius: 8px;
-    }
-    .phone-shutter {
-      width: 60px; height: 60px;
-      background: var(--bg);
-      border-radius: 50%;
-      box-shadow: 0 0 0 3px rgba(250,247,244,0.3);
-    }
-    .phone-spacer { width: 38px; }
+    .btn-ghost:hover { color: rgba(255,255,255,0.75); }
 
-    /* Result card that floats beside the phone */
-    .result-float {
-      position: absolute;
-      right: -60px;
-      top: 50%;
-      transform: translateY(-50%);
-      background: var(--white);
-      border-radius: 18px;
-      padding: 16px 18px;
-      box-shadow: 0 8px 32px rgba(43,33,28,0.14);
-      width: 160px;
+    /* ── Result card mockup ───────────────────────────────────────── */
+    .mockup {
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 24px;
+      padding: 28px;
+      backdrop-filter: blur(8px);
     }
-    .result-float-tag {
-      font-size: 10px;
+    .mockup-label {
+      font-size: 11px;
       font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-      color: var(--sage);
-      margin-bottom: 4px;
-    }
-    .result-float-name {
-      font-family: 'Fraunces', serif;
-      font-size: 13px;
-      font-weight: 700;
-      color: var(--espresso);
-      margin-bottom: 8px;
-      line-height: 1.3;
-    }
-    .result-float-price {
-      font-family: 'Fraunces', serif;
-      font-size: 20px;
-      font-weight: 900;
-      color: var(--terracotta);
-      line-height: 1;
-    }
-    .result-float-sub {
-      font-size: 10px;
-      color: var(--warm-gray);
-      margin-top: 3px;
-    }
-    .result-float-bar {
-      height: 3px;
-      background: var(--border);
-      border-radius: 2px;
-      margin-top: 10px;
-      overflow: hidden;
-    }
-    .result-float-bar-fill {
-      height: 100%;
-      width: 75%;
-      background: var(--sage);
-      border-radius: 2px;
-    }
-    .result-float-conf {
-      font-size: 9px;
-      color: var(--warm-gray);
-      margin-top: 3px;
-    }
-
-    /* ── Social proof strip ───────────────────────────────────────── */
-    .platforms {
-      border-top: 1px solid var(--border);
-      border-bottom: 1px solid var(--border);
-      padding: 20px 24px;
-      text-align: center;
-    }
-    .platforms p {
-      font-size: 13px;
-      color: var(--warm-gray);
       text-transform: uppercase;
       letter-spacing: 1px;
-      font-weight: 500;
+      color: var(--sage);
       margin-bottom: 16px;
     }
-    .platforms-logos {
+    .mockup-item {
       display: flex;
+      align-items: flex-start;
+      gap: 14px;
+      margin-bottom: 20px;
+    }
+    .mockup-img {
+      width: 56px; height: 56px;
+      background: rgba(255,255,255,0.08);
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
       justify-content: center;
+      font-size: 28px;
+      flex-shrink: 0;
+    }
+    .mockup-name {
+      font-family: 'Fraunces', serif;
+      font-size: 17px;
+      font-weight: 700;
+      color: var(--white);
+      line-height: 1.3;
+    }
+    .mockup-brand {
+      font-size: 13px;
+      color: rgba(255,255,255,0.4);
+      margin-top: 3px;
+    }
+    .mockup-divider {
+      height: 1px;
+      background: rgba(255,255,255,0.07);
+      margin-bottom: 20px;
+    }
+    .mockup-price-label {
+      font-size: 12px;
+      color: rgba(255,255,255,0.35);
+      margin-bottom: 8px;
+    }
+    .mockup-price {
+      font-family: 'Fraunces', serif;
+      font-size: 38px;
+      font-weight: 900;
+      color: var(--white);
+      letter-spacing: -1px;
+      line-height: 1;
+    }
+    .mockup-price span {
+      font-size: 22px;
+      color: rgba(255,255,255,0.4);
+      font-weight: 700;
+    }
+    .mockup-range-bar {
+      margin: 14px 0 8px;
+      height: 4px;
+      background: rgba(255,255,255,0.08);
+      border-radius: 4px;
+      overflow: hidden;
+    }
+    .mockup-range-fill {
+      height: 100%;
+      width: 70%;
+      background: linear-gradient(90deg, var(--sage), var(--terracotta));
+      border-radius: 4px;
+    }
+    .mockup-meta {
+      display: flex;
+      justify-content: space-between;
+      font-size: 12px;
+      color: rgba(255,255,255,0.35);
+    }
+    .mockup-conf {
+      color: var(--sage);
+      font-weight: 600;
+    }
+    .mockup-divider2 {
+      height: 1px;
+      background: rgba(255,255,255,0.07);
+      margin: 18px 0;
+    }
+    .mockup-listing-label {
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: rgba(255,255,255,0.25);
+      margin-bottom: 8px;
+    }
+    .mockup-listing-title {
+      font-size: 14px;
+      color: rgba(255,255,255,0.65);
+      line-height: 1.5;
+    }
+    .mockup-listing-cta {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      margin-top: 12px;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--terracotta);
+      background: var(--terra-dim);
+      padding: 6px 12px;
+      border-radius: 8px;
+    }
+
+    /* ── Platforms ────────────────────────────────────────────────── */
+    .platforms {
+      background: var(--dark);
+      padding: 24px 32px 48px;
+    }
+    .platforms-inner {
+      max-width: 1080px;
+      margin: 0 auto;
+      border-top: 1px solid rgba(255,255,255,0.06);
+      padding-top: 32px;
+      display: flex;
       align-items: center;
       gap: 32px;
       flex-wrap: wrap;
-      max-width: 700px;
-      margin: 0 auto;
     }
-    .platform-name {
-      font-family: 'DM Sans', sans-serif;
+    .platforms-label {
+      font-size: 13px;
+      color: rgba(255,255,255,0.25);
+      white-space: nowrap;
+    }
+    .platforms-list {
+      display: flex;
+      gap: 32px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+    .platform {
       font-size: 15px;
       font-weight: 600;
-      color: var(--warm-gray);
-      opacity: 0.7;
+      color: rgba(255,255,255,0.2);
+      letter-spacing: -0.2px;
     }
 
-    /* ── Section shared ───────────────────────────────────────────── */
-    section { padding: 96px 24px; }
-    .section-inner {
-      max-width: 1100px;
-      margin: 0 auto;
-    }
-    .section-eyebrow {
-      font-size: 13px;
+    /* ── Sections ─────────────────────────────────────────────────── */
+    section { padding: 100px 32px; }
+    .section-inner { max-width: 1080px; margin: 0 auto; }
+    .section-header { margin-bottom: 56px; }
+    .eyebrow {
+      font-size: 12px;
       font-weight: 600;
       text-transform: uppercase;
-      letter-spacing: 1px;
+      letter-spacing: 1.5px;
       color: var(--terracotta);
-      margin-bottom: 16px;
+      margin-bottom: 14px;
     }
     .section-title {
       font-family: 'Fraunces', serif;
-      font-size: clamp(30px, 4vw, 44px);
+      font-size: clamp(28px, 3.5vw, 44px);
       font-weight: 700;
-      letter-spacing: -0.8px;
-      line-height: 1.15;
-      color: var(--espresso);
-      margin-bottom: 16px;
+      letter-spacing: -1px;
+      line-height: 1.12;
+      color: var(--dark2);
+      margin-bottom: 14px;
     }
     .section-sub {
-      font-size: 17px;
+      font-size: 16px;
       color: var(--warm-gray);
-      max-width: 520px;
-      line-height: 1.65;
-      margin-bottom: 56px;
+      max-width: 480px;
+      line-height: 1.7;
     }
 
-    /* ── How it works ─────────────────────────────────────────────── */
-    .how-bg { background: var(--card); }
-    .steps {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 32px;
-    }
+    /* ── Steps ────────────────────────────────────────────────────── */
+    .steps { display: grid; grid-template-columns: repeat(3,1fr); gap: 2px; }
     .step {
-      background: var(--bg);
-      border-radius: 24px;
-      padding: 36px 32px;
-      border: 1px solid var(--border);
+      background: var(--card);
+      padding: 40px 36px;
       position: relative;
     }
-    .step-number {
+    .step:first-child { border-radius: 20px 0 0 20px; }
+    .step:last-child  { border-radius: 0 20px 20px 0; }
+    .step-num {
       font-family: 'Fraunces', serif;
-      font-size: 48px;
-      font-weight: 900;
-      color: var(--border);
-      line-height: 1;
-      margin-bottom: 20px;
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--text-muted);
+      margin-bottom: 24px;
     }
     .step-icon {
-      font-size: 32px;
-      margin-bottom: 16px;
+      font-size: 28px;
+      margin-bottom: 18px;
+      display: block;
     }
     .step h3 {
       font-family: 'Fraunces', serif;
-      font-size: 22px;
+      font-size: 20px;
       font-weight: 700;
-      color: var(--espresso);
+      color: var(--dark2);
       margin-bottom: 10px;
       letter-spacing: -0.3px;
     }
-    .step p {
-      font-size: 15px;
-      color: var(--warm-gray);
-      line-height: 1.65;
-    }
+    .step p { font-size: 15px; color: var(--warm-gray); line-height: 1.65; }
 
     /* ── Features ─────────────────────────────────────────────────── */
+    .features-bg { background: var(--bg); }
     .features-grid {
       display: grid;
-      grid-template-columns: repeat(2, 1fr);
-      gap: 24px;
+      grid-template-columns: repeat(2,1fr);
+      gap: 16px;
     }
-    .feature-card {
-      background: var(--card);
-      border-radius: 24px;
-      padding: 36px;
+    .feature {
       border: 1px solid var(--border);
-      transition: transform 0.2s, box-shadow 0.2s;
+      border-radius: 20px;
+      padding: 36px;
+      transition: border-color 0.2s, transform 0.2s;
+      background: var(--white);
     }
-    .feature-card:hover {
-      transform: translateY(-3px);
-      box-shadow: 0 12px 40px rgba(43,33,28,0.08);
-    }
+    .feature:hover { border-color: var(--dark2); transform: translateY(-2px); }
     .feature-icon {
-      width: 52px; height: 52px;
-      background: var(--bg);
-      border-radius: 14px;
+      width: 44px; height: 44px;
+      border-radius: 12px;
       border: 1px solid var(--border);
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 24px;
+      font-size: 20px;
       margin-bottom: 20px;
+      background: var(--bg);
     }
-    .feature-card h3 {
+    .feature h3 {
       font-family: 'Fraunces', serif;
-      font-size: 21px;
+      font-size: 19px;
       font-weight: 700;
-      color: var(--espresso);
-      margin-bottom: 10px;
+      color: var(--dark2);
+      margin-bottom: 8px;
       letter-spacing: -0.3px;
     }
-    .feature-card p {
-      font-size: 15px;
-      color: var(--warm-gray);
-      line-height: 1.65;
-    }
+    .feature p { font-size: 15px; color: var(--warm-gray); line-height: 1.65; }
 
     /* ── Pricing ──────────────────────────────────────────────────── */
     .pricing-bg { background: var(--card); }
     .pricing-grid {
       display: grid;
-      grid-template-columns: 1fr 1fr 1fr;
-      gap: 24px;
+      grid-template-columns: 1fr 1.05fr 1fr;
+      gap: 12px;
       align-items: start;
     }
-    .pricing-card {
-      background: var(--bg);
+    .plan {
+      background: var(--white);
       border: 1px solid var(--border);
-      border-radius: 24px;
-      padding: 36px 32px;
+      border-radius: 20px;
+      padding: 32px 28px;
     }
-    .pricing-card.featured {
-      background: var(--espresso);
-      border-color: var(--espresso);
+    .plan.featured {
+      background: var(--dark2);
+      border-color: var(--dark2);
+      transform: scale(1.02);
     }
-    .pricing-badge {
+    .plan-badge {
       display: inline-block;
-      background: var(--terracotta);
-      color: var(--white);
+      background: var(--terra-dim);
+      color: var(--terracotta);
       font-size: 11px;
       font-weight: 600;
       letter-spacing: 0.5px;
       text-transform: uppercase;
       padding: 4px 10px;
-      border-radius: 100px;
+      border-radius: 6px;
       margin-bottom: 20px;
     }
-    .pricing-plan {
+    .plan-name {
       font-size: 13px;
       font-weight: 600;
       text-transform: uppercase;
       letter-spacing: 1px;
-      color: var(--warm-gray);
-      margin-bottom: 12px;
+      color: var(--text-muted);
+      margin-bottom: 10px;
     }
-    .pricing-card.featured .pricing-plan { color: rgba(250,247,244,0.6); }
-    .pricing-price {
+    .plan.featured .plan-name { color: rgba(255,255,255,0.35); }
+    .plan-price {
       font-family: 'Fraunces', serif;
-      font-size: 42px;
+      font-size: 44px;
       font-weight: 900;
-      color: var(--espresso);
-      letter-spacing: -1px;
+      color: var(--dark2);
+      letter-spacing: -2px;
       line-height: 1;
     }
-    .pricing-card.featured .pricing-price { color: var(--bg); }
-    .pricing-price sup { font-size: 22px; vertical-align: super; }
-    .pricing-price-sub {
-      font-size: 14px;
-      color: var(--warm-gray);
-      margin-top: 4px;
-      margin-bottom: 28px;
+    .plan.featured .plan-price { color: var(--white); }
+    .plan-price sup { font-size: 20px; letter-spacing: 0; vertical-align: super; }
+    .plan-cadence {
+      font-size: 13px;
+      color: var(--text-muted);
+      margin-top: 6px;
+      margin-bottom: 24px;
     }
-    .pricing-card.featured .pricing-price-sub { color: rgba(250,247,244,0.55); }
-    .pricing-divider {
+    .plan.featured .plan-cadence { color: rgba(255,255,255,0.3); }
+    .plan-divider {
       height: 1px;
       background: var(--border);
       margin-bottom: 24px;
     }
-    .pricing-card.featured .pricing-divider { background: rgba(250,247,244,0.12); }
-    .pricing-features {
+    .plan.featured .plan-divider { background: rgba(255,255,255,0.08); }
+    .plan-features {
       list-style: none;
       display: flex;
       flex-direction: column;
-      gap: 12px;
+      gap: 11px;
+      margin-bottom: 28px;
     }
-    .pricing-features li {
+    .plan-features li {
+      font-size: 14px;
+      color: var(--dark2);
       display: flex;
       align-items: flex-start;
-      gap: 10px;
-      font-size: 15px;
-      color: var(--espresso);
+      gap: 9px;
     }
-    .pricing-card.featured .pricing-features li { color: rgba(250,247,244,0.9); }
-    .pricing-features li::before {
+    .plan.featured .plan-features li { color: rgba(255,255,255,0.8); }
+    .plan-features li::before {
       content: "✓";
       color: var(--sage);
       font-weight: 700;
       flex-shrink: 0;
       line-height: 1.6;
+      font-size: 13px;
     }
-    .pricing-cta {
+    .plan-cta {
       display: block;
-      margin-top: 32px;
       text-align: center;
-      padding: 13px 24px;
-      border-radius: 100px;
+      padding: 12px 20px;
+      border-radius: 12px;
+      font-size: 14px;
       font-weight: 600;
-      font-size: 15px;
       text-decoration: none;
-      transition: background 0.18s, transform 0.12s;
+      transition: opacity 0.15s, transform 0.12s;
     }
-    .pricing-cta:hover { transform: translateY(-1px); }
-    .pricing-cta-outline {
-      background: transparent;
+    .plan-cta:hover { opacity: 0.85; transform: translateY(-1px); }
+    .plan-cta-outline {
       border: 1.5px solid var(--border);
-      color: var(--espresso);
+      color: var(--dark2);
     }
-    .pricing-cta-outline:hover { background: var(--card); border-color: var(--warm-gray); }
-    .pricing-cta-solid {
+    .plan-cta-outline:hover { border-color: var(--dark2); }
+    .plan-cta-main {
       background: var(--terracotta);
       color: var(--white);
     }
-    .pricing-cta-solid:hover { background: var(--terracotta-dark); }
-    .pricing-cta-ghost {
-      background: rgba(250,247,244,0.1);
-      color: var(--bg);
-      border: 1.5px solid rgba(250,247,244,0.2);
+    .plan-cta-ghost {
+      background: rgba(255,255,255,0.08);
+      color: rgba(255,255,255,0.8);
     }
-    .pricing-cta-ghost:hover { background: rgba(250,247,244,0.18); }
 
-    /* ── Final CTA ────────────────────────────────────────────────── */
-    .cta-section {
+    /* ── Dark CTA ─────────────────────────────────────────────────── */
+    .cta-dark {
+      background: var(--dark);
+      padding: 100px 32px;
       text-align: center;
-      padding: 96px 24px;
+      position: relative;
+      overflow: hidden;
     }
-    .cta-section h2 {
+    .cta-dark::before {
+      content: '';
+      position: absolute;
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      width: 600px; height: 300px;
+      background: radial-gradient(ellipse, rgba(217,108,71,0.12) 0%, transparent 70%);
+      pointer-events: none;
+    }
+    .cta-dark h2 {
       font-family: 'Fraunces', serif;
-      font-size: clamp(32px, 5vw, 52px);
+      font-size: clamp(32px, 5vw, 56px);
       font-weight: 900;
-      letter-spacing: -1px;
-      line-height: 1.1;
-      color: var(--espresso);
-      margin-bottom: 20px;
+      letter-spacing: -1.5px;
+      line-height: 1.08;
+      color: var(--white);
+      margin-bottom: 18px;
+      position: relative;
     }
-    .cta-section p {
-      font-size: 18px;
-      color: var(--warm-gray);
-      max-width: 460px;
-      margin: 0 auto 40px;
-      line-height: 1.65;
+    .cta-dark h2 em { font-style: italic; color: var(--terracotta); }
+    .cta-dark p {
+      font-size: 17px;
+      color: rgba(255,255,255,0.4);
+      margin-bottom: 40px;
+      position: relative;
     }
+    .btn-primary-light {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: var(--white);
+      color: var(--dark2);
+      font-size: 15px;
+      font-weight: 600;
+      padding: 14px 28px;
+      border-radius: 12px;
+      text-decoration: none;
+      transition: opacity 0.15s, transform 0.12s;
+      position: relative;
+    }
+    .btn-primary-light:hover { opacity: 0.9; transform: translateY(-1px); }
 
     /* ── Footer ───────────────────────────────────────────────────── */
     footer {
-      border-top: 1px solid var(--border);
-      padding: 40px 24px;
+      background: var(--dark);
+      border-top: 1px solid rgba(255,255,255,0.05);
+      padding: 32px;
     }
     .footer-inner {
-      max-width: 1100px;
+      max-width: 1080px;
       margin: 0 auto;
       display: flex;
       align-items: center;
@@ -631,51 +620,44 @@
     }
     .footer-logo {
       font-family: 'Fraunces', serif;
-      font-size: 18px;
+      font-size: 17px;
       font-weight: 700;
-      color: var(--espresso);
+      color: rgba(255,255,255,0.5);
       text-decoration: none;
     }
-    .footer-links {
-      display: flex;
-      gap: 24px;
-      align-items: center;
-    }
+    .footer-links { display: flex; gap: 24px; }
     .footer-links a {
-      font-size: 14px;
-      color: var(--warm-gray);
+      font-size: 13px;
+      color: rgba(255,255,255,0.3);
       text-decoration: none;
       transition: color 0.15s;
     }
-    .footer-links a:hover { color: var(--espresso); }
-    .footer-copy {
-      font-size: 13px;
-      color: var(--warm-gray);
-    }
+    .footer-links a:hover { color: rgba(255,255,255,0.7); }
+    .footer-copy { font-size: 13px; color: rgba(255,255,255,0.2); }
 
     /* ── Responsive ───────────────────────────────────────────────── */
-    @media (max-width: 900px) {
-      .hero {
-        grid-template-columns: 1fr;
-        text-align: center;
-        padding-top: 56px;
-      }
-      .hero-sub { margin-left: auto; margin-right: auto; }
-      .hero-actions { justify-content: center; }
-      .phone-wrap { order: -1; }
-      .result-float { display: none; }
-
-      .steps { grid-template-columns: 1fr; }
+    @media (max-width: 920px) {
+      nav { padding: 0 20px; }
+      .hero { padding: 120px 20px 80px; }
+      .hero-inner { grid-template-columns: 1fr; gap: 48px; }
+      .hero h1 { font-size: 40px; }
+      .mockup { max-width: 400px; }
+      .steps { grid-template-columns: 1fr; gap: 2px; }
+      .step:first-child { border-radius: 20px 20px 0 0; }
+      .step:last-child  { border-radius: 0 0 20px 20px; }
+      .step:not(:first-child):not(:last-child) { border-radius: 0; }
       .features-grid { grid-template-columns: 1fr; }
       .pricing-grid { grid-template-columns: 1fr; }
-
-      .footer-inner { flex-direction: column; align-items: flex-start; gap: 20px; }
+      .plan.featured { transform: none; }
+      section { padding: 72px 20px; }
+      .platforms-inner { flex-direction: column; align-items: flex-start; gap: 16px; }
     }
-
     @media (max-width: 480px) {
-      .hero h1 { font-size: 34px; }
-      section { padding: 64px 20px; }
-      .step, .feature-card, .pricing-card { padding: 28px 24px; }
+      .nav-link { display: none; }
+      .hero h1 { font-size: 34px; letter-spacing: -1px; }
+      .hero-sub { font-size: 15px; }
+      .cta-dark h2 { font-size: 30px; }
+      .footer-inner { flex-direction: column; align-items: flex-start; }
     }
   </style>
 </head>
@@ -685,212 +667,207 @@
   <nav>
     <div class="nav-inner">
       <a href="/" class="nav-logo">SnapWorth</a>
-      <!-- TODO: Replace # with App Store link once live -->
-      <a href="#" class="nav-cta">Download Free</a>
+      <div class="nav-right">
+        <a href="#how-it-works" class="nav-link">How it works</a>
+        <a href="#pricing" class="nav-link">Pricing</a>
+        <!-- TODO: Replace # with App Store link -->
+        <a href="#" class="nav-cta">Download</a>
+      </div>
     </div>
   </nav>
 
   <!-- Hero -->
-  <div class="hero">
-    <div class="hero-text">
-      <div class="hero-eyebrow">
-        <span class="hero-eyebrow-dot"></span>
-        Available on iOS
-      </div>
-      <h1>Know exactly what your thrift finds are <em>worth</em></h1>
-      <p class="hero-sub">
-        Snap a photo of any secondhand item and get real resale prices from
-        eBay, Poshmark, Depop & more — powered by AI.
-      </p>
-      <div class="hero-actions">
-        <!-- TODO: Replace # with App Store link once live -->
-        <a href="#" class="btn-primary">
-          <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-            <path d="M14.5 10.5C14.49 8.83 15.33 7.57 17 6.69C16.05 5.35 14.59 4.6 12.68 4.47C10.87 4.34 8.9 5.54 8.17 5.54C7.4 5.54 5.67 4.52 4.27 4.52C1.36 4.57 -1.77636e-07 6.72 -1.77636e-07 11.04C-1.77636e-07 13.56 0.46 16.16 1.38 18.47C2.03 20.13 3.87 20.07 4.72 18.47C5.07 17.81 5.5 17.47 6 17.47C6.5 17.47 6.93 17.81 7.28 18.47C8.13 20.07 9.97 20.13 10.62 18.47C11.35 16.62 11.78 14.55 11.92 12.37C13.56 12.1 14.5 11.45 14.5 10.5Z" fill="currentColor"/>
-            <path d="M12.5 2.5C12.5 1.12 11.38 0 10 0C8.62 0 7.5 1.12 7.5 2.5C7.5 3.88 8.62 5 10 5" stroke="currentColor" stroke-width="1.5" fill="none"/>
-          </svg>
-          Download on the App Store
-        </a>
-        <span class="hero-note">Free to start · iOS 17+</span>
-      </div>
-    </div>
-
-    <div class="phone-wrap">
-      <div class="phone">
-        <div class="phone-screen">
-          <div class="phone-notch"></div>
-          <div class="phone-header">
-            <span class="phone-header-title">SnapWorth</span>
-            <span class="phone-badge">3 free scans</span>
-          </div>
-          <div class="phone-viewfinder">
-            <div class="viewfinder-frame">
-              <div class="vf-corner tl"></div>
-              <div class="vf-corner tr"></div>
-              <div class="vf-corner bl"></div>
-              <div class="vf-corner br"></div>
-              <div class="viewfinder-item">👜</div>
-            </div>
-            <p class="phone-hint">Center the item — tags & logos help</p>
-          </div>
-          <div class="phone-controls">
-            <div class="phone-gallery"></div>
-            <div class="phone-shutter"></div>
-            <div class="phone-spacer"></div>
-          </div>
+  <section class="hero">
+    <div class="hero-inner">
+      <div>
+        <div class="hero-tag">
+          <span class="hero-tag-dot"></span>
+          Available on iOS
+        </div>
+        <h1>Know what your thrift finds are <em>worth</em></h1>
+        <p class="hero-sub">Snap a photo. Get real resale prices from eBay, Poshmark, Depop & more — in seconds.</p>
+        <div class="hero-actions">
+          <!-- TODO: Replace # with App Store link -->
+          <a href="#" class="btn-primary">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.8-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z"/></svg>
+            Download on the App Store
+          </a>
+          <a href="#how-it-works" class="btn-ghost">See how it works →</a>
         </div>
       </div>
 
-      <div class="result-float">
-        <div class="result-float-tag">Resale Value</div>
-        <div class="result-float-name">Coach Leather Crossbody</div>
-        <div class="result-float-price"><sup>$</sup>38<span style="font-size:14px;font-weight:600;color:var(--warm-gray)"> – $65</span></div>
-        <div class="result-float-sub">42 sold listings</div>
-        <div class="result-float-bar"><div class="result-float-bar-fill"></div></div>
-        <div class="result-float-conf">High confidence</div>
+      <!-- Result card mockup -->
+      <div class="mockup">
+        <div class="mockup-label">SnapWorth Result</div>
+        <div class="mockup-item">
+          <div class="mockup-img">👜</div>
+          <div>
+            <div class="mockup-name">Coach Leather Crossbody Bag</div>
+            <div class="mockup-brand">Coach · Accessories · Good condition</div>
+          </div>
+        </div>
+        <div class="mockup-divider"></div>
+        <div class="mockup-price-label">Resale value range</div>
+        <div class="mockup-price">$38 <span>– $65</span></div>
+        <div class="mockup-range-bar"><div class="mockup-range-fill"></div></div>
+        <div class="mockup-meta">
+          <span>Based on 42 sold listings</span>
+          <span class="mockup-conf">High confidence</span>
+        </div>
+        <div class="mockup-divider2"></div>
+        <div class="mockup-listing-label">AI-generated listing</div>
+        <div class="mockup-listing-title">Coach Tan Leather Crossbody Bag — Clean interior, minimal wear, great everyday carry</div>
+        <div class="mockup-listing-cta">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M8 5H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-1M8 5a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2M8 5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2"/></svg>
+          Copy listing
+        </div>
       </div>
     </div>
-  </div>
+  </section>
 
   <!-- Platform strip -->
   <div class="platforms">
-    <p>Pricing data pulled from</p>
-    <div class="platforms-logos">
-      <span class="platform-name">eBay</span>
-      <span class="platform-name">Poshmark</span>
-      <span class="platform-name">Depop</span>
-      <span class="platform-name">ThredUp</span>
-      <span class="platform-name">Facebook Marketplace</span>
+    <div class="platforms-inner">
+      <span class="platforms-label">Prices pulled from</span>
+      <div class="platforms-list">
+        <span class="platform">eBay</span>
+        <span class="platform">Poshmark</span>
+        <span class="platform">Depop</span>
+        <span class="platform">ThredUp</span>
+        <span class="platform">Facebook Marketplace</span>
+      </div>
     </div>
   </div>
 
   <!-- How it works -->
-  <section class="how-bg">
+  <section id="how-it-works">
     <div class="section-inner">
-      <div class="section-eyebrow">How it works</div>
-      <h2 class="section-title">Three steps from find to profit</h2>
-      <p class="section-sub">No market research, no guesswork. SnapWorth does the heavy lifting in seconds.</p>
-
+      <div class="section-header">
+        <div class="eyebrow">How it works</div>
+        <h2 class="section-title">From find to price<br>in three steps</h2>
+        <p class="section-sub">No research, no guesswork. SnapWorth does the work while you're still at the rack.</p>
+      </div>
       <div class="steps">
         <div class="step">
-          <div class="step-number">01</div>
-          <div class="step-icon">📸</div>
+          <div class="step-num">01</div>
+          <span class="step-icon">📸</span>
           <h3>Snap a photo</h3>
           <p>Point your camera at any thrift, garage sale, or estate sale item. Clear photos of tags and logos give the best results.</p>
         </div>
         <div class="step">
-          <div class="step-number">02</div>
-          <div class="step-icon">🔍</div>
+          <div class="step-num">02</div>
+          <span class="step-icon">🔍</span>
           <h3>AI checks sold listings</h3>
-          <p>Our AI identifies the exact item and cross-references hundreds of recently sold listings across top resale platforms.</p>
+          <p>Our AI identifies the item and cross-references hundreds of recently sold listings across every major resale platform.</p>
         </div>
         <div class="step">
-          <div class="step-number">03</div>
-          <div class="step-icon">💰</div>
+          <div class="step-num">03</div>
+          <span class="step-icon">💰</span>
           <h3>Know what to pay</h3>
-          <p>Get a real resale value range, a confidence score, and a ready-to-post listing — so you never leave money on the table.</p>
+          <p>Get a real price range, confidence score, and a ready-to-post listing — so you never leave money on the table.</p>
         </div>
       </div>
     </div>
   </section>
 
   <!-- Features -->
-  <section>
+  <section class="features-bg">
     <div class="section-inner">
-      <div class="section-eyebrow">Features</div>
-      <h2 class="section-title">Everything a thrift flipper needs</h2>
-      <p class="section-sub">Built for resellers who want to move fast and price smart.</p>
-
+      <div class="section-header">
+        <div class="eyebrow">Features</div>
+        <h2 class="section-title">Everything a reseller needs</h2>
+        <p class="section-sub">Built for thrift flippers who want to move fast and price smart.</p>
+      </div>
       <div class="features-grid">
-        <div class="feature-card">
+        <div class="feature">
           <div class="feature-icon">📊</div>
           <h3>Real sold-price data</h3>
-          <p>Prices are based on what items actually sold for — not inflated asking prices. So your estimates are grounded in the real market.</p>
+          <p>Prices are based on what items actually sold for — not inflated asking prices. Grounded in the real secondhand market.</p>
         </div>
-        <div class="feature-card">
+        <div class="feature">
           <div class="feature-icon">✍️</div>
           <h3>AI listing writer</h3>
-          <p>Every scan generates a compelling, SEO-optimized listing title and description ready to paste straight into eBay, Poshmark, or Depop.</p>
+          <p>Every scan generates a compelling, SEO-optimized title and description ready to paste into eBay, Poshmark, or Depop.</p>
         </div>
-        <div class="feature-card">
+        <div class="feature">
           <div class="feature-icon">🗂️</div>
           <h3>Full scan history</h3>
-          <p>Every item you scan is saved locally on your device. Search your finds, sort by value, and track your total portfolio worth at a glance.</p>
+          <p>Every item is saved locally on your device. Search your finds, sort by value, and track your total portfolio worth.</p>
         </div>
-        <div class="feature-card">
+        <div class="feature">
           <div class="feature-icon">👗</div>
           <h3>Anything secondhand</h3>
-          <p>Clothing, shoes, accessories, electronics, books, furniture, collectibles — SnapWorth handles them all with equal precision.</p>
+          <p>Clothing, shoes, electronics, furniture, collectibles — SnapWorth handles them all with the same precision.</p>
         </div>
       </div>
     </div>
   </section>
 
   <!-- Pricing -->
-  <section class="pricing-bg">
+  <section id="pricing" class="pricing-bg">
     <div class="section-inner">
-      <div class="section-eyebrow">Pricing</div>
-      <h2 class="section-title">Start free. Upgrade when you're ready.</h2>
-      <p class="section-sub">Three free scans to try it out — no card required.</p>
-
+      <div class="section-header">
+        <div class="eyebrow">Pricing</div>
+        <h2 class="section-title">Start free.<br>Upgrade when you're ready.</h2>
+        <p class="section-sub">3 free scans with no card required. Pro unlocks unlimited.</p>
+      </div>
       <div class="pricing-grid">
-        <div class="pricing-card">
-          <div class="pricing-plan">Free</div>
-          <div class="pricing-price"><sup>$</sup>0</div>
-          <div class="pricing-price-sub">forever</div>
-          <div class="pricing-divider"></div>
-          <ul class="pricing-features">
+
+        <div class="plan">
+          <div class="plan-name">Free</div>
+          <div class="plan-price"><sup>$</sup>0</div>
+          <div class="plan-cadence">forever</div>
+          <div class="plan-divider"></div>
+          <ul class="plan-features">
             <li>3 free scans</li>
             <li>Full value estimates</li>
             <li>AI listing generator</li>
             <li>Scan history</li>
           </ul>
-          <a href="#" class="pricing-cta pricing-cta-outline">Download Free</a>
+          <a href="#" class="plan-cta plan-cta-outline">Download Free</a>
         </div>
 
-        <div class="pricing-card featured">
-          <div class="pricing-badge">Most Popular</div>
-          <div class="pricing-plan">Yearly</div>
-          <div class="pricing-price"><sup>$</sup>39<span style="font-size:20px">.99</span></div>
-          <div class="pricing-price-sub">per year · 3-day free trial</div>
-          <div class="pricing-divider"></div>
-          <ul class="pricing-features">
+        <div class="plan featured">
+          <div class="plan-badge">Best value</div>
+          <div class="plan-name">Yearly</div>
+          <div class="plan-price"><sup>$</sup>39<span style="font-size:22px;letter-spacing:-0.5px">.99</span></div>
+          <div class="plan-cadence">per year · 3-day free trial · $0.77/week</div>
+          <div class="plan-divider"></div>
+          <ul class="plan-features">
             <li>Unlimited scans</li>
             <li>Full value estimates</li>
             <li>AI listing generator</li>
             <li>Full scan history</li>
             <li>3-day free trial</li>
           </ul>
-          <a href="#" class="pricing-cta pricing-cta-solid">Start Free Trial</a>
+          <a href="#" class="plan-cta plan-cta-main">Start Free Trial</a>
         </div>
 
-        <div class="pricing-card">
-          <div class="pricing-plan">Weekly</div>
-          <div class="pricing-price"><sup>$</sup>4<span style="font-size:20px">.99</span></div>
-          <div class="pricing-price-sub">per week · cancel anytime</div>
-          <div class="pricing-divider"></div>
-          <ul class="pricing-features">
+        <div class="plan">
+          <div class="plan-name">Weekly</div>
+          <div class="plan-price"><sup>$</sup>4<span style="font-size:22px;font-weight:700;letter-spacing:-0.5px">.99</span></div>
+          <div class="plan-cadence">per week · cancel anytime</div>
+          <div class="plan-divider"></div>
+          <ul class="plan-features">
             <li>Unlimited scans</li>
             <li>Full value estimates</li>
             <li>AI listing generator</li>
             <li>Full scan history</li>
           </ul>
-          <a href="#" class="pricing-cta pricing-cta-outline">Subscribe Weekly</a>
+          <a href="#" class="plan-cta plan-cta-outline">Subscribe Weekly</a>
         </div>
+
       </div>
     </div>
   </section>
 
-  <!-- Final CTA -->
-  <div class="cta-section">
-    <h2>Your next great find is waiting.<br>Know what it's worth.</h2>
-    <p>Join thrift flippers who price smarter with SnapWorth.</p>
-    <!-- TODO: Replace # with App Store link once live -->
-    <a href="#" class="btn-primary" style="display:inline-flex;margin:0 auto;">
-      <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-        <path d="M14.5 10.5C14.49 8.83 15.33 7.57 17 6.69C16.05 5.35 14.59 4.6 12.68 4.47C10.87 4.34 8.9 5.54 8.17 5.54C7.4 5.54 5.67 4.52 4.27 4.52C1.36 4.57 -1.77636e-07 6.72 -1.77636e-07 11.04C-1.77636e-07 13.56 0.46 16.16 1.38 18.47C2.03 20.13 3.87 20.07 4.72 18.47C5.07 17.81 5.5 17.47 6 17.47C6.5 17.47 6.93 17.81 7.28 18.47C8.13 20.07 9.97 20.13 10.62 18.47C11.35 16.62 11.78 14.55 11.92 12.37C13.56 12.1 14.5 11.45 14.5 10.5Z" fill="currentColor"/>
-        <path d="M12.5 2.5C12.5 1.12 11.38 0 10 0C8.62 0 7.5 1.12 7.5 2.5C7.5 3.88 8.62 5 10 5" stroke="currentColor" stroke-width="1.5" fill="none"/>
-      </svg>
+  <!-- CTA -->
+  <div class="cta-dark">
+    <h2>Your next great find<br>is waiting. <em>Know its worth.</em></h2>
+    <p>Join thrift flippers who price smarter.</p>
+    <!-- TODO: Replace # with App Store link -->
+    <a href="#" class="btn-primary-light">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.8-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z"/></svg>
       Download on the App Store
     </a>
   </div>
@@ -900,9 +877,8 @@
     <div class="footer-inner">
       <a href="/" class="footer-logo">SnapWorth</a>
       <div class="footer-links">
-        <!-- TODO: Replace with your Railway backend URL -->
-        <a href="https://api.snapworth.eu/privacy" target="_blank">Privacy Policy</a>
-        <a href="https://api.snapworth.eu/terms" target="_blank">Terms of Service</a>
+        <a href="https://api.snapworth.eu/privacy" target="_blank">Privacy</a>
+        <a href="https://api.snapworth.eu/terms" target="_blank">Terms</a>
         <a href="mailto:silh6767@gmail.com">Contact</a>
       </div>
       <span class="footer-copy">© 2026 SnapWorth</span>
