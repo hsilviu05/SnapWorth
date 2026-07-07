@@ -9,6 +9,7 @@ __pycache__/
 venv/
 
 # Xcode / iOS
+xcuserdata/
 *.xcuserdata/
 *.xcworkspace/xcuserdata/
 DerivedData/
