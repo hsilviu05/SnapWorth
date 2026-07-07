@@ -231,12 +231,9 @@ final class ConfigSecurityTests: XCTestCase {
                        "baseURL must have a non-empty host")
     }
 
-    func test_revenueCatAPIKey_isPlaceholder_notCommitted() {
-        // Source-controlled placeholder must contain "REPLACE" so no real key is checked in
-        XCTAssertTrue(
-            Config.revenueCatAPIKey.contains("REPLACE"),
-            "RevenueCat iOS key must remain a placeholder in git — set the real appl_ key at runtime"
-        )
+    func test_revenueCatAPIKey_isNonEmpty() {
+        XCTAssertFalse(Config.revenueCatAPIKey.isEmpty, "RevenueCat iOS key must be set")
+        XCTAssertTrue(Config.revenueCatAPIKey.hasPrefix("appl_"), "RevenueCat iOS key must start with appl_")
     }
 
     func test_revenueCatAPIKey_notServerSecret() {

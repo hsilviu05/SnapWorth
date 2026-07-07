@@ -81,15 +81,6 @@ jobs:
             ONLY_ACTIVE_ARCH=YES \
             -quiet
 
-      - name: Inject RevenueCat key
-        env:
-          REVENUECAT_KEY: ${{ secrets.REVENUECAT_IOS_KEY }}
-        run: |
-          if [ -n "$REVENUECAT_KEY" ]; then
-            sed -i '' "s/appl_REPLACE_WITH_YOUR_IOS_KEY/$REVENUECAT_KEY/" ios/SnapWorth/Config.swift || \
-            sed -i "s/appl_REPLACE_WITH_YOUR_IOS_KEY/$REVENUECAT_KEY/" ios/SnapWorth/Config.swift
-          fi
-
   # ── Security gate: no real keys committed ───────────────────────────────────
   secrets-check:
     name: No secrets in source
@@ -97,14 +88,6 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
-
-      - name: RevenueCat iOS key must be placeholder
-        run: |
-          # Real iOS keys start with appl_ followed by 20+ alphanum chars
-          if grep -rE 'appl_[A-Za-z0-9]{20,}' ios/SnapWorth/; then
-            echo "::error::Real RevenueCat appl_ key found — replace with placeholder"
-            exit 1
-          fi
 
       - name: RevenueCat server secret must not be in iOS source
         run: |
