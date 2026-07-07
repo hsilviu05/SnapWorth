@@ -50,7 +50,7 @@ struct TermsOfServiceView: View {
                 """)
 
             LegalSection(heading: "Subscriptions", text: """
-                SnapWorth offers auto-renewing subscriptions (weekly and yearly). Subscriptions are charged to your Apple ID account. You can cancel at any time in your device's subscription settings. Cancellation takes effect at the end of the current billing period. A 3-day free trial is available for new subscribers.
+                SnapWorth offers auto-renewing subscriptions (monthly and yearly). Subscriptions are charged to your Apple ID account. You can cancel at any time in your device's subscription settings. Cancellation takes effect at the end of the current billing period. A 3-day free trial is available for new yearly subscribers.
                 """)
 
             LegalSection(heading: "Prohibited Use", text: """

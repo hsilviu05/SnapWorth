@@ -54,7 +54,7 @@ FREE & PRO
 SnapWorth is free to try — no account needed. You get 3 free scans every day, forever.
 
 Upgrade to Pro for unlimited scans, full scan history, and AI listing drafts:
-• Weekly: $4.99/week
+• Monthly: $4.99/month
 • Yearly: $39.99/year (3-day free trial included)
 
 Cancel anytime from your iPhone settings.

@@ -212,7 +212,7 @@ purposes only. Estimates are not guarantees of actual sale prices. We are not
 responsible for any financial decisions made based on our estimates.</p>
 
 <h2>Subscriptions</h2>
-<p>SnapWorth offers auto-renewing subscriptions (weekly and yearly). Subscriptions
+<p>SnapWorth offers auto-renewing subscriptions (monthly and yearly). Subscriptions
 are charged to your Apple ID account. You can cancel at any time in your device's
 subscription settings. Cancellation takes effect at the end of the current
 billing period. A 3-day free trial is available for new yearly subscribers.</p>

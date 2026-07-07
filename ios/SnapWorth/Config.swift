@@ -10,7 +10,7 @@ enum Config {
     static let mockMode = false
 
     // ── Subscription ─────────────────────────────────────────────────────────
-    static let weeklyProductID  = "com.snapworth.weekly"
+    static let monthlyProductID = "com.snapworth.monthly"
     static let yearlyProductID  = "com.snapworth.yearly"
 
     // ── Free tier ────────────────────────────────────────────────────────────

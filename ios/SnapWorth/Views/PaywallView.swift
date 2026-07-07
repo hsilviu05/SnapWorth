@@ -26,7 +26,7 @@ struct PaywallView: View {
                             .multilineTextAlignment(.center)
                             .animation(.easeInOut(duration: 0.2), value: isYearly)
 
-                        Text(isYearly ? "Then $39.99/yr. Cancel anytime." : "$4.99/week. Cancel anytime.")
+                        Text(isYearly ? "Then $39.99/yr. Cancel anytime." : "$4.99/month. Cancel anytime.")
                             .font(.snapCaption)
                             .foregroundStyle(Color.snapWarmGray)
                             .animation(.easeInOut(duration: 0.2), value: isYearly)
@@ -47,14 +47,14 @@ struct PaywallView: View {
                         }
 
                         PlanCard(
-                            title: "Weekly",
-                            price: "$4.99/wk",
+                            title: "Monthly",
+                            price: "$4.99/mo",
                             priceDetail: "Flexible, cancel anytime",
                             badge: nil,
-                            isSelected: vm.selectedProductID == Config.weeklyProductID
+                            isSelected: vm.selectedProductID == Config.monthlyProductID
                         ) {
                             UISelectionFeedbackGenerator().selectionChanged()
-                            vm.selectedProductID = Config.weeklyProductID
+                            vm.selectedProductID = Config.monthlyProductID
                         }
                     }
                     .padding(.horizontal, 20)
@@ -86,7 +86,7 @@ struct PaywallView: View {
                         PrimaryButton(
                             title: vm.selectedProductID == Config.yearlyProductID
                                 ? "Start Free Trial"
-                                : "Subscribe Weekly",
+                                : "Subscribe Monthly",
                             isLoading: vm.isPurchasing
                         ) {
                             Task { await vm.purchase(service: purchaseService) }
