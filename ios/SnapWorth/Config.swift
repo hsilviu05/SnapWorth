@@ -18,5 +18,5 @@ enum Config {
 
     // ── RevenueCat ───────────────────────────────────────────────────────────
     /// Paste your RevenueCat iOS public SDK key here.
-    static let revenueCatAPIKey = "appl_qqBgbKedqLFGtUymTlPANoyKRib"
+    static let revenueCatAPIKey = "appl_REPLACE_WITH_YOUR_IOS_KEY"
 }

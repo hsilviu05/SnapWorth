@@ -258,12 +258,12 @@ final class ConfigSecurityTests: XCTestCase {
     }
 
     func test_productIDs_areNonEmpty() {
-        XCTAssertFalse(Config.weeklyProductID.isEmpty)
+        XCTAssertFalse(Config.monthlyProductID.isEmpty)
         XCTAssertFalse(Config.yearlyProductID.isEmpty)
     }
 
     func test_productIDs_areDistinct() {
-        XCTAssertNotEqual(Config.weeklyProductID, Config.yearlyProductID)
+        XCTAssertNotEqual(Config.monthlyProductID, Config.yearlyProductID)
     }
 }
 
