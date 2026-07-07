@@ -10,8 +10,8 @@ enum Config {
     static let mockMode = false
 
     // ── Subscription ─────────────────────────────────────────────────────────
-    static let monthlyProductID = "com.snapworth.monthly"
-    static let yearlyProductID  = "com.snapworth.yearly"
+    static let monthlyProductID = "eu.snapworth.monthly"
+    static let yearlyProductID  = "eu.snapworth.yearly"
 
     // ── Free tier ────────────────────────────────────────────────────────────
     static let freeScansAllowed = 3

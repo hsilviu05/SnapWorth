@@ -29,13 +29,13 @@
 		AA00000000000000000000E7 /* ResultView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000000E6 /* ResultView.swift */; };
 		AA00000000000000000000E9 /* HistoryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000000E8 /* HistoryView.swift */; };
 		AA00000000000000000000EB /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000000EA /* SettingsView.swift */; };
+		AA00000000000000000000ED /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000000EC /* Assets.xcassets */; };
+		AA00000000000000000000F2 /* Fraunces-Variable.ttf in Resources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000000F1 /* Fraunces-Variable.ttf */; };
+		AA00000000000000000000F4 /* DMSans-Variable.ttf in Resources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000000F3 /* DMSans-Variable.ttf */; };
 		AA00000000000000000000F7 /* LegalView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000000F6 /* LegalView.swift */; };
 		AA00000000000000000000FA /* RevenueCat in Frameworks */ = {isa = PBXBuildFile; productRef = AA00000000000000000000F9 /* RevenueCat */; };
 		AA00000000000000000000FC /* FeedbackView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000000FB /* FeedbackView.swift */; };
-		AA00000000000000000000ED /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000000EC /* Assets.xcassets */; };
 		AA0000000000000000000100 /* SnapWorthTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000102 /* SnapWorthTests.swift */; };
-		AA00000000000000000000F2 /* Fraunces-Variable.ttf in Resources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000000F1 /* Fraunces-Variable.ttf */; };
-		AA00000000000000000000F4 /* DMSans-Variable.ttf in Resources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000000F3 /* DMSans-Variable.ttf */; };
 		AA000000000000000000010E /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = AA000000000000000000010D /* PrivacyInfo.xcprivacy */; };
 /* End PBXBuildFile section */
 
@@ -51,9 +51,6 @@
 
 /* Begin PBXFileReference section */
 		AA00000000000000000000AE /* SnapWorth.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = SnapWorth.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		AA0000000000000000000101 /* SnapWorthTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = SnapWorthTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
-		AA000000000000000000010D /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
-		AA0000000000000000000102 /* SnapWorthTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SnapWorthTests.swift; sourceTree = "<group>"; };
 		AA00000000000000000000C0 /* SnapWorthApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SnapWorthApp.swift; sourceTree = "<group>"; };
 		AA00000000000000000000C2 /* Config.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Config.swift; sourceTree = "<group>"; };
 		AA00000000000000000000C4 /* DesignSystem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DesignSystem.swift; sourceTree = "<group>"; };
@@ -76,12 +73,15 @@
 		AA00000000000000000000E6 /* ResultView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ResultView.swift; sourceTree = "<group>"; };
 		AA00000000000000000000E8 /* HistoryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryView.swift; sourceTree = "<group>"; };
 		AA00000000000000000000EA /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
-		AA00000000000000000000F6 /* LegalView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LegalView.swift; sourceTree = "<group>"; };
-		AA00000000000000000000FB /* FeedbackView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeedbackView.swift; sourceTree = "<group>"; };
 		AA00000000000000000000EC /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		AA00000000000000000000EE /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		AA00000000000000000000F1 /* Fraunces-Variable.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Fraunces-Variable.ttf"; sourceTree = "<group>"; };
 		AA00000000000000000000F3 /* DMSans-Variable.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "DMSans-Variable.ttf"; sourceTree = "<group>"; };
+		AA00000000000000000000F6 /* LegalView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LegalView.swift; sourceTree = "<group>"; };
+		AA00000000000000000000FB /* FeedbackView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeedbackView.swift; sourceTree = "<group>"; };
+		AA0000000000000000000101 /* SnapWorthTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = SnapWorthTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		AA0000000000000000000102 /* SnapWorthTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SnapWorthTests.swift; sourceTree = "<group>"; };
+		AA000000000000000000010D /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -129,15 +129,6 @@
 				AA0000000000000000000101 /* SnapWorthTests.xctest */,
 			);
 			name = Products;
-			sourceTree = "<group>";
-		};
-		AA00000000000000000000F5 /* Fonts */ = {
-			isa = PBXGroup;
-			children = (
-				AA00000000000000000000F1 /* Fraunces-Variable.ttf */,
-				AA00000000000000000000F3 /* DMSans-Variable.ttf */,
-			);
-			path = Fonts;
 			sourceTree = "<group>";
 		};
 		AA00000000000000000000B8 /* DesignSystem */ = {
@@ -204,13 +195,22 @@
 			path = Views;
 			sourceTree = "<group>";
 		};
-		AA00000000000000000000F0 /* root */ = {
+		AA00000000000000000000F0 = {
 			isa = PBXGroup;
 			children = (
 				AA00000000000000000000AB /* SnapWorth */,
 				AA0000000000000000000103 /* SnapWorthTests */,
 				AA00000000000000000000AC /* Products */,
 			);
+			sourceTree = "<group>";
+		};
+		AA00000000000000000000F5 /* Fonts */ = {
+			isa = PBXGroup;
+			children = (
+				AA00000000000000000000F1 /* Fraunces-Variable.ttf */,
+				AA00000000000000000000F3 /* DMSans-Variable.ttf */,
+			);
+			path = Fonts;
 			sourceTree = "<group>";
 		};
 		AA0000000000000000000103 /* SnapWorthTests */ = {
@@ -289,11 +289,11 @@
 				en,
 				Base,
 			);
-			mainGroup = AA00000000000000000000F0 /* root */;
-			productRefGroup = AA00000000000000000000AC /* Products */;
+			mainGroup = AA00000000000000000000F0;
 			packageReferences = (
 				AA00000000000000000000F8 /* XCRemoteSwiftPackageReference "purchases-ios" */,
 			);
+			productRefGroup = AA00000000000000000000AC /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
@@ -502,7 +502,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_ASSET_PATHS = "";
-				DEVELOPMENT_TEAM = "";
+				DEVELOPMENT_TEAM = A93FGV7L5Y;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = SnapWorth/Info.plist;
@@ -513,7 +513,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.snapworth.app;
+				PRODUCT_BUNDLE_IDENTIFIER = eu.snapworth.app;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
@@ -529,7 +529,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_ASSET_PATHS = "";
-				DEVELOPMENT_TEAM = "";
+				DEVELOPMENT_TEAM = A93FGV7L5Y;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = SnapWorth/Info.plist;
@@ -540,7 +540,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.snapworth.app;
+				PRODUCT_BUNDLE_IDENTIFIER = eu.snapworth.app;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
@@ -560,7 +560,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.snapworth.appTests;
+				PRODUCT_BUNDLE_IDENTIFIER = eu.snapworth.appTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_VERSION = 5.0;
@@ -581,7 +581,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.snapworth.appTests;
+				PRODUCT_BUNDLE_IDENTIFIER = eu.snapworth.appTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_VERSION = 5.0;
@@ -640,7 +640,6 @@
 			productName = RevenueCat;
 		};
 /* End XCSwiftPackageProductDependency section */
-
 	};
 	rootObject = AA00000000000000000000AA /* Project object */;
 }
