@@ -1,0 +1,911 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SnapWorth — Know What Your Thrift Finds Are Worth</title>
+  <meta name="description" content="Snap a photo of any thrift item and instantly get real resale prices from eBay, Poshmark, Depop & more. Powered by AI.">
+  <meta property="og:title" content="SnapWorth — Know What Your Thrift Finds Are Worth">
+  <meta property="og:description" content="Snap a photo of any thrift item and instantly get real resale prices from eBay, Poshmark, Depop & more.">
+  <meta property="og:type" content="website">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,700;9..144,900&family=DM+Sans:ital,wght@0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:         #FAF7F4;
+      --card:       #F3EDE8;
+      --terracotta: #D96C47;
+      --terracotta-dark: #C05A38;
+      --espresso:   #2B211C;
+      --sage:       #7A9E7E;
+      --warm-gray:  #8B7B75;
+      --border:     #E8DDD7;
+      --charcoal:   #3D2E28;
+      --white:      #FFFFFF;
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      background: var(--bg);
+      color: var(--espresso);
+      font-family: 'DM Sans', sans-serif;
+      font-size: 16px;
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ── Nav ──────────────────────────────────────────────────────── */
+    nav {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      background: rgba(250,247,244,0.92);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+      padding: 0 24px;
+    }
+    .nav-inner {
+      max-width: 1100px;
+      margin: 0 auto;
+      height: 64px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .nav-logo {
+      font-family: 'Fraunces', serif;
+      font-size: 22px;
+      font-weight: 700;
+      color: var(--espresso);
+      text-decoration: none;
+      letter-spacing: -0.3px;
+    }
+    .nav-cta {
+      background: var(--espresso);
+      color: var(--bg);
+      font-family: 'DM Sans', sans-serif;
+      font-size: 14px;
+      font-weight: 600;
+      padding: 9px 20px;
+      border-radius: 100px;
+      text-decoration: none;
+      transition: background 0.18s;
+    }
+    .nav-cta:hover { background: var(--charcoal); }
+
+    /* ── Hero ─────────────────────────────────────────────────────── */
+    .hero {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 80px 24px 60px;
+      display: grid;
+      grid-template-columns: 1fr 420px;
+      gap: 60px;
+      align-items: center;
+    }
+    .hero-eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: var(--sage);
+      color: var(--white);
+      font-size: 13px;
+      font-weight: 600;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+      padding: 5px 14px;
+      border-radius: 100px;
+      margin-bottom: 24px;
+    }
+    .hero-eyebrow-dot {
+      width: 6px; height: 6px;
+      background: var(--white);
+      border-radius: 50%;
+      opacity: 0.8;
+    }
+    .hero h1 {
+      font-family: 'Fraunces', serif;
+      font-size: clamp(38px, 5vw, 60px);
+      font-weight: 900;
+      line-height: 1.08;
+      letter-spacing: -1.5px;
+      color: var(--espresso);
+      margin-bottom: 24px;
+    }
+    .hero h1 em {
+      font-style: italic;
+      color: var(--terracotta);
+    }
+    .hero-sub {
+      font-size: 18px;
+      color: var(--warm-gray);
+      max-width: 460px;
+      line-height: 1.65;
+      margin-bottom: 40px;
+    }
+    .hero-actions {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+    .btn-primary {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      background: var(--terracotta);
+      color: var(--white);
+      font-family: 'DM Sans', sans-serif;
+      font-size: 16px;
+      font-weight: 600;
+      padding: 14px 28px;
+      border-radius: 100px;
+      text-decoration: none;
+      transition: background 0.18s, transform 0.12s;
+      white-space: nowrap;
+    }
+    .btn-primary:hover { background: var(--terracotta-dark); transform: translateY(-1px); }
+    .btn-primary svg { flex-shrink: 0; }
+    .hero-note {
+      font-size: 14px;
+      color: var(--warm-gray);
+    }
+
+    /* ── Phone mockup ─────────────────────────────────────────────── */
+    .phone-wrap {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      position: relative;
+    }
+    .phone {
+      width: 280px;
+      height: 560px;
+      background: var(--espresso);
+      border-radius: 44px;
+      padding: 14px;
+      box-shadow:
+        0 30px 80px rgba(43,33,28,0.25),
+        0 2px 8px rgba(43,33,28,0.15),
+        inset 0 0 0 1px rgba(255,255,255,0.08);
+      position: relative;
+    }
+    .phone-screen {
+      width: 100%;
+      height: 100%;
+      background: #1C1614;
+      border-radius: 34px;
+      overflow: hidden;
+      position: relative;
+      display: flex;
+      flex-direction: column;
+    }
+    .phone-notch {
+      width: 90px; height: 28px;
+      background: var(--espresso);
+      border-radius: 0 0 18px 18px;
+      margin: 0 auto;
+      flex-shrink: 0;
+    }
+    .phone-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 10px 18px 4px;
+      flex-shrink: 0;
+    }
+    .phone-header-title {
+      font-family: 'Fraunces', serif;
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--bg);
+    }
+    .phone-badge {
+      background: var(--terracotta);
+      color: var(--white);
+      font-size: 9px;
+      font-weight: 600;
+      padding: 3px 8px;
+      border-radius: 100px;
+    }
+    .phone-viewfinder {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+    }
+    .viewfinder-frame {
+      width: 180px; height: 180px;
+      border: 1.5px solid rgba(250,247,244,0.4);
+      border-radius: 18px;
+      position: relative;
+    }
+    .vf-corner {
+      position: absolute;
+      width: 18px; height: 18px;
+      border-color: var(--bg);
+      border-style: solid;
+    }
+    .vf-corner.tl { top: -1px; left: -1px; border-width: 2.5px 0 0 2.5px; border-radius: 4px 0 0 0; }
+    .vf-corner.tr { top: -1px; right: -1px; border-width: 2.5px 2.5px 0 0; border-radius: 0 4px 0 0; }
+    .vf-corner.bl { bottom: -1px; left: -1px; border-width: 0 0 2.5px 2.5px; border-radius: 0 0 0 4px; }
+    .vf-corner.br { bottom: -1px; right: -1px; border-width: 0 2.5px 2.5px 0; border-radius: 0 0 4px 0; }
+    .viewfinder-item {
+      width: 80px; height: 80px;
+      background: rgba(122,158,126,0.2);
+      border-radius: 10px;
+      margin: auto;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 36px;
+    }
+    .phone-hint {
+      font-size: 10px;
+      color: rgba(250,247,244,0.6);
+      text-align: center;
+      margin-top: 10px;
+    }
+    .phone-controls {
+      padding: 8px 18px 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-shrink: 0;
+    }
+    .phone-gallery {
+      width: 38px; height: 38px;
+      background: rgba(250,247,244,0.15);
+      border-radius: 8px;
+    }
+    .phone-shutter {
+      width: 60px; height: 60px;
+      background: var(--bg);
+      border-radius: 50%;
+      box-shadow: 0 0 0 3px rgba(250,247,244,0.3);
+    }
+    .phone-spacer { width: 38px; }
+
+    /* Result card that floats beside the phone */
+    .result-float {
+      position: absolute;
+      right: -60px;
+      top: 50%;
+      transform: translateY(-50%);
+      background: var(--white);
+      border-radius: 18px;
+      padding: 16px 18px;
+      box-shadow: 0 8px 32px rgba(43,33,28,0.14);
+      width: 160px;
+    }
+    .result-float-tag {
+      font-size: 10px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--sage);
+      margin-bottom: 4px;
+    }
+    .result-float-name {
+      font-family: 'Fraunces', serif;
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--espresso);
+      margin-bottom: 8px;
+      line-height: 1.3;
+    }
+    .result-float-price {
+      font-family: 'Fraunces', serif;
+      font-size: 20px;
+      font-weight: 900;
+      color: var(--terracotta);
+      line-height: 1;
+    }
+    .result-float-sub {
+      font-size: 10px;
+      color: var(--warm-gray);
+      margin-top: 3px;
+    }
+    .result-float-bar {
+      height: 3px;
+      background: var(--border);
+      border-radius: 2px;
+      margin-top: 10px;
+      overflow: hidden;
+    }
+    .result-float-bar-fill {
+      height: 100%;
+      width: 75%;
+      background: var(--sage);
+      border-radius: 2px;
+    }
+    .result-float-conf {
+      font-size: 9px;
+      color: var(--warm-gray);
+      margin-top: 3px;
+    }
+
+    /* ── Social proof strip ───────────────────────────────────────── */
+    .platforms {
+      border-top: 1px solid var(--border);
+      border-bottom: 1px solid var(--border);
+      padding: 20px 24px;
+      text-align: center;
+    }
+    .platforms p {
+      font-size: 13px;
+      color: var(--warm-gray);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      font-weight: 500;
+      margin-bottom: 16px;
+    }
+    .platforms-logos {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 32px;
+      flex-wrap: wrap;
+      max-width: 700px;
+      margin: 0 auto;
+    }
+    .platform-name {
+      font-family: 'DM Sans', sans-serif;
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--warm-gray);
+      opacity: 0.7;
+    }
+
+    /* ── Section shared ───────────────────────────────────────────── */
+    section { padding: 96px 24px; }
+    .section-inner {
+      max-width: 1100px;
+      margin: 0 auto;
+    }
+    .section-eyebrow {
+      font-size: 13px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: var(--terracotta);
+      margin-bottom: 16px;
+    }
+    .section-title {
+      font-family: 'Fraunces', serif;
+      font-size: clamp(30px, 4vw, 44px);
+      font-weight: 700;
+      letter-spacing: -0.8px;
+      line-height: 1.15;
+      color: var(--espresso);
+      margin-bottom: 16px;
+    }
+    .section-sub {
+      font-size: 17px;
+      color: var(--warm-gray);
+      max-width: 520px;
+      line-height: 1.65;
+      margin-bottom: 56px;
+    }
+
+    /* ── How it works ─────────────────────────────────────────────── */
+    .how-bg { background: var(--card); }
+    .steps {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 32px;
+    }
+    .step {
+      background: var(--bg);
+      border-radius: 24px;
+      padding: 36px 32px;
+      border: 1px solid var(--border);
+      position: relative;
+    }
+    .step-number {
+      font-family: 'Fraunces', serif;
+      font-size: 48px;
+      font-weight: 900;
+      color: var(--border);
+      line-height: 1;
+      margin-bottom: 20px;
+    }
+    .step-icon {
+      font-size: 32px;
+      margin-bottom: 16px;
+    }
+    .step h3 {
+      font-family: 'Fraunces', serif;
+      font-size: 22px;
+      font-weight: 700;
+      color: var(--espresso);
+      margin-bottom: 10px;
+      letter-spacing: -0.3px;
+    }
+    .step p {
+      font-size: 15px;
+      color: var(--warm-gray);
+      line-height: 1.65;
+    }
+
+    /* ── Features ─────────────────────────────────────────────────── */
+    .features-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 24px;
+    }
+    .feature-card {
+      background: var(--card);
+      border-radius: 24px;
+      padding: 36px;
+      border: 1px solid var(--border);
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+    .feature-card:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 12px 40px rgba(43,33,28,0.08);
+    }
+    .feature-icon {
+      width: 52px; height: 52px;
+      background: var(--bg);
+      border-radius: 14px;
+      border: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 24px;
+      margin-bottom: 20px;
+    }
+    .feature-card h3 {
+      font-family: 'Fraunces', serif;
+      font-size: 21px;
+      font-weight: 700;
+      color: var(--espresso);
+      margin-bottom: 10px;
+      letter-spacing: -0.3px;
+    }
+    .feature-card p {
+      font-size: 15px;
+      color: var(--warm-gray);
+      line-height: 1.65;
+    }
+
+    /* ── Pricing ──────────────────────────────────────────────────── */
+    .pricing-bg { background: var(--card); }
+    .pricing-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 24px;
+      align-items: start;
+    }
+    .pricing-card {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 24px;
+      padding: 36px 32px;
+    }
+    .pricing-card.featured {
+      background: var(--espresso);
+      border-color: var(--espresso);
+    }
+    .pricing-badge {
+      display: inline-block;
+      background: var(--terracotta);
+      color: var(--white);
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+      padding: 4px 10px;
+      border-radius: 100px;
+      margin-bottom: 20px;
+    }
+    .pricing-plan {
+      font-size: 13px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: var(--warm-gray);
+      margin-bottom: 12px;
+    }
+    .pricing-card.featured .pricing-plan { color: rgba(250,247,244,0.6); }
+    .pricing-price {
+      font-family: 'Fraunces', serif;
+      font-size: 42px;
+      font-weight: 900;
+      color: var(--espresso);
+      letter-spacing: -1px;
+      line-height: 1;
+    }
+    .pricing-card.featured .pricing-price { color: var(--bg); }
+    .pricing-price sup { font-size: 22px; vertical-align: super; }
+    .pricing-price-sub {
+      font-size: 14px;
+      color: var(--warm-gray);
+      margin-top: 4px;
+      margin-bottom: 28px;
+    }
+    .pricing-card.featured .pricing-price-sub { color: rgba(250,247,244,0.55); }
+    .pricing-divider {
+      height: 1px;
+      background: var(--border);
+      margin-bottom: 24px;
+    }
+    .pricing-card.featured .pricing-divider { background: rgba(250,247,244,0.12); }
+    .pricing-features {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .pricing-features li {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      font-size: 15px;
+      color: var(--espresso);
+    }
+    .pricing-card.featured .pricing-features li { color: rgba(250,247,244,0.9); }
+    .pricing-features li::before {
+      content: "✓";
+      color: var(--sage);
+      font-weight: 700;
+      flex-shrink: 0;
+      line-height: 1.6;
+    }
+    .pricing-cta {
+      display: block;
+      margin-top: 32px;
+      text-align: center;
+      padding: 13px 24px;
+      border-radius: 100px;
+      font-weight: 600;
+      font-size: 15px;
+      text-decoration: none;
+      transition: background 0.18s, transform 0.12s;
+    }
+    .pricing-cta:hover { transform: translateY(-1px); }
+    .pricing-cta-outline {
+      background: transparent;
+      border: 1.5px solid var(--border);
+      color: var(--espresso);
+    }
+    .pricing-cta-outline:hover { background: var(--card); border-color: var(--warm-gray); }
+    .pricing-cta-solid {
+      background: var(--terracotta);
+      color: var(--white);
+    }
+    .pricing-cta-solid:hover { background: var(--terracotta-dark); }
+    .pricing-cta-ghost {
+      background: rgba(250,247,244,0.1);
+      color: var(--bg);
+      border: 1.5px solid rgba(250,247,244,0.2);
+    }
+    .pricing-cta-ghost:hover { background: rgba(250,247,244,0.18); }
+
+    /* ── Final CTA ────────────────────────────────────────────────── */
+    .cta-section {
+      text-align: center;
+      padding: 96px 24px;
+    }
+    .cta-section h2 {
+      font-family: 'Fraunces', serif;
+      font-size: clamp(32px, 5vw, 52px);
+      font-weight: 900;
+      letter-spacing: -1px;
+      line-height: 1.1;
+      color: var(--espresso);
+      margin-bottom: 20px;
+    }
+    .cta-section p {
+      font-size: 18px;
+      color: var(--warm-gray);
+      max-width: 460px;
+      margin: 0 auto 40px;
+      line-height: 1.65;
+    }
+
+    /* ── Footer ───────────────────────────────────────────────────── */
+    footer {
+      border-top: 1px solid var(--border);
+      padding: 40px 24px;
+    }
+    .footer-inner {
+      max-width: 1100px;
+      margin: 0 auto;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 16px;
+    }
+    .footer-logo {
+      font-family: 'Fraunces', serif;
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--espresso);
+      text-decoration: none;
+    }
+    .footer-links {
+      display: flex;
+      gap: 24px;
+      align-items: center;
+    }
+    .footer-links a {
+      font-size: 14px;
+      color: var(--warm-gray);
+      text-decoration: none;
+      transition: color 0.15s;
+    }
+    .footer-links a:hover { color: var(--espresso); }
+    .footer-copy {
+      font-size: 13px;
+      color: var(--warm-gray);
+    }
+
+    /* ── Responsive ───────────────────────────────────────────────── */
+    @media (max-width: 900px) {
+      .hero {
+        grid-template-columns: 1fr;
+        text-align: center;
+        padding-top: 56px;
+      }
+      .hero-sub { margin-left: auto; margin-right: auto; }
+      .hero-actions { justify-content: center; }
+      .phone-wrap { order: -1; }
+      .result-float { display: none; }
+
+      .steps { grid-template-columns: 1fr; }
+      .features-grid { grid-template-columns: 1fr; }
+      .pricing-grid { grid-template-columns: 1fr; }
+
+      .footer-inner { flex-direction: column; align-items: flex-start; gap: 20px; }
+    }
+
+    @media (max-width: 480px) {
+      .hero h1 { font-size: 34px; }
+      section { padding: 64px 20px; }
+      .step, .feature-card, .pricing-card { padding: 28px 24px; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Nav -->
+  <nav>
+    <div class="nav-inner">
+      <a href="/" class="nav-logo">SnapWorth</a>
+      <!-- TODO: Replace # with App Store link once live -->
+      <a href="#" class="nav-cta">Download Free</a>
+    </div>
+  </nav>
+
+  <!-- Hero -->
+  <div class="hero">
+    <div class="hero-text">
+      <div class="hero-eyebrow">
+        <span class="hero-eyebrow-dot"></span>
+        Available on iOS
+      </div>
+      <h1>Know exactly what your thrift finds are <em>worth</em></h1>
+      <p class="hero-sub">
+        Snap a photo of any secondhand item and get real resale prices from
+        eBay, Poshmark, Depop & more — powered by AI.
+      </p>
+      <div class="hero-actions">
+        <!-- TODO: Replace # with App Store link once live -->
+        <a href="#" class="btn-primary">
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+            <path d="M14.5 10.5C14.49 8.83 15.33 7.57 17 6.69C16.05 5.35 14.59 4.6 12.68 4.47C10.87 4.34 8.9 5.54 8.17 5.54C7.4 5.54 5.67 4.52 4.27 4.52C1.36 4.57 -1.77636e-07 6.72 -1.77636e-07 11.04C-1.77636e-07 13.56 0.46 16.16 1.38 18.47C2.03 20.13 3.87 20.07 4.72 18.47C5.07 17.81 5.5 17.47 6 17.47C6.5 17.47 6.93 17.81 7.28 18.47C8.13 20.07 9.97 20.13 10.62 18.47C11.35 16.62 11.78 14.55 11.92 12.37C13.56 12.1 14.5 11.45 14.5 10.5Z" fill="currentColor"/>
+            <path d="M12.5 2.5C12.5 1.12 11.38 0 10 0C8.62 0 7.5 1.12 7.5 2.5C7.5 3.88 8.62 5 10 5" stroke="currentColor" stroke-width="1.5" fill="none"/>
+          </svg>
+          Download on the App Store
+        </a>
+        <span class="hero-note">Free to start · iOS 17+</span>
+      </div>
+    </div>
+
+    <div class="phone-wrap">
+      <div class="phone">
+        <div class="phone-screen">
+          <div class="phone-notch"></div>
+          <div class="phone-header">
+            <span class="phone-header-title">SnapWorth</span>
+            <span class="phone-badge">3 free scans</span>
+          </div>
+          <div class="phone-viewfinder">
+            <div class="viewfinder-frame">
+              <div class="vf-corner tl"></div>
+              <div class="vf-corner tr"></div>
+              <div class="vf-corner bl"></div>
+              <div class="vf-corner br"></div>
+              <div class="viewfinder-item">👜</div>
+            </div>
+            <p class="phone-hint">Center the item — tags & logos help</p>
+          </div>
+          <div class="phone-controls">
+            <div class="phone-gallery"></div>
+            <div class="phone-shutter"></div>
+            <div class="phone-spacer"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="result-float">
+        <div class="result-float-tag">Resale Value</div>
+        <div class="result-float-name">Coach Leather Crossbody</div>
+        <div class="result-float-price"><sup>$</sup>38<span style="font-size:14px;font-weight:600;color:var(--warm-gray)"> – $65</span></div>
+        <div class="result-float-sub">42 sold listings</div>
+        <div class="result-float-bar"><div class="result-float-bar-fill"></div></div>
+        <div class="result-float-conf">High confidence</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Platform strip -->
+  <div class="platforms">
+    <p>Pricing data pulled from</p>
+    <div class="platforms-logos">
+      <span class="platform-name">eBay</span>
+      <span class="platform-name">Poshmark</span>
+      <span class="platform-name">Depop</span>
+      <span class="platform-name">ThredUp</span>
+      <span class="platform-name">Facebook Marketplace</span>
+    </div>
+  </div>
+
+  <!-- How it works -->
+  <section class="how-bg">
+    <div class="section-inner">
+      <div class="section-eyebrow">How it works</div>
+      <h2 class="section-title">Three steps from find to profit</h2>
+      <p class="section-sub">No market research, no guesswork. SnapWorth does the heavy lifting in seconds.</p>
+
+      <div class="steps">
+        <div class="step">
+          <div class="step-number">01</div>
+          <div class="step-icon">📸</div>
+          <h3>Snap a photo</h3>
+          <p>Point your camera at any thrift, garage sale, or estate sale item. Clear photos of tags and logos give the best results.</p>
+        </div>
+        <div class="step">
+          <div class="step-number">02</div>
+          <div class="step-icon">🔍</div>
+          <h3>AI checks sold listings</h3>
+          <p>Our AI identifies the exact item and cross-references hundreds of recently sold listings across top resale platforms.</p>
+        </div>
+        <div class="step">
+          <div class="step-number">03</div>
+          <div class="step-icon">💰</div>
+          <h3>Know what to pay</h3>
+          <p>Get a real resale value range, a confidence score, and a ready-to-post listing — so you never leave money on the table.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Features -->
+  <section>
+    <div class="section-inner">
+      <div class="section-eyebrow">Features</div>
+      <h2 class="section-title">Everything a thrift flipper needs</h2>
+      <p class="section-sub">Built for resellers who want to move fast and price smart.</p>
+
+      <div class="features-grid">
+        <div class="feature-card">
+          <div class="feature-icon">📊</div>
+          <h3>Real sold-price data</h3>
+          <p>Prices are based on what items actually sold for — not inflated asking prices. So your estimates are grounded in the real market.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon">✍️</div>
+          <h3>AI listing writer</h3>
+          <p>Every scan generates a compelling, SEO-optimized listing title and description ready to paste straight into eBay, Poshmark, or Depop.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon">🗂️</div>
+          <h3>Full scan history</h3>
+          <p>Every item you scan is saved locally on your device. Search your finds, sort by value, and track your total portfolio worth at a glance.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon">👗</div>
+          <h3>Anything secondhand</h3>
+          <p>Clothing, shoes, accessories, electronics, books, furniture, collectibles — SnapWorth handles them all with equal precision.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Pricing -->
+  <section class="pricing-bg">
+    <div class="section-inner">
+      <div class="section-eyebrow">Pricing</div>
+      <h2 class="section-title">Start free. Upgrade when you're ready.</h2>
+      <p class="section-sub">Three free scans to try it out — no card required.</p>
+
+      <div class="pricing-grid">
+        <div class="pricing-card">
+          <div class="pricing-plan">Free</div>
+          <div class="pricing-price"><sup>$</sup>0</div>
+          <div class="pricing-price-sub">forever</div>
+          <div class="pricing-divider"></div>
+          <ul class="pricing-features">
+            <li>3 free scans</li>
+            <li>Full value estimates</li>
+            <li>AI listing generator</li>
+            <li>Scan history</li>
+          </ul>
+          <a href="#" class="pricing-cta pricing-cta-outline">Download Free</a>
+        </div>
+
+        <div class="pricing-card featured">
+          <div class="pricing-badge">Most Popular</div>
+          <div class="pricing-plan">Yearly</div>
+          <div class="pricing-price"><sup>$</sup>39<span style="font-size:20px">.99</span></div>
+          <div class="pricing-price-sub">per year · 3-day free trial</div>
+          <div class="pricing-divider"></div>
+          <ul class="pricing-features">
+            <li>Unlimited scans</li>
+            <li>Full value estimates</li>
+            <li>AI listing generator</li>
+            <li>Full scan history</li>
+            <li>3-day free trial</li>
+          </ul>
+          <a href="#" class="pricing-cta pricing-cta-solid">Start Free Trial</a>
+        </div>
+
+        <div class="pricing-card">
+          <div class="pricing-plan">Weekly</div>
+          <div class="pricing-price"><sup>$</sup>4<span style="font-size:20px">.99</span></div>
+          <div class="pricing-price-sub">per week · cancel anytime</div>
+          <div class="pricing-divider"></div>
+          <ul class="pricing-features">
+            <li>Unlimited scans</li>
+            <li>Full value estimates</li>
+            <li>AI listing generator</li>
+            <li>Full scan history</li>
+          </ul>
+          <a href="#" class="pricing-cta pricing-cta-outline">Subscribe Weekly</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Final CTA -->
+  <div class="cta-section">
+    <h2>Your next great find is waiting.<br>Know what it's worth.</h2>
+    <p>Join thrift flippers who price smarter with SnapWorth.</p>
+    <!-- TODO: Replace # with App Store link once live -->
+    <a href="#" class="btn-primary" style="display:inline-flex;margin:0 auto;">
+      <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+        <path d="M14.5 10.5C14.49 8.83 15.33 7.57 17 6.69C16.05 5.35 14.59 4.6 12.68 4.47C10.87 4.34 8.9 5.54 8.17 5.54C7.4 5.54 5.67 4.52 4.27 4.52C1.36 4.57 -1.77636e-07 6.72 -1.77636e-07 11.04C-1.77636e-07 13.56 0.46 16.16 1.38 18.47C2.03 20.13 3.87 20.07 4.72 18.47C5.07 17.81 5.5 17.47 6 17.47C6.5 17.47 6.93 17.81 7.28 18.47C8.13 20.07 9.97 20.13 10.62 18.47C11.35 16.62 11.78 14.55 11.92 12.37C13.56 12.1 14.5 11.45 14.5 10.5Z" fill="currentColor"/>
+        <path d="M12.5 2.5C12.5 1.12 11.38 0 10 0C8.62 0 7.5 1.12 7.5 2.5C7.5 3.88 8.62 5 10 5" stroke="currentColor" stroke-width="1.5" fill="none"/>
+      </svg>
+      Download on the App Store
+    </a>
+  </div>
+
+  <!-- Footer -->
+  <footer>
+    <div class="footer-inner">
+      <a href="/" class="footer-logo">SnapWorth</a>
+      <div class="footer-links">
+        <!-- TODO: Replace with your Railway backend URL -->
+        <a href="https://snapworth-backend.up.railway.app/privacy" target="_blank">Privacy Policy</a>
+        <a href="https://snapworth-backend.up.railway.app/terms" target="_blank">Terms of Service</a>
+        <a href="mailto:silh6767@gmail.com">Contact</a>
+      </div>
+      <span class="footer-copy">© 2026 SnapWorth</span>
+    </div>
+  </footer>
+
+</body>
+</html>
