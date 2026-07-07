@@ -296,8 +296,10 @@ async def scan(
     high = _safe_float(data.get("est_value_high_usd", 0))
     if low > high:
         low, high = high, low
-    if low == high:
-        high = low * 1.5 if low > 0 else 1.0
+    if high == 0:
+        low, high = 1.0, 5.0
+    elif low == high:
+        high = round(low * 1.5, 2)
 
     elapsed = time.monotonic() - t0
     log.info("scan ok device=%s item=%r value=$%.0f–$%.0f conf=%s elapsed=%.1fs",

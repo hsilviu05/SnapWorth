@@ -21,7 +21,11 @@ struct SnapWorthApp: App {
             // Persistent store is corrupt or unreadable; fall back to in-memory
             // so the app stays functional rather than crash-looping on every launch.
             let fallback = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
-            return try! ModelContainer(for: schema, configurations: [fallback])
+            do {
+                return try ModelContainer(for: schema, configurations: [fallback])
+            } catch let fallbackError {
+                fatalError("SwiftData failed to create even an in-memory container: \(fallbackError). This is a schema programming error.")
+            }
         }
     }()
 

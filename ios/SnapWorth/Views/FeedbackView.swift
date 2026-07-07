@@ -6,6 +6,7 @@ struct FeedbackView: View {
     @State private var feedbackType: FeedbackType = .featureRequest
     @State private var message: String = ""
     @State private var didSend: Bool = false
+    @State private var sendResetTask: Task<Void, Never>?
 
     private let maxChars = 500
 
@@ -145,6 +146,7 @@ struct FeedbackView: View {
         .scrollDismissesKeyboard(.interactively)
         .animation(.spring(duration: 0.3), value: didSend)
         .onAppear { feedbackType = initialType }
+        .onDisappear { sendResetTask?.cancel() }
     }
 
     private func sendFeedback() {
@@ -159,8 +161,10 @@ struct FeedbackView: View {
 
         withAnimation(.spring(duration: 0.3)) { didSend = true }
         message = ""
-        Task {
+        sendResetTask?.cancel()
+        sendResetTask = Task {
             try? await Task.sleep(for: .seconds(3))
+            guard !Task.isCancelled else { return }
             withAnimation { didSend = false }
         }
     }

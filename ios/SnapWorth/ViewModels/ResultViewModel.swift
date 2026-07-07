@@ -8,6 +8,8 @@ final class ResultViewModel {
     @ObservationIgnored
     private var resetTask: Task<Void, Never>?
 
+    deinit { resetTask?.cancel() }
+
     func shareText(result: ScanResult) -> String {
         "Found a \(result.itemName) worth \(result.formattedRange)\n\n\(result.listingTitle)\n\(result.listingDescription)\n\nValued with SnapWorth"
     }

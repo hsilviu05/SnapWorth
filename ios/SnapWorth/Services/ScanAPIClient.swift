@@ -137,11 +137,11 @@ actor ScanAPIClient {
     private func buildMultipart(data: Data, boundary: String) -> Data {
         var body = Data()
         let crlf = "\r\n"
-        body.append("--\(boundary)\(crlf)".data(using: .utf8)!)
-        body.append("Content-Disposition: form-data; name=\"file\"; filename=\"scan.jpg\"\(crlf)".data(using: .utf8)!)
-        body.append("Content-Type: image/jpeg\(crlf)\(crlf)".data(using: .utf8)!)
+        body.append(Data("--\(boundary)\(crlf)".utf8))
+        body.append(Data("Content-Disposition: form-data; name=\"file\"; filename=\"scan.jpg\"\(crlf)".utf8))
+        body.append(Data("Content-Type: image/jpeg\(crlf)\(crlf)".utf8))
         body.append(data)
-        body.append("\(crlf)--\(boundary)--\(crlf)".data(using: .utf8)!)
+        body.append(Data("\(crlf)--\(boundary)--\(crlf)".utf8))
         return body
     }
 }

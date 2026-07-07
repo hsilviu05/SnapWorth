@@ -137,6 +137,7 @@ struct CameraPreview: UIViewRepresentable {
 final class PreviewUIView: UIView {
     override class var layerClass: AnyClass { AVCaptureVideoPreviewLayer.self }
 
+    // Safe: layerClass is overridden to AVCaptureVideoPreviewLayer so UIKit guarantees this type.
     var previewLayer: AVCaptureVideoPreviewLayer { layer as! AVCaptureVideoPreviewLayer }
 
     var session: AVCaptureSession? {
