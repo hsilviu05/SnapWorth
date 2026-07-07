@@ -193,125 +193,231 @@
     }
     .btn-ghost:hover { color: rgba(255,255,255,0.75); }
 
-    /* ── Result card mockup ───────────────────────────────────────── */
-    .mockup {
-      background: rgba(255,255,255,0.04);
-      border: 1px solid rgba(255,255,255,0.08);
-      border-radius: 24px;
-      padding: 28px;
-      backdrop-filter: blur(8px);
-    }
-    .mockup-label {
-      font-size: 11px;
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 1px;
-      color: var(--sage);
-      margin-bottom: 16px;
-    }
-    .mockup-item {
+    /* ── iPhone 17 Pro mockup ─────────────────────────────────────── */
+    .iphone-wrap {
       display: flex;
-      align-items: flex-start;
-      gap: 14px;
-      margin-bottom: 20px;
-    }
-    .mockup-img {
-      width: 56px; height: 56px;
-      background: rgba(255,255,255,0.08);
-      border-radius: 12px;
-      display: flex;
-      align-items: center;
       justify-content: center;
-      font-size: 28px;
+      align-items: center;
+    }
+    .iphone {
+      width: 262px;
+      background: linear-gradient(160deg,#C8BDB1 0%,#A89E92 20%,#C0B6AB 45%,#9A9089 70%,#B8AFA4 100%);
+      border-radius: 52px;
+      padding: 11px;
+      position: relative;
+      box-shadow:
+        0 0 0 0.5px rgba(0,0,0,0.35),
+        inset 0 0 0 0.5px rgba(255,255,255,0.45),
+        0 40px 90px rgba(0,0,0,0.55),
+        0 12px 30px rgba(0,0,0,0.35);
       flex-shrink: 0;
     }
-    .mockup-name {
-      font-family: 'Fraunces', serif;
-      font-size: 17px;
-      font-weight: 700;
-      color: var(--white);
-      line-height: 1.3;
+    /* Volume up */
+    .iphone::before {
+      content:'';
+      position:absolute;
+      left:-3px; top:108px;
+      width:3px;
+      height:62px;
+      background:linear-gradient(to right,#7A7168,#AFA6A0);
+      border-radius:2px 0 0 2px;
+      box-shadow: 0 42px 0 0 #AFA6A0, 0 42px 0 -0.5px #7A7168;
     }
-    .mockup-brand {
-      font-size: 13px;
-      color: rgba(255,255,255,0.4);
-      margin-top: 3px;
+    /* Power button */
+    .iphone::after {
+      content:'';
+      position:absolute;
+      right:-3px; top:128px;
+      width:3px; height:62px;
+      background:linear-gradient(to left,#7A7168,#AFA6A0);
+      border-radius:0 2px 2px 0;
     }
-    .mockup-divider {
-      height: 1px;
-      background: rgba(255,255,255,0.07);
-      margin-bottom: 20px;
-    }
-    .mockup-price-label {
-      font-size: 12px;
-      color: rgba(255,255,255,0.35);
-      margin-bottom: 8px;
-    }
-    .mockup-price {
-      font-family: 'Fraunces', serif;
-      font-size: 38px;
-      font-weight: 900;
-      color: var(--white);
-      letter-spacing: -1px;
-      line-height: 1;
-    }
-    .mockup-price span {
-      font-size: 22px;
-      color: rgba(255,255,255,0.4);
-      font-weight: 700;
-    }
-    .mockup-range-bar {
-      margin: 14px 0 8px;
-      height: 4px;
-      background: rgba(255,255,255,0.08);
-      border-radius: 4px;
+    .iphone-screen {
+      background: #FAF7F4;
+      border-radius: 42px;
       overflow: hidden;
-    }
-    .mockup-range-fill {
-      height: 100%;
-      width: 70%;
-      background: linear-gradient(90deg, var(--sage), var(--terracotta));
-      border-radius: 4px;
-    }
-    .mockup-meta {
+      height: 544px;
       display: flex;
-      justify-content: space-between;
-      font-size: 12px;
-      color: rgba(255,255,255,0.35);
+      flex-direction: column;
+      position: relative;
     }
-    .mockup-conf {
-      color: var(--sage);
-      font-weight: 600;
+    /* Dynamic Island */
+    .di {
+      position:absolute;
+      top:11px; left:50%;
+      transform:translateX(-50%);
+      width:90px; height:29px;
+      background:#000;
+      border-radius:20px;
+      z-index:10;
     }
-    .mockup-divider2 {
-      height: 1px;
-      background: rgba(255,255,255,0.07);
-      margin: 18px 0;
+    /* Status bar */
+    .sb {
+      height:50px;
+      padding:14px 18px 0;
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      flex-shrink:0;
     }
-    .mockup-listing-label {
-      font-size: 11px;
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 1px;
-      color: rgba(255,255,255,0.25);
-      margin-bottom: 8px;
+    .sb-time {
+      font-size:13px; font-weight:600;
+      color:#1C1410;
+      font-family:-apple-system,sans-serif;
+      letter-spacing:-0.2px;
     }
-    .mockup-listing-title {
-      font-size: 14px;
-      color: rgba(255,255,255,0.65);
-      line-height: 1.5;
+    .sb-icons {
+      display:flex; align-items:center; gap:5px;
     }
-    .mockup-listing-cta {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      margin-top: 12px;
-      font-size: 13px;
-      font-weight: 600;
-      color: var(--terracotta);
-      background: var(--terra-dim);
-      padding: 6px 12px;
-      border-radius: 8px;
+    .sb-signal {
+      display:flex; gap:1.5px; align-items:flex-end; height:12px;
+    }
+    .sb-signal span {
+      width:3px; background:#1C1410; border-radius:1px;
+    }
+    .sb-signal span:nth-child(1){height:4px}
+    .sb-signal span:nth-child(2){height:7px}
+    .sb-signal span:nth-child(3){height:10px}
+    .sb-signal span:nth-child(4){height:12px}
+    .sb-wifi {
+      width:13px; height:10px;
+      display:flex; flex-direction:column;
+      align-items:center; justify-content:flex-end; gap:1.5px;
+    }
+    .sb-wifi span {
+      background:#1C1410;
+      border-radius:1px;
+      height:2px;
+    }
+    .sb-wifi span:nth-child(1){width:13px}
+    .sb-wifi span:nth-child(2){width:9px}
+    .sb-wifi span:nth-child(3){width:5px}
+    .sb-batt {
+      width:22px; height:11px;
+      border:1.5px solid #1C1410;
+      border-radius:2.5px;
+      position:relative;
+    }
+    .sb-batt::before {
+      content:'';
+      position:absolute;
+      right:-4px; top:50%;
+      transform:translateY(-50%);
+      width:2px; height:5px;
+      background:#1C1410;
+      border-radius:0 1px 1px 0;
+    }
+    .sb-batt::after {
+      content:'';
+      position:absolute;
+      left:2px; top:2px; right:5px; bottom:2px;
+      background:#1C1410; border-radius:1px;
+    }
+    /* App nav */
+    .app-nav {
+      display:flex; align-items:center;
+      padding:6px 16px 8px;
+      flex-shrink:0;
+      position:relative;
+    }
+    .app-back {
+      font-size:13px; color:#D96C47;
+      font-family:-apple-system,sans-serif;
+      display:flex; align-items:center; gap:3px;
+    }
+    .app-nav-title {
+      position:absolute; left:50%; transform:translateX(-50%);
+      font-size:15px; font-weight:600;
+      color:#1C1410;
+      font-family:-apple-system,sans-serif;
+      white-space:nowrap;
+    }
+    /* Scroll area */
+    .app-scroll {
+      flex:1; overflow:hidden;
+      padding:2px 14px 14px;
+      display:flex; flex-direction:column; gap:9px;
+    }
+    .app-img {
+      width:100%; height:96px;
+      background:linear-gradient(135deg,#F3EDE8,#E8DDD7);
+      border-radius:14px;
+      display:flex; align-items:center;
+      justify-content:center;
+      font-size:44px;
+      flex-shrink:0;
+    }
+    .app-name {
+      font-size:15px; font-weight:700;
+      color:#1C1410; line-height:1.25;
+      font-family:-apple-system,sans-serif;
+    }
+    .app-meta {
+      font-size:11px; color:#8B7B75;
+      font-family:-apple-system,sans-serif;
+      margin-top:2px;
+    }
+    .app-badge {
+      display:inline-flex; align-items:center; gap:4px;
+      background:#EAF1EB; color:#7A9E7E;
+      font-size:10px; font-weight:600;
+      padding:3px 8px; border-radius:6px;
+      font-family:-apple-system,sans-serif;
+      margin-top:4px;
+    }
+    .app-card {
+      background:#FFF;
+      border:1px solid #E8DDD7;
+      border-radius:14px;
+      padding:12px 13px;
+      flex-shrink:0;
+    }
+    .app-card-label {
+      font-size:9px; font-weight:600;
+      text-transform:uppercase; letter-spacing:0.8px;
+      color:#A89990; margin-bottom:5px;
+      font-family:-apple-system,sans-serif;
+    }
+    .app-price {
+      font-size:30px; font-weight:800;
+      color:#1C1410; letter-spacing:-1.5px; line-height:1;
+      font-family:-apple-system,sans-serif;
+    }
+    .app-price-sep {
+      font-size:16px; font-weight:400;
+      color:#8B7B75; letter-spacing:0;
+    }
+    .app-bar {
+      height:3px; background:#F3EDE8;
+      border-radius:3px; margin:7px 0 5px;
+      overflow:hidden;
+    }
+    .app-bar-fill {
+      height:100%; width:62%;
+      background:linear-gradient(90deg,#7A9E7E,#D96C47);
+      border-radius:3px;
+    }
+    .app-price-sub {
+      font-size:10px; color:#A89990;
+      font-family:-apple-system,sans-serif;
+    }
+    .app-listing-text {
+      font-size:11px; color:#2B211C;
+      line-height:1.45;
+      font-family:-apple-system,sans-serif;
+      display:-webkit-box;
+      -webkit-line-clamp:2;
+      -webkit-box-orient:vertical;
+      overflow:hidden;
+    }
+    .app-copy {
+      display:inline-flex; align-items:center; gap:4px;
+      margin-top:7px;
+      background:#FAF7F4; border:1px solid #E8DDD7;
+      color:#2B211C;
+      font-size:10px; font-weight:600;
+      padding:4px 9px; border-radius:7px;
+      font-family:-apple-system,sans-serif;
     }
 
     /* ── Platforms ────────────────────────────────────────────────── */
@@ -641,7 +747,7 @@
       .hero { padding: 120px 20px 80px; }
       .hero-inner { grid-template-columns: 1fr; gap: 48px; }
       .hero h1 { font-size: 40px; }
-      .mockup { max-width: 400px; }
+      .iphone-wrap { order: -1; }
       .steps { grid-template-columns: 1fr; gap: 2px; }
       .step:first-child { border-radius: 20px 20px 0 0; }
       .step:last-child  { border-radius: 0 0 20px 20px; }
@@ -696,30 +802,57 @@
         </div>
       </div>
 
-      <!-- Result card mockup -->
-      <div class="mockup">
-        <div class="mockup-label">SnapWorth Result</div>
-        <div class="mockup-item">
-          <div class="mockup-img">👜</div>
-          <div>
-            <div class="mockup-name">Coach Leather Crossbody Bag</div>
-            <div class="mockup-brand">Coach · Accessories · Good condition</div>
+      <!-- iPhone 17 Pro mockup -->
+      <div class="iphone-wrap">
+        <div class="iphone">
+          <div class="iphone-screen">
+            <div class="di"></div>
+            <!-- Status bar -->
+            <div class="sb">
+              <span class="sb-time">9:41</span>
+              <div class="sb-icons">
+                <div class="sb-signal"><span></span><span></span><span></span><span></span></div>
+                <div class="sb-wifi"><span></span><span></span><span></span></div>
+                <div class="sb-batt"></div>
+              </div>
+            </div>
+            <!-- Nav bar -->
+            <div class="app-nav">
+              <span class="app-back">
+                <svg width="8" height="13" viewBox="0 0 8 13" fill="none"><path d="M7 1L1 6.5L7 12" stroke="#D96C47" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                Scan
+              </span>
+              <span class="app-nav-title">Result</span>
+            </div>
+            <!-- Content -->
+            <div class="app-scroll">
+              <div class="app-img">👜</div>
+              <div>
+                <div class="app-name">Coach Leather Crossbody Bag</div>
+                <div class="app-meta">Coach · Accessories · Good condition</div>
+                <div class="app-badge">
+                  <svg width="9" height="9" viewBox="0 0 10 10" fill="#7A9E7E"><circle cx="5" cy="5" r="5"/></svg>
+                  High Confidence
+                </div>
+              </div>
+              <!-- Price card -->
+              <div class="app-card">
+                <div class="app-card-label">Resale Value</div>
+                <div class="app-price">$38 <span class="app-price-sep">– $65</span></div>
+                <div class="app-bar"><div class="app-bar-fill"></div></div>
+                <div class="app-price-sub">Based on 42 sold listings</div>
+              </div>
+              <!-- Listing card -->
+              <div class="app-card">
+                <div class="app-card-label">AI Listing</div>
+                <div class="app-listing-text">Coach Tan Leather Crossbody Bag — Clean interior, minimal wear, brass hardware intact. Great everyday carry.</div>
+                <div class="app-copy">
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                  Copy listing
+                </div>
+              </div>
+            </div>
           </div>
-        </div>
-        <div class="mockup-divider"></div>
-        <div class="mockup-price-label">Resale value range</div>
-        <div class="mockup-price">$38 <span>– $65</span></div>
-        <div class="mockup-range-bar"><div class="mockup-range-fill"></div></div>
-        <div class="mockup-meta">
-          <span>Based on 42 sold listings</span>
-          <span class="mockup-conf">High confidence</span>
-        </div>
-        <div class="mockup-divider2"></div>
-        <div class="mockup-listing-label">AI-generated listing</div>
-        <div class="mockup-listing-title">Coach Tan Leather Crossbody Bag — Clean interior, minimal wear, great everyday carry</div>
-        <div class="mockup-listing-cta">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M8 5H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-1M8 5a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2M8 5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2"/></svg>
-          Copy listing
         </div>
       </div>
     </div>
