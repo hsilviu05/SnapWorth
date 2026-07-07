@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>SnapWorth — Know What Your Thrift Finds Are Worth</title>
   <meta name="description" content="Snap a photo of any thrift item and instantly get real resale prices from eBay, Poshmark, Depop & more. Powered by AI.">
   <meta property="og:title" content="SnapWorth — Know What Your Thrift Finds Are Worth">
@@ -42,8 +42,9 @@
       font-size: 16px;
       line-height: 1.6;
       -webkit-font-smoothing: antialiased;
-      overflow-x: hidden;
     }
+    /* overflow-x on a wrapper, NOT body — body overflow breaks position:fixed on iOS Safari */
+    .page-wrap { overflow-x: hidden; }
 
     /* ── Nav ──────────────────────────────────────────────────────── */
     nav {
@@ -51,6 +52,8 @@
       top: 0; left: 0; right: 0;
       z-index: 100;
       padding: 0 32px;
+      padding-left: max(32px, env(safe-area-inset-left));
+      padding-right: max(32px, env(safe-area-inset-right));
     }
     .nav-inner {
       max-width: 1080px;
@@ -768,6 +771,7 @@
   </style>
 </head>
 <body>
+<div class="page-wrap">
 
   <!-- Nav -->
   <nav>
@@ -1018,5 +1022,6 @@
     </div>
   </footer>
 
+</div><!-- .page-wrap -->
 </body>
 </html>
