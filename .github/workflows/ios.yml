@@ -67,15 +67,6 @@ jobs:
           xcrun simctl boot "$UDID" 2>/dev/null || true
           echo "udid=$UDID" >> "$GITHUB_OUTPUT"
 
-      - name: Inject RevenueCat key
-        env:
-          REVENUECAT_KEY: ${{ secrets.REVENUECAT_IOS_KEY }}
-        run: |
-          if [ -n "$REVENUECAT_KEY" ]; then
-            sed -i '' "s/appl_REPLACE_WITH_YOUR_IOS_KEY/$REVENUECAT_KEY/" ios/SnapWorth/Config.swift || \
-            sed -i "s/appl_REPLACE_WITH_YOUR_IOS_KEY/$REVENUECAT_KEY/" ios/SnapWorth/Config.swift
-          fi
-
       - name: Build & run unit tests
         run: |
           set -o pipefail
@@ -89,6 +80,15 @@ jobs:
             CODE_SIGNING_REQUIRED=NO \
             ONLY_ACTIVE_ARCH=YES \
             -quiet
+
+      - name: Inject RevenueCat key
+        env:
+          REVENUECAT_KEY: ${{ secrets.REVENUECAT_IOS_KEY }}
+        run: |
+          if [ -n "$REVENUECAT_KEY" ]; then
+            sed -i '' "s/appl_REPLACE_WITH_YOUR_IOS_KEY/$REVENUECAT_KEY/" ios/SnapWorth/Config.swift || \
+            sed -i "s/appl_REPLACE_WITH_YOUR_IOS_KEY/$REVENUECAT_KEY/" ios/SnapWorth/Config.swift
+          fi
 
   # ── Security gate: no real keys committed ───────────────────────────────────
   secrets-check:
