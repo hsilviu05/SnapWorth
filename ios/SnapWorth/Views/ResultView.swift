@@ -114,11 +114,10 @@ struct ResultView: View {
                     let conditionLabel = result.conditionNotes
                         .components(separatedBy: CharacterSet(charactersIn: "—–-"))
                         .first?
-                        .trimmingCharacters(in: .whitespaces)
-                        .prefix(20)
-                        .description ?? ""
+                        .trimmingCharacters(in: .whitespaces) ?? ""
                     if !conditionLabel.isEmpty {
                         photoChip(conditionLabel, color: Color.white.opacity(0.2))
+                            .lineLimit(1)
                     }
                 }
             }
@@ -131,6 +130,7 @@ struct ResultView: View {
         Text(label)
             .font(.snapLabel)
             .foregroundStyle(.white)
+            .lineLimit(1)
             .padding(.horizontal, 12)
             .padding(.vertical, 6)
             .background(color)
