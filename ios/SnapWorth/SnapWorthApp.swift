@@ -31,12 +31,45 @@ struct SnapWorthApp: App {
         WindowGroup {
             RootView(purchaseService: purchaseService)
                 .preferredColorScheme(.light)
+                .onOpenURL(perform: handleWidgetURL)
+                .task { seedWidgetData() }
         }
         .modelContainer(sharedModelContainer)
     }
+
+    // ── Widget URL handling ───────────────────────────────────────────────────
+    // snapworth://scan    → navigates to the camera tab
+    // snapworth://history → navigates to the history tab
+
+    private func handleWidgetURL(_ url: URL) {
+        guard url.scheme == "snapworth" else { return }
+        switch url.host {
+        case "scan":
+            NotificationCenter.default.post(name: .snapWidgetOpenScan, object: nil)
+        case "history":
+            NotificationCenter.default.post(name: .snapWidgetOpenHistory, object: nil)
+        default:
+            break
+        }
+    }
+
+    /// Seed widget data on every launch so the widget is never stale after reinstall.
+    private func seedWidgetData() {
+        let ctx = sharedModelContainer.mainContext
+        guard let results = try? ctx.fetch(FetchDescriptor<ScanResult>()) else { return }
+        WidgetDataStore.writeHaul(results: results)
+    }
+}
+
+// ── Notification names for widget deep links ──────────────────────────────────
+
+extension Notification.Name {
+    static let snapWidgetOpenScan    = Notification.Name("snapWidgetOpenScan")
+    static let snapWidgetOpenHistory = Notification.Name("snapWidgetOpenHistory")
 }
 
 // ── Root navigator ────────────────────────────────────────────────────────────
+
 struct RootView: View {
     let purchaseService: any PurchaseService
     @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding = false

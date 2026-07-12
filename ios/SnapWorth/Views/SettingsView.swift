@@ -102,7 +102,10 @@ struct SettingsView: View {
         .alert("Clear history?", isPresented: $showDeleteAlert) {
             Button("Delete all", role: .destructive) {
                 results.forEach { modelContext.delete($0) }
-                do { try modelContext.save() } catch {
+                do {
+                    try modelContext.save()
+                    WidgetDataStore.writeHaul(results: [])
+                } catch {
                     vm.restoreMessage = "Failed to clear history. Please try again."
                     vm.showRestoreAlert = true
                 }

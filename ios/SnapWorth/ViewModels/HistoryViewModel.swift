@@ -37,7 +37,11 @@ final class HistoryViewModel {
 
     func delete(_ result: ScanResult, context: ModelContext) {
         context.delete(result)
-        do { try context.save() } catch {
+        do {
+            try context.save()
+            let remaining = (try? context.fetch(FetchDescriptor<ScanResult>())) ?? []
+            WidgetDataStore.writeHaul(results: remaining)
+        } catch {
             deleteError = "Could not delete item. Please try again."
         }
     }

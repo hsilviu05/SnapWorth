@@ -61,5 +61,18 @@
 		<string>mailto</string>
 	</array>
 
+	<!-- URL scheme for widget deep links -->
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>snapworth</string>
+			</array>
+			<key>CFBundleURLName</key>
+			<string>eu.snapworth.app</string>
+		</dict>
+	</array>
+
 </dict>
 </plist>

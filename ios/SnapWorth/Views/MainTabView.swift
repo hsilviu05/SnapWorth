@@ -32,5 +32,12 @@ struct MainTabView: View {
         .onReceive(NotificationCenter.default.publisher(for: .snapSwitchToScan)) { _ in
             selectedTab = 0
         }
+        // Widget deep links
+        .onReceive(NotificationCenter.default.publisher(for: .snapWidgetOpenScan)) { _ in
+            selectedTab = 0
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .snapWidgetOpenHistory)) { _ in
+            selectedTab = 1
+        }
     }
 }

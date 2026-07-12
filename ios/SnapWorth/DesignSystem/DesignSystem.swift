@@ -453,6 +453,7 @@ struct PlanCard: View {
 struct ScanHistoryCard: View {
     let result: ScanResult
     @State private var thumbnail: UIImage?
+    @State private var imageLoadAttempted = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -462,6 +463,10 @@ struct ScanHistoryCard: View {
                     Image(uiImage: img)
                         .resizable()
                         .scaledToFill()
+                } else if imageLoadAttempted {
+                    // imageData was nil or corrupted — show static placeholder
+                    Rectangle()
+                        .fill(Color.snapBorder.opacity(0.6))
                 } else {
                     Rectangle()
                         .fill(Color.snapBorder.opacity(0.6))
@@ -471,10 +476,14 @@ struct ScanHistoryCard: View {
             .frame(height: 120)
             .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
             .task(id: result.id) {
-                guard thumbnail == nil, let data = result.imageData else { return }
+                guard let data = result.imageData else {
+                    imageLoadAttempted = true
+                    return
+                }
                 thumbnail = await Task.detached(priority: .utility) {
                     UIImage(data: data)
                 }.value
+                imageLoadAttempted = true
             }
 
             Text(result.itemName)

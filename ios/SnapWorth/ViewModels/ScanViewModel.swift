@@ -64,6 +64,10 @@ final class ScanViewModel {
                 freeScansUsed += 1
             }
 
+            // Refresh widget with updated haul totals
+            let all = try context.fetch(FetchDescriptor<ScanResult>())
+            WidgetDataStore.writeHaul(results: all)
+
             UINotificationFeedbackGenerator().notificationOccurred(.success)
             scanResult = result
 
@@ -78,6 +82,8 @@ final class ScanViewModel {
         if let data = try? await item.loadTransferable(type: Data.self),
            let image = UIImage(data: data) {
             capturedImage = image
+        } else {
+            errorMessage = "Couldn't load the selected photo. Please try another."
         }
         selectedPhotoItem = nil
     }
