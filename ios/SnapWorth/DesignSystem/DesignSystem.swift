@@ -473,7 +473,7 @@ struct ScanHistoryCard: View {
                         .shimmering()
                 }
             }
-            .frame(width: width - 24, height: 120)
+            .frame(width: max(0, width - 24), height: 120)
             .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
             .task(id: result.id) {
                 guard let data = result.imageData else {
@@ -490,14 +490,14 @@ struct ScanHistoryCard: View {
                 .font(.dmSans(13, weight: .medium))
                 .foregroundStyle(Color.snapEspresso)
                 .lineLimit(2)
-                .frame(width: width - 24, alignment: .leading)
+                .frame(width: max(0, width - 24), alignment: .leading)
 
             Text(result.formattedRange)
                 .font(.fraunces(16, weight: .bold))
                 .foregroundStyle(Color.snapSage)
         }
         .padding(12)
-        .frame(width: width)
+        .frame(width: max(0, width))
         .snapCard()
         .accessibilityElement(children: .combine)
         .accessibilityLabel("\(result.itemName), estimated \(result.formattedRange)")

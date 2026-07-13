@@ -102,7 +102,7 @@ struct ResultView: View {
                     .shadow(color: .black.opacity(0.3), radius: 4, x: 0, y: 2)
                     .lineLimit(2)
                     .fixedSize(horizontal: false, vertical: true)
-                    .frame(width: width - 40, alignment: .leading)
+                    .frame(width: max(0, width - 40), alignment: .leading)
 
                 HStack(spacing: 8) {
                     if !result.brand.isEmpty && result.brand != "Unknown" {
