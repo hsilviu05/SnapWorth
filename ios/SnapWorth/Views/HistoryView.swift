@@ -15,85 +15,96 @@ struct HistoryView: View {
 
     var filteredResults: [ScanResult] { vm.filtered(results) }
 
+    private let hPad: CGFloat = 16
+    private let gridSpacing: CGFloat = 12
+
     var body: some View {
         NavigationStack {
-            ScrollView {
-                VStack(spacing: 20) {
+            GeometryReader { geo in
+                let cardWidth = (geo.size.width - hPad * 2 - gridSpacing) / 2
+                let fixedColumns = [
+                    GridItem(.fixed(cardWidth), spacing: gridSpacing),
+                    GridItem(.fixed(cardWidth), spacing: gridSpacing),
+                ]
 
-                    // ── Total banner ───────────────────────────────────────
-                    if !results.isEmpty {
-                        TotalBanner(totalValue: vm.totalValue(from: results), count: results.count)
-                            .padding(.horizontal, 20)
-                    }
+                ScrollView {
+                    VStack(spacing: 20) {
 
-                    // ── Search ─────────────────────────────────────────────
-                    if !results.isEmpty {
-                        HStack {
-                            Image(systemName: "magnifyingglass")
-                                .foregroundStyle(Color.snapWarmGray)
-                            TextField("Search finds…", text: $vm.searchText)
-                                .font(.snapBody)
-                            if !vm.searchText.isEmpty {
-                                Button {
-                                    vm.searchText = ""
-                                } label: {
-                                    Image(systemName: "xmark.circle.fill")
-                                        .foregroundStyle(Color.snapWarmGray)
+                        // ── Total banner ───────────────────────────────────────
+                        if !results.isEmpty {
+                            TotalBanner(totalValue: vm.totalValue(from: results), count: results.count)
+                                .padding(.horizontal, hPad)
+                        }
+
+                        // ── Search ─────────────────────────────────────────────
+                        if !results.isEmpty {
+                            HStack {
+                                Image(systemName: "magnifyingglass")
+                                    .foregroundStyle(Color.snapWarmGray)
+                                TextField("Search finds…", text: $vm.searchText)
+                                    .font(.snapBody)
+                                if !vm.searchText.isEmpty {
+                                    Button {
+                                        vm.searchText = ""
+                                    } label: {
+                                        Image(systemName: "xmark.circle.fill")
+                                            .foregroundStyle(Color.snapWarmGray)
+                                    }
                                 }
                             }
+                            .padding(12)
+                            .background(Color.snapCard)
+                            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                            .padding(.horizontal, hPad)
                         }
-                        .padding(12)
-                        .background(Color.snapCard)
-                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                        .padding(.horizontal, 20)
-                    }
 
-                    // ── Grid ───────────────────────────────────────────────
-                    if results.isEmpty {
-                        EmptyFindsView()
-                            .padding(.top, 60)
-                    } else if filteredResults.isEmpty {
-                        NoSearchResultsView(query: vm.searchText)
-                            .padding(.top, 60)
-                    } else {
-                        LazyVGrid(columns: columns, spacing: 12) {
-                            ForEach(filteredResults) { result in
-                                ScanHistoryCard(result: result)
-                                    .onTapGesture {
-                                        guard !isEditing else { return }
-                                        selectedResult = result
-                                    }
-                                    .contextMenu {
-                                        Button(role: .destructive) {
-                                            vm.delete(result, context: modelContext)
-                                        } label: {
-                                            Label("Delete", systemImage: "trash")
+                        // ── Grid ───────────────────────────────────────────────
+                        if results.isEmpty {
+                            EmptyFindsView()
+                                .padding(.top, 60)
+                        } else if filteredResults.isEmpty {
+                            NoSearchResultsView(query: vm.searchText)
+                                .padding(.top, 60)
+                        } else {
+                            LazyVGrid(columns: fixedColumns, spacing: gridSpacing) {
+                                ForEach(filteredResults) { result in
+                                    ScanHistoryCard(result: result, width: cardWidth)
+                                        .onTapGesture {
+                                            guard !isEditing else { return }
+                                            selectedResult = result
                                         }
-                                    }
-                                    .overlay(alignment: .topTrailing) {
-                                        if isEditing {
-                                            Button {
-                                                withAnimation(.spring(duration: 0.2)) {
-                                                    vm.delete(result, context: modelContext)
-                                                }
+                                        .contextMenu {
+                                            Button(role: .destructive) {
+                                                vm.delete(result, context: modelContext)
                                             } label: {
-                                                Image(systemName: "minus.circle.fill")
-                                                    .font(.system(size: 22))
-                                                    .foregroundStyle(.white, Color.red)
-                                                    .background(Color.white.clipShape(Circle()))
+                                                Label("Delete", systemImage: "trash")
                                             }
-                                            .offset(x: 8, y: -8)
-                                            .transition(.scale.combined(with: .opacity))
                                         }
-                                    }
+                                        .overlay(alignment: .topTrailing) {
+                                            if isEditing {
+                                                Button {
+                                                    withAnimation(.spring(duration: 0.2)) {
+                                                        vm.delete(result, context: modelContext)
+                                                    }
+                                                } label: {
+                                                    Image(systemName: "minus.circle.fill")
+                                                        .font(.system(size: 22))
+                                                        .foregroundStyle(.white, Color.red)
+                                                        .background(Color.white.clipShape(Circle()))
+                                                }
+                                                .offset(x: 8, y: -8)
+                                                .transition(.scale.combined(with: .opacity))
+                                            }
+                                        }
+                                }
                             }
+                            .padding(.horizontal, hPad)
+                            .animation(.spring(duration: 0.25), value: isEditing)
                         }
-                        .padding(.horizontal, 20)
-                        .animation(.spring(duration: 0.25), value: isEditing)
                     }
+                    .padding(.top, 8)
+                    .padding(.bottom, 32)
                 }
-                .padding(.top, 8)
-                .padding(.bottom, 32)
             }
             .scrollDismissesKeyboard(.immediately)
             .background(Color.snapBackground)

@@ -452,6 +452,7 @@ struct PlanCard: View {
 
 struct ScanHistoryCard: View {
     let result: ScanResult
+    var width: CGFloat = 160
     @State private var thumbnail: UIImage?
     @State private var imageLoadAttempted = false
 
@@ -464,7 +465,6 @@ struct ScanHistoryCard: View {
                         .resizable()
                         .scaledToFill()
                 } else if imageLoadAttempted {
-                    // imageData was nil or corrupted — show static placeholder
                     Rectangle()
                         .fill(Color.snapBorder.opacity(0.6))
                 } else {
@@ -473,7 +473,7 @@ struct ScanHistoryCard: View {
                         .shimmering()
                 }
             }
-            .frame(height: 120)
+            .frame(width: width - 24, height: 120)
             .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
             .task(id: result.id) {
                 guard let data = result.imageData else {
@@ -490,12 +490,14 @@ struct ScanHistoryCard: View {
                 .font(.dmSans(13, weight: .medium))
                 .foregroundStyle(Color.snapEspresso)
                 .lineLimit(2)
+                .frame(width: width - 24, alignment: .leading)
 
             Text(result.formattedRange)
                 .font(.fraunces(16, weight: .bold))
                 .foregroundStyle(Color.snapSage)
         }
         .padding(12)
+        .frame(width: width)
         .snapCard()
         .accessibilityElement(children: .combine)
         .accessibilityLabel("\(result.itemName), estimated \(result.formattedRange)")

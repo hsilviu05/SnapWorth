@@ -9,35 +9,33 @@ struct ResultView: View {
 
     var body: some View {
         NavigationStack {
-            ScrollView {
-                VStack(spacing: 0) {
+            GeometryReader { geo in
+                ScrollView {
+                    VStack(spacing: 0) {
+                        heroPhoto(width: geo.size.width)
 
-                    // ── Hero photo ─────────────────────────────────────────
-                    heroPhoto
-
-                    // ── Value card (overlaps photo bottom) ─────────────────
-                    valueCard
-                        .padding(.horizontal, 20)
-                        .offset(y: -28)
-                        .zIndex(1)
-
-                    // ── Details card ───────────────────────────────────────
-                    detailsCard
-                        .padding(.horizontal, 20)
-                        .padding(.top, -12)
-
-                    // ── Listing draft card ─────────────────────────────────
-                    if !result.listingTitle.isEmpty || !result.listingDescription.isEmpty {
-                        listingDraftCard
+                        valueCard
                             .padding(.horizontal, 20)
-                            .padding(.top, 12)
-                    }
+                            .offset(y: -28)
 
-                    // ── Footer ─────────────────────────────────────────────
-                    footer
-                        .padding(.top, 20)
-                        .padding(.bottom, 40)
+                        detailsCard
+                            .padding(.horizontal, 20)
+                            .padding(.top, -12)
+
+                        if !result.listingTitle.isEmpty || !result.listingDescription.isEmpty {
+                            listingDraftCard
+                                .padding(.horizontal, 20)
+                                .padding(.top, 12)
+                        }
+
+                        footer
+                            .padding(.top, 20)
+                            .padding(.bottom, 40)
+                    }
+                    // Push content under the hero photo which ignores safe area
+                    .padding(.top, 0)
                 }
+                .scrollIndicators(.hidden)
             }
             .background(Color.snapBackground)
             .ignoresSafeArea(edges: .top)
@@ -46,16 +44,13 @@ struct ResultView: View {
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
                     ShareLink(item: vm.shareText(result: result)) {
-                        Image(systemName: "square.and.arrow.up")
-                            .font(.system(size: 14, weight: .semibold))
-                            .foregroundStyle(Color.snapEspresso)
-                            .frame(width: 36, height: 36)
-                            .background(.ultraThinMaterial)
-                            .clipShape(Circle())
+                        circleButton(icon: "square.and.arrow.up")
                     }
                 }
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    CircleToolbarButton(icon: "xmark") { onDismiss() }
+                    Button(action: onDismiss) {
+                        circleButton(icon: "xmark")
+                    }
                 }
             }
         }
@@ -69,16 +64,19 @@ struct ResultView: View {
 
     // MARK: - Hero Photo
 
-    private var heroPhoto: some View {
+    private func heroPhoto(width: CGFloat) -> some View {
         ZStack(alignment: .bottomLeading) {
             Group {
                 if let img = photo {
                     Image(uiImage: img)
                         .resizable()
                         .scaledToFill()
+                        .frame(width: width, height: 360)
+                        .clipped()
                 } else {
                     Rectangle()
                         .fill(Color.snapBorder)
+                        .frame(width: width, height: 360)
                         .overlay(
                             Image(systemName: "photo")
                                 .font(.system(size: 48))
@@ -86,10 +84,7 @@ struct ResultView: View {
                         )
                 }
             }
-            .frame(height: 360)
-            .clipped()
 
-            // Gradient overlay
             LinearGradient(
                 stops: [
                     .init(color: .clear, location: 0.4),
@@ -98,44 +93,60 @@ struct ResultView: View {
                 startPoint: .top,
                 endPoint: .bottom
             )
+            .frame(width: width, height: 360)
 
-            // Item name + chips on photo
             VStack(alignment: .leading, spacing: 8) {
                 Text(result.itemName)
-                    .font(.fraunces(26, weight: .bold))
+                    .font(.fraunces(24, weight: .bold))
                     .foregroundStyle(.white)
                     .shadow(color: .black.opacity(0.3), radius: 4, x: 0, y: 2)
+                    .lineLimit(2)
                     .fixedSize(horizontal: false, vertical: true)
+                    .frame(width: width - 40, alignment: .leading)
 
                 HStack(spacing: 8) {
                     if !result.brand.isEmpty && result.brand != "Unknown" {
-                        photoChip(result.brand, color: Color.white.opacity(0.2))
+                        photoChip(result.brand)
                     }
-                    let conditionLabel = result.conditionNotes
-                        .components(separatedBy: CharacterSet(charactersIn: "—–-"))
-                        .first?
-                        .trimmingCharacters(in: .whitespaces) ?? ""
-                    if !conditionLabel.isEmpty {
-                        photoChip(conditionLabel, color: Color.white.opacity(0.2))
-                            .lineLimit(1)
+                    let condition = String(
+                        (result.conditionNotes
+                            .components(separatedBy: CharacterSet(charactersIn: "—–-."))
+                            .first?
+                            .trimmingCharacters(in: .whitespaces) ?? "")
+                            .prefix(22)
+                    )
+                    if !condition.isEmpty {
+                        photoChip(condition)
                     }
                 }
             }
             .padding(.horizontal, 20)
             .padding(.bottom, 44)
+            .frame(width: width, alignment: .leading)
         }
+        .frame(width: width, height: 360)
+        .ignoresSafeArea(edges: .top)
     }
 
-    private func photoChip(_ label: String, color: Color) -> some View {
+    private func photoChip(_ label: String) -> some View {
         Text(label)
             .font(.snapLabel)
             .foregroundStyle(.white)
             .lineLimit(1)
             .padding(.horizontal, 12)
             .padding(.vertical, 6)
-            .background(color)
+            .background(Color.white.opacity(0.2))
             .background(.ultraThinMaterial)
             .clipShape(Capsule())
+    }
+
+    private func circleButton(icon: String) -> some View {
+        Image(systemName: icon)
+            .font(.system(size: 14, weight: .semibold))
+            .foregroundStyle(Color.snapEspresso)
+            .frame(width: 36, height: 36)
+            .background(.ultraThinMaterial)
+            .clipShape(Circle())
     }
 
     // MARK: - Value Card
@@ -150,7 +161,7 @@ struct ResultView: View {
                 ValueRangeView(low: result.valueLow, high: result.valueHigh)
             }
 
-            Divider().background(Color.snapBorder)
+            Divider()
 
             HStack(spacing: 10) {
                 ConfidenceBadge(confidence: result.confidence)
@@ -159,12 +170,14 @@ struct ResultView: View {
                     Text("from \(result.soldListingsCount) sold listings")
                         .font(.snapCaption)
                         .foregroundStyle(Color.snapWarmGray)
+                        .lineLimit(1)
                 }
 
                 Spacer()
             }
         }
         .padding(20)
+        .frame(maxWidth: .infinity)
         .background(Color.snapCard)
         .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
         .shadow(color: Color.snapCardShadow.opacity(0.12), radius: 24, x: 0, y: 8)
@@ -181,10 +194,14 @@ struct ResultView: View {
                 Text(result.conditionNotes)
                     .font(.snapBody)
                     .foregroundStyle(Color.snapEspresso)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, alignment: .leading)
             }
             .padding(20)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .snapCard()
+            .background(Color.snapCard)
+            .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+            .shadow(color: Color.snapCardShadow.opacity(0.08), radius: 24, x: 0, y: 8)
         }
     }
 
@@ -199,6 +216,8 @@ struct ResultView: View {
                 Text(result.listingTitle)
                     .font(.dmSans(15, weight: .semibold))
                     .foregroundStyle(Color.snapEspresso)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, alignment: .leading)
             }
 
             if !result.listingDescription.isEmpty {
@@ -206,6 +225,7 @@ struct ResultView: View {
                     .font(.snapBody)
                     .foregroundStyle(Color.snapWarmGray)
                     .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, alignment: .leading)
             }
 
             PrimaryButton(
@@ -216,7 +236,10 @@ struct ResultView: View {
             .animation(.spring(duration: 0.2), value: vm.didCopyListing)
         }
         .padding(20)
-        .snapCard()
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.snapCard)
+        .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+        .shadow(color: Color.snapCardShadow.opacity(0.08), radius: 24, x: 0, y: 8)
     }
 
     // MARK: - Footer
@@ -235,24 +258,6 @@ struct ResultView: View {
                 .font(.fraunces(13, weight: .bold))
                 .foregroundStyle(Color.snapWarmGray.opacity(0.5))
                 .kerning(0.5)
-        }
-    }
-}
-
-// MARK: - Toolbar Button
-
-private struct CircleToolbarButton: View {
-    let icon: String
-    let action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            Image(systemName: icon)
-                .font(.system(size: 14, weight: .semibold))
-                .foregroundStyle(Color.snapEspresso)
-                .frame(width: 36, height: 36)
-                .background(.ultraThinMaterial)
-                .clipShape(Circle())
         }
     }
 }
