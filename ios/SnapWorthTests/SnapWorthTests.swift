@@ -143,48 +143,44 @@ final class HistoryViewModelTests: XCTestCase {
     }
 }
 
-// MARK: - ScanViewModel Error Mapping Tests
+// MARK: - AppError Mapping Tests
 
-@MainActor
-final class ScanViewModelErrorTests: XCTestCase {
+final class AppErrorMappingTests: XCTestCase {
 
-    var vm: ScanViewModel!
-
-    override func setUp() {
-        super.setUp()
-        vm = ScanViewModel()
-    }
-
-    func test_friendlyError_rateLimitMessage() {
+    func test_rateLimit_message() {
         let error = makeError("429 rate limit exceeded")
-        XCTAssertTrue(vm.friendlyError(error).lowercased().contains("limit"))
+        XCTAssertTrue(friendlyMessage(error).lowercased().contains("limit"))
     }
 
-    func test_friendlyError_networkOffline() {
+    func test_networkOffline_message() {
         let error = makeError("network connection offline")
-        let msg = vm.friendlyError(error)
+        let msg = friendlyMessage(error)
         XCTAssertTrue(msg.lowercased().contains("internet") || msg.lowercased().contains("network"))
     }
 
-    func test_friendlyError_timeout() {
+    func test_timeout_message() {
         let error = makeError("request timed out")
-        XCTAssertTrue(vm.friendlyError(error).lowercased().contains("timed out") ||
-                      vm.friendlyError(error).lowercased().contains("timeout"))
+        XCTAssertTrue(friendlyMessage(error).lowercased().contains("timed out") ||
+                      friendlyMessage(error).lowercased().contains("timeout"))
     }
 
-    func test_friendlyError_502() {
+    func test_502_message() {
         let error = makeError("502 bad gateway")
-        XCTAssertTrue(vm.friendlyError(error).lowercased().contains("unavailable"))
+        XCTAssertTrue(friendlyMessage(error).lowercased().contains("unavailable"))
     }
 
-    func test_friendlyError_500() {
+    func test_500_message() {
         let error = makeError("500 internal server error")
-        XCTAssertTrue(vm.friendlyError(error).lowercased().contains("wrong"))
+        XCTAssertTrue(friendlyMessage(error).lowercased().contains("wrong"))
     }
 
-    func test_friendlyError_unknown_returnsGeneric() {
+    func test_unknown_returnsGeneric() {
         let error = makeError("some completely unexpected thing happened")
-        XCTAssertFalse(vm.friendlyError(error).isEmpty)
+        XCTAssertFalse(friendlyMessage(error).isEmpty)
+    }
+
+    private func friendlyMessage(_ error: Error) -> String {
+        AppError.from(error).errorDescription ?? ""
     }
 
     private func makeError(_ description: String) -> Error {
@@ -329,20 +325,20 @@ final class ScanViewModelSecurityTests: XCTestCase {
         XCTAssertFalse(vm.isAnalyzing)
     }
 
-    func test_friendlyError_neverExposesFilePaths() {
+    func test_errorMapping_neverExposesFilePaths() {
         let internalErr = makeError("/private/var/containers/Bundle/app/module.swift:42: fatal error")
-        let msg = vm.friendlyError(internalErr)
+        let msg = AppError.from(internalErr).errorDescription ?? ""
         XCTAssertFalse(msg.contains("/private"), "Error must not leak filesystem paths")
         XCTAssertFalse(msg.contains(".swift"), "Error must not leak source file names")
     }
 
-    func test_friendlyError_neverExposesAPIKeys() {
+    func test_errorMapping_neverExposesAPIKeys() {
         let keyErr = makeError("API key AIzaSyFAKE123 rejected by server")
-        let msg = vm.friendlyError(keyErr)
+        let msg = AppError.from(keyErr).errorDescription ?? ""
         XCTAssertFalse(msg.contains("AIzaSy"), "Error must not echo back API key material")
     }
 
-    func test_friendlyError_neverEmpty_allCases() {
+    func test_errorMapping_neverEmpty_allCases() {
         let inputs = [
             "completely unknown error xyz_123",
             "",
@@ -353,13 +349,13 @@ final class ScanViewModelSecurityTests: XCTestCase {
             "undefined",
         ]
         for desc in inputs {
-            let msg = vm.friendlyError(makeError(desc))
-            XCTAssertFalse(msg.isEmpty, "friendlyError(\"\(desc)\") must never return empty string")
+            let msg = AppError.from(makeError(desc)).errorDescription ?? ""
+            XCTAssertFalse(msg.isEmpty, "AppError.from(\"\(desc)\") must never produce empty string")
         }
     }
 
-    func test_friendlyError_rateLimitMessageIsSafe() {
-        let msg = vm.friendlyError(makeError("429 rate limit exceeded"))
+    func test_errorMapping_rateLimitMessageIsSafe() {
+        let msg = AppError.from(makeError("429 rate limit exceeded")).errorDescription ?? ""
         XCTAssertFalse(msg.contains("GEMINI"), "Rate-limit message must not reveal backend tech")
         XCTAssertFalse(msg.contains("API"), "Rate-limit message must not expose implementation")
     }
