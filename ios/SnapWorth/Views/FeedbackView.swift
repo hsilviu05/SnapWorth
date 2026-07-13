@@ -150,22 +150,27 @@ struct FeedbackView: View {
     }
 
     private func sendFeedback() {
-        let subject = feedbackType.subject
-            .addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
-        let body = message
-            .addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
-        let raw = "mailto:silh6767@gmail.com?subject=\(subject)&body=\(body)"
+        var components = URLComponents()
+        components.scheme = "mailto"
+        components.path = "silh6767@gmail.com"
+        components.queryItems = [
+            URLQueryItem(name: "subject", value: feedbackType.subject),
+            URLQueryItem(name: "body", value: message),
+        ]
+        guard let url = components.url else { return }
 
-        guard let url = URL(string: raw) else { return }
-        UIApplication.shared.open(url)
-
-        withAnimation(.spring(duration: 0.3)) { didSend = true }
-        message = ""
-        sendResetTask?.cancel()
-        sendResetTask = Task {
-            try? await Task.sleep(for: .seconds(3))
-            guard !Task.isCancelled else { return }
-            withAnimation { didSend = false }
+        UIApplication.shared.open(url) { success in
+            guard success else { return }
+            Task { @MainActor in
+                withAnimation(.spring(duration: 0.3)) { self.didSend = true }
+                self.message = ""
+                self.sendResetTask?.cancel()
+                self.sendResetTask = Task {
+                    try? await Task.sleep(for: .seconds(3))
+                    guard !Task.isCancelled else { return }
+                    withAnimation { self.didSend = false }
+                }
+            }
         }
     }
 }

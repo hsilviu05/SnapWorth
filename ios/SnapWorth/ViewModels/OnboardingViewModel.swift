@@ -1,6 +1,7 @@
 import SwiftUI
 import UIKit
 
+@MainActor
 @Observable
 final class OnboardingViewModel {
     var currentPage: Int = 0

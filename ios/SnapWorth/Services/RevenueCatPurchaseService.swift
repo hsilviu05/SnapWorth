@@ -6,6 +6,7 @@ final class RevenueCatPurchaseService: PurchaseService, ObservableObject {
     @Published private(set) var isSubscribed: Bool
 
     private static let cacheKey = "snapworth_is_subscribed"
+    private static let entitlementID = "premium"
 
     init() {
         // Restore last known status instantly so subscribed users never see
@@ -38,13 +39,13 @@ final class RevenueCatPurchaseService: PurchaseService, ObservableObject {
 
     func restorePurchases() async throws {
         let info = try await Purchases.shared.restorePurchases()
-        setSubscribed(info.entitlements["premium"]?.isActive == true)
+        setSubscribed(info.entitlements[Self.entitlementID]?.isActive == true)
     }
 
     private func refreshSubscriptionStatus() {
         Task {
             if let info = try? await Purchases.shared.customerInfo() {
-                setSubscribed(info.entitlements["premium"]?.isActive == true)
+                setSubscribed(info.entitlements[Self.entitlementID]?.isActive == true)
             }
         }
     }

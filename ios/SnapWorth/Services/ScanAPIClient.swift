@@ -108,7 +108,7 @@ actor ScanAPIClient {
     // ── Live ──────────────────────────────────────────────────────────────────
     private func liveScan(image: UIImage) async throws -> ScanAPIResponse {
         guard let jpegData = image.jpegData(compressionQuality: 0.82) else {
-            throw URLError(.badURL)
+            throw ScanAPIError.imageEncodingFailed
         }
 
         let endpoint = Config.baseURL.appendingPathComponent("scan")
@@ -148,11 +148,14 @@ actor ScanAPIClient {
 
 enum ScanAPIError: LocalizedError {
     case serverError(Int, String)
+    case imageEncodingFailed
 
     var errorDescription: String? {
         switch self {
         case .serverError(let code, let detail):
             return "Server error \(code): \(detail)"
+        case .imageEncodingFailed:
+            return "imageEncodingFailed"
         }
     }
 }

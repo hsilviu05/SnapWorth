@@ -32,10 +32,11 @@ final class PaywallViewModel {
         do {
             try await service.purchase(productID: selectedProductID)
             isPurchaseComplete = true
-        } catch PurchaseError.cancelled {
-            // no-op — user dismissed sheet
         } catch {
-            errorMessage = error.localizedDescription
+            let appError = AppError.from(error)
+            if appError != .purchaseCancelled {
+                errorMessage = appError.errorDescription
+            }
         }
     }
 
@@ -47,7 +48,7 @@ final class PaywallViewModel {
             try await service.restorePurchases()
             if service.isSubscribed { isPurchaseComplete = true }
         } catch {
-            errorMessage = error.localizedDescription
+            errorMessage = AppError.from(error).errorDescription
         }
     }
 }

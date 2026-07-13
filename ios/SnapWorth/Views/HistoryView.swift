@@ -15,6 +15,8 @@ struct HistoryView: View {
 
     var filteredResults: [ScanResult] { vm.filtered(results) }
 
+    private var repository: ScanRepository { ScanRepository(context: modelContext) }
+
     private let hPad: CGFloat = 16
     private let gridSpacing: CGFloat = 12
 
@@ -75,7 +77,7 @@ struct HistoryView: View {
                                         }
                                         .contextMenu {
                                             Button(role: .destructive) {
-                                                vm.delete(result, context: modelContext)
+                                                vm.delete(result, repository: repository)
                                             } label: {
                                                 Label("Delete", systemImage: "trash")
                                             }
@@ -84,7 +86,7 @@ struct HistoryView: View {
                                             if isEditing {
                                                 Button {
                                                     withAnimation(.spring(duration: 0.2)) {
-                                                        vm.delete(result, context: modelContext)
+                                                        vm.delete(result, repository: repository)
                                                     }
                                                 } label: {
                                                     Image(systemName: "minus.circle.fill")

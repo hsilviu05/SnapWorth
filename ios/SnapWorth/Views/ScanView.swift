@@ -94,6 +94,7 @@ struct ScanView: View {
                     .accessibilityLabel("Choose photo from library")
                     .onChange(of: vm.selectedPhotoItem) { _, newItem in
                         guard newItem != nil else { return }
+                        vm.capturedImage = nil
                         Task {
                             await vm.loadSelectedPhoto()
                             if let img = vm.capturedImage {
@@ -198,7 +199,8 @@ struct ScanView: View {
     }
 
     private func triggerScan(image: UIImage) async {
-        await vm.startScan(image: image, purchaseService: purchaseService, context: modelContext)
+        let repository = ScanRepository(context: modelContext)
+        await vm.startScan(image: image, purchaseService: purchaseService, repository: repository)
         if vm.scanResult != nil {
             showResult = true
         }

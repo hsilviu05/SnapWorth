@@ -40,6 +40,8 @@
 		AA00000000000000000000FC /* FeedbackView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000000FB /* FeedbackView.swift */; };
 		AA0000000000000000000100 /* SnapWorthTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000102 /* SnapWorthTests.swift */; };
 		AA000000000000000000010E /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = AA000000000000000000010D /* PrivacyInfo.xcprivacy */; };
+		AA000000000000000000010F /* AppError.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000110 /* AppError.swift */; };
+		AA0000000000000000000111 /* ScanRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000112 /* ScanRepository.swift */; };
 		BB000000000000000000000A /* WidgetDataStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0000000000000000000009 /* WidgetDataStore.swift */; };
 /* End PBXBuildFile section */
 
@@ -110,6 +112,8 @@
 		AA0000000000000000000101 /* SnapWorthTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = SnapWorthTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		AA0000000000000000000102 /* SnapWorthTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SnapWorthTests.swift; sourceTree = "<group>"; };
 		AA000000000000000000010D /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+		AA0000000000000000000110 /* AppError.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppError.swift; sourceTree = "<group>"; };
+		AA0000000000000000000112 /* ScanRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanRepository.swift; sourceTree = "<group>"; };
 		BB0000000000000000000008 /* SnapWorth.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = SnapWorth.entitlements; sourceTree = "<group>"; };
 		BB0000000000000000000009 /* WidgetDataStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetDataStore.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -207,6 +211,7 @@
 			isa = PBXGroup;
 			children = (
 				AA00000000000000000000C6 /* ScanResult.swift */,
+				AA0000000000000000000110 /* AppError.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -218,6 +223,7 @@
 				AA00000000000000000000CA /* MockPurchaseService.swift */,
 				AA00000000000000000000CC /* RevenueCatPurchaseService.swift */,
 				AA00000000000000000000CE /* ScanAPIClient.swift */,
+				AA0000000000000000000112 /* ScanRepository.swift */,
 				BB0000000000000000000009 /* WidgetDataStore.swift */,
 			);
 			path = Services;
@@ -463,6 +469,8 @@
 				AA00000000000000000000EB /* SettingsView.swift in Sources */,
 				AA00000000000000000000F7 /* LegalView.swift in Sources */,
 				AA00000000000000000000FC /* FeedbackView.swift in Sources */,
+				AA000000000000000000010F /* AppError.swift in Sources */,
+				AA0000000000000000000111 /* ScanRepository.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

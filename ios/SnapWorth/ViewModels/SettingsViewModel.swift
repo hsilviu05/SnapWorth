@@ -16,7 +16,7 @@ final class SettingsViewModel {
                 ? "Your subscription has been restored."
                 : "No active subscription found."
         } catch {
-            restoreMessage = error.localizedDescription
+            restoreMessage = AppError.from(error).errorDescription
         }
         showRestoreAlert = true
     }

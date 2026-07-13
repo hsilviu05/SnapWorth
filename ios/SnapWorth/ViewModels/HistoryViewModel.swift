@@ -6,6 +6,7 @@ enum HistorySortOrder: String, CaseIterable {
     case mostValuable = "Most Valuable"
 }
 
+@MainActor
 @Observable
 final class HistoryViewModel {
     var searchText: String = ""
@@ -35,14 +36,11 @@ final class HistoryViewModel {
         return NumberFormatter.snapCurrency.string(from: NSNumber(value: total)) ?? "$\(Int(total))"
     }
 
-    func delete(_ result: ScanResult, context: ModelContext) {
-        context.delete(result)
+    func delete(_ result: ScanResult, repository: ScanRepository) {
         do {
-            try context.save()
-            let remaining = (try? context.fetch(FetchDescriptor<ScanResult>())) ?? []
-            WidgetDataStore.writeHaul(results: remaining)
+            try repository.delete(result)
         } catch {
-            deleteError = "Could not delete item. Please try again."
+            deleteError = AppError.from(error).errorDescription
         }
     }
 }

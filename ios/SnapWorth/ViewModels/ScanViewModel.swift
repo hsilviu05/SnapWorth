@@ -28,7 +28,7 @@ final class ScanViewModel {
     }
 
     // ── Scan trigger ─────────────────────────────────────────────────
-    func startScan(image: UIImage, purchaseService: any PurchaseService, context: ModelContext) async {
+    func startScan(image: UIImage, purchaseService: any PurchaseService, repository: ScanRepository) async {
         guard !isAnalyzing else { return }
         guard purchaseService.isSubscribed || hasFreeScanRemaining else {
             showPaywall = true
@@ -57,23 +57,18 @@ final class ScanViewModel {
                 imageData: jpegData
             )
 
-            context.insert(result)
-            try context.save()
+            try repository.save(result)
 
             if !purchaseService.isSubscribed {
                 freeScansUsed += 1
             }
-
-            // Refresh widget with updated haul totals
-            let all = try context.fetch(FetchDescriptor<ScanResult>())
-            WidgetDataStore.writeHaul(results: all)
 
             UINotificationFeedbackGenerator().notificationOccurred(.success)
             scanResult = result
 
         } catch {
             UINotificationFeedbackGenerator().notificationOccurred(.error)
-            errorMessage = friendlyError(error)
+            errorMessage = AppError.from(error).errorDescription
         }
     }
 
@@ -86,26 +81,6 @@ final class ScanViewModel {
             errorMessage = "Couldn't load the selected photo. Please try another."
         }
         selectedPhotoItem = nil
-    }
-
-    func friendlyError(_ error: Error) -> String {
-        let msg = error.localizedDescription.lowercased()
-        if msg.contains("429") || msg.contains("rate limit") {
-            return "You've hit the scan limit. Try again in an hour."
-        }
-        if msg.contains("network") || msg.contains("offline") || msg.contains("internet") {
-            return "No internet connection. Check your network and try again."
-        }
-        if msg.contains("timeout") || msg.contains("timed out") {
-            return "The request timed out. Please try again."
-        }
-        if msg.contains("502") || msg.contains("temporarily unavailable") || msg.contains("ai service") {
-            return "Our AI is temporarily unavailable. Please try again in a moment."
-        }
-        if msg.contains("500") || msg.contains("server error") {
-            return "Something went wrong on our end. Please try again."
-        }
-        return "Something went wrong. Please try again."
     }
 
     func reset() {
