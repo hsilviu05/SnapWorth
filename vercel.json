@@ -2,8 +2,8 @@
   "outputDirectory": "website",
   "buildCommand": "",
   "framework": null,
+  "cleanUrls": true,
   "rewrites": [
-    { "source": "/support", "destination": "/support.html" },
     { "source": "/(.*)", "destination": "/index.html" }
   ]
 }
