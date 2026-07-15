@@ -13,6 +13,10 @@ enum Config {
     static let monthlyProductID = "com.snapworth.monthly"
     static let yearlyProductID  = "com.snapworth.yearly"
 
+    // ── App Store ────────────────────────────────────────────────────────────
+    /// Update to the App Store product URL once the app is live. Used for the share-card QR code.
+    static let appStoreURL = "https://snapworth.eu"
+
     // ── Free tier ────────────────────────────────────────────────────────────
     static let freeScansAllowed = 3
 

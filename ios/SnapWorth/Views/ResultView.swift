@@ -8,6 +8,19 @@ struct ResultView: View {
 
     @State private var vm = ResultViewModel()
     @State private var photo: UIImage?
+    @State private var paidPriceText: String
+    @FocusState private var paidFocused: Bool
+
+    init(result: ScanResult, onDismiss: @escaping () -> Void) {
+        self.result = result
+        self.onDismiss = onDismiss
+        if let paid = result.paidPrice {
+            let fmt = paid.truncatingRemainder(dividingBy: 1) == 0 ? "%.0f" : "%.2f"
+            _paidPriceText = State(initialValue: String(format: fmt, paid))
+        } else {
+            _paidPriceText = State(initialValue: "")
+        }
+    }
 
     var body: some View {
         NavigationStack {
@@ -20,9 +33,13 @@ struct ResultView: View {
                             .padding(.horizontal, 20)
                             .offset(y: -28)
 
+                        paidPriceCard
+                            .padding(.horizontal, 20)
+                            .padding(.top, 12)
+
                         detailsCard
                             .padding(.horizontal, 20)
-                            .padding(.top, -12)
+                            .padding(.top, 12)
 
                         if !result.listingTitle.isEmpty || !result.listingDescription.isEmpty {
                             listingDraftCard
@@ -62,6 +79,14 @@ struct ResultView: View {
                     }
                 }
             }
+            .toolbar {
+                ToolbarItemGroup(placement: .keyboard) {
+                    Spacer()
+                    Button("Done") { paidFocused = false }
+                        .font(.dmSans(15, weight: .semibold))
+                        .foregroundStyle(Color.snapTerracotta)
+                }
+            }
         }
         .task(id: result.id) {
             if let data = result.imageData {
@@ -71,6 +96,38 @@ struct ResultView: View {
             }
             vm.prepareShareCard(result: result, photo: photo, displayScale: displayScale)
         }
+        .onChange(of: paidPriceText) { _, newValue in
+            result.paidPrice = newValue.isEmpty ? nil : Double(newValue)
+            // Analytics: log paid-price entry when analytics are added
+            vm.scheduleShareCardUpdate(result: result, photo: photo, displayScale: displayScale)
+        }
+    }
+
+    // MARK: - Paid Price Card
+
+    private var paidPriceCard: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("What did you pay?")
+                .snapSectionHeader()
+            HStack(spacing: 4) {
+                Text("$")
+                    .font(.dmSans(17, weight: .medium))
+                    .foregroundStyle(Color.snapWarmGray)
+                TextField("0", text: $paidPriceText)
+                    .keyboardType(.decimalPad)
+                    .font(.dmSans(17, weight: .medium))
+                    .foregroundStyle(Color.snapEspresso)
+                    .focused($paidFocused)
+            }
+            Text("Adds your find multiple to the share card")
+                .font(.snapCaption)
+                .foregroundStyle(Color.snapWarmGray.opacity(0.7))
+        }
+        .padding(20)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.snapCard)
+        .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+        .shadow(color: Color.snapCardShadow.opacity(0.08), radius: 24, x: 0, y: 8)
     }
 
     // MARK: - Hero Photo

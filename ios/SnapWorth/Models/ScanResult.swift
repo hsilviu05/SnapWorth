@@ -17,6 +17,8 @@ final class ScanResult {
     var listingDescription: String
     /// JPEG-compressed image for display in history
     @Attribute(.externalStorage) var imageData: Data?
+    /// What the user paid — nil when not entered; 0 = free find.
+    var paidPrice: Double?
 
     init(
         id: UUID = UUID(),
@@ -31,7 +33,8 @@ final class ScanResult {
         soldListingsCount: Int,
         listingTitle: String,
         listingDescription: String,
-        imageData: Data? = nil
+        imageData: Data? = nil,
+        paidPrice: Double? = nil
     ) {
         self.id = id
         self.timestamp = timestamp
@@ -46,6 +49,7 @@ final class ScanResult {
         self.listingTitle = listingTitle
         self.listingDescription = listingDescription
         self.imageData = imageData
+        self.paidPrice = paidPrice
     }
 
     var formattedRange: String {

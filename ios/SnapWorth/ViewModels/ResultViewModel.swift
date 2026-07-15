@@ -6,16 +6,28 @@ final class ResultViewModel {
     var didCopyListing: Bool = false
     var shareCard: UIImage?
 
-    @ObservationIgnored
-    private var resetTask: Task<Void, Never>?
+    @ObservationIgnored private var resetTask: Task<Void, Never>?
+    @ObservationIgnored private var shareCardDebounce: Task<Void, Never>?
 
-    deinit { resetTask?.cancel() }
+    deinit {
+        resetTask?.cancel()
+        shareCardDebounce?.cancel()
+    }
 
     func prepareShareCard(result: ScanResult, photo: UIImage?, displayScale: CGFloat) {
         let view = ShareCardView(result: result, photo: photo)
         let renderer = ImageRenderer(content: view)
         renderer.scale = max(displayScale, 2)
         shareCard = renderer.uiImage
+    }
+
+    func scheduleShareCardUpdate(result: ScanResult, photo: UIImage?, displayScale: CGFloat) {
+        shareCardDebounce?.cancel()
+        shareCardDebounce = Task {
+            try? await Task.sleep(for: .milliseconds(300))
+            guard !Task.isCancelled else { return }
+            prepareShareCard(result: result, photo: photo, displayScale: displayScale)
+        }
     }
 
     func copyListing(result: ScanResult) {
