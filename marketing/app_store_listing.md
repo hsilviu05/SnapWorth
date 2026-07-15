@@ -18,7 +18,7 @@ Point your camera at any secondhand item — a jacket, a pair of sneakers, a vin
 
 No more guessing. No more leaving $100 flips on the shelf.
 
-──────────────────────────
+--------------------------
 
 HOW IT WORKS
 
@@ -27,7 +27,7 @@ HOW IT WORKS
 3. Get an instant AI valuation based on real sold prices
 4. Copy your ready-to-post listing and sell it today
 
-──────────────────────────
+--------------------------
 
 WHAT YOU GET
 
@@ -38,7 +38,7 @@ WHAT YOU GET
 • Scan history — every find saved automatically with its value
 • Total haul tracker — see what your collection is worth at a glance
 
-──────────────────────────
+--------------------------
 
 BUILT FOR
 
@@ -47,7 +47,7 @@ BUILT FOR
 • Estate sale and yard sale hunters
 • Anyone who's ever thought "is this worth buying?"
 
-──────────────────────────
+--------------------------
 
 FREE & PRO
 
@@ -59,7 +59,7 @@ Upgrade to Pro for unlimited scans, full scan history, and AI listing drafts:
 
 Cancel anytime from your iPhone settings.
 
-──────────────────────────
+--------------------------
 
 PRIVACY
 
