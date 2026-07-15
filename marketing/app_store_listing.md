@@ -65,6 +65,11 @@ PRIVACY
 
 Photos are processed in real time and never stored on our servers. Your scan history stays on your device. We don't sell your data. Ever.
 
+LEGAL
+
+Privacy Policy: https://api.snapworth.eu/privacy
+Terms of Use: https://api.snapworth.eu/terms
+
 snapworth.eu
 
 ---
@@ -82,7 +87,7 @@ Secondary: Utilities
 4+
 
 ## Support URL
-https://snapworth.eu
+https://snapworth.eu/support
 
 ## Privacy Policy URL
 https://api.snapworth.eu/privacy

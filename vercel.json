@@ -3,6 +3,7 @@
   "buildCommand": "",
   "framework": null,
   "rewrites": [
+    { "source": "/support", "destination": "/support.html" },
     { "source": "/(.*)", "destination": "/index.html" }
   ]
 }
