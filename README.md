@@ -2,6 +2,20 @@
 
 > Photograph secondhand items — get AI-powered identification and resale value estimates.
 
+---
+
+## Screenshots
+
+<p align="center">
+  <img src="marketing/screenshots/screenshot_1.png" width="18%" alt="Camera scan" />
+  <img src="marketing/screenshots/screenshot_2.png" width="18%" alt="AI valuation result" />
+  <img src="marketing/screenshots/screenshot_3.png" width="18%" alt="My Finds history" />
+  <img src="marketing/screenshots/screenshot_4.png" width="18%" alt="Listing draft" />
+  <img src="marketing/screenshots/screenshot_5.png" width="18%" alt="SnapWorth Pro paywall" />
+</p>
+
+---
+
 ```
 SnapWorth/
 ├── ios/                          ← Swift / SwiftUI iOS app
