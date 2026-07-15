@@ -26,6 +26,8 @@
 	<string>SnapWorth uses your camera to photograph items so we can identify them and estimate their resale value.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>SnapWorth lets you pick photos from your library to scan for resale value.</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>Allow SnapWorth to save your valuation card to Photos.</string>
 
 	<!-- Custom fonts registered with UIKit -->
 	<key>UIAppFonts</key>

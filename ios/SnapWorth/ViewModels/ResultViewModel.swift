@@ -4,14 +4,18 @@ import SwiftUI
 @Observable
 final class ResultViewModel {
     var didCopyListing: Bool = false
+    var shareCard: UIImage?
 
     @ObservationIgnored
     private var resetTask: Task<Void, Never>?
 
     deinit { resetTask?.cancel() }
 
-    func shareText(result: ScanResult) -> String {
-        "Found a \(result.itemName) worth \(result.formattedRange)\n\n\(result.listingTitle)\n\(result.listingDescription)\n\nValued with SnapWorth"
+    func prepareShareCard(result: ScanResult, photo: UIImage?, displayScale: CGFloat) {
+        let view = ShareCardView(result: result, photo: photo)
+        let renderer = ImageRenderer(content: view)
+        renderer.scale = max(displayScale, 2)
+        shareCard = renderer.uiImage
     }
 
     func copyListing(result: ScanResult) {

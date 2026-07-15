@@ -4,6 +4,8 @@ struct ResultView: View {
     let result: ScanResult
     var onDismiss: () -> Void
 
+    @Environment(\.displayScale) private var displayScale
+
     @State private var vm = ResultViewModel()
     @State private var photo: UIImage?
 
@@ -43,7 +45,14 @@ struct ResultView: View {
             .toolbarBackground(.hidden, for: .navigationBar)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
-                    ShareLink(item: vm.shareText(result: result)) {
+                    if let card = vm.shareCard {
+                        ShareLink(
+                            item: ShareableImage(uiImage: card),
+                            preview: SharePreview(result.itemName)
+                        ) {
+                            circleButton(icon: "square.and.arrow.up")
+                        }
+                    } else {
                         circleButton(icon: "square.and.arrow.up")
                     }
                 }
@@ -55,10 +64,12 @@ struct ResultView: View {
             }
         }
         .task(id: result.id) {
-            guard let data = result.imageData else { return }
-            photo = await Task.detached(priority: .userInitiated) {
-                UIImage(data: data)
-            }.value
+            if let data = result.imageData {
+                photo = await Task.detached(priority: .userInitiated) {
+                    UIImage(data: data)
+                }.value
+            }
+            vm.prepareShareCard(result: result, photo: photo, displayScale: displayScale)
         }
     }
 
