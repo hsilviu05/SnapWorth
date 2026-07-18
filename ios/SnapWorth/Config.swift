@@ -19,8 +19,4 @@ enum Config {
 
     // ── Free tier ────────────────────────────────────────────────────────────
     static let freeScansAllowed = 3
-
-    // ── RevenueCat ───────────────────────────────────────────────────────────
-    /// Paste your RevenueCat iOS public SDK key here.
-    static let revenueCatAPIKey = "appl_qqBgbKedqLFGtUymTlPANoyKRib"
 }

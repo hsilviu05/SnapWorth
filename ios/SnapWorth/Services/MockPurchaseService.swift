@@ -1,6 +1,6 @@
 import Foundation
 
-/// Mock purchase service used while RevenueCat is not yet configured.
+/// Mock purchase service for previews and tests — no StoreKit involved.
 /// Set `forcedSubscribed` to test both the free and subscribed UX.
 @MainActor
 final class MockPurchaseService: PurchaseService, ObservableObject {

@@ -16,7 +16,7 @@
 		AA00000000000000000000C7 /* ScanResult.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000000C6 /* ScanResult.swift */; };
 		AA00000000000000000000C9 /* PurchaseService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000000C8 /* PurchaseService.swift */; };
 		AA00000000000000000000CB /* MockPurchaseService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000000CA /* MockPurchaseService.swift */; };
-		AA00000000000000000000CD /* RevenueCatPurchaseService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000000CC /* RevenueCatPurchaseService.swift */; };
+		AA00000000000000000000CD /* StoreKitPurchaseService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000000CC /* StoreKitPurchaseService.swift */; };
 		AA00000000000000000000CF /* ScanAPIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000000CE /* ScanAPIClient.swift */; };
 		AA00000000000000000000D1 /* CameraManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000000D0 /* CameraManager.swift */; };
 		AA00000000000000000000D3 /* OnboardingViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000000D2 /* OnboardingViewModel.swift */; };
@@ -36,7 +36,6 @@
 		AA00000000000000000000F2 /* Fraunces-Variable.ttf in Resources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000000F1 /* Fraunces-Variable.ttf */; };
 		AA00000000000000000000F4 /* DMSans-Variable.ttf in Resources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000000F3 /* DMSans-Variable.ttf */; };
 		AA00000000000000000000F7 /* LegalView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000000F6 /* LegalView.swift */; };
-		AA00000000000000000000FA /* RevenueCat in Frameworks */ = {isa = PBXBuildFile; productRef = AA00000000000000000000F9 /* RevenueCat */; };
 		AA00000000000000000000FC /* FeedbackView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000000FB /* FeedbackView.swift */; };
 		AA0000000000000000000100 /* SnapWorthTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000102 /* SnapWorthTests.swift */; };
 		AA000000000000000000010E /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = AA000000000000000000010D /* PrivacyInfo.xcprivacy */; };
@@ -88,7 +87,7 @@
 		AA00000000000000000000C6 /* ScanResult.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanResult.swift; sourceTree = "<group>"; };
 		AA00000000000000000000C8 /* PurchaseService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PurchaseService.swift; sourceTree = "<group>"; };
 		AA00000000000000000000CA /* MockPurchaseService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockPurchaseService.swift; sourceTree = "<group>"; };
-		AA00000000000000000000CC /* RevenueCatPurchaseService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RevenueCatPurchaseService.swift; sourceTree = "<group>"; };
+		AA00000000000000000000CC /* StoreKitPurchaseService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoreKitPurchaseService.swift; sourceTree = "<group>"; };
 		AA00000000000000000000CE /* ScanAPIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanAPIClient.swift; sourceTree = "<group>"; };
 		AA00000000000000000000D0 /* CameraManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraManager.swift; sourceTree = "<group>"; };
 		AA00000000000000000000D2 /* OnboardingViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingViewModel.swift; sourceTree = "<group>"; };
@@ -148,7 +147,6 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				AA00000000000000000000FA /* RevenueCat in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -223,7 +221,7 @@
 			children = (
 				AA00000000000000000000C8 /* PurchaseService.swift */,
 				AA00000000000000000000CA /* MockPurchaseService.swift */,
-				AA00000000000000000000CC /* RevenueCatPurchaseService.swift */,
+				AA00000000000000000000CC /* StoreKitPurchaseService.swift */,
 				AA00000000000000000000CE /* ScanAPIClient.swift */,
 				AA0000000000000000000112 /* ScanRepository.swift */,
 				BB0000000000000000000009 /* WidgetDataStore.swift */,
@@ -338,7 +336,6 @@
 			);
 			name = SnapWorth;
 			packageProductDependencies = (
-				AA00000000000000000000F9 /* RevenueCat */,
 			);
 			productName = SnapWorth;
 			productReference = AA00000000000000000000AE /* SnapWorth.app */;
@@ -393,9 +390,6 @@
 				Base,
 			);
 			mainGroup = AA00000000000000000000F0;
-			packageReferences = (
-				AA00000000000000000000F8 /* XCRemoteSwiftPackageReference "purchases-ios" */,
-			);
 			productRefGroup = AA00000000000000000000AC /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
@@ -453,7 +447,7 @@
 				AA00000000000000000000C7 /* ScanResult.swift in Sources */,
 				AA00000000000000000000C9 /* PurchaseService.swift in Sources */,
 				AA00000000000000000000CB /* MockPurchaseService.swift in Sources */,
-				AA00000000000000000000CD /* RevenueCatPurchaseService.swift in Sources */,
+				AA00000000000000000000CD /* StoreKitPurchaseService.swift in Sources */,
 				AA00000000000000000000CF /* ScanAPIClient.swift in Sources */,
 				BB000000000000000000000A /* WidgetDataStore.swift in Sources */,
 				AA00000000000000000000D1 /* CameraManager.swift in Sources */,
@@ -509,7 +503,7 @@
 				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
 				CODE_SIGN_ENTITLEMENTS = SnapWorthWidgets/SnapWorthWidgets.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 4;
+				CURRENT_PROJECT_VERSION = 6;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = SnapWorthWidgets/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = SnapWorthWidgets;
@@ -541,7 +535,7 @@
 				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
 				CODE_SIGN_ENTITLEMENTS = SnapWorthWidgets/SnapWorthWidgets.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 4;
+				CURRENT_PROJECT_VERSION = 6;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = SnapWorthWidgets/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = SnapWorthWidgets;
@@ -697,7 +691,7 @@
 				CODE_SIGN_ENTITLEMENTS = SnapWorth/SnapWorth.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 4;
+				CURRENT_PROJECT_VERSION = 6;
 				DEVELOPMENT_ASSET_PATHS = "";
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = NO;
@@ -729,7 +723,7 @@
 				CODE_SIGN_ENTITLEMENTS = SnapWorth/SnapWorth.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 4;
+				CURRENT_PROJECT_VERSION = 6;
 				DEVELOPMENT_ASSET_PATHS = "";
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = NO;
@@ -834,24 +828,6 @@
 		};
 /* End XCConfigurationList section */
 
-/* Begin XCRemoteSwiftPackageReference section */
-		AA00000000000000000000F8 /* XCRemoteSwiftPackageReference "purchases-ios" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/RevenueCat/purchases-ios";
-			requirement = {
-				kind = upToNextMajorVersion;
-				minimumVersion = 5.0.0;
-			};
-		};
-/* End XCRemoteSwiftPackageReference section */
-
-/* Begin XCSwiftPackageProductDependency section */
-		AA00000000000000000000F9 /* RevenueCat */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = AA00000000000000000000F8 /* XCRemoteSwiftPackageReference "purchases-ios" */;
-			productName = RevenueCat;
-		};
-/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = AA00000000000000000000AA /* Project object */;
 }

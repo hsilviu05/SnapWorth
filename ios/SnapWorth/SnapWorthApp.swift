@@ -4,7 +4,7 @@ import SwiftData
 @main
 struct SnapWorthApp: App {
     // ── Purchase service ──────────────────────────────────────────────────────
-    @StateObject private var purchaseService = RevenueCatPurchaseService()
+    @StateObject private var purchaseService = StoreKitPurchaseService()
 
     // ── Onboarding state ──────────────────────────────────────────────────────
     @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding = false

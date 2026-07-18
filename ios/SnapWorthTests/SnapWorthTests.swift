@@ -227,19 +227,6 @@ final class ConfigSecurityTests: XCTestCase {
                        "baseURL must have a non-empty host")
     }
 
-    func test_revenueCatAPIKey_isNonEmpty() {
-        XCTAssertFalse(Config.revenueCatAPIKey.isEmpty, "RevenueCat iOS key must be set")
-        XCTAssertTrue(Config.revenueCatAPIKey.hasPrefix("appl_"), "RevenueCat iOS key must start with appl_")
-    }
-
-    func test_revenueCatAPIKey_notServerSecret() {
-        // Server secret keys (sk_…) must never live in the iOS bundle
-        XCTAssertFalse(
-            Config.revenueCatAPIKey.hasPrefix("sk_"),
-            "sk_ is the RevenueCat server secret — it must never be placed in the iOS app"
-        )
-    }
-
     func test_freeScansAllowed_isPositive() {
         XCTAssertGreaterThan(Config.freeScansAllowed, 0,
                              "freeScansAllowed must be > 0 or the free tier is broken")
