@@ -26,14 +26,15 @@
       --dark:        #1C1410;
       --dark2:       #2B211C;
       --terracotta:  #D96C47;
+      --terra-text:  #B0532E;   /* AA-compliant terracotta for text on light bg */
       --terra-dim:   rgba(217,108,71,0.12);
       --sage:        #7A9E7E;
       --sage-dim:    rgba(122,158,126,0.12);
-      --warm-gray:   #8B7B75;
+      --warm-gray:   #6E625B;   /* darkened for WCAG AA (~5.5:1 on --bg) */
       --border:      #E8DDD7;
       --border-dark: rgba(255,255,255,0.08);
       --white:       #FFFFFF;
-      --text-muted:  #A89990;
+      --text-muted:  #746A64;   /* darkened for WCAG AA (~4.9:1 on --bg) */
     }
 
     html { scroll-behavior: smooth; }
@@ -359,7 +360,7 @@
       font-family:-apple-system,sans-serif;
     }
     .app-meta {
-      font-size:11px; color:#8B7B75;
+      font-size:11px; color:#6E625B;
       font-family:-apple-system,sans-serif;
       margin-top:2px;
     }
@@ -381,7 +382,7 @@
     .app-card-label {
       font-size:9px; font-weight:600;
       text-transform:uppercase; letter-spacing:0.8px;
-      color:#A89990; margin-bottom:5px;
+      color:#746A64; margin-bottom:5px;
       font-family:-apple-system,sans-serif;
     }
     .app-price {
@@ -391,7 +392,7 @@
     }
     .app-price-sep {
       font-size:16px; font-weight:400;
-      color:#8B7B75; letter-spacing:0;
+      color:#6E625B; letter-spacing:0;
     }
     .app-bar {
       height:3px; background:#F3EDE8;
@@ -404,7 +405,7 @@
       border-radius:3px;
     }
     .app-price-sub {
-      font-size:10px; color:#A89990;
+      font-size:10px; color:#746A64;
       font-family:-apple-system,sans-serif;
     }
     .app-listing-text {
@@ -443,7 +444,7 @@
     }
     .platforms-label {
       font-size: 13px;
-      color: rgba(255,255,255,0.25);
+      color: rgba(255,255,255,0.5);
       white-space: nowrap;
     }
     .platforms-list {
@@ -455,7 +456,7 @@
     .platform {
       font-size: 15px;
       font-weight: 600;
-      color: rgba(255,255,255,0.2);
+      color: rgba(255,255,255,0.55);
       letter-spacing: -0.2px;
     }
 
@@ -468,7 +469,7 @@
       font-weight: 600;
       text-transform: uppercase;
       letter-spacing: 1.5px;
-      color: var(--terracotta);
+      color: var(--terra-text);
       margin-bottom: 14px;
     }
     .section-title {
@@ -576,7 +577,7 @@
     .plan-badge {
       display: inline-block;
       background: var(--terra-dim);
-      color: var(--terracotta);
+      color: var(--terra-text);
       font-size: 11px;
       font-weight: 600;
       letter-spacing: 0.5px;
@@ -593,7 +594,7 @@
       color: var(--text-muted);
       margin-bottom: 10px;
     }
-    .plan.featured .plan-name { color: rgba(255,255,255,0.35); }
+    .plan.featured .plan-name { color: rgba(255,255,255,0.55); }
     .plan-price {
       font-family: 'Fraunces', serif;
       font-size: 44px;
@@ -610,7 +611,7 @@
       margin-top: 6px;
       margin-bottom: 24px;
     }
-    .plan.featured .plan-cadence { color: rgba(255,255,255,0.3); }
+    .plan.featured .plan-cadence { color: rgba(255,255,255,0.55); }
     .plan-divider {
       height: 1px;
       background: var(--border);
@@ -695,7 +696,7 @@
     .cta-dark h2 em { font-style: italic; color: var(--terracotta); }
     .cta-dark p {
       font-size: 17px;
-      color: rgba(255,255,255,0.4);
+      color: rgba(255,255,255,0.6);
       margin-bottom: 40px;
       position: relative;
     }
@@ -740,12 +741,12 @@
     .footer-links { display: flex; gap: 24px; }
     .footer-links a {
       font-size: 13px;
-      color: rgba(255,255,255,0.3);
+      color: rgba(255,255,255,0.55);
       text-decoration: none;
       transition: color 0.15s;
     }
     .footer-links a:hover { color: rgba(255,255,255,0.7); }
-    .footer-copy { font-size: 13px; color: rgba(255,255,255,0.2); }
+    .footer-copy { font-size: 13px; color: rgba(255,255,255,0.5); }
 
     /* ── Responsive ───────────────────────────────────────────────── */
     @media (max-width: 920px) {
@@ -789,6 +790,8 @@
     </div>
   </nav>
 
+  <main>
+
   <!-- Hero -->
   <section class="hero">
     <div class="hero-inner">
@@ -802,7 +805,7 @@
         <div class="hero-actions">
           <!-- TODO: Replace # with App Store link -->
           <a href="#" class="btn-primary">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.8-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z"/></svg>
+            <svg aria-hidden="true" focusable="false" width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.8-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z"/></svg>
             Download on the App Store
           </a>
           <a href="#how-it-works" class="btn-ghost">See how it works →</a>
@@ -826,7 +829,7 @@
             <!-- Nav bar -->
             <div class="app-nav">
               <span class="app-back">
-                <svg width="8" height="13" viewBox="0 0 8 13" fill="none"><path d="M7 1L1 6.5L7 12" stroke="#D96C47" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                <svg aria-hidden="true" focusable="false" width="8" height="13" viewBox="0 0 8 13" fill="none"><path d="M7 1L1 6.5L7 12" stroke="#D96C47" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
                 Scan
               </span>
               <span class="app-nav-title">Result</span>
@@ -838,7 +841,7 @@
                 <div class="app-name">Coach Leather Crossbody Bag</div>
                 <div class="app-meta">Coach · Accessories · Good condition</div>
                 <div class="app-badge">
-                  <svg width="9" height="9" viewBox="0 0 10 10" fill="#7A9E7E"><circle cx="5" cy="5" r="5"/></svg>
+                  <svg aria-hidden="true" focusable="false" width="9" height="9" viewBox="0 0 10 10" fill="#7A9E7E"><circle cx="5" cy="5" r="5"/></svg>
                   High Confidence
                 </div>
               </div>
@@ -854,7 +857,7 @@
                 <div class="app-card-label">AI Listing</div>
                 <div class="app-listing-text">Coach Tan Leather Crossbody Bag — Clean interior, minimal wear, brass hardware intact. Great everyday carry.</div>
                 <div class="app-copy">
-                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                  <svg aria-hidden="true" focusable="false" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
                   Copy listing
                 </div>
               </div>
@@ -1007,10 +1010,12 @@
     <p>Join thrift flippers who price smarter.</p>
     <!-- TODO: Replace # with App Store link -->
     <a href="#" class="btn-primary-light">
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.8-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z"/></svg>
+      <svg aria-hidden="true" focusable="false" width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.8-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z"/></svg>
       Download on the App Store
     </a>
   </div>
+
+  </main>
 
   <!-- Footer -->
   <footer>
