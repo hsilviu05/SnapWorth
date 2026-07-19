@@ -16,7 +16,8 @@
   <link rel="icon" type="image/png" sizes="192x192" href="favicon-192.png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,ital,wght@9..144,0,400;9..144,0,700;9..144,0,900;9..144,1,700&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,ital,wght@9..144,0,400;9..144,0,700;9..144,0,900;9..144,1,700&family=DM+Sans:wght@400;500;600&display=swap" onload="this.onload=null;this.rel='stylesheet'">
+  <noscript><link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,ital,wght@9..144,0,400;9..144,0,700;9..144,0,900;9..144,1,700&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet"></noscript>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -29,6 +30,7 @@
       --terra-text:  #B0532E;   /* AA-compliant terracotta for text on light bg */
       --terra-dim:   rgba(217,108,71,0.12);
       --sage:        #7A9E7E;
+      --sage-text:   #4F7355;   /* AA-compliant sage for text/glyphs on light bg */
       --sage-dim:    rgba(122,158,126,0.12);
       --warm-gray:   #6E625B;   /* darkened for WCAG AA (~5.5:1 on --bg) */
       --border:      #E8DDD7;
@@ -178,7 +180,7 @@
       display: inline-flex;
       align-items: center;
       gap: 8px;
-      background: var(--terracotta);
+      background: var(--terra-text);
       color: var(--white);
       font-size: 15px;
       font-weight: 600;
@@ -328,7 +330,7 @@
       position:relative;
     }
     .app-back {
-      font-size:13px; color:#D96C47;
+      font-size:13px; color:#B0532E;
       font-family:-apple-system,sans-serif;
       display:flex; align-items:center; gap:3px;
     }
@@ -366,7 +368,7 @@
     }
     .app-badge {
       display:inline-flex; align-items:center; gap:4px;
-      background:#EAF1EB; color:#7A9E7E;
+      background:#EAF1EB; color:#4F7355;
       font-size:10px; font-weight:600;
       padding:3px 8px; border-radius:6px;
       font-family:-apple-system,sans-serif;
@@ -636,12 +638,14 @@
     .plan.featured .plan-features li { color: rgba(255,255,255,0.8); }
     .plan-features li::before {
       content: "✓";
-      color: var(--sage);
+      color: var(--sage-text);
       font-weight: 700;
       flex-shrink: 0;
       line-height: 1.6;
       font-size: 13px;
     }
+    /* brighter sage passes contrast on the dark featured card */
+    .plan.featured .plan-features li::before { color: var(--sage); }
     .plan-cta {
       display: block;
       text-align: center;
@@ -659,7 +663,7 @@
     }
     .plan-cta-outline:hover { border-color: var(--dark2); }
     .plan-cta-main {
-      background: var(--terracotta);
+      background: var(--terra-text);
       color: var(--white);
     }
     .plan-cta-ghost {
