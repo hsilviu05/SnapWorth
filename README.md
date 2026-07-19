@@ -1,10 +1,12 @@
 # SnapWorth
 
-> Photograph secondhand items — get AI-powered identification and resale value estimates.
+**Photograph secondhand items — get AI-powered identification and resale value estimates.**
 
----
+Built for thrifting resellers: snap a photo of a clothing item, get the brand, category, condition assessment, and an estimated resale price range in seconds.
 
-## Screenshots
+<!-- Once live, replace with your real App Store link:
+[![Download on the App Store](https://developer.apple.com/assets/elements/badges/download-on-the-app-store.svg)](https://apps.apple.com/app/idXXXXXXXXX)
+-->
 
 <p align="center">
   <img src="marketing/screenshots/screenshot_1.png" width="18%" alt="Camera scan" />
@@ -16,124 +18,93 @@
 
 ---
 
+## Features
+
+- **Instant valuation** — photograph an item or pick from your library; the backend identifies it and returns a resale price estimate
+- **My Finds** — scan history persisted locally with SwiftData
+- **Listing drafts** — generates a ready-to-paste resale listing for each scanned item
+- **Share cards** — exportable valuation card with QR code, saved straight to Photos
+- **Home Screen widgets** — quick-scan widget, haul summary widget, Control Center control, and a Live Activity (WidgetKit)
+- **SnapWorth Pro** — freemium model: 3 free scans, then an auto-renewable subscription via StoreKit 2
+
+## Architecture
+
+```
+┌─────────────────────────────┐          ┌──────────────────────────────┐
+│  iOS app (SwiftUI)          │  HTTPS   │  Backend (FastAPI, Python)   │
+│                             │ ───────► │                              │
+│  MVVM · iOS 17 @Observable  │  POST    │  /scan → Gemini vision API   │
+│  SwiftData persistence      │  /scan   │  /health → liveness check    │
+│  AVFoundation camera        │          │  Rate limiting · image       │
+│  StoreKit 2 subscriptions   │ ◄─────── │  validation · Docker         │
+│  WidgetKit extension        │  JSON    │                              │
+└─────────────────────────────┘          └──────────────────────────────┘
+```
+
+**iOS.** SwiftUI throughout, MVVM with iOS 17 Observation (`@Observable` view models), SwiftData for scan history, AVFoundation for the custom camera, StoreKit 2 for subscriptions (a `PurchaseService` protocol with a mock implementation keeps the paywall testable without the network). A separate `SnapWorthWidgets` target ships the widgets, Control Center control, and Live Activity.
+
+**Backend.** FastAPI service that accepts an image upload, calls the Google Gemini vision API for identification and price estimation, and returns structured JSON. Includes request rate limiting, input validation, a pytest suite (`backend/tests/`), and a Dockerfile for deployment.
+
+**CI.** GitHub Actions build the iOS app and run backend tests on every push (`.github/workflows/`). Dependabot keeps dependencies current.
+
+## Project structure
+
 ```
 SnapWorth/
-├── ios/                          ← Swift / SwiftUI iOS app
-│   ├── SnapWorth.xcodeproj/
-│   └── SnapWorth/
-│       ├── SnapWorthApp.swift    ← App entry point + SwiftData container
-│       ├── Config.swift          ← API URL, mock flag, product IDs
-│       ├── Info.plist            ← Permissions, UIAppFonts, orientation
-│       ├── Assets.xcassets/
-│       ├── DesignSystem/         ← Colors, fonts, shared components
-│       ├── Models/               ← ScanResult (SwiftData @Model)
-│       ├── Services/             ← PurchaseService protocol + implementations
-│       ├── Camera/               ← AVFoundation camera manager
-│       ├── ViewModels/           ← @Observable view models (iOS 17 Observation)
-│       └── Views/                ← SwiftUI screens
-└── backend/                      ← Python FastAPI + Anthropic
-    ├── main.py
-    ├── requirements.txt
-    ├── Dockerfile
-    ├── .env.example
-    └── README.md
+├── ios/
+│   ├── SnapWorth/               # Main app target
+│   │   ├── SnapWorthApp.swift   # Entry point + SwiftData container
+│   │   ├── Config.swift         # API URL, mock flag, product IDs
+│   │   ├── Camera/              # AVFoundation camera manager
+│   │   ├── DesignSystem/        # Colors, typography, shared components
+│   │   ├── Models/              # ScanResult (@Model), AppError
+│   │   ├── Services/            # API client, repository, StoreKit 2 purchases
+│   │   ├── ViewModels/          # @Observable view models
+│   │   └── Views/               # SwiftUI screens
+│   ├── SnapWorthWidgets/        # Widgets, Control Center control, Live Activity
+│   └── SnapWorthTests/
+├── backend/                     # FastAPI + Gemini vision
+│   ├── main.py
+│   ├── tests/
+│   └── Dockerfile
+├── marketing/                   # App Store screenshots & listing copy
+├── website/                     # Landing page + support page (Vercel)
+└── .github/workflows/           # CI for iOS build + backend tests
 ```
 
----
+## Running locally
 
-## Manual steps checklist
-
-### 1 — Apple Developer account
-
-- [ ] Enroll at [developer.apple.com](https://developer.apple.com) ($99/year)
-- [ ] In Xcode → Signing & Capabilities, set your **Team** and confirm the bundle ID `com.snapworth.app` is unique (or change it to something you own)
-
-### 2 — Add font files
-
-Download from Google Fonts (free):
-- **Fraunces**: fonts.google.com/specimen/Fraunces — download the variable font, export the static weights Regular, SemiBold, Bold as `.ttf`
-- **DM Sans**: fonts.google.com/specimen/DM+Sans — export Regular, Medium, SemiBold, Bold
-
-Steps:
-1. Create `ios/SnapWorth/Fonts/` directory
-2. Copy the 7 `.ttf` files listed in `Info.plist → UIAppFonts` into that folder
-3. In Xcode, drag the `Fonts/` folder into the project navigator under the `SnapWorth` group — make sure **"Copy items if needed"** and **"Add to target: SnapWorth"** are both checked
-4. In the project's Resources build phase, confirm all 7 font files appear
-
-### 3 — App icon
-
-Design a 1024×1024px PNG: terracotta rounded square (`#D96C47`) with a minimal cream camera-viewfinder mark and small price-tag shape.
-
-In Xcode: drag the PNG into `Assets.xcassets → AppIcon`. Xcode 15+ generates all required sizes from a single 1024px image with a Universal slot.
-
-### 4 — RevenueCat dashboard
-
-1. Create a free account at [app.revenuecat.com](https://app.revenuecat.com)
-2. Create a new project → add your iOS app → paste your **bundle ID**
-3. Copy the **iOS Public SDK key** → paste into `Config.revenueCatAPIKey` in `Config.swift`
-4. In App Store Connect (step 5), create the two in-app purchase products. Come back and add them as **entitlements** in RevenueCat under the `premium` entitlement
-
-### 5 — App Store Connect — in-app purchases
-
-1. Go to [appstoreconnect.apple.com](https://appstoreconnect.apple.com) → your app → In-App Purchases
-2. Create **Auto-Renewable Subscription** group `"SnapWorth Premium"`
-3. Add two products:
-   - Product ID: `com.snapworth.weekly` — $4.99/week, 3-day free trial
-   - Product ID: `com.snapworth.yearly` — $39.99/year, 3-day free trial
-4. Fill in display names and descriptions, submit for review (can happen alongside app review)
-
-### 6 — Deploy the backend
-
-See `backend/README.md` for full Railway and Fly.io instructions.
-
-Quick path (Railway):
-```bash
-# From repo root
-railway login
-railway init          # name: snapworth-backend
-railway up --root backend
-railway variables set ANTHROPIC_API_KEY=sk-ant-...
-```
-
-Copy the generated `*.up.railway.app` URL.
-
-### 7 — Wire up the backend URL
-
-In `ios/SnapWorth/Config.swift`:
-```swift
-static let baseURL = URL(string: "https://YOUR-APP.up.railway.app")!
-static let mockMode = false   // ← flip this once backend is deployed
-```
-
-### 8 — Enable RevenueCat SDK
-
-1. In Xcode → File → Add Package Dependencies → paste `https://github.com/RevenueCat/purchases-ios`
-2. In `SnapWorthApp.swift`, swap `MockPurchaseService` for `RevenueCatPurchaseService`
-3. Delete `MockPurchaseService.swift` or keep it for testing with a build flag
-
-### 9 — Camera entitlement (if archiving fails)
-
-If you get a provisioning error about camera: Xcode → Target → Signing & Capabilities → **+** → add **Background Modes** only if needed. Camera usage permission is declared in Info.plist and does not require an explicit capability toggle.
-
-### 10 — TestFlight & submission
-
-1. Archive the app (Product → Archive)
-2. Upload via Xcode Organizer
-3. In App Store Connect, create a new version, attach the build, fill metadata, submit
-
----
-
-## Local development
+**Backend**
 
 ```bash
-# Backend
-cd backend && python -m venv .venv && source .venv/bin/activate
+cd backend
+python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
-cp .env.example .env   # add your ANTHROPIC_API_KEY
+cp .env.example .env        # add your GEMINI_API_KEY (free at aistudio.google.com/apikey)
 uvicorn main:app --reload
-
-# iOS — open in Xcode
-open ios/SnapWorth.xcodeproj
-# Build & run on simulator or device (⌘R)
-# Config.mockMode = true means no backend needed to test UI
 ```
+
+**iOS**
+
+```bash
+open ios/SnapWorth.xcodeproj
+```
+
+- Set your development team in Signing & Capabilities.
+- Point `Config.baseURL` at your local backend (`http://localhost:8000`) or set `Config.mockMode = true` to run the full UI with canned responses — no backend or API key needed.
+- Build & run (⌘R). Subscriptions can be tested against the included `SnapWorth.storekit` configuration file.
+
+## Deployment notes
+
+- **Backend:** container deploys anywhere Docker runs (Railway, Fly.io). Required env var: `GEMINI_API_KEY`. Production instance: `api.snapworth.eu`.
+- **In-app purchases:** two auto-renewable subscriptions in the "SnapWorth Premium" group — `com.snapworth.monthly` and `com.snapworth.yearly` — matching `Config.swift`.
+- **Privacy:** camera, photo library, and photo-add usage strings are declared in `Info.plist`; the privacy manifest lives at `ios/SnapWorth/PrivacyInfo.xcprivacy`. Photos are sent to the backend for analysis and are not stored server-side.
+- **Website:** `website/` deploys to Vercel (`vercel.json`), serving the landing page and the App Store–required support URL.
+
+## License
+
+Source-available for portfolio and review purposes. **All rights reserved** — you may read the code, but you may not redistribute it or publish derivative apps.
+
+---
+
+Built by [Silviu H.](https://github.com/hsilviu05) — iOS · SwiftUI · FastAPI
