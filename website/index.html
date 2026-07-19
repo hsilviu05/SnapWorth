@@ -27,7 +27,7 @@
       --dark:        #1C1410;
       --dark2:       #2B211C;
       --terracotta:  #D96C47;
-      --terra-text:  #B0532E;   /* AA-compliant terracotta for text on light bg */
+      --terra-text:  #A94E29;   /* AA-compliant terracotta for text/badges (passes on --card too) */
       --terra-dim:   rgba(217,108,71,0.12);
       --sage:        #7A9E7E;
       --sage-text:   #4F7355;   /* AA-compliant sage for text/glyphs on light bg */
@@ -36,7 +36,7 @@
       --border:      #E8DDD7;
       --border-dark: rgba(255,255,255,0.08);
       --white:       #FFFFFF;
-      --text-muted:  #746A64;   /* darkened for WCAG AA (~4.9:1 on --bg) */
+      --text-muted:  #726860;   /* darkened for WCAG AA (~4.7:1 on --card, ~5.4:1 on white) */
     }
 
     html { scroll-behavior: smooth; }
@@ -193,7 +193,7 @@
     .btn-ghost {
       font-size: 14px;
       font-weight: 500;
-      color: rgba(255,255,255,0.45);
+      color: rgba(255,255,255,0.6);
       text-decoration: none;
       display: flex;
       align-items: center;
@@ -579,8 +579,8 @@
     }
     .plan-badge {
       display: inline-block;
-      background: var(--terra-dim);
-      color: var(--terra-text);
+      background: var(--terra-text);
+      color: var(--white);
       font-size: 11px;
       font-weight: 600;
       letter-spacing: 0.5px;
