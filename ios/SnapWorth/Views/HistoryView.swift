@@ -63,9 +63,11 @@ struct HistoryView: View {
                         // ── Grid ───────────────────────────────────────────────
                         if results.isEmpty {
                             EmptyFindsView()
+                                .frame(maxWidth: .infinity)
                                 .padding(.top, 60)
                         } else if filteredResults.isEmpty {
                             NoSearchResultsView(query: vm.searchText)
+                                .frame(maxWidth: .infinity)
                                 .padding(.top, 60)
                         } else {
                             LazyVGrid(columns: fixedColumns, spacing: gridSpacing) {

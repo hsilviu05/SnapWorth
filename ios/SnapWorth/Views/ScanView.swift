@@ -38,7 +38,7 @@ struct ScanView: View {
                     if !purchaseService.isSubscribed {
                         let remaining = max(0, Config.freeScansAllowed - vm.freeScansUsed)
                         if remaining == 0 {
-                            Button { vm.showPaywall = true } label: {
+                            Button { vm.paywallTrigger = .upgradeButton; vm.showPaywall = true } label: {
                                 Text("Upgrade to Pro")
                                     .font(.snapCaption.bold())
                                     .foregroundStyle(Color.snapBackground)
@@ -132,7 +132,16 @@ struct ScanView: View {
             }
 
             // ── Analyzing overlay ─────────────────────────────────────────
+            // Freeze the captured frame behind the overlay so it's obvious the
+            // photo is already taken — the user can lower the phone.
             if vm.isAnalyzing {
+                if let shot = vm.capturedImage {
+                    Image(uiImage: shot)
+                        .resizable()
+                        .scaledToFill()
+                        .ignoresSafeArea()
+                        .transition(.opacity)
+                }
                 AnalyzingOverlay()
                     .transition(.opacity)
             }
@@ -144,6 +153,11 @@ struct ScanView: View {
             Task { await triggerScan(image: image) }
         }
         .onAppear { cameraManager.requestPermissionAndSetup() }
+        .onChange(of: cameraManager.authStatus) { _, status in
+            if status == .denied {
+                Analytics.shared.track(.scanFailed(reason: .permission))
+            }
+        }
         .onDisappear { cameraManager.stopSession() }
         .sheet(isPresented: $showResult, onDismiss: {
             // Runs whether the user taps "Done" or swipes down
@@ -156,7 +170,7 @@ struct ScanView: View {
             }
         }
         .sheet(isPresented: $vm.showPaywall) {
-            PaywallView(purchaseService: purchaseService)
+            PaywallView(purchaseService: purchaseService, trigger: vm.paywallTrigger)
         }
         .alert("Scan Failed", isPresented: Binding(
             get: { vm.errorMessage != nil },

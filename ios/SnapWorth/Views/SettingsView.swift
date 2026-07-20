@@ -10,6 +10,7 @@ struct SettingsView: View {
     @State private var vm = SettingsViewModel()
     @State private var showPaywall = false
     @State private var showDeleteAlert = false
+    @AppStorage(Analytics.enabledKey) private var analyticsEnabled = true
 
     var body: some View {
         NavigationStack {
@@ -74,6 +75,26 @@ struct SettingsView: View {
                     }
                 }
 
+                // ── Privacy ────────────────────────────────────────────────
+                Section {
+                    Toggle(isOn: $analyticsEnabled) {
+                        HStack(spacing: 14) {
+                            Image(systemName: "chart.bar")
+                                .font(.system(size: 16, weight: .medium))
+                                .foregroundStyle(Color.snapTerracotta)
+                                .frame(width: 24)
+                            Text("Share anonymous analytics")
+                                .font(.snapBody)
+                                .foregroundStyle(Color.snapEspresso)
+                        }
+                    }
+                    .tint(Color.snapTerracotta)
+                } header: {
+                    Text("Privacy")
+                } footer: {
+                    Text("Helps us improve SnapWorth. Anonymous usage only — never your photos, item names, or prices.")
+                }
+
                 // App version
                 Section {
                     HStack {
@@ -92,7 +113,7 @@ struct SettingsView: View {
             .navigationBarTitleDisplayMode(.large)
         }
         .sheet(isPresented: $showPaywall) {
-            PaywallView(purchaseService: purchaseService)
+            PaywallView(purchaseService: purchaseService, trigger: .settings)
         }
         .alert("Restore purchases", isPresented: $vm.showRestoreAlert) {
             Button("OK", role: .cancel) {}

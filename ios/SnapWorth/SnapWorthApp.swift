@@ -9,6 +9,12 @@ struct SnapWorthApp: App {
     // ── Onboarding state ──────────────────────────────────────────────────────
     @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding = false
 
+    init() {
+        // Wires the analytics backend (no-op until a TelemetryDeck ID is set)
+        // and fires app_opened — the top of the launch funnel.
+        AnalyticsBootstrap.start()
+    }
+
     // ── SwiftData container ───────────────────────────────────────────────────
     var sharedModelContainer: ModelContainer = {
         let schema = Schema([ScanResult.self])
@@ -90,7 +96,7 @@ struct RootView: View {
         }
         .animation(.easeInOut(duration: 0.35), value: hasCompletedOnboarding)
         .sheet(isPresented: $showPaywall) {
-            PaywallView(purchaseService: purchaseService)
+            PaywallView(purchaseService: purchaseService, trigger: .onboarding)
         }
     }
 }

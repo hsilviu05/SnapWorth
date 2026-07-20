@@ -41,21 +41,32 @@ final class StoreKitPurchaseService: PurchaseService, ObservableObject {
         do {
             result = try await product.purchase()
         } catch {
+            Analytics.shared.track(.purchaseFailed(productID: productID, reason: "storekit_error"))
             throw PurchaseError.failed(error.localizedDescription)
         }
 
         switch result {
         case .success(let verification):
-            let transaction = try checkVerified(verification)
+            let transaction: Transaction
+            do {
+                transaction = try checkVerified(verification)
+            } catch {
+                Analytics.shared.track(.purchaseFailed(productID: productID, reason: "unverified"))
+                throw error
+            }
             await transaction.finish()
             await refreshSubscriptionStatus()
+            // Fires on the confirmed StoreKit transaction — never on the tap.
+            Analytics.shared.track(.purchaseCompleted(productID: transaction.productID))
         case .userCancelled:
+            Analytics.shared.track(.purchaseFailed(productID: productID, reason: "cancelled"))
             throw PurchaseError.cancelled
         case .pending:
             // Deferred (e.g. Ask to Buy / SCA). Not a failure — leave state as-is.
             // The transaction listener finalizes it once approved.
             break
         @unknown default:
+            Analytics.shared.track(.purchaseFailed(productID: productID, reason: "unknown"))
             throw PurchaseError.failed("This purchase could not be completed.")
         }
     }
@@ -67,6 +78,7 @@ final class StoreKitPurchaseService: PurchaseService, ObservableObject {
             throw PurchaseError.failed(error.localizedDescription)
         }
         await refreshSubscriptionStatus()
+        Analytics.shared.track(.restoreCompleted)
     }
 
     // MARK: - Private
