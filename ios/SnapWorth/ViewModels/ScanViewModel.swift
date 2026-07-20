@@ -14,6 +14,10 @@ final class ScanViewModel {
     var showImagePicker: Bool = false
     var selectedPhotoItem: PhotosPickerItem?
 
+    /// Which trigger opened the paywall — read by the presenting sheet so
+    /// `paywall_viewed` is attributed correctly (scan wall vs. upgrade tap).
+    var paywallTrigger: PaywallTrigger = .scanLimit
+
     // ── Free scan tracking ────────────────────────────────────────────
     @ObservationIgnored
     private let freeScansKey = "snapworth_free_scans_used"
@@ -31,10 +35,13 @@ final class ScanViewModel {
     func startScan(image: UIImage, purchaseService: any PurchaseService, repository: ScanRepository) async {
         guard !isAnalyzing else { return }
         guard purchaseService.isSubscribed || hasFreeScanRemaining else {
+            Analytics.shared.track(.freeScanLimitHit)
+            paywallTrigger = .scanLimit
             showPaywall = true
             return
         }
 
+        Analytics.shared.track(.scanStarted)
         isAnalyzing = true
         errorMessage = nil
         defer { isAnalyzing = false }
@@ -65,10 +72,15 @@ final class ScanViewModel {
 
             UINotificationFeedbackGenerator().notificationOccurred(.success)
             scanResult = result
+            Analytics.shared.track(
+                .scanCompleted(success: true, category: ItemCategory(normalizing: response.category))
+            )
 
         } catch {
             UINotificationFeedbackGenerator().notificationOccurred(.error)
-            errorMessage = AppError.from(error).errorDescription
+            let appError = AppError.from(error)
+            errorMessage = appError.errorDescription
+            Analytics.shared.track(.scanFailed(reason: ScanFailureReason(appError)))
         }
     }
 

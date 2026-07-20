@@ -19,4 +19,13 @@ enum Config {
 
     // ── Free tier ────────────────────────────────────────────────────────────
     static let freeScansAllowed = 3
+
+    /// Free tier sees only the most recent N sold flips + current-month totals.
+    /// Beyond this, the "My Flips" ledger routes to the paywall.
+    static let ledgerFreeSoldCap = 10
+
+    // ── Analytics ──────────────────────────────────────────────────────────────
+    /// TelemetryDeck app ID (from the telemetrydeck.com dashboard). Analytics
+    /// stays a no-op until this is filled in — nothing is sent while empty.
+    static let telemetryDeckAppID = ""
 }

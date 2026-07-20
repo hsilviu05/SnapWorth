@@ -22,11 +22,17 @@ struct MainTabView: View {
                 }
                 .tag(1)
 
-            SettingsView(purchaseService: purchaseService)
+            FlipsView(purchaseService: purchaseService)
                 .tabItem {
-                    Label("Settings", systemImage: selectedTab == 2 ? "gearshape.fill" : "gearshape")
+                    Label("My Flips", systemImage: "chart.line.uptrend.xyaxis")
                 }
                 .tag(2)
+
+            SettingsView(purchaseService: purchaseService)
+                .tabItem {
+                    Label("Settings", systemImage: selectedTab == 3 ? "gearshape.fill" : "gearshape")
+                }
+                .tag(3)
         }
         .tint(Color.snapTerracotta)
         .onReceive(NotificationCenter.default.publisher(for: .snapSwitchToScan)) { _ in

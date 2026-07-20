@@ -6,6 +6,8 @@ struct PaywallView: View {
     @State private var showPrivacy = false
     @State private var showTerms = false
     let purchaseService: any PurchaseService
+    /// What surfaced this paywall — attributed to `paywall_viewed`.
+    var trigger: PaywallTrigger = .upgradeButton
 
     var body: some View {
         ZStack(alignment: .topTrailing) {
@@ -138,7 +140,10 @@ struct PaywallView: View {
             }
         }
         .animation(.spring(duration: 0.3), value: vm.showCloseButton)
-        .onAppear { vm.startCloseButtonTimer() }
+        .onAppear {
+            vm.startCloseButtonTimer()
+            Analytics.shared.track(.paywallViewed(trigger: trigger))
+        }
         .onDisappear { vm.cancelTimer() }
         .onChange(of: vm.isPurchaseComplete) { _, complete in
             if complete { dismiss() }

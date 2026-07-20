@@ -21,6 +21,19 @@ struct ShareableImage: Transferable {
 
 private enum ShareCardError: Error { case renderFailed }
 
+/// QR code for the App Store link, shared by every branded card so the footer
+/// is identical everywhere.
+func snapShareCardQR(_ urlString: String = Config.appStoreURL) -> UIImage? {
+    guard let data = urlString.data(using: .utf8),
+          let filter = CIFilter(name: "CIQRCodeGenerator") else { return nil }
+    filter.setValue(data, forKey: "inputMessage")
+    filter.setValue("M", forKey: "inputCorrectionLevel")
+    guard let ci = filter.outputImage else { return nil }
+    let scaled = ci.transformed(by: CGAffineTransform(scaleX: 8, y: 8))
+    guard let cg = CIContext().createCGImage(scaled, from: scaled.extent) else { return nil }
+    return UIImage(cgImage: cg)
+}
+
 // MARK: - Branded share card
 
 /// Fixed 540×960 pt canvas. Rendered via ImageRenderer at scale ≥ 2
@@ -143,17 +156,7 @@ struct ShareCardView: View {
         NumberFormatter.snapCurrency.string(from: NSNumber(value: value)) ?? "$\(Int(value))"
     }
 
-    private var qrImage: UIImage? {
-        guard let data = Config.appStoreURL.data(using: .utf8),
-              let filter = CIFilter(name: "CIQRCodeGenerator") else { return nil }
-        filter.setValue(data, forKey: "inputMessage")
-        filter.setValue("M", forKey: "inputCorrectionLevel")
-        guard let ci = filter.outputImage else { return nil }
-        let scaled = ci.transformed(by: CGAffineTransform(scaleX: 8, y: 8))
-        let context = CIContext()
-        guard let cg = context.createCGImage(scaled, from: scaled.extent) else { return nil }
-        return UIImage(cgImage: cg)
-    }
+    private var qrImage: UIImage? { snapShareCardQR() }
 
     // MARK: - Photo section
 
@@ -177,6 +180,123 @@ struct ShareCardView: View {
                         .foregroundStyle(Color(hex: "8B7D71").opacity(0.4))
                 )
         }
+    }
+}
+
+// MARK: - "Share my month" card
+
+/// Same fixed 540×960 brand canvas, QR + footer rules as `ShareCardView` —
+/// renders the month's realized profit, items sold and best flip. Only ever
+/// shown for a month that actually has sold items (caller guards this).
+struct MonthShareCardView: View {
+    let monthTitle: String          // e.g. "July 2026"
+    let realizedProfit: Decimal
+    let itemsSold: Int
+    let bestFlipName: String?
+    let bestFlipProfit: Decimal?
+
+    static let cardWidth:  CGFloat = 540
+    static let cardHeight: CGFloat = 960
+    private let innerPad: CGFloat = 36
+
+    private var isProfit: Bool { realizedProfit >= 0 }
+    private var accent: Color { isProfit ? Color(hex: "6F8F6B") : Color(hex: "C4562F") }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            Spacer().frame(height: 104)
+
+            Text("MY FLIPS · \(monthTitle.uppercased())")
+                .font(Font.dmSans(16, weight: .bold))
+                .tracking(2)
+                .foregroundStyle(Color(hex: "8B7D71"))
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, innerPad)
+
+            Text(signed(realizedProfit))
+                .font(Font.fraunces(84, weight: .bold))
+                .foregroundStyle(accent)
+                .minimumScaleFactor(0.4)
+                .lineLimit(1)
+                .padding(.top, 24)
+                .padding(.horizontal, innerPad)
+
+            Text(isProfit ? "profit this month" : "net this month")
+                .font(Font.dmSans(18))
+                .foregroundStyle(Color(hex: "8B7D71"))
+                .padding(.top, 6)
+
+            Spacer().frame(height: 64)
+
+            HStack(alignment: .top, spacing: 0) {
+                statBlock(value: "\(itemsSold)", label: itemsSold == 1 ? "item sold" : "items sold")
+                if let name = bestFlipName, let profit = bestFlipProfit {
+                    Rectangle().fill(Color(hex: "EFE6DC")).frame(width: 1, height: 72)
+                    statBlock(value: signed(profit), label: "best flip", caption: name)
+                }
+            }
+            .padding(.horizontal, innerPad)
+
+            Spacer()
+
+            Rectangle()
+                .fill(Color(hex: "EFE6DC"))
+                .frame(height: 1)
+                .padding(.horizontal, innerPad)
+
+            HStack(spacing: 14) {
+                if let qr = snapShareCardQR() {
+                    Image(uiImage: qr)
+                        .interpolation(.none)
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 48, height: 48)
+                        .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                }
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("SnapWorth")
+                        .font(Font.fraunces(20, weight: .bold))
+                        .foregroundStyle(Color(hex: "2B211C"))
+                    Text("Get SnapWorth")
+                        .font(Font.dmSans(14))
+                        .foregroundStyle(Color(hex: "8B7D71"))
+                }
+                Spacer()
+            }
+            .padding(.horizontal, innerPad)
+            .padding(.top, 16)
+            .padding(.bottom, 44)
+        }
+        .frame(width: Self.cardWidth, height: Self.cardHeight)
+        .background(Color(hex: "FBF7F2"))
+    }
+
+    @ViewBuilder
+    private func statBlock(value: String, label: String, caption: String? = nil) -> some View {
+        VStack(spacing: 4) {
+            Text(value)
+                .font(Font.fraunces(30, weight: .bold))
+                .foregroundStyle(Color(hex: "2B211C"))
+                .lineLimit(1)
+                .minimumScaleFactor(0.5)
+            Text(label)
+                .font(Font.dmSans(14))
+                .foregroundStyle(Color(hex: "8B7D71"))
+            if let caption {
+                Text(caption)
+                    .font(Font.dmSans(12))
+                    .foregroundStyle(Color(hex: "8B7D71"))
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                    .padding(.horizontal, 10)
+            }
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    private func signed(_ d: Decimal) -> String {
+        let money = NumberFormatter.snapCurrency.string(from: NSDecimalNumber(decimal: abs(d))) ?? "$0"
+        return d < 0 ? "−\(money)" : "+\(money)"
     }
 }
 

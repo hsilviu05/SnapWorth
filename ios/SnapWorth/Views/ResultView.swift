@@ -9,17 +9,26 @@ struct ResultView: View {
     @State private var vm = ResultViewModel()
     @State private var photo: UIImage?
     @State private var paidPriceText: String
-    @FocusState private var paidFocused: Bool
+    @State private var soldPriceText: String
+    @State private var feesText: String
+    @FocusState private var focusedField: Field?
+    @State private var showShareSheet = false
+
+    private enum Field { case paid, sold, fees }
 
     init(result: ScanResult, onDismiss: @escaping () -> Void) {
         self.result = result
         self.onDismiss = onDismiss
-        if let paid = result.paidPrice {
-            let fmt = paid.truncatingRemainder(dividingBy: 1) == 0 ? "%.0f" : "%.2f"
-            _paidPriceText = State(initialValue: String(format: fmt, paid))
-        } else {
-            _paidPriceText = State(initialValue: "")
-        }
+        _paidPriceText = State(initialValue: Self.moneyField(result.paidPrice))
+        _soldPriceText = State(initialValue: Self.moneyField(result.soldPrice))
+        _feesText      = State(initialValue: Self.moneyField(result.feesEstimate))
+    }
+
+    /// Formats a stored amount for an editable field ("" when unset).
+    private static func moneyField(_ value: Double?) -> String {
+        guard let value else { return "" }
+        let fmt = value.truncatingRemainder(dividingBy: 1) == 0 ? "%.0f" : "%.2f"
+        return String(format: fmt, value)
     }
 
     var body: some View {
@@ -34,6 +43,10 @@ struct ResultView: View {
                             .offset(y: -28)
 
                         paidPriceCard
+                            .padding(.horizontal, 20)
+                            .padding(.top, 12)
+
+                        flipStatusCard
                             .padding(.horizontal, 20)
                             .padding(.top, 12)
 
@@ -55,6 +68,7 @@ struct ResultView: View {
                     .padding(.top, 0)
                 }
                 .scrollIndicators(.hidden)
+                .scrollDismissesKeyboard(.interactively)
             }
             .background(Color.snapBackground)
             .ignoresSafeArea(edges: .top)
@@ -62,27 +76,26 @@ struct ResultView: View {
             .toolbarBackground(.hidden, for: .navigationBar)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
-                    if let card = vm.shareCard {
-                        ShareLink(
-                            item: ShareableImage(uiImage: card),
-                            preview: SharePreview(result.itemName)
-                        ) {
-                            circleButton(icon: "square.and.arrow.up")
-                        }
-                    } else {
+                    Button {
+                        guard vm.shareCard != nil else { return }
+                        Analytics.shared.track(.shareCardOpened)
+                        showShareSheet = true
+                    } label: {
                         circleButton(icon: "square.and.arrow.up")
                     }
+                    .disabled(vm.shareCard == nil)
                 }
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button(action: onDismiss) {
                         circleButton(icon: "xmark")
                     }
                 }
-            }
-            .toolbar {
+                // Keyboard toolbar must live in the SAME .toolbar block as the
+                // nav items — a second, separate .toolbar can be dropped by
+                // SwiftUI, leaving the decimal pad with no way to dismiss.
                 ToolbarItemGroup(placement: .keyboard) {
                     Spacer()
-                    Button("Done") { paidFocused = false }
+                    Button("Done") { focusedField = nil }
                         .font(.dmSans(15, weight: .semibold))
                         .foregroundStyle(Color.snapTerracotta)
                 }
@@ -98,8 +111,20 @@ struct ResultView: View {
         }
         .onChange(of: paidPriceText) { _, newValue in
             result.paidPrice = newValue.isEmpty ? nil : Double(newValue)
-            // Analytics: log paid-price entry when analytics are added
             vm.scheduleShareCardUpdate(result: result, photo: photo, displayScale: displayScale)
+        }
+        .onChange(of: soldPriceText) { _, newValue in
+            result.soldPrice = newValue.isEmpty ? nil : Double(newValue)
+        }
+        .onChange(of: feesText) { _, newValue in
+            result.feesEstimate = newValue.isEmpty ? nil : Double(newValue)
+        }
+        .sheet(isPresented: $showShareSheet) {
+            if let card = vm.shareCard {
+                ActivityShareSheet(items: [card]) { activityType in
+                    Analytics.shared.track(.shareCardShared(activityType: activityType))
+                }
+            }
         }
     }
 
@@ -117,7 +142,7 @@ struct ResultView: View {
                     .keyboardType(.decimalPad)
                     .font(.dmSans(17, weight: .medium))
                     .foregroundStyle(Color.snapEspresso)
-                    .focused($paidFocused)
+                    .focused($focusedField, equals: .paid)
             }
             Text("Adds your find multiple to the share card")
                 .font(.snapCaption)
@@ -128,6 +153,117 @@ struct ResultView: View {
         .background(Color.snapCard)
         .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
         .shadow(color: Color.snapCardShadow.opacity(0.08), radius: 24, x: 0, y: 8)
+    }
+
+    // MARK: - Flip Status Card
+
+    private var flipStatusCard: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text("Flip status")
+                .snapSectionHeader()
+
+            HStack(spacing: 8) {
+                ForEach(FlipStatus.allCases) { status in
+                    statusChip(status)
+                }
+            }
+
+            if result.status == .sold {
+                soldFields
+                Divider()
+                profitRow
+            }
+        }
+        .padding(20)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.snapCard)
+        .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+        .shadow(color: Color.snapCardShadow.opacity(0.08), radius: 24, x: 0, y: 8)
+    }
+
+    private func statusChip(_ status: FlipStatus) -> some View {
+        let selected = result.status == status
+        return Button {
+            setStatus(status)
+        } label: {
+            Text(status.label)
+                .font(.dmSans(13, weight: .semibold))
+                .foregroundStyle(selected ? Color.snapBackground : Color.snapWarmGray)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 9)
+                .background(selected ? Color.snapTerracotta : Color.clear)
+                .clipShape(Capsule())
+                .overlay(Capsule().strokeBorder(Color.snapBorder, lineWidth: selected ? 0 : 1))
+        }
+        .buttonStyle(.plain)
+    }
+
+    @ViewBuilder
+    private var soldFields: some View {
+        moneyRow(title: "Sold for", text: $soldPriceText, field: .sold)
+        moneyRow(title: "Fees (optional)", text: $feesText, field: .fees)
+        DatePicker("Sold date", selection: soldDateBinding, in: ...Date(), displayedComponents: .date)
+            .font(.dmSans(14, weight: .medium))
+            .foregroundStyle(Color.snapEspresso)
+            .tint(Color.snapTerracotta)
+    }
+
+    private func moneyRow(title: String, text: Binding<String>, field: Field) -> some View {
+        HStack {
+            Text(title)
+                .font(.dmSans(14, weight: .medium))
+                .foregroundStyle(Color.snapWarmGray)
+            Spacer()
+            Text("$").foregroundStyle(Color.snapWarmGray)
+            TextField("0", text: text)
+                .keyboardType(.decimalPad)
+                .multilineTextAlignment(.trailing)
+                .frame(maxWidth: 90)
+                .focused($focusedField, equals: field)
+                .font(.dmSans(15, weight: .semibold))
+                .foregroundStyle(Color.snapEspresso)
+        }
+    }
+
+    private var profitRow: some View {
+        HStack {
+            Text("Profit")
+                .font(.dmSans(15, weight: .semibold))
+                .foregroundStyle(Color.snapEspresso)
+            Spacer()
+            if let profit = result.realizedProfit {
+                Text(Self.signedProfit(profit))
+                    .font(.dmSans(17, weight: .bold))
+                    .foregroundStyle(profit < 0 ? Color.snapTerracotta : Color.snapSage)
+            } else {
+                // Sold but no cost basis → profit unknown; never guessed.
+                Text("—")
+                    .font(.dmSans(17, weight: .bold))
+                    .foregroundStyle(Color.snapWarmGray)
+            }
+        }
+    }
+
+    private var soldDateBinding: Binding<Date> {
+        Binding(
+            get: { result.soldDate ?? Date() },
+            set: { result.soldDate = $0 }
+        )
+    }
+
+    private func setStatus(_ status: FlipStatus) {
+        UISelectionFeedbackGenerator().selectionChanged()
+        let wasSold = result.status == .sold
+        result.status = status
+        if status == .sold {
+            if result.soldDate == nil { result.soldDate = Date() }
+            if !wasSold { Analytics.shared.track(.ledgerItemMarkedSold) }
+        }
+    }
+
+    private static func signedProfit(_ d: Decimal) -> String {
+        let money = NumberFormatter.snapCurrency.string(from: NSDecimalNumber(decimal: abs(d))) ?? "$0"
+        return d < 0 ? "−\(money)" : "+\(money)"
     }
 
     // MARK: - Hero Photo

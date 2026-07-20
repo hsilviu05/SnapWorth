@@ -358,6 +358,11 @@ struct AnalyzingOverlay: View {
                     .foregroundStyle(Color.snapBackground)
                     .opacity(opacity)
                     .animation(.easeInOut(duration: 0.35), value: opacity)
+
+                Label("Photo captured — you can lower your phone", systemImage: "checkmark.circle.fill")
+                    .font(.dmSans(13, weight: .medium))
+                    .foregroundStyle(Color.snapBackground.opacity(0.7))
+                    .labelStyle(.titleAndIcon)
             }
         }
         .onAppear {
