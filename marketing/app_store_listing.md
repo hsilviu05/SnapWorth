@@ -94,3 +94,19 @@ https://api.snapworth.eu/privacy
 
 ## Marketing URL
 https://snapworth.eu
+
+---
+
+## What's New (Version 1.1)
+
+New: Share Cards & My Flips profit tracking
+
+• Share Cards — turn any valuation into a clean, shareable card with the resale range and a scan-me QR code. Perfect for posting your finds to stories and groups.
+
+• My Flips — your new profit ledger. Mark items as sold, track what you actually made vs. what you paid, and see your total profit on a dashboard. Export your numbers or share your monthly haul.
+
+• Polished the My Finds screen so empty and no-results states are now cleanly centered.
+
+• Plus performance improvements and bug fixes.
+
+Happy hunting! Got a feature request? Email silh6767@gmail.com
