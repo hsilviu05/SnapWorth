@@ -15,7 +15,7 @@ enum Config {
 
     // ── App Store ────────────────────────────────────────────────────────────
     /// Update to the App Store product URL once the app is live. Used for the share-card QR code.
-    static let appStoreURL = "https://snapworth.eu"
+    static let appStoreURL = "https://apps.apple.com/app/id6788521307"
 
     // ── Free tier ────────────────────────────────────────────────────────────
     static let freeScansAllowed = 3
@@ -27,5 +27,5 @@ enum Config {
     // ── Analytics ──────────────────────────────────────────────────────────────
     /// TelemetryDeck app ID (from the telemetrydeck.com dashboard). Analytics
     /// stays a no-op until this is filled in — nothing is sent while empty.
-    static let telemetryDeckAppID = ""
+    static let telemetryDeckAppID = "D4C9C11E-F611-4B92-9646-0DF0B2E0F10C"
 }
