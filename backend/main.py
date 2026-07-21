@@ -160,7 +160,7 @@ def privacy():
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Privacy Policy — SnapWorth</title><style>{_STYLE}</style></head><body>
 <h1>Privacy Policy</h1>
-<p>Last updated: July 5, 2026</p>
+<p>Last updated: July 21, 2026</p>
 <p>SnapWorth ("we", "our", or "us") operates the SnapWorth mobile application.
 This page informs you of our policies regarding the collection, use, and
 disclosure of personal data when you use our Service.</p>
@@ -171,11 +171,20 @@ processed by an AI model to identify the item and estimate resale value, and
 are not stored after the response is returned.</p>
 <p>We collect an anonymous device identifier (UUID) solely for rate-limiting
 purposes (20 scans per hour). This ID is not linked to your identity.</p>
+<p>We collect anonymous usage analytics to understand how the app is used and
+improve it. Using TelemetryDeck, we record in-app events &mdash; such as opening
+the app, starting a scan, viewing the paywall, and completing a purchase &mdash;
+along with your device model, operating system version, app version, and locale.
+A one-way salted hash is used as an anonymous identifier. This data contains no
+photos, item names, prices, or advertising identifiers (IDFA), is not linked to
+your identity, and is never used to track you across other apps or websites. You
+can turn analytics off at any time in the app's Settings.</p>
 
 <h2>How We Use Your Information</h2>
 <p>Photos are used only to generate the valuation response you requested.
-We do not sell, rent, or share your photos or device identifier with third parties,
-except as required by law.</p>
+Analytics data is used only in aggregate to understand usage and improve the app.
+We do not sell, rent, or share your photos, device identifier, or analytics data
+with third parties, except as required by law.</p>
 
 <h2>Data Retention</h2>
 <p>Photos and scan results are processed in real time and are not retained on our
