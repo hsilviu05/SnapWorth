@@ -11,6 +11,8 @@
 		ADD1EC0000000000000000B2 /* Analytics.swift in Sources */ = {isa = PBXBuildFile; fileRef = ADD1EC0000000000000000B1 /* Analytics.swift */; };
 		ADD1EC0000000000000000B4 /* TelemetryDeckAnalytics.swift in Sources */ = {isa = PBXBuildFile; fileRef = ADD1EC0000000000000000B3 /* TelemetryDeckAnalytics.swift */; };
 		ADD1EC0000000000000000F2 /* ReviewPrompt.swift in Sources */ = {isa = PBXBuildFile; fileRef = ADD1EC0000000000000000F1 /* ReviewPrompt.swift */; };
+		ADD1EC0000000000000000F4 /* NotificationManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = ADD1EC0000000000000000F3 /* NotificationManager.swift */; };
+		ADD1EC0000000000000000F6 /* NotificationSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = ADD1EC0000000000000000F5 /* NotificationSettingsView.swift */; };
 		ADD1EC0000000000000000B6 /* ActivityShareSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = ADD1EC0000000000000000B5 /* ActivityShareSheet.swift */; };
 		ADD1EC0000000000000000B8 /* FlipsViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = ADD1EC0000000000000000B7 /* FlipsViewModel.swift */; };
 		ADD1EC0000000000000000BA /* FlipsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = ADD1EC0000000000000000B9 /* FlipsView.swift */; };
@@ -98,6 +100,8 @@
 		ADD1EC0000000000000000B1 /* Analytics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Analytics.swift; sourceTree = "<group>"; };
 		ADD1EC0000000000000000B3 /* TelemetryDeckAnalytics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TelemetryDeckAnalytics.swift; sourceTree = "<group>"; };
 		ADD1EC0000000000000000F1 /* ReviewPrompt.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReviewPrompt.swift; sourceTree = "<group>"; };
+		ADD1EC0000000000000000F3 /* NotificationManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationManager.swift; sourceTree = "<group>"; };
+		ADD1EC0000000000000000F5 /* NotificationSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationSettingsView.swift; sourceTree = "<group>"; };
 		ADD1EC0000000000000000B5 /* ActivityShareSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityShareSheet.swift; sourceTree = "<group>"; };
 		ADD1EC0000000000000000B7 /* FlipsViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FlipsViewModel.swift; sourceTree = "<group>"; };
 		ADD1EC0000000000000000B9 /* FlipsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FlipsView.swift; sourceTree = "<group>"; };
@@ -242,6 +246,7 @@
 				ADD1EC0000000000000000B1 /* Analytics.swift */,
 				ADD1EC0000000000000000B3 /* TelemetryDeckAnalytics.swift */,
 				ADD1EC0000000000000000F1 /* ReviewPrompt.swift */,
+				ADD1EC0000000000000000F3 /* NotificationManager.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -278,6 +283,7 @@
 				AA00000000000000000000E6 /* ResultView.swift */,
 				AA00000000000000000000E8 /* HistoryView.swift */,
 				AA00000000000000000000EA /* SettingsView.swift */,
+				ADD1EC0000000000000000F5 /* NotificationSettingsView.swift */,
 				AA00000000000000000000F6 /* LegalView.swift */,
 				AA00000000000000000000FB /* FeedbackView.swift */,
 				AA0000000000000000000113 /* ShareCardView.swift */,
@@ -475,6 +481,7 @@
 				ADD1EC0000000000000000B2 /* Analytics.swift in Sources */,
 				ADD1EC0000000000000000B4 /* TelemetryDeckAnalytics.swift in Sources */,
 				ADD1EC0000000000000000F2 /* ReviewPrompt.swift in Sources */,
+				ADD1EC0000000000000000F4 /* NotificationManager.swift in Sources */,
 				ADD1EC0000000000000000B6 /* ActivityShareSheet.swift in Sources */,
 				ADD1EC0000000000000000B8 /* FlipsViewModel.swift in Sources */,
 				ADD1EC0000000000000000BA /* FlipsView.swift in Sources */,
@@ -494,6 +501,7 @@
 				AA00000000000000000000E7 /* ResultView.swift in Sources */,
 				AA00000000000000000000E9 /* HistoryView.swift in Sources */,
 				AA00000000000000000000EB /* SettingsView.swift in Sources */,
+				ADD1EC0000000000000000F6 /* NotificationSettingsView.swift in Sources */,
 				AA00000000000000000000F7 /* LegalView.swift in Sources */,
 				AA00000000000000000000FC /* FeedbackView.swift in Sources */,
 				AA000000000000000000010F /* AppError.swift in Sources */,
@@ -533,7 +541,7 @@
 				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
 				CODE_SIGN_ENTITLEMENTS = SnapWorthWidgets/SnapWorthWidgets.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = SnapWorthWidgets/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = SnapWorthWidgets;
@@ -565,7 +573,7 @@
 				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
 				CODE_SIGN_ENTITLEMENTS = SnapWorthWidgets/SnapWorthWidgets.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = SnapWorthWidgets/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = SnapWorthWidgets;
@@ -721,7 +729,7 @@
 				CODE_SIGN_ENTITLEMENTS = SnapWorth/SnapWorth.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				DEVELOPMENT_ASSET_PATHS = "";
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = NO;
@@ -753,7 +761,7 @@
 				CODE_SIGN_ENTITLEMENTS = SnapWorth/SnapWorth.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				DEVELOPMENT_ASSET_PATHS = "";
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = NO;

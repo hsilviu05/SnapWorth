@@ -10,6 +10,7 @@ struct ScanView: View {
     @StateObject private var cameraManager = CameraManager()
     @State private var vm = ScanViewModel()
     @State private var showResult = false
+    @State private var showNotifPriming = false
 
     var body: some View {
         let isAnalyzing = vm.isAnalyzing
@@ -163,6 +164,13 @@ struct ScanView: View {
             // Runs whether the user taps "Done" or swipes down
             vm.reset()
             cameraManager.capturedImage = nil
+            // Reaching here means a scan just succeeded — a moment of demonstrated
+            // value. Prime for notifications once, only if never decided.
+            Task {
+                if await NotificationManager.shared.shouldPrimeAfterScan() {
+                    showNotifPriming = true
+                }
+            }
         }) {
             if let result = vm.scanResult {
                 ResultView(result: result, onDismiss: { showResult = false })
@@ -171,6 +179,19 @@ struct ScanView: View {
         }
         .sheet(isPresented: $vm.showPaywall) {
             PaywallView(purchaseService: purchaseService, trigger: vm.paywallTrigger)
+        }
+        .alert("Stay on top of your flips", isPresented: $showNotifPriming) {
+            Button("Enable notifications") {
+                Task {
+                    await NotificationManager.shared.enableFromPriming(
+                        context: modelContext, purchaseService: purchaseService)
+                }
+            }
+            Button("Not now", role: .cancel) {
+                NotificationManager.shared.declinePriming()
+            }
+        } message: {
+            Text("We'll let you know when your monthly recap is ready and remind you to update your ledger. Functional only — no spam, and you can turn these off anytime in Settings.")
         }
         .alert("Scan Failed", isPresented: Binding(
             get: { vm.errorMessage != nil },

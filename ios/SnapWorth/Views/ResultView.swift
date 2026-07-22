@@ -253,11 +253,26 @@ struct ResultView: View {
 
     private func setStatus(_ status: FlipStatus) {
         UISelectionFeedbackGenerator().selectionChanged()
-        let wasSold = result.status == .sold
+        let previous = result.status
         result.status = status
-        if status == .sold {
+
+        switch status {
+        case .sold:
             if result.soldDate == nil { result.soldDate = Date() }
-            if !wasSold { Analytics.shared.track(.ledgerItemMarkedSold) }
+            if previous != .sold { Analytics.shared.track(.ledgerItemMarkedSold) }
+            // No longer needs a "did it sell?" nudge.
+            let id = result.id
+            Task { await NotificationManager.shared.cancelLedgerFollowUp(itemID: id) }
+        case .listed:
+            if result.listedDate == nil { result.listedDate = Date() }
+            let (id, name, listed) = (result.id, result.itemName, result.listedDate ?? Date())
+            Task { await NotificationManager.shared.scheduleLedgerFollowUp(itemID: id, itemName: name, from: listed) }
+        default:
+            // Moved back to scanned/owned — drop any pending follow-up.
+            if previous == .listed {
+                let id = result.id
+                Task { await NotificationManager.shared.cancelLedgerFollowUp(itemID: id) }
+            }
         }
     }
 

@@ -25,6 +25,9 @@ final class ScanResult {
     // ledger existed decode with these nil and behave exactly as `.scanned`.
     /// Backing store for `status`; nil ⇒ `.scanned` (legacy-safe).
     var statusRaw: String?
+    /// When the item was marked `.listed` — anchors the 14-day ledger follow-up
+    /// reminder and the "needs an update" fallback badge. Legacy-safe (optional).
+    var listedDate: Date?
     /// What the item eventually sold for.
     var soldPrice: Double?
     var soldDate: Date?
@@ -48,6 +51,7 @@ final class ScanResult {
         imageData: Data? = nil,
         paidPrice: Double? = nil,
         statusRaw: String? = nil,
+        listedDate: Date? = nil,
         soldPrice: Double? = nil,
         soldDate: Date? = nil,
         feesEstimate: Double? = nil,
@@ -68,6 +72,7 @@ final class ScanResult {
         self.imageData = imageData
         self.paidPrice = paidPrice
         self.statusRaw = statusRaw
+        self.listedDate = listedDate
         self.soldPrice = soldPrice
         self.soldDate = soldDate
         self.feesEstimate = feesEstimate

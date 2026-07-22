@@ -37,6 +37,10 @@ enum AnalyticsEvent {
     case ledgerPaywallHit(trigger: PaywallTrigger)
     case ledgerMonthShared
 
+    // ── Local notifications ──────────────────────────────────────────
+    case notificationScheduled(category: String)
+    case notificationOpened(category: String)
+
     /// The wire name sent off-device.
     var name: String {
         switch self {
@@ -57,6 +61,8 @@ enum AnalyticsEvent {
         case .ledgerExportTapped:   return "ledger_export_tapped"
         case .ledgerPaywallHit:     return "ledger_paywall_hit"
         case .ledgerMonthShared:    return "ledger_month_shared"
+        case .notificationScheduled:return "notification_scheduled"
+        case .notificationOpened:   return "notification_opened"
         }
     }
 
@@ -79,6 +85,8 @@ enum AnalyticsEvent {
         case let .shareCardShared(activityType):
             if let activityType { return ["activity_type": activityType] }
             return [:]
+        case let .notificationScheduled(category), let .notificationOpened(category):
+            return ["category": category]
         default:
             return [:]
         }

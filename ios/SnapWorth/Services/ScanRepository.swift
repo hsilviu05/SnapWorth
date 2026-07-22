@@ -22,12 +22,15 @@ final class ScanRepository {
     }
 
     func delete(_ result: ScanResult) throws {
+        let id = result.id
         context.delete(result)
         do {
             try context.save()
         } catch {
             throw AppError.persistence
         }
+        // No orphaned ledger follow-up for a deleted item.
+        Task { await NotificationManager.shared.cancelLedgerFollowUp(itemID: id) }
         syncWidget()
     }
 
@@ -38,6 +41,7 @@ final class ScanRepository {
         } catch {
             throw AppError.persistence
         }
+        NotificationManager.shared.cancelAllLedger()
         WidgetDataStore.writeHaul(results: [])
     }
 

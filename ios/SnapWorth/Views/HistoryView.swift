@@ -7,6 +7,7 @@ struct HistoryView: View {
     @State private var vm = HistoryViewModel()
     @State private var selectedResult: ScanResult?
     @State private var isEditing = false
+    @State private var recapLabel: String?
 
     private let columns = [
         GridItem(.flexible(), spacing: 12),
@@ -31,6 +32,16 @@ struct HistoryView: View {
 
                 ScrollView {
                     VStack(spacing: 20) {
+
+                        // ── Recap ready banner (notification fallback) ─────────
+                        if let recapLabel {
+                            RecapBanner(month: recapLabel) {
+                                NotificationManager.shared.markRecapViewed()
+                                self.recapLabel = nil
+                                NotificationCenter.default.post(name: .snapOpenFlips, object: nil)
+                            }
+                            .padding(.horizontal, hPad)
+                        }
 
                         // ── Total banner ───────────────────────────────────────
                         if !results.isEmpty {
@@ -151,6 +162,7 @@ struct HistoryView: View {
             .onChange(of: results.count) { _, _ in
                 if results.isEmpty { isEditing = false }
             }
+            .task { recapLabel = NotificationManager.shared.readyRecapLabel() }
         }
         .sheet(item: $selectedResult) { result in
             ResultView(result: result, onDismiss: { selectedResult = nil })
@@ -163,6 +175,42 @@ struct HistoryView: View {
         } message: {
             Text(vm.deleteError ?? "")
         }
+    }
+}
+
+// MARK: - Recap Banner (notification fallback → My Flips)
+private struct RecapBanner: View {
+    let month: String
+    let onTap: () -> Void
+
+    var body: some View {
+        Button(action: onTap) {
+            HStack(spacing: 14) {
+                Image(systemName: "chart.bar.doc.horizontal")
+                    .font(.system(size: 20, weight: .medium))
+                    .foregroundStyle(Color.snapTerracotta)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Your \(month) recap is ready")
+                        .font(.dmSans(15, weight: .semibold))
+                        .foregroundStyle(Color.snapEspresso)
+                    Text("See your flips for the month")
+                        .font(.snapCaption)
+                        .foregroundStyle(Color.snapWarmGray)
+                }
+                Spacer()
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(Color.snapWarmGray)
+            }
+            .padding(16)
+            .background(Color.snapTerracotta.opacity(0.10))
+            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .strokeBorder(Color.snapTerracotta.opacity(0.25), lineWidth: 1)
+            )
+        }
+        .buttonStyle(.plain)
     }
 }
 

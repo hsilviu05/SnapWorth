@@ -39,6 +39,7 @@ struct SnapWorthApp: App {
                 .preferredColorScheme(.light)
                 .onOpenURL(perform: handleWidgetURL)
                 .task { seedWidgetData() }
+                .task { NotificationManager.shared.registerAsDelegate() }
         }
         .modelContainer(sharedModelContainer)
     }

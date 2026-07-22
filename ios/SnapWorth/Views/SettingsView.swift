@@ -37,6 +37,15 @@ struct SettingsView: View {
                     }
                 }
 
+                // ── Notifications ──────────────────────────────────────────
+                Section("Notifications") {
+                    NavigationLink {
+                        NotificationSettingsView()
+                    } label: {
+                        SettingsRowLabel(icon: "bell", label: "Notifications")
+                    }
+                }
+
                 // ── Legal ──────────────────────────────────────────────────
                 Section("Legal") {
                     NavigationLink {

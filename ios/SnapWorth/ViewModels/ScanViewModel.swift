@@ -82,6 +82,13 @@ final class ScanViewModel {
                 ReviewPrompt.recordSuccessfulScan()
             }
 
+            // Only scans schedule the monthly recap — never app launch — so a
+            // quiet month fires nothing. Fires once this month reaches 3 scans.
+            let monthScans = repository.fetchAll().filter {
+                Calendar.current.isDate($0.timestamp, equalTo: Date(), toGranularity: .month)
+            }.count
+            Task { await NotificationManager.shared.scheduleMonthlyRecap(monthScanCount: monthScans) }
+
         } catch {
             UINotificationFeedbackGenerator().notificationOccurred(.error)
             let appError = AppError.from(error)

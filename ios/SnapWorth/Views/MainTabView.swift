@@ -1,4 +1,5 @@
 import SwiftUI
+import SwiftData
 
 extension Notification.Name {
     static let snapSwitchToScan = Notification.Name("snapSwitchToScan")
@@ -7,6 +8,15 @@ extension Notification.Name {
 struct MainTabView: View {
     let purchaseService: any PurchaseService
     @State private var selectedTab = 0
+    @Query private var results: [ScanResult]
+
+    /// Fallback surface for the ledger reminder: how many listed items are due
+    /// for an update (listed ≥14 days ago, still unsold). Works regardless of
+    /// notification permission.
+    private var ledgerNeedsUpdateCount: Int {
+        guard let cutoff = Calendar.current.date(byAdding: .day, value: -14, to: Date()) else { return 0 }
+        return results.filter { $0.status == .listed && ($0.listedDate ?? $0.timestamp) <= cutoff }.count
+    }
 
     var body: some View {
         TabView(selection: $selectedTab) {
@@ -26,6 +36,7 @@ struct MainTabView: View {
                 .tabItem {
                     Label("My Flips", systemImage: "chart.line.uptrend.xyaxis")
                 }
+                .badge(ledgerNeedsUpdateCount > 0 ? Text("\(ledgerNeedsUpdateCount)") : nil)
                 .tag(2)
 
             SettingsView(purchaseService: purchaseService)
@@ -44,6 +55,13 @@ struct MainTabView: View {
         }
         .onReceive(NotificationCenter.default.publisher(for: .snapWidgetOpenHistory)) { _ in
             selectedTab = 1
+        }
+        // Notification deep links
+        .onReceive(NotificationCenter.default.publisher(for: .snapOpenFlips)) { _ in
+            selectedTab = 2
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .snapOpenSettings)) { _ in
+            selectedTab = 3
         }
     }
 }

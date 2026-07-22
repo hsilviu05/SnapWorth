@@ -6,6 +6,8 @@ import StoreKit
 @MainActor
 final class StoreKitPurchaseService: PurchaseService, ObservableObject {
     @Published private(set) var isSubscribed: Bool
+    /// End of an active introductory free trial, when the user is in one.
+    @Published private(set) var trialEndDate: Date?
 
     private static let cacheKey = "snapworth_is_subscribed"
     private let productIDs = [Config.monthlyProductID, Config.yearlyProductID]
@@ -104,13 +106,23 @@ final class StoreKitPurchaseService: PurchaseService, ObservableObject {
 
     private func refreshSubscriptionStatus() async {
         var active = false
+        var trialEnd: Date?
         for await result in Transaction.currentEntitlements {
             guard let transaction = try? checkVerified(result) else { continue }
             if productIDs.contains(transaction.productID), transaction.revocationDate == nil {
                 active = true
+                // The only introductory offer on these products is the free
+                // trial, so an introductory entitlement means we're in it.
+                if transaction.offerType == .introductory, let exp = transaction.expirationDate {
+                    trialEnd = exp
+                }
             }
         }
         setSubscribed(active)
+        trialEndDate = trialEnd
+        // Keep the courtesy "trial ends tomorrow" reminder in sync — schedules
+        // when in a trial, cancels the moment the state changes.
+        await NotificationManager.shared.syncTrialReminder(endDate: trialEnd)
     }
 
     private func listenForTransactions() -> Task<Void, Never> {
