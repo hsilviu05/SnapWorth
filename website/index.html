@@ -223,6 +223,25 @@
     }
     .btn-ghost:hover { color: rgba(255,255,255,0.75); }
 
+    /* ── Product Hunt badge ───────────────────────────────────────── */
+    .ph-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      margin-top: 20px;
+      background: var(--white);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 8px 16px;
+      text-decoration: none;
+      transition: opacity 0.15s, transform 0.12s;
+    }
+    .ph-badge:hover { opacity: 0.9; transform: translateY(-1px); }
+    .ph-badge-logo { width: 30px; height: 30px; flex-shrink: 0; }
+    .ph-badge-text { display: flex; flex-direction: column; line-height: 1.15; }
+    .ph-badge-eyebrow { font-size: 9px; font-weight: 700; letter-spacing: 1px; color: var(--warm-gray); }
+    .ph-badge-name { font-size: 15px; font-weight: 700; color: var(--dark); }
+
     /* ── iPhone 17 Pro mockup ─────────────────────────────────────── */
     .iphone-wrap {
       display: flex;
@@ -836,6 +855,17 @@
           </a>
           <a href="#how-it-works" class="btn-ghost">See how it works →</a>
         </div>
+        <!-- Product Hunt badge -->
+        <a class="ph-badge" href="https://www.producthunt.com/products/snapworth?launch=snapworth&utm_source=badge&utm_medium=website" target="_blank" rel="noopener">
+          <svg class="ph-badge-logo" aria-hidden="true" focusable="false" viewBox="0 0 40 40">
+            <path fill="#DA552F" d="M20 40c11.046 0 20-8.954 20-20S31.046 0 20 0 0 8.954 0 20s8.954 20 20 20z"/>
+            <path fill="#FFF" d="M22.667 20H17v-6h5.667a3 3 0 010 6zm0-10H13v20h4v-6h5.667a7 7 0 100-14z"/>
+          </svg>
+          <span class="ph-badge-text">
+            <span class="ph-badge-eyebrow">FEATURED ON</span>
+            <span class="ph-badge-name">Product Hunt</span>
+          </span>
+        </a>
       </div>
 
       <!-- iPhone 17 Pro mockup -->
