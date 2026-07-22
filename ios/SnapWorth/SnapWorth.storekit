@@ -7,10 +7,7 @@
 
   ],
   "settings" : {
-    "_applicationInternalID" : "0",
-    "_developerTeamID" : "A93FGV7L5Y",
     "_failTransactionsEnabled" : false,
-    "_lastSynchronizedDate" : 0,
     "_locale" : "en_US",
     "_storefront" : "USA",
     "_storeKitErrors" : [
@@ -66,6 +63,7 @@
           "internalID" : "20099920",
           "introductoryOffer" : {
             "internalID" : "20099921",
+            "numberOfPeriods" : 1,
             "paymentMode" : "free",
             "subscriptionPeriod" : "P3D"
           },
@@ -89,7 +87,7 @@
     }
   ],
   "version" : {
-    "major" : 4,
+    "major" : 3,
     "minor" : 0
   }
 }
