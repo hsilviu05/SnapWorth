@@ -92,6 +92,7 @@
 		AA00000000000000000000AE /* SnapWorth.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = SnapWorth.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		AA00000000000000000000C0 /* SnapWorthApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SnapWorthApp.swift; sourceTree = "<group>"; };
 		AA00000000000000000000C2 /* Config.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Config.swift; sourceTree = "<group>"; };
+		ADD1EC0000000000000000F7 /* SnapWorth.storekit */ = {isa = PBXFileReference; lastKnownFileType = text; path = SnapWorth.storekit; sourceTree = "<group>"; };
 		AA00000000000000000000C4 /* DesignSystem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DesignSystem.swift; sourceTree = "<group>"; };
 		AA00000000000000000000C6 /* ScanResult.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanResult.swift; sourceTree = "<group>"; };
 		AA00000000000000000000C8 /* PurchaseService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PurchaseService.swift; sourceTree = "<group>"; };
@@ -196,6 +197,7 @@
 				AA00000000000000000000EE /* Info.plist */,
 				BB0000000000000000000008 /* SnapWorth.entitlements */,
 				AA000000000000000000010D /* PrivacyInfo.xcprivacy */,
+				ADD1EC0000000000000000F7 /* SnapWorth.storekit */,
 				AA00000000000000000000F5 /* Fonts */,
 				AA00000000000000000000B8 /* DesignSystem */,
 				AA00000000000000000000B9 /* Models */,
