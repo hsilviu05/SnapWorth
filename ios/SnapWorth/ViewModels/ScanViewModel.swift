@@ -76,6 +76,12 @@ final class ScanViewModel {
                 .scanCompleted(success: true, category: ItemCategory(normalizing: response.category))
             )
 
+            // Ask for a rating on a high point — after the result is on screen.
+            Task {
+                try? await Task.sleep(for: .seconds(1.2))
+                ReviewPrompt.recordSuccessfulScan()
+            }
+
         } catch {
             UINotificationFeedbackGenerator().notificationOccurred(.error)
             let appError = AppError.from(error)

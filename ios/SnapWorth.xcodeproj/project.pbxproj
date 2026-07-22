@@ -10,6 +10,7 @@
 		ADD1EC0000000000000000A3 /* TelemetryDeck in Frameworks */ = {isa = PBXBuildFile; productRef = ADD1EC0000000000000000A2 /* TelemetryDeck */; };
 		ADD1EC0000000000000000B2 /* Analytics.swift in Sources */ = {isa = PBXBuildFile; fileRef = ADD1EC0000000000000000B1 /* Analytics.swift */; };
 		ADD1EC0000000000000000B4 /* TelemetryDeckAnalytics.swift in Sources */ = {isa = PBXBuildFile; fileRef = ADD1EC0000000000000000B3 /* TelemetryDeckAnalytics.swift */; };
+		ADD1EC0000000000000000F2 /* ReviewPrompt.swift in Sources */ = {isa = PBXBuildFile; fileRef = ADD1EC0000000000000000F1 /* ReviewPrompt.swift */; };
 		ADD1EC0000000000000000B6 /* ActivityShareSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = ADD1EC0000000000000000B5 /* ActivityShareSheet.swift */; };
 		ADD1EC0000000000000000B8 /* FlipsViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = ADD1EC0000000000000000B7 /* FlipsViewModel.swift */; };
 		ADD1EC0000000000000000BA /* FlipsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = ADD1EC0000000000000000B9 /* FlipsView.swift */; };
@@ -96,6 +97,7 @@
 		AA00000000000000000000CC /* StoreKitPurchaseService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoreKitPurchaseService.swift; sourceTree = "<group>"; };
 		ADD1EC0000000000000000B1 /* Analytics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Analytics.swift; sourceTree = "<group>"; };
 		ADD1EC0000000000000000B3 /* TelemetryDeckAnalytics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TelemetryDeckAnalytics.swift; sourceTree = "<group>"; };
+		ADD1EC0000000000000000F1 /* ReviewPrompt.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReviewPrompt.swift; sourceTree = "<group>"; };
 		ADD1EC0000000000000000B5 /* ActivityShareSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityShareSheet.swift; sourceTree = "<group>"; };
 		ADD1EC0000000000000000B7 /* FlipsViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FlipsViewModel.swift; sourceTree = "<group>"; };
 		ADD1EC0000000000000000B9 /* FlipsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FlipsView.swift; sourceTree = "<group>"; };
@@ -239,6 +241,7 @@
 				BB0000000000000000000009 /* WidgetDataStore.swift */,
 				ADD1EC0000000000000000B1 /* Analytics.swift */,
 				ADD1EC0000000000000000B3 /* TelemetryDeckAnalytics.swift */,
+				ADD1EC0000000000000000F1 /* ReviewPrompt.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -471,6 +474,7 @@
 				AA00000000000000000000CD /* StoreKitPurchaseService.swift in Sources */,
 				ADD1EC0000000000000000B2 /* Analytics.swift in Sources */,
 				ADD1EC0000000000000000B4 /* TelemetryDeckAnalytics.swift in Sources */,
+				ADD1EC0000000000000000F2 /* ReviewPrompt.swift in Sources */,
 				ADD1EC0000000000000000B6 /* ActivityShareSheet.swift in Sources */,
 				ADD1EC0000000000000000B8 /* FlipsViewModel.swift in Sources */,
 				ADD1EC0000000000000000BA /* FlipsView.swift in Sources */,
