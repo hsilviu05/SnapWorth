@@ -12,6 +12,11 @@ struct SettingsView: View {
     @State private var showDeleteAlert = false
     @AppStorage(Analytics.enabledKey) private var analyticsEnabled = true
 
+    /// Marketing version read from the bundle so it never goes stale.
+    private static var appVersion: String {
+        Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "—"
+    }
+
     var body: some View {
         NavigationStack {
             List {
@@ -108,7 +113,7 @@ struct SettingsView: View {
                 Section {
                     HStack {
                         Spacer()
-                        Text("SnapWorth · v1.0.0")
+                        Text("SnapWorth · v\(Self.appVersion)")
                             .font(.snapCaption)
                             .foregroundStyle(Color.snapWarmGray)
                         Spacer()

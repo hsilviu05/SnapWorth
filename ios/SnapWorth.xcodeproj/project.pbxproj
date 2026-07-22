@@ -7,7 +7,6 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		1D7A07DE3010F759009290FA /* SnapWorth Pro.storekit in Resources */ = {isa = PBXBuildFile; fileRef = 1D7A07DD3010F759009290FA /* SnapWorth Pro.storekit */; };
 		1DF043BB3003EE710072D4A8 /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 1DF043BA3003EE700072D4A8 /* WidgetKit.framework */; };
 		1DF043BD3003EE710072D4A8 /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 1DF043BC3003EE710072D4A8 /* SwiftUI.framework */; };
 		1DF043CE3003EE710072D4A8 /* SnapWorthWidgetsExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 1DF043B83003EE700072D4A8 /* SnapWorthWidgetsExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
@@ -87,7 +86,6 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
-		1D7A07DD3010F759009290FA /* SnapWorth Pro.storekit */ = {isa = PBXFileReference; lastKnownFileType = text; path = "SnapWorth Pro.storekit"; sourceTree = "<group>"; };
 		1DF043B83003EE700072D4A8 /* SnapWorthWidgetsExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = SnapWorthWidgetsExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		1DF043BA3003EE700072D4A8 /* WidgetKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WidgetKit.framework; path = System/Library/Frameworks/WidgetKit.framework; sourceTree = SDKROOT; };
 		1DF043BC3003EE710072D4A8 /* SwiftUI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SwiftUI.framework; path = System/Library/Frameworks/SwiftUI.framework; sourceTree = SDKROOT; };
@@ -300,7 +298,6 @@
 		AA00000000000000000000F0 = {
 			isa = PBXGroup;
 			children = (
-				1D7A07DD3010F759009290FA /* SnapWorth Pro.storekit */,
 				AA00000000000000000000AB /* SnapWorth */,
 				AA0000000000000000000103 /* SnapWorthTests */,
 				1DF043BE3003EE710072D4A8 /* SnapWorthWidgets */,
@@ -441,7 +438,6 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				1D7A07DE3010F759009290FA /* SnapWorth Pro.storekit in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
