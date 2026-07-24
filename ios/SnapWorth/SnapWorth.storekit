@@ -36,7 +36,7 @@
           "introductoryOffer" : null,
           "localizations" : [
             {
-              "description" : "Unlimited scans, sold-price data, and AI listing writer.",
+              "description" : "Unlimited scans, resale estimates, and AI listing writer.",
               "displayName" : "Monthly",
               "locale" : "en_US"
             }
@@ -69,7 +69,7 @@
           },
           "localizations" : [
             {
-              "description" : "Unlimited scans, sold-price data, and AI listing writer. 3-day free trial.",
+              "description" : "Unlimited scans, resale estimates, and AI listing writer. 3-day free trial.",
               "displayName" : "Yearly",
               "locale" : "en_US"
             }

@@ -16,7 +16,7 @@ from fastapi.testclient import TestClient
 import sys, os
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
-from main import app, _extract_json, _check_rate_limit, _rate_store
+from main import app, _extract_json, _check_rate_limit, _rate_store, _ip_rate_store
 
 client = TestClient(app)
 
@@ -63,6 +63,7 @@ class TestExtractJson:
 class TestRateLimit:
     def setup_method(self):
         _rate_store.clear()
+        _ip_rate_store.clear()
 
     def test_allows_requests_under_limit(self):
         for _ in range(5):
@@ -152,6 +153,7 @@ def _make_scan_request(content_type="image/jpeg", size=1024, device_id="test-dev
 class TestScanEndpoint:
     def setup_method(self):
         _rate_store.clear()
+        _ip_rate_store.clear()
 
     def test_rejects_unsupported_file_type(self):
         r = client.post(

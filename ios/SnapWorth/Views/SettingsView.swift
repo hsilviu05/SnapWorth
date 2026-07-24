@@ -167,7 +167,7 @@ private struct SubscriptionCard: View {
                     .foregroundStyle(Color.snapEspresso)
                 Text(isSubscribed
                      ? "Unlimited scans · Active"
-                     : "3 free scans · Upgrade for unlimited"
+                     : "3 free scans a day · Upgrade for unlimited"
                 )
                 .font(.snapCaption)
                 .foregroundStyle(Color.snapWarmGray)

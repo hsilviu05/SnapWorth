@@ -6,7 +6,7 @@ Resale Value in Seconds
 ---
 
 ## Promotional Text (170 chars — update anytime without resubmitting)
-Point your camera at any thrift find and instantly know what it sells for. AI checks real sold listings so you never leave money on the table.
+Point your camera at any thrift find and instantly know what it's worth. AI estimates the resale value so you never leave money on the table.
 
 ---
 
@@ -14,7 +14,7 @@ Point your camera at any thrift find and instantly know what it sells for. AI ch
 
 Ever picked up something at a thrift store and wondered if it's actually worth something? SnapWorth tells you instantly.
 
-Point your camera at any secondhand item — a jacket, a pair of sneakers, a vintage camera, a designer bag — and our AI checks real sold listings across eBay, Poshmark, Depop, and more to give you an accurate resale value range in seconds.
+Point your camera at any secondhand item — a jacket, a pair of sneakers, a vintage camera, a designer bag — and our AI identifies it and estimates an accurate resale value range in seconds.
 
 No more guessing. No more leaving $100 flips on the shelf.
 
@@ -24,16 +24,15 @@ HOW IT WORKS
 
 1. Point your camera at any secondhand item
 2. Tap the shutter — or pick a photo from your library
-3. Get an instant AI valuation based on real sold prices
+3. Get an instant AI resale-value estimate
 4. Copy your ready-to-post listing and sell it today
 
 --------------------------
 
 WHAT YOU GET
 
-• Instant resale value — low and high range based on actual sold listings
-• Confidence score — know how reliable the estimate is
-• Sold listings count — see exactly how many comps the AI used
+• Instant resale value — an estimated low-to-high range for your item
+• Confidence score — see how clearly the AI could identify your item
 • AI listing draft — title and description written for you, ready to paste into Depop, Poshmark, or eBay
 • Scan history — every find saved automatically with its value
 • Total haul tracker — see what your collection is worth at a glance

@@ -254,15 +254,18 @@ final class ScanViewModelSecurityTests: XCTestCase {
 
     var vm: ScanViewModel!
     private let freeScansKey = "snapworth_free_scans_used"
+    private let freeScansDateKey = "snapworth_free_scans_date"
 
     override func setUp() {
         super.setUp()
         UserDefaults.standard.removeObject(forKey: freeScansKey)
+        UserDefaults.standard.removeObject(forKey: freeScansDateKey)
         vm = ScanViewModel()
     }
 
     override func tearDown() {
         UserDefaults.standard.removeObject(forKey: freeScansKey)
+        UserDefaults.standard.removeObject(forKey: freeScansDateKey)
         super.tearDown()
     }
 
@@ -287,6 +290,27 @@ final class ScanViewModelSecurityTests: XCTestCase {
         let fresh = ScanViewModel()
         XCTAssertGreaterThanOrEqual(fresh.freeScansUsed, 0,
                                     "Scan counter must never be negative")
+    }
+
+    func test_freeScansUsed_resetsWhenDateIsStale() {
+        // A count stamped with a previous day must read as 0 today, restoring
+        // the daily allowance ("3 free scans every day").
+        UserDefaults.standard.set(Config.freeScansAllowed, forKey: freeScansKey)
+        let yesterday = Calendar.current.date(byAdding: .day, value: -1, to: Date())!
+        UserDefaults.standard.set(yesterday, forKey: freeScansDateKey)
+
+        XCTAssertEqual(vm.freeScansUsed, 0,
+                       "Free scans must reset once the calendar day rolls over")
+        XCTAssertTrue(vm.hasFreeScanRemaining)
+    }
+
+    func test_freeScansUsed_persistsWithinSameDay() {
+        // A count stamped today must be honored (no accidental reset mid-day).
+        UserDefaults.standard.set(2, forKey: freeScansKey)
+        UserDefaults.standard.set(Date(), forKey: freeScansDateKey)
+
+        XCTAssertEqual(vm.freeScansUsed, 2,
+                       "Today's count must persist until the day changes")
     }
 
     func test_reset_clearsCapturedImage() {

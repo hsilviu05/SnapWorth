@@ -16,7 +16,10 @@ from fastapi.testclient import TestClient
 import sys, os
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
-from main import app, _check_rate_limit, _rate_store, _extract_json, _safe_float, _safe_int
+from main import (
+    app, _check_rate_limit, _rate_store, _ip_rate_store, IP_RATE_MAX_REQUESTS,
+    _extract_json, _safe_float, _safe_int,
+)
 
 client = TestClient(app)
 
@@ -112,6 +115,7 @@ class TestHttpMethods:
 class TestFileUploadSecurity:
     def setup_method(self):
         _rate_store.clear()
+        _ip_rate_store.clear()
 
     def test_rejects_executable_disguised_as_jpeg(self):
         # PE header (Windows executable) with .jpg extension
@@ -182,6 +186,7 @@ class TestFileUploadSecurity:
 class TestDeviceIdSecurity:
     def setup_method(self):
         _rate_store.clear()
+        _ip_rate_store.clear()
 
     def test_header_injection_newline_rejected_or_sanitised(self):
         # HTTP header injection: \r\n could split headers
@@ -235,6 +240,7 @@ class TestDeviceIdSecurity:
 class TestResponseSanitisation:
     def setup_method(self):
         _rate_store.clear()
+        _ip_rate_store.clear()
 
     def test_xss_payload_in_item_name_returned_as_string(self):
         xss = {**MOCK_AI_RESPONSE, "item_name": "<script>alert(1)</script>"}
@@ -289,6 +295,7 @@ class TestResponseSanitisation:
 class TestErrorLeakage:
     def setup_method(self):
         _rate_store.clear()
+        _ip_rate_store.clear()
 
     def test_gemini_error_does_not_leak_api_key(self):
         with patch("main._model") as m:
@@ -405,6 +412,7 @@ class TestSafeInt:
 class TestRateLimitMemorySafety:
     def setup_method(self):
         _rate_store.clear()
+        _ip_rate_store.clear()
 
     def test_many_unique_devices_dont_crash(self):
         # Simulate 1000 different devices — store should handle this
@@ -433,3 +441,32 @@ class TestRateLimitMemorySafety:
         _rate_store[device] = [old_time] * 20
         # All 20 are expired — should allow new request
         _check_rate_limit(device)  # Should NOT raise
+
+
+class TestIpRateLimit:
+    """The device id is client-supplied and rotatable, so IP is the real backstop."""
+
+    def setup_method(self):
+        _rate_store.clear()
+        _ip_rate_store.clear()
+
+    def test_rotating_device_id_still_capped_by_ip(self):
+        from fastapi import HTTPException
+        # Attacker rotates the device id every request but shares one IP.
+        for i in range(IP_RATE_MAX_REQUESTS):
+            _check_rate_limit(f"rotating-{i}", ip="9.9.9.9")
+        with pytest.raises(HTTPException) as exc:
+            _check_rate_limit("rotating-final", ip="9.9.9.9")
+        assert exc.value.status_code == 429
+
+    def test_different_ips_are_independent(self):
+        # Exhaust one IP; a different IP must be unaffected.
+        for i in range(IP_RATE_MAX_REQUESTS):
+            _check_rate_limit(f"dev-{i}", ip="10.0.0.1")
+        _check_rate_limit("other-ip-device", ip="10.0.0.2")  # must not raise
+
+    def test_missing_ip_skips_ip_limiting(self):
+        # Direct callers may omit the IP; only the device cap applies then.
+        for i in range(IP_RATE_MAX_REQUESTS + 5):
+            _check_rate_limit(f"noip-{i}")  # ip defaults to None → no IP cap
+        assert len(_ip_rate_store) == 0

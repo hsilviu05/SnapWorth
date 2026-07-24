@@ -21,10 +21,29 @@ final class ScanViewModel {
     // ── Free scan tracking ────────────────────────────────────────────
     @ObservationIgnored
     private let freeScansKey = "snapworth_free_scans_used"
+    @ObservationIgnored
+    private let freeScansDateKey = "snapworth_free_scans_date"
 
+    /// Free scans used *today*. The count is stamped with the day it was
+    /// written; once the local calendar day rolls over the stamp is stale, so
+    /// the getter reads 0 and the user gets a fresh `Config.freeScansAllowed`
+    /// — i.e. "3 free scans every day," matching the App Store listing.
+    /// (Legacy installs have a count but no date stamp → they read 0 and are
+    /// immediately unstuck, which is the intended behavior.)
     var freeScansUsed: Int {
-        get { UserDefaults.standard.integer(forKey: freeScansKey) }
-        set { UserDefaults.standard.set(newValue, forKey: freeScansKey) }
+        get {
+            let defaults = UserDefaults.standard
+            guard let stamped = defaults.object(forKey: freeScansDateKey) as? Date,
+                  Calendar.current.isDateInToday(stamped) else {
+                return 0
+            }
+            return defaults.integer(forKey: freeScansKey)
+        }
+        set {
+            let defaults = UserDefaults.standard
+            defaults.set(newValue, forKey: freeScansKey)
+            defaults.set(Date(), forKey: freeScansDateKey)
+        }
     }
 
     var hasFreeScanRemaining: Bool {
