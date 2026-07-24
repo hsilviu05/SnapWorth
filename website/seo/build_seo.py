@@ -232,7 +232,7 @@ def footer():
 
 def cta(name):
     return (f'<div class="cta"><h3>Know your exact value in seconds</h3>'
-            f'<p>Typical ranges only go so far. Snap a photo of your {html.escape(name)} and SnapWorth\'s AI checks real sold listings for a value tuned to your exact item and condition.</p>'
+            f'<p>Typical ranges only go so far. Snap a photo of your {html.escape(name)} and SnapWorth\'s AI estimates a value tuned to your exact item and condition.</p>'
             f'<a href="{APP_STORE}">Download SnapWorth — free</a></div>')
 
 def page_html(item, related):

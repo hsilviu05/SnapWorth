@@ -332,7 +332,7 @@ struct AnalyzingOverlay: View {
 
     private let messages = [
         "Reading the label…",
-        "Checking sold listings…",
+        "Analyzing the item…",
         "Estimating resale value…",
         "Almost there…",
     ]

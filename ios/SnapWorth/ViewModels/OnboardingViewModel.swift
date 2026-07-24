@@ -15,7 +15,7 @@ final class OnboardingViewModel {
         ),
         OnboardingSlide(
             headline: "Snap any item.\nWe do the rest.",
-            body: "Our AI identifies it and prices it from thousands of real sold listings on Poshmark, eBay & more.",
+            body: "Our AI identifies it and estimates what comparable items typically sell for — in seconds.",
             symbolName: "camera.viewfinder",
             rotation: 3.5
         ),

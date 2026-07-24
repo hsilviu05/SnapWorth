@@ -59,8 +59,8 @@ SnapWorth
 
 ### Description (~260 char)
 > Point your camera at any secondhand item — a jacket, sneakers, a vintage
-> camera — and SnapWorth's AI checks real sold listings to give you an instant
-> resale value range. New: Share Cards with a scan-me QR, and My Flips to track
+> camera — and SnapWorth's AI identifies it and estimates a resale value range
+> instantly. New: Share Cards with a scan-me QR, and My Flips to track
 > your real profit.
 
 ### Topics
@@ -75,8 +75,7 @@ Reel/GIF of a scan → valuation if you can.
 >
 > I kept picking things up at thrift stores wondering "is this actually worth
 > something?" So I built an app that tells you instantly — snap any item and the
-> AI checks real sold listings across eBay, Poshmark, Depop & more for a resale
-> range in seconds.
+> AI identifies it and estimates a resale range in seconds.
 >
 > Just shipped 1.1: **Share Cards** (shareable valuations with a scan-me QR) and
 > **My Flips** (a profit ledger that tracks what you actually made).

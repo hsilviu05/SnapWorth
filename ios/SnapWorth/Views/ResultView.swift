@@ -385,12 +385,10 @@ struct ResultView: View {
             HStack(spacing: 10) {
                 ConfidenceBadge(confidence: result.confidence)
 
-                if result.soldListingsCount > 0 {
-                    Text("from \(result.soldListingsCount) sold listings")
-                        .font(.snapCaption)
-                        .foregroundStyle(Color.snapWarmGray)
-                        .lineLimit(1)
-                }
+                Text("AI estimate")
+                    .font(.snapCaption)
+                    .foregroundStyle(Color.snapWarmGray)
+                    .lineLimit(1)
 
                 Spacer()
             }

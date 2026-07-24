@@ -49,7 +49,7 @@ struct ScanView: View {
                                     .clipShape(Capsule())
                             }
                         } else {
-                            Text("\(remaining) free scan\(remaining == 1 ? "" : "s") left")
+                            Text("\(remaining) free scan\(remaining == 1 ? "" : "s") left today")
                                 .font(.snapCaption)
                                 .foregroundStyle(Color.snapBackground.opacity(0.8))
                                 .padding(.horizontal, 10)

@@ -55,24 +55,55 @@ async def security_headers(request: Request, call_next):
     response.headers["X-XSS-Protection"] = "1; mode=block"
     return response
 
-# ── Rate limiting (in-memory; swap for Redis in production) ──────────────────
+# ── Rate limiting (in-memory, per-process — swap for Redis or enforce at the
+# proxy/CDN if this ever scales past a single instance) ──────────────────────
 _rate_store: dict[str, list[float]] = defaultdict(list)
+_ip_rate_store: dict[str, list[float]] = defaultdict(list)
 RATE_WINDOW_SECS = 3600
-RATE_MAX_REQUESTS = 20
+RATE_MAX_REQUESTS = 20        # per client-supplied device id (best-effort only)
+IP_RATE_MAX_REQUESTS = 60     # per source IP — the real backstop; set higher
+                              # than the device cap to tolerate shared IPs (NAT)
 _last_cleanup = time.time()
 
+# X-Forwarded-For is client-spoofable, so we only consult it when explicitly told
+# we sit behind a trusted proxy/CDN — and then take the RIGHTMOST entry, which is
+# the hop our own proxy appended and a client cannot forge.
+_TRUSTED_PROXY = os.environ.get("TRUSTED_PROXY", "").lower() in {"1", "true", "yes"}
 
-def _check_rate_limit(device_id: str) -> None:
+
+def _client_ip(request: Request) -> str:
+    """Best-effort source IP used as the rate-limit backstop."""
+    if _TRUSTED_PROXY:
+        xff = request.headers.get("x-forwarded-for", "")
+        if xff:
+            return xff.split(",")[-1].strip()
+    return request.client.host if request.client else "unknown"
+
+
+def _check_rate_limit(device_id: str, ip: str | None = None) -> None:
     global _last_cleanup
     device_id = device_id[:64]
     now = time.time()
 
-    # Prune stale device entries every 10 minutes to prevent unbounded growth
+    # Prune stale entries every 10 minutes to prevent unbounded growth
     if now - _last_cleanup > 600:
-        stale = [k for k, v in _rate_store.items() if not v or now - max(v) > RATE_WINDOW_SECS]
-        for k in stale:
-            del _rate_store[k]
+        for store in (_rate_store, _ip_rate_store):
+            stale = [k for k, v in store.items() if not v or now - max(v) > RATE_WINDOW_SECS]
+            for k in stale:
+                del store[k]
         _last_cleanup = now
+
+    # IP first — device id is client-supplied and trivially rotated per request,
+    # so it can only ever be a secondary signal. Direct callers may omit the IP.
+    if ip is not None:
+        ip_ts = _ip_rate_store[ip]
+        ip_ts[:] = [t for t in ip_ts if now - t < RATE_WINDOW_SECS]
+        if len(ip_ts) >= IP_RATE_MAX_REQUESTS:
+            raise HTTPException(
+                status_code=429,
+                detail=f"Rate limit: {IP_RATE_MAX_REQUESTS} scans/hour.",
+            )
+        ip_ts.append(now)
 
     timestamps = _rate_store[device_id]
     timestamps[:] = [t for t in timestamps if now - t < RATE_WINDOW_SECS]
@@ -84,7 +115,7 @@ def _check_rate_limit(device_id: str) -> None:
     timestamps.append(now)
 
 
-SCAN_PROMPT = """You are an expert in secondhand and thrift market valuations with deep knowledge of eBay, Poshmark, ThredUp, Depop, and Facebook Marketplace sold listings.
+SCAN_PROMPT = """You are an expert at identifying secondhand and thrift items from photos and estimating their typical resale value from your broad market knowledge.
 
 Analyze the provided image of a secondhand or thrift item and return ONLY a valid JSON object — no markdown, no explanation, no extra text.
 
@@ -97,16 +128,15 @@ Required JSON schema:
   "est_value_low_usd": 12.00,
   "est_value_high_usd": 45.00,
   "confidence": "High, Medium, or Low based on how clearly you can identify the item",
-  "sold_listings_count": 38,
   "listing_title": "Compelling, SEO-friendly resale title under 80 chars",
   "listing_description": "2-3 sentences highlighting key selling points, condition, and why it's a good buy"
 }
 
 Rules:
-- Base value estimates ONLY on real, recent sold listings — not asking prices
-- If brand is clearly visible, weight values to that brand's specific secondhand market
+- Estimate the typical secondhand resale range from your general market knowledge — reflect what these items usually resell for, not inflated retail or asking prices
+- If the brand is clearly visible, weight the estimate to that brand's typical secondhand market
 - est_value_low_usd must always be less than est_value_high_usd
-- sold_listings_count is your estimate of how many comparable sold listings you're basing the range on (use 0 if truly unknown)
+- confidence reflects how clearly you can identify the item from the image, nothing more
 - If the image is blurry, shows multiple items, or is not a resalable item, set confidence to "Low" and provide your best estimate anyway
 - Never return values outside the JSON object"""
 
@@ -122,6 +152,9 @@ class ScanResponse(BaseModel):
     est_value_low_usd: float = Field(ge=0)
     est_value_high_usd: float = Field(ge=0)
     confidence: str
+    # TODO(compat): the model no longer produces this; it is kept in the response
+    # (always 0) only so older installed clients that decode it as a non-optional
+    # Int don't break. Remove once app versions < 1.2 age out.
     sold_listings_count: int = Field(ge=0, default=0)
     listing_title: str
     listing_description: str
@@ -242,6 +275,7 @@ EXTENT PERMITTED BY LAW, WE DISCLAIM ALL WARRANTIES, EXPRESS OR IMPLIED.</p>
 
 @app.post("/scan", response_model=ScanResponse)
 async def scan(
+    request: Request,
     file: UploadFile = File(...),
     x_device_id: str = Header(default="anonymous", alias="x-device-id"),
 ) -> ScanResponse:
@@ -272,7 +306,7 @@ async def scan(
         raise HTTPException(status_code=400, detail="Empty image file.")
 
     # Gate on rate limit only after validation — bad requests don't burn quota
-    _check_rate_limit(x_device_id)
+    _check_rate_limit(x_device_id, _client_ip(request))
 
     log.info("scan start device=%s size=%dKB type=%s", device_short, image_kb, content_type)
     t0 = time.monotonic()
@@ -323,7 +357,7 @@ async def scan(
         est_value_low_usd=low,
         est_value_high_usd=high,
         confidence=str(data.get("confidence", "Low")),
-        sold_listings_count=_safe_int(data.get("sold_listings_count", 0)),
+        sold_listings_count=0,  # see TODO(compat) on the model field above
         listing_title=str(data.get("listing_title", "")),
         listing_description=str(data.get("listing_description", "")),
     )

@@ -64,7 +64,7 @@ struct PaywallView: View {
                     // ── Benefits ───────────────────────────────────────────
                     VStack(alignment: .leading, spacing: 14) {
                         BenefitRow(icon: "infinity", text: "Unlimited scans")
-                        BenefitRow(icon: "chart.line.uptrend.xyaxis", text: "Real sold-price data")
+                        BenefitRow(icon: "chart.line.uptrend.xyaxis", text: "AI resale estimates")
                         BenefitRow(icon: "pencil.and.list.clipboard", text: "AI listing writer")
                         BenefitRow(icon: "clock.arrow.circlepath", text: "Full scan history")
                     }
