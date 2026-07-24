@@ -6,7 +6,7 @@ Resale Value in Seconds
 ---
 
 ## Promotional Text (170 chars — update anytime without resubmitting)
-Point your camera at any thrift find and instantly know what it's worth. AI estimates the resale value so you never leave money on the table.
+Now with 3 free scans every day! Point your camera at any thrift find and instantly know what it's worth — an AI resale estimate in seconds. No account needed.
 
 ---
 
@@ -93,6 +93,22 @@ https://api.snapworth.eu/privacy
 
 ## Marketing URL
 https://snapworth.eu
+
+---
+
+## What's New (Version 1.1.2)  ← paste THIS for the 1.1.2 submission
+
+More free scans, every day.
+
+• You now get 3 free scans every single day — use them up and they refresh tomorrow. No account, no card.
+
+• Faster, more reliable valuations behind the scenes.
+
+• Clearer, more honest results — every estimate is labeled as an AI estimate with a confidence level.
+
+• General polish and bug fixes.
+
+Happy hunting! Got a feature request? Email silh6767@gmail.com
 
 ---
 
