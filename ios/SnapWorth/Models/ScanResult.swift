@@ -35,6 +35,11 @@ final class ScanResult {
     var feesEstimate: Double?
     var notes: String?
 
+    /// User-selected resale condition. Optional → additive lightweight migration:
+    /// legacy records decode with nil and fall back to the condition inferred
+    /// from `conditionNotes`, so the estimate they show is unchanged.
+    var conditionRaw: String?
+
     init(
         id: UUID = UUID(),
         timestamp: Date = Date(),
@@ -55,7 +60,8 @@ final class ScanResult {
         soldPrice: Double? = nil,
         soldDate: Date? = nil,
         feesEstimate: Double? = nil,
-        notes: String? = nil
+        notes: String? = nil,
+        conditionRaw: String? = nil
     ) {
         self.id = id
         self.timestamp = timestamp
@@ -77,18 +83,47 @@ final class ScanResult {
         self.soldDate = soldDate
         self.feesEstimate = feesEstimate
         self.notes = notes
+        self.conditionRaw = conditionRaw
     }
+
+    // ── Condition & re-pricing ─────────────────────────────────────────────────
+
+    /// The resale condition driving the estimate. Reads the user's explicit
+    /// choice when set; otherwise the condition inferred from the model's notes,
+    /// so an untouched record prices exactly as the AI returned it.
+    var condition: Condition {
+        get { conditionRaw.flatMap(Condition.init(rawValue:)) ?? Condition.inferred(from: conditionNotes) }
+        set { conditionRaw = newValue.rawValue }
+    }
+
+    /// The AI's resale range re-scaled from the condition it inferred to
+    /// `condition`. `valueLow`/`valueHigh` stay the immutable AI baseline so
+    /// repeated selector changes never compound. Exact `Decimal` money; both
+    /// features (listing price, flip resale) read from here.
+    func priceRange(for condition: Condition) -> (low: Decimal, likely: Decimal, high: Decimal) {
+        guard valueLow.isFinite, valueHigh.isFinite else { return (0, 0, 0) }
+        let baseline = Condition.inferred(from: conditionNotes)
+        let factor = condition.priceMultiplier / baseline.priceMultiplier
+        let low = Decimal(valueLow) * factor
+        let high = Decimal(valueHigh) * factor
+        return (low, (low + high) / 2, high)
+    }
+
+    /// Condition-adjusted low/high as `Double`, for the existing range views.
+    var displayValueLow: Double { NSDecimalNumber(decimal: priceRange(for: condition).low).doubleValue }
+    var displayValueHigh: Double { NSDecimalNumber(decimal: priceRange(for: condition).high).doubleValue }
 
     var formattedRange: String {
         guard valueLow.isFinite && valueHigh.isFinite else { return "Price unavailable" }
+        let range = priceRange(for: condition)
         let fmt = NumberFormatter.snapCurrency
-        let lo = fmt.string(from: NSNumber(value: valueLow)) ?? "$\(Int(valueLow))"
-        let hi = fmt.string(from: NSNumber(value: valueHigh)) ?? "$\(Int(valueHigh))"
+        let lo = fmt.string(from: NSDecimalNumber(decimal: range.low)) ?? "$\(Int(displayValueLow))"
+        let hi = fmt.string(from: NSDecimalNumber(decimal: range.high)) ?? "$\(Int(displayValueHigh))"
         return "\(lo)–\(hi)"
     }
 
     var midpointValue: Double {
-        (valueLow + valueHigh) / 2
+        (displayValueLow + displayValueHigh) / 2
     }
 
     // ── Ledger computed values ────────────────────────────────────────────────
@@ -112,6 +147,69 @@ final class ScanResult {
     var roi: Decimal? {
         guard let profit = realizedProfit, let paid = paidPrice, paid > 0 else { return nil }
         return profit / Decimal(paid)
+    }
+}
+
+// MARK: - Resale condition
+
+/// User-selectable resale condition. Condition is the single biggest lever on
+/// secondhand price, so the selector re-scales the AI's estimate against these
+/// multipliers (anchored to the `.good` thrift baseline). Raw values are
+/// persisted in `ScanResult.conditionRaw`; never renamed (would orphan records).
+enum Condition: String, CaseIterable, Identifiable {
+    case new
+    case likeNew
+    case good
+    case used
+
+    var id: String { rawValue }
+
+    var label: String {
+        switch self {
+        case .new:     return "New"
+        case .likeNew: return "Like New"
+        case .good:    return "Good"
+        case .used:    return "Used"
+        }
+    }
+
+    /// Price multiplier relative to the `.good` secondhand baseline (== 1.0).
+    var priceMultiplier: Decimal {
+        switch self {
+        case .new:     return 1.35
+        case .likeNew: return 1.15
+        case .good:    return 1.0
+        case .used:    return 0.78
+        }
+    }
+
+    /// Phrase fed to the listing generator so wording matches the chosen grade.
+    var listingPhrase: String {
+        switch self {
+        case .new:     return "brand new, unused"
+        case .likeNew: return "like new, barely used"
+        case .good:    return "good used condition"
+        case .used:    return "used with visible wear"
+        }
+    }
+
+    /// Best-effort starting condition parsed from the model's free-text notes.
+    /// Used only until the user makes an explicit choice. Order matters: the
+    /// strongest signals ("new with tags", "like new") are checked before the
+    /// weaker "good"/"used" fallbacks.
+    static func inferred(from notes: String) -> Condition {
+        let n = notes.lowercased()
+        if n.contains("new with tag") || n.contains("nwt") || n.contains("brand new") || n.contains("unused") {
+            return .new
+        }
+        if n.contains("like new") || n.contains("excellent") || n.contains("mint") || n.contains("very good") {
+            return .likeNew
+        }
+        if n.contains("fair") || n.contains("poor") || n.contains("worn") || n.contains("heavy")
+            || n.contains("damage") || n.contains("flaw") || n.contains("stain") || n.contains("tear") {
+            return .used
+        }
+        return .good
     }
 }
 

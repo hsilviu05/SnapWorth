@@ -65,7 +65,8 @@ struct PaywallView: View {
                     VStack(alignment: .leading, spacing: 14) {
                         BenefitRow(icon: "infinity", text: "Unlimited scans")
                         BenefitRow(icon: "chart.line.uptrend.xyaxis", text: "AI resale estimates")
-                        BenefitRow(icon: "pencil.and.list.clipboard", text: "AI listing writer")
+                        BenefitRow(icon: "cart.fill", text: "Snap → Sell marketplace listings")
+                        BenefitRow(icon: "arrow.triangle.2.circlepath", text: "Thrift Flip profit calculator")
                         BenefitRow(icon: "clock.arrow.circlepath", text: "Full scan history")
                     }
                     .padding(20)

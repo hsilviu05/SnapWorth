@@ -30,6 +30,12 @@ enum AnalyticsEvent {
     case shareCardOpened
     case shareCardShared(activityType: String?)
 
+    // ── Snap → Sell ──────────────────────────────────────────────────
+    case listingGenerated(marketplace: String)
+
+    // ── Thrift Flip ──────────────────────────────────────────────────
+    case thriftFlipCalculated(verdict: String)
+
     // ── My Flips ledger ──────────────────────────────────────────────
     case ledgerItemMarkedSold
     case ledgerDashboardViewed
@@ -56,6 +62,8 @@ enum AnalyticsEvent {
         case .restoreCompleted:     return "restore_completed"
         case .shareCardOpened:      return "share_card_opened"
         case .shareCardShared:      return "share_card_shared"
+        case .listingGenerated:     return "listing_generated"
+        case .thriftFlipCalculated: return "thrift_flip_calculated"
         case .ledgerItemMarkedSold: return "ledger_item_marked_sold"
         case .ledgerDashboardViewed:return "ledger_dashboard_viewed"
         case .ledgerExportTapped:   return "ledger_export_tapped"
@@ -87,6 +95,10 @@ enum AnalyticsEvent {
             return [:]
         case let .notificationScheduled(category), let .notificationOpened(category):
             return ["category": category]
+        case let .listingGenerated(marketplace):
+            return ["marketplace": marketplace]
+        case let .thriftFlipCalculated(verdict):
+            return ["verdict": verdict]
         default:
             return [:]
         }
@@ -160,6 +172,8 @@ enum PaywallTrigger: String {
     case settings
     case ledgerHistory = "ledger_history"
     case ledgerExport  = "ledger_export"
+    case snapSell      = "snap_sell"
+    case thriftFlip    = "thrift_flip"
 }
 
 // ═══════════════════════════════════════════════════════════════════

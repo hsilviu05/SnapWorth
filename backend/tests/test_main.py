@@ -254,3 +254,132 @@ class TestScanEndpoint:
                 headers={"x-device-id": "png-test"},
             )
         assert r.status_code == 200
+
+
+# ── POST /listing (Snap → Sell) ───────────────────────────────────────────────
+
+MOCK_LISTING_JSON = {
+    "title": "Patagonia Better Sweater Fleece 1/4-Zip Medium",
+    "description": "Classic Patagonia in good used condition. Light pilling, no stains.",
+    "listing_price": 75.0,
+    "negotiation_floor": 55.0,
+    "category": "Men's Clothing",
+}
+
+
+def _listing_body(**overrides):
+    body = {
+        "item_name": "Patagonia Better Sweater",
+        "brand": "Patagonia",
+        "category": "clothing",
+        "condition": "good",
+        "price_low_usd": 45.0,
+        "price_likely_usd": 68.0,
+        "price_high_usd": 90.0,
+        "marketplace": "ebay",
+        "currency": "USD",
+    }
+    body.update(overrides)
+    return body
+
+
+def _post_listing(device_id="listing-test", **overrides):
+    return client.post(
+        "/listing", json=_listing_body(**overrides), headers={"x-device-id": device_id}
+    )
+
+
+class TestListingEndpoint:
+    def setup_method(self):
+        _rate_store.clear()
+        _ip_rate_store.clear()
+
+    @staticmethod
+    def _mock(text):
+        m = MagicMock()
+        m.text = text
+        return m
+
+    def test_successful_listing_shape(self):
+        with patch("main._model") as mm:
+            mm.generate_content_async = AsyncMock(return_value=self._mock(json.dumps(MOCK_LISTING_JSON)))
+            r = _post_listing()
+        assert r.status_code == 200
+        data = r.json()
+        for f in ["title", "description", "listing_price", "negotiation_floor", "category"]:
+            assert f in data, f"missing field: {f}"
+
+    def test_all_supported_marketplaces_accepted(self):
+        for mkt in ["ebay", "vinted", "facebook", "olx"]:
+            _rate_store.clear()
+            _ip_rate_store.clear()
+            with patch("main._model") as mm:
+                mm.generate_content_async = AsyncMock(return_value=self._mock(json.dumps(MOCK_LISTING_JSON)))
+                r = _post_listing(marketplace=mkt)
+            assert r.status_code == 200, mkt
+
+    def test_unsupported_marketplace_rejected(self):
+        r = _post_listing(marketplace="craigslist")
+        assert r.status_code == 400
+        assert "Unsupported" in r.json()["detail"]
+
+    def test_marketplace_case_insensitive(self):
+        with patch("main._model") as mm:
+            mm.generate_content_async = AsyncMock(return_value=self._mock(json.dumps(MOCK_LISTING_JSON)))
+            r = _post_listing(marketplace="eBay")
+        assert r.status_code == 200
+
+    def test_gemini_failure_returns_502(self):
+        with patch("main._model") as mm:
+            mm.generate_content_async = AsyncMock(side_effect=Exception("API down"))
+            r = _post_listing()
+        assert r.status_code == 502
+
+    def test_malformed_json_falls_back_not_errors(self):
+        # A garbled model reply must yield a usable listing, never a blank or 500.
+        with patch("main._model") as mm:
+            mm.generate_content_async = AsyncMock(return_value=self._mock("sorry, I can't do that"))
+            r = _post_listing()
+        assert r.status_code == 200
+        data = r.json()
+        assert data["title"]
+        assert data["listing_price"] > 0
+        assert "Patagonia" in data["title"]
+
+    def test_floor_never_exceeds_ask(self):
+        bad = {**MOCK_LISTING_JSON, "listing_price": 40.0, "negotiation_floor": 80.0}
+        with patch("main._model") as mm:
+            mm.generate_content_async = AsyncMock(return_value=self._mock(json.dumps(bad)))
+            r = _post_listing()
+        data = r.json()
+        assert data["negotiation_floor"] <= data["listing_price"]
+
+    def test_missing_prices_repaired_from_request(self):
+        partial = {"title": "Nice item", "description": "Good stuff", "category": "x",
+                   "listing_price": 0, "negotiation_floor": 0}
+        with patch("main._model") as mm:
+            mm.generate_content_async = AsyncMock(return_value=self._mock(json.dumps(partial)))
+            r = _post_listing()
+        data = r.json()
+        assert data["listing_price"] > 0
+        assert data["negotiation_floor"] > 0
+
+    def test_invalid_condition_defaults_to_good(self):
+        with patch("main._model") as mm:
+            mm.generate_content_async = AsyncMock(return_value=self._mock(json.dumps(MOCK_LISTING_JSON)))
+            r = _post_listing(condition="pristine")
+        assert r.status_code == 200
+
+    def test_missing_required_field_is_422(self):
+        body = _listing_body()
+        del body["item_name"]
+        r = client.post("/listing", json=body, headers={"x-device-id": "listing-422"})
+        assert r.status_code == 422
+
+    def test_rate_limited_after_20_requests(self):
+        with patch("main._model") as mm:
+            mm.generate_content_async = AsyncMock(return_value=self._mock(json.dumps(MOCK_LISTING_JSON)))
+            for _ in range(20):
+                _post_listing(device_id="listing-rate")
+            r = _post_listing(device_id="listing-rate")
+        assert r.status_code == 429

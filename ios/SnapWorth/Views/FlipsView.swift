@@ -38,7 +38,7 @@ struct FlipsView: View {
         }
         .onAppear { Analytics.shared.track(.ledgerDashboardViewed) }
         .sheet(item: $selectedItem) { item in
-            ResultView(result: item, onDismiss: { selectedItem = nil })
+            ResultView(result: item, purchaseService: purchaseService, onDismiss: { selectedItem = nil })
         }
         .sheet(isPresented: $showPaywall) {
             PaywallView(purchaseService: purchaseService, trigger: paywallTrigger)
