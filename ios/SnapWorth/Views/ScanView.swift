@@ -11,6 +11,7 @@ struct ScanView: View {
     @State private var vm = ScanViewModel()
     @State private var showResult = false
     @State private var showNotifPriming = false
+    @State private var showThriftFlip = false
 
     var body: some View {
         let isAnalyzing = vm.isAnalyzing
@@ -125,8 +126,25 @@ struct ScanView: View {
 
                     Spacer()
 
-                    // Placeholder spacer (symmetric layout)
-                    Color.clear.frame(width: 52, height: 52)
+                    // Thrift Flip — decide buy/skip while thrifting
+                    Button {
+                        showThriftFlip = true
+                    } label: {
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            .fill(Color.snapBackground.opacity(isAnalyzing ? 0.1 : 0.2))
+                            .frame(width: 52, height: 52)
+                            .overlay(
+                                VStack(spacing: 1) {
+                                    Image(systemName: "arrow.triangle.2.circlepath")
+                                        .font(.system(size: 20, weight: .light))
+                                    Text("Flip")
+                                        .font(.system(size: 9, weight: .semibold))
+                                }
+                                .foregroundStyle(Color.snapBackground.opacity(isAnalyzing ? 0.4 : 1))
+                            )
+                    }
+                    .disabled(vm.isAnalyzing)
+                    .accessibilityLabel("Thrift Flip — check resale profit before you buy")
                 }
                 .padding(.horizontal, 36)
                 .padding(.bottom, 48)
@@ -173,12 +191,15 @@ struct ScanView: View {
             }
         }) {
             if let result = vm.scanResult {
-                ResultView(result: result, onDismiss: { showResult = false })
+                ResultView(result: result, purchaseService: purchaseService, onDismiss: { showResult = false })
                     .presentationDetents([.large])
             }
         }
         .sheet(isPresented: $vm.showPaywall) {
             PaywallView(purchaseService: purchaseService, trigger: vm.paywallTrigger)
+        }
+        .fullScreenCover(isPresented: $showThriftFlip) {
+            ThriftFlipView(purchaseService: purchaseService)
         }
         .alert("Stay on top of your flips", isPresented: $showNotifPriming) {
             Button("Enable notifications") {

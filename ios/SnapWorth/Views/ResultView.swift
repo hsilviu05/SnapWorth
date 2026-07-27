@@ -2,6 +2,7 @@ import SwiftUI
 
 struct ResultView: View {
     let result: ScanResult
+    let purchaseService: any PurchaseService
     var onDismiss: () -> Void
 
     @Environment(\.displayScale) private var displayScale
@@ -13,11 +14,16 @@ struct ResultView: View {
     @State private var feesText: String
     @FocusState private var focusedField: Field?
     @State private var showShareSheet = false
+    @State private var showPaywall = false
+    @State private var showListingShare = false
 
     private enum Field { case paid, sold, fees }
 
-    init(result: ScanResult, onDismiss: @escaping () -> Void) {
+    private var isPro: Bool { purchaseService.isSubscribed }
+
+    init(result: ScanResult, purchaseService: any PurchaseService, onDismiss: @escaping () -> Void) {
         self.result = result
+        self.purchaseService = purchaseService
         self.onDismiss = onDismiss
         _paidPriceText = State(initialValue: Self.moneyField(result.paidPrice))
         _soldPriceText = State(initialValue: Self.moneyField(result.soldPrice))
@@ -42,6 +48,11 @@ struct ResultView: View {
                             .padding(.horizontal, 20)
                             .offset(y: -28)
 
+                        conditionCard
+                            .padding(.horizontal, 20)
+                            .padding(.top, 12)
+                            .offset(y: -28)
+
                         paidPriceCard
                             .padding(.horizontal, 20)
                             .padding(.top, 12)
@@ -59,6 +70,10 @@ struct ResultView: View {
                                 .padding(.horizontal, 20)
                                 .padding(.top, 12)
                         }
+
+                        snapSellCard
+                            .padding(.horizontal, 20)
+                            .padding(.top, 12)
 
                         footer
                             .padding(.top, 20)
@@ -126,6 +141,55 @@ struct ResultView: View {
                 }
             }
         }
+        .sheet(isPresented: $showListingShare) {
+            if let items = vm.listingShareItems {
+                ActivityShareSheet(items: items) { _ in }
+            }
+        }
+        .sheet(isPresented: $showPaywall) {
+            PaywallView(purchaseService: purchaseService, trigger: .snapSell)
+        }
+    }
+
+    // MARK: - Condition Card
+
+    /// Lets the user correct the AI's condition read. Re-scales the estimate
+    /// (via `ScanResult.priceRange`) and feeds the listing generator + flip math.
+    private var conditionCard: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text("Condition")
+                .snapSectionHeader()
+
+            HStack(spacing: 8) {
+                ForEach(Condition.allCases) { condition in
+                    conditionChip(condition)
+                }
+            }
+        }
+        .padding(20)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.snapCard)
+        .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+        .shadow(color: Color.snapCardShadow.opacity(0.08), radius: 24, x: 0, y: 8)
+    }
+
+    private func conditionChip(_ condition: Condition) -> some View {
+        let selected = result.condition == condition
+        return Button {
+            UISelectionFeedbackGenerator().selectionChanged()
+            result.condition = condition
+            vm.scheduleShareCardUpdate(result: result, photo: photo, displayScale: displayScale)
+        } label: {
+            Text(condition.label)
+                .font(.dmSans(13, weight: .semibold))
+                .foregroundStyle(selected ? Color.snapBackground : Color.snapWarmGray)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 9)
+                .background(selected ? Color.snapTerracotta : Color.clear)
+                .clipShape(Capsule())
+                .overlay(Capsule().strokeBorder(Color.snapBorder, lineWidth: selected ? 0 : 1))
+        }
+        .buttonStyle(.plain)
     }
 
     // MARK: - Paid Price Card
@@ -377,7 +441,7 @@ struct ResultView: View {
                     .font(.snapCaption)
                     .foregroundStyle(Color.snapWarmGray)
 
-                ValueRangeView(low: result.valueLow, high: result.valueHigh)
+                ValueRangeView(low: result.displayValueLow, high: result.displayValueHigh)
             }
 
             Divider()
@@ -457,6 +521,205 @@ struct ResultView: View {
         .background(Color.snapCard)
         .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
         .shadow(color: Color.snapCardShadow.opacity(0.08), radius: 24, x: 0, y: 8)
+    }
+
+    // MARK: - Snap → Sell Card
+
+    /// Premium: a marketplace-tailored listing. Free users see a blurred teaser
+    /// (soft paywall) so they reach the payoff before the wall. Generation is
+    /// gated on `isPro`; the base valuation above stays free.
+    private var snapSellCard: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack {
+                Text("Snap → Sell")
+                    .snapSectionHeader()
+                Spacer()
+                if !isPro { proBadge }
+            }
+
+            Text("A marketplace-ready listing, tailored to where you sell.")
+                .font(.snapCaption)
+                .foregroundStyle(Color.snapWarmGray)
+
+            marketplacePicker
+
+            if isPro {
+                proListingContent
+            } else {
+                lockedListingTeaser
+            }
+
+            // Honest-MVP limitation, also stated in code (see Marketplace.webSellURL):
+            // we generate the text; posting stays a manual, user-controlled paste.
+            Text("SnapWorth writes it — you paste & post. We never post for you.")
+                .font(.snapCaption)
+                .foregroundStyle(Color.snapWarmGray.opacity(0.7))
+        }
+        .padding(20)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.snapCard)
+        .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+        .shadow(color: Color.snapCardShadow.opacity(0.08), radius: 24, x: 0, y: 8)
+    }
+
+    private var proBadge: some View {
+        Text("PRO")
+            .font(.dmSans(11, weight: .bold))
+            .foregroundStyle(Color.snapBackground)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 3)
+            .background(Color.snapTerracotta)
+            .clipShape(Capsule())
+    }
+
+    private var marketplacePicker: some View {
+        HStack(spacing: 8) {
+            ForEach(Marketplace.allCases) { marketplace in
+                let selected = vm.selectedMarketplace == marketplace
+                Button {
+                    UISelectionFeedbackGenerator().selectionChanged()
+                    vm.selectMarketplace(marketplace)
+                } label: {
+                    Text(marketplace.displayName)
+                        .font(.dmSans(13, weight: .semibold))
+                        .foregroundStyle(selected ? Color.snapBackground : Color.snapWarmGray)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 9)
+                        .background(selected ? Color.snapTerracotta : Color.clear)
+                        .clipShape(Capsule())
+                        .overlay(Capsule().strokeBorder(Color.snapBorder, lineWidth: selected ? 0 : 1))
+                }
+                .buttonStyle(.plain)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var proListingContent: some View {
+        if let listing = vm.generatedListing {
+            generatedListingView(listing)
+        } else if let error = vm.listingError {
+            VStack(spacing: 10) {
+                Text(error)
+                    .font(.snapCaption)
+                    .foregroundStyle(Color.snapTerracotta)
+                    .multilineTextAlignment(.center)
+                    .frame(maxWidth: .infinity, alignment: .center)
+                PrimaryButton(title: "Try again") {
+                    Task { await vm.generateListing(result: result) }
+                }
+            }
+        } else {
+            PrimaryButton(
+                title: vm.isGeneratingListing
+                    ? "Writing your listing…"
+                    : "Generate \(vm.selectedMarketplace.displayName) listing"
+            ) {
+                Task { await vm.generateListing(result: result) }
+            }
+            .disabled(vm.isGeneratingListing)
+        }
+    }
+
+    private func generatedListingView(_ listing: GeneratedListing) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text(listing.title)
+                .font(.dmSans(15, weight: .semibold))
+                .foregroundStyle(Color.snapEspresso)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+            Text(listing.description)
+                .font(.snapBody)
+                .foregroundStyle(Color.snapWarmGray)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+            HStack(spacing: 20) {
+                priceTag("Ask", listing.listingPrice)
+                priceTag("Floor", listing.negotiationFloor)
+                Spacer()
+            }
+
+            HStack(spacing: 8) {
+                secondaryButton(vm.didCopyGenerated ? "Copied!" : "Copy", icon: "doc.on.doc") {
+                    vm.copyGeneratedListing()
+                }
+                secondaryButton("Share", icon: "square.and.arrow.up") {
+                    vm.shareGeneratedListing()
+                    showListingShare = true
+                }
+            }
+            .animation(.spring(duration: 0.2), value: vm.didCopyGenerated)
+
+            PrimaryButton(title: "Open \(listing.marketplace.displayName)") {
+                vm.openMarketplace(listing.marketplace)
+            }
+
+            Button("Regenerate") {
+                vm.generatedListing = nil
+                Task { await vm.generateListing(result: result) }
+            }
+            .font(.dmSans(13, weight: .semibold))
+            .foregroundStyle(Color.snapTerracotta)
+            .frame(maxWidth: .infinity)
+        }
+    }
+
+    private func priceTag(_ label: String, _ value: Double) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(label)
+                .font(.snapCaption)
+                .foregroundStyle(Color.snapWarmGray)
+            Text(NumberFormatter.snapCurrency.string(from: NSNumber(value: value)) ?? "$\(Int(value))")
+                .font(.dmSans(17, weight: .bold))
+                .foregroundStyle(Color.snapEspresso)
+        }
+    }
+
+    private func secondaryButton(_ title: String, icon: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack(spacing: 6) {
+                Image(systemName: icon)
+                Text(title)
+            }
+            .font(.dmSans(14, weight: .semibold))
+            .foregroundStyle(Color.snapEspresso)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 11)
+            .background(Color.snapBackground)
+            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).strokeBorder(Color.snapBorder, lineWidth: 1))
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var lockedListingTeaser: some View {
+        ZStack {
+            VStack(alignment: .leading, spacing: 6) {
+                Text("\(result.itemName) — \(result.condition.listingPhrase), ready to ship")
+                    .font(.dmSans(15, weight: .semibold))
+                    .foregroundStyle(Color.snapEspresso)
+                    .lineLimit(1)
+                Text("A polished description tailored to \(vm.selectedMarketplace.displayName), priced to sell with a smart negotiation floor…")
+                    .font(.snapBody)
+                    .foregroundStyle(Color.snapWarmGray)
+                    .lineLimit(2)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .blur(radius: 5)
+            .accessibilityHidden(true)
+
+            VStack(spacing: 10) {
+                Image(systemName: "lock.fill")
+                    .font(.system(size: 18))
+                    .foregroundStyle(Color.snapTerracotta)
+                PrimaryButton(title: "Unlock marketplace listings") {
+                    Analytics.shared.track(.paywallViewed(trigger: .snapSell))
+                    showPaywall = true
+                }
+            }
+        }
     }
 
     // MARK: - Footer
