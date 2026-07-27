@@ -47,6 +47,236 @@ final class ScanResultTests: XCTestCase {
     }
 }
 
+// MARK: - Condition Re-pricing Tests
+
+final class ConditionTests: XCTestCase {
+
+    func test_condition_defaultsToInferredFromNotes_whenUnset() {
+        XCTAssertEqual(make(notes: "Like new, barely used").condition, .likeNew)
+        XCTAssertEqual(make(notes: "Good — light pilling").condition, .good)
+        XCTAssertEqual(make(notes: "New with tags").condition, .new)
+        XCTAssertEqual(make(notes: "Fair, visible stain").condition, .used)
+    }
+
+    func test_condition_explicitChoiceOverridesInference() {
+        let r = make(notes: "New with tags")   // would infer .new
+        r.condition = .used
+        XCTAssertEqual(r.condition, .used)
+        XCTAssertEqual(r.conditionRaw, "used")
+    }
+
+    func test_priceRange_atGoodBaseline_equalsAIEstimate() {
+        let r = make(notes: "Good", low: 40, high: 80)   // inferred .good
+        let range = r.priceRange(for: .good)
+        XCTAssertEqual(range.low, 40)
+        XCTAssertEqual(range.high, 80)
+        XCTAssertEqual(range.likely, 60)
+    }
+
+    func test_priceRange_likeNew_scalesUp_used_scalesDown() {
+        let r = make(notes: "Good", low: 100, high: 100)
+        XCTAssertGreaterThan(r.priceRange(for: .likeNew).likely, 100)
+        XCTAssertLessThan(r.priceRange(for: .used).likely, 100)
+        XCTAssertGreaterThan(r.priceRange(for: .new).likely, r.priceRange(for: .likeNew).likely)
+    }
+
+    func test_repeatedSelection_neverCompounds() {
+        // The baseline is anchored to the inferred condition, so toggling back
+        // to it returns the exact original estimate — no compounding drift.
+        let r = make(notes: "Good", low: 50, high: 90)
+        r.condition = .new
+        r.condition = .used
+        r.condition = .good
+        XCTAssertEqual(r.displayValueLow, 50, accuracy: 0.001)
+        XCTAssertEqual(r.displayValueHigh, 90, accuracy: 0.001)
+    }
+
+    func test_displayValue_reflectsSelectedCondition() {
+        let r = make(notes: "Good", low: 100, high: 100)
+        r.condition = .used
+        XCTAssertEqual(r.displayValueHigh, 78, accuracy: 0.001) // 100 × 0.78
+    }
+
+    func test_priceRange_nonFiniteBaseline_returnsZero() {
+        let r = make(notes: "Good", low: .infinity, high: .nan)
+        let range = r.priceRange(for: .good)
+        XCTAssertEqual(range.low, 0)
+        XCTAssertEqual(range.high, 0)
+    }
+
+    private func make(notes: String, low: Double = 10, high: Double = 20) -> ScanResult {
+        ScanResult(
+            itemName: "Test", brand: "Brand", category: "clothing",
+            conditionNotes: notes, valueLow: low, valueHigh: high,
+            confidence: "High", soldListingsCount: 5,
+            listingTitle: "", listingDescription: ""
+        )
+    }
+}
+
+// MARK: - Thrift Flip: profit math (FlipMath) Tests
+
+final class FlipMathTests: XCTestCase {
+
+    private let ebay = MarketplaceFee(sellingFeePercent: Decimal(string: "0.1325")!, fixedFee: Decimal(string: "0.40")!)
+    private let free = MarketplaceFee(sellingFeePercent: 0, fixedFee: 0)
+
+    func test_profit_afterFeesShippingAndCost() {
+        // Resale 100, eBay fee 13.25% + $0.40 = 13.65, shipping 5, paid 20.
+        // net = 100 - 13.65 - 5 - 20 = 61.35
+        let c = FlipMath.calculate(resalePrice: 100, purchasePrice: 20, shippingCost: 5, fee: ebay)
+        XCTAssertEqual(c.netProfit, Decimal(string: "61.35")!)
+        XCTAssertEqual(c.platformFees, Decimal(string: "13.65")!)
+        XCTAssertTrue(c.isProfitable)
+    }
+
+    func test_zeroFeeMarketplace_noPlatformFees() {
+        let c = FlipMath.calculate(resalePrice: 50, purchasePrice: 20, shippingCost: 0, fee: free)
+        XCTAssertEqual(c.platformFees, 0)
+        XCTAssertEqual(c.netProfit, 30)
+    }
+
+    func test_negativeProfit_isNotProfitable() {
+        let c = FlipMath.calculate(resalePrice: 20, purchasePrice: 25, shippingCost: 0, fee: free)
+        XCTAssertEqual(c.netProfit, -5)
+        XCTAssertFalse(c.isProfitable)
+    }
+
+    func test_zeroProfit_isNotProfitable() {
+        // Break-even is not "worth it" — strictly greater than zero.
+        let c = FlipMath.calculate(resalePrice: 20, purchasePrice: 20, shippingCost: 0, fee: free)
+        XCTAssertEqual(c.netProfit, 0)
+        XCTAssertFalse(c.isProfitable)
+    }
+
+    func test_roi_nilOnFreeFind() {
+        // Paid 0 → ROI undefined (never divide by zero).
+        let c = FlipMath.calculate(resalePrice: 40, purchasePrice: 0, shippingCost: 0, fee: free)
+        XCTAssertNil(c.roi)
+        XCTAssertEqual(c.margin, 1)   // profit 40 / resale 40
+    }
+
+    func test_margin_nilWhenResaleZero() {
+        let c = FlipMath.calculate(resalePrice: 0, purchasePrice: 10, shippingCost: 0, fee: free)
+        XCTAssertNil(c.margin)
+    }
+
+    func test_missingFeeEntry_flaggedUnknown_andFeesZero() {
+        let c = FlipMath.calculate(resalePrice: 50, purchasePrice: 10, shippingCost: 0, fee: nil)
+        XCTAssertTrue(c.feesUnknown)
+        XCTAssertEqual(c.platformFees, 0)
+    }
+
+    func test_negativeInputs_clampedToZero() {
+        let c = FlipMath.calculate(resalePrice: -10, purchasePrice: -5, shippingCost: -3, fee: free)
+        XCTAssertEqual(c.resalePrice, 0)
+        XCTAssertEqual(c.purchasePrice, 0)
+        XCTAssertEqual(c.shippingCost, 0)
+    }
+
+    func test_roi_computation() {
+        // Paid 10, net 30 → ROI 300%.
+        let c = FlipMath.calculate(resalePrice: 40, purchasePrice: 10, shippingCost: 0, fee: free)
+        XCTAssertEqual(c.roi, 3)
+    }
+
+    func test_defaultTable_hasAllMarketplaces() {
+        for m in Marketplace.allCases {
+            XCTAssertNotNil(MarketplaceFees.fee(for: m), "missing fee for \(m)")
+        }
+    }
+}
+
+// MARK: - Thrift Flip: price-tag OCR parsing Tests
+
+final class PriceTagOCRTests: XCTestCase {
+
+    func test_parsesSimpleDollarPrice() {
+        XCTAssertEqual(PriceTagOCR.firstPrice(in: "$12.99"), Decimal(string: "12.99"))
+    }
+
+    func test_parsesPlainNumber() {
+        XCTAssertEqual(PriceTagOCR.firstPrice(in: "Price 45"), 45)
+    }
+
+    func test_parsesEuropeanCommaDecimal() {
+        XCTAssertEqual(PriceTagOCR.normalizedDecimal("5,99"), Decimal(string: "5.99"))
+    }
+
+    func test_parsesThousandsSeparators() {
+        XCTAssertEqual(PriceTagOCR.normalizedDecimal("1,299.00"), Decimal(1299))
+        XCTAssertEqual(PriceTagOCR.normalizedDecimal("1.299,00"), Decimal(1299))
+    }
+
+    func test_picksLargestPriceAcrossLines() {
+        // A tag with SKU + unit price + headline price → headline wins by value.
+        let lines = ["SKU 004821", "$3.20/oz", "$24.99"]
+        XCTAssertEqual(PriceTagOCR.parsePrice(from: lines), Decimal(string: "24.99"))
+    }
+
+    func test_noPrice_returnsNil() {
+        XCTAssertNil(PriceTagOCR.firstPrice(in: "Clearance rack"))
+        XCTAssertNil(PriceTagOCR.parsePrice(from: ["no", "digits", "here"]))
+    }
+
+    func test_ignoresImplausiblyLargeNumbers() {
+        // A long barcode-like number must not be read as a price.
+        XCTAssertNil(PriceTagOCR.firstPrice(in: "123456789012"))
+    }
+}
+
+// MARK: - Snap → Sell (ListingAPIClient) Tests
+
+final class ListingClientTests: XCTestCase {
+
+    // The listing actor's live path needs the network and its mock path is gated
+    // on the compile-time `Config.mockMode` (false in shipping), so these cover
+    // the deterministic contract the UI and backend both depend on.
+
+    func test_generatedListing_shareText_containsTitleAndPrice() {
+        let listing = GeneratedListing(
+            title: "Nike Air Max 90",
+            description: "Clean pair, barely used.",
+            listingPrice: 90, negotiationFloor: 70,
+            category: "shoes", marketplace: .ebay
+        )
+        XCTAssertTrue(listing.shareText.contains("Nike Air Max 90"))
+        XCTAssertTrue(listing.shareText.contains("$90"))
+    }
+
+    func test_marketplace_apiValues_matchBackendContract() {
+        XCTAssertEqual(Marketplace.ebay.apiValue, "ebay")
+        XCTAssertEqual(Marketplace.vinted.apiValue, "vinted")
+        XCTAssertEqual(Marketplace.facebook.apiValue, "facebook")
+        XCTAssertEqual(Marketplace.olx.apiValue, "olx")
+    }
+
+    func test_marketplace_webSellURLs_areHTTPS() {
+        for m in Marketplace.allCases {
+            XCTAssertEqual(m.webSellURL.scheme, "https", "\(m) sell URL must be https")
+        }
+    }
+
+    func test_marketplace_appScheme_onlyWhereReal() {
+        // We must never fabricate a scheme for a marketplace without one.
+        XCTAssertNotNil(Marketplace.ebay.appURLScheme)
+        XCTAssertNotNil(Marketplace.facebook.appURLScheme)
+        XCTAssertNil(Marketplace.vinted.appURLScheme)
+        XCTAssertNil(Marketplace.olx.appURLScheme)
+    }
+
+    func test_generatedListing_floorClampedToAsk() {
+        // The client clamps floor to the ask on the live path; the type should
+        // never surface a floor above the ask to the UI.
+        let listing = GeneratedListing(
+            title: "T", description: "D",
+            listingPrice: 40, negotiationFloor: 40,
+            category: "x", marketplace: .vinted
+        )
+        XCTAssertLessThanOrEqual(listing.negotiationFloor, listing.listingPrice)
+    }
+}
+
 // MARK: - HistoryViewModel Tests
 
 @MainActor

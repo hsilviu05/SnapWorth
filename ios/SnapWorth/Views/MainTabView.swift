@@ -26,7 +26,7 @@ struct MainTabView: View {
                 }
                 .tag(0)
 
-            HistoryView()
+            HistoryView(purchaseService: purchaseService)
                 .tabItem {
                     Label("My Finds", systemImage: selectedTab == 1 ? "bag.fill" : "bag")
                 }

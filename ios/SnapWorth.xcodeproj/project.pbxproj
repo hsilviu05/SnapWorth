@@ -18,6 +18,11 @@
 		AA00000000000000000000CB /* MockPurchaseService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000000CA /* MockPurchaseService.swift */; };
 		AA00000000000000000000CD /* StoreKitPurchaseService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000000CC /* StoreKitPurchaseService.swift */; };
 		AA00000000000000000000CF /* ScanAPIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000000CE /* ScanAPIClient.swift */; };
+		FEED000000000000000000B5 /* ThriftFlipView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FEED000000000000000000A5 /* ThriftFlipView.swift */; };
+		FEED000000000000000000B4 /* ThriftFlipViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = FEED000000000000000000A4 /* ThriftFlipViewModel.swift */; };
+		FEED000000000000000000B3 /* MarketplaceFees.swift in Sources */ = {isa = PBXBuildFile; fileRef = FEED000000000000000000A3 /* MarketplaceFees.swift */; };
+		FEED000000000000000000B2 /* PriceTagOCR.swift in Sources */ = {isa = PBXBuildFile; fileRef = FEED000000000000000000A2 /* PriceTagOCR.swift */; };
+		FEED000000000000000000B1 /* ListingService.swift in Sources */ = {isa = PBXBuildFile; fileRef = FEED000000000000000000A1 /* ListingService.swift */; };
 		AA00000000000000000000D1 /* CameraManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000000D0 /* CameraManager.swift */; };
 		AA00000000000000000000D3 /* OnboardingViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000000D2 /* OnboardingViewModel.swift */; };
 		AA00000000000000000000D5 /* PaywallViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000000D4 /* PaywallViewModel.swift */; };
@@ -98,6 +103,11 @@
 		AA00000000000000000000CA /* MockPurchaseService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockPurchaseService.swift; sourceTree = "<group>"; };
 		AA00000000000000000000CC /* StoreKitPurchaseService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoreKitPurchaseService.swift; sourceTree = "<group>"; };
 		AA00000000000000000000CE /* ScanAPIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanAPIClient.swift; sourceTree = "<group>"; };
+		FEED000000000000000000A5 /* ThriftFlipView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThriftFlipView.swift; sourceTree = "<group>"; };
+		FEED000000000000000000A4 /* ThriftFlipViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThriftFlipViewModel.swift; sourceTree = "<group>"; };
+		FEED000000000000000000A3 /* MarketplaceFees.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarketplaceFees.swift; sourceTree = "<group>"; };
+		FEED000000000000000000A2 /* PriceTagOCR.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PriceTagOCR.swift; sourceTree = "<group>"; };
+		FEED000000000000000000A1 /* ListingService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ListingService.swift; sourceTree = "<group>"; };
 		AA00000000000000000000D0 /* CameraManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraManager.swift; sourceTree = "<group>"; };
 		AA00000000000000000000D2 /* OnboardingViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingViewModel.swift; sourceTree = "<group>"; };
 		AA00000000000000000000D4 /* PaywallViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaywallViewModel.swift; sourceTree = "<group>"; };
@@ -232,6 +242,7 @@
 			children = (
 				AA00000000000000000000C6 /* ScanResult.swift */,
 				AA0000000000000000000110 /* AppError.swift */,
+				FEED000000000000000000A3 /* MarketplaceFees.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -244,6 +255,8 @@
 				AA00000000000000000000CC /* StoreKitPurchaseService.swift */,
 				AA00000000000000000000CE /* ScanAPIClient.swift */,
 				AA0000000000000000000112 /* ScanRepository.swift */,
+				FEED000000000000000000A2 /* PriceTagOCR.swift */,
+				FEED000000000000000000A1 /* ListingService.swift */,
 				BB0000000000000000000009 /* WidgetDataStore.swift */,
 				ADD1EC0000000000000000B1 /* Analytics.swift */,
 				ADD1EC0000000000000000B3 /* TelemetryDeckAnalytics.swift */,
@@ -271,6 +284,7 @@
 				AA00000000000000000000DA /* HistoryViewModel.swift */,
 				AA00000000000000000000DC /* SettingsViewModel.swift */,
 				ADD1EC0000000000000000B7 /* FlipsViewModel.swift */,
+				FEED000000000000000000A4 /* ThriftFlipViewModel.swift */,
 			);
 			path = ViewModels;
 			sourceTree = "<group>";
@@ -291,6 +305,7 @@
 				AA0000000000000000000113 /* ShareCardView.swift */,
 				ADD1EC0000000000000000B5 /* ActivityShareSheet.swift */,
 				ADD1EC0000000000000000B9 /* FlipsView.swift */,
+				FEED000000000000000000A5 /* ThriftFlipView.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -488,6 +503,11 @@
 				ADD1EC0000000000000000B8 /* FlipsViewModel.swift in Sources */,
 				ADD1EC0000000000000000BA /* FlipsView.swift in Sources */,
 				AA00000000000000000000CF /* ScanAPIClient.swift in Sources */,
+				FEED000000000000000000B5 /* ThriftFlipView.swift in Sources */,
+				FEED000000000000000000B4 /* ThriftFlipViewModel.swift in Sources */,
+				FEED000000000000000000B3 /* MarketplaceFees.swift in Sources */,
+				FEED000000000000000000B2 /* PriceTagOCR.swift in Sources */,
+				FEED000000000000000000B1 /* ListingService.swift in Sources */,
 				BB000000000000000000000A /* WidgetDataStore.swift in Sources */,
 				AA00000000000000000000D1 /* CameraManager.swift in Sources */,
 				AA00000000000000000000D3 /* OnboardingViewModel.swift in Sources */,

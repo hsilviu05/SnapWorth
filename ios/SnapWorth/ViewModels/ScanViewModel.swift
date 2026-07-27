@@ -19,36 +19,14 @@ final class ScanViewModel {
     var paywallTrigger: PaywallTrigger = .scanLimit
 
     // ── Free scan tracking ────────────────────────────────────────────
-    @ObservationIgnored
-    private let freeScansKey = "snapworth_free_scans_used"
-    @ObservationIgnored
-    private let freeScansDateKey = "snapworth_free_scans_date"
-
-    /// Free scans used *today*. The count is stamped with the day it was
-    /// written; once the local calendar day rolls over the stamp is stale, so
-    /// the getter reads 0 and the user gets a fresh `Config.freeScansAllowed`
-    /// — i.e. "3 free scans every day," matching the App Store listing.
-    /// (Legacy installs have a count but no date stamp → they read 0 and are
-    /// immediately unstuck, which is the intended behavior.)
+    // Backed by the shared `FreeScanCounter` (below) so the daily cap is enforced
+    // consistently across the camera scan and Thrift Flip. Public API unchanged.
     var freeScansUsed: Int {
-        get {
-            let defaults = UserDefaults.standard
-            guard let stamped = defaults.object(forKey: freeScansDateKey) as? Date,
-                  Calendar.current.isDateInToday(stamped) else {
-                return 0
-            }
-            return defaults.integer(forKey: freeScansKey)
-        }
-        set {
-            let defaults = UserDefaults.standard
-            defaults.set(newValue, forKey: freeScansKey)
-            defaults.set(Date(), forKey: freeScansDateKey)
-        }
+        get { FreeScanCounter.used }
+        set { FreeScanCounter.used = newValue }
     }
 
-    var hasFreeScanRemaining: Bool {
-        freeScansUsed < Config.freeScansAllowed
-    }
+    var hasFreeScanRemaining: Bool { FreeScanCounter.hasRemaining }
 
     // ── Scan trigger ─────────────────────────────────────────────────
     func startScan(image: UIImage, purchaseService: any PurchaseService, repository: ScanRepository) async {
@@ -133,4 +111,38 @@ final class ScanViewModel {
         errorMessage = nil
         isAnalyzing = false
     }
+}
+
+// ── Shared daily free-scan counter ────────────────────────────────────────────
+
+/// The daily free-scan allowance, backed by UserDefaults and stamped with the
+/// day it was written — so it resets each local calendar day ("3 free scans every
+/// day", matching the App Store listing). Shared by the camera scan and Thrift
+/// Flip so a free user can't bypass the cap through either entry point.
+///
+/// Legacy installs have a count but no date stamp → they read 0 and are
+/// immediately unstuck, which is the intended behavior.
+enum FreeScanCounter {
+    private static let usedKey = "snapworth_free_scans_used"
+    private static let dateKey = "snapworth_free_scans_date"
+
+    static var used: Int {
+        get {
+            let defaults = UserDefaults.standard
+            guard let stamped = defaults.object(forKey: dateKey) as? Date,
+                  Calendar.current.isDateInToday(stamped) else {
+                return 0
+            }
+            return defaults.integer(forKey: usedKey)
+        }
+        set {
+            let defaults = UserDefaults.standard
+            defaults.set(newValue, forKey: usedKey)
+            defaults.set(Date(), forKey: dateKey)
+        }
+    }
+
+    static var hasRemaining: Bool { used < Config.freeScansAllowed }
+
+    static func increment() { used += 1 }
 }

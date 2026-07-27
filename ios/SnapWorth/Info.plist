@@ -17,53 +17,43 @@
 	<key>CFBundlePackageType</key>
 	<string>$(PRODUCT_BUNDLE_PACKAGE_TYPE)</string>
 	<key>CFBundleShortVersionString</key>
-	<string>1.1.2</string>
+	<string>1.2.0</string>
 	<key>CFBundleVersion</key>
-	<string>4</string>
-	<!-- App uses only standard encryption (HTTPS/TLS); exempt from export compliance -->
+	<string>5</string>
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
-
-	<!-- Camera & Photo Library permissions -->
 	<key>NSCameraUsageDescription</key>
 	<string>SnapWorth uses your camera to photograph items so we can identify them and estimate their resale value.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>SnapWorth lets you pick photos from your library to scan for resale value.</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>
 	<string>Allow SnapWorth to save your valuation card to Photos.</string>
-
-	<!-- Custom fonts registered with UIKit -->
 	<key>UIAppFonts</key>
 	<array>
 		<string>Fraunces-Variable.ttf</string>
 		<string>DMSans-Variable.ttf</string>
 	</array>
-
 	<key>UILaunchScreen</key>
 	<dict>
 		<key>UIColorName</key>
 		<string>LaunchBackground</string>
 	</dict>
-
 	<key>UIRequiredDeviceCapabilities</key>
 	<array>
 		<string>arm64</string>
 	</array>
-
 	<key>UISupportedInterfaceOrientations</key>
 	<array>
 		<string>UIInterfaceOrientationPortrait</string>
 	</array>
-
 	<key>UIUserInterfaceStyle</key>
 	<string>Light</string>
-
 	<key>LSApplicationQueriesSchemes</key>
 	<array>
 		<string>mailto</string>
+		<string>ebay</string>
+		<string>fb</string>
 	</array>
-
-	<!-- URL scheme for widget deep links -->
 	<key>CFBundleURLTypes</key>
 	<array>
 		<dict>
@@ -75,6 +65,5 @@
 			<string>eu.snapworth.app</string>
 		</dict>
 	</array>
-
 </dict>
 </plist>
