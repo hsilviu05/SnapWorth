@@ -99,11 +99,17 @@ struct ResultView: View {
                         circleButton(icon: "square.and.arrow.up")
                     }
                     .disabled(vm.shareCard == nil)
+                    .accessibilityLabel("Share")
+                    .accessibilityHint(vm.shareCard == nil
+                        ? "Share card is still being prepared"
+                        : "Creates a shareable card for this find")
                 }
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button(action: onDismiss) {
                         circleButton(icon: "xmark")
                     }
+                    .accessibilityLabel("Done")
+                    .accessibilityHint("Closes this result and returns to the camera")
                 }
                 // Keyboard toolbar must live in the SAME .toolbar block as the
                 // nav items — a second, separate .toolbar can be dropped by
@@ -165,6 +171,11 @@ struct ResultView: View {
                     conditionChip(condition)
                 }
             }
+            // Read as one control ("Condition, Like New") rather than four
+            // unrelated buttons.
+            .accessibilityElement(children: .contain)
+            .accessibilityLabel("Condition")
+            .accessibilityValue(result.condition.label)
         }
         .padding(20)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -179,17 +190,33 @@ struct ResultView: View {
             UISelectionFeedbackGenerator().selectionChanged()
             result.condition = condition
             vm.scheduleShareCardUpdate(result: result, photo: photo, displayScale: displayScale)
+            // Selection re-prices the estimate; announce the new value so a
+            // VoiceOver user learns the outcome without hunting for it.
+            UIAccessibility.post(
+                notification: .announcement,
+                argument: "\(condition.label). Estimate \(result.formattedRange)"
+            )
         } label: {
             Text(condition.label)
                 .font(.dmSans(13, weight: .semibold))
-                .foregroundStyle(selected ? Color.snapBackground : Color.snapWarmGray)
+                .foregroundStyle(selected ? Color.snapOnAccent : Color.snapWarmGray)
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 9)
                 .background(selected ? Color.snapTerracotta : Color.clear)
                 .clipShape(Capsule())
-                .overlay(Capsule().strokeBorder(Color.snapBorder, lineWidth: selected ? 0 : 1))
+                // Selection is carried by a border weight as well as fill
+                // colour, so it survives Differentiate Without Color.
+                .overlay(Capsule().strokeBorder(
+                    selected ? Color.snapTerracotta : Color.snapBorder,
+                    lineWidth: selected ? 2 : 1))
         }
         .buttonStyle(.plain)
+        .snapHitTarget()
+        .accessibilityLabel(condition.label)
+        .accessibilityHint("Re-prices the estimate for this condition")
+        // `.isSelected` is what makes VoiceOver say "selected" — colour alone
+        // conveys nothing to it.
+        .accessibilityAddTraits(selected ? [.isButton, .isSelected] : .isButton)
     }
 
     // MARK: - Paid Price Card
@@ -202,15 +229,22 @@ struct ResultView: View {
                 Text("$")
                     .font(.dmSans(17, weight: .medium))
                     .foregroundStyle(Color.snapWarmGray)
+                    .accessibilityHidden(true)
                 TextField("0", text: $paidPriceText)
                     .keyboardType(.decimalPad)
                     .font(.dmSans(17, weight: .medium))
                     .foregroundStyle(Color.snapEspresso)
                     .focused($focusedField, equals: .paid)
+                    .accessibilityLabel("What did you pay?")
+                    .accessibilityValue(paidPriceText.isEmpty
+                        ? "Not set" : "\(paidPriceText) dollars")
+                    .accessibilityHint("Adds your find multiple to the share card")
             }
             Text("Adds your find multiple to the share card")
                 .font(.snapCaption)
                 .foregroundStyle(Color.snapWarmGray.opacity(0.7))
+                // Already spoken as the field's hint.
+                .accessibilityHidden(true)
         }
         .padding(20)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -231,6 +265,9 @@ struct ResultView: View {
                     statusChip(status)
                 }
             }
+            .accessibilityElement(children: .contain)
+            .accessibilityLabel("Flip status")
+            .accessibilityValue(result.status.label)
 
             if result.status == .sold {
                 soldFields
@@ -249,17 +286,25 @@ struct ResultView: View {
         let selected = result.status == status
         return Button {
             setStatus(status)
+            UIAccessibility.post(notification: .announcement,
+                                 argument: "Status \(status.label)")
         } label: {
             Text(status.label)
                 .font(.dmSans(13, weight: .semibold))
-                .foregroundStyle(selected ? Color.snapBackground : Color.snapWarmGray)
+                .foregroundStyle(selected ? Color.snapOnAccent : Color.snapWarmGray)
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 9)
                 .background(selected ? Color.snapTerracotta : Color.clear)
                 .clipShape(Capsule())
-                .overlay(Capsule().strokeBorder(Color.snapBorder, lineWidth: selected ? 0 : 1))
+                .overlay(Capsule().strokeBorder(
+                    selected ? Color.snapTerracotta : Color.snapBorder,
+                    lineWidth: selected ? 2 : 1))
         }
         .buttonStyle(.plain)
+        .snapHitTarget()
+        .accessibilityLabel(status.label)
+        .accessibilityHint("Marks this find as \(status.label.lowercased())")
+        .accessibilityAddTraits(selected ? [.isButton, .isSelected] : .isButton)
     }
 
     @ViewBuilder
@@ -277,15 +322,24 @@ struct ResultView: View {
             Text(title)
                 .font(.dmSans(14, weight: .medium))
                 .foregroundStyle(Color.snapWarmGray)
+                // The label is carried by the field below; reading it twice is
+                // noise for VoiceOver.
+                .accessibilityHidden(true)
             Spacer()
-            Text("$").foregroundStyle(Color.snapWarmGray)
+            Text("$")
+                .foregroundStyle(Color.snapWarmGray)
+                .accessibilityHidden(true)
             TextField("0", text: text)
                 .keyboardType(.decimalPad)
                 .multilineTextAlignment(.trailing)
-                .frame(maxWidth: 90)
+                .frame(minWidth: 90)
                 .focused($focusedField, equals: field)
                 .font(.dmSans(15, weight: .semibold))
                 .foregroundStyle(Color.snapEspresso)
+                .accessibilityLabel(title)
+                .accessibilityValue(text.wrappedValue.isEmpty
+                    ? "Not set" : "\(text.wrappedValue) dollars")
+                .accessibilityHint("Enter an amount in dollars")
         }
     }
 
@@ -296,9 +350,17 @@ struct ResultView: View {
                 .foregroundStyle(Color.snapEspresso)
             Spacer()
             if let profit = result.realizedProfit {
-                Text(Self.signedProfit(profit))
-                    .font(.dmSans(17, weight: .bold))
-                    .foregroundStyle(profit < 0 ? Color.snapTerracotta : Color.snapSage)
+                // Sign and an explicit arrow carry the outcome, so profit/loss
+                // is distinguishable without relying on green vs terracotta.
+                Label {
+                    Text(Self.signedProfit(profit))
+                } icon: {
+                    Image(systemName: profit < 0 ? "arrow.down.right" : "arrow.up.right")
+                        .snapSymbol(13, weight: .bold)
+                }
+                .labelStyle(.titleAndIcon)
+                .font(.dmSans(17, weight: .bold))
+                .foregroundStyle(profit < 0 ? Color.snapTerracotta : Color.snapSage)
             } else {
                 // Sold but no cost basis → profit unknown; never guessed.
                 Text("—")
@@ -306,6 +368,17 @@ struct ResultView: View {
                     .foregroundStyle(Color.snapWarmGray)
             }
         }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Profit")
+        .accessibilityValue(profitAccessibilityValue)
+    }
+
+    private var profitAccessibilityValue: String {
+        guard let profit = result.realizedProfit else {
+            return "Unknown — add what you paid to calculate it"
+        }
+        let amount = Self.signedProfit(profit)
+        return profit < 0 ? "Loss of \(amount)" : "Profit of \(amount)"
     }
 
     private var soldDateBinding: Binding<Date> {
@@ -362,7 +435,7 @@ struct ResultView: View {
                         .frame(width: width, height: 360)
                         .overlay(
                             Image(systemName: "photo")
-                                .font(.system(size: 48))
+                                .snapSymbol(48)
                                 .foregroundStyle(Color.snapWarmGray.opacity(0.5))
                         )
                 }
@@ -409,6 +482,24 @@ struct ResultView: View {
         }
         .frame(width: width, height: 360)
         .ignoresSafeArea(edges: .top)
+        // The photo is decoration; the item name and its chips are the content.
+        // Combining them gives one clear stop instead of an image plus three
+        // orphaned fragments.
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(heroAccessibilityLabel)
+        .accessibilityAddTraits(.isHeader)
+        .accessibilitySortPriority(90)
+    }
+
+    private var heroAccessibilityLabel: String {
+        var parts = [result.itemName]
+        if !result.brand.isEmpty, result.brand != "Unknown" {
+            parts.append("Brand \(result.brand)")
+        }
+        if !result.conditionNotes.isEmpty {
+            parts.append(result.conditionNotes)
+        }
+        return parts.joined(separator: ". ")
     }
 
     private func photoChip(_ label: String) -> some View {
@@ -425,7 +516,7 @@ struct ResultView: View {
 
     private func circleButton(icon: String) -> some View {
         Image(systemName: icon)
-            .font(.system(size: 14, weight: .semibold))
+            .snapSymbol(14, weight: .semibold)
             .foregroundStyle(Color.snapEspresso)
             .frame(width: 36, height: 36)
             .background(.ultraThinMaterial)
@@ -462,6 +553,16 @@ struct ResultView: View {
         .background(Color.snapCard)
         .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
         .shadow(color: Color.snapCardShadow.opacity(0.12), radius: 24, x: 0, y: 8)
+        // The headline result: one VoiceOver stop that states the value, its
+        // confidence, and that it's an estimate — rather than four fragments.
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Estimated resale value")
+        .accessibilityValue(
+            "\(result.formattedRange). \(result.confidence) confidence AI estimate."
+        )
+        // Read first when the sheet opens — it is why the user is here.
+        .accessibilitySortPriority(100)
+        .accessibilityAddTraits(.isSummaryElement)
     }
 
     // MARK: - Details Card
@@ -565,11 +666,12 @@ struct ResultView: View {
     private var proBadge: some View {
         Text("PRO")
             .font(.dmSans(11, weight: .bold))
-            .foregroundStyle(Color.snapBackground)
+            .foregroundStyle(Color.snapOnAccent)
             .padding(.horizontal, 8)
             .padding(.vertical, 3)
             .background(Color.snapTerracotta)
             .clipShape(Capsule())
+            .accessibilityLabel("Pro feature")
     }
 
     private var marketplacePicker: some View {
@@ -582,16 +684,25 @@ struct ResultView: View {
                 } label: {
                     Text(marketplace.displayName)
                         .font(.dmSans(13, weight: .semibold))
-                        .foregroundStyle(selected ? Color.snapBackground : Color.snapWarmGray)
+                        .foregroundStyle(selected ? Color.snapOnAccent : Color.snapWarmGray)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 9)
                         .background(selected ? Color.snapTerracotta : Color.clear)
                         .clipShape(Capsule())
-                        .overlay(Capsule().strokeBorder(Color.snapBorder, lineWidth: selected ? 0 : 1))
+                        .overlay(Capsule().strokeBorder(
+                            selected ? Color.snapTerracotta : Color.snapBorder,
+                            lineWidth: selected ? 2 : 1))
                 }
                 .buttonStyle(.plain)
+                .snapHitTarget()
+                .accessibilityLabel(marketplace.displayName)
+                .accessibilityHint("Writes the listing in \(marketplace.displayName)'s style")
+                .accessibilityAddTraits(selected ? [.isButton, .isSelected] : .isButton)
             }
         }
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("Marketplace")
+        .accessibilityValue(vm.selectedMarketplace.displayName)
     }
 
     @ViewBuilder
@@ -712,7 +823,7 @@ struct ResultView: View {
 
             VStack(spacing: 10) {
                 Image(systemName: "lock.fill")
-                    .font(.system(size: 18))
+                    .snapSymbol(18)
                     .foregroundStyle(Color.snapTerracotta)
                 PrimaryButton(title: "Unlock marketplace listings") {
                     Analytics.shared.track(.paywallViewed(trigger: .snapSell))

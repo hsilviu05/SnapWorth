@@ -176,7 +176,7 @@ struct ShareCardView: View {
                 .frame(width: w, height: 460)
                 .overlay(
                     Image(systemName: "photo")
-                        .font(.system(size: 72))
+                        .snapSymbol(72)
                         .foregroundStyle(Color(hex: "8B7D71").opacity(0.4))
                 )
         }

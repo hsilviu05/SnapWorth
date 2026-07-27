@@ -74,7 +74,7 @@ struct ThriftFlipView: View {
     private var emptyState: some View {
         VStack(spacing: 16) {
             Image(systemName: "arrow.triangle.2.circlepath")
-                .font(.system(size: 40, weight: .light))
+                .snapSymbol(40, weight: .light)
                 .foregroundStyle(Color.snapTerracotta)
                 .padding(.top, 40)
 

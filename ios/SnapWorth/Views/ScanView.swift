@@ -92,7 +92,7 @@ struct ScanView: View {
                             .frame(width: 52, height: 52)
                             .overlay(
                                 Image(systemName: "photo.on.rectangle")
-                                    .font(.system(size: 22, weight: .light))
+                                    .snapSymbol(22, weight: .light)
                                     .foregroundStyle(Color.snapOnCharcoal.opacity(isAnalyzing ? 0.4 : 1))
                             )
                     }
@@ -140,7 +140,7 @@ struct ScanView: View {
                             .overlay(
                                 VStack(spacing: 1) {
                                     Image(systemName: "arrow.triangle.2.circlepath")
-                                        .font(.system(size: 20, weight: .light))
+                                        .snapSymbol(20, weight: .light)
                                     Text("Flip")
                                         .font(.system(size: 9, weight: .semibold))
                                 }
@@ -255,7 +255,7 @@ struct ScanView: View {
     private var permissionPlaceholder: some View {
         VStack(spacing: 20) {
             Image(systemName: "camera.slash")
-                .font(.system(size: 48, weight: .light))
+                .snapSymbol(48, weight: .light)
                 .foregroundStyle(Color.snapOnCharcoal.opacity(0.5))
 
             Text("Camera access needed to scan items")

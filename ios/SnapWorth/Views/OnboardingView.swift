@@ -168,7 +168,7 @@ private struct ValueEstimateHero: View {
                     startPoint: .topLeading, endPoint: .bottomTrailing
                 )
                 Image(systemName: "tshirt.fill")
-                    .font(.system(size: 46, weight: .light))
+                    .snapSymbol(46, weight: .light)
                     .symbolRenderingMode(.hierarchical)
                     .foregroundStyle(accent)
             }
@@ -209,7 +209,7 @@ private struct SnapSellHero: View {
                     .foregroundStyle(Color.snapWarmGray)
                 Spacer()
                 Image(systemName: "sparkle")
-                    .font(.system(size: 13))
+                    .snapSymbol(13)
                     .foregroundStyle(accent)
             }
 
@@ -255,7 +255,7 @@ private struct ThriftFlipHero: View {
             HStack {
                 priceBlock(label: "You pay", value: "$8")
                 Image(systemName: "arrow.right")
-                    .font(.system(size: 13, weight: .semibold))
+                    .snapSymbol(13, weight: .semibold)
                     .foregroundStyle(Color.snapWarmGray)
                 priceBlock(label: "Resell", value: "$45")
             }
@@ -318,7 +318,7 @@ private struct TrackFindsHero: View {
                         RoundedRectangle(cornerRadius: 8, style: .continuous)
                             .fill(accent.opacity(0.12))
                         Image(systemName: item.0)
-                            .font(.system(size: 20, weight: .light))
+                            .snapSymbol(20, weight: .light)
                             .foregroundStyle(accent)
                     }
                     .frame(height: 48)

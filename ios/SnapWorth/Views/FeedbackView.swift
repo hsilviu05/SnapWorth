@@ -50,7 +50,7 @@ struct FeedbackView: View {
                                 } label: {
                                     HStack(spacing: 6) {
                                         Image(systemName: type.icon)
-                                            .font(.system(size: 13, weight: .medium))
+                                            .snapSymbol(13, weight: .medium)
                                         Text(type.rawValue)
                                             .font(.dmSans(13, weight: .medium))
                                     }

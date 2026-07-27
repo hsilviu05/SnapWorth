@@ -105,7 +105,7 @@ struct HistoryView: View {
                                                     }
                                                 } label: {
                                                     Image(systemName: "minus.circle.fill")
-                                                        .font(.system(size: 22))
+                                                        .snapSymbol(22)
                                                         .foregroundStyle(.white, Color.red)
                                                         .background(Color.white.clipShape(Circle()))
                                                 }
@@ -189,7 +189,7 @@ private struct RecapBanner: View {
         Button(action: onTap) {
             HStack(spacing: 14) {
                 Image(systemName: "chart.bar.doc.horizontal")
-                    .font(.system(size: 20, weight: .medium))
+                    .snapSymbol(20, weight: .medium)
                     .foregroundStyle(Color.snapTerracotta)
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Your \(month) recap is ready")
@@ -201,7 +201,7 @@ private struct RecapBanner: View {
                 }
                 Spacer()
                 Image(systemName: "chevron.right")
-                    .font(.system(size: 13, weight: .semibold))
+                    .snapSymbol(13, weight: .semibold)
                     .foregroundStyle(Color.snapWarmGray)
             }
             .padding(16)
@@ -253,7 +253,7 @@ private struct NoSearchResultsView: View {
     var body: some View {
         VStack(spacing: 16) {
             Image(systemName: "magnifyingglass")
-                .font(.system(size: 48, weight: .light))
+                .snapSymbol(48, weight: .light)
                 .foregroundStyle(Color.snapBorder)
 
             Text("No results for \"\(query)\"")
@@ -273,7 +273,7 @@ private struct EmptyFindsView: View {
     var body: some View {
         VStack(spacing: 16) {
             Image(systemName: "bag")
-                .font(.system(size: 48, weight: .light))
+                .snapSymbol(48, weight: .light)
                 .foregroundStyle(Color.snapBorder)
 
             Text("No finds yet")

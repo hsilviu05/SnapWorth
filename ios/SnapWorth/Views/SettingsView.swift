@@ -94,7 +94,7 @@ struct SettingsView: View {
                     Toggle(isOn: $analyticsEnabled) {
                         HStack(spacing: 14) {
                             Image(systemName: "chart.bar")
-                                .font(.system(size: 16, weight: .medium))
+                                .snapSymbol(16, weight: .medium)
                                 .foregroundStyle(Color.snapTerracotta)
                                 .frame(width: 24)
                             Text("Share anonymous analytics")
@@ -158,7 +158,7 @@ private struct SubscriptionCard: View {
     var body: some View {
         HStack(spacing: 16) {
             Image(systemName: isSubscribed ? "crown.fill" : "crown")
-                .font(.system(size: 24))
+                .snapSymbol(24)
                 .foregroundStyle(Color.snapAmber)
 
             VStack(alignment: .leading, spacing: 2) {
@@ -201,7 +201,7 @@ private struct SettingsRowLabel: View {
     var body: some View {
         HStack(spacing: 14) {
             Image(systemName: icon)
-                .font(.system(size: 16, weight: .medium))
+                .snapSymbol(16, weight: .medium)
                 .foregroundStyle(Color.snapTerracotta)
                 .frame(width: 24)
 
@@ -223,7 +223,7 @@ private struct SettingsRow: View {
         Button(action: action) {
             HStack(spacing: 14) {
                 Image(systemName: icon)
-                    .font(.system(size: 16, weight: .medium))
+                    .snapSymbol(16, weight: .medium)
                     .foregroundStyle(destructive ? Color.red : Color.snapTerracotta)
                     .frame(width: 24)
 

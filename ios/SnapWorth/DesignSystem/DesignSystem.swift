@@ -488,11 +488,46 @@ struct ShimmerModifier: ViewModifier {
 extension View {
     func shimmering() -> some View { modifier(ShimmerModifier()) }
 
+    /// Sizes an SF Symbol so it scales with Dynamic Type.
+    ///
+    /// `.font(.system(size:))` pins a symbol at a fixed point size, so it stays
+    /// small while surrounding text grows — the icon ends up visually detached
+    /// from its label. `@ScaledMetric` tracks the text style *and* honours
+    /// per-view `dynamicTypeSize` clamps.
+    func snapSymbol(
+        _ size: CGFloat,
+        weight: Font.Weight = .regular,
+        relativeTo style: Font.TextStyle = .body
+    ) -> some View {
+        modifier(ScaledSymbolModifier(size: size, weight: weight, style: style))
+    }
+
+    /// Minimum 44×44pt hit target (Apple HIG). Expands the tappable area
+    /// without changing the visual size.
+    func snapHitTarget(_ minimum: CGFloat = 44) -> some View {
+        frame(minWidth: minimum, minHeight: minimum)
+            .contentShape(Rectangle())
+    }
+
     /// Applies an animation unless Reduce Motion is enabled, in which case the
     /// state change still happens — just without the movement. Use this instead
     /// of `.animation(_:value:)` for anything decorative or continuous.
     func snapAnimation<V: Equatable>(_ animation: Animation?, value: V) -> some View {
         modifier(MotionAwareAnimation(animation: animation, value: value))
+    }
+}
+
+private struct ScaledSymbolModifier: ViewModifier {
+    @ScaledMetric private var scaledSize: CGFloat
+    private let weight: Font.Weight
+
+    init(size: CGFloat, weight: Font.Weight, style: Font.TextStyle) {
+        _scaledSize = ScaledMetric(wrappedValue: size, relativeTo: style)
+        self.weight = weight
+    }
+
+    func body(content: Content) -> some View {
+        content.font(.system(size: scaledSize, weight: weight))
     }
 }
 
@@ -533,7 +568,7 @@ struct AnalyzingOverlay: View {
                     .frame(width: 72, height: 72)
                     .overlay(
                         Image(systemName: "sparkle")
-                            .font(.system(size: 28, weight: .light))
+                            .snapSymbol(28, weight: .light)
                             .foregroundStyle(Color.snapTerracotta)
                             .shimmering()
                     )

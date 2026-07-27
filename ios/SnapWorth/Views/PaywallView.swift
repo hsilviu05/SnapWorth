@@ -17,7 +17,7 @@ struct PaywallView: View {
                     let isYearly = vm.selectedProductID == Config.yearlyProductID
                     VStack(spacing: 16) {
                         Image(systemName: "sparkle")
-                            .font(.system(size: 44, weight: .light))
+                            .snapSymbol(44, weight: .light)
                             .foregroundStyle(Color.snapTerracotta)
                             .symbolRenderingMode(.hierarchical)
                             .padding(.top, 56)
@@ -129,7 +129,7 @@ struct PaywallView: View {
                     dismiss()
                 } label: {
                     Image(systemName: "xmark")
-                        .font(.system(size: 14, weight: .semibold))
+                        .snapSymbol(14, weight: .semibold)
                         .foregroundStyle(Color.snapWarmGray)
                         .padding(10)
                         .background(Color.snapBorder)
@@ -168,7 +168,7 @@ private struct BenefitRow: View {
     var body: some View {
         HStack(spacing: 12) {
             Image(systemName: icon)
-                .font(.system(size: 16, weight: .medium))
+                .snapSymbol(16, weight: .medium)
                 .foregroundStyle(Color.snapSage)
                 .frame(width: 24)
 

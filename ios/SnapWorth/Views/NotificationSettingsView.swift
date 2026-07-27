@@ -20,7 +20,7 @@ struct NotificationSettingsView: View {
                     } label: {
                         HStack(spacing: 14) {
                             Image(systemName: "bell.slash")
-                                .font(.system(size: 16, weight: .medium))
+                                .snapSymbol(16, weight: .medium)
                                 .foregroundStyle(Color.snapTerracotta)
                                 .frame(width: 24)
                             VStack(alignment: .leading, spacing: 2) {
@@ -64,7 +64,7 @@ struct NotificationSettingsView: View {
         Toggle(isOn: binding) {
             HStack(spacing: 14) {
                 Image(systemName: icon)
-                    .font(.system(size: 16, weight: .medium))
+                    .snapSymbol(16, weight: .medium)
                     .foregroundStyle(Color.snapTerracotta)
                     .frame(width: 24)
                 Text(label)
