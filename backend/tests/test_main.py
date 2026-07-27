@@ -109,7 +109,7 @@ class TestHealthEndpoint:
         assert client.get("/health").json()["status"] == "ok"
 
     def test_version_present(self):
-        assert client.get("/health").json()["version"] == "1.0.0"
+        assert client.get("/health").json()["version"] == "1.2.0"
 
 
 # ── GET /privacy and /terms ───────────────────────────────────────────────────

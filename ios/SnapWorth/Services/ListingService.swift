@@ -180,6 +180,7 @@ actor ListingAPIClient {
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue(deviceID, forHTTPHeaderField: "x-device-id")
+        await request.attachBearerToken()
         request.httpBody = try JSONEncoder().encode(body)
 
         let (data, response) = try await session.data(for: request)

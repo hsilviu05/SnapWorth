@@ -21,10 +21,20 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, Field
 
+import auditlog
+import auth
+import cache as cache_module
+import devicecheck
 import imagevalidation
 import promptsafety
 import ratelimit
+import tokens
+from auditlog import AuditEvent
+from auth import Principal, consume_quota, enforce_quota, require_auth
+from entitlements import EntitlementService
+from fastapi import Depends
 from observability import RequestContextMiddleware, configure_logging
+from quota import ScanQuota
 from ratelimit import (
     IP_RATE_MAX_REQUESTS,
     RATE_MAX_REQUESTS,
@@ -46,15 +56,47 @@ if not _api_key:
     log.warning("GEMINI_API_KEY is not set — scan requests will fail")
 genai.configure(api_key=_api_key)
 
+_PRODUCT_IDS = {"com.snapworth.monthly", "com.snapworth.yearly"}
+
+# Shared cache: entitlements, quota, challenges and attestation state.
+_cache: cache_module.ResilientCache | None = None
+
+
 @contextlib.asynccontextmanager
 async def _lifespan(_app: FastAPI):
+    global _cache
     await _init_rate_limiters()
+
+    _cache = await cache_module.build_cache()
+    dc = devicecheck.client_from_env()
+    auth.deps.cache = _cache
+    auth.deps.signer = tokens.signer_from_env()
+    auth.deps.device_check = dc
+    auth.deps.entitlements = EntitlementService(
+        _cache, auth.deps.config.bundle_id, _PRODUCT_IDS)
+    auth.deps.quota = ScanQuota(_cache, dc, limit=int(
+        os.environ.get("FREE_SCANS_PER_DAY", "3")))
+
+    cfg = auth.deps.config
+    if cfg.enforce and not cfg.is_configured:
+        # Refuse to start in a state that would reject every real user.
+        raise RuntimeError(
+            "REQUIRE_APP_ATTEST is on but APPLE_TEAM_ID/APPLE_BUNDLE_ID are unset"
+        )
+    log.info("auth initialised", extra={
+        "enforcing": cfg.enforce,
+        "app_id": cfg.app_id if cfg.is_configured else "unconfigured",
+        "devicecheck": dc.is_configured,
+        "cache": _cache.backend,
+        "token_kids": auth.deps.signer.active_kids,
+    })
     yield
 
 
-app = FastAPI(title="SnapWorth API", version="1.1.0", lifespan=_lifespan)
+app = FastAPI(title="SnapWorth API", version="1.2.0", lifespan=_lifespan)
 
 app.add_middleware(RequestContextMiddleware)
+app.include_router(auth.router)
 
 # The API serves a native app, which sends no Origin header and is unaffected by
 # CORS. A wildcard only widens the browser-reachable surface, so origins are
@@ -354,8 +396,25 @@ def _extract_json(text: str) -> dict:
 
 # ── Endpoints ────────────────────────────────────────────────────────────────
 @app.get("/health")
-def health() -> dict:
-    return {"status": "ok", "version": "1.0.0", "ai_key_set": bool(_api_key)}
+async def health() -> dict:
+    """Liveness plus dependency posture.
+
+    Reports *degraded* rather than failing when the cache is down: the service
+    can still serve authenticated Pro traffic, and a hard-fail here would take
+    the app offline for a recoverable dependency.
+    """
+    payload: dict = {
+        "status": "ok",
+        "version": "1.2.0",
+        "ai_key_set": bool(_api_key),
+        "auth_enforcing": auth.deps.config.enforce,
+    }
+    if _cache is not None:
+        cache_health = await _cache.health()
+        payload["cache"] = cache_health
+        if cache_health.get("degraded"):
+            payload["status"] = "degraded"
+    return payload
 
 
 _STYLE = """
@@ -456,8 +515,9 @@ async def scan(
     request: Request,
     file: UploadFile = File(...),
     x_device_id: str = Header(default="anonymous", alias="x-device-id"),
+    principal: Principal = Depends(require_auth),
 ) -> ScanResponse:
-    device_short = x_device_id[:8]
+    device_short = auditlog.pseudonymise(principal.subject)
 
     declared_type = file.content_type or "application/octet-stream"
 
@@ -480,10 +540,17 @@ async def scan(
     try:
         content_type = imagevalidation.validate(image_bytes, declared_type)
     except imagevalidation.ImageValidationError as exc:
+        auditlog.record(AuditEvent.UPLOAD_REJECTED, principal.subject,
+                        outcome="denied", reason=str(exc))
         raise HTTPException(status_code=400, detail=str(exc)) from None
 
     # Gate on rate limit only after validation — bad requests don't burn quota
-    await _enforce_limits(x_device_id, _client_ip(request))
+    await _enforce_limits(principal.subject, _client_ip(request))
+
+    # Free allowance is checked before the paid third-party call, and consumed
+    # only after it succeeds, so a failed scan is never charged.
+    await enforce_quota(principal)
+    auditlog.record(AuditEvent.SCAN_AUTHORISED, principal.subject, tier=principal.tier)
 
     log.info("scan start", extra={"device": device_short, "size_kb": image_kb,
                                   "type": content_type})
@@ -545,6 +612,9 @@ async def scan(
                                "confidence": confidence, "clamped": was_clamped,
                                "elapsed_s": round(elapsed, 2)})
 
+    # Charge only for work that produced a result.
+    await consume_quota(principal)
+
     return ScanResponse(
         item_name=item_name or "Unknown Item",
         brand=promptsafety.sanitize_text(
@@ -589,6 +659,7 @@ async def listing(
     request: Request,
     req: ListingRequest,
     x_device_id: str = Header(default="anonymous", alias="x-device-id"),
+    principal: Principal = Depends(require_auth),
 ) -> ListingResponse:
     """Snap → Sell: turn a structured valuation into a marketplace-ready listing.
 
@@ -608,7 +679,9 @@ async def listing(
     if req.condition not in _VALID_CONDITIONS:
         req.condition = "good"
 
-    await _enforce_limits(x_device_id, _client_ip(request))
+    await _enforce_limits(principal.subject, _client_ip(request))
+    auditlog.record(AuditEvent.LISTING_AUTHORISED, principal.subject,
+                    marketplace=marketplace, tier=principal.tier)
 
     prompt = _listing_prompt(req)
     last_exc: Exception | None = None
@@ -639,9 +712,9 @@ async def listing(
         return _fallback_listing(req)
 
     result = _validate_listing(data, req)
-    log.info("listing ok device=%s market=%s item=%r ask=$%.0f floor=$%.0f",
-             x_device_id[:8], marketplace, result.title, result.listing_price,
-             result.negotiation_floor)
+    log.info("listing ok", extra={
+        "device": auditlog.pseudonymise(principal.subject), "marketplace": marketplace,
+        "ask": result.listing_price, "floor": result.negotiation_floor})
     return result
 
 

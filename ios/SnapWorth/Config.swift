@@ -9,6 +9,24 @@ enum Config {
     /// Flip to false once your backend is deployed and the URL above is set.
     static let mockMode = false
 
+    // ── Transport security ───────────────────────────────────────────────────
+    /// Base64 SHA-256 hashes of pinned SubjectPublicKeyInfo blobs for
+    /// `api.snapworth.eu`. **Empty means pinning is inert** — see
+    /// `CertificatePinning.swift` for the exact `openssl` commands that produce
+    /// these, and pin the *intermediate* CA plus a backup, never a bare leaf.
+    static let pinnedSPKIHashes: Set<String> = []
+
+    /// When false, a pin mismatch is logged but the request proceeds. Ship one
+    /// release in report-only mode before enforcing, so a wrong pin surfaces in
+    /// logs instead of bricking the app.
+    static let pinningEnforced = false
+
+    // ── Authentication ───────────────────────────────────────────────────────
+    /// When true the client attests before calling the API and sends a bearer
+    /// token. Must be turned on together with `REQUIRE_APP_ATTEST` on the
+    /// server — enabling either side alone breaks the other.
+    static let useAttestation = true
+
     // ── Subscription ─────────────────────────────────────────────────────────
     static let monthlyProductID = "com.snapworth.monthly"
     static let yearlyProductID  = "com.snapworth.yearly"

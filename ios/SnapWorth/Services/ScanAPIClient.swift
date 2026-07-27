@@ -114,7 +114,10 @@ actor ScanAPIClient {
         let endpoint = Config.baseURL.appendingPathComponent("scan")
         var request = URLRequest(url: endpoint)
         request.httpMethod = "POST"
+        // Retained during rollout: the server falls back to this when
+        // attestation isn't enforced yet.
         request.setValue(deviceID, forHTTPHeaderField: "x-device-id")
+        await request.attachBearerToken()
 
         let boundary = "Boundary-\(UUID().uuidString)"
         request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")

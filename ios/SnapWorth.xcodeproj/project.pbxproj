@@ -23,6 +23,9 @@
 		FEED000000000000000000B3 /* MarketplaceFees.swift in Sources */ = {isa = PBXBuildFile; fileRef = FEED000000000000000000A3 /* MarketplaceFees.swift */; };
 		FEED000000000000000000B2 /* PriceTagOCR.swift in Sources */ = {isa = PBXBuildFile; fileRef = FEED000000000000000000A2 /* PriceTagOCR.swift */; };
 		FEED000000000000000000B1 /* ListingService.swift in Sources */ = {isa = PBXBuildFile; fileRef = FEED000000000000000000A1 /* ListingService.swift */; };
+		FEED0000000000000000D30 /* CertificatePinning.swift in Sources */ = {isa = PBXBuildFile; fileRef = FEED0000000000000000C30 /* CertificatePinning.swift */; };
+		FEED0000000000000000D20 /* TokenStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = FEED0000000000000000C20 /* TokenStore.swift */; };
+		FEED0000000000000000D10 /* AttestationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = FEED0000000000000000C10 /* AttestationService.swift */; };
 		AA00000000000000000000D1 /* CameraManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000000D0 /* CameraManager.swift */; };
 		AA00000000000000000000D3 /* OnboardingViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000000D2 /* OnboardingViewModel.swift */; };
 		AA00000000000000000000D5 /* PaywallViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000000D4 /* PaywallViewModel.swift */; };
@@ -108,6 +111,9 @@
 		FEED000000000000000000A3 /* MarketplaceFees.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarketplaceFees.swift; sourceTree = "<group>"; };
 		FEED000000000000000000A2 /* PriceTagOCR.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PriceTagOCR.swift; sourceTree = "<group>"; };
 		FEED000000000000000000A1 /* ListingService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ListingService.swift; sourceTree = "<group>"; };
+		FEED0000000000000000C30 /* CertificatePinning.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CertificatePinning.swift; sourceTree = "<group>"; };
+		FEED0000000000000000C20 /* TokenStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TokenStore.swift; sourceTree = "<group>"; };
+		FEED0000000000000000C10 /* AttestationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AttestationService.swift; sourceTree = "<group>"; };
 		AA00000000000000000000D0 /* CameraManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraManager.swift; sourceTree = "<group>"; };
 		AA00000000000000000000D2 /* OnboardingViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingViewModel.swift; sourceTree = "<group>"; };
 		AA00000000000000000000D4 /* PaywallViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaywallViewModel.swift; sourceTree = "<group>"; };
@@ -257,6 +263,9 @@
 				AA0000000000000000000112 /* ScanRepository.swift */,
 				FEED000000000000000000A2 /* PriceTagOCR.swift */,
 				FEED000000000000000000A1 /* ListingService.swift */,
+				FEED0000000000000000C30 /* CertificatePinning.swift */,
+				FEED0000000000000000C20 /* TokenStore.swift */,
+				FEED0000000000000000C10 /* AttestationService.swift */,
 				BB0000000000000000000009 /* WidgetDataStore.swift */,
 				ADD1EC0000000000000000B1 /* Analytics.swift */,
 				ADD1EC0000000000000000B3 /* TelemetryDeckAnalytics.swift */,
@@ -508,6 +517,9 @@
 				FEED000000000000000000B3 /* MarketplaceFees.swift in Sources */,
 				FEED000000000000000000B2 /* PriceTagOCR.swift in Sources */,
 				FEED000000000000000000B1 /* ListingService.swift in Sources */,
+				FEED0000000000000000D30 /* CertificatePinning.swift in Sources */,
+				FEED0000000000000000D20 /* TokenStore.swift in Sources */,
+				FEED0000000000000000D10 /* AttestationService.swift in Sources */,
 				BB000000000000000000000A /* WidgetDataStore.swift in Sources */,
 				AA00000000000000000000D1 /* CameraManager.swift in Sources */,
 				AA00000000000000000000D3 /* OnboardingViewModel.swift in Sources */,

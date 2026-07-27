@@ -333,9 +333,11 @@ class TestErrorLeakage:
         assert "Traceback" not in r.text
 
     def test_rate_limit_error_message_is_safe(self):
-        from fastapi import HTTPException
+        # Rate limits key on the authenticated subject, not the client-supplied
+        # device header (which is spoofable). Unenforced requests map to
+        # "legacy:<device-id>".
         for _ in range(20):
-            _check_rate_limit("leak-rate-test")
+            _check_rate_limit("legacy:leak-rate-test")
         r = _scan(device_id="leak-rate-test")
         assert r.status_code == 429
         detail = r.json()["detail"]

@@ -9,3 +9,10 @@ Pillow==11.0.0
 # Distributed rate limiting. Optional at runtime: without REDIS_URL the limiter
 # degrades to per-process counters (see ratelimit.py).
 redis==5.2.1
+# App Attest attestation objects are CBOR-encoded.
+cbor2==5.6.5
+# StoreKit 2 signed transactions are ES256 JWS.
+PyJWT==2.10.1
+cryptography==44.0.0
+# DeviceCheck API calls.
+httpx==0.28.1
