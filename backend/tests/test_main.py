@@ -17,6 +17,7 @@ import sys, os
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
 from main import app, _extract_json, _check_rate_limit, _rate_store, _ip_rate_store
+from tests.images import VALID_PNG, padded_image_bytes
 
 client = TestClient(app)
 
@@ -143,7 +144,7 @@ MOCK_RESPONSE_JSON = {
 }
 
 def _make_scan_request(content_type="image/jpeg", size=1024, device_id="test-device"):
-    image_data = b"\xff\xd8\xff" + b"\x00" * size  # fake JPEG header
+    image_data = padded_image_bytes("JPEG", size)
     return client.post(
         "/scan",
         files={"file": ("scan.jpg", io.BytesIO(image_data), content_type)},
@@ -235,13 +236,15 @@ class TestScanEndpoint:
             r = _make_scan_request(device_id="fail-test")
         assert r.status_code == 502
 
-    def test_malformed_json_from_gemini_returns_500(self):
+    def test_malformed_json_from_gemini_returns_502(self):
+        # An unparseable upstream reply is an upstream failure, not a bug in this
+        # service, so it surfaces as 502. One reformat retry runs first.
         mock_response = MagicMock()
         mock_response.text = "I cannot identify this item."
         with patch("main._model") as mock_model:
             mock_model.generate_content_async = AsyncMock(return_value=mock_response)
             r = _make_scan_request(device_id="malformed-test")
-        assert r.status_code == 500
+        assert r.status_code == 502
 
     def test_accepts_png(self):
         mock_response = MagicMock()
@@ -250,7 +253,7 @@ class TestScanEndpoint:
             mock_model.generate_content_async = AsyncMock(return_value=mock_response)
             r = client.post(
                 "/scan",
-                files={"file": ("scan.png", io.BytesIO(b"\x89PNG\r\n" + b"\x00" * 512), "image/png")},
+                files={"file": ("scan.png", io.BytesIO(VALID_PNG), "image/png")},
                 headers={"x-device-id": "png-test"},
             )
         assert r.status_code == 200

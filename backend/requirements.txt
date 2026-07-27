@@ -4,3 +4,8 @@ google-generativeai==0.8.3
 python-multipart==0.0.12
 python-dotenv==1.0.1
 pydantic==2.10.3
+# Header-only image inspection for upload validation (decompression-bomb guard).
+Pillow==11.0.0
+# Distributed rate limiting. Optional at runtime: without REDIS_URL the limiter
+# degrades to per-process counters (see ratelimit.py).
+redis==5.2.1

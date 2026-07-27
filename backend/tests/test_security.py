@@ -20,10 +20,11 @@ from main import (
     app, _check_rate_limit, _rate_store, _ip_rate_store, IP_RATE_MAX_REQUESTS,
     _extract_json, _safe_float, _safe_int,
 )
+from tests.images import image_bytes as _img, padded_image_bytes as _padded
 
 client = TestClient(app)
 
-VALID_JPEG = b"\xff\xd8\xff" + b"\x00" * 512
+VALID_JPEG = _img("JPEG")
 
 MOCK_AI_RESPONSE = {
     "item_name": "Nike Shoes",
@@ -84,7 +85,7 @@ class TestSecurityHeaders:
         with patch("main._model") as m:
             m.generate_content_async = AsyncMock(return_value=mock)
             r = _scan(device_id="parse-leak-test")
-        assert r.status_code == 500
+        assert r.status_code == 502
         detail = r.json()["detail"]
         assert "JSONDecodeError" not in detail
         assert "Expecting value" not in detail
@@ -142,14 +143,14 @@ class TestFileUploadSecurity:
         assert r.status_code == 400
 
     def test_rejects_exactly_10mb_plus_one_byte(self):
-        big = b"\xff\xd8\xff" + b"\x00" * (10 * 1024 * 1024)
+        big = _img("JPEG") + b"\x00" * (10 * 1024 * 1024)
         r = _scan(content=big)
         assert r.status_code == 400
         assert "10 MB" in r.json()["detail"]
 
     def test_accepts_exactly_10mb(self):
         # 10MB - 3 bytes (for the JPEG header) to stay just under limit
-        near_limit = b"\xff\xd8\xff" + b"\x00" * (10 * 1024 * 1024 - 4)
+        near_limit = _padded("JPEG", 10 * 1024 * 1024 - 1)
         mock = MagicMock()
         mock.text = json.dumps(MOCK_AI_RESPONSE)
         with patch("main._model") as m:
@@ -173,11 +174,11 @@ class TestFileUploadSecurity:
         assert r.status_code in (200, 400, 422)
 
     def test_webp_accepted(self):
-        r = _mock_scan(content=b"RIFF\x00\x00\x00\x00WEBPVP8 " + b"\x00" * 100, mime="image/webp")
+        r = _mock_scan(content=_img("WEBP"), mime="image/webp")
         assert r.status_code == 200
 
     def test_gif_accepted(self):
-        r = _mock_scan(content=b"GIF89a" + b"\x00" * 100, mime="image/gif")
+        r = _mock_scan(content=_img("GIF"), mime="image/gif")
         assert r.status_code == 200
 
 
@@ -322,7 +323,7 @@ class TestErrorLeakage:
         with patch("main._model") as m:
             m.generate_content_async = AsyncMock(return_value=mock)
             r = _scan(device_id="raw-test")
-        assert r.status_code == 500
+        assert r.status_code == 502
         assert "GEMINI_API_KEY" not in r.text
         assert "secret123" not in r.text
 
@@ -421,17 +422,16 @@ class TestRateLimitMemorySafety:
         assert len(_rate_store) == 1000
 
     def test_stale_entries_cleaned_up(self):
-        from main import RATE_WINDOW_SECS
-        import main
+        from main import RATE_WINDOW_SECS, _device_memory
         # Inject old timestamps that should be cleaned
         _rate_store["old-device"] = [time.time() - RATE_WINDOW_SECS - 1]
-        old_cleanup = main._last_cleanup
-        main._last_cleanup = time.time() - 700  # Pretend 700s since last cleanup
+        old_cleanup = _device_memory._last_cleanup
+        _device_memory._last_cleanup = time.time() - 700  # Pretend 700s elapsed
         _check_rate_limit("trigger-cleanup")
         # old-device should be pruned
         assert "old-device" not in _rate_store
         # Restore
-        main._last_cleanup = old_cleanup
+        _device_memory._last_cleanup = old_cleanup
 
     def test_rate_limit_window_is_sliding(self):
         from main import RATE_WINDOW_SECS
