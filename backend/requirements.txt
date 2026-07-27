@@ -2,7 +2,7 @@ fastapi==0.115.5
 uvicorn[standard]==0.32.1
 google-generativeai==0.8.3
 python-multipart==0.0.12
-python-dotenv==1.0.1
+python-dotenv==1.2.2
 pydantic==2.10.3
 # Header-only image inspection for upload validation (decompression-bomb guard).
 Pillow==11.0.0
