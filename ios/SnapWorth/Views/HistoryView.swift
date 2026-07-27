@@ -294,6 +294,7 @@ private struct EmptyFindsView: View {
             .padding(.vertical, 12)
             .background(Color.snapTerracotta)
             .clipShape(Capsule())
+            .buttonStyle(PressableButtonStyle())
             .padding(.top, 4)
         }
     }

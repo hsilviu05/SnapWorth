@@ -145,6 +145,23 @@ extension View {
 }
 
 // ═══════════════════════════════════════════════════════════════════
+// MARK: - Pressable Button Style
+// ═══════════════════════════════════════════════════════════════════
+// A tactile press response used app-wide: a subtle scale + dim on press,
+// with a spring back. Gives every primary/ghost/chip button the same feel.
+
+struct PressableButtonStyle: ButtonStyle {
+    var scale: CGFloat = 0.97
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? scale : 1)
+            .opacity(configuration.isPressed ? 0.9 : 1)
+            .animation(.spring(response: 0.3, dampingFraction: 0.6), value: configuration.isPressed)
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════
 // MARK: - Primary Button
 // ═══════════════════════════════════════════════════════════════════
 
@@ -170,6 +187,7 @@ struct PrimaryButton: View {
             .background(Color.snapTerracotta)
             .clipShape(Capsule())
         }
+        .buttonStyle(PressableButtonStyle())
         .disabled(isLoading)
         .animation(.easeInOut(duration: 0.2), value: isLoading)
     }
@@ -203,6 +221,7 @@ struct GhostButton: View {
                     .strokeBorder(Color.snapTerracotta, lineWidth: 1.5)
             )
         }
+        .buttonStyle(PressableButtonStyle())
         .disabled(isLoading)
     }
 }

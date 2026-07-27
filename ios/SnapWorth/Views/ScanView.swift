@@ -13,6 +13,10 @@ struct ScanView: View {
     @State private var showNotifPriming = false
     @State private var showThriftFlip = false
 
+    /// Value-first paywall: the intro paywall is deferred until the user has
+    /// actually seen their first result. Shown once, then never again here.
+    @AppStorage("hasSeenFirstResultPaywall") private var hasSeenFirstResultPaywall = false
+
     var body: some View {
         let isAnalyzing = vm.isAnalyzing
         ZStack {
@@ -182,8 +186,23 @@ struct ScanView: View {
             // Runs whether the user taps "Done" or swipes down
             vm.reset()
             cameraManager.capturedImage = nil
-            // Reaching here means a scan just succeeded — a moment of demonstrated
-            // value. Prime for notifications once, only if never decided.
+
+            // Value-first paywall: the user has now seen a real result. If this is
+            // their first one and they're not subscribed, surface the intro paywall
+            // (and skip notif priming this round so we don't stack two prompts).
+            if !purchaseService.isSubscribed && !hasSeenFirstResultPaywall {
+                hasSeenFirstResultPaywall = true
+                vm.paywallTrigger = .onboarding
+                Task {
+                    // Let the result sheet finish dismissing before presenting.
+                    try? await Task.sleep(for: .milliseconds(400))
+                    vm.showPaywall = true
+                }
+                return
+            }
+
+            // Otherwise this is a moment of demonstrated value — prime for
+            // notifications once, only if never decided.
             Task {
                 if await NotificationManager.shared.shouldPrimeAfterScan() {
                     showNotifPriming = true

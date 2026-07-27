@@ -9,10 +9,25 @@ struct OnboardingView: View {
             Color.snapBackground.ignoresSafeArea()
 
             VStack(spacing: 0) {
+                // ── Skip (top-right, hidden on last page) ─────────────────
+                HStack {
+                    Spacer()
+                    if !vm.isLastPage {
+                        Button("Skip") { onFinish() }
+                            .font(.dmSans(15, weight: .medium))
+                            .foregroundStyle(Color.snapWarmGray)
+                            .transition(.opacity)
+                    }
+                }
+                .frame(height: 24)
+                .padding(.horizontal, 24)
+                .padding(.top, 8)
+                .animation(.easeInOut(duration: 0.2), value: vm.isLastPage)
+
                 // ── Slides ────────────────────────────────────────────────
                 TabView(selection: $vm.currentPage) {
                     ForEach(Array(vm.slides.enumerated()), id: \.element.id) { index, slide in
-                        SlideView(slide: slide)
+                        SlideView(slide: slide, isActive: index == vm.currentPage)
                             .tag(index)
                     }
                 }
@@ -35,7 +50,7 @@ struct OnboardingView: View {
                 // ── CTA ───────────────────────────────────────────────────
                 VStack(spacing: 12) {
                     PrimaryButton(
-                        title: vm.isLastPage ? "Get Started" : "Next"
+                        title: vm.isLastPage ? "Start scanning" : "Next"
                     ) {
                         if vm.isLastPage {
                             UIImpactFeedbackGenerator(style: .medium).impactOccurred()
@@ -43,12 +58,6 @@ struct OnboardingView: View {
                         } else {
                             vm.advance()
                         }
-                    }
-
-                    if !vm.isLastPage {
-                        Button("Skip") { onFinish() }
-                            .font(.snapBody)
-                            .foregroundStyle(Color.snapWarmGray)
                     }
                 }
                 .padding(.horizontal, 20)
@@ -62,24 +71,16 @@ struct OnboardingView: View {
 // MARK: - Slide View
 private struct SlideView: View {
     let slide: OnboardingSlide
+    let isActive: Bool
 
     var body: some View {
-        VStack(spacing: 32) {
+        VStack(spacing: 36) {
             Spacer()
 
-            // Polaroid-style tilted card
-            ZStack {
-                // Shadow card (stacked)
-                PolaroidCard(symbolName: slide.symbolName, tint: Color.snapBorder)
-                    .rotationEffect(.degrees(slide.rotation * 1.6))
-                    .offset(x: 12, y: 6)
-                    .opacity(0.5)
-
-                // Main card
-                PolaroidCard(symbolName: slide.symbolName, tint: Color.snapTerracotta.opacity(0.12))
-                    .rotationEffect(.degrees(slide.rotation))
-            }
-            .padding(.horizontal, 60)
+            OnboardingHeroView(slide: slide)
+                .scaleEffect(isActive ? 1 : 0.94)
+                .opacity(isActive ? 1 : 0.55)
+                .animation(.spring(response: 0.5, dampingFraction: 0.82), value: isActive)
 
             // Copy
             VStack(spacing: 12) {
@@ -102,31 +103,217 @@ private struct SlideView: View {
     }
 }
 
-private struct PolaroidCard: View {
-    let symbolName: String
-    let tint: Color
+// ═══════════════════════════════════════════════════════════════════
+// MARK: - Hero illustrations — previews of the real product
+// ═══════════════════════════════════════════════════════════════════
+
+private struct OnboardingHeroView: View {
+    let slide: OnboardingSlide
+    @State private var float = false
 
     var body: some View {
-        VStack(spacing: 0) {
+        content
+            .frame(height: 220)
+            .offset(y: float ? -6 : 6)
+            .animation(.easeInOut(duration: 2.6).repeatForever(autoreverses: true), value: float)
+            .onAppear { float = true }
+    }
+
+    @ViewBuilder private var content: some View {
+        switch slide.hero {
+        case .valueEstimate: ValueEstimateHero(accent: slide.accent)
+        case .snapSell:      SnapSellHero(accent: slide.accent)
+        case .thriftFlip:    ThriftFlipHero(accent: slide.accent)
+        case .trackFinds:    TrackFindsHero(accent: slide.accent)
+        }
+    }
+}
+
+// A mock result card — mirrors the real ResultView value moment.
+private struct ValueEstimateHero: View {
+    let accent: Color
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
             // "Photo" area
             ZStack {
-                RoundedRectangle(cornerRadius: 4)
-                    .fill(tint)
-                    .aspectRatio(1, contentMode: .fit)
-
-                Image(systemName: symbolName)
-                    .font(.system(size: 52, weight: .light))
+                LinearGradient(
+                    colors: [accent.opacity(0.22), accent.opacity(0.08)],
+                    startPoint: .topLeading, endPoint: .bottomTrailing
+                )
+                Image(systemName: "tshirt.fill")
+                    .font(.system(size: 46, weight: .light))
                     .symbolRenderingMode(.hierarchical)
-                    .foregroundStyle(Color.snapTerracotta)
+                    .foregroundStyle(accent)
+            }
+            .frame(height: 108)
+
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Vintage Wool Blazer")
+                    .font(.dmSans(13, weight: .medium))
+                    .foregroundStyle(Color.snapEspresso)
+
+                Text("$45–$90")
+                    .font(.fraunces(26, weight: .bold))
+                    .foregroundStyle(Color.snapSage)
+                    .fixedSize()
+
+                ConfidenceBadge(confidence: "High")
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(14)
+        }
+        .frame(width: 260)
+        .background(Color.snapCard)
+        .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+        .shadow(color: Color.snapCardShadow.opacity(0.12), radius: 20, x: 0, y: 10)
+        .rotationEffect(.degrees(-2))
+    }
+}
+
+// A mock listing draft — mirrors the Snap → Sell card.
+private struct SnapSellHero: View {
+    let accent: Color
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Text("Listing Draft")
+                    .font(.snapLabel)
+                    .foregroundStyle(Color.snapWarmGray)
+                Spacer()
+                Image(systemName: "sparkle")
+                    .font(.system(size: 13))
+                    .foregroundStyle(accent)
             }
 
-            // "Caption" strip
-            Rectangle()
-                .fill(Color.white)
-                .frame(height: 44)
+            Text("Vintage Wool Blazer — Timeless Tailored Fit")
+                .font(.dmSans(14, weight: .semibold))
+                .foregroundStyle(Color.snapEspresso)
+                .lineLimit(2)
+                .multilineTextAlignment(.leading)
+
+            // Redacted body lines
+            VStack(alignment: .leading, spacing: 6) {
+                ForEach([210.0, 178.0, 128.0], id: \.self) { w in
+                    Capsule()
+                        .fill(Color.snapBorder)
+                        .frame(width: w, height: 7)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+
+            // Marketplace chips
+            HStack(spacing: 6) {
+                ChipView(label: "eBay", color: accent.opacity(0.14), textColor: accent)
+                ChipView(label: "Vinted", color: Color.snapBorder)
+                ChipView(label: "Facebook", color: Color.snapBorder)
+            }
+            .padding(.top, 2)
         }
-        .background(Color.white)
-        .clipShape(RoundedRectangle(cornerRadius: 4))
-        .shadow(color: Color.snapCardShadow.opacity(0.12), radius: 12, x: 0, y: 6)
+        .padding(16)
+        .frame(width: 260)
+        .background(Color.snapCard)
+        .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+        .shadow(color: Color.snapCardShadow.opacity(0.12), radius: 20, x: 0, y: 10)
+        .rotationEffect(.degrees(2))
+    }
+}
+
+// A mock profit verdict — mirrors the Thrift Flip result.
+private struct ThriftFlipHero: View {
+    let accent: Color
+
+    var body: some View {
+        VStack(spacing: 14) {
+            HStack {
+                priceBlock(label: "You pay", value: "$8")
+                Image(systemName: "arrow.right")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(Color.snapWarmGray)
+                priceBlock(label: "Resell", value: "$45")
+            }
+
+            Divider().overlay(Color.snapBorder)
+
+            VStack(spacing: 4) {
+                Text("+$32 profit")
+                    .font(.fraunces(30, weight: .bold))
+                    .foregroundStyle(Color.snapSage)
+                Text("after marketplace fees")
+                    .font(.snapCaption)
+                    .foregroundStyle(Color.snapWarmGray)
+            }
+
+            Label("Worth flipping", systemImage: "checkmark.circle.fill")
+                .font(.dmSans(13, weight: .semibold))
+                .foregroundStyle(Color.snapSage)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
+                .background(Color.snapSage.opacity(0.14))
+                .clipShape(Capsule())
+        }
+        .padding(18)
+        .frame(width: 260)
+        .background(Color.snapCard)
+        .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+        .shadow(color: Color.snapCardShadow.opacity(0.12), radius: 20, x: 0, y: 10)
+    }
+
+    private func priceBlock(label: String, value: String) -> some View {
+        VStack(spacing: 2) {
+            Text(label)
+                .font(.snapCaption)
+                .foregroundStyle(Color.snapWarmGray)
+            Text(value)
+                .font(.dmSans(19, weight: .bold))
+                .foregroundStyle(Color.snapEspresso)
+        }
+        .frame(maxWidth: .infinity)
+    }
+}
+
+// A mock closet grid — mirrors My Finds.
+private struct TrackFindsHero: View {
+    let accent: Color
+
+    private let items: [(String, String, String)] = [
+        ("tshirt.fill", "Wool Blazer", "$45–$90"),
+        ("bag.fill", "Leather Tote", "$60–$120"),
+        ("shoe.fill", "Retro Sneakers", "$30–$70"),
+        ("eyeglasses", "Vintage Frames", "$25–$55"),
+    ]
+
+    var body: some View {
+        LazyVGrid(columns: [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)], spacing: 10) {
+            ForEach(Array(items.enumerated()), id: \.offset) { _, item in
+                VStack(alignment: .leading, spacing: 6) {
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            .fill(accent.opacity(0.12))
+                        Image(systemName: item.0)
+                            .font(.system(size: 20, weight: .light))
+                            .foregroundStyle(accent)
+                    }
+                    .frame(height: 48)
+
+                    Text(item.1)
+                        .font(.dmSans(11, weight: .medium))
+                        .foregroundStyle(Color.snapEspresso)
+                        .lineLimit(1)
+                    Text(item.2)
+                        .font(.fraunces(12, weight: .bold))
+                        .foregroundStyle(Color.snapSage)
+                }
+                .padding(8)
+                .background(Color.snapCard)
+                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+            }
+        }
+        .frame(width: 260)
+        .padding(12)
+        .background(Color.snapBackground)
+        .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+        .shadow(color: Color.snapCardShadow.opacity(0.10), radius: 18, x: 0, y: 8)
     }
 }

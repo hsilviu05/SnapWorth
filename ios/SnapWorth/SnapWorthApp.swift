@@ -80,14 +80,14 @@ extension Notification.Name {
 struct RootView: View {
     let purchaseService: any PurchaseService
     @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding = false
-    @State private var showPaywall = false
 
     var body: some View {
         Group {
             if !hasCompletedOnboarding {
                 OnboardingView {
                     hasCompletedOnboarding = true
-                    showPaywall = true
+                    // Value-first: no paywall here. It surfaces once the user has
+                    // seen their first scan result (handled in ScanView).
                 }
                 .transition(.opacity)
             } else {
@@ -96,8 +96,5 @@ struct RootView: View {
             }
         }
         .animation(.easeInOut(duration: 0.35), value: hasCompletedOnboarding)
-        .sheet(isPresented: $showPaywall) {
-            PaywallView(purchaseService: purchaseService, trigger: .onboarding)
-        }
     }
 }

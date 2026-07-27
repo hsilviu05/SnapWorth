@@ -8,22 +8,28 @@ final class OnboardingViewModel {
 
     let slides: [OnboardingSlide] = [
         OnboardingSlide(
+            hero: .valueEstimate,
             headline: "That $4 jacket?\nMight be $90.",
-            body: "SnapWorth reveals the hidden resale value in thrift store finds before you buy.",
-            symbolName: "tag.fill",
-            rotation: -4.0
+            body: "Point your camera at any thrift find and see its resale value in seconds — before you buy.",
+            accent: .snapSage
         ),
         OnboardingSlide(
-            headline: "Snap any item.\nWe do the rest.",
-            body: "Our AI identifies it and estimates what comparable items typically sell for — in seconds.",
-            symbolName: "camera.viewfinder",
-            rotation: 3.5
+            hero: .snapSell,
+            headline: "One snap.\nA ready listing.",
+            body: "SnapWorth writes the title and description for eBay, Vinted, Facebook and more. You paste and post.",
+            accent: .snapTerracotta
         ),
         OnboardingSlide(
-            headline: "Save finds.\nTrack your value.",
-            body: "Every scan is saved to your closet. See exactly how much hidden value you've uncovered over time.",
-            symbolName: "bag.fill",
-            rotation: -2.5
+            hero: .thriftFlip,
+            headline: "Buy smart.\nFlip for profit.",
+            body: "See your exact profit after marketplace fees, right there in the aisle.",
+            accent: .snapAmber
+        ),
+        OnboardingSlide(
+            hero: .trackFinds,
+            headline: "Every find,\nin one place.",
+            body: "Your scans are saved to your closet so you can watch the hidden value add up over time.",
+            accent: .snapSage
         ),
     ]
 
@@ -36,10 +42,18 @@ final class OnboardingViewModel {
     }
 }
 
+/// Which product moment a slide previews — selects the hero illustration.
+enum OnboardingHero {
+    case valueEstimate
+    case snapSell
+    case thriftFlip
+    case trackFinds
+}
+
 struct OnboardingSlide: Identifiable {
     let id = UUID()
+    let hero: OnboardingHero
     let headline: String
     let body: String
-    let symbolName: String
-    let rotation: Double
+    let accent: Color
 }
