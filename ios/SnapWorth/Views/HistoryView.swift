@@ -2,6 +2,8 @@ import SwiftUI
 import SwiftData
 
 struct HistoryView: View {
+    let purchaseService: any PurchaseService
+
     @Environment(\.modelContext) private var modelContext
     @Query private var results: [ScanResult]
     @State private var vm = HistoryViewModel()
@@ -165,7 +167,7 @@ struct HistoryView: View {
             .task { recapLabel = NotificationManager.shared.readyRecapLabel() }
         }
         .sheet(item: $selectedResult) { result in
-            ResultView(result: result, onDismiss: { selectedResult = nil })
+            ResultView(result: result, purchaseService: purchaseService, onDismiss: { selectedResult = nil })
         }
         .alert("Delete Failed", isPresented: Binding(
             get: { vm.deleteError != nil },
