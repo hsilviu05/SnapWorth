@@ -96,17 +96,22 @@ struct SettingsView: View {
                             Image(systemName: "chart.bar")
                                 .snapSymbol(16, weight: .medium)
                                 .foregroundStyle(Color.snapTerracotta)
-                                .frame(width: 24)
+                                .frame(minWidth: 24)
+                                .accessibilityHidden(true)
                             Text("Share anonymous analytics")
                                 .font(.snapBody)
                                 .foregroundStyle(Color.snapEspresso)
                         }
+                        .frame(minHeight: 44)
                     }
                     .tint(Color.snapTerracotta)
+                    .accessibilityLabel("Share anonymous analytics")
+                    .accessibilityHint("Anonymous usage only — never your photos, item names, or prices")
                 } header: {
                     Text("Privacy")
                 } footer: {
                     Text("Helps us improve SnapWorth. Anonymous usage only — never your photos, item names, or prices.")
+                        .fixedSize(horizontal: false, vertical: true)
                 }
 
                 // App version
@@ -118,6 +123,8 @@ struct SettingsView: View {
                             .foregroundStyle(Color.snapWarmGray)
                         Spacer()
                     }
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel("SnapWorth version \(Self.appVersion)")
                 }
                 .listRowBackground(Color.clear)
             }
@@ -160,10 +167,11 @@ private struct SubscriptionCard: View {
             Image(systemName: isSubscribed ? "crown.fill" : "crown")
                 .snapSymbol(24)
                 .foregroundStyle(Color.snapAmber)
+                .accessibilityHidden(true)
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(isSubscribed ? "SnapWorth Pro" : "Free Plan")
-                    .font(.dmSans(16, weight: .semibold))
+                    .font(.dmSans(16, weight: .semibold, relativeTo: .body))
                     .foregroundStyle(Color.snapEspresso)
                 Text(isSubscribed
                      ? "Unlimited scans · Active"
@@ -171,18 +179,32 @@ private struct SubscriptionCard: View {
                 )
                 .font(.snapCaption)
                 .foregroundStyle(Color.snapWarmGray)
+                .fixedSize(horizontal: false, vertical: true)
             }
+            // Status is one stop; the Upgrade button stays separately focusable.
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel(isSubscribed ? "SnapWorth Pro" : "Free Plan")
+            .accessibilityValue(isSubscribed
+                ? "Unlimited scans, active"
+                : "3 free scans a day")
 
             Spacer()
 
             if !isSubscribed {
                 Button("Upgrade", action: onUpgrade)
-                    .font(.dmSans(13, weight: .semibold))
-                    .foregroundStyle(Color.snapBackground)
+                    .font(.dmSans(13, weight: .semibold, relativeTo: .footnote))
+                    .foregroundStyle(Color.snapOnAccent)
+                    // Without these the surrounding text squeezes the button
+                    // at accessibility sizes and "Upgrade" breaks mid-word.
+                    .lineLimit(1)
+                    .fixedSize(horizontal: true, vertical: false)
                     .padding(.horizontal, 14)
                     .padding(.vertical, 7)
                     .background(Color.snapTerracotta)
                     .clipShape(Capsule())
+                    .snapHitTarget()
+                    .layoutPriority(1)
+                    .accessibilityHint("Opens subscription options for unlimited scans")
             }
         }
         .padding(16)
@@ -203,12 +225,15 @@ private struct SettingsRowLabel: View {
             Image(systemName: icon)
                 .snapSymbol(16, weight: .medium)
                 .foregroundStyle(Color.snapTerracotta)
-                .frame(width: 24)
+                .frame(minWidth: 24)
+                // Icon repeats the adjacent text; announcing it adds noise.
+                .accessibilityHidden(true)
 
             Text(label)
                 .font(.snapBody)
                 .foregroundStyle(Color.snapEspresso)
         }
+        .frame(minHeight: 44)
     }
 }
 
@@ -225,7 +250,8 @@ private struct SettingsRow: View {
                 Image(systemName: icon)
                     .snapSymbol(16, weight: .medium)
                     .foregroundStyle(destructive ? Color.red : Color.snapTerracotta)
-                    .frame(width: 24)
+                    .frame(minWidth: 24)
+                    .accessibilityHidden(true)
 
                 Text(label)
                     .font(.snapBody)
@@ -233,6 +259,13 @@ private struct SettingsRow: View {
 
                 Spacer()
             }
+            .frame(minHeight: 44)
         }
+        // SwiftUI has no destructive accessibility trait (unlike UIKit), and
+        // red text conveys nothing to VoiceOver — so the warning goes in the
+        // hint, where it is spoken before the user activates the control.
+        .accessibilityLabel(label)
+        .accessibilityAddTraits(.isButton)
+        .accessibilityHint(destructive ? "This cannot be undone" : "")
     }
 }

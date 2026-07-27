@@ -518,9 +518,13 @@ struct ResultView: View {
         Image(systemName: icon)
             .snapSymbol(14, weight: .semibold)
             .foregroundStyle(Color.snapEspresso)
+            // 36pt was below Apple's 44pt minimum touch target (HIG). The
+            // visible circle stays 36 so the toolbar look is unchanged; the
+            // tappable area is expanded around it.
             .frame(width: 36, height: 36)
             .background(.ultraThinMaterial)
             .clipShape(Circle())
+            .snapHitTarget()
     }
 
     // MARK: - Value Card
