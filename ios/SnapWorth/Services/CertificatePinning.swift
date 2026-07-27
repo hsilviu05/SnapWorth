@@ -135,8 +135,13 @@ extension URLSession {
     /// Shared session for API traffic. Uses pinning when configured.
     static let snapWorthAPI: URLSession = {
         let configuration = URLSessionConfiguration.default
-        configuration.waitsForConnectivity = true
         configuration.timeoutIntervalForRequest = 30
+        // Hard ceiling on the whole request. Without it the default is seven
+        // days, and because `waitsForConnectivity` is bounded by *this* value
+        // (not the request timeout), an offline scan would hang on "Analyzing…"
+        // indefinitely rather than failing so the user can retry.
+        configuration.timeoutIntervalForResource = 35
+        configuration.waitsForConnectivity = true
         return URLSession(
             configuration: configuration,
             delegate: CertificatePinningDelegate(),

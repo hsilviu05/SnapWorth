@@ -132,7 +132,14 @@ final class StoreKitPurchaseService: PurchaseService, ObservableObject {
         // transaction listener all funnel through here — which also makes it
         // self-healing if an earlier attempt failed offline.
         if let activeJWS {
-            await syncEntitlementToServer(activeJWS)
+            // Detached, not awaited: this sits inside the `purchase()` await
+            // chain on the main actor, and attestation plus the POST can take
+            // seconds (or block on a bad network). The local entitlement is
+            // already active, and every later status refresh retries, so the
+            // user must never wait on it to see their purchase complete.
+            Task.detached { [weak self] in
+                await self?.syncEntitlementToServer(activeJWS)
+            }
         }
         // Keep the courtesy "trial ends tomorrow" reminder in sync — schedules
         // when in a trial, cancels the moment the state changes.
