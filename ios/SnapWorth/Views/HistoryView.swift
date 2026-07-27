@@ -55,16 +55,23 @@ struct HistoryView: View {
                         if !results.isEmpty {
                             HStack {
                                 Image(systemName: "magnifyingglass")
+                                    .snapSymbol(15)
                                     .foregroundStyle(Color.snapWarmGray)
+                                    .accessibilityHidden(true)
                                 TextField("Search finds…", text: $vm.searchText)
                                     .font(.snapBody)
+                                    .accessibilityLabel("Search finds")
+                                    .accessibilityHint("Filters by item name or brand")
                                 if !vm.searchText.isEmpty {
                                     Button {
                                         vm.searchText = ""
                                     } label: {
                                         Image(systemName: "xmark.circle.fill")
+                                            .snapSymbol(15)
                                             .foregroundStyle(Color.snapWarmGray)
                                     }
+                                    .snapHitTarget()
+                                    .accessibilityLabel("Clear search")
                                 }
                             }
                             .padding(12)
@@ -109,9 +116,21 @@ struct HistoryView: View {
                                                         .foregroundStyle(.white, Color.red)
                                                         .background(Color.white.clipShape(Circle()))
                                                 }
+                                                .snapHitTarget()
                                                 .offset(x: 8, y: -8)
                                                 .transition(.scale.combined(with: .opacity))
+                                                .accessibilityLabel("Delete \(result.itemName)")
                                             }
+                                        }
+                                        // The card already carries a combined
+                                        // label (DesignSystem.ScanHistoryCard);
+                                        // add the tap semantics and a rotor
+                                        // action so delete is reachable without
+                                        // entering edit mode or long-pressing.
+                                        .accessibilityHint("Opens this find")
+                                        .accessibilityAddTraits(.isButton)
+                                        .accessibilityAction(named: "Delete") {
+                                            vm.delete(result, repository: repository)
                                         }
                                 }
                             }
@@ -135,8 +154,13 @@ struct HistoryView: View {
                                 isEditing.toggle()
                             }
                         }
-                        .font(.dmSans(16, weight: isEditing ? .semibold : .regular))
+                        .font(.dmSans(16, weight: isEditing ? .semibold : .regular,
+                                      relativeTo: .body))
                         .foregroundStyle(Color.snapTerracotta)
+                        .accessibilityLabel(isEditing ? "Done editing" : "Edit finds")
+                        .accessibilityHint(isEditing
+                            ? "Stops removing finds"
+                            : "Lets you remove finds from your closet")
                     }
                     ToolbarItem(placement: .navigationBarTrailing) {
                         Menu {
@@ -151,13 +175,23 @@ struct HistoryView: View {
                                         }
                                     }
                                 }
+                                // Menu rows convey the current choice with a
+                                // checkmark glyph; mirror it as a trait so
+                                // VoiceOver announces "selected".
+                                .accessibilityAddTraits(
+                                    vm.sortOrder == order ? [.isButton, .isSelected] : .isButton)
                             }
                         } label: {
                             Image(systemName: "arrow.up.arrow.down")
+                                .snapSymbol(16)
                                 .foregroundStyle(Color.snapTerracotta)
                         }
                         .disabled(isEditing)
                         .opacity(isEditing ? 0.4 : 1)
+                        .snapHitTarget()
+                        .accessibilityLabel("Sort")
+                        .accessibilityValue(vm.sortOrder.rawValue)
+                        .accessibilityHint("Changes the order of your finds")
                     }
                 }
             }
@@ -213,6 +247,12 @@ private struct RecapBanner: View {
             )
         }
         .buttonStyle(.plain)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Your \(month) recap is ready")
+        .accessibilityHint("Opens My Flips to see the month's results")
+        .accessibilityAddTraits(.isButton)
+        // Time-sensitive banner: surface it before the rest of the list.
+        .accessibilitySortPriority(100)
     }
 }
 
@@ -243,6 +283,12 @@ private struct TotalBanner: View {
             RoundedRectangle(cornerRadius: 20, style: .continuous)
                 .strokeBorder(Color.snapSage.opacity(0.2), lineWidth: 1)
         )
+        // The screen's headline figure: one stop, read before the grid.
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Your finds are worth")
+        .accessibilityValue("\(totalValue), from \(count) item\(count == 1 ? "" : "s") scanned")
+        .accessibilityAddTraits(.isSummaryElement)
+        .accessibilitySortPriority(90)
     }
 }
 
@@ -255,16 +301,19 @@ private struct NoSearchResultsView: View {
             Image(systemName: "magnifyingglass")
                 .snapSymbol(48, weight: .light)
                 .foregroundStyle(Color.snapBorder)
+                .accessibilityHidden(true)
 
             Text("No results for \"\(query)\"")
-                .font(.fraunces(20, weight: .bold))
+                .font(.fraunces(20, weight: .bold, relativeTo: .title3))
                 .foregroundStyle(Color.snapEspresso)
 
             Text("Try a different item name or brand.")
                 .font(.snapBody)
                 .foregroundStyle(Color.snapWarmGray)
                 .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
         }
+        .accessibilityElement(children: .combine)
     }
 }
 
@@ -275,27 +324,31 @@ private struct EmptyFindsView: View {
             Image(systemName: "bag")
                 .snapSymbol(48, weight: .light)
                 .foregroundStyle(Color.snapBorder)
+                .accessibilityHidden(true)
 
             Text("No finds yet")
-                .font(.fraunces(20, weight: .bold))
+                .font(.fraunces(20, weight: .bold, relativeTo: .title3))
                 .foregroundStyle(Color.snapEspresso)
 
             Text("Scan your first thrift item\nto see its resale value here.")
                 .font(.snapBody)
                 .foregroundStyle(Color.snapWarmGray)
                 .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
 
             Button("Start scanning") {
                 NotificationCenter.default.post(name: .snapSwitchToScan, object: nil)
             }
-            .font(.dmSans(15, weight: .semibold))
-            .foregroundStyle(Color.snapBackground)
+            .font(.dmSans(15, weight: .semibold, relativeTo: .subheadline))
+            .foregroundStyle(Color.snapOnAccent)
             .padding(.horizontal, 28)
             .padding(.vertical, 12)
             .background(Color.snapTerracotta)
             .clipShape(Capsule())
             .buttonStyle(PressableButtonStyle())
+            .snapHitTarget()
             .padding(.top, 4)
+            .accessibilityHint("Switches to the camera to scan your first item")
         }
     }
 }
