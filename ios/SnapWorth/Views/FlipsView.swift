@@ -209,18 +209,32 @@ struct FlipsView: View {
                 let selected = vm.filter == f
                 Button { vm.filter = f } label: {
                     Text(f.rawValue)
-                        .font(.dmSans(13, weight: .semibold))
+                        .font(.dmSans(13, weight: .semibold, relativeTo: .footnote))
+                        // Both tokens adapt together, so the pairing stays
+                        // legible in either theme (dark chip + cream text in
+                        // light; cream chip + dark text in dark).
                         .foregroundStyle(selected ? Color.snapBackground : Color.snapWarmGray)
+                        .lineLimit(1)
                         .padding(.horizontal, 14)
                         .padding(.vertical, 7)
                         .background(selected ? Color.snapEspresso : Color.clear)
                         .clipShape(Capsule())
-                        .overlay(Capsule().strokeBorder(Color.snapBorder, lineWidth: selected ? 0 : 1))
+                        // Selection carried by border weight as well as fill,
+                        // for Differentiate Without Color.
+                        .overlay(Capsule().strokeBorder(
+                            selected ? Color.snapEspresso : Color.snapBorder,
+                            lineWidth: selected ? 2 : 1))
                 }
                 .buttonStyle(.plain)
+                .snapHitTarget()
+                .accessibilityLabel(f.rawValue)
+                .accessibilityAddTraits(selected ? [.isButton, .isSelected] : .isButton)
             }
             Spacer()
         }
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("Filter")
+        .accessibilityValue(vm.filter.rawValue)
     }
 
     // MARK: - Item row
@@ -247,6 +261,30 @@ struct FlipsView: View {
             .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
         }
         .buttonStyle(.plain)
+        // One stop per row: name, status, and the money figure — rather than a
+        // thumbnail plus three fragments.
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(item.itemName)
+        .accessibilityValue(rowAccessibilityValue(item))
+        .accessibilityHint("Opens this flip")
+        .accessibilityAddTraits(.isButton)
+    }
+
+    /// Status plus the trailing figure, phrased so profit and loss are
+    /// distinguishable without relying on sage vs terracotta.
+    private func rowAccessibilityValue(_ item: ScanResult) -> String {
+        var parts = [item.status.label]
+        if item.status == .sold {
+            if let profit = item.realizedProfit {
+                let money = vm.signedMoney(profit)
+                parts.append(profit < 0 ? "Loss of \(money)" : "Profit of \(money)")
+            } else {
+                parts.append("Profit unknown — add what you paid")
+            }
+        } else if let paid = item.paidPrice {
+            parts.append("Paid \(vm.money(Decimal(paid)))")
+        }
+        return parts.joined(separator: ". ")
     }
 
     @ViewBuilder
@@ -267,14 +305,19 @@ struct FlipsView: View {
 
     private func statusBadge(_ status: FlipStatus) -> some View {
         HStack(spacing: 4) {
+            // Status is already carried by a distinct glyph per case, so it
+            // does not depend on colour.
             Image(systemName: status.systemImage).snapSymbol(9, weight: .semibold)
-            Text(status.label).font(.dmSans(10, weight: .semibold))
+            Text(status.label).font(.dmSans(10, weight: .semibold, relativeTo: .caption2))
         }
         .foregroundStyle(Color.snapWarmGray)
         .padding(.horizontal, 8)
         .padding(.vertical, 3)
         .background(Color.snapBackground)
         .clipShape(Capsule())
+        // Spoken as part of the row's combined label.
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(status.label)
     }
 
     @ViewBuilder
@@ -306,16 +349,21 @@ struct FlipsView: View {
             HStack(spacing: 10) {
                 Image(systemName: "lock.fill").snapSymbol(14, weight: .semibold)
                 Text("Unlock \(hidden) more + all-time totals")
-                    .font(.dmSans(14, weight: .semibold))
+                    .font(.dmSans(14, weight: .semibold, relativeTo: .subheadline))
+                    .fixedSize(horizontal: false, vertical: true)
                 Spacer()
                 Image(systemName: "chevron.right").snapSymbol(12, weight: .semibold)
             }
-            .foregroundStyle(Color.snapBackground)
+            .foregroundStyle(Color.snapOnAccent)
             .padding(16)
             .background(Color.snapTerracotta)
             .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
         }
         .buttonStyle(.plain)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Unlock \(hidden) more flips and all-time totals")
+        .accessibilityHint("Opens subscription options")
+        .accessibilityAddTraits(.isButton)
     }
 
     // MARK: - Empty state
@@ -325,23 +373,29 @@ struct FlipsView: View {
             Image(systemName: "chart.line.uptrend.xyaxis")
                 .snapSymbol(48, weight: .light)
                 .foregroundStyle(Color.snapBorder)
+                .accessibilityHidden(true)
             Text("No flips yet")
-                .font(.fraunces(20, weight: .bold))
+                .font(.fraunces(20, weight: .bold, relativeTo: .title3))
                 .foregroundStyle(Color.snapEspresso)
             Text("Scan an item, then mark it Owned or Sold\nto start tracking your profit here.")
                 .font(.snapBody)
                 .foregroundStyle(Color.snapWarmGray)
                 .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
             Button("Start scanning") {
                 NotificationCenter.default.post(name: .snapSwitchToScan, object: nil)
             }
-            .font(.dmSans(15, weight: .semibold))
-            .foregroundStyle(Color.snapBackground)
+            .font(.dmSans(15, weight: .semibold, relativeTo: .subheadline))
+            .foregroundStyle(Color.snapOnAccent)
+            .lineLimit(1)
+            .fixedSize(horizontal: true, vertical: false)
             .padding(.horizontal, 28)
             .padding(.vertical, 12)
             .background(Color.snapTerracotta)
             .clipShape(Capsule())
+            .snapHitTarget()
             .padding(.top, 4)
+            .accessibilityHint("Switches to the camera to scan an item")
         }
         .padding(.horizontal, 40)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
