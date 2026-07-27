@@ -160,6 +160,125 @@ class ScanResponse(BaseModel):
     listing_description: str
 
 
+# ── Snap → Sell: marketplace listing generation ──────────────────────────────
+# Per-marketplace voice/formatting guidance. This is prompt copy (how a listing
+# should *read*), not pricing policy, and it changes rarely — so it lives here
+# rather than in remote config. Add a marketplace by adding one entry.
+MARKETPLACE_GUIDANCE = {
+    "ebay": "eBay buyers search by keyword. Title: front-load brand, model, size and key "
+            "specs, SEO-friendly. Description: thorough and factual — condition, measurements, "
+            "flaws, what's included. Neutral, trustworthy tone.",
+    "vinted": "Vinted is fashion resale with a casual, friendly community. Title: short and "
+              "natural. Description: warm and personal, mention size/fit and measurements, be "
+              "honest about wear. Don't mention shipping — Vinted handles it.",
+    "facebook": "Facebook Marketplace is local. Title: plain and searchable. Description: short "
+                "and casual, mention local pickup and whether the price is firm or OBO.",
+    "olx": "OLX is a local classifieds marketplace. Title: clear and concise. Description: brief "
+           "and practical, emphasise condition and local pickup/cash.",
+}
+SUPPORTED_MARKETPLACES = set(MARKETPLACE_GUIDANCE)
+
+_VALID_CONDITIONS = {"new", "likeNew", "good", "used"}
+_CONDITION_LABEL = {"new": "New", "likeNew": "Like New", "good": "Good", "used": "Used"}
+
+
+class ListingRequest(BaseModel):
+    item_name: str = Field(min_length=1, max_length=200)
+    brand: str = Field(default="Unknown", max_length=100)
+    category: str = Field(default="other", max_length=50)
+    condition: str = "good"
+    price_low_usd: float = Field(ge=0)
+    price_likely_usd: float = Field(ge=0)
+    price_high_usd: float = Field(ge=0)
+    marketplace: str
+    currency: str = Field(default="USD", max_length=8)
+
+
+class ListingResponse(BaseModel):
+    title: str
+    description: str
+    listing_price: float = Field(ge=0)
+    negotiation_floor: float = Field(ge=0)
+    category: str
+
+
+def _listing_prompt(req: ListingRequest) -> str:
+    guidance = MARKETPLACE_GUIDANCE[req.marketplace]
+    cond = _CONDITION_LABEL.get(req.condition, "Good")
+    return f"""You are an expert reseller writing a marketplace listing for a secondhand item.
+
+Marketplace: {req.marketplace}
+{guidance}
+
+Item: {req.item_name}
+Brand: {req.brand}
+Category: {req.category}
+Condition: {cond}
+Estimated resale range: {req.currency} {req.price_low_usd:.0f}–{req.price_high_usd:.0f} (typical: {req.price_likely_usd:.0f})
+
+Return ONLY a valid JSON object — no markdown, no explanation, no extra text:
+{{
+  "title": "Listing title tailored to the marketplace above, under 80 chars",
+  "description": "2-4 sentence description in the marketplace's voice",
+  "listing_price": {req.price_likely_usd:.0f},
+  "negotiation_floor": {req.price_low_usd:.0f},
+  "category": "best-fit category label for this marketplace"
+}}
+
+Rules:
+- listing_price is what to ask: set it near the typical resale value, a touch higher to leave negotiating room.
+- negotiation_floor is the lowest you'd accept; it MUST be greater than 0 and less than or equal to listing_price.
+- Prices are plain numbers in {req.currency} — no currency symbols.
+- Be honest about the "{cond}" condition; never invent flaws or features you can't see.
+- Never return any text outside the JSON object."""
+
+
+def _fallback_listing(req: ListingRequest) -> ListingResponse:
+    """Deterministic listing built from the request alone. Used when the model
+    is unavailable or returns unusable JSON so the caller never gets a blank."""
+    cond = _CONDITION_LABEL.get(req.condition, "Good")
+    brand = req.brand.strip()
+    # Skip the brand prefix when unknown or already part of the item name.
+    if brand.lower() in {"", "unknown"} or req.item_name.lower().startswith(brand.lower()):
+        title = req.item_name.strip()[:80] or "Item for sale"
+    else:
+        title = f"{brand} {req.item_name}".strip()[:80]
+    price = req.price_likely_usd or req.price_high_usd or req.price_low_usd
+    floor = req.price_low_usd or price
+    return ListingResponse(
+        title=title,
+        description=f"{req.item_name} in {cond.lower()} condition. Priced to sell — "
+                    f"message me with any questions.",
+        listing_price=round(price, 2),
+        negotiation_floor=round(min(floor, price), 2),
+        category=req.category or "other",
+    )
+
+
+def _validate_listing(data: dict, req: ListingRequest) -> ListingResponse:
+    """Coerce the model's JSON into a safe listing, repairing prices and falling
+    back field-by-field so a partial/garbled response never blanks the listing."""
+    fb = _fallback_listing(req)
+    title = str(data.get("title") or "").strip()[:80] or fb.title
+    description = str(data.get("description") or "").strip() or fb.description
+    category = str(data.get("category") or "").strip() or fb.category
+
+    price = _safe_float(data.get("listing_price", 0)) or fb.listing_price
+    floor = _safe_float(data.get("negotiation_floor", 0)) or fb.negotiation_floor
+    if floor <= 0:
+        floor = fb.negotiation_floor
+    if floor > price:          # never let the walk-away floor exceed the ask
+        floor = price
+
+    return ListingResponse(
+        title=title,
+        description=description,
+        listing_price=round(price, 2),
+        negotiation_floor=round(floor, 2),
+        category=category,
+    )
+
+
 def _extract_json(text: str) -> dict:
     """Extract the first JSON object from the model response, handling markdown fences."""
     text = text.strip()
@@ -361,6 +480,67 @@ async def scan(
         listing_title=str(data.get("listing_title", "")),
         listing_description=str(data.get("listing_description", "")),
     )
+
+
+@app.post("/listing", response_model=ListingResponse)
+async def listing(
+    request: Request,
+    req: ListingRequest,
+    x_device_id: str = Header(default="anonymous", alias="x-device-id"),
+) -> ListingResponse:
+    """Snap → Sell: turn a structured valuation into a marketplace-ready listing.
+
+    NOTE: this only *generates* listing text. We deliberately do not — and
+    cannot — auto-post or pre-fill the external app's compose form: eBay/Vinted/
+    Facebook/OLX expose no public deep link for that. The client copies/shares
+    the text; posting stays a manual, user-controlled step.
+    """
+    marketplace = req.marketplace.lower().strip()
+    if marketplace not in SUPPORTED_MARKETPLACES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unsupported marketplace '{req.marketplace}'. "
+                   f"Supported: {', '.join(sorted(SUPPORTED_MARKETPLACES))}.",
+        )
+    req.marketplace = marketplace
+    if req.condition not in _VALID_CONDITIONS:
+        req.condition = "good"
+
+    _check_rate_limit(x_device_id, _client_ip(request))
+
+    prompt = _listing_prompt(req)
+    last_exc: Exception | None = None
+    raw: str = ""
+    for attempt in range(2):
+        try:
+            response = await _model.generate_content_async(prompt)
+            raw = response.text.strip()
+            break
+        except Exception as exc:
+            last_exc = exc
+            log.warning("listing gemini attempt %d failed: %s", attempt + 1, exc)
+            if attempt == 0:
+                await asyncio.sleep(1.5)
+    else:
+        log.error("listing gemini failed after retries: %s", last_exc)
+        raise HTTPException(
+            status_code=502,
+            detail="The AI service is temporarily unavailable. Please try again.",
+        )
+
+    try:
+        data = _extract_json(raw)
+    except (json.JSONDecodeError, ValueError) as exc:
+        # A garbled model reply shouldn't cost the user their listing — fall back
+        # to a deterministic one built from their own valuation.
+        log.warning("listing json parse error, using fallback: %s | raw: %.200s", exc, raw)
+        return _fallback_listing(req)
+
+    result = _validate_listing(data, req)
+    log.info("listing ok device=%s market=%s item=%r ask=$%.0f floor=$%.0f",
+             x_device_id[:8], marketplace, result.title, result.listing_price,
+             result.negotiation_floor)
+    return result
 
 
 def _safe_int(value: object) -> int:
