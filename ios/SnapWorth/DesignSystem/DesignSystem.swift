@@ -425,18 +425,34 @@ struct ConfidenceBadge: View {
         }
     }
 
+    /// Shape reinforces the level so it isn't carried by colour alone.
+    private var indicator: String {
+        switch confidence.lowercased() {
+        case "high":   return "checkmark.circle.fill"
+        case "medium": return "minus.circle.fill"
+        default:       return "questionmark.circle.fill"
+        }
+    }
+
     var body: some View {
-        Text("\(confidence) confidence")
-            .font(.snapLabel)
-            .foregroundStyle(Color.snapEspresso)
-            .padding(.horizontal, 12)
-            .padding(.vertical, 6)
-            .background(accentColor.opacity(0.18))
-            .clipShape(Capsule())
-            .overlay(
-                Capsule()
-                    .strokeBorder(accentColor, lineWidth: 1)
-            )
+        Label {
+            Text("\(confidence) confidence")
+        } icon: {
+            Image(systemName: indicator).snapSymbol(12, weight: .semibold)
+        }
+        .labelStyle(.titleAndIcon)
+        .font(.snapLabel)
+        .foregroundStyle(Color.snapEspresso)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 6)
+        .background(accentColor.opacity(0.18))
+        .clipShape(Capsule())
+        .overlay(
+            Capsule()
+                .strokeBorder(accentColor, lineWidth: 1)
+        )
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("\(confidence) confidence")
     }
 }
 
@@ -667,7 +683,14 @@ struct PlanCard: View {
             )
         }
         .buttonStyle(.plain)
-        .animation(.spring(duration: 0.2), value: isSelected)
+        .snapAnimation(.spring(duration: 0.2), value: isSelected)
+        // Radio semantics: one stop reading plan, price and detail, with
+        // `.isSelected` carrying the state that the border colour shows.
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(title)
+        .accessibilityValue("\(price). \(priceDetail)\(badge.map { ". \($0)" } ?? "")")
+        .accessibilityHint("Selects the \(title.lowercased()) plan")
+        .accessibilityAddTraits(isSelected ? [.isButton, .isSelected] : .isButton)
     }
 }
 

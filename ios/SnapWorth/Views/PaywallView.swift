@@ -23,17 +23,21 @@ struct PaywallView: View {
                             .padding(.top, 56)
 
                         Text(isYearly ? "Try SnapWorth\nfree for 3 days" : "Unlock\nSnapWorth Pro")
-                            .font(.fraunces(32, weight: .bold))
+                            .font(.fraunces(32, weight: .bold, relativeTo: .largeTitle))
                             .foregroundStyle(Color.snapEspresso)
                             .multilineTextAlignment(.center)
-                            .animation(.easeInOut(duration: 0.2), value: isYearly)
+                            .snapAnimation(.easeInOut(duration: 0.2), value: isYearly)
+                            .accessibilityAddTraits(.isHeader)
 
                         Text(isYearly ? "Then $39.99/yr. Cancel anytime." : "$4.99/month. Cancel anytime.")
                             .font(.snapCaption)
                             .foregroundStyle(Color.snapWarmGray)
-                            .animation(.easeInOut(duration: 0.2), value: isYearly)
+                            .snapAnimation(.easeInOut(duration: 0.2), value: isYearly)
                     }
                     .padding(.bottom, 32)
+                    // One header stop: the offer and its price read together.
+                    .accessibilityElement(children: .combine)
+                    .accessibilitySortPriority(100)
 
                     // ── Plan cards ─────────────────────────────────────────
                     VStack(spacing: 12) {
@@ -73,6 +77,8 @@ struct PaywallView: View {
                     .snapCard()
                     .padding(.horizontal, 20)
                     .padding(.top, 24)
+                    .accessibilityElement(children: .contain)
+                    .accessibilityLabel("What's included")
 
                     // ── Error ──────────────────────────────────────────────
                     if let error = vm.errorMessage {
@@ -109,10 +115,16 @@ struct PaywallView: View {
 
                             HStack(spacing: 16) {
                                 Button("Terms of Service") { showTerms = true }
-                                Text("·").foregroundStyle(Color.snapWarmGray.opacity(0.5))
+                                    .snapHitTarget()
+                                    .accessibilityHint("Opens the terms of service")
+                                Text("·")
+                                    .foregroundStyle(Color.snapWarmGray.opacity(0.5))
+                                    .accessibilityHidden(true)
                                 Button("Privacy Policy") { showPrivacy = true }
+                                    .snapHitTarget()
+                                    .accessibilityHint("Opens the privacy policy")
                             }
-                            .font(.dmSans(11, weight: .semibold))
+                            .font(.dmSans(11, weight: .semibold, relativeTo: .caption2))
                             .foregroundStyle(Color.snapWarmGray)
                         }
                     }
@@ -135,12 +147,18 @@ struct PaywallView: View {
                         .background(Color.snapBorder)
                         .clipShape(Circle())
                 }
+                .snapHitTarget()
                 .padding(.top, 56)
                 .padding(.trailing, 20)
                 .transition(.opacity.combined(with: .scale(scale: 0.8)))
+                .accessibilityLabel("Close")
+                .accessibilityHint("Dismisses this offer")
+                // Escape route must be reachable first, not after the whole
+                // marketing page.
+                .accessibilitySortPriority(200)
             }
         }
-        .animation(.spring(duration: 0.3), value: vm.showCloseButton)
+        .snapAnimation(.spring(duration: 0.3), value: vm.showCloseButton)
         .onAppear {
             vm.startCloseButtonTimer()
             Analytics.shared.track(.paywallViewed(trigger: trigger))
@@ -170,13 +188,17 @@ private struct BenefitRow: View {
             Image(systemName: icon)
                 .snapSymbol(16, weight: .medium)
                 .foregroundStyle(Color.snapSage)
-                .frame(width: 24)
+                .frame(minWidth: 24)
 
             Text(text)
                 .font(.snapBodyMedium)
                 .foregroundStyle(Color.snapEspresso)
+                .fixedSize(horizontal: false, vertical: true)
 
             Spacer()
         }
+        // The icon is decorative — the text already names the benefit.
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(text)
     }
 }

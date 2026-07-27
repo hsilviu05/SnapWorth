@@ -142,7 +142,7 @@ struct ScanView: View {
                                     Image(systemName: "arrow.triangle.2.circlepath")
                                         .snapSymbol(20, weight: .light)
                                     Text("Flip")
-                                        .font(.system(size: 9, weight: .semibold))
+                                        .font(.dmSans(9, weight: .semibold, relativeTo: .caption2))
                                 }
                                 .foregroundStyle(Color.snapOnCharcoal.opacity(isAnalyzing ? 0.4 : 1))
                             )

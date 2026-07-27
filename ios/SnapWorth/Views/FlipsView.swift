@@ -267,7 +267,7 @@ struct FlipsView: View {
 
     private func statusBadge(_ status: FlipStatus) -> some View {
         HStack(spacing: 4) {
-            Image(systemName: status.systemImage).font(.system(size: 9, weight: .semibold))
+            Image(systemName: status.systemImage).snapSymbol(9, weight: .semibold)
             Text(status.label).font(.dmSans(10, weight: .semibold))
         }
         .foregroundStyle(Color.snapWarmGray)
@@ -304,11 +304,11 @@ struct FlipsView: View {
     private func unlockRow(hidden: Int) -> some View {
         Button { routeToPaywall(.ledgerHistory) } label: {
             HStack(spacing: 10) {
-                Image(systemName: "lock.fill").font(.system(size: 14, weight: .semibold))
+                Image(systemName: "lock.fill").snapSymbol(14, weight: .semibold)
                 Text("Unlock \(hidden) more + all-time totals")
                     .font(.dmSans(14, weight: .semibold))
                 Spacer()
-                Image(systemName: "chevron.right").font(.system(size: 12, weight: .semibold))
+                Image(systemName: "chevron.right").snapSymbol(12, weight: .semibold)
             }
             .foregroundStyle(Color.snapBackground)
             .padding(16)
