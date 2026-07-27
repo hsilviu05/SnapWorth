@@ -30,7 +30,7 @@ actor AttestationService {
         static let keyID = "attestKeyID"
     }
 
-    init(baseURL: URL = Config.baseURL, session: URLSession = .shared) {
+    init(baseURL: URL = Config.baseURL, session: URLSession = .snapWorthAPI) {
         self.baseURL = baseURL
         self.session = session
     }

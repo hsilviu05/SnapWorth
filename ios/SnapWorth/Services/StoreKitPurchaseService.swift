@@ -1,4 +1,5 @@
 import Foundation
+import os.log
 import StoreKit
 
 /// Native StoreKit 2 purchase service. Fetches products directly from the App
@@ -107,10 +108,15 @@ final class StoreKitPurchaseService: PurchaseService, ObservableObject {
     private func refreshSubscriptionStatus() async {
         var active = false
         var trialEnd: Date?
+        var activeJWS: String?
         for await result in Transaction.currentEntitlements {
             guard let transaction = try? checkVerified(result) else { continue }
             if productIDs.contains(transaction.productID), transaction.revocationDate == nil {
                 active = true
+                // Apple's own signature over this transaction. The server
+                // re-verifies it against Apple's root CA, so entitlement is
+                // never taken on the client's word.
+                activeJWS = result.jwsRepresentation
                 // The only introductory offer on these products is the free
                 // trial, so an introductory entitlement means we're in it.
                 if transaction.offerType == .introductory, let exp = transaction.expirationDate {
@@ -120,6 +126,14 @@ final class StoreKitPurchaseService: PurchaseService, ObservableObject {
         }
         setSubscribed(active)
         trialEndDate = trialEnd
+
+        // Push proof of purchase to the backend so it can lift the free-scan
+        // quota. Runs on every status refresh — purchase, restore, and the
+        // transaction listener all funnel through here — which also makes it
+        // self-healing if an earlier attempt failed offline.
+        if let activeJWS {
+            await syncEntitlementToServer(activeJWS)
+        }
         // Keep the courtesy "trial ends tomorrow" reminder in sync — schedules
         // when in a trial, cancels the moment the state changes.
         await NotificationManager.shared.syncTrialReminder(endDate: trialEnd)
@@ -133,6 +147,21 @@ final class StoreKitPurchaseService: PurchaseService, ObservableObject {
                 await transaction.finish()
                 await self.refreshSubscriptionStatus()
             }
+        }
+    }
+
+    /// Best-effort upload of the signed transaction.
+    ///
+    /// Deliberately non-throwing: a network failure here must not make a
+    /// successful purchase look failed to the user. The local entitlement is
+    /// already active, and the next status refresh retries.
+    private func syncEntitlementToServer(_ jws: String) async {
+        guard Config.useAttestation else { return }
+        do {
+            try await AttestationService.shared.submitEntitlement(signedTransaction: jws)
+        } catch {
+            Logger(subsystem: "eu.snapworth.app", category: "purchases")
+                .error("entitlement sync failed: \(error.localizedDescription, privacy: .public)")
         }
     }
 

@@ -127,12 +127,9 @@ actor ListingAPIClient {
     /// App is USD-only today (the shared currency formatter is USD-locked).
     static let currency = "USD"
 
-    private let session: URLSession = {
-        let config = URLSessionConfiguration.default
-        config.timeoutIntervalForRequest = 30
-        config.timeoutIntervalForResource = 35
-        return URLSession(configuration: config)
-    }()
+    /// Shared pinned session — see `ScanAPIClient` for why this must not be a
+    /// locally-constructed URLSession.
+    private let session: URLSession = .snapWorthAPI
 
     // Same device id as ScanAPIClient so the rate-limit backstop is coherent.
     private let deviceID: String = {

@@ -33,12 +33,10 @@ actor ScanAPIClient {
     static let shared = ScanAPIClient()
     private init() {}
 
-    private let session: URLSession = {
-        let config = URLSessionConfiguration.default
-        config.timeoutIntervalForRequest = 30
-        config.timeoutIntervalForResource = 35
-        return URLSession(configuration: config)
-    }()
+    /// Shared pinned session — see `CertificatePinning.swift`. Using the shared
+    /// instance (rather than a private one) is what puts API traffic behind the
+    /// pinning delegate; a locally-built session would silently bypass it.
+    private let session: URLSession = .snapWorthAPI
 
     private let deviceID: String = {
         if let stored = UserDefaults.standard.string(forKey: "snapworth_device_id") {

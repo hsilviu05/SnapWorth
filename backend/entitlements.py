@@ -24,6 +24,7 @@ from datetime import datetime, timezone
 import jwt
 from cryptography import x509
 from cryptography.exceptions import InvalidSignature
+from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import ec
 
 log = logging.getLogger("snapworth.entitlements")
@@ -117,7 +118,8 @@ def _verify_chain(certs: list[x509.Certificate]) -> x509.Certificate:
 
     # The last element should be Apple's root; compare against our pinned copy
     # rather than trusting whatever the client supplied.
-    if certs[-1].public_bytes(x509.Encoding.DER) != root.public_bytes(x509.Encoding.DER):
+    if (certs[-1].public_bytes(serialization.Encoding.DER)
+            != root.public_bytes(serialization.Encoding.DER)):
         raise EntitlementError("Signed transaction is not rooted in Apple's CA.")
 
     for child, parent in zip(certs, certs[1:]):
