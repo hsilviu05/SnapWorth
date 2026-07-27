@@ -33,12 +33,18 @@ struct ScanView: View {
             // ── Camera UI overlay ─────────────────────────────────────────
             VStack {
                 // Top bar
-                HStack {
+                HStack(alignment: .firstTextBaseline) {
                     Text("SnapWorth")
-                        .font(.fraunces(20, weight: .bold))
+                        .font(.fraunces(20, weight: .bold, relativeTo: .title3))
                         .foregroundStyle(Color.snapOnCharcoal)
+                        // Wordmark: must never break mid-word, and the counter
+                        // beside it must not squeeze it into doing so.
+                        .lineLimit(1)
+                        .fixedSize(horizontal: true, vertical: false)
+                        .layoutPriority(1)
+                        .accessibilityAddTraits(.isHeader)
 
-                    Spacer()
+                    Spacer(minLength: 8)
 
                     // Free scan counter / upgrade CTA
                     if !purchaseService.isSubscribed {
@@ -47,20 +53,26 @@ struct ScanView: View {
                             Button { vm.paywallTrigger = .upgradeButton; vm.showPaywall = true } label: {
                                 Text("Upgrade to Pro")
                                     .font(.snapCaption.bold())
-                                    .foregroundStyle(Color.snapOnCharcoal)
+                                    .foregroundStyle(Color.snapOnAccent)
                                     .padding(.horizontal, 10)
                                     .padding(.vertical, 5)
                                     .background(Color.snapTerracotta)
                                     .clipShape(Capsule())
                             }
+                            .snapHitTarget()
+                            .accessibilityLabel("Upgrade to Pro")
+                            .accessibilityHint("You've used today's free scans. Opens subscription options.")
                         } else {
                             Text("\(remaining) free scan\(remaining == 1 ? "" : "s") left today")
                                 .font(.snapCaption)
                                 .foregroundStyle(Color.snapOnCharcoal.opacity(0.8))
+                                .multilineTextAlignment(.trailing)
                                 .padding(.horizontal, 10)
                                 .padding(.vertical, 5)
                                 .background(Color.snapCharcoal.opacity(0.5))
                                 .clipShape(Capsule())
+                                .accessibilityLabel(
+                                    "\(remaining) free scan\(remaining == 1 ? "" : "s") left today")
                         }
                     }
                 }
@@ -75,10 +87,16 @@ struct ScanView: View {
                     .strokeBorder(Color.snapOnCharcoal.opacity(0.5), lineWidth: 2)
                     .frame(width: viewfinderSide, height: viewfinderSide)
                     .overlay(CornerAccents())
+                    // Framing guide is purely visual; the instruction below
+                    // carries the same information for VoiceOver.
+                    .accessibilityHidden(true)
 
                 Text("Center the item — tags & logos help")
                     .font(.snapCaption)
                     .foregroundStyle(Color.snapOnCharcoal.opacity(0.7))
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.horizontal, 20)
                     .padding(.top, 16)
 
                 Spacer()
@@ -97,7 +115,9 @@ struct ScanView: View {
                             )
                     }
                     .disabled(vm.isAnalyzing)
+                    .snapHitTarget()
                     .accessibilityLabel("Choose photo from library")
+                    .accessibilityHint("Values an item from a photo you already have")
                     .onChange(of: vm.selectedPhotoItem) { _, newItem in
                         guard newItem != nil else { return }
                         vm.capturedImage = nil
@@ -127,6 +147,11 @@ struct ScanView: View {
                     }
                     .disabled(vm.isAnalyzing || cameraManager.authStatus != .authorized)
                     .accessibilityLabel(vm.isAnalyzing ? "Analyzing item" : "Take photo to scan")
+                    .accessibilityHint(vm.isAnalyzing
+                        ? "Please wait for the current scan to finish"
+                        : "Captures the item and estimates its resale value")
+                    // The primary action: reachable first under VoiceOver.
+                    .accessibilitySortPriority(100)
 
                     Spacer()
 
@@ -148,7 +173,9 @@ struct ScanView: View {
                             )
                     }
                     .disabled(vm.isAnalyzing)
-                    .accessibilityLabel("Thrift Flip — check resale profit before you buy")
+                    .snapHitTarget()
+                    .accessibilityLabel("Thrift Flip")
+                    .accessibilityHint("Check resale profit after fees before you buy")
                 }
                 .padding(.horizontal, 36)
                 .padding(.bottom, 48)
@@ -257,12 +284,15 @@ struct ScanView: View {
             Image(systemName: "camera.slash")
                 .snapSymbol(48, weight: .light)
                 .foregroundStyle(Color.snapOnCharcoal.opacity(0.5))
+                .accessibilityHidden(true)
 
             Text("Camera access needed to scan items")
                 .font(.snapBody)
                 .foregroundStyle(Color.snapOnCharcoal.opacity(0.8))
                 .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
                 .padding(.horizontal, 40)
+                .accessibilityAddTraits(.isHeader)
 
             PrimaryButton(title: "Open Settings") {
                 if let url = URL(string: UIApplication.openSettingsURLString) {
@@ -270,6 +300,7 @@ struct ScanView: View {
                 }
             }
             .frame(maxWidth: 200)
+            .accessibilityHint("Opens iOS Settings so you can allow camera access")
         }
     }
 

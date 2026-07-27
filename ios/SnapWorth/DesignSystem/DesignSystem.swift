@@ -599,7 +599,15 @@ struct AnalyzingOverlay: View {
                     .font(.dmSans(13, weight: .medium))
                     .foregroundStyle(Color.snapOnCharcoal.opacity(0.7))
                     .labelStyle(.titleAndIcon)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.horizontal, 24)
             }
+            // Progress is conveyed by rotating copy; without a live region a
+            // VoiceOver user gets silence for the whole 3–6s analysis.
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel("\(messages[messageIndex]) Photo captured — you can lower your phone.")
+            .accessibilityAddTraits(.updatesFrequently)
         }
         .onAppear {
             rotationTask = Task { @MainActor in
