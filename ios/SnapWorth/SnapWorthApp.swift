@@ -35,8 +35,9 @@ struct SnapWorthApp: App {
 
     var body: some Scene {
         WindowGroup {
+            // No `preferredColorScheme` — the app follows the system theme.
+            // Every palette token resolves per trait collection (DesignSystem).
             RootView(purchaseService: purchaseService)
-                .preferredColorScheme(.light)
                 .onOpenURL(perform: handleWidgetURL)
                 .task { seedWidgetData() }
                 .task { NotificationManager.shared.registerAsDelegate() }

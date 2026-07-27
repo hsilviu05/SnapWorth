@@ -1,31 +1,93 @@
 import SwiftUI
+import UIKit
 
 // ═══════════════════════════════════════════════════════════════════
 // MARK: - Color Palette
 // ═══════════════════════════════════════════════════════════════════
+// The palette is defined once as light/dark pairs and resolved per trait
+// collection at render time. Call sites keep using the same `Color.snapX`
+// names they always have — they simply became theme-aware.
+//
+// The warm identity is preserved in dark mode by *re-grounding* rather than
+// inverting: espresso becomes the surface, cream becomes the ink, and the
+// accents are lifted just enough to hold contrast on a dark ground.
 
 extension Color {
+    /// Resolves per interface style at render time, so a single token serves
+    /// both themes without any view needing to know which one is active.
+    /// Also honours Increased Contrast when a higher-contrast pair is given.
+    static func snapAdaptive(
+        light: Color,
+        dark: Color,
+        lightHighContrast: Color? = nil,
+        darkHighContrast: Color? = nil
+    ) -> Color {
+        Color(UIColor { traits in
+            let increased = traits.accessibilityContrast == .high
+            switch (traits.userInterfaceStyle, increased) {
+            case (.dark, true):  return UIColor(darkHighContrast ?? dark)
+            case (.dark, false): return UIColor(dark)
+            case (_, true):      return UIColor(lightHighContrast ?? light)
+            default:             return UIColor(light)
+            }
+        })
+    }
+
     // Backgrounds
-    static let snapBackground  = Color(hex: "FBF7F2")  // warm cream
-    static let snapCard        = Color.white
+    static let snapBackground = snapAdaptive(
+        light: Color(hex: "FBF7F2"),          // warm cream
+        dark:  Color(hex: "17120F")           // deep espresso ground
+    )
+    static let snapCard = snapAdaptive(
+        light: .white,
+        dark:  Color(hex: "221B17")           // raised warm surface
+    )
 
-    // Accents
-    static let snapTerracotta  = Color(hex: "D96C47")  // primary CTA
-    static let snapSage        = Color(hex: "6F8F6B")  // money / positive values
-    static let snapAmber       = Color(hex: "EBB868")  // badges / highlights
+    // Accents — lifted in dark so they stay legible on a dark ground
+    static let snapTerracotta = snapAdaptive(
+        light: Color(hex: "D96C47"), dark: Color(hex: "E8845F"),
+        lightHighContrast: Color(hex: "BE5433")
+    )
+    static let snapSage = snapAdaptive(     // money / positive values
+        light: Color(hex: "6F8F6B"), dark: Color(hex: "8FB08A"),
+        lightHighContrast: Color(hex: "4F6E4B")
+    )
+    static let snapAmber = snapAdaptive(    // badges / highlights
+        light: Color(hex: "EBB868"), dark: Color(hex: "E5BE7C")
+    )
 
-    // Text
-    static let snapEspresso    = Color(hex: "2B211C")  // primary text
-    static let snapWarmGray    = Color(hex: "8B7D71")  // secondary text
+    // Text — `snapWarmGray` was 3.1:1 on cream (below WCAG AA); darkened to
+    // 5.7:1 while keeping the warmth.
+    static let snapEspresso = snapAdaptive(
+        light: Color(hex: "2B211C"), dark: Color(hex: "F0E9E2"),
+        lightHighContrast: Color(hex: "1A120E"), darkHighContrast: .white
+    )
+    static let snapWarmGray = snapAdaptive(
+        light: Color(hex: "6E6055"), dark: Color(hex: "B0A297"),
+        lightHighContrast: Color(hex: "544840"), darkHighContrast: Color(hex: "D6CCC3")
+    )
 
     // Borders / dividers
-    static let snapBorder      = Color(hex: "EFE6DC")
+    static let snapBorder = snapAdaptive(
+        light: Color(hex: "EFE6DC"), dark: Color(hex: "342A24"),
+        lightHighContrast: Color(hex: "D3C4B4"), darkHighContrast: Color(hex: "4C3E35")
+    )
 
-    // Camera screen background
-    static let snapCharcoal    = Color(hex: "1C1714")
+    /// Camera screen background — deliberately dark in *both* themes; the
+    /// viewfinder is a dark surface by design, not by theme.
+    static let snapCharcoal = Color(hex: "1C1714")
+
+    /// Content that always sits on `snapCharcoal` (camera chrome). Fixed cream
+    /// so it never inverts to dark-on-dark when the system theme flips.
+    static let snapOnCharcoal = Color(hex: "FBF7F2")
+
+    /// Content that always sits on a *filled accent* surface — primary button
+    /// labels on terracotta. Fixed cream: the accent is dark enough in both
+    /// themes that the label must not follow the theme.
+    static let snapOnAccent = Color(hex: "FBF7F2")
 
     // Card shadow colour (rgba 120,80,50,0.08)
-    static let snapCardShadow  = Color(red: 120/255, green: 80/255, blue: 50/255)
+    static let snapCardShadow = Color(red: 120/255, green: 80/255, blue: 50/255)
 
     // ── Hex initialiser ──────────────────────────────────────────────
     init(hex: String) {
@@ -54,56 +116,133 @@ extension Color {
 
 extension Font {
     // ── Fraunces ─────────────────────────────────────────────────────
-    static func fraunces(_ size: CGFloat, weight: Font.Weight = .regular) -> Font {
+    /// - Parameter style: the text style this size is anchored to. Everything
+    ///   scales from it, so a user's Larger Text setting reaches the whole app.
+    static func fraunces(
+        _ size: CGFloat,
+        weight: Font.Weight = .regular,
+        relativeTo style: Font.TextStyle = .body
+    ) -> Font {
+        let effective = UIAccessibility.isBoldTextEnabled ? _bolder(weight) : weight
         let postscriptName: String
-        switch weight {
+        switch effective {
         case .bold, .heavy, .black: postscriptName = "Fraunces-Bold"
         case .semibold:             postscriptName = "Fraunces-SemiBold"
         default:                    postscriptName = "Fraunces-Regular"
         }
         // Fall back to system serif if the font file isn't bundled yet
         if UIFont(name: postscriptName, size: size) != nil {
-            return .custom(postscriptName, size: size)
+            return .custom(postscriptName, size: size, relativeTo: style)
         }
-        return .system(size: size, weight: weight, design: .serif)
+        return _scaled(
+            UIFont.systemFont(ofSize: size, weight: _uiWeight(weight))
+                .withDesign(.serif),
+            relativeTo: style
+        )
     }
 
-    // ── DM Sans (variable font — loaded via descriptor, cached) ─────────────
-    static func dmSans(_ size: CGFloat, weight: Font.Weight = .regular) -> Font {
-        let uiWeight: UIFont.Weight
-        switch weight {
-        case .bold, .heavy, .black: uiWeight = .bold
-        case .semibold:             uiWeight = .semibold
-        case .medium:               uiWeight = .medium
-        default:                    uiWeight = .regular
+    // ── DM Sans (variable font — resolved to a concrete face, cached) ───────
+    static func dmSans(
+        _ size: CGFloat,
+        weight: Font.Weight = .regular,
+        relativeTo style: Font.TextStyle = .body
+    ) -> Font {
+        // Bold Text accessibility setting: custom faces don't get it for free,
+        // so step the requested weight up one notch.
+        let effective = UIAccessibility.isBoldTextEnabled ? _bolder(weight) : weight
+        if let name = _dmSansFontName(for: effective) {
+            // `.custom(_:size:relativeTo:)` scales via the SwiftUI environment,
+            // so `.dynamicTypeSize(...)` clamps are honoured. Do not substitute
+            // UIFontMetrics here — it reads the global content size category and
+            // silently ignores per-view clamps.
+            return .custom(name, size: size, relativeTo: style)
         }
-        let key = "\(size)-\(uiWeight.rawValue)" as NSString
-        if let cached = _dmSansCache.object(forKey: key) {
-            return Font(cached)
-        }
-        let desc = UIFontDescriptor(fontAttributes: [.family: "DM Sans"])
-            .addingAttributes([.traits: [UIFontDescriptor.TraitKey.weight: uiWeight.rawValue]])
-        let uiFont = UIFont(descriptor: desc, size: size)
-        if uiFont.familyName.lowercased().contains("dm sans") {
-            _dmSansCache.setObject(uiFont, forKey: key)
-            return Font(uiFont)
-        }
-        return .system(size: size, weight: weight, design: .default)
+        return _scaled(UIFont.systemFont(ofSize: size, weight: _uiWeight(effective)),
+                       relativeTo: style)
     }
 
     // ── Convenience aliases ───────────────────────────────────────────
-    static let snapHeadline   = fraunces(28, weight: .bold)
-    static let snapTitle      = fraunces(22, weight: .semibold)
-    static let snapValueHero  = fraunces(44, weight: .bold)    // the "$45–$90" moment
-    static let snapBody       = dmSans(15)
-    static let snapBodyMedium = dmSans(15, weight: .medium)
-    static let snapCaption    = dmSans(13)
-    static let snapLabel      = dmSans(13, weight: .semibold)
-    static let snapButton     = dmSans(17, weight: .semibold)
+    // Each is anchored to the text style that matches its role, so Dynamic Type
+    // scales headlines and body copy at their correct respective rates.
+    static let snapHeadline   = fraunces(28, weight: .bold,     relativeTo: .title)
+    static let snapTitle      = fraunces(22, weight: .semibold, relativeTo: .title2)
+    static let snapValueHero  = fraunces(44, weight: .bold,     relativeTo: .largeTitle)
+    static let snapBody       = dmSans(15,                      relativeTo: .subheadline)
+    static let snapBodyMedium = dmSans(15, weight: .medium,     relativeTo: .subheadline)
+    static let snapCaption    = dmSans(13,                      relativeTo: .footnote)
+    static let snapLabel      = dmSans(13, weight: .semibold,   relativeTo: .caption)
+    static let snapButton     = dmSans(17, weight: .semibold,   relativeTo: .headline)
 }
 
-// UIFont cache for DM Sans — avoids descriptor allocation on every render
-private let _dmSansCache = NSCache<NSString, UIFont>()
+/// Resolved PostScript names for DM Sans, keyed by weight. Descriptor lookup is
+/// comparatively expensive, so the resolved *name* is cached — not a sized font,
+/// which would defeat Dynamic Type.
+private let _dmSansNameCache = NSCache<NSString, NSString>()
+
+private func _dmSansFontName(for weight: Font.Weight) -> String? {
+    let uiWeight = _uiWeight(weight)
+    let key = "\(uiWeight.rawValue)" as NSString
+    if let cached = _dmSansNameCache.object(forKey: key) { return cached as String }
+
+    let desc = UIFontDescriptor(fontAttributes: [.family: "DM Sans"])
+        .addingAttributes([.traits: [UIFontDescriptor.TraitKey.weight: uiWeight.rawValue]])
+    let uiFont = UIFont(descriptor: desc, size: 17)
+    guard uiFont.familyName.lowercased().contains("dm sans") else { return nil }
+    _dmSansNameCache.setObject(uiFont.fontName as NSString, forKey: key)
+    return uiFont.fontName
+}
+
+/// Last-resort scaling for the system fallback face, used only when the bundled
+/// font is missing. Anchors to the text style so it still tracks Dynamic Type.
+private func _scaled(_ base: UIFont, relativeTo style: Font.TextStyle) -> Font {
+    Font(UIFontMetrics(forTextStyle: style.uiTextStyle).scaledFont(for: base))
+}
+
+/// One step up the weight scale, for the Bold Text accessibility setting.
+private func _bolder(_ weight: Font.Weight) -> Font.Weight {
+    switch weight {
+    case .regular, .light, .thin, .ultraLight: return .medium
+    case .medium:                              return .semibold
+    default:                                   return .bold
+    }
+}
+
+private func _uiWeight(_ weight: Font.Weight) -> UIFont.Weight {
+    switch weight {
+    case .bold, .heavy, .black: return .bold
+    case .semibold:             return .semibold
+    case .medium:               return .medium
+    default:                    return .regular
+    }
+}
+
+private extension UIFont {
+    /// Best-effort design variant; returns self when the design is unavailable.
+    func withDesign(_ design: UIFontDescriptor.SystemDesign) -> UIFont {
+        guard let desc = fontDescriptor.withDesign(design) else { return self }
+        return UIFont(descriptor: desc, size: pointSize)
+    }
+}
+
+extension Font.TextStyle {
+    /// Bridge to the UIKit text style, needed for `UIFontMetrics` scaling.
+    var uiTextStyle: UIFont.TextStyle {
+        switch self {
+        case .largeTitle:  return .largeTitle
+        case .title:       return .title1
+        case .title2:      return .title2
+        case .title3:      return .title3
+        case .headline:    return .headline
+        case .subheadline: return .subheadline
+        case .callout:     return .callout
+        case .footnote:    return .footnote
+        case .caption:     return .caption1
+        case .caption2:    return .caption2
+        case .body:        return .body
+        @unknown default:  return .body
+        }
+    }
+}
 
 // Shared currency formatter — NumberFormatter is expensive to allocate
 extension NumberFormatter {
@@ -175,15 +314,15 @@ struct PrimaryButton: View {
             ZStack {
                 if isLoading {
                     ProgressView()
-                        .tint(Color.snapBackground)
+                        .tint(Color.snapOnAccent)
                 } else {
                     Text(title)
                         .font(.snapButton)
-                        .foregroundStyle(Color.snapBackground)
+                        .foregroundStyle(Color.snapOnAccent)
                 }
             }
             .frame(maxWidth: .infinity)
-            .frame(height: 56)
+            .frame(minHeight: 56)          // min, not fixed: grows with Dynamic Type
             .background(Color.snapTerracotta)
             .clipShape(Capsule())
         }
@@ -306,29 +445,39 @@ struct ConfidenceBadge: View {
 // ═══════════════════════════════════════════════════════════════════
 
 struct ShimmerModifier: ViewModifier {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var phase: CGFloat = -1
 
     func body(content: Content) -> some View {
         content
             .overlay(
-                GeometryReader { geo in
-                    LinearGradient(
-                        stops: [
-                            .init(color: .clear, location: 0),
-                            .init(color: Color.white.opacity(0.45), location: 0.4),
-                            .init(color: Color.white.opacity(0.65), location: 0.5),
-                            .init(color: Color.white.opacity(0.45), location: 0.6),
-                            .init(color: .clear, location: 1),
-                        ],
-                        startPoint: .leading,
-                        endPoint: .trailing
-                    )
-                    .frame(width: geo.size.width * 2)
-                    .offset(x: phase * geo.size.width * 2)
+                Group {
+                    // Reduce Motion: a static wash instead of a travelling one.
+                    // The surface still reads as "pending" without the movement.
+                    if reduceMotion {
+                        Color.white.opacity(0.18)
+                    } else {
+                        GeometryReader { geo in
+                            LinearGradient(
+                                stops: [
+                                    .init(color: .clear, location: 0),
+                                    .init(color: Color.white.opacity(0.45), location: 0.4),
+                                    .init(color: Color.white.opacity(0.65), location: 0.5),
+                                    .init(color: Color.white.opacity(0.45), location: 0.6),
+                                    .init(color: .clear, location: 1),
+                                ],
+                                startPoint: .leading,
+                                endPoint: .trailing
+                            )
+                            .frame(width: geo.size.width * 2)
+                            .offset(x: phase * geo.size.width * 2)
+                        }
+                    }
                 }
                 .clipped()
             )
             .onAppear {
+                guard !reduceMotion else { return }
                 withAnimation(.linear(duration: 1.4).repeatForever(autoreverses: false)) {
                     phase = 1
                 }
@@ -338,6 +487,23 @@ struct ShimmerModifier: ViewModifier {
 
 extension View {
     func shimmering() -> some View { modifier(ShimmerModifier()) }
+
+    /// Applies an animation unless Reduce Motion is enabled, in which case the
+    /// state change still happens — just without the movement. Use this instead
+    /// of `.animation(_:value:)` for anything decorative or continuous.
+    func snapAnimation<V: Equatable>(_ animation: Animation?, value: V) -> some View {
+        modifier(MotionAwareAnimation(animation: animation, value: value))
+    }
+}
+
+private struct MotionAwareAnimation<V: Equatable>: ViewModifier {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    let animation: Animation?
+    let value: V
+
+    func body(content: Content) -> some View {
+        content.animation(reduceMotion ? nil : animation, value: value)
+    }
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -374,13 +540,13 @@ struct AnalyzingOverlay: View {
 
                 Text(messages[messageIndex])
                     .font(.dmSans(17, weight: .medium))
-                    .foregroundStyle(Color.snapBackground)
+                    .foregroundStyle(Color.snapOnCharcoal)
                     .opacity(opacity)
                     .animation(.easeInOut(duration: 0.35), value: opacity)
 
                 Label("Photo captured — you can lower your phone", systemImage: "checkmark.circle.fill")
                     .font(.dmSans(13, weight: .medium))
-                    .foregroundStyle(Color.snapBackground.opacity(0.7))
+                    .foregroundStyle(Color.snapOnCharcoal.opacity(0.7))
                     .labelStyle(.titleAndIcon)
             }
         }

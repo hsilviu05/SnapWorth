@@ -167,7 +167,7 @@ struct ThriftFlipView: View {
                     } label: {
                         Text(marketplace.displayName)
                             .font(.dmSans(13, weight: .semibold))
-                            .foregroundStyle(selected ? Color.snapBackground : Color.snapWarmGray)
+                            .foregroundStyle(selected ? Color.snapOnAccent : Color.snapWarmGray)
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 9)
                             .background(selected ? Color.snapTerracotta : Color.clear)

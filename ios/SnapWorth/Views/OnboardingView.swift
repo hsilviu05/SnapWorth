@@ -72,33 +72,44 @@ struct OnboardingView: View {
 private struct SlideView: View {
     let slide: OnboardingSlide
     let isActive: Bool
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
-        VStack(spacing: 36) {
-            Spacer()
+        // Scrollable so accessibility text sizes overflow gracefully instead of
+        // clipping the hero and truncating the body copy. When the content fits
+        // (the common case) `minHeight` keeps it optically centred as before.
+        GeometryReader { proxy in
+            ScrollView(.vertical, showsIndicators: false) {
+                VStack(spacing: 32) {
+                    OnboardingHeroView(slide: slide)
+                        .scaleEffect(isActive ? 1 : 0.94)
+                        .opacity(isActive ? 1 : 0.55)
+                        .animation(
+                            reduceMotion ? nil : .spring(response: 0.5, dampingFraction: 0.82),
+                            value: isActive
+                        )
 
-            OnboardingHeroView(slide: slide)
-                .scaleEffect(isActive ? 1 : 0.94)
-                .opacity(isActive ? 1 : 0.55)
-                .animation(.spring(response: 0.5, dampingFraction: 0.82), value: isActive)
+                    VStack(spacing: 12) {
+                        Text(slide.headline)
+                            .font(.fraunces(30, weight: .bold, relativeTo: .title))
+                            .foregroundStyle(Color.snapEspresso)
+                            .multilineTextAlignment(.center)
+                            .fixedSize(horizontal: false, vertical: true)
 
-            // Copy
-            VStack(spacing: 12) {
-                Text(slide.headline)
-                    .font(.fraunces(30, weight: .bold))
-                    .foregroundStyle(Color.snapEspresso)
-                    .multilineTextAlignment(.center)
-                    .fixedSize(horizontal: false, vertical: true)
-
-                Text(slide.body)
-                    .font(.snapBody)
-                    .foregroundStyle(Color.snapWarmGray)
-                    .multilineTextAlignment(.center)
-                    .fixedSize(horizontal: false, vertical: true)
+                        Text(slide.body)
+                            .font(.snapBody)
+                            .foregroundStyle(Color.snapWarmGray)
+                            .multilineTextAlignment(.center)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    .padding(.horizontal, 28)
+                    // One VoiceOver stop per slide, read as a single sentence.
+                    .accessibilityElement(children: .combine)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 24)
+                .frame(minHeight: proxy.size.height)
             }
-            .padding(.horizontal, 28)
-
-            Spacer()
         }
     }
 }
@@ -109,14 +120,29 @@ private struct SlideView: View {
 
 private struct OnboardingHeroView: View {
     let slide: OnboardingSlide
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var float = false
 
     var body: some View {
         content
+            // The hero is an *illustration of the UI*, not readable content —
+            // like an image of text, it must not scale with Dynamic Type or it
+            // overflows its own mock card. The real copy below scales freely.
+            .dynamicTypeSize(...DynamicTypeSize.large)
             .frame(height: 220)
-            .offset(y: float ? -6 : 6)
-            .animation(.easeInOut(duration: 2.6).repeatForever(autoreverses: true), value: float)
-            .onAppear { float = true }
+            // Decorative idle motion — skipped entirely under Reduce Motion.
+            .offset(y: reduceMotion ? 0 : (float ? -6 : 6))
+            .animation(
+                reduceMotion ? nil : .easeInOut(duration: 2.6).repeatForever(autoreverses: true),
+                value: float
+            )
+            .onAppear {
+                guard !reduceMotion else { return }
+                float = true
+            }
+            // The hero is a decorative preview of the copy below it; VoiceOver
+            // should read the headline, not enumerate the mock card's contents.
+            .accessibilityHidden(true)
     }
 
     @ViewBuilder private var content: some View {

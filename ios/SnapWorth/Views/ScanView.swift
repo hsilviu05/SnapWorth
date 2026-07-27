@@ -36,7 +36,7 @@ struct ScanView: View {
                 HStack {
                     Text("SnapWorth")
                         .font(.fraunces(20, weight: .bold))
-                        .foregroundStyle(Color.snapBackground)
+                        .foregroundStyle(Color.snapOnCharcoal)
 
                     Spacer()
 
@@ -47,7 +47,7 @@ struct ScanView: View {
                             Button { vm.paywallTrigger = .upgradeButton; vm.showPaywall = true } label: {
                                 Text("Upgrade to Pro")
                                     .font(.snapCaption.bold())
-                                    .foregroundStyle(Color.snapBackground)
+                                    .foregroundStyle(Color.snapOnCharcoal)
                                     .padding(.horizontal, 10)
                                     .padding(.vertical, 5)
                                     .background(Color.snapTerracotta)
@@ -56,7 +56,7 @@ struct ScanView: View {
                         } else {
                             Text("\(remaining) free scan\(remaining == 1 ? "" : "s") left today")
                                 .font(.snapCaption)
-                                .foregroundStyle(Color.snapBackground.opacity(0.8))
+                                .foregroundStyle(Color.snapOnCharcoal.opacity(0.8))
                                 .padding(.horizontal, 10)
                                 .padding(.vertical, 5)
                                 .background(Color.snapCharcoal.opacity(0.5))
@@ -72,13 +72,13 @@ struct ScanView: View {
                 // Viewfinder frame guide — compact = phone, regular = iPad
                 let viewfinderSide: CGFloat = hSizeClass == .regular ? 320 : 300
                 RoundedRectangle(cornerRadius: 24, style: .continuous)
-                    .strokeBorder(Color.snapBackground.opacity(0.5), lineWidth: 2)
+                    .strokeBorder(Color.snapOnCharcoal.opacity(0.5), lineWidth: 2)
                     .frame(width: viewfinderSide, height: viewfinderSide)
                     .overlay(CornerAccents())
 
                 Text("Center the item — tags & logos help")
                     .font(.snapCaption)
-                    .foregroundStyle(Color.snapBackground.opacity(0.7))
+                    .foregroundStyle(Color.snapOnCharcoal.opacity(0.7))
                     .padding(.top, 16)
 
                 Spacer()
@@ -88,12 +88,12 @@ struct ScanView: View {
                     // Photo library picker
                     PhotosPicker(selection: $vm.selectedPhotoItem, matching: .images) {
                         RoundedRectangle(cornerRadius: 8, style: .continuous)
-                            .fill(Color.snapBackground.opacity(isAnalyzing ? 0.1 : 0.2))
+                            .fill(Color.snapOnCharcoal.opacity(isAnalyzing ? 0.1 : 0.2))
                             .frame(width: 52, height: 52)
                             .overlay(
                                 Image(systemName: "photo.on.rectangle")
                                     .font(.system(size: 22, weight: .light))
-                                    .foregroundStyle(Color.snapBackground.opacity(isAnalyzing ? 0.4 : 1))
+                                    .foregroundStyle(Color.snapOnCharcoal.opacity(isAnalyzing ? 0.4 : 1))
                             )
                     }
                     .disabled(vm.isAnalyzing)
@@ -118,10 +118,10 @@ struct ScanView: View {
                     } label: {
                         ZStack {
                             Circle()
-                                .fill(Color.snapBackground)
+                                .fill(Color.snapOnCharcoal)
                                 .frame(width: 80, height: 80)
                             Circle()
-                                .strokeBorder(Color.snapBackground.opacity(0.4), lineWidth: 3)
+                                .strokeBorder(Color.snapOnCharcoal.opacity(0.4), lineWidth: 3)
                                 .frame(width: 94, height: 94)
                         }
                     }
@@ -135,7 +135,7 @@ struct ScanView: View {
                         showThriftFlip = true
                     } label: {
                         RoundedRectangle(cornerRadius: 8, style: .continuous)
-                            .fill(Color.snapBackground.opacity(isAnalyzing ? 0.1 : 0.2))
+                            .fill(Color.snapOnCharcoal.opacity(isAnalyzing ? 0.1 : 0.2))
                             .frame(width: 52, height: 52)
                             .overlay(
                                 VStack(spacing: 1) {
@@ -144,7 +144,7 @@ struct ScanView: View {
                                     Text("Flip")
                                         .font(.system(size: 9, weight: .semibold))
                                 }
-                                .foregroundStyle(Color.snapBackground.opacity(isAnalyzing ? 0.4 : 1))
+                                .foregroundStyle(Color.snapOnCharcoal.opacity(isAnalyzing ? 0.4 : 1))
                             )
                     }
                     .disabled(vm.isAnalyzing)
@@ -256,11 +256,11 @@ struct ScanView: View {
         VStack(spacing: 20) {
             Image(systemName: "camera.slash")
                 .font(.system(size: 48, weight: .light))
-                .foregroundStyle(Color.snapBackground.opacity(0.5))
+                .foregroundStyle(Color.snapOnCharcoal.opacity(0.5))
 
             Text("Camera access needed to scan items")
                 .font(.snapBody)
-                .foregroundStyle(Color.snapBackground.opacity(0.8))
+                .foregroundStyle(Color.snapOnCharcoal.opacity(0.8))
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 40)
 
@@ -310,6 +310,6 @@ private struct CornerAccents: View {
             path.addLine(to: origin)
             path.addLine(to: CGPoint(x: origin.x, y: origin.y + vLen))
         }
-        .stroke(Color.snapBackground, lineWidth: thick)
+        .stroke(Color.snapOnCharcoal, lineWidth: thick)
     }
 }
