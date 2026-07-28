@@ -9,6 +9,9 @@ final class StoreKitPurchaseService: PurchaseService, ObservableObject {
     @Published private(set) var isSubscribed: Bool
     /// End of an active introductory free trial, when the user is in one.
     @Published private(set) var trialEndDate: Date?
+    /// Localised pricing straight from StoreKit, keyed by product ID.
+    @Published private(set) var pricing: [String: PlanPricing] = [:]
+    @Published private(set) var isPricingLoaded = false
 
     private static let cacheKey = "snapworth_is_subscribed"
     private let productIDs = [Config.monthlyProductID, Config.yearlyProductID]
@@ -99,10 +102,85 @@ final class StoreKitPurchaseService: PurchaseService, ObservableObject {
         return product
     }
 
+    func reloadProducts() async {
+        await loadProducts()
+    }
+
     private func loadProducts() async {
+        defer { isPricingLoaded = true }
         if let fetched = try? await Product.products(for: productIDs), !fetched.isEmpty {
             products = fetched
+            pricing = Self.buildPricing(from: fetched)
         }
+    }
+
+    // MARK: - Pricing
+
+    /// Derives display strings from StoreKit rather than hardcoding them.
+    ///
+    /// `displayPrice` is already localised to the user's storefront currency and
+    /// number format. Everything derived (per-week, savings) is computed from
+    /// `product.price`, a `Decimal`, so there is no float drift in money math.
+    static func buildPricing(from products: [Product]) -> [String: PlanPricing] {
+        let monthly = products.first { $0.id == Config.monthlyProductID }
+        var result: [String: PlanPricing] = [:]
+
+        for product in products {
+            let isYearly = product.id == Config.yearlyProductID
+            result[product.id] = PlanPricing(
+                productID: product.id,
+                displayPrice: product.displayPrice,
+                displayPricePerWeek: isYearly ? weeklyPrice(for: product) : nil,
+                introductoryOffer: introductoryDescription(for: product),
+                savingsPercent: isYearly ? savings(yearly: product, monthly: monthly) : nil
+            )
+        }
+        return result
+    }
+
+    /// Formats `price ÷ 52` in the product's own currency.
+    private static func weeklyPrice(for product: Product) -> String? {
+        let weeks = Decimal(52)
+        guard weeks > 0 else { return nil }
+        let perWeek = product.price / weeks
+        return product.priceFormatStyle.format(perWeek)
+    }
+
+    /// "3-day free trial" / "1 month free", from the product's real offer.
+    /// Returns nil when no introductory offer is configured, so the paywall
+    /// cannot advertise a trial that App Store Connect does not grant.
+    private static func introductoryDescription(for product: Product) -> String? {
+        guard let offer = product.subscription?.introductoryOffer else { return nil }
+        let period = offer.period
+        let unit: String
+        switch period.unit {
+        case .day:   unit = "day"
+        case .week:  unit = "week"
+        case .month: unit = "month"
+        case .year:  unit = "year"
+        @unknown default: return nil
+        }
+        let count = period.value
+        let plural = count == 1 ? "" : "s"
+
+        switch offer.paymentMode {
+        case .freeTrial:
+            return "\(count)-\(unit)\(plural) free trial"
+        case .payAsYouGo, .payUpFront:
+            return "\(offer.displayPrice) for \(count) \(unit)\(plural)"
+        default:
+            return nil
+        }
+    }
+
+    /// Percentage the yearly plan saves against 12× monthly.
+    private static func savings(yearly: Product, monthly: Product?) -> Int? {
+        guard let monthly else { return nil }
+        let twelveMonths = monthly.price * 12
+        guard twelveMonths > 0, yearly.price < twelveMonths else { return nil }
+        let ratio = (twelveMonths - yearly.price) / twelveMonths * 100
+        let percent = NSDecimalNumber(decimal: ratio).intValue
+        return percent > 0 ? percent : nil
     }
 
     private func refreshSubscriptionStatus() async {
