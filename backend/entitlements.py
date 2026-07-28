@@ -17,6 +17,7 @@ from __future__ import annotations
 import base64
 import json
 import logging
+import os
 import time
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -53,6 +54,37 @@ at+qIxUCMG1mihDK1A3UT82NQz60imOlM27jbdoXt2QfyFMm+YhidDkLF1vLUagM
 EXPIRY_GRACE_SECONDS = 3600
 
 ENTITLEMENT_CACHE_TTL = 900          # 15 min
+
+# Which StoreKit environments this deployment accepts.
+#
+# Sandbox transactions are signed by the *same* Apple chain as production ones,
+# so every signature/bundle/product check below passes for a Sandbox JWS. Without
+# this gate a free Sandbox tester account grants production Pro indefinitely.
+#
+# Comma-separated; defaults to Production only.
+#
+# OPERATIONAL NOTE: TestFlight builds receive *Sandbox* transactions. To exercise
+# the purchase flow end-to-end from TestFlight, point that build at a staging
+# deployment with ALLOWED_STOREKIT_ENVIRONMENTS="Sandbox" — do not widen
+# production, or you reopen the bypass for everyone.
+def _parse_environments(raw: str) -> frozenset[str]:
+    values = {v.strip() for v in raw.split(",") if v.strip()}
+    return frozenset(values or {"Production"})
+
+
+ALLOWED_ENVIRONMENTS = _parse_environments(
+    os.environ.get("ALLOWED_STOREKIT_ENVIRONMENTS", "Production"))
+
+# How many distinct attested devices one subscription may entitle.
+#
+# The signed transaction is handed to the client in plaintext, so a single payer
+# can share it. Apple's own Family Sharing tops out at six, which makes six the
+# natural cap: invisible to every honest household, bounded for everyone else.
+MAX_DEVICES_PER_SUBSCRIPTION = int(os.environ.get("MAX_DEVICES_PER_SUBSCRIPTION", "6"))
+
+# Device-binding records outlive any single entitlement cache entry, otherwise
+# the cap resets every 15 minutes and stops being a cap.
+DEVICE_BINDING_TTL = 60 * 60 * 24 * 400
 
 
 class EntitlementError(Exception):
@@ -122,6 +154,14 @@ def _verify_chain(certs: list[x509.Certificate]) -> x509.Certificate:
             != root.public_bytes(serialization.Encoding.DER)):
         raise EntitlementError("Signed transaction is not rooted in Apple's CA.")
 
+    # Every non-leaf certificate must actually be allowed to sign certificates.
+    # Without this an attacker who obtains any Apple-chained *leaf* could use it
+    # as an intermediate and mint their own transaction-signing certificate.
+    # Root pinning above bounds the damage, but a permissive chain walk is a
+    # latent flaw and cheap to close.
+    for issuer in certs[1:]:
+        _require_ca(issuer)
+
     for child, parent in zip(certs, certs[1:]):
         try:
             key = parent.public_key()
@@ -134,10 +174,30 @@ def _verify_chain(certs: list[x509.Certificate]) -> x509.Certificate:
     return certs[0]
 
 
+def _require_ca(cert: x509.Certificate) -> None:
+    """Assert a certificate is a CA permitted to sign other certificates."""
+    try:
+        constraints = cert.extensions.get_extension_for_class(
+            x509.BasicConstraints).value
+    except x509.ExtensionNotFound:
+        raise EntitlementError("Signed transaction chain is malformed.") from None
+    if not constraints.ca:
+        raise EntitlementError("Signed transaction chain is malformed.")
+
+    # keyUsage is optional in X.509; when present it must permit cert signing.
+    try:
+        usage = cert.extensions.get_extension_for_class(x509.KeyUsage).value
+    except x509.ExtensionNotFound:
+        return
+    if not usage.key_cert_sign:
+        raise EntitlementError("Signed transaction chain is malformed.")
+
+
 def verify_signed_transaction(
     jws_value: str,
     bundle_id: str,
     allowed_product_ids: set[str] | None = None,
+    allowed_environments: frozenset[str] | None = None,
 ) -> Entitlement:
     """Verify a StoreKit 2 JWS and return the entitlement it proves."""
     if not jws_value or len(jws_value) > 16_384:
@@ -172,6 +232,17 @@ def verify_signed_transaction(
     if payload.get("bundleId") != bundle_id:
         raise EntitlementError("Signed transaction is for a different app.")
 
+    # Environment gate. Must run before the entitlement is built: a Sandbox JWS
+    # is cryptographically indistinguishable from a production one, so this is
+    # the *only* thing separating a free tester account from paid Pro.
+    environments = ALLOWED_ENVIRONMENTS if allowed_environments is None else allowed_environments
+    environment = payload.get("environment", "Production")
+    if environment not in environments:
+        log.warning("rejected transaction from disallowed environment",
+                    extra={"environment": environment,
+                           "allowed": sorted(environments)})
+        raise EntitlementError("Signed transaction is from the wrong environment.")
+
     product_id = payload.get("productId")
     if allowed_product_ids and product_id not in allowed_product_ids:
         raise EntitlementError("Signed transaction is for an unrecognised product.")
@@ -190,7 +261,7 @@ def verify_signed_transaction(
         product_id=product_id,
         expires_at=expires_at,
         original_transaction_id=payload.get("originalTransactionId"),
-        environment=payload.get("environment", "Production"),
+        environment=environment,
     )
     if not ent.is_active:
         log.info("signed transaction has expired", extra={"product_id": product_id})
@@ -198,21 +269,37 @@ def verify_signed_transaction(
     return ent
 
 
+class DeviceLimitExceeded(EntitlementError):
+    """This subscription is already bound to the maximum number of devices."""
+
+
 class EntitlementService:
     """Verifies signed transactions and caches the outcome per subject."""
 
-    def __init__(self, cache, bundle_id: str, allowed_product_ids: set[str] | None = None) -> None:
+    def __init__(self, cache, bundle_id: str, allowed_product_ids: set[str] | None = None,
+                 max_devices: int = MAX_DEVICES_PER_SUBSCRIPTION) -> None:
         self._cache = cache
         self._bundle_id = bundle_id
         self._allowed = allowed_product_ids
+        self._max_devices = max_devices
 
     @staticmethod
     def _key(subject: str) -> str:
         return f"ent:{subject}"
 
+    @staticmethod
+    def _device_key(original_transaction_id: str) -> str:
+        return f"txn:{original_transaction_id}"
+
     async def record(self, subject: str, jws_value: str) -> Entitlement:
-        """Verify and cache. Raises `EntitlementError` if the JWS is bad."""
+        """Verify, device-bind, and cache. Raises `EntitlementError` if invalid."""
         ent = verify_signed_transaction(jws_value, self._bundle_id, self._allowed)
+
+        # Bind before caching: a transaction that fails the device cap must not
+        # leave a Pro entitlement behind.
+        if ent.tier == "pro" and ent.original_transaction_id:
+            await self._bind_device(subject, ent)
+
         ttl = ENTITLEMENT_CACHE_TTL
         if ent.expires_at:
             # Never cache past the subscription's own expiry.
@@ -221,6 +308,47 @@ class EntitlementService:
         log.info("entitlement recorded",
                  extra={"tier": ent.tier, "product_id": ent.product_id})
         return ent
+
+    async def _bind_device(self, subject: str, ent: Entitlement) -> None:
+        """Associate `subject` with the subscription, enforcing the device cap.
+
+        The signed transaction reaches the client in plaintext, so one payer can
+        hand it to arbitrarily many installs. Each install attests under its own
+        App Attest key, so without this every recipient becomes Pro.
+
+        A cache failure here is not fatal: refusing a legitimate paying customer
+        because Redis blinked is a worse outcome than briefly permitting an extra
+        device. The cap is anti-abuse, not an authorisation boundary.
+        """
+        key = self._device_key(ent.original_transaction_id or "")
+        try:
+            raw = await self._cache.get(key)
+            subjects: list[str] = json.loads(raw) if raw else []
+        except Exception as exc:
+            log.warning("device binding read failed, allowing: %s", exc)
+            return
+
+        if subject in subjects:
+            return                                  # already-known device
+
+        if len(subjects) >= self._max_devices:
+            log.warning("subscription device cap reached", extra={
+                "devices": len(subjects), "max": self._max_devices})
+            raise DeviceLimitExceeded(
+                "This subscription is already active on the maximum number of "
+                "devices. Sign out on another device, or contact support."
+            )
+
+        subjects.append(subject)
+        # TTL tracks the subscription, not the short entitlement cache, so the
+        # cap survives far longer than one 15-minute entitlement window.
+        ttl = DEVICE_BINDING_TTL
+        if ent.expires_at:
+            ttl = max(3600, ent.expires_at + EXPIRY_GRACE_SECONDS - int(time.time()))
+        try:
+            await self._cache.set(key, json.dumps(sorted(subjects)), ttl)
+        except Exception as exc:
+            log.warning("device binding write failed: %s", exc)
 
     async def current(self, subject: str) -> Entitlement:
         """Best-known entitlement for a subject; defaults to free."""

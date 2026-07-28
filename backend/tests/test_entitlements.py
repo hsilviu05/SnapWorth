@@ -288,3 +288,127 @@ class TestAuditLog:
         class _Unserialisable:
             def __repr__(self): raise RuntimeError("boom")
         auditlog.record(AuditEvent.SCAN_AUTHORISED, "s", weird=_Unserialisable())
+
+
+# ── Environment gate ─────────────────────────────────────────────────────────
+# Sandbox transactions are signed by the *same* Apple chain as production ones,
+# so signature, bundle and product checks all pass for a free Sandbox tester
+# subscription. The environment field is the only thing separating the two.
+
+class TestEnvironmentGate:
+    def test_sandbox_rejected_by_default(self, pinned_root):
+        leaf_key, chain = pinned_root
+        jws = make_jws(valid_payload(environment="Sandbox"), leaf_key, chain)
+        with pytest.raises(EntitlementError, match="wrong environment"):
+            verify_signed_transaction(jws, BUNDLE_ID, PRODUCTS)
+
+    def test_unknown_environment_rejected(self, pinned_root):
+        leaf_key, chain = pinned_root
+        jws = make_jws(valid_payload(environment="Xcode"), leaf_key, chain)
+        with pytest.raises(EntitlementError, match="wrong environment"):
+            verify_signed_transaction(jws, BUNDLE_ID, PRODUCTS)
+
+    def test_sandbox_accepted_when_explicitly_allowed(self, pinned_root):
+        """Staging deployments opt in; production must not."""
+        leaf_key, chain = pinned_root
+        jws = make_jws(valid_payload(environment="Sandbox"), leaf_key, chain)
+        ent = verify_signed_transaction(
+            jws, BUNDLE_ID, PRODUCTS, allowed_environments=frozenset({"Sandbox"}))
+        assert ent.tier == "pro"
+        assert ent.environment == "Sandbox"
+
+    def test_production_still_accepted(self, pinned_root):
+        leaf_key, chain = pinned_root
+        jws = make_jws(valid_payload(), leaf_key, chain)
+        assert verify_signed_transaction(jws, BUNDLE_ID, PRODUCTS).tier == "pro"
+
+    def test_missing_environment_defaults_to_production(self, pinned_root):
+        """Backwards compatibility: absent field must not lock out real users."""
+        leaf_key, chain = pinned_root
+        payload = valid_payload()
+        del payload["environment"]
+        jws = make_jws(payload, leaf_key, chain)
+        assert verify_signed_transaction(jws, BUNDLE_ID, PRODUCTS).tier == "pro"
+
+    def test_env_parsing_handles_lists_and_blanks(self):
+        assert entitlements._parse_environments("Production,Sandbox") == frozenset(
+            {"Production", "Sandbox"})
+        assert entitlements._parse_environments("  ") == frozenset({"Production"})
+        assert entitlements._parse_environments("Sandbox , ") == frozenset({"Sandbox"})
+
+
+# ── Chain hardening ──────────────────────────────────────────────────────────
+
+class TestChainConstraints:
+    def test_non_ca_intermediate_rejected(self, monkeypatch):
+        """An Apple-chained leaf must not be usable as an issuer."""
+        root_key = ec.generate_private_key(ec.SECP256R1())
+        inter_key = ec.generate_private_key(ec.SECP256R1())
+        leaf_key = ec.generate_private_key(ec.SECP256R1())
+        root = _make_cert("Root", "Root", root_key, root_key, ca=True)
+        # Intermediate deliberately lacks BasicConstraints CA:TRUE.
+        inter = _make_cert("Inter", "Root", inter_key, root_key, ca=False)
+        leaf = _make_cert("Leaf", "Inter", leaf_key, inter_key)
+        chain = [leaf, inter, root]
+        monkeypatch.setattr(entitlements, "APPLE_ROOT_CA_G3_PEM",
+                            root.public_bytes(serialization.Encoding.PEM))
+        jws = make_jws(valid_payload(), leaf_key, chain)
+        with pytest.raises(EntitlementError, match="malformed"):
+            verify_signed_transaction(jws, BUNDLE_ID, PRODUCTS)
+
+
+# ── Device binding cap ───────────────────────────────────────────────────────
+# The signed transaction reaches the client in plaintext, so one payer can share
+# it. Each recipient attests under its own key and would otherwise become Pro.
+
+class TestDeviceCap:
+    @pytest.fixture
+    def service(self):
+        from cache import InMemoryCache, ResilientCache
+        return EntitlementService(
+            ResilientCache(None, InMemoryCache()), BUNDLE_ID, PRODUCTS, max_devices=3)
+
+    @pytest.mark.asyncio
+    async def test_devices_up_to_cap_allowed(self, service, pinned_root):
+        leaf_key, chain = pinned_root
+        jws = make_jws(valid_payload(), leaf_key, chain)
+        for i in range(3):
+            assert (await service.record(f"device-{i}", jws)).tier == "pro"
+
+    @pytest.mark.asyncio
+    async def test_device_beyond_cap_rejected(self, service, pinned_root):
+        leaf_key, chain = pinned_root
+        jws = make_jws(valid_payload(), leaf_key, chain)
+        for i in range(3):
+            await service.record(f"device-{i}", jws)
+        with pytest.raises(entitlements.DeviceLimitExceeded):
+            await service.record("device-3", jws)
+
+    @pytest.mark.asyncio
+    async def test_rejected_device_gets_no_entitlement(self, service, pinned_root):
+        """Binding runs before the cache write — a refused device stays free."""
+        leaf_key, chain = pinned_root
+        jws = make_jws(valid_payload(), leaf_key, chain)
+        for i in range(3):
+            await service.record(f"device-{i}", jws)
+        with pytest.raises(entitlements.DeviceLimitExceeded):
+            await service.record("device-3", jws)
+        assert (await service.current("device-3")).tier == "free"
+
+    @pytest.mark.asyncio
+    async def test_same_device_re_records_freely(self, service, pinned_root):
+        """Token refresh must not consume a device slot each time."""
+        leaf_key, chain = pinned_root
+        jws = make_jws(valid_payload(), leaf_key, chain)
+        for _ in range(10):
+            assert (await service.record("device-a", jws)).tier == "pro"
+
+    @pytest.mark.asyncio
+    async def test_distinct_subscriptions_have_independent_caps(self, service, pinned_root):
+        leaf_key, chain = pinned_root
+        jws_a = make_jws(valid_payload(originalTransactionId="A"), leaf_key, chain)
+        jws_b = make_jws(valid_payload(originalTransactionId="B"), leaf_key, chain)
+        for i in range(3):
+            await service.record(f"a-{i}", jws_a)
+        # A different subscription starts from an empty slot list.
+        assert (await service.record("b-0", jws_b)).tier == "pro"

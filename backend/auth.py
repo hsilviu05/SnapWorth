@@ -33,7 +33,7 @@ from pydantic import BaseModel, Field
 import appattest
 import auditlog
 from auditlog import AuditEvent
-from entitlements import EntitlementError, EntitlementService
+from entitlements import DeviceLimitExceeded, EntitlementError, EntitlementService
 from quota import QuotaExceeded, QuotaUnavailable, ScanQuota
 from tokens import TokenError, TokenSigner
 
@@ -142,6 +142,20 @@ def _state_key(key_id: str) -> str:
     return f"attest:{key_id}"
 
 
+def _device_token_key(subject: str) -> str:
+    """DeviceCheck token for a subject, stored separately from attest state.
+
+    Kept out of the attestation blob deliberately: `require_auth` runs on every
+    request and must not pay an extra cache round-trip for a value that is only
+    needed on the rare quota-exhaustion path. The lookup happens there instead.
+    """
+    return f"dct:{key_id_safe(subject)}"
+
+
+def key_id_safe(subject: str) -> str:
+    return subject[:128]
+
+
 async def _issue_token(subject: str, device_token: str | None) -> TokenResponse:
     ent = await deps.entitlements.current(subject)
     token, claims = deps.signer.mint(subject, tier=ent.tier)
@@ -215,6 +229,16 @@ async def attest(req: AttestRequest) -> TokenResponse:
         "counter": result.counter,
         "environment": result.environment,
     }), ATTEST_STATE_TTL)
+
+    # Retained so the quota layer can mark the *hardware* when the free
+    # allowance runs out — the per-install counter cannot survive a reinstall,
+    # the DeviceCheck bit can. Best-effort: a failure here must not fail attest.
+    if req.device_token:
+        try:
+            await deps.cache.set(_device_token_key(subject), req.device_token,
+                                 ATTEST_STATE_TTL)
+        except Exception as exc:
+            log.warning("could not persist devicecheck token: %s", exc)
 
     auditlog.record(AuditEvent.ATTEST_SUCCEEDED, subject, environment=result.environment)
     return await _issue_token(subject, req.device_token)
@@ -311,6 +335,13 @@ async def record_entitlement(
     """
     try:
         ent = await deps.entitlements.record(principal.subject, req.signed_transaction)
+    except DeviceLimitExceeded as exc:
+        # 409, not 400: the transaction is valid, the *state* conflicts. Lets the
+        # client show a "too many devices" affordance rather than a generic
+        # "purchase invalid", which would look like a billing failure.
+        auditlog.record(AuditEvent.DEVICE_LIMIT_EXCEEDED, principal.subject,
+                        outcome="denied")
+        raise HTTPException(status_code=409, detail=str(exc)) from None
     except EntitlementError as exc:
         auditlog.record(AuditEvent.ENTITLEMENT_REJECTED, principal.subject,
                         outcome="failure", reason=str(exc))
@@ -327,6 +358,15 @@ async def record_entitlement(
         tier=ent.tier, expires_at=ent.expires_at, access_token=access_token)
 
 
+async def _device_token_for(subject: str) -> str | None:
+    """Best-effort lookup of the DeviceCheck token captured at attestation."""
+    try:
+        return await deps.cache.get(_device_token_key(subject))
+    except Exception as exc:
+        log.warning("devicecheck token lookup failed: %s", exc)
+        return None
+
+
 async def enforce_quota(principal: Principal) -> None:
     """Raise 402 when the free allowance is spent. Fails closed."""
     if principal.is_pro:
@@ -335,6 +375,12 @@ async def enforce_quota(principal: Principal) -> None:
         await deps.quota.check(principal.subject, principal.is_pro)
     except QuotaExceeded as exc:
         auditlog.record(AuditEvent.QUOTA_EXCEEDED, principal.subject, outcome="denied")
+        # Mark the physical device as having spent its allowance. Without this
+        # the reinstall defence in `ScanQuota.starting_balance` reads a bit that
+        # nothing ever sets, so delete-and-reinstall mints a fresh allowance
+        # indefinitely. Swallows its own failures by design.
+        token = principal.device_token or await _device_token_for(principal.subject)
+        await deps.quota.note_exhausted(token)
         raise HTTPException(
             status_code=402,
             detail=exc.message,
