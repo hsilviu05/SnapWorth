@@ -1,11 +1,16 @@
-# Sample benchmark records. Format reference only — `source: synthetic` records
-# exercise the pipeline and are excluded from reported accuracy by design.
-{"id":"clo-0001","image_path":"images/clo-0001.jpg","actual_sale_price_usd":58.00,"sold_date":"2026-05-14","marketplace":"ebay","category":"clothing","brand":"Patagonia","model":"Better Sweater 1/4-Zip","size":"M","condition":"good","notes":"sold in 6 days, 2 watchers","source":"personal_sale"}
-{"id":"clo-0002","image_path":"images/clo-0002.jpg","actual_sale_price_usd":34.00,"sold_date":"2026-04-02","marketplace":"vinted","category":"clothing","brand":"Levi's","model":"501","size":"32x32","condition":"good","source":"personal_sale"}
-{"id":"clo-0003","image_path":"images/clo-0003.jpg","actual_sale_price_usd":12.50,"sold_date":"2026-06-01","marketplace":"vinted","category":"clothing","brand":"Unknown","condition":"used","notes":"adversarial: tag not visible, low light","tags":["adversarial","no_tag"],"source":"personal_sale"}
-{"id":"sho-0001","image_path":"images/sho-0001.jpg","actual_sale_price_usd":92.00,"sold_date":"2026-05-30","marketplace":"ebay","category":"shoes","brand":"Nike","model":"Air Max 90","size":"10","condition":"good","source":"ebay_sold"}
-{"id":"ele-0001","image_path":"images/ele-0001.jpg","actual_sale_price_usd":145.00,"sold_date":"2026-03-19","marketplace":"ebay","category":"electronics","brand":"Sony","model":"WH-1000XM3","condition":"likeNew","source":"ebay_sold"}
-{"id":"hom-0001","image_path":"images/hom-0001.jpg","actual_sale_price_usd":28.00,"sold_date":"2026-05-08","marketplace":"facebook","category":"home","brand":"Pyrex","condition":"good","notes":"vintage bowl, no lid","source":"personal_sale"}
-{"id":"col-0001","image_path":"images/col-0001.jpg","actual_sale_price_usd":410.00,"sold_date":"2026-02-11","marketplace":"ebay","category":"collectibles","brand":"Unknown","condition":"good","notes":"long-tail find; tests tail behaviour","source":"ebay_sold"}
-{"id":"neg-0001","image_path":"images/neg-0001.jpg","actual_sale_price_usd":0.0,"category":"other","not_resalable":true,"notes":"negative control: photo of a kitchen wall","tags":["negative_control"],"source":"personal_sale"}
-{"id":"syn-0001","image_path":"images/syn-0001.jpg","actual_sale_price_usd":25.00,"category":"clothing","brand":"TestBrand","notes":"pipeline smoke test only","source":"synthetic"}
+# ─────────────────────────────────────────────────────────────────────────────
+# FORMAT REFERENCE ONLY — CONTAINS NO REAL SALES DATA.
+#
+# Every record below is `"source": "synthetic"` and carries placeholder prices.
+# `BenchmarkItem.is_scoreable` returns False for synthetic records, and
+# `dataset.load` refuses to score them, so nothing here can reach a reported
+# metric. Do not edit these into real records — add real ones to a separate
+# file (see docs/EVALUATION.md, "Building the gold set").
+#
+# The prices are deliberately round and obviously artificial so a reader can
+# never mistake this file for measured data.
+# ─────────────────────────────────────────────────────────────────────────────
+{"id":"example-clothing","image_path":"images/PLACEHOLDER.jpg","actual_sale_price_usd":100.0,"category":"clothing","brand":"ExampleBrand","model":"ExampleModel","size":"M","condition":"good","notes":"format example — not a real sale","source":"synthetic"}
+{"id":"example-shoes","image_path":"images/PLACEHOLDER.jpg","actual_sale_price_usd":100.0,"category":"shoes","brand":"ExampleBrand","model":"ExampleModel","size":"10","condition":"likeNew","notes":"format example — not a real sale","source":"synthetic"}
+{"id":"example-adversarial","image_path":"images/PLACEHOLDER.jpg","actual_sale_price_usd":100.0,"category":"clothing","brand":"Unknown","condition":"used","notes":"format example — adversarial tagging demo","tags":["adversarial","no_tag"],"source":"synthetic"}
+{"id":"example-negative-control","image_path":"images/PLACEHOLDER.jpg","actual_sale_price_usd":0.0,"category":"other","not_resalable":true,"notes":"format example — negative control","tags":["negative_control"],"source":"synthetic"}

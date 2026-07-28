@@ -1,0 +1,14 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# GOLD SET TEMPLATE — SCHEMA REFERENCE ONLY. CONTAINS NO REAL SALES.
+#
+# Every record is review_state="draft", so `is_scoreable` is False and nothing
+# here can reach a reported metric. Copy this file to gold.jsonl and replace the
+# records with verified sales — do not edit these in place, so the template
+# stays available as a reference.
+#
+# Prices are deliberately round and brands are placeholders, so no reader can
+# mistake this for measured data. See docs/EVALUATION.md.
+# ─────────────────────────────────────────────────────────────────────────────
+{"id":"TEMPLATE-001","images":[{"path":"images/TEMPLATE-001-front.jpg","angle":"front","is_primary":true},{"path":"images/TEMPLATE-001-tag.jpg","angle":"tag"}],"actual_sale_price":100.0,"currency":"USD","category":"clothing","brand":"PLACEHOLDER","model":"PLACEHOLDER","variant":null,"condition":"good","sold_date":null,"marketplace":"PLACEHOLDER","region":"US","seller_type":"private","shipping_included":true,"authenticity":"presumed_authentic","label_confidence":"certain","evidence_url":null,"evidence_note":"TEMPLATE — replace with a link to the completed listing or receipt","review_state":"draft","difficulty":"typical","tags":[],"human_notes":"schema reference; not a real sale"}
+{"id":"TEMPLATE-002-hard","images":[{"path":"images/TEMPLATE-002-front.jpg","angle":"front","is_primary":true}],"actual_sale_price":100.0,"currency":"GBP","category":"shoes","brand":null,"model":null,"condition":"used","region":"GB","seller_type":"private","authenticity":"unverified","label_confidence":"high","evidence_note":"TEMPLATE — hard case: no visible tag, low light","review_state":"draft","difficulty":"hard","tags":["no_tag","low_light"],"human_notes":"schema reference; not a real sale"}
+{"id":"TEMPLATE-003-negative","images":[{"path":"images/TEMPLATE-003.jpg","angle":"front","is_primary":true}],"actual_sale_price":0.0,"currency":"USD","category":"other","condition":null,"region":"US","authenticity":"not_applicable","label_confidence":"certain","evidence_note":"TEMPLATE — negative control: not a resalable object","review_state":"draft","difficulty":"negative_control","tags":["negative_control"],"human_notes":"schema reference; not a real sale"}
