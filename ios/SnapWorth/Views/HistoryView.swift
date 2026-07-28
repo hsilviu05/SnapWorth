@@ -10,6 +10,12 @@ struct HistoryView: View {
     @State private var selectedResult: ScanResult?
     @State private var isEditing = false
     @State private var recapLabel: String?
+    /// Pending single-item deletion, awaiting confirmation.
+    ///
+    /// "Delete all" in Settings already confirms. A single find vanishing with
+    /// no confirmation and no undo was the inconsistency — deletion is
+    /// irreversible here (no soft delete), so it earns the same guard.
+    @State private var pendingDelete: ScanResult?
 
     private let columns = [
         GridItem(.flexible(), spacing: 12),
@@ -99,7 +105,7 @@ struct HistoryView: View {
                                         }
                                         .contextMenu {
                                             Button(role: .destructive) {
-                                                vm.delete(result, repository: repository)
+                                                pendingDelete = result
                                             } label: {
                                                 Label("Delete", systemImage: "trash")
                                             }
@@ -107,9 +113,7 @@ struct HistoryView: View {
                                         .overlay(alignment: .topTrailing) {
                                             if isEditing {
                                                 Button {
-                                                    withAnimation(.spring(duration: 0.2)) {
-                                                        vm.delete(result, repository: repository)
-                                                    }
+                                                    pendingDelete = result
                                                 } label: {
                                                     Image(systemName: "minus.circle.fill")
                                                         .snapSymbol(22)
@@ -130,12 +134,12 @@ struct HistoryView: View {
                                         .accessibilityHint("Opens this find")
                                         .accessibilityAddTraits(.isButton)
                                         .accessibilityAction(named: "Delete") {
-                                            vm.delete(result, repository: repository)
+                                            pendingDelete = result
                                         }
                                 }
                             }
                             .padding(.horizontal, hPad)
-                            .animation(.spring(duration: 0.25), value: isEditing)
+                            .snapAnimation(.spring(duration: 0.25), value: isEditing)
                         }
                     }
                     .padding(.top, 8)
@@ -201,7 +205,29 @@ struct HistoryView: View {
             .task { recapLabel = NotificationManager.shared.readyRecapLabel() }
         }
         .sheet(item: $selectedResult) { result in
-            ResultView(result: result, purchaseService: purchaseService, onDismiss: { selectedResult = nil })
+            ResultView(result: result, purchaseService: purchaseService,
+                       onDismiss: { selectedResult = nil })
+                .presentationDragIndicator(.visible)
+        }
+        .confirmationDialog(
+            "Delete this find?",
+            isPresented: Binding(
+                get: { pendingDelete != nil },
+                set: { if !$0 { pendingDelete = nil } }
+            ),
+            titleVisibility: .visible,
+            presenting: pendingDelete
+        ) { result in
+            Button("Delete", role: .destructive) {
+                Haptics.light()
+                withAnimation(.spring(duration: 0.25)) {
+                    vm.delete(result, repository: repository)
+                }
+                pendingDelete = nil
+            }
+            Button("Cancel", role: .cancel) { pendingDelete = nil }
+        } message: { result in
+            Text("\(result.itemName) will be permanently removed from your finds.")
         }
         .alert("Delete Failed", isPresented: Binding(
             get: { vm.deleteError != nil },
@@ -330,7 +356,7 @@ private struct EmptyFindsView: View {
                 .font(.fraunces(20, weight: .bold, relativeTo: .title3))
                 .foregroundStyle(Color.snapEspresso)
 
-            Text("Scan your first thrift item\nto see its resale value here.")
+            Text("Scan your first thrift item to see its resale value here.")
                 .font(.snapBody)
                 .foregroundStyle(Color.snapWarmGray)
                 .multilineTextAlignment(.center)

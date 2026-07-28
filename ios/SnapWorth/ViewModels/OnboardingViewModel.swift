@@ -37,7 +37,7 @@ final class OnboardingViewModel {
 
     func advance() {
         guard currentPage < slides.count - 1 else { return }
-        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+        Haptics.light()
         currentPage += 1
     }
 }

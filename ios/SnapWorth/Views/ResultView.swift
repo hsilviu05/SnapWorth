@@ -187,7 +187,7 @@ struct ResultView: View {
     private func conditionChip(_ condition: Condition) -> some View {
         let selected = result.condition == condition
         return Button {
-            UISelectionFeedbackGenerator().selectionChanged()
+            Haptics.selection()
             result.condition = condition
             vm.scheduleShareCardUpdate(result: result, photo: photo, displayScale: displayScale)
             // Selection re-prices the estimate; announce the new value so a
@@ -389,7 +389,7 @@ struct ResultView: View {
     }
 
     private func setStatus(_ status: FlipStatus) {
-        UISelectionFeedbackGenerator().selectionChanged()
+        Haptics.selection()
         let previous = result.status
         result.status = status
 
@@ -619,7 +619,7 @@ struct ResultView: View {
             ) {
                 vm.copyListing(result: result)
             }
-            .animation(.spring(duration: 0.2), value: vm.didCopyListing)
+            .snapAnimation(.spring(duration: 0.2), value: vm.didCopyListing)
         }
         .padding(20)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -683,7 +683,7 @@ struct ResultView: View {
             ForEach(Marketplace.allCases) { marketplace in
                 let selected = vm.selectedMarketplace == marketplace
                 Button {
-                    UISelectionFeedbackGenerator().selectionChanged()
+                    Haptics.selection()
                     vm.selectMarketplace(marketplace)
                 } label: {
                     Text(marketplace.displayName)
@@ -765,7 +765,7 @@ struct ResultView: View {
                     showListingShare = true
                 }
             }
-            .animation(.spring(duration: 0.2), value: vm.didCopyGenerated)
+            .snapAnimation(.spring(duration: 0.2), value: vm.didCopyGenerated)
 
             PrimaryButton(title: "Open \(listing.marketplace.displayName)") {
                 vm.openMarketplace(listing.marketplace)

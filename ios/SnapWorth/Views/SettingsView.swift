@@ -11,6 +11,7 @@ struct SettingsView: View {
     @State private var showPaywall = false
     @State private var showDeleteAlert = false
     @AppStorage(Analytics.enabledKey) private var analyticsEnabled = true
+    @AppStorage(Haptics.preferenceKey) private var hapticsEnabled = true
 
     /// Marketing version read from the bundle so it never goes stale.
     private static var appVersion: String {
@@ -87,6 +88,32 @@ struct SettingsView: View {
                     SettingsRow(icon: "trash", label: "Clear scan history", destructive: true) {
                         showDeleteAlert = true
                     }
+                }
+
+                // ── Feel ───────────────────────────────────────────────────
+                Section {
+                    Toggle(isOn: $hapticsEnabled) {
+                        HStack(spacing: 14) {
+                            Image(systemName: "hand.tap")
+                                .snapSymbol(16, weight: .medium)
+                                .foregroundStyle(Color.snapTerracotta)
+                                .frame(minWidth: 24)
+                                .accessibilityHidden(true)
+                            Text("Haptic feedback")
+                                .font(.snapBody)
+                                .foregroundStyle(Color.snapEspresso)
+                        }
+                        .frame(minHeight: 44)
+                    }
+                    .tint(Color.snapTerracotta)
+                    .accessibilityLabel("Haptic feedback")
+                    .accessibilityHint("Turns off the taps you feel when scanning and selecting")
+                    .onChange(of: hapticsEnabled) { _, enabled in
+                        // Fire once on enable so the change is felt, not just read.
+                        if enabled { Haptics.selection() }
+                    }
+                } header: {
+                    Text("Feel")
                 }
 
                 // ── Privacy ────────────────────────────────────────────────

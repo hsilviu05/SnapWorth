@@ -22,7 +22,7 @@ struct OnboardingView: View {
                 .frame(height: 24)
                 .padding(.horizontal, 24)
                 .padding(.top, 8)
-                .animation(.easeInOut(duration: 0.2), value: vm.isLastPage)
+                .snapAnimation(.easeInOut(duration: 0.2), value: vm.isLastPage)
 
                 // ── Slides ────────────────────────────────────────────────
                 TabView(selection: $vm.currentPage) {
@@ -32,7 +32,7 @@ struct OnboardingView: View {
                     }
                 }
                 .tabViewStyle(.page(indexDisplayMode: .never))
-                .animation(.spring(duration: 0.4), value: vm.currentPage)
+                .snapAnimation(.spring(duration: 0.4), value: vm.currentPage)
 
                 // ── Page dots ────────────────────────────────────────────
                 HStack(spacing: 8) {
@@ -40,7 +40,7 @@ struct OnboardingView: View {
                         Capsule()
                             .fill(i == vm.currentPage ? Color.snapTerracotta : Color.snapBorder)
                             .frame(width: i == vm.currentPage ? 24 : 8, height: 8)
-                            .animation(.spring(duration: 0.3), value: vm.currentPage)
+                            .snapAnimation(.spring(duration: 0.3), value: vm.currentPage)
                     }
                 }
                 .accessibilityElement(children: .ignore)
@@ -53,7 +53,7 @@ struct OnboardingView: View {
                         title: vm.isLastPage ? "Start scanning" : "Next"
                     ) {
                         if vm.isLastPage {
-                            UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                            Haptics.capture()
                             onFinish()
                         } else {
                             vm.advance()

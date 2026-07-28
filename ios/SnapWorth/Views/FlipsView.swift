@@ -377,7 +377,7 @@ struct FlipsView: View {
             Text("No flips yet")
                 .font(.fraunces(20, weight: .bold, relativeTo: .title3))
                 .foregroundStyle(Color.snapEspresso)
-            Text("Scan an item, then mark it Owned or Sold\nto start tracking your profit here.")
+            Text("Scan an item, then mark it Owned or Sold to start tracking your profit here.")
                 .font(.snapBody)
                 .foregroundStyle(Color.snapWarmGray)
                 .multilineTextAlignment(.center)

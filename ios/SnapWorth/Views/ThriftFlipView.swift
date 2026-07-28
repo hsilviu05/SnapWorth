@@ -162,7 +162,7 @@ struct ThriftFlipView: View {
                 ForEach(Marketplace.allCases) { marketplace in
                     let selected = vm.selectedMarketplace == marketplace
                     Button {
-                        UISelectionFeedbackGenerator().selectionChanged()
+                        Haptics.selection()
                         vm.selectedMarketplace = marketplace
                     } label: {
                         Text(marketplace.displayName)
@@ -345,7 +345,7 @@ struct ThriftFlipView: View {
     private var saveToLedgerButton: some View {
         Button {
             vm.saveToLedger(repository: ScanRepository(context: modelContext))
-            UINotificationFeedbackGenerator().notificationOccurred(.success)
+            Haptics.success()
         } label: {
             HStack(spacing: 6) {
                 Image(systemName: "bag.badge.plus")
