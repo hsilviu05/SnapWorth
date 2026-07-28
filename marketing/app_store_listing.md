@@ -33,7 +33,7 @@ WHAT YOU GET
 
 • Instant resale value — an estimated low-to-high range for your item
 • Confidence score — see how clearly the AI could identify your item
-• AI listing draft — title and description written for you, ready to paste into Depop, Poshmark, or eBay
+• AI listing draft — title and description tailored to eBay, Vinted, Facebook Marketplace, or OLX
 • Scan history — every find saved automatically with its value
 • Total haul tracker — see what your collection is worth at a glance
 
@@ -42,7 +42,7 @@ WHAT YOU GET
 BUILT FOR
 
 • Thrift store shoppers who want to flip for profit
-• Resellers on Depop, Poshmark, eBay, and Vinted
+• Resellers on eBay, Vinted, Facebook Marketplace, and OLX
 • Estate sale and yard sale hunters
 • Anyone who's ever thought "is this worth buying?"
 
@@ -74,7 +74,7 @@ snapworth.eu
 ---
 
 ## Keywords (100 chars max)
-thrift,resale,flip,poshmark,depop,ebay,secondhand,vintage,value,scanner,selling,clothing
+thrift,resale,flip,reseller,secondhand,vintage,goodwill,ebay,vinted,scanner,price,value,profit
 
 ---
 
