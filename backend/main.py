@@ -11,6 +11,7 @@ import json
 import logging
 import math
 import os
+import platform
 import random
 import re
 import time
@@ -19,6 +20,7 @@ import google.generativeai as genai
 from dotenv import load_dotenv
 from fastapi import FastAPI, File, Header, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi import Response
 from fastapi.responses import HTMLResponse, JSONResponse
 from pydantic import BaseModel, Field
 
@@ -30,6 +32,7 @@ import confidence as confidence_module
 import devicecheck
 import imagequality
 import imagevalidation
+import metrics
 import promptsafety
 import prompts
 import ratelimit
@@ -39,7 +42,7 @@ from auditlog import AuditEvent
 from auth import Principal, consume_quota, enforce_quota, require_auth
 from entitlements import EntitlementService
 from fastapi import Depends
-from observability import RequestContextMiddleware, configure_logging
+from observability import RequestContextMiddleware, configure_production_logging
 from quota import ScanQuota
 from ratelimit import (
     IP_RATE_MAX_REQUESTS,
@@ -51,9 +54,12 @@ from ratelimit import (
 
 load_dotenv()
 
-configure_logging(
+# Production logging adds credential redaction, W3C trace-context propagation
+# and optional access-log sampling on top of the request-id correlation.
+configure_production_logging(
     level=os.environ.get("LOG_LEVEL", "INFO"),
     json_output=os.environ.get("LOG_FORMAT", "").lower() == "json",
+    access_sample_rate=float(os.environ.get("ACCESS_LOG_SAMPLE_RATE", "1.0")),
 )
 log = logging.getLogger("snapworth")
 
@@ -96,7 +102,64 @@ async def _lifespan(_app: FastAPI):
         "cache": _cache.backend,
         "token_kids": auth.deps.signer.active_kids,
     })
+
+    metrics.build_info.set(
+        1, version=app.version, python=platform.python_version(),
+        commit=os.environ.get("GIT_COMMIT", "unknown"))
+
+    global _ready
+    _ready = True
+    log.info("startup complete — accepting traffic")
+
     yield
+
+    # ── Shutdown ────────────────────────────────────────────────────────────
+    # Previously there was nothing here: on SIGTERM the process exited with
+    # Redis connections open and in-flight scans killed mid-request. During a
+    # rolling deploy that is a burst of user-visible 502s on every release.
+    #
+    # Order matters. Readiness flips first so the load balancer stops sending
+    # new work, *then* we wait for in-flight requests to finish, and only then
+    # close connections. Closing first would fail the requests we are draining.
+    _ready = False
+    log.info("shutdown: readiness withdrawn, draining in-flight requests")
+
+    deadline = time.monotonic() + _DRAIN_TIMEOUT_SECONDS
+    while metrics.http_in_flight.value() > 0 and time.monotonic() < deadline:
+        await asyncio.sleep(0.1)
+
+    remaining = metrics.http_in_flight.value()
+    if remaining > 0:
+        log.warning("shutdown: %g request(s) still in flight after %ss drain",
+                    remaining, _DRAIN_TIMEOUT_SECONDS)
+
+    await _close_dependencies()
+    log.info("shutdown complete")
+
+
+# Time allowed for in-flight requests to finish before connections are closed.
+# A scan can legitimately take ~6s, so a shorter drain would kill real work.
+# Must be below the platform's SIGKILL grace period — Railway's default is 30s.
+_DRAIN_TIMEOUT_SECONDS = float(os.environ.get("DRAIN_TIMEOUT_SECONDS", "15"))
+
+# Readiness is separate from liveness: the process can be alive and healthy
+# while deliberately refusing new traffic (starting up, or draining).
+_ready = False
+
+
+async def _close_dependencies() -> None:
+    """Release connections. Best-effort — shutdown must never hang or raise."""
+    try:
+        await devicecheck.aclose()
+    except Exception as exc:
+        log.warning("devicecheck client close failed: %s", exc)
+
+    client = getattr(getattr(_cache, "_primary", None), "_redis", None)
+    if client is not None:
+        try:
+            await client.aclose()
+        except Exception as exc:
+            log.warning("redis close failed: %s", exc)
 
 
 app = FastAPI(title="SnapWorth API", version="1.2.0", lifespan=_lifespan)
@@ -118,6 +181,36 @@ if _allowed_origins:
         allow_methods=["POST", "GET", "OPTIONS"],
         allow_headers=["Content-Type", "x-device-id", "X-Request-ID"],
     )
+
+
+@app.middleware("http")
+async def record_metrics(request: Request, call_next):
+    """Instrument every request.
+
+    Sits outside `security_headers` so it observes the response that is actually
+    sent, including error responses raised inside handlers.
+
+    `endpoint_label` maps to a closed set of route templates — using the raw
+    path would create one time series per URL a scanner probes, which is the
+    classic way a metrics layer takes down the monitoring system.
+    """
+    endpoint = metrics.endpoint_label(request.url.path)
+    metrics.http_in_flight.inc()
+    start = time.monotonic()
+    status = 500
+    try:
+        response = await call_next(request)
+        status = response.status_code
+        return response
+    finally:
+        metrics.http_in_flight.dec()
+        metrics.http_duration.observe(
+            time.monotonic() - start, endpoint=endpoint, method=request.method)
+        metrics.http_requests.inc(
+            endpoint=endpoint, method=request.method,
+            status_class=metrics.status_class(status))
+        if status == 429:
+            metrics.rate_limited.inc(scope="http")
 
 
 @app.middleware("http")
@@ -497,6 +590,60 @@ async def health() -> dict:
     return payload
 
 
+@app.get("/health/live")
+async def liveness() -> dict:
+    """Liveness probe: is the process running?
+
+    Deliberately checks **nothing** external. A liveness probe that fails when a
+    dependency is down causes the orchestrator to restart a healthy container,
+    which turns a recoverable Redis blip into a crash-loop across the fleet.
+    Dependency health belongs in readiness, below.
+    """
+    return {"status": "alive"}
+
+
+@app.get("/health/ready")
+async def readiness() -> dict:
+    """Readiness probe: should this instance receive traffic?
+
+    Returns 503 while starting up, while draining on shutdown, or when a
+    configured-but-unreachable cache means quota and entitlement checks would
+    fail closed. In each case the instance is alive but cannot serve correctly,
+    and the load balancer should route elsewhere.
+    """
+    payload: dict = {"status": "ready", "ready": _ready}
+
+    if not _ready:
+        payload["status"] = "not_ready"
+        payload["reason"] = "starting up or draining"
+        return JSONResponse(status_code=503, content=payload)
+
+    if _cache is not None:
+        cache_health = await _cache.health()
+        payload["cache"] = cache_health
+        metrics.cache_degraded.set(0.0 if cache_health.get("healthy", True) else 1.0)
+        if not cache_health.get("healthy", True):
+            payload["status"] = "not_ready"
+            payload["reason"] = "durable cache configured but unreachable"
+            return JSONResponse(status_code=503, content=payload)
+
+    return payload
+
+
+@app.get("/metrics")
+async def prometheus_metrics():
+    """Prometheus exposition endpoint.
+
+    Unauthenticated by design: it carries no user data, only aggregate counters,
+    and every scrape system expects it to be reachable without credentials.
+    Restrict it at the network layer if the platform exposes one — on Railway
+    that is not available, and the exposure is limited to operational
+    aggregates that reveal nothing about an individual user.
+    """
+    return Response(content=metrics.render(),
+                    media_type="text/plain; version=0.0.4; charset=utf-8")
+
+
 _STYLE = """
   body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
        max-width:680px;margin:48px auto;padding:0 24px;color:#2B211C;line-height:1.7}
@@ -617,9 +764,12 @@ async def scan(
 
     # Validate what the bytes *are*, not what the client claimed. The sniffed
     # type is what we forward, so a mislabelled-but-valid image still works.
+    metrics.upload_bytes.observe(len(image_bytes))
     try:
-        content_type = imagevalidation.validate(image_bytes, declared_type)
+        with metrics.Timer(metrics.image_processing_duration):
+            content_type = imagevalidation.validate(image_bytes, declared_type)
     except imagevalidation.ImageValidationError as exc:
+        metrics.upload_rejected.inc(reason="validation")
         auditlog.record(AuditEvent.UPLOAD_REJECTED, principal.subject,
                         outcome="denied", reason=str(exc))
         raise HTTPException(status_code=400, detail=str(exc)) from None
@@ -711,6 +861,9 @@ async def scan(
         expected_field_count=len(valuation_module.EXPECTED_OPTIONAL_FIELDS),
     )
     val.confidence = conf
+    metrics.confidence_score.observe(conf.score)
+    if was_clamped:
+        metrics.valuation_clamped.inc()
 
     elapsed = time.monotonic() - t0
     log.info("scan ok", extra={
@@ -808,21 +961,33 @@ async def _generate_with_retry(
     for attempt in range(_RETRY_ATTEMPTS):
         try:
             kwargs = {"generation_config": config} if config else {}
-            response = await _model.generate_content_async(contents, **kwargs)
-            return aiconfig.extract_text(response), aiconfig.usage_of(response)
+            with metrics.Timer(metrics.model_duration, operation=label):
+                response = await _model.generate_content_async(contents, **kwargs)
+            text, usage = aiconfig.extract_text(response), aiconfig.usage_of(response)
+            metrics.model_calls.inc(operation=label, outcome="success")
+            for kind, key in (("prompt", "prompt_tokens"), ("output", "output_tokens")):
+                if key in usage:
+                    metrics.model_tokens.inc(usage[key], operation=label, kind=kind)
+            return text, usage
         except aiconfig.ModelBlocked:
+            metrics.model_calls.inc(operation=label, outcome="blocked")
             raise                                   # deterministic; never retry
         except Exception as exc:
             last_exc = exc
             if not _is_retryable(exc):
+                metrics.model_calls.inc(operation=label, outcome="non_retryable")
+                metrics.dependency_errors.inc(dependency="gemini", kind="non_retryable")
                 log.error("%s: non-retryable model error: %s", label, exc)
                 raise aiconfig.ModelUnavailable(str(exc)) from exc
+            metrics.model_retries.inc(operation=label, reason="transient")
             log.warning("%s: attempt %d/%d failed: %s",
                         label, attempt + 1, _RETRY_ATTEMPTS, exc)
             if attempt < _RETRY_ATTEMPTS - 1:
                 delay = _RETRY_BASE_DELAY * (2 ** attempt)
                 await asyncio.sleep(delay * random.uniform(0.75, 1.25))
 
+    metrics.model_calls.inc(operation=label, outcome="exhausted")
+    metrics.dependency_errors.inc(dependency="gemini", kind="exhausted")
     raise aiconfig.ModelUnavailable(str(last_exc))
 
 

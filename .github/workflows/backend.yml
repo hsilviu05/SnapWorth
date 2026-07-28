@@ -45,10 +45,64 @@ jobs:
           GEMINI_API_KEY: ci-placeholder-not-real
         run: pytest tests/ -v --tb=short --color=yes
 
+  # ── Container builds and starts ─────────────────────────────────────────────
+  # Catches the class of bug that only appears in the image: a Python version
+  # drift between CI and runtime, a missing system library, or a CMD that does
+  # not actually start.
+  container:
+    name: Container builds
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build image
+        run: docker build -t snapworth-backend:ci backend/
+
+      - name: Container starts and serves liveness
+        run: |
+          docker run -d --name snapworth-ci -p 8000:8000 \
+            -e GEMINI_API_KEY=ci-placeholder-not-real \
+            snapworth-backend:ci
+          for i in $(seq 1 30); do
+            if curl -fsS http://localhost:8000/health/live >/dev/null 2>&1; then
+              echo "liveness ok after ${i}s"; break
+            fi
+            sleep 1
+          done
+          curl -fsS http://localhost:8000/health/live
+          curl -fsS http://localhost:8000/metrics | head -5
+
+      - name: Runs unprivileged
+        run: |
+          USER_ID=$(docker exec snapworth-ci id -u)
+          if [ "$USER_ID" = "0" ]; then
+            echo "::error::container runs as root"
+            exit 1
+          fi
+          echo "running as uid $USER_ID"
+
+      - name: SIGTERM triggers graceful shutdown
+        run: |
+          # The Dockerfile uses `exec` so uvicorn is PID 1 and receives the
+          # signal. Without that the shell swallows it and in-flight scans are
+          # killed on every deploy.
+          docker stop --timeout 25 snapworth-ci
+          if docker logs snapworth-ci 2>&1 | grep -q "shutdown complete"; then
+            echo "graceful shutdown confirmed"
+          else
+            echo "::error::no graceful shutdown — SIGTERM did not reach uvicorn"
+            docker logs snapworth-ci 2>&1 | tail -20
+            exit 1
+          fi
+
+      - name: Clean up
+        if: always()
+        run: docker rm -f snapworth-ci || true
+
   # ── Deploy to Railway (main branch only, after tests pass) ──────────────────
   deploy:
     name: Deploy → Railway
-    needs: test
+    needs: [test, container]
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
 
