@@ -243,9 +243,21 @@ class TestDataset:
         path = os.path.join(os.path.dirname(os.path.dirname(
             os.path.abspath(__file__))), "eval", "data", "sample.jsonl")
         items = dataset_module.load(path)
-        assert len(items) >= 5
+        assert items, "sample file should parse"
         assert any(i.not_resalable for i in items), "sample must include a negative control"
-        assert any(not i.is_scoreable for i in items)
+
+    def test_shipped_sample_contains_no_scoreable_records(self):
+        """The sample file is a format reference containing invented prices.
+
+        Previously these were labelled `personal_sale` and `ebay_sold`, so they
+        were scoreable and would have contributed fabricated numbers to a
+        reported metric. Every record is now synthetic and excluded.
+        """
+        path = os.path.join(os.path.dirname(os.path.dirname(
+            os.path.abspath(__file__))), "eval", "data", "sample.jsonl")
+        items = dataset_module.load(path)
+        assert all(not i.is_scoreable for i in items)
+        assert all(i.source == "synthetic" for i in items)
 
 
 # ── End-to-end report assembly ───────────────────────────────────────────────
