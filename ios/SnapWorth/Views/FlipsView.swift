@@ -469,7 +469,7 @@ private func sample(
     let r = ScanResult(
         itemName: name, brand: "Brand", category: category,
         conditionNotes: "Good", valueLow: 40, valueHigh: 90,
-        confidence: "high", soldListingsCount: 20,
+        confidence: "high", soldListingsCount: 0,
         listingTitle: "", listingDescription: "",
         paidPrice: paid, statusRaw: status.rawValue,
         soldPrice: sold, feesEstimate: fees

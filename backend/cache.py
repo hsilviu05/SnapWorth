@@ -130,11 +130,19 @@ class ResilientCache:
     `required=True` calls raise `CacheUnavailable` instead of silently using the
     local fallback. Anything that gates paid resources must pass it — a
     quota check that fails open is worse than one that fails closed.
+
+    **`configured` records operator intent, not reachability.** Those are
+    different states and conflating them is a fail-open bug: an operator who ran
+    a single instance without Redis has made the in-process store authoritative,
+    but an operator who set `REDIS_URL` and hit a transient outage has *not*.
+    Only the first may satisfy a `required` call from memory.
     """
 
-    def __init__(self, primary: Cache | None, fallback: InMemoryCache) -> None:
+    def __init__(self, primary: Cache | None, fallback: InMemoryCache,
+                 *, configured: bool = False) -> None:
         self._primary = primary
         self._fallback = fallback
+        self._configured = configured or primary is not None
         self._degraded_since: float | None = None
         self._failures = 0
 
@@ -143,9 +151,14 @@ class ResilientCache:
         return self._primary is None or self._degraded_since is not None
 
     @property
+    def is_configured(self) -> bool:
+        """True when a durable backend was *intended*, reachable or not."""
+        return self._configured
+
+    @property
     def backend(self) -> str:
         if self._primary is None:
-            return "memory"
+            return "redis-unavailable" if self._configured else "memory"
         return "redis-degraded" if self._degraded_since else "redis"
 
     def _mark_down(self, exc: Exception) -> None:
@@ -173,6 +186,12 @@ class ResilientCache:
                 # `required` call must fail closed rather than trust memory.
                 if required:
                     raise CacheUnavailable(str(exc)) from exc
+        elif self._configured and required:
+            # A durable backend was configured but never connected (startup ping
+            # failed, or the client could not be built). Process memory is NOT
+            # authoritative here — other replicas hold their own copies — so a
+            # call that gates a paid resource must fail closed.
+            raise CacheUnavailable("durable cache is configured but unavailable")
         # No backend configured at all is a different situation: this is a
         # single-instance deployment and the in-process store *is* the source of
         # truth. `build_cache` warns loudly at startup; failing every quota check
@@ -205,7 +224,11 @@ class ResilientCache:
                 self._mark_up()
             except Exception as exc:
                 self._mark_down(exc)
-        return {"backend": self.backend, "healthy": ok or self._primary is None,
+        # An unconfigured cache is healthy by definition — memory is the source
+        # of truth. A *configured* one is healthy only if it actually answers.
+        healthy = ok if self._configured else True
+        return {"backend": self.backend, "healthy": healthy,
+                "configured": self._configured,
                 "degraded": self.is_degraded, "failures": self._failures}
 
 
@@ -243,11 +266,17 @@ async def build_cache() -> ResilientCache:
 
     client = build_redis_client(url)
     if client is None:
-        return ResilientCache(None, fallback)
+        # The package is missing — this cannot recover at runtime, but the
+        # operator did ask for durability, so `required` calls must still fail
+        # closed rather than silently trusting per-process state.
+        return ResilientCache(None, fallback, configured=True)
     try:
         await client.ping()
         log.info("redis cache connected")
-        return ResilientCache(RedisCache(client), fallback)
     except Exception as exc:
-        log.error("redis connection failed at startup: %s", exc)
-        return ResilientCache(None, fallback)
+        # Keep the client. redis-py's pool reconnects transparently, so a
+        # startup blip must not permanently downgrade the process — the old
+        # behaviour discarded the client and never retried, which turned a
+        # 5-second outage into a fail-open quota for the life of the replica.
+        log.error("redis ping failed at startup, will retry on demand: %s", exc)
+    return ResilientCache(RedisCache(client), fallback, configured=True)

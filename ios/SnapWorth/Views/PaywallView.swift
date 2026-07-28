@@ -15,6 +15,12 @@ struct PaywallView: View {
                 VStack(spacing: 0) {
                     // ── Header ─────────────────────────────────────────────
                     let isYearly = vm.selectedProductID == Config.yearlyProductID
+                    let yearly = pricing(Config.yearlyProductID)
+                    let monthly = pricing(Config.monthlyProductID)
+                    let selected = isYearly ? yearly : monthly
+                    // Only promise a trial when StoreKit says one exists.
+                    let trial = yearly.introductoryOffer
+
                     VStack(spacing: 16) {
                         Image(systemName: "sparkle")
                             .snapSymbol(44, weight: .light)
@@ -22,16 +28,17 @@ struct PaywallView: View {
                             .symbolRenderingMode(.hierarchical)
                             .padding(.top, 56)
 
-                        Text(isYearly ? "Try SnapWorth\nfree for 3 days" : "Unlock\nSnapWorth Pro")
+                        Text(headline(isYearly: isYearly, trial: trial))
                             .font(.fraunces(32, weight: .bold, relativeTo: .largeTitle))
                             .foregroundStyle(Color.snapEspresso)
                             .multilineTextAlignment(.center)
                             .snapAnimation(.easeInOut(duration: 0.2), value: isYearly)
                             .accessibilityAddTraits(.isHeader)
 
-                        Text(isYearly ? "Then $39.99/yr. Cancel anytime." : "$4.99/month. Cancel anytime.")
+                        Text(subheadline(isYearly: isYearly, plan: selected, trial: trial))
                             .font(.snapCaption)
                             .foregroundStyle(Color.snapWarmGray)
+                            .multilineTextAlignment(.center)
                             .snapAnimation(.easeInOut(duration: 0.2), value: isYearly)
                     }
                     .padding(.bottom, 32)
@@ -43,9 +50,9 @@ struct PaywallView: View {
                     VStack(spacing: 12) {
                         PlanCard(
                             title: "Yearly",
-                            price: "$39.99/yr",
-                            priceDetail: "$0.77 per week · 3-day free trial",
-                            badge: "BEST VALUE",
+                            price: yearly.displayPrice,
+                            priceDetail: yearlyDetail(yearly),
+                            badge: yearly.savingsPercent.map { "SAVE \($0)%" } ?? "BEST VALUE",
                             isSelected: vm.selectedProductID == Config.yearlyProductID
                         ) {
                             UISelectionFeedbackGenerator().selectionChanged()
@@ -54,7 +61,7 @@ struct PaywallView: View {
 
                         PlanCard(
                             title: "Monthly",
-                            price: "$4.99/mo",
+                            price: monthly.displayPrice,
                             priceDetail: "Flexible, cancel anytime",
                             badge: nil,
                             isSelected: vm.selectedProductID == Config.monthlyProductID
@@ -64,6 +71,7 @@ struct PaywallView: View {
                         }
                     }
                     .padding(.horizontal, 20)
+                    .redacted(reason: purchaseService.isPricingLoaded ? [] : .placeholder)
 
                     // ── Benefits ───────────────────────────────────────────
                     VStack(alignment: .leading, spacing: 14) {
@@ -93,14 +101,15 @@ struct PaywallView: View {
                     // ── CTA ────────────────────────────────────────────────
                     VStack(spacing: 16) {
                         PrimaryButton(
-                            title: vm.selectedProductID == Config.yearlyProductID
-                                ? "Start Free Trial"
-                                : "Subscribe Monthly",
+                            title: ctaTitle(isYearly: isYearly, trial: trial),
                             isLoading: vm.isPurchasing
                         ) {
                             Task { await vm.purchase(service: purchaseService) }
                         }
-                        .disabled(vm.isPurchasing || vm.isRestoring)
+                        // Never let a tap through before StoreKit has confirmed
+                        // the product exists — that path produced the "purchase
+                        // unavailable" errors App Review rejects for.
+                        .disabled(vm.isPurchasing || vm.isRestoring || !isPurchasable)
 
                         GhostButton(title: "Restore purchase", isLoading: vm.isRestoring) {
                             Task { await vm.restore(service: purchaseService) }
@@ -159,6 +168,14 @@ struct PaywallView: View {
             }
         }
         .snapAnimation(.spring(duration: 0.3), value: vm.showCloseButton)
+        .task {
+            // Self-heal a failed initial product fetch: the paywall is the only
+            // place pricing matters, so retry on presentation rather than
+            // leaving the user with an inert "—".
+            if !purchaseService.isPricingLoaded || purchaseService.pricing.isEmpty {
+                await purchaseService.reloadProducts()
+            }
+        }
         .onAppear {
             vm.startCloseButtonTimer()
             Analytics.shared.track(.paywallViewed(trigger: trigger))
@@ -175,6 +192,57 @@ struct PaywallView: View {
             NavigationStack { TermsOfServiceView() }
                 .presentationDetents([.large])
         }
+    }
+}
+
+// MARK: - Pricing copy
+//
+// Every string below is derived from StoreKit's own `Product`, so it is already
+// in the user's storefront currency and locale. Nothing here hardcodes an
+// amount, a currency symbol, or a trial length: doing so previously showed
+// non-US users a US-dollar figure while Apple charged them in local currency.
+
+private extension PaywallView {
+    var isPurchasable: Bool {
+        purchaseService.pricing[vm.selectedProductID] != nil
+    }
+
+    func pricing(_ productID: String) -> PlanPricing {
+        purchaseService.pricing[productID] ?? .loading(productID)
+    }
+
+    func headline(isYearly: Bool, trial: String?) -> String {
+        guard isYearly, let trial else { return "Unlock\nSnapWorth Pro" }
+        return "Try SnapWorth\nfree for \(trialDuration(trial))"
+    }
+
+    func subheadline(isYearly: Bool, plan: PlanPricing, trial: String?) -> String {
+        guard plan.displayPrice != "—" else { return "Loading plans…" }
+        let period = isYearly ? "year" : "month"
+        if isYearly, trial != nil {
+            return "Then \(plan.displayPrice)/\(period). Cancel anytime."
+        }
+        return "\(plan.displayPrice)/\(period). Cancel anytime."
+    }
+
+    func yearlyDetail(_ plan: PlanPricing) -> String {
+        var parts: [String] = []
+        if let weekly = plan.displayPricePerWeek { parts.append("\(weekly) per week") }
+        if let intro = plan.introductoryOffer { parts.append(intro) }
+        return parts.isEmpty ? "Best value" : parts.joined(separator: " · ")
+    }
+
+    func ctaTitle(isYearly: Bool, trial: String?) -> String {
+        if isYearly, trial != nil { return "Start Free Trial" }
+        return isYearly ? "Subscribe Yearly" : "Subscribe Monthly"
+    }
+
+    /// "3-day free trial" → "3 days". Falls back to the raw phrase.
+    func trialDuration(_ offer: String) -> String {
+        let head = offer.replacingOccurrences(of: " free trial", with: "")
+        let parts = head.split(separator: "-")
+        guard parts.count == 2, let count = Int(parts[0]) else { return head }
+        return "\(count) \(parts[1])\(count == 1 ? "" : "s")"
     }
 }
 

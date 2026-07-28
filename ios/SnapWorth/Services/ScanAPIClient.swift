@@ -10,6 +10,12 @@ struct ScanAPIResponse: Decodable {
     let estValueLowUsd: Double
     let estValueHighUsd: Double
     let confidence: String
+    /// Legacy compatibility field. The backend has always returned 0 since 1.2
+    /// (`main.py` — the model never produced it and no comps source exists), and
+    /// no UI surface renders it.
+    ///
+    /// Decoded with a default so the backend can drop the field entirely once
+    /// clients below 1.2 age out, without this client failing to decode.
     let soldListingsCount: Int
     let listingTitle: String
     let listingDescription: String
@@ -25,6 +31,36 @@ struct ScanAPIResponse: Decodable {
         case soldListingsCount   = "sold_listings_count"
         case listingTitle        = "listing_title"
         case listingDescription  = "listing_description"
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        itemName            = try c.decode(String.self, forKey: .itemName)
+        brand               = try c.decode(String.self, forKey: .brand)
+        category            = try c.decode(String.self, forKey: .category)
+        conditionNotes      = try c.decode(String.self, forKey: .conditionNotes)
+        estValueLowUsd      = try c.decode(Double.self, forKey: .estValueLowUsd)
+        estValueHighUsd     = try c.decode(Double.self, forKey: .estValueHighUsd)
+        confidence          = try c.decode(String.self, forKey: .confidence)
+        soldListingsCount   = try c.decodeIfPresent(Int.self, forKey: .soldListingsCount) ?? 0
+        listingTitle        = try c.decode(String.self, forKey: .listingTitle)
+        listingDescription  = try c.decode(String.self, forKey: .listingDescription)
+    }
+
+    /// Memberwise init retained for mocks and previews.
+    init(itemName: String, brand: String, category: String, conditionNotes: String,
+         estValueLowUsd: Double, estValueHighUsd: Double, confidence: String,
+         soldListingsCount: Int = 0, listingTitle: String, listingDescription: String) {
+        self.itemName = itemName
+        self.brand = brand
+        self.category = category
+        self.conditionNotes = conditionNotes
+        self.estValueLowUsd = estValueLowUsd
+        self.estValueHighUsd = estValueHighUsd
+        self.confidence = confidence
+        self.soldListingsCount = soldListingsCount
+        self.listingTitle = listingTitle
+        self.listingDescription = listingDescription
     }
 }
 
@@ -70,7 +106,6 @@ actor ScanAPIClient {
                 estValueLowUsd: 45,
                 estValueHighUsd: 90,
                 confidence: "High",
-                soldListingsCount: 38,
                 listingTitle: "Patagonia Better Sweater Fleece 1/4-Zip Medium",
                 listingDescription: "Classic Patagonia Better Sweater in great used condition. Light pilling typical of normal wear — no stains, holes, or fading. Retails for $149 new. Ships same day in smoke-free home."
             ),
@@ -82,7 +117,6 @@ actor ScanAPIClient {
                 estValueLowUsd: 28,
                 estValueHighUsd: 55,
                 confidence: "High",
-                soldListingsCount: 62,
                 listingTitle: "Levi's 501 Original Straight Jeans 32x32 Vintage",
                 listingDescription: "Authentic Levi's 501 in excellent secondhand condition. Minimal wear with original dark wash intact. Classic fit that never goes out of style."
             ),
@@ -94,7 +128,6 @@ actor ScanAPIClient {
                 estValueLowUsd: 55,
                 estValueHighUsd: 110,
                 confidence: "Medium",
-                soldListingsCount: 24,
                 listingTitle: "Nike Air Max 90 White Size 10 — Clean & Ready",
                 listingDescription: "Nike Air Max 90 in good used condition. Some normal creasing on the toe box but soles are clean and cushioning is excellent. Includes original laces."
             ),
@@ -105,7 +138,7 @@ actor ScanAPIClient {
 
     // ── Live ──────────────────────────────────────────────────────────────────
     private func liveScan(image: UIImage) async throws -> ScanAPIResponse {
-        guard let jpegData = image.jpegData(compressionQuality: 0.82) else {
+        guard let jpegData = await Self.encodeForUpload(image) else {
             throw ScanAPIError.imageEncodingFailed
         }
 
@@ -127,12 +160,60 @@ actor ScanAPIClient {
             throw URLError(.badServerResponse)
         }
         guard (200..<300).contains(http.statusCode) else {
-            let detail = (try? JSONDecoder().decode([String: String].self, from: data))?["detail"]
-            throw ScanAPIError.serverError(http.statusCode, detail ?? "Unknown error")
+            throw ScanAPIError.serverError(http.statusCode, APIErrorDetail.parse(data))
         }
 
         let decoder = JSONDecoder()
         return try decoder.decode(ScanAPIResponse.self, from: data)
+    }
+
+    /// Longest edge, in pixels, sent to the backend.
+    ///
+    /// Vision models downsample their input aggressively, so a full 12 MP
+    /// capture (≈3.5 MB at quality 0.82) spends roughly 12× the bytes to deliver
+    /// the same information. That upload is the dominant term in scan latency —
+    /// users are on in-store cellular, where 3.5 MB is ~19 s before the model
+    /// has seen a byte, against a 35 s resource timeout.
+    ///
+    /// 1568 px preserves label and tag legibility, which is what identification
+    /// actually depends on.
+    static let maxUploadEdge: CGFloat = 1568
+
+    /// Downscale and JPEG-encode off the main actor.
+    ///
+    /// `Task.detached` matters: `UIGraphicsImageRenderer` on a 12 MP image costs
+    /// 80–150 ms and would drop frames if it ran inline on the main actor while
+    /// the analysing overlay animates in.
+    static func encodeForUpload(
+        _ image: UIImage,
+        maxEdge: CGFloat = maxUploadEdge,
+        quality: CGFloat = 0.8
+    ) async -> Data? {
+        await Task.detached(priority: .userInitiated) {
+            downscale(image, maxEdge: maxEdge).jpegData(compressionQuality: quality)
+        }.value
+    }
+
+    /// Aspect-preserving downscale. Returns the original when already small
+    /// enough, so a library pick of a tiny image is never upscaled.
+    nonisolated static func downscale(_ image: UIImage, maxEdge: CGFloat) -> UIImage {
+        let longest = max(image.size.width, image.size.height)
+        guard longest > maxEdge, longest > 0 else { return image }
+
+        let scale = maxEdge / longest
+        let target = CGSize(width: (image.size.width * scale).rounded(),
+                            height: (image.size.height * scale).rounded())
+
+        let format = UIGraphicsImageRendererFormat.default()
+        // Points == pixels. The default is the screen scale, which would
+        // silently render a 3× larger bitmap and undo the downscale.
+        format.scale = 1
+        // Photos have no alpha; an opaque context skips a channel.
+        format.opaque = true
+
+        return UIGraphicsImageRenderer(size: target, format: format).image { _ in
+            image.draw(in: CGRect(origin: .zero, size: target))
+        }
     }
 
     private func buildMultipart(data: Data, boundary: String) -> Data {
@@ -147,16 +228,50 @@ actor ScanAPIClient {
     }
 }
 
+/// Decodes FastAPI's `detail` field, which is *not* always a string.
+///
+/// Request-validation failures (422) return `detail` as an array of objects.
+/// Decoding straight into `[String: String]` therefore fails on exactly the
+/// responses that carry the most diagnostic value, and the user saw the
+/// "Unknown error" fallback instead.
+enum APIErrorDetail {
+    static func parse(_ data: Data) -> String {
+        guard !data.isEmpty,
+              let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let detail = root["detail"]
+        else { return fallback }
+
+        if let text = detail as? String, !text.isEmpty { return text }
+
+        // 422 shape: [{"loc": [...], "msg": "...", "type": "..."}]
+        if let items = detail as? [[String: Any]] {
+            let messages = items.compactMap { $0["msg"] as? String }
+            if !messages.isEmpty { return messages.joined(separator: " ") }
+        }
+        return fallback
+    }
+
+    private static let fallback = "Something went wrong. Please try again."
+}
+
 enum ScanAPIError: LocalizedError {
     case serverError(Int, String)
     case imageEncodingFailed
 
     var errorDescription: String? {
         switch self {
-        case .serverError(let code, let detail):
-            return "Server error \(code): \(detail)"
+        case .serverError(_, let detail):
+            // The status code is diagnostic noise to a user standing in a shop —
+            // `detail` already carries a user-safe message from the backend.
+            return detail
         case .imageEncodingFailed:
-            return "imageEncodingFailed"
+            return "That photo couldn't be prepared for analysis. Please try taking it again."
         }
+    }
+
+    /// Status code, retained for analytics and paywall routing.
+    var statusCode: Int? {
+        if case .serverError(let code, _) = self { return code }
+        return nil
     }
 }

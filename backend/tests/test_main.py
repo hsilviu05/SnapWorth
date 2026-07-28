@@ -7,8 +7,10 @@ Run with:
     pytest tests/ -v
 """
 
+import asyncio
 import json
 import io
+import time
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 from fastapi.testclient import TestClient
@@ -16,6 +18,8 @@ from fastapi.testclient import TestClient
 import sys, os
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
+import auth
+from entitlements import Entitlement
 from main import app, _extract_json, _check_rate_limit, _rate_store, _ip_rate_store
 from tests.images import VALID_PNG, padded_image_bytes
 
@@ -286,10 +290,32 @@ def _listing_body(**overrides):
     return body
 
 
-def _post_listing(device_id="listing-test", **overrides):
-    return client.post(
-        "/listing", json=_listing_body(**overrides), headers={"x-device-id": device_id}
+def _pro_headers(subject: str) -> dict:
+    """Auth header for a subject the entitlement cache reports as Pro.
+
+    `/listing` is a Pro-only endpoint, and `require_auth` re-reads the tier from
+    the entitlement cache rather than trusting the token claim, so the cache has
+    to be seeded — minting a `tier="pro"` token alone is not enough.
+    """
+    ent = Entitlement(
+        tier="pro",
+        product_id="com.snapworth.yearly",
+        expires_at=int(time.time()) + 86_400,
+        original_transaction_id=f"txn-{subject}",
+        environment="Production",
     )
+    asyncio.run(auth.deps.cache.set(f"ent:{subject}", ent.to_json(), 3600))
+    token, _ = auth.deps.signer.mint(subject, tier="pro")
+    return {"Authorization": f"Bearer {token}"}
+
+
+def _post_listing(device_id="listing-test", *, pro=True, **overrides):
+    headers = {"x-device-id": device_id}
+    if pro:
+        # Rate limits key on `principal.subject`, so the subject must track the
+        # device id for the per-caller rate-limit test to still isolate.
+        headers |= _pro_headers(f"pro-{device_id}")
+    return client.post("/listing", json=_listing_body(**overrides), headers=headers)
 
 
 class TestListingEndpoint:
@@ -325,6 +351,33 @@ class TestListingEndpoint:
         r = _post_listing(marketplace="craigslist")
         assert r.status_code == 400
         assert "Unsupported" in r.json()["detail"]
+
+    # ── Entitlement gate ─────────────────────────────────────────────────────
+    # Snap → Sell is a Pro feature. Before this gate existed the endpoint was
+    # reachable by any caller who could attest, making the paywall client-side
+    # only and leaving an unmetered path to the AI provider.
+
+    def test_free_tier_denied_with_402(self):
+        with patch("main._model") as mm:
+            mm.generate_content_async = AsyncMock(
+                return_value=self._mock(json.dumps(MOCK_LISTING_JSON)))
+            r = _post_listing(pro=False)
+        assert r.status_code == 402
+        assert "Pro" in r.json()["detail"]
+
+    def test_free_tier_never_reaches_the_model(self):
+        """The gate must run *before* the paid dependency, not after."""
+        with patch("main._model") as mm:
+            mm.generate_content_async = AsyncMock(
+                return_value=self._mock(json.dumps(MOCK_LISTING_JSON)))
+            _post_listing(pro=False)
+            mm.generate_content_async.assert_not_awaited()
+
+    def test_validation_errors_still_precede_the_gate(self):
+        """A malformed request is a 400 regardless of tier — don't leak the
+        paywall as the answer to every bad request."""
+        r = _post_listing(pro=False, marketplace="craigslist")
+        assert r.status_code == 400
 
     def test_marketplace_case_insensitive(self):
         with patch("main._model") as mm:

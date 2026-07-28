@@ -455,3 +455,108 @@ class TestReinstallResistance:
         q = _quota(3, device_check=_Broken())
         # Availability of Apple's API must not gate our own service.
         assert asyncio.run(q.starting_balance("s", "device-token")) == 3
+
+
+# ── Cache: configured vs connected ───────────────────────────────────────────
+# A durable backend that was *intended* but is unreachable is not the same as
+# one that was never configured. Conflating them made every `required` call
+# silently fall back to per-process memory — a fail-open quota.
+
+class TestCacheFailurePolicy:
+    def test_unconfigured_cache_serves_required_calls_from_memory(self):
+        """Single-instance deployment: memory IS the source of truth."""
+        cache = ResilientCache(None, InMemoryCache())
+        assert not cache.is_configured
+
+        async def run():
+            await cache.set("k", "1", 60, required=True)
+            assert await cache.get("k", required=True) == "1"
+        asyncio.run(run())
+
+    def test_configured_but_unconnected_cache_fails_closed(self):
+        """Redis was configured and never connected — memory is NOT authoritative."""
+        cache = ResilientCache(None, InMemoryCache(), configured=True)
+        assert cache.is_configured
+        assert cache.backend == "redis-unavailable"
+
+        async def run():
+            with pytest.raises(CacheUnavailable):
+                await cache.incr("quota:x", 60, required=True)
+        asyncio.run(run())
+
+    def test_configured_but_unconnected_still_serves_optional_calls(self):
+        """Non-required state (rate limits) may still degrade to memory."""
+        cache = ResilientCache(None, InMemoryCache(), configured=True)
+        asyncio.run(cache.set("k", "1", 60))
+        assert asyncio.run(cache.get("k")) == "1"
+
+    def test_quota_fails_closed_when_cache_configured_but_down(self):
+        """The end-to-end consequence: no free scans are granted on faith."""
+        cache = ResilientCache(None, InMemoryCache(), configured=True)
+        q = _quota(3, cache=cache)
+        with pytest.raises(QuotaUnavailable):
+            asyncio.run(q.check("subject", False))
+
+    def test_primary_implies_configured(self):
+        cache = ResilientCache(InMemoryCache(), InMemoryCache())
+        assert cache.is_configured
+
+    def test_health_reports_configured_flag(self):
+        unconfigured = ResilientCache(None, InMemoryCache())
+        assert asyncio.run(unconfigured.health())["healthy"] is True
+        broken = ResilientCache(None, InMemoryCache(), configured=True)
+        health = asyncio.run(broken.health())
+        assert health["healthy"] is False
+        assert health["configured"] is True
+
+
+# ── DeviceCheck reinstall defence is actually armed ──────────────────────────
+# `note_exhausted` previously had no production caller, so `starting_balance`
+# read a bit nothing ever set and reinstalling reset the free allowance forever.
+
+class TestReinstallDefenceWiring:
+    def test_quota_exhaustion_sets_the_device_bit(self):
+        dc = _FakeDeviceCheck()
+        cache = ResilientCache(None, InMemoryCache())
+        build_deps()
+        auth.deps.cache = cache
+        auth.deps.quota = ScanQuota(cache, dc, limit=1)
+
+        principal = auth.Principal(subject="subj", tier="free", authenticated=True,
+                                   device_token="device-token")
+
+        async def run():
+            await auth.enforce_quota(principal)          # 1st: allowed
+            await auth.deps.quota.consume("subj", False)
+            with pytest.raises(Exception):               # 2nd: 402
+                await auth.enforce_quota(principal)
+        asyncio.run(run())
+        assert dc.updated and dc.bits["bit0"] is True
+
+    def test_device_token_recovered_from_cache_when_absent_on_principal(self):
+        """Tokens are stored at attest time and looked up only on exhaustion,
+        so the hot path pays nothing for this."""
+        dc = _FakeDeviceCheck()
+        cache = ResilientCache(None, InMemoryCache())
+        build_deps()
+        auth.deps.cache = cache
+        auth.deps.quota = ScanQuota(cache, dc, limit=1)
+        asyncio.run(cache.set(auth._device_token_key("subj"), "stored-token", 600))
+
+        principal = auth.Principal(subject="subj", tier="free", authenticated=True)
+
+        async def run():
+            await auth.enforce_quota(principal)
+            await auth.deps.quota.consume("subj", False)
+            with pytest.raises(Exception):
+                await auth.enforce_quota(principal)
+        asyncio.run(run())
+        assert dc.updated and dc.bits["bit0"] is True
+
+    def test_pro_users_never_touch_devicecheck(self):
+        dc = _FakeDeviceCheck()
+        build_deps()
+        auth.deps.quota = ScanQuota(ResilientCache(None, InMemoryCache()), dc, limit=1)
+        principal = auth.Principal(subject="pro", tier="pro", authenticated=True)
+        asyncio.run(auth.enforce_quota(principal))
+        assert not dc.updated

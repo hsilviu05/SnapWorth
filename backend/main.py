@@ -11,6 +11,7 @@ import json
 import logging
 import math
 import os
+import random
 import re
 import time
 
@@ -18,17 +19,22 @@ import google.generativeai as genai
 from dotenv import load_dotenv
 from fastapi import FastAPI, File, Header, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, JSONResponse
 from pydantic import BaseModel, Field
 
+import aiconfig
 import auditlog
 import auth
 import cache as cache_module
+import confidence as confidence_module
 import devicecheck
+import imagequality
 import imagevalidation
 import promptsafety
+import prompts
 import ratelimit
 import tokens
+import valuation as valuation_module
 from auditlog import AuditEvent
 from auth import Principal, consume_quota, enforce_quota, require_auth
 from entitlements import EntitlementService
@@ -121,6 +127,12 @@ async def security_headers(request: Request, call_next):
     response.headers["X-Frame-Options"] = "DENY"
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
     response.headers["X-XSS-Protection"] = "1; mode=block"
+    # The API serves /privacy and /terms to real browsers (they are the URLs on
+    # the App Store listing), so downgrade protection is not academic here.
+    response.headers["Strict-Transport-Security"] = (
+        "max-age=63072000; includeSubDomains")
+    response.headers["Permissions-Policy"] = (
+        "camera=(), microphone=(), geolocation=(), interest-cohort=()")
     return response
 
 # ── Rate limiting ────────────────────────────────────────────────────────────
@@ -222,11 +234,30 @@ Rules:
 - If the image is blurry, shows multiple items, or is not a resalable item, set confidence to "Low" and provide your best estimate anyway
 - Never return values outside the JSON object"""
 
-_model = genai.GenerativeModel("gemini-2.5-flash")
+# Constructed with explicit generation parameters — see aiconfig.py. The bare
+# `genai.GenerativeModel(name)` this replaces ran at the API default temperature
+# of 1.0, i.e. full sampling randomness on a pricing task.
+_model = aiconfig.build_model()
+
+# Which prompt revision serves traffic. Env-switchable so a rollback to v1 is a
+# config change rather than a redeploy.
+SCAN_PROMPT_VERSION = os.environ.get("SCAN_PROMPT_VERSION", prompts.DEFAULT_PROMPT_VERSION)
 
 
 # ── Response schema ──────────────────────────────────────────────────────────
 class ScanResponse(BaseModel):
+    """The scan payload.
+
+    Everything above the `v2 additions` divider is the original v1 contract and
+    must keep its exact names, types and required-ness — installed clients decode
+    these as non-optional and would fail outright if any were removed or made
+    nullable.
+
+    Everything below is additive and defaulted. Swift's `Decodable` ignores keys
+    it does not declare, so an old client is unaffected by their presence.
+    """
+
+    # ── v1 contract — do not change ─────────────────────────────────────────
     item_name: str
     brand: str
     category: str
@@ -240,6 +271,48 @@ class ScanResponse(BaseModel):
     sold_listings_count: int = Field(ge=0, default=0)
     listing_title: str
     listing_description: str
+
+    # ── v2 additions — all optional ─────────────────────────────────────────
+    # Computed confidence (see confidence.py). `confidence` above remains the
+    # High/Medium/Low band derived from this score, so old clients keep working.
+    confidence_score: int = Field(ge=0, le=100, default=0)
+    confidence_summary: str = ""
+    confidence_reasons: list[str] = Field(default_factory=list)
+
+    # Four price points rather than one band.
+    quick_sale_price_usd: float | None = Field(ge=0, default=None)
+    expected_price_usd: float | None = Field(ge=0, default=None)
+    best_case_price_usd: float | None = Field(ge=0, default=None)
+    worst_case_price_usd: float | None = Field(ge=0, default=None)
+
+    # Identification detail.
+    model_name: str | None = None
+    variant: str | None = None
+    size: str | None = None
+    material: str | None = None
+    era: str | None = None
+    condition_grade: str | None = None
+
+    # Market and authenticity reads.
+    demand: str | None = None
+    supply: str | None = None
+    authenticity_assessment: str | None = None
+    authenticity_reasoning: str | None = None
+    identification_certainty: str | None = None
+
+    # Explainability.
+    visual_evidence: list[str] = Field(default_factory=list)
+    assumptions: list[str] = Field(default_factory=list)
+    uncertainty_factors: list[str] = Field(default_factory=list)
+    improve_estimate: list[str] = Field(default_factory=list)
+    value_drivers: list[str] = Field(default_factory=list)
+
+    # Provenance. `valuation_source` is the seam for the comparable-sales
+    # pipeline (see docs/COMPS-ARCHITECTURE.md): "model" today, "comps" once
+    # evidence-backed pricing lands. Clients should key their UI copy off this
+    # rather than assuming a source.
+    valuation_source: str = "model"
+    prompt_version: str = ""
 
 
 # ── Snap → Sell: marketplace listing generation ──────────────────────────────
@@ -414,6 +487,13 @@ async def health() -> dict:
         payload["cache"] = cache_health
         if cache_health.get("degraded"):
             payload["status"] = "degraded"
+        if not cache_health.get("healthy", True):
+            # A configured-but-unreachable cache means quota and entitlement
+            # checks are now failing closed. The replica cannot serve correctly,
+            # so report unhealthy and let the load balancer drain it rather than
+            # 402-ing real users.
+            payload["status"] = "unhealthy"
+            return JSONResponse(status_code=503, content=payload)
     return payload
 
 
@@ -558,21 +638,33 @@ async def scan(
 
     image_part = {"mime_type": content_type, "data": base64.standard_b64encode(image_bytes).decode()}
 
-    last_exc: Exception | None = None
-    raw: str = ""
-    for attempt in range(2):
-        try:
-            response = await _model.generate_content_async([SCAN_PROMPT, image_part])
-            raw = response.text.strip()
-            break
-        except Exception as exc:
-            last_exc = exc
-            log.warning("gemini attempt %d failed: %s", attempt + 1, exc)
-            if attempt == 0:
-                await asyncio.sleep(1.5)
-    else:
-        log.error("gemini failed after retries: %s", last_exc)
-        raise HTTPException(status_code=502, detail="The AI service is temporarily unavailable. Please try again.")
+    # Measured before the model call and independent of it — see imagequality.py.
+    # A blurry photo genuinely carries less information, so it must lower the
+    # reported confidence no matter how fluent the model's answer sounds.
+    quality = imagequality.analyse(image_bytes)
+
+    prompt_text, prompt_version = prompts.get_prompt(SCAN_PROMPT_VERSION)
+
+    try:
+        raw, usage = await _generate_with_retry(
+            [prompt_text, image_part], label="scan")
+    except aiconfig.ModelBlocked as exc:
+        # A safety block is not an outage. Thrift inventory includes penknives,
+        # lighters and vintage militaria; telling the user the service is down
+        # is both wrong and unactionable.
+        log.info("scan blocked by safety filter", extra={"reason": str(exc)})
+        auditlog.record(AuditEvent.SCAN_BLOCKED, principal.subject,
+                        outcome="denied", reason=str(exc))
+        raise HTTPException(
+            status_code=422,
+            detail="This photo couldn't be analysed. Try a clear photo of a single item.",
+        ) from None
+    except aiconfig.ModelUnavailable as exc:
+        log.error("gemini failed after retries: %s", exc)
+        raise HTTPException(
+            status_code=502,
+            detail="The AI service is temporarily unavailable. Please try again.",
+        ) from None
 
     try:
         data = _extract_json(raw)
@@ -589,50 +681,149 @@ async def scan(
                 detail="The AI response couldn't be read. Please try again.",
             ) from None
 
-    category = promptsafety.sanitize_text(
-        data.get("category", "other"), promptsafety.MAX_CATEGORY, "category") or "other"
+    # Coerce, sanitise and repair price ordering — see valuation.py.
+    val = valuation_module.normalise(data, image_quality=quality)
 
-    low = _safe_float(data.get("est_value_low_usd", 0))
-    high = _safe_float(data.get("est_value_high_usd", 0))
-    if high == 0 and low == 0:
-        low, high = 1.0, 5.0
-    low, high, was_clamped = promptsafety.clamp_valuation(low, high, category)
-
-    confidence = str(data.get("confidence", "Low"))
-    # An out-of-band number means the model was unreliable on this item — don't
-    # present a clamped guess as a confident one.
+    # Category bands remain the outer backstop against order-of-magnitude errors
+    # and injected numbers. Applied to the compatibility low/high pair, then the
+    # ratio is carried across to the four v2 points so they stay consistent.
+    low, high, was_clamped = promptsafety.clamp_valuation(
+        val.prices.worst or 1.0, val.prices.best or 5.0, val.category)
+    val.was_clamped = was_clamped
     if was_clamped:
-        confidence = "Low"
+        val.prices = valuation_module.reconcile_prices(
+            worst=low, quick=0, expected=0, best=high)
+
+    # Confidence is computed here, from observable signals — it is no longer
+    # whatever the model said about itself. See confidence.py.
+    conf = confidence_module.compute(
+        brand=val.brand,
+        category=val.category,
+        identification_certainty=val.identification_certainty,
+        authenticity=val.authenticity,
+        demand=val.demand,
+        supply=val.supply,
+        value_low=low,
+        value_high=high,
+        image_quality=quality,
+        was_clamped=was_clamped,
+        model_field_count=valuation_module.count_present_fields(data),
+        expected_field_count=len(valuation_module.EXPECTED_OPTIONAL_FIELDS),
+    )
+    val.confidence = conf
 
     elapsed = time.monotonic() - t0
-    item_name = promptsafety.sanitize_text(
-        data.get("item_name", "Unknown Item"), promptsafety.MAX_ITEM_NAME, "item_name")
-    log.info("scan ok", extra={"device": device_short, "item": item_name,
-                               "value_low": low, "value_high": high,
-                               "confidence": confidence, "clamped": was_clamped,
-                               "elapsed_s": round(elapsed, 2)})
+    log.info("scan ok", extra={
+        "device": device_short, "item": val.item_name,
+        "value_low": low, "value_high": high,
+        "expected": val.prices.expected,
+        "confidence": conf.band, "confidence_score": conf.score,
+        "clamped": was_clamped, "prompt_version": prompt_version,
+        "image_quality": quality.overall, "elapsed_s": round(elapsed, 2),
+        **usage,
+    })
 
     # Charge only for work that produced a result.
     await consume_quota(principal)
 
     return ScanResponse(
-        item_name=item_name or "Unknown Item",
-        brand=promptsafety.sanitize_text(
-            data.get("brand", "Unknown"), promptsafety.MAX_BRAND, "brand") or "Unknown",
-        category=category,
-        condition_notes=promptsafety.sanitize_text(
-            data.get("condition_notes", "Condition unknown"),
-            promptsafety.MAX_NOTES, "condition_notes") or "Condition unknown",
+        # ── v1 contract ─────────────────────────────────────────────────────
+        item_name=val.item_name,
+        brand=val.brand,
+        category=val.category,
+        condition_notes=val.condition_notes,
         est_value_low_usd=low,
         est_value_high_usd=high,
-        confidence=confidence,
+        confidence=conf.as_legacy,
         sold_listings_count=0,  # see TODO(compat) on the model field above
-        listing_title=promptsafety.sanitize_text(
-            data.get("listing_title", ""), promptsafety.MAX_ITEM_NAME, "listing_title"),
-        listing_description=promptsafety.sanitize_text(
-            data.get("listing_description", ""), promptsafety.MAX_NOTES,
-            "listing_description"),
+        listing_title=val.listing_title,
+        listing_description=val.listing_description,
+        # ── v2 additions ────────────────────────────────────────────────────
+        confidence_score=conf.score,
+        confidence_summary=confidence_module.summary_sentence(conf),
+        confidence_reasons=conf.reasons,
+        quick_sale_price_usd=val.prices.quick or None,
+        expected_price_usd=val.prices.expected or None,
+        best_case_price_usd=val.prices.best or None,
+        worst_case_price_usd=val.prices.worst or None,
+        model_name=val.model,
+        variant=val.variant,
+        size=val.size,
+        material=val.material,
+        era=val.era,
+        condition_grade=val.condition_grade,
+        demand=val.demand,
+        supply=val.supply,
+        authenticity_assessment=val.authenticity,
+        authenticity_reasoning=val.authenticity_reasoning,
+        identification_certainty=val.identification_certainty,
+        visual_evidence=val.visual_evidence,
+        assumptions=val.assumptions,
+        uncertainty_factors=val.uncertainty_factors,
+        improve_estimate=val.improve_estimate,
+        value_drivers=val.value_drivers,
+        valuation_source="model",
+        prompt_version=prompt_version,
     )
+
+
+_RETRY_ATTEMPTS = int(os.environ.get("GEMINI_RETRY_ATTEMPTS", "2"))
+_RETRY_BASE_DELAY = float(os.environ.get("GEMINI_RETRY_BASE_DELAY", "0.5"))
+
+# Substrings identifying failures that will not succeed on retry. Retrying these
+# wastes the user's time and doubles the bill for a guaranteed second failure.
+_NON_RETRYABLE = (
+    "invalid_argument", "invalid argument", "400",
+    "permission_denied", "api key", "unauthenticated", "401", "403",
+    "not_found", "404",
+)
+
+
+def _is_retryable(exc: Exception) -> bool:
+    text = str(exc).lower()
+    return not any(marker in text for marker in _NON_RETRYABLE)
+
+
+async def _generate_with_retry(
+    contents, *, label: str, max_tokens: int | None = None
+) -> tuple[str, dict]:
+    """Call the model with classified retries and jittered backoff.
+
+    Three things the previous inline loop got wrong:
+
+    * **It retried everything.** A malformed request or a bad API key was
+      retried identically, costing 1.5s and a second billed call to fail the
+      same way. Now classified via `_is_retryable`.
+    * **It used a fixed 1.5s sleep.** Fixed delays synchronise retries across
+      replicas into a thundering herd against an already-struggling upstream.
+      Now exponential with ±25% jitter.
+    * **It treated a safety block as an outage.** `extract_text` separates the
+      two so the caller can answer the user accurately.
+
+    Returns `(text, usage_dict)`.
+    """
+    last_exc: Exception | None = None
+    config = aiconfig.generation_config(max_output_tokens=max_tokens) if max_tokens else None
+
+    for attempt in range(_RETRY_ATTEMPTS):
+        try:
+            kwargs = {"generation_config": config} if config else {}
+            response = await _model.generate_content_async(contents, **kwargs)
+            return aiconfig.extract_text(response), aiconfig.usage_of(response)
+        except aiconfig.ModelBlocked:
+            raise                                   # deterministic; never retry
+        except Exception as exc:
+            last_exc = exc
+            if not _is_retryable(exc):
+                log.error("%s: non-retryable model error: %s", label, exc)
+                raise aiconfig.ModelUnavailable(str(exc)) from exc
+            log.warning("%s: attempt %d/%d failed: %s",
+                        label, attempt + 1, _RETRY_ATTEMPTS, exc)
+            if attempt < _RETRY_ATTEMPTS - 1:
+                delay = _RETRY_BASE_DELAY * (2 ** attempt)
+                await asyncio.sleep(delay * random.uniform(0.75, 1.25))
+
+    raise aiconfig.ModelUnavailable(str(last_exc))
 
 
 async def _retry_as_json(raw: str) -> dict | None:
@@ -679,29 +870,39 @@ async def listing(
     if req.condition not in _VALID_CONDITIONS:
         req.condition = "good"
 
+    # Snap → Sell is a Pro feature. The client renders a locked teaser for free
+    # users, but that is presentation only — the entitlement decision has to be
+    # made here or the endpoint is an unmetered path to a paid dependency.
+    # 402 (not 403) mirrors `enforce_quota`, so the client's existing
+    # "payment required → present paywall" mapping covers this too.
+    if not principal.is_pro:
+        auditlog.record(AuditEvent.LISTING_DENIED, principal.subject,
+                        outcome="denied", reason="not_pro")
+        raise HTTPException(
+            status_code=402,
+            detail="Listing drafts are a SnapWorth Pro feature.",
+        )
+
     await _enforce_limits(principal.subject, _client_ip(request))
     auditlog.record(AuditEvent.LISTING_AUTHORISED, principal.subject,
                     marketplace=marketplace, tier=principal.tier)
 
     prompt = _listing_prompt(req)
-    last_exc: Exception | None = None
-    raw: str = ""
-    for attempt in range(2):
-        try:
-            response = await _model.generate_content_async(prompt)
-            raw = response.text.strip()
-            break
-        except Exception as exc:
-            last_exc = exc
-            log.warning("listing gemini attempt %d failed: %s", attempt + 1, exc)
-            if attempt == 0:
-                await asyncio.sleep(1.5)
-    else:
-        log.error("listing gemini failed after retries: %s", last_exc)
+    try:
+        raw, _usage = await _generate_with_retry(
+            prompt, label="listing", max_tokens=aiconfig.LISTING_MAX_OUTPUT_TOKENS)
+    except aiconfig.ModelBlocked:
+        # Listing copy is derived from the user's own valuation, so a block here
+        # is recoverable — the deterministic fallback still produces a usable
+        # listing rather than an error.
+        log.info("listing blocked by safety filter, using fallback")
+        return _fallback_listing(req)
+    except aiconfig.ModelUnavailable as exc:
+        log.error("listing gemini failed after retries: %s", exc)
         raise HTTPException(
             status_code=502,
             detail="The AI service is temporarily unavailable. Please try again.",
-        )
+        ) from None
 
     try:
         data = _extract_json(raw)
@@ -716,13 +917,6 @@ async def listing(
         "device": auditlog.pseudonymise(principal.subject), "marketplace": marketplace,
         "ask": result.listing_price, "floor": result.negotiation_floor})
     return result
-
-
-def _safe_int(value: object) -> int:
-    try:
-        return max(0, int(float(value)))  # type: ignore[arg-type]
-    except (TypeError, ValueError):
-        return 0
 
 
 def _safe_float(value: object) -> float:

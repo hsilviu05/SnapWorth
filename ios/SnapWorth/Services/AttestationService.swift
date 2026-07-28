@@ -186,8 +186,7 @@ actor AttestationService {
     }
 
     private static func detail(from data: Data) -> String {
-        (try? JSONDecoder().decode([String: String].self, from: data))?["detail"]
-            ?? "Request failed"
+        APIErrorDetail.parse(data)
     }
 }
 

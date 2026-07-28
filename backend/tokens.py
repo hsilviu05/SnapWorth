@@ -163,6 +163,15 @@ def signer_from_env() -> TokenSigner:
             keys[kid] = secret.encode()
 
     if not keys:
+        # In production an ephemeral key means every deploy silently signs out
+        # every user, and any multi-replica deployment rejects tokens minted by
+        # a sibling. Refuse to start rather than ship that quietly — this mirrors
+        # the REQUIRE_APP_ATTEST guard in main._lifespan.
+        if os.environ.get("ENVIRONMENT", "").lower() in {"production", "prod"}:
+            raise RuntimeError(
+                "TOKEN_KEYS must be set in production. Generate one with "
+                "`python -c \"import secrets;print('k1:'+secrets.token_urlsafe(32))\"`"
+            )
         log.error(
             "TOKEN_KEYS is not set — generating an ephemeral signing key. "
             "All tokens become invalid on restart. Set TOKEN_KEYS in production."

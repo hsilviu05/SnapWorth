@@ -4,32 +4,35 @@ import os.log
 
 /// TLS certificate pinning for the SnapWorth API.
 ///
-/// ## Status: infrastructure complete, **not yet enabled**
+/// ## Status: **active in report-only mode**
 ///
-/// Pinning is inert until `Config.pinnedSPKIHashes` contains at least one value.
-/// That is deliberate — shipping a wrong or stale pin bricks the app for every
-/// user until they update, which is a worse outage than the attack it prevents.
+/// `Config.pinnedSPKIHashes` is populated (LE YR2 intermediate + three ISRG
+/// roots), so every request to `api.snapworth.eu` is evaluated against the pin
+/// set and a mismatch is logged. `Config.pinningEnforced` is still `false`, so a
+/// mismatch does not yet fail the request.
 ///
-/// ### What is still required to enable it
+/// That two-stage rollout is the whole point: a wrong or stale pin bricks the
+/// app for every user until they ship an update, which is a worse outage than
+/// the attack it prevents. Report-only proves the pins are right against real
+/// field traffic first.
 ///
-/// 1. Extract the SPKI hash of the **intermediate CA** for `api.snapworth.eu`:
+/// ### Promoting to enforcement
 ///
-///    ```
-///    openssl s_client -connect api.snapworth.eu:443 -showcerts </dev/null 2>/dev/null \
-///      | openssl x509 -noout -pubkey \
-///      | openssl pkey -pubin -outform der \
-///      | openssl dgst -sha256 -binary \
-///      | base64
-///    ```
+/// 1. Ship one release with the pins live and `pinningEnforced = false`.
+/// 2. Watch for `certificate pin mismatch (report-only)` in the `tls` category.
+///    Zero occurrences across a full release cycle means the pin set is correct.
+/// 3. Set `Config.pinningEnforced = true`.
 ///
-/// 2. Repeat for the **backup pin** — a second CA you could migrate to. Pinning
-///    a single leaf is the classic way to brick an app: leaves rotate every 90
-///    days on Let's Encrypt, and a renewal would lock everyone out.
+/// ### Rotation
 ///
-/// 3. Put both in `Config.pinnedSPKIHashes`, then set `Config.pinningEnforced`.
+/// Re-extract before any pinned certificate expires (earliest: YR2, 2028-09-02)
+/// and ship the new pin *alongside* the old one for one release, never as a
+/// replacement — overlapping pins are what make rotation non-disruptive.
 ///
-/// Pin the intermediate rather than the leaf: it survives certificate renewal
-/// while still preventing an arbitrary CA from impersonating the host.
+/// Pinning the intermediate and roots rather than the leaf is deliberate: the
+/// leaf rotates every 90 days on Let's Encrypt and a renewal would lock everyone
+/// out, while an intermediate/root pin still prevents an arbitrary CA from
+/// impersonating the host.
 final class CertificatePinningDelegate: NSObject, URLSessionDelegate {
     private let log = Logger(subsystem: "eu.snapworth.app", category: "tls")
     private let pinnedHashes: Set<String>
