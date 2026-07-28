@@ -11,14 +11,39 @@ enum Config {
 
     // ── Transport security ───────────────────────────────────────────────────
     /// Base64 SHA-256 hashes of pinned SubjectPublicKeyInfo blobs for
-    /// `api.snapworth.eu`. **Empty means pinning is inert** — see
-    /// `CertificatePinning.swift` for the exact `openssl` commands that produce
-    /// these, and pin the *intermediate* CA plus a backup, never a bare leaf.
-    static let pinnedSPKIHashes: Set<String> = []
+    /// `api.snapworth.eu`, extracted 2026-07-28 from the live chain.
+    ///
+    /// **What is pinned, and why these four.** The served chain is
+    /// `leaf → YR2 → Root YR → ISRG Root X1`. The leaf is deliberately *not*
+    /// here: Let's Encrypt rotates it every 90 days and pinning it would brick
+    /// the app on every renewal. Pinning the issuing intermediate plus the ISRG
+    /// roots survives all leaf and intermediate rotation while still preventing
+    /// an unrelated CA from impersonating the host.
+    ///
+    /// `matchesPin` accepts a match on *any* certificate in the evaluated chain,
+    /// so these are alternatives, not a required set — which is what makes the
+    /// redundancy load-bearing.
+    ///
+    /// Regenerate with:
+    /// ```
+    /// openssl s_client -connect api.snapworth.eu:443 -showcerts </dev/null 2>/dev/null \
+    ///   | openssl x509 -noout -pubkey | openssl pkey -pubin -outform der \
+    ///   | openssl dgst -sha256 -binary | base64
+    /// ```
+    static let pinnedSPKIHashes: Set<String> = [
+        "nWN7PSep5XDQdge5zK24CnCRXHr3KvzhKEGxsdqCX9E=",  // LE YR2 intermediate  (exp 2028-09-02)
+        "fk6IOKit1ild5647BH06ujSIq5XbCgqlbYl6ANhhi88=",  // ISRG Root YR         (exp 2032-09-02)
+        "C5+lpZ7tcVwmwQIMcRtPbsQtWLABXhQzejna0wHFr8M=",  // ISRG Root X1         (exp 2035-06-04)
+        "diGVwiVYbubAI3RW4hB9xU8e/CH2GnkuvVFZE8zmgzI=",  // ISRG Root X2, backup (exp 2040-09-17)
+    ]
 
-    /// When false, a pin mismatch is logged but the request proceeds. Ship one
-    /// release in report-only mode before enforcing, so a wrong pin surfaces in
-    /// logs instead of bricking the app.
+    /// When false, a pin mismatch is logged but the request proceeds.
+    ///
+    /// **Deliberately still false.** The pins above are live and evaluated on
+    /// every request, so a wrong or stale pin now shows up in logs — but cannot
+    /// yet lock anyone out. Flip to `true` only after one full release has
+    /// reported zero mismatches in the field; enabling it blind is the classic
+    /// way to brick an app until the next App Review cycle.
     static let pinningEnforced = false
 
     // ── Authentication ───────────────────────────────────────────────────────
