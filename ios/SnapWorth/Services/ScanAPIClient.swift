@@ -194,6 +194,31 @@ actor ScanAPIClient {
         }.value
     }
 
+    /// Longest edge, in pixels, of the copy persisted to SwiftData.
+    ///
+    /// History shows this image in a 2-column grid card and as a hero on the
+    /// result sheet — roughly 340pt at 3× — so anything beyond ~1024px is
+    /// storing detail no surface displays. At full resolution each scan was
+    /// costing 2–3 MB of disk, which is ~1.5 GB for a user with 500 finds.
+    static let maxStoredEdge: CGFloat = 1024
+
+    /// Downscale and encode for local persistence, off the main actor.
+    ///
+    /// This previously ran inline in `ScanViewModel.startScan`, which is
+    /// `@MainActor`: encoding a 12 MP capture is 80–150 ms of main-thread work
+    /// happening exactly as the analysing overlay animates out and the result
+    /// sheet presents. That is a visible hitch at the single most important
+    /// moment in the app.
+    static func encodeForStorage(
+        _ image: UIImage,
+        maxEdge: CGFloat = maxStoredEdge,
+        quality: CGFloat = 0.75
+    ) async -> Data? {
+        await Task.detached(priority: .utility) {
+            downscale(image, maxEdge: maxEdge).jpegData(compressionQuality: quality)
+        }.value
+    }
+
     /// Aspect-preserving downscale. Returns the original when already small
     /// enough, so a library pick of a tiny image is never upscaled.
     nonisolated static func downscale(_ image: UIImage, maxEdge: CGFloat) -> UIImage {

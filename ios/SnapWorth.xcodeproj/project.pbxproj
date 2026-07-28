@@ -13,6 +13,7 @@
 		AA00000000000000000000C1 /* SnapWorthApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000000C0 /* SnapWorthApp.swift */; };
 		AA00000000000000000000C3 /* Config.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000000C2 /* Config.swift */; };
 		AA00000000000000000000C5 /* DesignSystem.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000000C4 /* DesignSystem.swift */; };
+		BB0000000000000000000B01 /* Haptics.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0000000000000000000B02 /* Haptics.swift */; };
 		AA00000000000000000000C7 /* ScanResult.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000000C6 /* ScanResult.swift */; };
 		AA00000000000000000000C9 /* PurchaseService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000000C8 /* PurchaseService.swift */; };
 		AA00000000000000000000CB /* MockPurchaseService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000000CA /* MockPurchaseService.swift */; };
@@ -102,6 +103,7 @@
 		AA00000000000000000000C0 /* SnapWorthApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SnapWorthApp.swift; sourceTree = "<group>"; };
 		AA00000000000000000000C2 /* Config.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Config.swift; sourceTree = "<group>"; };
 		AA00000000000000000000C4 /* DesignSystem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DesignSystem.swift; sourceTree = "<group>"; };
+		BB0000000000000000000B02 /* Haptics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Haptics.swift; sourceTree = "<group>"; };
 		AA00000000000000000000C6 /* ScanResult.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanResult.swift; sourceTree = "<group>"; };
 		AA00000000000000000000C8 /* PurchaseService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PurchaseService.swift; sourceTree = "<group>"; };
 		AA00000000000000000000CA /* MockPurchaseService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockPurchaseService.swift; sourceTree = "<group>"; };
@@ -241,6 +243,7 @@
 			isa = PBXGroup;
 			children = (
 				AA00000000000000000000C4 /* DesignSystem.swift */,
+				BB0000000000000000000B02 /* Haptics.swift */,
 			);
 			path = DesignSystem;
 			sourceTree = "<group>";
@@ -503,6 +506,7 @@
 				AA00000000000000000000C1 /* SnapWorthApp.swift in Sources */,
 				AA00000000000000000000C3 /* Config.swift in Sources */,
 				AA00000000000000000000C5 /* DesignSystem.swift in Sources */,
+				BB0000000000000000000B01 /* Haptics.swift in Sources */,
 				AA00000000000000000000C7 /* ScanResult.swift in Sources */,
 				AA00000000000000000000C9 /* PurchaseService.swift in Sources */,
 				AA00000000000000000000CB /* MockPurchaseService.swift in Sources */,

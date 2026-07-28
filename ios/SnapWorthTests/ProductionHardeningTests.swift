@@ -238,3 +238,92 @@ final class PlanPricingTests: XCTestCase {
         XCTAssertFalse(pricing.isEmpty)
     }
 }
+
+// MARK: - Polish
+//
+// Properties that are felt rather than seen, and therefore easy to regress
+// silently.
+
+final class HapticsTests: XCTestCase {
+
+    override func tearDown() {
+        UserDefaults.standard.removeObject(forKey: Haptics.preferenceKey)
+        super.tearDown()
+    }
+
+    func test_hapticsDefaultToEnabled() {
+        UserDefaults.standard.removeObject(forKey: Haptics.preferenceKey)
+        XCTAssertTrue(Haptics.isEnabled, "Haptics should be on unless turned off")
+    }
+
+    func test_preferenceIsRespected() {
+        Haptics.setEnabled(false)
+        XCTAssertFalse(Haptics.isEnabled)
+        Haptics.setEnabled(true)
+        XCTAssertTrue(Haptics.isEnabled)
+    }
+
+    func test_disabledHapticsAreSilentNotCrashing() {
+        // Every entry point must be a no-op when disabled, not a branch the
+        // caller has to remember to guard.
+        Haptics.setEnabled(false)
+        Haptics.prepare()
+        Haptics.capture()
+        Haptics.selection()
+        Haptics.success()
+        Haptics.failure()
+        Haptics.light()
+    }
+
+    func test_enabledHapticsDoNotThrow() {
+        Haptics.setEnabled(true)
+        Haptics.prepare()
+        Haptics.capture()
+        Haptics.selection()
+    }
+}
+
+final class StoredImageEncodingTests: XCTestCase {
+
+    private func image(_ width: CGFloat, _ height: CGFloat) -> UIImage {
+        let format = UIGraphicsImageRendererFormat.default()
+        format.scale = 1
+        return UIGraphicsImageRenderer(size: CGSize(width: width, height: height),
+                                       format: format).image { ctx in
+            UIColor.systemIndigo.setFill()
+            ctx.fill(CGRect(x: 0, y: 0, width: width, height: height))
+            UIColor.systemYellow.setFill()
+            ctx.fill(CGRect(x: 0, y: 0, width: width / 3, height: height))
+        }
+    }
+
+    func test_storedImageIsDownscaled() async {
+        // Full-resolution persistence cost 2-3 MB per scan — roughly 1.5 GB for
+        // a user with 500 finds — to back a 340pt grid card.
+        let data = await ScanAPIClient.encodeForStorage(image(4032, 3024))
+        let encoded = try! XCTUnwrap(data)
+        let decoded = try! XCTUnwrap(UIImage(data: encoded))
+        XCTAssertEqual(max(decoded.size.width, decoded.size.height),
+                       ScanAPIClient.maxStoredEdge, accuracy: 2)
+    }
+
+    func test_storedImageIsSmallerThanUploadPayload() async {
+        let source = image(4032, 3024)
+        let stored = await ScanAPIClient.encodeForStorage(source)
+        let full = source.jpegData(compressionQuality: 0.75)!
+        XCTAssertLessThan(try! XCTUnwrap(stored).count, full.count / 3)
+    }
+
+    func test_smallImageIsNotUpscaledForStorage() async {
+        let data = await ScanAPIClient.encodeForStorage(image(320, 240))
+        let decoded = try! XCTUnwrap(UIImage(data: try! XCTUnwrap(data)))
+        XCTAssertEqual(decoded.size.width, 320, accuracy: 2)
+    }
+
+    func test_storageEncodingIsSeparateFromUploadEncoding() {
+        // Upload targets the vision model's working resolution; storage targets
+        // what the UI actually displays. Conflating them would either waste
+        // bandwidth or store an image too soft for the result hero.
+        XCTAssertNotEqual(ScanAPIClient.maxStoredEdge, ScanAPIClient.maxUploadEdge)
+    }
+}

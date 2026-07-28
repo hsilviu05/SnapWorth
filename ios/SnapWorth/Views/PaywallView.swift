@@ -55,7 +55,7 @@ struct PaywallView: View {
                             badge: yearly.savingsPercent.map { "SAVE \($0)%" } ?? "BEST VALUE",
                             isSelected: vm.selectedProductID == Config.yearlyProductID
                         ) {
-                            UISelectionFeedbackGenerator().selectionChanged()
+                            Haptics.selection()
                             vm.selectedProductID = Config.yearlyProductID
                         }
 
@@ -66,7 +66,7 @@ struct PaywallView: View {
                             badge: nil,
                             isSelected: vm.selectedProductID == Config.monthlyProductID
                         ) {
-                            UISelectionFeedbackGenerator().selectionChanged()
+                            Haptics.selection()
                             vm.selectedProductID = Config.monthlyProductID
                         }
                     }
@@ -187,10 +187,12 @@ struct PaywallView: View {
         .sheet(isPresented: $showPrivacy) {
             NavigationStack { PrivacyPolicyView() }
                 .presentationDetents([.large])
+                .presentationDragIndicator(.visible)
         }
         .sheet(isPresented: $showTerms) {
             NavigationStack { TermsOfServiceView() }
                 .presentationDetents([.large])
+                .presentationDragIndicator(.visible)
         }
     }
 }

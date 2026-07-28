@@ -133,7 +133,7 @@ struct ScanView: View {
 
                     // Shutter button
                     Button {
-                        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                        Haptics.capture()
                         cameraManager.capturePhoto()
                     } label: {
                         ZStack {
@@ -196,13 +196,19 @@ struct ScanView: View {
                     .transition(.opacity)
             }
         }
-        .animation(.easeInOut(duration: 0.3), value: vm.isAnalyzing)
+        .snapAnimation(.easeInOut(duration: 0.3), value: vm.isAnalyzing)
         .onChange(of: cameraManager.capturedImage) { _, image in
             guard let image else { return }
             vm.capturedImage = image
             Task { await triggerScan(image: image) }
         }
-        .onAppear { cameraManager.requestPermissionAndSetup() }
+        .onAppear {
+            cameraManager.requestPermissionAndSetup()
+            // Warm the Taptic Engine while the camera starts. The shutter tap
+            // is the one haptic a user would notice missing, and it fires when
+            // the main thread is busiest.
+            Haptics.prepare()
+        }
         .onChange(of: cameraManager.authStatus) { _, status in
             if status == .denied {
                 Analytics.shared.track(.scanFailed(reason: .permission))
@@ -239,6 +245,7 @@ struct ScanView: View {
             if let result = vm.scanResult {
                 ResultView(result: result, purchaseService: purchaseService, onDismiss: { showResult = false })
                     .presentationDetents([.large])
+                    .presentationDragIndicator(.visible)
             }
         }
         .sheet(isPresented: $vm.showPaywall) {

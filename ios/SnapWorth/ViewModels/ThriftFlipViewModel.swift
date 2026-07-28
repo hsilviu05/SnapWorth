@@ -46,6 +46,8 @@ final class ThriftFlipViewModel {
 
         do {
             let response = try await ScanAPIClient.shared.scan(image: image)
+            // Encoded off the main actor — see ScanAPIClient.encodeForStorage.
+            let storedImage = await ScanAPIClient.encodeForStorage(image)
             let result = ScanResult(
                 itemName: response.itemName,
                 brand: response.brand,
@@ -57,7 +59,7 @@ final class ThriftFlipViewModel {
                 soldListingsCount: response.soldListingsCount,
                 listingTitle: response.listingTitle,
                 listingDescription: response.listingDescription,
-                imageData: image.jpegData(compressionQuality: 0.75)
+                imageData: storedImage
             )
             scanResult = result
             // Seed the resale field with the condition-adjusted likely value.

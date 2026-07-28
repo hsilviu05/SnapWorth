@@ -68,7 +68,7 @@ struct FeedbackView: View {
                                     )
                                 }
                                 .buttonStyle(.plain)
-                                .animation(.spring(duration: 0.2), value: feedbackType)
+                                .snapAnimation(.spring(duration: 0.2), value: feedbackType)
                             }
                         }
                         .padding(.horizontal, 20)
@@ -122,7 +122,7 @@ struct FeedbackView: View {
                     }
                     .disabled(!canSend)
                     .opacity(canSend ? 1 : 0.45)
-                    .animation(.easeInOut(duration: 0.15), value: canSend)
+                    .snapAnimation(.easeInOut(duration: 0.15), value: canSend)
 
                     if didSend {
                         HStack(spacing: 8) {
@@ -144,7 +144,7 @@ struct FeedbackView: View {
         .navigationTitle("Send Feedback")
         .navigationBarTitleDisplayMode(.large)
         .scrollDismissesKeyboard(.interactively)
-        .animation(.spring(duration: 0.3), value: didSend)
+        .snapAnimation(.spring(duration: 0.3), value: didSend)
         .onAppear { feedbackType = initialType }
         .onDisappear { sendResetTask?.cancel() }
     }

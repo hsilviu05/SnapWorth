@@ -46,7 +46,11 @@ final class ScanViewModel {
         do {
             let response = try await ScanAPIClient.shared.scan(image: image)
 
-            let jpegData = image.jpegData(compressionQuality: 0.75)
+            // Downscaled and encoded off the main actor — see
+            // ScanAPIClient.encodeForStorage. Doing this inline on the
+            // MainActor cost 80-150ms of hitch exactly as the analysing
+            // overlay animated out and the result sheet presented.
+            let jpegData = await ScanAPIClient.encodeForStorage(image)
             let result = ScanResult(
                 itemName: response.itemName,
                 brand: response.brand,
@@ -67,7 +71,7 @@ final class ScanViewModel {
                 freeScansUsed += 1
             }
 
-            UINotificationFeedbackGenerator().notificationOccurred(.success)
+            Haptics.success()
             scanResult = result
             Analytics.shared.track(
                 .scanCompleted(success: true, category: ItemCategory(normalizing: response.category))
@@ -87,7 +91,7 @@ final class ScanViewModel {
             Task { await NotificationManager.shared.scheduleMonthlyRecap(monthScanCount: monthScans) }
 
         } catch {
-            UINotificationFeedbackGenerator().notificationOccurred(.error)
+            Haptics.failure()
             let appError = AppError.from(error)
             errorMessage = appError.errorDescription
             Analytics.shared.track(.scanFailed(reason: ScanFailureReason(appError)))
