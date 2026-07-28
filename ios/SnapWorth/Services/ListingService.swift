@@ -185,8 +185,7 @@ actor ListingAPIClient {
             throw URLError(.badServerResponse)
         }
         guard (200..<300).contains(http.statusCode) else {
-            let detail = (try? JSONDecoder().decode([String: String].self, from: data))?["detail"]
-            throw ScanAPIError.serverError(http.statusCode, detail ?? "Unknown error")
+            throw ScanAPIError.serverError(http.statusCode, APIErrorDetail.parse(data))
         }
 
         let decoded = try JSONDecoder().decode(ListingAPIResponse.self, from: data)

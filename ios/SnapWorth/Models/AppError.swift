@@ -4,6 +4,10 @@ enum AppError: LocalizedError, Equatable {
     case network
     case timeout
     case rateLimit
+    /// Free daily allowance is spent — the server is the authority on this.
+    case quotaExceeded(String)
+    /// A Pro-only endpoint refused a free-tier caller.
+    case proRequired(String)
     case serverUnavailable
     case imageEncodingFailed
     case purchaseCancelled
@@ -19,6 +23,8 @@ enum AppError: LocalizedError, Equatable {
             return "The request timed out. Please try again."
         case .rateLimit:
             return "You've hit the scan limit. Try again in an hour."
+        case .quotaExceeded(let msg), .proRequired(let msg):
+            return msg
         case .serverUnavailable:
             return "Our AI is temporarily unavailable. Please try again in a moment."
         case .imageEncodingFailed:
@@ -41,12 +47,18 @@ enum AppError: LocalizedError, Equatable {
             switch scanErr {
             case .imageEncodingFailed:
                 return .imageEncodingFailed
-            case .serverError(let code, _):
+            case .serverError(let code, let detail):
                 switch code {
                 case 429:        return .rateLimit
+                // 402 is the server saying "this needs payment" — either the
+                // free daily allowance is spent, or a Pro-only endpoint refused
+                // a free caller. Both route to the paywall, and `detail` is
+                // already user-safe copy written by the backend.
+                case 402:        return detail.lowercased().contains("pro feature")
+                                     ? .proRequired(detail)
+                                     : .quotaExceeded(detail)
                 case 502, 503:   return .serverUnavailable
-                case 500:        return .unknown("Server error \(code)")
-                default:         return .unknown("Server error \(code)")
+                default:         return .unknown(detail)
                 }
             }
         }
@@ -90,6 +102,8 @@ enum AppError: LocalizedError, Equatable {
             return true
         case (.purchaseFailed(let a), .purchaseFailed(let b)): return a == b
         case (.unknown(let a), .unknown(let b)):               return a == b
+        case (.quotaExceeded(let a), .quotaExceeded(let b)):   return a == b
+        case (.proRequired(let a), .proRequired(let b)):       return a == b
         default: return false
         }
     }

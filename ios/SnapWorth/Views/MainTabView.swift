@@ -8,14 +8,28 @@ extension Notification.Name {
 struct MainTabView: View {
     let purchaseService: any PurchaseService
     @State private var selectedTab = 0
-    @Query private var results: [ScanResult]
+
+    /// Only *listed* items, filtered in the fetch rather than in Swift.
+    ///
+    /// This previously fetched every `ScanResult` the user had ever created —
+    /// on the root view that hosts all four tabs — purely to compute a badge.
+    /// Two costs: every scan mutation invalidated the whole `TabView` body, and
+    /// a power user with thousands of records faulted them all in on each pass.
+    ///
+    /// The predicate must reference `statusRaw` (the stored property), not
+    /// `status` (a computed accessor) — SwiftData predicates cannot call
+    /// computed properties and would silently fail to compile the fetch.
+    @Query(filter: #Predicate<ScanResult> { $0.statusRaw == "listed" })
+    private var listedItems: [ScanResult]
 
     /// Fallback surface for the ledger reminder: how many listed items are due
     /// for an update (listed ≥14 days ago, still unsold). Works regardless of
     /// notification permission.
     private var ledgerNeedsUpdateCount: Int {
         guard let cutoff = Calendar.current.date(byAdding: .day, value: -14, to: Date()) else { return 0 }
-        return results.filter { $0.status == .listed && ($0.listedDate ?? $0.timestamp) <= cutoff }.count
+        return listedItems.reduce(into: 0) { count, item in
+            if (item.listedDate ?? item.timestamp) <= cutoff { count += 1 }
+        }
     }
 
     var body: some View {

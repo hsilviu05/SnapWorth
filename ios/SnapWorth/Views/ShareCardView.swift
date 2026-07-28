@@ -309,7 +309,7 @@ struct MonthShareCardView: View {
         itemName: "Levi's 501 Original Jeans",
         brand: "Levi's", category: "Clothing",
         conditionNotes: "Good", valueLow: 45, valueHigh: 90,
-        confidence: "high", soldListingsCount: 12,
+        confidence: "high", soldListingsCount: 0,
         listingTitle: "", listingDescription: ""
     )
     container.mainContext.insert(result)
@@ -326,7 +326,7 @@ struct MonthShareCardView: View {
         itemName: "Off-White OOO Out of Office Sneakers",
         brand: "Off-White", category: "Shoes",
         conditionNotes: "Good", valueLow: 275, valueHigh: 475,
-        confidence: "high", soldListingsCount: 18,
+        confidence: "high", soldListingsCount: 0,
         listingTitle: "", listingDescription: "",
         paidPrice: 30
     )
@@ -344,7 +344,7 @@ struct MonthShareCardView: View {
         itemName: "Patagonia Better Sweater",
         brand: "Patagonia", category: "Clothing",
         conditionNotes: "Good", valueLow: 65, valueHigh: 95,
-        confidence: "high", soldListingsCount: 31,
+        confidence: "high", soldListingsCount: 0,
         listingTitle: "", listingDescription: "",
         paidPrice: 0
     )
@@ -362,7 +362,7 @@ struct MonthShareCardView: View {
         itemName: "Vintage Tommy Hilfiger Oversized Windbreaker Jacket Navy Blue Size XXL",
         brand: "Tommy Hilfiger", category: "Clothing",
         conditionNotes: "Good", valueLow: 1200, valueHigh: 1600,
-        confidence: "medium", soldListingsCount: 5,
+        confidence: "medium", soldListingsCount: 0,
         listingTitle: "", listingDescription: ""
     )
     container.mainContext.insert(result)
