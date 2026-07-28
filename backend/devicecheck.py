@@ -80,12 +80,10 @@ class DeviceCheckClient:
         return token
 
     async def _post(self, path: str, payload: dict) -> tuple[int, str]:
-        import httpx
-
         headers = {"Authorization": f"Bearer {self._auth_jwt()}"}
-        async with httpx.AsyncClient(timeout=_HTTP_TIMEOUT) as client:
-            response = await client.post(f"{self._host}{path}", json=payload, headers=headers)
-            return response.status_code, response.text
+        client = await _shared_client()
+        response = await client.post(f"{self._host}{path}", json=payload, headers=headers)
+        return response.status_code, response.text
 
     async def query_bits(self, device_token: str) -> dict | None:
         """Return the stored bits, or None when the device is not yet known.
@@ -145,3 +143,50 @@ def client_from_env() -> DeviceCheckClient:
         private_key_pem=os.environ.get("DEVICECHECK_PRIVATE_KEY", ""),
         use_sandbox=os.environ.get("DEVICECHECK_SANDBOX", "").lower() in {"1", "true", "yes"},
     )
+
+
+# ── Shared HTTP client ───────────────────────────────────────────────────────
+# Previously `_post` opened `httpx.AsyncClient()` per call, so every DeviceCheck
+# request paid a fresh TCP connect plus a TLS handshake to Apple — roughly
+# 100-200 ms of avoidable latency, and a new socket per call. At the volumes a
+# launch implies that is both slow and a connection-churn problem on the host.
+#
+# A module-level pooled client keeps keep-alive connections warm. Created lazily
+# under a lock so import stays side-effect free, and closed by the app lifespan.
+
+import asyncio as _asyncio
+
+_client = None
+_client_lock = _asyncio.Lock()
+
+# Small pool: DeviceCheck is called on attestation and quota exhaustion, not on
+# the hot scan path, so a large pool would hold idle sockets for nothing.
+_MAX_CONNECTIONS = int(os.environ.get("DEVICECHECK_MAX_CONNECTIONS", "10"))
+
+
+async def _shared_client():
+    """Lazily create the pooled client. Safe under concurrency."""
+    global _client
+    if _client is not None:
+        return _client
+    async with _client_lock:
+        if _client is None:                      # re-check inside the lock
+            import httpx
+
+            _client = httpx.AsyncClient(
+                timeout=_HTTP_TIMEOUT,
+                limits=httpx.Limits(
+                    max_connections=_MAX_CONNECTIONS,
+                    max_keepalive_connections=_MAX_CONNECTIONS,
+                    keepalive_expiry=30.0,
+                ),
+            )
+    return _client
+
+
+async def aclose() -> None:
+    """Close the pooled client. Called from the app lifespan on shutdown."""
+    global _client
+    if _client is not None:
+        client, _client = _client, None
+        await client.aclose()
