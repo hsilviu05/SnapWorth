@@ -4,6 +4,9 @@ struct ResultView: View {
     let result: ScanResult
     let purchaseService: any PurchaseService
     var onDismiss: () -> Void
+    /// Whether this result reached SwiftData. Defaults to true so call sites
+    /// showing an already-persisted find (My Finds) are unaffected.
+    var didSave: Bool = true
 
     @Environment(\.displayScale) private var displayScale
 
@@ -21,10 +24,14 @@ struct ResultView: View {
 
     private var isPro: Bool { purchaseService.isSubscribed }
 
-    init(result: ScanResult, purchaseService: any PurchaseService, onDismiss: @escaping () -> Void) {
+    init(result: ScanResult,
+         purchaseService: any PurchaseService,
+         onDismiss: @escaping () -> Void,
+         didSave: Bool = true) {
         self.result = result
         self.purchaseService = purchaseService
         self.onDismiss = onDismiss
+        self.didSave = didSave
         _paidPriceText = State(initialValue: Self.moneyField(result.paidPrice))
         _soldPriceText = State(initialValue: Self.moneyField(result.soldPrice))
         _feesText      = State(initialValue: Self.moneyField(result.feesEstimate))
@@ -842,12 +849,19 @@ struct ResultView: View {
     private var footer: some View {
         VStack(spacing: 12) {
             HStack(spacing: 6) {
-                Image(systemName: "checkmark.circle.fill")
-                    .foregroundStyle(Color.snapSage)
-                Text("Saved to My Finds")
+                Image(systemName: didSave
+                      ? "checkmark.circle.fill"
+                      : "exclamationmark.triangle.fill")
+                    .foregroundStyle(didSave ? Color.snapSage : Color.snapAmber)
+                Text(didSave
+                     ? "Saved to My Finds"
+                     : "Couldn't save to My Finds — this result won't be kept")
                     .font(.snapCaption)
                     .foregroundStyle(Color.snapWarmGray)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
             }
+            .accessibilityElement(children: .combine)
 
             Text("SnapWorth")
                 .font(.fraunces(13, weight: .bold))
