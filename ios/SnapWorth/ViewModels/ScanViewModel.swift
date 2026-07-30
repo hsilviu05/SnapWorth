@@ -14,6 +14,14 @@ final class ScanViewModel {
     var showImagePicker: Bool = false
     var selectedPhotoItem: PhotosPickerItem?
 
+    /// True when the scan succeeded but writing it to SwiftData did not.
+    ///
+    /// The result is still presented — by the time persistence runs, the server
+    /// has already charged a quota unit, so discarding a correct valuation
+    /// because the local write failed costs the user something they paid for.
+    /// The result sheet reflects this instead of claiming it was saved.
+    var saveFailed: Bool = false
+
     /// Which trigger opened the paywall — read by the presenting sheet so
     /// `paywall_viewed` is attributed correctly (scan wall vs. upgrade tap).
     var paywallTrigger: PaywallTrigger = .scanLimit
@@ -41,6 +49,7 @@ final class ScanViewModel {
         Analytics.shared.track(.scanStarted)
         isAnalyzing = true
         errorMessage = nil
+        saveFailed = false
         defer { isAnalyzing = false }
 
         do {
@@ -65,8 +74,13 @@ final class ScanViewModel {
                 imageData: jpegData
             )
 
-            try repository.save(result)
-
+            // Present first, persist second.
+            //
+            // The server charges a quota unit the moment the scan succeeds, so
+            // by this point the user has already paid for this valuation. A
+            // local SwiftData failure must not take it away from them — and it
+            // must not skip the quota increment either, or the client would
+            // believe it has a free scan the server has already spent.
             if !purchaseService.isSubscribed {
                 freeScansUsed += 1
             }
@@ -77,6 +91,20 @@ final class ScanViewModel {
                 .scanCompleted(success: true, category: ItemCategory(normalizing: response.category))
             )
 
+            do {
+                try repository.save(result)
+            } catch {
+                // Non-blocking: the result stays on screen, and the sheet's
+                // footer reports that it wasn't added to My Finds rather than
+                // claiming a save that didn't happen.
+                //
+                // Deliberately no `scanFailed` event — the scan itself
+                // succeeded and already emitted `scanCompleted(success: true)`.
+                // Emitting a failure for the same scan would double-count it
+                // and make the funnel wrong.
+                saveFailed = true
+            }
+
             // Ask for a rating on a high point — after the result is on screen.
             Task {
                 try? await Task.sleep(for: .seconds(1.2))
@@ -85,9 +113,7 @@ final class ScanViewModel {
 
             // Only scans schedule the monthly recap — never app launch — so a
             // quiet month fires nothing. Fires once this month reaches 3 scans.
-            let monthScans = repository.fetchAll().filter {
-                Calendar.current.isDate($0.timestamp, equalTo: Date(), toGranularity: .month)
-            }.count
+            let monthScans = repository.countScansThisMonth()
             Task { await NotificationManager.shared.scheduleMonthlyRecap(monthScanCount: monthScans) }
 
         } catch {
@@ -113,6 +139,7 @@ final class ScanViewModel {
         capturedImage = nil
         scanResult = nil
         errorMessage = nil
+        saveFailed = false
         isAnalyzing = false
     }
 }

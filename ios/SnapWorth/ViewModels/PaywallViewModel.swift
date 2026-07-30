@@ -26,6 +26,11 @@ final class PaywallViewModel {
     }
 
     func purchase(service: any PurchaseService) async {
+        // Matches the guard in ScanViewModel, ResultViewModel and
+        // ThriftFlipViewModel. The View disables the button, but that relies on
+        // a render cycle — and this is the payment path, so it should not be
+        // the only thing standing between a fast double-tap and two purchases.
+        guard !isPurchasing, !isRestoring else { return }
         isPurchasing = true
         errorMessage = nil
         defer { isPurchasing = false }

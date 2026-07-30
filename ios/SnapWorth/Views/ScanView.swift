@@ -242,11 +242,7 @@ struct ScanView: View {
                 }
             }
         }) {
-            if let result = vm.scanResult {
-                ResultView(result: result, purchaseService: purchaseService, onDismiss: { showResult = false })
-                    .presentationDetents([.large])
-                    .presentationDragIndicator(.visible)
-            }
+            resultSheet
         }
         .sheet(isPresented: $vm.showPaywall) {
             PaywallView(purchaseService: purchaseService, trigger: vm.paywallTrigger)
@@ -282,6 +278,26 @@ struct ScanView: View {
             Button("OK", role: .cancel) { cameraManager.error = nil }
         } message: {
             Text(cameraManager.error?.errorDescription ?? "")
+        }
+    }
+
+    // MARK: - Result Sheet
+
+    /// Extracted from `body` deliberately: `body` is a single large expression,
+    /// and adding one more inference site inside the sheet closure pushed the
+    /// type-checker past its budget ("unable to type-check in reasonable
+    /// time"). Splitting it lets each part solve independently.
+    @ViewBuilder
+    private var resultSheet: some View {
+        if let result = vm.scanResult {
+            ResultView(
+                result: result,
+                purchaseService: purchaseService,
+                onDismiss: { showResult = false },
+                didSave: !vm.saveFailed
+            )
+            .presentationDetents([.large])
+            .presentationDragIndicator(.visible)
         }
     }
 

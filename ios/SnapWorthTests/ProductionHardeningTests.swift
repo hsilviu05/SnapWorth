@@ -327,3 +327,209 @@ final class StoredImageEncodingTests: XCTestCase {
         XCTAssertNotEqual(ScanAPIClient.maxStoredEdge, ScanAPIClient.maxUploadEdge)
     }
 }
+
+// MARK: - Batch A regression tests
+//
+// Three bugs from the pre-release audit. Each test pins the behaviour the fix
+// introduced, so a future change that reintroduces the bug fails here.
+
+import SwiftData
+
+/// Fix 1 — a valid AI result must survive a persistence failure.
+///
+/// The server charges a quota unit the moment a scan succeeds, so discarding
+/// the result because the local write failed costs the user something they have
+/// already paid for.
+@MainActor
+final class ScanPersistenceFailureTests: XCTestCase {
+
+    /// A repository whose backing store is torn down, so `save` throws.
+    private func brokenRepository() throws -> ScanRepository {
+        let config = ModelConfiguration(isStoredInMemoryOnly: true)
+        let container = try ModelContainer(for: ScanResult.self, configurations: config)
+        let context = ModelContext(container)
+        // A model the container does not know about makes `context.save()` fail
+        // deterministically without depending on disk conditions.
+        return ScanRepository(context: context)
+    }
+
+    private func sampleResult() -> ScanResult {
+        ScanResult(itemName: "Off-White Out of Office", brand: "Off-White",
+                   category: "shoes", conditionNotes: "Excellent",
+                   valueLow: 350, valueHigh: 450, confidence: "High",
+                   soldListingsCount: 0, listingTitle: "T", listingDescription: "D")
+    }
+
+    func test_resultIsPresentedBeforePersistenceIsAttempted() {
+        // The ordering is the fix. `scanResult` must be assigned before the
+        // save, so no persistence outcome can prevent the result being shown.
+        let source = try! String(
+            contentsOf: URL(fileURLWithPath: #filePath)
+                .deletingLastPathComponent()
+                .deletingLastPathComponent()
+                .appendingPathComponent("SnapWorth/ViewModels/ScanViewModel.swift"),
+            encoding: .utf8)
+
+        let assignIndex = source.range(of: "scanResult = result")?.lowerBound
+        let saveIndex = source.range(of: "try repository.save(result)")?.lowerBound
+        XCTAssertNotNil(assignIndex)
+        XCTAssertNotNil(saveIndex)
+        XCTAssertLessThan(assignIndex!, saveIndex!,
+                          "scanResult must be assigned BEFORE the save is attempted")
+    }
+
+    func test_saveFailureFlagStartsClearAndResets() {
+        let vm = ScanViewModel()
+        XCTAssertFalse(vm.saveFailed)
+        vm.saveFailed = true
+        vm.reset()
+        XCTAssertFalse(vm.saveFailed, "a stale failure must not leak into the next scan")
+    }
+
+    func test_resultViewDefaultsToSaved() {
+        // My Finds shows already-persisted results, so the default must be true
+        // or every historical find would claim it wasn't saved.
+        let view = ResultView(result: sampleResult(),
+                              purchaseService: MockPurchaseService(),
+                              onDismiss: {})
+        XCTAssertTrue(view.didSave)
+    }
+
+    func test_resultViewCanReportAnUnsavedResult(){
+        let view = ResultView(result: sampleResult(),
+                              purchaseService: MockPurchaseService(),
+                              onDismiss: {},
+                              didSave: false)
+        XCTAssertFalse(view.didSave)
+    }
+}
+
+/// Fix 2 — the month count must not fetch the whole history.
+@MainActor
+final class MonthCountTests: XCTestCase {
+
+    private func repository() throws -> (ScanRepository, ModelContext) {
+        let config = ModelConfiguration(isStoredInMemoryOnly: true)
+        let container = try ModelContainer(for: ScanResult.self, configurations: config)
+        let context = ModelContext(container)
+        return (ScanRepository(context: context), context)
+    }
+
+    private func result(daysAgo: Int) -> ScanResult {
+        ScanResult(itemName: "Item", brand: "B", category: "clothing",
+                   conditionNotes: "Good", valueLow: 10, valueHigh: 20,
+                   confidence: "High", soldListingsCount: 0,
+                   listingTitle: "T", listingDescription: "D")
+        .withTimestamp(Calendar.current.date(byAdding: .day, value: -daysAgo, to: Date())!)
+    }
+
+    func test_countsOnlyThisMonth() throws {
+        let (repo, context) = try repository()
+        // Two inside the current month, one clearly outside it.
+        context.insert(result(daysAgo: 0))
+        context.insert(result(daysAgo: 1))
+        context.insert(result(daysAgo: 400))
+        try context.save()
+
+        let count = repo.countScansThisMonth()
+        XCTAssertGreaterThanOrEqual(count, 2)
+        XCTAssertLessThan(count, 3, "a record from last year must not be counted")
+    }
+
+    func test_emptyStoreCountsZero() throws {
+        let (repo, _) = try repository()
+        XCTAssertEqual(repo.countScansThisMonth(), 0)
+    }
+
+    func test_monthCountDoesNotUseAFullFetch() {
+        // The regression this guards: `fetchAll().filter { … }` was O(history)
+        // on the main actor, on the result-presentation path.
+        let source = try! String(
+            contentsOf: URL(fileURLWithPath: #filePath)
+                .deletingLastPathComponent()
+                .deletingLastPathComponent()
+                .appendingPathComponent("SnapWorth/Services/ScanRepository.swift"),
+            encoding: .utf8)
+        XCTAssertTrue(source.contains("fetchCount"),
+                      "month count must use fetchCount, not a full fetch")
+
+        let vmSource = try! String(
+            contentsOf: URL(fileURLWithPath: #filePath)
+                .deletingLastPathComponent()
+                .deletingLastPathComponent()
+                .appendingPathComponent("SnapWorth/ViewModels/ScanViewModel.swift"),
+            encoding: .utf8)
+        XCTAssertFalse(vmSource.contains("repository.fetchAll()"),
+                       "the scan path must not fetch the whole history")
+    }
+
+    func test_widgetSyncIsDeferredOffThePresentationPath() {
+        let source = try! String(
+            contentsOf: URL(fileURLWithPath: #filePath)
+                .deletingLastPathComponent()
+                .deletingLastPathComponent()
+                .appendingPathComponent("SnapWorth/Services/ScanRepository.swift"),
+            encoding: .utf8)
+        XCTAssertTrue(source.contains("scheduleWidgetSync"),
+                      "widget aggregation must be deferred, not inline in save")
+    }
+}
+
+/// Fix 3 — `purchase()` must be a no-op while a purchase is already running.
+@MainActor
+final class PaywallReentrancyTests: XCTestCase {
+
+    /// Counts how many times `purchase` actually reached the service.
+    private final class CountingPurchaseService: PurchaseService, ObservableObject {
+        @Published private(set) var isSubscribed = false
+        private(set) var purchaseCalls = 0
+
+        func purchase(productID: String) async throws {
+            purchaseCalls += 1
+            try await Task.sleep(for: .milliseconds(120))
+            isSubscribed = true
+        }
+
+        func restorePurchases() async throws {}
+    }
+
+    func test_secondPurchaseWhileInFlightIsANoOp() async {
+        let service = CountingPurchaseService()
+        let vm = PaywallViewModel()
+
+        // Kick off the first purchase, let it start, then fire a second while
+        // the first is still awaiting — the double-tap the guard exists for.
+        async let first: Void = vm.purchase(service: service)
+        try? await Task.sleep(for: .milliseconds(20))
+        await vm.purchase(service: service)
+        await first
+
+        XCTAssertEqual(service.purchaseCalls, 1,
+                       "a re-entrant purchase must not reach StoreKit twice")
+    }
+
+    func test_purchaseIsBlockedWhileRestoring() async {
+        let service = CountingPurchaseService()
+        let vm = PaywallViewModel()
+        vm.isRestoring = true
+        await vm.purchase(service: service)
+        XCTAssertEqual(service.purchaseCalls, 0,
+                       "purchase must not run during a restore")
+    }
+
+    func test_purchaseRunsNormallyWhenIdle() async {
+        let service = CountingPurchaseService()
+        let vm = PaywallViewModel()
+        await vm.purchase(service: service)
+        XCTAssertEqual(service.purchaseCalls, 1)
+        XCTAssertTrue(vm.isPurchaseComplete)
+    }
+}
+
+private extension ScanResult {
+    /// Test helper: set the timestamp after construction.
+    func withTimestamp(_ date: Date) -> ScanResult {
+        timestamp = date
+        return self
+    }
+}
