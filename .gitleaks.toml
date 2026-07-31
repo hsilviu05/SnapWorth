@@ -1,0 +1,73 @@
+# Secret scanning configuration.
+#
+# Replaces two hand-written greps in .github/workflows/ios.yml that matched on
+# *shape* alone:
+#
+#     grep -rE 'AIzaSy[A-Za-z0-9_-]{33}' .
+#     grep -rE 'sk_[A-Za-z0-9]{20,}' ios/SnapWorth/
+#
+# Root cause of the false positive those produced: a shape match cannot tell a
+# credential from a string that merely looks like one. The redaction tests in
+# backend/tests/test_production.py deliberately contain credential-shaped
+# fixtures — that is the whole point of those tests, since they assert the
+# logging pipeline strips such strings. The grep had no notion of entropy, no
+# notion of context, and no way to make an exception, so the check could only
+# be satisfied by deleting the tests that prove redaction works.
+#
+# gitleaks adds three things the grep lacked:
+#   * entropy scoring — a real key is high-entropy random; an alphabet is not
+#   * a curated ruleset covering ~170 providers, not the two we thought of
+#   * scoped allowlisting, so a known-fake fixture can be excepted by value
+#     without blinding the scanner to everything around it
+
+title = "SnapWorth secret scanning"
+
+[extend]
+# Inherit the full upstream ruleset. Real Google, AWS, Stripe, Slack, GitHub,
+# OpenAI and private-key detections all remain active — this file only adds
+# exceptions, it never removes a rule.
+useDefault = true
+
+[allowlist]
+description = "Known-fake credential fixtures in the redaction tests"
+
+# Scoped by exact value only — deliberately NO `paths` entry.
+#
+# The first version of this file combined `paths` with `regexes` and set
+# `condition = "AND"`, intending "this string, in this file". Verification
+# showed the AND was not applied: a randomly generated, realistic Google API key
+# pasted into backend/tests/test_production.py was NOT caught, because the path
+# entry alone excused everything in the file. That is the exact failure this
+# allowlist was supposed to avoid, and it would have silently blinded the
+# scanner to the most plausible way a key actually leaks — someone pasting a
+# real credential into a test while debugging.
+#
+# Matching on the literal fixture value has no such ambiguity. Exactly one
+# string is excused, anywhere in the repo; anything else, in any file including
+# this one, still fails the build. Verified by planting a real-shaped key in the
+# same file and confirming it is caught.
+regexes = [
+    # A syntactically valid but fabricated JWT: the header decodes to
+    # {"alg":"ES256"} and the payload is the alphabet. Present so
+    # TestRedaction can assert observability.redact() strips JWTs.
+    # gitleaks scores its entropy at 4.85 and flags it as a generic-api-key.
+    '''eyJhbGciOiJFUzI1NiJ9\.abcdefghijklmnopqrst''',
+]
+
+# Deliberately NOT allowlisted, and worth recording why:
+#
+#   AIzaSyABCDEFGHIJKLMNOPQRSTUVWXYZ0123456
+#       The fixture that broke the old grep. gitleaks does not flag it — the
+#       sequential alphabet fails its entropy threshold — so no exception is
+#       required. This is the clearest demonstration of the difference between
+#       shape matching and entropy scoring.
+#
+#   -----BEGIN PRIVATE KEY-----\nMIIEvQIBADAN...
+#       The PEM fixture in the same test file. Not flagged: the body is far too
+#       short to be a real key.
+#
+#   backend/.env
+#       Never allowlisted. It is gitignored and absent from a CI checkout, but
+#       if it is ever committed the scanner must scream. The workflow also
+#       keeps an explicit `git ls-files` check for the same reason — two
+#       independent guards on the highest-consequence mistake in the repo.
