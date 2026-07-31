@@ -13,6 +13,21 @@ struct SnapWorthApp: App {
         // Wires the analytics backend (no-op until a TelemetryDeck ID is set)
         // and fires app_opened — the top of the launch funnel.
         AnalyticsBootstrap.start()
+
+        // Reported here, not from inside the container closure.
+        //
+        // Stored-property initialisers run before this body, and
+        // `Analytics.track` is a no-op while no backend is configured — so
+        // firing the event at the point of failure would be silently dropped,
+        // leaving the code looking instrumented while reporting nothing.
+        if let reason = AppLaunchState.persistentStoreFallbackReason {
+            Analytics.shared.track(.persistentStoreFallback(reason: reason))
+        }
+
+        // After bootstrap, for the same reason: MetricKit delivers
+        // asynchronously, and a payload arriving while the analytics backend
+        // is still unconfigured would be dropped by the no-op `track`.
+        CrashReporter.shared.start()
     }
 
     // ── SwiftData container ───────────────────────────────────────────────────
@@ -24,6 +39,12 @@ struct SnapWorthApp: App {
         } catch {
             // Persistent store is corrupt or unreadable; fall back to in-memory
             // so the app stays functional rather than crash-looping on every launch.
+            //
+            // Behaviour is unchanged — this only records that it happened. The
+            // user's history appears empty and this session's work is lost on
+            // quit, so a fallback launch must be distinguishable from a healthy
+            // one in the data.
+            AppLaunchState.recordPersistentStoreFallback(error)
             let fallback = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
             do {
                 return try ModelContainer(for: schema, configurations: [fallback])

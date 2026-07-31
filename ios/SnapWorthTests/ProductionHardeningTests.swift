@@ -533,3 +533,281 @@ private extension ScanResult {
         return self
     }
 }
+
+// MARK: - 1.2.1 observability hotfix
+//
+// Findings A and C from the post-launch audit. Both concern whether we can see
+// what is happening to live users, so the tests assert on emission, not on
+// behaviour — the behaviour deliberately did not change.
+
+/// Finding A — a fallback to the in-memory store must be visible.
+final class PersistentStoreFallbackTests: XCTestCase {
+
+    override func setUp() {
+        super.setUp()
+        AppLaunchState.reset()
+    }
+
+    override func tearDown() {
+        AppLaunchState.reset()
+        super.tearDown()
+    }
+
+    func test_healthyLaunchRecordsNothing() {
+        XCTAssertNil(AppLaunchState.persistentStoreFallbackReason)
+        XCTAssertFalse(AppLaunchState.isRunningOnFallbackStore)
+    }
+
+    func test_fallbackIsRecorded() {
+        AppLaunchState.recordPersistentStoreFallback(
+            NSError(domain: NSCocoaErrorDomain, code: NSFileReadCorruptFileError))
+        XCTAssertTrue(AppLaunchState.isRunningOnFallbackStore)
+        XCTAssertEqual(AppLaunchState.persistentStoreFallbackReason, "store_corrupt")
+    }
+
+    func test_classificationIsCoarseAndStable() {
+        let cases: [(Error, String)] = [
+            (NSError(domain: NSCocoaErrorDomain, code: NSFileReadCorruptFileError), "store_corrupt"),
+            (NSError(domain: NSCocoaErrorDomain, code: NSFileWriteOutOfSpaceError), "disk_full"),
+            (NSError(domain: NSCocoaErrorDomain, code: NSFileReadNoPermissionError), "permission_denied"),
+            (NSError(domain: "Other", code: 1), "unknown"),
+        ]
+        for (error, expected) in cases {
+            XCTAssertEqual(AppLaunchState.classify(error), expected)
+        }
+    }
+
+    func test_migrationFailureIsClassifiedDistinctly() {
+        // The 1.1.x → 1.2.0 upgrade is the specific risk this event exists for,
+        // so it must be separable from generic corruption in the data.
+        let error = NSError(domain: "SwiftData", code: 134110,
+                            userInfo: [NSLocalizedDescriptionKey: "Migration failed for entity"])
+        XCTAssertEqual(AppLaunchState.classify(error), "migration_failed")
+    }
+
+    func test_reasonNeverContainsAFilesystemPath() {
+        // A SwiftData error description routinely embeds the store path, which
+        // contains the container UUID and can contain the device owner's name.
+        let error = NSError(
+            domain: NSCocoaErrorDomain, code: 256,
+            userInfo: [NSLocalizedDescriptionKey:
+                "Cannot open /Users/jane.doe/Library/Application Support/default.store"])
+        let reason = AppLaunchState.classify(error)
+        XCTAssertFalse(reason.contains("/"))
+        XCTAssertFalse(reason.lowercased().contains("jane"))
+    }
+
+    func test_eventCarriesOnlyTheClassifiedReason() {
+        let event = AnalyticsEvent.persistentStoreFallback(reason: "migration_failed")
+        XCTAssertEqual(event.name, "persistent_store_fallback")
+        XCTAssertEqual(event.parameters, ["reason": "migration_failed"])
+    }
+}
+
+/// Finding C — Snap → Sell adoption must count successes, not attempts.
+final class ListingAnalyticsOrderingTests: XCTestCase {
+
+    func test_listingGeneratedFiresAfterSuccessNotBefore() {
+        // Ordering is the fix: the track call must sit after the assignment
+        // that only happens on success, so a timeout cannot be counted as a
+        // generated listing.
+        let source = try! String(
+            contentsOf: URL(fileURLWithPath: #filePath)
+                .deletingLastPathComponent()
+                .deletingLastPathComponent()
+                .appendingPathComponent("SnapWorth/ViewModels/ResultViewModel.swift"),
+            encoding: .utf8)
+
+        guard let body = source.range(of: "func generateListing") else {
+            return XCTFail("generateListing not found")
+        }
+        let scope = String(source[body.lowerBound...])
+
+        let assign = scope.range(of: "generatedListing = listing")?.lowerBound
+        let track = scope.range(of: ".listingGenerated(")?.lowerBound
+        XCTAssertNotNil(assign)
+        XCTAssertNotNil(track)
+        XCTAssertLessThan(assign!, track!,
+                          "listingGenerated must fire only after a successful generation")
+    }
+
+    func test_failurePathDoesNotTrackGeneration() {
+        let source = try! String(
+            contentsOf: URL(fileURLWithPath: #filePath)
+                .deletingLastPathComponent()
+                .deletingLastPathComponent()
+                .appendingPathComponent("SnapWorth/ViewModels/ResultViewModel.swift"),
+            encoding: .utf8)
+        guard let catchRange = source.range(of: "listingError = AppError.from(error)") else {
+            return XCTFail("failure path not found")
+        }
+        // Nothing between entering the catch and setting the error should emit
+        // a generation event.
+        let catchScope = String(source[catchRange.lowerBound...].prefix(200))
+        XCTAssertFalse(catchScope.contains("listingGenerated"))
+    }
+}
+
+// MARK: - MetricKit forwarding (Finding B)
+//
+// `MXDiagnosticPayload` and its members have no public initialiser, so the
+// subscriber callbacks themselves cannot be unit-tested — that is a MetricKit
+// constraint, not a design choice. The mapping layer was split out precisely so
+// the part that decides WHAT LEAVES THE DEVICE is fully testable; only the thin
+// subscriber shell is not covered here.
+
+final class DiagnosticSummaryTests: XCTestCase {
+
+    // ── Signals ──────────────────────────────────────────────────────────────
+
+    func test_knownSignalsAreNamed() {
+        XCTAssertEqual(DiagnosticSummary.signalName(11), "SIGSEGV")
+        XCTAssertEqual(DiagnosticSummary.signalName(6), "SIGABRT")
+        XCTAssertEqual(DiagnosticSummary.signalName(5), "SIGTRAP")
+    }
+
+    func test_swiftRuntimeTrapIsDistinguishable() {
+        // Force-unwrap and out-of-bounds crashes surface as SIGTRAP. Being able
+        // to separate those from SIGSEGV is the difference between "our bug"
+        // and "memory corruption" when triaging a spike.
+        XCTAssertEqual(DiagnosticSummary.signalName(5), "SIGTRAP")
+        XCTAssertNotEqual(DiagnosticSummary.signalName(5),
+                          DiagnosticSummary.signalName(11))
+    }
+
+    func test_unknownSignalIsBucketedNotPassedThrough() {
+        // An unrecognised value must not widen the event's cardinality.
+        XCTAssertEqual(DiagnosticSummary.signalName(9999), "signal_other")
+    }
+
+    func test_missingSignalFallsBackOnExceptionType() {
+        XCTAssertEqual(DiagnosticSummary.signalName(nil, exceptionType: nil), "unknown")
+        XCTAssertEqual(DiagnosticSummary.signalName(nil, exceptionType: 1), "mach_exception")
+    }
+
+    // ── Termination reason: the field most likely to leak ────────────────────
+
+    func test_terminationReasonIsBucketed() {
+        XCTAssertEqual(
+            DiagnosticSummary.terminationBucket("Watchdog: 0x8badf00d exhausted"), "watchdog")
+        XCTAssertEqual(
+            DiagnosticSummary.terminationBucket("per-process-limit memory jetsam"),
+            "memory_pressure")
+        XCTAssertEqual(DiagnosticSummary.terminationBucket(nil), "none")
+        XCTAssertEqual(DiagnosticSummary.terminationBucket(""), "none")
+    }
+
+    func test_rawTerminationTextNeverEscapes() {
+        // The OS writes this string and it can embed process names and paths.
+        // Whatever goes in, only a bucket label comes out.
+        let hostile = "Terminated /Users/jane.doe/Library/Containers/" +
+                      "A1B2C3D4-1111-2222-3333-444455556666/Data/default.store"
+        let bucket = DiagnosticSummary.terminationBucket(hostile)
+
+        XCTAssertFalse(bucket.contains("/"), "no path may survive bucketing")
+        XCTAssertFalse(bucket.lowercased().contains("jane"))
+        XCTAssertFalse(bucket.contains("A1B2C3D4"), "no container UUID may survive")
+        XCTAssertTrue(["watchdog", "memory_pressure", "background_task_timeout",
+                       "signal", "other", "none"].contains(bucket),
+                      "bucket must come from the closed vocabulary")
+    }
+
+    func test_terminationVocabularyIsClosed() {
+        // Fuzz a range of shapes; every result must be a known label.
+        let allowed = Set(["watchdog", "memory_pressure", "background_task_timeout",
+                           "signal", "other", "none"])
+        let inputs = ["", "  ", "WATCHDOG", "0x8badf00d", "namespace SIGNAL, code 11",
+                      "background task expired", "🙂 unexpected", String(repeating: "x", count: 5_000)]
+        for input in inputs {
+            XCTAssertTrue(allowed.contains(DiagnosticSummary.terminationBucket(input)),
+                          "unexpected bucket for \(input.prefix(20))")
+        }
+    }
+
+    // ── Duration bucketing ───────────────────────────────────────────────────
+
+    func test_durationBuckets() {
+        XCTAssertEqual(DiagnosticSummary.durationBucket(0.2), "under_0.5s")
+        XCTAssertEqual(DiagnosticSummary.durationBucket(0.7), "0.5s_1s")
+        XCTAssertEqual(DiagnosticSummary.durationBucket(3), "2s_5s")
+        XCTAssertEqual(DiagnosticSummary.durationBucket(45), "over_10s")
+    }
+
+    func test_negativeDurationIsInvalidNotMisbucketed() {
+        XCTAssertEqual(DiagnosticSummary.durationBucket(-1), "invalid")
+    }
+
+    func test_durationsAreNeverForwardedAsRawNumbers() {
+        // A precise duration is a weak fingerprint and is not groupable.
+        // Every value must collapse to one of a small set of labels.
+        let labels = Set((0...200).map { DiagnosticSummary.durationBucket(Double($0) / 10) })
+        XCTAssertLessThanOrEqual(labels.count, 7)
+    }
+
+    // ── End-to-end summary ───────────────────────────────────────────────────
+
+    func test_crashSummaryCombinesBothBuckets() {
+        let summary = DiagnosticSummary.crash(
+            exceptionType: 1, signal: 11,
+            terminationReason: "Watchdog /var/mobile/Containers/Data/app.store")
+        XCTAssertEqual(summary, DiagnosticSummary.Crash(signal: "SIGSEGV",
+                                                        termination: "watchdog"))
+    }
+
+    func test_crashEventCarriesOnlyBucketedFields() {
+        let event = AnalyticsEvent.crashReported(signal: "SIGSEGV", termination: "watchdog")
+        XCTAssertEqual(event.name, "crash_reported")
+        XCTAssertEqual(event.parameters, ["signal": "SIGSEGV", "termination": "watchdog"])
+    }
+
+    func test_hangAndLaunchEventsShareTheBucketParameter() {
+        XCTAssertEqual(AnalyticsEvent.hangReported(bucket: "2s_5s").parameters,
+                       ["bucket": "2s_5s"])
+        XCTAssertEqual(AnalyticsEvent.launchTimeReported(bucket: "under_0.5s").parameters,
+                       ["bucket": "under_0.5s"])
+    }
+}
+
+/// The privacy manifest must match what the code actually sends.
+final class PrivacyManifestTests: XCTestCase {
+
+    private func manifest() throws -> [String: Any] {
+        let url = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("SnapWorth/PrivacyInfo.xcprivacy")
+        let data = try Data(contentsOf: url)
+        return try PropertyListSerialization.propertyList(
+            from: data, format: nil) as! [String: Any]
+    }
+
+    private func declaredTypes() throws -> [String] {
+        let collected = try manifest()["NSPrivacyCollectedDataTypes"] as? [[String: Any]] ?? []
+        return collected.compactMap { $0["NSPrivacyCollectedDataType"] as? String }
+    }
+
+    func test_diagnosticsAreDeclared() throws {
+        // Forwarding MetricKit data to a third party is diagnostics collection.
+        // If the code sends it, the manifest must say so.
+        let types = try declaredTypes()
+        XCTAssertTrue(types.contains("NSPrivacyCollectedDataTypeCrashData"))
+        XCTAssertTrue(types.contains("NSPrivacyCollectedDataTypePerformanceData"))
+        XCTAssertTrue(types.contains("NSPrivacyCollectedDataTypeOtherDiagnosticData"))
+    }
+
+    func test_nothingIsLinkedToIdentityOrUsedForTracking() throws {
+        let collected = try manifest()["NSPrivacyCollectedDataTypes"] as? [[String: Any]] ?? []
+        for entry in collected {
+            let name = entry["NSPrivacyCollectedDataType"] as? String ?? "?"
+            XCTAssertEqual(entry["NSPrivacyCollectedDataTypeLinked"] as? Bool, false,
+                           "\(name) must not be linked to identity")
+            XCTAssertEqual(entry["NSPrivacyCollectedDataTypeTracking"] as? Bool, false,
+                           "\(name) must not be used for tracking")
+        }
+    }
+
+    func test_trackingIsDisabledAtTheManifestLevel(){
+        let value = try? manifest()["NSPrivacyTracking"] as? Bool
+        XCTAssertEqual(value, false)
+    }
+}
