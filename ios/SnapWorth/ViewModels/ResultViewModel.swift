@@ -60,12 +60,16 @@ final class ResultViewModel {
         listingError = nil
         defer { isGeneratingListing = false }
 
-        Analytics.shared.track(.listingGenerated(marketplace: selectedMarketplace.rawValue))
         do {
             let listing = try await ListingAPIClient.shared.generate(
                 for: result, condition: result.condition, marketplace: selectedMarketplace
             )
             generatedListing = listing
+            // Fired on success, not on attempt. Previously this ran before the
+            // network call, so every timeout and failure counted as a generated
+            // listing — inflating the headline adoption metric for a brand-new
+            // feature with exactly the cases where it didn't work.
+            Analytics.shared.track(.listingGenerated(marketplace: selectedMarketplace.rawValue))
         } catch {
             generatedListing = nil
             listingError = AppError.from(error).errorDescription

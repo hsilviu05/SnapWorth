@@ -89,19 +89,41 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: RevenueCat server secret must not be in iOS source
+      - name: Scan for leaked secrets
+        # Replaces two hand-written greps that matched on shape alone and could
+        # not tell a credential from a redaction-test fixture. gitleaks adds
+        # entropy scoring, ~170 provider rules instead of the two we thought
+        # of, and scoped allowlisting — see .gitleaks.toml.
+        #
+        # The pinned binary rather than gitleaks-action@v2, for two reasons:
+        # the action requires a paid GITLEAKS_LICENSE on organization-owned
+        # repos, and running the binary means CI executes exactly the command
+        # a developer runs locally, so a passing local check means a passing
+        # build.
+        env:
+          GITLEAKS_VERSION: 8.30.1
         run: |
-          if grep -rE 'sk_[A-Za-z0-9]{20,}' ios/SnapWorth/; then
-            echo "::error::RevenueCat server secret (sk_) found in iOS source — this is a critical security leak"
-            exit 1
-          fi
+          curl -sSfL \
+            "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" \
+            | tar -xz -C /tmp gitleaks
+          /tmp/gitleaks dir . \
+            --config .gitleaks.toml \
+            --redact \
+            --exit-code 1 \
+            --report-format sarif \
+            --report-path /tmp/gitleaks.sarif \
+            --no-banner
+        # --redact keeps any detected value out of the public build log; the
+        # finding's file and line are still reported, which is all a fix needs.
 
-      - name: Gemini API key must not be in source
-        run: |
-          if grep -rE 'AIzaSy[A-Za-z0-9_-]{33}' .; then
-            echo "::error::Gemini API key found in source — use .env only"
-            exit 1
-          fi
+      - name: Upload scan report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gitleaks-report
+          path: /tmp/gitleaks.sarif
+          if-no-files-found: ignore
+          retention-days: 30
 
       - name: .env must not be tracked
         run: |

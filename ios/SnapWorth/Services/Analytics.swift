@@ -47,6 +47,23 @@ enum AnalyticsEvent {
     case notificationScheduled(category: String)
     case notificationOpened(category: String)
 
+    // ── Stability (MetricKit) ────────────────────────────────────────
+    /// A crash reported by MetricKit on a later launch. Signal and termination
+    /// are both bucketed — never raw call stacks or termination text.
+    case crashReported(signal: String, termination: String)
+    /// An applications-not-responding hang, bucketed by duration.
+    case hangReported(bucket: String)
+    /// Time-to-first-draw, bucketed. Detects a launch regression.
+    case launchTimeReported(bucket: String)
+
+    // ── Persistence health ───────────────────────────────────────────
+    /// The on-disk store failed to open and the app fell back to in-memory.
+    ///
+    /// The user's entire scan history appears empty and that session's work is
+    /// lost on quit. Without this event a data-loss launch is indistinguishable
+    /// from a healthy one — the failure only surfaces later, as a review.
+    case persistentStoreFallback(reason: String)
+
     /// The wire name sent off-device.
     var name: String {
         switch self {
@@ -71,6 +88,10 @@ enum AnalyticsEvent {
         case .ledgerMonthShared:    return "ledger_month_shared"
         case .notificationScheduled:return "notification_scheduled"
         case .notificationOpened:   return "notification_opened"
+        case .persistentStoreFallback: return "persistent_store_fallback"
+        case .crashReported:        return "crash_reported"
+        case .hangReported:         return "hang_reported"
+        case .launchTimeReported:   return "launch_time_reported"
         }
     }
 
@@ -99,6 +120,15 @@ enum AnalyticsEvent {
             return ["marketplace": marketplace]
         case let .thriftFlipCalculated(verdict):
             return ["verdict": verdict]
+        case let .crashReported(signal, termination):
+            return ["signal": signal, "termination": termination]
+        case let .hangReported(bucket), let .launchTimeReported(bucket):
+            return ["bucket": bucket]
+        case let .persistentStoreFallback(reason):
+            // A coarse error classification only — never the raw error string,
+            // which can embed a filesystem path containing the device owner's
+            // name.
+            return ["reason": reason]
         default:
             return [:]
         }
