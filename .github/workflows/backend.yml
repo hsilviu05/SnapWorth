@@ -45,6 +45,50 @@ jobs:
           GEMINI_API_KEY: ci-placeholder-not-real
         run: pytest tests/ -v --tb=short --color=yes
 
+  # ── Known-vulnerable dependencies ───────────────────────────────────────────
+  # Added after an audit found five pinned packages had aged into known CVEs
+  # unnoticed — python-multipart, pillow, cbor2, pyjwt and cryptography, several
+  # reachable from the unauthenticated /scan and /auth/attest paths. Secret
+  # scanning was already in place; nothing was watching for published advisories,
+  # so drift was invisible until someone went looking.
+  #
+  # Scoped to requirements.txt, which is exactly what the Dockerfile installs
+  # (backend/Dockerfile:24) and therefore the production attack surface. Dev-only
+  # tooling is deliberately out of scope: pytest currently carries
+  # PYSEC-2026-1845, a local /tmp privilege issue on shared UNIX hosts that needs
+  # a major 8.x -> 9.x bump. It never ships in the image and cannot be reached by
+  # a remote caller, so forcing that bump to keep this job green would be
+  # churning the test harness for no security gain. Track it separately.
+  audit:
+    name: No known-vulnerable dependencies
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+
+      - name: Install pip-audit
+        run: pip install pip-audit==2.10.1
+
+      # No --ignore-vuln entries. Every advisory against the production manifest
+      # currently has a fix and has been taken, so the allowlist is empty by
+      # design rather than by oversight.
+      #
+      # If a future advisory genuinely has no fix, add it here as
+      #   --ignore-vuln PYSEC-XXXX-NNN  # why it is not reachable, and when to recheck
+      # one ID at a time with a reason. Never suppress a whole package or drop
+      # the step: an advisory with a fix available is a deploy, not an exception.
+      - name: Audit production dependencies
+        run: pip-audit -r requirements.txt --strict --progress-spinner off
+
   # ── Container builds and starts ─────────────────────────────────────────────
   # Catches the class of bug that only appears in the image: a Python version
   # drift between CI and runtime, a missing system library, or a CMD that does
@@ -132,7 +176,9 @@ jobs:
   # ── Deploy to Railway (main branch only, after tests pass) ──────────────────
   deploy:
     name: Deploy → Railway
-    needs: [test, container]
+    # `audit` gates the deploy too: shipping a package with a published,
+    # fixed advisory is not something to discover after it is live.
+    needs: [test, container, audit]
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
 
