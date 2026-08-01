@@ -31,6 +31,23 @@ def _reset_metrics():
     yield
 
 
+# Low-entropy on purpose so the secret scanner has nothing to flag: it is a
+# hyphenated English phrase, not a credential shape.
+METRICS_TOKEN = "test-metrics-token-not-a-real-secret"
+
+
+@pytest.fixture
+def metrics_auth(monkeypatch):
+    """Configures the /metrics bearer and returns the matching header.
+
+    /metrics fails closed, so every test that needs to read the exposition has
+    to opt in. Scoped per-test rather than autouse so the access-control tests
+    below can observe the unconfigured state.
+    """
+    monkeypatch.setenv("METRICS_TOKEN", METRICS_TOKEN)
+    return {"Authorization": f"Bearer {METRICS_TOKEN}"}
+
+
 # ═══ Metrics ══════════════════════════════════════════════════════════════════
 
 class TestMetricPrimitives:
@@ -129,13 +146,13 @@ class TestHealthEndpoints:
         assert response.status_code in (200, 503)
         assert "ready" in response.json()
 
-    def test_metrics_endpoint_serves_prometheus_format(self):
-        response = client.get("/metrics")
+    def test_metrics_endpoint_serves_prometheus_format(self, metrics_auth):
+        response = client.get("/metrics", headers=metrics_auth)
         assert response.status_code == 200
         assert "text/plain" in response.headers["content-type"]
         assert "# TYPE" in response.text
 
-    def test_metrics_endpoint_exposes_no_credentials(self):
+    def test_metrics_endpoint_exposes_no_credentials(self, metrics_auth):
         """Redaction must be a no-op on the metrics body.
 
         Checked by running the body through the same redactor the log pipeline
@@ -145,17 +162,80 @@ class TestHealthEndpoints:
         tokens rather than containing one.
         """
         client.get("/health/live")
-        body = client.get("/metrics").text
+        body = client.get("/metrics", headers=metrics_auth).text
         assert obs.redact(body) == body, "metrics exposition contains a credential"
 
-    def test_metric_labels_carry_no_user_identifiers(self):
+    def test_metric_labels_carry_no_user_identifiers(self, metrics_auth):
         """Every declared label must come from a closed set, never user input."""
         client.get("/health/live")
         client.post("/scan")
         forbidden = ("x-device-id", "subject=", "authorization")
-        body = client.get("/metrics").text.lower()
+        body = client.get("/metrics", headers=metrics_auth).text.lower()
         for marker in forbidden:
             assert marker not in body, f"metrics leaked {marker!r}"
+
+
+class TestMetricsAccessControl:
+    """`/metrics` publishes request volumes, error rates and model token usage.
+
+    None of that is user data, but on a public host it is a free scale and cost
+    oracle — and a live signal to anyone probing whether their traffic is
+    landing. These tests pin the guard's contract.
+    """
+
+    def test_unconfigured_token_serves_nothing(self, monkeypatch):
+        """Fails closed. The alternative — open when unset — would mean the
+        guard silently does nothing on any host that forgot the variable."""
+        monkeypatch.delenv("METRICS_TOKEN", raising=False)
+        assert client.get("/metrics").status_code == 404
+
+    def test_anonymous_request_is_refused(self, metrics_auth):
+        response = client.get("/metrics")
+        assert response.status_code == 404
+        assert "# TYPE" not in response.text
+
+    def test_wrong_token_is_refused(self, metrics_auth):
+        response = client.get(
+            "/metrics", headers={"Authorization": "Bearer wrong-token"})
+        assert response.status_code == 404
+
+    def test_refusal_does_not_disclose_the_endpoint_exists(self, metrics_auth):
+        """404 rather than 401: an unauthorised caller learns nothing, and there
+        is no WWW-Authenticate header advertising a token to guess at."""
+        response = client.get("/metrics")
+        assert response.status_code == 404
+        assert "www-authenticate" not in {k.lower() for k in response.headers}
+
+    def test_token_prefix_does_not_leak_by_comparison(self, metrics_auth):
+        """A correct prefix must be refused exactly like a wrong first byte.
+
+        Pins the use of compare_digest over `==`. This asserts the observable
+        contract, not the timing itself — a wall-clock assertion would be flaky
+        in CI and prove little.
+        """
+        for candidate in (METRICS_TOKEN[:-1], METRICS_TOKEN[:4], "x", ""):
+            response = client.get(
+                "/metrics", headers={"Authorization": f"Bearer {candidate}"})
+            assert response.status_code == 404, f"accepted {candidate!r}"
+
+    def test_non_ascii_token_is_refused_not_a_server_error(self, metrics_auth):
+        """hmac.compare_digest raises TypeError on non-ASCII `str` input, so
+        comparing as `str` would turn this header into a 500.
+
+        Sent as raw bytes because that is what the wire carries: httpx refuses
+        to ASCII-encode a `str` header, but Starlette decodes incoming header
+        bytes as latin-1, so byte 0xE4 arrives in the handler as "ä". Passing a
+        `str` here would test the client's encoder rather than our comparison.
+        """
+        response = client.get(
+            "/metrics", headers={"Authorization": "Bearer ä".encode("latin-1")})
+        assert response.status_code == 404
+
+    def test_health_probes_stay_anonymous(self, metrics_auth):
+        """Platform health checks cannot present a token, and these carry no
+        competitive signal — guarding them would be an outage, not a fix."""
+        assert client.get("/health/live").status_code == 200
+        assert client.get("/health/ready").status_code in (200, 503)
 
 
 class TestRequestInstrumentation:

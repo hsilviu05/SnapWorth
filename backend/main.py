@@ -7,6 +7,7 @@ GET  /health → liveness check
 import asyncio
 import base64
 import contextlib
+import hmac
 import json
 import logging
 import math
@@ -631,15 +632,51 @@ async def readiness() -> dict:
 
 
 @app.get("/metrics")
-async def prometheus_metrics():
-    """Prometheus exposition endpoint.
+async def prometheus_metrics(authorization: str = Header(default="")):
+    """Prometheus exposition endpoint, guarded by a shared bearer token.
 
-    Unauthenticated by design: it carries no user data, only aggregate counters,
-    and every scrape system expects it to be reachable without credentials.
-    Restrict it at the network layer if the platform exposes one — on Railway
-    that is not available, and the exposure is limited to operational
-    aggregates that reveal nothing about an individual user.
+    This used to be unauthenticated on the reasoning that it carries no user
+    data. That is still true — every series is an aggregate and the label sets
+    are closed (see `metrics.endpoint_label`) — but "no user data" is not the
+    same as "safe to publish". On a public host the body reports request volume,
+    error rates, model call counts and token usage, which is a free scale and
+    cost oracle for anyone who curls it, and a live read on whether an attack is
+    working for anyone probing the service.
+
+    An alternative is to restrict it at the platform edge. That is the better
+    control where it exists, and worth adding *as well* — but Railway exposes no
+    network-layer ACL, and a guard that only exists in infrastructure config is
+    one dashboard change away from silently disappearing. Hence the in-app check.
+
+    Fails closed: with `METRICS_TOKEN` unset the endpoint 404s rather than
+    serving. Deploying without setting it therefore loses metrics until it is
+    set — a deliberate trade, because the opposite default would mean the guard
+    does nothing until someone remembers to configure it, which is the failure
+    mode this is meant to remove. 404 rather than 401 so an unconfigured or
+    unauthorised caller cannot tell the endpoint exists at all.
+
+    Liveness and readiness are deliberately NOT guarded: they carry no
+    competitive signal and platform health checks must reach them anonymously.
     """
+    expected = os.environ.get("METRICS_TOKEN", "").strip()
+    if not expected:
+        raise HTTPException(status_code=404, detail="Not found.")
+
+    presented = ""
+    if authorization.lower().startswith("bearer "):
+        presented = authorization[7:].strip()
+
+    # compare_digest, not `==`: the same primitive tokens.py:127 uses to compare
+    # HMAC signatures. A short-circuiting comparison leaks the token prefix by
+    # timing, and this endpoint is unauthenticated by definition — an attacker
+    # can retry it without limit.
+    #
+    # Compared as bytes, not str: compare_digest raises TypeError on str inputs
+    # containing non-ASCII, so a header of `Bearer ä` would turn a rejection
+    # into a 500.
+    if not hmac.compare_digest(presented.encode("utf-8"), expected.encode("utf-8")):
+        raise HTTPException(status_code=404, detail="Not found.")
+
     return Response(content=metrics.render(),
                     media_type="text/plain; version=0.0.4; charset=utf-8")
 
