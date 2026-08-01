@@ -52,6 +52,15 @@ jobs:
   container:
     name: Container builds
     runs-on: ubuntu-latest
+    env:
+      # Throwaway value for the smoke checks below, held in a variable rather
+      # than written inline into a `curl -H "Authorization: ..."`. The literal
+      # form trips gitleaks' curl-auth-header rule, and the right answer to a
+      # scanner objecting to a hardcoded credential in a curl header is to stop
+      # hardcoding it, not to allowlist the pattern — an exception here would
+      # apply to every future curl in this workflow, including one carrying a
+      # real token.
+      CI_METRICS_TOKEN: ci-metrics-token-not-a-real-secret
     steps:
       - uses: actions/checkout@v4
 
@@ -62,6 +71,7 @@ jobs:
         run: |
           docker run -d --name snapworth-ci -p 8000:8000 \
             -e GEMINI_API_KEY=ci-placeholder-not-real \
+            -e "METRICS_TOKEN=${CI_METRICS_TOKEN}" \
             snapworth-backend:ci
           for i in $(seq 1 30); do
             if curl -fsS http://localhost:8000/health/live >/dev/null 2>&1; then
@@ -70,7 +80,27 @@ jobs:
             sleep 1
           done
           curl -fsS http://localhost:8000/health/live
-          curl -fsS http://localhost:8000/metrics | head -5
+          # /metrics now requires a bearer token, so the smoke check presents
+          # the one the container was started with.
+          curl -fsS -H "Authorization: Bearer ${CI_METRICS_TOKEN}" \
+            http://localhost:8000/metrics | head -5
+
+      - name: /metrics refuses anonymous callers
+        run: |
+          # The guard is only worth having if it actually holds in the built
+          # image, not just in the unit tests. An unauthenticated scrape must
+          # not return the exposition.
+          STATUS=$(curl -s -o /tmp/anon-metrics -w '%{http_code}' \
+            http://localhost:8000/metrics)
+          if [ "$STATUS" != "404" ]; then
+            echo "::error::/metrics answered anonymous caller with HTTP $STATUS"
+            exit 1
+          fi
+          if grep -q '# TYPE' /tmp/anon-metrics; then
+            echo "::error::/metrics leaked the exposition to an anonymous caller"
+            exit 1
+          fi
+          echo "anonymous scrape correctly refused with 404"
 
       - name: Runs unprivileged
         run: |

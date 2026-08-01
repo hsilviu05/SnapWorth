@@ -42,7 +42,7 @@ flowchart LR
 | `/health/live` | Liveness | Checks nothing external — see below |
 | `/health/ready` | Readiness | 503 while starting, draining, or cache-unreachable |
 | `/health` | Legacy | Retained for compatibility |
-| `/metrics` | Prometheus scrape | Unauthenticated, aggregates only |
+| `/metrics` | Prometheus scrape | Requires `Authorization: Bearer $METRICS_TOKEN`; 404 without it |
 
 **Liveness deliberately checks no dependency.** A liveness probe that fails
 during a Redis outage makes the orchestrator restart healthy containers, turning
@@ -364,7 +364,11 @@ effort belongs in container efficiency, not prompt golf.
 
 **Should-have**
 
-- [ ] Metrics collector scraping `/metrics`
+- [ ] `METRICS_TOKEN` set in the production environment — **`/metrics` fails
+      closed and returns 404 until it is**, so set it before or with the deploy
+      that ships the guard, or observability goes dark
+- [ ] Metrics collector scraping `/metrics` — must send
+      `Authorization: Bearer $METRICS_TOKEN`
 - [ ] Alerts configured from §3
 - [ ] On-call rota and escalation path
 - [ ] Load test at 10× expected peak
