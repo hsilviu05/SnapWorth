@@ -54,11 +54,11 @@ jobs:
   #
   # Scoped to requirements.txt, which is exactly what the Dockerfile installs
   # (backend/Dockerfile:24) and therefore the production attack surface. Dev-only
-  # tooling is deliberately out of scope: pytest currently carries
-  # PYSEC-2026-1845, a local /tmp privilege issue on shared UNIX hosts that needs
-  # a major 8.x -> 9.x bump. It never ships in the image and cannot be reached by
-  # a remote caller, so forcing that bump to keep this job green would be
-  # churning the test harness for no security gain. Track it separately.
+  # tooling is out of scope here because it never reaches a remote caller — but
+  # it is not ignored: pytest's own advisory (PYSEC-2026-1845) was taken in
+  # requirements-dev.txt once the production manifest was clean, so the whole
+  # tree currently has no known advisory. Widening this step to
+  # requirements-dev.txt is a reasonable future tightening.
   audit:
     name: No known-vulnerable dependencies
     runs-on: ubuntu-latest
