@@ -56,6 +56,7 @@
 		ADD1EC0000000000000000B2 /* Analytics.swift in Sources */ = {isa = PBXBuildFile; fileRef = ADD1EC0000000000000000B1 /* Analytics.swift */; };
 		BB0000000000000000000C01 /* AppLaunchState.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0000000000000000000C02 /* AppLaunchState.swift */; };
 		BB0000000000000000000D01 /* CrashReporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0000000000000000000D02 /* CrashReporter.swift */; };
+		BB0000000000000000000E01 /* StoreProtection.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0000000000000000000E02 /* StoreProtection.swift */; };
 		ADD1EC0000000000000000B4 /* TelemetryDeckAnalytics.swift in Sources */ = {isa = PBXBuildFile; fileRef = ADD1EC0000000000000000B3 /* TelemetryDeckAnalytics.swift */; };
 		ADD1EC0000000000000000B6 /* ActivityShareSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = ADD1EC0000000000000000B5 /* ActivityShareSheet.swift */; };
 		ADD1EC0000000000000000B8 /* FlipsViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = ADD1EC0000000000000000B7 /* FlipsViewModel.swift */; };
@@ -149,6 +150,7 @@
 		ADD1EC0000000000000000B1 /* Analytics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Analytics.swift; sourceTree = "<group>"; };
 		BB0000000000000000000C02 /* AppLaunchState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppLaunchState.swift; sourceTree = "<group>"; };
 		BB0000000000000000000D02 /* CrashReporter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CrashReporter.swift; sourceTree = "<group>"; };
+		BB0000000000000000000E02 /* StoreProtection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoreProtection.swift; sourceTree = "<group>"; };
 		ADD1EC0000000000000000B3 /* TelemetryDeckAnalytics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TelemetryDeckAnalytics.swift; sourceTree = "<group>"; };
 		ADD1EC0000000000000000B5 /* ActivityShareSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityShareSheet.swift; sourceTree = "<group>"; };
 		ADD1EC0000000000000000B7 /* FlipsViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FlipsViewModel.swift; sourceTree = "<group>"; };
@@ -279,6 +281,7 @@
 				ADD1EC0000000000000000B1 /* Analytics.swift */,
 				BB0000000000000000000C02 /* AppLaunchState.swift */,
 				BB0000000000000000000D02 /* CrashReporter.swift */,
+				BB0000000000000000000E02 /* StoreProtection.swift */,
 				ADD1EC0000000000000000B3 /* TelemetryDeckAnalytics.swift */,
 				ADD1EC0000000000000000F1 /* ReviewPrompt.swift */,
 				ADD1EC0000000000000000F3 /* NotificationManager.swift */,
@@ -520,6 +523,7 @@
 				ADD1EC0000000000000000B2 /* Analytics.swift in Sources */,
 				BB0000000000000000000C01 /* AppLaunchState.swift in Sources */,
 				BB0000000000000000000D01 /* CrashReporter.swift in Sources */,
+				BB0000000000000000000E01 /* StoreProtection.swift in Sources */,
 				ADD1EC0000000000000000B4 /* TelemetryDeckAnalytics.swift in Sources */,
 				ADD1EC0000000000000000F2 /* ReviewPrompt.swift in Sources */,
 				ADD1EC0000000000000000F4 /* NotificationManager.swift in Sources */,

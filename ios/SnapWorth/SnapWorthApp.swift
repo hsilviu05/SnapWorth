@@ -35,7 +35,15 @@ struct SnapWorthApp: App {
         let schema = Schema([ScanResult.self])
         let config = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
         do {
-            return try ModelContainer(for: schema, configurations: [config])
+            let container = try ModelContainer(for: schema, configurations: [config])
+            // After creation, not before: SwiftData materialises the store file
+            // (and its -wal/-shm siblings) as part of opening the container, so
+            // there is nothing to set attributes on until this point.
+            //
+            // `configurations` is a Set, so the URL is read from the config we
+            // passed in rather than by indexing into an unordered collection.
+            StoreProtection.apply(to: config.url)
+            return container
         } catch {
             // Persistent store is corrupt or unreadable; fall back to in-memory
             // so the app stays functional rather than crash-looping on every launch.
