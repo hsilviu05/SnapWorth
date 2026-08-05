@@ -17,6 +17,8 @@ import random
 import re
 import time
 
+from collections.abc import Mapping
+
 import google.generativeai as genai
 from dotenv import load_dotenv
 from fastapi import FastAPI, File, Header, HTTPException, Request, UploadFile
@@ -64,6 +66,47 @@ configure_production_logging(
 )
 log = logging.getLogger("snapworth")
 
+# ── Build identity ───────────────────────────────────────────────────────────
+# Resolved once at import. Exists because /health used to report a hardcoded
+# "1.2.0": during an incident that string could not tell you which commit was
+# actually live, which is the one question worth answering first. The commit was
+# already plumbed into the `build_info` metric, but /metrics now requires a
+# bearer token, so it is exactly the wrong place to keep the only copy.
+#
+# Deliberately BACKEND-versioned and decoupled from the iOS app's
+# MARKETING_VERSION. The two ship independently — a backend deploy does not
+# imply an App Store release, and vice versa — so tying them would make both
+# numbers lie.
+#
+# COMMIT resolution order, chosen so nothing has to be configured by hand:
+# an explicit GIT_COMMIT (what the Dockerfile or a CI build would inject),
+# otherwise RAILWAY_GIT_COMMIT_SHA, which Railway injects into every deployment
+# automatically. Truncated to 12 characters: enough to identify a commit
+# unambiguously, short enough to read out loud.
+# Resolved as pure functions over an env mapping rather than inline off
+# os.environ, so the precedence rules above can be tested directly. Testing them
+# through module state would mean reloading this module, which rebuilds `app`
+# and invalidates every TestClient already bound to the old one.
+DEFAULT_API_VERSION = "1.2.0"
+
+
+def resolve_api_version(env: Mapping[str, str]) -> str:
+    return env.get("RELEASE_VERSION", "").strip() or DEFAULT_API_VERSION
+
+
+def resolve_git_commit(env: Mapping[str, str]) -> str:
+    sha = (
+        env.get("GIT_COMMIT", "").strip()
+        or env.get("RAILWAY_GIT_COMMIT_SHA", "").strip()
+    )
+    # "unknown" rather than "" when unset: a blank field reads as a rendering
+    # bug at exactly the moment someone is trying to trust this endpoint.
+    return sha[:12] if sha else "unknown"
+
+
+API_VERSION = resolve_api_version(os.environ)
+GIT_COMMIT = resolve_git_commit(os.environ)
+
 _api_key = os.environ.get("GEMINI_API_KEY", "")
 if not _api_key:
     log.warning("GEMINI_API_KEY is not set — scan requests will fail")
@@ -105,8 +148,8 @@ async def _lifespan(_app: FastAPI):
     })
 
     metrics.build_info.set(
-        1, version=app.version, python=platform.python_version(),
-        commit=os.environ.get("GIT_COMMIT", "unknown"))
+        1, version=API_VERSION, python=platform.python_version(),
+        commit=GIT_COMMIT)
 
     global _ready
     _ready = True
@@ -163,7 +206,7 @@ async def _close_dependencies() -> None:
             log.warning("redis close failed: %s", exc)
 
 
-app = FastAPI(title="SnapWorth API", version="1.2.0", lifespan=_lifespan)
+app = FastAPI(title="SnapWorth API", version=API_VERSION, lifespan=_lifespan)
 
 app.add_middleware(RequestContextMiddleware)
 app.include_router(auth.router)
@@ -572,7 +615,11 @@ async def health() -> dict:
     """
     payload: dict = {
         "status": "ok",
-        "version": "1.2.0",
+        "version": API_VERSION,
+        # Which commit is actually live. Unauthenticated on purpose: this is the
+        # first thing anyone needs during an incident, and a short SHA of a
+        # public repo discloses nothing that `git log` does not.
+        "commit": GIT_COMMIT,
         "ai_key_set": bool(_api_key),
         "auth_enforcing": auth.deps.config.enforce,
     }

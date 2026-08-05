@@ -20,6 +20,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
 import auth
 from entitlements import Entitlement
+import main
 from main import app, _extract_json, _check_rate_limit, _rate_store, _ip_rate_store
 from tests.images import VALID_PNG, padded_image_bytes
 
@@ -107,13 +108,62 @@ class TestHealthEndpoint:
         data = client.get("/health").json()
         assert "status" in data
         assert "version" in data
+        assert "commit" in data
         assert "ai_key_set" in data
 
     def test_status_ok(self):
         assert client.get("/health").json()["status"] == "ok"
 
     def test_version_present(self):
-        assert client.get("/health").json()["version"] == "1.2.0"
+        """Asserts a version is reported, not which one.
+
+        This used to pin the literal "1.2.0", which meant the test had to be
+        edited on every release and quietly enforced that the value stay
+        hardcoded — the exact property that made /health useless for telling
+        which build was live.
+        """
+        version = client.get("/health").json()["version"]
+        assert isinstance(version, str) and version, "no version reported"
+
+
+class TestBuildIdentity:
+    """Precedence rules for the version and commit reported by /health.
+
+    Exercised as pure functions over an env mapping. The obvious alternative —
+    monkeypatching os.environ and reloading `main` — rebuilds the FastAPI app
+    object and invalidates every TestClient already bound to the old one, which
+    fails ~40 unrelated tests in other modules.
+    """
+
+    def test_version_defaults_when_unset(self):
+        assert main.resolve_api_version({}) == main.DEFAULT_API_VERSION
+
+    def test_release_version_overrides_the_default(self):
+        assert main.resolve_api_version({"RELEASE_VERSION": "9.9.9"}) == "9.9.9"
+
+    def test_blank_release_version_falls_back(self):
+        """An env var set to empty string is the same as unset — Railway makes
+        it easy to create a variable and leave the value blank."""
+        assert main.resolve_api_version({"RELEASE_VERSION": "   "}) == main.DEFAULT_API_VERSION
+
+    def test_explicit_git_commit_wins(self):
+        env = {"GIT_COMMIT": "1111111111111111", "RAILWAY_GIT_COMMIT_SHA": "2222222222222222"}
+        assert main.resolve_git_commit(env) == "111111111111"
+
+    def test_falls_back_to_railway_injected_sha(self):
+        """Railway sets RAILWAY_GIT_COMMIT_SHA on every deployment, so the
+        commit is reported with nothing configured by hand."""
+        assert main.resolve_git_commit(
+            {"RAILWAY_GIT_COMMIT_SHA": "abcdef0123456789deadbeef"}) == "abcdef012345"
+
+    def test_truncated_to_twelve_characters(self):
+        assert len(main.resolve_git_commit({"GIT_COMMIT": "a" * 40})) == 12
+
+    def test_unknown_rather_than_blank_when_unset(self):
+        """Never an empty string — blank reads as a rendering bug at exactly the
+        moment someone is trying to trust this endpoint."""
+        assert main.resolve_git_commit({}) == "unknown"
+        assert main.resolve_git_commit({"GIT_COMMIT": "", "RAILWAY_GIT_COMMIT_SHA": ""}) == "unknown"
 
 
 # ── GET /privacy and /terms ───────────────────────────────────────────────────
