@@ -48,6 +48,7 @@
 		AA00000000000000000000FC /* FeedbackView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000000FB /* FeedbackView.swift */; };
 		AA0000000000000000000100 /* SnapWorthTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000102 /* SnapWorthTests.swift */; };
 		BB0000000000000000000A01 /* ProductionHardeningTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0000000000000000000A02 /* ProductionHardeningTests.swift */; };
+		BB0000000000000000000F01 /* MigrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0000000000000000000F02 /* MigrationTests.swift */; };
 		AA000000000000000000010E /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = AA000000000000000000010D /* PrivacyInfo.xcprivacy */; };
 		AA000000000000000000010F /* AppError.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000110 /* AppError.swift */; };
 		AA0000000000000000000111 /* ScanRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000112 /* ScanRepository.swift */; };
@@ -142,6 +143,7 @@
 		AA0000000000000000000101 /* SnapWorthTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = SnapWorthTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		AA0000000000000000000102 /* SnapWorthTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SnapWorthTests.swift; sourceTree = "<group>"; };
 		BB0000000000000000000A02 /* ProductionHardeningTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProductionHardeningTests.swift; sourceTree = "<group>"; };
+		BB0000000000000000000F02 /* MigrationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MigrationTests.swift; sourceTree = "<group>"; };
 		AA000000000000000000010D /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		AA0000000000000000000110 /* AppError.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppError.swift; sourceTree = "<group>"; };
 		AA0000000000000000000112 /* ScanRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanRepository.swift; sourceTree = "<group>"; };
@@ -355,6 +357,7 @@
 			children = (
 				AA0000000000000000000102 /* SnapWorthTests.swift */,
 				BB0000000000000000000A02 /* ProductionHardeningTests.swift */,
+				BB0000000000000000000F02 /* MigrationTests.swift */,
 			);
 			path = SnapWorthTests;
 			sourceTree = "<group>";
@@ -565,6 +568,7 @@
 			files = (
 				AA0000000000000000000100 /* SnapWorthTests.swift in Sources */,
 				BB0000000000000000000A01 /* ProductionHardeningTests.swift in Sources */,
+				BB0000000000000000000F01 /* MigrationTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
