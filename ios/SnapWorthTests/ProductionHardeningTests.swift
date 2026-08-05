@@ -811,3 +811,136 @@ final class PrivacyManifestTests: XCTestCase {
         XCTAssertEqual(value, false)
     }
 }
+
+// MARK: - EXIF / GPS on the upload path
+//
+// A photo of your belongings, taken at home, carries your home coordinates in
+// its EXIF GPS IFD (tag 0x8825). If that reaches the backend it is a location
+// leak from an app that never asks for location permission — and it would be
+// invisible, because nothing in the UI mentions it.
+//
+// The suspicion was specific: `downscale` returns the *original* UIImage
+// unchanged when the longest edge is already <= maxEdge, so a small library
+// pick skips the redraw entirely. If EXIF rode along with the UIImage, that
+// path would forward it.
+//
+// These tests settle it against the real types rather than by reasoning about
+// them. The fixture is a genuine JPEG carrying a real GPS dictionary written by
+// ImageIO, and `test_fixtureItselfCarriesGPS` exists so the others cannot pass
+// vacuously — without it, a fixture that silently lost its GPS at construction
+// would make every assertion below trivially true.
+
+final class UploadEXIFStrippingTests: XCTestCase {
+
+    /// A real JPEG carrying a GPS IFD, built with ImageIO.
+    private func geotaggedJPEG(width: Int, height: Int) -> Data {
+        let format = UIGraphicsImageRendererFormat.default()
+        format.scale = 1
+        let image = UIGraphicsImageRenderer(
+            size: CGSize(width: width, height: height), format: format
+        ).image { ctx in
+            UIColor.systemTeal.setFill()
+            ctx.fill(CGRect(x: 0, y: 0, width: width, height: height))
+            UIColor.systemPink.setFill()
+            ctx.fill(CGRect(x: 0, y: 0, width: width / 2, height: height / 2))
+        }
+
+        let out = NSMutableData()
+        let dest = CGImageDestinationCreateWithData(
+            out, "public.jpeg" as CFString, 1, nil)!
+
+        // Apple Park, to a precision that would identify a home.
+        let gps: [CFString: Any] = [
+            kCGImagePropertyGPSLatitude: 37.334886,
+            kCGImagePropertyGPSLatitudeRef: "N",
+            kCGImagePropertyGPSLongitude: 122.008988,
+            kCGImagePropertyGPSLongitudeRef: "W",
+            kCGImagePropertyGPSAltitude: 56.0,
+        ]
+        let exif: [CFString: Any] = [
+            kCGImagePropertyExifDateTimeOriginal: "2026:08:05 14:30:00",
+            kCGImagePropertyExifUserComment: "should-not-survive",
+        ]
+        CGImageDestinationAddImage(dest, image.cgImage!, [
+            kCGImagePropertyGPSDictionary: gps,
+            kCGImagePropertyExifDictionary: exif,
+        ] as CFDictionary)
+        CGImageDestinationFinalize(dest)
+        return out as Data
+    }
+
+    /// Reads the GPS dictionary back out of encoded image data, if present.
+    private func gpsDictionary(of data: Data) -> [String: Any]? {
+        guard let src = CGImageSourceCreateWithData(data as CFData, nil),
+              let props = CGImageSourceCopyPropertiesAtIndex(src, 0, nil)
+                as? [String: Any] else { return nil }
+        return props[kCGImagePropertyGPSDictionary as String] as? [String: Any]
+    }
+
+    // MARK: Guard against a vacuous suite
+
+    func test_fixtureItselfCarriesGPS() throws {
+        let data = geotaggedJPEG(width: 800, height: 600)
+        let gps = try XCTUnwrap(gpsDictionary(of: data), """
+            The fixture lost its GPS at construction, so every other test in \
+            this class would pass without proving anything.
+            """)
+        let latitude = try XCTUnwrap(
+            gps[kCGImagePropertyGPSLatitude as String] as? Double)
+        XCTAssertEqual(latitude, 37.334886, accuracy: 0.000001)
+    }
+
+    // MARK: The path that skips the redraw
+
+    func test_smallImage_takesTheNoDownscalePath() {
+        // Establishes the precondition for the test below: at 800x600 the
+        // longest edge is under 1568, so `downscale` returns the input object
+        // itself and no re-render happens.
+        let source = UIImage(data: geotaggedJPEG(width: 800, height: 600))!
+        let result = ScanAPIClient.downscale(source, maxEdge: ScanAPIClient.maxUploadEdge)
+        XCTAssertTrue(result === source, "expected the original instance back")
+    }
+
+    func test_smallGeotaggedImage_uploadsWithoutGPS() async {
+        let source = UIImage(data: geotaggedJPEG(width: 800, height: 600))!
+        let encoded = await ScanAPIClient.encodeForUpload(source)
+        XCTAssertNotNil(encoded)
+        XCTAssertNil(gpsDictionary(of: encoded!),
+                     "GPS survived the no-downscale upload path")
+    }
+
+    // MARK: The path that does redraw
+
+    func test_largeGeotaggedImage_uploadsWithoutGPS() async {
+        let source = UIImage(data: geotaggedJPEG(width: 3000, height: 2000))!
+        let encoded = await ScanAPIClient.encodeForUpload(source)
+        XCTAssertNotNil(encoded)
+        XCTAssertNil(gpsDictionary(of: encoded!),
+                     "GPS survived the downscaling upload path")
+    }
+
+    // MARK: The copy persisted to disk
+
+    func test_storedCopyCarriesNoGPS() async {
+        let source = UIImage(data: geotaggedJPEG(width: 800, height: 600))!
+        let encoded = await ScanAPIClient.encodeForStorage(source)
+        XCTAssertNotNil(encoded)
+        XCTAssertNil(gpsDictionary(of: encoded!),
+                     "GPS survived into the on-disk copy")
+    }
+
+    // MARK: Nothing else rides along either
+
+    func test_noExifUserCommentSurvives() async {
+        let source = UIImage(data: geotaggedJPEG(width: 800, height: 600))!
+        let encoded = await ScanAPIClient.encodeForUpload(source)!
+        guard let src = CGImageSourceCreateWithData(encoded as CFData, nil),
+              let props = CGImageSourceCopyPropertiesAtIndex(src, 0, nil)
+                as? [String: Any] else {
+            return XCTFail("could not read back encoded image properties")
+        }
+        let exif = props[kCGImagePropertyExifDictionary as String] as? [String: Any]
+        let comment = exif?[kCGImagePropertyExifUserComment as String] as? String
+        XCTAssertNil(comment, "an EXIF user comment survived re-encoding")
+    }
+}
