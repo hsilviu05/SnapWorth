@@ -563,3 +563,97 @@ class TestImageQualityCeiling:
 
     def test_unmeasured_quality_applies_no_ceiling(self):
         assert _compute(image_quality=ImageQuality()).band == "High"
+
+
+# ── The config must be SENDABLE, not merely constructible ────────────────────
+#
+# Why this class exists
+# ---------------------
+# Every /scan reaching Gemini failed in production from 783aad3 (28 Jul) until
+# the fix, with:
+#
+#     ValueError: Unknown field for GenerationConfig: seed
+#
+# google-generativeai 0.8.3 exposes `seed` on the GenerationConfig *dataclass*,
+# but the google.ai.generativelanguage protobuf it serialises into does not have
+# that field. Construction succeeded, so every existing test passed; the call
+# failed later, at proto conversion.
+#
+# That is exactly the gap these tests close. The suite asserted things about the
+# config *object* — temperature, candidate_count, response_mime_type — and never
+# that the object could actually be sent. Constructing a config proves nothing
+# about whether the transport will accept it.
+#
+# No network call: the conversion that fails is client-side, so the whole bug is
+# reproducible in memory.
+
+class TestGenerationConfigIsProtoSendable:
+
+    def _assert_sendable(self, cfg, label):
+        try:
+            aiconfig.to_proto_config(cfg)
+        except Exception as exc:  # noqa: BLE001 — the message is the point
+            raise AssertionError(
+                f"{label} config cannot be sent to Gemini: {type(exc).__name__}: {exc}. "
+                "This is the failure mode that broke every scan in production — "
+                "the config constructs fine and is rejected at proto conversion."
+            ) from None
+
+    def test_scan_config_converts_to_proto(self):
+        # The exact config the /scan path uses: model-level, no max_output_tokens
+        # override (main.py:377 -> aiconfig.build_model -> generation_config()).
+        self._assert_sendable(aiconfig.generation_config(), "scan")
+
+    def test_listing_config_converts_to_proto(self):
+        self._assert_sendable(
+            aiconfig.generation_config(
+                max_output_tokens=aiconfig.LISTING_MAX_OUTPUT_TOKENS),
+            "listing")
+
+    def test_json_mode_disabled_config_converts_to_proto(self):
+        self._assert_sendable(
+            aiconfig.generation_config(json_mode=False), "json-mode-off")
+
+    def test_model_level_config_converts_to_proto(self):
+        # build_model attaches the config to the model itself, so it rides every
+        # call — which is why a bad field here broke scans rather than one route.
+        model = aiconfig.build_model()
+        cfg = getattr(model, "_generation_config", None)
+        assert cfg is not None, "model carries no generation config"
+        # The model stores it already normalised to a dict; feed it back through
+        # the proto to prove the stored form is sendable.
+        import google.ai.generativelanguage as glm
+        try:
+            glm.GenerationConfig(cfg)
+        except Exception as exc:  # noqa: BLE001
+            raise AssertionError(
+                f"model-level config is not sendable: {type(exc).__name__}: {exc}"
+            ) from None
+
+    def test_unsupported_fields_are_omitted_not_sent(self):
+        # The regression itself: `seed` must not appear in a config this
+        # SDK/proto pairing would reject.
+        supported = aiconfig.proto_supported_optional_fields()
+        cfg = aiconfig.generation_config()
+        if "seed" not in supported:
+            assert getattr(cfg, "seed", None) is None, (
+                "seed was attached despite the proto rejecting it — this is the "
+                "exact production bug"
+            )
+
+    def test_probe_reports_seed_unsupported_on_the_pinned_sdk(self):
+        # Pins the current, measured reality rather than a belief about it. If a
+        # future SDK bump makes seed genuinely supported this test should be
+        # updated deliberately — with the knowledge that seed then starts being
+        # sent again, which is the intended behaviour.
+        supported = aiconfig.proto_supported_optional_fields()
+        assert "seed" not in supported, (
+            "google-generativeai 0.8.3's proto has no seed field; if this now "
+            "passes, the SDK changed and determinism is back on"
+        )
+
+    def test_json_mode_survives_the_fix(self):
+        # response_mime_type IS proto-supported; the fix must not have thrown it
+        # out along with seed.
+        assert "response_mime_type" in aiconfig.proto_supported_optional_fields()
+        assert aiconfig.generation_config().response_mime_type == "application/json"

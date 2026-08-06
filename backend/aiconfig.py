@@ -44,16 +44,22 @@ Four settings, and why each
 
 Determinism caveat
 ------------------
-`seed` is supported by the SDK and set, but Gemini does not currently guarantee
-bit-identical output across calls even with a fixed seed and temperature. It
-meaningfully narrows variance rather than eliminating it, which is why
-consistency is measured empirically rather than assumed.
+`seed` is attached only when the installed SDK *and* its protobuf pairing both
+accept it — see `proto_supported_optional_fields`. With
+google-generativeai 0.8.3 they do not agree, so it is currently omitted and
+determinism rests on temperature and top_p alone.
+
+Even where it is sent, Gemini does not guarantee bit-identical output across
+calls with a fixed seed and temperature. It narrows variance rather than
+eliminating it, which is why consistency is measured empirically rather than
+assumed.
 """
 
 from __future__ import annotations
 
 import logging
 import os
+from functools import lru_cache
 
 import google.generativeai as genai
 
@@ -105,6 +111,64 @@ def _safety_settings() -> list[dict]:
     return [{"category": c, "threshold": "BLOCK_ONLY_HIGH"} for c in categories]
 
 
+def to_proto_config(config: genai.types.GenerationConfig):
+    """Convert a `GenerationConfig` exactly the way the SDK does before a call.
+
+    Exposed (rather than inlined) because this conversion is the step that
+    actually rejects unsupported fields, so it is also the only honest way to
+    test that a config we intend to send is sendable.
+    """
+    from google.generativeai.types import generation_types
+    import google.ai.generativelanguage as glm
+
+    return glm.GenerationConfig(generation_types.to_generation_config_dict(config))
+
+
+@lru_cache(maxsize=1)
+def proto_supported_optional_fields() -> frozenset[str]:
+    """Which optional fields this SDK *and* its protobuf pairing will actually accept.
+
+    Why this is probed rather than assumed
+    --------------------------------------
+    `google-generativeai` 0.8.3 exposes `seed` on the `GenerationConfig`
+    *dataclass*, but the `google.ai.generativelanguage` protobuf it serialises
+    into has no such field. Construction therefore succeeds and the call fails
+    later, at proto conversion, with:
+
+        ValueError: Unknown field for GenerationConfig: seed
+
+    Because that error text contains none of the markers in `main._NON_RETRYABLE`
+    it was classified transient, retried twice, and surfaced to users as "the AI
+    service is temporarily unavailable" — a permanent, 100%-reproducible bug
+    reported as an outage. Every scan reaching Gemini failed this way from
+    783aad3 (28 Jul) until this fix.
+
+    The previous guard tried to handle exactly this and could not: it caught
+    `TypeError` around dataclass construction, which never raises, while the real
+    failure is a `ValueError` one layer down and one call later. Validating here
+    against the same conversion that runs at request time is what makes the guard
+    match the failure.
+
+    Probed once and cached: the answer is a property of the installed packages
+    and cannot change while the process is alive. Being field-agnostic, it also
+    covers the *next* field to diverge this way rather than only `seed`; and if a
+    future SDK/proto bump adds real support, the field is picked back up with no
+    code change, so the fix cannot silently strand determinism either.
+    """
+    supported: set[str] = set()
+    for name, probe_value in (("seed", 1), ("response_mime_type", "application/json")):
+        try:
+            to_proto_config(genai.types.GenerationConfig(**{name: probe_value}))
+            supported.add(name)
+        except Exception as exc:
+            # Dropping an optional field costs determinism or JSON mode; sending
+            # one the transport rejects costs every request. Degrade.
+            log.warning(
+                "generation config field %r unsupported by the installed "
+                "SDK/proto pairing — omitting it: %s", name, exc)
+    return frozenset(supported)
+
+
 def generation_config(
     *, json_mode: bool = True, max_output_tokens: int | None = None
 ) -> genai.types.GenerationConfig:
@@ -114,21 +178,12 @@ def generation_config(
         "candidate_count": 1,
         "max_output_tokens": max_output_tokens or MAX_OUTPUT_TOKENS,
     }
-    # `seed` and `response_mime_type` are recent additions; degrade rather than
-    # fail hard if the pinned SDK predates them.
-    try:
+    supported = proto_supported_optional_fields()
+    if "seed" in supported:
         kwargs["seed"] = SEED
-    except Exception:  # pragma: no cover
-        pass
-    if json_mode and JSON_MODE:
+    if json_mode and JSON_MODE and "response_mime_type" in supported:
         kwargs["response_mime_type"] = "application/json"
-    try:
-        return genai.types.GenerationConfig(**kwargs)
-    except TypeError as exc:
-        log.warning("generation config field unsupported by SDK, retrying reduced: %s", exc)
-        kwargs.pop("seed", None)
-        kwargs.pop("response_mime_type", None)
-        return genai.types.GenerationConfig(**kwargs)
+    return genai.types.GenerationConfig(**kwargs)
 
 
 def build_model(system_instruction: str | None = None) -> genai.GenerativeModel:
