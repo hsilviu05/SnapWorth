@@ -1,0 +1,163 @@
+# SwiftLint — minimal, deliberately.
+#
+# This is introduced as a *reporting* gate, not a formatting one. The codebase
+# was written without a linter, so switching on the default ruleset would produce
+# thousands of violations, and the only realistic response to that is a mass
+# reformat — a diff nobody can review, landing on top of a live release, for no
+# behavioural gain. The rules below are the ones where a violation usually means
+# a latent bug rather than a style preference.
+#
+# Deliberately NOT enabled yet, and why:
+#   line_length            — hundreds of hits, purely cosmetic
+#   type_body_length /
+#   file_length            — would flag the design system and the test files,
+#                            which are long for good reasons
+#   trailing_whitespace    — noise; fix opportunistically, not in one sweep
+#   identifier_name        — would flag legitimate short names (id, x, y)
+#
+# Adding rules is cheap; removing them once people have reformatted around them
+# is not. Start small and tighten deliberately.
+
+included:
+  - ios/SnapWorth
+  - ios/SnapWorthWidgets
+  - ios/SnapWorthTests
+
+excluded:
+  - ios/SnapWorth/Fonts
+  - .build
+  - DerivedData
+
+# Start from nothing and opt in, rather than starting from the default set and
+# opting out. Makes the intent of this file readable at a glance.
+disabled_rules:
+  - block_based_kvo
+  - class_delegate_protocol
+  - closing_brace
+  - closure_parameter_position
+  - colon
+  - comma
+  - comment_spacing
+  - compiler_protocol_init
+  - computed_accessors_order
+  - control_statement
+  - custom_rules
+  - cyclomatic_complexity
+  - deployment_target
+  - discouraged_direct_init
+  - duplicate_conditions
+  - duplicate_enum_cases
+  - duplicate_imports
+  - dynamic_inline
+  - empty_enum_arguments
+  - empty_parameters
+  - empty_parentheses_with_trailing_closure
+  - file_length
+  - for_where
+  - function_body_length
+  - function_parameter_count
+  - generic_type_name
+  - identifier_name
+  - implicit_getter
+  - inclusive_language
+  - invalid_swiftlint_command
+  - is_disjoint
+  - large_tuple
+  - leading_whitespace
+  - legacy_cggeometry_functions
+  - legacy_constant
+  - legacy_constructor
+  - legacy_hashing
+  - legacy_nsgeometry_functions
+  - legacy_random
+  - line_length
+  - mark
+  - multiple_closures_with_trailing_closure
+  - nesting
+  - no_fallthrough_only
+  - no_space_in_method_call
+  - function_name_whitespace
+  - implicit_optional_initialization
+  - non_optional_string_data_conversion
+  - notification_center_detachment
+  - ns_number_init_as_function_reference
+  - nsobject_prefer_isequal
+  - opening_brace
+  - optional_data_string_conversion
+  - orphaned_doc_comment
+  - private_over_fileprivate
+  - private_unit_test
+  - protocol_property_accessors_order
+  - reduce_boolean
+  - redundant_discardable_let
+  - redundant_objc_attribute
+  - redundant_set_access_control
+  - redundant_string_enum_value
+  - redundant_void_return
+  - return_arrow_whitespace
+  - self_in_property_initialization
+  - shorthand_operator
+  - statement_position
+  - superfluous_disable_command
+  - switch_case_alignment
+  - syntactic_sugar
+  - todo
+  - trailing_comma
+  - trailing_newline
+  - trailing_semicolon
+  - trailing_whitespace
+  - type_body_length
+  - type_name
+  - unavailable_condition
+  - unneeded_break_in_switch
+  - unneeded_synthesized_initializer
+  - unused_closure_parameter
+  - unused_control_flow_label
+  - unused_enumerated
+  - unused_optional_binding
+  - unused_setter_value
+  - valid_ibinspectable
+  - vertical_parameter_alignment
+  - vertical_whitespace
+  - void_function_in_ternary
+  - void_return
+  - xctfail_message
+
+# The rules that stay on. Each one catches a class of real defect:
+#
+#   force_cast / force_try / force_unwrapping
+#       The most common crash source in Swift. A `!` on a value the server
+#       controls is a remote crash, not a style issue. Test code is NOT excluded
+#       — the counts there are worth seeing — but force_unwrapping is only a
+#       warning, partly because forcing in a test is legitimate: an unexpected
+#       nil should fail the test loudly at the point of failure.
+#   empty_count
+#       `.count == 0` on a lazy collection can be O(n); `.isEmpty` never is.
+#   implicitly_unwrapped_optional
+#       Same crash class as force_unwrapping, further from the call site.
+#   discarded_notification_center_observer
+#       A dropped observer token leaks and can fire after deallocation.
+#   weak_delegate
+#       Retain cycle by construction.
+#   empty_string
+#       `== ""` allocates; `.isEmpty` does not.
+#   overridden_super_call / unowned_variable_capture / strong_iboutlet
+#       Each is a lifecycle or memory bug, not a preference.
+opt_in_rules:
+  - empty_count
+  - empty_string
+  - force_unwrapping
+  - implicitly_unwrapped_optional
+  - overridden_super_call
+  - unowned_variable_capture
+  - discarded_notification_center_observer
+  - weak_delegate
+
+force_cast: error
+force_try: error
+# Warning, not error, in this first pass: test code legitimately force-unwraps —
+# an unexpected nil should fail the test loudly at the point of failure, which is
+# exactly what `!` does there — and the count in app code needs to be seen before
+# it is made blocking.
+force_unwrapping: warning
+implicitly_unwrapped_optional: warning
