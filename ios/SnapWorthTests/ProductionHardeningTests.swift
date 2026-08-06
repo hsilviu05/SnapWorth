@@ -944,3 +944,98 @@ final class UploadEXIFStrippingTests: XCTestCase {
         XCTAssertNil(comment, "an EXIF user comment survived re-encoding")
     }
 }
+
+// MARK: - SwiftData store protection
+//
+// The store holds every scan a user has ever taken — item names, valuations,
+// timestamps and a photo of each item. Nothing set a protection class
+// explicitly, so the guarantee was whatever the platform happened to default
+// to rather than something this app had decided.
+//
+// `.completeUntilFirstUserAuthentication` rather than `.complete`: the stronger
+// class makes files unreadable whenever the device is locked, which would break
+// any work happening with the screen off. This one still leaves the store
+// encrypted at rest and unreadable until the first unlock after boot, which is
+// the lost-or-stolen-phone case that actually matters.
+
+final class StoreProtectionTests: XCTestCase {
+
+    private var directory: URL!
+
+    override func setUpWithError() throws {
+        directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(
+            at: directory, withIntermediateDirectories: true)
+    }
+
+    override func tearDownWithError() throws {
+        try? FileManager.default.removeItem(at: directory)
+    }
+
+    private func makeStoreFiles(_ names: [String]) throws -> URL {
+        let store = directory.appendingPathComponent("default.store")
+        for name in names {
+            let url = URL(fileURLWithPath: store.path + name)
+            try Data("x".utf8).write(to: url)
+        }
+        return store
+    }
+
+    // NOTE ON WHAT THESE CAN AND CANNOT PROVE
+    //
+    // The resulting protection class is NOT asserted, because it cannot be
+    // observed here. The Simulator runs on the host's APFS volume, which has no
+    // iOS data-protection classes: `setAttributes(_:ofItemAtPath:)` reports
+    // success and the attribute is then silently dropped, so reading it back
+    // returns nil. An assertion on the class would fail on the Simulator while
+    // the code is correct — and, worse, an assertion written to pass here would
+    // prove nothing about a device.
+    //
+    // What is asserted instead: that the right set of files is targeted, and
+    // that setting the attribute succeeds on each of them (`apply` only returns
+    // URLs for which `setAttributes` did not throw). The class itself is
+    // verifiable only on real hardware — see the class doc for how.
+
+    func test_targetsTheStoreAndBothSqliteSiblings() {
+        let store = URL(fileURLWithPath: "/tmp/x/default.store")
+        let targets = StoreProtection.siblings(of: store).map(\.lastPathComponent)
+        XCTAssertEqual(targets, ["default.store", "default.store-wal", "default.store-shm"])
+    }
+
+    func test_appliesToTheStoreFileWithoutError() throws {
+        let store = try makeStoreFiles([""])
+        XCTAssertEqual(StoreProtection.apply(to: store), [store])
+    }
+
+    func test_appliesToWalAndShmSiblings() throws {
+        // The -wal holds the most recent writes — the newest scans. Protecting
+        // only the .store file would leave exactly those readable.
+        let store = try makeStoreFiles(["", "-wal", "-shm"])
+        let updated = StoreProtection.apply(to: store)
+        XCTAssertEqual(updated.count, 3, "expected store, -wal and -shm")
+        XCTAssertEqual(Set(updated.map(\.lastPathComponent)),
+                       ["default.store", "default.store-wal", "default.store-shm"])
+    }
+
+    func test_missingSiblingsAreSkippedNotFatal() throws {
+        // A freshly created store has no -wal until the first write.
+        let store = try makeStoreFiles([""])
+        XCTAssertEqual(StoreProtection.apply(to: store).count, 1)
+    }
+
+    func test_applyIsSafeWhenNothingExists() {
+        let ghost = directory.appendingPathComponent("absent.store")
+        XCTAssertEqual(StoreProtection.apply(to: ghost), [],
+                       "must not throw or crash when the store is absent")
+    }
+
+    func test_levelIsNotCompleteWhichWouldBreakBackgroundWork() {
+        // Pins the choice rather than the mechanism: if someone later tightens
+        // this to `.complete`, that is a behavioural decision that should fail
+        // a test and be argued for, not slip through.
+        XCTAssertEqual(StoreProtection.level, .completeUntilFirstUserAuthentication)
+        XCTAssertNotEqual(StoreProtection.level, .complete)
+    }
+}
+
