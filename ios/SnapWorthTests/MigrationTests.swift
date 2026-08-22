@@ -247,4 +247,272 @@ final class SwiftDataMigrationTests: XCTestCase {
         let reread = try openUnderCurrentSchema()
         XCTAssertTrue(reread.contains { $0.soldPrice == 75 })
     }
+
+    // MARK: The 1.2.2 portfolio fields
+
+    func test_portfolioFieldsDefaultToNilAfterMigration() throws {
+        // Same rule as the 1.2 fields: additive and optional, so a store written
+        // before they existed opens without a rewrite.
+        try seedLegacyStore()
+        for row in try openUnderCurrentSchema() {
+            XCTAssertNil(row.portfolioValueRaw)
+            XCTAssertNil(row.valueHistoryData)
+        }
+    }
+
+    func test_migratedRowsStillPriceCorrectly() throws {
+        // The one that would silently under-report a long-standing user's
+        // portfolio if `nil` were treated as zero.
+        try seedLegacyStore()
+        let migrated = try openUnderCurrentSchema()
+        let sweater = try XCTUnwrap(migrated.first { $0.brand == "Patagonia" })
+
+        XCTAssertNil(sweater.portfolioValueRaw, "nothing stored yet")
+        XCTAssertEqual(sweater.portfolioValue,
+                       sweater.priceRange(for: sweater.condition).likely)
+        XCTAssertGreaterThan(sweater.portfolioValue, 0)
+    }
+
+    func test_portfolioTotalOfAMigratedStoreIsNotZero() throws {
+        try seedLegacyStore()
+        let migrated = try openUnderCurrentSchema()
+        let total = HistoryViewModel.total(of: migrated.map(\.portfolioValue))
+        XCTAssertGreaterThan(total, 0,
+                             "a pre-1.2.2 library must report a real total, not zero")
+    }
+
+    func test_migratedRowAcceptsAPortfolioRefresh() throws {
+        try seedLegacyStore()
+        let schema = Schema([SnapWorth.ScanResult.self])
+        let config = ModelConfiguration(schema: schema, url: storeURL)
+        let container = try ModelContainer(for: schema, configurations: [config])
+        let context = ModelContext(container)
+        let row = try XCTUnwrap(try context.fetch(
+            FetchDescriptor<SnapWorth.ScanResult>()).first)
+
+        row.refreshPortfolioValue()
+        XCTAssertNoThrow(try context.save())
+        XCTAssertNotNil(row.portfolioValueRaw)
+        XCTAssertEqual(row.valueHistory.count, 1)
+    }
+}
+
+// MARK: - Portfolio value (1.2.2)
+//
+// The portfolio total is the headline number on My Finds, so its arithmetic is
+// worth pinning directly rather than only through the view.
+//
+// Two properties matter more than the happy path:
+//
+//   * A row written before 1.2.2 has no stored value. It must price from
+//     valueLow/valueHigh exactly as it always did — nil is not zero. Getting
+//     that wrong would silently under-report every long-standing user's
+//     portfolio, which is the one number this feature exists to show.
+//   * The history is append-only and deduplicated, so re-opening an item
+//     cannot inflate it.
+
+final class PortfolioValueTests: XCTestCase {
+
+    private func make(low: Double, high: Double, notes: String = "Good") -> ScanResult {
+        ScanResult(itemName: "Item", brand: "B", category: "clothing",
+                   conditionNotes: notes, valueLow: low, valueHigh: high,
+                   confidence: "High", soldListingsCount: 0,
+                   listingTitle: "T", listingDescription: "D")
+    }
+
+    // ── The nil-is-not-zero rule ───────────────────────────────────────────
+
+    func test_rowWithNoStoredValue_pricesFromItsBounds() {
+        let r = make(low: 40, high: 60)
+        XCTAssertNil(r.portfolioValueRaw, "precondition: nothing stored yet")
+        XCTAssertEqual(r.portfolioValue, r.priceRange(for: r.condition).likely,
+                       "a pre-1.2.2 row must price exactly as it always did")
+        XCTAssertNotEqual(r.portfolioValue, 0, "nil must not read as zero")
+    }
+
+    func test_storedValueIsPreferredOverRecomputing() {
+        let r = make(low: 40, high: 60)
+        r.portfolioValueRaw = 123
+        XCTAssertEqual(r.portfolioValue, Decimal(123))
+    }
+
+    func test_nonFiniteStoredValueFallsBack() {
+        // A corrupt column must not poison the total with NaN or infinity.
+        let r = make(low: 40, high: 60)
+        r.portfolioValueRaw = Double.nan
+        XCTAssertEqual(r.portfolioValue, r.priceRange(for: r.condition).likely)
+        r.portfolioValueRaw = .infinity
+        XCTAssertEqual(r.portfolioValue, r.priceRange(for: r.condition).likely)
+    }
+
+    // ── Aggregation ────────────────────────────────────────────────────────
+
+    func test_totalOfEmptyPortfolioIsZero() {
+        XCTAssertEqual(HistoryViewModel.total(of: []), 0)
+    }
+
+    func test_totalOfSingleItem() {
+        XCTAssertEqual(HistoryViewModel.total(of: [Decimal(42)]), 42)
+    }
+
+    func test_totalIsExactAcrossManyItems() {
+        // The reason this moved to Decimal: 0.10 has no exact binary
+        // representation, so summing it 1,000 times in Double drifts. Decimal
+        // must land on exactly 100.
+        let values = Array(repeating: Decimal(string: "0.10")!, count: 1000)
+        XCTAssertEqual(HistoryViewModel.total(of: values), Decimal(100))
+    }
+
+    func test_totalHandlesALargeLibrary() {
+        let values = (1...5000).map { Decimal($0) }
+        XCTAssertEqual(HistoryViewModel.total(of: values), Decimal(5000 * 5001 / 2))
+    }
+
+    // ── History ────────────────────────────────────────────────────────────
+
+    func test_firstRefreshSeedsOnePoint() {
+        let r = make(low: 40, high: 60)
+        r.refreshPortfolioValue()
+        XCTAssertEqual(r.valueHistory.count, 1)
+        XCTAssertNotNil(r.portfolioValueRaw)
+    }
+
+    func test_repeatedRefreshWithNoChangeDoesNotGrowHistory() {
+        let r = make(low: 40, high: 60)
+        r.refreshPortfolioValue()
+        r.refreshPortfolioValue()
+        r.refreshPortfolioValue()
+        XCTAssertEqual(r.valueHistory.count, 1,
+                       "re-opening an item must not inflate its history")
+    }
+
+    func test_repricingAppendsAPoint() {
+        let r = make(low: 40, high: 60, notes: "Good")
+        r.refreshPortfolioValue()
+        r.condition = .likeNew          // re-prices upward
+        r.refreshPortfolioValue()
+        XCTAssertEqual(r.valueHistory.count, 2)
+        XCTAssertGreaterThan(r.valueHistory[1].value, r.valueHistory[0].value)
+    }
+
+    func test_historyIsCapped() {
+        let r = make(low: 40, high: 60)
+        for i in 1...50 {
+            r.valueLow = Double(i); r.valueHigh = Double(i) * 2
+            r.refreshPortfolioValue(limit: 10)
+        }
+        XCTAssertEqual(r.valueHistory.count, 10, "series must stay bounded")
+    }
+
+    func test_corruptHistoryReadsAsEmptyRatherThanCrashing() {
+        let r = make(low: 40, high: 60)
+        r.valueHistoryData = Data("not json".utf8)
+        XCTAssertEqual(r.valueHistory, [])
+        XCTAssertNil(r.valueChangeSinceAdded)
+    }
+
+    func test_changeSinceAddedNeedsTwoPoints() {
+        let r = make(low: 40, high: 60)
+        r.refreshPortfolioValue()
+        XCTAssertNil(r.valueChangeSinceAdded, "one point is not a trend")
+        r.condition = .likeNew
+        r.refreshPortfolioValue()
+        XCTAssertNotNil(r.valueChangeSinceAdded)
+    }
+}
+
+// MARK: - Portfolio trend + entitlement gating
+//
+// The commercial shape of this feature: the total is free (it is the reason to
+// reopen the app) and the history is Pro. These pin that split, and the trend
+// arithmetic underneath it.
+
+final class PortfolioTrendTests: XCTestCase {
+
+    private func pair(_ day: Int, _ value: Decimal) -> (date: Date, value: Decimal) {
+        (date: Date(timeIntervalSince1970: TimeInterval(day) * 86_400), value: value)
+    }
+
+    // ── Trend arithmetic ───────────────────────────────────────────────────
+
+    func test_emptyPortfolioHasNoTrend() {
+        XCTAssertTrue(HistoryViewModel.trend(from: []).isEmpty)
+    }
+
+    func test_singleItemIsNotYetATrend() {
+        // One point renders nothing — TrendStrip requires two.
+        XCTAssertEqual(HistoryViewModel.trend(from: [pair(1, 50)]).count, 1)
+    }
+
+    func test_trendAccumulatesInDateOrder() {
+        let points = HistoryViewModel.trend(from: [pair(3, 30), pair(1, 10), pair(2, 20)])
+        XCTAssertEqual(points.map(\.total), [10, 30, 60],
+                       "must accumulate oldest-first regardless of input order")
+    }
+
+    func test_finalPointEqualsThePortfolioTotal() {
+        // The line has to end where the headline number is, or the two disagree
+        // on screen.
+        let values: [Decimal] = [12, 40, 3, 99]
+        let points = HistoryViewModel.trend(from: values.enumerated().map { pair($0.offset, $0.element) })
+        XCTAssertEqual(points.last?.total, HistoryViewModel.total(of: values))
+    }
+
+    func test_longHistoryIsDownsampledButKeepsTheEndpoints() {
+        let pairs = (0..<500).map { pair($0, Decimal(1)) }
+        let points = HistoryViewModel.trend(from: pairs, maxPoints: 40)
+        XCTAssertEqual(points.count, 40, "sparkline must stay bounded")
+        XCTAssertEqual(points.first?.total, 1)
+        XCTAssertEqual(points.last?.total, 500, "the current total must survive downsampling")
+    }
+
+    func test_downsamplingIsSkippedWhenUnnecessary() {
+        let pairs = (0..<10).map { pair($0, Decimal(5)) }
+        XCTAssertEqual(HistoryViewModel.trend(from: pairs, maxPoints: 40).count, 10)
+    }
+
+    // ── Entitlement gating ─────────────────────────────────────────────────
+
+    @MainActor
+    func test_freeUserIsNotEntitled() {
+        let service = MockPurchaseService(forcedSubscribed: false)
+        XCTAssertFalse(service.isSubscribed,
+                       "the trend must be gated for a non-subscriber")
+    }
+
+    @MainActor
+    func test_proUserIsEntitled() {
+        let service = MockPurchaseService(forcedSubscribed: true)
+        XCTAssertTrue(service.isSubscribed)
+    }
+
+    @MainActor
+    func test_totalIsAvailableRegardlessOfEntitlement() {
+        // The hook stays free. If this ever starts depending on isSubscribed,
+        // the feature has lost the thing that makes people come back.
+        let vm = HistoryViewModel()
+        let values: [Decimal] = [10, 20, 30]
+        let total = HistoryViewModel.total(of: values)
+        XCTAssertEqual(total, 60)
+        XCTAssertFalse(vm.totalValue(from: []).isEmpty,
+                       "an empty portfolio still renders a figure, not a blank")
+    }
+
+    @MainActor
+    func test_changeLabelIsNilUntilAnItemIsRepriced() {
+        let vm = HistoryViewModel()
+        let r = ScanResult(itemName: "I", brand: "B", category: "c",
+                           conditionNotes: "Good", valueLow: 10, valueHigh: 20,
+                           confidence: "High", soldListingsCount: 0,
+                           listingTitle: "T", listingDescription: "D")
+        r.refreshPortfolioValue()
+        XCTAssertNil(vm.changeLabel(for: r))
+
+        r.condition = .likeNew
+        r.refreshPortfolioValue()
+        let label = vm.changeLabel(for: r)
+        XCTAssertNotNil(label, "a re-priced item must report its change")
+        XCTAssertTrue(label?.hasPrefix("+") == true,
+                      "an upward re-price must read as a gain")
+    }
 }
