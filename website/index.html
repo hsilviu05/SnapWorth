@@ -1009,6 +1009,213 @@ a:focus-visible, button:focus-visible {
   .reveal, .stagger > * { opacity: 1 !important; transform: none !important; }
 }
 
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   REDESIGN — Direction C, "The Ledger, set in type"
+   Espresso editorial hero + Thrift Flip as its own cream band.
+   Implemented from the Claude Design canvas (SnapWorth Marketing Redesign).
+
+   Two things carried over deliberately from the design, because they are the
+   point of it:
+
+   * Thrift Flip leads. It is the only thing here no competitor does — the fee
+     maths done while you are still holding the item — and the old hero buried
+     it under a generic "AI resale estimate" pitch.
+   * The fee rates on this page are the ones the app actually uses
+     (MarketplaceFees.swift): eBay 13.25% + $0.40, and Vinted / Facebook
+     Marketplace / OLX take no seller fee. A calculator that disagreed with the
+     product would be worse than no calculator.
+   ══════════════════════════════════════════════════════════════════════════ */
+
+.hero-dark { background: var(--dark); color: #FAF7F4; position: relative; overflow: hidden; }
+.hero-dark::after,
+.hero-dark::before { content: ""; position: absolute; pointer-events: none; }
+.hero-dark::before { top: -240px; right: -140px; width: 680px; height: 680px;
+  background: radial-gradient(circle, rgba(217,108,71,.16) 0%, transparent 65%); }
+.hero-dark::after { bottom: -200px; left: -80px; width: 460px; height: 460px;
+  background: radial-gradient(circle, rgba(122,158,126,.10) 0%, transparent 65%); }
+
+.hd-wrap { max-width: 1200px; margin: 0 auto; padding: 0 24px; position: relative; z-index: 1; }
+
+/* Editorial rule under the nav — the masthead device the direction is named for. */
+.hd-rule { border-top: 1.5px solid rgba(250,247,244,.55);
+  border-bottom: 1px solid rgba(250,247,244,.13); padding: 9px 0;
+  display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+.hd-rule span { font-size: 11px; font-weight: 600; letter-spacing: 2.2px;
+  text-transform: uppercase; color: rgba(250,247,244,.6); }
+
+.hd-main { padding: 60px 0 72px; }
+.hd-h1 { font-family: 'Fraunces', serif; font-size: clamp(40px, 6.4vw, 92px); font-weight: 900;
+  line-height: .96; letter-spacing: -.04em; color: #fff; margin: 0 0 46px;
+  max-width: 1010px; text-wrap: pretty; }
+.hd-h1 em { font-style: italic; color: var(--terracotta); }
+
+.hd-grid { display: grid; grid-template-columns: 1fr 330px; gap: 80px; align-items: start; }
+.hd-col { display: flex; flex-direction: column; gap: 32px; padding-top: 4px; }
+.hd-lede { font-size: clamp(17px, 1.5vw, 21px); line-height: 1.6;
+  color: rgba(250,247,244,.68); margin: 0; max-width: 560px; }
+
+.hd-actions { display: flex; align-items: center; gap: 22px; flex-wrap: wrap; }
+/* The site's base `a` rule underlines links; these are buttons and a jump
+   affordance, not prose links. */
+.hd-cta, .hd-jump, .tf-foot-cta { text-decoration: none; }
+.hd-cta { display: inline-flex; align-items: center; gap: 10px; background: var(--terracotta);
+  color: #fff; font-size: 16px; font-weight: 600; padding: 16px 28px; border-radius: 999px; }
+.hd-jump { font-size: 15px; font-weight: 500; color: rgba(250,247,244,.66);
+  border-bottom: 1px solid rgba(250,247,244,.3); padding-bottom: 3px; }
+
+.hd-meta { display: flex; align-items: center; gap: 26px; flex-wrap: wrap; }
+.hd-note { font-size: 13.5px; line-height: 1.6; color: rgba(250,247,244,.45); max-width: 290px; }
+
+.hd-steps { border-top: 1px solid rgba(250,247,244,.14); padding-top: 28px;
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 34px; max-width: 640px; }
+.hd-step-n { font-family: 'Fraunces', serif; font-size: 15px; font-weight: 700;
+  color: var(--terracotta); margin-bottom: 7px; }
+.hd-step-t { font-size: 15px; font-weight: 600; color: #FAF7F4; margin-bottom: 4px; }
+.hd-step-d { font-size: 13.5px; line-height: 1.6; color: rgba(250,247,244,.5); }
+
+.hd-phone { display: flex; flex-direction: column; align-items: center; gap: 18px; }
+.hd-caption { font-family: 'Fraunces', serif; font-style: italic; font-size: 14.5px;
+  line-height: 1.55; color: rgba(250,247,244,.6); text-align: center; max-width: 280px; margin: 0; }
+
+.hd-strip { border-top: 1px solid rgba(255,255,255,.09); padding: 28px 0 44px;
+  display: flex; align-items: center; gap: 40px; flex-wrap: wrap; }
+.hd-strip-label { font-size: 13px; color: rgba(250,247,244,.45); }
+.hd-strip-list { display: flex; gap: 36px; align-items: center; flex-wrap: wrap; }
+.hd-strip-list span { font-size: 16px; font-weight: 600;
+  color: rgba(250,247,244,.68); letter-spacing: -.2px; }
+
+/* ── Thrift Flip band ───────────────────────────────────────────────────── */
+.tf { padding: 88px 0 96px; background: var(--bg); }
+.tf-wrap { max-width: 1200px; margin: 0 auto; padding: 0 24px; }
+.tf-rule { border-top: 1.5px solid var(--dark); padding-top: 14px; display: flex;
+  justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-bottom: 52px; }
+.tf-rule span { font-size: 11px; font-weight: 600; letter-spacing: 2.2px; text-transform: uppercase; }
+.tf-rule .l { color: var(--terra-text); }
+.tf-rule .r { color: var(--warm-gray); }
+
+.tf-top { display: grid; grid-template-columns: 1fr 1fr; gap: 80px;
+  align-items: start; margin-bottom: 56px; }
+.tf-h2 { font-family: 'Fraunces', serif; font-size: clamp(32px, 4vw, 52px); font-weight: 900;
+  line-height: 1.02; letter-spacing: -.038em; color: var(--dark); margin: 0 0 22px; text-wrap: pretty; }
+.tf-p { font-size: clamp(16px, 1.4vw, 19px); line-height: 1.65; color: var(--dark2);
+  margin: 0 0 18px; max-width: 520px; }
+.tf-em { font-family: 'Fraunces', serif; font-style: italic; font-size: 17px;
+  line-height: 1.6; color: var(--warm-gray); margin: 0; max-width: 480px; }
+
+.tf-controls { display: flex; flex-direction: column; gap: 22px; }
+.tf-label { font-size: 11px; font-weight: 700; letter-spacing: 1.4px;
+  text-transform: uppercase; color: var(--text-muted); margin-bottom: 12px; }
+.tf-chips { display: flex; gap: 9px; flex-wrap: wrap; }
+.tf-chip { font-family: inherit; font-size: 14.5px; font-weight: 600; padding: 13px 24px;
+  border-radius: 999px; cursor: pointer; background: transparent; color: var(--warm-gray);
+  border: 1px solid var(--border); transition: background .15s, color .15s, border-color .15s; }
+.tf-chip[aria-pressed="true"] { background: var(--terracotta); color: #fff; border-color: var(--terracotta); }
+
+.tf-inputs { display: flex; gap: 14px; flex-wrap: wrap; }
+.tf-field { flex: 1; min-width: 150px; background: #fff; border: 1px solid var(--border);
+  border-radius: 20px; padding: 16px 18px; display: block; }
+.tf-field > span:first-child { display: block; font-size: 11px; font-weight: 700;
+  letter-spacing: 1.1px; text-transform: uppercase; color: var(--text-muted); margin-bottom: 6px; }
+.tf-money { display: inline-flex; align-items: baseline; gap: 3px; }
+.tf-money .sym { font-family: 'Fraunces', serif; font-size: 22px; font-weight: 700; color: var(--warm-gray); }
+.tf-money input { width: 78px; border: none; background: transparent; font-family: 'Fraunces', serif;
+  font-size: 30px; font-weight: 900; letter-spacing: -1.2px; color: var(--dark); outline-offset: 4px; }
+
+.tf-out { display: grid; grid-template-columns: 1.15fr 1fr; gap: 20px; align-items: stretch; }
+.tf-verdict { border-radius: 28px; padding: 38px 42px;
+  background: rgba(122,158,126,.10); border: 1px solid rgba(122,158,126,.38);
+  transition: background .2s ease, border-color .2s ease; }
+.tf-verdict.is-bad { background: rgba(217,108,71,.10); border-color: rgba(217,108,71,.38); }
+.tf-verdict-head { display: flex; align-items: center; gap: 10px; font-size: 20px;
+  font-weight: 700; margin-bottom: 18px; color: var(--sage-text); }
+.tf-verdict.is-bad .tf-verdict-head { color: var(--terra-text); }
+.tf-sentence { font-size: 19px; line-height: 1.55; color: var(--dark2);
+  margin-bottom: 28px; max-width: 420px; }
+.tf-figures { display: flex; align-items: flex-end; gap: 52px; flex-wrap: wrap; }
+.tf-fig-l { font-size: 11px; font-weight: 700; letter-spacing: 1.1px;
+  text-transform: uppercase; color: var(--text-muted); margin-bottom: 4px; }
+.tf-net { font-family: 'Fraunces', serif; font-size: clamp(48px, 6vw, 72px); font-weight: 900;
+  letter-spacing: -.04em; line-height: .9; color: var(--sage-text); font-variant-numeric: tabular-nums; }
+.tf-verdict.is-bad .tf-net { color: var(--terra-text); }
+.tf-roi { font-family: 'Fraunces', serif; font-size: clamp(32px, 3.6vw, 44px); font-weight: 900;
+  letter-spacing: -.04em; line-height: 1; color: var(--dark); font-variant-numeric: tabular-nums; }
+
+.tf-maths { background: var(--card); border-radius: 28px; padding: 34px 38px;
+  display: flex; flex-direction: column; }
+.tf-row { display: flex; justify-content: space-between; padding: 13px 0;
+  border-bottom: 1px solid #E4D8CF; font-size: 15.5px; }
+.tf-row span:first-child { color: var(--warm-gray); }
+.tf-row span:last-child { font-weight: 600; color: var(--dark); font-variant-numeric: tabular-nums; }
+.tf-row.total { border-bottom: 1.5px solid var(--dark); }
+.tf-row.net { border-bottom: none; padding: 15px 0 0; }
+.tf-row.net span:first-child { font-weight: 600; color: var(--dark); }
+.tf-row.net span:last-child { font-family: 'Fraunces', serif; font-size: 22px; font-weight: 900;
+  letter-spacing: -.8px; color: var(--sage-text); }
+.tf-out.is-bad .tf-row.net span:last-child { color: var(--terra-text); }
+.tf-note { font-size: 13px; line-height: 1.6; color: var(--text-muted); margin: 22px 0 0; }
+
+.tf-foot { margin-top: 28px; display: flex; gap: 20px; align-items: stretch; flex-wrap: wrap; }
+.tf-foot-dark { flex: 1; min-width: 420px; background: var(--dark); border-radius: 24px;
+  padding: 28px 32px; display: flex; align-items: center; justify-content: space-between; gap: 28px; flex-wrap: wrap; }
+.tf-foot-dark h4 { font-size: 16px; font-weight: 600; color: #FAF7F4; margin: 0 0 5px; }
+.tf-foot-dark p { font-size: 14px; line-height: 1.6; color: rgba(250,247,244,.55); max-width: 420px; margin: 0; }
+.tf-foot-cta { display: inline-flex; align-items: center; background: var(--terracotta); color: #fff;
+  font-size: 15px; font-weight: 600; padding: 14px 24px; border-radius: 999px; white-space: nowrap; }
+.tf-foot-note { flex: 1; min-width: 340px; border: 1px solid var(--border); border-radius: 24px;
+  padding: 28px 32px; font-size: 14.5px; line-height: 1.65; color: var(--dark2); }
+
+@media (max-width: 980px) {
+  .hd-grid { grid-template-columns: 1fr; gap: 48px; }
+  .hd-phone { order: -1; }
+  .tf-top { grid-template-columns: 1fr; gap: 40px; }
+  .tf-out { grid-template-columns: 1fr; }
+}
+@media (max-width: 640px) {
+  .hd-steps { grid-template-columns: 1fr; gap: 22px; }
+  .hd-main { padding: 40px 0 52px; }
+  .tf { padding: 64px 0 72px; }
+  .tf-verdict, .tf-maths { padding: 28px 24px; }
+  .tf-foot-dark, .tf-foot-note { min-width: 0; }
+}
+
+
+/* ── Thrift Flip screen inside the hero phone ──────────────────────────────
+   Reuses the existing .iphone / .app-* chrome; these are only the pieces the
+   Thrift Flip screen adds over the Result screen the mockup used to show. */
+.app-back-right { margin-left: auto; }
+.app-nav { position: relative; }
+
+.pf-item { display: flex; align-items: center; gap: 12px; background: #fff;
+  border: 1px solid var(--border); border-radius: 18px; padding: 12px; }
+.pf-thumb { width: 56px; height: 56px; border-radius: 14px;
+  background: linear-gradient(135deg, var(--card), var(--border));
+  display: flex; align-items: center; justify-content: center; font-size: 26px; flex-shrink: 0; }
+
+.pf-chips { display: flex; gap: 5px; }
+.pf-chip { flex: 1; text-align: center; border: 1px solid var(--border); color: var(--warm-gray);
+  font-size: 10.5px; font-weight: 600; padding: 5px 0; border-radius: 999px; }
+.pf-chip.is-on { background: var(--terracotta); color: #fff; border-color: var(--terracotta); padding: 6px 0; }
+
+.pf-rows { padding: 6px 13px; }
+.pf-row { display: flex; align-items: center; justify-content: space-between;
+  padding: 9px 0; border-bottom: 1px solid var(--card); }
+.pf-row:last-child { border-bottom: none; }
+.pf-row > span:first-child { font-size: 11.5px; font-weight: 500; color: var(--warm-gray); }
+.pf-row > span:last-child { font-size: 14px; font-weight: 700; color: var(--dark);
+  display: inline-flex; align-items: center; gap: 8px; }
+.pf-row em { font-style: normal; font-size: 10px; font-weight: 600; color: var(--terracotta); }
+
+.pf-verdict { background: rgba(122,158,126,.10); border: 1px solid rgba(122,158,126,.38);
+  border-radius: 18px; padding: 14px; text-align: center; }
+.pf-verdict-t { font-size: 14px; font-weight: 700; color: var(--sage-text); margin-bottom: 8px; }
+.pf-verdict-s { font-size: 11px; color: var(--dark2); line-height: 1.45; margin-bottom: 10px; }
+.pf-verdict-figs { display: flex; justify-content: center; gap: 26px; }
+.pf-fig-l { font-size: 9.5px; color: var(--text-muted); }
+.pf-fig-v { font-family: 'Fraunces', serif; font-size: 20px; font-weight: 900;
+  color: var(--dark); letter-spacing: -.8px; }
+.pf-fig-v.sage { color: var(--sage-text); }
+
   </style>
 </head>
 <body>
@@ -1030,106 +1237,228 @@ a:focus-visible, button:focus-visible {
   <main>
 
   <!-- Hero -->
-  <section class="hero">
-    <div class="hero-inner">
-      <div>
-        <div class="hero-tag">
-          <span class="hero-tag-dot"></span>
-          Available on iOS
-        </div>
-        <h1>Know what your thrift finds are <em>worth</em></h1>
-        <p class="hero-sub">Snap a photo. Get an AI resale estimate in seconds — with a price range and a listing ready to post.</p>
-        <div class="hero-actions">
-          <!-- TODO: Replace # with App Store link -->
-          <a href="https://apps.apple.com/us/app/snapworth-resale-scanner/id6788521307" class="btn-primary">
-            <svg aria-hidden="true" focusable="false" width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.8-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z"/></svg>
-            Download on the App Store
-          </a>
-          <a href="#how-it-works" class="btn-ghost">See how it works →</a>
-        </div>
-        <!-- Product Hunt badge -->
-        <a class="ph-badge" href="https://www.producthunt.com/products/snapworth?launch=snapworth&utm_source=badge&utm_medium=website" target="_blank" rel="noopener">
-          <svg class="ph-badge-logo" aria-hidden="true" focusable="false" viewBox="0 0 40 40">
-            <path fill="#DA552F" d="M20 40c11.046 0 20-8.954 20-20S31.046 0 20 0 0 8.954 0 20s8.954 20 20 20z"/>
-            <path fill="#FFF" d="M22.667 20H17v-6h5.667a3 3 0 010 6zm0-10H13v20h4v-6h5.667a7 7 0 100-14z"/>
-          </svg>
-          <span class="ph-badge-text">
-            <span class="ph-badge-eyebrow">FEATURED ON</span>
-            <span class="ph-badge-name">Product Hunt</span>
-          </span>
-        </a>
+  <!-- ══ Hero — Direction C, "The Ledger, set in type" ══════════════════════
+       Thrift Flip leads. The previous hero pitched a generic "AI resale
+       estimate", which is the part competitors also claim; the fee maths done
+       at the rack is the part nobody else does. -->
+  <section class="hero-dark">
+    <div class="hd-wrap">
+      <div class="hd-rule">
+        <span>An AI resale estimate for secondhand things</span>
+        <span>iPhone · 3 free scans a day</span>
       </div>
+    </div>
 
-      <!-- iPhone 17 Pro mockup -->
-      <div class="iphone-wrap">
-        <div class="iphone">
-          <div class="iphone-screen">
-            <div class="di"></div>
-            <!-- Status bar -->
-            <div class="sb">
-              <span class="sb-time">9:41</span>
-              <div class="sb-icons">
-                <div class="sb-signal"><span></span><span></span><span></span><span></span></div>
-                <div class="sb-wifi"><span></span><span></span><span></span></div>
-                <div class="sb-batt"></div>
-              </div>
-            </div>
-            <!-- Nav bar -->
-            <div class="app-nav">
-              <span class="app-back">
-                <svg aria-hidden="true" focusable="false" width="8" height="13" viewBox="0 0 8 13" fill="none"><path d="M7 1L1 6.5L7 12" stroke="#D96C47" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
-                Scan
+    <div class="hd-wrap hd-main">
+      <h1 class="hd-h1">Know the profit <em>before</em> you buy.</h1>
+
+      <div class="hd-grid">
+        <div class="hd-col">
+          <p class="hd-lede">Photograph an item on the rack. SnapWorth returns an AI-estimated resale range, then Thrift Flip shows what&rsquo;s actually left after the marketplace takes its cut &mdash; while you&rsquo;re still holding the thing.</p>
+
+          <div class="hd-actions">
+            <a href="https://apps.apple.com/us/app/snapworth-resale-scanner/id6788521307" class="hd-cta"><svg aria-hidden="true" focusable="false" width="19" height="19" viewBox="0 0 24 24" fill="currentColor"><path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.8-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z"/></svg> Download on the App Store</a>
+            <a href="#thrift-flip" class="hd-jump">Do the math yourself &darr;</a>
+          </div>
+
+          <div class="hd-meta">
+            <a class="ph-badge" href="https://www.producthunt.com/products/snapworth?launch=snapworth&amp;utm_source=badge&amp;utm_medium=website" target="_blank" rel="noopener">
+              <svg class="ph-badge-logo" aria-hidden="true" focusable="false" viewBox="0 0 40 40">
+                <path fill="#DA552F" d="M20 40c11.046 0 20-8.954 20-20S31.046 0 20 0 0 8.954 0 20s8.954 20 20 20z"/>
+                <path fill="#FFF" d="M22.667 20H17v-6h5.667a3 3 0 010 6zm0-10H13v20h4v-6h5.667a7 7 0 100-14z"/>
+              </svg>
+              <span class="ph-badge-text">
+                <span class="ph-badge-eyebrow">FEATURED ON</span>
+                <span class="ph-badge-name">Product Hunt</span>
               </span>
-              <span class="app-nav-title">Result</span>
+            </a>
+            <!-- Stated plainly, and deliberately. The estimate is model
+                 knowledge, not marketplace comps, and the site said otherwise
+                 for months. -->
+            <span class="hd-note">No account, no card. Estimates are AI, not marketplace comps.</span>
+          </div>
+
+          <div class="hd-steps">
+            <div>
+              <div class="hd-step-n">01</div>
+              <div class="hd-step-t">Snap</div>
+              <div class="hd-step-d">A photo of the tag, the logo, the whole thing.</div>
             </div>
-            <!-- Content -->
-            <div class="app-scroll">
-              <div class="app-img">👜</div>
-              <div>
-                <div class="app-name">Coach Leather Crossbody Bag</div>
-                <div class="app-meta">Coach · Accessories · Good condition</div>
-                <div class="app-badge">
-                  <svg aria-hidden="true" focusable="false" width="9" height="9" viewBox="0 0 10 10" fill="#7A9E7E"><circle cx="5" cy="5" r="5"/></svg>
-                  High Confidence
+            <div>
+              <div class="hd-step-n">02</div>
+              <div class="hd-step-t">Estimate</div>
+              <div class="hd-step-d">A resale range and how sure the model is.</div>
+            </div>
+            <div>
+              <div class="hd-step-n">03</div>
+              <div class="hd-step-t">List or skip</div>
+              <div class="hd-step-d">Profit after fees, then a listing draft.</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="hd-phone">
+          <div class="iphone-wrap">
+            <div class="iphone">
+              <div class="iphone-screen">
+                <div class="di"></div>
+                <div class="sb">
+                  <span class="sb-time">9:41</span>
+                  <div class="sb-icons">
+                    <div class="sb-signal"><span></span><span></span><span></span><span></span></div>
+                    <div class="sb-wifi"><span></span><span></span><span></span></div>
+                    <div class="sb-batt"></div>
+                  </div>
                 </div>
-              </div>
-              <!-- Price card -->
-              <div class="app-card">
-                <div class="app-card-label">Resale Value</div>
-                <div class="app-price">$38 <span class="app-price-sep">– $65</span></div>
-                <div class="app-bar"><div class="app-bar-fill"></div></div>
-                <div class="app-price-sub">AI-estimated resale range</div>
-              </div>
-              <!-- Listing card -->
-              <div class="app-card">
-                <div class="app-card-label">AI Listing</div>
-                <div class="app-listing-text">Coach Tan Leather Crossbody Bag — Clean interior, minimal wear, brass hardware intact. Great everyday carry.</div>
-                <div class="app-copy">
-                  <svg aria-hidden="true" focusable="false" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
-                  Copy listing
+                <div class="app-nav">
+                  <span class="app-back">Close</span>
+                  <span class="app-nav-title">Thrift Flip</span>
+                  <span class="app-back app-back-right">New item</span>
+                </div>
+                <div class="app-scroll">
+                  <div class="pf-item">
+                    <div class="pf-thumb">&#129509;</div>
+                    <div>
+                      <div class="app-name">Carhartt Detroit Jacket</div>
+                      <div class="app-meta">Resale $60&ndash;$150 &middot; High confidence</div>
+                    </div>
+                  </div>
+                  <div class="app-card">
+                    <div class="app-card-label">Where you&rsquo;d sell</div>
+                    <div class="pf-chips">
+                      <span class="pf-chip is-on">eBay</span>
+                      <span class="pf-chip">Vinted</span>
+                      <span class="pf-chip">Facebook</span>
+                      <span class="pf-chip">OLX</span>
+                    </div>
+                  </div>
+                  <div class="app-card pf-rows">
+                    <div class="pf-row"><span>Shop price</span><span><em>Scan tag</em> $18</span></div>
+                    <div class="pf-row"><span>Expected resale</span><span>$95</span></div>
+                    <div class="pf-row"><span>Shipping</span><span>$8</span></div>
+                  </div>
+                  <div class="pf-verdict">
+                    <div class="pf-verdict-t">&#10003; Worth flipping</div>
+                    <div class="pf-verdict-s">Resell at $95.00 &rarr; +$56.01 profit after fees.</div>
+                    <div class="pf-verdict-figs">
+                      <div><div class="pf-fig-l">Net profit</div><div class="pf-fig-v sage">+$56</div></div>
+                      <div><div class="pf-fig-l">ROI</div><div class="pf-fig-v">311%</div></div>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
           </div>
+          <p class="hd-caption">A range and a verdict, not an appraisal. Fees are approximate; the sale price is never guaranteed.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="hd-wrap">
+      <div class="hd-strip">
+        <span class="hd-strip-label">Listing drafts written for</span>
+        <div class="hd-strip-list">
+          <span>eBay</span><span>Vinted</span><span>Facebook Marketplace</span><span>OLX</span>
         </div>
       </div>
     </div>
   </section>
 
-  <!-- Platform strip -->
-  <div class="platforms">
-    <div class="platforms-inner">
-      <span class="platforms-label">Ready to sell on</span>
-      <div class="platforms-list">
-        <span class="platform">eBay</span>
-        <span class="platform">Vinted</span>
-        <span class="platform">Facebook Marketplace</span>
-        <span class="platform">OLX</span>
+
+  <!-- ══ Thrift Flip ═══════════════════════════════════════════════════════
+       A live calculator, not a screenshot of one. Fee rates are the ones the
+       app actually uses (MarketplaceFees.swift): eBay 13.25% + $0.40; Vinted,
+       Facebook Marketplace and OLX take no seller fee. A calculator on the
+       marketing site that disagreed with the product would be worse than none.
+
+       Rendered with real default values in the HTML, so with JavaScript off it
+       still reads as a worked example rather than a set of empty boxes. -->
+  <section class="tf" id="thrift-flip">
+    <div class="tf-wrap">
+      <div class="tf-rule">
+        <span class="l">Thrift Flip</span>
+        <span class="r">Nobody else does this</span>
+      </div>
+
+      <div class="tf-top">
+        <div>
+          <h2 class="tf-h2">The fee math, done at the rack.</h2>
+          <p class="tf-p">Enter what the shop wants for it. Thrift Flip subtracts the marketplace&rsquo;s cut and your shipping from the resale estimate, and tells you plainly whether it&rsquo;s worth carrying to the till.</p>
+          <p class="tf-em">Try it &mdash; the numbers below are live, and the fee rates are the ones the app actually uses.</p>
+        </div>
+
+        <div class="tf-controls">
+          <div>
+            <div class="tf-label" id="tf-mp-label">Where you&rsquo;d sell</div>
+            <div class="tf-chips" role="group" aria-labelledby="tf-mp-label">
+              <button type="button" class="tf-chip" data-mp="ebay" aria-pressed="true">eBay</button>
+              <button type="button" class="tf-chip" data-mp="vinted" aria-pressed="false">Vinted</button>
+              <button type="button" class="tf-chip" data-mp="facebook" aria-pressed="false">Facebook Marketplace</button>
+              <button type="button" class="tf-chip" data-mp="olx" aria-pressed="false">OLX</button>
+            </div>
+          </div>
+          <div class="tf-inputs">
+            <label class="tf-field">
+              <span>Shop price</span>
+              <span class="tf-money"><span class="sym">$</span><input type="text" inputmode="decimal" id="tf-paid" value="18" aria-label="Shop price in dollars"></span>
+            </label>
+            <label class="tf-field">
+              <span>Expected resale</span>
+              <span class="tf-money"><span class="sym">$</span><input type="text" inputmode="decimal" id="tf-resale" value="95" aria-label="Expected resale in dollars"></span>
+            </label>
+            <label class="tf-field">
+              <span>Shipping</span>
+              <span class="tf-money"><span class="sym">$</span><input type="text" inputmode="decimal" id="tf-ship" value="8" aria-label="Shipping cost in dollars"></span>
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <div class="tf-out" id="tf-out">
+        <!-- aria-live so a screen-reader user hears the verdict change rather
+             than having to hunt for what moved. -->
+        <div class="tf-verdict" id="tf-verdict" aria-live="polite">
+          <div class="tf-verdict-head"><span id="tf-mark">&#10003;</span><span id="tf-label">Worth flipping</span></div>
+          <div class="tf-sentence" id="tf-sentence">Resell at $95.00 &rarr; $56.01 profit after fees.</div>
+          <div class="tf-figures">
+            <div>
+              <div class="tf-fig-l">Net profit</div>
+              <div class="tf-net" id="tf-net">+$56</div>
+            </div>
+            <div>
+              <div class="tf-fig-l">ROI</div>
+              <div class="tf-roi" id="tf-roi">311%</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="tf-maths">
+          <div class="tf-label">The arithmetic</div>
+          <div class="tf-row"><span>Resale</span><span id="tf-r-resale">$95.00</span></div>
+          <div class="tf-row"><span id="tf-fee-label">&minus; eBay fees</span><span id="tf-r-fee">$12.99</span></div>
+          <div class="tf-row"><span>&minus; Shipping</span><span id="tf-r-ship">$8.00</span></div>
+          <div class="tf-row total"><span>&minus; Paid</span><span id="tf-r-paid">$18.00</span></div>
+          <div class="tf-row net"><span>Net</span><span id="tf-r-net">+$56</span></div>
+          <p class="tf-note" id="tf-note">eBay is charged at 13.25% plus $0.40.</p>
+        </div>
+      </div>
+
+      <div class="tf-foot">
+        <div class="tf-foot-dark">
+          <div>
+            <h4>Scanning and the resale estimate are free.</h4>
+            <p>The Thrift Flip profit verdict is part of the paid subscription &mdash; 3 free scans a day either way.</p>
+          </div>
+          <a href="#pricing" class="tf-foot-cta">See pricing</a>
+        </div>
+        <div class="tf-foot-note">
+          eBay is charged at <strong>13.25% + $0.40</strong>. Vinted, Facebook Marketplace and OLX take no seller fee, so the only costs are the shop price and shipping. Rates are approximate and reviewed against each marketplace&rsquo;s published schedule.
+        </div>
       </div>
     </div>
-  </div>
+  </section>
 
-  <!-- How it works -->
+
   <section id="how-it-works">
     <div class="section-inner">
       <div class="section-header">
@@ -1384,6 +1713,103 @@ a:focus-visible, button:focus-visible {
       }
     );
   });
+})();
+</script>
+<script>
+/* Thrift Flip calculator.
+ *
+ * Fee rates are the ones the app uses (MarketplaceFees.swift):
+ *   eBay     13.25% + $0.40
+ *   Vinted / Facebook Marketplace / OLX — no seller fee
+ * If those change in the app, change them here too. A marketing calculator
+ * that disagrees with the product is worse than no calculator.
+ *
+ * The markup already contains a correct worked example, so this only ever
+ * *updates* values — with JS off the section still reads as a real example
+ * rather than a set of empty boxes.
+ */
+(function () {
+  "use strict";
+
+  var FEES = {
+    ebay:     { pct: 0.1325, fixed: 0.40, name: "eBay" },
+    vinted:   { pct: 0, fixed: 0, name: "Vinted" },
+    facebook: { pct: 0, fixed: 0, name: "Facebook Marketplace" },
+    olx:      { pct: 0, fixed: 0, name: "OLX" }
+  };
+
+  var $ = function (id) { return document.getElementById(id); };
+  var out = $("tf-out");
+  if (!out) return;
+
+  var paidEl = $("tf-paid"), resaleEl = $("tf-resale"), shipEl = $("tf-ship");
+  var chips = document.querySelectorAll(".tf-chip");
+  var mp = "ebay";
+
+  /* Strips anything that is not a number, so "$18", "18 usd" and "18" all
+     behave. Negative and non-finite input reads as 0 rather than throwing. */
+  function num(v) {
+    var n = parseFloat(String(v).replace(/[^0-9.]/g, ""));
+    return isFinite(n) && n > 0 ? n : 0;
+  }
+  function money(n) { return (n < 0 ? "−$" : "$") + Math.abs(n).toFixed(2); }
+  function whole(n) { return (n < 0 ? "−$" : "+$") + Math.abs(Math.round(n)); }
+
+  function render() {
+    var fee = FEES[mp];
+    var resale = num(resaleEl.value);
+    var paid = num(paidEl.value);
+    var ship = num(shipEl.value);
+
+    var fees = resale * fee.pct + (resale > 0 ? fee.fixed : 0);
+    var net = resale - fees - ship - paid;
+    var good = net > 0;
+    var roi = paid > 0 ? net / paid : null;
+
+    $("tf-mark").innerHTML = good ? "&#10003;" : "&#10005;";
+    $("tf-label").textContent = good ? "Worth flipping" : "Skip it";
+    $("tf-sentence").textContent = good
+      ? "Resell at " + money(resale) + " → " + money(net) + " profit after fees."
+      : "Resell at " + money(resale) + " → " + money(net) + " after fees. Not worth it.";
+
+    $("tf-net").textContent = whole(net);
+    /* Same typographic minus as the money figures — an ASCII hyphen next to
+       "−$6" is visibly inconsistent in a type-led layout. */
+    $("tf-roi").textContent = roi === null
+      ? "—"
+      : (roi < 0 ? "−" : "") + Math.abs(Math.round(roi * 100)) + "%";
+
+    $("tf-r-resale").textContent = money(resale);
+    $("tf-r-fee").textContent = money(fees);
+    $("tf-r-ship").textContent = money(ship);
+    $("tf-r-paid").textContent = money(paid);
+    $("tf-r-net").textContent = whole(net);
+    $("tf-fee-label").innerHTML = "&minus; " + fee.name + " fees";
+    $("tf-note").textContent = fee.pct > 0
+      ? "eBay is charged at 13.25% plus $0.40."
+      : fee.name + " takes no seller fee, so the only cost is what you paid and shipping.";
+
+    /* One class drives every colour change — verdict panel, the big number and
+       the net row all key off it, so they can never disagree. */
+    $("tf-verdict").classList.toggle("is-bad", !good);
+    out.classList.toggle("is-bad", !good);
+  }
+
+  Array.prototype.forEach.call(chips, function (btn) {
+    btn.addEventListener("click", function () {
+      mp = btn.getAttribute("data-mp");
+      Array.prototype.forEach.call(chips, function (b) {
+        b.setAttribute("aria-pressed", String(b === btn));
+      });
+      render();
+    });
+  });
+
+  [paidEl, resaleEl, shipEl].forEach(function (el) {
+    el.addEventListener("input", render);
+  });
+
+  render();
 })();
 </script>
 </body>
