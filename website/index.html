@@ -823,6 +823,192 @@
       .cta-dark h2 { font-size: 30px; }
       .footer-inner { flex-direction: column; align-items: flex-start; }
     }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   MOTION LAYER
+   ═══════════════════════════════════════════════════════════════════════════
+   Principles this follows, so it stays professional rather than busy:
+
+   1. Motion explains, it does not decorate. Things move in the direction they
+      came from, and the phone mockup animates the one moment the product is
+      actually about — a value resolving from nothing into a range.
+   2. Nothing important waits on an animation. Every reveal starts from
+      opacity .001 rather than 0 and completes in under 700ms, so content is
+      never invisible for long and is always present for crawlers and
+      screen readers.
+   3. Only compositor properties. transform and opacity exclusively — no
+      animating width/top/left, which force layout on every frame.
+   4. It all turns off. `prefers-reduced-motion: reduce` disables every
+      animation and transition. The page had no such guard before; a
+      motion-heavy site without one is an accessibility defect, not a polish
+      item.
+   ══════════════════════════════════════════════════════════════════════════ */
+
+@media (prefers-reduced-motion: no-preference) {
+
+  /* ── Scroll reveal ──────────────────────────────────────────────────────
+     Applied by the IntersectionObserver at the end of <body>. The .reveal
+     class is added by script, never in markup, so with JS disabled every
+     element renders at its natural opacity and nothing is hidden. */
+  .reveal {
+    opacity: .001;
+    transform: translate3d(0, 22px, 0);
+    transition: opacity .62s cubic-bezier(.22,.61,.36,1),
+                transform .62s cubic-bezier(.22,.61,.36,1);
+    will-change: opacity, transform;
+  }
+  .reveal.is-in { opacity: 1; transform: none; }
+  .reveal.is-in { will-change: auto; }
+
+  /* Stagger inside grids — children arrive in sequence rather than as a slab. */
+  .stagger > * {
+    opacity: .001;
+    transform: translate3d(0, 18px, 0);
+    transition: opacity .55s cubic-bezier(.22,.61,.36,1),
+                transform .55s cubic-bezier(.22,.61,.36,1);
+  }
+  .stagger.is-in > * { opacity: 1; transform: none; }
+  .stagger.is-in > *:nth-child(1) { transition-delay: .00s }
+  .stagger.is-in > *:nth-child(2) { transition-delay: .07s }
+  .stagger.is-in > *:nth-child(3) { transition-delay: .14s }
+  .stagger.is-in > *:nth-child(4) { transition-delay: .21s }
+  .stagger.is-in > *:nth-child(5) { transition-delay: .28s }
+  .stagger.is-in > *:nth-child(6) { transition-delay: .35s }
+
+  /* ── Hero entrance ──────────────────────────────────────────────────────
+     Runs once on load, top-down, so the eye lands on the headline first. */
+  @keyframes riseIn {
+    from { opacity: .001; transform: translate3d(0, 20px, 0); }
+    to   { opacity: 1;    transform: none; }
+  }
+  .hero-tag,
+  .hero h1,
+  .hero-sub,
+  .hero-actions,
+  .ph-badge {
+    animation: riseIn .72s cubic-bezier(.22,.61,.36,1) both;
+  }
+  .hero-tag     { animation-delay: .05s }
+  .hero h1      { animation-delay: .13s }
+  .hero-sub     { animation-delay: .23s }
+  .hero-actions { animation-delay: .33s }
+  .ph-badge     { animation-delay: .43s }
+
+  /* The live dot on the "Available on iOS" pill. */
+  @keyframes pulseDot {
+    0%, 100% { transform: scale(1);   opacity: 1 }
+    50%      { transform: scale(1.5); opacity: .45 }
+  }
+  .hero-tag-dot { animation: pulseDot 2.4s ease-in-out infinite; }
+
+  /* ── The phone ──────────────────────────────────────────────────────────
+     Arrives later and from further away than the copy, so it reads as the
+     supporting element rather than competing with the headline. */
+  @keyframes phoneIn {
+    from { opacity: .001; transform: translate3d(0, 44px, 0) scale(.965); }
+    to   { opacity: 1;    transform: none; }
+  }
+  .iphone-wrap { animation: phoneIn .95s cubic-bezier(.22,.61,.36,1) .3s both; }
+
+  /* A slow drift so the mockup is not dead on the page. Deliberately small —
+     3px over 7s reads as "alive", more reads as "distracting". */
+  @keyframes float {
+    0%, 100% { transform: translate3d(0, 0, 0) }
+    50%      { transform: translate3d(0, -6px, 0) }
+  }
+  .iphone { animation: float 7s ease-in-out 1.3s infinite; }
+
+  /* ── Inside the screen: the product's actual moment ─────────────────────
+     The result content resolves the way it does in the app — the item, then
+     the price, then the listing — so the mockup demonstrates the flow rather
+     than just showing a static end state. */
+  @keyframes appIn {
+    from { opacity: .001; transform: translate3d(0, 12px, 0) }
+    to   { opacity: 1;    transform: none }
+  }
+  .app-img,
+  .app-name, .app-meta, .app-badge,
+  .app-card { animation: appIn .5s cubic-bezier(.22,.61,.36,1) both; }
+  .app-img               { animation-delay: .95s }
+  .app-name              { animation-delay: 1.08s }
+  .app-meta              { animation-delay: 1.16s }
+  .app-badge             { animation-delay: 1.26s }
+  .app-card:nth-of-type(1){ animation-delay: 1.38s }
+  .app-card:nth-of-type(2){ animation-delay: 1.54s }
+
+  /* The confidence range filling — the single most product-specific beat. */
+  @keyframes barFill { from { transform: scaleX(0) } to { transform: scaleX(1) } }
+  .app-bar-fill {
+    transform-origin: left center;
+    animation: barFill 1.05s cubic-bezier(.22,.61,.36,1) 1.5s both;
+  }
+
+  /* ── Ambient wash behind the hero ───────────────────────────────────────
+     Very slow and very low contrast: it should be felt, not noticed. */
+  @keyframes drift {
+    0%   { transform: translate3d(0,0,0) scale(1) }
+    50%  { transform: translate3d(2%, -1.5%, 0) scale(1.06) }
+    100% { transform: translate3d(0,0,0) scale(1) }
+  }
+  .hero::before { animation: drift 22s ease-in-out infinite; }
+
+  /* ── Micro-interactions ─────────────────────────────────────────────────
+     Short, and on transform only, so they feel instant. */
+  .btn-primary, .btn-ghost, .nav-cta {
+    transition: transform .18s cubic-bezier(.22,.61,.36,1),
+                box-shadow .18s cubic-bezier(.22,.61,.36,1),
+                background-color .18s ease;
+  }
+  .btn-primary:hover, .nav-cta:hover { transform: translateY(-2px); }
+  .btn-primary:active, .nav-cta:active { transform: translateY(0); }
+  .btn-ghost:hover { transform: translateX(3px); }
+
+  .feature, .platform, .ph-badge {
+    transition: transform .22s cubic-bezier(.22,.61,.36,1),
+                box-shadow .22s cubic-bezier(.22,.61,.36,1),
+                border-color .22s ease;
+  }
+  .feature:hover  { transform: translateY(-4px); }
+  .platform:hover { transform: translateY(-2px); }
+  .ph-badge:hover { transform: translateY(-2px); }
+
+  .nav-link { transition: color .18s ease; }
+
+  /* Nav gains a surface once the page scrolls under it. */
+  nav { transition: background-color .28s ease, box-shadow .28s ease,
+                    backdrop-filter .28s ease; }
+}
+
+/* ── Nav scrolled state (no motion dependency) ───────────────────────────── */
+nav.is-scrolled {
+  background: rgba(250, 247, 244, .82);
+  backdrop-filter: saturate(180%) blur(14px);
+  -webkit-backdrop-filter: saturate(180%) blur(14px);
+  box-shadow: 0 1px 0 rgba(28, 20, 16, .07), 0 8px 28px -18px rgba(28, 20, 16, .35);
+}
+
+/* ── Focus visibility ────────────────────────────────────────────────────────
+   Adding hover states without matching focus states leaves keyboard users
+   with less than they had. */
+a:focus-visible, button:focus-visible {
+  outline: 2px solid #D96C47;
+  outline-offset: 3px;
+  border-radius: 6px;
+}
+
+/* ── The opt-out ─────────────────────────────────────────────────────────────
+   Everything above is inside a no-preference query, but transitions declared
+   elsewhere in this file are not, so this is a hard stop for all of it. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: .001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .001ms !important;
+    scroll-behavior: auto !important;
+  }
+  .reveal, .stagger > * { opacity: 1 !important; transform: none !important; }
+}
+
   </style>
 </head>
 <body>
@@ -1098,5 +1284,107 @@
 <!-- Vercel Web Analytics — cookieless, no consent banner required -->
 <script>window.va=window.va||function(){(window.vaq=window.vaq||[]).push(arguments);};</script>
 <script defer src="/_vercel/insights/script.js"></script>
+<script>
+/* Motion controller.
+ *
+ * Deliberately vanilla and inline: the site is static with no build step, and
+ * a 1.5 KB script beats pulling in a library for two behaviours.
+ *
+ * The reveal classes are added HERE rather than in the markup. That ordering
+ * matters: if this script fails, is blocked, or the browser has JS off, no
+ * element ever gets `.reveal`, so nothing is left stuck at opacity 0. The page
+ * degrades to fully visible rather than to blank — the failure mode that makes
+ * scroll-reveal sites unreadable for a subset of visitors.
+ */
+(function () {
+  "use strict";
+
+  var reduced = window.matchMedia &&
+                window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  /* ── Nav surface on scroll ──────────────────────────────────────────────
+     Runs regardless of motion preference: it is a state change, not motion. */
+  var nav = document.querySelector("nav");
+  if (nav) {
+    var onScroll = function () {
+      nav.classList.toggle("is-scrolled", window.scrollY > 8);
+    };
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+  }
+
+  if (reduced || !("IntersectionObserver" in window)) return;
+
+  /* ── Scroll reveal ──────────────────────────────────────────────────────
+     Sections reveal as a block; grids stagger their children. */
+  var singles = document.querySelectorAll(
+    ".features-bg > *, .pricing-bg > *, .cta-dark, .platforms-inner, " +
+    ".section-head, footer .footer-inner"
+  );
+  var groups = document.querySelectorAll(
+    ".features-grid, .platforms-list, .pricing-grid, .steps"
+  );
+
+  Array.prototype.forEach.call(singles, function (el) {
+    el.classList.add("reveal");
+  });
+  Array.prototype.forEach.call(groups, function (el) {
+    el.classList.add("stagger");
+  });
+
+  var io = new IntersectionObserver(function (entries) {
+    entries.forEach(function (entry) {
+      if (!entry.isIntersecting) return;
+      entry.target.classList.add("is-in");
+      io.unobserve(entry.target);   // one-shot; re-animating on every pass is noise
+    });
+  }, {
+    /* Fire slightly before the element is centred, so the motion has finished
+       by the time it is being read.
+
+       The negative bottom margin is small and in pixels, not a percentage.
+       A percentage here is a trap: it pulls the trigger line up by a share of
+       the viewport, and an element sitting at the very bottom of the document
+       can never cross it — the page runs out of scroll first. That left the
+       footer permanently at opacity 0 for anyone who scrolled down. The
+       bottom-of-document sweep below is the belt to this braces. */
+    rootMargin: "0px 0px -60px 0px",
+    threshold: 0.05
+  });
+
+  Array.prototype.forEach.call(singles, function (el) { io.observe(el); });
+  Array.prototype.forEach.call(groups,  function (el) { io.observe(el); });
+
+  /* Safety net: anything still hidden once the reader is near the end of the
+     document gets revealed regardless of intersection maths. No element should
+     ever be able to stay invisible on a page the user has scrolled to the
+     bottom of. */
+  var sweep = function () {
+    if (window.innerHeight + window.scrollY <
+        document.documentElement.scrollHeight - 120) return;
+    Array.prototype.forEach.call(
+      document.querySelectorAll(".reveal:not(.is-in), .stagger:not(.is-in)"),
+      function (el) { el.classList.add("is-in"); io.unobserve(el); }
+    );
+    window.removeEventListener("scroll", sweep);
+  };
+  window.addEventListener("scroll", sweep, { passive: true });
+
+  /* Anything already on screen at load reveals immediately, so the first
+     viewport is never waiting on a scroll that may not come. */
+  requestAnimationFrame(function () {
+    var vh = window.innerHeight;
+    Array.prototype.forEach.call(
+      document.querySelectorAll(".reveal, .stagger"),
+      function (el) {
+        if (el.getBoundingClientRect().top < vh * 0.92) {
+          el.classList.add("is-in");
+          io.unobserve(el);
+        }
+      }
+    );
+  });
+})();
+</script>
 </body>
 </html>
