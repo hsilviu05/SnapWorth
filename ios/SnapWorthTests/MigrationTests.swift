@@ -516,3 +516,122 @@ final class PortfolioTrendTests: XCTestCase {
                       "an upward re-price must read as a gain")
     }
 }
+
+// MARK: - Weekly portfolio digest
+//
+// The return hook. What matters here is less the scheduling than the copy
+// rules: this is the app speaking to someone who is not currently using it, so
+// every sentence has to be true from local data and worth an interruption.
+//
+// Specifically NOT tested, because it is deliberately not built: any claim that
+// an item's value moved. Nothing re-values a saved item — `refreshPortfolioValue`
+// runs only on creation and on a user's own condition edit — so "worth $40 more"
+// would report the user's edit back as market movement.
+
+final class PortfolioDigestTests: XCTestCase {
+
+    private func scan(_ daysAgo: Int, low: Double = 40, high: Double = 60) -> ScanResult {
+        ScanResult(timestamp: Date().addingTimeInterval(TimeInterval(-daysAgo) * 86_400),
+                   itemName: "Item", brand: "B", category: "clothing",
+                   conditionNotes: "Good", valueLow: low, valueHigh: high,
+                   confidence: "High", soldListingsCount: 0,
+                   listingTitle: "T", listingDescription: "D")
+    }
+
+    // ── When it must stay silent ───────────────────────────────────────────
+
+    func test_emptyPortfolioProducesNoNotification() {
+        let digest = NotificationManager.digest(for: [])
+        XCTAssertNil(digest.body,
+                     "an empty portfolio has nothing worth interrupting someone for")
+    }
+
+    // ── Copy correctness ───────────────────────────────────────────────────
+
+    func test_singleItemUsesSingularGrammar() {
+        let body = NotificationManager.digest(for: [scan(30)]).body
+        XCTAssertEqual(body?.contains("1 find is"), true, "got: \(body ?? "nil")")
+        XCTAssertEqual(body?.contains("finds are"), false)
+    }
+
+    func test_multipleItemsUsePluralGrammar() {
+        let body = NotificationManager.digest(for: [scan(30), scan(31)]).body
+        XCTAssertEqual(body?.contains("2 finds are"), true, "got: \(body ?? "nil")")
+    }
+
+    func test_recentAdditionsAreCalledOut() {
+        // Two added in the last week, one older.
+        let body = NotificationManager.digest(for: [scan(1), scan(2), scan(40)]).body
+        XCTAssertEqual(body?.hasPrefix("You added 2 finds this week"), true,
+                       "got: \(body ?? "nil")")
+    }
+
+    func test_oneRecentAdditionIsSingular() {
+        let body = NotificationManager.digest(for: [scan(1), scan(40)]).body
+        XCTAssertEqual(body?.hasPrefix("You added 1 find this week"), true,
+                       "got: \(body ?? "nil")")
+    }
+
+    func test_quietWeekReportsStatusWithoutManufacturingUrgency() {
+        let body = NotificationManager.digest(for: [scan(40), scan(50)]).body
+        XCTAssertEqual(body?.contains("You added"), false,
+                       "nothing was added — do not imply otherwise")
+        XCTAssertEqual(body?.hasPrefix("Your 2 finds are worth"), true,
+                       "got: \(body ?? "nil")")
+    }
+
+    func test_bodyCarriesTheRealTotal() {
+        let items = [scan(10), scan(11)]
+        let expected = HistoryViewModel.money(
+            HistoryViewModel.total(of: items.map(\.portfolioValue)))
+        XCTAssertEqual(NotificationManager.digest(for: items).body?.contains(expected), true,
+                       "the figure in the notification must be the one in the app")
+    }
+
+    func test_itemsExactlyAtTheWeekBoundaryCount() {
+        // Guards an off-by-one that would silently drop the newest scan.
+        let now = Date()
+        let justInside = ScanResult(timestamp: now.addingTimeInterval(-7 * 86_400 + 60),
+                                    itemName: "I", brand: "B", category: "c",
+                                    conditionNotes: "Good", valueLow: 10, valueHigh: 20,
+                                    confidence: "High", soldListingsCount: 0,
+                                    listingTitle: "T", listingDescription: "D")
+        XCTAssertEqual(NotificationManager.digest(for: [justInside], now: now).addedThisWeek, 1)
+    }
+
+    // ── Scheduling ─────────────────────────────────────────────────────────
+
+    func test_nextDigestIsAlwaysInTheFuture() {
+        let now = Date()
+        let next = NotificationManager.nextDigestDate(after: now)
+        XCTAssertNotNil(next)
+        XCTAssertGreaterThan(next!, now)
+    }
+
+    func test_digestFiresOnASundayMorning() throws {
+        var cal = Calendar(identifier: .gregorian)
+        cal.timeZone = TimeZone(identifier: "UTC")!
+        let next = try XCTUnwrap(
+            NotificationManager.nextDigestDate(after: Date(), calendar: cal))
+        let comps = cal.dateComponents([.weekday, .hour], from: next)
+        XCTAssertEqual(comps.weekday, 1, "Sunday")
+        XCTAssertEqual(comps.hour, 11)
+    }
+
+    func test_portfolioSitsBelowTimeCriticalCategoriesInTheCap() {
+        // The daily cap drops the lower priority. A weekly habit nudge must
+        // never displace a trial-ending warning.
+        XCTAssertLessThan(NotificationManager.Category.portfolio.priority,
+                          NotificationManager.Category.trial.priority)
+        XCTAssertLessThan(NotificationManager.Category.portfolio.priority,
+                          NotificationManager.Category.ledger.priority)
+        XCTAssertGreaterThan(NotificationManager.Category.portfolio.priority,
+                             NotificationManager.Category.recap.priority)
+    }
+
+    func test_portfolioIsIndependentlyToggleable() {
+        XCTAssertNotEqual(NotificationManager.Category.portfolio.toggleKey,
+                          NotificationManager.Category.recap.toggleKey)
+        XCTAssertTrue(NotificationManager.Category.allCases.contains(.portfolio))
+    }
+}
