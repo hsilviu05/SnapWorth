@@ -40,6 +40,28 @@ final class ScanResult {
     /// from `conditionNotes`, so the estimate they show is unchanged.
     var conditionRaw: String?
 
+    // ── Portfolio (1.2.2) ──────────────────────────────────────────────────────
+    // Both optional, both additive: no renames and no non-optional field without
+    // a default, so this stays inside SwiftData's automatic lightweight
+    // migration class. `MigrationTests` covers a 1.1.x store; the same shape
+    // rules apply here.
+
+    /// The condition-adjusted "likely" value at the time this row was last
+    /// priced, denormalised so the portfolio total can be aggregated without
+    /// materialising every object and its externalStorage image.
+    ///
+    /// Nil on every row written before 1.2.2, and nil is *not* zero: the reader
+    /// falls back to computing from `valueLow`/`valueHigh`, so an old library
+    /// prices correctly with no backfill pass and no migration write.
+    var portfolioValueRaw: Double?
+
+    /// Append-only `[(date, value)]` history, JSON-encoded.
+    ///
+    /// Stored as Data rather than a related @Model: it is only ever read as a
+    /// whole for one item's sparkline, never queried across rows, and a second
+    /// entity would add a relationship to migrate for no query benefit.
+    var valueHistoryData: Data?
+
     init(
         id: UUID = UUID(),
         timestamp: Date = Date(),
@@ -61,7 +83,9 @@ final class ScanResult {
         soldDate: Date? = nil,
         feesEstimate: Double? = nil,
         notes: String? = nil,
-        conditionRaw: String? = nil
+        conditionRaw: String? = nil,
+        portfolioValueRaw: Double? = nil,
+        valueHistoryData: Data? = nil
     ) {
         self.id = id
         self.timestamp = timestamp
@@ -84,6 +108,8 @@ final class ScanResult {
         self.feesEstimate = feesEstimate
         self.notes = notes
         self.conditionRaw = conditionRaw
+        self.portfolioValueRaw = portfolioValueRaw
+        self.valueHistoryData = valueHistoryData
     }
 
     // ── Condition & re-pricing ─────────────────────────────────────────────────
@@ -120,6 +146,70 @@ final class ScanResult {
         let lo = fmt.string(from: NSDecimalNumber(decimal: range.low)) ?? "$\(Int(displayValueLow))"
         let hi = fmt.string(from: NSDecimalNumber(decimal: range.high)) ?? "$\(Int(displayValueHigh))"
         return "\(lo)–\(hi)"
+    }
+
+    // ── Portfolio value ────────────────────────────────────────────────────────
+
+    /// One dated point in an item's value history.
+    struct ValueSnapshot: Codable, Equatable {
+        let date: Date
+        let value: Double
+    }
+
+    /// The condition-adjusted "likely" value, in Decimal.
+    ///
+    /// Reads the denormalised column when present and falls back to computing
+    /// it otherwise. The fallback is what makes the migration free: rows
+    /// written before 1.2.2 have no stored value, and rather than rewriting the
+    /// whole store on first launch — a slow, failure-prone operation on exactly
+    /// the users with the most to lose — they simply price the way they always
+    /// did until something touches them.
+    var portfolioValue: Decimal {
+        if let raw = portfolioValueRaw, raw.isFinite {
+            return Decimal(raw)
+        }
+        return priceRange(for: condition).likely
+    }
+
+    /// Recomputes and stores the denormalised value, and appends a snapshot when
+    /// the value actually moved.
+    ///
+    /// Append-only and deduplicated: re-pricing to the same number does not
+    /// grow the history, so opening an item repeatedly cannot inflate it. The
+    /// series is capped — an item edited hundreds of times still costs a
+    /// bounded amount of storage, and a sparkline cannot usefully render more.
+    func refreshPortfolioValue(on date: Date = Date(), limit: Int = 60) {
+        let likely = priceRange(for: condition).likely
+        let asDouble = NSDecimalNumber(decimal: likely).doubleValue
+        guard asDouble.isFinite else { return }
+
+        var history = valueHistory
+        // Compare rounded to the cent: Decimal→Double round-trips can differ in
+        // the last bit, and a snapshot per open would be noise, not history.
+        let changed = history.last.map { abs($0.value - asDouble) >= 0.005 } ?? true
+        if changed {
+            history.append(ValueSnapshot(date: date, value: asDouble))
+            if history.count > limit { history.removeFirst(history.count - limit) }
+            valueHistoryData = try? JSONEncoder().encode(history)
+        }
+        portfolioValueRaw = asDouble
+    }
+
+    /// Decoded value history, oldest first. Never throws: a corrupt or
+    /// truncated blob reads as "no history" rather than taking down the view.
+    var valueHistory: [ValueSnapshot] {
+        guard let data = valueHistoryData,
+              let decoded = try? JSONDecoder().decode([ValueSnapshot].self, from: data)
+        else { return [] }
+        return decoded
+    }
+
+    /// Change since the item first entered the portfolio, or nil when there is
+    /// not yet a second point to compare against.
+    var valueChangeSinceAdded: Decimal? {
+        let history = valueHistory
+        guard let first = history.first, history.count >= 2 else { return nil }
+        return portfolioValue - Decimal(first.value)
     }
 
     var midpointValue: Double {
