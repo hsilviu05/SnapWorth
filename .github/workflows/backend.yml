@@ -196,4 +196,21 @@ jobs:
             echo "::warning::RAILWAY_TOKEN secret not set — skipping deploy. Add it in GitHub repo Settings → Secrets."
             exit 0
           fi
+          # Record the commit being deployed so /health can report which build
+          # is live. `railway up` uploads this directory and Railway builds the
+          # Dockerfile there, so a file written here rides along via `COPY . .`
+          # with nothing to configure in a dashboard.
+          #
+          # This exists because RAILWAY_GIT_COMMIT_SHA — which the app also
+          # reads — is only set by Railway's GitHub integration, never by
+          # `railway up`. Without this step /health reports commit "unknown",
+          # which is exactly what it did in production while the feature was
+          # believed to be working.
+          # Written into backend/, not the repo root: main.py looks for it
+          # alongside itself, and the Docker build context is backend/, so this
+          # is the path that survives `COPY . .`. The deploy job has no
+          # working-directory default, unlike the other jobs in this workflow.
+          echo "${GITHUB_SHA}" > backend/BUILD_COMMIT
+          echo "deploying commit ${GITHUB_SHA}"
+
           railway up --service snapworth-backend --detach
