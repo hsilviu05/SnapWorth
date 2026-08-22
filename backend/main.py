@@ -18,6 +18,7 @@ import re
 import time
 
 from collections.abc import Mapping
+from pathlib import Path
 
 import google.generativeai as genai
 from dotenv import load_dotenv
@@ -78,11 +79,27 @@ log = logging.getLogger("snapworth")
 # imply an App Store release, and vice versa — so tying them would make both
 # numbers lie.
 #
-# COMMIT resolution order, chosen so nothing has to be configured by hand:
-# an explicit GIT_COMMIT (what the Dockerfile or a CI build would inject),
-# otherwise RAILWAY_GIT_COMMIT_SHA, which Railway injects into every deployment
-# automatically. Truncated to 12 characters: enough to identify a commit
-# unambiguously, short enough to read out loud.
+# COMMIT resolution order:
+#   1. GIT_COMMIT              — explicit override, for local or bespoke builds
+#   2. RAILWAY_GIT_COMMIT_SHA  — set by Railway's GitHub integration
+#   3. the BUILD_COMMIT file   — written by CI immediately before `railway up`
+#
+# Step 3 exists because steps 1 and 2 both failed in practice. The original
+# version of this claimed Railway "injects RAILWAY_GIT_COMMIT_SHA into every
+# deployment automatically", and that is only true for Railway's GitHub
+# integration. This project deploys with `railway up` from GitHub Actions, where
+# that variable is never set — so /health reported commit "unknown" in
+# production for the entire time this feature was supposedly working.
+#
+# A file rather than another environment variable because `railway up` uploads
+# the source directory and Railway builds the Dockerfile there: a file written
+# at deploy time rides along through `COPY . .` with nothing to configure in a
+# dashboard, and cannot drift out of sync the way a manually-set variable does.
+# `.git` is excluded by .dockerignore, so reading the SHA inside the image is
+# not an option.
+#
+# Truncated to 12 characters: enough to identify a commit unambiguously, short
+# enough to read out loud.
 # Resolved as pure functions over an env mapping rather than inline off
 # os.environ, so the precedence rules above can be tested directly. Testing them
 # through module state would mean reloading this module, which rebuilds `app`
@@ -94,10 +111,29 @@ def resolve_api_version(env: Mapping[str, str]) -> str:
     return env.get("RELEASE_VERSION", "").strip() or DEFAULT_API_VERSION
 
 
-def resolve_git_commit(env: Mapping[str, str]) -> str:
+BUILD_COMMIT_FILE = Path(__file__).resolve().parent / "BUILD_COMMIT"
+
+
+def read_build_commit_file(path: Path = BUILD_COMMIT_FILE) -> str:
+    """Read the SHA CI wrote next to this module, if it is there.
+
+    Deliberately forgiving: a missing or unreadable file means "no commit
+    recorded", never a failed boot. Reporting build identity must not be able to
+    take the service down.
+    """
+    try:
+        return path.read_text(encoding="utf-8").strip()
+    except OSError:
+        return ""
+
+
+def resolve_git_commit(
+    env: Mapping[str, str], build_file_sha: str | None = None
+) -> str:
     sha = (
         env.get("GIT_COMMIT", "").strip()
         or env.get("RAILWAY_GIT_COMMIT_SHA", "").strip()
+        or (read_build_commit_file() if build_file_sha is None else build_file_sha.strip())
     )
     # "unknown" rather than "" when unset: a blank field reads as a rendering
     # bug at exactly the moment someone is trying to trust this endpoint.

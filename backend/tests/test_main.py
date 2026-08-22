@@ -151,19 +151,53 @@ class TestBuildIdentity:
         assert main.resolve_git_commit(env) == "111111111111"
 
     def test_falls_back_to_railway_injected_sha(self):
-        """Railway sets RAILWAY_GIT_COMMIT_SHA on every deployment, so the
-        commit is reported with nothing configured by hand."""
+        """Only Railway's GitHub integration sets this — never `railway up`,
+        which is how this project deploys. Kept because the variable is still
+        the right second choice if the deploy method ever changes."""
         assert main.resolve_git_commit(
             {"RAILWAY_GIT_COMMIT_SHA": "abcdef0123456789deadbeef"}) == "abcdef012345"
 
     def test_truncated_to_twelve_characters(self):
         assert len(main.resolve_git_commit({"GIT_COMMIT": "a" * 40})) == 12
 
+    def test_build_commit_file_used_when_env_is_empty(self):
+        """The path that actually matters in production.
+
+        Both env vars are empty under `railway up`: GIT_COMMIT is not set, and
+        RAILWAY_GIT_COMMIT_SHA is only populated by Railway's GitHub
+        integration. Before the file fallback existed, /health therefore
+        reported commit "unknown" in production for the entire time this
+        feature was believed to be working.
+        """
+        assert main.resolve_git_commit({}, "abcdef0123456789") == "abcdef012345"
+
+    def test_env_takes_precedence_over_the_file(self):
+        assert main.resolve_git_commit(
+            {"GIT_COMMIT": "1" * 40}, "abcdef0123456789") == "1" * 12
+
+    def test_blank_build_commit_file_is_not_a_commit(self):
+        """A file that exists but is empty — a truncated write, or a CI step
+        that ran but produced nothing — must read as unknown, not as ""."""
+        assert main.resolve_git_commit({}, "   \n") == "unknown"
+
+    def test_missing_build_commit_file_is_not_fatal(self, tmp_path):
+        """Reporting build identity must never be able to stop the service."""
+        assert main.read_build_commit_file(tmp_path / "absent") == ""
+
+    def test_build_commit_file_is_read_and_stripped(self, tmp_path):
+        f = tmp_path / "BUILD_COMMIT"
+        f.write_text("  deadbeefcafe0123  \n", encoding="utf-8")
+        assert main.read_build_commit_file(f) == "deadbeefcafe0123"
+
     def test_unknown_rather_than_blank_when_unset(self):
         """Never an empty string — blank reads as a rendering bug at exactly the
         moment someone is trying to trust this endpoint."""
-        assert main.resolve_git_commit({}) == "unknown"
-        assert main.resolve_git_commit({"GIT_COMMIT": "", "RAILWAY_GIT_COMMIT_SHA": ""}) == "unknown"
+        # Empty string for the file, not None: None would read the real
+        # filesystem, so this test would break on any machine that had run a
+        # deploy and left a BUILD_COMMIT behind.
+        assert main.resolve_git_commit({}, "") == "unknown"
+        assert main.resolve_git_commit(
+            {"GIT_COMMIT": "", "RAILWAY_GIT_COMMIT_SHA": ""}, "") == "unknown"
 
 
 # ── GET /privacy and /terms ───────────────────────────────────────────────────
