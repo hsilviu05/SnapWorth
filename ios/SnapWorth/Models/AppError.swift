@@ -9,6 +9,9 @@ enum AppError: LocalizedError, Equatable {
     /// A Pro-only endpoint refused a free-tier caller.
     case proRequired(String)
     case serverUnavailable
+    /// The device's credential expired or attestation failed. Recoverable by
+    /// retrying — the client re-attests automatically on the next request.
+    case sessionExpired
     case imageEncodingFailed
     case purchaseCancelled
     case purchaseFailed(String)
@@ -27,6 +30,12 @@ enum AppError: LocalizedError, Equatable {
             return msg
         case .serverUnavailable:
             return "Our AI is temporarily unavailable. Please try again in a moment."
+        case .sessionExpired:
+            // 401 previously fell through to .unknown -> "Something went wrong",
+            // which tells the user nothing and offers no way forward. A device
+            // credential expires or attestation fails for ordinary reasons, and
+            // it recovers on retry, so say that.
+            return "Your session expired. Pull to retry — it should reconnect automatically."
         case .imageEncodingFailed:
             return "Could not process the photo. Please try a different image."
         case .purchaseCancelled:
@@ -57,6 +66,7 @@ enum AppError: LocalizedError, Equatable {
                 case 402:        return detail.lowercased().contains("pro feature")
                                      ? .proRequired(detail)
                                      : .quotaExceeded(detail)
+                case 401:        return .sessionExpired
                 case 502, 503:   return .serverUnavailable
                 default:         return .unknown(detail)
                 }
