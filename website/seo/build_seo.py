@@ -21,7 +21,7 @@ YEAR = datetime.date.today().year
 
 # ── Item dataset ─────────────────────────────────────────────────────────────
 # Ranges are typical US secondhand resale values, framed as guidance. The app is
-# the tool for an exact, photo-based valuation (that's the CTA).
+# the tool for a photo-based estimate of their own item (that's the CTA).
 ITEMS = [
     dict(slug="patagonia-better-sweater", name="Patagonia Better Sweater", cat="Clothing",
          low=40, high=85,
@@ -231,15 +231,24 @@ def footer():
             '</div></footer>')
 
 def cta(name):
-    return (f'<div class="cta"><h3>Know your exact value in seconds</h3>'
-            f'<p>Typical ranges only go so far. Snap a photo of your {html.escape(name)} and SnapWorth\'s AI estimates a value tuned to your exact item and condition.</p>'
+    # Wording is deliberately a *range*, not an "exact value".
+    #
+    # This previously read "Know your exact value in seconds". The app does not
+    # produce an exact value and never claims to: it returns a price range with
+    # a confidence score, and support.html states plainly that estimates are "a
+    # useful reference range, not a guaranteed sale price". The old headline
+    # contradicted our own support page and promised more than the product
+    # delivers — the same class of unsupported claim the App Store screenshot
+    # review removed ("real sold listings").
+    return (f'<div class="cta"><h3>Check your own item in seconds</h3>'
+            f'<p>Typical ranges only go so far. Snap a photo of your {html.escape(name)} and SnapWorth\'s AI estimates a resale range for your item and its condition, with a confidence score.</p>'
             f'<a href="{APP_STORE}">Download SnapWorth — free</a></div>')
 
 def page_html(item, related):
     name = item["name"]; e = html.escape
     title = (f"How Much Are {base(name)} Worth to Resell? ({YEAR} Resale Value)" if is_plural(item)
              else f"How Much Is a {base(name)} Worth to Resell? ({YEAR} Resale Value)")
-    desc = f"{name} resale value is typically ${item['low']}–${item['high']} depending on condition. See what affects the price, where to sell, and how to check your exact item."
+    desc = f"{name} resale value is typically ${item['low']}–${item['high']} depending on condition. See what affects the price, where to sell, and how to check your own item."
     url = f"{SITE}/worth/{item['slug']}"
 
     rows = "".join(f"<tr><td>{e(c)}</td><td class='val'>{e(v)}</td></tr>" for c, v in item["conditions"])
@@ -269,6 +278,11 @@ def page_html(item, related):
 <link rel="canonical" href="{url}">
 <meta property="og:type" content="article"><meta property="og:title" content="{e(title)}">
 <meta property="og:description" content="{e(desc)}"><meta property="og:url" content="{url}">
+<meta property="og:image" content="{SITE}/og-image.png">
+<meta property="og:image:width" content="1200"><meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="{e(title)}"><meta name="twitter:description" content="{e(desc)}">
+<meta name="twitter:image" content="{SITE}/og-image.png">
 <link rel="icon" href="/favicon-32.png" sizes="32x32">
 <style>{STYLE}</style>
 <script type="application/ld+json">{faq_json}</script>
@@ -319,13 +333,20 @@ def hub_html():
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>{e(title)}</title><meta name="description" content="{e(desc)}">
 <link rel="canonical" href="{SITE}/worth">
+<meta property="og:type" content="website"><meta property="og:title" content="{e(title)}">
+<meta property="og:description" content="{e(desc)}"><meta property="og:url" content="{SITE}/worth">
+<meta property="og:image" content="{SITE}/og-image.png">
+<meta property="og:image:width" content="1200"><meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="{e(title)}"><meta name="twitter:description" content="{e(desc)}">
+<meta name="twitter:image" content="{SITE}/og-image.png">
 <link rel="icon" href="/favicon-32.png" sizes="32x32">
 <style>{STYLE}</style></head><body>
 {header()}
 <main><div class="wrap">
 <div class="crumbs"><a href="/">Home</a> › Resale Values</div>
 <h1>What are your thrift finds worth?</h1>
-<p class="lede">Typical secondhand resale values for popular items, plus what drives the price and where to sell. Want an exact number for your item? Snap a photo with SnapWorth.</p>
+<p class="lede">Typical secondhand resale values for popular items, plus what drives the price and where to sell. Want a range for your own item and its condition? Snap a photo with SnapWorth.</p>
 {blocks}
 {cta('thrift find')}
 </div></main>
