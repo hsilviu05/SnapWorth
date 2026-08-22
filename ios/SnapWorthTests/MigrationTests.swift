@@ -517,6 +517,92 @@ final class PortfolioTrendTests: XCTestCase {
     }
 }
 
+// MARK: - Portfolio insights
+//
+// The header line is the only thing on My Finds that changes between visits
+// without a new scan, so its rules matter: it must be true, actionable, and
+// silent when there is nothing to say.
+
+final class PortfolioInsightsTests: XCTestCase {
+
+    private func item(_ status: FlipStatus, daysAgo: Int = 1,
+                      paid: Double? = nil, sold: Double? = nil,
+                      fees: Double? = nil) -> ScanResult {
+        let r = ScanResult(timestamp: Date().addingTimeInterval(TimeInterval(-daysAgo) * 86_400),
+                           itemName: "I", brand: "B", category: "c",
+                           conditionNotes: "Good", valueLow: 40, valueHigh: 60,
+                           confidence: "High", soldListingsCount: 0,
+                           listingTitle: "T", listingDescription: "D",
+                           paidPrice: paid, soldPrice: sold, feesEstimate: fees)
+        r.status = status
+        return r
+    }
+
+    func test_emptyPortfolioSaysNothing() {
+        XCTAssertNil(HistoryViewModel.insightLine(HistoryViewModel.insights(for: [])))
+    }
+
+    func test_unlistedFindsAreCountedAndLeadTheLine() {
+        let i = HistoryViewModel.insights(for: [item(.scanned), item(.scanned), item(.sold)])
+        XCTAssertEqual(i.unlisted, 2)
+        XCTAssertEqual(HistoryViewModel.insightLine(i), "2 finds you haven't listed yet")
+    }
+
+    func test_singleUnlistedUsesSingular() {
+        let i = HistoryViewModel.insights(for: [item(.scanned)])
+        XCTAssertEqual(HistoryViewModel.insightLine(i), "1 find you haven't listed yet")
+    }
+
+    func test_soldItemsCountTowardRealisedNotUnrealised() {
+        // Sold: paid 20, sold 100, fees 10 -> realised 70. It must not also be
+        // counted as value still held.
+        let i = HistoryViewModel.insights(for: [item(.sold, paid: 20, sold: 100, fees: 10)])
+        XCTAssertEqual(i.realized, 70)
+        XCTAssertEqual(i.unrealized, 0, "a sold item is no longer held")
+    }
+
+    func test_saleWithNoCostBasisContributesNothingRatherThanGuessing() {
+        // realizedProfit is nil without a paid price. Treating that as zero is
+        // right; inventing a cost basis would not be.
+        let i = HistoryViewModel.insights(for: [item(.sold, sold: 100)])
+        XCTAssertEqual(i.realized, 0)
+    }
+
+    func test_heldItemsCountTowardUnrealised() {
+        let i = HistoryViewModel.insights(for: [item(.owned), item(.listed)])
+        XCTAssertGreaterThan(i.unrealized, 0)
+        XCTAssertEqual(i.realized, 0)
+    }
+
+    func test_realisedLineAppearsOnceNothingIsUnlisted() {
+        let i = HistoryViewModel.insights(for: [
+            item(.sold, paid: 20, sold: 100, fees: 10),
+            item(.owned)
+        ])
+        let line = HistoryViewModel.insightLine(i)
+        XCTAssertEqual(line?.contains("realised"), true, "got: \(line ?? "nil")")
+        XCTAssertEqual(line?.contains("still held"), true)
+    }
+
+    func test_oldestHoldIgnoresSoldItems() {
+        // A thing sold a year ago is not "held for 365 days".
+        let i = HistoryViewModel.insights(for: [
+            item(.sold, daysAgo: 365, paid: 10, sold: 20),
+            item(.owned, daysAgo: 5)
+        ])
+        XCTAssertEqual(i.oldestHoldDays, 5)
+    }
+
+    func test_ageLineOnlyAppearsAfterAMeaningfulHold() {
+        let recent = HistoryViewModel.insights(for: [item(.owned, daysAgo: 3)])
+        XCTAssertNil(HistoryViewModel.insightLine(recent),
+                     "three days is not worth remarking on")
+
+        let old = HistoryViewModel.insights(for: [item(.owned, daysAgo: 45)])
+        XCTAssertEqual(HistoryViewModel.insightLine(old), "Held for 45 days")
+    }
+}
+
 // MARK: - Weekly portfolio digest
 //
 // The return hook. What matters here is less the scheduling than the copy

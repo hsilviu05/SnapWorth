@@ -104,7 +104,18 @@ log = logging.getLogger("snapworth")
 # os.environ, so the precedence rules above can be tested directly. Testing them
 # through module state would mean reloading this module, which rebuilds `app`
 # and invalidates every TestClient already bound to the old one.
-DEFAULT_API_VERSION = "1.2.0"
+# Deliberately not a semantic version any more.
+#
+# This was hardcoded "1.2.0" — a constant nothing moved, which by coincidence
+# matched an old iOS release and so read as if the two were linked. They are
+# not: the backend has no independent release cadence, and the commit is the
+# authoritative identity of what is deployed.
+#
+# It stays in the payload because dropping a field from a public health
+# endpoint breaks anything parsing it, and it remains settable per deploy via
+# RELEASE_VERSION for anyone who wants a human label. Unset, it now says so
+# rather than asserting a version that means nothing.
+DEFAULT_API_VERSION = "unversioned"
 
 
 def resolve_api_version(env: Mapping[str, str]) -> str:

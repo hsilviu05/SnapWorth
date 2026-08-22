@@ -57,6 +57,8 @@ struct HistoryView: View {
                             PortfolioBanner(
                                 totalValue: vm.totalValue(from: results),
                                 count: results.count,
+                                insightLine: HistoryViewModel.insightLine(
+                                    vm.insights(from: results)),
                                 trend: vm.trendPoints(from: results),
                                 // Same entitlement every other gated feature
                                 // reads — StoreKit-verified, refreshed on
@@ -308,6 +310,7 @@ private struct RecapBanner: View {
 private struct PortfolioBanner: View {
     let totalValue: String
     let count: Int
+    var insightLine: String? = nil
     var trend: [HistoryViewModel.TrendPoint] = []
     var isPro: Bool = true
     var onUnlock: () -> Void = {}
@@ -325,6 +328,15 @@ private struct PortfolioBanner: View {
             Text("\(count) item\(count == 1 ? "" : "s") scanned")
                 .font(.snapCaption)
                 .foregroundStyle(Color.snapSage.opacity(0.7))
+
+            // At most one line, and only when there is something to act on —
+            // see HistoryViewModel.insightLine.
+            if let insightLine {
+                Text(insightLine)
+                    .font(.snapCaption.weight(.medium))
+                    .foregroundStyle(Color.snapTerracotta)
+                    .padding(.top, 2)
+            }
 
             // Extracted: inlining this pushed the banner past what the
             // SwiftUI type-checker will infer in reasonable time.

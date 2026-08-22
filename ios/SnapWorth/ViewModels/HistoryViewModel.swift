@@ -61,6 +61,77 @@ final class HistoryViewModel {
         NumberFormatter.snapCurrency.string(from: NSDecimalNumber(decimal: value)) ?? "$0"
     }
 
+    // ── Portfolio insights ─────────────────────────────────────────────────────
+
+    /// What the portfolio header can say that is both true and actionable.
+    ///
+    /// The total alone is passive — it only moves when you scan, so between
+    /// visits there is nothing new to see. These three are derived from data
+    /// already on the device and change as items move through the ledger, which
+    /// is what makes the screen worth reopening.
+    struct Insights: Equatable {
+        /// Scanned but never marked owned/listed/sold — the pile you meant to
+        /// do something with.
+        let unlisted: Int
+        /// Profit actually banked on sold items.
+        let realized: Decimal
+        /// Estimated value still sitting in things you hold.
+        let unrealized: Decimal
+        /// Longest hold among items not yet sold, in days.
+        let oldestHoldDays: Int?
+    }
+
+    nonisolated static func insights(for results: [ScanResult],
+                                     now: Date = Date()) -> Insights {
+        var unlisted = 0
+        var realized = Decimal.zero
+        var unrealized = Decimal.zero
+        var oldest: Int?
+
+        for item in results {
+            switch item.status {
+            case .sold:
+                // Nil when the buy price was never recorded — a sale with no
+                // cost basis has no knowable profit, and counting it as zero
+                // would quietly understate the real figure.
+                realized += item.realizedProfit ?? 0
+            case .scanned:
+                unlisted += 1
+                unrealized += item.portfolioValue
+            case .owned, .listed:
+                unrealized += item.portfolioValue
+            }
+
+            if item.status != .sold {
+                let days = Calendar.current.dateComponents(
+                    [.day], from: item.timestamp, to: now).day ?? 0
+                if days > (oldest ?? -1) { oldest = days }
+            }
+        }
+        return Insights(unlisted: unlisted, realized: realized,
+                        unrealized: unrealized, oldestHoldDays: oldest)
+    }
+
+    func insights(from results: [ScanResult]) -> Insights {
+        Self.insights(for: results)
+    }
+
+    /// One short line for the portfolio header, or nil when there is nothing
+    /// worth saying. Deliberately at most one: a header that lists four
+    /// statistics is a report, not a prompt.
+    nonisolated static func insightLine(_ i: Insights) -> String? {
+        if i.unlisted > 0 {
+            return "\(i.unlisted) find\(i.unlisted == 1 ? "" : "s") you haven't listed yet"
+        }
+        if i.realized > 0 {
+            return "\(money(i.realized)) realised · \(money(i.unrealized)) still held"
+        }
+        if let days = i.oldestHoldDays, days >= 30 {
+            return "Held for \(days) days"
+        }
+        return nil
+    }
+
     // ── Portfolio trend (Pro) ──────────────────────────────────────────────────
 
     /// One point on the portfolio trend line.
