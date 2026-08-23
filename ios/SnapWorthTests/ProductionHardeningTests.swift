@@ -1039,3 +1039,50 @@ final class StoreProtectionTests: XCTestCase {
     }
 }
 
+
+// MARK: - 422 routing
+//
+// The backend returns 422 when it looked at the photo and could not use it —
+// a safety block, or an image it cannot read. That reply carries copy telling
+// the user what to change ("try a clear photo of a single item").
+//
+// Two bugs met here. Server-side, safety blocks were never detected at all,
+// because the finish-reason helper could not read the SDK's proto container,
+// so blocks surfaced as 502 "AI unavailable". Client-side, 422 fell through to
+// `.unknown` and printed "Something went wrong" — so even once the server said
+// the right thing, the user was told nothing and retried the same photo.
+
+final class UnusablePhotoMappingTests: XCTestCase {
+    private let blocked = "This photo couldn't be analysed. Try a clear photo of a single item."
+
+    func test_422_surfacesTheServerExplanation() {
+        let mapped = AppError.from(ScanAPIError.serverError(422, blocked))
+        XCTAssertEqual(mapped, .unusablePhoto(blocked))
+        XCTAssertEqual(mapped.errorDescription, blocked)
+    }
+
+    func test_422_doesNotSaySomethingWentWrong() {
+        // The regression this exists to prevent.
+        let message = AppError.from(ScanAPIError.serverError(422, blocked)).errorDescription ?? ""
+        XCTAssertFalse(message.contains("Something went wrong"))
+    }
+
+    func test_422_isNotTreatedAsAnOutage() {
+        // A blocked photo is actionable by the user; "our AI is unavailable" is
+        // neither true nor actionable, and invites an identical retry.
+        let mapped = AppError.from(ScanAPIError.serverError(422, blocked))
+        XCTAssertNotEqual(mapped, .serverUnavailable)
+    }
+
+    func test_differentExplanationsAreNotEqual() {
+        // Compared by message, so a changed reason re-presents the alert.
+        let a = AppError.from(ScanAPIError.serverError(422, blocked))
+        let b = AppError.from(ScanAPIError.serverError(422, "Could not read this image."))
+        XCTAssertNotEqual(a, b)
+    }
+
+    func test_502_stillReadsAsAnOutage() {
+        // The neighbouring case must keep its behaviour.
+        XCTAssertEqual(AppError.from(ScanAPIError.serverError(502, "x")), .serverUnavailable)
+    }
+}
