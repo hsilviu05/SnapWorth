@@ -1,6 +1,6 @@
 # What's New — SnapWorth 1.2.1
 
-**Version:** 1.2.1 (build 6) · **Previous release:** 1.2.0 · **Status:** unreleased
+**Version:** 1.2.1 (build 6) · **Previous release:** 1.2.0 · **Status:** released — approved by App Store review; train closed to new builds
 
 Scope verified against `git log` for `ios/` since 1.2.0. This release contains
 **exactly one** change set — `bfa42be`, the observability hotfix — and it touches
