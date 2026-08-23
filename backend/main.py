@@ -669,7 +669,15 @@ async def health() -> dict:
         "commit": GIT_COMMIT,
         "ai_key_set": bool(_api_key),
         "auth_enforcing": auth.deps.config.enforce,
+        # Whether the model actually answers, which `ai_key_set` never told
+        # anyone. Reported as degraded rather than 503: /scan and /listing are
+        # down either way, but draining every replica would also take out the
+        # endpoints that still work and replace a readable error with a
+        # connection failure.
+        "model": _model_health.snapshot(),
     }
+    if not payload["model"]["healthy"]:
+        payload["status"] = "degraded"
     if _cache is not None:
         cache_health = await _cache.health()
         payload["cache"] = cache_health
@@ -1063,9 +1071,100 @@ _NON_RETRYABLE = (
 )
 
 
+# A *hard* quota/billing stop, as distinct from an ordinary rate-limit 429.
+# Both arrive as RESOURCE_EXHAUSTED and both look like "429" in the message,
+# but they need opposite handling: a per-minute rate limit clears on its own
+# and is worth retrying, while depleted prepaid credits fail identically until
+# somebody tops the account up. Retrying that doubles the billed-but-failed
+# calls and adds a backoff sleep to a request that cannot succeed.
+#
+# Matched on the billing wording specifically, NOT on "quota" or "429" — those
+# would also swallow the retryable rate-limit case, which is the common one.
+_QUOTA_EXHAUSTED = (
+    "prepayment credits",
+    "credits are depleted",
+    "exceeded your current quota",
+    "insufficient_quota",
+    "billing account",
+)
+
+
+def _is_quota_exhausted(exc: Exception) -> bool:
+    text = str(exc).lower()
+    return any(marker in text for marker in _QUOTA_EXHAUSTED)
+
+
 def _is_retryable(exc: Exception) -> bool:
+    # Checked before _NON_RETRYABLE: a credits-depleted error carries none of
+    # those markers, so without this it falls through to "retryable".
+    if _is_quota_exhausted(exc):
+        return False
     text = str(exc).lower()
     return not any(marker in text for marker in _NON_RETRYABLE)
+
+
+# How many consecutive terminal model failures before /health calls itself
+# degraded. Two is enough to distinguish "one user sent a weird photo" from
+# "the provider is refusing everything"; a quota stop reports degraded on the
+# first failure, because that one will not self-heal.
+_MODEL_UNHEALTHY_AFTER = int(os.environ.get("MODEL_UNHEALTHY_AFTER", "2"))
+
+
+class _ModelHealth:
+    """Last-known state of the AI provider, derived from real traffic.
+
+    This exists because /health answered `{"status": "ok", "ai_key_set": true}`
+    for the entire duration of an outage in which *every* scan failed: the
+    account's prepaid credits were gone, and the only thing that noticed was a
+    user watching "Scan Failed" on their phone. "A key is configured" and "the
+    model answers" are different claims, and only the first was ever checked.
+
+    It records the outcome of calls that were going to happen anyway rather
+    than firing a synthetic probe, so it adds no cost, no latency, and cannot
+    itself be rate-limited into a false alarm.
+    """
+
+    __slots__ = ("consecutive_failures", "last_failure_kind", "last_ok_at", "last_failure_at")
+
+    def __init__(self) -> None:
+        self.consecutive_failures = 0
+        self.last_failure_kind: str | None = None
+        self.last_ok_at: float | None = None
+        self.last_failure_at: float | None = None
+
+    def record_success(self) -> None:
+        self.consecutive_failures = 0
+        self.last_failure_kind = None
+        self.last_ok_at = time.time()
+
+    def record_failure(self, kind: str) -> None:
+        self.consecutive_failures += 1
+        self.last_failure_kind = kind
+        self.last_failure_at = time.time()
+
+    @property
+    def healthy(self) -> bool:
+        # A quota stop is terminal by definition — no point waiting for a
+        # second sample to agree with the first.
+        if self.last_failure_kind == "quota_exhausted":
+            return False
+        return self.consecutive_failures < _MODEL_UNHEALTHY_AFTER
+
+    def snapshot(self) -> dict:
+        return {
+            "healthy": self.healthy,
+            "consecutive_failures": self.consecutive_failures,
+            # A classified kind, never the provider's raw message: /health is
+            # unauthenticated, and upstream errors quote account and project
+            # identifiers back at you.
+            "last_failure_kind": self.last_failure_kind,
+            "seconds_since_ok": (
+                round(time.time() - self.last_ok_at, 1) if self.last_ok_at else None
+            ),
+        }
+
+
+_model_health = _ModelHealth()
 
 
 async def _generate_with_retry(
@@ -1096,6 +1195,7 @@ async def _generate_with_retry(
                 response = await _model.generate_content_async(contents, **kwargs)
             text, usage = aiconfig.extract_text(response), aiconfig.usage_of(response)
             metrics.model_calls.inc(operation=label, outcome="success")
+            _model_health.record_success()
             for kind, key in (("prompt", "prompt_tokens"), ("output", "output_tokens")):
                 if key in usage:
                     metrics.model_tokens.inc(usage[key], operation=label, kind=kind)
@@ -1106,9 +1206,19 @@ async def _generate_with_retry(
         except Exception as exc:
             last_exc = exc
             if not _is_retryable(exc):
-                metrics.model_calls.inc(operation=label, outcome="non_retryable")
-                metrics.dependency_errors.inc(dependency="gemini", kind="non_retryable")
-                log.error("%s: non-retryable model error: %s", label, exc)
+                quota = _is_quota_exhausted(exc)
+                kind = "quota_exhausted" if quota else "non_retryable"
+                metrics.model_calls.inc(operation=label, outcome=kind)
+                metrics.dependency_errors.inc(dependency="gemini", kind=kind)
+                _model_health.record_failure(kind)
+                # Logged at error either way, but the quota case names itself
+                # so it is greppable in Railway without reading the provider's
+                # prose: it is the one failure mode no retry or redeploy fixes.
+                if quota:
+                    log.error("%s: AI provider quota/credits exhausted — "
+                              "top up billing; retries will not help: %s", label, exc)
+                else:
+                    log.error("%s: non-retryable model error: %s", label, exc)
                 raise aiconfig.ModelUnavailable(str(exc)) from exc
             metrics.model_retries.inc(operation=label, reason="transient")
             log.warning("%s: attempt %d/%d failed: %s",
@@ -1119,6 +1229,7 @@ async def _generate_with_retry(
 
     metrics.model_calls.inc(operation=label, outcome="exhausted")
     metrics.dependency_errors.inc(dependency="gemini", kind="exhausted")
+    _model_health.record_failure("exhausted")
     raise aiconfig.ModelUnavailable(str(last_exc))
 
 
