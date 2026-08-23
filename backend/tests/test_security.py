@@ -250,13 +250,29 @@ class TestResponseSanitisation:
         # Returned as a plain string — not interpreted as HTML
         assert r.json()["item_name"] == "<script>alert(1)</script>"
 
-    def test_negative_values_clamped_to_zero(self):
+    def test_negative_values_are_refused_not_invented(self):
+        # Contract changed deliberately. This used to assert 200 with the values
+        # clamped to zero — at which point /scan substituted the constants 1.0
+        # and 5.0 and returned "$1-5" to the user as a real valuation of their
+        # item. Sanitising the numbers was never the whole job: a response whose
+        # only prices are negative carries no valuation at all, and inventing
+        # one is worse than saying so.
+        #
+        # The security property is unchanged and in fact strengthened — nothing
+        # attacker-controlled reaches the client, because no price does.
         neg = {**MOCK_AI_RESPONSE, "est_value_low_usd": -100.0, "est_value_high_usd": -50.0}
         r = _mock_scan(device_id="neg-test", response_data=neg)
+        assert r.status_code == 502
+        assert "-100" not in r.text and "-50" not in r.text
+
+    def test_partial_prices_still_produce_a_valuation(self):
+        # The guard must fire only when there is genuinely nothing to show. A
+        # response carrying a usable low and high is a normal scan, and must not
+        # be turned into an error by the check above.
+        ok = {**MOCK_AI_RESPONSE, "est_value_low_usd": 50.0, "est_value_high_usd": 100.0}
+        r = _mock_scan(device_id="pos-test", response_data=ok)
         assert r.status_code == 200
-        data = r.json()
-        assert data["est_value_low_usd"] >= 0
-        assert data["est_value_high_usd"] >= 0
+        assert r.json()["est_value_low_usd"] >= 0
 
     def test_string_value_coerced_to_float(self):
         str_vals = {**MOCK_AI_RESPONSE, "est_value_low_usd": "45", "est_value_high_usd": "90"}

@@ -72,12 +72,26 @@ TEMPERATURE = float(os.environ.get("GEMINI_TEMPERATURE", "0.15"))
 TOP_P = float(os.environ.get("GEMINI_TOP_P", "0.90"))
 SEED = int(os.environ.get("GEMINI_SEED", "20260728"))
 
-# v2's structured payload runs ~700-900 tokens; 2048 leaves headroom without
-# letting a pathological response run unbounded.
-MAX_OUTPUT_TOKENS = int(os.environ.get("GEMINI_MAX_OUTPUT_TOKENS", "2048"))
+# v2's structured payload runs ~700-900 tokens — but on a thinking model the
+# reasoning tokens are drawn from this SAME ceiling, and they are both larger
+# and more variable than the answer: measured at 1177-1777 for one scan, and
+# higher with an image than with text.
+#
+# The old 2048 was sized for the payload alone. In production that left ~256
+# tokens for JSON after thinking, so every scan truncated mid-object — before
+# reaching the price fields, which sit two-thirds down the schema. The parse
+# failure was then papered over downstream and users were shown "$1-5", a
+# number no model ever produced. Raising the ceiling is the actual fix.
+#
+# 8192 is a cap, not a spend: unused headroom is not billed, and the tokens
+# already being burned on truncated answers are pure waste. Sized so the
+# worst observed thinking (~1800) plus a full payload (~900) still leaves
+# room for a harder image, while keeping a pathological response bounded.
+MAX_OUTPUT_TOKENS = int(os.environ.get("GEMINI_MAX_OUTPUT_TOKENS", "8192"))
 
-# The listing endpoint returns far less, so it gets a tighter ceiling.
-LISTING_MAX_OUTPUT_TOKENS = int(os.environ.get("GEMINI_LISTING_MAX_TOKENS", "800"))
+# The listing endpoint returns far less prose, but pays the same thinking tax
+# out of the same ceiling — 800 did not cover the reasoning alone.
+LISTING_MAX_OUTPUT_TOKENS = int(os.environ.get("GEMINI_LISTING_MAX_TOKENS", "4096"))
 
 # Set to "0" to fall back to prose parsing if a future model regresses on
 # constrained decoding. The regex extractor stays in place either way.
@@ -205,11 +219,24 @@ def _finish_reason_name(response) -> str:
     Deliberately defensive. The SDK returns an enum here, but proto-plus objects,
     plain ints and test doubles all appear in practice, and treating an
     unrecognised shape as a block would fail a perfectly good response.
+
+    The container check is duck-typed, not `isinstance(candidates, (list,
+    tuple))`. The real SDK hands back a `proto.marshal.collections.repeated.
+    RepeatedComposite`, which is neither, so that guard rejected every genuine
+    response and this returned "" in production while the unit tests — which
+    pass plain lists — went on passing. Two things silently stopped working:
+    the max_output_tokens truncation warning never fired, and no reply ever
+    matched _BLOCK_MARKERS, so safety blocks surfaced to users as "the AI
+    service is unavailable" instead of "try a clear photo of a single item".
     """
     candidates = getattr(response, "candidates", None)
-    if not isinstance(candidates, (list, tuple)) or not candidates:
+    if candidates is None:
         return ""
-    finish = getattr(candidates[0], "finish_reason", None)
+    try:
+        first = candidates[0]
+    except (TypeError, IndexError, KeyError):
+        return ""
+    finish = getattr(first, "finish_reason", None)
     if finish is None:
         return ""
     name = getattr(finish, "name", None)
