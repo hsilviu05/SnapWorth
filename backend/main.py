@@ -973,11 +973,30 @@ async def scan(
     # Coerce, sanitise and repair price ordering — see valuation.py.
     val = valuation_module.normalise(data, image_quality=quality)
 
+    # A reply with no usable price is a failed scan, not a cheap item.
+    #
+    # This previously read `val.prices.worst or 1.0, val.prices.best or 5.0`,
+    # which turned "the model returned nothing" into a confident "$1-5" shown
+    # to the user as a real valuation. It is how a truncated response became a
+    # plausible-looking answer instead of a visible error: normalise() defaults
+    # missing prices to 0, `or` treats 0 as absent, and the constants were
+    # presented as the estimate. Honest valuation is the product; inventing a
+    # number when the model gave none is the one failure mode worth 502-ing for.
+    if not val.prices.worst or not val.prices.best:
+        log.error("scan produced no usable price",
+                  extra={"item": val.item_name, "category": val.category,
+                         "keys": sorted(data)[:20]})
+        metrics.model_calls.inc(operation="scan", outcome="no_price")
+        raise HTTPException(
+            status_code=502,
+            detail="The AI couldn't price this item. Please try again.",
+        ) from None
+
     # Category bands remain the outer backstop against order-of-magnitude errors
     # and injected numbers. Applied to the compatibility low/high pair, then the
     # ratio is carried across to the four v2 points so they stay consistent.
     low, high, was_clamped = promptsafety.clamp_valuation(
-        val.prices.worst or 1.0, val.prices.best or 5.0, val.category)
+        val.prices.worst, val.prices.best, val.category)
     val.was_clamped = was_clamped
     if was_clamped:
         val.prices = valuation_module.reconcile_prices(

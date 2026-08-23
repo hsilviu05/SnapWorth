@@ -657,3 +657,85 @@ class TestGenerationConfigIsProtoSendable:
         # out along with seed.
         assert "response_mime_type" in aiconfig.proto_supported_optional_fields()
         assert aiconfig.generation_config().response_mime_type == "application/json"
+
+
+# ── Valuation accuracy regressions ───────────────────────────────────────────
+#
+# Added after users were shown "$1-5" for real items. Three separate defects
+# compounded: gemini-2.5-flash spends reasoning tokens out of max_output_tokens,
+# so a 2048 ceiling left ~256 for JSON and every reply truncated before the
+# price fields; /scan then substituted the constants 1.0 and 5.0 for the missing
+# prices and presented them as a valuation; and the finish-reason helper could
+# not read the real SDK container, so neither the truncation nor a safety block
+# was ever detected.
+
+class _RepeatedComposite:
+    """Stands in for proto.marshal.collections.repeated.RepeatedComposite.
+
+    The point is that it is a sequence but is NOT a list or tuple — which is
+    exactly what the shipped isinstance() guard got wrong. A plain list here
+    would pass against the broken code and prove nothing.
+    """
+
+    def __init__(self, items):
+        self._items = list(items)
+
+    def __getitem__(self, i):
+        return self._items[i]
+
+    def __len__(self):
+        return len(self._items)
+
+
+class _Candidate:
+    def __init__(self, finish_reason):
+        self.finish_reason = finish_reason
+
+
+class _FinishReason:
+    def __init__(self, name):
+        self.name = name
+
+
+class _Response:
+    def __init__(self, candidates):
+        self.candidates = candidates
+
+
+class TestFinishReasonReadsProtoContainers:
+    def test_reads_a_non_list_sequence(self):
+        r = _Response(_RepeatedComposite([_Candidate(_FinishReason("MAX_TOKENS"))]))
+        assert aiconfig._finish_reason_name(r) == "MAX_TOKENS"
+
+    def test_still_reads_a_plain_list(self):
+        r = _Response([_Candidate(_FinishReason("STOP"))])
+        assert aiconfig._finish_reason_name(r) == "STOP"
+
+    def test_safety_block_is_detectable(self):
+        # The consequence that mattered: an undetected block was reported to
+        # the user as "the AI service is unavailable" rather than as a photo
+        # they could retake.
+        r = _Response(_RepeatedComposite([_Candidate(_FinishReason("SAFETY"))]))
+        assert aiconfig._finish_reason_name(r) in aiconfig._BLOCK_MARKERS
+
+    def test_empty_container_is_not_a_block(self):
+        assert aiconfig._finish_reason_name(_Response(_RepeatedComposite([]))) == ""
+
+    def test_missing_candidates_is_not_a_block(self):
+        assert aiconfig._finish_reason_name(_Response(None)) == ""
+
+    def test_scalar_candidates_is_not_a_block(self):
+        # A shape that cannot be indexed must degrade to "unknown", never to a
+        # marker that would fail a good response.
+        assert aiconfig._finish_reason_name(_Response(object())) == ""
+
+
+class TestOutputTokenBudget:
+    def test_scan_budget_covers_reasoning_plus_payload(self):
+        # Measured thinking for one scan ranged 1177-1777 tokens and is drawn
+        # from this same ceiling; the v2 payload needs a further ~700-900. The
+        # shipped 2048 could not fit both, which is what truncated the JSON.
+        assert aiconfig.MAX_OUTPUT_TOKENS >= 4096
+
+    def test_listing_budget_covers_reasoning(self):
+        assert aiconfig.LISTING_MAX_OUTPUT_TOKENS >= 2048
