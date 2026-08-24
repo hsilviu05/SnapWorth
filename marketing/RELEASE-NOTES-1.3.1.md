@@ -1,6 +1,6 @@
 # What's New — SnapWorth 1.3.1
 
-**Version:** 1.3.1 (build 8) · **Previous release:** 1.3.0 (Ready for Distribution) · **Status:** unreleased
+**Version:** 1.3.1 (build 8) · **Previous release:** 1.3.0 (Ready for Distribution) · **Status:** released — approved by App Store review
 
 A fix release. 1.3.0 shipped the portfolio; this one fixes what users were
 actually seeing when a scan went wrong.
