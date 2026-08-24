@@ -33,10 +33,17 @@ enum AppError: LocalizedError, Equatable {
             return "Our AI is temporarily unavailable. Please try again in a moment."
         case .sessionExpired:
             // 401 previously fell through to .unknown -> "Something went wrong",
-            // which tells the user nothing and offers no way forward. A device
-            // credential expires or attestation fails for ordinary reasons, and
-            // it recovers on retry, so say that.
-            return "Your session expired. Pull to retry — it should reconnect automatically."
+            // which tells the user nothing and offers no way forward.
+            //
+            // The earlier wording here — "pull to retry, it should reconnect
+            // automatically" — was a promise the code did not keep: retrying
+            // re-sent the same cached token and failed identically for up to an
+            // hour. Now that URLRequest.sendRetryingAuth re-mints and retries
+            // once on its own, reaching this message means a *freshly minted*
+            // credential was also refused. So it is not transient, and the copy
+            // should offer the remedy that actually clears a bad credential
+            // rather than suggest the retry we already performed.
+            return "We couldn't verify this device. Try again — if it keeps happening, reinstalling the app will reset it."
         case .imageEncodingFailed:
             return "Could not process the photo. Please try a different image."
         case .unusablePhoto(let msg):
@@ -119,6 +126,11 @@ enum AppError: LocalizedError, Equatable {
              (.timeout, .timeout),
              (.rateLimit, .rateLimit),
              (.serverUnavailable, .serverUnavailable),
+             // Omitted when .sessionExpired was introduced, so it fell to the
+             // `default: false` arm and did not equal itself. Any `== `
+             // comparison or SwiftUI alert de-duplication on this case was
+             // silently wrong.
+             (.sessionExpired, .sessionExpired),
              (.imageEncodingFailed, .imageEncodingFailed),
              (.purchaseCancelled, .purchaseCancelled),
              (.persistence, .persistence):

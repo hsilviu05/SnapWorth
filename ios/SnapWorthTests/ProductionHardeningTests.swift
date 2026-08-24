@@ -1086,3 +1086,58 @@ final class UnusablePhotoMappingTests: XCTestCase {
         XCTAssertEqual(AppError.from(ScanAPIError.serverError(502, "x")), .serverUnavailable)
     }
 }
+
+// MARK: - 401 recovery
+//
+// A 401 means the token we attached is no longer acceptable. `accessToken()`
+// returns the cached token whenever it is not within a minute of expiry, so
+// without clearing it first every retry re-sends the same dead credential and
+// fails identically for the full hour of the token's lifetime.
+//
+// This was not theoretical: the backend ran with an ephemeral TOKEN_KEYS, so
+// each deploy rotated the signing key and signed out every active user for an
+// hour, while the alert told them to "pull to retry — it should reconnect
+// automatically". It did not.
+
+final class SessionExpiredCopyTests: XCTestCase {
+    func test_doesNotPromiseAnAutomaticReconnect() {
+        // By the time this message is shown, sendRetryingAuth has already
+        // re-minted and retried. Telling the user to retry for an automatic
+        // reconnect describes something that has just failed.
+        let message = AppError.sessionExpired.errorDescription ?? ""
+        XCTAssertFalse(message.lowercased().contains("automatically"),
+                       "copy still promises a reconnect the client already attempted")
+    }
+
+    func test_offersAnActionableRemedy() {
+        let message = AppError.sessionExpired.errorDescription ?? ""
+        XCTAssertFalse(message.isEmpty)
+        XCTAssertTrue(message.lowercased().contains("reinstall"),
+                      "should name the remedy that actually clears a bad credential")
+    }
+
+    func test_401_stillMapsToSessionExpired() {
+        XCTAssertEqual(AppError.from(ScanAPIError.serverError(401, "unauthorized")),
+                       .sessionExpired)
+    }
+
+    func test_everyPayloadFreeCaseEqualsItself() {
+        // How the .sessionExpired bug was found: it was left out of the `==`
+        // switch when the case was added, so it fell to `default: false` and
+        // did not equal itself, while still *printing* identically. Enumerated
+        // here so the next case added cannot repeat it.
+        let cases: [AppError] = [
+            .network, .timeout, .rateLimit, .serverUnavailable, .sessionExpired,
+            .imageEncodingFailed, .purchaseCancelled, .persistence,
+        ]
+        for value in cases {
+            XCTAssertEqual(value, value, "\(value) does not equal itself")
+        }
+    }
+
+    func test_401_isDistinctFromAnOutageAndFromABlockedPhoto() {
+        let expired = AppError.from(ScanAPIError.serverError(401, "unauthorized"))
+        XCTAssertNotEqual(expired, .serverUnavailable)
+        XCTAssertNotEqual(expired, .unusablePhoto("nope"))
+    }
+}

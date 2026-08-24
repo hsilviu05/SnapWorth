@@ -86,6 +86,23 @@ actor AttestationService {
         UserDefaults.standard.removeObject(forKey: Keys.keyID)
     }
 
+    /// Discards the cached token, keeping the attestation key.
+    ///
+    /// `accessToken()` returns the cached token whenever it is not within a
+    /// minute of expiry, so a token the *server* has stopped accepting is
+    /// handed back unchanged on every retry. That is not hypothetical: when the
+    /// backend's signing key rotates — a deploy with an ephemeral `TOKEN_KEYS`
+    /// does exactly this — every request 401s for the full hour of the token's
+    /// lifetime, and "pull to retry" retries with the same dead credential.
+    ///
+    /// Only the token is cleared. The App Attest key in the Secure Enclave is
+    /// still valid and a cheap assertion re-mints from it; throwing that away
+    /// too (`reset()`) would force a full attestation the server never asked
+    /// for. Being an actor method, this cannot interleave with `mintToken()`.
+    func invalidateCachedToken() {
+        TokenStore.shared.clear()
+    }
+
     // MARK: - Attestation
 
     private func mintToken() async throws -> String {
