@@ -21,7 +21,7 @@ YEAR = datetime.date.today().year
 
 # ── Item dataset ─────────────────────────────────────────────────────────────
 # Ranges are typical US secondhand resale values, framed as guidance. The app is
-# the tool for an exact, photo-based valuation (that's the CTA).
+# the tool for a photo-based estimate of their own item (that's the CTA).
 ITEMS = [
     dict(slug="patagonia-better-sweater", name="Patagonia Better Sweater", cat="Clothing",
          low=40, high=85,
@@ -179,6 +179,28 @@ STYLE = """
 :root{--bg:#FAF7F4;--card:#F3EDE8;--dark:#1C1410;--terracotta:#D96C47;--terra-text:#A94E29;--sage-text:#4F7355;--sage-dim:rgba(122,158,126,0.12);--warm-gray:#6E625B;--border:#E8DDD7;--white:#fff;--text-muted:#726860;}
 body{background:var(--bg);color:var(--dark);font-family:'DM Sans',sans-serif;font-size:17px;line-height:1.65;-webkit-font-smoothing:antialiased;}
 a{color:var(--terra-text);}
+/* ── Motion ─────────────────────────────────────────────────────────────────
+   CSS-only on these pages, deliberately. They are SEO content: the homepage
+   can justify an IntersectionObserver, but here an entrance animation that
+   depends on JavaScript would risk hiding article text from a reader (or a
+   crawler) if the script never runs. A pure keyframe with `both` fill always
+   resolves to the visible state, so the worst case is that the text simply
+   appears.
+   Everything is disabled under prefers-reduced-motion. */
+@media (prefers-reduced-motion: no-preference){
+  @keyframes riseIn{from{opacity:.001;transform:translate3d(0,14px,0)}to{opacity:1;transform:none}}
+  h1,.lede,.crumbs,table,h2,p,ul,.cta,.related{animation:riseIn .5s cubic-bezier(.22,.61,.36,1) both}
+  .crumbs{animation-delay:.02s} h1{animation-delay:.06s} .lede{animation-delay:.12s}
+  table{animation-delay:.18s}
+  .cta{animation-delay:.24s}
+  a,.cta a{transition:transform .18s cubic-bezier(.22,.61,.36,1),opacity .18s ease}
+  .cta a:hover{transform:translateY(-2px)}
+  .related a:hover{transform:translateX(3px)}
+}
+@media (prefers-reduced-motion: reduce){
+  *,*::before,*::after{animation-duration:.001ms!important;transition-duration:.001ms!important}
+}
+a:focus-visible{outline:2px solid var(--terra-text);outline-offset:3px;border-radius:4px;}
 .wrap{max-width:760px;margin:0 auto;padding:0 20px;}
 header.site{border-bottom:1px solid var(--border);background:var(--bg);}
 header.site .wrap{display:flex;align-items:center;justify-content:space-between;height:64px;}
@@ -231,15 +253,24 @@ def footer():
             '</div></footer>')
 
 def cta(name):
-    return (f'<div class="cta"><h3>Know your exact value in seconds</h3>'
-            f'<p>Typical ranges only go so far. Snap a photo of your {html.escape(name)} and SnapWorth\'s AI estimates a value tuned to your exact item and condition.</p>'
+    # Wording is deliberately a *range*, not an "exact value".
+    #
+    # This previously read "Know your exact value in seconds". The app does not
+    # produce an exact value and never claims to: it returns a price range with
+    # a confidence score, and support.html states plainly that estimates are "a
+    # useful reference range, not a guaranteed sale price". The old headline
+    # contradicted our own support page and promised more than the product
+    # delivers — the same class of unsupported claim the App Store screenshot
+    # review removed ("real sold listings").
+    return (f'<div class="cta"><h3>Check your own item in seconds</h3>'
+            f'<p>Typical ranges only go so far. Snap a photo of your {html.escape(name)} and SnapWorth\'s AI estimates a resale range for your item and its condition, with a confidence score.</p>'
             f'<a href="{APP_STORE}">Download SnapWorth — free</a></div>')
 
 def page_html(item, related):
     name = item["name"]; e = html.escape
     title = (f"How Much Are {base(name)} Worth to Resell? ({YEAR} Resale Value)" if is_plural(item)
              else f"How Much Is a {base(name)} Worth to Resell? ({YEAR} Resale Value)")
-    desc = f"{name} resale value is typically ${item['low']}–${item['high']} depending on condition. See what affects the price, where to sell, and how to check your exact item."
+    desc = f"{name} resale value is typically ${item['low']}–${item['high']} depending on condition. See what affects the price, where to sell, and how to check your own item."
     url = f"{SITE}/worth/{item['slug']}"
 
     rows = "".join(f"<tr><td>{e(c)}</td><td class='val'>{e(v)}</td></tr>" for c, v in item["conditions"])
@@ -269,6 +300,11 @@ def page_html(item, related):
 <link rel="canonical" href="{url}">
 <meta property="og:type" content="article"><meta property="og:title" content="{e(title)}">
 <meta property="og:description" content="{e(desc)}"><meta property="og:url" content="{url}">
+<meta property="og:image" content="{SITE}/og-image.png">
+<meta property="og:image:width" content="1200"><meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="{e(title)}"><meta name="twitter:description" content="{e(desc)}">
+<meta name="twitter:image" content="{SITE}/og-image.png">
 <link rel="icon" href="/favicon-32.png" sizes="32x32">
 <style>{STYLE}</style>
 <script type="application/ld+json">{faq_json}</script>
@@ -319,13 +355,20 @@ def hub_html():
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>{e(title)}</title><meta name="description" content="{e(desc)}">
 <link rel="canonical" href="{SITE}/worth">
+<meta property="og:type" content="website"><meta property="og:title" content="{e(title)}">
+<meta property="og:description" content="{e(desc)}"><meta property="og:url" content="{SITE}/worth">
+<meta property="og:image" content="{SITE}/og-image.png">
+<meta property="og:image:width" content="1200"><meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="{e(title)}"><meta name="twitter:description" content="{e(desc)}">
+<meta name="twitter:image" content="{SITE}/og-image.png">
 <link rel="icon" href="/favicon-32.png" sizes="32x32">
 <style>{STYLE}</style></head><body>
 {header()}
 <main><div class="wrap">
 <div class="crumbs"><a href="/">Home</a> › Resale Values</div>
 <h1>What are your thrift finds worth?</h1>
-<p class="lede">Typical secondhand resale values for popular items, plus what drives the price and where to sell. Want an exact number for your item? Snap a photo with SnapWorth.</p>
+<p class="lede">Typical secondhand resale values for popular items, plus what drives the price and where to sell. Want a range for your own item and its condition? Snap a photo with SnapWorth.</p>
 {blocks}
 {cta('thrift find')}
 </div></main>

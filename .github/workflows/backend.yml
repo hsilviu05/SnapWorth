@@ -22,9 +22,9 @@ jobs:
         working-directory: backend
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: '3.13'
           cache: pip
@@ -67,9 +67,9 @@ jobs:
         working-directory: backend
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: '3.13'
           cache: pip
@@ -106,7 +106,7 @@ jobs:
       # real token.
       CI_METRICS_TOKEN: ci-metrics-token-not-a-real-secret
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Build image
         run: docker build -t snapworth-backend:ci backend/
@@ -183,7 +183,7 @@ jobs:
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Install Railway CLI
         run: npm install -g @railway/cli@latest
@@ -196,4 +196,42 @@ jobs:
             echo "::warning::RAILWAY_TOKEN secret not set — skipping deploy. Add it in GitHub repo Settings → Secrets."
             exit 0
           fi
+          # Record the commit being deployed so /health can report which build
+          # is live. `railway up` uploads this directory and Railway builds the
+          # Dockerfile there, so a file written here rides along via `COPY . .`
+          # with nothing to configure in a dashboard.
+          #
+          # This exists because RAILWAY_GIT_COMMIT_SHA — which the app also
+          # reads — is only set by Railway's GitHub integration, never by
+          # `railway up`. Without this step /health reports commit "unknown",
+          # which is exactly what it did in production while the feature was
+          # believed to be working.
+          # Written into backend/, not the repo root: main.py looks for it
+          # alongside itself, and the Docker build context is backend/, so this
+          # is the path that survives `COPY . .`. The deploy job has no
+          # working-directory default, unlike the other jobs in this workflow.
+          echo "${GITHUB_SHA}" > backend/BUILD_COMMIT
+
+          # `railway up` honours .gitignore, and .gitignore excludes
+          # backend/BUILD_COMMIT so the file never shows up in a working tree
+          # as noise. The two together silently cancelled this feature out: the
+          # write above succeeded on every deploy, the file was then dropped
+          # from the upload, and /health reported commit "unknown" for the
+          # entire life of the feature — including while it was believed to be
+          # working, which is exactly the failure it was built to prevent.
+          #
+          # Stripping the line from the runner's own checkout is safe: this
+          # working copy is thrown away at the end of the job and is never
+          # committed or pushed. The alternative, a .railwayignore, means
+          # maintaining a second copy of every exclusion and letting the two
+          # drift.
+          grep -vxF 'backend/BUILD_COMMIT' .gitignore > .gitignore.deploy
+          mv .gitignore.deploy .gitignore
+
+          if git check-ignore -q backend/BUILD_COMMIT; then
+            echo "::error::backend/BUILD_COMMIT is still ignored — it will not reach Railway"
+            exit 1
+          fi
+          echo "deploying commit ${GITHUB_SHA}"
+
           railway up --service snapworth-backend --detach

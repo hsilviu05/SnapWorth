@@ -563,3 +563,179 @@ class TestImageQualityCeiling:
 
     def test_unmeasured_quality_applies_no_ceiling(self):
         assert _compute(image_quality=ImageQuality()).band == "High"
+
+
+# ── The config must be SENDABLE, not merely constructible ────────────────────
+#
+# Why this class exists
+# ---------------------
+# Every /scan reaching Gemini failed in production from 783aad3 (28 Jul) until
+# the fix, with:
+#
+#     ValueError: Unknown field for GenerationConfig: seed
+#
+# google-generativeai 0.8.3 exposes `seed` on the GenerationConfig *dataclass*,
+# but the google.ai.generativelanguage protobuf it serialises into does not have
+# that field. Construction succeeded, so every existing test passed; the call
+# failed later, at proto conversion.
+#
+# That is exactly the gap these tests close. The suite asserted things about the
+# config *object* — temperature, candidate_count, response_mime_type — and never
+# that the object could actually be sent. Constructing a config proves nothing
+# about whether the transport will accept it.
+#
+# No network call: the conversion that fails is client-side, so the whole bug is
+# reproducible in memory.
+
+class TestGenerationConfigIsProtoSendable:
+
+    def _assert_sendable(self, cfg, label):
+        try:
+            aiconfig.to_proto_config(cfg)
+        except Exception as exc:  # noqa: BLE001 — the message is the point
+            raise AssertionError(
+                f"{label} config cannot be sent to Gemini: {type(exc).__name__}: {exc}. "
+                "This is the failure mode that broke every scan in production — "
+                "the config constructs fine and is rejected at proto conversion."
+            ) from None
+
+    def test_scan_config_converts_to_proto(self):
+        # The exact config the /scan path uses: model-level, no max_output_tokens
+        # override (main.py:377 -> aiconfig.build_model -> generation_config()).
+        self._assert_sendable(aiconfig.generation_config(), "scan")
+
+    def test_listing_config_converts_to_proto(self):
+        self._assert_sendable(
+            aiconfig.generation_config(
+                max_output_tokens=aiconfig.LISTING_MAX_OUTPUT_TOKENS),
+            "listing")
+
+    def test_json_mode_disabled_config_converts_to_proto(self):
+        self._assert_sendable(
+            aiconfig.generation_config(json_mode=False), "json-mode-off")
+
+    def test_model_level_config_converts_to_proto(self):
+        # build_model attaches the config to the model itself, so it rides every
+        # call — which is why a bad field here broke scans rather than one route.
+        model = aiconfig.build_model()
+        cfg = getattr(model, "_generation_config", None)
+        assert cfg is not None, "model carries no generation config"
+        # The model stores it already normalised to a dict; feed it back through
+        # the proto to prove the stored form is sendable.
+        import google.ai.generativelanguage as glm
+        try:
+            glm.GenerationConfig(cfg)
+        except Exception as exc:  # noqa: BLE001
+            raise AssertionError(
+                f"model-level config is not sendable: {type(exc).__name__}: {exc}"
+            ) from None
+
+    def test_unsupported_fields_are_omitted_not_sent(self):
+        # The regression itself: `seed` must not appear in a config this
+        # SDK/proto pairing would reject.
+        supported = aiconfig.proto_supported_optional_fields()
+        cfg = aiconfig.generation_config()
+        if "seed" not in supported:
+            assert getattr(cfg, "seed", None) is None, (
+                "seed was attached despite the proto rejecting it — this is the "
+                "exact production bug"
+            )
+
+    def test_probe_reports_seed_unsupported_on_the_pinned_sdk(self):
+        # Pins the current, measured reality rather than a belief about it. If a
+        # future SDK bump makes seed genuinely supported this test should be
+        # updated deliberately — with the knowledge that seed then starts being
+        # sent again, which is the intended behaviour.
+        supported = aiconfig.proto_supported_optional_fields()
+        assert "seed" not in supported, (
+            "google-generativeai 0.8.3's proto has no seed field; if this now "
+            "passes, the SDK changed and determinism is back on"
+        )
+
+    def test_json_mode_survives_the_fix(self):
+        # response_mime_type IS proto-supported; the fix must not have thrown it
+        # out along with seed.
+        assert "response_mime_type" in aiconfig.proto_supported_optional_fields()
+        assert aiconfig.generation_config().response_mime_type == "application/json"
+
+
+# ── Valuation accuracy regressions ───────────────────────────────────────────
+#
+# Added after users were shown "$1-5" for real items. Three separate defects
+# compounded: gemini-2.5-flash spends reasoning tokens out of max_output_tokens,
+# so a 2048 ceiling left ~256 for JSON and every reply truncated before the
+# price fields; /scan then substituted the constants 1.0 and 5.0 for the missing
+# prices and presented them as a valuation; and the finish-reason helper could
+# not read the real SDK container, so neither the truncation nor a safety block
+# was ever detected.
+
+class _RepeatedComposite:
+    """Stands in for proto.marshal.collections.repeated.RepeatedComposite.
+
+    The point is that it is a sequence but is NOT a list or tuple — which is
+    exactly what the shipped isinstance() guard got wrong. A plain list here
+    would pass against the broken code and prove nothing.
+    """
+
+    def __init__(self, items):
+        self._items = list(items)
+
+    def __getitem__(self, i):
+        return self._items[i]
+
+    def __len__(self):
+        return len(self._items)
+
+
+class _Candidate:
+    def __init__(self, finish_reason):
+        self.finish_reason = finish_reason
+
+
+class _FinishReason:
+    def __init__(self, name):
+        self.name = name
+
+
+class _Response:
+    def __init__(self, candidates):
+        self.candidates = candidates
+
+
+class TestFinishReasonReadsProtoContainers:
+    def test_reads_a_non_list_sequence(self):
+        r = _Response(_RepeatedComposite([_Candidate(_FinishReason("MAX_TOKENS"))]))
+        assert aiconfig._finish_reason_name(r) == "MAX_TOKENS"
+
+    def test_still_reads_a_plain_list(self):
+        r = _Response([_Candidate(_FinishReason("STOP"))])
+        assert aiconfig._finish_reason_name(r) == "STOP"
+
+    def test_safety_block_is_detectable(self):
+        # The consequence that mattered: an undetected block was reported to
+        # the user as "the AI service is unavailable" rather than as a photo
+        # they could retake.
+        r = _Response(_RepeatedComposite([_Candidate(_FinishReason("SAFETY"))]))
+        assert aiconfig._finish_reason_name(r) in aiconfig._BLOCK_MARKERS
+
+    def test_empty_container_is_not_a_block(self):
+        assert aiconfig._finish_reason_name(_Response(_RepeatedComposite([]))) == ""
+
+    def test_missing_candidates_is_not_a_block(self):
+        assert aiconfig._finish_reason_name(_Response(None)) == ""
+
+    def test_scalar_candidates_is_not_a_block(self):
+        # A shape that cannot be indexed must degrade to "unknown", never to a
+        # marker that would fail a good response.
+        assert aiconfig._finish_reason_name(_Response(object())) == ""
+
+
+class TestOutputTokenBudget:
+    def test_scan_budget_covers_reasoning_plus_payload(self):
+        # Measured thinking for one scan ranged 1177-1777 tokens and is drawn
+        # from this same ceiling; the v2 payload needs a further ~700-900. The
+        # shipped 2048 could not fit both, which is what truncated the JSON.
+        assert aiconfig.MAX_OUTPUT_TOKENS >= 4096
+
+    def test_listing_budget_covers_reasoning(self):
+        assert aiconfig.LISTING_MAX_OUTPUT_TOKENS >= 2048

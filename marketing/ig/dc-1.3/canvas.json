@@ -1,0 +1,48 @@
+{
+  "artboards": [
+    {
+      "file": "Main.dc.html",
+      "x": 0,
+      "y": 0,
+      "w": 1080,
+      "h": 1350,
+      "title": "Post 1 — What's New in 1.3"
+    },
+    {
+      "file": "Portfolio.dc.html",
+      "x": 1200,
+      "y": 0,
+      "w": 1080,
+      "h": 1350,
+      "title": "Post 2 — The Portfolio"
+    },
+    {
+      "file": "Weekly.dc.html",
+      "x": 2400,
+      "y": 0,
+      "w": 1080,
+      "h": 1350,
+      "title": "Post 3 — Weekly Summary"
+    }
+  ],
+  "annotations": [
+    {
+      "id": "brief",
+      "x": 0,
+      "y": -180,
+      "w": 520,
+      "text": "SnapWorth 1.3 launch set — 1080x1350.\nMatches the 1.1 campaign: Fraunces + DM Sans,\nterracotta #D96C47, sage #7A9E7E on #1C1410.\nCaptions are in the chat reply."
+    },
+    {
+      "id": "note-numbers",
+      "x": 1200,
+      "y": -180,
+      "w": 520,
+      "text": "Example figures are illustrative UI data —\nswap them for real numbers from your own\nMy Finds screen before posting."
+    }
+  ],
+  "launch": {
+    "view": "focused",
+    "file": "Weekly.dc.html"
+  }
+}
