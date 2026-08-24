@@ -304,6 +304,7 @@ struct MonthShareCardView: View {
 
 #Preview("Unpaid — no photo") {
     let config = ModelConfiguration(isStoredInMemoryOnly: true)
+    // swiftlint:disable:next force_try — preview-only in-memory container, never ships
     let container = try! ModelContainer(for: ScanResult.self, configurations: config)
     let result = ScanResult(
         itemName: "Levi's 501 Original Jeans",
@@ -321,6 +322,7 @@ struct MonthShareCardView: View {
 
 #Preview("Paid · 9× find") {
     let config = ModelConfiguration(isStoredInMemoryOnly: true)
+    // swiftlint:disable:next force_try — preview-only in-memory container, never ships
     let container = try! ModelContainer(for: ScanResult.self, configurations: config)
     let result = ScanResult(
         itemName: "Off-White OOO Out of Office Sneakers",
@@ -339,6 +341,7 @@ struct MonthShareCardView: View {
 
 #Preview("Free find") {
     let config = ModelConfiguration(isStoredInMemoryOnly: true)
+    // swiftlint:disable:next force_try — preview-only in-memory container, never ships
     let container = try! ModelContainer(for: ScanResult.self, configurations: config)
     let result = ScanResult(
         itemName: "Patagonia Better Sweater",
@@ -357,6 +360,7 @@ struct MonthShareCardView: View {
 
 #Preview("Long name / large value") {
     let config = ModelConfiguration(isStoredInMemoryOnly: true)
+    // swiftlint:disable:next force_try — preview-only in-memory container, never ships
     let container = try! ModelContainer(for: ScanResult.self, configurations: config)
     let result = ScanResult(
         itemName: "Vintage Tommy Hilfiger Oversized Windbreaker Jacket Navy Blue Size XXL",

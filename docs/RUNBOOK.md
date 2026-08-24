@@ -131,14 +131,22 @@ Cache hit ratio · rate-limit rejections · quota exhaustion · dependency error
 *Blast radius:* `/scan` and `/listing` fail. Auth, quota and entitlements are
 unaffected — users keep their Pro status and their history.
 
-1. Confirm at <https://status.cloud.google.com>.
-2. Check the split: `outcome="blocked"` is content filtering (not an outage),
-   `outcome="non_retryable"` usually means a bad API key.
-3. If the key is the problem, rotate it (§8.2).
-4. There is currently **no fallback provider** `[NOT IMPLEMENTED]`. A Gemini
+1. **Check `/health` first — it now names this failure.** `model.healthy:
+   false` with `last_failure_kind: "quota_exhausted"` means the Gemini
+   account's prepaid credits are gone. Nothing in this repo fixes that: top up
+   at <https://ai.studio/projects>, on the project whose key Railway holds.
+   Service resumes within a minute or two of the balance landing, with no
+   redeploy. Retrying and rolling back both do nothing.
+2. Confirm at <https://status.cloud.google.com>.
+3. Check the split: `outcome="blocked"` is content filtering (not an outage),
+   `outcome="quota_exhausted"` is billing (above), `outcome="non_retryable"`
+   usually means a bad API key, `outcome="no_price"` means the model answered
+   but carried no usable valuation — see §5.9.
+4. If the key is the problem, rotate it (§8.2).
+5. There is currently **no fallback provider** `[NOT IMPLEMENTED]`. A Gemini
    outage is a full scan outage. This is the largest single-point-of-failure in
    the system — see "Remaining risks".
-5. Users see *"The AI service is temporarily unavailable"* — accurate, and the
+6. Users see *"The AI service is temporarily unavailable"* — accurate, and the
    client does not burn quota on a failed scan (`consume_quota` runs only after
    success).
 
@@ -199,6 +207,29 @@ availability one.
    application-level IP blocklist `[NOT IMPLEMENTED]`.
 
 ---
+
+### 5.9 Valuations are wrong, not missing
+
+*Symptom:* scans succeed but the numbers are nonsense — the signature case was
+every item coming back as **$1–5**.
+
+*Blast radius:* worse than an outage. A visible failure costs a scan; a
+confident wrong number is the product being wrong, and users act on it.
+
+1. Check `snapworth_model_calls_total{outcome="no_price"}`. Anything above zero
+   means the model returned a reply with no usable price. Since 87e62c5 that is
+   a 502, not an invented number — if this counter is climbing, the model or the
+   prompt has regressed, not the pricing code.
+2. Grep for `model response hit max_output_tokens — output truncated`. Truncation
+   is the known cause: gemini-2.5-flash spends **reasoning** tokens out of
+   `max_output_tokens`, measured at 1138–1777 per scan against a ~700-token
+   payload. If the ceiling is squeezed, JSON truncates before the price fields,
+   which sit two-thirds down the v2 schema.
+3. Do not lower `GEMINI_MAX_OUTPUT_TOKENS` below **4096** — 2048 shipped and
+   produced exactly this bug. It is a cap, not a spend: unused headroom is not
+   billed, while truncated answers are billed in full and thrown away.
+4. Re-check after any model change. A model with a larger reasoning appetite
+   needs a larger ceiling, and the failure is silent by default.
 
 ## 6. Deployment
 

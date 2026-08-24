@@ -20,3 +20,7 @@ DerivedData/
 # macOS
 .DS_Store
 .vercel
+
+# Written by CI immediately before deploy so /health can report the live
+# commit. Generated per-deploy — never committed.
+backend/BUILD_COMMIT

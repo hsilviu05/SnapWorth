@@ -180,10 +180,7 @@ actor ListingAPIClient {
         await request.attachBearerToken()
         request.httpBody = try JSONEncoder().encode(body)
 
-        let (data, response) = try await session.data(for: request)
-        guard let http = response as? HTTPURLResponse else {
-            throw URLError(.badServerResponse)
-        }
+        let (data, http) = try await request.sendRetryingAuth(on: session)
         guard (200..<300).contains(http.statusCode) else {
             throw ScanAPIError.serverError(http.statusCode, APIErrorDetail.parse(data))
         }

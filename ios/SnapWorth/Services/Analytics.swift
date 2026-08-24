@@ -204,6 +204,7 @@ enum PaywallTrigger: String {
     case ledgerExport  = "ledger_export"
     case snapSell      = "snap_sell"
     case thriftFlip    = "thrift_flip"
+    case portfolioTrend = "portfolio_trend"
 }
 
 // ═══════════════════════════════════════════════════════════════════

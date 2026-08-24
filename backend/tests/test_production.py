@@ -8,6 +8,7 @@ manual check before launch.
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import os
 import sys
@@ -20,6 +21,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import devicecheck  # noqa: E402
 import metrics  # noqa: E402
 import observability as obs  # noqa: E402
+import main  # noqa: E402
 from main import app  # noqa: E402
 
 client = TestClient(app)
@@ -430,3 +432,101 @@ class TestDockerfile:
     def test_healthcheck_targets_liveness_not_readiness(self, dockerfile):
         assert "/health/live" in dockerfile
         assert "HEALTHCHECK" in dockerfile
+
+
+# ── AI provider quota exhaustion ─────────────────────────────────────────────
+#
+# Added after a live outage: the account's prepaid Gemini credits ran out, every
+# /scan returned 502, and the app told users "temporarily unavailable, try again
+# in a moment" while /health reported {"status": "ok", "ai_key_set": true}. Two
+# separate defects — the hard stop was retried like a transient blip, and health
+# only ever checked that a key was *configured*, never that the model answered.
+
+class TestQuotaExhaustion:
+    # Verbatim from the live failure, so a wording change upstream fails here
+    # rather than silently reverting to the retry-forever behaviour.
+    DEPLETED = (
+        "429 Your prepayment credits are depleted. Please go to AI Studio at "
+        "https://ai.studio/projects to manage your project and billing."
+    )
+
+    def test_depleted_credits_are_not_retryable(self):
+        assert main._is_quota_exhausted(Exception(self.DEPLETED))
+        assert not main._is_retryable(Exception(self.DEPLETED))
+
+    def test_ordinary_rate_limit_is_still_retryable(self):
+        # The regression this guards: matching on "429" or "quota" would make
+        # every transient per-minute rate limit permanent, turning a blip that
+        # clears in seconds into a failed scan.
+        transient = Exception(
+            "429 Resource has been exhausted (e.g. check quota).")
+        assert not main._is_quota_exhausted(transient)
+        assert main._is_retryable(transient)
+
+    def test_openai_style_wording_also_matches(self):
+        assert main._is_quota_exhausted(
+            Exception("You exceeded your current quota, please check your plan"))
+
+    def test_auth_failures_remain_non_retryable(self):
+        assert not main._is_retryable(Exception("401 API key not valid"))
+
+
+class TestModelHealth:
+    def _fresh(self):
+        return main._ModelHealth()
+
+    def test_starts_healthy(self):
+        assert self._fresh().healthy
+
+    def test_quota_failure_is_unhealthy_immediately(self):
+        # One sample is enough: depleted credits do not self-heal, so waiting
+        # for a second failure only delays the signal.
+        h = self._fresh()
+        h.record_failure("quota_exhausted")
+        assert not h.healthy
+        assert h.snapshot()["last_failure_kind"] == "quota_exhausted"
+
+    def test_single_generic_failure_does_not_trip(self):
+        h = self._fresh()
+        h.record_failure("exhausted")
+        assert h.healthy
+
+    def test_repeated_generic_failures_trip(self):
+        h = self._fresh()
+        for _ in range(main._MODEL_UNHEALTHY_AFTER):
+            h.record_failure("exhausted")
+        assert not h.healthy
+
+    def test_success_clears_the_failure_state(self):
+        h = self._fresh()
+        h.record_failure("quota_exhausted")
+        h.record_success()
+        assert h.healthy
+        assert h.snapshot()["last_failure_kind"] is None
+        assert h.snapshot()["consecutive_failures"] == 0
+
+    def test_snapshot_never_leaks_the_provider_message(self):
+        # /health is unauthenticated and upstream errors quote project and
+        # billing identifiers back at you.
+        h = self._fresh()
+        h.record_failure("quota_exhausted")
+        assert "ai.studio" not in json.dumps(h.snapshot())
+        assert "prepayment" not in json.dumps(h.snapshot()).lower()
+
+
+class TestHealthReportsModelOutage:
+    def test_health_is_degraded_when_the_model_is_down(self):
+        main._model_health.record_failure("quota_exhausted")
+        try:
+            body = client.get("/health").json()
+            assert body["model"]["healthy"] is False
+            assert body["model"]["last_failure_kind"] == "quota_exhausted"
+            assert body["status"] == "degraded"
+        finally:
+            main._model_health.record_success()
+
+    def test_health_is_ok_once_the_model_answers(self):
+        main._model_health.record_success()
+        body = client.get("/health").json()
+        assert body["model"]["healthy"] is True
+        assert body["status"] == "ok"
