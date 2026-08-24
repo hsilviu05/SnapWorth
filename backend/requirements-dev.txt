@@ -1,4 +1,11 @@
 -r requirements.txt
-pytest==8.3.4
-pytest-asyncio==0.24.0
+# 9.0.3 closes PYSEC-2026-1845 (CVE-2025-71176): pytest through 9.0.2 creates
+# /tmp/pytest-of-{user} with a predictable name, which on a shared UNIX host lets
+# a local user cause a denial of service or escalate. It never ships — the
+# Dockerfile installs requirements.txt only — so this was never remotely
+# reachable, which is why it was deferred rather than rushed. Taken now that the
+# production manifest is clean and this is the last known advisory in the tree.
+pytest==9.1.1
+# Moved with pytest: pytest-asyncio 0.24.x does not support pytest 9.
+pytest-asyncio==1.4.0
 httpx==0.28.1

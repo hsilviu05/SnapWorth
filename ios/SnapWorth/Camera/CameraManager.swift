@@ -138,6 +138,7 @@ final class PreviewUIView: UIView {
     override class var layerClass: AnyClass { AVCaptureVideoPreviewLayer.self }
 
     // Safe: layerClass is overridden to AVCaptureVideoPreviewLayer so UIKit guarantees this type.
+    // swiftlint:disable:next force_cast — guaranteed by the layerClass override above.
     var previewLayer: AVCaptureVideoPreviewLayer { layer as! AVCaptureVideoPreviewLayer }
 
     var session: AVCaptureSession? {

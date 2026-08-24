@@ -1,5 +1,17 @@
-fastapi==0.115.5
-uvicorn[standard]==0.32.1
+# 0.133.0 is the first FastAPI release that drops the starlette upper bound
+# (0.115.5 pinned starlette<0.42.0; 0.132.1 still capped at <1.0.0), so it is the
+# minimum version that can take a patched starlette. Deliberately not the latest
+# (0.141.1, which also works): 0.133.0 stops short of 0.137.0, which upstream
+# flags as a major breaking release, and buys nothing extra security-wise.
+fastapi==0.133.0
+# Pinned explicitly rather than left transitive. It was only ever pulled in via
+# FastAPI, which is precisely why seven advisories against it went unnoticed —
+# an indirect dependency has no line in this file to review. 1.3.1 closes all
+# seven, of which two were reachable: PYSEC-2026-1941 (multipart >1MB spool
+# rollover blocking the event loop on /scan) and PYSEC-2026-249
+# (max_fields/max_part_size silently ignored for urlencoded bodies).
+starlette==1.3.1
+uvicorn[standard]==0.52.1
 google-generativeai==0.8.3
 # Multipart parsing for the /scan upload. 0.0.31 closes seven advisories, all
 # reachable by an unauthenticated POST: preamble and part-header parsing DoS
@@ -47,13 +59,35 @@ cbor2==5.9.0
 # exists in production code. No audit allowlist entry is therefore needed.
 PyJWT==2.13.0
 # Backs the X.509 chain walk that validates StoreKit transactions against the
-# pinned Apple Root CA G3 (entitlements.py:_verify_chain), so its correctness is
-# load-bearing for entitlement integrity. 48.0.1 rather than the 46.0.6 the audit
-# first suggested: 46.0.6 clears the name-constraint (PYSEC-2026-35) and
-# EllipticCurvePublicNumbers (PYSEC-2026-2141) issues, but GHSA-537c-gmf6-5ccf —
-# vulnerable OpenSSL statically linked into the wheel — is only fixed in 48.0.1.
-# Pinned at the advisory minimum, not latest (50.0.0), to bound the blast radius
-# of what is already a four-major-version jump.
-cryptography==48.0.1
+# pinned Apple Root CA G3 (entitlements.py:_verify_chain) and the App Attest
+# chain (appattest.py), so its correctness is load-bearing for entitlement
+# integrity. Earlier bumps here cleared PYSEC-2026-35, PYSEC-2026-1284,
+# PYSEC-2026-2141 and GHSA-537c-gmf6-5ccf.
+#
+# 50.0.0 closes three CVEs published against 48.0.1 *after* it was pinned — new
+# disclosures, not a regression, which is exactly the drift the pip-audit gate
+# exists to catch:
+#
+#   PYSEC-2026-3552  CVE-2026-69247  pkcs7_decrypt_* leaked the RSA-recovered
+#                    length by distinguishable outcome and by timing — a
+#                    Bleichenbacher oracle for anything decrypting attacker-
+#                    supplied EnvelopedData. Needs 50.0.0. NOT REACHABLE here:
+#                    PKCS7 is not used anywhere in this codebase.
+#   PYSEC-2026-3553  CVE-2026-69249  Chains containing duplicate self-signed
+#                    certificates blow up exponentially during resolution;
+#                    >5s to reject a crafted chain. Needs 49.0.0.
+#   PYSEC-2026-3554  CVE-2026-69248  A leaf wildcard SAN of *.example.com is
+#                    wrongly accepted under an intermediate constrained to
+#                    foo.example.com, escaping the permitted name tree.
+#                    Needs 49.0.0.
+#
+# 3553 and 3554 both live in the x509.verification API (PolicyBuilder / Store /
+# Verifier), which this codebase does not use — the chain walk in
+# entitlements.py and appattest.py is manual, comparing a pinned root by DER
+# bytes and verifying each link with key.verify(). So none of the three is
+# directly exploitable here; the upgrade is taken because the primitives
+# underneath are load-bearing and 50.0.0 is the single version clearing all
+# three.
+cryptography==50.0.0
 # DeviceCheck API calls.
 httpx==0.28.1
