@@ -3,7 +3,7 @@
 # minimum version that can take a patched starlette. Deliberately not the latest
 # (0.141.1, which also works): 0.133.0 stops short of 0.137.0, which upstream
 # flags as a major breaking release, and buys nothing extra security-wise.
-fastapi==0.133.0
+fastapi==0.141.1
 # Pinned explicitly rather than left transitive. It was only ever pulled in via
 # FastAPI, which is precisely why seven advisories against it went unnoticed —
 # an indirect dependency has no line in this file to review. 1.3.1 closes all
