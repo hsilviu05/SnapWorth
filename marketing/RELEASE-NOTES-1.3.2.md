@@ -1,12 +1,6 @@
 # What's New — SnapWorth 1.3.2
 
-**Version:** 1.3.2 (build 9) · **Previous release:** 1.3.1 (build 8) · **Status:** unreleased
-
-> **The number depends on 1.3.1's review outcome.** If 1.3.1 is approved, this
-> is 1.3.2 / build 9. If it is *rejected*, that version string is still open —
-> resubmit as **1.3.1 / build 9** instead and reuse this copy. Do not assume;
-> check App Store Connect. (1.3.0 was mistaken for unshipped once already this
-> cycle, which cost an upload.)
+**Version:** 1.3.2 (build 9) · **Previous release:** 1.3.1 (build 8, approved) · **Status:** unreleased
 
 ## Scope
 
