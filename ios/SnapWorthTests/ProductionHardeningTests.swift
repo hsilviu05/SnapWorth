@@ -811,3 +811,278 @@ final class PrivacyManifestTests: XCTestCase {
         XCTAssertEqual(value, false)
     }
 }
+
+// MARK: - EXIF / GPS on the upload path
+//
+// A photo of your belongings, taken at home, carries your home coordinates in
+// its EXIF GPS IFD (tag 0x8825). If that reaches the backend it is a location
+// leak from an app that never asks for location permission — and it would be
+// invisible, because nothing in the UI mentions it.
+//
+// The suspicion was specific: `downscale` returns the *original* UIImage
+// unchanged when the longest edge is already <= maxEdge, so a small library
+// pick skips the redraw entirely. If EXIF rode along with the UIImage, that
+// path would forward it.
+//
+// These tests settle it against the real types rather than by reasoning about
+// them. The fixture is a genuine JPEG carrying a real GPS dictionary written by
+// ImageIO, and `test_fixtureItselfCarriesGPS` exists so the others cannot pass
+// vacuously — without it, a fixture that silently lost its GPS at construction
+// would make every assertion below trivially true.
+
+final class UploadEXIFStrippingTests: XCTestCase {
+
+    /// A real JPEG carrying a GPS IFD, built with ImageIO.
+    private func geotaggedJPEG(width: Int, height: Int) -> Data {
+        let format = UIGraphicsImageRendererFormat.default()
+        format.scale = 1
+        let image = UIGraphicsImageRenderer(
+            size: CGSize(width: width, height: height), format: format
+        ).image { ctx in
+            UIColor.systemTeal.setFill()
+            ctx.fill(CGRect(x: 0, y: 0, width: width, height: height))
+            UIColor.systemPink.setFill()
+            ctx.fill(CGRect(x: 0, y: 0, width: width / 2, height: height / 2))
+        }
+
+        let out = NSMutableData()
+        let dest = CGImageDestinationCreateWithData(
+            out, "public.jpeg" as CFString, 1, nil)!
+
+        // Apple Park, to a precision that would identify a home.
+        let gps: [CFString: Any] = [
+            kCGImagePropertyGPSLatitude: 37.334886,
+            kCGImagePropertyGPSLatitudeRef: "N",
+            kCGImagePropertyGPSLongitude: 122.008988,
+            kCGImagePropertyGPSLongitudeRef: "W",
+            kCGImagePropertyGPSAltitude: 56.0,
+        ]
+        let exif: [CFString: Any] = [
+            kCGImagePropertyExifDateTimeOriginal: "2026:08:05 14:30:00",
+            kCGImagePropertyExifUserComment: "should-not-survive",
+        ]
+        CGImageDestinationAddImage(dest, image.cgImage!, [
+            kCGImagePropertyGPSDictionary: gps,
+            kCGImagePropertyExifDictionary: exif,
+        ] as CFDictionary)
+        CGImageDestinationFinalize(dest)
+        return out as Data
+    }
+
+    /// Reads the GPS dictionary back out of encoded image data, if present.
+    private func gpsDictionary(of data: Data) -> [String: Any]? {
+        guard let src = CGImageSourceCreateWithData(data as CFData, nil),
+              let props = CGImageSourceCopyPropertiesAtIndex(src, 0, nil)
+                as? [String: Any] else { return nil }
+        return props[kCGImagePropertyGPSDictionary as String] as? [String: Any]
+    }
+
+    // MARK: Guard against a vacuous suite
+
+    func test_fixtureItselfCarriesGPS() throws {
+        let data = geotaggedJPEG(width: 800, height: 600)
+        let gps = try XCTUnwrap(gpsDictionary(of: data), """
+            The fixture lost its GPS at construction, so every other test in \
+            this class would pass without proving anything.
+            """)
+        let latitude = try XCTUnwrap(
+            gps[kCGImagePropertyGPSLatitude as String] as? Double)
+        XCTAssertEqual(latitude, 37.334886, accuracy: 0.000001)
+    }
+
+    // MARK: The path that skips the redraw
+
+    func test_smallImage_takesTheNoDownscalePath() {
+        // Establishes the precondition for the test below: at 800x600 the
+        // longest edge is under 1568, so `downscale` returns the input object
+        // itself and no re-render happens.
+        let source = UIImage(data: geotaggedJPEG(width: 800, height: 600))!
+        let result = ScanAPIClient.downscale(source, maxEdge: ScanAPIClient.maxUploadEdge)
+        XCTAssertTrue(result === source, "expected the original instance back")
+    }
+
+    func test_smallGeotaggedImage_uploadsWithoutGPS() async {
+        let source = UIImage(data: geotaggedJPEG(width: 800, height: 600))!
+        let encoded = await ScanAPIClient.encodeForUpload(source)
+        XCTAssertNotNil(encoded)
+        XCTAssertNil(gpsDictionary(of: encoded!),
+                     "GPS survived the no-downscale upload path")
+    }
+
+    // MARK: The path that does redraw
+
+    func test_largeGeotaggedImage_uploadsWithoutGPS() async {
+        let source = UIImage(data: geotaggedJPEG(width: 3000, height: 2000))!
+        let encoded = await ScanAPIClient.encodeForUpload(source)
+        XCTAssertNotNil(encoded)
+        XCTAssertNil(gpsDictionary(of: encoded!),
+                     "GPS survived the downscaling upload path")
+    }
+
+    // MARK: The copy persisted to disk
+
+    func test_storedCopyCarriesNoGPS() async {
+        let source = UIImage(data: geotaggedJPEG(width: 800, height: 600))!
+        let encoded = await ScanAPIClient.encodeForStorage(source)
+        XCTAssertNotNil(encoded)
+        XCTAssertNil(gpsDictionary(of: encoded!),
+                     "GPS survived into the on-disk copy")
+    }
+
+    // MARK: Nothing else rides along either
+
+    func test_noExifUserCommentSurvives() async {
+        let source = UIImage(data: geotaggedJPEG(width: 800, height: 600))!
+        let encoded = await ScanAPIClient.encodeForUpload(source)!
+        guard let src = CGImageSourceCreateWithData(encoded as CFData, nil),
+              let props = CGImageSourceCopyPropertiesAtIndex(src, 0, nil)
+                as? [String: Any] else {
+            return XCTFail("could not read back encoded image properties")
+        }
+        let exif = props[kCGImagePropertyExifDictionary as String] as? [String: Any]
+        let comment = exif?[kCGImagePropertyExifUserComment as String] as? String
+        XCTAssertNil(comment, "an EXIF user comment survived re-encoding")
+    }
+}
+
+// MARK: - SwiftData store protection
+//
+// The store holds every scan a user has ever taken — item names, valuations,
+// timestamps and a photo of each item. Nothing set a protection class
+// explicitly, so the guarantee was whatever the platform happened to default
+// to rather than something this app had decided.
+//
+// `.completeUntilFirstUserAuthentication` rather than `.complete`: the stronger
+// class makes files unreadable whenever the device is locked, which would break
+// any work happening with the screen off. This one still leaves the store
+// encrypted at rest and unreadable until the first unlock after boot, which is
+// the lost-or-stolen-phone case that actually matters.
+
+final class StoreProtectionTests: XCTestCase {
+
+    private var directory: URL!
+
+    override func setUpWithError() throws {
+        directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(
+            at: directory, withIntermediateDirectories: true)
+    }
+
+    override func tearDownWithError() throws {
+        try? FileManager.default.removeItem(at: directory)
+    }
+
+    private func makeStoreFiles(_ names: [String]) throws -> URL {
+        let store = directory.appendingPathComponent("default.store")
+        for name in names {
+            let url = URL(fileURLWithPath: store.path + name)
+            try Data("x".utf8).write(to: url)
+        }
+        return store
+    }
+
+    // NOTE ON WHAT THESE CAN AND CANNOT PROVE
+    //
+    // The resulting protection class is NOT asserted, because it cannot be
+    // observed here. The Simulator runs on the host's APFS volume, which has no
+    // iOS data-protection classes: `setAttributes(_:ofItemAtPath:)` reports
+    // success and the attribute is then silently dropped, so reading it back
+    // returns nil. An assertion on the class would fail on the Simulator while
+    // the code is correct — and, worse, an assertion written to pass here would
+    // prove nothing about a device.
+    //
+    // What is asserted instead: that the right set of files is targeted, and
+    // that setting the attribute succeeds on each of them (`apply` only returns
+    // URLs for which `setAttributes` did not throw). The class itself is
+    // verifiable only on real hardware — see the class doc for how.
+
+    func test_targetsTheStoreAndBothSqliteSiblings() {
+        let store = URL(fileURLWithPath: "/tmp/x/default.store")
+        let targets = StoreProtection.siblings(of: store).map(\.lastPathComponent)
+        XCTAssertEqual(targets, ["default.store", "default.store-wal", "default.store-shm"])
+    }
+
+    func test_appliesToTheStoreFileWithoutError() throws {
+        let store = try makeStoreFiles([""])
+        XCTAssertEqual(StoreProtection.apply(to: store), [store])
+    }
+
+    func test_appliesToWalAndShmSiblings() throws {
+        // The -wal holds the most recent writes — the newest scans. Protecting
+        // only the .store file would leave exactly those readable.
+        let store = try makeStoreFiles(["", "-wal", "-shm"])
+        let updated = StoreProtection.apply(to: store)
+        XCTAssertEqual(updated.count, 3, "expected store, -wal and -shm")
+        XCTAssertEqual(Set(updated.map(\.lastPathComponent)),
+                       ["default.store", "default.store-wal", "default.store-shm"])
+    }
+
+    func test_missingSiblingsAreSkippedNotFatal() throws {
+        // A freshly created store has no -wal until the first write.
+        let store = try makeStoreFiles([""])
+        XCTAssertEqual(StoreProtection.apply(to: store).count, 1)
+    }
+
+    func test_applyIsSafeWhenNothingExists() {
+        let ghost = directory.appendingPathComponent("absent.store")
+        XCTAssertEqual(StoreProtection.apply(to: ghost), [],
+                       "must not throw or crash when the store is absent")
+    }
+
+    func test_levelIsNotCompleteWhichWouldBreakBackgroundWork() {
+        // Pins the choice rather than the mechanism: if someone later tightens
+        // this to `.complete`, that is a behavioural decision that should fail
+        // a test and be argued for, not slip through.
+        XCTAssertEqual(StoreProtection.level, .completeUntilFirstUserAuthentication)
+        XCTAssertNotEqual(StoreProtection.level, .complete)
+    }
+}
+
+
+// MARK: - 422 routing
+//
+// The backend returns 422 when it looked at the photo and could not use it —
+// a safety block, or an image it cannot read. That reply carries copy telling
+// the user what to change ("try a clear photo of a single item").
+//
+// Two bugs met here. Server-side, safety blocks were never detected at all,
+// because the finish-reason helper could not read the SDK's proto container,
+// so blocks surfaced as 502 "AI unavailable". Client-side, 422 fell through to
+// `.unknown` and printed "Something went wrong" — so even once the server said
+// the right thing, the user was told nothing and retried the same photo.
+
+final class UnusablePhotoMappingTests: XCTestCase {
+    private let blocked = "This photo couldn't be analysed. Try a clear photo of a single item."
+
+    func test_422_surfacesTheServerExplanation() {
+        let mapped = AppError.from(ScanAPIError.serverError(422, blocked))
+        XCTAssertEqual(mapped, .unusablePhoto(blocked))
+        XCTAssertEqual(mapped.errorDescription, blocked)
+    }
+
+    func test_422_doesNotSaySomethingWentWrong() {
+        // The regression this exists to prevent.
+        let message = AppError.from(ScanAPIError.serverError(422, blocked)).errorDescription ?? ""
+        XCTAssertFalse(message.contains("Something went wrong"))
+    }
+
+    func test_422_isNotTreatedAsAnOutage() {
+        // A blocked photo is actionable by the user; "our AI is unavailable" is
+        // neither true nor actionable, and invites an identical retry.
+        let mapped = AppError.from(ScanAPIError.serverError(422, blocked))
+        XCTAssertNotEqual(mapped, .serverUnavailable)
+    }
+
+    func test_differentExplanationsAreNotEqual() {
+        // Compared by message, so a changed reason re-presents the alert.
+        let a = AppError.from(ScanAPIError.serverError(422, blocked))
+        let b = AppError.from(ScanAPIError.serverError(422, "Could not read this image."))
+        XCTAssertNotEqual(a, b)
+    }
+
+    func test_502_stillReadsAsAnOutage() {
+        // The neighbouring case must keep its behaviour.
+        XCTAssertEqual(AppError.from(ScanAPIError.serverError(502, "x")), .serverUnavailable)
+    }
+}

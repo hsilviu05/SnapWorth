@@ -196,6 +196,10 @@ struct ResultView: View {
         return Button {
             Haptics.selection()
             result.condition = condition
+            // Changing condition re-prices the item, which is the only way its
+            // value moves. Record the new point so the portfolio trend reflects
+            // it; the call is a no-op when the number did not actually change.
+            result.refreshPortfolioValue()
             vm.scheduleShareCardUpdate(result: result, photo: photo, displayScale: displayScale)
             // Selection re-prices the estimate; announce the new value so a
             // VoiceOver user learns the outcome without hunting for it.

@@ -7,6 +7,7 @@ struct NotificationSettingsView: View {
     @State private var recapOn  = NotificationManager.shared.isEnabled(.recap)
     @State private var ledgerOn = NotificationManager.shared.isEnabled(.ledger)
     @State private var trialOn  = NotificationManager.shared.isEnabled(.trial)
+    @State private var portfolioOn = NotificationManager.shared.isEnabled(.portfolio)
     @State private var systemDenied = false
 
     var body: some View {
@@ -37,6 +38,7 @@ struct NotificationSettingsView: View {
             }
 
             Section {
+                toggle("Weekly portfolio", "bag", $portfolioOn, .portfolio)
                 toggle("Monthly recap", "chart.bar.doc.horizontal", $recapOn, .recap)
                 toggle("Ledger reminders", "tag", $ledgerOn, .ledger)
                 toggle("Trial reminders", "clock", $trialOn, .trial)
