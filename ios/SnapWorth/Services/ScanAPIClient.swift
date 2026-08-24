@@ -154,11 +154,8 @@ actor ScanAPIClient {
         request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
         request.httpBody = buildMultipart(data: jpegData, boundary: boundary)
 
-        let (data, response) = try await session.data(for: request)
+        let (data, http) = try await request.sendRetryingAuth(on: session)
 
-        guard let http = response as? HTTPURLResponse else {
-            throw URLError(.badServerResponse)
-        }
         guard (200..<300).contains(http.statusCode) else {
             throw ScanAPIError.serverError(http.statusCode, APIErrorDetail.parse(data))
         }

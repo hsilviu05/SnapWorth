@@ -96,4 +96,41 @@ extension URLRequest {
                    error.localizedDescription)
         }
     }
+
+    /// Sends the request, and on a 401 re-mints the token and sends it once more.
+    ///
+    /// A 401 means the credential we attached is not acceptable to the server.
+    /// Left alone, `accessToken()` keeps returning that same token from cache
+    /// until it expires — up to an hour — so every retry the user makes fails
+    /// identically, and the "pull to retry, it should reconnect automatically"
+    /// copy promises a recovery that never happens.
+    ///
+    /// Exactly one retry. If a freshly minted token is also rejected, the
+    /// problem is not staleness and looping would only multiply the failure.
+    func sendRetryingAuth(on session: URLSession) async throws -> (Data, HTTPURLResponse) {
+        let (data, response) = try await session.data(for: self)
+        guard let http = response as? HTTPURLResponse else {
+            throw URLError(.badServerResponse)
+        }
+        guard http.statusCode == 401, Config.useAttestation else {
+            return (data, http)
+        }
+
+        await AttestationService.shared.invalidateCachedToken()
+        var retry = self
+        await retry.attachBearerToken()
+        // No new token means attestation itself is failing; returning the
+        // original 401 reports that honestly rather than re-sending the same
+        // request to get the same answer.
+        guard retry.value(forHTTPHeaderField: "Authorization")
+                != value(forHTTPHeaderField: "Authorization") else {
+            return (data, http)
+        }
+
+        let (retryData, retryResponse) = try await session.data(for: retry)
+        guard let retryHTTP = retryResponse as? HTTPURLResponse else {
+            throw URLError(.badServerResponse)
+        }
+        return (retryData, retryHTTP)
+    }
 }
