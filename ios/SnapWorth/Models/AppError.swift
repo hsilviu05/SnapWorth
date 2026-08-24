@@ -9,7 +9,11 @@ enum AppError: LocalizedError, Equatable {
     /// A Pro-only endpoint refused a free-tier caller.
     case proRequired(String)
     case serverUnavailable
+    /// The device's credential expired or attestation failed. Recoverable by
+    /// retrying — the client re-attests automatically on the next request.
+    case sessionExpired
     case imageEncodingFailed
+    case unusablePhoto(String)
     case purchaseCancelled
     case purchaseFailed(String)
     case persistence
@@ -27,8 +31,18 @@ enum AppError: LocalizedError, Equatable {
             return msg
         case .serverUnavailable:
             return "Our AI is temporarily unavailable. Please try again in a moment."
+        case .sessionExpired:
+            // 401 previously fell through to .unknown -> "Something went wrong",
+            // which tells the user nothing and offers no way forward. A device
+            // credential expires or attestation fails for ordinary reasons, and
+            // it recovers on retry, so say that.
+            return "Your session expired. Pull to retry — it should reconnect automatically."
         case .imageEncodingFailed:
             return "Could not process the photo. Please try a different image."
+        case .unusablePhoto(let msg):
+            // Backend copy, shown verbatim: it names the fix (a clearer photo,
+            // one item in frame) rather than reporting a fault.
+            return msg
         case .purchaseCancelled:
             return nil
         case .purchaseFailed(let msg):
@@ -57,6 +71,15 @@ enum AppError: LocalizedError, Equatable {
                 case 402:        return detail.lowercased().contains("pro feature")
                                      ? .proRequired(detail)
                                      : .quotaExceeded(detail)
+                case 401:        return .sessionExpired
+                // 422 is the server saying it looked at the photo and could not
+                // use it — a safety block, or an image it cannot read. The
+                // detail is user-safe copy written by the backend and tells the
+                // user what to do differently ("try a clear photo of a single
+                // item"). It used to fall through to .unknown, which threw that
+                // away and said "Something went wrong", leaving the user to
+                // retry the identical photo and fail identically.
+                case 422:        return .unusablePhoto(detail)
                 case 502, 503:   return .serverUnavailable
                 default:         return .unknown(detail)
                 }
@@ -104,6 +127,11 @@ enum AppError: LocalizedError, Equatable {
         case (.unknown(let a), .unknown(let b)):               return a == b
         case (.quotaExceeded(let a), .quotaExceeded(let b)):   return a == b
         case (.proRequired(let a), .proRequired(let b)):       return a == b
+        // Compared by message, like every other case carrying server copy.
+        // Matching on the case alone would make two different "why this photo
+        // failed" explanations equal, and the alert would not re-present when
+        // the reason changed.
+        case (.unusablePhoto(let a), .unusablePhoto(let b)):   return a == b
         default: return false
         }
     }

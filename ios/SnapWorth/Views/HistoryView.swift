@@ -6,6 +6,7 @@ struct HistoryView: View {
 
     @Environment(\.modelContext) private var modelContext
     @Query private var results: [ScanResult]
+    @State private var showPaywall = false
     @State private var vm = HistoryViewModel()
     @State private var selectedResult: ScanResult?
     @State private var isEditing = false
@@ -53,8 +54,23 @@ struct HistoryView: View {
 
                         // ── Total banner ───────────────────────────────────────
                         if !results.isEmpty {
-                            TotalBanner(totalValue: vm.totalValue(from: results), count: results.count)
-                                .padding(.horizontal, hPad)
+                            PortfolioBanner(
+                                totalValue: vm.totalValue(from: results),
+                                count: results.count,
+                                insightLine: HistoryViewModel.insightLine(
+                                    vm.insights(from: results)),
+                                trend: vm.trendPoints(from: results),
+                                // Same entitlement every other gated feature
+                                // reads — StoreKit-verified, refreshed on
+                                // launch and on every transaction update.
+                                isPro: purchaseService.isSubscribed,
+                                onUnlock: {
+                                    Analytics.shared.track(
+                                        .paywallViewed(trigger: .portfolioTrend))
+                                    showPaywall = true
+                                }
+                            )
+                            .padding(.horizontal, hPad)
                         }
 
                         // ── Search ─────────────────────────────────────────────
@@ -204,6 +220,9 @@ struct HistoryView: View {
             }
             .task { recapLabel = NotificationManager.shared.readyRecapLabel() }
         }
+        .sheet(isPresented: $showPaywall) {
+            PaywallView(purchaseService: purchaseService, trigger: .portfolioTrend)
+        }
         .sheet(item: $selectedResult) { result in
             ResultView(result: result, purchaseService: purchaseService,
                        onDismiss: { selectedResult = nil })
@@ -282,10 +301,19 @@ private struct RecapBanner: View {
     }
 }
 
-// MARK: - Total Banner
-private struct TotalBanner: View {
+// MARK: - Portfolio Banner
+//
+// Free users get the headline total and the item count — that is the hook, and
+// gating it would remove the reason to reopen the app at all. The trend over
+// time is Pro, shown blurred with an unlock prompt rather than hidden, matching
+// the soft paywall in ThriftFlipView.
+private struct PortfolioBanner: View {
     let totalValue: String
     let count: Int
+    var insightLine: String? = nil
+    var trend: [HistoryViewModel.TrendPoint] = []
+    var isPro: Bool = true
+    var onUnlock: () -> Void = {}
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -300,6 +328,19 @@ private struct TotalBanner: View {
             Text("\(count) item\(count == 1 ? "" : "s") scanned")
                 .font(.snapCaption)
                 .foregroundStyle(Color.snapSage.opacity(0.7))
+
+            // At most one line, and only when there is something to act on —
+            // see HistoryViewModel.insightLine.
+            if let insightLine {
+                Text(insightLine)
+                    .font(.snapCaption.weight(.medium))
+                    .foregroundStyle(Color.snapTerracotta)
+                    .padding(.top, 2)
+            }
+
+            // Extracted: inlining this pushed the banner past what the
+            // SwiftUI type-checker will infer in reasonable time.
+            TrendStrip(trend: trend, isPro: isPro, onUnlock: onUnlock)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(20)
@@ -376,5 +417,78 @@ private struct EmptyFindsView: View {
             .padding(.top, 4)
             .accessibilityHint("Switches to the camera to scan your first item")
         }
+    }
+}
+
+
+// MARK: - Trend strip (Pro)
+private struct TrendStrip: View {
+    let trend: [HistoryViewModel.TrendPoint]
+    let isPro: Bool
+    let onUnlock: () -> Void
+
+    var body: some View {
+        // Two points minimum: one scan is not a trend.
+        if trend.count >= 2 {
+            ZStack {
+                Sparkline(points: trend)
+                    .stroke(Color.snapSage, style: StrokeStyle(
+                        lineWidth: 2, lineCap: .round, lineJoin: .round))
+                    .frame(height: 44)
+                    .padding(.top, 8)
+                    .blur(radius: isPro ? 0 : 6)
+                    // Hidden from VoiceOver when blurred: announcing a shape
+                    // the user cannot see is noise, and the unlock button
+                    // carries the actionable information instead.
+                    .accessibilityHidden(!isPro)
+
+                if !isPro { unlockButton }
+            }
+        }
+    }
+
+    private var unlockButton: some View {
+        Button(action: onUnlock) {
+            Text("Unlock value history")
+                .font(.snapCaption.weight(.semibold))
+                .foregroundStyle(Color.snapSage)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 7)
+                .background(Capsule().fill(Color.snapCard))
+                .overlay(Capsule().strokeBorder(
+                    Color.snapSage.opacity(0.35), lineWidth: 1))
+        }
+        .accessibilityLabel("Unlock value history")
+        .accessibilityHint("Shows how your portfolio has changed over time. Requires SnapWorth Pro.")
+    }
+}
+
+// MARK: - Sparkline
+//
+// Hand-rolled rather than Swift Charts: this is one unlabelled line inside a
+// summary card, and Charts brings axes, scales and gesture handling that would
+// all have to be turned off again. Fifteen lines of Path is the smaller thing.
+private struct Sparkline: Shape {
+    let points: [HistoryViewModel.TrendPoint]
+
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        guard points.count >= 2 else { return path }
+
+        let values = points.map { NSDecimalNumber(decimal: $0.total).doubleValue }
+        let minV = values.min() ?? 0
+        let maxV = values.max() ?? 0
+        // A flat portfolio still deserves a line rather than a divide-by-zero:
+        // draw it through the middle.
+        let span = maxV - minV
+        let normalise: (Double) -> Double = { span > 0 ? ($0 - minV) / span : 0.5 }
+
+        for (i, value) in values.enumerated() {
+            let x = rect.minX + rect.width * (Double(i) / Double(values.count - 1))
+            let y = rect.maxY - rect.height * normalise(value)
+            let point = CGPoint(x: x, y: y)
+            i == 0 ? path.move(to: point) : path.addLine(to: point)
+        }
+        return path
     }
 }

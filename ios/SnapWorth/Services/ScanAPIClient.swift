@@ -221,6 +221,22 @@ actor ScanAPIClient {
 
     /// Aspect-preserving downscale. Returns the original when already small
     /// enough, so a library pick of a tiny image is never upscaled.
+    ///
+    /// **EXIF/GPS note.** The early return means a small image is *not*
+    /// re-rendered, which looks like it could forward the source photo's EXIF
+    /// GPS IFD — the coordinates of wherever the item was photographed, from an
+    /// app that never asks for location permission. It does not, and the reason
+    /// is upstream of this function: `UIImage(data:)` decodes to a `CGImage`
+    /// plus orientation and scale, and does not carry the source's metadata
+    /// dictionary at all, so `jpegData(compressionQuality:)` has nothing to
+    /// write back. By the time an image reaches here the GPS is already gone.
+    ///
+    /// This is asserted rather than assumed — `UploadEXIFStrippingTests` builds
+    /// a genuine geotagged JPEG with ImageIO and checks both the redraw and the
+    /// no-redraw path, with a fixture self-check so the suite cannot pass
+    /// vacuously. If a future change ever routes original file `Data` to the
+    /// network instead of a re-encoded `UIImage`, those tests are what will
+    /// catch it.
     nonisolated static func downscale(_ image: UIImage, maxEdge: CGFloat) -> UIImage {
         let longest = max(image.size.width, image.size.height)
         guard longest > maxEdge, longest > 0 else { return image }

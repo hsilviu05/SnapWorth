@@ -24,7 +24,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: '3.13'
           cache: pip
@@ -54,11 +54,11 @@ jobs:
   #
   # Scoped to requirements.txt, which is exactly what the Dockerfile installs
   # (backend/Dockerfile:24) and therefore the production attack surface. Dev-only
-  # tooling is deliberately out of scope: pytest currently carries
-  # PYSEC-2026-1845, a local /tmp privilege issue on shared UNIX hosts that needs
-  # a major 8.x -> 9.x bump. It never ships in the image and cannot be reached by
-  # a remote caller, so forcing that bump to keep this job green would be
-  # churning the test harness for no security gain. Track it separately.
+  # tooling is out of scope here because it never reaches a remote caller — but
+  # it is not ignored: pytest's own advisory (PYSEC-2026-1845) was taken in
+  # requirements-dev.txt once the production manifest was clean, so the whole
+  # tree currently has no known advisory. Widening this step to
+  # requirements-dev.txt is a reasonable future tightening.
   audit:
     name: No known-vulnerable dependencies
     runs-on: ubuntu-latest
@@ -69,7 +69,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: '3.13'
           cache: pip
@@ -78,9 +78,9 @@ jobs:
       - name: Install pip-audit
         run: pip install pip-audit==2.10.1
 
-      # No --ignore-vuln entries. Every advisory against the production manifest
-      # currently has a fix and has been taken, so the allowlist is empty by
-      # design rather than by oversight.
+      # No --ignore-vuln entries. The seven starlette exceptions added in 80863e1
+      # were removed once fastapi 0.133.0 + starlette 1.3.1 landed and fixed them
+      # for real, so the allowlist is empty by design rather than by oversight.
       #
       # If a future advisory genuinely has no fix, add it here as
       #   --ignore-vuln PYSEC-XXXX-NNN  # why it is not reachable, and when to recheck
@@ -196,4 +196,42 @@ jobs:
             echo "::warning::RAILWAY_TOKEN secret not set — skipping deploy. Add it in GitHub repo Settings → Secrets."
             exit 0
           fi
+          # Record the commit being deployed so /health can report which build
+          # is live. `railway up` uploads this directory and Railway builds the
+          # Dockerfile there, so a file written here rides along via `COPY . .`
+          # with nothing to configure in a dashboard.
+          #
+          # This exists because RAILWAY_GIT_COMMIT_SHA — which the app also
+          # reads — is only set by Railway's GitHub integration, never by
+          # `railway up`. Without this step /health reports commit "unknown",
+          # which is exactly what it did in production while the feature was
+          # believed to be working.
+          # Written into backend/, not the repo root: main.py looks for it
+          # alongside itself, and the Docker build context is backend/, so this
+          # is the path that survives `COPY . .`. The deploy job has no
+          # working-directory default, unlike the other jobs in this workflow.
+          echo "${GITHUB_SHA}" > backend/BUILD_COMMIT
+
+          # `railway up` honours .gitignore, and .gitignore excludes
+          # backend/BUILD_COMMIT so the file never shows up in a working tree
+          # as noise. The two together silently cancelled this feature out: the
+          # write above succeeded on every deploy, the file was then dropped
+          # from the upload, and /health reported commit "unknown" for the
+          # entire life of the feature — including while it was believed to be
+          # working, which is exactly the failure it was built to prevent.
+          #
+          # Stripping the line from the runner's own checkout is safe: this
+          # working copy is thrown away at the end of the job and is never
+          # committed or pushed. The alternative, a .railwayignore, means
+          # maintaining a second copy of every exclusion and letting the two
+          # drift.
+          grep -vxF 'backend/BUILD_COMMIT' .gitignore > .gitignore.deploy
+          mv .gitignore.deploy .gitignore
+
+          if git check-ignore -q backend/BUILD_COMMIT; then
+            echo "::error::backend/BUILD_COMMIT is still ignored — it will not reach Railway"
+            exit 1
+          fi
+          echo "deploying commit ${GITHUB_SHA}"
+
           railway up --service snapworth-backend --detach
