@@ -456,6 +456,7 @@ struct FlipsView: View {
 @MainActor
 private func previewContainer(_ build: (ModelContext) -> Void) -> ModelContainer {
     let config = ModelConfiguration(isStoredInMemoryOnly: true)
+    // swiftlint:disable:next force_try — preview-only in-memory container, never ships
     let container = try! ModelContainer(for: ScanResult.self, configurations: config)
     build(container.mainContext)
     return container

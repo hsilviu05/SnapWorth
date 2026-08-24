@@ -18,7 +18,7 @@ jobs:
     runs-on: macos-15
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Select Xcode 16
         run: |
@@ -82,12 +82,71 @@ jobs:
             -quiet
 
   # ── Security gate: no real keys committed ───────────────────────────────────
+  # ── SwiftLint (reporting only) ───────────────────────────────────────────────
+  # NON-BLOCKING BY DESIGN. The codebase predates any linter, so this reports a
+  # count rather than gating the build — turning it red on day one would force
+  # either a mass reformat (an unreviewable diff on top of a live release) or a
+  # pile of inline disables, and neither improves the app.
+  #
+  # The ruleset is deliberately tiny; see .swiftlint.yml for what is on and what
+  # is deferred. To make this blocking later, drop the `|| true` from the lint
+  # step and remove `continue-on-error`.
+  lint:
+    name: SwiftLint (report only)
+    runs-on: macos-15
+    continue-on-error: true
+    env:
+      # Pinned rather than `brew install swiftlint`, so the version is identical
+      # in CI and locally and a clean local run means a clean build — the same
+      # reasoning as the pinned gitleaks binary.
+      SWIFTLINT_VERSION: 0.62.0
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install SwiftLint
+        run: |
+          curl -sSfL -o /tmp/swiftlint.zip \
+            "https://github.com/realm/SwiftLint/releases/download/${SWIFTLINT_VERSION}/portable_swiftlint.zip"
+          unzip -oq /tmp/swiftlint.zip -d /tmp/swiftlint
+          /tmp/swiftlint/swiftlint version
+
+      - name: Lint and report
+        run: |
+          /tmp/swiftlint/swiftlint lint --config .swiftlint.yml --quiet \
+            > /tmp/swiftlint.txt 2>/dev/null || true
+
+          TOTAL=$(wc -l < /tmp/swiftlint.txt | tr -d ' ')
+          ERRORS=$(grep -c ': error:' /tmp/swiftlint.txt || true)
+          WARNINGS=$(grep -c ': warning:' /tmp/swiftlint.txt || true)
+
+          {
+            echo "## SwiftLint"
+            echo ""
+            echo "| | Count |"
+            echo "|---|---|"
+            echo "| Total | $TOTAL |"
+            echo "| Errors | $ERRORS |"
+            echo "| Warnings | $WARNINGS |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          echo "SwiftLint: $TOTAL violations ($ERRORS errors, $WARNINGS warnings)"
+
+      - name: Upload report
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: swiftlint-report
+          path: /tmp/swiftlint.txt
+          if-no-files-found: ignore
+          retention-days: 30
+
   secrets-check:
     name: No secrets in source
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Scan for leaked secrets
         # Replaces two hand-written greps that matched on shape alone and could
@@ -118,7 +177,7 @@ jobs:
 
       - name: Upload scan report
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: gitleaks-report
           path: /tmp/gitleaks.sarif

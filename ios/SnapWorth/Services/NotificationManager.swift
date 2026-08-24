@@ -39,13 +39,18 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
     enum Category: String, CaseIterable {
         case trial      // highest priority for the daily cap
         case ledger
+        case portfolio
         case recap      // lowest
 
         var priority: Int {
             switch self {
-            case .trial:  return 3
-            case .ledger: return 2
-            case .recap:  return 1
+            case .trial:     return 4
+            case .ledger:    return 3
+            // Above the monthly recap, below anything time-critical: this is a
+            // weekly habit nudge, so losing one to a trial warning costs
+            // nothing, but it should outrank a once-a-month summary.
+            case .portfolio: return 2
+            case .recap:     return 1
             }
         }
 
@@ -55,6 +60,7 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
     // MARK: - Identifiers
 
     private static let recapID = "recap.monthly"
+    private static let portfolioID = "portfolio.weekly"
     private static let trialID = "trial.ending"
     private static func ledgerDayID(_ dayKey: String) -> String { "ledger.day.\(dayKey)" }
 
@@ -258,7 +264,86 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
                                          from: item.listedDate ?? item.timestamp)
         }
 
+        await schedulePortfolioDigest(results: all)
+
         await syncTrialReminder(endDate: purchaseService.trialEndDate)
+    }
+
+    // MARK: - Weekly portfolio nudge
+
+    /// What the weekly reminder is allowed to say.
+    ///
+    /// Deliberately narrow. The obvious copy for a return hook is "your PS5 is
+    /// worth $40 more this week" — and it would be false here. An item's value
+    /// only ever moves when the *user* changes its condition
+    /// (`ResultView` → `refreshPortfolioValue`); nothing re-values a saved item,
+    /// because `ScanAPIClient.scan` is only called for a new photo. Reporting
+    /// the user's own edit back to them as market movement would be inventing a
+    /// signal, and detecting real movement needs background re-valuation — a
+    /// larger feature with a per-user model cost.
+    ///
+    /// So the copy states two things that are true from local data: what the
+    /// portfolio is worth, and what was added since the last reminder.
+    struct WeeklyDigest: Equatable {
+        let itemCount: Int
+        let total: Decimal
+        let addedThisWeek: Int
+
+        /// Nil when there is nothing worth interrupting someone for.
+        var body: String? {
+            guard itemCount > 0 else { return nil }
+            let money = HistoryViewModel.money(total)
+
+            if addedThisWeek > 0 {
+                let noun = addedThisWeek == 1 ? "find" : "finds"
+                return "You added \(addedThisWeek) \(noun) this week. Your \(itemCount) "
+                     + "\(itemCount == 1 ? "find is" : "finds are") worth \(money)."
+            }
+            // Nothing new: a plain status line rather than manufactured urgency.
+            return "Your \(itemCount) \(itemCount == 1 ? "find is" : "finds are") worth \(money)."
+        }
+    }
+
+    /// Builds the digest from the library. Pure, so the copy rules are testable
+    /// without a notification centre or a ModelContainer.
+    nonisolated static func digest(for results: [ScanResult],
+                                   now: Date = Date()) -> WeeklyDigest {
+        let weekAgo = now.addingTimeInterval(-7 * 86_400)
+        return WeeklyDigest(
+            itemCount: results.count,
+            total: HistoryViewModel.total(of: results.map(\.portfolioValue)),
+            addedThisWeek: results.filter { $0.timestamp >= weekAgo }.count
+        )
+    }
+
+    /// Schedules the next weekly nudge.
+    ///
+    /// Re-scheduled on every eligible sync rather than repeating: the body has
+    /// to be recomputed from the current library, and a `repeats: true` trigger
+    /// would keep firing last month's numbers forever.
+    func schedulePortfolioDigest(results: [ScanResult], now: Date = Date()) async {
+        let digest = Self.digest(for: results, now: now)
+        guard let body = digest.body else {
+            // An empty portfolio has nothing to report. Clear any stale request
+            // so a user who deleted everything is not reminded about it.
+            cancel(.portfolio)
+            return
+        }
+        guard let fireDate = Self.nextDigestDate(after: now) else { return }
+        await add(id: Self.portfolioID, category: .portfolio,
+                  fireDate: fireDate, body: body)
+    }
+
+    /// Sunday at 11:00 local — a time people browse, not a weekday morning
+    /// competing with work notifications.
+    nonisolated static func nextDigestDate(after now: Date,
+                                           calendar: Calendar = .current) -> Date? {
+        var comps = DateComponents()
+        comps.weekday = 1        // Sunday
+        comps.hour = 11
+        comps.minute = 0
+        return calendar.nextDate(after: now, matching: comps,
+                                 matchingPolicy: .nextTime)
     }
 
     // MARK: - Cancellation by category
@@ -266,6 +351,7 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
     private func cancel(_ category: Category) {
         switch category {
         case .recap: center.removePendingNotificationRequests(withIdentifiers: [Self.recapID])
+        case .portfolio: center.removePendingNotificationRequests(withIdentifiers: [Self.portfolioID])
         case .trial: center.removePendingNotificationRequests(withIdentifiers: [Self.trialID])
         case .ledger: cancelAllLedger()
         }
@@ -354,6 +440,11 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
             NotificationCenter.default.post(name: .snapOpenFlips, object: nil)
         case .trial:
             NotificationCenter.default.post(name: .snapOpenSettings, object: nil)
+        case .portfolio:
+            // Reuses the widget's existing My Finds route rather than adding a
+            // second notification name for the same destination — MainTabView
+            // already listens for it.
+            NotificationCenter.default.post(name: .snapWidgetOpenHistory, object: nil)
         }
     }
 

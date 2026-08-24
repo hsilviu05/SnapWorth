@@ -12,6 +12,11 @@ final class ScanRepository {
     }
 
     func save(_ result: ScanResult) throws {
+        // Seeds the denormalised portfolio value and the first history point.
+        // Done here rather than in the model's init so every persisted row has
+        // one, including any future call site that builds a ScanResult
+        // differently.
+        result.refreshPortfolioValue()
         context.insert(result)
         do {
             try context.save()
@@ -44,6 +49,25 @@ final class ScanRepository {
         NotificationManager.shared.cancelAllLedger()
         WidgetDataStore.writeHaul(results: [])
     }
+
+    // ── On the portfolio total, and why there is no aggregate here ────────────
+    //
+    // An earlier pass added a `portfolioSummary()` using
+    // `FetchDescriptor.propertiesToFetch` to sum without materialising the
+    // externalStorage image blobs. It was removed because it does not pay off
+    // in this app, and dead code that advertises an optimisation nothing
+    // performs is worse than no code.
+    //
+    // `HistoryView` lists scans with `@Query`, so every row is already resident
+    // when the banner renders. A second fetch to sum them would be *additive*
+    // cost, not a saving. The reduce itself is cheap and got cheaper:
+    // `portfolioValue` reads the denormalised `portfolioValueRaw` column when
+    // present, so a touched library sums plain Decimals instead of running a
+    // condition-adjusted division per item per render.
+    //
+    // The aggregate becomes worth having the moment the list stops loading
+    // everything — i.e. when it is paged. That is a larger change than this
+    // feature, and doing half of it here would only look like the work.
 
     func fetchAll() -> [ScanResult] {
         (try? context.fetch(FetchDescriptor<ScanResult>())) ?? []

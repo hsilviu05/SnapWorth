@@ -48,6 +48,7 @@
 		AA00000000000000000000FC /* FeedbackView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000000FB /* FeedbackView.swift */; };
 		AA0000000000000000000100 /* SnapWorthTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000102 /* SnapWorthTests.swift */; };
 		BB0000000000000000000A01 /* ProductionHardeningTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0000000000000000000A02 /* ProductionHardeningTests.swift */; };
+		BB0000000000000000000F01 /* MigrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0000000000000000000F02 /* MigrationTests.swift */; };
 		AA000000000000000000010E /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = AA000000000000000000010D /* PrivacyInfo.xcprivacy */; };
 		AA000000000000000000010F /* AppError.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000110 /* AppError.swift */; };
 		AA0000000000000000000111 /* ScanRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000112 /* ScanRepository.swift */; };
@@ -56,6 +57,7 @@
 		ADD1EC0000000000000000B2 /* Analytics.swift in Sources */ = {isa = PBXBuildFile; fileRef = ADD1EC0000000000000000B1 /* Analytics.swift */; };
 		BB0000000000000000000C01 /* AppLaunchState.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0000000000000000000C02 /* AppLaunchState.swift */; };
 		BB0000000000000000000D01 /* CrashReporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0000000000000000000D02 /* CrashReporter.swift */; };
+		BB0000000000000000000E01 /* StoreProtection.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0000000000000000000E02 /* StoreProtection.swift */; };
 		ADD1EC0000000000000000B4 /* TelemetryDeckAnalytics.swift in Sources */ = {isa = PBXBuildFile; fileRef = ADD1EC0000000000000000B3 /* TelemetryDeckAnalytics.swift */; };
 		ADD1EC0000000000000000B6 /* ActivityShareSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = ADD1EC0000000000000000B5 /* ActivityShareSheet.swift */; };
 		ADD1EC0000000000000000B8 /* FlipsViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = ADD1EC0000000000000000B7 /* FlipsViewModel.swift */; };
@@ -142,6 +144,7 @@
 		AA0000000000000000000101 /* SnapWorthTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = SnapWorthTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		AA0000000000000000000102 /* SnapWorthTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SnapWorthTests.swift; sourceTree = "<group>"; };
 		BB0000000000000000000A02 /* ProductionHardeningTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProductionHardeningTests.swift; sourceTree = "<group>"; };
+		BB0000000000000000000F02 /* MigrationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MigrationTests.swift; sourceTree = "<group>"; };
 		AA000000000000000000010D /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		AA0000000000000000000110 /* AppError.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppError.swift; sourceTree = "<group>"; };
 		AA0000000000000000000112 /* ScanRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanRepository.swift; sourceTree = "<group>"; };
@@ -149,6 +152,7 @@
 		ADD1EC0000000000000000B1 /* Analytics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Analytics.swift; sourceTree = "<group>"; };
 		BB0000000000000000000C02 /* AppLaunchState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppLaunchState.swift; sourceTree = "<group>"; };
 		BB0000000000000000000D02 /* CrashReporter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CrashReporter.swift; sourceTree = "<group>"; };
+		BB0000000000000000000E02 /* StoreProtection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoreProtection.swift; sourceTree = "<group>"; };
 		ADD1EC0000000000000000B3 /* TelemetryDeckAnalytics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TelemetryDeckAnalytics.swift; sourceTree = "<group>"; };
 		ADD1EC0000000000000000B5 /* ActivityShareSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityShareSheet.swift; sourceTree = "<group>"; };
 		ADD1EC0000000000000000B7 /* FlipsViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FlipsViewModel.swift; sourceTree = "<group>"; };
@@ -279,6 +283,7 @@
 				ADD1EC0000000000000000B1 /* Analytics.swift */,
 				BB0000000000000000000C02 /* AppLaunchState.swift */,
 				BB0000000000000000000D02 /* CrashReporter.swift */,
+				BB0000000000000000000E02 /* StoreProtection.swift */,
 				ADD1EC0000000000000000B3 /* TelemetryDeckAnalytics.swift */,
 				ADD1EC0000000000000000F1 /* ReviewPrompt.swift */,
 				ADD1EC0000000000000000F3 /* NotificationManager.swift */,
@@ -355,6 +360,7 @@
 			children = (
 				AA0000000000000000000102 /* SnapWorthTests.swift */,
 				BB0000000000000000000A02 /* ProductionHardeningTests.swift */,
+				BB0000000000000000000F02 /* MigrationTests.swift */,
 			);
 			path = SnapWorthTests;
 			sourceTree = "<group>";
@@ -520,6 +526,7 @@
 				ADD1EC0000000000000000B2 /* Analytics.swift in Sources */,
 				BB0000000000000000000C01 /* AppLaunchState.swift in Sources */,
 				BB0000000000000000000D01 /* CrashReporter.swift in Sources */,
+				BB0000000000000000000E01 /* StoreProtection.swift in Sources */,
 				ADD1EC0000000000000000B4 /* TelemetryDeckAnalytics.swift in Sources */,
 				ADD1EC0000000000000000F2 /* ReviewPrompt.swift in Sources */,
 				ADD1EC0000000000000000F4 /* NotificationManager.swift in Sources */,
@@ -565,6 +572,7 @@
 			files = (
 				AA0000000000000000000100 /* SnapWorthTests.swift in Sources */,
 				BB0000000000000000000A01 /* ProductionHardeningTests.swift in Sources */,
+				BB0000000000000000000F01 /* MigrationTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -591,7 +599,7 @@
 				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
 				CODE_SIGN_ENTITLEMENTS = SnapWorthWidgets/SnapWorthWidgets.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 6;
+				CURRENT_PROJECT_VERSION = 8;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = SnapWorthWidgets/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = SnapWorthWidgets;
@@ -602,7 +610,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 1.2.1;
+				MARKETING_VERSION = 1.3.1;
 				PRODUCT_BUNDLE_IDENTIFIER = eu.snapworth.app.SnapWorthWidgets;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
@@ -623,7 +631,7 @@
 				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
 				CODE_SIGN_ENTITLEMENTS = SnapWorthWidgets/SnapWorthWidgets.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 6;
+				CURRENT_PROJECT_VERSION = 8;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = SnapWorthWidgets/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = SnapWorthWidgets;
@@ -634,7 +642,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 1.2.1;
+				MARKETING_VERSION = 1.3.1;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				PRODUCT_BUNDLE_IDENTIFIER = eu.snapworth.app.SnapWorthWidgets;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -779,7 +787,7 @@
 				CODE_SIGN_ENTITLEMENTS = SnapWorth/SnapWorth.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 6;
+				CURRENT_PROJECT_VERSION = 8;
 				DEVELOPMENT_ASSET_PATHS = "";
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = NO;
@@ -790,7 +798,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.2.1;
+				MARKETING_VERSION = 1.3.1;
 				PRODUCT_BUNDLE_IDENTIFIER = eu.snapworth.app;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
@@ -811,7 +819,7 @@
 				CODE_SIGN_ENTITLEMENTS = SnapWorth/SnapWorth.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 6;
+				CURRENT_PROJECT_VERSION = 8;
 				DEVELOPMENT_ASSET_PATHS = "";
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = NO;
@@ -822,7 +830,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.2.1;
+				MARKETING_VERSION = 1.3.1;
 				PRODUCT_BUNDLE_IDENTIFIER = eu.snapworth.app;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
