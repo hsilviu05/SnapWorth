@@ -27,12 +27,12 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from comps import aggregate as aggregate_module
 from comps import dedupe as dedupe_module
 from comps import matching
-from comps.cache import CompsCache, NullCompsCache
+from comps.cache import CompsCache, CompsCacheLike, NullCompsCache
 from comps.flags import CompsFlags
 from comps.flags import flags as default_flags
 from comps.models import (
@@ -53,12 +53,11 @@ class CompsEngine:
     """Stateless orchestrator. Safe to share across requests."""
 
     registry: ProviderRegistry = default_registry
-    cache: object = None
+    # default_factory rather than `None` + __post_init__: the field is never
+    # None once construction finishes, so typing it Optional only forced a
+    # narrowing check at every call site for a state that cannot occur.
+    cache: CompsCacheLike = field(default_factory=NullCompsCache)
     flags: CompsFlags = default_flags
-
-    def __post_init__(self) -> None:
-        if self.cache is None:
-            self.cache = NullCompsCache()
 
     # ── Public API ───────────────────────────────────────────────────────────
 
