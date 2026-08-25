@@ -25,6 +25,9 @@ from datetime import date, datetime, timezone
 
 import pytest
 
+from tests.conftest import not_none
+from typing import Any
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from eval import calibration as calib  # noqa: E402
@@ -140,7 +143,7 @@ class TestStats:
         assert stats.compare_paired([1.0], [1.0, 2.0]) is None
 
     def test_effect_label_thresholds(self):
-        assert stats.compare_paired([20.0] * 20, [10.0] * 20).effect_label == "large"
+        assert not_none(stats.compare_paired([20.0] * 20, [10.0] * 20)).effect_label == "large"
 
     def test_required_sample_size_grows_as_effect_shrinks(self):
         assert stats.required_sample_size(0.1) > stats.required_sample_size(0.8)
@@ -151,46 +154,50 @@ class TestStats:
 class TestExtendedMetrics:
     def test_rmse_exceeds_mae_when_errors_are_uneven(self):
         """The gap between them is the signal: a few severe misses vs drift."""
-        pairs = [(100, 100)] * 9 + [(500, 100)]
-        assert metrics.rmse(pairs) > metrics.mae(pairs)
+        pairs = [(100.0, 100.0)] * 9 + [(500.0, 100.0)]
+        assert not_none(metrics.rmse(pairs)) > not_none(metrics.mae(pairs))
 
     def test_rmse_equals_mae_for_uniform_error(self):
-        pairs = [(110, 100)] * 5
+        pairs = [(110.0, 100.0)] * 5
         assert metrics.rmse(pairs) == pytest.approx(metrics.mae(pairs))
 
     def test_bias_detects_systematic_over_valuation(self):
-        assert metrics.bias([(120, 100)] * 5) == pytest.approx(20.0)
+        assert metrics.bias([(120.0, 100.0)] * 5) == pytest.approx(20.0)
 
     def test_bias_is_near_zero_for_symmetric_error(self):
-        assert abs(metrics.bias([(120, 100), (80, 100)])) < 1e-9
+        assert abs(not_none(metrics.bias([(120.0, 100.0), (80.0, 100.0)]))) < 1e-9
 
     def test_bias_distinguishes_drift_from_noise(self):
         """Same MdAPE, opposite meanings — this is why bias is reported."""
-        systematic = [(120, 100)] * 10
-        noisy = [(120, 100), (80, 100)] * 5
+        systematic = [(120.0, 100.0)] * 10
+        noisy = [(120.0, 100.0), (80.0, 100.0)] * 5
         assert metrics.mdape(systematic) == pytest.approx(metrics.mdape(noisy))
-        assert abs(metrics.bias(systematic)) > abs(metrics.bias(noisy))
+        assert abs(not_none(metrics.bias(systematic))) > abs(not_none(metrics.bias(noisy)))
 
     def test_interval_calibration_flags_overconfidence(self):
         triples = [(90.0, 110.0, 200.0)] * 10      # never covers
         result = metrics.prediction_interval_calibration(triples, nominal=0.80)
+        assert result is not None
         assert result["over_confident"]
         assert result["gap"] < 0
 
     def test_interval_calibration_when_well_calibrated(self):
         triples = [(50.0, 150.0, 100.0)] * 8 + [(50.0, 150.0, 500.0)] * 2
         result = metrics.prediction_interval_calibration(triples, nominal=0.80)
+        assert result is not None
         assert result["empirical"] == pytest.approx(0.8)
         assert not result["over_confident"]
 
     def test_repeatability(self):
         result = metrics.repeatability([[100.0, 101.0], [50.0, 90.0]], tolerance=0.02)
+        assert result is not None
         assert result["stable_fraction"] == 0.5
 
     def test_field_accuracy_treats_abstention_separately(self):
         """Declining to guess is the desired behaviour, not an error."""
         result = metrics.field_accuracy([
             ("Nike", "Nike"), ("Unknown", "Adidas"), ("Puma", "Adidas")])
+        assert result is not None
         assert result["abstained"] == 1
         assert result["wrong"] == 1
         assert result["precision_when_attempted"] == 0.5
@@ -198,6 +205,7 @@ class TestExtendedMetrics:
     def test_field_accuracy_can_penalise_abstention(self):
         result = metrics.field_accuracy(
             [("Unknown", "Adidas")], allow_unknown=False)
+        assert result is not None
         assert result["wrong"] == 1 and result["abstained"] == 0
 
     def test_top_k_accuracy(self):
@@ -208,13 +216,14 @@ class TestExtendedMetrics:
         """A wrong comp is worse than a missing one — this is the headline."""
         result = metrics.matching_quality(
             [(True, True), (True, False), (False, False), (False, True)])
+        assert result is not None
         assert result["precision"] == 0.5
         assert result["recall"] == 0.5
         assert result["false_match_rate"] == 0.5
 
     def test_negative_control_accuracy(self):
-        assert metrics.negative_control_accuracy(
-            [True, True, False])["declined_correctly"] == pytest.approx(2 / 3)
+        assert not_none(metrics.negative_control_accuracy(
+            [True, True, False]))["declined_correctly"] == pytest.approx(2 / 3)
 
     def test_every_extended_metric_returns_none_on_empty(self):
         """Zero would read as a perfect score for an unmeasured run."""
@@ -233,7 +242,8 @@ class TestExtendedMetrics:
 # ═══ Gold dataset schema ══════════════════════════════════════════════════════
 
 def gold(**kw) -> schema.GoldItem:
-    base = dict(
+    # dict[str, Any]: see above — one error per GoldItem parameter otherwise.
+    base: dict[str, Any] = dict(
         id="x1",
         images=[schema.ImageRef(path="a.jpg", is_primary=True)],
         actual_sale_price=100.0, currency="USD", category="clothing",
@@ -378,21 +388,25 @@ class TestExperiment:
     def test_clear_improvement_ships(self):
         result = run_experiment(
             "prompt-v2", arm("v1", [30.0] * 40), arm("v2", [15.0] * 40))
+        assert result is not None
         assert result.verdict is Verdict.SHIP
 
     def test_clear_regression_is_rejected(self):
         result = run_experiment(
             "prompt-v3", arm("v1", [15.0] * 40), arm("v3", [30.0] * 40))
+        assert result is not None
         assert result.verdict is Verdict.REJECT
 
     def test_no_difference_is_inconclusive_not_a_win(self):
         result = run_experiment(
             "noop", arm("a", [20.0] * 40), arm("b", [20.0] * 40))
+        assert result is not None
         assert result.verdict is Verdict.INCONCLUSIVE
 
     def test_small_sample_is_inconclusive_and_says_why(self):
         """A null result on 10 items means underpowered, not equivalent."""
         result = run_experiment("tiny", arm("a", [30.0] * 10), arm("b", [10.0] * 10))
+        assert result is not None
         assert result.verdict is Verdict.INCONCLUSIVE
         assert any("underpowered" in w for w in result.warnings)
 
@@ -403,6 +417,7 @@ class TestExperiment:
         candidate = arm("b", [15.0] * 40,
                         latency_ms={f"i{n}": 5000.0 for n in range(40)})
         result = run_experiment("slow-but-accurate", baseline, candidate)
+        assert result is not None
         assert result.verdict is Verdict.BLOCKED_BY_GUARDRAIL
         assert any("latency" in v for v in result.guardrail_violations)
 
@@ -413,6 +428,7 @@ class TestExperiment:
         candidate = arm("b", [15.0] * 40,
                         hallucinated={i: n < 10 for n, i in enumerate(ids)})
         result = run_experiment("hallucinating", baseline, candidate)
+        assert result is not None
         assert result.verdict is Verdict.BLOCKED_BY_GUARDRAIL
 
     def test_negligible_effect_does_not_ship(self):
@@ -421,12 +437,14 @@ class TestExperiment:
         base = [20.0 + random.random() * 0.01 for _ in range(200)]
         cand = [b - 0.001 for b in base]
         result = run_experiment("tiny-effect", arm("a", base), arm("b", cand))
+        assert result is not None
         assert result.verdict is not Verdict.SHIP
 
     def test_disjoint_items_are_inconclusive(self):
         a = ArmResult(label="a", absolute_percentage_error={"x": 10.0})
         b = ArmResult(label="b", absolute_percentage_error={"y": 5.0})
         result = run_experiment("disjoint", a, b)
+        assert result is not None
         assert result.verdict is Verdict.INCONCLUSIVE
         assert result.paired_items == 0
 
@@ -438,6 +456,7 @@ class TestExperiment:
             label="b",
             absolute_percentage_error={f"i{n}": 15.0 for n in range(35)})
         result = run_experiment("partial", a, b)
+        assert result is not None
         assert result.paired_items == 35
         assert any("only one arm" in w for w in result.warnings)
 
@@ -466,6 +485,8 @@ class TestExperiment:
         base = [20.0 + random.random() * 0.01 for _ in range(200)]
         cand = [b - 0.001 for b in base]
         result = run_experiment("micro-shift", arm("a", base), arm("b", cand))
+        assert result is not None
+        assert result.comparison is not None
         assert result.comparison.significant       # statistically, yes
         assert result.verdict is Verdict.INCONCLUSIVE   # practically, no
         assert any("magnitude" in w for w in result.warnings)
@@ -474,6 +495,7 @@ class TestExperiment:
         """The magnitude floor must not block genuine progress."""
         result = run_experiment("real-gain", arm("a", [20.0] * 60),
                                 arm("b", [17.0] * 60))
+        assert result is not None
         assert result.verdict is Verdict.SHIP
 
     def test_arm_metrics_are_all_measured(self):
@@ -549,7 +571,7 @@ class TestGates:
         gates.save_baseline(self._set(mdape=18.0), path, ref="abc123")
         loaded = gates.load_baseline(path)
         assert loaded is not None
-        assert loaded.get("mdape").value == 18.0
+        assert not_none(loaded.get("mdape")).value == 18.0
 
     def test_missing_baseline_file_is_none_not_an_error(self, tmp_path):
         assert gates.load_baseline(tmp_path / "nope.json") is None
@@ -588,6 +610,7 @@ class TestSchemaCompliance:
 
     def test_no_responses_is_unavailable_not_zero(self):
         result = gates.schema_compliance([])
+        assert result is not None
         assert result.provenance is Provenance.UNAVAILABLE
 
 
@@ -620,6 +643,7 @@ class TestCalibration:
     def test_logistic_recovers_the_signal_ordering(self):
         model = calib.fit_logistic(synthetic_examples())
         assert model is not None
+        assert model is not None
         weights = model.weights
         # Generating process weighted brand > image > tight.
         assert weights["brand"] > weights["image"] > weights["tight"]
@@ -630,6 +654,7 @@ class TestCalibration:
 
     def test_normalised_weights_are_comparable_to_the_hand_chosen_prior(self):
         model = calib.fit_logistic(synthetic_examples())
+        assert model is not None
         normalised = model.normalised_weights()
         assert abs(sum(abs(v) for v in normalised.values()) - 1.0) < 1e-6
 
@@ -642,6 +667,7 @@ class TestCalibration:
 
     def test_isotonic_clamps_outside_the_fitted_range(self):
         model = calib.fit_isotonic([(i / 100, i > 50) for i in range(100)])
+        assert model is not None
         assert 0.0 <= model.predict_proba(-5.0) <= 1.0
         assert 0.0 <= model.predict_proba(5.0) <= 1.0
 
@@ -650,12 +676,14 @@ class TestCalibration:
         points = [(0.95, i % 2 == 0) for i in range(100)]
         model = calib.fit_temperature(points)
         assert model is not None
+        assert model is not None
         assert model.temperature > 1.0
         assert model.predict_proba(0.95) < 0.95
 
     def test_temperature_sharpens_an_underconfident_system(self):
         points = [(0.55, True) for _ in range(100)]
         model = calib.fit_temperature(points)
+        assert model is not None
         assert model.predict_proba(0.55) > 0.55
 
     def test_gradient_boosting_raises_rather_than_degrading_silently(self):
@@ -678,6 +706,7 @@ class TestCalibration:
     def test_fit_without_dataset_version_is_projected(self):
         model = calib.fit(synthetic_examples(), provenance=Provenance.PROJECTED)
         assert model is not None
+        assert model is not None
         assert model.provenance is Provenance.PROJECTED
 
     def test_holdout_split_is_deterministic_and_disjoint(self):
@@ -691,13 +720,16 @@ class TestCalibration:
         examples = synthetic_examples()
         train, holdout = calib.split_examples(examples)
         model = calib.fit(train, provenance=Provenance.PROJECTED)
+        assert model is not None
         result = calib.evaluate_calibration(model, holdout)
+        assert result is not None
         assert result["ece"] is not None
         assert 0.0 <= result["ece"] <= 1.0
         assert result["brier"] is not None
 
     def test_evaluation_on_empty_holdout_is_none(self):
         model = calib.fit(synthetic_examples(), provenance=Provenance.PROJECTED)
+        assert model is not None
         assert calib.evaluate_calibration(model, [])["ece"] is None
 
 

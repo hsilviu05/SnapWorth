@@ -12,6 +12,7 @@ from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 
 import pytest
+from typing import Any
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -39,7 +40,10 @@ def comp(title, *, price="100", days_ago=5, provider=Marketplace.EBAY,
 
 
 def identity(**kw):
-    base = dict(category="shoes", brand="Nike", model="Air Max 97",
+    # dict[str, Any]: an unannotated dict() literal infers a union of its
+    # value types, and splatting that reports one error per parameter of
+    # the constructor below — dozens from a single line.
+    base: dict[str, Any] = dict(category="shoes", brand="Nike", model="Air Max 97",
                 condition=Condition.GOOD)
     base.update(kw)
     return ItemIdentity(**base)

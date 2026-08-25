@@ -14,6 +14,9 @@ import sys
 
 import pytest
 
+from tests.conftest import not_none
+from typing import Any
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import aiconfig  # noqa: E402
@@ -261,7 +264,10 @@ class TestNormalise:
         assert val.category == "other"
 
     def test_non_dict_input_does_not_raise(self):
-        assert normalise([1, 2, 3]).brand == "Unknown"
+        # Passing a list where a dict is declared is the whole point: this
+        # exercises normalise()'s `if not isinstance(data, dict)` guard.
+        # Satisfying the checker here would delete what the test verifies.
+        assert normalise([1, 2, 3]).brand == "Unknown"  # type: ignore[arg-type]
 
     def test_field_counting_ignores_placeholder_values(self):
         assert valuation_module.count_present_fields(
@@ -283,7 +289,9 @@ def _blurry() -> ImageQuality:
 
 
 def _compute(**overrides):
-    args = dict(
+    # dict[str, Any]: an unannotated dict() infers a union of its value types,
+    # and splatting that reports one error per parameter of compute().
+    args: dict[str, Any] = dict(
         brand="Patagonia", category="clothing", identification_certainty="certain",
         authenticity="no_concerns", demand="high", supply="moderate",
         value_low=45, value_high=75, image_quality=_sharp(), was_clamped=False,
@@ -374,6 +382,7 @@ def _png(width, height, *, noise=True):
     if noise:
         _random.seed(7)
         px = img.load()
+        assert px is not None
         for y in range(0, height, 2):
             for x in range(0, width, 2):
                 v = _random.randint(0, 255)
@@ -391,12 +400,12 @@ class TestImageQuality:
     def test_sharp_noisy_image_scores_above_flat_image(self):
         noisy = imagequality.analyse(_png(800, 600, noise=True))
         flat = imagequality.analyse(_png(800, 600, noise=False))
-        assert noisy.sharpness > flat.sharpness
+        assert not_none(noisy.sharpness) > not_none(flat.sharpness)
 
     def test_large_image_scores_more_detail_than_small(self):
         big = imagequality.analyse(_png(2400, 1800))
         small = imagequality.analyse(_png(320, 240))
-        assert big.detail > small.detail
+        assert not_none(big.detail) > not_none(small.detail)
 
     def test_garbage_bytes_do_not_raise(self):
         q = imagequality.analyse(b"not an image at all")

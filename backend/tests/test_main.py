@@ -389,6 +389,7 @@ def _pro_headers(subject: str) -> dict:
         environment="Production",
     )
     asyncio.run(auth.deps.cache.set(f"ent:{subject}", ent.to_json(), 3600))
+    assert auth.deps.signer is not None   # set by the build_deps/conftest fixture
     token, _ = auth.deps.signer.mint(subject, tier="pro")
     return {"Authorization": f"Bearer {token}"}
 

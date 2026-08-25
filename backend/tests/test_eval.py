@@ -13,6 +13,9 @@ import sys
 
 import pytest
 
+from tests.conftest import not_none
+from typing import Any
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from eval import dataset as dataset_module  # noqa: E402
@@ -31,7 +34,7 @@ class TestAccuracyMetrics:
         assert metrics.ape(50, 0) is None
 
     def test_perfect_predictions_score_zero_error(self):
-        pairs = [(50, 50), (100, 100)]
+        pairs = [(50.0, 50.0), (100.0, 100.0)]
         assert metrics.mdape(pairs) == 0.0
         assert metrics.mape(pairs) == 0.0
 
@@ -41,12 +44,12 @@ class TestAccuracyMetrics:
         Thrift data is mostly $5-$60 with a long tail, so one $200-predicted
         $5-sold item would otherwise dominate the whole benchmark.
         """
-        pairs = [(50, 50)] * 9 + [(200, 5)]
+        pairs = [(50.0, 50.0)] * 9 + [(200.0, 5.0)]
         assert metrics.mdape(pairs) == 0.0          # unmoved
-        assert metrics.mape(pairs) > 300            # swamped
+        assert not_none(metrics.mape(pairs)) > 300            # swamped
 
     def test_within_tolerance_counts_correctly(self):
-        pairs = [(100, 100), (120, 100), (200, 100)]
+        pairs = [(100.0, 100.0), (120.0, 100.0), (200.0, 100.0)]
         assert metrics.within_tolerance(pairs, 25.0) == pytest.approx(2 / 3)
 
     def test_empty_input_returns_none_not_zero(self):
@@ -60,15 +63,15 @@ class TestAccuracyMetrics:
 
 class TestRangeMetrics:
     def test_coverage_counts_inclusive_bounds(self):
-        triples = [(10, 50, 30), (10, 50, 10), (10, 50, 50), (10, 50, 80)]
+        triples = [(10.0, 50.0, 30.0), (10.0, 50.0, 10.0), (10.0, 50.0, 50.0), (10.0, 50.0, 80.0)]
         assert metrics.range_coverage(triples) == 0.75
 
     def test_inverted_ranges_are_excluded(self):
         assert metrics.range_coverage([(50, 10, 30)]) is None
 
     def test_width_ratio_penalises_useless_wide_ranges(self):
-        tight = metrics.mean_range_width([(40, 60, 50)])
-        wide = metrics.mean_range_width([(10, 500, 50)])
+        tight = not_none(metrics.mean_range_width([(40, 60, 50)]))
+        wide = not_none(metrics.mean_range_width([(10.0, 500.0, 50.0)]))
         assert wide > tight
         # Coverage alone is gameable by widening; this is why both are reported.
         assert metrics.range_coverage([(10, 500, 50)]) == 1.0
@@ -79,21 +82,21 @@ class TestRangeMetrics:
 class TestCalibration:
     def test_perfectly_calibrated_system_has_low_ece(self):
         # 90-confidence predictions that are all accurate.
-        scored = [(95, 100, 100)] * 10
-        assert metrics.calibration(scored).ece < 0.15
+        scored = [(95, 100.0, 100.0)] * 10
+        assert not_none(metrics.calibration(scored)).ece < 0.15
 
     def test_overconfident_system_is_detected(self):
         """The exact failure v1 had: high confidence, poor accuracy."""
-        scored = [(95, 500, 100)] * 10          # claims ~95%, right 0% of the time
-        assert metrics.calibration(scored).ece > 0.8
+        scored = [(95, 500.0, 100.0)] * 10          # claims ~95%, right 0% of the time
+        assert not_none(metrics.calibration(scored)).ece > 0.8
 
     def test_underconfident_system_is_also_detected(self):
-        scored = [(5, 100, 100)] * 10           # claims ~5%, right 100% of the time
-        assert metrics.calibration(scored).ece > 0.8
+        scored = [(5, 100.0, 100.0)] * 10           # claims ~5%, right 100% of the time
+        assert not_none(metrics.calibration(scored)).ece > 0.8
 
     def test_buckets_report_claimed_vs_actual(self):
-        scored = [(95, 100, 100)] * 5 + [(15, 900, 100)] * 5
-        table = metrics.calibration(scored).as_table()
+        scored = [(95, 100.0, 100.0)] * 5 + [(15, 900.0, 100.0)] * 5
+        table = not_none(metrics.calibration(scored)).as_table()
         assert len(table) == 2
         high = next(b for b in table if b["range"] == "80-100")
         assert high["actual"] == 1.0
@@ -264,7 +267,9 @@ class TestDataset:
 
 class TestEvaluate:
     def _prediction(self, **kw):
-        base = dict(item_id="a", category="clothing", expected_price=50.0,
+        # dict[str, Any]: an unannotated dict() literal infers a union of its value
+        # types, and splatting that reports one error per constructor parameter.
+        base: dict[str, Any] = dict(item_id="a", category="clothing", expected_price=50.0,
                     predicted_expected=52.0, predicted_low=40.0,
                     predicted_high=70.0, confidence_score=80,
                     brand="Patagonia", visual_evidence=["wordmark"],

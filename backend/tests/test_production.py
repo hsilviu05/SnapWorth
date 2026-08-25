@@ -81,6 +81,7 @@ class TestMetricPrimitives:
         for value in (0.5, 2.0, 7.0):
             h.observe(value)
         snapshot = h.snapshot()
+        assert snapshot is not None
         assert snapshot.count == 3
         assert snapshot.buckets[1.0] == 1
         assert snapshot.buckets[5.0] == 2
@@ -289,7 +290,9 @@ class TestRedaction:
 
     def test_redaction_never_raises(self):
         assert obs.redact("") == ""
-        assert obs.redact(None) is None
+        # None deliberately — the test is named for it. redact() is called
+        # from a logging filter, where a None message is ordinary.
+        assert obs.redact(None) is None  # type: ignore[arg-type]
 
     def test_filter_redacts_message_and_extra(self, caplog):
         logger = logging.getLogger("test.redaction")
@@ -304,9 +307,11 @@ class TestRedaction:
     def test_filter_preserves_request_id(self):
         """Correlation ids are hex and must not be mistaken for secrets."""
         record = logging.LogRecord("n", logging.INFO, "p", 1, "msg", (), None)
-        record.request_id = "a1b2c3d4e5f60718"
+        # LogRecord has no static request_id; RequestContextMiddleware adds
+        # it at runtime, which is exactly what this asserts survives.
+        record.request_id = "a1b2c3d4e5f60718"  # type: ignore[attr-defined]
         obs.RedactionFilter().filter(record)
-        assert record.request_id == "a1b2c3d4e5f60718"
+        assert record.request_id == "a1b2c3d4e5f60718"  # type: ignore[attr-defined]
 
 
 # ═══ Trace context ════════════════════════════════════════════════════════════
