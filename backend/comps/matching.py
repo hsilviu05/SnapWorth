@@ -48,7 +48,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 
 from comps import normalize
-from comps.models import Comp, Condition, ItemIdentity
+from comps.models import Comp, ItemIdentity
 
 log = logging.getLogger("snapworth.comps.matching")
 
@@ -137,12 +137,17 @@ def _brand_veto(identity: ItemIdentity, candidate_tokens: normalize.TokenSet,
 
 
 def _year_component(identity: ItemIdentity, candidate: normalize.TokenSet) -> tuple[float, str]:
-    if not identity.year:
+    # Bound to a local before the lambda: narrowing `identity.year` from
+    # `int | None` does not reach inside a closure, so a checker reads the
+    # subtraction below as `int - None` even though the guard makes that
+    # impossible.
+    year = identity.year
+    if not year:
         return 1.0, ""                  # nothing asked for; no penalty
     if not candidate.years:
         return 0.6, "listing gives no year"
-    closest = min(candidate.years, key=lambda y: abs(y - identity.year))
-    delta = abs(closest - identity.year)
+    closest = min(candidate.years, key=lambda y: abs(y - year))
+    delta = abs(closest - year)
     if delta == 0:
         return 1.0, ""
     if delta <= YEAR_TOLERANCE:

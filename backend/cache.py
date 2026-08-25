@@ -29,6 +29,22 @@ class CacheUnavailable(Exception):
     """The backing store could not serve a call that requires durability."""
 
 
+class KeyValueStore(Protocol):
+    """The three operations most callers actually need.
+
+    `Cache` describes a full backend (add/incr/ping included) and is the right
+    type for something implementing one. Callers that only read and write —
+    auth, comps — should depend on this instead: `ResilientCache` deliberately
+    does not implement `ping`, so requiring the full protocol rejects the very
+    object the application wires in.
+    """
+
+    async def get(self, key: str) -> str | None: ...
+    async def set(self, key: str, value: str,
+                  ttl: int | None = None) -> None: ...
+    async def delete(self, key: str) -> None: ...
+
+
 class Cache(Protocol):
     async def get(self, key: str) -> str | None: ...
     async def set(self, key: str, value: str, ttl: int | None = None) -> None: ...

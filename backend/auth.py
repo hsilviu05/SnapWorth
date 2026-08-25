@@ -32,6 +32,8 @@ from pydantic import BaseModel, Field
 
 import appattest
 import auditlog
+from cache import KeyValueStore
+from devicecheck import DeviceCheckClient
 from auditlog import AuditEvent
 from entitlements import DeviceLimitExceeded, EntitlementError, EntitlementService
 from quota import QuotaExceeded, QuotaUnavailable, ScanQuota
@@ -82,11 +84,30 @@ class Principal:
 # ── Container, populated at startup ──────────────────────────────────────────
 
 class AuthDeps:
-    cache = None
+    # Every field except `config` is populated in `main._lifespan` before the
+    # app accepts traffic. They stay Optional because two of them genuinely can
+    # be None after startup: `signer` is branched on below, and the tests wire
+    # `device_check = None` deliberately.
+    #
+    # `cache` and `device_check` previously had no annotation at all, so they
+    # inferred as the type `None` and every assignment in _lifespan and in the
+    # test fixtures was reported as an error.
+    # Split deliberately by whether None is a real state after startup.
+    #
+    # These three are always populated by `main._lifespan` before the app
+    # accepts traffic, and nothing branches on them being None. Declared
+    # without a default so that is the type: reading one before startup now
+    # raises AttributeError naming the field, instead of returning None and
+    # failing later as "NoneType has no attribute" inside a handler.
+    cache: KeyValueStore
+    entitlements: EntitlementService
+    quota: ScanQuota
+
+    # These two genuinely can be None after startup — `signer` is branched on
+    # below, and the test fixtures wire `device_check = None` on purpose.
     signer: TokenSigner | None = None
-    entitlements: EntitlementService | None = None
-    quota: ScanQuota | None = None
-    device_check = None
+    device_check: DeviceCheckClient | None = None
+
     config: AuthConfig = AuthConfig()
 
 
@@ -157,8 +178,15 @@ def key_id_safe(subject: str) -> str:
 
 
 async def _issue_token(subject: str, device_token: str | None) -> TokenResponse:
+    # `signer` is legitimately Optional — the callers below guard on it — but
+    # reaching here without one means the service is misconfigured rather than
+    # the request being bad, so fail loudly rather than 500 on a None attribute.
+    signer = deps.signer
+    if signer is None:
+        raise RuntimeError("auth.deps.signer is not configured")
+
     ent = await deps.entitlements.current(subject)
-    token, claims = deps.signer.mint(subject, tier=ent.tier)
+    token, claims = signer.mint(subject, tier=ent.tier)
 
     remaining = 0
     try:

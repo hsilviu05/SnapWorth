@@ -104,10 +104,20 @@ def _verify_chain(certs: list[x509.Certificate]) -> x509.Certificate:
             parent_key = parent.public_key()
             if not isinstance(parent_key, ec.EllipticCurvePublicKey):
                 raise AttestationError("Unexpected attestation key type.")
+            # `signature_hash_algorithm` is None for hashless schemes
+            # (Ed25519/Ed448). Apple's chain is ECDSA/SHA-256 so this does not
+            # occur in practice, but the chain here is attacker-supplied and
+            # `ec.ECDSA(None)` raises TypeError, which the `except
+            # InvalidSignature` below does not catch — a malformed certificate
+            # would surface as a 500 rather than a rejected attestation.
+            algorithm = child.signature_hash_algorithm
+            if algorithm is None:
+                raise AttestationError(
+                    "Attestation certificate uses an unsupported signature algorithm.")
             parent_key.verify(
                 child.signature,
                 child.tbs_certificate_bytes,
-                ec.ECDSA(child.signature_hash_algorithm),
+                ec.ECDSA(algorithm),
             )
         except InvalidSignature:
             raise AttestationError(f"Attestation chain is not signed by Apple ({label}).") from None
@@ -170,7 +180,11 @@ def verify_attestation(
         ext = leaf.extensions.get_extension_for_oid(_NONCE_OID)
         # The extension wraps the nonce in a small DER structure; the digest is
         # the trailing 32 bytes.
-        raw = ext.value.value if hasattr(ext.value, "value") else bytes(ext.value.public_bytes())
+        # getattr rather than hasattr + attribute access: identical at
+        # runtime, but the checker cannot carry a hasattr() narrowing
+        # across to the access on the same line.
+        nonce_bytes = getattr(ext.value, "value", None)
+        raw = nonce_bytes if nonce_bytes is not None else bytes(ext.value.public_bytes())
         embedded_nonce = raw[-32:]
     except x509.ExtensionNotFound:
         raise AttestationError("Attestation certificate is missing its nonce.") from None

@@ -18,6 +18,7 @@ import re
 import time
 
 from collections.abc import Mapping
+from typing import Any
 from pathlib import Path
 
 import google.generativeai as genai
@@ -51,7 +52,11 @@ from quota import ScanQuota
 from ratelimit import (
     IP_RATE_MAX_REQUESTS,
     RATE_MAX_REQUESTS,
-    RATE_WINDOW_SECS,
+    # Unused in this module — re-exported so `from main import RATE_WINDOW_SECS`
+    # keeps working for the rate-limit tests, which build stale entries relative
+    # to the window. A linter reports it as an unused import; removing it breaks
+    # test_security.py at import time.
+    RATE_WINDOW_SECS,  # noqa: F401
     InMemoryRateLimiter,
     RateLimitExceeded,
 )
@@ -652,8 +657,13 @@ def _extract_json(text: str) -> dict:
 
 
 # ── Endpoints ────────────────────────────────────────────────────────────────
-@app.get("/health")
-async def health() -> dict:
+# response_model=None is required, not cosmetic: FastAPI derives the
+# response model from the return annotation, and a union containing
+# JSONResponse is not a valid model — annotating the union without this
+# fails at import with "FastAPIError: Invalid args". The 503 branches
+# below genuinely return JSONResponse, so the annotation has to say so.
+@app.get("/health", response_model=None)
+async def health() -> dict | JSONResponse:
     """Liveness plus dependency posture.
 
     Reports *degraded* rather than failing when the cache is down: the service
@@ -705,8 +715,13 @@ async def liveness() -> dict:
     return {"status": "alive"}
 
 
-@app.get("/health/ready")
-async def readiness() -> dict:
+# response_model=None is required, not cosmetic: FastAPI derives the
+# response model from the return annotation, and a union containing
+# JSONResponse is not a valid model — annotating the union without this
+# fails at import with "FastAPIError: Invalid args". The 503 branches
+# below genuinely return JSONResponse, so the annotation has to say so.
+@app.get("/health/ready", response_model=None)
+async def readiness() -> dict | JSONResponse:
     """Readiness probe: should this instance receive traffic?
 
     Returns 503 while starting up, while draining on shutdown, or when a
@@ -1209,7 +1224,11 @@ async def _generate_with_retry(
 
     for attempt in range(_RETRY_ATTEMPTS):
         try:
-            kwargs = {"generation_config": config} if config else {}
+            # Annotated: the conditional infers dict[str, GenerationConfig],
+            # and splatting that matches it against every other keyword
+            # parameter of generate_content_async in turn.
+            kwargs: dict[str, Any] = (
+                {"generation_config": config} if config else {})
             with metrics.Timer(metrics.model_duration, operation=label):
                 response = await _model.generate_content_async(contents, **kwargs)
             text, usage = aiconfig.extract_text(response), aiconfig.usage_of(response)
