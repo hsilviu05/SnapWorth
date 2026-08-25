@@ -42,7 +42,7 @@ redis==5.2.1
 # that mints the first token), so decoder bugs are directly reachable. 5.9.0
 # closes an integer overflow in the C decoder (PYSEC-2025-238) plus PYSEC-2025-90
 # and PYSEC-2026-2123.
-cbor2==5.9.0
+cbor2==6.1.4
 # StoreKit 2 signed transactions are ES256 JWS. 2.13.0 closes six advisories,
 # including PYSEC-2026-176, a verifier-side algorithm allow-list bypass that
 # would in principle be an entitlement-forgery path to free Pro. That one is
