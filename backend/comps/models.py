@@ -19,7 +19,6 @@ a new instance via `with_score`.
 from __future__ import annotations
 
 import hashlib
-import re
 from dataclasses import dataclass, field, replace
 from datetime import datetime, timezone
 from decimal import Decimal

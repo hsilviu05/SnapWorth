@@ -32,11 +32,10 @@ import statistics
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
-from typing import Callable
 
 from eval import metrics as metrics_module
 from eval import stats
-from eval.provenance import Metric, MetricSet, Provenance
+from eval.provenance import Metric, MetricSet
 
 log = logging.getLogger("snapworth.eval.experiment")
 

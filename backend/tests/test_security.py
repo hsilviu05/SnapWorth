@@ -18,7 +18,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
 from main import (
     app, _check_rate_limit, _rate_store, _ip_rate_store, IP_RATE_MAX_REQUESTS,
-    _extract_json, _safe_float,
+    _safe_float,
 )
 from tests.images import image_bytes as _img, padded_image_bytes as _padded
 

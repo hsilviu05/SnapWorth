@@ -15,7 +15,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from comps import aggregate as agg  # noqa: E402
 from comps import search as search_module  # noqa: E402
 from comps.cache import CompsCache, NullCompsCache  # noqa: E402
-from comps.catalog import BrandTier, Catalog, catalog  # noqa: E402
+from comps.catalog import Catalog, catalog  # noqa: E402
 from comps.engine import CompsEngine  # noqa: E402
 from comps.flags import CompsFlags  # noqa: E402
 from comps.models import (  # noqa: E402
@@ -25,7 +25,7 @@ from comps.models import (  # noqa: E402
     ItemIdentity,
     Marketplace,
 )
-from comps.providers.base import ProviderCapabilities, ProviderRegistry  # noqa: E402
+from comps.providers.base import ProviderRegistry  # noqa: E402
 from comps.providers.stubs import FixtureProvider, default_stubs, register_defaults  # noqa: E402
 
 NOW = datetime(2026, 7, 28, tzinfo=timezone.utc)

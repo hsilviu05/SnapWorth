@@ -36,7 +36,7 @@ import math
 import threading
 import time
 from dataclasses import dataclass, field
-from typing import Iterable
+from typing import Iterable, TypeVar
 
 log = logging.getLogger("snapworth.metrics")
 
@@ -78,6 +78,9 @@ class LabelSet:
         return "{" + inner + "}"
 
 
+_MetricT = TypeVar("_MetricT", bound="_Metric")
+
+
 class _Metric:
     def __init__(self, name: str, help_text: str, labels: tuple[str, ...] = ()) -> None:
         self.name = name
@@ -93,6 +96,16 @@ class _Metric:
                         self.name, got, self.labels)
             return False
         return True
+
+    def render(self) -> list[str]:
+        """Exposition lines for this metric. Implemented by every subclass.
+
+        Declared here so `Registry.render()` — which iterates a list typed as
+        the base class — is checkable. Raising rather than returning `[]` keeps
+        a subclass that forgets to implement it loud instead of silently
+        contributing nothing to /metrics.
+        """
+        raise NotImplementedError
 
     def _cardinality_ok(self, current: int) -> bool:
         if current < _MAX_SERIES_PER_METRIC:
@@ -244,7 +257,10 @@ class Registry:
     def __init__(self) -> None:
         self._metrics: list[_Metric] = []
 
-    def register(self, metric: _Metric):
+    def register(self, metric: _MetricT) -> _MetricT:
+        # Generic, not `-> _Metric`: this is an identity function, so widening
+        # the return to the base class made every `_counter()/_gauge()/
+        # _histogram()` factory look like it returned the wrong type.
         self._metrics.append(metric)
         return metric
 

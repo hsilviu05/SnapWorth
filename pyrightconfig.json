@@ -1,0 +1,17 @@
+{
+  "include": ["backend"],
+  "exclude": ["**/.venv", "**/__pycache__", "**/node_modules"],
+  "extraPaths": ["backend"],
+  "venvPath": "backend",
+  "venv": ".venv",
+  "pythonVersion": "3.13",
+
+  "//": [
+    "google-generativeai declares no re-exports, so its documented public API",
+    "(genai.types, genai.configure, genai.GenerativeModel) reads as private and",
+    "every use is reported. The package is end-of-life as of 0.8.6 and points at",
+    "google.genai, so this will never be corrected upstream. Suppressed here",
+    "rather than scattering per-line ignores through aiconfig.py and main.py."
+  ],
+  "reportPrivateImportUsage": "none"
+}

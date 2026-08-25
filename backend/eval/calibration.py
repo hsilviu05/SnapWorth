@@ -37,7 +37,7 @@ from __future__ import annotations
 
 import json
 import math
-import statistics
+from typing import Any
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 
@@ -410,21 +410,31 @@ def fit(
         return None
 
     now = datetime.now(timezone.utc)
-    common = dict(provenance=provenance, fitted_at=now, n_examples=len(examples),
-                  dataset_version=dataset_version, tolerance_pct=tolerance_pct)
+    # Annotated: the inline dict() infers a union of its value types, and
+    # splatting that reports one error per CalibrationModel parameter, at every
+    # call site below.
+    common: dict[str, Any] = dict(
+        provenance=provenance, fitted_at=now, n_examples=len(examples),
+        dataset_version=dataset_version, tolerance_pct=tolerance_pct)
 
     if method == "logistic":
-        model = fit_logistic(examples)
-        return CalibrationModel(method="logistic", logistic=model, **common) if model else None
+        # One name per branch. Reusing a single `model` binding across the three
+        # made it the first branch's type, so the later assignments and the
+        # isotonic/temperature arguments both read as the wrong model class.
+        logistic = fit_logistic(examples)
+        return CalibrationModel(
+            method="logistic", logistic=logistic, **common) if logistic else None
 
     points = [(e.raw_confidence / 100 if e.raw_confidence is not None else 0.5, e.correct)
               for e in examples]
     if method == "isotonic":
-        model = fit_isotonic(points)
-        return CalibrationModel(method="isotonic", isotonic=model, **common) if model else None
+        isotonic = fit_isotonic(points)
+        return CalibrationModel(
+            method="isotonic", isotonic=isotonic, **common) if isotonic else None
     if method == "temperature":
-        model = fit_temperature(points)
-        return CalibrationModel(method="temperature", temperature=model, **common) if model else None
+        temperature = fit_temperature(points)
+        return CalibrationModel(
+            method="temperature", temperature=temperature, **common) if temperature else None
     if method == "gradient_boosting":
         GradientBoostingPlaceholder().fit(examples)
 

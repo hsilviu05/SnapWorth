@@ -60,6 +60,7 @@ from __future__ import annotations
 import logging
 import os
 from functools import lru_cache
+from typing import Any
 
 import google.generativeai as genai
 
@@ -171,8 +172,12 @@ def proto_supported_optional_fields() -> frozenset[str]:
     """
     supported: set[str] = set()
     for name, probe_value in (("seed", 1), ("response_mime_type", "application/json")):
+        # Annotated rather than splatting the literal directly: the inline dict
+        # infers as dict[str, int | str], and splatting that reports a type
+        # error against every GenerationConfig parameter at once.
+        probe: dict[str, Any] = {name: probe_value}
         try:
-            to_proto_config(genai.types.GenerationConfig(**{name: probe_value}))
+            to_proto_config(genai.types.GenerationConfig(**probe))
             supported.add(name)
         except Exception as exc:
             # Dropping an optional field costs determinism or JSON mode; sending
