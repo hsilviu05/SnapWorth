@@ -745,3 +745,62 @@ class TestOutputTokenBudget:
 
     def test_listing_budget_covers_reasoning(self):
         assert aiconfig.LISTING_MAX_OUTPUT_TOKENS >= 2048
+
+
+# ── Image parts reach the SDK ────────────────────────────────────────────────
+#
+# The migration to google-genai broke every real scan and no test noticed.
+#
+# main.py builds its image as the previous SDK's inline dict —
+# {"mime_type": ..., "data": "<base64>"} — and google-genai rejects that with a
+# pydantic validation error, wanting a types.Part. /scan sends prompt + image on
+# every single request, so 100% of production scans failed while the suite stayed
+# green: the migration was verified against typed item descriptions, because the
+# repository has no photo fixture, and text-only calls take a path that never
+# builds a Part.
+#
+# These tests exercise the conversion itself. No network: the failure was in
+# constructing the request, so it reproduces entirely in memory.
+
+class TestImagePartConversion:
+    IMAGE = b"\xff\xd8\xff\xe0\x00\x10JFIF" + b"\x00" * 64      # JPEG magic + body
+
+    def _legacy_dict(self):
+        import base64
+        return {"mime_type": "image/jpeg",
+                "data": base64.standard_b64encode(self.IMAGE).decode()}
+
+    def test_legacy_image_dict_becomes_a_part(self):
+        part = aiconfig._as_part(self._legacy_dict())
+        assert type(part).__name__ == "Part", (
+            "the inline-image dict main.py builds must be converted to a Part; "
+            "passing it through raises a pydantic error and fails every scan")
+        assert part.inline_data is not None
+        assert part.inline_data.mime_type == "image/jpeg"
+
+    def test_base64_is_decoded_not_passed_through(self):
+        # The dict carries base64 *text*; Part.from_bytes wants raw bytes. Handing
+        # it the string would ship the base64 as if it were the image.
+        part = aiconfig._as_part(self._legacy_dict())
+        assert part.inline_data.data == self.IMAGE
+
+    def test_raw_bytes_in_the_dict_also_work(self):
+        part = aiconfig._as_part({"mime_type": "image/png", "data": self.IMAGE})
+        assert part.inline_data.data == self.IMAGE
+        assert part.inline_data.mime_type == "image/png"
+
+    def test_plain_text_is_left_alone(self):
+        # Prompts must pass through untouched — the SDK accepts str directly.
+        assert aiconfig._as_part("a prompt") == "a prompt"
+
+    def test_unrecognised_dict_is_left_alone(self):
+        # Not an image dict: hand it to the SDK and let it validate.
+        other = {"role": "user", "parts": []}
+        assert aiconfig._as_part(other) is other
+
+    def test_scan_shaped_payload_converts_end_to_end(self):
+        # Exactly what main.py passes to _generate_with_retry.
+        contents = ["prompt text", self._legacy_dict()]
+        converted = [aiconfig._as_part(c) for c in contents]
+        assert converted[0] == "prompt text"
+        assert type(converted[1]).__name__ == "Part"
