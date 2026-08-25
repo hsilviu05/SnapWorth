@@ -17,6 +17,23 @@ import sys
 
 import pytest
 
+from typing import TypeVar
+
+_T = TypeVar("_T")
+
+
+def not_none(value: _T | None) -> _T:
+    """Assert a value is not None and return it, narrowed.
+
+    For inline expressions where there is no binding to hang a plain
+    `assert x is not None` on — `not_none(catalog.resolve("tnf")).canonical`.
+    Several production helpers are Optional by signature but cannot return None
+    for the inputs these tests give them; this states that, and fails with a
+    clear message rather than an AttributeError on None if it ever changes.
+    """
+    assert value is not None
+    return value
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import auth  # noqa: E402

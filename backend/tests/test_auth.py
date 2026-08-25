@@ -270,18 +270,21 @@ class TestEnforcement:
 
     def test_valid_token_accepted_when_enforcing(self):
         build_deps(enforce=True)
+        assert auth.deps.signer is not None   # set by the build_deps/conftest fixture
         token, _ = auth.deps.signer.mint("subject-x")
         r = _scan(headers={"Authorization": f"Bearer {token}"})
         assert r.status_code == 200
 
     def test_expired_token_rejected(self):
         build_deps(enforce=True)
+        assert auth.deps.signer is not None   # set by the build_deps/conftest fixture
         token, _ = auth.deps.signer.mint("subject-x", ttl=-3600)
         r = _scan(headers={"Authorization": f"Bearer {token}"})
         assert r.status_code == 401
 
     def test_tampered_token_rejected(self):
         build_deps(enforce=True)
+        assert auth.deps.signer is not None   # set by the build_deps/conftest fixture
         token, _ = auth.deps.signer.mint("subject-x")
         payload, sig = token.split(".")
         r = _scan(headers={"Authorization": f"Bearer {payload}.{'A' * len(sig)}"})
@@ -374,6 +377,7 @@ class TestQuota:
 
     def test_quota_enforced_end_to_end(self):
         build_deps(enforce=True, free_scans=2)
+        assert auth.deps.signer is not None   # set by the build_deps/conftest fixture
         token, _ = auth.deps.signer.mint("quota-subject")
         h = {"Authorization": f"Bearer {token}"}
         assert _scan(headers=h).status_code == 200
@@ -385,6 +389,7 @@ class TestQuota:
 
     def test_failed_scan_does_not_consume_quota(self):
         build_deps(enforce=True, free_scans=1)
+        assert auth.deps.signer is not None   # set by the build_deps/conftest fixture
         token, _ = auth.deps.signer.mint("nocharge-subject")
         h = {"Authorization": f"Bearer {token}"}
         # Upstream failure → 502, and the allowance must survive it.

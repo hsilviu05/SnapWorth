@@ -10,6 +10,9 @@ from decimal import Decimal
 
 import pytest
 
+from tests.conftest import not_none
+from typing import Any
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from comps import aggregate as agg  # noqa: E402
@@ -47,7 +50,10 @@ def comp(price, *, days_ago=5, title="Nike Air Max 97", provider=Marketplace.EBA
 
 
 def identity(**kw):
-    base = dict(category="shoes", brand="Nike", model="Air Max 97",
+    # dict[str, Any]: an unannotated dict() literal infers a union of its
+    # value types, and splatting that reports one error per parameter of
+    # the constructor below — dozens from a single line.
+    base: dict[str, Any] = dict(category="shoes", brand="Nike", model="Air Max 97",
                 condition=Condition.GOOD)
     base.update(kw)
     return ItemIdentity(**base)
@@ -76,12 +82,14 @@ class TestAggregation:
         comps = [comp(40, external_id=str(i), days_ago=i) for i in range(9)]
         comps.append(comp(5000, external_id="bomb"))
         evidence = agg.aggregate(comps, now=NOW)
+        assert evidence is not None
         assert evidence.outliers_removed >= 1
 
     def test_identical_prices_do_not_trigger_rejection(self):
         # Fixed-price marketplaces (StockX) legitimately produce zero MAD.
         comps = [comp(100, external_id=str(i), days_ago=i) for i in range(8)]
         evidence = agg.aggregate(comps, now=NOW)
+        assert evidence is not None
         assert evidence.outliers_removed == 0
         assert evidence.median == Decimal("100.00")
 
@@ -93,6 +101,7 @@ class TestAggregation:
                  for i in range(9)]
         comps.append(comp(5000, external_id="bomb", seller_id="s-bomb"))
         evidence = agg.aggregate(comps, now=NOW)
+        assert evidence is not None
         assert evidence.outliers_removed >= 1
         assert evidence.median == Decimal("40.00")
 
@@ -100,23 +109,27 @@ class TestAggregation:
         comps = [comp(40, external_id=str(i), days_ago=i, seller_id=f"s{i}")
                  for i in range(8)]
         evidence = agg.aggregate(comps, now=NOW)
+        assert evidence is not None
         assert evidence.outliers_removed == 0
 
     def test_rejection_never_guts_the_sample(self):
         # Genuinely dispersed data is information, not contamination.
         comps = [comp(p, external_id=str(p)) for p in (10, 40, 90, 160, 250, 400)]
         evidence = agg.aggregate(comps, now=NOW)
+        assert evidence is not None
         assert evidence.count >= 4
 
     def test_fresh_comps_outweigh_stale_ones(self):
         fresh = [comp(50, external_id=f"f{i}", days_ago=1) for i in range(6)]
         stale = [comp(150, external_id=f"s{i}", days_ago=200) for i in range(6)]
         evidence = agg.aggregate(fresh + stale, now=NOW)
+        assert evidence is not None
         assert evidence.weighted_mean < Decimal("120")
 
     def test_effective_count_is_below_raw_count_when_stale(self):
         comps = [comp(50, external_id=str(i), days_ago=180) for i in range(10)]
         evidence = agg.aggregate(comps, now=NOW)
+        assert evidence is not None
         assert evidence.effective_count < evidence.count
 
     def test_reliable_marketplace_outweighs_unreliable(self):
@@ -125,6 +138,7 @@ class TestAggregation:
         weak = [comp(300, external_id=f"m{i}", provider=Marketplace.MERCARI)
                 for i in range(6)]
         evidence = agg.aggregate(good + weak, now=NOW)
+        assert evidence is not None
         assert evidence.weighted_mean < Decimal("220")
 
     def test_condition_mismatch_is_downweighted(self):
@@ -134,11 +148,13 @@ class TestAggregation:
         mismatched = [comp(200, external_id=f"n{i}", condition=Condition.NEW)
                       for i in range(6)]
         evidence = agg.aggregate(matched + mismatched, target_condition=target, now=NOW)
+        assert evidence is not None
         assert evidence.weighted_mean < Decimal("140")
 
     def test_statistics_are_all_populated(self):
         comps = [comp(40 + i * 5, external_id=str(i)) for i in range(10)]
         e = agg.aggregate(comps, now=NOW)
+        assert e is not None
         for value in (e.median, e.trimmed_mean, e.weighted_mean, e.p25, e.p75,
                       e.iqr, e.mad, e.ci_low, e.ci_high):
             assert isinstance(value, Decimal)
@@ -148,20 +164,28 @@ class TestAggregation:
     def test_dispersion_reflects_spread(self):
         tight = agg.aggregate(
             [comp(100 + i, external_id=str(i)) for i in range(10)], now=NOW)
+        assert tight is not None
         wide = agg.aggregate(
             [comp(20 + i * 40, external_id=str(i)) for i in range(10)], now=NOW)
+        assert wide is not None
         assert wide.dispersion > tight.dispersion
 
     def test_shipping_is_included(self):
         base = [comp(100, external_id=str(i)) for i in range(6)]
         evidence = agg.aggregate(base, now=NOW)
+        assert evidence is not None
         assert evidence.median == Decimal("100.00")
 
 
 class TestPriceDerivation:
     def _evidence(self, prices):
-        return agg.aggregate(
+        evidence = agg.aggregate(
             [comp(p, external_id=str(i)) for i, p in enumerate(prices)], now=NOW)
+        # Asserted here rather than at each call site: aggregate() is Optional
+        # by signature, but every caller below builds enough comps for it to
+        # return one, and a None would fail them all in a less obvious place.
+        assert evidence is not None
+        return evidence
 
     def test_four_prices_are_ordered(self):
         prices = agg.to_prices(self._evidence([30, 40, 50, 60, 70, 80, 90, 100]))
@@ -173,25 +197,30 @@ class TestPriceDerivation:
 
     def test_collector_premium_only_when_comps_disagree(self):
         tight = agg.to_prices(self._evidence([100, 101, 102, 103, 104, 105]))
+        assert tight is not None
         wide = agg.to_prices(self._evidence([20, 60, 100, 160, 240, 400]))
+        assert wide is not None
         tight_gap = tight.collector - tight.expected
         wide_gap = wide.collector - wide.expected
         assert wide_gap > tight_gap
 
     def test_blend_favours_prior_when_comps_are_thin(self):
         evidence = self._evidence([100] * 5)
+        assert evidence is not None
         blended, weight = agg.blend_with_prior(evidence, Decimal("200"))
         assert weight < 1.0
         assert Decimal("100") < blended < Decimal("200")
 
     def test_blend_favours_comps_when_plentiful(self):
         evidence = self._evidence([100] * 30)
+        assert evidence is not None
         blended, weight = agg.blend_with_prior(evidence, Decimal("200"))
         assert weight == 1.0
         assert blended == Decimal("100.00")
 
     def test_blend_without_prior_returns_median(self):
         evidence = self._evidence([100] * 8)
+        assert evidence is not None
         blended, weight = agg.blend_with_prior(evidence, None)
         assert blended == evidence.median and weight == 1.0
 
@@ -217,6 +246,7 @@ def many(n=12, price=100):
 class TestEngine:
     def test_disabled_engine_short_circuits(self):
         engine = build_engine(many(), flags=CompsFlags(enabled=False))
+        assert engine is not None
         result = asyncio.run(engine.lookup(identity()))
         assert result.status is CompsStatus.DISABLED
         assert not result.has_evidence
@@ -224,6 +254,7 @@ class TestEngine:
     def test_thin_identity_is_not_searched(self):
         # Brand alone returns thousands of unrelated comps.
         engine = build_engine(many())
+        assert engine is not None
         result = asyncio.run(engine.lookup(
             ItemIdentity(category="clothing", brand="Nike")))
         assert result.status is CompsStatus.NOT_SEARCHABLE
@@ -231,12 +262,14 @@ class TestEngine:
 
     def test_unknown_brand_is_not_searchable(self):
         engine = build_engine(many())
+        assert engine is not None
         result = asyncio.run(engine.lookup(
             ItemIdentity(category="clothing", brand="Unknown", model="thing")))
         assert result.status is CompsStatus.NOT_SEARCHABLE
 
     def test_successful_lookup_produces_evidence(self):
         engine = build_engine(many())
+        assert engine is not None
         result = asyncio.run(engine.lookup(identity()))
         assert result.status is CompsStatus.OK
         assert result.has_evidence
@@ -244,6 +277,7 @@ class TestEngine:
 
     def test_insufficient_comps_is_reported_not_faked(self):
         engine = build_engine(many(3))
+        assert engine is not None
         result = asyncio.run(engine.lookup(identity()))
         assert result.status is CompsStatus.INSUFFICIENT_COMPS
         assert not result.has_evidence
@@ -253,11 +287,13 @@ class TestEngine:
         engine = CompsEngine(
             registry=ProviderRegistry(), cache=NullCompsCache(),
             flags=CompsFlags(enabled=True, shadow_mode=False))
+        assert engine is not None
         result = asyncio.run(engine.lookup(identity()))
         assert result.status is CompsStatus.NO_PROVIDERS
 
     def test_provider_failure_does_not_raise(self):
         engine = build_engine(provider=FixtureProvider(comps=many(), fail=True))
+        assert engine is not None
         result = asyncio.run(engine.lookup(identity()))
         assert result.status is CompsStatus.INSUFFICIENT_COMPS
         assert "fixture" in result.providers_failed
@@ -269,6 +305,7 @@ class TestEngine:
             provider=slow,
             flags=CompsFlags(enabled=True, shadow_mode=False,
                              fanout_budget_ms=50, provider_timeout_ms=40))
+        assert engine is not None
         result = asyncio.run(engine.lookup(identity()))
         assert result.status is CompsStatus.INSUFFICIENT_COMPS
         assert result.latency_ms < 300
@@ -276,6 +313,7 @@ class TestEngine:
     def test_wrong_model_comps_are_vetoed_end_to_end(self):
         engine = build_engine(
             [comp(100, external_id=str(i), title="Nike Air Max 95") for i in range(12)])
+        assert engine is not None
         result = asyncio.run(engine.lookup(identity()))
         assert result.status is CompsStatus.INSUFFICIENT_COMPS
         assert any("different products" in n for n in result.notes)
@@ -284,6 +322,7 @@ class TestEngine:
         engine = build_engine(many(), flags=CompsFlags(
             enabled=True, shadow_mode=False,
             allowed_categories=frozenset({"clothing"})))
+        assert engine is not None
         result = asyncio.run(engine.lookup(identity(category="shoes")))
         assert result.status is CompsStatus.DISABLED
 
@@ -291,11 +330,13 @@ class TestEngine:
         engine = build_engine(many(), flags=CompsFlags(
             enabled=True, shadow_mode=False,
             allowed_providers=frozenset({"ebay"})))
+        assert engine is not None
         result = asyncio.run(engine.lookup(identity()))
         assert result.status is CompsStatus.NO_PROVIDERS
 
     def test_sample_returns_best_matches(self):
         engine = build_engine(many())
+        assert engine is not None
         result = asyncio.run(engine.lookup(identity()))
         sample = result.sample(3)
         assert len(sample) == 3
@@ -303,12 +344,14 @@ class TestEngine:
 
     def test_latency_is_recorded(self):
         engine = build_engine(many())
+        assert engine is not None
         assert asyncio.run(engine.lookup(identity())).latency_ms >= 0
 
 
 class TestShadowMode:
     def test_shadow_mode_still_computes_but_must_not_influence_output(self):
         engine = build_engine(many(), flags=CompsFlags(enabled=True, shadow_mode=True))
+        assert engine is not None
         result = asyncio.run(engine.lookup(identity()))
         assert result.status is CompsStatus.OK          # measured
         assert not engine.flags.influences_user_output  # but not served
@@ -329,7 +372,9 @@ class TestShadowMode:
 class TestRegistry:
     def test_stubs_never_return_comps(self):
         for stub in default_stubs():
-            assert asyncio.run(stub.search(None)) == []
+            # None deliberately: a stub must return [] for *any* query,
+            # including one it never looks at.
+            assert asyncio.run(stub.search(None)) == []  # type: ignore[arg-type]
 
     def test_stubs_report_unconfigured(self):
         for stub in default_stubs():
@@ -453,6 +498,7 @@ class TestCompsCache:
         backend = _MemoryBackend()
         cache = CompsCache(backend=backend)
         engine = build_engine(many(), cache=cache)
+        assert engine is not None
         first = asyncio.run(engine.lookup(identity()))
         second = asyncio.run(engine.lookup(identity()))
         assert not first.cache_hit
@@ -470,6 +516,7 @@ class TestCompsCache:
                 raise RuntimeError("redis down")
 
         engine = build_engine(many(), cache=CompsCache(backend=_Broken()))
+        assert engine is not None
         result = asyncio.run(engine.lookup(identity()))
         assert result.status is CompsStatus.OK      # comps still served
 
@@ -478,18 +525,18 @@ class TestCompsCache:
 
 class TestCatalog:
     def test_exact_resolution(self):
-        assert catalog.resolve("Patagonia").canonical == "Patagonia"
+        assert not_none(catalog.resolve("Patagonia")).canonical == "Patagonia"
 
     def test_alias_resolution(self):
-        assert catalog.resolve("tnf").canonical == "The North Face"
-        assert catalog.resolve("doc martens").canonical == "Dr. Martens"
+        assert not_none(catalog.resolve("tnf")).canonical == "The North Face"
+        assert not_none(catalog.resolve("doc martens")).canonical == "Dr. Martens"
 
     def test_case_and_punctuation_insensitive(self):
-        assert catalog.resolve("LEVI'S").canonical == "Levi's"
+        assert not_none(catalog.resolve("LEVI'S")).canonical == "Levi's"
 
     def test_fuzzy_resolution_handles_misspellings(self):
-        assert catalog.resolve_fuzzy("Patagoina").canonical == "Patagonia"
-        assert catalog.resolve_fuzzy("Arcteryx").canonical == "Arc'teryx"
+        assert not_none(catalog.resolve_fuzzy("Patagoina")).canonical == "Patagonia"
+        assert not_none(catalog.resolve_fuzzy("Arcteryx")).canonical == "Arc'teryx"
 
     def test_fuzzy_does_not_resolve_unrelated_brands(self):
         """A wrong brand corrupts every comp that follows."""
@@ -533,6 +580,7 @@ class TestCatalogSearch:
     @pytest.fixture(scope="class")
     def index(self):
         engine = search_module.build_search()
+        assert engine is not None
         yield engine
         engine.close()
 
