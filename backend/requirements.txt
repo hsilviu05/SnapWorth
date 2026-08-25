@@ -12,7 +12,14 @@ fastapi==0.141.1
 # (max_fields/max_part_size silently ignored for urlencoded bodies).
 starlette==1.6.0
 uvicorn[standard]==0.52.4
-google-generativeai==0.8.6
+# Migrated off google-generativeai, which reached end-of-life at 0.8.6 and said
+# so on every import. That SDK is also where two silent production failures came
+# from: it exposed `seed` on a dataclass its own protobuf could not serialise
+# (nine days of failed scans), and returned candidates in a proto container that
+# a plain isinstance(list, tuple) check rejected, which hid both response
+# truncation and every safety block. google-genai accepts seed end-to-end and
+# returns a plain list, so both workarounds are gone rather than carried over.
+google-genai==2.19.0
 # Multipart parsing for the /scan upload. 0.0.31 closes seven advisories, all
 # reachable by an unauthenticated POST: preamble and part-header parsing DoS
 # (PYSEC-2026-3036/3037/3038/3039) and an unvalidated negative Content-Length
