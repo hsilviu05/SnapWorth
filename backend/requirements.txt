@@ -18,7 +18,7 @@ google-generativeai==0.8.6
 # (PYSEC-2026-3036/3037/3038/3039) and an unvalidated negative Content-Length
 # (PYSEC-2026-3040). This is the highest-exploitability item in the tree — the
 # upload path is the app's front door.
-python-multipart==0.0.31
+python-multipart==0.0.32
 # NOT on the original fix list — surfaced by the audit added in this change.
 # PYSEC-2026-2270: set_key()/unset_key() follow symlinks when rewriting .env,
 # letting a local attacker overwrite arbitrary files. Not reachable here: the

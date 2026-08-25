@@ -136,7 +136,7 @@ def analyse(data: bytes) -> ImageQuality:
                 ratio = ANALYSIS_EDGE / longest
                 grey = grey.resize(
                     (max(1, int(grey.width * ratio)), max(1, int(grey.height * ratio))),
-                    Image.BILINEAR,
+                    Image.Resampling.BILINEAR,
                 )
 
             # Laplacian variance: the standard focus measure. A 3×3 discrete
