@@ -29,9 +29,11 @@ from __future__ import annotations
 import json
 import logging
 from dataclasses import dataclass
+from typing import Protocol
 from datetime import datetime, timezone
 from decimal import Decimal
 
+from cache import KeyValueStore
 from comps.models import Comp, Condition, ItemIdentity, Marketplace
 
 log = logging.getLogger("snapworth.comps.cache")
@@ -106,7 +108,10 @@ class CompsCache:
     the current time, so re-running them per request is both correct and free.
     """
 
-    backend: object                      # cache.ResilientCache or compatible
+    # A narrow Protocol rather than `object` (unresolvable) or the full `Cache`
+    # from cache.py (six methods, of which this uses three — requiring the
+    # other three would reject the memory fakes the tests pass here).
+    backend: KeyValueStore
     ttl_seconds: int = 86_400
     negative_ttl_seconds: int = 21_600
 
@@ -161,6 +166,25 @@ class CompsCache:
                 await self.backend.delete(key)
             except Exception:
                 pass
+
+
+class CompsCacheLike(Protocol):
+    """What the engine needs from a comps cache.
+
+    Declared as a Protocol because `CompsCache` and `NullCompsCache` are
+    unrelated by inheritance and tests substitute their own fakes. The engine
+    previously typed this field `object`, which made every `cache.get`/
+    `cache.put` call unresolvable.
+    """
+
+    async def get(self, identity: ItemIdentity,
+                  window_days: int) -> list[Comp] | None: ...
+
+    async def put(self, identity: ItemIdentity, window_days: int,
+                  comps: list[Comp]) -> None: ...
+
+    async def invalidate(self, identity: ItemIdentity,
+                         window_days: int) -> None: ...
 
 
 class NullCompsCache:

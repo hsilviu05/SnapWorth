@@ -167,8 +167,15 @@ def _verify_chain(certs: list[x509.Certificate]) -> x509.Certificate:
             key = parent.public_key()
             if not isinstance(key, ec.EllipticCurvePublicKey):
                 raise EntitlementError("Unexpected certificate key type.")
+            # See the matching guard in appattest._verify_chain: None here is
+            # a TypeError out of ec.ECDSA, which `except InvalidSignature`
+            # would not catch, on a chain supplied by the caller.
+            algorithm = child.signature_hash_algorithm
+            if algorithm is None:
+                raise EntitlementError(
+                    "Certificate uses an unsupported signature algorithm.")
             key.verify(child.signature, child.tbs_certificate_bytes,
-                       ec.ECDSA(child.signature_hash_algorithm))
+                       ec.ECDSA(algorithm))
         except InvalidSignature:
             raise EntitlementError("Signed transaction chain is not signed by Apple.") from None
     return certs[0]
@@ -215,10 +222,17 @@ def verify_signed_transaction(
     certs = _decode_x5c_chain(header)
     leaf = _verify_chain(certs)
 
+    # Narrowed before use, mirroring the check _verify_chain applies to the
+    # parent keys. `public_key()` can return DSA/RSA/Ed25519 types that PyJWT
+    # will not accept for ES256, and the leaf comes from the caller's chain.
+    leaf_key = leaf.public_key()
+    if not isinstance(leaf_key, ec.EllipticCurvePublicKey):
+        raise EntitlementError("Unexpected certificate key type.")
+
     try:
         payload = jwt.decode(
             jws_value,
-            key=leaf.public_key(),
+            key=leaf_key,
             algorithms=["ES256"],
             # Apple's transaction payloads carry no aud/iss; expiry is handled
             # below against the StoreKit-specific `expiresDate` field.

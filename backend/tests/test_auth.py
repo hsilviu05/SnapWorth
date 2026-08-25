@@ -28,7 +28,6 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import appattest  # noqa: E402
 import auth  # noqa: E402
-import tokens  # noqa: E402
 from cache import CacheUnavailable, InMemoryCache, ResilientCache  # noqa: E402
 from main import app  # noqa: E402
 from quota import QuotaExceeded, QuotaUnavailable, ScanQuota  # noqa: E402

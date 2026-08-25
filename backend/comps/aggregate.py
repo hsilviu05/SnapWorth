@@ -50,7 +50,6 @@ from comps.models import (
     Comp,
     Condition,
     MARKETPLACE_RELIABILITY,
-    Marketplace,
     PriceEvidence,
     ValuationPrices,
 )

@@ -32,7 +32,7 @@ from __future__ import annotations
 
 import difflib
 import logging
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import Enum
 
 from comps import normalize

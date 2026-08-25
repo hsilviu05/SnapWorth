@@ -129,7 +129,6 @@ class RequestContextMiddleware(BaseHTTPMiddleware):
 # Added for production launch. The request-id correlation above is unchanged;
 # these layer on top of it.
 
-import os
 import re
 
 # Patterns that must never reach a log aggregator.
