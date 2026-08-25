@@ -63,6 +63,7 @@ why consistency is measured empirically rather than assumed.
 
 from __future__ import annotations
 
+import base64
 import logging
 import os
 from functools import lru_cache
@@ -194,6 +195,33 @@ def _client() -> genai.Client:
     )
 
 
+def _as_part(item):
+    """Accept the previous SDK's inline-image dict as well as native inputs.
+
+    google-generativeai took an image as a plain dict:
+
+        {"mime_type": "image/jpeg", "data": "<base64 str>"}
+
+    google-genai does not — it wants a `types.Part`, and hands a pydantic
+    validation error back for the dict. That failure is invisible to a
+    text-only test, which is exactly how it reached production: the migration
+    was verified against typed item descriptions because the repository has no
+    photo fixture, so every check exercised the text path and none built a
+    Part. /scan sends prompt + image on every request, so 100% of real scans
+    failed while every test passed.
+
+    Converting here rather than at the call site keeps main.py and
+    eval/runner.py on the shape they already use, and means any caller still
+    holding the old dict keeps working.
+    """
+    if isinstance(item, dict) and "mime_type" in item and "data" in item:
+        data = item["data"]
+        if isinstance(data, str):          # the dict carries base64 text
+            data = base64.b64decode(data)
+        return types.Part.from_bytes(data=data, mime_type=item["mime_type"])
+    return item
+
+
 class _Model:
     """Binds a model name and its default config to a `generate_content_async`.
 
@@ -224,6 +252,7 @@ class _Model:
                 update={"system_instruction": self._system_instruction})
         if not isinstance(contents, list):
             contents = [contents]
+        contents = [_as_part(c) for c in contents]
         return await _client().aio.models.generate_content(
             model=self.model_name, contents=contents, config=config)
 
