@@ -25,7 +25,7 @@ python-multipart==0.0.32
 # only use is load_dotenv() at main.py:55, and neither writer is ever called.
 # Bumped anyway because clearing it outright is cheaper than carrying an audit
 # allowlist entry that someone has to re-verify on every future review.
-python-dotenv==1.2.2
+python-dotenv==1.2.3
 pydantic==2.13.4
 # Header-only image inspection for upload validation (decompression-bomb guard).
 # Image.open() runs on attacker-supplied bytes, so the 17 advisories fixed by
