@@ -21,7 +21,6 @@ from collections.abc import Mapping
 from typing import Any
 from pathlib import Path
 
-import google.generativeai as genai
 from dotenv import load_dotenv
 from fastapi import FastAPI, File, Header, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
@@ -162,7 +161,6 @@ GIT_COMMIT = resolve_git_commit(os.environ)
 _api_key = os.environ.get("GEMINI_API_KEY", "")
 if not _api_key:
     log.warning("GEMINI_API_KEY is not set — scan requests will fail")
-genai.configure(api_key=_api_key)
 
 _PRODUCT_IDS = {"com.snapworth.monthly", "com.snapworth.yearly"}
 
@@ -1234,7 +1232,8 @@ async def _generate_with_retry(
             text, usage = aiconfig.extract_text(response), aiconfig.usage_of(response)
             metrics.model_calls.inc(operation=label, outcome="success")
             _model_health.record_success()
-            for kind, key in (("prompt", "prompt_tokens"), ("output", "output_tokens")):
+            for kind, key in (("prompt", "prompt_tokens"), ("output", "output_tokens"),
+                              ("thoughts", "thoughts_tokens")):
                 if key in usage:
                     metrics.model_tokens.inc(usage[key], operation=label, kind=kind)
             return text, usage
@@ -1286,7 +1285,11 @@ async def _retry_as_json(raw: str) -> dict | None:
     )
     with contextlib.suppress(Exception):
         response = await _model.generate_content_async(prompt)
-        return _extract_json(response.text.strip())
+        # `or ""`: google-genai returns None for .text on an empty or blocked
+        # candidate, where the previous SDK raised. The suppress() above would
+        # have swallowed the resulting AttributeError and returned None anyway,
+        # which is the right outcome — but by accident rather than intent.
+        return _extract_json((response.text or "").strip())
     return None
 
 

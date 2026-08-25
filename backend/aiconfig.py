@@ -4,7 +4,7 @@ The problem this fixes
 ----------------------
 `main.py` previously did:
 
-    _model = genai.GenerativeModel("gemini-2.5-flash")
+    _model = genai.GenerativeModel("gemini-2.5-flash")   # old SDK
 
 with no generation config at all. That means every sampling parameter took its
 API default, and for Gemini that is **temperature 1.0** — full sampling
@@ -42,17 +42,23 @@ Four settings, and why each
   penknife. We loosen to BLOCK_ONLY_HIGH (genuinely harmful content still
   blocked) and handle the block explicitly — see `ModelBlocked`.
 
-Determinism caveat
-------------------
-`seed` is attached only when the installed SDK *and* its protobuf pairing both
-accept it — see `proto_supported_optional_fields`. With
-google-generativeai 0.8.3 they do not agree, so it is currently omitted and
-determinism rests on temperature and top_p alone.
+Determinism, and the SDK this now uses
+--------------------------------------
+This module targets **google-genai**. The previous SDK, `google-generativeai`,
+reached end-of-life at 0.8.6 and announced it on import.
 
-Even where it is sent, Gemini does not guarantee bit-identical output across
-calls with a fixed seed and temperature. It narrows variance rather than
-eliminating it, which is why consistency is measured empirically rather than
-assumed.
+That migration also removed a workaround. `google-generativeai` exposed `seed`
+on its `GenerationConfig` dataclass while the protobuf it serialised into had
+no such field, so construction succeeded and the *call* failed — surfacing as
+"the AI service is temporarily unavailable" for every scan over nine days in
+production. The fix at the time was to probe which optional fields the
+SDK/proto pairing actually accepted and drop the ones it did not, which meant
+shipping without a seed. google-genai accepts `seed` end-to-end, verified
+against the live API, so it is now sent unconditionally and the probe is gone.
+
+Gemini still does not guarantee bit-identical output across calls with a fixed
+seed and temperature. It narrows variance rather than eliminating it, which is
+why consistency is measured empirically rather than assumed.
 """
 
 from __future__ import annotations
@@ -62,7 +68,8 @@ import os
 from functools import lru_cache
 from typing import Any
 
-import google.generativeai as genai
+from google import genai
+from google.genai import types
 
 log = logging.getLogger("snapworth.aiconfig")
 
@@ -111,108 +118,119 @@ class ModelUnavailable(Exception):
     """A transient upstream failure. Retrying is reasonable."""
 
 
-def _safety_settings() -> list[dict]:
+def _safety_settings() -> list[types.SafetySetting]:
     """Permit ordinary resale inventory; still block genuinely harmful content.
 
     A photo of a vintage hunting knife or a whisky decanter is normal thrift
     stock and must not read as an outage.
     """
     categories = [
-        "HARM_CATEGORY_HARASSMENT",
-        "HARM_CATEGORY_HATE_SPEECH",
-        "HARM_CATEGORY_SEXUALLY_EXPLICIT",
-        "HARM_CATEGORY_DANGEROUS_CONTENT",
+        types.HarmCategory.HARM_CATEGORY_HARASSMENT,
+        types.HarmCategory.HARM_CATEGORY_HATE_SPEECH,
+        types.HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
+        types.HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
     ]
-    return [{"category": c, "threshold": "BLOCK_ONLY_HIGH"} for c in categories]
-
-
-def to_proto_config(config: genai.types.GenerationConfig):
-    """Convert a `GenerationConfig` exactly the way the SDK does before a call.
-
-    Exposed (rather than inlined) because this conversion is the step that
-    actually rejects unsupported fields, so it is also the only honest way to
-    test that a config we intend to send is sendable.
-    """
-    from google.generativeai.types import generation_types
-    import google.ai.generativelanguage as glm
-
-    return glm.GenerationConfig(generation_types.to_generation_config_dict(config))
-
-
-@lru_cache(maxsize=1)
-def proto_supported_optional_fields() -> frozenset[str]:
-    """Which optional fields this SDK *and* its protobuf pairing will actually accept.
-
-    Why this is probed rather than assumed
-    --------------------------------------
-    `google-generativeai` 0.8.3 exposes `seed` on the `GenerationConfig`
-    *dataclass*, but the `google.ai.generativelanguage` protobuf it serialises
-    into has no such field. Construction therefore succeeds and the call fails
-    later, at proto conversion, with:
-
-        ValueError: Unknown field for GenerationConfig: seed
-
-    Because that error text contains none of the markers in `main._NON_RETRYABLE`
-    it was classified transient, retried twice, and surfaced to users as "the AI
-    service is temporarily unavailable" — a permanent, 100%-reproducible bug
-    reported as an outage. Every scan reaching Gemini failed this way from
-    783aad3 (28 Jul) until this fix.
-
-    The previous guard tried to handle exactly this and could not: it caught
-    `TypeError` around dataclass construction, which never raises, while the real
-    failure is a `ValueError` one layer down and one call later. Validating here
-    against the same conversion that runs at request time is what makes the guard
-    match the failure.
-
-    Probed once and cached: the answer is a property of the installed packages
-    and cannot change while the process is alive. Being field-agnostic, it also
-    covers the *next* field to diverge this way rather than only `seed`; and if a
-    future SDK/proto bump adds real support, the field is picked back up with no
-    code change, so the fix cannot silently strand determinism either.
-    """
-    supported: set[str] = set()
-    for name, probe_value in (("seed", 1), ("response_mime_type", "application/json")):
-        # Annotated rather than splatting the literal directly: the inline dict
-        # infers as dict[str, int | str], and splatting that reports a type
-        # error against every GenerationConfig parameter at once.
-        probe: dict[str, Any] = {name: probe_value}
-        try:
-            to_proto_config(genai.types.GenerationConfig(**probe))
-            supported.add(name)
-        except Exception as exc:
-            # Dropping an optional field costs determinism or JSON mode; sending
-            # one the transport rejects costs every request. Degrade.
-            log.warning(
-                "generation config field %r unsupported by the installed "
-                "SDK/proto pairing — omitting it: %s", name, exc)
-    return frozenset(supported)
+    # The SDK's enums rather than the equivalent strings: pydantic coerces the
+    # strings, so both work, but a typo in one would only surface as a category
+    # silently not being configured.
+    return [types.SafetySetting(
+                category=c,
+                threshold=types.HarmBlockThreshold.BLOCK_ONLY_HIGH)
+            for c in categories]
 
 
 def generation_config(
     *, json_mode: bool = True, max_output_tokens: int | None = None
-) -> genai.types.GenerationConfig:
-    kwargs: dict = {
+) -> types.GenerateContentConfig:
+    """Sampling parameters, plus the safety thresholds.
+
+    `seed` is now attached unconditionally. On google-generativeai it could not
+    be: the dataclass exposed the field, the protobuf it serialised into did
+    not, and the mismatch surfaced only at request time as an outage. google-genai
+    accepts it end-to-end, so the probe that worked around that is gone and
+    determinism rests on seed as well as temperature and top_p.
+
+    Safety settings live here rather than on the client because this SDK takes
+    the whole configuration per call.
+    """
+    kwargs: dict[str, Any] = {
         "temperature": TEMPERATURE,
         "top_p": TOP_P,
         "candidate_count": 1,
         "max_output_tokens": max_output_tokens or MAX_OUTPUT_TOKENS,
+        "seed": SEED,
+        "safety_settings": _safety_settings(),
     }
-    supported = proto_supported_optional_fields()
-    if "seed" in supported:
-        kwargs["seed"] = SEED
-    if json_mode and JSON_MODE and "response_mime_type" in supported:
+    if json_mode and JSON_MODE:
         kwargs["response_mime_type"] = "application/json"
-    return genai.types.GenerationConfig(**kwargs)
+    return types.GenerateContentConfig(**kwargs)
 
 
-def build_model(system_instruction: str | None = None) -> genai.GenerativeModel:
-    """Construct the vision model with deterministic-leaning parameters."""
-    return genai.GenerativeModel(
-        MODEL_NAME,
-        generation_config=generation_config(),
-        safety_settings=_safety_settings(),
-        system_instruction=system_instruction,
+# google-genai's HttpOptions.timeout defaults to None, i.e. no timeout at all,
+# and its retry_options default to None as well. Unbounded is the wrong default
+# for a request on the scan path: a hung upstream would hold a worker until the
+# process restarted, and `_generate_with_retry` in main.py could never take over
+# because the call it is wrapping never returns. Observed directly during this
+# migration — one probe ran past ten minutes before it was killed.
+#
+# 60s against a p95 /scan budget of 20s (see RUNBOOK §3): generous enough that a
+# slow-but-working call still completes, bounded enough that a dead one fails
+# fast and hits the retry loop. Milliseconds, per the SDK's field.
+REQUEST_TIMEOUT_MS = int(os.environ.get("GEMINI_TIMEOUT_MS", "60000"))
+
+
+@lru_cache(maxsize=1)
+def _client() -> genai.Client:
+    """One client per process. Reads GEMINI_API_KEY at first use.
+
+    Retries are deliberately left at the SDK default of None: main.py already
+    classifies and retries around this call, and a second layer underneath it
+    would multiply billed attempts on a failure it has already decided is
+    terminal — exactly what the quota-exhaustion fix was for.
+    """
+    return genai.Client(
+        api_key=os.environ.get("GEMINI_API_KEY", ""),
+        http_options=types.HttpOptions(timeout=REQUEST_TIMEOUT_MS),
     )
+
+
+class _Model:
+    """Binds a model name and its default config to a `generate_content_async`.
+
+    An adapter, deliberately. google-genai is client-first
+    (`client.aio.models.generate_content(model=..., config=...)`) whereas the
+    old SDK was model-first, and the call shape is depended on by main.py,
+    eval/runner.py and roughly forty test mocks that patch
+    `generate_content_async`. Keeping that one method signature stable confined
+    this migration to a single module.
+    """
+
+    __slots__ = ("model_name", "_default_config", "_system_instruction")
+
+    def __init__(self, model_name: str, config: types.GenerateContentConfig,
+                 system_instruction: str | None = None) -> None:
+        self.model_name = model_name
+        self._default_config = config
+        self._system_instruction = system_instruction
+
+    async def generate_content_async(
+        self, contents, generation_config: types.GenerateContentConfig | None = None
+    ):
+        config = generation_config or self._default_config
+        if self._system_instruction is not None:
+            # Copied per call: system_instruction belongs to the config in this
+            # SDK, and mutating the shared default would leak across callers.
+            config = config.model_copy(
+                update={"system_instruction": self._system_instruction})
+        if not isinstance(contents, list):
+            contents = [contents]
+        return await _client().aio.models.generate_content(
+            model=self.model_name, contents=contents, config=config)
+
+
+def build_model(system_instruction: str | None = None) -> _Model:
+    """Construct the vision model with deterministic-leaning parameters."""
+    return _Model(MODEL_NAME, generation_config(), system_instruction)
 
 
 _BLOCK_MARKERS = {"SAFETY", "PROHIBITED_CONTENT", "BLOCKLIST", "SPII", "IMAGE_SAFETY"}
@@ -300,6 +318,12 @@ def usage_of(response) -> dict:
         "prompt_tokens": "prompt_token_count",
         "output_tokens": "candidates_token_count",
         "total_tokens": "total_token_count",
+        # Reasoning tokens. google-generativeai never surfaced these, which is
+        # part of why the max_output_tokens bug was invisible: thinking is drawn
+        # from the same ceiling as the answer, so a scan could spend 1800 tokens
+        # reasoning, truncate the JSON, and look — by prompt and output counts
+        # alone — entirely normal. google-genai reports it, so it is recorded.
+        "thoughts_tokens": "thoughts_token_count",
     }
     out: dict[str, int] = {}
     for key, attr in fields.items():

@@ -574,89 +574,86 @@ class TestImageQualityCeiling:
 #
 #     ValueError: Unknown field for GenerationConfig: seed
 #
-# google-generativeai 0.8.3 exposes `seed` on the GenerationConfig *dataclass*,
-# but the google.ai.generativelanguage protobuf it serialises into does not have
-# that field. Construction succeeded, so every existing test passed; the call
-# failed later, at proto conversion.
+# google-generativeai exposed `seed` on its GenerationConfig *dataclass*, but
+# the google.ai.generativelanguage protobuf it serialised into had no such
+# field. Construction succeeded, so every existing test passed; the call failed
+# later, at proto conversion.
 #
-# That is exactly the gap these tests close. The suite asserted things about the
-# config *object* — temperature, candidate_count, response_mime_type — and never
-# that the object could actually be sent. Constructing a config proves nothing
-# about whether the transport will accept it.
+# The lesson outlived the SDK: the suite asserted things about the config
+# *object* — temperature, candidate_count, response_mime_type — and never that
+# the object could actually be sent. Constructing a config proves nothing about
+# whether the transport will accept it.
 #
-# No network call: the conversion that fails is client-side, so the whole bug is
-# reproducible in memory.
+# On google-genai the config is a pydantic model serialised to JSON, so there is
+# no second representation to disagree with the first, and `seed` is accepted
+# end-to-end (verified against the live API before this migration landed). These
+# tests therefore assert the property that still has teeth: the config
+# round-trips to the wire format, and the fields we believe we are sending are
+# actually in it — `seed` above all, since shipping without it was the visible
+# cost of the old workaround.
+#
+# No network call: serialisation is client-side, so this stays reproducible in
+# memory.
 
-class TestGenerationConfigIsProtoSendable:
+class TestGenerationConfigIsSendable:
 
-    def _assert_sendable(self, cfg, label):
+    def _wire(self, cfg, label):
+        """The dict the SDK will actually transmit."""
         try:
-            aiconfig.to_proto_config(cfg)
+            return cfg.model_dump(exclude_none=True, mode="json")
         except Exception as exc:  # noqa: BLE001 — the message is the point
             raise AssertionError(
-                f"{label} config cannot be sent to Gemini: {type(exc).__name__}: {exc}. "
-                "This is the failure mode that broke every scan in production — "
-                "the config constructs fine and is rejected at proto conversion."
+                f"{label} config cannot be serialised for Gemini: "
+                f"{type(exc).__name__}: {exc}. This is the failure mode that "
+                "broke every scan in production — the config constructs fine "
+                "and is rejected on the way out."
             ) from None
 
-    def test_scan_config_converts_to_proto(self):
-        # The exact config the /scan path uses: model-level, no max_output_tokens
-        # override (main.py:377 -> aiconfig.build_model -> generation_config()).
-        self._assert_sendable(aiconfig.generation_config(), "scan")
+    def test_scan_config_is_sendable(self):
+        wire = self._wire(aiconfig.generation_config(), "scan")
+        assert wire["temperature"] == aiconfig.TEMPERATURE
+        assert wire["candidate_count"] == 1
 
-    def test_listing_config_converts_to_proto(self):
-        self._assert_sendable(
-            aiconfig.generation_config(
-                max_output_tokens=aiconfig.LISTING_MAX_OUTPUT_TOKENS),
-            "listing")
+    def test_listing_config_is_sendable(self):
+        cfg = aiconfig.generation_config(
+            max_output_tokens=aiconfig.LISTING_MAX_OUTPUT_TOKENS)
+        wire = self._wire(cfg, "listing")
+        assert wire["max_output_tokens"] == aiconfig.LISTING_MAX_OUTPUT_TOKENS
 
-    def test_json_mode_disabled_config_converts_to_proto(self):
-        self._assert_sendable(
-            aiconfig.generation_config(json_mode=False), "json-mode-off")
+    def test_json_mode_disabled_config_is_sendable(self):
+        wire = self._wire(aiconfig.generation_config(json_mode=False),
+                          "json-mode-off")
+        assert "response_mime_type" not in wire
 
-    def test_model_level_config_converts_to_proto(self):
-        # build_model attaches the config to the model itself, so it rides every
-        # call — which is why a bad field here broke scans rather than one route.
+    def test_model_level_config_is_sendable(self):
+        # build_model() bakes a config in; it must be sendable too.
         model = aiconfig.build_model()
-        cfg = getattr(model, "_generation_config", None)
-        assert cfg is not None, "model carries no generation config"
-        # The model stores it already normalised to a dict; feed it back through
-        # the proto to prove the stored form is sendable.
-        import google.ai.generativelanguage as glm
-        try:
-            glm.GenerationConfig(cfg)
-        except Exception as exc:  # noqa: BLE001
-            raise AssertionError(
-                f"model-level config is not sendable: {type(exc).__name__}: {exc}"
-            ) from None
+        self._wire(model._default_config, "model-level")
 
-    def test_unsupported_fields_are_omitted_not_sent(self):
-        # The regression itself: `seed` must not appear in a config this
-        # SDK/proto pairing would reject.
-        supported = aiconfig.proto_supported_optional_fields()
-        cfg = aiconfig.generation_config()
-        if "seed" not in supported:
-            assert getattr(cfg, "seed", None) is None, (
-                "seed was attached despite the proto rejecting it — this is the "
-                "exact production bug"
-            )
-
-    def test_probe_reports_seed_unsupported_on_the_pinned_sdk(self):
-        # Pins the current, measured reality rather than a belief about it. If a
-        # future SDK bump makes seed genuinely supported this test should be
-        # updated deliberately — with the knowledge that seed then starts being
-        # sent again, which is the intended behaviour.
-        supported = aiconfig.proto_supported_optional_fields()
-        assert "seed" not in supported, (
-            "google-generativeai 0.8.3's proto has no seed field; if this now "
-            "passes, the SDK changed and determinism is back on"
-        )
+    def test_seed_is_actually_sent(self):
+        # The regression this migration exists to close. Under the old SDK the
+        # probe found `seed` unsendable and dropped it, so determinism rested on
+        # temperature and top_p alone. If this ever stops being true, scans have
+        # silently become less repeatable.
+        wire = self._wire(aiconfig.generation_config(), "scan")
+        assert wire.get("seed") == aiconfig.SEED, (
+            "seed is no longer being sent — determinism has regressed to the "
+            "state the google-generativeai workaround left us in")
 
     def test_json_mode_survives_the_fix(self):
-        # response_mime_type IS proto-supported; the fix must not have thrown it
-        # out along with seed.
-        assert "response_mime_type" in aiconfig.proto_supported_optional_fields()
-        assert aiconfig.generation_config().response_mime_type == "application/json"
+        # response_mime_type was the other field the old probe could have
+        # dropped; losing it silently would push every scan onto the regex
+        # fallback in _extract_json.
+        wire = self._wire(aiconfig.generation_config(), "scan")
+        assert wire["response_mime_type"] == "application/json"
+
+    def test_safety_settings_travel_with_the_config(self):
+        # This SDK takes safety settings per call rather than per model, so a
+        # config that loses them would silently re-enable the default
+        # thresholds that blocked penknives and whisky decanters.
+        wire = self._wire(aiconfig.generation_config(), "scan")
+        assert len(wire["safety_settings"]) == 4
+        assert {s["threshold"] for s in wire["safety_settings"]} == {"BLOCK_ONLY_HIGH"}
 
 
 # ── Valuation accuracy regressions ───────────────────────────────────────────
