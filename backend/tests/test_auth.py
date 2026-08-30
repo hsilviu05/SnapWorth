@@ -307,6 +307,19 @@ class TestEnforcement:
 
 # ── Free-scan quota ──────────────────────────────────────────────────────────
 
+def test_exhausted_message_reads_correctly_at_every_limit():
+    """The client echoes this string verbatim, so it must be grammatical.
+
+    At limit=1 the old hardcoded plural read "You've used all 1 free scans
+    today." — which is what production served once the free tier moved to one
+    scan a day.
+    """
+    from quota import _exhausted_message
+    assert _exhausted_message(1) == "You've used your free scan for today."
+    assert _exhausted_message(3) == "You've used all 3 free scans today."
+    assert "1 free scans" not in _exhausted_message(1)
+
+
 def _quota(limit=3, device_check=None, cache=None):
     return ScanQuota(cache or ResilientCache(None, InMemoryCache()),
                      device_check, limit=limit)
