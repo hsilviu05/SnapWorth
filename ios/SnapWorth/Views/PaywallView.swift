@@ -28,7 +28,7 @@ struct PaywallView: View {
                             .symbolRenderingMode(.hierarchical)
                             .padding(.top, 56)
 
-                        Text(headline(isYearly: isYearly, trial: trial))
+                        Text(PaywallCopy.headline(isYearly: isYearly, trial: trial))
                             .font(.fraunces(32, weight: .bold, relativeTo: .largeTitle))
                             .foregroundStyle(Color.snapEspresso)
                             .multilineTextAlignment(.center)
@@ -213,11 +213,6 @@ private extension PaywallView {
         purchaseService.pricing[productID] ?? .loading(productID)
     }
 
-    func headline(isYearly: Bool, trial: String?) -> String {
-        guard isYearly, let trial else { return "Unlock\nSnapWorth Pro" }
-        return "Try SnapWorth\nfree for \(trialDuration(trial))"
-    }
-
     func subheadline(isYearly: Bool, plan: PlanPricing, trial: String?) -> String {
         guard plan.displayPrice != "—" else { return "Loading plans…" }
         let period = isYearly ? "year" : "month"
@@ -239,12 +234,32 @@ private extension PaywallView {
         return isYearly ? "Subscribe Yearly" : "Subscribe Monthly"
     }
 
+}
+
+// MARK: - Paywall copy
+
+/// Pure copy helpers, lifted out of the view so they can be tested.
+///
+/// The headline is the highest-intent string in the app, and it shipped reading
+/// "free for 3 dayss": `StoreKitPurchaseService.introductoryDescription`
+/// pluralised the unit, then `trialDuration` pluralised the result again. Both
+/// sides are now defensive — the source emits the singular attributive form
+/// ("3-day free trial"), and `trialDuration` will not re-pluralise a unit that
+/// already ends in "s".
+enum PaywallCopy {
+    static func headline(isYearly: Bool, trial: String?) -> String {
+        guard isYearly, let trial else { return "Unlock\nSnapWorth Pro" }
+        return "Try SnapWorth\nfree for \(trialDuration(trial))"
+    }
+
     /// "3-day free trial" → "3 days". Falls back to the raw phrase.
-    func trialDuration(_ offer: String) -> String {
+    static func trialDuration(_ offer: String) -> String {
         let head = offer.replacingOccurrences(of: " free trial", with: "")
         let parts = head.split(separator: "-")
         guard parts.count == 2, let count = Int(parts[0]) else { return head }
-        return "\(count) \(parts[1])\(count == 1 ? "" : "s")"
+        let unit = parts[1]
+        let needsPlural = count != 1 && !unit.hasSuffix("s")
+        return "\(count) \(unit)\(needsPlural ? "s" : "")"
     }
 }
 
