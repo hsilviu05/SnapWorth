@@ -64,6 +64,19 @@ def _utc_day() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%d")
 
 
+def _exhausted_message(limit: int) -> str:
+    """User-facing copy for a spent allowance.
+
+    The message is echoed to the user verbatim by the client, so it has to read
+    correctly at every limit. The old f-string hardcoded the plural and, once
+    the free tier moved to one scan a day, told everybody "You've used all 1
+    free scans today."
+    """
+    if limit == 1:
+        return "You've used your free scan for today."
+    return f"You've used all {limit} free scans today."
+
+
 def _seconds_until_utc_midnight() -> int:
     now = datetime.now(timezone.utc)
     tomorrow = now.replace(hour=0, minute=0, second=0, microsecond=0).timestamp() + 86400
@@ -100,7 +113,7 @@ class ScanQuota:
         status = await self.status(subject, is_pro)
         if not status.unlimited and status.used >= status.limit:
             raise QuotaExceeded(
-                f"You've used all {status.limit} free scans today.",
+                _exhausted_message(status.limit),
                 resets_at=int(time.time()) + _seconds_until_utc_midnight(),
             )
         return status
