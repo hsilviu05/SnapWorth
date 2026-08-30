@@ -490,13 +490,62 @@ final class ScanViewModelSecurityTests: XCTestCase {
         super.setUp()
         UserDefaults.standard.removeObject(forKey: freeScansKey)
         UserDefaults.standard.removeObject(forKey: freeScansDateKey)
+        UserDefaults.standard.removeObject(forKey: "snapworth_free_scans_server_remaining")
         vm = ScanViewModel()
     }
 
     override func tearDown() {
         UserDefaults.standard.removeObject(forKey: freeScansKey)
         UserDefaults.standard.removeObject(forKey: freeScansDateKey)
+        UserDefaults.standard.removeObject(forKey: "snapworth_free_scans_server_remaining")
         super.tearDown()
+    }
+
+    // ── Server-authoritative count ───────────────────────────────────────
+    //
+    // The screen used to render "N free scans left today" from the compiled-in
+    // Config.freeScansAllowed and ignore the server's free_scans_remaining
+    // entirely, so it showed "3 free scans left today" against a backend
+    // enforcing 1 and denied the second scan.
+
+    private var serverRemainingKey: String { "snapworth_free_scans_server_remaining" }
+
+    func test_remaining_prefersTheServersFigureOverTheLocalConstant() {
+        UserDefaults.standard.set(0, forKey: freeScansKey)
+        FreeScanCounter.serverRemaining = 1
+        XCTAssertEqual(FreeScanCounter.remaining, 1,
+                       "Server figure must win over the compiled-in allowance")
+    }
+
+    func test_remaining_fallsBackToLocalWhenServerSilent() {
+        UserDefaults.standard.removeObject(forKey: serverRemainingKey)
+        UserDefaults.standard.set(0, forKey: freeScansKey)
+        UserDefaults.standard.set(Date(), forKey: freeScansDateKey)
+        XCTAssertEqual(FreeScanCounter.remaining, Config.freeScansAllowed,
+                       "With no server figure, fall back to the local estimate")
+    }
+
+    func test_gateClosesWhenServerSaysZero_evenIfLocalThinksOtherwise() {
+        // The reinstall case: DeviceCheck withheld the allowance, so the server
+        // grants 0 while the freshly-installed local counter reads untouched.
+        UserDefaults.standard.set(0, forKey: freeScansKey)
+        FreeScanCounter.serverRemaining = 0
+        XCTAssertFalse(FreeScanCounter.hasRemaining,
+                       "A withheld allowance must close the gate")
+        XCTAssertEqual(FreeScanCounter.remaining, 0)
+    }
+
+    func test_serverRemaining_resetsWhenDateIsStale() {
+        UserDefaults.standard.set(0, forKey: serverRemainingKey)
+        let yesterday = Calendar.current.date(byAdding: .day, value: -1, to: Date())!
+        UserDefaults.standard.set(yesterday, forKey: freeScansDateKey)
+        XCTAssertNil(FreeScanCounter.serverRemaining,
+                     "Yesterday's figure must not suppress today's allowance")
+    }
+
+    func test_serverRemaining_isNeverNegative() {
+        FreeScanCounter.serverRemaining = -5
+        XCTAssertEqual(FreeScanCounter.serverRemaining, 0)
     }
 
     func test_hasFreeScanRemaining_trueWhenUnderLimit() {

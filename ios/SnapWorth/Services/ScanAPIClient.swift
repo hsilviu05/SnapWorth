@@ -19,6 +19,10 @@ struct ScanAPIResponse: Decodable {
     let soldListingsCount: Int
     let listingTitle: String
     let listingDescription: String
+    /// Free scans left after this one, straight from the server. `nil` for Pro
+    /// and when the quota store was unreachable — the caller must fall back to
+    /// its local count rather than invent a number.
+    let freeScansRemaining: Int?
 
     enum CodingKeys: String, CodingKey {
         case itemName            = "item_name"
@@ -31,6 +35,7 @@ struct ScanAPIResponse: Decodable {
         case soldListingsCount   = "sold_listings_count"
         case listingTitle        = "listing_title"
         case listingDescription  = "listing_description"
+        case freeScansRemaining  = "free_scans_remaining"
     }
 
     init(from decoder: Decoder) throws {
@@ -43,6 +48,7 @@ struct ScanAPIResponse: Decodable {
         estValueHighUsd     = try c.decode(Double.self, forKey: .estValueHighUsd)
         confidence          = try c.decode(String.self, forKey: .confidence)
         soldListingsCount   = try c.decodeIfPresent(Int.self, forKey: .soldListingsCount) ?? 0
+        freeScansRemaining  = try c.decodeIfPresent(Int.self, forKey: .freeScansRemaining)
         listingTitle        = try c.decode(String.self, forKey: .listingTitle)
         listingDescription  = try c.decode(String.self, forKey: .listingDescription)
     }
@@ -50,7 +56,8 @@ struct ScanAPIResponse: Decodable {
     /// Memberwise init retained for mocks and previews.
     init(itemName: String, brand: String, category: String, conditionNotes: String,
          estValueLowUsd: Double, estValueHighUsd: Double, confidence: String,
-         soldListingsCount: Int = 0, listingTitle: String, listingDescription: String) {
+         soldListingsCount: Int = 0, listingTitle: String, listingDescription: String,
+         freeScansRemaining: Int? = nil) {
         self.itemName = itemName
         self.brand = brand
         self.category = category
@@ -61,6 +68,7 @@ struct ScanAPIResponse: Decodable {
         self.soldListingsCount = soldListingsCount
         self.listingTitle = listingTitle
         self.listingDescription = listingDescription
+        self.freeScansRemaining = freeScansRemaining
     }
 }
 

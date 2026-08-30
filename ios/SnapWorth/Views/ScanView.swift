@@ -48,7 +48,10 @@ struct ScanView: View {
 
                     // Free scan counter / upgrade CTA
                     if !purchaseService.isSubscribed {
-                        let remaining = max(0, Config.freeScansAllowed - vm.freeScansUsed)
+                        // Server's figure when it has told us; local estimate
+                        // otherwise. Reading the compiled-in limit alone showed
+                        // "3 free scans left today" against a server enforcing 1.
+                        let remaining = vm.freeScansRemaining
                         if remaining == 0 {
                             Button { vm.paywallTrigger = .upgradeButton; vm.showPaywall = true } label: {
                                 Text("Upgrade to Pro")
