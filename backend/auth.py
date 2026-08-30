@@ -36,7 +36,7 @@ from cache import KeyValueStore
 from devicecheck import DeviceCheckClient
 from auditlog import AuditEvent
 from entitlements import DeviceLimitExceeded, EntitlementError, EntitlementService
-from quota import QuotaExceeded, QuotaUnavailable, ScanQuota
+from quota import QuotaExceeded, QuotaStatus, QuotaUnavailable, ScanQuota
 from tokens import TokenError, TokenSigner
 
 log = logging.getLogger("snapworth.auth")
@@ -422,11 +422,19 @@ async def enforce_quota(principal: Principal) -> None:
         ) from None
 
 
-async def consume_quota(principal: Principal) -> None:
-    """Record one successful use. Never fails the request it just served."""
+async def consume_quota(principal: Principal) -> QuotaStatus | None:
+    """Record one successful use. Never fails the request it just served.
+
+    Returns the post-consumption status so the caller can report the real
+    remaining allowance to the client, which otherwise has to guess from a
+    hardcoded constant. `None` means the count is genuinely unknown — the
+    caller must omit it rather than substitute a made-up number.
+    """
     try:
-        await deps.quota.consume(principal.subject, principal.is_pro)
+        status = await deps.quota.consume(principal.subject, principal.is_pro)
         auditlog.record(AuditEvent.QUOTA_CONSUMED, principal.subject)
+        return status
     except QuotaUnavailable:
         log.error("quota consume failed — usage not recorded",
                   extra={"subject": auditlog.pseudonymise(principal.subject)})
+        return None

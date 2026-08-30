@@ -36,6 +36,9 @@ final class ScanViewModel {
 
     var hasFreeScanRemaining: Bool { FreeScanCounter.hasRemaining }
 
+    /// Free scans left — the server's count when it has told us, else local.
+    var freeScansRemaining: Int { FreeScanCounter.remaining }
+
     // ── Scan trigger ─────────────────────────────────────────────────
     func startScan(image: UIImage, purchaseService: any PurchaseService, repository: ScanRepository) async {
         guard !isAnalyzing else { return }
@@ -83,6 +86,9 @@ final class ScanViewModel {
             // believe it has a free scan the server has already spent.
             if !purchaseService.isSubscribed {
                 freeScansUsed += 1
+                // The server just told us what is actually left. Prefer it over
+                // our own arithmetic, which is based on a compiled-in limit.
+                FreeScanCounter.serverRemaining = response.freeScansRemaining
             }
 
             Haptics.success()
@@ -156,6 +162,7 @@ final class ScanViewModel {
 enum FreeScanCounter {
     private static let usedKey = "snapworth_free_scans_used"
     private static let dateKey = "snapworth_free_scans_date"
+    private static let serverRemainingKey = "snapworth_free_scans_server_remaining"
 
     static var used: Int {
         get {
@@ -173,7 +180,44 @@ enum FreeScanCounter {
         }
     }
 
-    static var hasRemaining: Bool { used < Config.freeScansAllowed }
+    /// What the server last said was left, day-stamped like `used`.
+    ///
+    /// The server is authoritative — `ScanQuota` exists because the local count
+    /// was advisory and reset on reinstall. Reading it back means the limit can
+    /// change server-side without the app showing a number the backend will not
+    /// honour, and a reinstall whose allowance was withheld reports 0 rather
+    /// than a full allowance.
+    ///
+    /// `nil` means "never heard from the server today": Pro, an unreachable
+    /// quota store, or no scan yet. Callers fall back to the local count.
+    static var serverRemaining: Int? {
+        get {
+            let defaults = UserDefaults.standard
+            guard let stamped = defaults.object(forKey: dateKey) as? Date,
+                  Calendar.current.isDateInToday(stamped),
+                  defaults.object(forKey: serverRemainingKey) != nil else {
+                return nil
+            }
+            return defaults.integer(forKey: serverRemainingKey)
+        }
+        set {
+            let defaults = UserDefaults.standard
+            guard let newValue else {
+                defaults.removeObject(forKey: serverRemainingKey)
+                return
+            }
+            defaults.set(max(0, newValue), forKey: serverRemainingKey)
+            defaults.set(Date(), forKey: dateKey)
+        }
+    }
+
+    /// Free scans left: the server's figure when we have one, else the local
+    /// estimate against the compiled-in allowance.
+    static var remaining: Int {
+        serverRemaining ?? max(0, Config.freeScansAllowed - used)
+    }
+
+    static var hasRemaining: Bool { remaining > 0 }
 
     static func increment() { used += 1 }
 }

@@ -199,6 +199,14 @@ actor AttestationService {
             expiresAt: Date().addingTimeInterval(TimeInterval(decoded.expiresIn))
         )
         TokenStore.shared.store(token)
+
+        // The mint response carries the authoritative allowance. Recording it
+        // here means the count is right at launch, before any scan — including
+        // a reinstall whose allowance the server withheld, which the local
+        // counter would otherwise report as untouched.
+        if decoded.tier != "pro" {
+            FreeScanCounter.serverRemaining = decoded.freeScansRemaining
+        }
         return token.value
     }
 

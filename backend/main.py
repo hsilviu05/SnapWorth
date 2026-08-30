@@ -494,6 +494,13 @@ class ScanResponse(BaseModel):
     improve_estimate: list[str] = Field(default_factory=list)
     value_drivers: list[str] = Field(default_factory=list)
 
+    # Remaining free scans after this one. Optional and omitted for Pro or when
+    # the quota store is unreachable: the client must fall back to its own count
+    # rather than be handed a fabricated number. Added because the client was
+    # rendering "N free scans left today" from a hardcoded constant, which drifts
+    # from the server the moment the limit changes.
+    free_scans_remaining: int | None = None
+
     # Provenance. `valuation_source` is the seam for the comparable-sales
     # pipeline (see docs/COMPS-ARCHITECTURE.md): "model" today, "comps" once
     # evidence-backed pricing lands. Clients should key their UI copy off this
@@ -1048,7 +1055,7 @@ async def scan(
     })
 
     # Charge only for work that produced a result.
-    await consume_quota(principal)
+    quota_status = await consume_quota(principal)
 
     return ScanResponse(
         # ── v1 contract ─────────────────────────────────────────────────────
@@ -1087,6 +1094,9 @@ async def scan(
         improve_estimate=val.improve_estimate,
         value_drivers=val.value_drivers,
         valuation_source="model",
+        free_scans_remaining=(
+            None if quota_status is None or quota_status.unlimited
+            else quota_status.remaining),
         prompt_version=prompt_version,
     )
 
