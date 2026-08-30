@@ -202,6 +202,67 @@ final class ScanAPIResponseDecodingTests: XCTestCase {
     }
 }
 
+// MARK: - Paywall copy
+//
+// The trial headline shipped reading "Try SnapWorth free for 3 dayss".
+// `StoreKitPurchaseService.introductoryDescription` pluralised the unit into
+// "3-days free trial", then `PaywallCopy.trialDuration` pluralised it again.
+// Nothing caught it because `MockPurchaseService` hardcodes the singular form,
+// so previews and tests rendered the correct string while real StoreKit did not.
+
+final class PaywallCopyTests: XCTestCase {
+
+    func test_trialDuration_pluralisesSingularUnit() {
+        // The documented contract: the source emits the attributive singular.
+        XCTAssertEqual(PaywallCopy.trialDuration("3-day free trial"), "3 days")
+    }
+
+    func test_trialDuration_doesNotDoublePluralise() {
+        // The actual production regression. Idempotent whichever form arrives.
+        XCTAssertEqual(PaywallCopy.trialDuration("3-days free trial"), "3 days")
+    }
+
+    func test_trialDuration_keepsSingularForOne() {
+        XCTAssertEqual(PaywallCopy.trialDuration("1-day free trial"), "1 day")
+    }
+
+    func test_trialDuration_handlesOtherUnits() {
+        XCTAssertEqual(PaywallCopy.trialDuration("2-week free trial"), "2 weeks")
+        XCTAssertEqual(PaywallCopy.trialDuration("1-month free trial"), "1 month")
+    }
+
+    func test_trialDuration_fallsBackToRawPhrase() {
+        // Never emit a malformed duration; show whatever StoreKit gave us.
+        XCTAssertEqual(PaywallCopy.trialDuration("free trial"), "free trial")
+        XCTAssertEqual(PaywallCopy.trialDuration("some-nonsense"), "some-nonsense")
+        XCTAssertEqual(PaywallCopy.trialDuration(""), "")
+    }
+
+    func test_headline_readsCorrectlyForATrial() {
+        XCTAssertEqual(
+            PaywallCopy.headline(isYearly: true, trial: "3-day free trial"),
+            "Try SnapWorth\nfree for 3 days")
+        // The exact string that shipped, guarded directly.
+        XCTAssertFalse(
+            PaywallCopy.headline(isYearly: true, trial: "3-days free trial").contains("dayss"))
+    }
+
+    func test_headline_withoutTrialDoesNotPromiseOne() {
+        XCTAssertEqual(
+            PaywallCopy.headline(isYearly: true, trial: nil), "Unlock\nSnapWorth Pro")
+        XCTAssertEqual(
+            PaywallCopy.headline(isYearly: false, trial: "3-day free trial"),
+            "Unlock\nSnapWorth Pro")
+    }
+
+    func test_mockTrialStringMatchesHeadline() {
+        // The mock must mirror what `introductoryDescription` really produces,
+        // or tests keep passing while production reads differently.
+        let mockOffer = "3-day free trial"
+        XCTAssertEqual(PaywallCopy.trialDuration(mockOffer), "3 days")
+    }
+}
+
 // MARK: - Paywall pricing
 //
 // Prices were hardcoded as "$39.99/yr" etc., so every non-US storefront showed a

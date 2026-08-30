@@ -165,7 +165,10 @@ final class StoreKitPurchaseService: PurchaseService, ObservableObject {
 
         switch offer.paymentMode {
         case .freeTrial:
-            return "\(count)-\(unit)\(plural) free trial"
+            // Attributive compound — "3-day free trial", never "3-days". The
+            // paywall headline re-reads this to say "free for 3 days", so
+            // pluralising here too produced "free for 3 dayss" in production.
+            return "\(count)-\(unit) free trial"
         case .payAsYouGo, .payUpFront:
             return "\(offer.displayPrice) for \(count) \(unit)\(plural)"
         default:
