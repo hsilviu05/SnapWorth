@@ -61,7 +61,10 @@ enum Config {
     static let appStoreURL = "https://apps.apple.com/app/id6788521307"
 
     // ── Free tier ────────────────────────────────────────────────────────────
-    static let freeScansAllowed = 3
+    /// Must match the backend's `FREE_SCANS_PER_DAY`. The client renders the
+    /// remaining count from this constant rather than from the server's
+    /// `free_scans_remaining`, so the two drifting apart makes the UI lie.
+    static let freeScansAllowed = 1
 
     /// Free tier sees only the most recent N sold flips + current-month totals.
     /// Beyond this, the "My Flips" ledger routes to the paywall.

@@ -47,7 +47,7 @@ from auth import Principal, consume_quota, enforce_quota, require_auth
 from entitlements import EntitlementService
 from fastapi import Depends
 from observability import RequestContextMiddleware, configure_production_logging
-from quota import ScanQuota
+from quota import FREE_SCANS_PER_DAY, ScanQuota
 from ratelimit import (
     IP_RATE_MAX_REQUESTS,
     RATE_MAX_REQUESTS,
@@ -181,7 +181,7 @@ async def _lifespan(_app: FastAPI):
     auth.deps.entitlements = EntitlementService(
         _cache, auth.deps.config.bundle_id, _PRODUCT_IDS)
     auth.deps.quota = ScanQuota(_cache, dc, limit=int(
-        os.environ.get("FREE_SCANS_PER_DAY", "3")))
+        os.environ.get("FREE_SCANS_PER_DAY", str(FREE_SCANS_PER_DAY))))
 
     cfg = auth.deps.config
     if cfg.enforce and not cfg.is_configured:

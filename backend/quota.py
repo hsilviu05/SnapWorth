@@ -28,7 +28,10 @@ from cache import CacheUnavailable
 
 log = logging.getLogger("snapworth.quota")
 
-FREE_SCANS_PER_DAY = 3
+# One per day, not three. At three, almost nobody exhausted the allowance, so
+# the paywall was never reached and download-to-paid sat at 1.43% while the
+# free tier ran at a loss (~$0.0060/scan). Override with FREE_SCANS_PER_DAY.
+FREE_SCANS_PER_DAY = 1
 
 # Counter lives slightly longer than a day so a user near midnight in any
 # timezone can't gain an extra allowance by straddling the boundary.
