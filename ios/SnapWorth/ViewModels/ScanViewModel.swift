@@ -153,9 +153,13 @@ final class ScanViewModel {
 // ── Shared daily free-scan counter ────────────────────────────────────────────
 
 /// The daily free-scan allowance, backed by UserDefaults and stamped with the
-/// day it was written — so it resets each local calendar day ("3 free scans every
-/// day", matching the App Store listing). Shared by the camera scan and Thrift
-/// Flip so a free user can't bypass the cap through either entry point.
+/// day it was written — so it resets each local calendar day. Shared by the
+/// camera scan and Thrift Flip so a free user can't bypass the cap through
+/// either entry point.
+///
+/// The count here is a fallback. The server is authoritative (see
+/// `serverRemaining`), and `Config.freeScansAllowed` only has to match
+/// `FREE_SCANS_PER_DAY` closely enough to be right before the first scan.
 ///
 /// Legacy installs have a count but no date stamp → they read 0 and are
 /// immediately unstuck, which is the intended behavior.
