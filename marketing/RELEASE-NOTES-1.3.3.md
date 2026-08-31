@@ -54,16 +54,12 @@ Either is defensible. Shipping 1.3.3 with the current mismatch is not.
 
 ## Primary — paste into App Store Connect
 
-Written for option 1 above (copy updated to match a one-scan-a-day free tier).
-If you take option 2, drop the second paragraph entirely — the rest still
-holds.
-
 ```
-Clearer about what's free.
+Your free scans, accurately counted.
 
-Your free scans left is now the real number, straight from SnapWorth
-itself, instead of a count the app guessed at — so it always matches what
-you can actually do next.
+SnapWorth now shows exactly how many free scans you have left — the real
+number from the app itself, rather than a figure it guessed at. What you
+see is what you can actually do next.
 
 Also fixed a typo on the subscription screen that had been there longer
 than we'd like.
@@ -74,8 +70,8 @@ than we'd like.
 ### Shorter alternative
 
 ```
-SnapWorth now shows the real number of free scans you have left, and the
-subscription screen no longer has a typo in it.
+SnapWorth now shows the real number of free scans you have left, instead
+of a figure it guessed at. Also fixed a typo on the subscription screen.
 ```
 
 ---
