@@ -6,7 +6,26 @@ Resale Value in Seconds
 ---
 
 ## Promotional Text (170 chars — update anytime without resubmitting)
+
+This field is not tied to a build. It can be swapped any time from App Store
+Connect, which makes it the right place to test hooks and to carry anything
+seasonal or time-limited. Keep the standing terms in the Description instead.
+
+**Live — offer-led (151 chars)**
+
 One free scan every day. Point your camera at any thrift find and instantly know what it's worth — an AI resale estimate in seconds. No account needed.
+
+**Alternative — pain-led (153 chars).** Reuses the onboarding headline, so the
+store page and first launch say the same thing. The strongest hook of the three.
+
+That $4 jacket might be $90. Snap any thrift find and get an AI resale estimate in seconds — before you're at the till guessing. One free scan every day.
+
+**Alternative — short (141 chars).** Least reliant on a specific figure.
+
+Know what it's worth before you buy it. One photo, one AI resale estimate, about four seconds. One free scan every day — no account, no card.
+
+Every option states the one-scan-a-day limit. None claims sold listings, comps
+or market data — SnapWorth has no such source.
 
 ---
 
