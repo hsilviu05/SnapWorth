@@ -573,7 +573,7 @@ final class ScanViewModelSecurityTests: XCTestCase {
 
     func test_freeScansUsed_resetsWhenDateIsStale() {
         // A count stamped with a previous day must read as 0 today, restoring
-        // the daily allowance ("3 free scans every day").
+        // the daily allowance, whatever the current limit is.
         UserDefaults.standard.set(Config.freeScansAllowed, forKey: freeScansKey)
         let yesterday = Calendar.current.date(byAdding: .day, value: -1, to: Date())!
         UserDefaults.standard.set(yesterday, forKey: freeScansDateKey)
