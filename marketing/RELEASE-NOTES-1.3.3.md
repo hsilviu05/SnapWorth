@@ -58,8 +58,10 @@ Either is defensible. Shipping 1.3.3 with the current mismatch is not.
 Your free scans, accurately counted.
 
 SnapWorth now shows exactly how many free scans you have left — the real
-number from the app itself, rather than a figure it guessed at. What you
-see is what you can actually do next.
+number, straight from the app, rather than a figure it guessed at.
+
+So it's said plainly: the free plan is one scan a day, and it refreshes
+every day. Pro removes the limit.
 
 Also fixed a typo on the subscription screen that had been there longer
 than we'd like.
@@ -70,8 +72,9 @@ than we'd like.
 ### Shorter alternative
 
 ```
-SnapWorth now shows the real number of free scans you have left, instead
-of a figure it guessed at. Also fixed a typo on the subscription screen.
+SnapWorth now shows the real number of free scans you have left. The free
+plan is one scan a day, refreshed daily; Pro removes the limit. Also fixed
+a typo on the subscription screen.
 ```
 
 ---
@@ -82,10 +85,12 @@ of a figure it guessed at. Also fixed a typo on the subscription screen.
 touches valuation. The estimate quality changes people associate with this
 period were server-side and shipped weeks ago.
 
-**No claim of "more free scans".** The opposite happened. If you ship option 1,
-the reduction is disclosed in the description, which is where a standing term
-belongs — What's New is for what changed in the build, and the limit changed on
-the server before this build existed.
+**The one-scan-a-day limit is stated outright.** It changed server-side before
+this build, so the release did not cause it — but 1.3.3 is when the number on
+screen visibly goes from 3 to 1, and users deserve to read why from us rather
+than discover it. It is phrased as a statement of the current terms, not as a
+new feature. The store description must carry it too; What's New is not a
+substitute for that.
 
 **"a count the app guessed at" is literally accurate.** `ScanView` rendered the
 figure from a compiled-in constant and ignored the `free_scans_remaining` the
