@@ -6,7 +6,7 @@ Resale Value in Seconds
 ---
 
 ## Promotional Text (170 chars — update anytime without resubmitting)
-Now with 3 free scans every day! Point your camera at any thrift find and instantly know what it's worth — an AI resale estimate in seconds. No account needed.
+One free scan every day. Point your camera at any thrift find and instantly know what it's worth — an AI resale estimate in seconds. No account needed.
 
 ---
 
@@ -50,7 +50,7 @@ BUILT FOR
 
 FREE & PRO
 
-SnapWorth is free to try — no account needed. You get 3 free scans every day, forever.
+SnapWorth is free to try — no account needed. You get one free scan every day, forever.
 
 Upgrade to Pro for unlimited scans, full scan history, and AI listing drafts:
 • Monthly: $4.99/month
@@ -96,7 +96,10 @@ https://snapworth.eu
 
 ---
 
-## What's New (Version 1.1.2)  ← paste THIS for the 1.1.2 submission
+## What's New (Version 1.1.2) — ARCHIVED, do not paste
+
+Historical record of what shipped with 1.1.2, when the free tier was three a
+day. It is now one. Do not reuse this text.
 
 More free scans, every day.
 
