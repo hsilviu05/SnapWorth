@@ -857,7 +857,7 @@ when posted on this page.</p>
 
 <h2>Contact</h2>
 <p>If you have questions about this Privacy Policy, contact us at
-<a href="mailto:silh6767@gmail.com">silh6767@gmail.com</a>.</p>
+<a href="mailto:her.silviu.i@gmail.com">her.silviu.i@gmail.com</a>.</p>
 </body></html>"""
 
 
@@ -892,7 +892,7 @@ EXTENT PERMITTED BY LAW, WE DISCLAIM ALL WARRANTIES, EXPRESS OR IMPLIED.</p>
 
 <h2>Contact</h2>
 <p>Questions? Email us at
-<a href="mailto:silh6767@gmail.com">silh6767@gmail.com</a>.</p>
+<a href="mailto:her.silviu.i@gmail.com">her.silviu.i@gmail.com</a>.</p>
 </body></html>"""
 
 
