@@ -44,7 +44,6 @@ class AuditEvent(str, Enum):
     SCAN_BLOCKED = "scan.blocked"
     LISTING_AUTHORISED = "listing.authorised"
     LISTING_DENIED = "listing.denied"
-    DEVICE_LIMIT_EXCEEDED = "entitlement.device_limit_exceeded"
     UPLOAD_REJECTED = "upload.rejected"
     INJECTION_NEUTRALISED = "injection.neutralised"
 

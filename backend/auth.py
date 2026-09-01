@@ -35,7 +35,7 @@ import auditlog
 from cache import KeyValueStore
 from devicecheck import DeviceCheckClient
 from auditlog import AuditEvent
-from entitlements import DeviceLimitExceeded, EntitlementError, EntitlementService
+from entitlements import EntitlementError, EntitlementService
 from quota import QuotaExceeded, QuotaStatus, QuotaUnavailable, ScanQuota
 from tokens import TokenError, TokenSigner
 
@@ -361,15 +361,13 @@ async def record_entitlement(
     Re-issues a token so the new tier takes effect immediately rather than at
     the next refresh.
     """
+    # No 409 branch: the device cap now evicts the least-recently-seen binding
+    # instead of refusing. It refused for as long as it existed, and because an
+    # App Attest key is per install rather than per device, reinstalling burned
+    # a slot permanently — six of them locked a paying subscriber out of their
+    # own subscription, silently, because the client swallows this response.
     try:
         ent = await deps.entitlements.record(principal.subject, req.signed_transaction)
-    except DeviceLimitExceeded as exc:
-        # 409, not 400: the transaction is valid, the *state* conflicts. Lets the
-        # client show a "too many devices" affordance rather than a generic
-        # "purchase invalid", which would look like a billing failure.
-        auditlog.record(AuditEvent.DEVICE_LIMIT_EXCEEDED, principal.subject,
-                        outcome="denied")
-        raise HTTPException(status_code=409, detail=str(exc)) from None
     except EntitlementError as exc:
         auditlog.record(AuditEvent.ENTITLEMENT_REJECTED, principal.subject,
                         outcome="failure", reason=str(exc))

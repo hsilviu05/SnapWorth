@@ -113,6 +113,18 @@ MAX_DEVICES_PER_SUBSCRIPTION = int(os.environ.get("MAX_DEVICES_PER_SUBSCRIPTION"
 # the cap resets every 15 minutes and stops being a cap.
 DEVICE_BINDING_TTL = 60 * 60 * 24 * 400
 
+# A binding not seen for this long is not a device in use. It is almost always
+# an install that was deleted: App Attest mints a *new* key on reinstall, so the
+# old subject goes silent forever while still occupying a slot.
+#
+# This is what makes the cap survivable. Slots used to leak permanently — six
+# reinstalls on a single phone exhausted a subscription's whole allowance for
+# 400 days, and every later `/auth/entitlement` answered 409, which the client
+# swallows. The subscriber then read as `free` and got one scan a day, on the
+# subscription they were paying for, with no way back short of deleting the
+# record by hand.
+DEVICE_BINDING_IDLE_SECONDS = 60 * 60 * 24 * 30
+
 
 class EntitlementError(Exception):
     """Signed transaction was missing, malformed, or failed verification."""
@@ -310,10 +322,6 @@ def verify_signed_transaction(
     return ent
 
 
-class DeviceLimitExceeded(EntitlementError):
-    """This subscription is already bound to the maximum number of devices."""
-
-
 class EntitlementService:
     """Verifies signed transactions and caches the outcome per subject."""
 
@@ -349,8 +357,9 @@ class EntitlementService:
         """Verify, device-bind, and cache. Raises `EntitlementError` if invalid."""
         ent = verify_signed_transaction(jws_value, self._bundle_id, self._allowed)
 
-        # Bind before caching: a transaction that fails the device cap must not
-        # leave a Pro entitlement behind.
+        # Bind before caching. Binding no longer refuses anyone, so this is
+        # ordering for its own sake rather than a gate: the record should
+        # reflect this install before anything reads an entitlement for it.
         if ent.tier == "pro" and ent.original_transaction_id:
             await self._bind_device(subject, ent)
 
@@ -399,12 +408,54 @@ class EntitlementService:
         except Exception as exc:
             log.warning("entitlement proof write failed: %s", exc)
 
+    @staticmethod
+    def _decode_bindings(raw: str | None) -> dict[str, int]:
+        """`{subject: last_seen}`, tolerating the original list-of-subjects form.
+
+        Records written before last-seen tracking are bare JSON lists. They are
+        read as "seen just now" rather than discarded: treating them as ancient
+        would evict every real device the first time an install re-records.
+        """
+        if not raw:
+            return {}
+        try:
+            decoded = json.loads(raw)
+        except Exception:
+            return {}
+        now = int(time.time())
+        if isinstance(decoded, list):
+            return {str(s): now for s in decoded}
+        if isinstance(decoded, dict):
+            return {str(s): int(t) for s, t in decoded.items()
+                    if isinstance(t, (int, float))}
+        return {}
+
     async def _bind_device(self, subject: str, ent: Entitlement) -> None:
-        """Associate `subject` with the subscription, enforcing the device cap.
+        """Associate `subject` with the subscription, bounding how many share it.
 
         The signed transaction reaches the client in plaintext, so one payer can
         hand it to arbitrarily many installs. Each install attests under its own
         App Attest key, so without this every recipient becomes Pro.
+
+        **This bounds concurrently-bound installs; it does not refuse anyone.**
+        It used to refuse, and that was a lockout with no way out: an App Attest
+        key is per *install*, not per device, so reinstalling minted a new
+        subject and consumed another slot while the old one sat there for 400
+        days. Six reinstalls on one phone exhausted the subscription, every
+        later `/auth/entitlement` answered 409, the client swallowed it, and a
+        paying subscriber silently got the free tier's one scan a day.
+
+        There is no version of a hard cap that survives this. Any "evict only
+        idle slots" rule still refuses the person reinstalling right now, whose
+        other slots were all active minutes ago — exactly the case that broke.
+        While identity resets on reinstall, the choice is between capping
+        strictly and never locking out a payer, and locking out a payer is far
+        the worse failure: they have paid, and support cannot fix it without
+        deleting the record by hand.
+
+        So the least-recently-seen binding is evicted to make room. Restoring a
+        cap with teeth needs an identity that survives reinstall — a Keychain
+        device id, which outlives app deletion — and that is a client change.
 
         A cache failure here is not fatal: refusing a legitimate paying customer
         because Redis blinked is a worse outcome than briefly permitting an extra
@@ -412,31 +463,39 @@ class EntitlementService:
         """
         key = self._device_key(ent.original_transaction_id or "")
         try:
-            raw = await self._cache.get(key)
-            subjects: list[str] = json.loads(raw) if raw else []
+            bindings = self._decode_bindings(await self._cache.get(key))
         except Exception as exc:
             log.warning("device binding read failed, allowing: %s", exc)
             return
 
-        if subject in subjects:
-            return                                  # already-known device
+        now = int(time.time())
+        # Drop what has gone quiet for a month: almost always a deleted install
+        # whose key will never be presented again.
+        bindings = {s: t for s, t in bindings.items()
+                    if now - t < DEVICE_BINDING_IDLE_SECONDS}
 
-        if len(subjects) >= self._max_devices:
-            log.warning("subscription device cap reached", extra={
-                "devices": len(subjects), "max": self._max_devices})
-            raise DeviceLimitExceeded(
-                "This subscription is already active on the maximum number of "
-                "devices. Sign out on another device, or contact support."
-            )
+        if subject not in bindings and len(bindings) >= self._max_devices:
+            evicted = min(bindings, key=lambda s: bindings[s])
+            idle_seconds = now - bindings.pop(evicted)
+            # Worth seeing: on a genuinely shared subscription this is steady
+            # churn, which is the signal the cap exists to surface. A short idle
+            # time means the evicted install is still in use — real sharing —
+            # while a long one is just a device that was replaced.
+            log.info("device binding evicted to make room", extra={
+                "devices": self._max_devices, "max": self._max_devices,
+                "idle_seconds": idle_seconds})
 
-        subjects.append(subject)
+        # Rewritten on every record, so an install in active use keeps its slot
+        # and only genuinely dormant ones age out.
+        bindings[subject] = now
+
         # TTL tracks the subscription, not the short entitlement cache, so the
         # cap survives far longer than one 15-minute entitlement window.
         ttl = DEVICE_BINDING_TTL
         if ent.expires_at:
             ttl = max(3600, ent.expires_at + EXPIRY_GRACE_SECONDS - int(time.time()))
         try:
-            await self._cache.set(key, json.dumps(sorted(subjects)), ttl)
+            await self._cache.set(key, json.dumps(bindings, sort_keys=True), ttl)
         except Exception as exc:
             log.warning("device binding write failed: %s", exc)
 
@@ -485,8 +544,9 @@ class EntitlementService:
             return FREE
 
         # Deliberately not re-bound to the device: this subject was bound when
-        # the proof was recorded, and re-running the cap on an ordinary request
-        # could raise `DeviceLimitExceeded` out of a scan.
+        # the proof was recorded, and re-binding on every cache miss would churn
+        # the last-seen timestamps from the scan path rather than from the
+        # entitlement sync that actually represents an install checking in.
         try:
             await self._cache.set(
                 self._key(subject), ent.to_json(), self._cache_ttl(ent))
