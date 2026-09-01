@@ -1289,15 +1289,17 @@ a:focus-visible, button:focus-visible {
     animation-play-state: paused; }
 
   /* Reveal choreography with some wrist in it: steps lean in from the sides,
-     feature cards land a degree off square, the featured plan pops. The
-     existing `.stagger.is-in > * { transform: none }` rule is the shared
-     landing point for all of these. */
-  .steps.stagger > *:nth-child(1) { transform: translate3d(-30px, 12px, 0) rotate(-1.6deg); }
-  .steps.stagger > *:nth-child(2) { transform: translate3d(0, 30px, 0); }
-  .steps.stagger > *:nth-child(3) { transform: translate3d(30px, 12px, 0) rotate(1.6deg); }
-  .features-grid.stagger > *:nth-child(odd)  { transform: translate3d(0, 24px, 0) rotate(-1.1deg); }
-  .features-grid.stagger > *:nth-child(even) { transform: translate3d(0, 24px, 0) rotate(1.1deg); }
-  .pricing-grid.stagger > .featured { transform: translate3d(0, 30px, 0) scale(.94); }
+     feature cards land a degree off square, the featured plan pops. Every
+     from-state is scoped to :not(.is-in) — without it these selectors
+     (0-3-0, nth-child counts) outrank the shared landing rule
+     `.stagger.is-in > * { transform: none }` (0-2-0) and the cards stay
+     frozen mid-entrance forever, tilted and shifted off their grid. */
+  .steps.stagger:not(.is-in) > *:nth-child(1) { transform: translate3d(-30px, 12px, 0) rotate(-1.6deg); }
+  .steps.stagger:not(.is-in) > *:nth-child(2) { transform: translate3d(0, 30px, 0); }
+  .steps.stagger:not(.is-in) > *:nth-child(3) { transform: translate3d(30px, 12px, 0) rotate(1.6deg); }
+  .features-grid.stagger:not(.is-in) > *:nth-child(odd)  { transform: translate3d(0, 24px, 0) rotate(-1.1deg); }
+  .features-grid.stagger:not(.is-in) > *:nth-child(even) { transform: translate3d(0, 24px, 0) rotate(1.1deg); }
+  .pricing-grid.stagger:not(.is-in) > .featured { transform: translate3d(0, 30px, 0) scale(.94); }
   .pricing-grid.stagger.is-in > .featured {
     transition-timing-function: cubic-bezier(.34, 1.56, .64, 1);
     transition-duration: .7s; }
@@ -1399,7 +1401,9 @@ details[open] .faq-x::after { transform: rotate(90deg); }
   /* Room for the sticky CTA so it never sits over the footer links. */
   footer { padding-bottom: 84px; }
   .tf-verdict, .tf-maths { padding: 28px 24px; }
-  .tf-foot-dark, .tf-foot-note { min-width: 0; }
+  /* Stack, don't share a row: killing the min-widths alone left both cards
+     flex:1 on one line at ~50% each — one-word-per-line columns on a phone. */
+  .tf-foot-dark, .tf-foot-note { min-width: 0; flex-basis: 100%; }
 }
 
 
