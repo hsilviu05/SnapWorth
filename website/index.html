@@ -1202,6 +1202,107 @@ a:focus-visible, button:focus-visible {
 .sd-chip[aria-pressed="true"] { background: var(--terracotta); color: #fff;
   border-color: var(--terracotta); }
 
+/* ── Texture, type, ticker, tag — the handmade layer ────────────────────── */
+
+::selection { background: var(--terracotta); color: #fff; }
+
+/* Film grain over the dark bands. A tiled SVG turbulence, not an image
+   request; soft-light keeps it a texture rather than dirt. */
+.grain { position: absolute; inset: 0; pointer-events: none; z-index: 0; opacity: .5;
+  mix-blend-mode: soft-light;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)' opacity='.55'/%3E%3C/svg%3E"); }
+
+/* Reading progress hairline. */
+.progressbar { position: fixed; top: 0; left: 0; right: 0; height: 3px; z-index: 200;
+  background: var(--terracotta); transform-origin: 0 50%; transform: scaleX(0);
+  pointer-events: none; }
+
+/* Headline word sleeves. The bottom padding/negative margin pair widens the
+   clip box: at line-height .96 the descenders of "profit" and "you buy."
+   overflow the line box and a bare overflow:hidden would shear them off. */
+.hd-h1 .hw { display: inline-block; overflow: hidden; vertical-align: bottom;
+  padding: .06em .04em .14em; margin: -.06em -.04em -.14em; }
+.hd-h1 .hw > span, .hd-h1 .hw > em { display: inline-block; }
+.hd-h1 .hw > em { position: relative; }
+.hw-scrawl { position: absolute; left: -.02em; right: -.02em; bottom: -.06em;
+  height: .13em; width: auto; color: var(--terracotta); display: block; }
+
+/* The swing tag on the phone — a thrift-store price tag, priced honestly. */
+.tilt3d { transform-style: preserve-3d; transition: transform .18s ease-out; }
+.hd-phone { perspective: 1100px; }
+.swing-tag { position: absolute; top: 64px; right: -30px; z-index: 5;
+  background: var(--bg); color: var(--dark); border-radius: 10px;
+  padding: 9px 13px 10px; text-align: center; transform: rotate(-7deg);
+  transform-origin: 50% -24px; box-shadow: 0 10px 24px rgba(0,0,0,.28);
+  border: 1px solid var(--border); }
+.swing-tag::before { content: ""; position: absolute; top: -24px; left: 50%;
+  width: 1.5px; height: 24px; background: rgba(250,247,244,.55); }
+.swing-tag::after { content: ""; position: absolute; top: 5px; left: 50%;
+  margin-left: -3px; width: 6px; height: 6px; border-radius: 50%;
+  background: var(--card); border: 1px solid var(--border); }
+.swing-tag-price { display: block; font-family: 'Fraunces', serif; font-size: 19px;
+  font-weight: 900; color: var(--terra-text); letter-spacing: -.5px; margin-top: 4px; }
+.swing-tag-sub { display: block; font-size: 9.5px; font-weight: 600; line-height: 1.25;
+  letter-spacing: .3px; text-transform: uppercase; color: var(--warm-gray); }
+
+/* The ledger ticker. */
+.ticker { border-top: 1px solid rgba(255,255,255,.09); padding: 17px 0;
+  overflow: hidden; position: relative;
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 6%, #000 94%, transparent);
+  mask-image: linear-gradient(90deg, transparent, #000 6%, #000 94%, transparent); }
+.ticker-belt { display: flex; width: max-content; }
+.ticker-track { display: flex; align-items: center; gap: 44px; flex: none; padding-right: 44px; }
+.ticker-track a { white-space: nowrap; font-size: 14px; font-weight: 500;
+  color: rgba(250,247,244,.6); text-decoration: none; transition: color .15s; }
+.ticker-track a:hover { color: #FAF7F4; }
+.ticker-track a em { font-family: 'Fraunces', serif; font-style: italic; font-weight: 600;
+  color: var(--terracotta); margin-left: 5px; }
+
+/* Drawn icons in place of emoji. */
+.step-icon svg { width: 30px; height: 30px; display: block; color: var(--terra-text); }
+.feature-icon svg { width: 22px; height: 22px; color: var(--terra-text); }
+
+@media (prefers-reduced-motion: no-preference) {
+  /* Headline words rise out of their sleeves, then the pen stroke lands. */
+  @keyframes wordUp { from { transform: translateY(112%); } to { transform: translateY(0); } }
+  .hd-h1 .hw > span, .hd-h1 .hw > em {
+    animation: wordUp .62s cubic-bezier(.22,.61,.36,1) both; }
+  .hd-h1 .hw:nth-of-type(1) > * { animation-delay: .05s }
+  .hd-h1 .hw:nth-of-type(2) > * { animation-delay: .12s }
+  .hd-h1 .hw:nth-of-type(3) > * { animation-delay: .19s }
+  .hd-h1 .hw:nth-of-type(4) > * { animation-delay: .30s }
+  .hd-h1 .hw:nth-of-type(5) > * { animation-delay: .40s }
+  .hd-h1 .hw:nth-of-type(6) > * { animation-delay: .47s }
+  @keyframes scrawlDraw { to { stroke-dashoffset: 0; } }
+  .hw-scrawl path { stroke-dasharray: 1; stroke-dashoffset: 1;
+    animation: scrawlDraw .5s ease-out 1.05s forwards; }
+
+  /* The tag settles like something actually hanging there. */
+  @keyframes tagSwing { 0% { transform: rotate(-13deg) } 100% { transform: rotate(-3deg) } }
+  .swing-tag { animation: tagSwing 3.2s ease-in-out 1.6s infinite alternate; }
+
+  /* Ticker crawl. Pauses under the cursor or keyboard focus so the links are
+     actually usable, which is the difference between a marquee and a toy. */
+  @keyframes tick { to { transform: translate3d(-50%, 0, 0); } }
+  .ticker-belt { animation: tick 48s linear infinite; }
+  .ticker:hover .ticker-belt, .ticker:focus-within .ticker-belt {
+    animation-play-state: paused; }
+
+  /* Reveal choreography with some wrist in it: steps lean in from the sides,
+     feature cards land a degree off square, the featured plan pops. The
+     existing `.stagger.is-in > * { transform: none }` rule is the shared
+     landing point for all of these. */
+  .steps.stagger > *:nth-child(1) { transform: translate3d(-30px, 12px, 0) rotate(-1.6deg); }
+  .steps.stagger > *:nth-child(2) { transform: translate3d(0, 30px, 0); }
+  .steps.stagger > *:nth-child(3) { transform: translate3d(30px, 12px, 0) rotate(1.6deg); }
+  .features-grid.stagger > *:nth-child(odd)  { transform: translate3d(0, 24px, 0) rotate(-1.1deg); }
+  .features-grid.stagger > *:nth-child(even) { transform: translate3d(0, 24px, 0) rotate(1.1deg); }
+  .pricing-grid.stagger > .featured { transform: translate3d(0, 30px, 0) scale(.94); }
+  .pricing-grid.stagger.is-in > .featured {
+    transition-timing-function: cubic-bezier(.34, 1.56, .64, 1);
+    transition-duration: .7s; }
+}
+
 /* ── FAQ ────────────────────────────────────────────────────────────────── */
 .faq { background: var(--bg); padding: 88px 0 96px; }
 .faq-wrap { max-width: 1200px; margin: 0 auto; padding: 0 24px; }
@@ -1313,6 +1414,7 @@ details[open] .faq-x::after { transform: rotate(90deg); }
   </style>
 </head>
 <body>
+<div class="progressbar" id="progressbar" aria-hidden="true"></div>
 <div class="page-wrap">
 
   <!-- Nav -->
@@ -1336,6 +1438,7 @@ details[open] .faq-x::after { transform: rotate(90deg); }
        estimate", which is the part competitors also claim; the fee maths done
        at the rack is the part nobody else does. -->
   <section class="hero-dark">
+    <div class="grain" aria-hidden="true"></div>
     <div class="hd-wrap">
       <div class="hd-rule">
         <span>An AI resale estimate for secondhand things</span>
@@ -1344,7 +1447,11 @@ details[open] .faq-x::after { transform: rotate(90deg); }
     </div>
 
     <div class="hd-wrap hd-main">
-      <h1 class="hd-h1">Know the profit <em>before</em> you buy.</h1>
+      <!-- Word-level entrance. Each word sits in an overflow-hidden sleeve and
+           rises out of it; with reduced motion or CSS animations off they are
+           simply visible in place. The scrawled underline is drawn, not a
+           border, so it can be struck through like a pen stroke. -->
+      <h1 class="hd-h1"><span class="hw"><span>Know</span></span> <span class="hw"><span>the</span></span> <span class="hw"><span>profit</span></span> <span class="hw hw-em"><em>before<svg class="hw-scrawl" viewBox="0 0 200 14" preserveAspectRatio="none" aria-hidden="true"><path d="M4 10 C 55 3, 110 13, 196 6" pathLength="1" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round"/></svg></em></span> <span class="hw"><span>you</span></span> <span class="hw"><span>buy.</span></span></h1>
 
       <div class="hd-grid">
         <div class="hd-col">
@@ -1392,7 +1499,12 @@ details[open] .faq-x::after { transform: rotate(90deg); }
         </div>
 
         <div class="hd-phone">
+          <!-- The tilt lives on its own wrapper: phoneIn fills forwards on
+               .iphone-wrap, and a filled animation beats inline styles, so a
+               JS transform there would be silently dead. -->
+          <div class="tilt3d" id="tilt3d">
           <div class="iphone-wrap">
+            <div class="swing-tag" aria-hidden="true"><span class="swing-tag-price">$0</span><span class="swing-tag-sub">1 free scan<br>a day</span></div>
             <div class="iphone">
               <div class="iphone-screen">
                 <div class="di"></div>
@@ -1449,6 +1561,7 @@ details[open] .faq-x::after { transform: rotate(90deg); }
               </div>
             </div>
           </div>
+          </div><!-- /.tilt3d -->
           <div class="hd-try" role="group" aria-label="Try the demo with another find">
             <span class="hd-try-label">Try a find</span>
             <div class="hd-try-chips">
@@ -1472,6 +1585,52 @@ details[open] .faq-x::after { transform: rotate(90deg); }
         <span class="hd-strip-label">Listing drafts written for</span>
         <div class="hd-strip-list">
           <span>eBay</span><span>Vinted</span><span>Facebook Marketplace</span><span>OLX</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- The ledger ticker. Sixteen real finds, each carrying the range its own
+         /worth page publishes — a stock ticker for the thrift aisle, and
+         sixteen internal links the crawler follows for free. The second track
+         is a verbatim copy purely so the loop has no seam; it is aria-hidden
+         and unfocusable so nothing is announced or tabbed twice. -->
+    <div class="ticker" aria-label="Typical resale values from our guides">
+      <div class="ticker-belt">
+        <div class="ticker-track">
+          <a href="/worth/carhartt-detroit-jacket">Carhartt Detroit Jacket <em>$60&ndash;$150</em></a>
+          <a href="/worth/le-creuset-dutch-oven">Le Creuset Dutch Oven <em>$80&ndash;$250</em></a>
+          <a href="/worth/levis-501-vintage">Vintage Levi&rsquo;s 501 <em>$30&ndash;$90</em></a>
+          <a href="/worth/north-face-nuptse-700">North Face Nuptse <em>$110&ndash;$200</em></a>
+          <a href="/worth/vintage-band-t-shirt">Vintage Band Tee <em>$30&ndash;$200</em></a>
+          <a href="/worth/kitchenaid-stand-mixer">KitchenAid Mixer <em>$120&ndash;$300</em></a>
+          <a href="/worth/dr-martens-1460-boots">Dr. Martens 1460 <em>$50&ndash;$110</em></a>
+          <a href="/worth/coach-leather-handbag">Coach Handbag <em>$40&ndash;$150</em></a>
+          <a href="/worth/vintage-pyrex-bowls">Vintage Pyrex <em>$20&ndash;$120</em></a>
+          <a href="/worth/nike-air-max-90">Nike Air Max 90 <em>$40&ndash;$120</em></a>
+          <a href="/worth/patagonia-better-sweater">Patagonia Better Sweater <em>$40&ndash;$85</em></a>
+          <a href="/worth/ray-ban-wayfarer-sunglasses">Ray-Ban Wayfarer <em>$40&ndash;$90</em></a>
+          <a href="/worth/birkenstock-arizona-sandals">Birkenstock Arizona <em>$30&ndash;$70</em></a>
+          <a href="/worth/lululemon-align-leggings">Lululemon Align <em>$30&ndash;$60</em></a>
+          <a href="/worth/ralph-lauren-polo-sweater">Ralph Lauren Polo <em>$25&ndash;$70</em></a>
+          <a href="/worth/stanley-quencher-tumbler">Stanley Quencher <em>$25&ndash;$60</em></a>
+        </div>
+        <div class="ticker-track" aria-hidden="true">
+          <a tabindex="-1" href="/worth/carhartt-detroit-jacket">Carhartt Detroit Jacket <em>$60&ndash;$150</em></a>
+          <a tabindex="-1" href="/worth/le-creuset-dutch-oven">Le Creuset Dutch Oven <em>$80&ndash;$250</em></a>
+          <a tabindex="-1" href="/worth/levis-501-vintage">Vintage Levi&rsquo;s 501 <em>$30&ndash;$90</em></a>
+          <a tabindex="-1" href="/worth/north-face-nuptse-700">North Face Nuptse <em>$110&ndash;$200</em></a>
+          <a tabindex="-1" href="/worth/vintage-band-t-shirt">Vintage Band Tee <em>$30&ndash;$200</em></a>
+          <a tabindex="-1" href="/worth/kitchenaid-stand-mixer">KitchenAid Mixer <em>$120&ndash;$300</em></a>
+          <a tabindex="-1" href="/worth/dr-martens-1460-boots">Dr. Martens 1460 <em>$50&ndash;$110</em></a>
+          <a tabindex="-1" href="/worth/coach-leather-handbag">Coach Handbag <em>$40&ndash;$150</em></a>
+          <a tabindex="-1" href="/worth/vintage-pyrex-bowls">Vintage Pyrex <em>$20&ndash;$120</em></a>
+          <a tabindex="-1" href="/worth/nike-air-max-90">Nike Air Max 90 <em>$40&ndash;$120</em></a>
+          <a tabindex="-1" href="/worth/patagonia-better-sweater">Patagonia Better Sweater <em>$40&ndash;$85</em></a>
+          <a tabindex="-1" href="/worth/ray-ban-wayfarer-sunglasses">Ray-Ban Wayfarer <em>$40&ndash;$90</em></a>
+          <a tabindex="-1" href="/worth/birkenstock-arizona-sandals">Birkenstock Arizona <em>$30&ndash;$70</em></a>
+          <a tabindex="-1" href="/worth/lululemon-align-leggings">Lululemon Align <em>$30&ndash;$60</em></a>
+          <a tabindex="-1" href="/worth/ralph-lauren-polo-sweater">Ralph Lauren Polo <em>$25&ndash;$70</em></a>
+          <a tabindex="-1" href="/worth/stanley-quencher-tumbler">Stanley Quencher <em>$25&ndash;$60</em></a>
         </div>
       </div>
     </div>
@@ -1582,19 +1741,19 @@ details[open] .faq-x::after { transform: rotate(90deg); }
       <div class="steps">
         <div class="step">
           <div class="step-num">01</div>
-          <span class="step-icon">📸</span>
+          <span class="step-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 8.2c0-1 .8-1.9 1.9-1.9h1.6l1.2-1.9h5l1.2 1.9h1.6c1 0 1.9.8 1.9 1.9v8c0 1-.8 1.9-1.9 1.9H4.9c-1 0-1.9-.8-1.9-1.9v-8z"/><circle cx="10.3" cy="12" r="3.1"/><path d="M20.5 4.5l.35-.85.85-.35-.85-.35L20.5 2l-.35.85-.85.35.85.35z"/></svg></span>
           <h3>Snap a photo</h3>
           <p>Point your camera at any thrift, garage sale, or estate sale item. Clear photos of tags and logos give the best results.</p>
         </div>
         <div class="step">
           <div class="step-num">02</div>
-          <span class="step-icon">🔍</span>
+          <span class="step-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.2"/><path d="M15.2 15.2 20.5 20.5"/><path d="M8 10.5c0-1.4 1.1-2.5 2.5-2.5"/></svg></span>
           <h3>AI estimates the value</h3>
           <p>Our AI identifies the item and estimates what it typically resells for, drawing on broad knowledge of the secondhand market.</p>
         </div>
         <div class="step">
           <div class="step-num">03</div>
-          <span class="step-icon">💰</span>
+          <span class="step-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12.6 3.2 20 10.6c.7.7.7 1.8 0 2.5l-6.9 6.9c-.7.7-1.8.7-2.5 0L3.2 12.6c-.3-.3-.5-.8-.5-1.2V5c0-1.3 1-2.3 2.3-2.3h6.4c.4 0 .9.2 1.2.5z"/><circle cx="7.5" cy="7.5" r="1.3"/><path d="M12.5 15.5c2.5-.6 3.7-2.6 3-4.6"/></svg></span>
           <h3>Know what to pay</h3>
           <p>Get an estimated price range, confidence level, and a ready-to-post listing — so you never leave money on the table.</p>
         </div>
@@ -1612,22 +1771,22 @@ details[open] .faq-x::after { transform: rotate(90deg); }
       </div>
       <div class="features-grid">
         <div class="feature">
-          <div class="feature-icon">📊</div>
+          <div class="feature-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.5 17.5 9 11.5l3.5 3 7-7.5"/><path d="M15 7h4.5V11.5"/><path d="M3.5 20.5h17"/></svg></div>
           <h3>Smart resale estimates</h3>
           <p>Estimates reflect what items typically resell for — not inflated asking prices. A fast gut-check before you buy.</p>
         </div>
         <div class="feature">
-          <div class="feature-icon">✍️</div>
+          <div class="feature-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m13.2 5.8 5 5L8 21H3v-5z"/><path d="m16 3 5 5"/><path d="m8.5 15.5 5-5"/></svg></div>
           <h3>AI listing writer</h3>
           <p>Every scan generates a compelling, SEO-optimized title and description tailored to eBay, Vinted, Facebook Marketplace or OLX.</p>
         </div>
         <div class="feature">
-          <div class="feature-icon">🗂️</div>
+          <div class="feature-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8h16v11.2c0 .7-.6 1.3-1.3 1.3H5.3c-.7 0-1.3-.6-1.3-1.3z"/><path d="M3 4.5h18V8H3z"/><path d="M9.8 12h4.4"/></svg></div>
           <h3>Full scan history</h3>
           <p>Every item is saved locally on your device. Search your finds, sort by value, and track your total portfolio worth.</p>
         </div>
         <div class="feature">
-          <div class="feature-icon">👗</div>
+          <div class="feature-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 9.5 3.6 15c-.9.6-.5 2 .6 2h15.6c1.1 0 1.5-1.4.6-2L12 9.5z"/><path d="M12 9.5V8.2c0-.7.5-1.2 1.2-1.2 1 0 1.8-.8 1.8-1.8S14.2 3.4 13.2 3.4c-.8 0-1.5.5-1.7 1.2"/></svg></div>
           <h3>Anything secondhand</h3>
           <p>Clothing, shoes, electronics, furniture, collectibles — SnapWorth handles them all with the same precision.</p>
         </div>
@@ -1815,9 +1974,14 @@ details[open] .faq-x::after { transform: rotate(90deg); }
   /* ── Nav surface on scroll ──────────────────────────────────────────────
      Runs regardless of motion preference: it is a state change, not motion. */
   var nav = document.querySelector("nav");
-  if (nav) {
+  var pbar = document.getElementById("progressbar");
+  if (nav || pbar) {
     var onScroll = function () {
-      nav.classList.toggle("is-scrolled", window.scrollY > 8);
+      if (nav) nav.classList.toggle("is-scrolled", window.scrollY > 8);
+      if (pbar) {
+        var span = document.documentElement.scrollHeight - window.innerHeight;
+        pbar.style.transform = "scaleX(" + (span > 0 ? window.scrollY / span : 0) + ")";
+      }
     };
     onScroll();
     window.addEventListener("scroll", onScroll, { passive: true });
@@ -1895,6 +2059,78 @@ details[open] .faq-x::after { transform: rotate(90deg); }
       document.querySelectorAll(".cta-dark, footer"),
       function (el) { endStates.push({ el: el, on: false }); endIO.observe(el); }
     );
+  }
+
+  /* ── Phone tilt ─────────────────────────────────────────────────────────
+     Mouse-only and motion-gated: it follows the cursor, so touch never sees
+     it and reduced-motion never runs it. Inline transform is safe here
+     because .tilt3d carries no animation of its own — see the markup note. */
+  var tilt = document.getElementById("tilt3d");
+  if (tilt && !reduced && window.matchMedia &&
+      window.matchMedia("(pointer: fine)").matches) {
+    var tiltRaf = null;
+    tilt.addEventListener("mousemove", function (ev) {
+      if (tiltRaf) return;
+      tiltRaf = requestAnimationFrame(function () {
+        tiltRaf = null;
+        var r = tilt.getBoundingClientRect();
+        var x = (ev.clientX - r.left) / r.width - 0.5;
+        var y = (ev.clientY - r.top) / r.height - 0.5;
+        tilt.style.transform =
+          "rotateY(" + (x * 9).toFixed(2) + "deg) rotateX(" + (-y * 7).toFixed(2) + "deg)";
+      });
+    });
+    tilt.addEventListener("mouseleave", function () {
+      tilt.style.transform = "";
+    });
+  }
+
+  /* ── Verdict count-up ───────────────────────────────────────────────────
+     The calculator's big numbers roll up to their value the first time they
+     scroll into view. One-shot and cancelled by any input, so it can never
+     fight the live recalculation. */
+  var tfOut = document.getElementById("tf-out");
+  if (tfOut && !reduced && "IntersectionObserver" in window) {
+    var countDone = false;
+    var roll = function (el) {
+      var text = el.textContent;
+      var m = text.match(/-?\d+/);
+      if (!m) return null;
+      var target = parseInt(m[0], 10);
+      var pre = text.slice(0, m.index);
+      var post = text.slice(m.index + m[0].length);
+      var t0 = null, dur = 800, raf;
+      var step = function (ts) {
+        /* On cancel, stop writing and defer to the calculator — it rewrites
+           these on every recalculation, so restoring our captured text here
+           could stomp a fresher value. */
+        if (countDone === "cancelled") return;
+        if (t0 === null) t0 = ts;
+        var p = Math.min(1, (ts - t0) / dur);
+        var eased = 1 - Math.pow(1 - p, 3);
+        el.textContent = pre + Math.round(target * eased) + post;
+        if (p < 1) raf = requestAnimationFrame(step);
+      };
+      raf = requestAnimationFrame(step);
+    };
+    /* The inputs and marketplace chips live in .tf-controls, not inside the
+       output, so listen at the section: any recalculation-triggering act
+       cancels the roll and restores the calculator's own numbers. */
+    var tfSection = document.querySelector(".tf");
+    if (tfSection) {
+      tfSection.addEventListener("input", function () { countDone = "cancelled"; }, true);
+      tfSection.addEventListener("click", function (ev) {
+        if (ev.target.closest && ev.target.closest(".tf-chip")) countDone = "cancelled";
+      }, true);
+    }
+    var countIO = new IntersectionObserver(function (entries) {
+      if (!entries[0].isIntersecting || countDone) return;
+      countDone = true;
+      roll(document.getElementById("tf-net"));
+      roll(document.getElementById("tf-roi"));
+      countIO.disconnect();
+    }, { threshold: 0.4 });
+    countIO.observe(tfOut);
   }
 
   if (reduced || !("IntersectionObserver" in window)) return;
