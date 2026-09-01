@@ -43,7 +43,7 @@ pydantic==2.13.5
 Pillow==12.3.0
 # Distributed rate limiting. Optional at runtime: without REDIS_URL the limiter
 # degrades to per-process counters (see ratelimit.py).
-redis==5.2.1
+redis==8.1.0
 # App Attest attestation objects are CBOR-encoded. This parses attacker-supplied
 # bytes on /auth/attest, which is unauthenticated by design (it is the bootstrap
 # that mints the first token), so decoder bugs are directly reachable. 5.9.0
