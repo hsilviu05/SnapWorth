@@ -476,25 +476,35 @@ final class MonthCountTests: XCTestCase {
         return (ScanRepository(context: context), context)
     }
 
-    private func result(daysAgo: Int) -> ScanResult {
+    private func result(at date: Date) -> ScanResult {
         ScanResult(itemName: "Item", brand: "B", category: "clothing",
                    conditionNotes: "Good", valueLow: 10, valueHigh: 20,
                    confidence: "High", soldListingsCount: 0,
                    listingTitle: "T", listingDescription: "D")
-        .withTimestamp(Calendar.current.date(byAdding: .day, value: -daysAgo, to: Date())!)
+        .withTimestamp(date)
     }
 
     func test_countsOnlyThisMonth() throws {
         let (repo, context) = try repository()
-        // Two inside the current month, one clearly outside it.
-        context.insert(result(daysAgo: 0))
-        context.insert(result(daysAgo: 1))
-        context.insert(result(daysAgo: 400))
+        // Anchored to the month's own boundary, not to "days ago". The
+        // original fixture used "yesterday" as an in-month record, which is in
+        // the *previous* month whenever the suite runs on the 1st — so this
+        // test failed one day a month, on every PR, and looked like the PR's
+        // fault. (Found on September 1st, naturally.)
+        let cal = Calendar.current
+        let startOfMonth = cal.date(
+            from: cal.dateComponents([.year, .month], from: Date()))!
+        // Two inside the current month on any date the suite runs:
+        context.insert(result(at: Date()))
+        context.insert(result(at: startOfMonth.addingTimeInterval(3600)))
+        // Two clearly outside it: the hour before the month began, and long ago.
+        context.insert(result(at: startOfMonth.addingTimeInterval(-3600)))
+        context.insert(result(at: startOfMonth.addingTimeInterval(-400 * 86_400)))
         try context.save()
 
         let count = repo.countScansThisMonth()
         XCTAssertGreaterThanOrEqual(count, 2)
-        XCTAssertLessThan(count, 3, "a record from last year must not be counted")
+        XCTAssertLessThan(count, 3, "records from before this month must not be counted")
     }
 
     func test_emptyStoreCountsZero() throws {
@@ -1142,9 +1152,61 @@ final class UnusablePhotoMappingTests: XCTestCase {
         XCTAssertNotEqual(a, b)
     }
 
-    func test_502_stillReadsAsAnOutage() {
-        // The neighbouring case must keep its behaviour.
-        XCTAssertEqual(AppError.from(ScanAPIError.serverError(502, "x")), .serverUnavailable)
+    // ── 502 detail is surfaced, not replaced (issue #55) ─────────────────
+    //
+    // The backend raises 502 for four different reasons and writes distinct,
+    // user-safe copy for each. The client used to collapse all of them into
+    // "Our AI is temporarily unavailable" — so a user who photographed
+    // something unpriceable was told the service was down, retried the
+    // identical photo, and failed identically. These four strings are the
+    // ones main.py actually sends; the assertions are the issue's acceptance
+    // criteria.
+
+    func test_502_unpriceableItem_doesNotClaimAnOutage() {
+        let mapped = AppError.from(
+            ScanAPIError.serverError(502, "The AI couldn't price this item."))
+        let msg = mapped.errorDescription ?? ""
+        XCTAssertEqual(msg, "The AI couldn't price this item.")
+        XCTAssertFalse(msg.lowercased().contains("unavailable"),
+                       "Nothing is down — the copy must not claim an outage")
+        XCTAssertNotEqual(mapped, .serverUnavailable)
+    }
+
+    func test_502_genuineOutage_stillReadsAsAnOutage() {
+        // The backend's own outage copy says "temporarily unavailable", so
+        // surfacing it verbatim keeps the outage reading as one.
+        let msg = AppError.from(
+            ScanAPIError.serverError(502, "The AI service is temporarily unavailable."))
+            .errorDescription ?? ""
+        XCTAssertTrue(msg.lowercased().contains("temporarily unavailable"))
+    }
+
+    func test_502_unreadableResponse_surfacesTheRetryableExplanation() {
+        let msg = AppError.from(
+            ScanAPIError.serverError(502, "The AI response couldn't be read."))
+            .errorDescription ?? ""
+        XCTAssertEqual(msg, "The AI response couldn't be read.")
+    }
+
+    func test_502_emptyDetail_fallsBackToTheGenericString() {
+        XCTAssertEqual(AppError.from(ScanAPIError.serverError(502, "")),
+                       .serverUnavailable)
+    }
+
+    func test_503_stillReadsAsAnOutage() {
+        // A 503 really is the service refusing traffic; the detail-surfacing
+        // change is scoped to 502 only.
+        XCTAssertEqual(AppError.from(ScanAPIError.serverError(503, "anything")),
+                       .serverUnavailable)
+    }
+
+    func test_aiFailed_equalsItselfAndComparesByMessage() {
+        // The manual == has already silently dropped one newly added case
+        // (.sessionExpired); every new case gets pinned here so it cannot
+        // happen again.
+        XCTAssertEqual(AppError.aiFailed("a"), AppError.aiFailed("a"))
+        XCTAssertNotEqual(AppError.aiFailed("a"), AppError.aiFailed("b"))
+        XCTAssertNotEqual(AppError.aiFailed("a"), .serverUnavailable)
     }
 }
 
