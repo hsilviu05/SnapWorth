@@ -279,6 +279,101 @@ class TestEntitlementService:
         ttl = next(v for k, v in cache.ttls.items() if "subject-short" in k)
         assert ttl <= 600, "Never cache a Pro entitlement past its own expiry"
 
+    # ── Re-derivation from the stored proof ──────────────────────────────
+    #
+    # The TTL above narrows the window in which a subscriber reads as `free`.
+    # These close it: the server keeps Apple's signed transaction and rebuilds
+    # the entitlement itself, so a lapsed entry costs a signature check rather
+    # than the free quota until the next cold launch.
+
+    @pytest.mark.asyncio
+    async def test_pro_survives_the_entitlement_entry_lapsing(self, service, pinned_root):
+        leaf_key, chain = pinned_root
+        await service.record("subject-f", make_jws(valid_payload(), leaf_key, chain))
+        # Exactly the state a TTL expiry leaves behind.
+        await service._cache.delete("ent:subject-f")
+
+        assert (await service.current("subject-f")).tier == "pro", (
+            "A paying subscriber must not fall to the free quota just because "
+            "the cache entry lapsed and only the client can re-POST it")
+
+    @pytest.mark.asyncio
+    async def test_rederiving_repopulates_the_entry(self, service, pinned_root):
+        leaf_key, chain = pinned_root
+        await service.record("subject-g", make_jws(valid_payload(), leaf_key, chain))
+        await service._cache.delete("ent:subject-g")
+        await service.current("subject-g")
+
+        assert await service._cache.get("ent:subject-g") is not None, (
+            "Re-derivation should leave a cache entry so the next request is a "
+            "plain hit, not another signature check")
+
+    @pytest.mark.asyncio
+    async def test_revocation_is_not_resurrected_by_the_proof(self, service, pinned_root):
+        # The proof carries the revocation state it was signed with, not
+        # today's, so a stale one must be dropped when Apple says otherwise.
+        leaf_key, chain = pinned_root
+        await service.record("subject-h", make_jws(valid_payload(), leaf_key, chain))
+        revoked = valid_payload(revocationDate=int(time.time() * 1000))
+        await service.record("subject-h", make_jws(revoked, leaf_key, chain))
+        await service._cache.delete("ent:subject-h")
+
+        assert (await service.current("subject-h")).tier == "free", (
+            "A refunded subscription must not come back when the short free "
+            "entry lapses")
+
+    @pytest.mark.asyncio
+    async def test_expired_proof_reads_free(self, service, pinned_root):
+        # Written straight to the cache: `record` refuses to store a proof it
+        # has just read as expired, so this is the shape of a proof that was
+        # valid when stored and has since lapsed.
+        leaf_key, chain = pinned_root
+        past = int((time.time() - 86_400) * 1000)
+        jws = make_jws(valid_payload(expiresDate=past), leaf_key, chain)
+        await service._cache.set("entproof:subject-i", jws)
+
+        assert (await service.current("subject-i")).tier == "free", (
+            "A subscription that has actually ended must not be re-derived")
+
+    @pytest.mark.asyncio
+    async def test_tampered_proof_does_not_grant(self, service, pinned_root):
+        # The stored proof is re-verified, so the cache is never the authority
+        # on who is Pro — which is why the JWS is kept rather than the
+        # entitlement derived from it.
+        leaf_key, chain = pinned_root
+        await service.record("subject-j", make_jws(valid_payload(), leaf_key, chain))
+        stored = await service._cache.get("entproof:subject-j")
+        header, _, sig = stored.split(".")
+        forged = base64.urlsafe_b64encode(
+            json.dumps(valid_payload(productId="com.snapworth.monthly")).encode()
+        ).rstrip(b"=").decode()
+        await service._cache.set("entproof:subject-j", f"{header}.{forged}.{sig}")
+        await service._cache.delete("ent:subject-j")
+
+        assert (await service.current("subject-j")).tier == "free"
+
+    @pytest.mark.asyncio
+    async def test_proof_outlives_the_entitlement_entry(self, pinned_root):
+        leaf_key, chain = pinned_root
+        cache = self._recording_cache()
+        service = EntitlementService(cache, BUNDLE_ID, PRODUCTS)
+        payload = valid_payload(expiresDate=int((time.time() + 30 * 86_400) * 1000))
+        await service.record("subject-k", make_jws(payload, leaf_key, chain))
+
+        entry_ttl = cache.ttls["ent:subject-k"]
+        proof_ttl = cache.ttls["entproof:subject-k"]
+        assert proof_ttl > entry_ttl, (
+            "The proof exists to outlive the entry it rebuilds; equal TTLs "
+            "would leave nothing to re-derive from")
+
+    @pytest.mark.asyncio
+    async def test_clear_removes_the_proof(self, service, pinned_root):
+        leaf_key, chain = pinned_root
+        await service.record("subject-l", make_jws(valid_payload(), leaf_key, chain))
+        await service.clear("subject-l")
+
+        assert await service._cache.get("entproof:subject-l") is None
+
     @pytest.mark.asyncio
     async def test_clear_revokes(self, service, pinned_root):
         leaf_key, chain = pinned_root
