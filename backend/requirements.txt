@@ -19,7 +19,7 @@ uvicorn[standard]==0.52.4
 # a plain isinstance(list, tuple) check rejected, which hid both response
 # truncation and every safety block. google-genai accepts seed end-to-end and
 # returns a plain list, so both workarounds are gone rather than carried over.
-google-genai==2.19.0
+google-genai==2.20.0
 # Multipart parsing for the /scan upload. 0.0.31 closes seven advisories, all
 # reachable by an unauthenticated POST: preamble and part-header parsing DoS
 # (PYSEC-2026-3036/3037/3038/3039) and an unvalidated negative Content-Length
