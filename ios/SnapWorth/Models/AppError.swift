@@ -9,6 +9,13 @@ enum AppError: LocalizedError, Equatable {
     /// A Pro-only endpoint refused a free-tier caller.
     case proRequired(String)
     case serverUnavailable
+    /// The scan pipeline reported why it failed — a real outage, an unreadable
+    /// model response, or an item the AI could not price. The message is
+    /// user-safe copy written by the backend for that specific failure;
+    /// substituting a fixed "temporarily unavailable" string here told users
+    /// the service was down when they had photographed something unpriceable,
+    /// inviting them to retry the identical photo and fail identically.
+    case aiFailed(String)
     /// The device's credential expired or attestation failed. Recoverable by
     /// retrying — the client re-attests automatically on the next request.
     case sessionExpired
@@ -31,6 +38,9 @@ enum AppError: LocalizedError, Equatable {
             return msg
         case .serverUnavailable:
             return "Our AI is temporarily unavailable. Please try again in a moment."
+        case .aiFailed(let msg):
+            // Backend copy, shown verbatim — the same contract as .unusablePhoto.
+            return msg
         case .sessionExpired:
             // 401 previously fell through to .unknown -> "Something went wrong",
             // which tells the user nothing and offers no way forward.
@@ -87,7 +97,18 @@ enum AppError: LocalizedError, Equatable {
                 // away and said "Something went wrong", leaving the user to
                 // retry the identical photo and fail identically.
                 case 422:        return .unusablePhoto(detail)
-                case 502, 503:   return .serverUnavailable
+                // 502 carries four distinct, user-safe explanations from the
+                // backend: a genuine outage, an unreadable model response, an
+                // item the AI couldn't price, and a listing-generation outage.
+                // Only the first is "temporarily unavailable" — collapsing all
+                // four into that fixed string told a user with an unpriceable
+                // photo that the service was down. Surface the detail the way
+                // 422 does; the outage detail still reads as an outage because
+                // the backend's own copy says so. Empty detail keeps the fixed
+                // string, and 503 really is the service refusing traffic.
+                case 502:        return detail.isEmpty ? .serverUnavailable
+                                                       : .aiFailed(detail)
+                case 503:        return .serverUnavailable
                 default:         return .unknown(detail)
                 }
             }
@@ -144,6 +165,7 @@ enum AppError: LocalizedError, Equatable {
         // failed" explanations equal, and the alert would not re-present when
         // the reason changed.
         case (.unusablePhoto(let a), .unusablePhoto(let b)):   return a == b
+        case (.aiFailed(let a), .aiFailed(let b)):             return a == b
         default: return false
         }
     }

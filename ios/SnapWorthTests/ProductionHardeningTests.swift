@@ -1142,9 +1142,61 @@ final class UnusablePhotoMappingTests: XCTestCase {
         XCTAssertNotEqual(a, b)
     }
 
-    func test_502_stillReadsAsAnOutage() {
-        // The neighbouring case must keep its behaviour.
-        XCTAssertEqual(AppError.from(ScanAPIError.serverError(502, "x")), .serverUnavailable)
+    // ── 502 detail is surfaced, not replaced (issue #55) ─────────────────
+    //
+    // The backend raises 502 for four different reasons and writes distinct,
+    // user-safe copy for each. The client used to collapse all of them into
+    // "Our AI is temporarily unavailable" — so a user who photographed
+    // something unpriceable was told the service was down, retried the
+    // identical photo, and failed identically. These four strings are the
+    // ones main.py actually sends; the assertions are the issue's acceptance
+    // criteria.
+
+    func test_502_unpriceableItem_doesNotClaimAnOutage() {
+        let mapped = AppError.from(
+            ScanAPIError.serverError(502, "The AI couldn't price this item."))
+        let msg = mapped.errorDescription ?? ""
+        XCTAssertEqual(msg, "The AI couldn't price this item.")
+        XCTAssertFalse(msg.lowercased().contains("unavailable"),
+                       "Nothing is down — the copy must not claim an outage")
+        XCTAssertNotEqual(mapped, .serverUnavailable)
+    }
+
+    func test_502_genuineOutage_stillReadsAsAnOutage() {
+        // The backend's own outage copy says "temporarily unavailable", so
+        // surfacing it verbatim keeps the outage reading as one.
+        let msg = AppError.from(
+            ScanAPIError.serverError(502, "The AI service is temporarily unavailable."))
+            .errorDescription ?? ""
+        XCTAssertTrue(msg.lowercased().contains("temporarily unavailable"))
+    }
+
+    func test_502_unreadableResponse_surfacesTheRetryableExplanation() {
+        let msg = AppError.from(
+            ScanAPIError.serverError(502, "The AI response couldn't be read."))
+            .errorDescription ?? ""
+        XCTAssertEqual(msg, "The AI response couldn't be read.")
+    }
+
+    func test_502_emptyDetail_fallsBackToTheGenericString() {
+        XCTAssertEqual(AppError.from(ScanAPIError.serverError(502, "")),
+                       .serverUnavailable)
+    }
+
+    func test_503_stillReadsAsAnOutage() {
+        // A 503 really is the service refusing traffic; the detail-surfacing
+        // change is scoped to 502 only.
+        XCTAssertEqual(AppError.from(ScanAPIError.serverError(503, "anything")),
+                       .serverUnavailable)
+    }
+
+    func test_aiFailed_equalsItselfAndComparesByMessage() {
+        // The manual == has already silently dropped one newly added case
+        // (.sessionExpired); every new case gets pinned here so it cannot
+        // happen again.
+        XCTAssertEqual(AppError.aiFailed("a"), AppError.aiFailed("a"))
+        XCTAssertNotEqual(AppError.aiFailed("a"), AppError.aiFailed("b"))
+        XCTAssertNotEqual(AppError.aiFailed("a"), .serverUnavailable)
     }
 }
 
