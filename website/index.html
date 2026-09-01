@@ -1303,6 +1303,34 @@ a:focus-visible, button:focus-visible {
     transition-duration: .7s; }
 }
 
+/* ── App screenshot strip ───────────────────────────────────────────────── */
+.shots { background: var(--card); padding: 80px 0 72px; }
+.shots-wrap { max-width: 1200px; margin: 0 auto; padding: 0 24px; }
+.shots-strip { display: flex; gap: 30px; margin-top: 48px;
+  overflow-x: auto; scroll-snap-type: x mandatory;
+  padding: 14px 8px 26px;                 /* room for the tilt + shadow */
+  cursor: grab; scrollbar-width: none; -ms-overflow-style: none; }
+.shots-strip::-webkit-scrollbar { display: none; }
+.shots-strip.is-dragging { cursor: grabbing; scroll-snap-type: none; }
+.shots-strip figure { flex: 0 0 auto; width: min(330px, 76vw);
+  margin: 0; scroll-snap-align: center; }
+.shots-strip img { display: block; width: 100%; height: auto;
+  border-radius: 26px; border: 1px solid var(--border);
+  box-shadow: 0 18px 44px -18px rgba(28,20,16,.35);
+  transition: transform .3s cubic-bezier(.22,.61,.36,1),
+              box-shadow .3s cubic-bezier(.22,.61,.36,1);
+  -webkit-user-drag: none; user-select: none; }
+/* Prints laid on a table, each a couple of degrees off square. */
+.shots-strip figure:nth-child(1) img { transform: rotate(-1.8deg); }
+.shots-strip figure:nth-child(2) img { transform: rotate(1.4deg); }
+.shots-strip figure:nth-child(3) img { transform: rotate(-1.2deg); }
+.shots-strip figure:nth-child(4) img { transform: rotate(1.9deg); }
+.shots-strip figure img:hover { transform: rotate(0) translateY(-6px);
+  box-shadow: 0 26px 54px -20px rgba(28,20,16,.45); }
+.shots-note { margin: 2px 8px 0; font-family: 'Fraunces', serif; font-style: italic;
+  font-size: 14.5px; color: var(--warm-gray); }
+@media (max-width: 640px) { .shots { padding: 60px 0 56px; } }
+
 /* ── FAQ ────────────────────────────────────────────────────────────────── */
 .faq { background: var(--bg); padding: 88px 0 96px; }
 .faq-wrap { max-width: 1200px; margin: 0 auto; padding: 0 24px; }
@@ -1731,6 +1759,25 @@ details[open] .faq-x::after { transform: rotate(90deg); }
   </section>
 
 
+  <!-- The app itself. Real App Store screenshots, not mockups — the captions
+       are baked into the artwork, so the alt text carries them for everyone
+       who can't see the images. Lazy-loaded; ~174 KB for all four. -->
+  <section class="shots" id="app-shots">
+    <div class="shots-wrap">
+      <div class="tf-rule">
+        <span class="l">Straight from the app</span>
+        <span class="r">Real screens &middot; drag to browse</span>
+      </div>
+      <div class="shots-strip" tabindex="0" role="region" aria-label="SnapWorth app screenshots — scroll horizontally">
+        <figure><img src="shots/scan.webp" width="660" height="1434" loading="lazy" alt="SnapWorth analyzing a photo of sneakers in the aisle. Caption: Four seconds, in the aisle. Point, snap, decide. No account, no typing."></figure>
+        <figure><img src="shots/result.webp" width="660" height="1434" loading="lazy" alt="A scan result: Off-White Out of Office low-top sneakers, estimated resale value $220 to $420, medium confidence, with condition choices. Caption: Know before you buy — an AI resale estimate from one photo."></figure>
+        <figure><img src="shots/flips.webp" width="660" height="1434" loading="lazy" alt="The My Flips dashboard: profit this month +$400 on one sale, $20 invested, best flip highlighted, six-month profit chart. Caption: Every flip, tracked — paid, listed, sold, see what you actually made."></figure>
+        <figure><img src="shots/finds.webp" width="660" height="1434" loading="lazy" alt="The My Finds screen: your finds are worth $320, one item scanned, one find not listed yet, with search. Caption: Nothing slips through — every scan saved, with a nudge for what you haven't listed."></figure>
+      </div>
+      <p class="shots-note">Actual screens from SnapWorth on the App&nbsp;Store.</p>
+    </div>
+  </section>
+
   <section id="how-it-works">
     <div class="section-inner">
       <div class="section-header">
@@ -2061,6 +2108,31 @@ details[open] .faq-x::after { transform: rotate(90deg); }
     );
   }
 
+  /* ── Screenshot strip: drag to scroll ───────────────────────────────────
+     Touch scrolls the strip natively; this gives the mouse the same gesture.
+     Interaction, not motion, so it runs regardless of reduced-motion. Snap is
+     lifted while dragging or the strip fights the hand. */
+  var strip = document.querySelector(".shots-strip");
+  if (strip && window.matchMedia && window.matchMedia("(pointer: fine)").matches) {
+    var dragX = 0, dragLeft = 0, dragging = false;
+    strip.addEventListener("pointerdown", function (ev) {
+      if (ev.pointerType !== "mouse") return;
+      dragging = true; dragX = ev.clientX; dragLeft = strip.scrollLeft;
+      strip.classList.add("is-dragging");
+      strip.setPointerCapture(ev.pointerId);
+    });
+    strip.addEventListener("pointermove", function (ev) {
+      if (!dragging) return;
+      strip.scrollLeft = dragLeft - (ev.clientX - dragX);
+    });
+    var dragEnd = function () {
+      dragging = false;
+      strip.classList.remove("is-dragging");
+    };
+    strip.addEventListener("pointerup", dragEnd);
+    strip.addEventListener("pointercancel", dragEnd);
+  }
+
   /* ── Phone tilt ─────────────────────────────────────────────────────────
      Mouse-only and motion-gated: it follows the cursor, so touch never sees
      it and reduced-motion never runs it. Inline transform is safe here
@@ -2139,10 +2211,12 @@ details[open] .faq-x::after { transform: rotate(90deg); }
      Sections reveal as a block; grids stagger their children. */
   var singles = document.querySelectorAll(
     ".features-bg > *, .pricing-bg > *, .cta-dark, .platforms-inner, " +
-    ".section-head, .faq .tf-rule, .faq-h2, footer .footer-inner"
+    ".section-head, .faq .tf-rule, .faq-h2, .shots .tf-rule, .shots-note, " +
+    "footer .footer-inner"
   );
   var groups = document.querySelectorAll(
-    ".features-grid, .platforms-list, .pricing-grid, .steps, .faq-list"
+    ".features-grid, .platforms-list, .pricing-grid, .steps, .faq-list, " +
+    ".shots-strip"
   );
 
   Array.prototype.forEach.call(singles, function (el) {
