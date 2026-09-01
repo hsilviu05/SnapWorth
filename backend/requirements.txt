@@ -95,6 +95,6 @@ PyJWT==2.13.0
 # directly exploitable here; the upgrade is taken because the primitives
 # underneath are load-bearing and 50.0.0 is the single version clearing all
 # three.
-cryptography==50.0.0
+cryptography==50.0.1
 # DeviceCheck API calls.
 httpx==0.28.1
