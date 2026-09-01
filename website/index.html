@@ -790,7 +790,9 @@
       color: rgba(255,255,255,0.5);
       text-decoration: none;
     }
-    .footer-links { display: flex; gap: 24px; }
+    /* wrap, or on narrow phones the last links are clipped by the page-wrap's
+       overflow-x and become unreachable */
+    .footer-links { display: flex; gap: 14px 24px; flex-wrap: wrap; justify-content: center; }
     .footer-links a {
       font-size: 13px;
       color: rgba(255,255,255,0.55);
@@ -1166,9 +1168,97 @@ a:focus-visible, button:focus-visible {
 .tf-foot-note { flex: 1; min-width: 340px; border: 1px solid var(--border); border-radius: 24px;
   padding: 28px 32px; font-size: 14.5px; line-height: 1.65; color: var(--dark2); }
 
+/* ── Scan demo (hero phone) ─────────────────────────────────────────────── */
+.iphone-screen { position: relative; }
+.sd-est { text-align: left; }
+.sd-range { font-family: 'Fraunces', serif; font-size: 30px; font-weight: 900;
+  letter-spacing: -1.2px; color: var(--dark); line-height: 1.05; margin: 2px 0 10px;
+  font-variant-numeric: tabular-nums; }
+.sd-conf { display: flex; align-items: center; gap: 8px; }
+.sd-conf-bar { flex: 1; height: 5px; border-radius: 999px; background: #E8DDD7; overflow: hidden; }
+.sd-conf-bar span { display: block; height: 100%; border-radius: 999px;
+  background: var(--sage); transition: width .4s ease; }
+.sd-conf-label { font-size: 10.5px; font-weight: 600; color: var(--sage-text); white-space: nowrap; }
+.sd-listing { display: inline-block; font-size: 11.5px; font-weight: 700; color: #fff;
+  background: var(--terracotta); border-radius: 999px; padding: 7px 14px; }
+/* Camera-shutter flash over the screen while a new item "scans" in. */
+.sd-flash { position: absolute; inset: 0; background: #FAF7F4; opacity: 0;
+  pointer-events: none; border-radius: 42px; }
+.is-scanning .sd-flash { animation: sdFlash .55s ease-out; }
+@keyframes sdFlash { 0% { opacity: 0; } 18% { opacity: .95; } 100% { opacity: 0; } }
+.is-scanning .app-scroll { animation: sdSettle .55s cubic-bezier(.22,.61,.36,1); }
+@keyframes sdSettle { 0% { opacity: .35; transform: translateY(6px); }
+  100% { opacity: 1; transform: translateY(0); } }
+
+.hd-try { display: flex; flex-direction: column; align-items: center; gap: 10px; }
+.hd-try-label { font-size: 11px; font-weight: 600; letter-spacing: 2.2px;
+  text-transform: uppercase; color: rgba(250,247,244,.5); }
+.hd-try-chips { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
+.sd-chip { font-family: inherit; font-size: 13px; font-weight: 600; padding: 9px 16px;
+  border-radius: 999px; cursor: pointer; background: transparent;
+  color: rgba(250,247,244,.66); border: 1px solid rgba(250,247,244,.22);
+  transition: background .15s, color .15s, border-color .15s, transform .15s; }
+.sd-chip:hover { border-color: rgba(250,247,244,.5); color: #FAF7F4; transform: translateY(-1px); }
+.sd-chip[aria-pressed="true"] { background: var(--terracotta); color: #fff;
+  border-color: var(--terracotta); }
+
+/* ── FAQ ────────────────────────────────────────────────────────────────── */
+.faq { background: var(--bg); padding: 88px 0 96px; }
+.faq-wrap { max-width: 1200px; margin: 0 auto; padding: 0 24px; }
+.faq-grid { display: grid; grid-template-columns: 1fr 1.6fr; gap: 72px;
+  align-items: start; margin-top: 52px; }
+.faq-h2 { font-family: 'Fraunces', serif; font-size: clamp(34px, 4.4vw, 56px); font-weight: 900;
+  line-height: 1.0; letter-spacing: -.038em; color: var(--dark); margin: 0;
+  position: sticky; top: 110px; }
+.faq-h2 em { font-style: italic; color: var(--terracotta); }
+.faq-list details { border-bottom: 1px solid var(--border); }
+.faq-list details:first-child { border-top: 1.5px solid var(--dark); }
+.faq-list summary { display: flex; align-items: center; justify-content: space-between;
+  gap: 18px; cursor: pointer; list-style: none; padding: 22px 2px;
+  font-family: 'Fraunces', serif; font-size: clamp(17px, 1.6vw, 21px); font-weight: 600;
+  letter-spacing: -.01em; color: var(--dark); }
+.faq-list summary::-webkit-details-marker { display: none; }
+.faq-list summary:hover { color: var(--terra-text); }
+/* Plus that folds into a minus — drawn, not a glyph, so it can rotate cleanly. */
+.faq-x { position: relative; flex: 0 0 auto; width: 16px; height: 16px; }
+.faq-x::before, .faq-x::after { content: ""; position: absolute; inset: 0; margin: auto;
+  background: var(--terra-text); border-radius: 2px; transition: transform .25s ease; }
+.faq-x::before { width: 16px; height: 2px; }
+.faq-x::after { width: 2px; height: 16px; }
+details[open] .faq-x::after { transform: rotate(90deg); }
+.faq-list details p { padding: 0 2px 24px; margin: 0; max-width: 620px;
+  font-size: 15.5px; line-height: 1.7; color: var(--warm-gray); }
+.faq-list details a { color: var(--terra-text); }
+
+/* ── Pricing: yearly savings pill ───────────────────────────────────────── */
+.plan-save { display: inline-block; vertical-align: 2px; margin-left: 8px;
+  font-size: 11px; font-weight: 700; letter-spacing: .4px; color: var(--sage-text);
+  background: var(--sage-dim); border: 1px solid rgba(122,158,126,.38);
+  border-radius: 999px; padding: 3px 10px; }
+
+/* ── Sticky mobile CTA ──────────────────────────────────────────────────── */
+.mcta { position: fixed; left: 12px; right: 12px; z-index: 90;
+  bottom: max(12px, env(safe-area-inset-bottom));
+  display: flex; align-items: center; justify-content: space-between; gap: 14px;
+  background: rgba(28,20,16,.94); backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px); border: 1px solid rgba(255,255,255,.1);
+  border-radius: 18px; padding: 10px 10px 10px 18px;
+  transform: translateY(calc(100% + 24px)); transition: transform .35s cubic-bezier(.22,.61,.36,1);
+  box-shadow: 0 12px 32px rgba(28,20,16,.35); }
+.mcta.is-on { transform: translateY(0); }
+.mcta-txt { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.mcta-txt strong { font-family: 'Fraunces', serif; font-size: 15px; font-weight: 700; color: #FAF7F4; }
+.mcta-txt span { font-size: 11.5px; color: rgba(250,247,244,.55); white-space: nowrap; }
+.mcta-btn { display: inline-flex; align-items: center; gap: 7px; flex: 0 0 auto;
+  background: var(--terracotta); color: #fff; font-size: 14px; font-weight: 600;
+  padding: 11px 18px; border-radius: 12px; text-decoration: none; }
+@media (min-width: 768px) { .mcta { display: none; } }
+
 @media (max-width: 980px) {
   .hd-grid { grid-template-columns: 1fr; gap: 48px; }
   .hd-phone { order: -1; }
+  .faq-grid { grid-template-columns: 1fr; gap: 28px; }
+  .faq-h2 { position: static; }
   .tf-top { grid-template-columns: 1fr; gap: 40px; }
   .tf-out { grid-template-columns: 1fr; }
 }
@@ -1176,6 +1266,9 @@ a:focus-visible, button:focus-visible {
   .hd-steps { grid-template-columns: 1fr; gap: 22px; }
   .hd-main { padding: 40px 0 52px; }
   .tf { padding: 64px 0 72px; }
+  .faq { padding: 64px 0 72px; }
+  /* Room for the sticky CTA so it never sits over the footer links. */
+  footer { padding-bottom: 84px; }
   .tf-verdict, .tf-maths { padding: 28px 24px; }
   .tf-foot-dark, .tf-foot-note { min-width: 0; }
 }
@@ -1313,19 +1406,32 @@ a:focus-visible, button:focus-visible {
                 </div>
                 <div class="app-nav">
                   <span class="app-back">Close</span>
-                  <span class="app-nav-title">Thrift Flip</span>
-                  <span class="app-back app-back-right">New item</span>
+                  <span class="app-nav-title">Scan result</span>
+                  <span class="app-back app-back-right">Rescan</span>
                 </div>
-                <div class="app-scroll">
+                <!-- Interactive scan demo. The first item is fully rendered in
+                     the HTML so with JavaScript off the phone still shows a
+                     complete result instead of empty slots. Every range below
+                     is the one published on this site's own /worth pages —
+                     the demo must never disagree with the rest of the site. -->
+                <div class="app-scroll" id="sd-screen" aria-live="polite">
                   <div class="pf-item">
-                    <div class="pf-thumb">&#129509;</div>
+                    <div class="pf-thumb" id="sd-thumb">&#129509;</div>
                     <div>
-                      <div class="app-name">Carhartt Detroit Jacket</div>
-                      <div class="app-meta">Resale $60&ndash;$150 &middot; High confidence</div>
+                      <div class="app-name" id="sd-name">Carhartt Detroit Jacket</div>
+                      <div class="app-meta" id="sd-meta">Identified from one photo</div>
+                    </div>
+                  </div>
+                  <div class="app-card sd-est">
+                    <div class="app-card-label">Estimated resale</div>
+                    <div class="sd-range" id="sd-range">$60&ndash;$150</div>
+                    <div class="sd-conf">
+                      <div class="sd-conf-bar"><span id="sd-conf-fill" style="width:82%"></span></div>
+                      <span class="sd-conf-label" id="sd-conf">High confidence</span>
                     </div>
                   </div>
                   <div class="app-card">
-                    <div class="app-card-label">Where you&rsquo;d sell</div>
+                    <div class="app-card-label">Sell it on</div>
                     <div class="pf-chips">
                       <span class="pf-chip is-on">eBay</span>
                       <span class="pf-chip">Vinted</span>
@@ -1333,21 +1439,27 @@ a:focus-visible, button:focus-visible {
                       <span class="pf-chip">OLX</span>
                     </div>
                   </div>
-                  <div class="app-card pf-rows">
-                    <div class="pf-row"><span>Shop price</span><span><em>Scan tag</em> $18</span></div>
-                    <div class="pf-row"><span>Expected resale</span><span>$95</span></div>
-                    <div class="pf-row"><span>Shipping</span><span>$8</span></div>
-                  </div>
                   <div class="pf-verdict">
-                    <div class="pf-verdict-t">&#10003; Worth flipping</div>
-                    <div class="pf-verdict-s">Resell at $95.00 &rarr; +$56.01 profit after fees.</div>
-                    <div class="pf-verdict-figs">
-                      <div><div class="pf-fig-l">Net profit</div><div class="pf-fig-v sage">+$56</div></div>
-                      <div><div class="pf-fig-l">ROI</div><div class="pf-fig-v">311%</div></div>
-                    </div>
+                    <div class="pf-verdict-t">&#10003; Worth a second look</div>
+                    <div class="pf-verdict-s">Run the fee math, then draft the listing &mdash; before you leave the rack.</div>
+                    <div class="sd-listing">Draft eBay listing &rarr;</div>
                   </div>
                 </div>
+                <div class="sd-flash" id="sd-flash" aria-hidden="true"></div>
               </div>
+            </div>
+          </div>
+          <div class="hd-try" role="group" aria-label="Try the demo with another find">
+            <span class="hd-try-label">Try a find</span>
+            <div class="hd-try-chips">
+              <button type="button" class="sd-chip" aria-pressed="true"
+                data-emoji="&#129509;" data-name="Carhartt Detroit Jacket" data-range="$60&ndash;$150" data-conf="High confidence" data-fill="82">Carhartt jacket</button>
+              <button type="button" class="sd-chip" aria-pressed="false"
+                data-emoji="&#127858;" data-name="Le Creuset Dutch Oven" data-range="$80&ndash;$250" data-conf="High confidence" data-fill="85">Le Creuset</button>
+              <button type="button" class="sd-chip" aria-pressed="false"
+                data-emoji="&#128086;" data-name="Vintage Levi&rsquo;s 501" data-range="$30&ndash;$90" data-conf="Medium confidence" data-fill="58">Levi&rsquo;s 501</button>
+              <button type="button" class="sd-chip" aria-pressed="false"
+                data-emoji="&#129379;" data-name="KitchenAid Stand Mixer" data-range="$120&ndash;$300" data-conf="High confidence" data-fill="80">KitchenAid</button>
             </div>
           </div>
           <p class="hd-caption">A range and a verdict, not an appraisal. Fees are approximate; the sale price is never guaranteed.</p>
@@ -1548,7 +1660,7 @@ a:focus-visible, button:focus-visible {
 
         <div class="plan featured">
           <div class="plan-badge">Best value</div>
-          <div class="plan-name">Yearly</div>
+          <div class="plan-name">Yearly <span class="plan-save">Save 33%</span></div>
           <div class="plan-price"><sup>$</sup>39<span style="font-size:22px;letter-spacing:-0.5px">.99</span></div>
           <div class="plan-cadence">per year · 3-day free trial · $3.33/month</div>
           <div class="plan-divider"></div>
@@ -1579,6 +1691,57 @@ a:focus-visible, button:focus-visible {
       </div>
     </div>
   </section>
+
+  <!-- FAQ — the objections that stop a download, answered in the site's own
+       words. Every claim here already appears elsewhere on the page; this
+       section may rephrase but never extend them. -->
+  <section id="faq" class="faq">
+    <div class="faq-wrap">
+      <div class="tf-rule">
+        <span class="l">Questions</span>
+        <span class="r">The honest answers</span>
+      </div>
+      <div class="faq-grid">
+        <h2 class="faq-h2">Before you<br><em>download.</em></h2>
+        <div class="faq-list">
+          <details>
+            <summary>How accurate are the estimates?<span class="faq-x" aria-hidden="true"></span></summary>
+            <p>Each scan returns a price range and a confidence level, drawn from the AI&rsquo;s broad knowledge of what things typically resell for &mdash; not live marketplace comps, and not an appraisal. Clear photos of tags and logos get the best results. Treat it as a fast gut-check at the rack, not a guaranteed sale price.</p>
+          </details>
+          <details>
+            <summary>Is it really free?<span class="faq-x" aria-hidden="true"></span></summary>
+            <p>Yes &mdash; one free scan a day, forever. No account, no card. Pro removes the daily limit and adds the AI listing writer: $4.99 a month, or $39.99 a year with a 3-day free trial.</p>
+          </details>
+          <details>
+            <summary>What can I scan?<span class="faq-x" aria-hidden="true"></span></summary>
+            <p>Anything secondhand: clothing, shoes, bags, kitchenware, electronics, furniture, collectibles. If it turns up at a thrift store, garage sale or estate sale, point the camera at it.</p>
+          </details>
+          <details>
+            <summary>Which marketplaces does it cover?<span class="faq-x" aria-hidden="true"></span></summary>
+            <p>Listing drafts are written for eBay, Vinted, Facebook Marketplace and OLX. Thrift Flip runs the profit math with each marketplace&rsquo;s real seller fees &mdash; the same rates the app uses, so the number you see here is the number you&rsquo;d see there.</p>
+          </details>
+          <details>
+            <summary>Where does my scan history live?<span class="faq-x" aria-hidden="true"></span></summary>
+            <p>On your device. Your finds are saved locally &mdash; searchable, sortable by value, with a running portfolio total. See the <a href="https://api.snapworth.eu/privacy" target="_blank" rel="noopener">privacy policy</a> for the full picture.</p>
+          </details>
+          <details>
+            <summary>Is there an Android version?<span class="faq-x" aria-hidden="true"></span></summary>
+            <p>SnapWorth is iPhone-only today. Follow <a href="https://x.com/snapworthapp" target="_blank" rel="noopener">@snapworthapp</a> to hear it first if that changes.</p>
+          </details>
+        </div>
+      </div>
+    </div>
+  </section>
+  <script type="application/ld+json">
+  {"@context":"https://schema.org","@type":"FAQPage","mainEntity":[
+    {"@type":"Question","name":"How accurate are the estimates?","acceptedAnswer":{"@type":"Answer","text":"Each scan returns a price range and a confidence level, drawn from the AI's broad knowledge of what things typically resell for — not live marketplace comps, and not an appraisal. Clear photos of tags and logos get the best results."}},
+    {"@type":"Question","name":"Is it really free?","acceptedAnswer":{"@type":"Answer","text":"Yes — one free scan a day, forever, with no account and no card. Pro removes the daily limit and adds the AI listing writer: $4.99 a month, or $39.99 a year with a 3-day free trial."}},
+    {"@type":"Question","name":"What can I scan?","acceptedAnswer":{"@type":"Answer","text":"Anything secondhand: clothing, shoes, bags, kitchenware, electronics, furniture and collectibles."}},
+    {"@type":"Question","name":"Which marketplaces does it cover?","acceptedAnswer":{"@type":"Answer","text":"Listing drafts are written for eBay, Vinted, Facebook Marketplace and OLX, and Thrift Flip runs the profit math with each marketplace's real seller fees."}},
+    {"@type":"Question","name":"Where does my scan history live?","acceptedAnswer":{"@type":"Answer","text":"On your device. Your finds are saved locally — searchable, sortable by value, with a running portfolio total."}},
+    {"@type":"Question","name":"Is there an Android version?","acceptedAnswer":{"@type":"Answer","text":"SnapWorth is iPhone-only today."}}
+  ]}
+  </script>
 
   <!-- CTA -->
   <div class="cta-dark">
@@ -1613,6 +1776,21 @@ a:focus-visible, button:focus-visible {
 
 </div><!-- .page-wrap -->
 
+<!-- Sticky mobile CTA. Hidden by default and only ever shown by script, so
+     with JavaScript off it simply never appears — the page already has four
+     download buttons without it. Mobile-only: on desktop the nav CTA is
+     always in view. -->
+<div class="mcta" id="mcta" hidden>
+  <div class="mcta-txt">
+    <strong>SnapWorth</strong>
+    <span>Free &middot; 1 scan a day &middot; iPhone</span>
+  </div>
+  <a href="https://apps.apple.com/us/app/snapworth-resale-scanner/id6788521307" class="mcta-btn">
+    <svg aria-hidden="true" focusable="false" width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.8-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z"/></svg>
+    Get the app
+  </a>
+</div>
+
 <!-- Vercel Web Analytics — cookieless, no consent banner required -->
 <script>window.va=window.va||function(){(window.vaq=window.vaq||[]).push(arguments);};</script>
 <script defer src="/_vercel/insights/script.js"></script>
@@ -1645,16 +1823,90 @@ a:focus-visible, button:focus-visible {
     window.addEventListener("scroll", onScroll, { passive: true });
   }
 
+  /* ── Scan demo ──────────────────────────────────────────────────────────
+     Swapping the phone's result is a state change, so it runs regardless of
+     motion preference; the shutter flash is CSS animation, which the global
+     reduced-motion opt-out already collapses to nothing. */
+  var sdScreen = document.getElementById("sd-screen");
+  if (sdScreen) {
+    var sdPhone = sdScreen.parentNode;   // .iphone-screen
+    var sdChips = document.querySelectorAll(".sd-chip");
+    var sdTimer = null;
+    var sdApply = function (chip) {
+      document.getElementById("sd-thumb").innerHTML = chip.getAttribute("data-emoji");
+      document.getElementById("sd-name").innerHTML  = chip.getAttribute("data-name");
+      document.getElementById("sd-range").innerHTML = chip.getAttribute("data-range");
+      document.getElementById("sd-conf").textContent = chip.getAttribute("data-conf");
+      document.getElementById("sd-conf-fill").style.width = chip.getAttribute("data-fill") + "%";
+    };
+    Array.prototype.forEach.call(sdChips, function (chip) {
+      chip.addEventListener("click", function () {
+        if (chip.getAttribute("aria-pressed") === "true") return;
+        Array.prototype.forEach.call(sdChips, function (c) {
+          c.setAttribute("aria-pressed", String(c === chip));
+        });
+        /* Restartable: re-tapping mid-animation must not strand the class. */
+        sdPhone.classList.remove("is-scanning");
+        void sdPhone.offsetWidth;        // reflush so the animation restarts
+        sdPhone.classList.add("is-scanning");
+        clearTimeout(sdTimer);
+        /* Swap at the flash's peak so the change happens "behind" it. */
+        setTimeout(function () { sdApply(chip); }, reduced ? 0 : 120);
+        sdTimer = setTimeout(function () {
+          sdPhone.classList.remove("is-scanning");
+        }, 600);
+      });
+    });
+  }
+
+  /* ── Sticky mobile CTA ──────────────────────────────────────────────────
+     Appears once the hero (which has its own download button) has scrolled
+     away, and yields whenever the closing CTA or footer is on screen — two
+     download buttons stacked on one viewport is begging, not converting. */
+  var mcta = document.getElementById("mcta");
+  if (mcta && "IntersectionObserver" in window) {
+    mcta.hidden = false;
+    var heroSeen = true, endSeen = false;
+    var mctaSync = function () {
+      mcta.classList.toggle("is-on", !heroSeen && !endSeen);
+    };
+    var heroEl = document.querySelector(".hero-dark");
+    if (heroEl) {
+      new IntersectionObserver(function (entries) {
+        heroSeen = entries[0].isIntersecting;
+        mctaSync();
+      }).observe(heroEl);
+    }
+    /* Per-target state, because IO only reports the entries that CHANGED —
+       "some(entries)" would mark the end as gone while the footer is still on
+       screen, just unchanged, and float the bar over the links. */
+    var endStates = [];
+    var endIO = new IntersectionObserver(function (entries) {
+      entries.forEach(function (e) {
+        endStates.forEach(function (s) {
+          if (s.el === e.target) s.on = e.isIntersecting;
+        });
+      });
+      endSeen = false;
+      endStates.forEach(function (s) { if (s.on) endSeen = true; });
+      mctaSync();
+    });
+    Array.prototype.forEach.call(
+      document.querySelectorAll(".cta-dark, footer"),
+      function (el) { endStates.push({ el: el, on: false }); endIO.observe(el); }
+    );
+  }
+
   if (reduced || !("IntersectionObserver" in window)) return;
 
   /* ── Scroll reveal ──────────────────────────────────────────────────────
      Sections reveal as a block; grids stagger their children. */
   var singles = document.querySelectorAll(
     ".features-bg > *, .pricing-bg > *, .cta-dark, .platforms-inner, " +
-    ".section-head, footer .footer-inner"
+    ".section-head, .faq .tf-rule, .faq-h2, footer .footer-inner"
   );
   var groups = document.querySelectorAll(
-    ".features-grid, .platforms-list, .pricing-grid, .steps"
+    ".features-grid, .platforms-list, .pricing-grid, .steps, .faq-list"
   );
 
   Array.prototype.forEach.call(singles, function (el) {
