@@ -10,6 +10,13 @@ stateless, and the result is cached only as an optimisation.
 
 That statelessness is why this needs no Postgres: the signed transaction is
 itself the record, and the cache is disposable.
+
+The server therefore keeps that transaction — the *proof* — alongside the
+derived entitlement, and re-verifies it whenever the short entitlement entry
+has lapsed. Without it the cache is not disposable at all: only the client can
+repopulate it, at cold launch, so every expiry silently moved a paying
+subscriber onto the free quota until they next relaunched the app. Losing the
+proof store costs a re-POST, never someone's subscription.
 """
 
 from __future__ import annotations
@@ -64,6 +71,16 @@ ENTITLEMENT_CACHE_TTL = 900          # 15 min — free, and the refund window
 # quota: one scan a day. Still capped by the subscription's own expiry below,
 # and `Entitlement.is_active` re-checks expiry on every read.
 PRO_ENTITLEMENT_CACHE_TTL = 86_400   # 24 h
+
+# How long Apple's signed transaction itself is kept, so the server can rebuild
+# an entitlement without waiting for the client to re-POST one.
+#
+# The TTL above only narrows the window in which a subscriber reads as `free`;
+# it cannot close it, because nothing on the server could re-derive the
+# entitlement once the entry lapsed. Holding the proof is what closes it. Long,
+# because it is the subscription and not this constant that decides when the
+# proof stops being worth anything — see `_store_proof`.
+ENTITLEMENT_PROOF_TTL = 60 * 60 * 24 * 400
 
 # Which StoreKit environments this deployment accepts.
 #
@@ -315,6 +332,19 @@ class EntitlementService:
     def _device_key(original_transaction_id: str) -> str:
         return f"txn:{original_transaction_id}"
 
+    @staticmethod
+    def _proof_key(subject: str) -> str:
+        return f"entproof:{subject}"
+
+    @staticmethod
+    def _cache_ttl(ent: Entitlement) -> int:
+        """Lifetime of the short entitlement entry written for `ent`."""
+        ttl = PRO_ENTITLEMENT_CACHE_TTL if ent.tier == "pro" else ENTITLEMENT_CACHE_TTL
+        if ent.expires_at:
+            # Never cache past the subscription's own expiry.
+            ttl = max(60, min(ttl, ent.expires_at - int(time.time())))
+        return ttl
+
     async def record(self, subject: str, jws_value: str) -> Entitlement:
         """Verify, device-bind, and cache. Raises `EntitlementError` if invalid."""
         ent = verify_signed_transaction(jws_value, self._bundle_id, self._allowed)
@@ -324,14 +354,50 @@ class EntitlementService:
         if ent.tier == "pro" and ent.original_transaction_id:
             await self._bind_device(subject, ent)
 
-        ttl = PRO_ENTITLEMENT_CACHE_TTL if ent.tier == "pro" else ENTITLEMENT_CACHE_TTL
-        if ent.expires_at:
-            # Never cache past the subscription's own expiry.
-            ttl = max(60, min(ttl, ent.expires_at - int(time.time())))
-        await self._cache.set(self._key(subject), ent.to_json(), ttl)
+        await self._cache.set(self._key(subject), ent.to_json(), self._cache_ttl(ent))
+
+        if ent.tier == "pro":
+            await self._store_proof(subject, ent, jws_value)
+        else:
+            # Apple's latest word is that this subject is not entitled, so any
+            # proof still held for it is void. Without this a refunded or
+            # expired subscription would be resurrected by `_rederive` the
+            # moment the short free entry lapsed — the proof carries the
+            # revocation state it was signed with, not today's.
+            await self._cache.delete(self._proof_key(subject))
+
         log.info("entitlement recorded",
                  extra={"tier": ent.tier, "product_id": ent.product_id})
         return ent
+
+    async def _store_proof(self, subject: str, ent: Entitlement, jws_value: str) -> None:
+        """Keep the signed transaction so `current()` can re-derive this later.
+
+        The entitlement entry above is deliberately short-lived, and only the
+        client can refresh it: it POSTs /auth/entitlement from
+        `refreshSubscriptionStatus()`, which runs at cold launch, purchase,
+        restore and `Transaction.updates`, with no foreground hook. Every lapse
+        therefore used to drop a paying subscriber onto the free quota until
+        they next relaunched. Holding the proof lets the server rebuild the
+        entry on its own.
+
+        What is stored is Apple's *signed* transaction, not the entitlement
+        derived from it, so the cache never becomes the authority on who is
+        Pro: a tampered or truncated proof fails verification on the way back
+        out rather than granting anything.
+
+        Best-effort. Refusing a verified purchase because this write failed
+        would be a worse outcome than having nothing to re-derive from later.
+        """
+        ttl = ENTITLEMENT_PROOF_TTL
+        if ent.expires_at:
+            # Worthless past the subscription it proves, and `is_active` would
+            # reject it anyway. Matches the device binding's horizon.
+            ttl = max(3600, ent.expires_at + EXPIRY_GRACE_SECONDS - int(time.time()))
+        try:
+            await self._cache.set(self._proof_key(subject), jws_value, ttl)
+        except Exception as exc:
+            log.warning("entitlement proof write failed: %s", exc)
 
     async def _bind_device(self, subject: str, ent: Entitlement) -> None:
         """Associate `subject` with the subscription, enforcing the device cap.
@@ -375,15 +441,64 @@ class EntitlementService:
             log.warning("device binding write failed: %s", exc)
 
     async def current(self, subject: str) -> Entitlement:
-        """Best-known entitlement for a subject; defaults to free."""
+        """Best-known entitlement for a subject; defaults to free.
+
+        A miss falls through to the stored proof rather than straight to FREE,
+        which costs a second cache read on the free path and buys a subscriber
+        their Pro access back without a cold launch.
+        """
         raw = await self._cache.get(self._key(subject))
-        if not raw:
-            return FREE
+        if raw:
+            try:
+                ent = Entitlement.from_json(raw)
+            except Exception:
+                ent = None
+            if ent is not None and ent.is_active:
+                return ent
+        return await self._rederive(subject)
+
+    async def _rederive(self, subject: str) -> Entitlement:
+        """Rebuild an entitlement from the stored proof, re-verifying it.
+
+        This is the difference between a lapsed cache entry costing a
+        subscriber their Pro access until the next cold launch, and costing
+        them one signature check. FREE when there is no proof, when it no
+        longer verifies, or when the subscription it proves has ended.
+        """
         try:
-            ent = Entitlement.from_json(raw)
-        except Exception:
+            jws_value = await self._cache.get(self._proof_key(subject))
+        except Exception as exc:
+            log.warning("entitlement proof read failed: %s", exc)
             return FREE
-        return ent if ent.is_active else FREE
+        if not jws_value:
+            return FREE
+
+        try:
+            ent = verify_signed_transaction(jws_value, self._bundle_id, self._allowed)
+        except EntitlementError as exc:
+            # Covers a tampered proof, but also an operator narrowing
+            # ALLOWED_STOREKIT_ENVIRONMENTS or the product list under a proof
+            # that predates the change: re-verification applies today's rules.
+            log.warning("stored entitlement proof no longer verifies: %s", exc)
+            return FREE
+        if not ent.is_active:
+            return FREE
+
+        # Deliberately not re-bound to the device: this subject was bound when
+        # the proof was recorded, and re-running the cap on an ordinary request
+        # could raise `DeviceLimitExceeded` out of a scan.
+        try:
+            await self._cache.set(
+                self._key(subject), ent.to_json(), self._cache_ttl(ent))
+        except Exception as exc:
+            log.warning("entitlement re-cache failed: %s", exc)
+
+        log.info("entitlement re-derived from stored proof",
+                 extra={"tier": ent.tier, "product_id": ent.product_id})
+        return ent
 
     async def clear(self, subject: str) -> None:
         await self._cache.delete(self._key(subject))
+        # The proof too, or `current()` re-derives Pro straight back and this
+        # stops being a revocation.
+        await self._cache.delete(self._proof_key(subject))
