@@ -524,24 +524,129 @@ class TestDeviceCap:
             assert (await service.record(f"device-{i}", jws)).tier == "pro"
 
     @pytest.mark.asyncio
-    async def test_device_beyond_cap_rejected(self, service, pinned_root):
+    async def test_device_beyond_cap_evicts_rather_than_refusing(self, service, pinned_root):
+        """A payer is never locked out of their own subscription.
+
+        This asserted the opposite until a subscriber hit it for real. An App
+        Attest key is per *install*, so each reinstall arrives as a new subject
+        and consumed a slot that was never released; after six the subscription
+        was spent and every `/auth/entitlement` answered 409, which the client
+        swallows. The subscriber then read as `free` — one scan a day, while
+        paying.
+        """
         leaf_key, chain = pinned_root
         jws = make_jws(valid_payload(), leaf_key, chain)
         for i in range(3):
             await service.record(f"device-{i}", jws)
-        with pytest.raises(entitlements.DeviceLimitExceeded):
-            await service.record("device-3", jws)
+
+        assert (await service.record("device-3", jws)).tier == "pro"
+        assert (await service.current("device-3")).tier == "pro"
 
     @pytest.mark.asyncio
-    async def test_rejected_device_gets_no_entitlement(self, service, pinned_root):
-        """Binding runs before the cache write — a refused device stays free."""
+    async def test_eviction_takes_the_least_recently_seen(self, service, pinned_root):
+        # Seeded rather than recorded in a loop: consecutive `record` calls all
+        # land in the same second, so the timestamps tie and the assertion
+        # passes whichever end of the order eviction takes. Spreading them by
+        # days is what makes this test able to fail.
         leaf_key, chain = pinned_root
         jws = make_jws(valid_payload(), leaf_key, chain)
-        for i in range(3):
+        now = int(time.time())
+        await service._cache.set("txn:2000000000000001", json.dumps({
+            "device-oldest": now - 3 * 86_400,
+            "device-middle": now - 2 * 86_400,
+            "device-newest": now - 1 * 86_400,
+        }))
+
+        await service.record("device-new", jws)
+        bindings = json.loads(await service._cache.get("txn:2000000000000001"))
+        assert "device-oldest" not in bindings, (
+            "the least-recently-seen slot is the one to reuse — evicting an "
+            "actively-used install just moves the lockout to another device")
+        assert set(bindings) == {"device-middle", "device-newest", "device-new"}
+
+    @pytest.mark.asyncio
+    async def test_active_install_keeps_its_slot(self, service, pinned_root):
+        """Re-recording refreshes last-seen, so use protects a binding."""
+        leaf_key, chain = pinned_root
+        jws = make_jws(valid_payload(), leaf_key, chain)
+        now = int(time.time())
+        await service._cache.set("txn:2000000000000001", json.dumps({
+            "device-a": now - 9 * 86_400,
+            "device-b": now - 8 * 86_400,
+            "device-c": now - 7 * 86_400,
+        }))
+
+        await service.record("device-a", jws)      # device-a checks in
+        await service.record("device-new", jws)    # forces an eviction
+
+        bindings = json.loads(await service._cache.get("txn:2000000000000001"))
+        assert "device-a" in bindings, "an install that just checked in is not the LRU"
+        assert "device-b" not in bindings
+
+    @pytest.mark.asyncio
+    async def test_reinstalling_repeatedly_never_locks_out(self, service, pinned_root):
+        """The exact production sequence: one phone, many reinstalls."""
+        leaf_key, chain = pinned_root
+        jws = make_jws(valid_payload(), leaf_key, chain)
+        for install in range(12):
+            assert (await service.record(f"install-{install}", jws)).tier == "pro", (
+                f"reinstall {install} was refused — a paying subscriber is "
+                "locked out of the subscription they are paying for")
+
+    @pytest.mark.asyncio
+    async def test_cap_still_bounds_concurrent_devices(self, service, pinned_root):
+        """Eviction is not the same as no cap: the record stays bounded."""
+        leaf_key, chain = pinned_root
+        jws = make_jws(valid_payload(), leaf_key, chain)
+        for i in range(20):
             await service.record(f"device-{i}", jws)
-        with pytest.raises(entitlements.DeviceLimitExceeded):
-            await service.record("device-3", jws)
-        assert (await service.current("device-3")).tier == "free"
+
+        bindings = json.loads(await service._cache.get("txn:2000000000000001"))
+        assert len(bindings) == 3
+
+    @pytest.mark.asyncio
+    async def test_dormant_bindings_age_out(self, service, pinned_root):
+        leaf_key, chain = pinned_root
+        jws = make_jws(valid_payload(), leaf_key, chain)
+        stale = int(time.time()) - entitlements.DEVICE_BINDING_IDLE_SECONDS - 1
+        await service._cache.set(
+            "txn:2000000000000001",
+            json.dumps({f"gone-{i}": stale for i in range(3)}))
+
+        await service.record("fresh", jws)
+        bindings = json.loads(await service._cache.get("txn:2000000000000001"))
+        assert set(bindings) == {"fresh"}, "a month-silent install is a deleted one"
+
+    @pytest.mark.asyncio
+    async def test_an_already_full_legacy_record_self_heals(self, service, pinned_root):
+        """The production recovery path: no Redis surgery needed.
+
+        A subscription locked out under the old code holds a full *list* of
+        subjects. The next `/auth/entitlement` must admit the caller by itself,
+        because the alternative is deleting the key by hand for every affected
+        subscriber.
+        """
+        leaf_key, chain = pinned_root
+        jws = make_jws(valid_payload(), leaf_key, chain)
+        await service._cache.set(
+            "txn:2000000000000001", json.dumps([f"stuck-{i}" for i in range(3)]))
+
+        assert (await service.record("after-reinstall", jws)).tier == "pro"
+        assert (await service.current("after-reinstall")).tier == "pro"
+
+    @pytest.mark.asyncio
+    async def test_legacy_list_records_are_readable(self, service, pinned_root):
+        """Records written before last-seen tracking are plain JSON lists."""
+        leaf_key, chain = pinned_root
+        jws = make_jws(valid_payload(), leaf_key, chain)
+        await service._cache.set(
+            "txn:2000000000000001", json.dumps(["old-a", "old-b"]))
+
+        await service.record("new-c", jws)
+        bindings = json.loads(await service._cache.get("txn:2000000000000001"))
+        assert set(bindings) == {"old-a", "old-b", "new-c"}, (
+            "an existing device must not be evicted just because the record "
+            "predates timestamps")
 
     @pytest.mark.asyncio
     async def test_same_device_re_records_freely(self, service, pinned_root):
