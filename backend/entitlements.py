@@ -53,7 +53,17 @@ at+qIxUCMG1mihDK1A3UT82NQz60imOlM27jbdoXt2QfyFMm+YhidDkLF1vLUagM
 # far cheaper than wrongly locking out a paying customer.
 EXPIRY_GRACE_SECONDS = 3600
 
-ENTITLEMENT_CACHE_TTL = 900          # 15 min
+ENTITLEMENT_CACHE_TTL = 900          # 15 min — free, and the refund window
+
+# A Pro entitlement has to outlive an ordinary gap between app launches.
+# Only the client can refresh this cache: it POSTs /auth/entitlement from
+# StoreKitPurchaseService.refreshSubscriptionStatus(), which runs at cold
+# launch, purchase, restore and Transaction.updates — there is no foreground
+# hook. iOS keeps apps suspended, so resuming one does not re-run init(), and
+# at 15 minutes a paying subscriber read as `free` and was handed the free
+# quota: one scan a day. Still capped by the subscription's own expiry below,
+# and `Entitlement.is_active` re-checks expiry on every read.
+PRO_ENTITLEMENT_CACHE_TTL = 86_400   # 24 h
 
 # Which StoreKit environments this deployment accepts.
 #
@@ -314,7 +324,7 @@ class EntitlementService:
         if ent.tier == "pro" and ent.original_transaction_id:
             await self._bind_device(subject, ent)
 
-        ttl = ENTITLEMENT_CACHE_TTL
+        ttl = PRO_ENTITLEMENT_CACHE_TTL if ent.tier == "pro" else ENTITLEMENT_CACHE_TTL
         if ent.expires_at:
             # Never cache past the subscription's own expiry.
             ttl = max(60, min(ttl, ent.expires_at - int(time.time())))

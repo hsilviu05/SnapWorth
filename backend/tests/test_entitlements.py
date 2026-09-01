@@ -32,6 +32,8 @@ import auditlog  # noqa: E402
 import entitlements  # noqa: E402
 from auditlog import AuditEvent  # noqa: E402
 from entitlements import (  # noqa: E402
+    ENTITLEMENT_CACHE_TTL,
+    PRO_ENTITLEMENT_CACHE_TTL,
     Entitlement,
     EntitlementError,
     EntitlementService,
@@ -225,6 +227,57 @@ class TestEntitlementService:
         with pytest.raises(EntitlementError):
             await service.record("subject-b", make_jws(valid_payload(), leaf_key, chain))
         assert (await service.current("subject-b")).tier == "free"
+
+    # ── Cache lifetime ───────────────────────────────────────────────────
+    #
+    # Only the client can refresh this cache — it POSTs /auth/entitlement from
+    # refreshSubscriptionStatus(), which runs at cold launch, purchase, restore
+    # and Transaction.updates, with no foreground hook. iOS suspends apps
+    # rather than terminating them, so at a 15-minute TTL a paying subscriber
+    # who resumed the app read as `free` and got the free quota: one scan/day.
+
+    @staticmethod
+    def _recording_cache():
+        """Wraps the real cache, capturing the TTL handed to each `set`."""
+        from cache import InMemoryCache, ResilientCache
+
+        class Recorder(ResilientCache):
+            def __init__(self):
+                super().__init__(None, InMemoryCache())
+                self.ttls: dict[str, int | None] = {}
+
+            async def set(self, key, value, ttl=None, **kw):
+                self.ttls[key] = ttl
+                return await super().set(key, value, ttl, **kw)
+
+        return Recorder()
+
+    @pytest.mark.asyncio
+    async def test_pro_entitlement_outlives_a_launch_gap(self, pinned_root):
+        leaf_key, chain = pinned_root
+        cache = self._recording_cache()
+        service = EntitlementService(cache, BUNDLE_ID, PRODUCTS)
+        # Expiry far enough out that the subscription cap is not the binding
+        # constraint, so we are measuring the entitlement TTL itself.
+        payload = valid_payload(expiresDate=int((time.time() + 30 * 86_400) * 1000))
+        await service.record("subject-ttl", make_jws(payload, leaf_key, chain))
+
+        ttl = next(v for k, v in cache.ttls.items() if "subject-ttl" in k)
+        assert ttl == PRO_ENTITLEMENT_CACHE_TTL
+        assert ttl > ENTITLEMENT_CACHE_TTL, (
+            "A Pro entitlement must survive longer than a 15-minute gap between "
+            "cold launches, or the subscriber silently reverts to the free quota")
+
+    @pytest.mark.asyncio
+    async def test_ttl_never_outlives_the_subscription(self, pinned_root):
+        leaf_key, chain = pinned_root
+        cache = self._recording_cache()
+        service = EntitlementService(cache, BUNDLE_ID, PRODUCTS)
+        payload = valid_payload(expiresDate=int((time.time() + 600) * 1000))
+        await service.record("subject-short", make_jws(payload, leaf_key, chain))
+
+        ttl = next(v for k, v in cache.ttls.items() if "subject-short" in k)
+        assert ttl <= 600, "Never cache a Pro entitlement past its own expiry"
 
     @pytest.mark.asyncio
     async def test_clear_revokes(self, service, pinned_root):
