@@ -4,16 +4,16 @@
 
 Built for thrifting resellers: snap a photo of a clothing item, get the brand, category, condition assessment, and an estimated resale price range in seconds.
 
-<!-- Once live, replace with your real App Store link:
-[![Download on the App Store](https://developer.apple.com/assets/elements/badges/download-on-the-app-store.svg)](https://apps.apple.com/app/idXXXXXXXXX)
--->
+[![Download on the App Store](https://developer.apple.com/assets/elements/badges/download-on-the-app-store.svg)](https://apps.apple.com/app/id6788521307)
 
+<!-- The live App Store screenshot set. The four panels carry their own
+     captions in the artwork; alt text repeats them for anyone not seeing
+     the images. -->
 <p align="center">
-  <img src="marketing/screenshots/screenshot_1.png" width="18%" alt="Camera scan" />
-  <img src="marketing/screenshots/screenshot_2.png" width="18%" alt="AI valuation result" />
-  <img src="marketing/screenshots/screenshot_3.png" width="18%" alt="My Finds history" />
-  <img src="marketing/screenshots/screenshot_4.png" width="18%" alt="Listing draft" />
-  <img src="marketing/screenshots/screenshot_5.png" width="18%" alt="SnapWorth Pro paywall" />
+  <img src="marketing/screenshots/store_1_four-seconds.jpg" width="23%" alt="Four seconds, in the aisle — point, snap, decide; no account, no typing" />
+  <img src="marketing/screenshots/store_2_know-before-you-buy.jpg" width="23%" alt="Know before you buy — an AI resale estimate from one photo" />
+  <img src="marketing/screenshots/store_3_every-flip-tracked.jpg" width="23%" alt="Every flip, tracked — paid, listed, sold; see what you actually made" />
+  <img src="marketing/screenshots/store_4_nothing-slips-through.jpg" width="23%" alt="Nothing slips through — every scan saved, with a nudge for what you haven't listed" />
 </p>
 
 ---
