@@ -45,13 +45,22 @@ class Recorder:
         self.status_code = status_code
 
     def handler(self, request: httpx.Request) -> httpx.Response:
-        self.requests.append(
-            {"url": str(request.url), "body": json.loads(request.content)})
+        path = request.url.path
+        if path.endswith("/getUpdates"):
+            # The command loop polls continuously; an empty inbox is the
+            # normal answer and is not a message the tests care about.
+            return httpx.Response(200, json={"ok": True, "result": []})
+        body = json.loads(request.content) if request.content else {}
+        self.requests.append({"url": str(request.url), "path": path, "body": body})
         return httpx.Response(self.status_code, json={"ok": self.status_code == 200})
 
     @property
+    def sends(self) -> list[dict]:
+        return [r for r in self.requests if r["path"].endswith("/sendMessage")]
+
+    @property
     def texts(self) -> list[str]:
-        return [r["body"]["text"] for r in self.requests]
+        return [r["body"]["text"] for r in self.sends]
 
 
 @pytest.fixture
@@ -120,7 +129,7 @@ class TestSend:
     @pytest.mark.asyncio
     async def test_posts_to_the_bot_api_with_the_chat_id(self, enabled_notify):
         assert await notify._notifier.send("hello") is True
-        (req,) = enabled_notify.requests
+        (req,) = enabled_notify.sends
         assert req["url"].endswith("/sendMessage")
         assert FAKE_TOKEN in req["url"]          # that is the Bot API's shape
         assert req["body"]["chat_id"] == FAKE_CHAT
@@ -426,3 +435,166 @@ class TestNewVersusExisting:
 
     def test_dates_render_unambiguously(self):
         assert notify._date(1_788_220_800) == "01 Sep 2026"
+
+
+# ── Activity and the /status command ─────────────────────────────────────────
+# "Online" does not exist for a request/response API; what the bot reports is
+# distinct devices seen in the current 15-minute window and today.
+
+class TestActivity:
+    @pytest.mark.asyncio
+    async def test_counts_distinct_devices_not_requests(self, enabled_notify, cache):
+        for _ in range(5):
+            notify.saw_user("a" * 64)
+        notify.saw_user("b" * 64)
+        await drain()
+        assert await cache.get(f"opsact:w:{notify._window()}") == "2"
+        assert await cache.get(notify._stat_key(notify._day(), "active_users")) == "2"
+
+    @pytest.mark.asyncio
+    async def test_stores_pseudonyms_not_subjects(self, enabled_notify, cache):
+        notify.saw_user("a" * 64)
+        await drain()
+        keys = list(cache._fallback._data)
+        assert not any(("a" * 64) in k for k in keys)
+
+    @pytest.mark.asyncio
+    async def test_disabled_is_a_no_op(self, cache, monkeypatch):
+        monkeypatch.delenv("TELEGRAM_BOT_TOKEN", raising=False)
+        monkeypatch.delenv("TELEGRAM_CHAT_ID", raising=False)
+        notify.configure(cache)
+        try:
+            notify.saw_user("a" * 64)
+            assert notify._tasks == set()
+        finally:
+            await notify.aclose()
+
+
+class TestCommands:
+    @pytest.mark.asyncio
+    async def test_status_reports_activity_scans_and_process_facts(self, cache, recorder):
+        notifier = notify.TelegramNotifier(
+            FAKE_TOKEN, FAKE_CHAT,
+            client=httpx.AsyncClient(transport=httpx.MockTransport(recorder.handler)))
+        notify.configure(cache, notifier=notifier, status_provider=lambda: {
+            "commit": "abc123def456", "cache": "redis", "auth_enforcing": True,
+            "model_healthy": False, "model_failure_kind": "quota_exhausted"})
+        try:
+            notify.saw_user("a" * 64)
+            notify.count_scan("pro")
+            await drain()
+            text = await notify.handle_command("/status")
+            assert "Active users: 1 since" in text
+            assert "1 today" in text
+            assert "Scans today: 1 ok (0 free · 1 Pro)" in text
+            assert "degraded (quota_exhausted)" in text
+            assert "abc123def456" in text
+            assert "auth enforcing" in text
+        finally:
+            await notify.aclose()
+
+    @pytest.mark.asyncio
+    async def test_status_without_a_provider_still_answers(self, enabled_notify):
+        text = await notify.handle_command("/status@SnapWorthBot")
+        assert text.startswith("📡")
+        assert "Build" not in text
+
+    @pytest.mark.asyncio
+    async def test_digest_on_demand_and_help(self, enabled_notify):
+        assert (await notify.handle_command("/digest")).startswith("📊")
+        assert "/status" in await notify.handle_command("/help")
+        assert "/status" in await notify.handle_command("/start")
+        assert "/status" in await notify.handle_command("/nonsense")
+        assert await notify.handle_command("hello there") is None
+
+
+class TestPolling:
+    class Bot:
+        """Mock Telegram: serves one batch of updates, records replies."""
+
+        def __init__(self, updates: list[dict]) -> None:
+            self.updates = updates
+            self.replies: list[str] = []
+            self.polls: list[dict] = []
+            self.command_menus: list[list] = []
+
+        def handler(self, request: httpx.Request) -> httpx.Response:
+            path = request.url.path
+            if path.endswith("/getUpdates"):
+                self.polls.append(dict(request.url.params))
+                batch, self.updates = self.updates, []
+                return httpx.Response(200, json={"ok": True, "result": batch})
+            if path.endswith("/sendMessage"):
+                self.replies.append(json.loads(request.content)["text"])
+                return httpx.Response(200, json={"ok": True})
+            if path.endswith("/setMyCommands"):
+                self.command_menus.append(json.loads(request.content)["commands"])
+                return httpx.Response(200, json={"ok": True})
+            return httpx.Response(404)
+
+    @staticmethod
+    def update(update_id: int, chat_id: str, text: str) -> dict:
+        return {"update_id": update_id,
+                "message": {"chat": {"id": int(chat_id)}, "text": text}}
+
+    @pytest.mark.asyncio
+    async def test_answers_the_operator_and_nobody_else(self, cache):
+        bot = self.Bot([
+            self.update(100, "999999", "/status"),      # a stranger
+            self.update(101, FAKE_CHAT, "/status"),     # the operator
+            self.update(102, FAKE_CHAT, "thanks"),      # not a command
+        ])
+        notifier = notify.TelegramNotifier(
+            FAKE_TOKEN, FAKE_CHAT,
+            client=httpx.AsyncClient(transport=httpx.MockTransport(bot.handler)))
+        notify.configure(cache, notifier=notifier)
+        try:
+            offset, handled = await notify.poll_once(None)
+            assert offset == 103, "the next poll must acknowledge everything seen"
+            assert handled == 1
+            assert len(bot.replies) == 1
+            assert bot.replies[0].startswith("📡")
+            # Second round sends the offset so Telegram drops the acknowledged
+            # updates, and finds nothing new.
+            offset, handled = await notify.poll_once(offset)
+            assert bot.polls[-1]["offset"] == "103"
+            assert (offset, handled) == (103, 0)
+        finally:
+            await notify.aclose()
+
+    @pytest.mark.asyncio
+    async def test_command_menu_is_published_on_configure(self, cache):
+        bot = self.Bot([])
+        notifier = notify.TelegramNotifier(
+            FAKE_TOKEN, FAKE_CHAT,
+            client=httpx.AsyncClient(transport=httpx.MockTransport(bot.handler)))
+        notify.configure(cache, notifier=notifier)
+        try:
+            await drain()
+            (menu,) = bot.command_menus
+            assert [c["command"] for c in menu] == ["status", "digest", "help"]
+        finally:
+            await notify.aclose()
+
+    @pytest.mark.asyncio
+    async def test_only_one_replica_polls(self, enabled_notify, cache):
+        assert await notify._hold_poll_lock() is True
+        assert await notify._hold_poll_lock() is True, "the holder renews its own lock"
+        await cache.set(notify.POLL_LOCK_KEY, "another-replica", 60)
+        assert await notify._hold_poll_lock() is False
+
+    @pytest.mark.asyncio
+    async def test_poll_failure_is_quiet(self, cache, caplog):
+        def explode(request: httpx.Request) -> httpx.Response:
+            raise httpx.ConnectError("boom", request=request)
+
+        notifier = notify.TelegramNotifier(
+            FAKE_TOKEN, FAKE_CHAT,
+            client=httpx.AsyncClient(transport=httpx.MockTransport(explode)))
+        notify.configure(cache, notifier=notifier)
+        try:
+            with caplog.at_level("WARNING"):
+                assert await notify.poll_once(None) == (None, 0)
+            assert FAKE_TOKEN not in caplog.text
+        finally:
+            await notify.aclose()

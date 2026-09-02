@@ -38,7 +38,9 @@ import asyncio
 import html
 import logging
 import os
+import secrets
 import time
+from collections.abc import Callable
 from datetime import datetime, timedelta, timezone
 
 import auditlog
@@ -72,6 +74,28 @@ DEFAULT_DIGEST_UTC_HOUR = 6
 # not announced before — which every existing subscriber does exactly once
 # after the notifier deploys, and which is not a sale.
 NEW_SUBSCRIPTION_WINDOW_SECONDS = 24 * 3600
+
+# "Online" does not exist for this app: a phone talks to the backend for the
+# seconds a scan takes and is otherwise silent. What can be counted honestly
+# is distinct devices seen within a clock-aligned window. Fifteen minutes is
+# short enough to mean "right now" and long enough to catch a scan session.
+ACTIVE_WINDOW_SECONDS = 15 * 60
+
+# Bot API long-poll. Telegram holds the request open until a message arrives
+# or the timeout passes, so an idle loop costs one HTTP request per timeout.
+POLL_TIMEOUT_SECONDS = 25
+
+# Only one replica may poll getUpdates — Telegram rejects concurrent pollers
+# and would hand each replica a random subset of messages. The lock is a
+# cache NX write that the holder renews; a dead holder loses it within TTL.
+POLL_LOCK_KEY = "opslock:tgpoll"
+POLL_LOCK_TTL = 90
+
+COMMANDS: tuple[tuple[str, str], ...] = (
+    ("status", "Active users, scans today, provider health"),
+    ("digest", "Yesterday's digest, now"),
+    ("help", "List commands"),
+)
 
 
 class TelegramNotifier:
@@ -114,6 +138,43 @@ class TelegramNotifier:
             log.warning("telegram send failed: %s", type(exc).__name__)
             return False
 
+    @property
+    def chat_id(self) -> str:
+        return self._chat_id
+
+    async def get_updates(self, offset: int | None) -> list[dict]:
+        """Long-poll for incoming messages. Returns [] on any failure."""
+        params: dict = {"timeout": POLL_TIMEOUT_SECONDS,
+                        "allowed_updates": '["message"]'}
+        if offset is not None:
+            params["offset"] = offset
+        try:
+            client = await self._http()
+            resp = await client.get(
+                f"{TELEGRAM_API}/bot{self._token}/getUpdates",
+                params=params, timeout=POLL_TIMEOUT_SECONDS + 10)
+            if resp.status_code != 200:
+                log.warning("telegram poll failed: HTTP %s", resp.status_code)
+                return []
+            body = resp.json()
+            return list(body.get("result") or []) if body.get("ok") else []
+        except Exception as exc:
+            log.warning("telegram poll failed: %s", type(exc).__name__)
+            return []
+
+    async def set_commands(self, commands=COMMANDS) -> bool:
+        """Publish the command menu Telegram shows behind the "/" button."""
+        try:
+            client = await self._http()
+            resp = await client.post(
+                f"{TELEGRAM_API}/bot{self._token}/setMyCommands",
+                json={"commands": [{"command": c, "description": d}
+                                   for c, d in commands]})
+            return resp.status_code == 200
+        except Exception as exc:
+            log.warning("telegram setMyCommands failed: %s", type(exc).__name__)
+            return False
+
     async def aclose(self) -> None:
         if self._client is not None:
             client, self._client = self._client, None
@@ -127,7 +188,16 @@ class TelegramNotifier:
 _notifier: TelegramNotifier | None = None
 _cache = None                                   # ResilientCache once configured
 _digest_task: asyncio.Task | None = None
+_command_task: asyncio.Task | None = None
 _tasks: set[asyncio.Task] = set()
+
+# Supplies the live process facts /status reports (commit, cache backend,
+# auth enforcement, model health). Injected by main so this module never
+# imports it.
+_status_provider: Callable[[], dict] | None = None
+
+# Identifies this replica as the poll-lock holder.
+_poll_token = secrets.token_hex(8)
 
 # In-process alert throttling. Per-replica on purpose: an alert is about *this*
 # process's view, and a duplicate from a second replica during an incident is
@@ -140,14 +210,16 @@ def enabled() -> bool:
     return _notifier is not None
 
 
-def configure(cache, notifier: TelegramNotifier | None = None) -> None:
+def configure(cache, notifier: TelegramNotifier | None = None,
+              status_provider: Callable[[], dict] | None = None) -> None:
     """Wire the notifier from the environment. Called once at startup.
 
     With the env vars unset this leaves everything disabled and every public
     function a no-op — the feature costs nothing until it is turned on.
     """
-    global _notifier, _cache
+    global _notifier, _cache, _status_provider
     _cache = cache
+    _status_provider = status_provider
 
     if notifier is not None:
         _notifier = notifier
@@ -161,15 +233,20 @@ def configure(cache, notifier: TelegramNotifier | None = None) -> None:
         _notifier = TelegramNotifier(token, chat_id)
 
     _start_digest()
+    _start_command_loop()
+    _spawn(_notifier.set_commands())
     log.info("telegram alerts enabled", extra={"digest_utc_hour": _digest_hour()})
 
 
 async def aclose() -> None:
     """Tear down background work. Alerts in flight at shutdown are dropped."""
-    global _notifier, _digest_task
+    global _notifier, _digest_task, _command_task
     if _digest_task is not None:
         _digest_task.cancel()
         _digest_task = None
+    if _command_task is not None:
+        _command_task.cancel()
+        _command_task = None
     for task in list(_tasks):
         task.cancel()
     _tasks.clear()
@@ -447,17 +524,22 @@ async def send_digest(now: datetime | None = None) -> bool:
         log.warning("digest guard failed, skipping: %s", type(exc).__name__)
         return False
 
+    return await _notifier.send(await _digest_text(yesterday))
+
+
+async def _digest_text(when: datetime) -> str:
+    day = _day(when)
     free = await _read_stat(day, "scans_free")
     pro = await _read_stat(day, "scans_pro")
     failed = await _read_stat(day, "scans_failed")
     subs = await _read_stat(day, "new_subs")
-
-    text = (
-        f"📊 <b>SnapWorth — {yesterday.strftime('%Y-%m-%d')}</b>\n"
+    users = await _read_stat(day, "active_users")
+    return (
+        f"📊 <b>SnapWorth — {when.strftime('%Y-%m-%d')}</b>\n"
+        f"Active users: {users}\n"
         f"Scans: {free + pro} ok ({free} free · {pro} Pro) · {failed} failed\n"
         f"New subscriptions: {subs}"
     )
-    return await _notifier.send(text)
 
 
 async def _digest_loop() -> None:
@@ -482,3 +564,173 @@ def _start_digest() -> None:
         # any later loop via _spawn; only the scheduled digest needs one now.
         return
     _digest_task = loop.create_task(_digest_loop())
+
+
+# ── Activity ─────────────────────────────────────────────────────────────────
+
+def _window(at: float | None = None) -> int:
+    return int((at if at is not None else time.time()) // ACTIVE_WINDOW_SECONDS)
+
+
+def _window_start(window: int) -> datetime:
+    return datetime.fromtimestamp(window * ACTIVE_WINDOW_SECONDS, timezone.utc)
+
+
+async def _note_activity(subject: str) -> None:
+    try:
+        # The pseudonym, never the raw subject: these keys outlive the request
+        # and the audit log already decided what identity is allowed to persist.
+        who = auditlog.pseudonymise(subject)
+        window = _window()
+        if await _cache.add(f"opsseen:w:{window}:{who}", "1", 2 * ACTIVE_WINDOW_SECONDS):
+            await _cache.incr(f"opsact:w:{window}", 2 * ACTIVE_WINDOW_SECONDS)
+        day = _day()
+        if await _cache.add(f"opsseen:d:{day}:{who}", "1", STATS_TTL):
+            await _cache.incr(_stat_key(day, "active_users"), STATS_TTL)
+    except Exception as exc:
+        log.debug("activity note failed: %s", type(exc).__name__)
+
+
+def saw_user(subject: str) -> None:
+    """Count this device as active now and today. Fire-and-forget.
+
+    Called on every authenticated request. Two cache writes per *new* device
+    per window, both in the background — the request never waits.
+    """
+    if _notifier is None or _cache is None or not subject:
+        return
+    _spawn(_note_activity(subject))
+
+
+async def _read_int(key: str) -> int:
+    try:
+        return int(await _cache.get(key) or 0)
+    except Exception:
+        return 0
+
+
+# ── Commands ─────────────────────────────────────────────────────────────────
+
+def _help_text() -> str:
+    lines = ["🤖 <b>SnapWorth bot</b>"]
+    lines += [f"/{c} — {html.escape(d)}" for c, d in COMMANDS]
+    return "\n".join(lines)
+
+
+async def _status_text() -> str:
+    now = datetime.now(timezone.utc)
+    day = _day(now)
+    window = _window()
+    active_now = await _read_int(f"opsact:w:{window}")
+    active_today = await _read_stat(day, "active_users")
+    free = await _read_stat(day, "scans_free")
+    pro = await _read_stat(day, "scans_pro")
+    failed = await _read_stat(day, "scans_failed")
+    subs = await _read_stat(day, "new_subs")
+
+    lines = [
+        "📡 <b>SnapWorth status</b>",
+        f"Active users: {active_now} since {_window_start(window):%H:%M} UTC "
+        f"· {active_today} today",
+        f"Scans today: {free + pro} ok ({free} free · {pro} Pro) · {failed} failed",
+        f"New subscriptions today: {subs}",
+    ]
+    if _status_provider is not None:
+        try:
+            info = _status_provider()
+        except Exception as exc:
+            log.warning("status provider failed: %s", type(exc).__name__)
+            info = {}
+        if info:
+            if info.get("model_healthy", True):
+                model = "healthy"
+            else:
+                model = f"degraded ({html.escape(str(info.get('model_failure_kind') or 'unknown'))})"
+            auth = "enforcing" if info.get("auth_enforcing") else "NOT enforcing"
+            lines.append(f"AI provider: {model}")
+            lines.append(
+                f"Build <code>{html.escape(str(info.get('commit', '?')))}</code> · "
+                f"cache {html.escape(str(info.get('cache', '?')))} · auth {auth}")
+    return "\n".join(lines)
+
+
+async def handle_command(text: str) -> str | None:
+    """Reply text for one operator message, or None to stay silent."""
+    text = (text or "").strip()
+    if not text.startswith("/"):
+        return None
+    command = text.split()[0].lower().split("@", 1)[0]
+    if command == "/status":
+        return await _status_text()
+    if command == "/digest":
+        return await _digest_text(datetime.now(timezone.utc) - timedelta(days=1))
+    return _help_text()
+
+
+# ── Poll loop ────────────────────────────────────────────────────────────────
+
+async def _hold_poll_lock() -> bool:
+    """True when this replica may poll. Cache trouble errs on polling:
+    a duplicated reply beats a bot that never answers."""
+    try:
+        if await _cache.add(POLL_LOCK_KEY, _poll_token, POLL_LOCK_TTL):
+            return True
+        if await _cache.get(POLL_LOCK_KEY) == _poll_token:
+            await _cache.set(POLL_LOCK_KEY, _poll_token, POLL_LOCK_TTL)
+            return True
+        return False
+    except Exception:
+        return True
+
+
+async def poll_once(offset: int | None) -> tuple[int | None, int]:
+    """One getUpdates round. Returns (next offset, messages handled).
+
+    Only the operator's chat is answered. Anyone else who finds the bot gets
+    nothing back — not even an error — so there is nothing to probe.
+    """
+    handled = 0
+    for update in await _notifier.get_updates(offset):
+        offset = int(update.get("update_id", 0)) + 1
+        message = update.get("message") or {}
+        chat_id = str((message.get("chat") or {}).get("id", ""))
+        if chat_id != _notifier.chat_id:
+            continue
+        reply = await handle_command(message.get("text") or "")
+        if reply:
+            await _notifier.send(reply)
+            handled += 1
+    return offset, handled
+
+
+async def _command_loop() -> None:
+    offset: int | None = None
+    while True:
+        try:
+            if not await _hold_poll_lock():
+                await asyncio.sleep(POLL_LOCK_TTL / 3)
+                continue
+            before = offset
+            offset, _ = await poll_once(offset)
+            if offset == before:
+                # Empty poll: a long-poll timeout (25s spent) or a transport
+                # failure (returned at once). The pause only matters for the
+                # second, so a failing API is not hammered.
+                await asyncio.sleep(2)
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:           # the loop must outlive any one poll
+            log.warning("command loop error: %s", type(exc).__name__)
+            await asyncio.sleep(5)
+
+
+def _start_command_loop() -> None:
+    global _command_task
+    if _command_task is not None:
+        _command_task.cancel()
+        _command_task = None
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        return
+    _command_task = loop.create_task(_command_loop())

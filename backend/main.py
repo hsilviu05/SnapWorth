@@ -183,7 +183,7 @@ async def _lifespan(_app: FastAPI):
         _cache, auth.deps.config.bundle_id, _PRODUCT_IDS)
     auth.deps.quota = ScanQuota(_cache, dc, limit=int(
         os.environ.get("FREE_SCANS_PER_DAY", str(FREE_SCANS_PER_DAY))))
-    notify.configure(_cache)
+    notify.configure(_cache, status_provider=_status_snapshot)
 
     cfg = auth.deps.config
     if cfg.enforce and not cfg.is_configured:
@@ -243,6 +243,17 @@ _DRAIN_TIMEOUT_SECONDS = float(os.environ.get("DRAIN_TIMEOUT_SECONDS", "15"))
 # Readiness is separate from liveness: the process can be alive and healthy
 # while deliberately refusing new traffic (starting up, or draining).
 _ready = False
+
+
+def _status_snapshot() -> dict:
+    """What the Telegram /status command reports about this process."""
+    return {
+        "commit": GIT_COMMIT,
+        "cache": _cache.backend if _cache is not None else "unknown",
+        "auth_enforcing": auth.deps.config.enforce,
+        "model_healthy": _model_health.healthy,
+        "model_failure_kind": _model_health.last_failure_kind,
+    }
 
 
 async def _close_dependencies() -> None:
