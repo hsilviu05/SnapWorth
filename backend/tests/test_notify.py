@@ -249,6 +249,48 @@ class TestModelHealthAlerts:
         assert len(enabled_notify.texts) == 3
 
 
+# ── Deploy ping ──────────────────────────────────────────────────────────────
+
+class TestDeployPing:
+    @pytest.mark.asyncio
+    async def test_announces_a_commit_once(self, enabled_notify):
+        notify.deployed("51c74bb58048", cache_backend="redis", auth_enforcing=True)
+        # Second replica, or Railway restarting the same build.
+        notify.deployed("51c74bb58048", cache_backend="redis", auth_enforcing=True)
+        await drain()
+        assert len(enabled_notify.texts) == 1
+        text = enabled_notify.texts[0]
+        assert "deployed" in text
+        assert "51c74bb58048" in text
+        assert "redis" in text
+        assert "auth enforcing" in text
+
+    @pytest.mark.asyncio
+    async def test_a_new_commit_announces_again(self, enabled_notify):
+        notify.deployed("aaaaaaaaaaaa", cache_backend="redis", auth_enforcing=True)
+        notify.deployed("bbbbbbbbbbbb", cache_backend="redis", auth_enforcing=True)
+        await drain()
+        assert len(enabled_notify.texts) == 2
+
+    @pytest.mark.asyncio
+    async def test_calls_out_enforcement_being_off(self, enabled_notify):
+        # The one deploy-time misconfiguration worth shouting about.
+        notify.deployed("cccccccccccc", cache_backend="memory", auth_enforcing=False)
+        await drain()
+        assert "NOT enforcing" in enabled_notify.texts[0]
+
+    @pytest.mark.asyncio
+    async def test_disabled_is_a_no_op(self, cache, monkeypatch):
+        monkeypatch.delenv("TELEGRAM_BOT_TOKEN", raising=False)
+        monkeypatch.delenv("TELEGRAM_CHAT_ID", raising=False)
+        notify.configure(cache)
+        try:
+            notify.deployed("dddddddddddd", cache_backend="redis", auth_enforcing=True)
+            assert notify._tasks == set()
+        finally:
+            await notify.aclose()
+
+
 # ── Daily digest ─────────────────────────────────────────────────────────────
 
 class TestDigest:
