@@ -128,6 +128,16 @@ DEVICE_BINDING_TTL = 60 * 60 * 24 * 400
 DEVICE_BINDING_IDLE_SECONDS = 60 * 60 * 24 * 30
 
 
+def _is_legacy_subject(identity: str) -> bool:
+    """True for a binding keyed by App Attest key id rather than device id.
+
+    Subjects are the hex of a 32-byte key id; device ids are UUID strings.
+    The two never collide, which is what lets the sharing alert tell a
+    pre-1.3.4 ghost apart from a phone.
+    """
+    return len(identity) == 64 and all(c in "0123456789abcdef" for c in identity)
+
+
 class EntitlementError(Exception):
     """Signed transaction was missing, malformed, or failed verification."""
 
@@ -507,9 +517,17 @@ class EntitlementService:
             log.info("device binding evicted to make room", extra={
                 "devices": self._max_devices, "max": self._max_devices,
                 "idle_seconds": idle_seconds})
-            notify.subscription_over_cap(
-                ent.original_transaction_id or "", ent.product_id,
-                idle_seconds=idle_seconds, max_devices=self._max_devices)
+            # Only a *device* being pushed out is a sharing signal. A record
+            # written before iOS 1.3.4 holds one per-install attest subject
+            # per reinstall — six of them for one phone that was reinstalled
+            # six times — and the first launch with a stable device id
+            # evicts one of those ghosts. That is the migration doing its
+            # job, not a seventh phone, and reporting it as sharing would
+            # teach the operator to ignore the alert that matters.
+            if not _is_legacy_subject(evicted):
+                notify.subscription_over_cap(
+                    ent.original_transaction_id or "", ent.product_id,
+                    idle_seconds=idle_seconds, max_devices=self._max_devices)
 
         # Rewritten on every record, so a device in active use keeps its slot
         # and only genuinely dormant ones age out.

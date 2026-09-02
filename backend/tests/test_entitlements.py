@@ -764,3 +764,63 @@ class TestOriginalPurchaseDate:
                           "original_transaction_id": "otid",
                           "environment": "Production"})
         assert Entitlement.from_json(raw).original_purchase_at is None
+
+
+# ── Sharing alert vs. the 1.3.4 migration ────────────────────────────────────
+# A record written before device ids holds one attest subject per reinstall.
+# The first launch with a device id evicts one of those; that is not sharing.
+
+class TestSharingAlertOnMigration:
+    @pytest.fixture
+    def service(self):
+        from cache import InMemoryCache, ResilientCache
+        return EntitlementService(
+            ResilientCache(None, InMemoryCache()), BUNDLE_ID, PRODUCTS, max_devices=3)
+
+    @pytest.fixture
+    def alerts(self, monkeypatch):
+        import notify
+        calls: list[dict] = []
+        monkeypatch.setattr(notify, "subscription_over_cap",
+                            lambda *a, **k: calls.append(k))
+        return calls
+
+    @pytest.mark.asyncio
+    async def test_evicting_a_reinstall_ghost_is_not_reported(self, service, pinned_root, alerts):
+        """The exact production message: one phone, six old subjects, first
+        launch of 1.3.4 — '🔁 more than 6 devices active … likely sharing'."""
+        leaf_key, chain = pinned_root
+        jws = make_jws(valid_payload(), leaf_key, chain)
+        now = int(time.time())
+        await service._cache.set("txn:2000000000000001", json.dumps({
+            "a" * 64: now - 36 * 3600,
+            "b" * 64: now - 30 * 3600,
+            "c" * 64: now - 24 * 3600,
+        }))
+
+        await service.record("d" * 64, jws, device_id="8F1C2A3E-0000-4000-8000-000000000001")
+
+        bindings = json.loads(await service._cache.get("txn:2000000000000001"))
+        assert "a" * 64 not in bindings, "the ghost is still evicted"
+        assert alerts == [], "but evicting a ghost is migration, not sharing"
+
+    @pytest.mark.asyncio
+    async def test_evicting_a_real_device_is_reported(self, service, pinned_root, alerts):
+        leaf_key, chain = pinned_root
+        jws = make_jws(valid_payload(), leaf_key, chain)
+        now = int(time.time())
+        await service._cache.set("txn:2000000000000001", json.dumps({
+            "8F1C2A3E-0000-4000-8000-000000000001": now - 36 * 3600,
+            "8F1C2A3E-0000-4000-8000-000000000002": now - 30 * 3600,
+            "8F1C2A3E-0000-4000-8000-000000000003": now - 24 * 3600,
+        }))
+
+        await service.record("d" * 64, jws, device_id="8F1C2A3E-0000-4000-8000-000000000004")
+
+        assert len(alerts) == 1
+        assert alerts[0]["idle_seconds"] >= 36 * 3600 - 5
+
+    def test_identity_kinds_are_distinguishable(self):
+        assert entitlements._is_legacy_subject("0f" * 32)
+        assert not entitlements._is_legacy_subject("8F1C2A3E-0000-4000-8000-000000000001")
+        assert not entitlements._is_legacy_subject("device-1")
