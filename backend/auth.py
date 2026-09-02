@@ -32,6 +32,7 @@ from pydantic import BaseModel, Field
 
 import appattest
 import auditlog
+import notify
 from cache import KeyValueStore
 from devicecheck import DeviceCheckClient
 from auditlog import AuditEvent
@@ -375,6 +376,9 @@ async def record_entitlement(
 
     auditlog.record(AuditEvent.ENTITLEMENT_RECORDED, principal.subject,
                     tier=ent.tier, product_id=ent.product_id)
+    # Operator ping: first sighting of a subscription, or a proven downgrade.
+    # Deduped and throttled inside; never raises, so it cannot fail the sync.
+    await notify.entitlement_recorded(principal.subject, ent)
 
     access_token = None
     if deps.signer is not None and principal.authenticated:

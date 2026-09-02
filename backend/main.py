@@ -37,6 +37,7 @@ import devicecheck
 import imagequality
 import imagevalidation
 import metrics
+import notify
 import promptsafety
 import prompts
 import ratelimit
@@ -182,6 +183,7 @@ async def _lifespan(_app: FastAPI):
         _cache, auth.deps.config.bundle_id, _PRODUCT_IDS)
     auth.deps.quota = ScanQuota(_cache, dc, limit=int(
         os.environ.get("FREE_SCANS_PER_DAY", str(FREE_SCANS_PER_DAY))))
+    notify.configure(_cache)
 
     cfg = auth.deps.config
     if cfg.enforce and not cfg.is_configured:
@@ -243,6 +245,11 @@ _ready = False
 
 async def _close_dependencies() -> None:
     """Release connections. Best-effort — shutdown must never hang or raise."""
+    try:
+        await notify.aclose()
+    except Exception as exc:
+        log.warning("notify close failed: %s", exc)
+
     try:
         await devicecheck.aclose()
     except Exception as exc:
@@ -970,6 +977,7 @@ async def scan(
         ) from None
     except aiconfig.ModelUnavailable as exc:
         log.error("gemini failed after retries: %s", exc)
+        notify.count_scan_failure()
         raise HTTPException(
             status_code=502,
             detail="The AI service is temporarily unavailable. Please try again.",
@@ -985,6 +993,7 @@ async def scan(
         data = await _retry_as_json(raw)
         if data is None:
             log.error("scan unparseable after reformat", extra={"raw_prefix": raw[:200]})
+            notify.count_scan_failure()
             raise HTTPException(
                 status_code=502,
                 detail="The AI response couldn't be read. Please try again.",
@@ -1007,6 +1016,7 @@ async def scan(
                   extra={"item": val.item_name, "category": val.category,
                          "keys": sorted(data)[:20]})
         metrics.model_calls.inc(operation="scan", outcome="no_price")
+        notify.count_scan_failure()
         raise HTTPException(
             status_code=502,
             detail="The AI couldn't price this item. Please try again.",
@@ -1056,6 +1066,7 @@ async def scan(
 
     # Charge only for work that produced a result.
     quota_status = await consume_quota(principal)
+    notify.count_scan(principal.tier)
 
     return ScanResponse(
         # ── v1 contract ─────────────────────────────────────────────────────
@@ -1175,14 +1186,22 @@ class _ModelHealth:
         self.last_failure_at: float | None = None
 
     def record_success(self) -> None:
+        was_healthy = self.healthy
         self.consecutive_failures = 0
         self.last_failure_kind = None
         self.last_ok_at = time.time()
+        # Transition, not state: the all-clear fires once per incident, and
+        # notify itself suppresses it unless the matching alert went out.
+        if not was_healthy:
+            notify.model_recovered()
 
     def record_failure(self, kind: str) -> None:
+        was_healthy = self.healthy
         self.consecutive_failures += 1
         self.last_failure_kind = kind
         self.last_failure_at = time.time()
+        if was_healthy and not self.healthy:
+            notify.model_unhealthy(kind)
 
     @property
     def healthy(self) -> bool:

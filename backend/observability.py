@@ -147,6 +147,12 @@ _REDACTIONS: tuple[tuple[re.Pattern, str], ...] = (
     (re.compile(r"\beyJ[A-Za-z0-9._\-]{20,}"), "<jwt-redacted>"),
     # Gemini / Google API keys.
     (re.compile(r"\bAIza[A-Za-z0-9_\-]{20,}"), "<api-key-redacted>"),
+    # Telegram bot tokens: numeric bot id, colon, secret. They ride inside the
+    # request URL (that is the Bot API's design), so any transport error string
+    # from notify.py would otherwise carry the credential into the logs.
+    # Not \b-anchored on the left: in the URL the numeric id follows "bot"
+    # directly ("/bot123456:..."), which is a word boundary that never matches.
+    (re.compile(r"(?<![0-9])\d{6,12}:[A-Za-z0-9_-]{30,}\b"), "<telegram-token-redacted>"),
     # Apple .p8 private key bodies.
     (re.compile(r"-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?-----END [A-Z ]*PRIVATE KEY-----"),
      "<private-key-redacted>"),
