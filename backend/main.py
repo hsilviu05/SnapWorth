@@ -206,6 +206,8 @@ async def _lifespan(_app: FastAPI):
     global _ready
     _ready = True
     log.info("startup complete — accepting traffic")
+    notify.deployed(GIT_COMMIT, cache_backend=_cache.backend,
+                    auth_enforcing=cfg.enforce)
 
     yield
 

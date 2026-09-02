@@ -22,6 +22,8 @@ What gets sent:
   one message per half hour rather than one per failure.
 * **A daily digest** of scan and subscription counters kept in the shared
   cache, so multiple replicas count together and exactly one of them sends.
+* **A deploy ping** the first time a commit boots — which also makes every
+  release a live test of the notifier itself.
 
 The bot token is a credential. It appears in request URLs, so failures are
 logged by exception class name only, and observability.py redacts the token
@@ -257,6 +259,37 @@ async def entitlement_recorded(subject: str, ent) -> None:
                 "verified as not-Pro — refunded, revoked or expired.")
     except Exception as exc:
         log.warning("subscription alert failed: %s", type(exc).__name__)
+
+
+# ── Deploy ping ──────────────────────────────────────────────────────────────
+
+async def _announce_deploy(commit: str, cache_backend: str, auth_enforcing: bool) -> None:
+    try:
+        # One ping per commit, however many replicas boot it or however often
+        # Railway restarts the container. A build that crash-loops has other
+        # symptoms; a stream of identical "deployed" messages would only bury them.
+        if not await _cache.add(f"opsseen:deploy:{commit}", "1", STATS_TTL):
+            return
+    except Exception as exc:
+        log.debug("deploy ping guard failed, skipping: %s", type(exc).__name__)
+        return
+    auth = "enforcing" if auth_enforcing else "NOT enforcing"
+    await _notifier.send(
+        "🚀 <b>Backend deployed</b>\n"
+        f"commit <code>{html.escape(commit)}</code> · "
+        f"cache {html.escape(cache_backend)} · auth {auth}")
+
+
+def deployed(commit: str, *, cache_backend: str, auth_enforcing: bool) -> None:
+    """Announce that a new build is serving traffic.
+
+    Answers "did the deploy land?" without a curl to /health, and doubles as a
+    live check of the notifier itself on every release: if this message does
+    not arrive, nothing else from this module will either.
+    """
+    if _notifier is None or _cache is None:
+        return
+    _spawn(_announce_deploy(commit, cache_backend, auth_enforcing))
 
 
 # ── Operational alerts ───────────────────────────────────────────────────────
