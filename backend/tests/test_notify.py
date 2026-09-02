@@ -382,3 +382,47 @@ class TestSharingSignal:
             assert notify._tasks == set()
         finally:
             await notify.aclose()
+
+
+# ── New customer vs existing subscriber ──────────────────────────────────────
+# Every existing subscriber is announced exactly once after the notifier
+# deploys. Calling that a "new subscription" misreports sales; the original
+# purchase date is what tells the two apart.
+
+class TestNewVersusExisting:
+    @pytest.mark.asyncio
+    async def test_bought_today_is_new(self, enabled_notify, cache):
+        ent = Entitlement("pro", "com.snapworth.monthly", int(time.time()) + 30 * 86_400,
+                          "otid-new", "Production",
+                          original_purchase_at=int(time.time()) - 600)
+        await notify.entitlement_recorded(SUBJECT, ent)
+        text = enabled_notify.texts[0]
+        assert "New Pro subscription" in text
+        assert "first purchased" in text
+        assert "renews or expires" in text
+        assert await cache.get(notify._stat_key(notify._day(), "new_subs")) == "1"
+
+    @pytest.mark.asyncio
+    async def test_bought_weeks_ago_is_an_existing_subscriber(self, enabled_notify, cache):
+        ent = Entitlement("pro", "com.snapworth.monthly", int(time.time()) + 5 * 86_400,
+                          "otid-old", "Production",
+                          original_purchase_at=int(time.time()) - 40 * 86_400)
+        await notify.entitlement_recorded(SUBJECT, ent)
+        text = enabled_notify.texts[0]
+        assert "Existing Pro subscriber" in text
+        assert "New Pro subscription" not in text
+        assert "first purchased" in text
+        # Not a sale: must not inflate the digest.
+        assert await cache.get(notify._stat_key(notify._day(), "new_subs")) is None
+
+    @pytest.mark.asyncio
+    async def test_existing_subscriber_is_still_announced_only_once(self, enabled_notify):
+        ent = Entitlement("pro", "com.snapworth.monthly", int(time.time()) + 5 * 86_400,
+                          "otid-old", "Production",
+                          original_purchase_at=int(time.time()) - 40 * 86_400)
+        await notify.entitlement_recorded(SUBJECT, ent)
+        await notify.entitlement_recorded(SUBJECT, ent)
+        assert len(enabled_notify.texts) == 1
+
+    def test_dates_render_unambiguously(self):
+        assert notify._date(1_788_220_800) == "01 Sep 2026"

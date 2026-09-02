@@ -733,3 +733,34 @@ class TestDeviceIdentityBinding:
         assert "phone-A" in bindings
         assert "phone-B" not in bindings
         assert len(bindings) == 3
+
+
+# ── Original purchase date ───────────────────────────────────────────────────
+# Carried so the operator alert can say whether a subscriber is new or merely
+# re-syncing: renewals keep Apple's originalPurchaseDate.
+
+class TestOriginalPurchaseDate:
+    def test_parsed_from_the_signed_transaction(self, pinned_root):
+        leaf_key, chain = pinned_root
+        bought_ms = int((time.time() - 40 * 86_400) * 1000)
+        jws = make_jws(valid_payload(originalPurchaseDate=bought_ms), leaf_key, chain)
+        ent = verify_signed_transaction(jws, BUNDLE_ID, PRODUCTS)
+        assert ent.original_purchase_at == bought_ms // 1000
+
+    def test_absent_is_tolerated(self, pinned_root):
+        leaf_key, chain = pinned_root
+        jws = make_jws(valid_payload(), leaf_key, chain)
+        assert verify_signed_transaction(jws, BUNDLE_ID, PRODUCTS).original_purchase_at is None
+
+    def test_survives_the_cache_round_trip(self):
+        ent = Entitlement("pro", "com.snapworth.monthly", 1_900_000_000,
+                          "otid", "Production", original_purchase_at=1_800_000_000)
+        assert Entitlement.from_json(ent.to_json()) == ent
+
+    def test_entries_cached_before_this_field_still_load(self):
+        # Production cache holds entitlements written without the key.
+        raw = json.dumps({"tier": "pro", "product_id": "com.snapworth.yearly",
+                          "expires_at": 1_900_000_000,
+                          "original_transaction_id": "otid",
+                          "environment": "Production"})
+        assert Entitlement.from_json(raw).original_purchase_at is None

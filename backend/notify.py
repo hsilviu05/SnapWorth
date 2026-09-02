@@ -67,6 +67,12 @@ ALERT_MIN_INTERVAL_SECONDS = 30 * 60.0
 
 DEFAULT_DIGEST_UTC_HOUR = 6
 
+# A subscription first purchased within this window is a new customer. Older
+# than that and the app is merely re-syncing a subscription this notifier has
+# not announced before — which every existing subscriber does exactly once
+# after the notifier deploys, and which is not a sale.
+NEW_SUBSCRIPTION_WINDOW_SECONDS = 24 * 3600
+
 
 class TelegramNotifier:
     """Thin sendMessage client over the shared httpx stack."""
@@ -193,6 +199,10 @@ def _spawn(coro) -> None:
 
 # ── Daily counters ───────────────────────────────────────────────────────────
 
+def _date(epoch: int) -> str:
+    return datetime.fromtimestamp(epoch, timezone.utc).strftime("%d %b %Y")
+
+
 def _day(at: datetime | None = None) -> str:
     return (at or datetime.now(timezone.utc)).strftime("%Y%m%d")
 
@@ -245,11 +255,25 @@ async def entitlement_recorded(subject: str, ent) -> None:
                 return
             if not await _cache.add(f"opsseen:sub:{otid}", "1", SUB_SEEN_TTL):
                 return
-            await _cache.incr(_stat_key(_day(), "new_subs"), STATS_TTL)
+            purchased = getattr(ent, "original_purchase_at", None)
+            # Unknown purchase date reads as new: Apple always supplies it, so
+            # its absence is a test fixture, not a customer.
+            is_new = (purchased is None
+                      or time.time() - purchased < NEW_SUBSCRIPTION_WINDOW_SECONDS)
+            if is_new:
+                await _cache.incr(_stat_key(_day(), "new_subs"), STATS_TTL)
+                headline = "🎉 <b>New Pro subscription</b>"
+            else:
+                headline = ("👋 <b>Existing Pro subscriber checked in</b> "
+                            "(first time this bot has seen them)")
             product = html.escape(ent.product_id or "unknown product")
             environment = html.escape(ent.environment)
-            await _notifier.send(
-                f"🎉 <b>New Pro subscription</b>\n{product} ({environment})")
+            lines = [headline, f"{product} ({environment})"]
+            if purchased is not None:
+                lines.append(f"first purchased {_date(purchased)}")
+            if ent.expires_at:
+                lines.append(f"renews or expires {_date(ent.expires_at)}")
+            await _notifier.send("\n".join(lines))
         else:
             if not await _cache.add(
                     f"opsseen:down:{subject}", "1", DOWNGRADE_THROTTLE_TTL):
