@@ -343,6 +343,7 @@ async def require_auth(
         # token, so an expired or refunded subscription stops working within
         # one cache TTL instead of one token lifetime.
         ent = await deps.entitlements.current(subject)
+        notify.saw_user(subject)
         return Principal(subject=subject, tier=ent.tier, authenticated=True)
 
     if cfg.enforce:
@@ -354,7 +355,9 @@ async def require_auth(
         )
 
     # Legacy, pre-enforcement path.
-    return Principal(subject=f"legacy:{x_device_id[:64]}", tier="free", authenticated=False)
+    subject = f"legacy:{x_device_id[:64]}"
+    notify.saw_user(subject)
+    return Principal(subject=subject, tier="free", authenticated=False)
 
 
 @router.post("/entitlement", response_model=EntitlementResponse)
