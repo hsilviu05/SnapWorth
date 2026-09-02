@@ -35,6 +35,8 @@ from cryptography.exceptions import InvalidSignature
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import ec
 
+import notify
+
 log = logging.getLogger("snapworth.entitlements")
 
 # Apple Root CA - G3. Public; the trust anchor for StoreKit signed transactions.
@@ -353,15 +355,21 @@ class EntitlementService:
             ttl = max(60, min(ttl, ent.expires_at - int(time.time())))
         return ttl
 
-    async def record(self, subject: str, jws_value: str) -> Entitlement:
-        """Verify, device-bind, and cache. Raises `EntitlementError` if invalid."""
+    async def record(self, subject: str, jws_value: str,
+                     device_id: str | None = None) -> Entitlement:
+        """Verify, device-bind, and cache. Raises `EntitlementError` if invalid.
+
+        `device_id` is the client's stable per-device identifier (Keychain-
+        backed from iOS 1.3.4). When present, the subscription is bound to it
+        rather than to `subject`, so reinstalls on one phone occupy one slot.
+        """
         ent = verify_signed_transaction(jws_value, self._bundle_id, self._allowed)
 
         # Bind before caching. Binding no longer refuses anyone, so this is
         # ordering for its own sake rather than a gate: the record should
         # reflect this install before anything reads an entitlement for it.
         if ent.tier == "pro" and ent.original_transaction_id:
-            await self._bind_device(subject, ent)
+            await self._bind_device(subject, ent, device_id)
 
         await self._cache.set(self._key(subject), ent.to_json(), self._cache_ttl(ent))
 
@@ -430,14 +438,15 @@ class EntitlementService:
                     if isinstance(t, (int, float))}
         return {}
 
-    async def _bind_device(self, subject: str, ent: Entitlement) -> None:
-        """Associate `subject` with the subscription, bounding how many share it.
+    async def _bind_device(self, subject: str, ent: Entitlement,
+                           device_id: str | None = None) -> None:
+        """Associate this device with the subscription, bounding how many share it.
 
         The signed transaction reaches the client in plaintext, so one payer can
         hand it to arbitrarily many installs. Each install attests under its own
         App Attest key, so without this every recipient becomes Pro.
 
-        **This bounds concurrently-bound installs; it does not refuse anyone.**
+        **This bounds concurrently-bound devices; it does not refuse anyone.**
         It used to refuse, and that was a lockout with no way out: an App Attest
         key is per *install*, not per device, so reinstalling minted a new
         subject and consumed another slot while the old one sat there for 400
@@ -445,22 +454,26 @@ class EntitlementService:
         later `/auth/entitlement` answered 409, the client swallowed it, and a
         paying subscriber silently got the free tier's one scan a day.
 
-        There is no version of a hard cap that survives this. Any "evict only
-        idle slots" rule still refuses the person reinstalling right now, whose
-        other slots were all active minutes ago — exactly the case that broke.
-        While identity resets on reinstall, the choice is between capping
-        strictly and never locking out a payer, and locking out a payer is far
-        the worse failure: they have paid, and support cannot fix it without
-        deleting the record by hand.
+        The identity bound is `device_id` when the client sends one — a
+        Keychain-backed value that outlives app deletion, from iOS 1.3.4 — and
+        falls back to `subject` for older clients. With a stable identity a
+        reinstall lands on the slot it already holds, so the record counts
+        phones, and eviction churn means what it looks like: more phones than
+        the cap on one subscription. Under subjects alone it could not be told
+        apart from one phone reinstalled repeatedly.
 
-        So the least-recently-seen binding is evicted to make room. Restoring a
-        cap with teeth needs an identity that survives reinstall — a Keychain
-        device id, which outlives app deletion — and that is a client change.
+        Eviction is still the least-recently-seen binding rather than a refusal.
+        Even with a stable id, refusing means a seventh device — or a phone
+        whose Keychain was wiped — locks a payer out, and locking out a payer
+        remains far the worse failure: they have paid, and support cannot fix it
+        without deleting the record by hand. What a genuinely shared
+        subscription gets instead is a visible signal: steady churn, reported.
 
         A cache failure here is not fatal: refusing a legitimate paying customer
         because Redis blinked is a worse outcome than briefly permitting an extra
         device. The cap is anti-abuse, not an authorisation boundary.
         """
+        identity = device_id or subject
         key = self._device_key(ent.original_transaction_id or "")
         try:
             bindings = self._decode_bindings(await self._cache.get(key))
@@ -474,20 +487,23 @@ class EntitlementService:
         bindings = {s: t for s, t in bindings.items()
                     if now - t < DEVICE_BINDING_IDLE_SECONDS}
 
-        if subject not in bindings and len(bindings) >= self._max_devices:
+        if identity not in bindings and len(bindings) >= self._max_devices:
             evicted = min(bindings, key=lambda s: bindings[s])
             idle_seconds = now - bindings.pop(evicted)
             # Worth seeing: on a genuinely shared subscription this is steady
             # churn, which is the signal the cap exists to surface. A short idle
-            # time means the evicted install is still in use — real sharing —
+            # time means the evicted device is still in use — real sharing —
             # while a long one is just a device that was replaced.
             log.info("device binding evicted to make room", extra={
                 "devices": self._max_devices, "max": self._max_devices,
                 "idle_seconds": idle_seconds})
+            notify.subscription_over_cap(
+                ent.original_transaction_id or "", ent.product_id,
+                idle_seconds=idle_seconds, max_devices=self._max_devices)
 
-        # Rewritten on every record, so an install in active use keeps its slot
+        # Rewritten on every record, so a device in active use keeps its slot
         # and only genuinely dormant ones age out.
-        bindings[subject] = now
+        bindings[identity] = now
 
         # TTL tracks the subscription, not the short entitlement cache, so the
         # cap survives far longer than one 15-minute entitlement window.

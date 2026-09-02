@@ -64,7 +64,13 @@ actor AttestationService {
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-        request.httpBody = try JSONEncoder().encode(["signed_transaction": signedTransaction])
+        // The device id lets the server count *devices* on a subscription
+        // rather than installs: the attestation key this token carries is
+        // minted per install, so without it every reinstall looked like a new
+        // phone sharing the plan.
+        request.httpBody = try JSONEncoder().encode(EntitlementBody(
+            signedTransaction: signedTransaction,
+            deviceID: DeviceIdentity.shared.id))
 
         let (data, response) = try await session.data(for: request)
         guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
@@ -258,6 +264,16 @@ private struct TokenResponse: Decodable {
         case expiresIn = "expires_in"
         case tier
         case freeScansRemaining = "free_scans_remaining"
+    }
+}
+
+private struct EntitlementBody: Encodable {
+    let signedTransaction: String
+    let deviceID: String
+
+    enum CodingKeys: String, CodingKey {
+        case signedTransaction = "signed_transaction"
+        case deviceID = "device_id"
     }
 }
 

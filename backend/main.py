@@ -825,7 +825,7 @@ def privacy():
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Privacy Policy — SnapWorth</title><style>{_STYLE}</style></head><body>
 <h1>Privacy Policy</h1>
-<p>Last updated: July 21, 2026</p>
+<p>Last updated: September 2, 2026</p>
 <p>SnapWorth ("we", "our", or "us") operates the SnapWorth mobile application.
 This page informs you of our policies regarding the collection, use, and
 disclosure of personal data when you use our Service.</p>
@@ -834,8 +834,9 @@ disclosure of personal data when you use our Service.</p>
 <p>We collect photos you submit for valuation. Photos are sent to our server,
 processed by an AI model to identify the item and estimate resale value, and
 are not stored after the response is returned.</p>
-<p>We collect an anonymous device identifier (UUID) solely for rate-limiting
-purposes (20 scans per hour). This ID is not linked to your identity.</p>
+<p>We collect an anonymous device identifier (UUID) for rate limiting (20 scans
+per hour) and to limit how many devices can use one subscription. This ID is not
+linked to your identity.</p>
 <p>We collect anonymous usage analytics to understand how the app is used and
 improve it. Using TelemetryDeck, we record in-app events &mdash; such as opening
 the app, starting a scan, viewing the paywall, and completing a purchase &mdash;

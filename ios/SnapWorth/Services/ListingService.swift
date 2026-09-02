@@ -132,14 +132,7 @@ actor ListingAPIClient {
     private let session: URLSession = .snapWorthAPI
 
     // Same device id as ScanAPIClient so the rate-limit backstop is coherent.
-    private let deviceID: String = {
-        if let stored = UserDefaults.standard.string(forKey: "snapworth_device_id") {
-            return stored
-        }
-        let newID = UUID().uuidString
-        UserDefaults.standard.set(newID, forKey: "snapworth_device_id")
-        return newID
-    }()
+    private var deviceID: String { DeviceIdentity.shared.id }
 
     /// Generates a listing for `result` graded at `condition`, tailored to
     /// `marketplace`. Throws on network/server failure so the caller can offer a

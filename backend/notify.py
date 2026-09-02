@@ -24,6 +24,8 @@ What gets sent:
   cache, so multiple replicas count together and exactly one of them sends.
 * **A deploy ping** the first time a commit boots — which also makes every
   release a live test of the notifier itself.
+* **A sharing signal** when the subscription device cap evicts a device that
+  was recently active, once per subscription per day.
 
 The bot token is a credential. It appears in request URLs, so failures are
 logged by exception class name only, and observability.py redacts the token
@@ -259,6 +261,50 @@ async def entitlement_recorded(subject: str, ent) -> None:
                 "verified as not-Pro — refunded, revoked or expired.")
     except Exception as exc:
         log.warning("subscription alert failed: %s", type(exc).__name__)
+
+
+# ── Subscription sharing signal ──────────────────────────────────────────────
+
+# An evicted device seen this recently was still in use: that is concurrent
+# sharing, not a phone that was replaced months ago and finally aged out.
+SHARING_RECENT_SECONDS = 7 * 24 * 3600
+
+# One sharing note per subscription per day. Sharing shows up as steady churn,
+# and every eviction after the first says nothing new.
+SHARING_THROTTLE_TTL = 60 * 60 * 24
+
+
+async def _announce_over_cap(otid: str, product_id: str | None,
+                             idle_seconds: int, max_devices: int) -> None:
+    try:
+        if not await _cache.add(f"opsseen:cap:{otid}", "1", SHARING_THROTTLE_TTL):
+            return
+    except Exception as exc:
+        log.debug("sharing alert guard failed, skipping: %s", type(exc).__name__)
+        return
+    product = html.escape(product_id or "unknown product")
+    hours = max(1, idle_seconds // 3600)
+    await _notifier.send(
+        "🔁 <b>Subscription over the device cap</b>\n"
+        f"{product}: more than {max_devices} devices active. Evicted one last "
+        f"seen {hours}h ago — likely sharing, not a replaced phone.")
+
+
+def subscription_over_cap(original_transaction_id: str, product_id: str | None,
+                          *, idle_seconds: int, max_devices: int) -> None:
+    """The device cap evicted a device that was recently in use.
+
+    Called from the entitlement binding path, so it must cost nothing there:
+    the cache guard and the send both run in the background. Long-idle
+    evictions are not reported — that is a replaced device, which is what the
+    idle prune exists for, not sharing.
+    """
+    if _notifier is None or _cache is None or not original_transaction_id:
+        return
+    if idle_seconds >= SHARING_RECENT_SECONDS:
+        return
+    _spawn(_announce_over_cap(
+        original_transaction_id, product_id, idle_seconds, max_devices))
 
 
 # ── Deploy ping ──────────────────────────────────────────────────────────────

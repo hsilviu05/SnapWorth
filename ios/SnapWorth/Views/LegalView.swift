@@ -4,7 +4,7 @@ import SwiftUI
 
 struct PrivacyPolicyView: View {
     var body: some View {
-        LegalDocumentView(title: "Privacy Policy", updated: "July 5, 2026") {
+        LegalDocumentView(title: "Privacy Policy", updated: "September 2, 2026") {
             LegalSection(heading: nil, text: """
                 SnapWorth ("we", "our", or "us") operates the SnapWorth mobile application. This page informs you of our policies regarding the collection, use, and disclosure of personal data when you use our Service.
                 """)
@@ -12,7 +12,7 @@ struct PrivacyPolicyView: View {
             LegalSection(heading: "Information We Collect", text: """
                 We collect photos you submit for valuation. Photos are sent to our server, processed by an AI model to identify the item and estimate resale value, and are not stored after the response is returned.
 
-                We collect an anonymous device identifier (UUID) solely for rate-limiting purposes. This ID is not linked to your identity.
+                We collect an anonymous device identifier (UUID) for rate limiting and to limit how many devices can use one subscription. This ID is not linked to your identity.
                 """)
 
             LegalSection(heading: "How We Use Your Information", text: """
@@ -31,7 +31,7 @@ struct PrivacyPolicyView: View {
                 We may update this Privacy Policy from time to time. Changes are effective when posted in the app.
                 """)
 
-            LegalSection(heading: "Contact", text: "Questions? Email us at silh6767@gmail.com")
+            LegalSection(heading: "Contact", text: "Questions? Email us at her.silviu.i@gmail.com")
         }
     }
 }
@@ -61,7 +61,7 @@ struct TermsOfServiceView: View {
                 THE SERVICE IS PROVIDED "AS IS" WITHOUT WARRANTIES OF ANY KIND. TO THE MAXIMUM EXTENT PERMITTED BY LAW, WE DISCLAIM ALL WARRANTIES, EXPRESS OR IMPLIED.
                 """)
 
-            LegalSection(heading: "Contact", text: "Questions? Email us at silh6767@gmail.com")
+            LegalSection(heading: "Contact", text: "Questions? Email us at her.silviu.i@gmail.com")
         }
     }
 }

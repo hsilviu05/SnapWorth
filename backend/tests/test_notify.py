@@ -339,3 +339,46 @@ class TestDigest:
         assert notify._digest_hour() == 23
         monkeypatch.setenv("TELEGRAM_DIGEST_UTC_HOUR", "not-a-number")
         assert notify._digest_hour() == notify.DEFAULT_DIGEST_UTC_HOUR
+
+
+# ── Subscription sharing signal ──────────────────────────────────────────────
+
+class TestSharingSignal:
+    @pytest.mark.asyncio
+    async def test_recent_eviction_alerts_once_per_subscription_per_day(self, enabled_notify):
+        notify.subscription_over_cap("otid-1", "com.snapworth.yearly",
+                                     idle_seconds=2 * 3600, max_devices=6)
+        notify.subscription_over_cap("otid-1", "com.snapworth.yearly",
+                                     idle_seconds=3600, max_devices=6)   # steady churn
+        await drain()
+        assert len(enabled_notify.texts) == 1
+        text = enabled_notify.texts[0]
+        assert "device cap" in text
+        assert "com.snapworth.yearly" in text
+        assert "more than 6 devices" in text
+
+    @pytest.mark.asyncio
+    async def test_a_long_idle_eviction_is_a_replaced_phone_not_sharing(self, enabled_notify):
+        notify.subscription_over_cap("otid-1", "com.snapworth.yearly",
+                                     idle_seconds=notify.SHARING_RECENT_SECONDS + 1,
+                                     max_devices=6)
+        await drain()
+        assert enabled_notify.texts == []
+
+    @pytest.mark.asyncio
+    async def test_different_subscriptions_alert_independently(self, enabled_notify):
+        notify.subscription_over_cap("otid-1", None, idle_seconds=60, max_devices=6)
+        notify.subscription_over_cap("otid-2", None, idle_seconds=60, max_devices=6)
+        await drain()
+        assert len(enabled_notify.texts) == 2
+
+    @pytest.mark.asyncio
+    async def test_disabled_is_a_no_op(self, cache, monkeypatch):
+        monkeypatch.delenv("TELEGRAM_BOT_TOKEN", raising=False)
+        monkeypatch.delenv("TELEGRAM_CHAT_ID", raising=False)
+        notify.configure(cache)
+        try:
+            notify.subscription_over_cap("otid-1", None, idle_seconds=60, max_devices=6)
+            assert notify._tasks == set()
+        finally:
+            await notify.aclose()
