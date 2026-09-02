@@ -139,6 +139,10 @@ class Entitlement:
     expires_at: int | None           # epoch seconds
     original_transaction_id: str | None
     environment: str                 # "Production" | "Sandbox"
+    # When the subscription was first bought (epoch seconds), from Apple's
+    # originalPurchaseDate. Renewals keep the original date, so this is what
+    # separates a new customer from an existing one checking in.
+    original_purchase_at: int | None = None
 
     @property
     def is_active(self) -> bool:
@@ -154,6 +158,7 @@ class Entitlement:
             "expires_at": self.expires_at,
             "original_transaction_id": self.original_transaction_id,
             "environment": self.environment,
+            "original_purchase_at": self.original_purchase_at,
         })
 
     @staticmethod
@@ -164,6 +169,7 @@ class Entitlement:
             expires_at=d.get("expires_at"),
             original_transaction_id=d.get("original_transaction_id"),
             environment=d.get("environment", "Production"),
+            original_purchase_at=d.get("original_purchase_at"),
         )
 
 
@@ -305,6 +311,9 @@ def verify_signed_transaction(
     # StoreKit timestamps are milliseconds.
     expires_ms = payload.get("expiresDate")
     expires_at = int(expires_ms / 1000) if isinstance(expires_ms, (int, float)) else None
+    purchased_ms = payload.get("originalPurchaseDate")
+    original_purchase_at = (int(purchased_ms / 1000)
+                            if isinstance(purchased_ms, (int, float)) else None)
 
     revoked = payload.get("revocationDate")
     if revoked:
@@ -317,6 +326,7 @@ def verify_signed_transaction(
         expires_at=expires_at,
         original_transaction_id=payload.get("originalTransactionId"),
         environment=environment,
+        original_purchase_at=original_purchase_at,
     )
     if not ent.is_active:
         log.info("signed transaction has expired", extra={"product_id": product_id})
