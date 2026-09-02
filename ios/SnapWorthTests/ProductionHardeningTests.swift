@@ -1264,3 +1264,83 @@ final class SessionExpiredCopyTests: XCTestCase {
         XCTAssertNotEqual(expired, .unusablePhoto("nope"))
     }
 }
+
+// MARK: - Device identity
+
+/// `DeviceIdentity` is what lets the server count phones rather than installs.
+/// Its contract: the same store always yields the same id, an existing install's
+/// `UserDefaults` id is adopted rather than replaced, and a store that cannot
+/// persist still produces a usable id.
+final class DeviceIdentityTests: XCTestCase {
+    private final class MemoryStore: DeviceIdentityStore {
+        var value: String?
+        var writable = true
+        func read() -> String? { value }
+        func write(_ new: String) -> Bool {
+            guard writable else { return false }
+            value = new
+            return true
+        }
+    }
+
+    private func freshDefaults() -> UserDefaults {
+        let suite = "DeviceIdentityTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defaults.removePersistentDomain(forName: suite)
+        return defaults
+    }
+
+    func test_idIsAUUIDAndStableAcrossInstances() {
+        let store = MemoryStore()
+        let defaults = freshDefaults()
+        let first = DeviceIdentity(store: store, defaults: defaults).id
+        let second = DeviceIdentity(store: store, defaults: defaults).id
+
+        XCTAssertNotNil(UUID(uuidString: first))
+        XCTAssertEqual(first, second, "a new instance over the same store must not mint a new id")
+        XCTAssertEqual(store.value, first, "the id is persisted where reinstall cannot delete it")
+    }
+
+    func test_adoptsTheLegacyUserDefaultsId() {
+        // An install upgrading from 1.3.3 already has a UserDefaults id that the
+        // server knows for rate limiting. Minting a new one would reset that.
+        let store = MemoryStore()
+        let defaults = freshDefaults()
+        defaults.set("LEGACY-ID-1234", forKey: DeviceIdentity.legacyDefaultsKey)
+
+        XCTAssertEqual(DeviceIdentity(store: store, defaults: defaults).id, "LEGACY-ID-1234")
+        XCTAssertEqual(store.value, "LEGACY-ID-1234", "migrated into the durable store")
+    }
+
+    func test_storedIdWinsOverUserDefaults() {
+        // After migration the durable store is authoritative; a stale or
+        // differing UserDefaults value must not flip the identity.
+        let store = MemoryStore()
+        store.value = "KEYCHAIN-ID"
+        let defaults = freshDefaults()
+        defaults.set("OTHER-ID", forKey: DeviceIdentity.legacyDefaultsKey)
+
+        XCTAssertEqual(DeviceIdentity(store: store, defaults: defaults).id, "KEYCHAIN-ID")
+    }
+
+    func test_unwritableStoreStillYieldsAnIdAndKeepsItInDefaults() {
+        // The Keychain can refuse a write before first unlock. The request
+        // still needs a device id, and the next launch must find the same one.
+        let store = MemoryStore()
+        store.writable = false
+        let defaults = freshDefaults()
+
+        let id = DeviceIdentity(store: store, defaults: defaults).id
+        XCTAssertNotNil(UUID(uuidString: id))
+        XCTAssertEqual(defaults.string(forKey: DeviceIdentity.legacyDefaultsKey), id)
+        XCTAssertEqual(DeviceIdentity(store: store, defaults: defaults).id, id)
+    }
+
+    func test_isCachedAfterFirstRead() {
+        let store = MemoryStore()
+        let identity = DeviceIdentity(store: store, defaults: freshDefaults())
+        let first = identity.id
+        store.value = "CHANGED-UNDERNEATH"
+        XCTAssertEqual(identity.id, first, "read once per process; the store is not re-queried")
+    }
+}

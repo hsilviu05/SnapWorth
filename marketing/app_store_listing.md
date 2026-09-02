@@ -130,7 +130,7 @@ More free scans, every day.
 
 • General polish and bug fixes.
 
-Happy hunting! Got a feature request? Email silh6767@gmail.com
+Happy hunting! Got a feature request? Email her.silviu.i@gmail.com
 
 ---
 
@@ -146,4 +146,4 @@ New: Share Cards & My Flips profit tracking
 
 • Plus performance improvements and bug fixes.
 
-Happy hunting! Got a feature request? Email silh6767@gmail.com
+Happy hunting! Got a feature request? Email her.silviu.i@gmail.com

@@ -665,3 +665,71 @@ class TestDeviceCap:
             await service.record(f"a-{i}", jws_a)
         # A different subscription starts from an empty slot list.
         assert (await service.record("b-0", jws_b)).tier == "pro"
+
+
+# ── Stable device identity ───────────────────────────────────────────────────
+# From iOS 1.3.4 the client sends a Keychain-backed device id with the signed
+# transaction. Binding on it instead of the per-install attest subject is what
+# lets the record count phones rather than installs.
+
+class TestDeviceIdentityBinding:
+    @pytest.fixture
+    def service(self):
+        from cache import InMemoryCache, ResilientCache
+        return EntitlementService(
+            ResilientCache(None, InMemoryCache()), BUNDLE_ID, PRODUCTS, max_devices=3)
+
+    @pytest.mark.asyncio
+    async def test_reinstalls_on_one_phone_hold_one_slot(self, service, pinned_root):
+        """The production sequence again, now with a stable id: no churn at all."""
+        leaf_key, chain = pinned_root
+        jws = make_jws(valid_payload(), leaf_key, chain)
+        for install in range(12):
+            ent = await service.record(f"install-{install}", jws, device_id="phone-A")
+            assert ent.tier == "pro"
+
+        bindings = json.loads(await service._cache.get("txn:2000000000000001"))
+        assert set(bindings) == {"phone-A"}, (
+            "twelve installs of one phone must occupy one slot, not evict "
+            "eleven times")
+
+    @pytest.mark.asyncio
+    async def test_distinct_devices_still_count_toward_the_cap(self, service, pinned_root):
+        leaf_key, chain = pinned_root
+        jws = make_jws(valid_payload(), leaf_key, chain)
+        for phone in range(5):
+            await service.record(f"install-{phone}", jws, device_id=f"phone-{phone}")
+
+        bindings = json.loads(await service._cache.get("txn:2000000000000001"))
+        assert len(bindings) == 3
+        assert "phone-4" in bindings
+
+    @pytest.mark.asyncio
+    async def test_older_clients_are_still_bound_by_subject(self, service, pinned_root):
+        """No device id (pre-1.3.4) keeps the previous behaviour exactly."""
+        leaf_key, chain = pinned_root
+        jws = make_jws(valid_payload(), leaf_key, chain)
+        await service.record("old-client-subject", jws)
+        bindings = json.loads(await service._cache.get("txn:2000000000000001"))
+        assert set(bindings) == {"old-client-subject"}
+
+    @pytest.mark.asyncio
+    async def test_a_phone_that_reinstalls_keeps_its_place_in_the_lru(self, service, pinned_root):
+        """Re-recording under a new subject but the same device refreshes the
+        existing slot rather than adding one — so it is never the LRU."""
+        leaf_key, chain = pinned_root
+        jws = make_jws(valid_payload(), leaf_key, chain)
+        now = int(time.time())
+        await service._cache.set("txn:2000000000000001", json.dumps({
+            "phone-A": now - 9 * 86_400,
+            "phone-B": now - 8 * 86_400,
+            "phone-C": now - 7 * 86_400,
+        }))
+
+        await service.record("phone-A-reinstalled", jws, device_id="phone-A")
+        await service.record("new-install", jws, device_id="phone-D")   # evicts
+
+        bindings = json.loads(await service._cache.get("txn:2000000000000001"))
+        assert "phone-A" in bindings
+        assert "phone-B" not in bindings
+        assert len(bindings) == 3

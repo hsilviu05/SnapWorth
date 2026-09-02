@@ -82,14 +82,8 @@ actor ScanAPIClient {
     /// pinning delegate; a locally-built session would silently bypass it.
     private let session: URLSession = .snapWorthAPI
 
-    private let deviceID: String = {
-        if let stored = UserDefaults.standard.string(forKey: "snapworth_device_id") {
-            return stored
-        }
-        let newID = UUID().uuidString
-        UserDefaults.standard.set(newID, forKey: "snapworth_device_id")
-        return newID
-    }()
+    // Keychain-backed, so it survives reinstall — see `DeviceIdentity`.
+    private var deviceID: String { DeviceIdentity.shared.id }
 
     /// Uploads `image` to the backend and returns the AI analysis.
     /// When `Config.mockMode` is true, returns realistic canned data instantly.

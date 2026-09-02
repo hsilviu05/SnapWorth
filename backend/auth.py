@@ -145,6 +145,11 @@ class TokenResponse(BaseModel):
 
 class EntitlementRequest(BaseModel):
     signed_transaction: str = Field(min_length=1, max_length=16_384)
+    # A stable per-device identifier — Keychain-backed on iOS 1.3.4+, so it
+    # survives reinstall where the attestation subject does not. Optional:
+    # older clients omit it and are bound by subject, as before.
+    device_id: str | None = Field(
+        default=None, min_length=1, max_length=64, pattern=r"^[A-Za-z0-9._-]+$")
 
 
 class EntitlementResponse(BaseModel):
@@ -368,7 +373,8 @@ async def record_entitlement(
     # a slot permanently — six of them locked a paying subscriber out of their
     # own subscription, silently, because the client swallows this response.
     try:
-        ent = await deps.entitlements.record(principal.subject, req.signed_transaction)
+        ent = await deps.entitlements.record(
+            principal.subject, req.signed_transaction, device_id=req.device_id)
     except EntitlementError as exc:
         auditlog.record(AuditEvent.ENTITLEMENT_REJECTED, principal.subject,
                         outcome="failure", reason=str(exc))

@@ -152,7 +152,7 @@ struct FeedbackView: View {
     private func sendFeedback() {
         var components = URLComponents()
         components.scheme = "mailto"
-        components.path = "silh6767@gmail.com"
+        components.path = "her.silviu.i@gmail.com"
         components.queryItems = [
             URLQueryItem(name: "subject", value: feedbackType.subject),
             URLQueryItem(name: "body", value: message),

@@ -77,6 +77,104 @@ final class TokenStore: @unchecked Sendable {
     }
 }
 
+// MARK: - Device identity
+
+/// Where `DeviceIdentity` keeps its value. The Keychain in the app; memory in
+/// tests, so the migration and caching logic is testable without touching the
+/// simulator's real Keychain.
+protocol DeviceIdentityStore {
+    func read() -> String?
+    /// Returns false when the value could not be persisted.
+    func write(_ value: String) -> Bool
+}
+
+/// A stable, anonymous identifier for this device.
+///
+/// It used to be a UUID in `UserDefaults`, which is deleted with the app. So
+/// every reinstall arrived at the server as a brand-new device — and, because
+/// App Attest keys are also per install, the server had no way to tell one
+/// phone reinstalled six times from six phones sharing one subscription. That
+/// is how the subscription device cap locked a paying subscriber out of their
+/// own plan (backend PR #66 made the cap evict instead of refuse, and asked for
+/// exactly this: an identity that survives reinstall).
+///
+/// The Keychain outlives app deletion. `ThisDeviceOnly` means the value is
+/// never carried to another device by a backup, so two phones restored from one
+/// backup are correctly two devices.
+///
+/// An existing install keeps the id it already has: the `UserDefaults` value is
+/// adopted into the Keychain on first read, so upgrading does not reset the
+/// server's rate-limit view of this device.
+final class DeviceIdentity: @unchecked Sendable {
+    static let shared = DeviceIdentity()
+
+    static let legacyDefaultsKey = "snapworth_device_id"
+
+    private let store: DeviceIdentityStore
+    private let defaults: UserDefaults
+    private let lock = NSLock()
+    private var cached: String?
+
+    init(store: DeviceIdentityStore = KeychainDeviceIdentityStore(),
+         defaults: UserDefaults = .standard) {
+        self.store = store
+        self.defaults = defaults
+    }
+
+    var id: String {
+        lock.lock()
+        defer { lock.unlock() }
+        if let cached { return cached }
+
+        if let stored = store.read() {
+            cached = stored
+            return stored
+        }
+
+        let value = defaults.string(forKey: Self.legacyDefaultsKey) ?? UUID().uuidString
+        // Kept in UserDefaults as well: if the Keychain write fails (it can,
+        // briefly, before first unlock), the next launch still finds this value
+        // and adopts it rather than minting another.
+        defaults.set(value, forKey: Self.legacyDefaultsKey)
+        _ = store.write(value)
+        cached = value
+        return value
+    }
+}
+
+struct KeychainDeviceIdentityStore: DeviceIdentityStore {
+    var service = "eu.snapworth.app.device"
+    private let account = "device-id"
+
+    func read() -> String? {
+        var query = baseQuery()
+        query[kSecReturnData as String] = true
+        query[kSecMatchLimit as String] = kSecMatchLimitOne
+        var item: CFTypeRef?
+        guard SecItemCopyMatching(query as CFDictionary, &item) == errSecSuccess,
+              let data = item as? Data,
+              let value = String(data: data, encoding: .utf8), !value.isEmpty
+        else { return nil }
+        return value
+    }
+
+    func write(_ value: String) -> Bool {
+        SecItemDelete(baseQuery() as CFDictionary)
+        var attributes = baseQuery()
+        attributes[kSecValueData as String] = Data(value.utf8)
+        attributes[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
+        return SecItemAdd(attributes as CFDictionary, nil) == errSecSuccess
+    }
+
+    private func baseQuery() -> [String: Any] {
+        [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service,
+            kSecAttrAccount as String: account,
+        ]
+    }
+}
+
 extension URLRequest {
     /// Attaches a bearer token, minting one via App Attest if needed.
     ///
