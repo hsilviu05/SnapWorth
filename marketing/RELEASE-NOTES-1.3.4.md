@@ -4,13 +4,15 @@
 
 ## Scope
 
-Four changes touch `ios/` since 1.3.3. Two are user-visible, two are quiet.
+Six changes touch `ios/` since 1.3.3. Three are user-visible, three are quiet.
 
 | Change | Visible? |
 |---|---|
 | Snap → Sell writes Poshmark, Mercari and Depop listings; Thrift Flip knows their fees (#54) | **yes — headline** |
+| Daily free-scan reminder (opt-in) and a scan streak (#94) | **yes** |
 | Scan errors say what actually went wrong (#55) | **yes** |
 | Device identity survives reinstall | no — but it fixes a real subscriber-facing bug class |
+| Certificate-pin mismatches reported to analytics (report-only) | no — the signal that lets pinning be enforced in 1.3.5 |
 | Contact address is her.silviu.i@gmail.com everywhere | only if someone emails |
 
 The backend halves are already deployed: the server has accepted `device_id`
@@ -32,6 +34,11 @@ Thrift Flip knows their fees too — Poshmark's flat $2.95 on cheap items,
 Mercari's 10%, Depop's processing fee — so the buy-or-skip verdict is right
 for wherever you plan to sell.
 
+Keep the streak going. Scan on consecutive days and the Scan tab shows your
+streak. On the free plan you can also turn on a daily reminder — at the time
+you choose — so the day's free scan never goes unused. Off by default, and
+only on days you haven't scanned yet.
+
 Clearer scan errors: when a scan can't be priced, SnapWorth now tells you
 why — a photo the AI couldn't read, an item it couldn't value, or a hiccup
 on our side — so you know whether to try a different photo or try again.
@@ -44,8 +51,9 @@ reinstalls, so deleting and reinstalling the app never affects your plan.
 
 ```
 Snap to Sell now writes Poshmark, Mercari and Depop listings, and Thrift
-Flip knows their fees. Scan errors say what actually went wrong. Plus:
-reinstalling the app no longer affects your Pro subscription.
+Flip knows their fees. A scan streak and an optional daily reminder for
+your free scan. Scan errors say what actually went wrong. Plus: reinstalling
+the app no longer affects your Pro subscription.
 ```
 
 ---
