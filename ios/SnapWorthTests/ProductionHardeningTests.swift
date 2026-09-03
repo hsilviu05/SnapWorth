@@ -1246,8 +1246,16 @@ final class SessionExpiredCopyTests: XCTestCase {
     func test_offersAnActionableRemedy() {
         let message = AppError.sessionExpired.errorDescription ?? ""
         XCTAssertFalse(message.isEmpty)
+        #if targetEnvironment(simulator)
+        // App Attest does not exist here, so the only remedy is a real device;
+        // suggesting a reinstall in the Simulator would be a promise that
+        // cannot be kept.
+        XCTAssertTrue(message.contains("real iPhone"), message)
+        XCTAssertFalse(message.lowercased().contains("reinstall"), message)
+        #else
         XCTAssertTrue(message.lowercased().contains("reinstall"),
                       "should name the remedy that actually clears a bad credential")
+        #endif
     }
 
     func test_401_stillMapsToSessionExpired() {
@@ -1467,18 +1475,4 @@ final class FreeScanReminderIdentifierTests: XCTestCase {
                        .freeScan)
     }
 }
-
-
-final class SimulatorAttestationCopyTests: XCTestCase {
-    /// CI runs on the Simulator, where App Attest cannot exist. The 401 copy
-    /// must say so there instead of suggesting a reinstall that cannot help.
-    func test_sessionExpiredNamesTheSimulatorWhereReinstallCannotHelp() {
-        let copy = AppError.sessionExpired.errorDescription ?? ""
-        #if targetEnvironment(simulator)
-        XCTAssertTrue(copy.contains("Simulator"), copy)
-        XCTAssertFalse(copy.contains("reinstalling"), copy)
-        #else
-        XCTAssertTrue(copy.contains("reinstalling"), copy)
-        #endif
-    }
 }
