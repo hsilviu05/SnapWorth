@@ -216,7 +216,8 @@ ARCHIVE_CAP = 300
 ARCHIVE_TTL = 30 * 24 * 3600
 HISTORY_DEFAULT = 8
 HISTORY_MAX = 25
-HISTORY_SNIPPET_CHARS = 350
+HISTORY_SNIPPET_CHARS = 220
+HISTORY_SNIPPET_LINES = 4
 # Optionally, a second chat — a private channel with the bot as admin — that
 # /clear forwards everything to before deleting, so the copy is a real
 # Telegram copy, photos included. Off when unset.
@@ -227,6 +228,12 @@ ARCHIVE_CHAT_ENV = "TELEGRAM_ARCHIVE_CHAT_ID"
 # of calls and catches everything in the window the bot never recorded —
 # messages from before the feature existed, or from a replica that died.
 CLEAR_SWEEP_IDS = 600
+# Upper bound on deleteMessages calls per /clear, however the batches split.
+DELETE_MAX_CALLS = 60
+
+# What happened to the last deploy ping, so /status can answer "did it go
+# out?" without anyone reading Railway logs.
+LAST_DEPLOY_KEY = "opsstate:lastdeploy"
 
 COMMANDS: tuple[tuple[str, str], ...] = (
     ("status", "Active users, scans today, provider health"),
@@ -370,19 +377,32 @@ class TelegramNotifier:
         messages, up to 100 per call. Returns how many ids Telegram accepted.
         Messages older than 48 hours cannot be deleted by any bot — that is
         Telegram's rule, and the operator clears those from the chat menu."""
+        # Telegram answers a batch as a whole: one id it will not delete — a
+        # message past the 48-hour limit, say — refuses the entire call, and
+        # the sweep below the newest known id spans days of them. So a refused
+        # batch is split in half and retried, down to single ids, which
+        # isolates the undeletable ones at a cost of O(k log n) calls instead
+        # of one call per id. A hard cap keeps a pathological chat from
+        # turning /clear into hundreds of requests.
         deleted = 0
+        calls = 0
         try:
             client = await self._http()
-            for start in range(0, len(message_ids), 100):
-                chunk = message_ids[start:start + 100]
+            pending = [message_ids[i:i + 100] for i in range(0, len(message_ids), 100)]
+            while pending and calls < DELETE_MAX_CALLS:
+                chunk = pending.pop()
+                calls += 1
                 resp = await client.post(
                     f"{TELEGRAM_API}/bot{self._token}/deleteMessages",
                     json={"chat_id": self._chat_id, "message_ids": chunk})
                 if resp.status_code == 200 and (resp.json() or {}).get("ok"):
                     deleted += len(chunk)
+                elif len(chunk) > 1:
+                    half = len(chunk) // 2
+                    pending += [chunk[:half], chunk[half:]]
                 else:
-                    log.info("telegram deleteMessages refused: HTTP %s %s",
-                             resp.status_code, self._description(resp))
+                    log.debug("telegram deleteMessages refused id %s: %s",
+                              chunk[0], self._description(resp))
         except Exception as exc:
             log.warning("telegram deleteMessages failed: %s", type(exc).__name__)
         return deleted
@@ -824,14 +844,44 @@ async def _announce_deploy(commit: str, cache_backend: str, auth_enforcing: bool
         if delay:
             await asyncio.sleep(delay)
         if notifier is None or await notifier.send(text):
+            await _record_deploy(commit, sent=True, attempts=attempt + 1)
             return
         log.warning("deploy ping attempt %d failed", attempt + 1)
+    await _record_deploy(commit, sent=False, attempts=len(DEPLOY_RETRY_DELAYS) + 1)
     # Every attempt failed: give the guard back so the next boot of this same
     # commit — a Railway restart, say — gets to try again.
     try:
         await _cache.delete(guard)
     except Exception:
         pass
+
+
+async def _record_deploy(commit: str, *, sent: bool, attempts: int) -> None:
+    try:
+        await _cache.set(LAST_DEPLOY_KEY, json.dumps(
+            {"commit": commit, "sent": sent, "attempts": attempts, "at": int(time.time())}),
+            STATS_TTL)
+    except Exception as exc:
+        log.debug("deploy record failed: %s", type(exc).__name__)
+
+
+async def _deploy_line(current_commit: str | None) -> str:
+    """One /status line: did this build's deploy ping go out, and when."""
+    try:
+        raw = await _cache.get(LAST_DEPLOY_KEY)
+        rec = json.loads(raw) if raw else None
+    except Exception:
+        rec = None
+    if not rec:
+        return "Deploy ping: no record for this build — it predates the record, or the ping never ran"
+    when = datetime.fromtimestamp(int(rec.get("at") or 0), timezone.utc).strftime("%d %b %H:%M")
+    same = current_commit and str(rec.get("commit")) == str(current_commit)
+    build = "this build" if same else f"build <code>{html.escape(str(rec.get('commit') or '?'))}</code>"
+    if rec.get("sent"):
+        tries = int(rec.get("attempts") or 1)
+        retry = f" after {tries} attempts" if tries > 1 else ""
+        return f"Deploy ping: sent {when} UTC for {build}{retry}"
+    return f"Deploy ping: FAILED {when} UTC for {build} — Telegram unreachable at boot"
 
 
 def deployed(commit: str, *, cache_backend: str, auth_enforcing: bool,
@@ -1087,6 +1137,7 @@ async def _status_text() -> str:
             lines.append(
                 f"Build <code>{html.escape(str(info.get('commit', '?')))}</code> · "
                 f"cache {html.escape(str(info.get('cache', '?')))} · auth {auth}")
+            lines.append(await _deploy_line(str(info.get("commit") or "")))
     return "\n".join(lines)
 
 
@@ -2370,24 +2421,23 @@ async def _clear_chat() -> None:
         newest = known[-1]
         sweep = [i for i in range(max(1, newest - CLEAR_SWEEP_IDS), newest + 1) if i not in set(known)]
     deleted = await _notifier.delete_messages(known) if known else 0
-    if sweep:
-        await _notifier.delete_messages(sweep)
     try:
         await _cache.delete(MESSAGES_KEY)
     except Exception:
         pass
+    swept = await _notifier.delete_messages(sweep) if sweep else 0
+    total = deleted + swept
     if known:
-        note = (f"🧹 Cleared. {deleted} known messages deleted and the last {len(sweep)} message ids "
-                "swept, so everything from the past 48 hours the bot may delete is gone.")
+        note = f"🧹 Cleared {total} message{'s' if total != 1 else ''}."
         if archived:
-            note += f" {archived} of the bot's kept — /history shows them."
+            note += f" {archived} of the bot's kept — 🗂 History shows them."
         if archive_chat:
             note += f" {forwarded} forwarded to the archive chat."
     else:
         note = ("🧹 Nothing to clear yet — the bot has not sent or seen a message since this "
                 "process started.")
-    note += ("\nOlder than 48 hours is beyond what Telegram lets any bot delete: "
-             "chat menu → Clear History for that.")
+    note += ("\nTelegram lets a bot delete only the last 48 hours; anything older is "
+             "chat menu → Clear History.")
     await _notifier.send(note + "\n\n" + await _status_text(), await _buttons())
 
 
@@ -2397,10 +2447,13 @@ def _snippet(text: str, limit: int = HISTORY_SNIPPET_CHARS) -> str:
     make the whole history message unparseable."""
     plain = re.sub(r"<[^>]+>", "", text)
     plain = html.unescape(plain)
-    plain = "\n".join(line for line in plain.split("\n") if line.strip())
+    lines = [line for line in plain.split("\n") if line.strip()]
+    clipped = len(lines) > HISTORY_SNIPPET_LINES
+    plain = "\n".join(lines[:HISTORY_SNIPPET_LINES])
     if len(plain) > limit:
-        plain = plain[:limit].rstrip() + "…"
-    return html.escape(plain)
+        plain = plain[:limit].rstrip()
+        clipped = True
+    return html.escape(plain) + ("…" if clipped else "")
 
 
 async def _history_text(argument: str) -> str:
