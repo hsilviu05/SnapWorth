@@ -23,6 +23,7 @@ extension Notification.Name {
 /// | recap    | ≥3 scans this month → 1st of next mo 10:00 | `recap.monthly`       |
 /// | ledger   | item marked *listed* → +14 days 10:00      | `ledger.day.<yyyymmdd>` (coalesced per fire-day) |
 /// | trial    | ~24h before trial end                      | `trial.ending`        |
+/// | freeScan | opt-in; next day without a scan, at the user's hour | `freeScan.daily` |
 ///
 /// Recap/trial use fixed identifiers so re-scheduling replaces rather than
 /// duplicates. Ledger coalesces every follow-up landing on the same day into a
@@ -40,21 +41,31 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
         case trial      // highest priority for the daily cap
         case ledger
         case portfolio
+        case freeScan
         case recap      // lowest
 
         var priority: Int {
             switch self {
-            case .trial:     return 4
-            case .ledger:    return 3
+            case .trial:     return 5
+            case .ledger:    return 4
             // Above the monthly recap, below anything time-critical: this is a
             // weekly habit nudge, so losing one to a trial warning costs
             // nothing, but it should outrank a once-a-month summary.
-            case .portfolio: return 2
+            case .portfolio: return 3
+            // The daily free-scan nudge sits under the weekly digest: if both
+            // land on a Sunday the digest carries more, and the nudge comes
+            // back tomorrow anyway.
+            case .freeScan:  return 2
             case .recap:     return 1
             }
         }
 
         var toggleKey: String { "notif_\(rawValue)_enabled" }
+
+        /// Everything functional is on until turned off. The daily free-scan
+        /// reminder is the one exception: a daily notification the user did
+        /// not ask for is the definition of nagging, so it is opt-in.
+        var defaultEnabled: Bool { self != .freeScan }
     }
 
     // MARK: - Identifiers
@@ -62,6 +73,8 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
     private static let recapID = "recap.monthly"
     private static let portfolioID = "portfolio.weekly"
     private static let trialID = "trial.ending"
+    // Prefix == Category.freeScan.rawValue: `category(fromID:)` relies on it.
+    private static let freeScanID = "freeScan.daily"
     private static func ledgerDayID(_ dayKey: String) -> String { "ledger.day.\(dayKey)" }
 
     /// Recovers the category from any identifier ("ledger.day.20260801" → .ledger).
@@ -72,7 +85,7 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
     // MARK: - Per-category opt-outs (default ON, individually disableable)
 
     func isEnabled(_ category: Category) -> Bool {
-        UserDefaults.standard.object(forKey: category.toggleKey) as? Bool ?? true
+        UserDefaults.standard.object(forKey: category.toggleKey) as? Bool ?? category.defaultEnabled
     }
 
     func setEnabled(_ category: Category, _ on: Bool) {
@@ -247,6 +260,69 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
                   body: "Your SnapWorth trial ends tomorrow.")
     }
 
+    // MARK: - 4) Daily free-scan reminder (opt-in)
+
+    /// The hour and minute the user picked, local time. 18:00 by default —
+    /// after work, when the thrift run or the evening scroll happens.
+    static let defaultFreeScanHour = 18
+    private static let freeScanHourKey = "notif_freescan_hour"
+    private static let freeScanMinuteKey = "notif_freescan_minute"
+
+    var freeScanReminderTime: (hour: Int, minute: Int) {
+        get {
+            let d = UserDefaults.standard
+            let hour = d.object(forKey: Self.freeScanHourKey) as? Int ?? Self.defaultFreeScanHour
+            let minute = d.object(forKey: Self.freeScanMinuteKey) as? Int ?? 0
+            return (min(23, max(0, hour)), min(59, max(0, minute)))
+        }
+        set {
+            UserDefaults.standard.set(newValue.hour, forKey: Self.freeScanHourKey)
+            UserDefaults.standard.set(newValue.minute, forKey: Self.freeScanMinuteKey)
+        }
+    }
+
+    /// Schedule the next "your free scan is back" — or cancel it.
+    ///
+    /// Never for Pro (there is no free scan to come back), never for today if
+    /// the user has already scanned (the allowance is spent), and only when the
+    /// user opted in. Idempotent via the fixed identifier, so calling it after
+    /// every scan and every foreground is the intended use: the previous
+    /// request is simply replaced by the next correct one.
+    func syncFreeScanReminder(isPro: Bool, scannedToday: Bool, streak: Int = 0,
+                              now: Date = Date()) async {
+        guard isEnabled(.freeScan), !isPro else {
+            center.removePendingNotificationRequests(withIdentifiers: [Self.freeScanID])
+            return
+        }
+        let time = freeScanReminderTime
+        guard let fireDate = Self.nextFreeScanDate(after: now, hour: time.hour, minute: time.minute,
+                                                   scannedToday: scannedToday) else { return }
+        await add(id: Self.freeScanID, category: .freeScan, fireDate: fireDate,
+                  body: Self.freeScanBody(streak: streak))
+    }
+
+    /// Today at the chosen time if that is still ahead and no scan has happened
+    /// today; otherwise tomorrow at that time. Pure, for the tests.
+    nonisolated static func nextFreeScanDate(after now: Date, hour: Int, minute: Int,
+                                             scannedToday: Bool,
+                                             calendar: Calendar = .current) -> Date? {
+        var comps = calendar.dateComponents([.year, .month, .day], from: now)
+        comps.hour = hour; comps.minute = minute
+        guard let today = calendar.date(from: comps) else { return nil }
+        if !scannedToday && today > now { return today }
+        return calendar.date(byAdding: .day, value: 1, to: today)
+    }
+
+    /// The copy. A streak of two or more is worth naming — "day 5" is a reason
+    /// to open the app that "your scan is back" is not. No guilt when it broke:
+    /// the streak simply isn't mentioned.
+    nonisolated static func freeScanBody(streak: Int) -> String {
+        if streak >= 2 {
+            return "Day \(streak + 1) of your streak is waiting — your free scan is back."
+        }
+        return "Your free scan is back. What did you find today?"
+    }
+
     // MARK: - Re-sync everything eligible (grant-later / app active)
 
     /// Rebuilds all schedules from current state. Safe to call repeatedly —
@@ -267,6 +343,10 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
         await schedulePortfolioDigest(results: all)
 
         await syncTrialReminder(endDate: purchaseService.trialEndDate)
+
+        let scannedToday = all.contains { Calendar.current.isDateInToday($0.timestamp) }
+        await syncFreeScanReminder(isPro: purchaseService.isSubscribed, scannedToday: scannedToday,
+                                   streak: ScanStreak.current())
     }
 
     // MARK: - Weekly portfolio nudge
@@ -353,6 +433,7 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
         case .recap: center.removePendingNotificationRequests(withIdentifiers: [Self.recapID])
         case .portfolio: center.removePendingNotificationRequests(withIdentifiers: [Self.portfolioID])
         case .trial: center.removePendingNotificationRequests(withIdentifiers: [Self.trialID])
+        case .freeScan: center.removePendingNotificationRequests(withIdentifiers: [Self.freeScanID])
         case .ledger: cancelAllLedger()
         }
     }
@@ -445,6 +526,9 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
             // second notification name for the same destination — MainTabView
             // already listens for it.
             NotificationCenter.default.post(name: .snapWidgetOpenHistory, object: nil)
+        case .freeScan:
+            // Straight to the camera: the notification promised a scan.
+            NotificationCenter.default.post(name: .snapWidgetOpenScan, object: nil)
         }
     }
 

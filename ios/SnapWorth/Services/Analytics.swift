@@ -21,6 +21,8 @@ enum AnalyticsEvent {
     case scanCompleted(success: Bool, category: ItemCategory?)
     case scanFailed(reason: ScanFailureReason)
     case freeScanLimitHit
+    /// A scan advanced (or restarted) the day streak. Bucketed, never exact.
+    case scanStreak(bucket: String)
     case paywallViewed(trigger: PaywallTrigger)
     case purchaseStarted(productID: String)
     /// Fires on the confirmed StoreKit transaction — never on a button tap.
@@ -84,6 +86,7 @@ enum AnalyticsEvent {
         case .scanCompleted:        return "scan_completed"
         case .scanFailed:           return "scan_failed"
         case .freeScanLimitHit:     return "free_scan_limit_hit"
+        case .scanStreak:           return "scan_streak"
         case .paywallViewed:        return "paywall_viewed"
         case .purchaseStarted:      return "purchase_started"
         case .purchaseCompleted:    return "purchase_completed"
@@ -135,7 +138,7 @@ enum AnalyticsEvent {
             return ["verdict": verdict]
         case let .crashReported(signal, termination):
             return ["signal": signal, "termination": termination]
-        case let .hangReported(bucket), let .launchTimeReported(bucket):
+        case let .hangReported(bucket), let .launchTimeReported(bucket), let .scanStreak(bucket):
             return ["bucket": bucket]
         case let .persistentStoreFallback(reason):
             // A coarse error classification only — never the raw error string,

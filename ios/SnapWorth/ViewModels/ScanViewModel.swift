@@ -39,6 +39,9 @@ final class ScanViewModel {
     /// Free scans left — the server's count when it has told us, else local.
     var freeScansRemaining: Int { FreeScanCounter.remaining }
 
+    /// Consecutive days with at least one scan, today or yesterday included.
+    var streak: Int { ScanStreak.current() }
+
     // ── Scan trigger ─────────────────────────────────────────────────
     func startScan(image: UIImage, purchaseService: any PurchaseService, repository: ScanRepository) async {
         guard !isAnalyzing else { return }
@@ -96,6 +99,7 @@ final class ScanViewModel {
             Analytics.shared.track(
                 .scanCompleted(success: true, category: ItemCategory(normalizing: response.category))
             )
+            Self.noteScanForStreakAndReminder(isPro: purchaseService.isSubscribed)
 
             do {
                 try repository.save(result)
@@ -147,6 +151,90 @@ final class ScanViewModel {
         errorMessage = nil
         saveFailed = false
         isAnalyzing = false
+    }
+}
+
+// ── Scan streak ───────────────────────────────────────────────────────────────
+
+/// Consecutive calendar days with at least one successful scan, any tier.
+///
+/// Local only — UserDefaults, day-stamped like `FreeScanCounter` — and
+/// deliberately forgiving: a streak counts today and yesterday as alive, so
+/// opening the app at 09:00 shows yesterday's streak rather than a zero that
+/// scares the user off before their scan. It breaks quietly; nothing in the
+/// app says "you lost it".
+///
+/// For the free tier this is what turns "one scan a day" from a limit into a
+/// habit; for Pro it is a small badge of honour. Analytics only ever sees a
+/// bucket, never the exact count.
+enum ScanStreak {
+    static let countKey = "snapworth_streak_count"
+    static let lastKey = "snapworth_streak_last"
+
+    /// Record a scan that just succeeded. Returns the streak after it.
+    @discardableResult
+    static func record(now: Date = Date(), defaults: UserDefaults = .standard,
+                       calendar: Calendar = .current) -> Int {
+        let count = defaults.integer(forKey: countKey)
+        if let last = defaults.object(forKey: lastKey) as? Date {
+            if calendar.isDate(last, inSameDayAs: now) { return max(count, 1) }
+            if isYesterday(last, relativeTo: now, calendar: calendar) {
+                defaults.set(count + 1, forKey: countKey)
+                defaults.set(now, forKey: lastKey)
+                return count + 1
+            }
+        }
+        defaults.set(1, forKey: countKey)
+        defaults.set(now, forKey: lastKey)
+        return 1
+    }
+
+    /// The live streak: the stored count if the last scan was today or
+    /// yesterday, else 0.
+    static func current(now: Date = Date(), defaults: UserDefaults = .standard,
+                        calendar: Calendar = .current) -> Int {
+        guard let last = defaults.object(forKey: lastKey) as? Date else { return 0 }
+        if calendar.isDate(last, inSameDayAs: now) || isYesterday(last, relativeTo: now, calendar: calendar) {
+            return defaults.integer(forKey: countKey)
+        }
+        return 0
+    }
+
+    /// Whether a scan has been recorded today — any tier, so the reminder
+    /// logic does not depend on the free counter.
+    static func scannedToday(now: Date = Date(), defaults: UserDefaults = .standard,
+                             calendar: Calendar = .current) -> Bool {
+        guard let last = defaults.object(forKey: lastKey) as? Date else { return false }
+        return calendar.isDate(last, inSameDayAs: now)
+    }
+
+    /// Coarse buckets for analytics — never the exact count.
+    static func bucket(_ streak: Int) -> String {
+        switch streak {
+        case ..<2: return "1"
+        case 2...3: return "2-3"
+        case 4...6: return "4-6"
+        default:    return "7+"
+        }
+    }
+
+    private static func isYesterday(_ date: Date, relativeTo now: Date, calendar: Calendar) -> Bool {
+        guard let yesterday = calendar.date(byAdding: .day, value: -1, to: now) else { return false }
+        return calendar.isDate(date, inSameDayAs: yesterday)
+    }
+}
+
+extension ScanViewModel {
+    /// Shared by the camera scan and Thrift Flip: advance the streak, report
+    /// its bucket, and move the free-scan reminder to tomorrow — today's
+    /// allowance is spent, so today's nudge would be a lie.
+    static func noteScanForStreakAndReminder(isPro: Bool) {
+        let streak = ScanStreak.record()
+        Analytics.shared.track(.scanStreak(bucket: ScanStreak.bucket(streak)))
+        Task {
+            await NotificationManager.shared.syncFreeScanReminder(
+                isPro: isPro, scannedToday: true, streak: streak)
+        }
     }
 }
 

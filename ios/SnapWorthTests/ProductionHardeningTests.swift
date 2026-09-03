@@ -1246,8 +1246,16 @@ final class SessionExpiredCopyTests: XCTestCase {
     func test_offersAnActionableRemedy() {
         let message = AppError.sessionExpired.errorDescription ?? ""
         XCTAssertFalse(message.isEmpty)
+        #if targetEnvironment(simulator)
+        // App Attest does not exist here, so the only remedy is a real device;
+        // suggesting a reinstall in the Simulator would be a promise that
+        // cannot be kept.
+        XCTAssertTrue(message.contains("real iPhone"), message)
+        XCTAssertFalse(message.lowercased().contains("reinstall"), message)
+        #else
         XCTAssertTrue(message.lowercased().contains("reinstall"),
                       "should name the remedy that actually clears a bad credential")
+        #endif
     }
 
     func test_401_stillMapsToSessionExpired() {
@@ -1353,5 +1361,117 @@ final class DeviceIdentityTests: XCTestCase {
         let first = identity.id
         store.value = "CHANGED-UNDERNEATH"
         XCTAssertEqual(identity.id, first, "read once per process; the store is not re-queried")
+    }
+}
+
+
+// MARK: - Free-scan reminder and streak (#94)
+
+final class ScanStreakTests: XCTestCase {
+    private var defaults: UserDefaults!
+    private let cal = Calendar(identifier: .gregorian)
+
+    override func setUp() {
+        super.setUp()
+        defaults = UserDefaults(suiteName: "ScanStreakTests-\(UUID().uuidString)")
+    }
+
+    private func day(_ n: Int, hour: Int = 12) -> Date {
+        cal.date(from: DateComponents(year: 2026, month: 9, day: n, hour: hour))!
+    }
+
+    func test_consecutiveDaysGrowTheStreak_sameDayDoesNot() {
+        XCTAssertEqual(ScanStreak.record(now: day(1), defaults: defaults, calendar: cal), 1)
+        XCTAssertEqual(ScanStreak.record(now: day(1, hour: 20), defaults: defaults, calendar: cal), 1,
+                       "a second scan the same day is not a second day")
+        XCTAssertEqual(ScanStreak.record(now: day(2), defaults: defaults, calendar: cal), 2)
+        XCTAssertEqual(ScanStreak.record(now: day(3), defaults: defaults, calendar: cal), 3)
+        XCTAssertEqual(ScanStreak.current(now: day(3, hour: 23), defaults: defaults, calendar: cal), 3)
+    }
+
+    func test_streakSurvivesUntilTheEndOfTheNextDay_thenRestarts() {
+        ScanStreak.record(now: day(1), defaults: defaults, calendar: cal)
+        ScanStreak.record(now: day(2), defaults: defaults, calendar: cal)
+        // The morning after, before today's scan: still alive.
+        XCTAssertEqual(ScanStreak.current(now: day(3, hour: 8), defaults: defaults, calendar: cal), 2)
+        // Two days later with no scan: gone, quietly.
+        XCTAssertEqual(ScanStreak.current(now: day(4), defaults: defaults, calendar: cal), 0)
+        // A scan after the gap starts over at one.
+        XCTAssertEqual(ScanStreak.record(now: day(4), defaults: defaults, calendar: cal), 1)
+    }
+
+    func test_scannedTodayIsTierAgnostic() {
+        XCTAssertFalse(ScanStreak.scannedToday(now: day(1), defaults: defaults, calendar: cal))
+        ScanStreak.record(now: day(1), defaults: defaults, calendar: cal)
+        XCTAssertTrue(ScanStreak.scannedToday(now: day(1, hour: 23), defaults: defaults, calendar: cal))
+        XCTAssertFalse(ScanStreak.scannedToday(now: day(2), defaults: defaults, calendar: cal))
+    }
+
+    func test_bucketsNeverLeakTheExactCount() {
+        XCTAssertEqual(ScanStreak.bucket(0), "1")
+        XCTAssertEqual(ScanStreak.bucket(1), "1")
+        XCTAssertEqual(ScanStreak.bucket(3), "2-3")
+        XCTAssertEqual(ScanStreak.bucket(6), "4-6")
+        XCTAssertEqual(ScanStreak.bucket(40), "7+")
+        XCTAssertEqual(AnalyticsEvent.scanStreak(bucket: "2-3").name, "scan_streak")
+        XCTAssertEqual(AnalyticsEvent.scanStreak(bucket: "2-3").parameters, ["bucket": "2-3"])
+    }
+}
+
+final class FreeScanReminderTests: XCTestCase {
+    private let cal = Calendar(identifier: .gregorian)
+    private func at(_ day: Int, _ hour: Int, _ minute: Int = 0) -> Date {
+        cal.date(from: DateComponents(year: 2026, month: 9, day: day, hour: hour, minute: minute))!
+    }
+
+    func test_todayAtTheChosenTimeWhenStillAheadAndUnscanned() {
+        let fire = NotificationManager.nextFreeScanDate(after: at(3, 9), hour: 18, minute: 30,
+                                                        scannedToday: false, calendar: cal)
+        XCTAssertEqual(fire, at(3, 18, 30))
+    }
+
+    func test_tomorrowWhenTheTimeHasPassed() {
+        let fire = NotificationManager.nextFreeScanDate(after: at(3, 19), hour: 18, minute: 0,
+                                                        scannedToday: false, calendar: cal)
+        XCTAssertEqual(fire, at(4, 18))
+    }
+
+    func test_tomorrowWhenTodayIsAlreadyScanned() {
+        // 09:00, reminder at 18:00, but the free scan is spent: no nudge today.
+        let fire = NotificationManager.nextFreeScanDate(after: at(3, 9), hour: 18, minute: 0,
+                                                        scannedToday: true, calendar: cal)
+        XCTAssertEqual(fire, at(4, 18))
+    }
+
+    func test_copyNamesTheStreakOnlyWhenThereIsOne() {
+        XCTAssertEqual(NotificationManager.freeScanBody(streak: 0),
+                       "Your free scan is back. What did you find today?")
+        XCTAssertEqual(NotificationManager.freeScanBody(streak: 1),
+                       "Your free scan is back. What did you find today?")
+        XCTAssertEqual(NotificationManager.freeScanBody(streak: 4),
+                       "Day 5 of your streak is waiting — your free scan is back.")
+    }
+
+    func test_categoryIsOptInAndSitsBelowTheWeeklyDigest() {
+        XCTAssertFalse(NotificationManager.Category.freeScan.defaultEnabled)
+        for other in NotificationManager.Category.allCases where other != .freeScan {
+            XCTAssertTrue(other.defaultEnabled, "\(other) must stay on by default")
+        }
+        XCTAssertLessThan(NotificationManager.Category.freeScan.priority,
+                          NotificationManager.Category.portfolio.priority)
+        XCTAssertGreaterThan(NotificationManager.Category.freeScan.priority,
+                             NotificationManager.Category.recap.priority)
+        XCTAssertEqual(NotificationManager.Category.freeScan.toggleKey, "notif_freeScan_enabled")
+    }
+}
+
+
+final class FreeScanReminderIdentifierTests: XCTestCase {
+    /// The daily cap recovers a request's category from its identifier prefix,
+    /// so the free-scan id must start with the category's raw value exactly.
+    func test_identifierPrefixMatchesTheCategory() {
+        XCTAssertEqual(NotificationManager.Category.freeScan.rawValue, "freeScan")
+        XCTAssertEqual(NotificationManager.Category(rawValue: "freeScan.daily".components(separatedBy: ".")[0]),
+                       .freeScan)
     }
 }

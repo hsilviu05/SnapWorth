@@ -69,6 +69,7 @@ final class ThriftFlipViewModel {
             Analytics.shared.track(
                 .scanCompleted(success: true, category: ItemCategory(normalizing: response.category))
             )
+            ScanViewModel.noteScanForStreakAndReminder(isPro: purchaseService.isSubscribed)
         } catch {
             scanError = AppError.from(error).errorDescription
             Analytics.shared.track(.scanFailed(reason: ScanFailureReason(AppError.from(error))))

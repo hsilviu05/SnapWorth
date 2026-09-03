@@ -53,7 +53,15 @@ enum AppError: LocalizedError, Equatable {
             // credential was also refused. So it is not transient, and the copy
             // should offer the remedy that actually clears a bad credential
             // rather than suggest the retry we already performed.
+            #if targetEnvironment(simulator)
+            // App Attest does not exist in the Simulator, and production
+            // refuses unattested scans, so this failure is certain here and
+            // reinstalling cannot help. Say the real reason to the one person
+            // who will ever see it in a Simulator: the developer.
+            return "Scanning needs a real iPhone — device verification (App Attest) isn't available in the Simulator."
+            #else
             return "We couldn't verify this device. Try again — if it keeps happening, reinstalling the app will reset it."
+            #endif
         case .imageEncodingFailed:
             return "Could not process the photo. Please try a different image."
         case .unusablePhoto(let msg):

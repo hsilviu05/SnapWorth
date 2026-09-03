@@ -46,7 +46,7 @@ struct SettingsView: View {
                 // ── Notifications ──────────────────────────────────────────
                 Section("Notifications") {
                     NavigationLink {
-                        NotificationSettingsView()
+                        NotificationSettingsView(isPro: purchaseService.isSubscribed)
                     } label: {
                         SettingsRowLabel(icon: "bell", label: "Notifications")
                     }
