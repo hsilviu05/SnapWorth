@@ -31,9 +31,10 @@ What gets sent:
 * **A weekly report** with Monday's digest: the seven days just ended against
   the seven before, with the direction of each number.
 
-And it listens: `/status`, `/subs`, `/users`, `/digest`, `/week`, `/feed`
-from the operator's chat, with inline buttons under every reply so nothing
-has to be typed. `/subs` is every subscription the server has seen — plan,
+And it listens: `/status`, `/subs`, `/users`, `/costs`, `/social`, `/digest`,
+`/week`, `/feed` from the operator's chat, with inline buttons under every
+reply so nothing has to be typed. `/costs` prices every model call's token
+usage; `/social` reads the app's own Instagram and TikTok accounts (social.py). `/subs` is every subscription the server has seen — plan,
 how it was obtained (paid, offer code, trial), renewal date, and an MRR line
 from Apple's own transaction prices. `/users` is devices seen: 7- and 30-day
 actives and the most active, by the audit log's pseudonyms, because there are
@@ -138,6 +139,7 @@ COMMANDS: tuple[tuple[str, str], ...] = (
     ("subs", "Every subscription seen: plan, how obtained, renews"),
     ("users", "Devices seen, 7-day and 30-day actives, most active"),
     ("costs", "Gemini spend: today, 7 and 30 days, per scan, vs MRR"),
+    ("social", "Instagram and TikTok: followers and the latest posts"),
     ("feed", "Live scan feed: on, off, or show"),
     ("digest", "Yesterday's digest, now"),
     ("week", "Last 7 days against the 7 before"),
@@ -274,6 +276,9 @@ _tasks: set[asyncio.Task] = set()
 # imports it.
 _status_provider: Callable[[], dict] | None = None
 
+# Instagram/TikTok readers (social.Social), when configured.
+_social = None
+
 # Identifies this replica as the poll-lock holder.
 _poll_token = secrets.token_hex(8)
 
@@ -289,15 +294,17 @@ def enabled() -> bool:
 
 
 def configure(cache, notifier: TelegramNotifier | None = None,
-              status_provider: Callable[[], dict] | None = None) -> None:
+              status_provider: Callable[[], dict] | None = None,
+              social=None) -> None:
     """Wire the notifier from the environment. Called once at startup.
 
     With the env vars unset this leaves everything disabled and every public
     function a no-op — the feature costs nothing until it is turned on.
     """
-    global _notifier, _cache, _status_provider
+    global _notifier, _cache, _status_provider, _social
     _cache = cache
     _status_provider = status_provider
+    _social = social
 
     if notifier is not None:
         _notifier = notifier
@@ -671,6 +678,9 @@ async def _digest_text(when: datetime) -> str:
     top = await _top_text(day)
     if top:
         lines.append(top)
+    social = await _social_line()
+    if social:
+        lines.append(social)
     return "\n".join(lines)
 
 
@@ -801,7 +811,7 @@ async def _buttons() -> Buttons:
     feed = "🔕 Feed off" if await _feed_enabled() else "🔔 Feed on"
     return [[("🔄 Refresh", "status"), ("📊 Digest", "digest"), ("📈 Week", "week")],
             [("💳 Subs", "subs"), ("👥 Users", "users"), ("💸 Costs", "costs")],
-            [(feed, "feed toggle")]]
+            [("📣 Social", "social"), (feed, "feed toggle")]]
 
 
 async def handle_command(text: str) -> str | None:
@@ -832,6 +842,8 @@ async def handle_command_with_buttons(text: str) -> tuple[str, Buttons] | None:
         return await _users_text(), await _buttons()
     if command == "/costs":
         return await _costs_text(), await _buttons()
+    if command == "/social":
+        return await _social_text(), await _buttons()
     return _help_text(), await _buttons()
 
 
@@ -1369,3 +1381,110 @@ async def _costs_text() -> str:
     lines.append(f"Prices: ${GEMINI_PRICE_INPUT_PER_M:.2f}/M in · "
                  f"${GEMINI_PRICE_OUTPUT_PER_M:.2f}/M out{budget}")
     return "\n".join(lines)
+
+
+# ── Social reach ─────────────────────────────────────────────────────────────
+
+def _social_snapshot_key(day: str) -> str:
+    return _stat_key(day, "social")
+
+
+async def _remember_followers(accounts) -> None:
+    """Today's follower counts, so tomorrow's digest can show the delta."""
+    snapshot = {a.platform: a.followers for a in accounts if a.ok and a.followers is not None}
+    if snapshot:
+        try:
+            await _cache.set(_social_snapshot_key(_day()), json.dumps(snapshot), STATS_TTL)
+        except Exception as exc:
+            log.debug("social snapshot failed: %s", type(exc).__name__)
+
+
+async def _followers_delta(platform: str, now_count: int) -> str:
+    try:
+        yesterday = _day(datetime.now(timezone.utc) - timedelta(days=1))
+        previous = json.loads(await _cache.get(_social_snapshot_key(yesterday)) or "{}")
+    except Exception:
+        return ""
+    before = previous.get(platform)
+    if not isinstance(before, int):
+        return ""
+    diff = now_count - before
+    return f" (▲ {diff})" if diff > 0 else f" (▼ {-diff})" if diff < 0 else " (＝)"
+
+
+def _post_line(post) -> str:
+    title = " ".join((post.title or "").split())[:60]
+    bits = []
+    if post.views is not None:
+        bits.append(f"{_kilo(post.views)} views")
+    if post.likes is not None:
+        bits.append(f"{_kilo(post.likes)} likes")
+    if post.comments is not None:
+        bits.append(f"{post.comments} comments")
+    if post.shares:
+        bits.append(f"{post.shares} shares")
+    when = f" · {_date(post.created_at)[:6]}" if post.created_at else ""
+    label = html.escape(title or "post")
+    if post.url:
+        label = f'<a href="{html.escape(post.url)}">{label}</a>'
+    return f" • {label} — {' · '.join(bits) or 'no stats'}{when}"
+
+
+def _account_lines(account) -> list[str]:
+    name = {"instagram": "Instagram", "tiktok": "TikTok"}.get(account.platform, account.platform)
+    if not account.ok:
+        note = account.note or "unavailable"
+        if note.startswith("not linked — ") or note.startswith("link expired — "):
+            prefix, _, url = note.partition(" — ")
+            return [f"<b>{name}</b>: {html.escape(prefix)} — "
+                    f'<a href="{html.escape(url)}">tap to link your account</a>']
+        return [f"<b>{name}</b>: {html.escape(note)}"]
+    head = f"<b>{name}</b>"
+    if account.handle:
+        head += f" @{html.escape(str(account.handle))}"
+    facts = []
+    if account.followers is not None:
+        facts.append(f"{account.followers:,} followers")
+    if account.posts is not None:
+        facts.append(f"{account.posts} {'videos' if account.platform == 'tiktok' else 'posts'}")
+    if account.total_likes is not None:
+        facts.append(f"{_kilo(account.total_likes)} likes")
+    lines = [head + (" — " + " · ".join(facts) if facts else "")]
+    lines += [_post_line(p) for p in account.recent[:RECENT_SOCIAL_POSTS]]
+    return lines
+
+
+RECENT_SOCIAL_POSTS = 3
+
+
+async def _social_text() -> str:
+    if _social is None:
+        return ("📣 <b>Social</b>\nNot configured. Set IG_USER_ID + IG_ACCESS_TOKEN for Instagram "
+                "and TIKTOK_CLIENT_KEY + TIKTOK_CLIENT_SECRET for TikTok — see .env.example.")
+    accounts = await _social.accounts()
+    await _remember_followers(accounts)
+    lines = ["📣 <b>Social</b>"]
+    for account in accounts:
+        block = _account_lines(account)
+        if account.ok and account.followers is not None:
+            block[0] += await _followers_delta(account.platform, account.followers)
+        lines += block
+    return "\n".join(lines)
+
+
+async def _social_line() -> str:
+    """One digest line: followers per platform with the day's change."""
+    if _social is None:
+        return ""
+    try:
+        accounts = await _social.accounts()
+    except Exception as exc:
+        log.debug("social digest fetch failed: %s", type(exc).__name__)
+        return ""
+    parts = []
+    for a in accounts:
+        if a.ok and a.followers is not None:
+            name = "Instagram" if a.platform == "instagram" else "TikTok"
+            parts.append(f"{name} {a.followers:,}{await _followers_delta(a.platform, a.followers)}")
+    await _remember_followers(accounts)
+    return "Social: " + " · ".join(parts) if parts else ""

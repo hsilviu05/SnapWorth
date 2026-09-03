@@ -580,7 +580,7 @@ class TestPolling:
             await drain()
             (menu,) = bot.command_menus
             assert [c["command"] for c in menu] == [
-                "status", "subs", "users", "costs", "feed", "digest", "week", "help"]
+                "status", "subs", "users", "costs", "social", "feed", "digest", "week", "help"]
         finally:
             await notify.aclose()
 
@@ -743,10 +743,10 @@ class TestButtons:
         text, buttons = await notify.handle_command_with_buttons("/status")
         labels = [label for row in buttons for label, _ in row]
         assert labels == ["🔄 Refresh", "📊 Digest", "📈 Week",
-                          "💳 Subs", "👥 Users", "💸 Costs", "🔕 Feed off"]
+                          "💳 Subs", "👥 Users", "💸 Costs", "📣 Social", "🔕 Feed off"]
         await notify.handle_command("/feed off")
         _, buttons = await notify.handle_command_with_buttons("/status")
-        assert buttons[2][0][0] == "🔔 Feed on"
+        assert buttons[2][1][0] == "🔔 Feed on"
 
     @pytest.mark.asyncio
     async def test_button_press_is_answered_and_acted_on(self, cache):

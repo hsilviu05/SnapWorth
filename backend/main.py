@@ -41,6 +41,7 @@ import notify
 import promptsafety
 import prompts
 import ratelimit
+import social
 import tokens
 import valuation as valuation_module
 from auditlog import AuditEvent
@@ -201,7 +202,10 @@ async def _lifespan(_app: FastAPI):
         _cache, dc,
         limit=int(os.environ.get("FREE_SCANS_PER_DAY", str(FREE_SCANS_PER_DAY))),
         first_day_limit=int(os.environ.get("FREE_SCANS_FIRST_DAY", "0")))
-    notify.configure(_cache, status_provider=_status_snapshot)
+    social_readers = social.from_env(_cache)
+    social.configure(social_readers)
+    notify.configure(_cache, status_provider=_status_snapshot,
+                     social=social_readers if social_readers.configured else None)
 
     cfg = auth.deps.config
     if cfg.enforce and not cfg.is_configured:
@@ -298,6 +302,7 @@ app = FastAPI(title="SnapWorth API", version=API_VERSION, lifespan=_lifespan)
 
 app.add_middleware(RequestContextMiddleware)
 app.include_router(auth.router)
+app.include_router(social.router)
 
 # The API serves a native app, which sends no Origin header and is unaffected by
 # CORS. A wildcard only widens the browser-reachable surface, so origins are
