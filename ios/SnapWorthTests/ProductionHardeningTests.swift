@@ -1475,4 +1475,3 @@ final class FreeScanReminderIdentifierTests: XCTestCase {
                        .freeScan)
     }
 }
-}
