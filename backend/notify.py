@@ -402,6 +402,20 @@ class TelegramNotifier:
             log.warning("telegram forwardMessages failed: %s", type(exc).__name__)
         return forwarded
 
+    async def get_chat(self, chat_id: str) -> dict | None:
+        """What Telegram knows about a chat id — title and type — or None if
+        the bot cannot see it. Used to verify the archive chat."""
+        try:
+            client = await self._http()
+            resp = await client.get(f"{TELEGRAM_API}/bot{self._token}/getChat",
+                                    params={"chat_id": chat_id})
+            if resp.status_code != 200:
+                return None
+            return (resp.json() or {}).get("result") or None
+        except Exception as exc:
+            log.debug("telegram getChat failed: %s", type(exc).__name__)
+            return None
+
     async def download_photo(self, file_id: str, max_bytes: int = 10 * 1024 * 1024) -> bytes | None:
         """Fetch a photo the operator sent, via getFile. None on any failure."""
         try:
@@ -2128,6 +2142,28 @@ def _probe_reason(exc: Exception) -> str:
     return type(exc).__name__
 
 
+async def _archive_chat_line(chat_id: str) -> str:
+    """One checkup line about TELEGRAM_ARCHIVE_CHAT_ID.
+
+    The commonest mistake is pasting a user id: channels are negative and
+    start with -100, and a positive number is a person or a bot. Say so before
+    /clear forwards the whole chat to it."""
+    shown = html.escape(chat_id)
+    if not chat_id.lstrip("-").isdigit():
+        return f"Archive chat: <code>{shown}</code> is not a chat id (digits only, negative for a channel)"
+    if not chat_id.startswith("-"):
+        hint = f"-100{chat_id}" if not chat_id.startswith("100") else f"-{chat_id}"
+        return (f"Archive chat: <code>{shown}</code> is positive — a user or bot id, not a channel. "
+                f"A channel id is negative and starts with -100; did you mean <code>{hint}</code>?")
+    info = await _notifier.get_chat(chat_id)
+    if not info:
+        return (f"Archive chat: <code>{shown}</code> not reachable — the bot is not in it, "
+                "or the id is wrong. Add the bot as an administrator of the channel.")
+    title = html.escape(str(info.get("title") or info.get("username") or "untitled"))
+    kind = html.escape(str(info.get("type") or "chat"))
+    return f"Archive chat: {title} ({kind}) ✅ — /clear forwards here first"
+
+
 async def _checkup_text() -> str:
     lines = ["🩺 <b>Checkup</b>"]
 
@@ -2188,6 +2224,11 @@ async def _checkup_text() -> str:
                          "(Let's Encrypt renews at 30; pinned intermediate to 2028-09-02)")
     except Exception as exc:
         lines.append(f"TLS {html.escape(host)}: unreachable ({html.escape(type(exc).__name__)})")
+
+    # The archive chat, if configured: does the id resolve, and to what?
+    archive_chat = os.environ.get(ARCHIVE_CHAT_ENV, "").strip()
+    if archive_chat:
+        lines.append(await _archive_chat_line(archive_chat))
 
     # Poll lock: is it this replica answering?
     try:
