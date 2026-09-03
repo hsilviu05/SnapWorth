@@ -113,18 +113,6 @@ room. Poshmark, Mercari and Depop are searched by exactly this audience and
 are honest claims from 1.3.4. Vinted was dropped as a keyword only; it is
 still supported and still named in the description.
 
-## First screenshot
-
-The search-results card shows the first screenshot inline. It used to be the
-*process* panel ("Four seconds, in the aisle"); the payoff converts better
-than the process. `screenshots/store_0_that-pair.jpg` puts the hook over the
-real result screen — "That $40 pair might be $420." above the Off-White
-sneakers the app priced at $220–$420 — and goes first. The other four keep
-their order after it. Built by `build_first_screenshot.py` from the shipped
-`store_2` artwork; the device screen is untouched.
-
----
-
 ## Category
 Primary: Shopping
 Secondary: Utilities
