@@ -153,6 +153,16 @@ class Entitlement:
     # originalPurchaseDate. Renewals keep the original date, so this is what
     # separates a new customer from an existing one checking in.
     original_purchase_at: int | None = None
+    # How the subscription was obtained, from Apple's offerType (1 introductory,
+    # 2 promotional, 3 offer code; absent for a plain purchase or renewal) and
+    # offerDiscountType ("FREE_TRIAL", "PAY_AS_YOU_GO", "PAY_UP_FRONT"). This is
+    # what tells a comped user from a paying one in the operator's view.
+    offer_type: int | None = None
+    offer_discount_type: str | None = None
+    # What Apple charged for this transaction, in currency units (the JWS
+    # carries milliunits). Absent on older transactions.
+    price: float | None = None
+    currency: str | None = None
 
     @property
     def is_active(self) -> bool:
@@ -169,6 +179,9 @@ class Entitlement:
             "original_transaction_id": self.original_transaction_id,
             "environment": self.environment,
             "original_purchase_at": self.original_purchase_at,
+            "offer_type": self.offer_type,
+            "offer_discount_type": self.offer_discount_type,
+            "price": self.price, "currency": self.currency,
         })
 
     @staticmethod
@@ -180,6 +193,9 @@ class Entitlement:
             original_transaction_id=d.get("original_transaction_id"),
             environment=d.get("environment", "Production"),
             original_purchase_at=d.get("original_purchase_at"),
+            offer_type=d.get("offer_type"),
+            offer_discount_type=d.get("offer_discount_type"),
+            price=d.get("price"), currency=d.get("currency"),
         )
 
 
@@ -325,6 +341,15 @@ def verify_signed_transaction(
     original_purchase_at = (int(purchased_ms / 1000)
                             if isinstance(purchased_ms, (int, float)) else None)
 
+    offer_type = payload.get("offerType")
+    offer_type = int(offer_type) if isinstance(offer_type, (int, float)) else None
+    offer_discount_type = payload.get("offerDiscountType")
+    if not isinstance(offer_discount_type, str):
+        offer_discount_type = None
+    price_milli = payload.get("price")
+    price = round(price_milli / 1000, 2) if isinstance(price_milli, (int, float)) else None
+    currency = payload.get("currency") if isinstance(payload.get("currency"), str) else None
+
     revoked = payload.get("revocationDate")
     if revoked:
         log.info("signed transaction was revoked", extra={"product_id": product_id})
@@ -337,6 +362,10 @@ def verify_signed_transaction(
         original_transaction_id=payload.get("originalTransactionId"),
         environment=environment,
         original_purchase_at=original_purchase_at,
+        offer_type=offer_type,
+        offer_discount_type=offer_discount_type,
+        price=price,
+        currency=currency,
     )
     if not ent.is_active:
         log.info("signed transaction has expired", extra={"product_id": product_id})

@@ -191,11 +191,29 @@ jobs:
       - name: Deploy
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+          # The pushed commit as GitHub describes it — message and the files it
+          # touched — so the deploy notification can say *what* went live, not
+          # just which SHA. No git history needed, so a depth-1 checkout is fine.
+          HEAD_COMMIT_JSON: ${{ toJSON(github.event.head_commit) }}
+          REPOSITORY: ${{ github.repository }}
         run: |
           if [ -z "$RAILWAY_TOKEN" ]; then
             echo "::warning::RAILWAY_TOKEN secret not set — skipping deploy. Add it in GitHub repo Settings → Secrets."
             exit 0
           fi
+          # Companion to BUILD_COMMIT below: the commit message and change
+          # size, for the operator's deploy message. Best-effort — a malformed
+          # payload writes nothing, and the app treats a missing file as "no
+          # details" rather than as a failed boot.
+          python3 - <<'PYEOF' || echo "::warning::BUILD_INFO not written"
+          import json, os
+          head = json.loads(os.environ.get("HEAD_COMMIT_JSON") or "null") or {}
+          files = sum(len(head.get(k) or []) for k in ("added", "removed", "modified"))
+          info = {"message": head.get("message") or "", "files": files,
+                  "repository": os.environ.get("REPOSITORY", "")}
+          with open("backend/BUILD_INFO", "w", encoding="utf-8") as fh:
+              json.dump(info, fh)
+          PYEOF
           # Record the commit being deployed so /health can report which build
           # is live. `railway up` uploads this directory and Railway builds the
           # Dockerfile there, so a file written here rides along via `COPY . .`

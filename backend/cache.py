@@ -49,7 +49,7 @@ class Cache(Protocol):
     async def get(self, key: str) -> str | None: ...
     async def set(self, key: str, value: str, ttl: int | None = None) -> None: ...
     async def add(self, key: str, value: str, ttl: int | None = None) -> bool: ...
-    async def incr(self, key: str, ttl: int | None = None) -> int: ...
+    async def incr(self, key: str, ttl: int | None = None, amount: int = 1) -> int: ...
     async def delete(self, key: str) -> None: ...
     async def ping(self) -> bool: ...
 
@@ -87,10 +87,10 @@ class InMemoryCache:
             self._data[key] = (value, time.time() + ttl if ttl else None)
             return True
 
-    async def incr(self, key: str, ttl: int | None = None) -> int:
+    async def incr(self, key: str, ttl: int | None = None, amount: int = 1) -> int:
         async with self._lock:
             current = self._live(key)
-            nxt = int(current or 0) + 1
+            nxt = int(current or 0) + amount
             # Preserve the original expiry so a counter can't be extended
             # indefinitely by continued use.
             existing_expiry = self._data.get(key, (None, None))[1]
@@ -123,11 +123,11 @@ class RedisCache:
     async def add(self, key: str, value: str, ttl: int | None = None) -> bool:
         return bool(await self._redis.set(key, value, ex=ttl, nx=True))
 
-    async def incr(self, key: str, ttl: int | None = None) -> int:
+    async def incr(self, key: str, ttl: int | None = None, amount: int = 1) -> int:
         # Pipeline so INCR and EXPIRE are one round-trip. NX on the expire means
         # the window is anchored to first use, not extended on every hit.
         async with self._redis.pipeline(transaction=True) as pipe:
-            pipe.incr(key)
+            pipe.incrby(key, amount)
             if ttl:
                 pipe.expire(key, ttl, nx=True)
             results = await pipe.execute()
@@ -225,9 +225,9 @@ class ResilientCache:
                   *, required: bool = False) -> bool:
         return await self._call("add", key, value, ttl, required=required)
 
-    async def incr(self, key: str, ttl: int | None = None,
+    async def incr(self, key: str, ttl: int | None = None, amount: int = 1,
                    *, required: bool = False) -> int:
-        return await self._call("incr", key, ttl, required=required)
+        return await self._call("incr", key, ttl, amount, required=required)
 
     async def delete(self, key: str, *, required: bool = False) -> None:
         await self._call("delete", key, required=required)

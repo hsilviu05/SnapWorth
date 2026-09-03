@@ -41,6 +41,7 @@ import notify
 import promptsafety
 import prompts
 import ratelimit
+import social
 import tokens
 import valuation as valuation_module
 from auditlog import AuditEvent
@@ -159,6 +160,22 @@ def resolve_git_commit(
 API_VERSION = resolve_api_version(os.environ)
 GIT_COMMIT = resolve_git_commit(os.environ)
 
+BUILD_INFO_FILE = Path(__file__).resolve().parent / "BUILD_INFO"
+
+
+def read_build_info(path: Path = BUILD_INFO_FILE) -> dict:
+    """The deployed commit's message and change size, written by CI next to
+    BUILD_COMMIT. Forgiving for the same reason: details about a deploy must
+    never be able to fail one."""
+    try:
+        info = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    return info if isinstance(info, dict) else {}
+
+
+BUILD_INFO = read_build_info()
+
 _api_key = os.environ.get("GEMINI_API_KEY", "")
 if not _api_key:
     log.warning("GEMINI_API_KEY is not set — scan requests will fail")
@@ -185,7 +202,10 @@ async def _lifespan(_app: FastAPI):
         _cache, dc,
         limit=int(os.environ.get("FREE_SCANS_PER_DAY", str(FREE_SCANS_PER_DAY))),
         first_day_limit=int(os.environ.get("FREE_SCANS_FIRST_DAY", "0")))
-    notify.configure(_cache, status_provider=_status_snapshot)
+    social_readers = social.from_env(_cache)
+    social.configure(social_readers)
+    notify.configure(_cache, status_provider=_status_snapshot,
+                     social=social_readers if social_readers.configured else None)
 
     cfg = auth.deps.config
     if cfg.enforce and not cfg.is_configured:
@@ -209,7 +229,7 @@ async def _lifespan(_app: FastAPI):
     _ready = True
     log.info("startup complete — accepting traffic")
     notify.deployed(GIT_COMMIT, cache_backend=_cache.backend,
-                    auth_enforcing=cfg.enforce)
+                    auth_enforcing=cfg.enforce, info=BUILD_INFO)
 
     yield
 
@@ -282,6 +302,7 @@ app = FastAPI(title="SnapWorth API", version=API_VERSION, lifespan=_lifespan)
 
 app.add_middleware(RequestContextMiddleware)
 app.include_router(auth.router)
+app.include_router(social.router)
 
 # The API serves a native app, which sends no Origin header and is unaffected by
 # CORS. A wildcard only widens the browser-reachable surface, so origins are
@@ -1098,7 +1119,8 @@ async def scan(
     quota_status = await consume_quota(principal)
     notify.scan_completed(
         tier=principal.tier, item_name=val.item_name, brand=val.brand,
-        category=val.category, low=low, high=high, confidence=conf.band)
+        category=val.category, low=low, high=high, confidence=conf.band,
+        subject=principal.subject, elapsed_ms=int(elapsed * 1000))
 
     return ScanResponse(
         # ── v1 contract ─────────────────────────────────────────────────────
@@ -1293,6 +1315,7 @@ async def _generate_with_retry(
             text, usage = aiconfig.extract_text(response), aiconfig.usage_of(response)
             metrics.model_calls.inc(operation=label, outcome="success")
             _model_health.record_success()
+            notify.model_usage(label, usage)
             for kind, key in (("prompt", "prompt_tokens"), ("output", "output_tokens"),
                               ("thoughts", "thoughts_tokens")):
                 if key in usage:
