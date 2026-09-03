@@ -1503,11 +1503,15 @@ class TestCheckup:
             client=httpx.AsyncClient(transport=httpx.MockTransport(recorder.handler)))
 
         async def broken(prompt, max_tokens, **opts):
-            raise RuntimeError("down")
+            raise RuntimeError("429 RESOURCE_EXHAUSTED: too many requests")
         notify.configure(cache, notifier=notifier, generator=broken)
         try:
             text = await notify.handle_command("/checkup")
-            assert "Gemini: FAILED (RuntimeError) — a probe, not counted" in text
+            assert "Gemini: FAILED — rate limited (429)" in text and "not counted against provider health" in text
+            assert notify._probe_reason(Exception("model returned empty text (finish_reason=MAX_TOKENS)")) \
+                .startswith("empty reply")
+            assert notify._probe_reason(Exception("prepayment credits depleted")).startswith("quota or billing")
+            assert notify._probe_reason(ValueError("weird")) == "ValueError"
             assert "TLS api.snapworth.eu: unreachable (OSError)" in text
         finally:
             await notify.aclose()

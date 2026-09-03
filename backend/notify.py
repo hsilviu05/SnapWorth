@@ -2043,6 +2043,21 @@ def _public_host() -> str:
     return base.split("//", 1)[-1].split("/", 1)[0] or "api.snapworth.eu"
 
 
+def _probe_reason(exc: Exception) -> str:
+    """Why the probe failed, in the operator's words, so a rate limit is not
+    mistaken for an outage and a truncated reply is not mistaken for either."""
+    text = str(exc).lower()
+    if "429" in text or "resource_exhausted" in text or "rate" in text and "limit" in text:
+        return "rate limited (429) — retry in a minute; real scans retry on their own"
+    if "empty text" in text or "max_tokens" in text:
+        return "empty reply — the model spent its token allowance thinking"
+    if "quota" in text or "credits" in text or "billing" in text:
+        return "quota or billing — top up the provider account"
+    if "api key" in text or "401" in text or "403" in text or "permission" in text:
+        return "credentials refused — check GEMINI_API_KEY"
+    return type(exc).__name__
+
+
 async def _checkup_text() -> str:
     lines = ["🩺 <b>Checkup</b>"]
 
@@ -2072,7 +2087,7 @@ async def _checkup_text() -> str:
             answered = '"ok"' in (text or "").lower()
             lines.append(f"Gemini: {'ok' if answered else 'answered oddly'} · {ms:.0f} ms")
         except Exception as exc:
-            lines.append(f"Gemini: FAILED ({html.escape(type(exc).__name__)}) — a probe, "
+            lines.append(f"Gemini: FAILED — {html.escape(_probe_reason(exc))} · a probe, "
                          "not counted against provider health")
 
     # What the process itself knows.
