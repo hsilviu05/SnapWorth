@@ -197,11 +197,15 @@ def render(ideas: list[dict], context: dict, hint: str = "") -> str:
 # a JSON reply, a bounded render — so they share the parser and the safety
 # treatment. Each is one function pair, not a framework.
 
-CAPTION_MAX_TOKENS = 1024
-REPLY_MAX_TOKENS = 1024
-HOOKS_MAX_TOKENS = 1024
-CALENDAR_MAX_TOKENS = 3072
-PRICE_MAX_TOKENS = 1024
+# Caps, not spend: billing is per token used. The model thinks before it
+# answers and thinking draws from the same allowance, so a cap sized to the
+# visible answer alone truncates it into an empty reply — which is exactly
+# what a 16-token "say OK" probe did. Generous on purpose.
+CAPTION_MAX_TOKENS = 2048
+REPLY_MAX_TOKENS = 2048
+HOOKS_MAX_TOKENS = 2048
+CALENDAR_MAX_TOKENS = 4096
+PRICE_MAX_TOKENS = 2048
 
 VOICE = ("Voice: a knowledgeable friend in the thrift aisle — specific, warm, a "
          "little playful, never salesy, no emoji walls, no exclamation marks in a row.")

@@ -206,7 +206,7 @@ async def _lifespan(_app: FastAPI):
     social.configure(social_readers)
     notify.configure(_cache, status_provider=_status_snapshot,
                      social=social_readers if social_readers.configured else None,
-                     generator=_bot_generate)
+                     generator=_bot_generate, scanner=_bot_scan)
 
     cfg = auth.deps.config
     if cfg.enforce and not cfg.is_configured:
@@ -268,11 +268,38 @@ _DRAIN_TIMEOUT_SECONDS = float(os.environ.get("DRAIN_TIMEOUT_SECONDS", "15"))
 _ready = False
 
 
-async def _bot_generate(prompt: str, max_tokens: int) -> str:
+async def _bot_scan(image_bytes: bytes, declared_type: str) -> dict:
+    """A photo the operator sent the Telegram bot, through the real pipeline.
+
+    Validation and `_analyse` exactly as /scan does them; none of the things
+    /scan does around them — no auth, no quota, no counters, no feed — because
+    this is the operator testing the service, not a user using it. Raises the
+    same HTTPExceptions, so the bot can say what /scan would have answered.
+    """
+    try:
+        content_type = imagevalidation.validate(image_bytes, declared_type)
+    except imagevalidation.ImageValidationError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from None
+    response, elapsed = await _analyse(image_bytes, content_type,
+                                       subject="telegram-operator", device_short="telegram")
+    return {"elapsed": elapsed, **response.model_dump()}
+
+
+async def _bot_generate(prompt: str, max_tokens: int, *, probe: bool = False) -> str:
     """The Telegram bot's route to the model — /post ideas — through the same
     retry policy, metrics and cost tally as a scan, so the bot's own tokens
-    show up in /costs rather than going uncounted."""
-    text, _usage = await _generate_with_retry(prompt, label="ideas", max_tokens=max_tokens)
+    show up in /costs rather than going uncounted.
+
+    `probe` is /checkup's one-token round trip. It is billed and counted like
+    any call, but it must not move `_model_health`: that state is derived from
+    real traffic by design, and a synthetic probe that fails for its own
+    reasons — as the first one did, by leaving a thinking model no room to
+    think — would otherwise be able to page the operator about an outage that
+    is not happening.
+    """
+    text, _usage = await _generate_with_retry(
+        prompt, label="probe" if probe else "ideas", max_tokens=max_tokens,
+        record_health=not probe)
     return text
 
 
@@ -498,6 +525,18 @@ class ScanResponse(BaseModel):
     """
 
     # ── v1 contract — do not change ─────────────────────────────────────────
+    #
+    # One field is gone from it: `sold_listings_count`. The model never produced
+    # it, the app has no sold-listings source, and it was pinned to a literal 0
+    # so that clients below 1.2 — which decoded it as a non-optional Int —
+    # would not fail the whole response. 1.2 shipped 2026-07-28; those installs
+    # have aged out (#49). Clients from 1.2 on decode it as optional.
+    #
+    # The name is retired, not parked. It is the field behind the "38 sold
+    # listings" claim the July screenshots made and could not support; when
+    # comparable-sales pricing lands (#42) it introduces its own field, so a
+    # real count can never be confused with the fabricated one — in analytics,
+    # in tests, or on an old client. `tests/test_ai_pipeline.py` enforces that.
     item_name: str
     brand: str
     category: str
@@ -505,10 +544,6 @@ class ScanResponse(BaseModel):
     est_value_low_usd: float = Field(ge=0)
     est_value_high_usd: float = Field(ge=0)
     confidence: str
-    # TODO(compat): the model no longer produces this; it is kept in the response
-    # (always 0) only so older installed clients that decode it as a non-optional
-    # Int don't break. Remove once app versions < 1.2 age out.
-    sold_listings_count: int = Field(ge=0, default=0)
     listing_title: str
     listing_description: str
 
@@ -1023,6 +1058,36 @@ async def scan(
 
     log.info("scan start", extra={"device": device_short, "size_kb": image_kb,
                                   "type": content_type})
+    response, elapsed = await _analyse(image_bytes, content_type,
+                                       subject=principal.subject, device_short=device_short)
+
+    # Charge only for work that produced a result.
+    quota_status = await consume_quota(principal)
+    notify.scan_completed(
+        tier=principal.tier, item_name=response.item_name, brand=response.brand,
+        category=response.category, low=response.est_value_low_usd,
+        high=response.est_value_high_usd, confidence=response.confidence,
+        subject=principal.subject, elapsed_ms=int(elapsed * 1000))
+    # Optional and omitted for Pro or when the quota store is unreachable: the
+    # client must fall back to its own count rather than be handed a number.
+    response.free_scans_remaining = (
+        None if quota_status is None or quota_status.unlimited
+        else quota_status.remaining)
+    return response
+
+
+async def _analyse(image_bytes: bytes, content_type: str, *, subject: str,
+                   device_short: str) -> tuple[ScanResponse, float]:
+    """The scan itself: model call, parse, normalise, clamp, score.
+
+    Everything between "the upload is valid and allowed" and "charge for it":
+    no auth, no quota, no counters, so it serves both the /scan handler and
+    the Telegram bot's photo test — which must exercise exactly this code and
+    nothing else, or a green test scan would prove nothing about /scan.
+    Returns the response (with `free_scans_remaining` unset) and the elapsed
+    seconds. Raises HTTPException exactly as the endpoint would.
+    """
+
     t0 = time.monotonic()
 
     image_part = {"mime_type": content_type, "data": base64.standard_b64encode(image_bytes).decode()}
@@ -1042,7 +1107,7 @@ async def scan(
         # lighters and vintage militaria; telling the user the service is down
         # is both wrong and unactionable.
         log.info("scan blocked by safety filter", extra={"reason": str(exc)})
-        auditlog.record(AuditEvent.SCAN_BLOCKED, principal.subject,
+        auditlog.record(AuditEvent.SCAN_BLOCKED, subject,
                         outcome="denied", reason=str(exc))
         raise HTTPException(
             status_code=422,
@@ -1137,14 +1202,7 @@ async def scan(
         **usage,
     })
 
-    # Charge only for work that produced a result.
-    quota_status = await consume_quota(principal)
-    notify.scan_completed(
-        tier=principal.tier, item_name=val.item_name, brand=val.brand,
-        category=val.category, low=low, high=high, confidence=conf.band,
-        subject=principal.subject, elapsed_ms=int(elapsed * 1000))
-
-    return ScanResponse(
+    response = ScanResponse(
         # ── v1 contract ─────────────────────────────────────────────────────
         item_name=val.item_name,
         brand=val.brand,
@@ -1153,7 +1211,6 @@ async def scan(
         est_value_low_usd=low,
         est_value_high_usd=high,
         confidence=conf.as_legacy,
-        sold_listings_count=0,  # see TODO(compat) on the model field above
         listing_title=val.listing_title,
         listing_description=val.listing_description,
         # ── v2 additions ────────────────────────────────────────────────────
@@ -1181,11 +1238,9 @@ async def scan(
         improve_estimate=val.improve_estimate,
         value_drivers=val.value_drivers,
         valuation_source="model",
-        free_scans_remaining=(
-            None if quota_status is None or quota_status.unlimited
-            else quota_status.remaining),
         prompt_version=prompt_version,
     )
+    return response, elapsed
 
 
 _RETRY_ATTEMPTS = int(os.environ.get("GEMINI_RETRY_ATTEMPTS", "2"))
@@ -1305,7 +1360,7 @@ _model_health = _ModelHealth()
 
 
 async def _generate_with_retry(
-    contents, *, label: str, max_tokens: int | None = None
+    contents, *, label: str, max_tokens: int | None = None, record_health: bool = True
 ) -> tuple[str, dict]:
     """Call the model with classified retries and jittered backoff.
 
@@ -1336,7 +1391,8 @@ async def _generate_with_retry(
                 response = await _model.generate_content_async(contents, **kwargs)
             text, usage = aiconfig.extract_text(response), aiconfig.usage_of(response)
             metrics.model_calls.inc(operation=label, outcome="success")
-            _model_health.record_success()
+            if record_health:
+                _model_health.record_success()
             notify.model_usage(label, usage)
             for kind, key in (("prompt", "prompt_tokens"), ("output", "output_tokens"),
                               ("thoughts", "thoughts_tokens")):
@@ -1353,7 +1409,8 @@ async def _generate_with_retry(
                 kind = "quota_exhausted" if quota else "non_retryable"
                 metrics.model_calls.inc(operation=label, outcome=kind)
                 metrics.dependency_errors.inc(dependency="gemini", kind=kind)
-                _model_health.record_failure(kind)
+                if record_health:
+                    _model_health.record_failure(kind)
                 # Logged at error either way, but the quota case names itself
                 # so it is greppable in Railway without reading the provider's
                 # prose: it is the one failure mode no retry or redeploy fixes.
@@ -1372,7 +1429,8 @@ async def _generate_with_retry(
 
     metrics.model_calls.inc(operation=label, outcome="exhausted")
     metrics.dependency_errors.inc(dependency="gemini", kind="exhausted")
-    _model_health.record_failure("exhausted")
+    if record_health:
+        _model_health.record_failure("exhausted")
     raise aiconfig.ModelUnavailable(str(last_exc))
 
 

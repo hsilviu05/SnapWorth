@@ -256,6 +256,9 @@ probe on recovery. A degraded provider is skipped, not retried into the budget.
 
 `ScanResponse` already carries `valuation_source`. Phase 1 adds:
 
+> **Decision (#49, 2026-09-03):** the retired `sold_listings_count` name is **not** reused. It was a literal zero behind a screenshot claim the product could not support, and old clients and analytics still know it as such. A real count from comps ships under a new name inside the `comps` object below (`sold_count`), so a genuine number can never be mistaken for the fabricated one. `tests/test_ai_pipeline.py::test_sold_listings_count_stays_retired` enforces the absence.
+
+
 ```json
 {
   "valuation_source": "comps",
