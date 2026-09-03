@@ -4,10 +4,19 @@ import UIKit
 /// Per-category opt-outs for local notifications. All ON by default; each can be
 /// disabled independently and is respected at schedule time by NotificationManager.
 struct NotificationSettingsView: View {
+    /// Whether the user is Pro — the free-scan reminder is meaningless then
+    /// and is hidden rather than shown disabled.
+    var isPro: Bool = false
+
     @State private var recapOn  = NotificationManager.shared.isEnabled(.recap)
     @State private var ledgerOn = NotificationManager.shared.isEnabled(.ledger)
     @State private var trialOn  = NotificationManager.shared.isEnabled(.trial)
     @State private var portfolioOn = NotificationManager.shared.isEnabled(.portfolio)
+    @State private var freeScanOn = NotificationManager.shared.isEnabled(.freeScan)
+    @State private var freeScanTime: Date = {
+        let t = NotificationManager.shared.freeScanReminderTime
+        return Calendar.current.date(bySettingHour: t.hour, minute: t.minute, second: 0, of: Date()) ?? Date()
+    }()
     @State private var systemDenied = false
 
     var body: some View {
@@ -34,6 +43,29 @@ struct NotificationSettingsView: View {
                             }
                         }
                     }
+                }
+            }
+
+            if !isPro {
+                Section {
+                    toggle("Daily free scan", "alarm", $freeScanOn, .freeScan)
+                    if freeScanOn {
+                        DatePicker("Remind me at", selection: $freeScanTime,
+                                   displayedComponents: .hourAndMinute)
+                            .font(.snapBody)
+                            .foregroundStyle(Color.snapEspresso)
+                            .tint(Color.snapTerracotta)
+                            .onChange(of: freeScanTime) { _, date in
+                                let comps = Calendar.current.dateComponents([.hour, .minute], from: date)
+                                NotificationManager.shared.freeScanReminderTime =
+                                    (comps.hour ?? NotificationManager.defaultFreeScanHour, comps.minute ?? 0)
+                                resyncFreeScan()
+                            }
+                    }
+                } header: {
+                    Text("Free scan")
+                } footer: {
+                    Text("Off by default. When on, one reminder at the time you pick — only on days you haven't scanned yet, and never once you're on Pro.")
                 }
             }
 
@@ -77,6 +109,16 @@ struct NotificationSettingsView: View {
         .tint(Color.snapTerracotta)
         .onChange(of: binding.wrappedValue) { _, isOn in
             NotificationManager.shared.setEnabled(category, isOn)
+            if category == .freeScan, isOn { resyncFreeScan() }
+        }
+    }
+
+    /// Turning the reminder on, or moving its time, schedules the next one
+    /// right away rather than waiting for the next foreground.
+    private func resyncFreeScan() {
+        Task {
+            await NotificationManager.shared.syncFreeScanReminder(
+                isPro: isPro, scannedToday: ScanStreak.scannedToday(), streak: ScanStreak.current())
         }
     }
 }

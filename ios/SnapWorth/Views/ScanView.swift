@@ -82,6 +82,24 @@ struct ScanView: View {
                 .padding(.horizontal, 20)
                 .padding(.top, 8)
 
+                // Streak: shown from two days on, for every tier. One day is
+                // not a streak, and a "1-day streak" badge reads as a taunt.
+                if vm.streak >= 2 {
+                    HStack {
+                        Spacer()
+                        Text("🔥 \(vm.streak)-day streak")
+                            .font(.snapCaption.bold())
+                            .foregroundStyle(Color.snapOnCharcoal.opacity(0.9))
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 4)
+                            .background(Color.snapCharcoal.opacity(0.5))
+                            .clipShape(Capsule())
+                            .accessibilityLabel("\(vm.streak) day scanning streak")
+                    }
+                    .padding(.horizontal, 20)
+                    .padding(.top, 6)
+                }
+
                 Spacer()
 
                 // Viewfinder frame guide — compact = phone, regular = iPad

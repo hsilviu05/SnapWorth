@@ -8,6 +8,8 @@ extension Notification.Name {
 struct MainTabView: View {
     let purchaseService: any PurchaseService
     @State private var selectedTab = 0
+    @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.modelContext) private var modelContext
 
     /// Only *listed* items, filtered in the fetch rather than in Swift.
     ///
@@ -76,6 +78,18 @@ struct MainTabView: View {
         }
         .onReceive(NotificationCenter.default.publisher(for: .snapOpenSettings)) { _ in
             selectedTab = 3
+        }
+        // Every schedule in NotificationManager is idempotent, so rebuilding
+        // them on each foreground is the simplest way to keep the daily
+        // free-scan reminder honest: it moves to tomorrow once today's scan
+        // happens, and disappears the moment the user goes Pro. Previously
+        // schedules were only rebuilt when notifications were first granted.
+        .onChange(of: scenePhase) { _, phase in
+            guard phase == .active else { return }
+            Task {
+                await NotificationManager.shared.syncEligible(
+                    context: modelContext, purchaseService: purchaseService)
+            }
         }
     }
 }
