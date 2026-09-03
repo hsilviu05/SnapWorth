@@ -13,7 +13,8 @@ import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 from fastapi.testclient import TestClient
 
-import sys, os
+import sys
+import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
 from main import (
@@ -292,12 +293,13 @@ class TestResponseSanitisation:
         assert r.status_code == 200
         assert r.json()["item_name"] == "'; DROP TABLE scans; --"
 
-    def test_missing_optional_fields_use_defaults(self):
-        minimal = {**MOCK_AI_RESPONSE}
-        del minimal["sold_listings_count"]
-        r = _mock_scan(device_id="minimal-test", response_data=minimal)
+    def test_a_sold_listings_count_from_the_model_is_dropped(self):
+        # The model is told nothing about sold listings and has no source for
+        # them; if one ever appears in its output it is invented, and it must
+        # not reach a client under the retired name (#49).
+        r = _mock_scan(device_id="minimal-test", response_data=MOCK_AI_RESPONSE)
         assert r.status_code == 200
-        assert r.json()["sold_listings_count"] == 0
+        assert "sold_listings_count" not in r.json()
 
     def test_extra_fields_from_ai_ignored(self):
         extra = {**MOCK_AI_RESPONSE, "malicious_field": "evil", "internal_data": "secret"}

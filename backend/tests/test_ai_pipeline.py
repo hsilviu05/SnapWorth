@@ -434,7 +434,7 @@ from unittest.mock import AsyncMock, MagicMock, patch  # noqa: E402
 
 from fastapi.testclient import TestClient  # noqa: E402
 
-from main import app, _rate_store, _ip_rate_store  # noqa: E402
+from main import ScanResponse, app, _rate_store, _ip_rate_store  # noqa: E402
 from tests.images import image_bytes as _img  # noqa: E402
 
 _client = TestClient(app)
@@ -479,13 +479,25 @@ def _scan_with(payload: dict):
 class TestScanResponseContract:
     V1_REQUIRED = ("item_name", "brand", "category", "condition_notes",
                    "est_value_low_usd", "est_value_high_usd", "confidence",
-                   "sold_listings_count", "listing_title", "listing_description")
+                   "listing_title", "listing_description")
 
     def test_v1_fields_all_present_and_non_null(self):
         body = _scan_with(V2_PAYLOAD).json()
         for field_name in self.V1_REQUIRED:
             assert field_name in body, f"v1 client would fail: missing {field_name}"
             assert body[field_name] is not None, f"v1 client would fail: null {field_name}"
+
+    def test_sold_listings_count_stays_retired(self):
+        """The fabricated-count guard, kept rather than deleted (#49).
+
+        `sold_listings_count` was a literal 0 behind a screenshot claim the
+        product could not support. Clients from 1.2 decode it as optional, so
+        dropping it breaks nobody — and it must not come back under this name,
+        even when a real comparable-sales count exists: that gets its own field.
+        """
+        body = _scan_with({**V2_PAYLOAD, "sold_listings_count": 38}).json()
+        assert "sold_listings_count" not in body
+        assert "sold_listings_count" not in ScanResponse.model_fields
 
     def test_legacy_confidence_remains_one_of_three_strings(self):
         assert _scan_with(V2_PAYLOAD).json()["confidence"] in {"High", "Medium", "Low"}

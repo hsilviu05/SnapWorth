@@ -266,10 +266,12 @@ def load_baseline(path: str | Path) -> MetricSet | None:
 
 # ── Schema compliance ────────────────────────────────────────────────────────
 
+# `sold_listings_count` left this tuple with #49: it was never a real value,
+# and clients from 1.2 decode it as optional.
 REQUIRED_SCAN_FIELDS = (
     "item_name", "brand", "category", "condition_notes",
     "est_value_low_usd", "est_value_high_usd", "confidence",
-    "sold_listings_count", "listing_title", "listing_description",
+    "listing_title", "listing_description",
 )
 
 

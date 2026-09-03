@@ -30,12 +30,11 @@ training knowledge, not from any marketplace lookup:
 There is no eBay Browse API call, no Terapeak integration, no scraper, and no
 comps table anywhere in `backend/`. A scan is one Gemini vision call.
 
-`sold_listings_count` is hardcoded to `0` in the response and exists purely so
-clients below 1.2 don't fail to decode:
-
-```python
-sold_listings_count=0,  # see TODO(compat) on the model field above
-```
+`sold_listings_count` — the field behind the retired "38 sold listings" claim —
+was a hardcoded `0` kept only so clients below 1.2 could decode the response.
+Those installs have aged out and the field was removed from the response
+entirely (#49). The name is retired for good: a real comparable-sales count,
+when it exists, ships under its own name (see `docs/COMPS-ARCHITECTURE.md`).
 
 ### Verified scope
 

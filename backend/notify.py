@@ -178,6 +178,29 @@ SPIKE_MIN_SCANS = 10
 TREND_DAYS = 30
 SPARK = "▁▂▃▄▅▆▇█"
 
+# Commands that need typed input, reachable from a button: the button sends a
+# question with Telegram's reply box already open, the operator's reply comes
+# back quoting that question, and the quote says which command it was for.
+ASKS: dict[str, tuple[str, str]] = {
+    # command: (question shown, placeholder in the reply box)
+    "caption": ("✍️ /caption — what did you film? One line is enough.",
+                "me scanning a $4 Patagonia fleece"),
+    "hooks": ("✍️ /hooks — what is the video about?", "vintage Levi's"),
+    "reply": ("✍️ /reply — paste the comment or review.", "paste it here"),
+    "price": ("✍️ /price — describe the item: brand, model, size, condition.",
+              "Carhartt Detroit jacket, brown duck, L, worn"),
+    "trend": ("✍️ /trend — which brand or category?", "carhartt, or shoes"),
+    "user": ("✍️ /user — the id from /users or /subs.", "a1b2c3"),
+}
+_ASK_QUOTE = re.compile(r"^✍️ /(\w+) —")
+
+# Every message id in the operator's chat — the bot's and the operator's — so
+# 🧹 Clear can delete them. Telegram refuses anything older than 48 hours, so
+# the list is pruned to that and capped; a longer memory would buy nothing.
+MESSAGES_KEY = "opsstate:tgmsgs"
+MESSAGES_CAP = 400
+MESSAGES_TTL = 48 * 3600
+
 COMMANDS: tuple[tuple[str, str], ...] = (
     ("status", "Active users, scans today, provider health"),
     ("subs", "Every subscription seen: plan, how obtained, renews"),
@@ -194,6 +217,7 @@ COMMANDS: tuple[tuple[str, str], ...] = (
     ("trend", "/trend <brand or category> — 30 days of scans"),
     ("user", "/user <id> — one device's story, for support"),
     ("checkup", "Redis, Gemini, DeviceCheck, TLS expiry — one screen"),
+    ("clear", "Delete the last two days of this chat and start fresh"),
     ("feed", "Live scan feed: on, off, or show"),
     ("digest", "Yesterday's digest, now"),
     ("week", "Last 7 days against the 7 before"),
@@ -226,6 +250,9 @@ class TelegramNotifier:
         self._token = bot_token
         self._chat_id = chat_id
         self._client = client          # injectable for tests
+        # Told the message_id of every message this notifier sends, so /clear
+        # can take them back. Set by `configure`; None is "don't bother".
+        self.on_sent: Callable[[int], Awaitable[None]] | None = None
 
     async def _http(self):
         if self._client is None:
@@ -234,8 +261,13 @@ class TelegramNotifier:
             self._client = httpx.AsyncClient(timeout=SEND_TIMEOUT_SECONDS)
         return self._client
 
-    async def send(self, text: str, buttons: Buttons | None = None) -> bool:
+    async def send(self, text: str, buttons: Buttons | None = None, *,
+                   ask: str | None = None) -> bool:
         """Deliver one message. Returns success; never raises.
+
+        `ask` turns the message into a question: Telegram opens the reply box
+        on it with that placeholder, so a button can stand in for a command
+        that needs typed input — the operator taps, types, sends.
 
         Failures log the exception *class* only: httpx error messages quote the
         request URL, and the URL carries the bot token.
@@ -248,7 +280,10 @@ class TelegramNotifier:
                 "parse_mode": "HTML",
                 "disable_web_page_preview": True,
             }
-            if buttons:
+            if ask is not None:
+                payload["reply_markup"] = {"force_reply": True, "selective": True,
+                                           "input_field_placeholder": ask[:64]}
+            elif buttons:
                 payload["reply_markup"] = {"inline_keyboard": [
                     [{"text": label, "callback_data": data} for label, data in row]
                     for row in buttons]}
@@ -260,6 +295,12 @@ class TelegramNotifier:
                 log.warning("telegram send failed: HTTP %s %s",
                             resp.status_code, self._description(resp))
                 return False
+            if self.on_sent is not None:
+                try:
+                    message_id = int(((resp.json() or {}).get("result") or {}).get("message_id"))
+                    await self.on_sent(message_id)
+                except Exception:
+                    pass
             return True
         except Exception as exc:
             log.warning("telegram send failed: %s", type(exc).__name__)
@@ -295,6 +336,28 @@ class TelegramNotifier:
         except Exception as exc:
             log.warning("telegram poll failed: %s", type(exc).__name__)
             return []
+
+    async def delete_messages(self, message_ids: list[int]) -> int:
+        """Delete the bot's own (and, in a private chat, the operator's)
+        messages, up to 100 per call. Returns how many ids Telegram accepted.
+        Messages older than 48 hours cannot be deleted by any bot — that is
+        Telegram's rule, and the operator clears those from the chat menu."""
+        deleted = 0
+        try:
+            client = await self._http()
+            for start in range(0, len(message_ids), 100):
+                chunk = message_ids[start:start + 100]
+                resp = await client.post(
+                    f"{TELEGRAM_API}/bot{self._token}/deleteMessages",
+                    json={"chat_id": self._chat_id, "message_ids": chunk})
+                if resp.status_code == 200 and (resp.json() or {}).get("ok"):
+                    deleted += len(chunk)
+                else:
+                    log.info("telegram deleteMessages refused: HTTP %s %s",
+                             resp.status_code, self._description(resp))
+        except Exception as exc:
+            log.warning("telegram deleteMessages failed: %s", type(exc).__name__)
+        return deleted
 
     async def answer_callback(self, callback_id: str) -> None:
         """Stop the button's spinner. Best-effort; the reply is sent regardless."""
@@ -379,6 +442,7 @@ def configure(cache, notifier: TelegramNotifier | None = None,
 
     if notifier is not None:
         _notifier = notifier
+        _notifier.on_sent = _remember_message
     else:
         token = os.environ.get("TELEGRAM_BOT_TOKEN", "").strip()
         chat_id = os.environ.get("TELEGRAM_CHAT_ID", "").strip()
@@ -387,6 +451,7 @@ def configure(cache, notifier: TelegramNotifier | None = None,
             log.info("telegram alerts disabled — TELEGRAM_BOT_TOKEN/TELEGRAM_CHAT_ID unset")
             return
         _notifier = TelegramNotifier(token, chat_id)
+        _notifier.on_sent = _remember_message
 
     _start_digest()
     _start_command_loop()
@@ -907,7 +972,10 @@ async def _buttons() -> Buttons:
     return [[("🔄 Refresh", "status"), ("📊 Digest", "digest"), ("📈 Week", "week")],
             [("💳 Subs", "subs"), ("👥 Users", "users"), ("💸 Costs", "costs")],
             [("📣 Social", "social"), ("🏆 Finds", "finds"), ("📝 Post ideas", "post")],
-            [("🗓 Calendar", "calendar"), ("🩺 Checkup", "checkup"), (feed, "feed toggle")]]
+            [("🗓 Calendar", "calendar"), ("🩺 Checkup", "checkup"), (feed, "feed toggle")],
+            [("✍️ Caption", "ask caption"), ("🪝 Hooks", "ask hooks"), ("💬 Reply", "ask reply")],
+            [("💵 Price", "ask price"), ("📈 Trend", "ask trend"), ("👤 User", "ask user")],
+            [("🧹 Clear chat", "clear")]]
 
 
 async def handle_command(text: str) -> str | None:
@@ -1041,11 +1109,31 @@ async def poll_once(offset: int | None) -> tuple[int | None, int]:
         else:
             message = update.get("message") or {}
             text = message.get("text") or ""
+            if str((message.get("chat") or {}).get("id", "")) == _notifier.chat_id \
+                    and message.get("message_id") is not None:
+                await _remember_message(int(message["message_id"]))
+            # A reply to one of the bot's own questions is the argument for
+            # the command the question named.
+            quoted = (message.get("reply_to_message") or {}).get("text") or ""
+            asked = _ASK_QUOTE.match(quoted)
+            if asked and text and not text.startswith("/"):
+                text = f"/{asked.group(1)} {text}"
         chat_id = str((message.get("chat") or {}).get("id", ""))
         if chat_id != _notifier.chat_id:
             continue
         if callback:
             await _notifier.answer_callback(str(callback.get("id", "")))
+        if text.startswith("/ask "):
+            command = text.split(None, 1)[1].strip().lower()
+            if command in ASKS:
+                question, placeholder = ASKS[command]
+                await _notifier.send(question, ask=placeholder)
+                handled += 1
+            continue
+        if text.split("@", 1)[0].lower() == "/clear":
+            await _clear_chat()
+            handled += 1
+            continue
         reply = await handle_command_with_buttons(text)
         if reply:
             await _notifier.send(reply[0], reply[1])
@@ -2047,3 +2135,41 @@ async def _spike_line(when: datetime, scans: int) -> str:
     if baseline <= 0 or scans < baseline * SPIKE_FACTOR:
         return ""
     return f"🔥 {scans / baseline:.1f}× the trailing week's daily average ({baseline:.1f}/day)"
+
+
+# ── Clear: take back the last two days of the chat ──────────────────────────
+
+async def _remember_message(message_id: int) -> None:
+    try:
+        now = int(time.time())
+        raw = await _cache.get(MESSAGES_KEY)
+        entries = [e for e in (json.loads(raw) if raw else [])
+                   if isinstance(e, list) and len(e) == 2 and now - int(e[1]) < MESSAGES_TTL]
+        entries.append([int(message_id), now])
+        await _cache.set(MESSAGES_KEY, json.dumps(entries[-MESSAGES_CAP:]), MESSAGES_TTL)
+    except Exception as exc:
+        log.debug("message id note failed: %s", type(exc).__name__)
+
+
+async def _clear_chat() -> None:
+    """Delete every message the bot remembers in this chat, then post a fresh
+    status so the keyboard is still there. Only the last 48 hours can go —
+    Telegram's limit for bots, not ours — and only what was sent since this
+    feature deployed, because ids before that were never recorded."""
+    try:
+        raw = await _cache.get(MESSAGES_KEY)
+        ids = sorted({int(e[0]) for e in (json.loads(raw) if raw else [])
+                      if isinstance(e, list) and e})
+    except Exception:
+        ids = []
+    deleted = await _notifier.delete_messages(ids) if ids else 0
+    try:
+        await _cache.delete(MESSAGES_KEY)
+    except Exception:
+        pass
+    note = (f"🧹 Cleared {deleted} messages." if deleted
+            else "🧹 Nothing to clear — only the last 48 hours can be deleted, and only "
+                 "what was sent since this button existed.")
+    if deleted < len(ids):
+        note += f" {len(ids) - deleted} were too old or already gone."
+    await _notifier.send(note + "\n\n" + await _status_text(), await _buttons())

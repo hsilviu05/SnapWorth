@@ -519,6 +519,7 @@ class TestPolling:
             self.polls: list[dict] = []
             self.command_menus: list[list] = []
             self.answered: list[str] = []
+            self.deleted: list[int] = []
 
         def handler(self, request: httpx.Request) -> httpx.Response:
             path = request.url.path
@@ -530,7 +531,11 @@ class TestPolling:
                 body = json.loads(request.content)
                 self.replies.append(body["text"])
                 self.markups.append(body.get("reply_markup"))
-                return httpx.Response(200, json={"ok": True})
+                return httpx.Response(200, json={"ok": True, "result": {
+                    "message_id": 1000 + len(self.replies)}})
+            if path.endswith("/deleteMessages"):
+                self.deleted.extend(json.loads(request.content)["message_ids"])
+                return httpx.Response(200, json={"ok": True, "result": True})
             if path.endswith("/setMyCommands"):
                 self.command_menus.append(json.loads(request.content)["commands"])
                 return httpx.Response(200, json={"ok": True})
@@ -581,8 +586,8 @@ class TestPolling:
             (menu,) = bot.command_menus
             assert [c["command"] for c in menu] == [
                 "status", "subs", "users", "costs", "social", "finds", "post", "calendar",
-                "caption", "hooks", "reply", "price", "trend", "user", "checkup", "feed",
-                "digest", "week", "help"]
+                "caption", "hooks", "reply", "price", "trend", "user", "checkup", "clear",
+                "feed", "digest", "week", "help"]
         finally:
             await notify.aclose()
 
@@ -747,7 +752,9 @@ class TestButtons:
         assert labels == ["🔄 Refresh", "📊 Digest", "📈 Week",
                           "💳 Subs", "👥 Users", "💸 Costs",
                           "📣 Social", "🏆 Finds", "📝 Post ideas",
-                          "🗓 Calendar", "🩺 Checkup", "🔕 Feed off"]
+                          "🗓 Calendar", "🩺 Checkup", "🔕 Feed off",
+                          "✍️ Caption", "🪝 Hooks", "💬 Reply",
+                          "💵 Price", "📈 Trend", "👤 User", "🧹 Clear chat"]
         await notify.handle_command("/feed off")
         _, buttons = await notify.handle_command_with_buttons("/status")
         assert buttons[3][2][0] == "🔔 Feed on"
@@ -1529,3 +1536,121 @@ class TestQuietAndSpike:
         assert await notify._spike_line(when, 11) == ""                # below 3×
         assert await notify._spike_line(when, 9) == ""                 # below the floor
         assert await notify._spike_line(datetime(2026, 1, 1, tzinfo=timezone.utc), 40) == ""   # no baseline
+
+
+class TestAskButtons:
+    """A button for a command that needs typing: tap, type, send."""
+
+    @staticmethod
+    def callback(update_id: int, data: str) -> dict:
+        return {"update_id": update_id, "callback_query": {
+            "id": f"cb{update_id}", "data": data,
+            "message": {"chat": {"id": int(FAKE_CHAT)}, "text": "📡 status"}}}
+
+    @staticmethod
+    def reply(update_id: int, quoted: str, text: str) -> dict:
+        return {"update_id": update_id, "message": {
+            "chat": {"id": int(FAKE_CHAT)}, "text": text,
+            "reply_to_message": {"text": quoted}}}
+
+    @pytest.mark.asyncio
+    async def test_tap_asks_with_the_reply_box_open_then_the_answer_runs_the_command(self, cache):
+        model = FakeModel({"answering from a text": {"item": "Le Creuset 5.5qt", "low_usd": 120,
+                                                    "high_usd": 220, "confidence": "High"}})
+        question, _ = notify.ASKS["price"]
+        bot = TestPolling.Bot([
+            self.callback(700, "ask price"),
+            self.reply(701, question, "Le Creuset dutch oven 5.5 qt flame"),
+        ])
+        notifier = notify.TelegramNotifier(
+            FAKE_TOKEN, FAKE_CHAT,
+            client=httpx.AsyncClient(transport=httpx.MockTransport(bot.handler)))
+        notify.configure(cache, notifier=notifier, generator=model)
+        try:
+            offset, handled = await notify.poll_once(None)
+            assert (offset, handled) == (702, 2)
+            assert bot.answered == ["cb700"], "the button stops spinning"
+            # First: the question, with Telegram's reply box forced open.
+            assert bot.replies[0] == question
+            assert bot.markups[0] == {"force_reply": True, "selective": True,
+                                      "input_field_placeholder": "Carhartt Detroit jacket, brown duck, L, worn"}
+            # Then the typed answer ran /price with that text.
+            assert "Le Creuset dutch oven 5.5 qt flame" in model.prompts[-1]
+            assert "💵 <b>Le Creuset 5.5qt</b>" in bot.replies[1]
+            assert "Estimate $120–220" in bot.replies[1]
+        finally:
+            await notify.aclose()
+
+    @pytest.mark.asyncio
+    async def test_a_reply_to_something_else_is_not_a_command(self, cache):
+        bot = TestPolling.Bot([self.reply(710, "📡 <b>SnapWorth status</b>", "nice")])
+        notifier = notify.TelegramNotifier(
+            FAKE_TOKEN, FAKE_CHAT,
+            client=httpx.AsyncClient(transport=httpx.MockTransport(bot.handler)))
+        notify.configure(cache, notifier=notifier)
+        try:
+            _, handled = await notify.poll_once(None)
+            assert handled == 0 and bot.replies == []
+        finally:
+            await notify.aclose()
+
+    @pytest.mark.asyncio
+    async def test_every_ask_has_a_button_and_a_command(self, enabled_notify):
+        data = {d for row in await notify._buttons() for _, d in row}
+        for command in notify.ASKS:
+            assert f"ask {command}" in data
+            assert command in dict(notify.COMMANDS)
+
+
+class TestClearChat:
+    @pytest.mark.asyncio
+    async def test_clear_deletes_what_was_said_and_reposts_status(self, cache):
+        bot = TestPolling.Bot([
+            TestPolling.update(800, FAKE_CHAT, "/status"),
+            TestPolling.update(801, FAKE_CHAT, "/costs"),
+        ])
+        for i, u in enumerate(bot.updates):
+            u["message"]["message_id"] = 500 + i
+        notifier = notify.TelegramNotifier(
+            FAKE_TOKEN, FAKE_CHAT,
+            client=httpx.AsyncClient(transport=httpx.MockTransport(bot.handler)))
+        notify.configure(cache, notifier=notifier)
+        try:
+            await notify.poll_once(None)
+            remembered = {e[0] for e in json.loads(await cache.get(notify.MESSAGES_KEY))}
+            # The operator's two commands and the bot's two replies.
+            assert remembered == {500, 501, 1001, 1002}
+
+            bot.updates = [TestPolling.update(802, FAKE_CHAT, "/clear")]
+            bot.updates[0]["message"]["message_id"] = 502
+            _, handled = await notify.poll_once(803)
+            assert handled == 1
+            assert sorted(bot.deleted) == [500, 501, 502, 1001, 1002]
+            assert bot.replies[-1].startswith("🧹 Cleared 5 messages.")
+            assert "📡 <b>SnapWorth status</b>" in bot.replies[-1]
+            assert bot.markups[-1] is not None, "the keyboard comes back"
+            # Only the fresh status remains remembered, for the next clear.
+            assert [e[0] for e in json.loads(await cache.get(notify.MESSAGES_KEY))] == [1003]
+        finally:
+            await notify.aclose()
+
+    @pytest.mark.asyncio
+    async def test_clear_with_nothing_remembered(self, cache):
+        bot = TestPolling.Bot([TestPolling.update(810, FAKE_CHAT, "/clear")])
+        notifier = notify.TelegramNotifier(
+            FAKE_TOKEN, FAKE_CHAT,
+            client=httpx.AsyncClient(transport=httpx.MockTransport(bot.handler)))
+        notify.configure(cache, notifier=notifier)
+        try:
+            await notify.poll_once(None)
+            assert bot.deleted == []
+            assert "Nothing to clear" in bot.replies[-1]
+        finally:
+            await notify.aclose()
+
+    @pytest.mark.asyncio
+    async def test_old_ids_are_forgotten(self, cache, enabled_notify):
+        stale = int(time.time()) - notify.MESSAGES_TTL - 60
+        await cache.set(notify.MESSAGES_KEY, json.dumps([[1, stale]]), 600)
+        await notify._remember_message(2)
+        assert [e[0] for e in json.loads(await cache.get(notify.MESSAGES_KEY))] == [2]

@@ -15,7 +15,8 @@ import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 from fastapi.testclient import TestClient
 
-import sys, os
+import sys
+import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
 import auth
@@ -292,9 +293,10 @@ class TestScanEndpoint:
         data = r.json()
         for field in ["item_name", "brand", "category", "condition_notes",
                       "est_value_low_usd", "est_value_high_usd",
-                      "confidence", "sold_listings_count",
-                      "listing_title", "listing_description"]:
+                      "confidence", "listing_title", "listing_description"]:
             assert field in data, f"missing field: {field}"
+        # Retired with #49: never real, never to return under this name.
+        assert "sold_listings_count" not in data
 
     def test_inverted_values_are_swapped(self):
         inverted = {**MOCK_RESPONSE_JSON, "est_value_low_usd": 90.0, "est_value_high_usd": 45.0}

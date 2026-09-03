@@ -173,8 +173,7 @@ final class ScanAPIResponseDecodingTests: XCTestCase {
     """
 
     func test_decodesWhenSoldListingsCountAbsent() throws {
-        // Forward compatibility: the backend keeps this field only for clients
-        // below 1.2 and will drop it once they age out.
+        // The normal case since #49: the backend no longer sends the field.
         let decoded = try JSONDecoder().decode(
             ScanAPIResponse.self, from: base.data(using: .utf8)!)
         XCTAssertEqual(decoded.soldListingsCount, 0)
@@ -182,6 +181,7 @@ final class ScanAPIResponseDecodingTests: XCTestCase {
     }
 
     func test_decodesWhenSoldListingsCountPresent() throws {
+        // An old cached response, or a server rolled back past #49.
         let withField = base.replacingOccurrences(
             of: #""confidence":"High""#, with: #""confidence":"High","sold_listings_count":0"#)
         let decoded = try JSONDecoder().decode(

@@ -498,6 +498,18 @@ class ScanResponse(BaseModel):
     """
 
     # ── v1 contract — do not change ─────────────────────────────────────────
+    #
+    # One field is gone from it: `sold_listings_count`. The model never produced
+    # it, the app has no sold-listings source, and it was pinned to a literal 0
+    # so that clients below 1.2 — which decoded it as a non-optional Int —
+    # would not fail the whole response. 1.2 shipped 2026-07-28; those installs
+    # have aged out (#49). Clients from 1.2 on decode it as optional.
+    #
+    # The name is retired, not parked. It is the field behind the "38 sold
+    # listings" claim the July screenshots made and could not support; when
+    # comparable-sales pricing lands (#42) it introduces its own field, so a
+    # real count can never be confused with the fabricated one — in analytics,
+    # in tests, or on an old client. `tests/test_ai_pipeline.py` enforces that.
     item_name: str
     brand: str
     category: str
@@ -505,10 +517,6 @@ class ScanResponse(BaseModel):
     est_value_low_usd: float = Field(ge=0)
     est_value_high_usd: float = Field(ge=0)
     confidence: str
-    # TODO(compat): the model no longer produces this; it is kept in the response
-    # (always 0) only so older installed clients that decode it as a non-optional
-    # Int don't break. Remove once app versions < 1.2 age out.
-    sold_listings_count: int = Field(ge=0, default=0)
     listing_title: str
     listing_description: str
 
@@ -1153,7 +1161,6 @@ async def scan(
         est_value_low_usd=low,
         est_value_high_usd=high,
         confidence=conf.as_legacy,
-        sold_listings_count=0,  # see TODO(compat) on the model field above
         listing_title=val.listing_title,
         listing_description=val.listing_description,
         # ── v2 additions ────────────────────────────────────────────────────

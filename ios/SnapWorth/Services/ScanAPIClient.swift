@@ -10,12 +10,15 @@ struct ScanAPIResponse: Decodable {
     let estValueLowUsd: Double
     let estValueHighUsd: Double
     let confidence: String
-    /// Legacy compatibility field. The backend has always returned 0 since 1.2
-    /// (`main.py` — the model never produced it and no comps source exists), and
-    /// no UI surface renders it.
+    /// Legacy field. The backend stopped sending it in September 2026 (#49):
+    /// it had been a hardcoded 0 since 1.2, the model never produced it and no
+    /// comps source exists, and no UI surface renders it. Decoded as optional
+    /// with a 0 default, so its absence is the normal case and its presence in
+    /// an old cached response is harmless.
     ///
-    /// Decoded with a default so the backend can drop the field entirely once
-    /// clients below 1.2 age out, without this client failing to decode.
+    /// Kept here only because `ScanResult.soldListingsCount` is persisted in
+    /// SwiftData, and the store's schema is additive-only. A real
+    /// comparable-sales count, when it ships, uses a new name.
     let soldListingsCount: Int
     let listingTitle: String
     let listingDescription: String
