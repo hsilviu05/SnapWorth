@@ -37,6 +37,22 @@ FREE_SCANS_PER_DAY = 1
 # timezone can't gain an extra allowance by straddling the boundary.
 _COUNTER_TTL = 60 * 60 * 30
 
+# A first-day allowance, larger than the daily one. Off unless FREE_SCANS_FIRST_DAY
+# is set above FREE_SCANS_PER_DAY.
+#
+# At one scan a day, a new user's first scan is also their last free one: the
+# paywall arrives before they have felt the value twice. A welcome allowance
+# lets the habit form on day one and returns to the daily limit on day two.
+# It is an experiment lever, measured through the client's
+# free_scan_limit_hit → paywall_viewed → purchase_started funnel, not a
+# permanent widening of the free tier. Granted once per subject, ever; a
+# reinstall that DeviceCheck recognises gets nothing, exactly as today.
+FREE_SCANS_FIRST_DAY = 0
+
+# The welcome grant outlives any counter, so a subject can never be welcomed
+# twice. Matches the attestation-state horizon.
+_WELCOME_TTL = 60 * 60 * 24 * 400
+
 
 class QuotaExceeded(Exception):
     def __init__(self, message: str, resets_at: int) -> None:
@@ -86,10 +102,13 @@ def _seconds_until_utc_midnight() -> int:
 class ScanQuota:
     """Authoritative daily free-scan accounting."""
 
-    def __init__(self, cache, device_check=None, limit: int = FREE_SCANS_PER_DAY) -> None:
+    def __init__(self, cache, device_check=None, limit: int = FREE_SCANS_PER_DAY,
+                 first_day_limit: int = FREE_SCANS_FIRST_DAY) -> None:
         self._cache = cache
         self._device_check = device_check
         self._limit = limit
+        # A first-day limit no larger than the daily one is not a welcome.
+        self._first_day = first_day_limit if first_day_limit > limit else 0
 
     @staticmethod
     def _counter_key(subject: str) -> str:
@@ -99,14 +118,31 @@ class ScanQuota:
     def _seen_key(subject: str) -> str:
         return f"quota:seen:{subject}"
 
+    @staticmethod
+    def _welcome_key(subject: str) -> str:
+        return f"quota:welcome:{subject}"
+
+    async def _limit_for(self, subject: str) -> int:
+        """Today's limit for a free subject: the welcome allowance on the day
+        it was granted, the daily limit otherwise. Costs nothing while the
+        welcome is off."""
+        if not self._first_day:
+            return self._limit
+        try:
+            granted = await self._cache.get(self._welcome_key(subject), required=True)
+        except CacheUnavailable as exc:
+            raise QuotaUnavailable(str(exc)) from exc
+        return self._first_day if granted == _utc_day() else self._limit
+
     async def status(self, subject: str, is_pro: bool) -> QuotaStatus:
         if is_pro:
             return QuotaStatus(used=0, limit=self._limit, unlimited=True)
+        limit = await self._limit_for(subject)
         try:
             raw = await self._cache.get(self._counter_key(subject), required=True)
         except CacheUnavailable as exc:
             raise QuotaUnavailable(str(exc)) from exc
-        return QuotaStatus(used=int(raw or 0), limit=self._limit, unlimited=False)
+        return QuotaStatus(used=int(raw or 0), limit=limit, unlimited=False)
 
     async def check(self, subject: str, is_pro: bool) -> QuotaStatus:
         """Raise if the subject has no allowance left. Does not consume."""
@@ -122,12 +158,13 @@ class ScanQuota:
         """Atomically record one use. Call only after the work succeeded."""
         if is_pro:
             return QuotaStatus(used=0, limit=self._limit, unlimited=True)
+        limit = await self._limit_for(subject)
         try:
             used = await self._cache.incr(
                 self._counter_key(subject), _COUNTER_TTL, required=True)
         except CacheUnavailable as exc:
             raise QuotaUnavailable(str(exc)) from exc
-        return QuotaStatus(used=used, limit=self._limit, unlimited=False)
+        return QuotaStatus(used=used, limit=limit, unlimited=False)
 
     async def note_exhausted(self, device_token: str | None) -> None:
         """Mark the *physical device* as having spent its allowance.
@@ -158,19 +195,19 @@ class ScanQuota:
             raise QuotaUnavailable(str(exc)) from exc
 
         if not first_time:
-            return self._limit                      # already known, normal path
+            return await self._limit_for(subject)   # already known, normal path
 
         if not device_token or self._device_check is None:
-            return self._limit
+            return await self._welcome(subject)
         if not self._device_check.is_configured:
-            return self._limit
+            return await self._welcome(subject)
 
         try:
             bits = await self._device_check.query_bits(device_token)
         except Exception as exc:
             # Availability of Apple's API must not gate our own service.
             log.warning("devicecheck query failed, granting default: %s", exc)
-            return self._limit
+            return await self._welcome(subject)
 
         if bits and bits.get("bit0"):
             log.info("reinstall detected via devicecheck — no fresh free scans")
@@ -180,4 +217,23 @@ class ScanQuota:
             except CacheUnavailable:
                 pass
             return 0
-        return self._limit
+        return await self._welcome(subject)
+
+    async def _welcome(self, subject: str) -> int:
+        """Grant the first-day allowance to a genuinely new subject, once.
+
+        The `seen` marker above expires with the counters, so "first time"
+        recurs for anyone who stays away for a day; the welcome marker does
+        not, so the allowance is handed out exactly once per subject.
+        """
+        if not self._first_day:
+            return self._limit
+        try:
+            granted = await self._cache.add(
+                self._welcome_key(subject), _utc_day(), _WELCOME_TTL, required=True)
+        except CacheUnavailable as exc:
+            raise QuotaUnavailable(str(exc)) from exc
+        if granted:
+            log.info("welcome allowance granted", extra={"scans": self._first_day})
+            return self._first_day
+        return await self._limit_for(subject)
