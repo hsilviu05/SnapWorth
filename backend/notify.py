@@ -359,6 +359,27 @@ class TelegramNotifier:
             log.warning("telegram deleteMessages failed: %s", type(exc).__name__)
         return deleted
 
+    async def download_photo(self, file_id: str, max_bytes: int = 10 * 1024 * 1024) -> bytes | None:
+        """Fetch a photo the operator sent, via getFile. None on any failure."""
+        try:
+            client = await self._http()
+            meta = await client.get(f"{TELEGRAM_API}/bot{self._token}/getFile",
+                                    params={"file_id": file_id})
+            path = ((meta.json() or {}).get("result") or {}).get("file_path") if meta.status_code == 200 else None
+            if not path:
+                log.warning("telegram getFile failed: HTTP %s %s", meta.status_code, self._description(meta))
+                return None
+            resp = await client.get(f"{TELEGRAM_API}/file/bot{self._token}/{path}",
+                                    timeout=SEND_TIMEOUT_SECONDS * 3)
+            if resp.status_code != 200 or len(resp.content) > max_bytes:
+                log.warning("telegram file download failed: HTTP %s, %d bytes",
+                            resp.status_code, len(resp.content))
+                return None
+            return resp.content
+        except Exception as exc:
+            log.warning("telegram file download failed: %s", type(exc).__name__)
+            return None
+
     async def answer_callback(self, callback_id: str) -> None:
         """Stop the button's spinner. Best-effort; the reply is sent regardless."""
         try:
@@ -412,6 +433,11 @@ _social = None
 # growing a second Gemini client. `async (prompt, max_tokens) -> str`.
 _generator: Callable[..., Awaitable[str]] | None = None
 
+# Runs the real scan pipeline on a photo the operator sends the bot — the
+# same code /scan runs after auth and quota, injected by main. `async (bytes,
+# declared_type) -> dict` with the response's fields plus "elapsed".
+_scanner: Callable[..., Awaitable[dict]] | None = None
+
 # Identifies this replica as the poll-lock holder.
 _poll_token = secrets.token_hex(8)
 
@@ -428,17 +454,19 @@ def enabled() -> bool:
 
 def configure(cache, notifier: TelegramNotifier | None = None,
               status_provider: Callable[[], dict] | None = None,
-              social=None, generator: Callable[..., Awaitable[str]] | None = None) -> None:
+              social=None, generator: Callable[..., Awaitable[str]] | None = None,
+              scanner: Callable[..., Awaitable[dict]] | None = None) -> None:
     """Wire the notifier from the environment. Called once at startup.
 
     With the env vars unset this leaves everything disabled and every public
     function a no-op — the feature costs nothing until it is turned on.
     """
-    global _notifier, _cache, _status_provider, _social, _generator
+    global _notifier, _cache, _status_provider, _social, _generator, _scanner
     _cache = cache
     _status_provider = status_provider
     _social = social
     _generator = generator
+    _scanner = scanner
 
     if notifier is not None:
         _notifier = notifier
@@ -1123,6 +1151,10 @@ async def poll_once(offset: int | None) -> tuple[int | None, int]:
             continue
         if callback:
             await _notifier.answer_callback(str(callback.get("id", "")))
+        if not callback and message.get("photo"):
+            await _test_scan(message["photo"])
+            handled += 1
+            continue
         if text.startswith("/ask "):
             command = text.split(None, 1)[1].strip().lower()
             if command in ASKS:
@@ -2173,3 +2205,79 @@ async def _clear_chat() -> None:
     if deleted < len(ids):
         note += f" {len(ids) - deleted} were too old or already gone."
     await _notifier.send(note + "\n\n" + await _status_text(), await _buttons())
+
+
+# ── Test scan: a photo sent to the bot goes through the real pipeline ────────
+
+async def _test_scan(photos: list[dict]) -> None:
+    """Run the operator's photo through the scan pipeline and report.
+
+    Telegram sends several sizes; the last is the largest (≤1280px, JPEG),
+    close to what the app uploads. The result is rendered in full rather
+    than as the app shows it, because the point is to see what the model
+    said — and it is not counted as a scan, not fed to the feed, and not
+    stored, because it is not a user.
+    """
+    if _scanner is None:
+        await _notifier.send("🔬 Test scans are not wired up in this process.")
+        return
+    try:
+        file_id = str(sorted(photos, key=lambda ph: int(ph.get("file_size") or 0))[-1]["file_id"])
+    except (KeyError, IndexError, TypeError, ValueError):
+        await _notifier.send("🔬 That photo had no file I could fetch.")
+        return
+    image = await _notifier.download_photo(file_id)
+    if not image:
+        await _notifier.send("🔬 Could not download the photo from Telegram. Try again.")
+        return
+    started = time.monotonic()
+    try:
+        result = await _scanner(image, "image/jpeg")
+    except Exception as exc:
+        status = getattr(exc, "status_code", None)
+        detail = getattr(exc, "detail", None) or type(exc).__name__
+        await _notifier.send(
+            f"🔬 <b>Test scan failed</b> after {time.monotonic() - started:.1f}s\n"
+            f"/scan would answer <b>{status or 500}</b>: {html.escape(str(detail))}")
+        return
+    await _notifier.send(_test_scan_text(result), await _buttons())
+
+
+def _price(value) -> str:
+    try:
+        return f"${float(value):,.0f}"
+    except (TypeError, ValueError):
+        return "—"
+
+
+def _test_scan_text(r: dict) -> str:
+    name = html.escape(str(r.get("item_name") or "Unidentified item"))
+    brand = html.escape(str(r.get("brand") or "Unknown"))
+    category = html.escape(str(r.get("category") or "other"))
+    elapsed = r.get("elapsed")
+    head = "🔬 <b>Test scan</b>" + (f" · {float(elapsed):.1f}s" if isinstance(elapsed, (int, float)) else "")
+    lines = [head, f"<b>{name}</b>",
+             f"{CATEGORY_EMOJI.get(category, '📦')} {category} · {brand} · "
+             f"{_price(r.get('est_value_low_usd'))}–{_price(r.get('est_value_high_usd')).lstrip('$')}"
+             + (f" · expected {_price(r.get('expected_price_usd'))}" if r.get("expected_price_usd") else "")]
+    if r.get("quick_sale_price_usd") or r.get("best_case_price_usd"):
+        lines.append(f"Quick sale {_price(r.get('quick_sale_price_usd'))} · "
+                     f"best case {_price(r.get('best_case_price_usd'))}")
+    score = r.get("confidence_score")
+    band = html.escape(str(r.get("confidence") or ""))
+    summary = html.escape(str(r.get("confidence_summary") or ""))
+    lines.append(f"Confidence {score} ({band})" + (f" — {summary}" if summary else ""))
+    facts = [html.escape(str(r[k])) for k in ("condition_grade", "size", "era", "material") if r.get(k)]
+    if facts:
+        lines.append(" · ".join(facts))
+    if r.get("demand") or r.get("supply"):
+        lines.append(f"Demand {html.escape(str(r.get('demand') or '?'))} · supply {html.escape(str(r.get('supply') or '?'))}")
+    reasons = [html.escape(str(x)) for x in (r.get("confidence_reasons") or [])[:3]]
+    if reasons:
+        lines += [f" • {x}" for x in reasons]
+    if r.get("listing_title"):
+        lines.append(f"<i>{html.escape(str(r['listing_title']))}</i>")
+    lines.append(f"Prompt {html.escape(str(r.get('prompt_version') or '?'))} · source "
+                 f"{html.escape(str(r.get('valuation_source') or 'model'))} · not counted as a scan, "
+                 "photo not stored")
+    return "\n".join(lines)

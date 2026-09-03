@@ -206,7 +206,7 @@ async def _lifespan(_app: FastAPI):
     social.configure(social_readers)
     notify.configure(_cache, status_provider=_status_snapshot,
                      social=social_readers if social_readers.configured else None,
-                     generator=_bot_generate)
+                     generator=_bot_generate, scanner=_bot_scan)
 
     cfg = auth.deps.config
     if cfg.enforce and not cfg.is_configured:
@@ -266,6 +266,23 @@ _DRAIN_TIMEOUT_SECONDS = float(os.environ.get("DRAIN_TIMEOUT_SECONDS", "15"))
 # Readiness is separate from liveness: the process can be alive and healthy
 # while deliberately refusing new traffic (starting up, or draining).
 _ready = False
+
+
+async def _bot_scan(image_bytes: bytes, declared_type: str) -> dict:
+    """A photo the operator sent the Telegram bot, through the real pipeline.
+
+    Validation and `_analyse` exactly as /scan does them; none of the things
+    /scan does around them — no auth, no quota, no counters, no feed — because
+    this is the operator testing the service, not a user using it. Raises the
+    same HTTPExceptions, so the bot can say what /scan would have answered.
+    """
+    try:
+        content_type = imagevalidation.validate(image_bytes, declared_type)
+    except imagevalidation.ImageValidationError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from None
+    response, elapsed = await _analyse(image_bytes, content_type,
+                                       subject="telegram-operator", device_short="telegram")
+    return {"elapsed": elapsed, **response.model_dump()}
 
 
 async def _bot_generate(prompt: str, max_tokens: int) -> str:
@@ -1031,6 +1048,36 @@ async def scan(
 
     log.info("scan start", extra={"device": device_short, "size_kb": image_kb,
                                   "type": content_type})
+    response, elapsed = await _analyse(image_bytes, content_type,
+                                       subject=principal.subject, device_short=device_short)
+
+    # Charge only for work that produced a result.
+    quota_status = await consume_quota(principal)
+    notify.scan_completed(
+        tier=principal.tier, item_name=response.item_name, brand=response.brand,
+        category=response.category, low=response.est_value_low_usd,
+        high=response.est_value_high_usd, confidence=response.confidence,
+        subject=principal.subject, elapsed_ms=int(elapsed * 1000))
+    # Optional and omitted for Pro or when the quota store is unreachable: the
+    # client must fall back to its own count rather than be handed a number.
+    response.free_scans_remaining = (
+        None if quota_status is None or quota_status.unlimited
+        else quota_status.remaining)
+    return response
+
+
+async def _analyse(image_bytes: bytes, content_type: str, *, subject: str,
+                   device_short: str) -> tuple[ScanResponse, float]:
+    """The scan itself: model call, parse, normalise, clamp, score.
+
+    Everything between "the upload is valid and allowed" and "charge for it":
+    no auth, no quota, no counters, so it serves both the /scan handler and
+    the Telegram bot's photo test — which must exercise exactly this code and
+    nothing else, or a green test scan would prove nothing about /scan.
+    Returns the response (with `free_scans_remaining` unset) and the elapsed
+    seconds. Raises HTTPException exactly as the endpoint would.
+    """
+
     t0 = time.monotonic()
 
     image_part = {"mime_type": content_type, "data": base64.standard_b64encode(image_bytes).decode()}
@@ -1050,7 +1097,7 @@ async def scan(
         # lighters and vintage militaria; telling the user the service is down
         # is both wrong and unactionable.
         log.info("scan blocked by safety filter", extra={"reason": str(exc)})
-        auditlog.record(AuditEvent.SCAN_BLOCKED, principal.subject,
+        auditlog.record(AuditEvent.SCAN_BLOCKED, subject,
                         outcome="denied", reason=str(exc))
         raise HTTPException(
             status_code=422,
@@ -1145,14 +1192,7 @@ async def scan(
         **usage,
     })
 
-    # Charge only for work that produced a result.
-    quota_status = await consume_quota(principal)
-    notify.scan_completed(
-        tier=principal.tier, item_name=val.item_name, brand=val.brand,
-        category=val.category, low=low, high=high, confidence=conf.band,
-        subject=principal.subject, elapsed_ms=int(elapsed * 1000))
-
-    return ScanResponse(
+    response = ScanResponse(
         # ── v1 contract ─────────────────────────────────────────────────────
         item_name=val.item_name,
         brand=val.brand,
@@ -1188,11 +1228,9 @@ async def scan(
         improve_estimate=val.improve_estimate,
         value_drivers=val.value_drivers,
         valuation_source="model",
-        free_scans_remaining=(
-            None if quota_status is None or quota_status.unlimited
-            else quota_status.remaining),
         prompt_version=prompt_version,
     )
+    return response, elapsed
 
 
 _RETRY_ATTEMPTS = int(os.environ.get("GEMINI_RETRY_ATTEMPTS", "2"))

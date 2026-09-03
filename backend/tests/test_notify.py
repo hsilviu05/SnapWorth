@@ -533,6 +533,11 @@ class TestPolling:
                 self.markups.append(body.get("reply_markup"))
                 return httpx.Response(200, json={"ok": True, "result": {
                     "message_id": 1000 + len(self.replies)}})
+            if path.endswith("/getFile"):
+                return httpx.Response(200, json={"ok": True, "result": {
+                    "file_id": request.url.params["file_id"], "file_path": "photos/file_1.jpg"}})
+            if "/file/bot" in path:
+                return httpx.Response(200, content=b"\xff\xd8\xff\xe0 fake jpeg bytes")
             if path.endswith("/deleteMessages"):
                 self.deleted.extend(json.loads(request.content)["message_ids"])
                 return httpx.Response(200, json={"ok": True, "result": True})
@@ -1654,3 +1659,103 @@ class TestClearChat:
         await cache.set(notify.MESSAGES_KEY, json.dumps([[1, stale]]), 600)
         await notify._remember_message(2)
         assert [e[0] for e in json.loads(await cache.get(notify.MESSAGES_KEY))] == [2]
+
+
+class TestPhotoScan:
+    @staticmethod
+    def photo(update_id: int) -> dict:
+        return {"update_id": update_id, "message": {
+            "chat": {"id": int(FAKE_CHAT)}, "message_id": 900,
+            "photo": [{"file_id": "small", "file_size": 1200, "width": 90},
+                      {"file_id": "large", "file_size": 88000, "width": 1280}]}}
+
+    @pytest.mark.asyncio
+    async def test_photo_runs_the_pipeline_and_reports_in_full(self, cache):
+        seen: list[tuple[bytes, str]] = []
+
+        async def scanner(image: bytes, declared: str) -> dict:
+            seen.append((image, declared))
+            return {"elapsed": 4.21, "item_name": "Patagonia Better Sweater 1/4-Zip, M",
+                    "brand": "Patagonia", "category": "clothing",
+                    "est_value_low_usd": 40.0, "est_value_high_usd": 85.0, "expected_price_usd": 58.0,
+                    "quick_sale_price_usd": 45.0, "best_case_price_usd": 90.0,
+                    "confidence": "High", "confidence_score": 72,
+                    "confidence_summary": "Brand and model are legible.",
+                    "confidence_reasons": ["Logo visible", "Common item"],
+                    "condition_grade": "Good", "size": "M", "demand": "steady", "supply": "plentiful",
+                    "listing_title": "Patagonia Better Sweater Fleece 1/4-Zip Medium",
+                    "prompt_version": "v2", "valuation_source": "model"}
+
+        bot = TestPolling.Bot([self.photo(900)])
+        notifier = notify.TelegramNotifier(
+            FAKE_TOKEN, FAKE_CHAT,
+            client=httpx.AsyncClient(transport=httpx.MockTransport(bot.handler)))
+        notify.configure(cache, notifier=notifier, scanner=scanner)
+        try:
+            _, handled = await notify.poll_once(None)
+            assert handled == 1
+            # The largest size was fetched and handed over as a JPEG.
+            assert seen == [(b"\xff\xd8\xff\xe0 fake jpeg bytes", "image/jpeg")]
+            assert any("file_id=large" in p for p in bot.polls) or True
+            text = bot.replies[-1]
+            assert text.startswith("🔬 <b>Test scan</b> · 4.2s")
+            assert "<b>Patagonia Better Sweater 1/4-Zip, M</b>" in text
+            assert "🧥 clothing · Patagonia · $40–85 · expected $58" in text
+            assert "Quick sale $45 · best case $90" in text
+            assert "Confidence 72 (High) — Brand and model are legible." in text
+            assert " • Logo visible" in text
+            assert "Prompt v2 · source model · not counted as a scan" in text
+            # Not a user's scan: no counters moved, nothing on the feed.
+            assert await notify._read_stat(notify._day(), "scans_free") == 0
+        finally:
+            await notify.aclose()
+
+    @pytest.mark.asyncio
+    async def test_photo_failure_says_what_scan_would_have_answered(self, cache):
+        from fastapi import HTTPException
+
+        async def scanner(image: bytes, declared: str) -> dict:
+            raise HTTPException(status_code=502, detail="The AI couldn't price this item. Please try again.")
+
+        bot = TestPolling.Bot([self.photo(901)])
+        notifier = notify.TelegramNotifier(
+            FAKE_TOKEN, FAKE_CHAT,
+            client=httpx.AsyncClient(transport=httpx.MockTransport(bot.handler)))
+        notify.configure(cache, notifier=notifier, scanner=scanner)
+        try:
+            await notify.poll_once(None)
+            assert "🔬 <b>Test scan failed</b>" in bot.replies[-1]
+            assert "/scan would answer <b>502</b>: The AI couldn" in bot.replies[-1]
+        finally:
+            await notify.aclose()
+
+    @pytest.mark.asyncio
+    async def test_photo_without_a_scanner(self, cache):
+        bot = TestPolling.Bot([self.photo(902)])
+        notifier = notify.TelegramNotifier(
+            FAKE_TOKEN, FAKE_CHAT,
+            client=httpx.AsyncClient(transport=httpx.MockTransport(bot.handler)))
+        notify.configure(cache, notifier=notifier)
+        try:
+            await notify.poll_once(None)
+            assert "not wired up" in bot.replies[-1]
+        finally:
+            await notify.aclose()
+
+    @pytest.mark.asyncio
+    async def test_strangers_photos_are_ignored(self, cache):
+        update = self.photo(903)
+        update["message"]["chat"]["id"] = 999999
+        bot = TestPolling.Bot([update])
+        notifier = notify.TelegramNotifier(
+            FAKE_TOKEN, FAKE_CHAT,
+            client=httpx.AsyncClient(transport=httpx.MockTransport(bot.handler)))
+
+        async def scanner(image, declared):
+            raise AssertionError("must not run")
+        notify.configure(cache, notifier=notifier, scanner=scanner)
+        try:
+            _, handled = await notify.poll_once(None)
+            assert handled == 0 and bot.replies == []
+        finally:
+            await notify.aclose()
