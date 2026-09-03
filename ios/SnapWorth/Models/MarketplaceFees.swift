@@ -7,6 +7,24 @@ import Foundation
 struct MarketplaceFee: Equatable {
     let sellingFeePercent: Decimal
     let fixedFee: Decimal
+    /// Some marketplaces replace the percentage with a flat charge on cheap
+    /// sales — Poshmark takes $2.95 on anything under $15 instead of 20%.
+    /// Nil means the percentage and fixed fee always apply.
+    var lowPriceFlatFee: LowPriceFlatFee? = nil
+
+    struct LowPriceFlatFee: Equatable {
+        /// Sales strictly below this price pay `fee` and nothing else.
+        let below: Decimal
+        let fee: Decimal
+    }
+
+    /// Seller-side fees on a sale at `resale`.
+    func fees(on resale: Decimal) -> Decimal {
+        if let low = lowPriceFlatFee, resale < low.below {
+            return low.fee
+        }
+        return resale * sellingFeePercent + fixedFee
+    }
 }
 
 /// ─────────────────────────────────────────────────────────────────────────────
@@ -28,7 +46,26 @@ enum MarketplaceFees {
     // Built from string literals, not Double, so the money math stays exact
     // (Decimal(0.1325) would capture the Double's rounding error).
     static let defaults: [Marketplace: MarketplaceFee] = [
+        // eBay: 13.25% final value fee + $0.40 per order (most categories).
+        // Source: ebay.com/help/selling/fees/selling-fees
         .ebay:     MarketplaceFee(sellingFeePercent: Decimal(string: "0.1325")!, fixedFee: Decimal(string: "0.40")!),
+        // Poshmark (US): flat $2.95 on sales under $15, 20% at $15 and above.
+        // No fixed fee — the shipping label is prepaid and paid by the buyer.
+        // Source: poshmark.com/fees ("How Poshmark fees work"), re-checked
+        // against 2026 seller-fee guides before shipping.
+        .poshmark: MarketplaceFee(sellingFeePercent: Decimal(string: "0.20")!, fixedFee: 0,
+                                  lowPriceFlatFee: .init(below: 15, fee: Decimal(string: "2.95")!)),
+        // Mercari (US): flat 10% selling fee since January 2025, when the
+        // separate 2.9% + $0.50 processing fee was removed. The 3.6% buyer
+        // protection fee is paid by the buyer and excluded here.
+        // Source: mercari.com/us/help_center/article/169 ("Fees on Mercari")
+        .mercari:  MarketplaceFee(sellingFeePercent: Decimal(string: "0.10")!, fixedFee: 0),
+        // Depop (US): 0% selling fee since July 2024; payment processing of
+        // 3.3% + $0.45 remains. Depop charges it on item + shipping; applied to
+        // the item price here, which understates it by 3.3% of postage on
+        // shipped sales — conservative in the seller's favour by cents.
+        // Source: depop.com/sell/fees (US)
+        .depop:    MarketplaceFee(sellingFeePercent: Decimal(string: "0.033")!, fixedFee: Decimal(string: "0.45")!),
         .vinted:   MarketplaceFee(sellingFeePercent: 0, fixedFee: 0),
         .facebook: MarketplaceFee(sellingFeePercent: 0, fixedFee: 0),
         .olx:      MarketplaceFee(sellingFeePercent: 0, fixedFee: 0),
@@ -87,7 +124,9 @@ struct FlipCalculation: Equatable {
 
 enum FlipMath {
     /// `netProfit = resale − platformFees − shipping − purchase`, where
-    /// `platformFees = resale × sellingFeePercent + fixedFee`.
+    /// `platformFees = fee.fees(on: resale)` — normally
+    /// `resale × sellingFeePercent + fixedFee`, or a marketplace's flat
+    /// low-price charge where one applies (see `MarketplaceFee`).
     ///
     /// A nil `fee` (missing table entry) means fees are assumed 0 and
     /// `feesUnknown` is set so the caller can flag the verdict as incomplete.
@@ -99,7 +138,7 @@ enum FlipMath {
         let purchase = max(0, purchasePrice)
         let shipping = max(0, shippingCost)
 
-        let platformFees: Decimal = fee.map { resale * $0.sellingFeePercent + $0.fixedFee } ?? 0
+        let platformFees: Decimal = fee.map { $0.fees(on: resale) } ?? 0
         let net = resale - platformFees - shipping - purchase
 
         return FlipCalculation(

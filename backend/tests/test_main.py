@@ -424,7 +424,7 @@ class TestListingEndpoint:
             assert f in data, f"missing field: {f}"
 
     def test_all_supported_marketplaces_accepted(self):
-        for mkt in ["ebay", "vinted", "facebook", "olx"]:
+        for mkt in ["ebay", "poshmark", "mercari", "depop", "vinted", "facebook", "olx"]:
             _rate_store.clear()
             _ip_rate_store.clear()
             with patch("main._model") as mm:

@@ -232,8 +232,8 @@ private struct SnapSellHero: View {
             // Marketplace chips
             HStack(spacing: 6) {
                 ChipView(label: "eBay", color: accent.opacity(0.14), textColor: accent)
-                ChipView(label: "Vinted", color: Color.snapBorder)
-                ChipView(label: "Facebook", color: Color.snapBorder)
+                ChipView(label: "Poshmark", color: Color.snapBorder)
+                ChipView(label: "Mercari", color: Color.snapBorder)
             }
             .padding(.top, 2)
         }

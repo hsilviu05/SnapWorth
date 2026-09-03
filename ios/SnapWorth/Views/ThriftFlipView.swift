@@ -158,7 +158,8 @@ struct ThriftFlipView: View {
         VStack(alignment: .leading, spacing: 10) {
             Text("Where you'd sell")
                 .snapSectionHeader()
-            HStack(spacing: 8) {
+            ScrollView(.horizontal, showsIndicators: false) {
+              HStack(spacing: 8) {
                 ForEach(Marketplace.allCases) { marketplace in
                     let selected = vm.selectedMarketplace == marketplace
                     Button {
@@ -168,7 +169,7 @@ struct ThriftFlipView: View {
                         Text(marketplace.displayName)
                             .font(.dmSans(13, weight: .semibold))
                             .foregroundStyle(selected ? Color.snapOnAccent : Color.snapWarmGray)
-                            .frame(maxWidth: .infinity)
+                            .padding(.horizontal, 14)
                             .padding(.vertical, 9)
                             .background(selected ? Color.snapTerracotta : Color.clear)
                             .clipShape(Capsule())
@@ -176,6 +177,7 @@ struct ThriftFlipView: View {
                     }
                     .buttonStyle(.plain)
                 }
+              }
             }
         }
         .padding(16)

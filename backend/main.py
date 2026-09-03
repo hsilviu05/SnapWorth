@@ -537,6 +537,20 @@ MARKETPLACE_GUIDANCE = {
     "ebay": "eBay buyers search by keyword. Title: front-load brand, model, size and key "
             "specs, SEO-friendly. Description: thorough and factual — condition, measurements, "
             "flaws, what's included. Neutral, trustworthy tone.",
+    # US-first additions (#54). Snap → Sell is the Pro feature, and most users
+    # are American; these three are where US thrift resellers actually sell.
+    "poshmark": "Poshmark is US fashion resale with a social, boutique feel. Title: brand "
+                "first, then item, size and colour, keyword-rich. Description: friendly and "
+                "detailed — fabric, fit, measurements, flaws stated plainly; invite bundles. "
+                "Shipping is a flat prepaid label on Poshmark, so never discuss shipping cost.",
+    "mercari": "Mercari is a US general marketplace where buyers skim. Title: concise and "
+               "searchable — brand, item, key spec. Description: short and factual — "
+               "condition, size or dimensions, what's included, any flaws. No hashtags. "
+               "Mention that it ships promptly.",
+    "depop": "Depop is Gen Z vintage and streetwear resale with a feed like Instagram. Title: "
+             "short with brand, era and style, still searchable. Description: casual "
+             "first-person voice; name the era or aesthetic, give measurements and fit, be "
+             "honest about wear. A few relevant style tags at the end are normal there.",
     "vinted": "Vinted is fashion resale with a casual, friendly community. Title: short and "
               "natural. Description: warm and personal, mention size/fit and measurements, be "
               "honest about wear. Don't mention shipping — Vinted handles it.",
