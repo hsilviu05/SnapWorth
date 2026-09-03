@@ -837,6 +837,17 @@ final class DiagnosticSummaryTests: XCTestCase {
         XCTAssertEqual(AnalyticsEvent.launchTimeReported(bucket: "under_0.5s").parameters,
                        ["bucket": "under_0.5s"])
     }
+
+    /// The only field signal that can ever justify `Config.pinningEnforced = true`.
+    /// It says that a mismatch happened and whether it blocked — nothing about
+    /// the host or the certificate, which would be PII-adjacent for no gain.
+    func test_pinMismatchEventIsBoundedAndSaysWhetherItBlocked() {
+        let reportOnly = AnalyticsEvent.certificatePinMismatch(enforced: false)
+        XCTAssertEqual(reportOnly.name, "certificate_pin_mismatch")
+        XCTAssertEqual(reportOnly.parameters, ["enforced": "false"])
+        XCTAssertEqual(AnalyticsEvent.certificatePinMismatch(enforced: true).parameters,
+                       ["enforced": "true"])
+    }
 }
 
 /// The privacy manifest must match what the code actually sends.

@@ -19,8 +19,11 @@ import os.log
 /// ### Promoting to enforcement
 ///
 /// 1. Ship one release with the pins live and `pinningEnforced = false`.
-/// 2. Watch for `certificate pin mismatch (report-only)` in the `tls` category.
-///    Zero occurrences across a full release cycle means the pin set is correct.
+/// 2. Watch the `certificate_pin_mismatch` event in TelemetryDeck (and, on a
+///    device you hold, the `tls` log category). Zero occurrences across a full
+///    release cycle means the pin set is correct. The os_log line alone was
+///    never enough: nobody can read a user's device log, so until the event
+///    existed this step could not be completed and the flag stayed off.
 /// 3. Set `Config.pinningEnforced = true`.
 ///
 /// ### Rotation
@@ -80,12 +83,17 @@ final class CertificatePinningDelegate: NSObject, URLSessionDelegate {
             return
         }
 
+        // Off-device as well as in the log: this is the only signal that can
+        // ever justify flipping `pinningEnforced`. It carries no host and no
+        // certificate detail — just that it happened, and whether it blocked.
+        Analytics.shared.track(.certificatePinMismatch(enforced: enforced))
+
         if enforced {
             log.fault("certificate pin mismatch for \(self.host, privacy: .public) — refusing")
             completionHandler(.cancelAuthenticationChallenge, nil)
         } else {
-            // Report-only mode: surfaces a misconfigured pin in logs before it
-            // can lock anyone out. Run here for at least one release.
+            // Report-only mode: surfaces a misconfigured pin before it can lock
+            // anyone out. Run here for at least one release.
             log.error("certificate pin mismatch (report-only) for \(self.host, privacy: .public)")
             completionHandler(.useCredential, URLCredential(trust: trust))
         }

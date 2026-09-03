@@ -284,6 +284,7 @@ def _status_snapshot() -> dict:
         "auth_enforcing": auth.deps.config.enforce,
         "model_healthy": _model_health.healthy,
         "model_failure_kind": _model_health.last_failure_kind,
+        "devicecheck": bool(getattr(auth.deps.device_check, "is_configured", False)),
     }
 
 
@@ -882,7 +883,7 @@ def privacy():
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Privacy Policy — SnapWorth</title><style>{_STYLE}</style></head><body>
 <h1>Privacy Policy</h1>
-<p>Last updated: September 2, 2026</p>
+<p>Last updated: September 3, 2026</p>
 <p>SnapWorth ("we", "our", or "us") operates the SnapWorth mobile application.
 This page informs you of our policies regarding the collection, use, and
 disclosure of personal data when you use our Service.</p>
@@ -907,7 +908,19 @@ can turn analytics off at any time in the app's Settings.</p>
 <p>Photos are used only to generate the valuation response you requested.
 Analytics data is used only in aggregate to understand usage and improve the app.
 We do not sell, rent, or share your photos, device identifier, or analytics data
-with third parties, except as required by law.</p>
+with third parties, except for the service providers below and as required by law.</p>
+
+<h2>Service Providers</h2>
+<p><strong>Google (Gemini API).</strong> Photos you submit are transmitted to
+Google's Gemini API, which identifies the item and estimates its resale value.
+Google processes them under its API terms of service and does not use them to
+train its models. Photos are not retained by us after the response is returned.</p>
+<p><strong>TelemetryDeck.</strong> Receives the anonymous usage events described
+above. It never receives photos, item names, prices, or identifiers.</p>
+<p><strong>Telegram.</strong> To monitor the service, aggregate operational
+information may be relayed to the operator through Telegram: the name of an
+item the AI identified and its estimated price range. Never the photo, never a
+device identifier, never anything that links a scan to a device or a person.</p>
 
 <h2>Data Retention</h2>
 <p>Photos and scan results are processed in real time and are not retained on our
