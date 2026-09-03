@@ -542,6 +542,12 @@ class TestPolling:
             if path.endswith("/deleteMessages"):
                 self.deleted.extend(json.loads(request.content)["message_ids"])
                 return httpx.Response(200, json={"ok": True, "result": True})
+            if path.endswith("/getChat"):
+                cid = request.url.params["chat_id"]
+                if cid == "-1005401463470":
+                    return httpx.Response(200, json={"ok": True, "result": {
+                        "id": -1005401463470, "type": "channel", "title": "SnapWorth archive"}})
+                return httpx.Response(400, json={"ok": False, "description": "Bad Request: chat not found"})
             if path.endswith("/forwardMessages"):
                 body = json.loads(request.content)
                 self.forwarded.append((body["chat_id"], body["message_ids"]))
@@ -1651,8 +1657,13 @@ class TestClearChat:
             bot.updates[0]["message"]["message_id"] = 502
             _, handled = await notify.poll_once(803)
             assert handled == 1
-            assert sorted(bot.deleted) == [500, 501, 502, 1001, 1002]
-            assert bot.replies[-1].startswith("🧹 Cleared 5 messages. 2 of the bot's kept — /history shows them.")
+            # The known ids, plus a sweep of the ids below the newest known one.
+            assert {500, 501, 502, 1001, 1002} <= set(bot.deleted)
+            assert min(bot.deleted) == max(1, 1002 - notify.CLEAR_SWEEP_IDS)
+            assert len(set(bot.deleted)) == len(bot.deleted), "no id deleted twice"
+            assert bot.replies[-1].startswith("🧹 Cleared. 5 known messages deleted and the last")
+            assert "2 of the bot's kept — /history shows them." in bot.replies[-1]
+            assert "chat menu → Clear History" in bot.replies[-1]
             assert "📡 <b>SnapWorth status</b>" in bot.replies[-1]
             assert bot.markups[-1] is not None, "the keyboard comes back"
             # Only the fresh status remains remembered, for the next clear.
@@ -1669,8 +1680,10 @@ class TestClearChat:
         notify.configure(cache, notifier=notifier)
         try:
             await notify.poll_once(None)
+            # The /clear message itself carried no id in this fixture, so
+            # nothing is known and nothing is swept.
             assert bot.deleted == []
-            assert "Nothing to clear" in bot.replies[-1]
+            assert "Nothing to clear yet" in bot.replies[-1]
         finally:
             await notify.aclose()
 
@@ -1839,8 +1852,8 @@ class TestHistoryAndArchive:
             await notify.poll_once(None)
             bot.updates = [TestPolling.update(831, FAKE_CHAT, "/clear")]
             await notify.poll_once(832)
-            assert bot.forwarded == [("-1001234567890", [600, 1001])]
-            assert sorted(bot.deleted) == [600, 1001]
+            assert bot.forwarded == [("-1001234567890", [600, 1001])], "only known messages can be forwarded"
+            assert {600, 1001} <= set(bot.deleted)
             assert "2 forwarded to the archive chat" in bot.replies[-1]
         finally:
             await notify.aclose()
@@ -1872,3 +1885,48 @@ class TestSafetyBlocks:
         assert await notify._read_stat(notify._day(), "scans_blocked") == 4
         status = await notify.handle_command("/status")
         assert "· 4 blocked" in status
+
+
+class TestArchiveChatCheck:
+    async def line(self, cache, value):
+        bot = TestPolling.Bot([])
+        notifier = notify.TelegramNotifier(
+            FAKE_TOKEN, FAKE_CHAT,
+            client=httpx.AsyncClient(transport=httpx.MockTransport(bot.handler)))
+        notify.configure(cache, notifier=notifier)
+        try:
+            return await notify._archive_chat_line(value)
+        finally:
+            await notify.aclose()
+
+    @pytest.mark.asyncio
+    async def test_a_positive_number_is_called_out_with_the_likely_fix(self, cache):
+        line = await self.line(cache, "5401463470")
+        assert "positive — a user or bot id" in line
+        assert "<code>-1005401463470</code>" in line
+
+    @pytest.mark.asyncio
+    async def test_a_real_channel_resolves_to_its_title(self, cache):
+        assert await self.line(cache, "-1005401463470") == \
+            "Archive chat: SnapWorth archive (channel) ✅ — /clear forwards here first"
+
+    @pytest.mark.asyncio
+    async def test_unknown_and_garbage(self, cache):
+        assert "not reachable" in await self.line(cache, "-1009999")
+        assert "not a chat id" in await self.line(cache, "archive")
+
+    @pytest.mark.asyncio
+    async def test_checkup_shows_it_only_when_configured(self, cache, monkeypatch, recorder):
+        monkeypatch.setattr(notify, "_tls_days_left", lambda host, timeout=5.0: 60)
+        monkeypatch.setenv(notify.ARCHIVE_CHAT_ENV, "5401463470")
+        bot = TestPolling.Bot([])
+        notifier = notify.TelegramNotifier(
+            FAKE_TOKEN, FAKE_CHAT,
+            client=httpx.AsyncClient(transport=httpx.MockTransport(bot.handler)))
+        notify.configure(cache, notifier=notifier)
+        try:
+            assert "Archive chat: <code>5401463470</code> is positive" in await notify.handle_command("/checkup")
+            monkeypatch.delenv(notify.ARCHIVE_CHAT_ENV)
+            assert "Archive chat" not in await notify.handle_command("/checkup")
+        finally:
+            await notify.aclose()

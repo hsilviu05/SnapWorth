@@ -221,6 +221,12 @@ HISTORY_SNIPPET_CHARS = 350
 # /clear forwards everything to before deleting, so the copy is a real
 # Telegram copy, photos included. Off when unset.
 ARCHIVE_CHAT_ENV = "TELEGRAM_ARCHIVE_CHAT_ID"
+# Message ids in a private chat are sequential, so /clear also sweeps this
+# many ids below the newest one it knows. Telegram skips ids it cannot delete
+# (older than 48 hours, never existed, not ours), so the sweep costs a handful
+# of calls and catches everything in the window the bot never recorded —
+# messages from before the feature existed, or from a replica that died.
+CLEAR_SWEEP_IDS = 600
 
 COMMANDS: tuple[tuple[str, str], ...] = (
     ("status", "Active users, scans today, provider health"),
@@ -401,6 +407,20 @@ class TelegramNotifier:
         except Exception as exc:
             log.warning("telegram forwardMessages failed: %s", type(exc).__name__)
         return forwarded
+
+    async def get_chat(self, chat_id: str) -> dict | None:
+        """What Telegram knows about a chat id — title and type — or None if
+        the bot cannot see it. Used to verify the archive chat."""
+        try:
+            client = await self._http()
+            resp = await client.get(f"{TELEGRAM_API}/bot{self._token}/getChat",
+                                    params={"chat_id": chat_id})
+            if resp.status_code != 200:
+                return None
+            return (resp.json() or {}).get("result") or None
+        except Exception as exc:
+            log.debug("telegram getChat failed: %s", type(exc).__name__)
+            return None
 
     async def download_photo(self, file_id: str, max_bytes: int = 10 * 1024 * 1024) -> bytes | None:
         """Fetch a photo the operator sent, via getFile. None on any failure."""
@@ -2128,6 +2148,28 @@ def _probe_reason(exc: Exception) -> str:
     return type(exc).__name__
 
 
+async def _archive_chat_line(chat_id: str) -> str:
+    """One checkup line about TELEGRAM_ARCHIVE_CHAT_ID.
+
+    The commonest mistake is pasting a user id: channels are negative and
+    start with -100, and a positive number is a person or a bot. Say so before
+    /clear forwards the whole chat to it."""
+    shown = html.escape(chat_id)
+    if not chat_id.lstrip("-").isdigit():
+        return f"Archive chat: <code>{shown}</code> is not a chat id (digits only, negative for a channel)"
+    if not chat_id.startswith("-"):
+        hint = f"-100{chat_id}" if not chat_id.startswith("100") else f"-{chat_id}"
+        return (f"Archive chat: <code>{shown}</code> is positive — a user or bot id, not a channel. "
+                f"A channel id is negative and starts with -100; did you mean <code>{hint}</code>?")
+    info = await _notifier.get_chat(chat_id)
+    if not info:
+        return (f"Archive chat: <code>{shown}</code> not reachable — the bot is not in it, "
+                "or the id is wrong. Add the bot as an administrator of the channel.")
+    title = html.escape(str(info.get("title") or info.get("username") or "untitled"))
+    kind = html.escape(str(info.get("type") or "chat"))
+    return f"Archive chat: {title} ({kind}) ✅ — /clear forwards here first"
+
+
 async def _checkup_text() -> str:
     lines = ["🩺 <b>Checkup</b>"]
 
@@ -2188,6 +2230,11 @@ async def _checkup_text() -> str:
                          "(Let's Encrypt renews at 30; pinned intermediate to 2028-09-02)")
     except Exception as exc:
         lines.append(f"TLS {html.escape(host)}: unreachable ({html.escape(type(exc).__name__)})")
+
+    # The archive chat, if configured: does the id resolve, and to what?
+    archive_chat = os.environ.get(ARCHIVE_CHAT_ENV, "").strip()
+    if archive_chat:
+        lines.append(await _archive_chat_line(archive_chat))
 
     # Poll lock: is it this replica answering?
     try:
@@ -2312,26 +2359,35 @@ async def _clear_chat() -> None:
         entries = [e for e in (json.loads(raw) if raw else []) if isinstance(e, list) and e]
     except Exception:
         entries = []
-    ids = sorted({int(e[0]) for e in entries})
+    known = sorted({int(e[0]) for e in entries})
     archived = await _archive(entries)
     archive_chat = os.environ.get(ARCHIVE_CHAT_ENV, "").strip()
-    forwarded = await _notifier.forward_messages(archive_chat, ids) if archive_chat and ids else 0
-    deleted = await _notifier.delete_messages(ids) if ids else 0
+    forwarded = await _notifier.forward_messages(archive_chat, known) if archive_chat and known else 0
+    # Known ids first, then the sweep below the newest of them: private-chat
+    # ids are sequential, and Telegram silently skips what it cannot delete.
+    sweep: list[int] = []
+    if known:
+        newest = known[-1]
+        sweep = [i for i in range(max(1, newest - CLEAR_SWEEP_IDS), newest + 1) if i not in set(known)]
+    deleted = await _notifier.delete_messages(known) if known else 0
+    if sweep:
+        await _notifier.delete_messages(sweep)
     try:
         await _cache.delete(MESSAGES_KEY)
     except Exception:
         pass
-    if deleted:
-        note = f"🧹 Cleared {deleted} messages."
+    if known:
+        note = (f"🧹 Cleared. {deleted} known messages deleted and the last {len(sweep)} message ids "
+                "swept, so everything from the past 48 hours the bot may delete is gone.")
         if archived:
             note += f" {archived} of the bot's kept — /history shows them."
         if archive_chat:
             note += f" {forwarded} forwarded to the archive chat."
     else:
-        note = ("🧹 Nothing to clear — only the last 48 hours can be deleted, and only "
-                "what was sent since this button existed.")
-    if deleted < len(ids):
-        note += f" {len(ids) - deleted} were too old or already gone."
+        note = ("🧹 Nothing to clear yet — the bot has not sent or seen a message since this "
+                "process started.")
+    note += ("\nOlder than 48 hours is beyond what Telegram lets any bot delete: "
+             "chat menu → Clear History for that.")
     await _notifier.send(note + "\n\n" + await _status_text(), await _buttons())
 
 
