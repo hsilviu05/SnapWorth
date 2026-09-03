@@ -57,6 +57,12 @@ class FakePlatforms:
             self.token_requests.append(dict(parse_qs(request.content.decode())))
             return httpx.Response(200, json=self.token_response)
         if "/user/info/" in url:
+            # The Display API's user endpoint is a GET; a POST is what TikTok
+            # answered 404 to in production. The mock enforces the verb so the
+            # regression cannot come back green.
+            if request.method != "GET":
+                return httpx.Response(404, json={"error": {"code": "route_not_found",
+                                                           "message": "not found"}})
             return httpx.Response(200, json=self.tt_user)
         if "/video/list/" in url:
             return httpx.Response(200, json=self.tt_videos)
@@ -217,3 +223,35 @@ class TestSocialInBot:
             assert "Not configured" in await notify.handle_command("/social")
         finally:
             await notify.aclose()
+
+
+class TestTikTokVerbs:
+    @pytest.mark.asyncio
+    async def test_user_info_is_fetched_with_get(self, cache, platforms):
+        sc = make_social(cache, platforms)
+        assert await sc.tiktok.complete_link("code", await _state(sc, cache))
+        account = await sc.tiktok.account()
+        assert account.ok, account.note
+        assert account.followers == 860
+
+    @pytest.mark.asyncio
+    async def test_api_error_names_tiktoks_code(self, cache, platforms):
+        sc = make_social(cache, platforms)
+        assert await sc.tiktok.complete_link("code", await _state(sc, cache))
+        platforms.tt_user = None
+
+        def failing(request: httpx.Request) -> httpx.Response:
+            if "/user/info/" in str(request.url):
+                return httpx.Response(401, json={"error": {"code": "access_token_invalid",
+                                                           "message": "bad token"}})
+            return platforms.handler(request)
+        sc.tiktok._client = httpx.AsyncClient(transport=httpx.MockTransport(failing))
+        account = await sc.tiktok.account()
+        assert account.note == "API error 401 (access_token_invalid)"
+
+
+async def _state(sc: social.Social, cache) -> str:
+    """Start a link and return the state nonce the callback must echo."""
+    url = await sc.tiktok.begin_link()
+    from urllib.parse import parse_qs, urlparse
+    return parse_qs(urlparse(url).query)["state"][0]

@@ -256,6 +256,17 @@ class TikTokClient:
             return None
         return json.loads(await self._cache.get(TIKTOK_TOKENS_KEY) or "{}").get("access_token")
 
+    @staticmethod
+    def _error(resp) -> str:
+        """TikTok's error envelope names the cause: {"error": {"code", "message"}}."""
+        try:
+            err = (resp.json() or {}).get("error") or {}
+        except Exception:
+            err = {}
+        code = err.get("code")
+        detail = f" ({code})" if code and code != "ok" else ""
+        return f"API error {resp.status_code}{detail}"
+
     # ── reading ──
     async def account(self) -> Account:
         if not self.configured:
@@ -268,12 +279,15 @@ class TikTokClient:
         try:
             client = await self._http()
             headers = {"Authorization": f"Bearer {token}"}
-            info = await client.post(
+            # GET, per the Display API: only /video/list/ is a POST. Sent as a
+            # POST this answered 404 in production, which read as "no such
+            # account" rather than "wrong verb".
+            info = await client.get(
                 f"{TIKTOK_API}/user/info/",
                 params={"fields": "open_id,display_name,follower_count,likes_count,video_count"},
                 headers=headers)
             if info.status_code != 200:
-                return Account("tiktok", note=f"API error {info.status_code}")
+                return Account("tiktok", note=self._error(info))
             user = (info.json().get("data") or {}).get("user") or {}
             videos = await client.post(
                 f"{TIKTOK_API}/video/list/",
