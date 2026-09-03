@@ -181,8 +181,10 @@ async def _lifespan(_app: FastAPI):
     auth.deps.device_check = dc
     auth.deps.entitlements = EntitlementService(
         _cache, auth.deps.config.bundle_id, _PRODUCT_IDS)
-    auth.deps.quota = ScanQuota(_cache, dc, limit=int(
-        os.environ.get("FREE_SCANS_PER_DAY", str(FREE_SCANS_PER_DAY))))
+    auth.deps.quota = ScanQuota(
+        _cache, dc,
+        limit=int(os.environ.get("FREE_SCANS_PER_DAY", str(FREE_SCANS_PER_DAY))),
+        first_day_limit=int(os.environ.get("FREE_SCANS_FIRST_DAY", "0")))
     notify.configure(_cache, status_provider=_status_snapshot)
 
     cfg = auth.deps.config

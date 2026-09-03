@@ -1,7 +1,19 @@
 # App Store Listing
 
+## App name (30 chars max)
+SnapWorth: Resale Value
+
 ## Subtitle (30 chars max)
-Resale Value in Seconds
+Thrift Store Flip Scanner
+
+The previous subtitle, "Resale Value in Seconds", repeated the two words
+already in the app name — the one field Apple both indexes for search *and*
+shows on the results card was spent saying the same thing twice. Six weeks of
+data: 16.8K impressions, 2.1% tapped through, 18.6% of those installed. The
+page converts; the card does not. This subtitle adds four searched terms
+(thrift, store, flip, scanner) and tells a thrifter in three words that this
+is for them. Re-check Acquisition → Sources → Search terms a week after the
+change.
 
 ---
 
@@ -11,14 +23,14 @@ This field is not tied to a build. It can be swapped any time from App Store
 Connect, which makes it the right place to test hooks and to carry anything
 seasonal or time-limited. Keep the standing terms in the Description instead.
 
-**Live — offer-led (151 chars)**
-
-One free scan every day. Point your camera at any thrift find and instantly know what it's worth — an AI resale estimate in seconds. No account needed.
-
-**Alternative — pain-led (153 chars).** Reuses the onboarding headline, so the
+**Live — pain-led (153 chars).** Reuses the onboarding headline, so the
 store page and first launch say the same thing. The strongest hook of the three.
 
 That $4 jacket might be $90. Snap any thrift find and get an AI resale estimate in seconds — before you're at the till guessing. One free scan every day.
+
+**Alternative — offer-led (151 chars).** Was live until September 2026.
+
+One free scan every day. Point your camera at any thrift find and instantly know what it's worth — an AI resale estimate in seconds. No account needed.
 
 **Alternative — short (141 chars).** Least reliant on a specific figure.
 
@@ -52,7 +64,7 @@ WHAT YOU GET
 
 • Instant resale value — an estimated low-to-high range for your item
 • Confidence score — see how clearly the AI could identify your item
-• AI listing draft — title and description tailored to eBay, Vinted, Facebook Marketplace, or OLX
+• AI listing draft — title and description tailored to eBay, Poshmark, Mercari, Depop, Facebook Marketplace, Vinted, or OLX
 • Scan history — every find saved automatically with its value
 • Total haul tracker — see what your collection is worth at a glance
 
@@ -61,7 +73,7 @@ WHAT YOU GET
 BUILT FOR
 
 • Thrift store shoppers who want to flip for profit
-• Resellers on eBay, Vinted, Facebook Marketplace, and OLX
+• Resellers on eBay, Poshmark, Mercari, Depop, Facebook Marketplace, Vinted, and OLX
 • Estate sale and yard sale hunters
 • Anyone who's ever thought "is this worth buying?"
 
@@ -93,7 +105,23 @@ snapworth.eu
 ---
 
 ## Keywords (100 chars max)
-thrift,resale,flip,reseller,secondhand,vintage,goodwill,ebay,vinted,scanner,price,value,profit
+reseller,secondhand,vintage,goodwill,poshmark,mercari,depop,ebay,thrifting,worth,price,profit,sell
+
+98 characters. Words already in the app name or subtitle (resale, value,
+thrift, store, flip, scanner) are indexed from there and were dropped to make
+room. Poshmark, Mercari and Depop are searched by exactly this audience and
+are honest claims from 1.3.4. Vinted was dropped as a keyword only; it is
+still supported and still named in the description.
+
+## First screenshot
+
+The search-results card shows the first screenshot inline. It used to be the
+*process* panel ("Four seconds, in the aisle"); the payoff converts better
+than the process. `screenshots/store_0_that-pair.jpg` puts the hook over the
+real result screen — "That $40 pair might be $420." above the Off-White
+sneakers the app priced at $220–$420 — and goes first. The other four keep
+their order after it. Built by `build_first_screenshot.py` from the shipped
+`store_2` artwork; the device screen is untouched.
 
 ---
 
