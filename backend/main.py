@@ -205,7 +205,8 @@ async def _lifespan(_app: FastAPI):
     social_readers = social.from_env(_cache)
     social.configure(social_readers)
     notify.configure(_cache, status_provider=_status_snapshot,
-                     social=social_readers if social_readers.configured else None)
+                     social=social_readers if social_readers.configured else None,
+                     generator=_bot_generate)
 
     cfg = auth.deps.config
     if cfg.enforce and not cfg.is_configured:
@@ -265,6 +266,14 @@ _DRAIN_TIMEOUT_SECONDS = float(os.environ.get("DRAIN_TIMEOUT_SECONDS", "15"))
 # Readiness is separate from liveness: the process can be alive and healthy
 # while deliberately refusing new traffic (starting up, or draining).
 _ready = False
+
+
+async def _bot_generate(prompt: str, max_tokens: int) -> str:
+    """The Telegram bot's route to the model — /post ideas — through the same
+    retry policy, metrics and cost tally as a scan, so the bot's own tokens
+    show up in /costs rather than going uncounted."""
+    text, _usage = await _generate_with_retry(prompt, label="ideas", max_tokens=max_tokens)
+    return text
 
 
 def _status_snapshot() -> dict:
@@ -1369,6 +1378,16 @@ async def _retry_as_json(raw: str) -> dict | None:
     )
     with contextlib.suppress(Exception):
         response = await _model.generate_content_async(prompt)
+        # A billed call like any other: without this the reformat's tokens
+        # were missing from /costs and the token metrics, so the per-scan
+        # cost the bot reported ran low on exactly the scans that cost most.
+        usage = aiconfig.usage_of(response)
+        metrics.model_calls.inc(operation="reformat", outcome="success")
+        notify.model_usage("reformat", usage)
+        for kind, key in (("prompt", "prompt_tokens"), ("output", "output_tokens"),
+                          ("thoughts", "thoughts_tokens")):
+            if key in usage:
+                metrics.model_tokens.inc(usage[key], operation="reformat", kind=kind)
         # `or ""`: google-genai returns None for .text on an empty or blocked
         # candidate, where the previous SDK raised. The suppress() above would
         # have swallowed the resulting AttributeError and returned None anyway,

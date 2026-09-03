@@ -25,7 +25,7 @@ Built for thrifting resellers: snap a photo of a clothing item, get the brand, c
 - **Listing drafts** — generates a ready-to-paste resale listing for each scanned item
 - **Share cards** — exportable valuation card with QR code, saved straight to Photos
 - **Home Screen widgets** — quick-scan widget, haul summary widget, Control Center control, and a Live Activity (WidgetKit)
-- **SnapWorth Pro** — freemium model: 3 free scans, then an auto-renewable subscription via StoreKit 2
+- **SnapWorth Pro** — freemium model: one free scan a day, then an auto-renewable subscription via StoreKit 2
 
 ## Architecture
 

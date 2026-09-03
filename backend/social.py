@@ -1,24 +1,25 @@
-"""Social reach for the operator: Instagram and TikTok numbers in the bot.
+"""Social reach for the operator: the app's TikTok numbers in the bot.
 
-Marketing happens off the backend, on Instagram and TikTok. This pulls the
-numbers those platforms publish about the app's own accounts — followers and
-the last few posts' views, likes and comments — so `/social` and the daily
-digest can put them next to scans and subscriptions.
+Marketing happens off the backend, on TikTok. This pulls the numbers the
+platform publishes about the app's own account — followers, total likes and
+the last few videos' views, likes, comments and shares — so `/social` and the
+daily digest can put them next to scans and subscriptions.
 
-Everything is read-only, about accounts the operator owns, and off unless
-configured. Each platform has its own gate:
+Everything is read-only, about an account the operator owns, and off unless
+configured. TikTok (Display API) needs a TikTok for Developers app with Login
+Kit and the `user.info.basic`, `user.info.stats` and `video.list` scopes.
+Configured with `TIKTOK_CLIENT_KEY` and `TIKTOK_CLIENT_SECRET`, then *linked*
+once: the bot hands the operator an authorisation link, TikTok redirects to
+`/social/tiktok/callback`, and the tokens live in the cache from then on
+(access tokens last a day and are refreshed here; refresh tokens a year).
 
-* **Instagram** (Graph API): a Business or Creator account linked to a
-  Facebook Page, a Meta app with the Instagram permissions approved, and a
-  long-lived user token. Configured with `IG_USER_ID` and `IG_ACCESS_TOKEN`.
-* **TikTok** (Display API): a TikTok for Developers app with Login Kit and the
-  `user.info.basic`, `user.info.stats` and `video.list` scopes. Configured
-  with `TIKTOK_CLIENT_KEY` and `TIKTOK_CLIENT_SECRET`, then *linked* once:
-  the bot hands the operator an authorisation link, TikTok redirects to
-  `/social/tiktok/callback`, and the tokens live in the cache from then on
-  (access tokens last a day and are refreshed here; refresh tokens a year).
+Instagram was here too, behind the Graph API — a Business account, a Facebook
+Page, a Meta app, a permission review and a token that expires every 60 days.
+The operator dropped it: the setup cost more than the numbers were worth, and
+the same posts can be judged from TikTok. Nothing else in the app touches
+Instagram, so removing it is subtraction only.
 
-Failures are reported inside the message ("Instagram: token expired") rather
+Failures are reported inside the message ("TikTok: API error 401") rather
 than raised — a marketing dashboard must never be able to fail a deploy.
 """
 
@@ -37,7 +38,6 @@ from fastapi.responses import HTMLResponse
 
 log = logging.getLogger("snapworth.social")
 
-IG_GRAPH = "https://graph.facebook.com/v21.0"
 TIKTOK_API = "https://open.tiktokapis.com/v2"
 TIKTOK_AUTHORIZE = "https://www.tiktok.com/v2/auth/authorize/"
 TIKTOK_SCOPES = "user.info.basic,user.info.stats,video.list"
@@ -65,7 +65,7 @@ class Post:
 
 @dataclass
 class Account:
-    platform: str                      # "instagram" | "tiktok"
+    platform: str                      # "tiktok"
     handle: str | None = None
     followers: int | None = None
     posts: int | None = None
@@ -85,85 +85,6 @@ def _int(value) -> int | None:
         return int(value)
     except (TypeError, ValueError):
         return None
-
-
-# ── Instagram ────────────────────────────────────────────────────────────────
-
-class InstagramClient:
-    """Reads the operator's own Instagram Business/Creator account."""
-
-    def __init__(self, user_id: str, access_token: str, client=None) -> None:
-        self._user_id = user_id
-        self._token = access_token
-        self._client = client
-
-    @property
-    def configured(self) -> bool:
-        return bool(self._user_id and self._token)
-
-    async def _http(self):
-        if self._client is None:
-            import httpx
-
-            self._client = httpx.AsyncClient(timeout=HTTP_TIMEOUT)
-        return self._client
-
-    async def account(self) -> Account:
-        if not self.configured:
-            return Account("instagram", note="not configured — set IG_USER_ID and IG_ACCESS_TOKEN")
-        try:
-            client = await self._http()
-            profile = await client.get(
-                f"{IG_GRAPH}/{self._user_id}",
-                params={"fields": "username,followers_count,media_count",
-                        "access_token": self._token})
-            if profile.status_code != 200:
-                return Account("instagram", note=self._error(profile))
-            data = profile.json()
-            media = await client.get(
-                f"{IG_GRAPH}/{self._user_id}/media",
-                params={"fields": "caption,media_type,timestamp,permalink,like_count,comments_count",
-                        "limit": RECENT_POSTS, "access_token": self._token})
-            posts = []
-            if media.status_code == 200:
-                for item in (media.json().get("data") or [])[:RECENT_POSTS]:
-                    posts.append(Post(
-                        title=(item.get("caption") or item.get("media_type") or "post"),
-                        created_at=_parse_iso(item.get("timestamp")),
-                        likes=_int(item.get("like_count")),
-                        comments=_int(item.get("comments_count")),
-                        url=item.get("permalink")))
-            return Account("instagram", handle=data.get("username"),
-                           followers=_int(data.get("followers_count")),
-                           posts=_int(data.get("media_count")), recent=posts)
-        except Exception as exc:
-            log.warning("instagram fetch failed: %s", type(exc).__name__)
-            return Account("instagram", note=f"unreachable ({type(exc).__name__})")
-
-    @staticmethod
-    def _error(resp) -> str:
-        try:
-            err = resp.json().get("error") or {}
-        except Exception:
-            err = {}
-        code = err.get("code")
-        if code == 190:
-            return "token expired or invalid — generate a new long-lived token"
-        return f"API error {resp.status_code}" + (f" ({err.get('message')})" if err.get("message") else "")
-
-
-def _parse_iso(value) -> int | None:
-    """Instagram timestamps look like 2026-09-02T18:02:11+0000."""
-    if not isinstance(value, str):
-        return None
-    from datetime import datetime
-
-    for fmt in ("%Y-%m-%dT%H:%M:%S%z", "%Y-%m-%dT%H:%M:%SZ"):
-        try:
-            return int(datetime.strptime(value, fmt).timestamp())
-        except ValueError:
-            continue
-    return None
 
 
 # ── TikTok ───────────────────────────────────────────────────────────────────
@@ -314,23 +235,19 @@ class TikTokClient:
 
 @dataclass
 class Social:
-    instagram: InstagramClient
     tiktok: TikTokClient
 
     @property
     def configured(self) -> bool:
-        return self.instagram.configured or self.tiktok.configured
+        return self.tiktok.configured
 
     async def accounts(self) -> list[Account]:
-        return [await self.instagram.account(), await self.tiktok.account()]
+        return [await self.tiktok.account()]
 
 
 def from_env(cache, client=None) -> Social:
     base = os.environ.get("SOCIAL_PUBLIC_BASE_URL", "https://api.snapworth.eu").rstrip("/")
     return Social(
-        instagram=InstagramClient(
-            os.environ.get("IG_USER_ID", "").strip(),
-            os.environ.get("IG_ACCESS_TOKEN", "").strip(), client=client),
         tiktok=TikTokClient(
             os.environ.get("TIKTOK_CLIENT_KEY", "").strip(),
             os.environ.get("TIKTOK_CLIENT_SECRET", "").strip(),
