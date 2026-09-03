@@ -526,3 +526,46 @@ class TestListingEndpoint:
                 _post_listing(device_id="listing-rate")
             r = _post_listing(device_id="listing-rate")
         assert r.status_code == 429
+
+
+class TestProbeDoesNotTouchModelHealth:
+    """A synthetic probe (the bot's /checkup) must never page about an outage.
+
+    `_ModelHealth` is derived from real traffic by design. The first probe
+    asked a thinking model for "OK" in 16 tokens, got an empty reply, and was
+    one more tap away from flipping /health to degraded and sending a 🔴
+    alert while every real scan succeeded.
+    """
+
+    def test_probe_failure_leaves_health_alone(self):
+        import asyncio
+        from unittest.mock import AsyncMock, patch
+
+        import aiconfig
+        import main
+        health = main._ModelHealth()
+        with patch.object(main, "_model_health", health), patch("main._model") as model:
+            model.generate_content_async = AsyncMock(side_effect=Exception("empty text"))
+            with pytest.raises(aiconfig.ModelUnavailable):
+                asyncio.run(main._generate_with_retry("probe", label="probe", record_health=False))
+            assert health.consecutive_failures == 0 and health.healthy
+            # The default path still records, so a real failure is still seen.
+            with pytest.raises(aiconfig.ModelUnavailable):
+                asyncio.run(main._generate_with_retry("scan", label="scan"))
+            assert health.consecutive_failures == 1
+
+    def test_bot_generate_passes_probe_through(self):
+        import asyncio
+        from unittest.mock import AsyncMock, patch
+
+        import main
+        seen = {}
+
+        async def fake(contents, *, label, max_tokens=None, record_health=True):
+            seen.update(label=label, record_health=record_health, max_tokens=max_tokens)
+            return '{"ok": true}', {}
+        with patch.object(main, "_generate_with_retry", AsyncMock(side_effect=fake)):
+            assert asyncio.run(main._bot_generate("p", 1024, probe=True)) == '{"ok": true}'
+            assert seen == {"label": "probe", "record_health": False, "max_tokens": 1024}
+            asyncio.run(main._bot_generate("p", 2048))
+            assert seen["label"] == "ideas" and seen["record_health"] is True

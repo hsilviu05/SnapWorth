@@ -178,6 +178,13 @@ SPIKE_MIN_SCANS = 10
 TREND_DAYS = 30
 SPARK = "▁▂▃▄▅▆▇█"
 
+# /checkup's model probe. JSON, because the model runs in JSON mode; and room
+# to think, because the first version asked for "OK" in 16 tokens and a
+# thinking model spent them all thinking — an empty reply, reported as
+# "Gemini: FAILED" while every real scan was succeeding.
+PROBE_PROMPT = 'Return ONLY this JSON object and nothing else: {"ok": true}'
+PROBE_MAX_TOKENS = 1024
+
 # Commands that need typed input, reachable from a button: the button sends a
 # question with Telegram's reply box already open, the operator's reply comes
 # back quoting that question, and the quote says which command it was for.
@@ -2060,11 +2067,13 @@ async def _checkup_text() -> str:
     else:
         t0 = time.monotonic()
         try:
-            text = await _generator("Reply with the single word OK and nothing else.", 16)
+            text = await _generator(PROBE_PROMPT, PROBE_MAX_TOKENS, probe=True)
             ms = (time.monotonic() - t0) * 1000
-            lines.append(f"Gemini: {'ok' if 'ok' in (text or '').lower() else 'answered oddly'} · {ms:.0f} ms")
+            answered = '"ok"' in (text or "").lower()
+            lines.append(f"Gemini: {'ok' if answered else 'answered oddly'} · {ms:.0f} ms")
         except Exception as exc:
-            lines.append(f"Gemini: FAILED ({html.escape(type(exc).__name__)})")
+            lines.append(f"Gemini: FAILED ({html.escape(type(exc).__name__)}) — a probe, "
+                         "not counted against provider health")
 
     # What the process itself knows.
     info: dict = {}

@@ -285,11 +285,21 @@ async def _bot_scan(image_bytes: bytes, declared_type: str) -> dict:
     return {"elapsed": elapsed, **response.model_dump()}
 
 
-async def _bot_generate(prompt: str, max_tokens: int) -> str:
+async def _bot_generate(prompt: str, max_tokens: int, *, probe: bool = False) -> str:
     """The Telegram bot's route to the model — /post ideas — through the same
     retry policy, metrics and cost tally as a scan, so the bot's own tokens
-    show up in /costs rather than going uncounted."""
-    text, _usage = await _generate_with_retry(prompt, label="ideas", max_tokens=max_tokens)
+    show up in /costs rather than going uncounted.
+
+    `probe` is /checkup's one-token round trip. It is billed and counted like
+    any call, but it must not move `_model_health`: that state is derived from
+    real traffic by design, and a synthetic probe that fails for its own
+    reasons — as the first one did, by leaving a thinking model no room to
+    think — would otherwise be able to page the operator about an outage that
+    is not happening.
+    """
+    text, _usage = await _generate_with_retry(
+        prompt, label="probe" if probe else "ideas", max_tokens=max_tokens,
+        record_health=not probe)
     return text
 
 
@@ -1350,7 +1360,7 @@ _model_health = _ModelHealth()
 
 
 async def _generate_with_retry(
-    contents, *, label: str, max_tokens: int | None = None
+    contents, *, label: str, max_tokens: int | None = None, record_health: bool = True
 ) -> tuple[str, dict]:
     """Call the model with classified retries and jittered backoff.
 
@@ -1381,7 +1391,8 @@ async def _generate_with_retry(
                 response = await _model.generate_content_async(contents, **kwargs)
             text, usage = aiconfig.extract_text(response), aiconfig.usage_of(response)
             metrics.model_calls.inc(operation=label, outcome="success")
-            _model_health.record_success()
+            if record_health:
+                _model_health.record_success()
             notify.model_usage(label, usage)
             for kind, key in (("prompt", "prompt_tokens"), ("output", "output_tokens"),
                               ("thoughts", "thoughts_tokens")):
@@ -1398,7 +1409,8 @@ async def _generate_with_retry(
                 kind = "quota_exhausted" if quota else "non_retryable"
                 metrics.model_calls.inc(operation=label, outcome=kind)
                 metrics.dependency_errors.inc(dependency="gemini", kind=kind)
-                _model_health.record_failure(kind)
+                if record_health:
+                    _model_health.record_failure(kind)
                 # Logged at error either way, but the quota case names itself
                 # so it is greppable in Railway without reading the provider's
                 # prose: it is the one failure mode no retry or redeploy fixes.
@@ -1417,7 +1429,8 @@ async def _generate_with_retry(
 
     metrics.model_calls.inc(operation=label, outcome="exhausted")
     metrics.dependency_errors.inc(dependency="gemini", kind="exhausted")
-    _model_health.record_failure("exhausted")
+    if record_health:
+        _model_health.record_failure("exhausted")
     raise aiconfig.ModelUnavailable(str(last_exc))
 
 

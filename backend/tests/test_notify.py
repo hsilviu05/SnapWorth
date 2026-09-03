@@ -1468,8 +1468,11 @@ class TestCheckup:
             FAKE_TOKEN, FAKE_CHAT,
             client=httpx.AsyncClient(transport=httpx.MockTransport(recorder.handler)))
 
-        async def model(prompt, max_tokens):
-            return "OK"
+        calls: list[dict] = []
+
+        async def model(prompt, max_tokens, **opts):
+            calls.append({"prompt": prompt, "max_tokens": max_tokens, **opts})
+            return '{"ok": true}'
         notify.configure(cache, notifier=notifier, generator=model,
                          status_provider=lambda: {"commit": "abc123", "cache": "redis",
                                                   "auth_enforcing": True, "model_healthy": True,
@@ -1480,6 +1483,10 @@ class TestCheckup:
             assert text.startswith("🩺 <b>Checkup</b>")
             assert "Cache (memory): ok ·" in text
             assert "Gemini: ok ·" in text
+            # Marked as a probe so main keeps it out of provider health, and
+            # given room to think — see the PROBE_* constants.
+            assert calls == [{"prompt": notify.PROBE_PROMPT, "max_tokens": notify.PROBE_MAX_TOKENS,
+                              "probe": True}]
             assert "DeviceCheck: NOT configured" in text
             assert "TLS api.snapworth.eu: leaf expires in 61 days" in text and "⚠️" not in text
             assert "Telegram poller: this replica" in text
@@ -1495,12 +1502,12 @@ class TestCheckup:
             FAKE_TOKEN, FAKE_CHAT,
             client=httpx.AsyncClient(transport=httpx.MockTransport(recorder.handler)))
 
-        async def broken(prompt, max_tokens):
+        async def broken(prompt, max_tokens, **opts):
             raise RuntimeError("down")
         notify.configure(cache, notifier=notifier, generator=broken)
         try:
             text = await notify.handle_command("/checkup")
-            assert "Gemini: FAILED (RuntimeError)" in text
+            assert "Gemini: FAILED (RuntimeError) — a probe, not counted" in text
             assert "TLS api.snapworth.eu: unreachable (OSError)" in text
         finally:
             await notify.aclose()
