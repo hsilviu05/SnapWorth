@@ -51,6 +51,7 @@ import html
 import json
 import logging
 import os
+import re
 import secrets
 import time
 from collections.abc import Callable
@@ -64,9 +65,18 @@ TELEGRAM_API = "https://api.telegram.org"
 
 SEND_TIMEOUT_SECONDS = 10.0
 
-# Counters live long enough for the weekly report to compare two full weeks,
-# plus slack for a missed run; they are operational tallies, not records.
-STATS_TTL = 60 * 60 * 24 * 16
+# Counters live long enough for a 30-day spend view and the weekly report's
+# two full weeks, plus slack; they are operational tallies, not records.
+STATS_TTL = 60 * 60 * 24 * 35
+
+# What the model costs, per million tokens, so spend can be derived from the
+# token counts every call already reports. Defaults are Gemini 2.5 Flash's
+# published rates (thinking tokens bill as output); Google changes prices and
+# GEMINI_MODEL can point elsewhere, so both are env-overridable.
+GEMINI_PRICE_INPUT_PER_M = float(os.environ.get("GEMINI_PRICE_INPUT_PER_M", "0.30"))
+GEMINI_PRICE_OUTPUT_PER_M = float(os.environ.get("GEMINI_PRICE_OUTPUT_PER_M", "2.50"))
+# A daily spend ceiling that pages once when crossed. 0 disables it.
+GEMINI_DAILY_BUDGET_USD = float(os.environ.get("GEMINI_DAILY_BUDGET_USD", "0"))
 
 # The live scan feed: one message per successful scan, item and price only.
 # Persisted in the cache so the toggle survives deploys. On by default — the
@@ -127,6 +137,7 @@ COMMANDS: tuple[tuple[str, str], ...] = (
     ("status", "Active users, scans today, provider health"),
     ("subs", "Every subscription seen: plan, how obtained, renews"),
     ("users", "Devices seen, 7-day and 30-day actives, most active"),
+    ("costs", "Gemini spend: today, 7 and 30 days, per scan, vs MRR"),
     ("feed", "Live scan feed: on, off, or show"),
     ("digest", "Yesterday's digest, now"),
     ("week", "Last 7 days against the 7 before"),
@@ -478,7 +489,56 @@ def subscription_over_cap(original_transaction_id: str, product_id: str | None,
 
 # ── Deploy ping ──────────────────────────────────────────────────────────────
 
-async def _announce_deploy(commit: str, cache_backend: str, auth_enforcing: bool) -> None:
+_MERGE_SUBJECT = re.compile(r"^Merge pull request #(\d+) from \S+\s*$")
+DEPLOY_BODY_CHARS = 600
+
+
+def _deploy_text(commit: str, cache_backend: str, auth_enforcing: bool,
+                 info: dict | None) -> str:
+    """The deploy message: what went live, then where it is running.
+
+    A merge commit's subject is boilerplate ("Merge pull request #80 from …")
+    and its body is the PR title, so the message leads with "#80 <title>" and
+    links the PR. A direct commit leads with its own subject and carries the
+    first paragraph of its body. Either way the SHA, cache backend and auth
+    posture follow — those are the facts worth checking on every deploy.
+    """
+    info = info or {}
+    message = str(info.get("message") or "").strip()
+    subject, _, body = message.partition("\n")
+    body = body.strip()
+    repo = str(info.get("repository") or "")
+
+    lines = ["🚀 <b>Backend deployed</b>"]
+    merge = _MERGE_SUBJECT.match(subject)
+    if merge:
+        number = merge.group(1)
+        title = body.split("\n", 1)[0].strip() or subject
+        label = f"#{number} {html.escape(title)}"
+        if repo:
+            label = f'<a href="https://github.com/{html.escape(repo)}/pull/{number}">#{number}</a> {html.escape(title)}'
+        lines.append(f"<b>{label}</b>" if not repo else label)
+    elif subject:
+        lines.append(f"<b>{html.escape(subject)}</b>")
+        paragraph = body.split("\n\n", 1)[0].strip()
+        if paragraph:
+            if len(paragraph) > DEPLOY_BODY_CHARS:
+                paragraph = paragraph[:DEPLOY_BODY_CHARS].rstrip() + "…"
+            lines.append(html.escape(" ".join(paragraph.split())))
+
+    facts = []
+    files = info.get("files")
+    if isinstance(files, int) and files > 0:
+        facts.append(f"{files} file{'s' if files != 1 else ''}")
+    facts.append(f"commit <code>{html.escape(commit)}</code>")
+    facts.append(f"cache {html.escape(cache_backend)}")
+    facts.append("auth enforcing" if auth_enforcing else "auth NOT enforcing")
+    lines.append(" · ".join(facts))
+    return "\n".join(lines)
+
+
+async def _announce_deploy(commit: str, cache_backend: str, auth_enforcing: bool,
+                           info: dict | None) -> None:
     try:
         # One ping per commit, however many replicas boot it or however often
         # Railway restarts the container. A build that crash-loops has other
@@ -488,23 +548,21 @@ async def _announce_deploy(commit: str, cache_backend: str, auth_enforcing: bool
     except Exception as exc:
         log.debug("deploy ping guard failed, skipping: %s", type(exc).__name__)
         return
-    auth = "enforcing" if auth_enforcing else "NOT enforcing"
-    await _notifier.send(
-        "🚀 <b>Backend deployed</b>\n"
-        f"commit <code>{html.escape(commit)}</code> · "
-        f"cache {html.escape(cache_backend)} · auth {auth}")
+    await _notifier.send(_deploy_text(commit, cache_backend, auth_enforcing, info))
 
 
-def deployed(commit: str, *, cache_backend: str, auth_enforcing: bool) -> None:
+def deployed(commit: str, *, cache_backend: str, auth_enforcing: bool,
+             info: dict | None = None) -> None:
     """Announce that a new build is serving traffic.
 
     Answers "did the deploy land?" without a curl to /health, and doubles as a
     live check of the notifier itself on every release: if this message does
-    not arrive, nothing else from this module will either.
+    not arrive, nothing else from this module will either. `info` is CI's
+    BUILD_INFO — the commit message and change size — when it rode along.
     """
     if _notifier is None or _cache is None:
         return
-    _spawn(_announce_deploy(commit, cache_backend, auth_enforcing))
+    _spawn(_announce_deploy(commit, cache_backend, auth_enforcing, info))
 
 
 # ── Operational alerts ───────────────────────────────────────────────────────
@@ -608,6 +666,7 @@ async def _digest_text(when: datetime) -> str:
         f"Scans: {free + pro} ok ({free} free · {pro} Pro) · {failed} failed",
         f"New subscriptions: {subs}",
         await _subscribers_line(),
+        await _spend_line([day], free + pro),
     ]
     top = await _top_text(day)
     if top:
@@ -714,6 +773,7 @@ async def _status_text() -> str:
         f"Scans today: {free + pro} ok ({free} free · {pro} Pro) · {failed} failed",
         f"New subscriptions today: {subs}",
         await _subscribers_line(),
+        await _spend_line([day], free + pro),
     ]
     top = await _top_text(day)
     if top:
@@ -740,7 +800,8 @@ async def _status_text() -> str:
 async def _buttons() -> Buttons:
     feed = "🔕 Feed off" if await _feed_enabled() else "🔔 Feed on"
     return [[("🔄 Refresh", "status"), ("📊 Digest", "digest"), ("📈 Week", "week")],
-            [("💳 Subs", "subs"), ("👥 Users", "users"), (feed, "feed toggle")]]
+            [("💳 Subs", "subs"), ("👥 Users", "users"), ("💸 Costs", "costs")],
+            [(feed, "feed toggle")]]
 
 
 async def handle_command(text: str) -> str | None:
@@ -769,6 +830,8 @@ async def handle_command_with_buttons(text: str) -> tuple[str, Buttons] | None:
         return await _subs_text(), await _buttons()
     if command == "/users":
         return await _users_text(), await _buttons()
+    if command == "/costs":
+        return await _costs_text(), await _buttons()
     return _help_text(), await _buttons()
 
 
@@ -937,9 +1000,11 @@ async def _top_text(day: str, limit: int = 3) -> str:
 
 async def _note_scan(*, tier: str, item_name: str, brand: str | None,
                      category: str, low: float, high: float, confidence: str,
-                     subject: str | None = None) -> None:
+                     subject: str | None = None, elapsed_ms: int | None = None) -> None:
     try:
         await _bump("scans_pro" if tier == "pro" else "scans_free")
+        if elapsed_ms:
+            await _cache.incr(_stat_key(_day(), "scan_ms"), STATS_TTL, int(elapsed_ms))
         await _tally_top(_day(), _normalise_category(category), _clean_brand(brand))
         if subject:
             await _index_user(auditlog.pseudonymise(subject), tier=tier, scanned=True)
@@ -953,14 +1018,15 @@ async def _note_scan(*, tier: str, item_name: str, brand: str | None,
 
 def scan_completed(*, tier: str, item_name: str, brand: str | None, category: str,
                    low: float, high: float, confidence: str,
-                   subject: str | None = None) -> None:
+                   subject: str | None = None, elapsed_ms: int | None = None) -> None:
     """A scan produced a valuation. Counts it, tallies what it was, and — when
     the feed is on — tells the operator. Fire-and-forget; item and price only,
     never who scanned it and never the photo."""
     if _notifier is None or _cache is None:
         return
     _spawn(_note_scan(tier=tier, item_name=item_name, brand=brand, category=category,
-                      low=low, high=high, confidence=confidence, subject=subject))
+                      low=low, high=high, confidence=confidence, subject=subject,
+                      elapsed_ms=elapsed_ms))
 
 
 # ── Weekly report ────────────────────────────────────────────────────────────
@@ -1000,6 +1066,8 @@ async def _weekly_text(now: datetime) -> str:
     users_now, users_prev = await pair("active_users")
     subs_now, subs_prev = await pair("new_subs")
     scans_now, scans_prev = free_now + pro_now, free_prev + pro_prev
+    spend_now = await _spend(this_week)
+    spend_prev = await _spend(last_week)
 
     start = end - timedelta(days=6)
     return "\n".join([
@@ -1008,7 +1076,9 @@ async def _weekly_text(now: datetime) -> str:
         f"Failed: {failed_now} {_trend(failed_now, failed_prev)}",
         f"Active user-days: {users_now} {_trend(users_now, users_prev)}",
         f"New subscriptions: {subs_now} {_trend(subs_now, subs_prev)}",
-        f"vs {scans_prev} scans · {users_prev} user-days · {subs_prev} subs the week before",
+        f"Gemini spend: {_usd(spend_now)} {_trend(round(spend_now * 100), round(spend_prev * 100))}",
+        f"vs {scans_prev} scans · {users_prev} user-days · {subs_prev} subs · "
+        f"{_usd(spend_prev)} the week before",
     ])
 
 
@@ -1155,6 +1225,17 @@ async def _subs_text() -> str:
     if len(rows) > TABLE_ROWS:
         body.append(f"… and {len(rows) - TABLE_ROWS} more")
     lines.append("<pre>" + html.escape("\n".join(body)) + "</pre>")
+    due = [e for e in doc.values()
+           if e.get("expires") and now < float(e["expires"]) < now + 7 * 86400]
+    if due:
+        paid_due = [e for e in due if e.get("acq") == "paid"]
+        value: dict[str, float] = {}
+        for e in paid_due:
+            if isinstance(e.get("price"), (int, float)):
+                value[e.get("currency") or "?"] = value.get(e.get("currency") or "?", 0.0) + e["price"]
+        worth = (" · " + " + ".join(_money(v, c) for c, v in sorted(value.items()))
+                 if value else "")
+        lines.append(f"Due in 7 days: {len(due)} renew or end ({len(paid_due)} paid{worth})")
     lines.append("Only subscriptions that have synced since the bot started are listed; "
                  "every active one checks in at its next app launch.")
     return "\n".join(lines)
@@ -1186,4 +1267,105 @@ async def _users_text() -> str:
         body.append(f"… and {len(rows) - TABLE_ROWS} more")
     lines.append("<pre>" + html.escape("\n".join(body)) + "</pre>")
     lines.append("Devices, not people — there are no accounts. Ids are the audit log's pseudonyms.")
+    return "\n".join(lines)
+
+
+# ── Gemini spend ─────────────────────────────────────────────────────────────
+
+def _cost_usd(tok_in: int, tok_out: int) -> float:
+    return (tok_in / 1e6) * GEMINI_PRICE_INPUT_PER_M + (tok_out / 1e6) * GEMINI_PRICE_OUTPUT_PER_M
+
+
+def _usd(amount: float) -> str:
+    return f"${amount:,.2f}"
+
+
+def _usd_fine(amount: float) -> str:
+    """Per-scan money: three decimals below ten cents, or the number lies."""
+    return f"${amount:,.3f}" if amount < 0.10 else f"${amount:,.2f}"
+
+
+def _kilo(n: int) -> str:
+    return f"{n / 1000:.1f}K" if n >= 1000 else str(n)
+
+
+async def _spend(days: list[str]) -> float:
+    return _cost_usd(await _sum_stat(days, "tok_in"), await _sum_stat(days, "tok_out"))
+
+
+async def _spend_line(days: list[str], scans: int) -> str:
+    spend = await _spend(days)
+    parts = [f"Gemini ≈ {_usd(spend)}"]
+    if scans:
+        parts.append(f"{_usd_fine(spend / scans)}/scan")
+        avg_ms = await _sum_stat(days, "scan_ms")
+        if avg_ms:
+            parts.append(f"avg scan {avg_ms / scans / 1000:.1f}s")
+    return " · ".join(parts)
+
+
+async def _note_usage(label: str, usage: dict) -> None:
+    try:
+        day = _day()
+        tok_in = int(usage.get("prompt_tokens") or 0)
+        tok_out = int(usage.get("output_tokens") or 0) + int(usage.get("thoughts_tokens") or 0)
+        if tok_in:
+            await _cache.incr(_stat_key(day, "tok_in"), STATS_TTL, tok_in)
+        if tok_out:
+            await _cache.incr(_stat_key(day, "tok_out"), STATS_TTL, tok_out)
+        await _cache.incr(_stat_key(day, "model_calls"), STATS_TTL)
+        await _cache.incr(_stat_key(day, f"calls_{label}"), STATS_TTL)
+
+        budget = GEMINI_DAILY_BUDGET_USD
+        if budget > 0:
+            spend = await _spend([day])
+            if spend > budget and await _cache.add(f"opsseen:budget:{day}", "1", STATS_TTL):
+                await _notifier.send(
+                    "💸 <b>Gemini spend over budget</b>\n"
+                    f"Today ≈ {_usd(spend)} against a {_usd(budget)} daily budget. "
+                    "Scans keep working; this is a heads-up, not a cut-off.")
+    except Exception as exc:
+        log.debug("usage note failed: %s", type(exc).__name__)
+
+
+def model_usage(label: str, usage: dict | None) -> None:
+    """Tally one model call's tokens. Fire-and-forget; free when alerts are off."""
+    if _notifier is None or _cache is None:
+        return
+    _spawn(_note_usage(label, dict(usage or {})))
+
+
+def _days_ending_today(n: int, now: datetime | None = None) -> list[str]:
+    now = now or datetime.now(timezone.utc)
+    return [_day(now - timedelta(days=i)) for i in range(n)]
+
+
+async def _costs_text() -> str:
+    lines = ["💸 <b>Gemini spend</b>"]
+    for label, n in (("Today", 1), ("Last 7 days", 7), ("Last 30 days", 30)):
+        days = _days_ending_today(n)
+        tok_in = await _sum_stat(days, "tok_in")
+        tok_out = await _sum_stat(days, "tok_out")
+        calls = await _sum_stat(days, "model_calls")
+        scans = await _sum_stat(days, "scans_free") + await _sum_stat(days, "scans_pro")
+        spend = _cost_usd(tok_in, tok_out)
+        parts = [f"{label}: {_usd(spend)}", f"{calls} calls",
+                 f"{_kilo(tok_in)} in / {_kilo(tok_out)} out"]
+        if scans:
+            parts.append(f"{_usd_fine(spend / scans)}/scan")
+        lines.append(" · ".join(parts))
+
+    month = _days_ending_today(30)
+    free = await _sum_stat(month, "scans_free")
+    total = free + await _sum_stat(month, "scans_pro")
+    if total:
+        given = (await _spend(month)) * free / total
+        lines.append(f"Free tier, 30 days: {free} of {total} scans ≈ {_usd(given)} given away")
+
+    _, _, _, _, mrr = _subs_summary(await _read_index(SUBS_INDEX_KEY))
+    lines.append("vs MRR ≈ " + (" + ".join(_money(v, c) for c, v in sorted(mrr.items()))
+                                 if mrr else "n/a") + " (paid plans)")
+    budget = f" · budget {_usd(GEMINI_DAILY_BUDGET_USD)}/day" if GEMINI_DAILY_BUDGET_USD > 0 else ""
+    lines.append(f"Prices: ${GEMINI_PRICE_INPUT_PER_M:.2f}/M in · "
+                 f"${GEMINI_PRICE_OUTPUT_PER_M:.2f}/M out{budget}")
     return "\n".join(lines)

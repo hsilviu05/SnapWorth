@@ -580,7 +580,7 @@ class TestPolling:
             await drain()
             (menu,) = bot.command_menus
             assert [c["command"] for c in menu] == [
-                "status", "subs", "users", "feed", "digest", "week", "help"]
+                "status", "subs", "users", "costs", "feed", "digest", "week", "help"]
         finally:
             await notify.aclose()
 
@@ -716,7 +716,7 @@ class TestWeeklyReport:
         assert "Scans: 28 (7 free · 21 Pro) ＝" in text          # 28 vs 28
         assert "Active user-days: 14 ＝" in text
         assert "New subscriptions: 1 new" in text
-        assert "vs 28 scans · 14 user-days · 0 subs the week before" in text
+        assert "vs 28 scans · 14 user-days · 0 subs · $0.00 the week before" in text
 
     def test_trend_arrows(self):
         assert notify._trend(15, 10) == "▲ 50%"
@@ -742,10 +742,11 @@ class TestButtons:
     async def test_replies_carry_the_keyboard(self, enabled_notify):
         text, buttons = await notify.handle_command_with_buttons("/status")
         labels = [label for row in buttons for label, _ in row]
-        assert labels == ["🔄 Refresh", "📊 Digest", "📈 Week", "💳 Subs", "👥 Users", "🔕 Feed off"]
+        assert labels == ["🔄 Refresh", "📊 Digest", "📈 Week",
+                          "💳 Subs", "👥 Users", "💸 Costs", "🔕 Feed off"]
         await notify.handle_command("/feed off")
         _, buttons = await notify.handle_command_with_buttons("/status")
-        assert buttons[1][2][0] == "🔔 Feed on"
+        assert buttons[2][0][0] == "🔔 Feed on"
 
     @pytest.mark.asyncio
     async def test_button_press_is_answered_and_acted_on(self, cache):
@@ -890,3 +891,151 @@ class TestUsersTable:
     @pytest.mark.asyncio
     async def test_empty_table_says_so(self, enabled_notify):
         assert "No device has been seen" in await notify.handle_command("/users")
+
+
+# ── Gemini spend, latency, renewals ──────────────────────────────────────────
+
+class TestSpend:
+    @pytest.fixture(autouse=True)
+    def prices(self, monkeypatch):
+        monkeypatch.setattr(notify, "GEMINI_PRICE_INPUT_PER_M", 0.30)
+        monkeypatch.setattr(notify, "GEMINI_PRICE_OUTPUT_PER_M", 2.50)
+        monkeypatch.setattr(notify, "GEMINI_DAILY_BUDGET_USD", 0.0)
+
+    def test_cost_arithmetic(self):
+        # 10K in at $0.30/M = $0.003; 6K out at $2.50/M = $0.015.
+        assert abs(notify._cost_usd(10_000, 6_000) - 0.018) < 1e-9
+
+    @pytest.mark.asyncio
+    async def test_tokens_accumulate_and_costs_reports_them(self, enabled_notify, cache):
+        notify.model_usage("scan", {"prompt_tokens": 10_000, "output_tokens": 5_000,
+                                    "thoughts_tokens": 1_000})
+        notify.model_usage("listing", {"prompt_tokens": 2_000, "output_tokens": 500})
+        scan(elapsed_ms=5_800)
+        await drain()
+        day = notify._day()
+        assert await cache.get(notify._stat_key(day, "tok_in")) == "12000"
+        assert await cache.get(notify._stat_key(day, "tok_out")) == "6500"
+        assert await cache.get(notify._stat_key(day, "model_calls")) == "2"
+        assert await cache.get(notify._stat_key(day, "calls_listing")) == "1"
+
+        text = await notify.handle_command("/costs")
+        # 12K × 0.30 + 6.5K × 2.50 per million = 0.0036 + 0.01625 = $0.01985
+        assert "Today: $0.02 · 2 calls · 12.0K in / 6.5K out · $0.020/scan" in text
+        assert "Prices: $0.30/M in · $2.50/M out" in text
+        assert "vs MRR ≈ n/a" in text
+
+    @pytest.mark.asyncio
+    async def test_status_and_digest_carry_spend_and_latency(self, enabled_notify):
+        notify.model_usage("scan", {"prompt_tokens": 100_000, "output_tokens": 20_000})
+        scan(elapsed_ms=4_000)
+        scan(elapsed_ms=8_000)
+        await drain()
+        status = await notify.handle_command("/status")
+        assert "Gemini ≈ $0.08 · $0.040/scan · avg scan 6.0s" in status
+        digest = await notify._digest_text(datetime.now(timezone.utc))
+        assert "Gemini ≈ $0.08" in digest
+
+    @pytest.mark.asyncio
+    async def test_free_tier_share_of_spend(self, enabled_notify):
+        notify.model_usage("scan", {"prompt_tokens": 1_000_000, "output_tokens": 0})  # $0.30
+        scan(tier="free")
+        scan(tier="pro")
+        scan(tier="pro")
+        await drain()
+        assert "Free tier, 30 days: 1 of 3 scans ≈ $0.10 given away" in \
+            await notify.handle_command("/costs")
+
+    @pytest.mark.asyncio
+    async def test_budget_alerts_once_per_day(self, enabled_notify, monkeypatch):
+        monkeypatch.setattr(notify, "GEMINI_DAILY_BUDGET_USD", 0.01)
+        notify.model_usage("scan", {"prompt_tokens": 0, "output_tokens": 10_000})  # $0.025
+        await drain()
+        notify.model_usage("scan", {"prompt_tokens": 0, "output_tokens": 10_000})
+        await drain()
+        alerts = [t for t in enabled_notify.texts if "over budget" in t]
+        assert len(alerts) == 1
+        assert "$0.03 against a $0.01 daily budget" in alerts[0]
+        assert "budget $0.01/day" in await notify.handle_command("/costs")
+
+    @pytest.mark.asyncio
+    async def test_weekly_carries_spend_with_trend(self, enabled_notify):
+        notify.model_usage("scan", {"prompt_tokens": 1_000_000, "output_tokens": 0})
+        await drain()
+        from datetime import timedelta
+        text = await notify._weekly_text(datetime.now(timezone.utc) + timedelta(days=1))
+        assert "Gemini spend: $0.30 new" in text
+
+    @pytest.mark.asyncio
+    async def test_disabled_is_a_no_op(self, cache, monkeypatch):
+        monkeypatch.delenv("TELEGRAM_BOT_TOKEN", raising=False)
+        monkeypatch.delenv("TELEGRAM_CHAT_ID", raising=False)
+        notify.configure(cache)
+        try:
+            notify.model_usage("scan", {"prompt_tokens": 5})
+            assert notify._tasks == set()
+        finally:
+            await notify.aclose()
+
+
+class TestRenewalsDue:
+    @pytest.mark.asyncio
+    async def test_subs_lists_what_renews_this_week(self, enabled_notify):
+        await notify.entitlement_recorded("a" * 64, sub("m-1", expires_in_days=3))
+        await notify.entitlement_recorded("b" * 64, sub("y-1", "com.snapworth.yearly",
+                                                        offer_type=3, price=0, expires_in_days=5))
+        await notify.entitlement_recorded("c" * 64, sub("m-2", expires_in_days=20))
+        text = await notify.handle_command("/subs")
+        assert "Due in 7 days: 2 renew or end (1 paid · $4.99)" in text
+
+
+class TestCacheIncrAmount:
+    @pytest.mark.asyncio
+    async def test_in_memory_and_resilient_increment_by_amount(self, cache):
+        assert await cache.incr("k", 60, 5) == 5
+        assert await cache.incr("k", 60, 7) == 12
+        assert await cache.incr("k", 60) == 13
+
+
+# ── Deploy message details ───────────────────────────────────────────────────
+
+class TestDeployMessage:
+    def test_merge_commit_leads_with_the_pr_and_links_it(self):
+        info = {"message": "Merge pull request #80 from hsilviu05/claude/x\n\n"
+                           "Telegram /subs and /users: who still has a subscription",
+                "files": 5, "repository": "hsilviu05/SnapWorth"}
+        text = notify._deploy_text("6092732abcde", "redis", True, info)
+        assert text.splitlines()[0] == "🚀 <b>Backend deployed</b>"
+        assert ('<a href="https://github.com/hsilviu05/SnapWorth/pull/80">#80</a> '
+                "Telegram /subs and /users: who still has a subscription") in text
+        assert "5 files · commit <code>6092732abcde</code> · cache redis · auth enforcing" in text
+
+    def test_direct_commit_carries_its_first_paragraph(self):
+        info = {"message": "fix(backend): sharing alert ignores ghosts\n\n"
+                           "First live message after the migration read as sharing.\n"
+                           "It was one phone.\n\nSecond paragraph is not shown.",
+                "files": 1, "repository": "hsilviu05/SnapWorth"}
+        text = notify._deploy_text("abc", "redis", False, info)
+        assert "<b>fix(backend): sharing alert ignores ghosts</b>" in text
+        assert "First live message after the migration read as sharing. It was one phone." in text
+        assert "Second paragraph" not in text
+        assert "1 file · commit" in text and "auth NOT enforcing" in text
+
+    def test_no_info_is_the_old_message(self):
+        text = notify._deploy_text("abc", "memory", True, None)
+        assert text == ("🚀 <b>Backend deployed</b>\n"
+                        "commit <code>abc</code> · cache memory · auth enforcing")
+
+    def test_long_bodies_are_truncated_and_escaped(self):
+        info = {"message": "feat: <b>bold</b>\n\n" + "x" * 1000, "files": 0}
+        text = notify._deploy_text("abc", "redis", True, info)
+        assert "&lt;b&gt;bold&lt;/b&gt;" in text
+        assert "…" in text and len(text) < 900
+
+    @pytest.mark.asyncio
+    async def test_deployed_sends_the_detailed_message(self, enabled_notify):
+        notify.deployed("abc123", cache_backend="redis", auth_enforcing=True,
+                        info={"message": "chore: bump", "files": 2, "repository": "o/r"})
+        await drain()
+        assert "<b>chore: bump</b>" in enabled_notify.texts[0]
+        assert "2 files" in enabled_notify.texts[0]

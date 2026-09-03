@@ -159,6 +159,22 @@ def resolve_git_commit(
 API_VERSION = resolve_api_version(os.environ)
 GIT_COMMIT = resolve_git_commit(os.environ)
 
+BUILD_INFO_FILE = Path(__file__).resolve().parent / "BUILD_INFO"
+
+
+def read_build_info(path: Path = BUILD_INFO_FILE) -> dict:
+    """The deployed commit's message and change size, written by CI next to
+    BUILD_COMMIT. Forgiving for the same reason: details about a deploy must
+    never be able to fail one."""
+    try:
+        info = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    return info if isinstance(info, dict) else {}
+
+
+BUILD_INFO = read_build_info()
+
 _api_key = os.environ.get("GEMINI_API_KEY", "")
 if not _api_key:
     log.warning("GEMINI_API_KEY is not set — scan requests will fail")
@@ -209,7 +225,7 @@ async def _lifespan(_app: FastAPI):
     _ready = True
     log.info("startup complete — accepting traffic")
     notify.deployed(GIT_COMMIT, cache_backend=_cache.backend,
-                    auth_enforcing=cfg.enforce)
+                    auth_enforcing=cfg.enforce, info=BUILD_INFO)
 
     yield
 
@@ -1099,7 +1115,7 @@ async def scan(
     notify.scan_completed(
         tier=principal.tier, item_name=val.item_name, brand=val.brand,
         category=val.category, low=low, high=high, confidence=conf.band,
-        subject=principal.subject)
+        subject=principal.subject, elapsed_ms=int(elapsed * 1000))
 
     return ScanResponse(
         # ── v1 contract ─────────────────────────────────────────────────────
@@ -1294,6 +1310,7 @@ async def _generate_with_retry(
             text, usage = aiconfig.extract_text(response), aiconfig.usage_of(response)
             metrics.model_calls.inc(operation=label, outcome="success")
             _model_health.record_success()
+            notify.model_usage(label, usage)
             for kind, key in (("prompt", "prompt_tokens"), ("output", "output_tokens"),
                               ("thoughts", "thoughts_tokens")):
                 if key in usage:
