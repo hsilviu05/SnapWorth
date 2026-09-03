@@ -268,6 +268,64 @@ _DRAIN_TIMEOUT_SECONDS = float(os.environ.get("DRAIN_TIMEOUT_SECONDS", "15"))
 _ready = False
 
 
+# ── Repeated safety blocks ───────────────────────────────────────────────────
+# What happens to a pornographic or otherwise prohibited photo today: Gemini's
+# safety filter refuses it (BLOCK_ONLY_HIGH, aiconfig._safety_settings), the
+# user gets a neutral 422, the audit log records SCAN_BLOCKED under the
+# device's pseudonym, and the photo — never written to disk — is gone with the
+# request. That is the right shape for a single blocked photo: thrift stock
+# includes militaria and lingerie, and a false positive must not be punished.
+#
+# What it did not do is notice a *pattern*. A device sending blocked photos
+# over and over is not a thrift reseller with an odd item; it is someone using
+# the endpoint as a free classifier for content it must not touch, and every
+# attempt is a billed model call. So: blocks are counted per device over a
+# rolling day, and past a threshold the device's scans are refused for that
+# day — before the upload reaches the model — and the operator is told once.
+#
+# Deliberately not "report to the authorities": the service keeps no copy of
+# the image, so there is nothing to hand over and no basis on which to accuse
+# anyone; a pause and an audit trail are what a service this size can do
+# honestly. Terms already prohibit the use.
+SAFETY_BLOCKS_BEFORE_PAUSE = int(os.environ.get("SAFETY_BLOCKS_BEFORE_PAUSE", "5"))
+_SAFETY_WINDOW_SECONDS = 24 * 3600
+
+
+def _safety_key(subject: str) -> str:
+    return f"safety:blocks:{auditlog.pseudonymise(subject)}"
+
+
+async def _safety_block_count(subject: str) -> int:
+    if _cache is None or SAFETY_BLOCKS_BEFORE_PAUSE <= 0:
+        return 0
+    try:
+        return int(await _cache.get(_safety_key(subject)) or 0)
+    except Exception:
+        return 0
+
+
+async def _note_safety_block(subject: str) -> int:
+    """One more blocked photo for this device. Returns the day's count."""
+    if _cache is None or SAFETY_BLOCKS_BEFORE_PAUSE <= 0:
+        return 0
+    try:
+        count = int(await _cache.incr(_safety_key(subject), _SAFETY_WINDOW_SECONDS))
+    except Exception:
+        return 0
+    notify.safety_blocked(subject, count, paused=count >= SAFETY_BLOCKS_BEFORE_PAUSE)
+    return count
+
+
+async def _refuse_if_paused(subject: str) -> None:
+    if await _safety_block_count(subject) >= SAFETY_BLOCKS_BEFORE_PAUSE > 0:
+        auditlog.record(AuditEvent.SCAN_BLOCKED, subject,
+                        outcome="denied", reason="paused_after_repeated_blocks")
+        raise HTTPException(
+            status_code=403,
+            detail="Scanning from this device is paused for 24 hours after repeated "
+                   "photos that could not be analysed.")
+
+
 async def _bot_scan(image_bytes: bytes, declared_type: str) -> dict:
     """A photo the operator sent the Telegram bot, through the real pipeline.
 
@@ -1051,6 +1109,10 @@ async def scan(
     # Gate on rate limit only after validation — bad requests don't burn quota
     await _enforce_limits(principal.subject, _client_ip(request))
 
+    # A device past the day's safety-block threshold is refused here, before
+    # quota and before the model: nothing to bill, nothing to analyse.
+    await _refuse_if_paused(principal.subject)
+
     # Free allowance is checked before the paid third-party call, and consumed
     # only after it succeeds, so a failed scan is never charged.
     await enforce_quota(principal)
@@ -1109,6 +1171,7 @@ async def _analyse(image_bytes: bytes, content_type: str, *, subject: str,
         log.info("scan blocked by safety filter", extra={"reason": str(exc)})
         auditlog.record(AuditEvent.SCAN_BLOCKED, subject,
                         outcome="denied", reason=str(exc))
+        await _note_safety_block(subject)
         raise HTTPException(
             status_code=422,
             detail="This photo couldn't be analysed. Try a clear photo of a single item.",

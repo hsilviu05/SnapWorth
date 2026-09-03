@@ -208,6 +208,20 @@ MESSAGES_KEY = "opsstate:tgmsgs"
 MESSAGES_CAP = 400
 MESSAGES_TTL = 48 * 3600
 
+# What 🧹 Clear removed, kept so it is not lost: the text of the bot's own
+# messages (the operator's are one-word commands and are not worth keeping),
+# shown back by /history. A month, a few hundred entries.
+ARCHIVE_KEY = "opsstate:tgarchive"
+ARCHIVE_CAP = 300
+ARCHIVE_TTL = 30 * 24 * 3600
+HISTORY_DEFAULT = 8
+HISTORY_MAX = 25
+HISTORY_SNIPPET_CHARS = 350
+# Optionally, a second chat — a private channel with the bot as admin — that
+# /clear forwards everything to before deleting, so the copy is a real
+# Telegram copy, photos included. Off when unset.
+ARCHIVE_CHAT_ENV = "TELEGRAM_ARCHIVE_CHAT_ID"
+
 COMMANDS: tuple[tuple[str, str], ...] = (
     ("status", "Active users, scans today, provider health"),
     ("subs", "Every subscription seen: plan, how obtained, renews"),
@@ -224,7 +238,8 @@ COMMANDS: tuple[tuple[str, str], ...] = (
     ("trend", "/trend <brand or category> — 30 days of scans"),
     ("user", "/user <id> — one device's story, for support"),
     ("checkup", "Redis, Gemini, DeviceCheck, TLS expiry — one screen"),
-    ("clear", "Delete the last two days of this chat and start fresh"),
+    ("clear", "Delete the last two days of this chat and start fresh (kept in /history)"),
+    ("history", "/history [n] — what the bot said before the last clears"),
     ("feed", "Live scan feed: on, off, or show"),
     ("digest", "Yesterday's digest, now"),
     ("week", "Last 7 days against the 7 before"),
@@ -259,7 +274,7 @@ class TelegramNotifier:
         self._client = client          # injectable for tests
         # Told the message_id of every message this notifier sends, so /clear
         # can take them back. Set by `configure`; None is "don't bother".
-        self.on_sent: Callable[[int], Awaitable[None]] | None = None
+        self.on_sent: Callable[[int, str], Awaitable[None]] | None = None
 
     async def _http(self):
         if self._client is None:
@@ -305,7 +320,7 @@ class TelegramNotifier:
             if self.on_sent is not None:
                 try:
                     message_id = int(((resp.json() or {}).get("result") or {}).get("message_id"))
-                    await self.on_sent(message_id)
+                    await self.on_sent(message_id, text)
                 except Exception:
                     pass
             return True
@@ -365,6 +380,27 @@ class TelegramNotifier:
         except Exception as exc:
             log.warning("telegram deleteMessages failed: %s", type(exc).__name__)
         return deleted
+
+    async def forward_messages(self, to_chat_id: str, message_ids: list[int]) -> int:
+        """Copy messages to another chat — the archive — before /clear deletes
+        them here. Up to 100 per call. Returns how many were forwarded."""
+        forwarded = 0
+        try:
+            client = await self._http()
+            for start in range(0, len(message_ids), 100):
+                chunk = message_ids[start:start + 100]
+                resp = await client.post(
+                    f"{TELEGRAM_API}/bot{self._token}/forwardMessages",
+                    json={"chat_id": to_chat_id, "from_chat_id": self._chat_id,
+                          "message_ids": chunk, "disable_notification": True})
+                if resp.status_code == 200 and (resp.json() or {}).get("ok"):
+                    forwarded += len((resp.json() or {}).get("result") or chunk)
+                else:
+                    log.info("telegram forwardMessages refused: HTTP %s %s",
+                             resp.status_code, self._description(resp))
+        except Exception as exc:
+            log.warning("telegram forwardMessages failed: %s", type(exc).__name__)
+        return forwarded
 
     async def download_photo(self, file_id: str, max_bytes: int = 10 * 1024 * 1024) -> bytes | None:
         """Fetch a photo the operator sent, via getFile. None on any failure."""
@@ -570,6 +606,34 @@ def count_scan_failure() -> None:
     if _notifier is None:
         return
     _spawn(_bump("scans_failed"))
+
+
+# One 🚫 per device per day: the pause itself stops the traffic, and every
+# further attempt from the same device says nothing new.
+SAFETY_PAUSE_THROTTLE_TTL = 60 * 60 * 24
+
+
+async def _announce_safety_pause(who: str, count: int) -> None:
+    try:
+        if not await _cache.add(f"opsseen:safety:{who}", "1", SAFETY_PAUSE_THROTTLE_TTL):
+            return
+    except Exception:
+        return
+    await _notifier.send(
+        "🚫 <b>Device paused after repeated blocked photos</b>\n"
+        f"<code>{html.escape(who[:8])}</code> sent {count} photos today that the safety "
+        "filter refused. Its scans are refused for 24 hours; nothing was stored. "
+        "/user " + html.escape(who[:6]) + " for its history.")
+
+
+def safety_blocked(subject: str, count: int, *, paused: bool) -> None:
+    """The model's safety filter refused a photo. Tallied for the digest; the
+    operator hears about it only when a device crosses the pause threshold."""
+    if _notifier is None or _cache is None:
+        return
+    _spawn(_bump("scans_blocked"))
+    if paused:
+        _spawn(_announce_safety_pause(auditlog.pseudonymise(subject), count))
 
 
 # ── Subscription events ──────────────────────────────────────────────────────
@@ -857,12 +921,14 @@ async def _digest_text(when: datetime) -> str:
     free = await _read_stat(day, "scans_free")
     pro = await _read_stat(day, "scans_pro")
     failed = await _read_stat(day, "scans_failed")
+    blocked = await _read_stat(day, "scans_blocked")
     subs = await _read_stat(day, "new_subs")
     users = await _read_stat(day, "active_users")
     lines = [
         f"📊 <b>SnapWorth — {when.strftime('%Y-%m-%d')}</b>",
         f"Active users: {users}",
-        f"Scans: {free + pro} ok ({free} free · {pro} Pro) · {failed} failed",
+        f"Scans: {free + pro} ok ({free} free · {pro} Pro) · {failed} failed"
+        + (f" · {blocked} blocked by the safety filter" if blocked else ""),
         f"New subscriptions: {subs}",
         await _subscribers_line(),
         await _spend_line([day], free + pro),
@@ -969,13 +1035,15 @@ async def _status_text() -> str:
     free = await _read_stat(day, "scans_free")
     pro = await _read_stat(day, "scans_pro")
     failed = await _read_stat(day, "scans_failed")
+    blocked = await _read_stat(day, "scans_blocked")
     subs = await _read_stat(day, "new_subs")
 
     lines = [
         "📡 <b>SnapWorth status</b>",
         f"Active users: {active_now} since {_window_start(window):%H:%M} UTC "
         f"· {active_today} today",
-        f"Scans today: {free + pro} ok ({free} free · {pro} Pro) · {failed} failed",
+        f"Scans today: {free + pro} ok ({free} free · {pro} Pro) · {failed} failed"
+        + (f" · {blocked} blocked" if blocked else ""),
         f"New subscriptions today: {subs}",
         await _subscribers_line(),
         await _spend_line([day], free + pro),
@@ -1010,7 +1078,7 @@ async def _buttons() -> Buttons:
             [("🗓 Calendar", "calendar"), ("🩺 Checkup", "checkup"), (feed, "feed toggle")],
             [("✍️ Caption", "ask caption"), ("🪝 Hooks", "ask hooks"), ("💬 Reply", "ask reply")],
             [("💵 Price", "ask price"), ("📈 Trend", "ask trend"), ("👤 User", "ask user")],
-            [("🧹 Clear chat", "clear")]]
+            [("🧹 Clear chat", "clear"), ("🗂 History", "history")]]
 
 
 async def handle_command(text: str) -> str | None:
@@ -1065,6 +1133,8 @@ async def handle_command_with_buttons(text: str) -> tuple[str, Buttons] | None:
         return await _user_text(rest), await _buttons()
     if command == "/checkup":
         return await _checkup_text(), await _buttons()
+    if command == "/history":
+        return await _history_text(argument), await _buttons()
     return _help_text(), await _buttons()
 
 
@@ -2195,40 +2265,116 @@ async def _spike_line(when: datetime, scans: int) -> str:
 
 # ── Clear: take back the last two days of the chat ──────────────────────────
 
-async def _remember_message(message_id: int) -> None:
+async def _remember_message(message_id: int, text: str | None = None) -> None:
+    """Note a message in the chat: its id (so /clear can delete it) and, for
+    the bot's own messages, its text (so /clear can keep a copy)."""
     try:
         now = int(time.time())
         raw = await _cache.get(MESSAGES_KEY)
         entries = [e for e in (json.loads(raw) if raw else [])
-                   if isinstance(e, list) and len(e) == 2 and now - int(e[1]) < MESSAGES_TTL]
-        entries.append([int(message_id), now])
+                   if isinstance(e, list) and len(e) >= 2 and now - int(e[1]) < MESSAGES_TTL]
+        entry = [int(message_id), now]
+        if text:
+            entry.append(text[:4096])
+        entries.append(entry)
         await _cache.set(MESSAGES_KEY, json.dumps(entries[-MESSAGES_CAP:]), MESSAGES_TTL)
     except Exception as exc:
         log.debug("message id note failed: %s", type(exc).__name__)
+
+
+async def _archive(entries: list[list]) -> int:
+    """Keep the text of the bot's messages that are about to be deleted."""
+    texts = [[int(e[1]), e[2]] for e in entries if len(e) >= 3 and e[2]]
+    if not texts:
+        return 0
+    try:
+        raw = await _cache.get(ARCHIVE_KEY)
+        kept = [a for a in (json.loads(raw) if raw else []) if isinstance(a, list) and len(a) == 2]
+        kept += texts
+        await _cache.set(ARCHIVE_KEY, json.dumps(kept[-ARCHIVE_CAP:]), ARCHIVE_TTL)
+    except Exception as exc:
+        log.debug("archive write failed: %s", type(exc).__name__)
+        return 0
+    return len(texts)
 
 
 async def _clear_chat() -> None:
     """Delete every message the bot remembers in this chat, then post a fresh
     status so the keyboard is still there. Only the last 48 hours can go —
     Telegram's limit for bots, not ours — and only what was sent since this
-    feature deployed, because ids before that were never recorded."""
+    feature deployed, because ids before that were never recorded.
+
+    Nothing is lost: the bot's own messages are archived for /history first,
+    and, when TELEGRAM_ARCHIVE_CHAT_ID names a second chat, everything is
+    forwarded there — a real Telegram copy, photos included."""
     try:
         raw = await _cache.get(MESSAGES_KEY)
-        ids = sorted({int(e[0]) for e in (json.loads(raw) if raw else [])
-                      if isinstance(e, list) and e})
+        entries = [e for e in (json.loads(raw) if raw else []) if isinstance(e, list) and e]
     except Exception:
-        ids = []
+        entries = []
+    ids = sorted({int(e[0]) for e in entries})
+    archived = await _archive(entries)
+    archive_chat = os.environ.get(ARCHIVE_CHAT_ENV, "").strip()
+    forwarded = await _notifier.forward_messages(archive_chat, ids) if archive_chat and ids else 0
     deleted = await _notifier.delete_messages(ids) if ids else 0
     try:
         await _cache.delete(MESSAGES_KEY)
     except Exception:
         pass
-    note = (f"🧹 Cleared {deleted} messages." if deleted
-            else "🧹 Nothing to clear — only the last 48 hours can be deleted, and only "
-                 "what was sent since this button existed.")
+    if deleted:
+        note = f"🧹 Cleared {deleted} messages."
+        if archived:
+            note += f" {archived} of the bot's kept — /history shows them."
+        if archive_chat:
+            note += f" {forwarded} forwarded to the archive chat."
+    else:
+        note = ("🧹 Nothing to clear — only the last 48 hours can be deleted, and only "
+                "what was sent since this button existed.")
     if deleted < len(ids):
         note += f" {len(ids) - deleted} were too old or already gone."
     await _notifier.send(note + "\n\n" + await _status_text(), await _buttons())
+
+
+def _snippet(text: str, limit: int = HISTORY_SNIPPET_CHARS) -> str:
+    """A message as it was sent, shortened. The text is the bot's own Telegram
+    HTML, so tags are stripped rather than re-escaped — cutting mid-tag would
+    make the whole history message unparseable."""
+    plain = re.sub(r"<[^>]+>", "", text)
+    plain = html.unescape(plain)
+    plain = "\n".join(line for line in plain.split("\n") if line.strip())
+    if len(plain) > limit:
+        plain = plain[:limit].rstrip() + "…"
+    return html.escape(plain)
+
+
+async def _history_text(argument: str) -> str:
+    try:
+        count = min(HISTORY_MAX, max(1, int(argument))) if argument else HISTORY_DEFAULT
+    except ValueError:
+        count = HISTORY_DEFAULT
+    try:
+        raw = await _cache.get(ARCHIVE_KEY)
+        entries = [a for a in (json.loads(raw) if raw else []) if isinstance(a, list) and len(a) == 2]
+    except Exception:
+        entries = []
+    if not entries:
+        return ("🗂 <b>History</b>\nNothing archived yet. 🧹 Clear keeps a copy of what the bot "
+                "said; it shows up here.")
+    shown = entries[-count:]
+    lines = [f"🗂 <b>History</b> — last {len(shown)} of {len(entries)} kept messages"]
+    budget = 3800
+    blocks = []
+    for at, text in reversed(shown):
+        when = datetime.fromtimestamp(int(at), timezone.utc).strftime("%d %b %H:%M")
+        block = f"<b>{when} UTC</b>\n{_snippet(str(text))}"
+        if budget - len(block) < 0:
+            blocks.append("…")
+            break
+        budget -= len(block)
+        blocks.append(block)
+    lines.append("\n\n".join(blocks))
+    lines.append("/history 25 for more. Kept 30 days.")
+    return "\n\n".join(lines)
 
 
 # ── Test scan: a photo sent to the bot goes through the real pipeline ────────
