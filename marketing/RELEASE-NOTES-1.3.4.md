@@ -4,10 +4,11 @@
 
 ## Scope
 
-Three changes touch `ios/` since 1.3.3. One is user-visible, two are quiet.
+Four changes touch `ios/` since 1.3.3. Two are user-visible, two are quiet.
 
 | Change | Visible? |
 |---|---|
+| Snap → Sell writes Poshmark, Mercari and Depop listings; Thrift Flip knows their fees (#54) | **yes — headline** |
 | Scan errors say what actually went wrong (#55) | **yes** |
 | Device identity survives reinstall | no — but it fixes a real subscriber-facing bug class |
 | Contact address is her.silviu.i@gmail.com everywhere | only if someone emails |
@@ -21,12 +22,19 @@ working exactly as before.
 ## Primary — paste into App Store Connect
 
 ```
-Clearer scan errors.
+Poshmark, Mercari and Depop.
 
-When a scan can't be priced, SnapWorth now tells you why — a photo the AI
-couldn't read, an item it couldn't value, or a genuine hiccup on our side —
-instead of always saying the service is unavailable. So you know whether to
-try a different photo or just try again in a moment.
+Snap to Sell now writes listings for the places US resellers actually sell:
+Poshmark, Mercari and Depop join eBay, Facebook, Vinted and OLX. Each one is
+written in that marketplace's own voice, ready to paste.
+
+Thrift Flip knows their fees too — Poshmark's flat $2.95 on cheap items,
+Mercari's 10%, Depop's processing fee — so the buy-or-skip verdict is right
+for wherever you plan to sell.
+
+Clearer scan errors: when a scan can't be priced, SnapWorth now tells you
+why — a photo the AI couldn't read, an item it couldn't value, or a hiccup
+on our side — so you know whether to try a different photo or try again.
 
 Also under the hood: Pro subscriptions now recognise your device across
 reinstalls, so deleting and reinstalling the app never affects your plan.
@@ -35,9 +43,9 @@ reinstalls, so deleting and reinstalling the app never affects your plan.
 ### Shorter alternative
 
 ```
-Scan errors now say what actually went wrong, so you know whether to retry
-or try a different photo. Plus: reinstalling the app no longer affects your
-Pro subscription.
+Snap to Sell now writes Poshmark, Mercari and Depop listings, and Thrift
+Flip knows their fees. Scan errors say what actually went wrong. Plus:
+reinstalling the app no longer affects your Pro subscription.
 ```
 
 ---
@@ -58,6 +66,20 @@ operator tool and does not concern users.
 ---
 
 ## What changed, for the record
+
+### US marketplaces (#54)
+
+Snap → Sell offered eBay, Vinted, Facebook and OLX — a Romania-shaped list
+for an audience that is mostly American. Poshmark, Mercari and Depop are
+added, with per-marketplace writing guidance in the backend prompt and
+mock listings for offline mode. Chips are ordered US-first and now scroll
+(seven no longer fit as equal-width capsules). Plain text names only, no
+logos. Fee-table entries are sourced from each marketplace's published
+seller terms, cited in `MarketplaceFees.swift`; Poshmark's flat $2.95 on
+sales under $15 needed a small fee-model extension, and every entry is
+pinned by a hand-calculated test including one where the same flip is a
+buy on Mercari and a skip on Poshmark. The App Store keyword field should
+gain "poshmark, mercari, depop" for this release.
 
 ### Scan errors (#55)
 
@@ -99,10 +121,15 @@ silh6767@gmail.com. Aligned, along with `marketing/app_store_listing.md`.
 - [ ] Archive from `main` after the release PR merges — the backend that
       accepts `device_id` must be live first (it is, if `/health` reports a
       commit at or after the release PR's merge).
-- [ ] Run the test target once (`⌘U`): `DeviceIdentityTests` and the #55
-      acceptance tests in `ProductionHardeningTests` are new.
-- [ ] Paste the What's New text above. The store **description** needs no
-      change — nothing user-facing in the listing is affected.
+- [ ] Run the test target once (`⌘U`): `USMarketplaceFeeTests`,
+      `USMarketplaceWiringTests`, `DeviceIdentityTests` and the #55 acceptance
+      tests in `ProductionHardeningTests` are new.
+- [ ] Open Snap → Sell and Thrift Flip in the Simulator and swipe the
+      marketplace row: seven chips, US platforms first, scrolling cleanly.
+- [ ] Paste the What's New text above. In the store **description**, mention
+      Poshmark, Mercari and Depop wherever eBay/Vinted are listed, and add
+      `poshmark,mercari,depop` to the **keywords** field — searches for those
+      names are the cheapest US installs this release can win.
 - [ ] After approval: your own first cold launch of 1.3.4 re-syncs the
       subscription with a device id; nothing should appear in Telegram
       (same transaction, already announced), and the binding record for your

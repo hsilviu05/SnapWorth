@@ -698,3 +698,93 @@ final class ScanResultEdgeTests: XCTestCase {
         )
     }
 }
+
+// MARK: - US marketplaces (#54): Poshmark, Mercari, Depop
+
+/// Every number below is hand-calculated from each marketplace's published
+/// seller terms (sources in `MarketplaceFees.defaults`). A wrong entry there
+/// silently flips a buy/skip verdict, so these pin the exact fee on a sale.
+final class USMarketplaceFeeTests: XCTestCase {
+    private func fee(_ m: Marketplace) -> MarketplaceFee { MarketplaceFees.fee(for: m)! }
+
+    func test_poshmark_takesTwentyPercentAtFifteenAndAbove() {
+        // $50 sale → 20% = $10.00. Paid $10, no shipping (label is prepaid).
+        let c = FlipMath.calculate(resalePrice: 50, purchasePrice: 10, shippingCost: 0, fee: fee(.poshmark))
+        XCTAssertEqual(c.platformFees, 10)
+        XCTAssertEqual(c.netProfit, 30)
+        // $15 exactly is not "under $15": 20% applies → $3.00.
+        XCTAssertEqual(fee(.poshmark).fees(on: 15), 3)
+    }
+
+    func test_poshmark_flatFeeUnderFifteen() {
+        // $12 sale → flat $2.95, not 20% ($2.40). The flat fee is worse for
+        // the seller on cheap items, which is exactly what the verdict must see.
+        let c = FlipMath.calculate(resalePrice: 12, purchasePrice: 5, shippingCost: 0, fee: fee(.poshmark))
+        XCTAssertEqual(c.platformFees, Decimal(string: "2.95")!)
+        XCTAssertEqual(c.netProfit, Decimal(string: "4.05")!)
+    }
+
+    func test_mercari_flatTenPercent() {
+        // $50 sale → 10% = $5.00, no processing fee since Jan 2025.
+        let c = FlipMath.calculate(resalePrice: 50, purchasePrice: 10, shippingCost: 5, fee: fee(.mercari))
+        XCTAssertEqual(c.platformFees, 5)
+        XCTAssertEqual(c.netProfit, 30)
+    }
+
+    func test_depop_processingOnly() {
+        // $50 sale → 3.3% + $0.45 = $1.65 + $0.45 = $2.10 (Depop's own example).
+        let c = FlipMath.calculate(resalePrice: 50, purchasePrice: 10, shippingCost: 0, fee: fee(.depop))
+        XCTAssertEqual(c.platformFees, Decimal(string: "2.10")!)
+        XCTAssertEqual(c.netProfit, Decimal(string: "37.90")!)
+    }
+
+    func test_lowPriceRule_isOffByDefault() {
+        // Marketplaces without a flat low-price charge are unaffected.
+        let plain = MarketplaceFee(sellingFeePercent: Decimal(string: "0.10")!, fixedFee: 1)
+        XCTAssertNil(plain.lowPriceFlatFee)
+        XCTAssertEqual(plain.fees(on: 5), Decimal(string: "1.50")!)
+    }
+
+    func test_verdictFlipsWithTheRightFee() {
+        // The same cheap flip is a buy on one marketplace and a skip on another.
+        // $12 sale, paid $9, $0.10 shipping:
+        //   Mercari  10%   → fee $1.20 → net  +$1.70  (buy)
+        //   Poshmark flat  → fee $2.95 → net  −$0.05  (skip)
+        // Using a percentage for Poshmark here (20% = $2.40 → +$0.50) would
+        // call this a buy. That is the wrong-verdict failure #54 warns about.
+        let mercari = FlipMath.calculate(resalePrice: 12, purchasePrice: 9, shippingCost: Decimal(string: "0.10")!, fee: fee(.mercari))
+        let poshmark = FlipMath.calculate(resalePrice: 12, purchasePrice: 9, shippingCost: Decimal(string: "0.10")!, fee: fee(.poshmark))
+        XCTAssertTrue(mercari.isProfitable)
+        XCTAssertFalse(poshmark.isProfitable)
+    }
+}
+
+final class USMarketplaceWiringTests: XCTestCase {
+    func test_apiValuesMatchTheBackendKeys() {
+        XCTAssertEqual(Marketplace.poshmark.apiValue, "poshmark")
+        XCTAssertEqual(Marketplace.mercari.apiValue, "mercari")
+        XCTAssertEqual(Marketplace.depop.apiValue, "depop")
+    }
+
+    func test_usPlatformsLeadTheChipOrder() {
+        XCTAssertEqual(Array(Marketplace.allCases.prefix(4)), [.ebay, .poshmark, .mercari, .depop])
+        XCTAssertEqual(Marketplace.allCases.count, 7, "existing marketplaces are kept, not replaced")
+    }
+
+    func test_noFabricatedURLSchemes() {
+        // None of the three publish a scheme; universal links do the job.
+        XCTAssertNil(Marketplace.poshmark.appURLScheme)
+        XCTAssertNil(Marketplace.mercari.appURLScheme)
+        XCTAssertNil(Marketplace.depop.appURLScheme)
+        for m in [Marketplace.poshmark, .mercari, .depop] {
+            XCTAssertEqual(m.webSellURL.scheme, "https")
+        }
+    }
+
+    func test_displayNamesArePlainText() {
+        // Acceptance criterion on #54: names only, no logos or brand marks.
+        XCTAssertEqual(Marketplace.poshmark.displayName, "Poshmark")
+        XCTAssertEqual(Marketplace.mercari.displayName, "Mercari")
+        XCTAssertEqual(Marketplace.depop.displayName, "Depop")
+    }
+}

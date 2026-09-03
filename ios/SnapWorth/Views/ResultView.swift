@@ -690,7 +690,10 @@ struct ResultView: View {
     }
 
     private var marketplacePicker: some View {
-        HStack(spacing: 8) {
+        // Seven marketplaces no longer fit as equal-width capsules on an
+        // iPhone, so the row scrolls; US platforms come first (see `Marketplace`).
+        ScrollView(.horizontal, showsIndicators: false) {
+          HStack(spacing: 8) {
             ForEach(Marketplace.allCases) { marketplace in
                 let selected = vm.selectedMarketplace == marketplace
                 Button {
@@ -700,7 +703,7 @@ struct ResultView: View {
                     Text(marketplace.displayName)
                         .font(.dmSans(13, weight: .semibold))
                         .foregroundStyle(selected ? Color.snapOnAccent : Color.snapWarmGray)
-                        .frame(maxWidth: .infinity)
+                        .padding(.horizontal, 14)
                         .padding(.vertical, 9)
                         .background(selected ? Color.snapTerracotta : Color.clear)
                         .clipShape(Capsule())
@@ -714,6 +717,7 @@ struct ResultView: View {
                 .accessibilityHint("Writes the listing in \(marketplace.displayName)'s style")
                 .accessibilityAddTraits(selected ? [.isButton, .isSelected] : .isButton)
             }
+          }
         }
         .accessibilityElement(children: .contain)
         .accessibilityLabel("Marketplace")

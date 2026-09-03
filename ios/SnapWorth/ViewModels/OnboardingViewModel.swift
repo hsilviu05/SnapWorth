@@ -16,7 +16,7 @@ final class OnboardingViewModel {
         OnboardingSlide(
             hero: .snapSell,
             headline: "One snap.\nA ready listing.",
-            body: "SnapWorth writes the title and description for eBay, Vinted, Facebook and more. You paste and post.",
+            body: "SnapWorth writes the title and description for eBay, Poshmark, Mercari and more. You paste and post.",
             accent: .snapTerracotta
         ),
         OnboardingSlide(

@@ -3,10 +3,16 @@ import Foundation
 // ── Marketplace ───────────────────────────────────────────────────────────────
 
 /// Marketplaces Snap → Sell can tailor a listing for.
+/// Declaration order is chip order in the pickers: US platforms lead, because
+/// that is where most users are (#54). OLX and Vinted stay for the European
+/// third of the user base.
 enum Marketplace: String, CaseIterable, Identifiable {
     case ebay
-    case vinted
+    case poshmark
+    case mercari
+    case depop
     case facebook
+    case vinted
     case olx
 
     var id: String { rawValue }
@@ -17,6 +23,9 @@ enum Marketplace: String, CaseIterable, Identifiable {
     var displayName: String {
         switch self {
         case .ebay:     return "eBay"
+        case .poshmark: return "Poshmark"
+        case .mercari:  return "Mercari"
+        case .depop:    return "Depop"
         case .vinted:   return "Vinted"
         case .facebook: return "Facebook"
         case .olx:      return "OLX"
@@ -27,6 +36,9 @@ enum Marketplace: String, CaseIterable, Identifiable {
     var iconName: String {
         switch self {
         case .ebay:     return "tag.fill"
+        case .poshmark: return "hanger"
+        case .mercari:  return "shippingbox.fill"
+        case .depop:    return "sparkles"
         case .vinted:   return "tshirt.fill"
         case .facebook: return "person.2.fill"
         case .olx:      return "cart.fill"
@@ -41,7 +53,9 @@ enum Marketplace: String, CaseIterable, Identifiable {
         switch self {
         case .ebay:         return URL(string: "ebay://")
         case .facebook:     return URL(string: "fb://")
-        case .vinted, .olx: return nil
+        // Poshmark, Mercari and Depop publish no URL scheme; universal links
+        // via `webSellURL` open their apps when installed.
+        case .poshmark, .mercari, .depop, .vinted, .olx: return nil
         }
     }
 
@@ -54,6 +68,9 @@ enum Marketplace: String, CaseIterable, Identifiable {
     var webSellURL: URL {
         switch self {
         case .ebay:     return URL(string: "https://www.ebay.com/sl/sell")!
+        case .poshmark: return URL(string: "https://poshmark.com/create-listing")!
+        case .mercari:  return URL(string: "https://www.mercari.com/sell/")!
+        case .depop:    return URL(string: "https://www.depop.com/products/create/")!
         case .vinted:   return URL(string: "https://www.vinted.com/items/new")!
         case .facebook: return URL(string: "https://www.facebook.com/marketplace/create/item")!
         case .olx:      return URL(string: "https://www.olx.com/")!
@@ -216,6 +233,18 @@ actor ListingAPIClient {
         case .olx:
             title = String(result.itemName.prefix(80))
             description = "\(result.itemName) — \(phrase). Cash on local pickup. Serious buyers only, thanks."
+        case .poshmark:
+            title = String(result.itemName.prefix(80))
+            description = "\(result.itemName) in \(phrase). Measurements on request — bundle for a "
+                + "discount! Ships next day from a smoke-free closet."
+        case .mercari:
+            title = String(result.itemName.prefix(80))
+            description = "\(result.itemName), \(phrase). What you see is what you get. "
+                + "Ships within 1 business day."
+        case .depop:
+            title = String(result.itemName.prefix(80))
+            description = "\(result.itemName.lowercased()) — \(phrase). dm for measurements, "
+                + "open to offers. #vintage #thrift #secondhand"
         }
 
         return GeneratedListing(
