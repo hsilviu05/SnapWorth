@@ -1661,8 +1661,8 @@ class TestClearChat:
             assert {500, 501, 502, 1001, 1002} <= set(bot.deleted)
             assert min(bot.deleted) == max(1, 1002 - notify.CLEAR_SWEEP_IDS)
             assert len(set(bot.deleted)) == len(bot.deleted), "no id deleted twice"
-            assert bot.replies[-1].startswith("🧹 Cleared. 5 known messages deleted and the last")
-            assert "2 of the bot's kept — /history shows them." in bot.replies[-1]
+            assert bot.replies[-1].startswith("🧹 Cleared ")
+            assert "2 of the bot's kept — 🗂 History shows them." in bot.replies[-1]
             assert "chat menu → Clear History" in bot.replies[-1]
             assert "📡 <b>SnapWorth status</b>" in bot.replies[-1]
             assert bot.markups[-1] is not None, "the keyboard comes back"
@@ -1930,3 +1930,104 @@ class TestArchiveChatCheck:
             assert "Archive chat" not in await notify.handle_command("/checkup")
         finally:
             await notify.aclose()
+
+
+class TestDeleteBatchesSplitOnRefusal:
+    """Telegram refuses a whole deleteMessages batch when one id in it cannot
+    be deleted. The sweep must still remove everything it may."""
+
+    class PickyBot:
+        def __init__(self, undeletable: set[int]) -> None:
+            self.undeletable = undeletable
+            self.calls: list[list[int]] = []
+            self.deleted: set[int] = set()
+
+        def handler(self, request: httpx.Request) -> httpx.Response:
+            if request.url.path.endswith("/deleteMessages"):
+                ids = json.loads(request.content)["message_ids"]
+                self.calls.append(ids)
+                if any(i in self.undeletable for i in ids):
+                    return httpx.Response(400, json={"ok": False, "description":
+                                                     "Bad Request: message can't be deleted"})
+                self.deleted.update(ids)
+                return httpx.Response(200, json={"ok": True, "result": True})
+            return httpx.Response(200, json={"ok": True, "result": []})
+
+    @pytest.mark.asyncio
+    async def test_undeletable_ids_are_isolated_not_fatal(self):
+        bot = self.PickyBot(undeletable={7, 150, 151})
+        notifier = notify.TelegramNotifier(
+            FAKE_TOKEN, FAKE_CHAT,
+            client=httpx.AsyncClient(transport=httpx.MockTransport(bot.handler)))
+        ids = list(range(1, 301))
+        deleted = await notifier.delete_messages(ids)
+        assert deleted == 297
+        assert bot.deleted == set(ids) - {7, 150, 151}
+        # Far fewer calls than one per id.
+        assert len(bot.calls) < 40, len(bot.calls)
+        await notifier.aclose()
+
+    @pytest.mark.asyncio
+    async def test_call_budget_is_bounded(self, monkeypatch):
+        monkeypatch.setattr(notify, "DELETE_MAX_CALLS", 5)
+        bot = self.PickyBot(undeletable=set(range(1, 301)))
+        notifier = notify.TelegramNotifier(
+            FAKE_TOKEN, FAKE_CHAT,
+            client=httpx.AsyncClient(transport=httpx.MockTransport(bot.handler)))
+        assert await notifier.delete_messages(list(range(1, 301))) == 0
+        assert len(bot.calls) == 5
+        await notifier.aclose()
+
+
+class TestDeployRecord:
+    @pytest.mark.asyncio
+    async def test_status_says_whether_this_builds_ping_went_out(self, cache, recorder):
+        notifier = notify.TelegramNotifier(
+            FAKE_TOKEN, FAKE_CHAT,
+            client=httpx.AsyncClient(transport=httpx.MockTransport(recorder.handler)))
+        notify.configure(cache, notifier=notifier,
+                         status_provider=lambda: {"commit": "abc123def456", "cache": "redis",
+                                                  "auth_enforcing": True, "model_healthy": True})
+        try:
+            assert "Deploy ping: no record" in await notify.handle_command("/status")
+            notify.deployed("abc123def456", cache_backend="redis", auth_enforcing=True)
+            await drain()
+            status = await notify.handle_command("/status")
+            assert "Deploy ping: sent " in status and "for this build" in status
+            rec = json.loads(await cache.get(notify.LAST_DEPLOY_KEY))
+            assert rec["sent"] is True and rec["commit"] == "abc123def456"
+        finally:
+            await notify.aclose()
+
+    @pytest.mark.asyncio
+    async def test_failed_ping_is_recorded_as_failed(self, cache, monkeypatch):
+        monkeypatch.setattr(notify, "DEPLOY_RETRY_DELAYS", (0.0,))
+
+        def down(request: httpx.Request) -> httpx.Response:
+            if request.url.path.endswith("/getUpdates"):
+                return httpx.Response(200, json={"ok": True, "result": []})
+            raise httpx.ConnectError("boom", request=request)
+        notifier = notify.TelegramNotifier(
+            FAKE_TOKEN, FAKE_CHAT,
+            client=httpx.AsyncClient(transport=httpx.MockTransport(down)))
+        notify.configure(cache, notifier=notifier,
+                         status_provider=lambda: {"commit": "feedfacefeed", "cache": "redis",
+                                                  "auth_enforcing": True, "model_healthy": True})
+        try:
+            notify.deployed("feedfacefeed", cache_backend="redis", auth_enforcing=True)
+            await drain()
+            rec = json.loads(await cache.get(notify.LAST_DEPLOY_KEY))
+            assert rec["sent"] is False and rec["attempts"] == 2
+            assert "Deploy ping: FAILED" in await notify._deploy_line("feedfacefeed")
+        finally:
+            await notify.aclose()
+
+
+class TestHistorySnippet:
+    def test_first_lines_only_then_an_ellipsis(self):
+        text = "<b>📡 SnapWorth status</b>\nActive users: 1\nScans today: 3\nSubs: 0\nGemini ≈ $0.01\nBuild abc"
+        out = notify._snippet(text)
+        assert out.startswith("📡 SnapWorth status\nActive users: 1")
+        assert out.count("\n") == notify.HISTORY_SNIPPET_LINES - 1
+        assert out.endswith("…") and "Build abc" not in out
+        assert notify._snippet("<i>one line</i>") == "one line"
