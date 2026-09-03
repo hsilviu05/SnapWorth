@@ -56,6 +56,18 @@ enum AnalyticsEvent {
     /// Time-to-first-draw, bucketed. Detects a launch regression.
     case launchTimeReported(bucket: String)
 
+    // ── Transport security ───────────────────────────────────────────
+    /// The API's TLS chain validated but matched none of the pinned keys.
+    ///
+    /// Pinning runs in report-only mode until a full release cycle shows zero
+    /// of these in the field. Before this event existed the mismatch went to
+    /// `os_log` only — which nobody can read from the field — so the
+    /// precondition for enforcing pins could never be observed and the flag
+    /// would have stayed off forever. `enforced` says whether the request was
+    /// refused (true) or allowed through in report-only mode (false). No host,
+    /// no certificate details: the app has one API host.
+    case certificatePinMismatch(enforced: Bool)
+
     // ── Persistence health ───────────────────────────────────────────
     /// The on-disk store failed to open and the app fell back to in-memory.
     ///
@@ -89,6 +101,7 @@ enum AnalyticsEvent {
         case .notificationScheduled:return "notification_scheduled"
         case .notificationOpened:   return "notification_opened"
         case .persistentStoreFallback: return "persistent_store_fallback"
+        case .certificatePinMismatch: return "certificate_pin_mismatch"
         case .crashReported:        return "crash_reported"
         case .hangReported:         return "hang_reported"
         case .launchTimeReported:   return "launch_time_reported"
@@ -129,6 +142,8 @@ enum AnalyticsEvent {
             // which can embed a filesystem path containing the device owner's
             // name.
             return ["reason": reason]
+        case let .certificatePinMismatch(enforced):
+            return ["enforced": String(enforced)]
         default:
             return [:]
         }

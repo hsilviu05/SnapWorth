@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Page not found — SnapWorth</title>
+  <meta name="robots" content="noindex">
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+  <style>
+    /* Self-contained on purpose: a 404 page must not depend on anything that
+       might itself be missing. Same tokens as index.html and support.html;
+       the two custom faces are loaded from /fonts so the page still matches
+       the site, with system fallbacks if they do not arrive. */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    @font-face { font-family: 'Fraunces'; src: url('/fonts/fraunces-latin.woff2') format('woff2'); font-weight: 300 900; font-display: swap; }
+    @font-face { font-family: 'DM Sans'; src: url('/fonts/dmsans-latin.woff2') format('woff2'); font-weight: 400 700; font-display: swap; }
+    :root { --bg: #FAF7F4; --dark: #1C1410; --dark2: #2B211C; --terracotta: #D96C47;
+            --warm-gray: #8B7B75; --border: #E8DDD7; --white: #FFFFFF; }
+    html { background: var(--bg); }
+    body { min-height: 100vh; display: flex; flex-direction: column; color: var(--dark2);
+           font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+           font-size: 17px; line-height: 1.6; -webkit-font-smoothing: antialiased; }
+    nav { padding: 20px max(32px, env(safe-area-inset-left)); }
+    .logo { font-family: 'Fraunces', Georgia, serif; font-weight: 700; font-size: 22px;
+            color: var(--dark); text-decoration: none; letter-spacing: -0.3px; }
+    main { flex: 1; display: grid; place-items: center; padding: 40px 24px 80px; text-align: center; }
+    .eyebrow { font-size: 13px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase;
+               color: var(--terracotta); margin-bottom: 14px; }
+    h1 { font-family: 'Fraunces', Georgia, serif; font-weight: 700; font-size: clamp(34px, 6vw, 56px);
+         line-height: 1.05; letter-spacing: -1px; color: var(--dark); margin-bottom: 18px; }
+    h1 em { font-style: italic; font-weight: 400; color: var(--terracotta); }
+    p { color: var(--warm-gray); max-width: 34em; margin: 0 auto 30px; }
+    .actions { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+    .btn { display: inline-block; padding: 13px 22px; border-radius: 999px; font-weight: 600;
+           text-decoration: none; font-size: 15px; border: 1.5px solid var(--dark); color: var(--dark); }
+    .btn.primary { background: var(--dark); color: var(--white); }
+    .btn:hover { opacity: .85; }
+    footer { padding: 24px max(32px, env(safe-area-inset-left)); border-top: 1px solid var(--border);
+             font-size: 14px; color: var(--warm-gray); display: flex; gap: 20px; flex-wrap: wrap; }
+    footer a { color: var(--warm-gray); text-decoration: none; }
+    footer a:hover { color: var(--dark); }
+  </style>
+</head>
+<body>
+  <nav><a href="/" class="logo">SnapWorth</a></nav>
+  <main>
+    <div>
+      <div class="eyebrow">404</div>
+      <h1>This one isn't <em>worth</em> anything.</h1>
+      <p>The page you were after has moved or never existed. The app, the resale value guides and support are all still where they were.</p>
+      <div class="actions">
+        <a href="/" class="btn primary">Back to SnapWorth</a>
+        <a href="/worth" class="btn">Resale value guides</a>
+        <a href="/support" class="btn">Support</a>
+      </div>
+    </div>
+  </main>
+  <footer>
+    <a href="https://api.snapworth.eu/privacy">Privacy</a>
+    <a href="https://api.snapworth.eu/terms">Terms</a>
+    <a href="mailto:her.silviu.i@gmail.com">Contact</a>
+    <span>© 2026 SnapWorth</span>
+  </footer>
+</body>
+</html>

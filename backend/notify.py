@@ -162,6 +162,22 @@ DEPLOY_RETRY_DELAYS: tuple[float, ...] = (2.0, 5.0, 10.0)
 # tallies for /finds and as grounding for /post. Item and price only.
 TOP_FINDS_CAP = 8
 
+# Quiet-hours watch. /health cannot see the outage where nobody can scan — the
+# process is up, Redis answers, and the App Store build is broken — but a US
+# app with zero successful scans for six hours of US daytime can. Checked every
+# quarter hour; one note per day.
+LAST_SCAN_KEY = "opsstate:lastscan"
+QUIET_AFTER_SECONDS = 6 * 3600
+QUIET_HOURS_UTC = frozenset(list(range(13, 24)) + [0, 1, 2, 3])   # ~9am–11pm Eastern
+WATCH_INTERVAL_SECONDS = 15 * 60
+# A day at or above this multiple of the trailing week's daily average earns a
+# 🔥 line in the digest — with a floor, so 3 scans against 0.5 is not a spike.
+SPIKE_FACTOR = 3.0
+SPIKE_MIN_SCANS = 10
+
+TREND_DAYS = 30
+SPARK = "▁▂▃▄▅▆▇█"
+
 COMMANDS: tuple[tuple[str, str], ...] = (
     ("status", "Active users, scans today, provider health"),
     ("subs", "Every subscription seen: plan, how obtained, renews"),
@@ -170,6 +186,14 @@ COMMANDS: tuple[tuple[str, str], ...] = (
     ("social", "TikTok: followers, likes and the latest videos"),
     ("finds", "Best finds this week: the most valuable scans"),
     ("post", "Three TikTok post ideas from what people scanned; add a topic"),
+    ("calendar", "Seven days of posts planned from the week's data"),
+    ("caption", "/caption <what you filmed> — hook, caption, hashtags"),
+    ("hooks", "/hooks <topic> — ten opening lines"),
+    ("reply", "/reply <paste a comment or review> — three replies"),
+    ("price", "/price <item> — a text-only estimate, no photo"),
+    ("trend", "/trend <brand or category> — 30 days of scans"),
+    ("user", "/user <id> — one device's story, for support"),
+    ("checkup", "Redis, Gemini, DeviceCheck, TLS expiry — one screen"),
     ("feed", "Live scan feed: on, off, or show"),
     ("digest", "Yesterday's digest, now"),
     ("week", "Last 7 days against the 7 before"),
@@ -309,6 +333,7 @@ _notifier: TelegramNotifier | None = None
 _cache = None                                   # ResilientCache once configured
 _digest_task: asyncio.Task | None = None
 _command_task: asyncio.Task | None = None
+_watch_task: asyncio.Task | None = None
 _tasks: set[asyncio.Task] = set()
 
 # Supplies the live process facts /status reports (commit, cache backend,
@@ -365,19 +390,23 @@ def configure(cache, notifier: TelegramNotifier | None = None,
 
     _start_digest()
     _start_command_loop()
+    _start_watch()
     _spawn(_notifier.set_commands())
     log.info("telegram alerts enabled", extra={"digest_utc_hour": _digest_hour()})
 
 
 async def aclose() -> None:
     """Tear down background work. Alerts in flight at shutdown are dropped."""
-    global _notifier, _digest_task, _command_task
+    global _notifier, _digest_task, _command_task, _watch_task
     if _digest_task is not None:
         _digest_task.cancel()
         _digest_task = None
     if _command_task is not None:
         _command_task.cancel()
         _command_task = None
+    if _watch_task is not None:
+        _watch_task.cancel()
+        _watch_task = None
     for task in list(_tasks):
         task.cancel()
     _tasks.clear()
@@ -741,6 +770,9 @@ async def _digest_text(when: datetime) -> str:
     top = await _top_text(day)
     if top:
         lines.append(top)
+    spike = await _spike_line(when, free + pro)
+    if spike:
+        lines.append(spike)
     social = await _social_line()
     if social:
         lines.append(social)
@@ -875,7 +907,7 @@ async def _buttons() -> Buttons:
     return [[("🔄 Refresh", "status"), ("📊 Digest", "digest"), ("📈 Week", "week")],
             [("💳 Subs", "subs"), ("👥 Users", "users"), ("💸 Costs", "costs")],
             [("📣 Social", "social"), ("🏆 Finds", "finds"), ("📝 Post ideas", "post")],
-            [(feed, "feed toggle")]]
+            [("🗓 Calendar", "calendar"), ("🩺 Checkup", "checkup"), (feed, "feed toggle")]]
 
 
 async def handle_command(text: str) -> str | None:
@@ -914,6 +946,22 @@ async def handle_command_with_buttons(text: str) -> tuple[str, Buttons] | None:
         return await _finds_text(), await _buttons()
     if command == "/post":
         return await _post_text(rest), await _buttons()
+    if command == "/calendar":
+        return await _calendar_text(), await _buttons()
+    if command == "/caption":
+        return await _brief_text("caption", rest), await _buttons()
+    if command == "/hooks":
+        return await _brief_text("hooks", rest), await _buttons()
+    if command == "/reply":
+        return await _brief_text("reply", rest), await _buttons()
+    if command == "/price":
+        return await _brief_text("price", rest), await _buttons()
+    if command == "/trend":
+        return await _trend_text(rest), await _buttons()
+    if command == "/user":
+        return await _user_text(rest), await _buttons()
+    if command == "/checkup":
+        return await _checkup_text(), await _buttons()
     return _help_text(), await _buttons()
 
 
@@ -1144,6 +1192,7 @@ async def _note_scan(*, tier: str, item_name: str, brand: str | None,
                      subject: str | None = None, elapsed_ms: int | None = None) -> None:
     try:
         await _bump("scans_pro" if tier == "pro" else "scans_free")
+        await _cache.set(LAST_SCAN_KEY, str(int(time.time())), STATS_TTL)
         if elapsed_ms:
             await _cache.incr(_stat_key(_day(), "scan_ms"), STATS_TTL, int(elapsed_ms))
         await _tally_top(_day(), _normalise_category(category), _clean_brand(brand),
@@ -1705,3 +1754,296 @@ async def _post_text(hint: str = "") -> str:
         log.warning("post ideas reply unreadable: %.120s", text)
         return "📝 <b>Post ideas</b>\nThe model's reply could not be read. Try again."
     return ideas.render(parsed, context, hint)
+
+
+# ── The other briefs: caption, hooks, replies, price, a week's calendar ──────
+
+_BRIEFS = {
+    # kind: (needs argument, usage, prompt builder, renderer, max tokens)
+    "caption": (True, "/caption &lt;what you filmed&gt; — e.g. /caption me scanning a $4 Patagonia fleece",
+                ideas.build_caption_prompt, ideas.render_caption, ideas.CAPTION_MAX_TOKENS),
+    "hooks": (True, "/hooks &lt;topic&gt; — e.g. /hooks vintage Levi's",
+              ideas.build_hooks_prompt, ideas.render_hooks, ideas.HOOKS_MAX_TOKENS),
+    "reply": (True, "/reply &lt;paste the comment or review&gt;",
+              ideas.build_reply_prompt, ideas.render_replies, ideas.REPLY_MAX_TOKENS),
+    "price": (True, "/price &lt;item&gt; — e.g. /price Carhartt Detroit jacket, brown duck, size L, worn",
+              ideas.build_price_prompt, ideas.render_price, ideas.PRICE_MAX_TOKENS),
+}
+
+
+async def _ask_model(prompt: str, max_tokens: int) -> dict | str:
+    """The model's JSON for a brief, or an HTML error line for the operator."""
+    if _generator is None:
+        return ("The model is not wired up for the bot in this process. "
+                "This is a build problem, not a data one.")
+    try:
+        text = await _generator(prompt, max_tokens)
+    except Exception as exc:
+        log.warning("brief generation failed: %s", type(exc).__name__)
+        return f"The model did not answer ({html.escape(type(exc).__name__)}). Try again in a minute."
+    data = ideas.parse_json(text)
+    if data is None:
+        log.warning("brief reply unreadable: %.120s", text)
+        return "The model's reply could not be read. Try again."
+    return data
+
+
+async def _brief_text(kind: str, argument: str) -> str:
+    needs_arg, usage, build, render, max_tokens = _BRIEFS[kind]
+    argument = " ".join((argument or "").split())
+    if needs_arg and not argument:
+        return f"Usage: {usage}"
+    result = await _ask_model(build(argument), max_tokens)
+    if isinstance(result, str):
+        return f"<b>/{kind}</b>\n{result}"
+    return render(result, argument)
+
+
+async def _calendar_text() -> str:
+    context = await _week_top()
+    result = await _ask_model(ideas.build_calendar_prompt(context), ideas.CALENDAR_MAX_TOKENS)
+    if isinstance(result, str):
+        return f"🗓 <b>This week's posts</b>\n{result}"
+    return ideas.render_calendar(result, context)
+
+
+# ── Trend: one brand or category over thirty days ────────────────────────────
+
+def _spark(values: list[int]) -> str:
+    peak = max(values) if values else 0
+    if peak <= 0:
+        return SPARK[0] * len(values)
+    return "".join(SPARK[min(len(SPARK) - 1, round(v / peak * (len(SPARK) - 1)))] for v in values)
+
+
+async def _trend_text(term: str) -> str:
+    term = " ".join((term or "").split()).lower()
+    if not term:
+        return ("Usage: /trend &lt;brand or category&gt; — e.g. /trend carhartt, /trend shoes. "
+                "Categories: " + ", ".join(sorted(CATEGORY_EMOJI)))
+    now = datetime.now(timezone.utc)
+    days = list(reversed(_days_ending_today(TREND_DAYS, now)))       # oldest first
+    counts: list[int] = []
+    estimates: list[float] = []
+    label = term
+    for day in days:
+        try:
+            doc = json.loads(await _cache.get(_stat_key(day, "top")) or "{}")
+        except Exception:
+            doc = {}
+        n = 0
+        for c, k in (doc.get("cats") or {}).items():
+            if str(c).lower() == term:
+                n += int(k)
+        for b, k in (doc.get("brands") or {}).items():
+            if term in str(b).lower():
+                n += int(k)
+                label = str(b)
+        counts.append(n)
+        for f in doc.get("finds") or []:
+            hay = f"{f.get('n', '')} {f.get('b', '')} {f.get('c', '')}".lower()
+            if term in hay and f.get("hi"):
+                estimates.append((float(f.get("lo") or 0) + float(f["hi"])) / 2)
+    total = sum(counts)
+    if total == 0:
+        return (f"📉 <b>{html.escape(label)}</b>\nNo scans matched in the last {TREND_DAYS} days. "
+                "Brands match on a substring; categories exactly.")
+    this_week, last_week = sum(counts[-7:]), sum(counts[-14:-7])
+    lines = [f"📈 <b>{html.escape(label)}</b> — {total} scans in {TREND_DAYS} days",
+             f"<code>{_spark(counts)}</code>",
+             f"<code>{days[0][4:6]}/{days[0][6:]}{' ' * (TREND_DAYS - 10)}{days[-1][4:6]}/{days[-1][6:]}</code>",
+             f"This week {this_week} vs {last_week} the week before {_trend(this_week, last_week)}"]
+    if estimates:
+        lines.append(f"Average estimate among the day's best finds: ${sum(estimates) / len(estimates):,.0f} "
+                     f"({len(estimates)} items)")
+    return "\n".join(lines)
+
+
+# ── One device, for a support email ──────────────────────────────────────────
+
+async def _user_text(argument: str) -> str:
+    wanted = (argument or "").strip().lower()
+    if not wanted:
+        return "Usage: /user &lt;id&gt; — the id column from /users or /subs."
+    users = await _read_index(USERS_INDEX_KEY)
+    matches = [(who, e) for who, e in users.items() if who.lower().startswith(wanted)]
+    if not matches:
+        return f"👤 No device seen with an id starting <code>{html.escape(wanted)}</code>."
+    if len(matches) > 1:
+        return (f"👤 {len(matches)} devices start with <code>{html.escape(wanted)}</code> — "
+                "give more characters: " + ", ".join(html.escape(w[:8]) for w, _ in matches[:6]))
+    (who, e), = matches
+    now = time.time()
+    lines = [f"👤 <b>Device {html.escape(who[:8])}</b> — {'Pro' if e.get('tier') == 'pro' else 'free'}"]
+    if e.get("first"):
+        lines.append(f"First seen {_date(int(e['first']))}")
+    if e.get("last"):
+        ago = int(now - float(e["last"]))
+        when = (f"{ago // 3600}h ago" if ago < 86400 else f"{ago // 86400}d ago")
+        lines.append(f"Last seen {_date(int(e['last']))} ({when})")
+    lines.append(f"Scans since the bot started watching: {int(e.get('scans', 0))}")
+    subs = [s for s in (await _read_index(SUBS_INDEX_KEY)).values() if s.get("who") == who[:6]]
+    for s in subs:
+        alive = s.get("expires") is None or float(s["expires"]) > now
+        renews = _date(int(s["expires"])) if s.get("expires") else "never"
+        lines.append(f"Subscription: {_plan(s.get('product'))} · {s.get('acq') or '?'} · "
+                     f"{'renews ' + renews if alive else 'ended ' + renews}")
+    if not subs:
+        lines.append("No subscription has synced from this device.")
+    lines.append("Devices, not people — this is the audit log's pseudonym.")
+    return "\n".join(lines)
+
+
+# ── Checkup: every dependency on one screen ──────────────────────────────────
+
+def _tls_days_left(host: str, timeout: float = 5.0) -> int | None:
+    """Days until the served leaf certificate expires, or None if unreachable."""
+    import socket
+    import ssl
+    ctx = ssl.create_default_context()
+    with socket.create_connection((host, 443), timeout=timeout) as sock:
+        with ctx.wrap_socket(sock, server_hostname=host) as tls:
+            cert = tls.getpeercert()
+    not_after = cert.get("notAfter") if cert else None
+    if not not_after:
+        return None
+    expires = datetime.strptime(not_after, "%b %d %H:%M:%S %Y %Z").replace(tzinfo=timezone.utc)
+    return (expires - datetime.now(timezone.utc)).days
+
+
+def _public_host() -> str:
+    base = os.environ.get("SOCIAL_PUBLIC_BASE_URL", "https://api.snapworth.eu")
+    return base.split("//", 1)[-1].split("/", 1)[0] or "api.snapworth.eu"
+
+
+async def _checkup_text() -> str:
+    lines = ["🩺 <b>Checkup</b>"]
+
+    # Cache: reachable, and how fast.
+    t0 = time.monotonic()
+    try:
+        health = await _cache.health()
+        ms = (time.monotonic() - t0) * 1000
+        backend = html.escape(str(health.get("backend") or getattr(_cache, "backend", "cache")))
+        state = "ok" if health.get("healthy", True) else "NOT answering"
+        # "Degraded" only means something when Redis is configured; an
+        # unconfigured cache is memory by design, not by failure.
+        if health.get("configured") and health.get("degraded"):
+            state += ", degraded"
+        lines.append(f"Cache ({backend}): {state} · {ms:.0f} ms")
+    except Exception as exc:
+        lines.append(f"Cache: error ({html.escape(type(exc).__name__)})")
+
+    # Model: a one-token round trip, billed like everything else.
+    if _generator is None:
+        lines.append("Gemini: not wired for the bot in this process")
+    else:
+        t0 = time.monotonic()
+        try:
+            text = await _generator("Reply with the single word OK and nothing else.", 16)
+            ms = (time.monotonic() - t0) * 1000
+            lines.append(f"Gemini: {'ok' if 'ok' in (text or '').lower() else 'answered oddly'} · {ms:.0f} ms")
+        except Exception as exc:
+            lines.append(f"Gemini: FAILED ({html.escape(type(exc).__name__)})")
+
+    # What the process itself knows.
+    info: dict = {}
+    if _status_provider is not None:
+        try:
+            info = _status_provider() or {}
+        except Exception as exc:
+            log.warning("status provider failed: %s", type(exc).__name__)
+    if info:
+        model = "healthy" if info.get("model_healthy", True) else \
+            f"degraded ({html.escape(str(info.get('model_failure_kind') or 'unknown'))})"
+        lines.append(f"Provider health as seen by /scan: {model}")
+        if "devicecheck" in info:
+            lines.append(f"DeviceCheck: {'configured' if info['devicecheck'] else 'NOT configured — reinstalls get a fresh allowance'}")
+        lines.append(f"Auth: {'enforcing' if info.get('auth_enforcing') else 'NOT enforcing'} · "
+                     f"build <code>{html.escape(str(info.get('commit', '?')))}</code>")
+
+    # TLS on the public host.
+    host = _public_host()
+    try:
+        days = await asyncio.wait_for(asyncio.to_thread(_tls_days_left, host), 8)
+        if days is None:
+            lines.append(f"TLS {html.escape(host)}: certificate unreadable")
+        else:
+            flag = " ⚠️" if days < 14 else ""
+            lines.append(f"TLS {html.escape(host)}: leaf expires in {days} days{flag} "
+                         "(Let's Encrypt renews at 30; pinned intermediate to 2028-09-02)")
+    except Exception as exc:
+        lines.append(f"TLS {html.escape(host)}: unreachable ({html.escape(type(exc).__name__)})")
+
+    # Poll lock: is it this replica answering?
+    try:
+        holder = await _cache.get(POLL_LOCK_KEY)
+        lines.append("Telegram poller: this replica" if holder == _poll_token
+                     else ("Telegram poller: another replica" if holder else "Telegram poller: nobody holds the lock"))
+    except Exception:
+        pass
+
+    last = await _read_int(LAST_SCAN_KEY)
+    if last:
+        ago = int(time.time() - last)
+        lines.append(f"Last successful scan: {ago // 60} min ago" if ago < 7200 else
+                     f"Last successful scan: {ago // 3600}h ago")
+    return "\n".join(lines)
+
+
+# ── Anomalies: a quiet day, a spike ──────────────────────────────────────────
+
+async def _quiet_check(now: datetime | None = None) -> bool:
+    """Send the quiet-hours note if due. Returns whether it was sent."""
+    now = now or datetime.now(timezone.utc)
+    if now.hour not in QUIET_HOURS_UTC:
+        return False
+    last = await _read_int(LAST_SCAN_KEY)
+    if not last:
+        return False                     # never seen a scan since the key existed
+    silent = now.timestamp() - last
+    if silent < QUIET_AFTER_SECONDS:
+        return False
+    try:
+        if not await _cache.add(f"opsseen:quiet:{_day(now)}", "1", STATS_TTL):
+            return False
+    except Exception:
+        return False
+    hours = int(silent // 3600)
+    return await _notifier.send(
+        "😶 <b>Quiet</b>\n"
+        f"No successful scan for {hours}h, during US daytime. /health may still say ok — "
+        "check the App Store build, the model, and Redis. /checkup runs all three.",
+        await _buttons())
+
+
+async def _watch_loop() -> None:
+    while True:
+        await asyncio.sleep(WATCH_INTERVAL_SECONDS)
+        try:
+            await _quiet_check()
+        except Exception as exc:          # the loop must outlive any one check
+            log.warning("quiet check failed: %s", type(exc).__name__)
+
+
+def _start_watch() -> None:
+    global _watch_task
+    if _watch_task is not None:
+        _watch_task.cancel()
+        _watch_task = None
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        return
+    _watch_task = loop.create_task(_watch_loop())
+
+
+async def _spike_line(when: datetime, scans: int) -> str:
+    """A 🔥 line when the day ran hot against the trailing week."""
+    if scans < SPIKE_MIN_SCANS:
+        return ""
+    prior = [_day(when - timedelta(days=i)) for i in range(1, 8)]
+    baseline = (await _sum_stat(prior, "scans_free") + await _sum_stat(prior, "scans_pro")) / 7
+    if baseline <= 0 or scans < baseline * SPIKE_FACTOR:
+        return ""
+    return f"🔥 {scans / baseline:.1f}× the trailing week's daily average ({baseline:.1f}/day)"
