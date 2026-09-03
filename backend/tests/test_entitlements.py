@@ -824,3 +824,30 @@ class TestSharingAlertOnMigration:
         assert entitlements._is_legacy_subject("0f" * 32)
         assert not entitlements._is_legacy_subject("8F1C2A3E-0000-4000-8000-000000000001")
         assert not entitlements._is_legacy_subject("device-1")
+
+
+# ── Offer and price fields ───────────────────────────────────────────────────
+# Carried so the operator can tell a comped subscription from a paying one.
+
+class TestOfferAndPrice:
+    def test_parsed_from_the_signed_transaction(self, pinned_root):
+        leaf_key, chain = pinned_root
+        jws = make_jws(valid_payload(offerType=3, offerDiscountType="FREE_TRIAL",
+                                     price=39990, currency="USD"), leaf_key, chain)
+        ent = verify_signed_transaction(jws, BUNDLE_ID, PRODUCTS)
+        assert (ent.offer_type, ent.offer_discount_type) == (3, "FREE_TRIAL")
+        assert (ent.price, ent.currency) == (39.99, "USD")
+
+    def test_absent_is_tolerated_and_round_trips(self, pinned_root):
+        leaf_key, chain = pinned_root
+        ent = verify_signed_transaction(make_jws(valid_payload(), leaf_key, chain),
+                                        BUNDLE_ID, PRODUCTS)
+        assert ent.offer_type is None and ent.price is None
+        assert Entitlement.from_json(ent.to_json()) == ent
+
+    def test_garbage_types_are_ignored(self, pinned_root):
+        leaf_key, chain = pinned_root
+        jws = make_jws(valid_payload(offerType="three", price="lots", currency=7),
+                       leaf_key, chain)
+        ent = verify_signed_transaction(jws, BUNDLE_ID, PRODUCTS)
+        assert ent.offer_type is None and ent.price is None and ent.currency is None

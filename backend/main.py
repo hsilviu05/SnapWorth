@@ -1098,7 +1098,8 @@ async def scan(
     quota_status = await consume_quota(principal)
     notify.scan_completed(
         tier=principal.tier, item_name=val.item_name, brand=val.brand,
-        category=val.category, low=low, high=high, confidence=conf.band)
+        category=val.category, low=low, high=high, confidence=conf.band,
+        subject=principal.subject)
 
     return ScanResponse(
         # ── v1 contract ─────────────────────────────────────────────────────

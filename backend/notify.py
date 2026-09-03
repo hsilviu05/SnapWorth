@@ -31,9 +31,13 @@ What gets sent:
 * **A weekly report** with Monday's digest: the seven days just ended against
   the seven before, with the direction of each number.
 
-And it listens: `/status`, `/digest`, `/week`, `/feed` from the operator's
-chat, with inline buttons under every reply so nothing has to be typed.
-Anyone else who finds the bot gets silence.
+And it listens: `/status`, `/subs`, `/users`, `/digest`, `/week`, `/feed`
+from the operator's chat, with inline buttons under every reply so nothing
+has to be typed. `/subs` is every subscription the server has seen — plan,
+how it was obtained (paid, offer code, trial), renewal date, and an MRR line
+from Apple's own transaction prices. `/users` is devices seen: 7- and 30-day
+actives and the most active, by the audit log's pseudonyms, because there are
+no accounts. Anyone else who finds the bot gets silence.
 
 The bot token is a credential. It appears in request URLs, so failures are
 logged by exception class name only, and observability.py redacts the token
@@ -121,11 +125,27 @@ POLL_LOCK_TTL = 90
 
 COMMANDS: tuple[tuple[str, str], ...] = (
     ("status", "Active users, scans today, provider health"),
+    ("subs", "Every subscription seen: plan, how obtained, renews"),
+    ("users", "Devices seen, 7-day and 30-day actives, most active"),
     ("feed", "Live scan feed: on, off, or show"),
     ("digest", "Yesterday's digest, now"),
     ("week", "Last 7 days against the 7 before"),
     ("help", "List commands"),
 )
+
+# The two operator tables. Each is one JSON document the cache can hand back
+# whole — it cannot enumerate keys — bounded so a write never grows past a
+# few hundred kilobytes. There are no accounts: "users" are pseudonymous
+# devices, exactly as the audit log identifies them.
+SUBS_INDEX_KEY = "opsidx:subs"
+USERS_INDEX_KEY = "opsidx:users"
+SUBS_INDEX_CAP = 500
+USERS_INDEX_CAP = 500
+INDEX_TTL = 60 * 60 * 24 * 400
+TABLE_ROWS = 20
+
+# Apple's offerType values.
+OFFER_INTRODUCTORY, OFFER_PROMOTIONAL, OFFER_CODE = 1, 2, 3
 
 # Inline-keyboard rows: (label, callback data). The data is fed straight back
 # through `handle_command` as "/<data>", so buttons and commands share one path.
@@ -377,6 +397,7 @@ async def entitlement_recorded(subject: str, ent) -> None:
             otid = ent.original_transaction_id
             if not otid:
                 return
+            await _index_subscription(subject, ent)
             if not await _cache.add(f"opsseen:sub:{otid}", "1", SUB_SEEN_TTL):
                 return
             purchased = getattr(ent, "original_purchase_at", None)
@@ -392,7 +413,7 @@ async def entitlement_recorded(subject: str, ent) -> None:
                             "(first time this bot has seen them)")
             product = html.escape(ent.product_id or "unknown product")
             environment = html.escape(ent.environment)
-            lines = [headline, f"{product} ({environment})"]
+            lines = [headline, f"{product} ({environment}) · {_acquisition(ent)}"]
             if purchased is not None:
                 lines.append(f"first purchased {_date(purchased)}")
             if ent.expires_at:
@@ -586,6 +607,7 @@ async def _digest_text(when: datetime) -> str:
         f"Active users: {users}",
         f"Scans: {free + pro} ok ({free} free · {pro} Pro) · {failed} failed",
         f"New subscriptions: {subs}",
+        await _subscribers_line(),
     ]
     top = await _top_text(day)
     if top:
@@ -630,7 +652,7 @@ def _window_start(window: int) -> datetime:
     return datetime.fromtimestamp(window * ACTIVE_WINDOW_SECONDS, timezone.utc)
 
 
-async def _note_activity(subject: str) -> None:
+async def _note_activity(subject: str, tier: str = "free") -> None:
     try:
         # The pseudonym, never the raw subject: these keys outlive the request
         # and the audit log already decided what identity is allowed to persist.
@@ -638,6 +660,9 @@ async def _note_activity(subject: str) -> None:
         window = _window()
         if await _cache.add(f"opsseen:w:{window}:{who}", "1", 2 * ACTIVE_WINDOW_SECONDS):
             await _cache.incr(f"opsact:w:{window}", 2 * ACTIVE_WINDOW_SECONDS)
+            # Once per device per window, not per request, so the index
+            # write stays rare on a busy device.
+            await _index_user(who, tier=tier)
         day = _day()
         if await _cache.add(f"opsseen:d:{day}:{who}", "1", STATS_TTL):
             await _cache.incr(_stat_key(day, "active_users"), STATS_TTL)
@@ -645,7 +670,7 @@ async def _note_activity(subject: str) -> None:
         log.debug("activity note failed: %s", type(exc).__name__)
 
 
-def saw_user(subject: str) -> None:
+def saw_user(subject: str, tier: str = "free") -> None:
     """Count this device as active now and today. Fire-and-forget.
 
     Called on every authenticated request. Two cache writes per *new* device
@@ -653,7 +678,7 @@ def saw_user(subject: str) -> None:
     """
     if _notifier is None or _cache is None or not subject:
         return
-    _spawn(_note_activity(subject))
+    _spawn(_note_activity(subject, tier))
 
 
 async def _read_int(key: str) -> int:
@@ -688,6 +713,7 @@ async def _status_text() -> str:
         f"· {active_today} today",
         f"Scans today: {free + pro} ok ({free} free · {pro} Pro) · {failed} failed",
         f"New subscriptions today: {subs}",
+        await _subscribers_line(),
     ]
     top = await _top_text(day)
     if top:
@@ -714,7 +740,7 @@ async def _status_text() -> str:
 async def _buttons() -> Buttons:
     feed = "🔕 Feed off" if await _feed_enabled() else "🔔 Feed on"
     return [[("🔄 Refresh", "status"), ("📊 Digest", "digest"), ("📈 Week", "week")],
-            [(feed, "feed toggle")]]
+            [("💳 Subs", "subs"), ("👥 Users", "users"), (feed, "feed toggle")]]
 
 
 async def handle_command(text: str) -> str | None:
@@ -739,6 +765,10 @@ async def handle_command_with_buttons(text: str) -> tuple[str, Buttons] | None:
         return await _weekly_text(datetime.now(timezone.utc)), await _buttons()
     if command == "/feed":
         return await _feed_command(argument), await _buttons()
+    if command == "/subs":
+        return await _subs_text(), await _buttons()
+    if command == "/users":
+        return await _users_text(), await _buttons()
     return _help_text(), await _buttons()
 
 
@@ -906,10 +936,13 @@ async def _top_text(day: str, limit: int = 3) -> str:
 
 
 async def _note_scan(*, tier: str, item_name: str, brand: str | None,
-                     category: str, low: float, high: float, confidence: str) -> None:
+                     category: str, low: float, high: float, confidence: str,
+                     subject: str | None = None) -> None:
     try:
         await _bump("scans_pro" if tier == "pro" else "scans_free")
         await _tally_top(_day(), _normalise_category(category), _clean_brand(brand))
+        if subject:
+            await _index_user(auditlog.pseudonymise(subject), tier=tier, scanned=True)
         if await _feed_enabled():
             await _notifier.send(_feed_text(
                 item_name=item_name, category=category, low=low, high=high,
@@ -919,14 +952,15 @@ async def _note_scan(*, tier: str, item_name: str, brand: str | None,
 
 
 def scan_completed(*, tier: str, item_name: str, brand: str | None, category: str,
-                   low: float, high: float, confidence: str) -> None:
+                   low: float, high: float, confidence: str,
+                   subject: str | None = None) -> None:
     """A scan produced a valuation. Counts it, tallies what it was, and — when
     the feed is on — tells the operator. Fire-and-forget; item and price only,
     never who scanned it and never the photo."""
     if _notifier is None or _cache is None:
         return
     _spawn(_note_scan(tier=tier, item_name=item_name, brand=brand, category=category,
-                      low=low, high=high, confidence=confidence))
+                      low=low, high=high, confidence=confidence, subject=subject))
 
 
 # ── Weekly report ────────────────────────────────────────────────────────────
@@ -990,3 +1024,166 @@ async def send_weekly(now: datetime | None = None) -> bool:
         log.warning("weekly guard failed, skipping: %s", type(exc).__name__)
         return False
     return await _notifier.send(await _weekly_text(now), await _buttons())
+
+
+# ── Operator tables: subscriptions and devices ───────────────────────────────
+
+async def _read_index(key: str) -> dict:
+    try:
+        doc = json.loads(await _cache.get(key) or "{}")
+    except Exception:
+        return {}
+    return doc if isinstance(doc, dict) else {}
+
+
+async def _write_index(key: str, doc: dict, cap: int, recency: str) -> None:
+    if len(doc) > cap:
+        # Drop the least recently seen until it fits.
+        for stale in sorted(doc, key=lambda k: doc[k].get(recency, 0))[:len(doc) - cap]:
+            doc.pop(stale, None)
+    await _cache.set(key, json.dumps(doc, separators=(",", ":")), INDEX_TTL)
+
+
+def _acquisition(ent) -> str:
+    """How a subscription was obtained, in the operator's words."""
+    offer = getattr(ent, "offer_type", None)
+    discount = getattr(ent, "offer_discount_type", None)
+    if offer == OFFER_CODE:
+        return "offer code"
+    if offer == OFFER_PROMOTIONAL:
+        return "promo offer"
+    if offer == OFFER_INTRODUCTORY:
+        return "trial" if discount == "FREE_TRIAL" else "intro offer"
+    return "paid"
+
+
+async def _index_subscription(subject: str, ent) -> None:
+    doc = await _read_index(SUBS_INDEX_KEY)
+    otid = str(ent.original_transaction_id)
+    entry = doc.get(otid) if isinstance(doc.get(otid), dict) else {}
+    entry.update({
+        "product": ent.product_id, "env": ent.environment,
+        "first": getattr(ent, "original_purchase_at", None),
+        "expires": ent.expires_at,
+        "acq": _acquisition(ent),
+        "price": getattr(ent, "price", None), "currency": getattr(ent, "currency", None),
+        "who": auditlog.pseudonymise(subject)[:6],
+        "seen": int(time.time()),
+    })
+    doc[otid] = entry
+    await _write_index(SUBS_INDEX_KEY, doc, SUBS_INDEX_CAP, "seen")
+
+
+async def _index_user(who: str, *, tier: str, scanned: bool = False) -> None:
+    doc = await _read_index(USERS_INDEX_KEY)
+    now = int(time.time())
+    entry = doc.get(who) if isinstance(doc.get(who), dict) else {"first": now, "scans": 0}
+    entry["last"] = now
+    entry["tier"] = "pro" if tier == "pro" else "free"
+    if scanned:
+        entry["scans"] = int(entry.get("scans", 0)) + 1
+    doc[who] = entry
+    await _write_index(USERS_INDEX_KEY, doc, USERS_INDEX_CAP, "last")
+
+
+def _plan(product: str | None) -> str:
+    return (product or "?").replace("com.snapworth.", "")
+
+
+def _money(amount: float, currency: str | None) -> str:
+    symbol = {"USD": "$", "EUR": "€", "GBP": "£"}.get(currency or "")
+    return f"{symbol}{amount:,.2f}" if symbol else f"{amount:,.2f} {currency or ''}".strip()
+
+
+def _subs_summary(doc: dict) -> tuple[int, int, int, int, dict[str, float]]:
+    """(active, paid, comped, expired, mrr by currency)."""
+    now = time.time()
+    active = paid = comped = expired = 0
+    mrr: dict[str, float] = {}
+    for e in doc.values():
+        alive = e.get("expires") is None or float(e["expires"]) > now
+        if not alive:
+            expired += 1
+            continue
+        active += 1
+        if e.get("acq") == "paid":
+            paid += 1
+            price, cur = e.get("price"), e.get("currency") or "?"
+            if isinstance(price, (int, float)) and price > 0:
+                monthly = price / 12 if "yearly" in _plan(e.get("product")) else price
+                mrr[cur] = mrr.get(cur, 0.0) + monthly
+        else:
+            comped += 1
+    return active, paid, comped, expired, mrr
+
+
+async def _subscribers_line() -> str:
+    active, paid, comped, _, _ = _subs_summary(await _read_index(SUBS_INDEX_KEY))
+    return f"Subscribers: {active} active · {paid} paid · {comped} comped/trial"
+
+
+async def _subs_text() -> str:
+    doc = await _read_index(SUBS_INDEX_KEY)
+    active, paid, comped, expired, mrr = _subs_summary(doc)
+    lines = [f"💳 <b>Subscriptions</b> — {active} active · {paid} paid · "
+             f"{comped} comped/trial · {expired} expired"]
+    if mrr:
+        lines.append("MRR ≈ " + " + ".join(_money(v, c) for c, v in sorted(mrr.items()))
+                     + " (paid plans, from transaction prices)")
+    else:
+        lines.append("MRR ≈ n/a (no priced paid plan seen yet)")
+    if not doc:
+        lines.append("No subscription has synced since the bot started watching.")
+        return "\n".join(lines)
+
+    now = time.time()
+    rows = sorted(doc.values(),
+                  key=lambda e: (not (e.get("expires") is None or float(e["expires"]) > now),
+                                 float(e.get("expires") or 0)))
+    header = f"{'plan':<8}{'via':<11}{'since':<8}{'renews':<8}{'seen':<7}{'id':<6}"
+    body = [header]
+    for e in rows[:TABLE_ROWS]:
+        alive = e.get("expires") is None or float(e["expires"]) > now
+        renews = _date(int(e["expires"]))[:6] if e.get("expires") else "never"
+        if not alive:
+            renews = "ended"
+        body.append(
+            f"{_plan(e.get('product')):<8}{str(e.get('acq') or '?'):<11}"
+            f"{(_date(int(e['first']))[:6] if e.get('first') else '?'):<8}"
+            f"{renews:<8}{(_date(int(e['seen']))[:6] if e.get('seen') else '?'):<7}"
+            f"{str(e.get('who') or ''):<6}")
+    if len(rows) > TABLE_ROWS:
+        body.append(f"… and {len(rows) - TABLE_ROWS} more")
+    lines.append("<pre>" + html.escape("\n".join(body)) + "</pre>")
+    lines.append("Only subscriptions that have synced since the bot started are listed; "
+                 "every active one checks in at its next app launch.")
+    return "\n".join(lines)
+
+
+async def _users_text() -> str:
+    doc = await _read_index(USERS_INDEX_KEY)
+    now = time.time()
+    week = sum(1 for e in doc.values() if now - float(e.get("last", 0)) < 7 * 86400)
+    month = sum(1 for e in doc.values() if now - float(e.get("last", 0)) < 30 * 86400)
+    today = sum(1 for e in doc.values() if _day(datetime.fromtimestamp(
+        float(e.get("last", 0)), timezone.utc)) == _day())
+    pro = sum(1 for e in doc.values() if e.get("tier") == "pro")
+    lines = [f"👥 <b>Devices</b> — {len(doc)} seen · {month} last 30d · {week} last 7d · "
+             f"{today} today · {pro} Pro"]
+    if not doc:
+        lines.append("No device has been seen since the bot started watching.")
+        return "\n".join(lines)
+    rows = sorted(doc.items(), key=lambda kv: (-int(kv[1].get("scans", 0)),
+                                               -float(kv[1].get("last", 0))))
+    body = [f"{'id':<8}{'tier':<6}{'scans':<7}{'first':<8}{'last':<7}"]
+    for who, e in rows[:TABLE_ROWS]:
+        body.append(
+            f"{who[:6]:<8}{('Pro' if e.get('tier') == 'pro' else 'free'):<6}"
+            f"{int(e.get('scans', 0)):<7}"
+            f"{(_date(int(e['first']))[:6] if e.get('first') else '?'):<8}"
+            f"{(_date(int(e['last']))[:6] if e.get('last') else '?'):<7}")
+    if len(rows) > TABLE_ROWS:
+        body.append(f"… and {len(rows) - TABLE_ROWS} more")
+    lines.append("<pre>" + html.escape("\n".join(body)) + "</pre>")
+    lines.append("Devices, not people — there are no accounts. Ids are the audit log's pseudonyms.")
+    return "\n".join(lines)

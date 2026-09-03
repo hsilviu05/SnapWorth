@@ -343,7 +343,7 @@ async def require_auth(
         # token, so an expired or refunded subscription stops working within
         # one cache TTL instead of one token lifetime.
         ent = await deps.entitlements.current(subject)
-        notify.saw_user(subject)
+        notify.saw_user(subject, tier=ent.tier)
         return Principal(subject=subject, tier=ent.tier, authenticated=True)
 
     if cfg.enforce:
