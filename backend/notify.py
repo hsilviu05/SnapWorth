@@ -221,6 +221,12 @@ HISTORY_SNIPPET_CHARS = 350
 # /clear forwards everything to before deleting, so the copy is a real
 # Telegram copy, photos included. Off when unset.
 ARCHIVE_CHAT_ENV = "TELEGRAM_ARCHIVE_CHAT_ID"
+# Message ids in a private chat are sequential, so /clear also sweeps this
+# many ids below the newest one it knows. Telegram skips ids it cannot delete
+# (older than 48 hours, never existed, not ours), so the sweep costs a handful
+# of calls and catches everything in the window the bot never recorded —
+# messages from before the feature existed, or from a replica that died.
+CLEAR_SWEEP_IDS = 600
 
 COMMANDS: tuple[tuple[str, str], ...] = (
     ("status", "Active users, scans today, provider health"),
@@ -2353,26 +2359,35 @@ async def _clear_chat() -> None:
         entries = [e for e in (json.loads(raw) if raw else []) if isinstance(e, list) and e]
     except Exception:
         entries = []
-    ids = sorted({int(e[0]) for e in entries})
+    known = sorted({int(e[0]) for e in entries})
     archived = await _archive(entries)
     archive_chat = os.environ.get(ARCHIVE_CHAT_ENV, "").strip()
-    forwarded = await _notifier.forward_messages(archive_chat, ids) if archive_chat and ids else 0
-    deleted = await _notifier.delete_messages(ids) if ids else 0
+    forwarded = await _notifier.forward_messages(archive_chat, known) if archive_chat and known else 0
+    # Known ids first, then the sweep below the newest of them: private-chat
+    # ids are sequential, and Telegram silently skips what it cannot delete.
+    sweep: list[int] = []
+    if known:
+        newest = known[-1]
+        sweep = [i for i in range(max(1, newest - CLEAR_SWEEP_IDS), newest + 1) if i not in set(known)]
+    deleted = await _notifier.delete_messages(known) if known else 0
+    if sweep:
+        await _notifier.delete_messages(sweep)
     try:
         await _cache.delete(MESSAGES_KEY)
     except Exception:
         pass
-    if deleted:
-        note = f"🧹 Cleared {deleted} messages."
+    if known:
+        note = (f"🧹 Cleared. {deleted} known messages deleted and the last {len(sweep)} message ids "
+                "swept, so everything from the past 48 hours the bot may delete is gone.")
         if archived:
             note += f" {archived} of the bot's kept — /history shows them."
         if archive_chat:
             note += f" {forwarded} forwarded to the archive chat."
     else:
-        note = ("🧹 Nothing to clear — only the last 48 hours can be deleted, and only "
-                "what was sent since this button existed.")
-    if deleted < len(ids):
-        note += f" {len(ids) - deleted} were too old or already gone."
+        note = ("🧹 Nothing to clear yet — the bot has not sent or seen a message since this "
+                "process started.")
+    note += ("\nOlder than 48 hours is beyond what Telegram lets any bot delete: "
+             "chat menu → Clear History for that.")
     await _notifier.send(note + "\n\n" + await _status_text(), await _buttons())
 
 
