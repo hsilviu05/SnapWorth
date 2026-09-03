@@ -31,14 +31,24 @@ What gets sent:
 * **A weekly report** with Monday's digest: the seven days just ended against
   the seven before, with the direction of each number.
 
-And it listens: `/status`, `/subs`, `/users`, `/costs`, `/social`, `/digest`,
-`/week`, `/feed` from the operator's chat, with inline buttons under every
-reply so nothing has to be typed. `/costs` prices every model call's token
-usage; `/social` reads the app's own Instagram and TikTok accounts (social.py). `/subs` is every subscription the server has seen — plan,
-how it was obtained (paid, offer code, trial), renewal date, and an MRR line
-from Apple's own transaction prices. `/users` is devices seen: 7- and 30-day
+And it listens: `/status`, `/subs`, `/users`, `/costs`, `/social`, `/finds`,
+`/post`, `/digest`, `/week`, `/feed` from the operator's chat, with inline
+buttons under every reply so nothing has to be typed. `/costs` prices every
+model call's token usage; `/social` reads the app's own TikTok account
+(social.py). `/subs` is every subscription the server has seen — plan, how it
+was obtained (paid, offer code, trial), renewal date, and an MRR line from
+Apple's own transaction prices. `/users` is devices seen: 7- and 30-day
 actives and the most active, by the audit log's pseudonyms, because there are
-no accounts. Anyone else who finds the bot gets silence.
+no accounts. `/finds` is the week's most valuable scans; `/post` hands those
+to the model (ideas.py) and comes back with three TikTok post ideas grounded
+in what people actually scanned. Anyone else who finds the bot gets silence.
+
+Two things about surviving a deploy. Only one replica may poll Telegram, and
+the lock that decides which is released on shutdown — otherwise the new build
+sits silent for the lock's TTL after every release, which read as "the bot
+ignores me until I press Refresh". And the poll offset is kept in the cache,
+so the successor continues where the predecessor stopped instead of
+re-answering the last batch of commands.
 
 The bot token is a credential. It appears in request URLs, so failures are
 logged by exception class name only, and observability.py redacts the token
@@ -55,10 +65,11 @@ import os
 import re
 import secrets
 import time
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from datetime import datetime, timedelta, timezone
 
 import auditlog
+import ideas
 
 log = logging.getLogger("snapworth.notify")
 
@@ -133,13 +144,32 @@ POLL_TIMEOUT_SECONDS = 25
 # cache NX write that the holder renews; a dead holder loses it within TTL.
 POLL_LOCK_KEY = "opslock:tgpoll"
 POLL_LOCK_TTL = 90
+# How often a replica without the lock checks whether it has become free.
+# Short, because this is exactly the gap between a deploy landing and the bot
+# answering again: a cache read every fifteen seconds is nothing.
+POLL_LOCK_RETRY_SECONDS = 15
+# Where the poller left off, so a successor replica confirms what its
+# predecessor already handled rather than being handed it again.
+POLL_OFFSET_KEY = "opsstate:tgoffset"
+
+# The deploy ping runs in the first seconds of a container's life, when the
+# network is at its least reliable. It is also the one message whose absence
+# is read as "the bot is broken", so it retries, with these pauses between
+# attempts, before giving up.
+DEPLOY_RETRY_DELAYS: tuple[float, ...] = (2.0, 5.0, 10.0)
+
+# The week's most valuable scans, kept alongside the day's category and brand
+# tallies for /finds and as grounding for /post. Item and price only.
+TOP_FINDS_CAP = 8
 
 COMMANDS: tuple[tuple[str, str], ...] = (
     ("status", "Active users, scans today, provider health"),
     ("subs", "Every subscription seen: plan, how obtained, renews"),
     ("users", "Devices seen, 7-day and 30-day actives, most active"),
     ("costs", "Gemini spend: today, 7 and 30 days, per scan, vs MRR"),
-    ("social", "Instagram and TikTok: followers and the latest posts"),
+    ("social", "TikTok: followers, likes and the latest videos"),
+    ("finds", "Best finds this week: the most valuable scans"),
+    ("post", "Three TikTok post ideas from what people scanned; add a topic"),
     ("feed", "Live scan feed: on, off, or show"),
     ("digest", "Yesterday's digest, now"),
     ("week", "Last 7 days against the 7 before"),
@@ -201,12 +231,22 @@ class TelegramNotifier:
             resp = await client.post(
                 f"{TELEGRAM_API}/bot{self._token}/sendMessage", json=payload)
             if resp.status_code != 200:
-                log.warning("telegram send failed: HTTP %s", resp.status_code)
+                # Telegram's own reason ("can't parse entities: …") names the
+                # bug; the bare status code never did. It carries no token.
+                log.warning("telegram send failed: HTTP %s %s",
+                            resp.status_code, self._description(resp))
                 return False
             return True
         except Exception as exc:
             log.warning("telegram send failed: %s", type(exc).__name__)
             return False
+
+    @staticmethod
+    def _description(resp) -> str:
+        try:
+            return str((resp.json() or {}).get("description") or "")[:200]
+        except Exception:
+            return ""
 
     @property
     def chat_id(self) -> str:
@@ -276,8 +316,13 @@ _tasks: set[asyncio.Task] = set()
 # imports it.
 _status_provider: Callable[[], dict] | None = None
 
-# Instagram/TikTok readers (social.Social), when configured.
+# TikTok reader (social.Social), when configured.
 _social = None
+
+# Turns a prompt into model text, for /post. Injected by main so this module
+# reuses the app's model, retry policy, metrics and cost tallies rather than
+# growing a second Gemini client. `async (prompt, max_tokens) -> str`.
+_generator: Callable[..., Awaitable[str]] | None = None
 
 # Identifies this replica as the poll-lock holder.
 _poll_token = secrets.token_hex(8)
@@ -295,16 +340,17 @@ def enabled() -> bool:
 
 def configure(cache, notifier: TelegramNotifier | None = None,
               status_provider: Callable[[], dict] | None = None,
-              social=None) -> None:
+              social=None, generator: Callable[..., Awaitable[str]] | None = None) -> None:
     """Wire the notifier from the environment. Called once at startup.
 
     With the env vars unset this leaves everything disabled and every public
     function a no-op — the feature costs nothing until it is turned on.
     """
-    global _notifier, _cache, _status_provider, _social
+    global _notifier, _cache, _status_provider, _social, _generator
     _cache = cache
     _status_provider = status_provider
     _social = social
+    _generator = generator
 
     if notifier is not None:
         _notifier = notifier
@@ -337,6 +383,7 @@ async def aclose() -> None:
     _tasks.clear()
     _alert_last_sent.clear()
     _alert_awaiting_recovery.clear()
+    await _release_poll_lock()
     if _notifier is not None:
         notifier, _notifier = _notifier, None
         await notifier.aclose()
@@ -546,16 +593,32 @@ def _deploy_text(commit: str, cache_backend: str, auth_enforcing: bool,
 
 async def _announce_deploy(commit: str, cache_backend: str, auth_enforcing: bool,
                            info: dict | None) -> None:
+    guard = f"opsseen:deploy:{commit}"
     try:
         # One ping per commit, however many replicas boot it or however often
         # Railway restarts the container. A build that crash-loops has other
         # symptoms; a stream of identical "deployed" messages would only bury them.
-        if not await _cache.add(f"opsseen:deploy:{commit}", "1", STATS_TTL):
+        if not await _cache.add(guard, "1", STATS_TTL):
             return
     except Exception as exc:
-        log.debug("deploy ping guard failed, skipping: %s", type(exc).__name__)
-        return
-    await _notifier.send(_deploy_text(commit, cache_backend, auth_enforcing, info))
+        # The cache is not up yet — which, seconds into a boot, it may well
+        # not be. A duplicate ping is a shrug; a missing one is "did the
+        # deploy land?" asked over and over. Send anyway.
+        log.warning("deploy ping guard failed, sending anyway: %s", type(exc).__name__)
+    text = _deploy_text(commit, cache_backend, auth_enforcing, info)
+    notifier = _notifier
+    for attempt, delay in enumerate((0.0, *DEPLOY_RETRY_DELAYS)):
+        if delay:
+            await asyncio.sleep(delay)
+        if notifier is None or await notifier.send(text):
+            return
+        log.warning("deploy ping attempt %d failed", attempt + 1)
+    # Every attempt failed: give the guard back so the next boot of this same
+    # commit — a Railway restart, say — gets to try again.
+    try:
+        await _cache.delete(guard)
+    except Exception:
+        pass
 
 
 def deployed(commit: str, *, cache_backend: str, auth_enforcing: bool,
@@ -811,7 +874,8 @@ async def _buttons() -> Buttons:
     feed = "🔕 Feed off" if await _feed_enabled() else "🔔 Feed on"
     return [[("🔄 Refresh", "status"), ("📊 Digest", "digest"), ("📈 Week", "week")],
             [("💳 Subs", "subs"), ("👥 Users", "users"), ("💸 Costs", "costs")],
-            [("📣 Social", "social"), (feed, "feed toggle")]]
+            [("📣 Social", "social"), ("🏆 Finds", "finds"), ("📝 Post ideas", "post")],
+            [(feed, "feed toggle")]]
 
 
 async def handle_command(text: str) -> str | None:
@@ -827,6 +891,8 @@ async def handle_command_with_buttons(text: str) -> tuple[str, Buttons] | None:
     parts = text.split()
     command = parts[0].lower().split("@", 1)[0]
     argument = parts[1].lower() if len(parts) > 1 else ""
+    # Everything after the command, as typed — /post takes a free-text topic.
+    rest = " ".join(parts[1:])
     if command == "/status":
         return await _status_text(), await _buttons()
     if command == "/digest":
@@ -844,6 +910,10 @@ async def handle_command_with_buttons(text: str) -> tuple[str, Buttons] | None:
         return await _costs_text(), await _buttons()
     if command == "/social":
         return await _social_text(), await _buttons()
+    if command == "/finds":
+        return await _finds_text(), await _buttons()
+    if command == "/post":
+        return await _post_text(rest), await _buttons()
     return _help_text(), await _buttons()
 
 
@@ -863,13 +933,55 @@ async def _hold_poll_lock() -> bool:
         return True
 
 
+async def _release_poll_lock() -> None:
+    """Hand the poll lock back if this replica holds it.
+
+    Called on shutdown. Without it the lock outlived the process for its full
+    TTL, and the replacement replica — the one that just deployed — could not
+    poll until it expired: a minute and a half of a bot that reads every
+    button press and answers none of them, after every single release.
+    """
+    if _cache is None:
+        return
+    try:
+        if await _cache.get(POLL_LOCK_KEY) == _poll_token:
+            await _cache.delete(POLL_LOCK_KEY)
+    except Exception as exc:
+        log.debug("poll lock release failed: %s", type(exc).__name__)
+
+
+async def _read_offset() -> int | None:
+    try:
+        raw = await _cache.get(POLL_OFFSET_KEY)
+        return int(raw) if raw else None
+    except Exception:
+        return None
+
+
+async def _remember_offset(offset: int | None) -> None:
+    if offset is None:
+        return
+    try:
+        await _cache.set(POLL_OFFSET_KEY, str(offset), INDEX_TTL)
+    except Exception as exc:
+        log.debug("poll offset save failed: %s", type(exc).__name__)
+
+
 async def poll_once(offset: int | None) -> tuple[int | None, int]:
     """One getUpdates round. Returns (next offset, messages handled).
 
     Only the operator's chat is answered. Anyone else who finds the bot gets
     nothing back — not even an error — so there is nothing to probe.
+
+    The returned offset is also written to the cache. Telegram only treats an
+    update as confirmed when a *later* poll carries the offset past it, so a
+    replica that dies right after answering leaves its last batch unconfirmed
+    — and a successor starting from nothing would be handed those commands
+    again and answer them twice. Starting from the stored offset instead
+    confirms them.
     """
     handled = 0
+    before = offset
     for update in await _notifier.get_updates(offset):
         offset = int(update.get("update_id", 0)) + 1
         callback = update.get("callback_query")
@@ -890,15 +1002,17 @@ async def poll_once(offset: int | None) -> tuple[int | None, int]:
         if reply:
             await _notifier.send(reply[0], reply[1])
             handled += 1
+    if offset != before:
+        await _remember_offset(offset)
     return offset, handled
 
 
 async def _command_loop() -> None:
-    offset: int | None = None
+    offset: int | None = await _read_offset()
     while True:
         try:
             if not await _hold_poll_lock():
-                await asyncio.sleep(POLL_LOCK_TTL / 3)
+                await asyncio.sleep(POLL_LOCK_RETRY_SECONDS)
                 continue
             before = offset
             offset, _ = await poll_once(offset)
@@ -974,8 +1088,10 @@ def _feed_text(*, item_name: str, category: str, low: float, high: float,
             f"{band} confidence · {who}")
 
 
-async def _tally_top(day: str, category: str, brand: str | None) -> None:
-    """Read-modify-write of the day's category and brand counts.
+async def _tally_top(day: str, category: str, brand: str | None,
+                     find: dict | None = None) -> None:
+    """Read-modify-write of the day's category and brand counts, and its
+    handful of most valuable finds.
 
     One small JSON document rather than a key per brand, because the cache
     interface cannot enumerate keys and the report needs the whole table.
@@ -989,10 +1105,23 @@ async def _tally_top(day: str, category: str, brand: str | None) -> None:
         doc = {}
     cats = doc.get("cats") if isinstance(doc.get("cats"), dict) else {}
     brands = doc.get("brands") if isinstance(doc.get("brands"), dict) else {}
+    finds = doc.get("finds") if isinstance(doc.get("finds"), list) else []
     cats[category] = int(cats.get(category, 0)) + 1
     if brand is not None and (brand in brands or len(brands) < TOP_BRANDS_CAP):
         brands[brand] = int(brands.get(brand, 0)) + 1
-    await _cache.set(key, json.dumps({"cats": cats, "brands": brands}), STATS_TTL)
+    if find is not None:
+        finds = sorted([*finds, find], key=lambda f: -float(f.get("hi") or 0))[:TOP_FINDS_CAP]
+    await _cache.set(key, json.dumps({"cats": cats, "brands": brands, "finds": finds}),
+                     STATS_TTL)
+
+
+def _find_record(*, item_name: str, brand: str | None, category: str,
+                 low: float, high: float, tier: str) -> dict:
+    """What /finds keeps about a scan: the item and its price, nothing else."""
+    return {"n": " ".join((item_name or "").split())[:60] or "Unidentified item",
+            "b": _clean_brand(brand), "c": _normalise_category(category),
+            "lo": round(float(low)), "hi": round(float(high)),
+            "t": "pro" if tier == "pro" else "free"}
 
 
 async def _top_text(day: str, limit: int = 3) -> str:
@@ -1017,7 +1146,9 @@ async def _note_scan(*, tier: str, item_name: str, brand: str | None,
         await _bump("scans_pro" if tier == "pro" else "scans_free")
         if elapsed_ms:
             await _cache.incr(_stat_key(_day(), "scan_ms"), STATS_TTL, int(elapsed_ms))
-        await _tally_top(_day(), _normalise_category(category), _clean_brand(brand))
+        await _tally_top(_day(), _normalise_category(category), _clean_brand(brand),
+                         _find_record(item_name=item_name, brand=brand, category=category,
+                                      low=low, high=high, tier=tier))
         if subject:
             await _index_user(auditlog.pseudonymise(subject), tier=tier, scanned=True)
         if await _feed_enabled():
@@ -1431,7 +1562,7 @@ def _post_line(post) -> str:
 
 
 def _account_lines(account) -> list[str]:
-    name = {"instagram": "Instagram", "tiktok": "TikTok"}.get(account.platform, account.platform)
+    name = {"tiktok": "TikTok"}.get(account.platform, account.platform)
     if not account.ok:
         note = account.note or "unavailable"
         if note.startswith("not linked — ") or note.startswith("link expired — "):
@@ -1459,8 +1590,8 @@ RECENT_SOCIAL_POSTS = 3
 
 async def _social_text() -> str:
     if _social is None:
-        return ("📣 <b>Social</b>\nNot configured. Set IG_USER_ID + IG_ACCESS_TOKEN for Instagram "
-                "and TIKTOK_CLIENT_KEY + TIKTOK_CLIENT_SECRET for TikTok — see .env.example.")
+        return ("📣 <b>Social</b>\nNot configured. Set TIKTOK_CLIENT_KEY + TIKTOK_CLIENT_SECRET "
+                "for TikTok — see .env.example.")
     accounts = await _social.accounts()
     await _remember_followers(accounts)
     lines = ["📣 <b>Social</b>"]
@@ -1484,7 +1615,93 @@ async def _social_line() -> str:
     parts = []
     for a in accounts:
         if a.ok and a.followers is not None:
-            name = "Instagram" if a.platform == "instagram" else "TikTok"
+            name = {"tiktok": "TikTok"}.get(a.platform, a.platform)
             parts.append(f"{name} {a.followers:,}{await _followers_delta(a.platform, a.followers)}")
     await _remember_followers(accounts)
     return "Social: " + " · ".join(parts) if parts else ""
+
+
+# ── Best finds and post ideas ────────────────────────────────────────────────
+
+async def _week_top(now: datetime | None = None) -> dict:
+    """The last seven days' tallies folded together.
+
+    What the day documents hold, summed: categories and brands with counts,
+    the best finds re-ranked across days, and the scan total. Grounding for
+    /post and the whole of /finds.
+    """
+    days = _days_ending_today(7, now)
+    cats: dict[str, int] = {}
+    brands: dict[str, int] = {}
+    finds: list[dict] = []
+    scans = 0
+    for day in days:
+        try:
+            doc = json.loads(await _cache.get(_stat_key(day, "top")) or "{}")
+        except Exception:
+            doc = {}
+        for c, n in (doc.get("cats") or {}).items():
+            cats[c] = cats.get(c, 0) + int(n)
+        for b, n in (doc.get("brands") or {}).items():
+            brands[b] = brands.get(b, 0) + int(n)
+        for f in doc.get("finds") or []:
+            if isinstance(f, dict):
+                finds.append({**f, "day": day})
+        scans += await _read_stat(day, "scans_free") + await _read_stat(day, "scans_pro")
+    finds.sort(key=lambda f: -float(f.get("hi") or 0))
+    return {
+        "days": len(days), "scans": scans,
+        "cats": sorted(cats.items(), key=lambda kv: -kv[1])[:5],
+        "brands": sorted(brands.items(), key=lambda kv: -kv[1])[:8],
+        "finds": finds[:TOP_FINDS_CAP],
+    }
+
+
+def _find_line(rank: int, f: dict) -> str:
+    emoji = CATEGORY_EMOJI.get(str(f.get("c") or ""), "📦")
+    name = html.escape(str(f.get("n") or "Unidentified item"))
+    when = ""
+    day = str(f.get("day") or "")
+    if len(day) == 8:
+        try:
+            when = " · " + datetime.strptime(day, "%Y%m%d").strftime("%d %b")
+        except ValueError:
+            when = ""
+    who = "Pro" if f.get("t") == "pro" else "free"
+    return (f"{rank}. {emoji} <b>{name}</b> — ${int(f.get('lo') or 0):,}–{int(f.get('hi') or 0):,}"
+            f" · {who}{when}")
+
+
+async def _finds_text() -> str:
+    top = await _week_top()
+    lines = ["🏆 <b>Best finds — last 7 days</b>"]
+    if not top["finds"]:
+        lines.append("No scans recorded this week yet.")
+        return "\n".join(lines)
+    lines += [_find_line(i, f) for i, f in enumerate(top["finds"], 1)]
+    if top["cats"]:
+        text = "Top: " + " · ".join(f"{html.escape(c)} {n}" for c, n in top["cats"][:3])
+        if top["brands"]:
+            text += " — " + ", ".join(f"{html.escape(b)} ×{n}" for b, n in top["brands"][:3])
+        lines.append(text)
+    lines.append(f"{top['scans']} scans this week. Item and AI estimate only — never who.")
+    return "\n".join(lines)
+
+
+async def _post_text(hint: str = "") -> str:
+    if _generator is None:
+        return ("📝 <b>Post ideas</b>\nThe model is not wired up for the bot in this "
+                "process, so there is nothing to ask. This is a build problem, not a data one.")
+    context = await _week_top()
+    prompt = ideas.build_prompt(context, hint)
+    try:
+        text = await _generator(prompt, ideas.MAX_OUTPUT_TOKENS)
+    except Exception as exc:
+        log.warning("post ideas generation failed: %s", type(exc).__name__)
+        return ("📝 <b>Post ideas</b>\nThe model did not answer "
+                f"({html.escape(type(exc).__name__)}). Try again in a minute.")
+    parsed = ideas.parse(text)
+    if not parsed:
+        log.warning("post ideas reply unreadable: %.120s", text)
+        return "📝 <b>Post ideas</b>\nThe model's reply could not be read. Try again."
+    return ideas.render(parsed, context, hint)

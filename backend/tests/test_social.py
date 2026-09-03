@@ -1,4 +1,4 @@
-"""Instagram and TikTok readers, the TikTok link flow, and the /social view."""
+"""The TikTok reader, the TikTok link flow, and the /social view."""
 
 from __future__ import annotations
 
@@ -23,15 +23,9 @@ from tests.test_notify import FAKE_CHAT, FAKE_TOKEN, Recorder  # noqa: E402
 
 
 class FakePlatforms:
-    """Both APIs behind one MockTransport, with scripted responses."""
+    """The TikTok API behind one MockTransport, with scripted responses."""
 
     def __init__(self) -> None:
-        self.ig_profile = {"username": "snapworth.app", "followers_count": 1240, "media_count": 38}
-        self.ig_media = {"data": [
-            {"caption": "Thrift haul: five finds under $10", "media_type": "IMAGE",
-             "timestamp": "2026-09-02T18:02:11+0000", "permalink": "https://instagram.com/p/x",
-             "like_count": 210, "comments_count": 14}]}
-        self.ig_status = 200
         self.tt_user = {"data": {"user": {"display_name": "snapworth", "follower_count": 860,
                                           "likes_count": 12300, "video_count": 41}}}
         self.tt_videos = {"data": {"videos": [
@@ -47,12 +41,6 @@ class FakePlatforms:
     def handler(self, request: httpx.Request) -> httpx.Response:
         url = str(request.url)
         self.calls.append(url)
-        if "graph.facebook.com" in url:
-            if url.split("?")[0].endswith("/media"):
-                return httpx.Response(200, json=self.ig_media)
-            if self.ig_status != 200:
-                return httpx.Response(self.ig_status, json={"error": {"code": 190, "message": "expired"}})
-            return httpx.Response(200, json=self.ig_profile)
         if url.endswith("/oauth/token/"):
             self.token_requests.append(dict(parse_qs(request.content.decode())))
             return httpx.Response(200, json=self.token_response)
@@ -79,34 +67,11 @@ def platforms():
     return FakePlatforms()
 
 
-def make_social(cache, platforms, *, ig=True, tt=True) -> social.Social:
+def make_social(cache, platforms, *, tt=True) -> social.Social:
     client = httpx.AsyncClient(transport=httpx.MockTransport(platforms.handler))
     return social.Social(
-        instagram=social.InstagramClient("178" if ig else "", "tok" if ig else "", client=client),
         tiktok=social.TikTokClient("key" if tt else "", "secret" if tt else "",
                                    "https://api.snapworth.eu/social/tiktok/callback", cache, client=client))
-
-
-class TestInstagram:
-    @pytest.mark.asyncio
-    async def test_reads_profile_and_recent_posts(self, cache, platforms):
-        account = await make_social(cache, platforms).instagram.account()
-        assert account.ok
-        assert (account.handle, account.followers, account.posts) == ("snapworth.app", 1240, 38)
-        (post,) = account.recent
-        assert post.likes == 210 and post.comments == 14
-        assert post.created_at is not None
-
-    @pytest.mark.asyncio
-    async def test_expired_token_is_a_note_not_an_error(self, cache, platforms):
-        platforms.ig_status = 400
-        account = await make_social(cache, platforms).instagram.account()
-        assert not account.ok and "token expired" in account.note
-
-    @pytest.mark.asyncio
-    async def test_unconfigured(self, cache, platforms):
-        account = await make_social(cache, platforms, ig=False).instagram.account()
-        assert "not configured" in account.note
 
 
 class TestTikTokLink:
@@ -186,14 +151,13 @@ class TestSocialInBot:
         await notify.aclose()
 
     @pytest.mark.asyncio
-    async def test_social_command_renders_both_platforms(self, bot, cache, platforms):
+    async def test_social_command_renders_tiktok(self, bot, cache, platforms):
         await cache.set(social.TIKTOK_TOKENS_KEY, json.dumps({
             "access_token": "fresh", "expires_at": int(time.time()) + 3600, "refresh_token": "r"}), 600)
         text = await notify.handle_command("/social")
-        assert "<b>Instagram</b> @snapworth.app — 1,240 followers · 38 posts" in text
-        assert "Thrift haul: five finds under $10" in text and "210 likes · 14 comments" in text
         assert "<b>TikTok</b> @snapworth — 860 followers · 41 videos · 12.3K likes" in text
-        assert "3.2K views" in text
+        assert "POV: the $4 jacket" in text and "3.2K views · 210 likes · 14 comments · 9 shares" in text
+        assert "Instagram" not in text
 
     @pytest.mark.asyncio
     async def test_unlinked_tiktok_shows_a_tap_to_link(self, bot):
@@ -204,12 +168,18 @@ class TestSocialInBot:
     @pytest.mark.asyncio
     async def test_digest_line_carries_follower_deltas(self, bot, cache):
         from datetime import datetime, timedelta, timezone
+        await cache.set(social.TIKTOK_TOKENS_KEY, json.dumps({
+            "access_token": "fresh", "expires_at": int(time.time()) + 3600, "refresh_token": "r"}), 600)
         yesterday = notify._day(datetime.now(timezone.utc) - timedelta(days=1))
         await cache.set(notify._social_snapshot_key(yesterday),
-                        json.dumps({"instagram": 1228}), 600)
+                        json.dumps({"tiktok": 848}), 600)
         line = await notify._social_line()
-        assert line == "Social: Instagram 1,240 (▲ 12)"        # TikTok unlinked: omitted
-        assert json.loads(await cache.get(notify._social_snapshot_key(notify._day())))["instagram"] == 1240
+        assert line == "Social: TikTok 860 (▲ 12)"
+        assert json.loads(await cache.get(notify._social_snapshot_key(notify._day())))["tiktok"] == 860
+
+    @pytest.mark.asyncio
+    async def test_unlinked_tiktok_is_omitted_from_the_digest(self, bot):
+        assert await notify._social_line() == ""
 
     @pytest.mark.asyncio
     async def test_unconfigured_social_is_quiet_in_digest_and_explains_in_command(self, cache):

@@ -580,7 +580,8 @@ class TestPolling:
             await drain()
             (menu,) = bot.command_menus
             assert [c["command"] for c in menu] == [
-                "status", "subs", "users", "costs", "social", "feed", "digest", "week", "help"]
+                "status", "subs", "users", "costs", "social", "finds", "post", "feed",
+                "digest", "week", "help"]
         finally:
             await notify.aclose()
 
@@ -743,10 +744,11 @@ class TestButtons:
         text, buttons = await notify.handle_command_with_buttons("/status")
         labels = [label for row in buttons for label, _ in row]
         assert labels == ["🔄 Refresh", "📊 Digest", "📈 Week",
-                          "💳 Subs", "👥 Users", "💸 Costs", "📣 Social", "🔕 Feed off"]
+                          "💳 Subs", "👥 Users", "💸 Costs",
+                          "📣 Social", "🏆 Finds", "📝 Post ideas", "🔕 Feed off"]
         await notify.handle_command("/feed off")
         _, buttons = await notify.handle_command_with_buttons("/status")
-        assert buttons[2][1][0] == "🔔 Feed on"
+        assert buttons[3][0][0] == "🔔 Feed on"
 
     @pytest.mark.asyncio
     async def test_button_press_is_answered_and_acted_on(self, cache):
@@ -1039,3 +1041,255 @@ class TestDeployMessage:
         await drain()
         assert "<b>chore: bump</b>" in enabled_notify.texts[0]
         assert "2 files" in enabled_notify.texts[0]
+
+
+# ── Surviving a deploy: lock handover, offset continuity, a deploy ping that
+#    retries — and the two commands that make the week's scans into content ──
+
+class TestDeployHandover:
+    @pytest.mark.asyncio
+    async def test_shutdown_releases_the_poll_lock_it_holds(self, cache, recorder):
+        notifier = notify.TelegramNotifier(
+            FAKE_TOKEN, FAKE_CHAT,
+            client=httpx.AsyncClient(transport=httpx.MockTransport(recorder.handler)))
+        notify.configure(cache, notifier=notifier)
+        assert await notify._hold_poll_lock() is True
+        await notify.aclose()
+        # Without this the successor waited out the 90s TTL after every
+        # release — the bot that "ignores you until you press Refresh".
+        assert await cache.get(notify.POLL_LOCK_KEY) is None
+
+    @pytest.mark.asyncio
+    async def test_shutdown_leaves_another_replicas_lock_alone(self, cache, recorder):
+        await cache.set(notify.POLL_LOCK_KEY, "the-other-replica", 60)
+        notifier = notify.TelegramNotifier(
+            FAKE_TOKEN, FAKE_CHAT,
+            client=httpx.AsyncClient(transport=httpx.MockTransport(recorder.handler)))
+        notify.configure(cache, notifier=notifier)
+        await notify.aclose()
+        assert await cache.get(notify.POLL_LOCK_KEY) == "the-other-replica"
+
+    @pytest.mark.asyncio
+    async def test_poll_offset_is_persisted_for_the_successor(self, cache):
+        bot = TestPolling.Bot([TestPolling.update(500, FAKE_CHAT, "/status")])
+        notifier = notify.TelegramNotifier(
+            FAKE_TOKEN, FAKE_CHAT,
+            client=httpx.AsyncClient(transport=httpx.MockTransport(bot.handler)))
+        notify.configure(cache, notifier=notifier)
+        try:
+            offset, handled = await notify.poll_once(None)
+            assert (offset, handled) == (501, 1)
+            # The next replica starts from here and so confirms update 500
+            # instead of being handed it again and answering twice.
+            assert await cache.get(notify.POLL_OFFSET_KEY) == "501"
+            assert await notify._read_offset() == 501
+            # An empty round leaves it alone.
+            await notify.poll_once(offset)
+            assert await cache.get(notify.POLL_OFFSET_KEY) == "501"
+        finally:
+            await notify.aclose()
+
+    @pytest.mark.asyncio
+    async def test_deploy_ping_retries_a_failing_send(self, cache, monkeypatch):
+        monkeypatch.setattr(notify, "DEPLOY_RETRY_DELAYS", (0.0, 0.0, 0.0))
+        attempts = {"n": 0}
+
+        def flaky(request: httpx.Request) -> httpx.Response:
+            if request.url.path.endswith("/getUpdates"):
+                return httpx.Response(200, json={"ok": True, "result": []})
+            if request.url.path.endswith("/sendMessage"):
+                attempts["n"] += 1
+                if attempts["n"] < 3:
+                    raise httpx.ConnectError("network not up yet", request=request)
+            return httpx.Response(200, json={"ok": True})
+
+        notifier = notify.TelegramNotifier(
+            FAKE_TOKEN, FAKE_CHAT,
+            client=httpx.AsyncClient(transport=httpx.MockTransport(flaky)))
+        notify.configure(cache, notifier=notifier)
+        try:
+            notify.deployed("eeeeeeeeeeee", cache_backend="redis", auth_enforcing=True)
+            await drain()
+            assert attempts["n"] == 3, "two failures, then the one that landed"
+            # Delivered, so the guard stands: a restart of this commit is quiet.
+            assert await cache.get("opsseen:deploy:eeeeeeeeeeee") == "1"
+        finally:
+            await notify.aclose()
+
+    @pytest.mark.asyncio
+    async def test_deploy_ping_gives_the_guard_back_when_every_attempt_fails(
+            self, cache, monkeypatch):
+        monkeypatch.setattr(notify, "DEPLOY_RETRY_DELAYS", (0.0,))
+
+        def down(request: httpx.Request) -> httpx.Response:
+            if request.url.path.endswith("/getUpdates"):
+                return httpx.Response(200, json={"ok": True, "result": []})
+            raise httpx.ConnectError("boom", request=request)
+
+        notifier = notify.TelegramNotifier(
+            FAKE_TOKEN, FAKE_CHAT,
+            client=httpx.AsyncClient(transport=httpx.MockTransport(down)))
+        notify.configure(cache, notifier=notifier)
+        try:
+            notify.deployed("ffffffffffff", cache_backend="redis", auth_enforcing=True)
+            await drain()
+            # So the next boot of the same build — a Railway restart — tries again.
+            assert await cache.get("opsseen:deploy:ffffffffffff") is None
+        finally:
+            await notify.aclose()
+
+    @pytest.mark.asyncio
+    async def test_deploy_ping_sends_when_the_guard_itself_fails(self, recorder):
+        class BrokenCache:
+            backend = "redis"
+
+            async def add(self, *a, **k):
+                raise RuntimeError("redis not reachable yet")
+
+            async def delete(self, *a, **k):
+                raise RuntimeError("still not")
+
+            async def get(self, *a, **k):
+                return None
+
+            async def set(self, *a, **k):
+                return None
+
+            async def incr(self, *a, **k):
+                return 0
+
+        notifier = notify.TelegramNotifier(
+            FAKE_TOKEN, FAKE_CHAT,
+            client=httpx.AsyncClient(transport=httpx.MockTransport(recorder.handler)))
+        notify.configure(BrokenCache(), notifier=notifier)
+        try:
+            notify.deployed("a1a1a1a1a1a1", cache_backend="redis", auth_enforcing=True)
+            await drain()
+            # A duplicate is a shrug; silence is "did the deploy land?" forever.
+            assert any("a1a1a1a1a1a1" in t for t in recorder.texts)
+        finally:
+            await notify.aclose()
+
+    @pytest.mark.asyncio
+    async def test_send_failure_logs_telegrams_reason_but_never_the_token(self, cache, caplog):
+        def refuse(request: httpx.Request) -> httpx.Response:
+            if request.url.path.endswith("/getUpdates"):
+                return httpx.Response(200, json={"ok": True, "result": []})
+            return httpx.Response(400, json={
+                "ok": False, "error_code": 400,
+                "description": "Bad Request: can't parse entities: Unsupported start tag"})
+
+        notifier = notify.TelegramNotifier(
+            FAKE_TOKEN, FAKE_CHAT,
+            client=httpx.AsyncClient(transport=httpx.MockTransport(refuse)))
+        notify.configure(cache, notifier=notifier)
+        try:
+            with caplog.at_level("WARNING"):
+                assert await notifier.send("<x>") is False
+            assert "can't parse entities" in caplog.text
+            assert FAKE_TOKEN not in caplog.text
+        finally:
+            await notify.aclose()
+
+
+class TestFindsAndPostIdeas:
+    @pytest.mark.asyncio
+    async def test_finds_ranks_the_weeks_scans_by_estimate(self, enabled_notify):
+        scan(item_name="Levi's 501 Made in USA", brand="Levi's",
+             low=60, high=90)
+        scan(item_name="Le Creuset Dutch Oven 5.5qt", brand="Le Creuset",
+             category="home", low=120, high=220, tier="pro")
+        scan(item_name="Mystery mug", brand="Unknown", category="home",
+             low=2, high=6)
+        await drain()
+        text = await notify.handle_command("/finds")
+        assert text.startswith("🏆 <b>Best finds — last 7 days</b>")
+        first, second = text.split("\n")[1], text.split("\n")[2]
+        assert "1. 🏠 <b>Le Creuset Dutch Oven 5.5qt</b> — $120–220 · Pro" in first
+        assert "2. 🧥 <b>Levi" in second
+        assert "Top: home 2 · clothing 1" in text
+        assert "3 scans this week" in text
+
+    @pytest.mark.asyncio
+    async def test_finds_keeps_only_the_best_few_per_day(self, enabled_notify):
+        for i in range(notify.TOP_FINDS_CAP + 5):
+            scan(item_name=f"Item {i}", low=i, high=i + 1)
+        await drain()
+        doc = json.loads(await notify._cache.get(notify._stat_key(notify._day(), "top")))
+        assert len(doc["finds"]) == notify.TOP_FINDS_CAP
+        assert doc["finds"][0]["n"] == f"Item {notify.TOP_FINDS_CAP + 4}"
+        assert set(doc["finds"][0]) == {"n", "b", "c", "lo", "hi", "t"}, "item and price only"
+
+    @pytest.mark.asyncio
+    async def test_finds_with_nothing_scanned(self, enabled_notify):
+        assert "No scans recorded this week yet." in await notify.handle_command("/finds")
+
+    @pytest.mark.asyncio
+    async def test_post_hands_the_weeks_data_to_the_model_and_renders_its_ideas(self, cache, recorder):
+        prompts: list[tuple[str, int]] = []
+
+        async def fake_model(prompt: str, max_tokens: int) -> str:
+            prompts.append((prompt, max_tokens))
+            return json.dumps({"ideas": [
+                {"hook": "This $4 fleece could resell for $85",
+                 "beats": ["Hold the tag to camera", "Scan it", "Reveal the estimate"],
+                 "caption": "Patagonia at the thrift is never a maybe.",
+                 "hashtags": ["thriftflip", "patagonia", "#reseller"],
+                 "why": "Patagonia was the most-scanned brand"},
+                {"hook": "Guess the price", "beats": ["Three items", "Pause", "Answers"],
+                 "caption": "Comment before the reveal.", "hashtags": ["thrifttok"],
+                 "why": "clothing was the top category"},
+                {"hook": "POV: sourcing day", "beats": ["Aisle walk"], "caption": "c",
+                 "hashtags": ["thrifting"], "why": "format"},
+            ]})
+
+        notifier = notify.TelegramNotifier(
+            FAKE_TOKEN, FAKE_CHAT,
+            client=httpx.AsyncClient(transport=httpx.MockTransport(recorder.handler)))
+        notify.configure(cache, notifier=notifier, generator=fake_model)
+        try:
+            scan(item_name="Patagonia Better Sweater M", brand="Patagonia",
+                 low=40, high=85)
+            await drain()
+            text = await notify.handle_command("/post denim season")
+            (prompt, max_tokens), = prompts
+            assert max_tokens > 0
+            # Grounded in the week's real data, fenced as data, steered by the topic.
+            assert "Patagonia Better Sweater M" in prompt and "$40–85" in prompt
+            assert "<untrusted_data>" in prompt
+            assert "denim season" in prompt
+            assert "NOT check sold listings" in prompt
+            # Rendered for a phone: numbered, hook bold, tags with their #.
+            assert text.startswith("📝 <b>Post ideas</b> — denim season")
+            assert "<b>1. This $4 fleece could resell for $85</b>" in text
+            assert " • Hold the tag to camera" in text
+            assert "#thriftflip #patagonia #reseller" in text
+            assert "<b>3. POV: sourcing day</b>" in text
+        finally:
+            await notify.aclose()
+
+    @pytest.mark.asyncio
+    async def test_post_explains_a_model_failure_instead_of_raising(self, cache, recorder):
+        async def broken(prompt: str, max_tokens: int) -> str:
+            raise RuntimeError("upstream down")
+
+        notifier = notify.TelegramNotifier(
+            FAKE_TOKEN, FAKE_CHAT,
+            client=httpx.AsyncClient(transport=httpx.MockTransport(recorder.handler)))
+        notify.configure(cache, notifier=notifier, generator=broken)
+        try:
+            text = await notify.handle_command("/post")
+            assert "did not answer (RuntimeError)" in text
+        finally:
+            await notify.aclose()
+
+    @pytest.mark.asyncio
+    async def test_post_without_a_model_says_so(self, enabled_notify):
+        assert "not wired up" in await notify.handle_command("/post")
+
+    @pytest.mark.asyncio
+    async def test_buttons_offer_finds_and_post_ideas(self, enabled_notify):
+        labels = [label for row in await notify._buttons() for label, _ in row]
+        assert "🏆 Finds" in labels and "📝 Post ideas" in labels
+        data = [d for row in await notify._buttons() for _, d in row]
+        assert "finds" in data and "post" in data
