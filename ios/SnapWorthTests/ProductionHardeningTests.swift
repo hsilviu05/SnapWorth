@@ -1467,3 +1467,18 @@ final class FreeScanReminderIdentifierTests: XCTestCase {
                        .freeScan)
     }
 }
+
+
+final class SimulatorAttestationCopyTests: XCTestCase {
+    /// CI runs on the Simulator, where App Attest cannot exist. The 401 copy
+    /// must say so there instead of suggesting a reinstall that cannot help.
+    func test_sessionExpiredNamesTheSimulatorWhereReinstallCannotHelp() {
+        let copy = AppError.sessionExpired.errorDescription ?? ""
+        #if targetEnvironment(simulator)
+        XCTAssertTrue(copy.contains("Simulator"), copy)
+        XCTAssertFalse(copy.contains("reinstalling"), copy)
+        #else
+        XCTAssertTrue(copy.contains("reinstalling"), copy)
+        #endif
+    }
+}
