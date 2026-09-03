@@ -1094,7 +1094,9 @@ async def scan(
 
     # Charge only for work that produced a result.
     quota_status = await consume_quota(principal)
-    notify.count_scan(principal.tier)
+    notify.scan_completed(
+        tier=principal.tier, item_name=val.item_name, brand=val.brand,
+        category=val.category, low=low, high=high, confidence=conf.band)
 
     return ScanResponse(
         # ── v1 contract ─────────────────────────────────────────────────────

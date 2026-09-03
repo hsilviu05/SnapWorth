@@ -515,8 +515,10 @@ class TestPolling:
         def __init__(self, updates: list[dict]) -> None:
             self.updates = updates
             self.replies: list[str] = []
+            self.markups: list[dict | None] = []
             self.polls: list[dict] = []
             self.command_menus: list[list] = []
+            self.answered: list[str] = []
 
         def handler(self, request: httpx.Request) -> httpx.Response:
             path = request.url.path
@@ -525,10 +527,15 @@ class TestPolling:
                 batch, self.updates = self.updates, []
                 return httpx.Response(200, json={"ok": True, "result": batch})
             if path.endswith("/sendMessage"):
-                self.replies.append(json.loads(request.content)["text"])
+                body = json.loads(request.content)
+                self.replies.append(body["text"])
+                self.markups.append(body.get("reply_markup"))
                 return httpx.Response(200, json={"ok": True})
             if path.endswith("/setMyCommands"):
                 self.command_menus.append(json.loads(request.content)["commands"])
+                return httpx.Response(200, json={"ok": True})
+            if path.endswith("/answerCallbackQuery"):
+                self.answered.append(json.loads(request.content)["callback_query_id"])
                 return httpx.Response(200, json={"ok": True})
             return httpx.Response(404)
 
@@ -572,7 +579,7 @@ class TestPolling:
         try:
             await drain()
             (menu,) = bot.command_menus
-            assert [c["command"] for c in menu] == ["status", "digest", "help"]
+            assert [c["command"] for c in menu] == ["status", "feed", "digest", "week", "help"]
         finally:
             await notify.aclose()
 
@@ -596,5 +603,186 @@ class TestPolling:
             with caplog.at_level("WARNING"):
                 assert await notify.poll_once(None) == (None, 0)
             assert FAKE_TOKEN not in caplog.text
+        finally:
+            await notify.aclose()
+
+
+# ── Live scan feed, top categories/brands, weekly report, buttons ────────────
+
+def scan(**overrides):
+    kw = dict(tier="pro", item_name="Patagonia Better Sweater 1/4-Zip", brand="Patagonia",
+              category="clothing", low=35.0, high=60.0, confidence="High")
+    kw.update(overrides)
+    notify.scan_completed(**kw)
+
+
+class TestScanFeed:
+    @pytest.mark.asyncio
+    async def test_feed_message_is_item_and_price_only(self, enabled_notify):
+        scan()
+        await drain()
+        (text,) = enabled_notify.texts
+        assert text.startswith("🧥 <b>Patagonia Better Sweater 1/4-Zip</b>")
+        assert "clothing · $35–60 · high confidence · Pro" in text
+
+    @pytest.mark.asyncio
+    async def test_model_output_is_escaped(self, enabled_notify):
+        scan(item_name="<b>Nike</b> & <script>x</script>")
+        await drain()
+        text = enabled_notify.texts[0]
+        assert "<script>" not in text
+        assert "&lt;script&gt;" in text
+
+    @pytest.mark.asyncio
+    async def test_unknown_category_falls_back(self, enabled_notify):
+        scan(category="Weird Stuff", confidence="")
+        await drain()
+        assert enabled_notify.texts[0].startswith("📦")
+        assert "other ·" in enabled_notify.texts[0]
+        assert "unknown confidence" in enabled_notify.texts[0]
+
+    @pytest.mark.asyncio
+    async def test_feed_off_still_counts(self, enabled_notify, cache):
+        assert "off" in await notify.handle_command("/feed off")
+        scan()
+        await drain()
+        assert [t for t in enabled_notify.texts if t.startswith("🧥")] == []
+        assert await cache.get(notify._stat_key(notify._day(), "scans_pro")) == "1"
+        assert "on" in await notify.handle_command("/feed on")
+        scan()
+        await drain()
+        assert any(t.startswith("🧥") for t in enabled_notify.texts)
+
+    @pytest.mark.asyncio
+    async def test_feed_toggle_and_state(self, enabled_notify):
+        assert "<b>on</b>" in await notify.handle_command("/feed")
+        assert "<b>off</b>" in await notify.handle_command("/feed toggle")
+        assert "<b>off</b>" in await notify.handle_command("/feed")
+
+
+class TestTopCategoriesAndBrands:
+    @pytest.mark.asyncio
+    async def test_status_and_digest_show_the_days_top(self, enabled_notify):
+        scan(category="clothing", brand="Nike")
+        scan(category="clothing", brand="Nike")
+        scan(category="shoes", brand="Nike")
+        scan(category="clothing", brand="Zara")
+        scan(category="toys", brand="Unknown")
+        await drain()
+        status = await notify.handle_command("/status")
+        assert "Top: clothing 3 · shoes 1 · toys 1 — Nike ×3, Zara ×1" in status
+        from datetime import timedelta
+        digest = await notify.handle_command_with_buttons("/digest")
+        assert digest is not None
+        # Yesterday has no tallies, so the digest omits the line rather than
+        # printing an empty one.
+        assert "Top:" not in digest[0]
+        assert "Top:" in await notify._digest_text(datetime.now(timezone.utc))
+        del timedelta
+
+    @pytest.mark.asyncio
+    async def test_brand_table_is_capped(self, enabled_notify, cache):
+        for i in range(notify.TOP_BRANDS_CAP + 5):
+            scan(brand=f"Brand{i}")
+        await drain()
+        doc = json.loads(await cache.get(notify._stat_key(notify._day(), "top")))
+        assert len(doc["brands"]) == notify.TOP_BRANDS_CAP
+        assert doc["cats"]["clothing"] == notify.TOP_BRANDS_CAP + 5
+
+
+class TestWeeklyReport:
+    async def seed(self, cache, now, name, this_week, last_week):
+        from datetime import timedelta
+        end = (now - timedelta(days=1)).date()
+        for i in range(7):
+            day = notify._day(datetime.combine(end - timedelta(days=i),
+                                               datetime.min.time(), tzinfo=timezone.utc))
+            await cache.set(notify._stat_key(day, name), str(this_week[i]))
+        for i in range(7):
+            day = notify._day(datetime.combine(end - timedelta(days=7 + i),
+                                               datetime.min.time(), tzinfo=timezone.utc))
+            await cache.set(notify._stat_key(day, name), str(last_week[i]))
+
+    @pytest.mark.asyncio
+    async def test_compares_the_last_seven_days_to_the_seven_before(self, enabled_notify, cache):
+        now = datetime(2026, 9, 7, 6, 0, tzinfo=timezone.utc)   # a Monday
+        await self.seed(cache, now, "scans_pro", [3] * 7, [2] * 7)      # 21 vs 14
+        await self.seed(cache, now, "scans_free", [1] * 7, [2] * 7)     # 7 vs 14
+        await self.seed(cache, now, "active_users", [2] * 7, [2] * 7)   # 14 vs 14
+        await self.seed(cache, now, "new_subs", [0] * 6 + [1], [0] * 7) # 1 vs 0
+        text = await notify._weekly_text(now)
+        assert text.startswith("📈 <b>Week 31 Aug – 06 Sep</b>")
+        assert "Scans: 28 (7 free · 21 Pro) ＝" in text          # 28 vs 28
+        assert "Active user-days: 14 ＝" in text
+        assert "New subscriptions: 1 new" in text
+        assert "vs 28 scans · 14 user-days · 0 subs the week before" in text
+
+    def test_trend_arrows(self):
+        assert notify._trend(15, 10) == "▲ 50%"
+        assert notify._trend(5, 10) == "▼ 50%"
+        assert notify._trend(10, 10) == "＝"
+        assert notify._trend(3, 0) == "new"
+        assert notify._trend(0, 0) == "—"
+
+    @pytest.mark.asyncio
+    async def test_sent_once_per_monday(self, enabled_notify):
+        now = datetime(2026, 9, 7, 6, 0, tzinfo=timezone.utc)
+        assert await notify.send_weekly(now) is True
+        assert await notify.send_weekly(now) is False
+        assert len([t for t in enabled_notify.texts if t.startswith("📈")]) == 1
+
+    @pytest.mark.asyncio
+    async def test_week_command(self, enabled_notify):
+        assert (await notify.handle_command("/week")).startswith("📈")
+
+
+class TestButtons:
+    @pytest.mark.asyncio
+    async def test_replies_carry_the_keyboard(self, enabled_notify):
+        text, buttons = await notify.handle_command_with_buttons("/status")
+        labels = [label for row in buttons for label, _ in row]
+        assert labels == ["🔄 Refresh", "📊 Digest", "📈 Week", "🔕 Feed off"]
+        await notify.handle_command("/feed off")
+        _, buttons = await notify.handle_command_with_buttons("/status")
+        assert buttons[1][0][0] == "🔔 Feed on"
+
+    @pytest.mark.asyncio
+    async def test_button_press_is_answered_and_acted_on(self, cache):
+        bot = TestPolling.Bot([
+            {"update_id": 7, "callback_query": {
+                "id": "cb-1", "data": "week",
+                "message": {"chat": {"id": int(FAKE_CHAT)}}}},
+            {"update_id": 8, "callback_query": {
+                "id": "cb-2", "data": "status",
+                "message": {"chat": {"id": 999999}}}},         # a stranger's press
+        ])
+        notifier = notify.TelegramNotifier(
+            FAKE_TOKEN, FAKE_CHAT,
+            client=httpx.AsyncClient(transport=httpx.MockTransport(bot.handler)))
+        notify.configure(cache, notifier=notifier)
+        try:
+            offset, handled = await notify.poll_once(None)
+            assert (offset, handled) == (9, 1)
+            assert bot.answered == ["cb-1"], "the spinner stops; the stranger gets nothing"
+            assert bot.replies[0].startswith("📈")
+            assert bot.markups[0]["inline_keyboard"][0][0]["callback_data"] == "status"
+        finally:
+            await notify.aclose()
+
+    @pytest.mark.asyncio
+    async def test_feed_button_toggles(self, cache):
+        bot = TestPolling.Bot([
+            {"update_id": 1, "callback_query": {
+                "id": "cb", "data": "feed toggle",
+                "message": {"chat": {"id": int(FAKE_CHAT)}}}},
+        ])
+        notifier = notify.TelegramNotifier(
+            FAKE_TOKEN, FAKE_CHAT,
+            client=httpx.AsyncClient(transport=httpx.MockTransport(bot.handler)))
+        notify.configure(cache, notifier=notifier)
+        try:
+            await notify.poll_once(None)
+            assert "<b>off</b>" in bot.replies[0]
+            assert await notify._feed_enabled() is False
         finally:
             await notify.aclose()
