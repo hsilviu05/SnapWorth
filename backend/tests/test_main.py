@@ -569,3 +569,57 @@ class TestProbeDoesNotTouchModelHealth:
             assert seen == {"label": "probe", "record_health": False, "max_tokens": 1024}
             asyncio.run(main._bot_generate("p", 2048))
             assert seen["label"] == "ideas" and seen["record_health"] is True
+
+
+class TestRepeatedSafetyBlocks:
+    """Blocked photos are counted per device; past the threshold the device is
+    refused for the day before the model is even called."""
+
+    @staticmethod
+    def _blocked_response():
+        from unittest.mock import MagicMock, PropertyMock
+        response = MagicMock()
+        type(response).text = PropertyMock(side_effect=ValueError("no candidates"))
+        finish = MagicMock()
+        finish.name = "SAFETY"
+        response.candidates = [MagicMock(finish_reason=finish)]
+        return response
+
+    def test_pause_after_threshold(self, monkeypatch):
+        from unittest.mock import AsyncMock, patch
+
+        import main
+        from cache import InMemoryCache, ResilientCache
+        monkeypatch.setattr(main, "_cache", ResilientCache(None, InMemoryCache()))
+        monkeypatch.setattr(main, "SAFETY_BLOCKS_BEFORE_PAUSE", 2)
+        _rate_store.clear()
+        _ip_rate_store.clear()
+        with patch("main._model") as model:
+            model.generate_content_async = AsyncMock(return_value=self._blocked_response())
+            first = _make_scan_request(device_id="abuser")
+            second = _make_scan_request(device_id="abuser")
+            third = _make_scan_request(device_id="abuser")
+            other = _make_scan_request(device_id="bystander")
+        # Two blocks: each a neutral 422, each a model call.
+        assert (first.status_code, second.status_code) == (422, 422)
+        assert "couldn't be analysed" in first.json()["detail"]
+        # Third: refused before the model, with a reason the user can act on.
+        assert third.status_code == 403
+        assert "paused for 24 hours" in third.json()["detail"]
+        assert model.generate_content_async.await_count == 3, "the paused scan never reached the model"
+        # Another device is unaffected.
+        assert other.status_code == 422
+
+    def test_disabled_by_zero(self, monkeypatch):
+        from unittest.mock import AsyncMock, patch
+
+        import main
+        from cache import InMemoryCache, ResilientCache
+        monkeypatch.setattr(main, "_cache", ResilientCache(None, InMemoryCache()))
+        monkeypatch.setattr(main, "SAFETY_BLOCKS_BEFORE_PAUSE", 0)
+        _rate_store.clear()
+        _ip_rate_store.clear()
+        with patch("main._model") as model:
+            model.generate_content_async = AsyncMock(return_value=self._blocked_response())
+            codes = [_make_scan_request(device_id="off").status_code for _ in range(4)]
+        assert codes == [422, 422, 422, 422]

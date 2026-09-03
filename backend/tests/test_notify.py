@@ -520,6 +520,7 @@ class TestPolling:
             self.command_menus: list[list] = []
             self.answered: list[str] = []
             self.deleted: list[int] = []
+            self.forwarded: list[tuple[str, list[int]]] = []
 
         def handler(self, request: httpx.Request) -> httpx.Response:
             path = request.url.path
@@ -541,6 +542,11 @@ class TestPolling:
             if path.endswith("/deleteMessages"):
                 self.deleted.extend(json.loads(request.content)["message_ids"])
                 return httpx.Response(200, json={"ok": True, "result": True})
+            if path.endswith("/forwardMessages"):
+                body = json.loads(request.content)
+                self.forwarded.append((body["chat_id"], body["message_ids"]))
+                return httpx.Response(200, json={"ok": True, "result": [
+                    {"message_id": 5000 + i} for i in body["message_ids"]]})
             if path.endswith("/setMyCommands"):
                 self.command_menus.append(json.loads(request.content)["commands"])
                 return httpx.Response(200, json={"ok": True})
@@ -592,7 +598,7 @@ class TestPolling:
             assert [c["command"] for c in menu] == [
                 "status", "subs", "users", "costs", "social", "finds", "post", "calendar",
                 "caption", "hooks", "reply", "price", "trend", "user", "checkup", "clear",
-                "feed", "digest", "week", "help"]
+                "history", "feed", "digest", "week", "help"]
         finally:
             await notify.aclose()
 
@@ -759,7 +765,7 @@ class TestButtons:
                           "📣 Social", "🏆 Finds", "📝 Post ideas",
                           "🗓 Calendar", "🩺 Checkup", "🔕 Feed off",
                           "✍️ Caption", "🪝 Hooks", "💬 Reply",
-                          "💵 Price", "📈 Trend", "👤 User", "🧹 Clear chat"]
+                          "💵 Price", "📈 Trend", "👤 User", "🧹 Clear chat", "🗂 History"]
         await notify.handle_command("/feed off")
         _, buttons = await notify.handle_command_with_buttons("/status")
         assert buttons[3][2][0] == "🔔 Feed on"
@@ -1633,16 +1639,20 @@ class TestClearChat:
         notify.configure(cache, notifier=notifier)
         try:
             await notify.poll_once(None)
-            remembered = {e[0] for e in json.loads(await cache.get(notify.MESSAGES_KEY))}
+            entries = json.loads(await cache.get(notify.MESSAGES_KEY))
+            remembered = {e[0] for e in entries}
             # The operator's two commands and the bot's two replies.
             assert remembered == {500, 501, 1001, 1002}
+            # The bot's own carry their text; the operator's do not.
+            assert {len(e) for e in entries if e[0] < 1000} == {2}
+            assert all(e[2].startswith(("📡", "💸")) for e in entries if e[0] >= 1000)
 
             bot.updates = [TestPolling.update(802, FAKE_CHAT, "/clear")]
             bot.updates[0]["message"]["message_id"] = 502
             _, handled = await notify.poll_once(803)
             assert handled == 1
             assert sorted(bot.deleted) == [500, 501, 502, 1001, 1002]
-            assert bot.replies[-1].startswith("🧹 Cleared 5 messages.")
+            assert bot.replies[-1].startswith("🧹 Cleared 5 messages. 2 of the bot's kept — /history shows them.")
             assert "📡 <b>SnapWorth status</b>" in bot.replies[-1]
             assert bot.markups[-1] is not None, "the keyboard comes back"
             # Only the fresh status remains remembered, for the next clear.
@@ -1770,3 +1780,95 @@ class TestPhotoScan:
             assert handled == 0 and bot.replies == []
         finally:
             await notify.aclose()
+
+
+class TestHistoryAndArchive:
+    async def bot_with(self, cache, updates):
+        bot = TestPolling.Bot(updates)
+        notifier = notify.TelegramNotifier(
+            FAKE_TOKEN, FAKE_CHAT,
+            client=httpx.AsyncClient(transport=httpx.MockTransport(bot.handler)))
+        notify.configure(cache, notifier=notifier)
+        return bot
+
+    @pytest.mark.asyncio
+    async def test_clear_keeps_what_the_bot_said_and_history_shows_it(self, cache):
+        bot = await self.bot_with(cache, [TestPolling.update(820, FAKE_CHAT, "/status"),
+                                          TestPolling.update(821, FAKE_CHAT, "/costs")])
+        try:
+            assert "Nothing archived yet" in await notify.handle_command("/history")
+            await notify.poll_once(None)
+            bot.updates = [TestPolling.update(822, FAKE_CHAT, "/clear")]
+            await notify.poll_once(823)
+            text = await notify.handle_command("/history")
+            assert text.startswith("🗂 <b>History</b> — last 2 of 2 kept messages")
+            # Newest first, tags stripped so the history itself stays valid HTML.
+            first, second = text.split("\n\n")[1], text.split("\n\n")[2]
+            assert "UTC</b>\n💸 Gemini spend" in first
+            assert "UTC</b>\n📡 SnapWorth status" in second
+            assert "<b>SnapWorth status</b>" not in text
+            assert "/history 25 for more" in text
+            # The clear's own reply is remembered for the *next* clear, not archived yet.
+            assert len(json.loads(await cache.get(notify.ARCHIVE_KEY))) == 2
+        finally:
+            await notify.aclose()
+
+    @pytest.mark.asyncio
+    async def test_history_count_argument_and_cap(self, cache, enabled_notify):
+        await cache.set(notify.ARCHIVE_KEY, json.dumps(
+            [[1_756_900_000 + i, f"<b>message {i}</b>"] for i in range(40)]), 600)
+        assert "last 3 of 40" in await notify.handle_command("/history 3")
+        assert "last 25 of 40" in await notify.handle_command("/history 999")
+        assert "last 8 of 40" in await notify.handle_command("/history nonsense")
+        assert "message 39" in await notify.handle_command("/history 1")
+
+    @pytest.mark.asyncio
+    async def test_archive_is_capped_and_old_entries_roll_off(self, cache, enabled_notify):
+        await cache.set(notify.ARCHIVE_KEY, json.dumps(
+            [[1, "old"]] * notify.ARCHIVE_CAP), 600)
+        await notify._archive([[9, 2, "new"]])
+        kept = json.loads(await cache.get(notify.ARCHIVE_KEY))
+        assert len(kept) == notify.ARCHIVE_CAP and kept[-1] == [2, "new"]
+
+    @pytest.mark.asyncio
+    async def test_clear_forwards_to_an_archive_chat_when_configured(self, cache, monkeypatch):
+        monkeypatch.setenv(notify.ARCHIVE_CHAT_ENV, "-1001234567890")
+        bot = await self.bot_with(cache, [TestPolling.update(830, FAKE_CHAT, "/status")])
+        bot.updates[0]["message"]["message_id"] = 600
+        try:
+            await notify.poll_once(None)
+            bot.updates = [TestPolling.update(831, FAKE_CHAT, "/clear")]
+            await notify.poll_once(832)
+            assert bot.forwarded == [("-1001234567890", [600, 1001])]
+            assert sorted(bot.deleted) == [600, 1001]
+            assert "2 forwarded to the archive chat" in bot.replies[-1]
+        finally:
+            await notify.aclose()
+
+    @pytest.mark.asyncio
+    async def test_snippet_strips_tags_and_bounds(self):
+        long = "<b>Title</b>\n\n" + "x" * 1000 + " &amp; <i>done</i>"
+        out = notify._snippet(long, limit=50)
+        assert out.startswith("Title\nxxxx") and out.endswith("…") and "<" not in out
+        assert notify._snippet("a &lt; b") == "a &lt; b"
+
+
+class TestSafetyBlocks:
+    @pytest.mark.asyncio
+    async def test_blocks_are_tallied_and_a_pause_is_announced_once(self, enabled_notify):
+        notify.safety_blocked(SUBJECT, 1, paused=False)
+        notify.safety_blocked(SUBJECT, 2, paused=False)
+        await drain()
+        assert enabled_notify.texts == [], "a blocked photo alone is not news"
+        notify.safety_blocked(SUBJECT, 5, paused=True)
+        notify.safety_blocked(SUBJECT, 6, paused=True)
+        await drain()
+        assert len(enabled_notify.texts) == 1
+        text = enabled_notify.texts[0]
+        who = __import__("auditlog").pseudonymise(SUBJECT)
+        assert text.startswith("🚫 <b>Device paused after repeated blocked photos</b>")
+        assert who[:8] in text and "sent 5 photos today" in text
+        assert SUBJECT not in text, "pseudonym, never the raw subject"
+        assert await notify._read_stat(notify._day(), "scans_blocked") == 4
+        status = await notify.handle_command("/status")
+        assert "· 4 blocked" in status
