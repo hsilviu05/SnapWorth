@@ -17,7 +17,9 @@ struct ResultView: View {
     @State private var feesText: String
     @FocusState private var focusedField: Field?
     @State private var showShareSheet = false
-    @State private var showGuessGame = false
+    @State private var showShareChoice = false
+    /// What the share sheet carries: the result card, or the guess story pair.
+    @State private var shareItems: [Any] = []
     @State private var showPaywall = false
     @State private var showListingShare = false
 
@@ -63,9 +65,12 @@ struct ResultView: View {
                             .padding(.horizontal, 20)
                             .offset(y: -28)
 
-                        whyThisPriceCard
-                            .padding(.horizontal, 20)
-                            .padding(.top, -16)
+                        // The ladder would give the covered number away.
+                        if !priceCovered {
+                            whyThisPriceCard
+                                .padding(.horizontal, 20)
+                                .padding(.top, -16)
+                        }
 
                         conditionCard
                             .padding(.horizontal, 20)
@@ -73,9 +78,6 @@ struct ResultView: View {
                             .offset(y: -28)
 
                         paidPriceCard
-                        guessGameCard
-                            .padding(.horizontal, 20)
-                            .padding(.top, 12)
 
                         flipStatusCard
                             .padding(.horizontal, 20)
@@ -114,7 +116,7 @@ struct ResultView: View {
                     Button {
                         guard vm.shareCard != nil else { return }
                         Analytics.shared.track(.shareCardOpened)
-                        showShareSheet = true
+                        showShareChoice = true
                     } label: {
                         circleButton(icon: "square.and.arrow.up")
                     }
@@ -122,7 +124,22 @@ struct ResultView: View {
                     .accessibilityLabel("Share")
                     .accessibilityHint(vm.shareCard == nil
                         ? "Share card is still being prepared"
-                        : "Creates a shareable card for this find")
+                        : "Share this find as a card, or as a guess-the-price story")
+                    .confirmationDialog("Share", isPresented: $showShareChoice, titleVisibility: .hidden) {
+                        Button("Result card") {
+                            if let card = vm.shareCard {
+                                shareItems = [card]
+                                showShareSheet = true
+                            }
+                        }
+                        Button("Guess-the-price story (question, then reveal)") {
+                            let cards = vm.renderGuessCards(result: result, photo: photo, displayScale: displayScale)
+                            shareItems = [cards.guess, cards.reveal].compactMap { $0 }
+                            guard !shareItems.isEmpty else { return }
+                            Analytics.shared.track(.guessCardShared(style: "pair"))
+                            showShareSheet = true
+                        }
+                    }
                 }
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button(action: onDismiss) {
@@ -161,14 +178,11 @@ struct ResultView: View {
             result.feesEstimate = newValue.isEmpty ? nil : Double(newValue)
         }
         .sheet(isPresented: $showShareSheet) {
-            if let card = vm.shareCard {
-                ActivityShareSheet(items: [card]) { activityType in
+            if !shareItems.isEmpty {
+                ActivityShareSheet(items: shareItems) { activityType in
                     Analytics.shared.track(.shareCardShared(activityType: activityType))
                 }
             }
-        }
-        .sheet(isPresented: $showGuessGame) {
-            GuessThePriceSheet(result: result, photo: photo)
         }
         .sheet(isPresented: $showListingShare) {
             if let items = vm.listingShareItems {
@@ -221,7 +235,8 @@ struct ResultView: View {
             // VoiceOver user learns the outcome without hunting for it.
             UIAccessibility.post(
                 notification: .announcement,
-                argument: "\(condition.label). Estimate \(result.formattedRange)"
+                argument: priceCovered ? condition.label
+                                       : "\(condition.label). Estimate \(result.formattedRange)"
             )
         } label: {
             Text(condition.label)
@@ -278,45 +293,6 @@ struct ResultView: View {
         .background(Color.snapCard)
         .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
         .shadow(color: Color.snapCardShadow.opacity(0.08), radius: 24, x: 0, y: 8)
-    }
-
-    // MARK: - Guess the price
-
-    /// The share format that actually spreads: the question, not the answer.
-    /// Free for everyone — it is marketing.
-    private var guessGameCard: some View {
-        Button {
-            Haptics.light()
-            showGuessGame = true
-        } label: {
-            HStack(spacing: 14) {
-                Text("🎯")
-                    .font(.system(size: 26))
-                    .accessibilityHidden(true)
-                VStack(alignment: .leading, spacing: 3) {
-                    Text("Guess the price")
-                        .font(.dmSans(17, weight: .semibold))
-                        .foregroundStyle(Color.snapEspresso)
-                    Text("Turn this find into a story: the question first, the estimate on the reveal.")
-                        .font(.snapCaption)
-                        .foregroundStyle(Color.snapWarmGray)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-                Spacer(minLength: 0)
-                Image(systemName: "chevron.right")
-                    .snapSymbol(14, weight: .semibold)
-                    .foregroundStyle(Color.snapWarmGray)
-                    .accessibilityHidden(true)
-            }
-            .padding(20)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color.snapCard)
-            .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
-            .shadow(color: Color.snapCardShadow.opacity(0.08), radius: 24, x: 0, y: 8)
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel("Guess the price")
-        .accessibilityHint("Opens a game that hides the estimate until you reveal it, with cards to share")
     }
 
     // MARK: - Flip Status Card
