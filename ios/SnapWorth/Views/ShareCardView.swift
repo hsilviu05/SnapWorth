@@ -300,6 +300,388 @@ struct MonthShareCardView: View {
     }
 }
 
+// MARK: - "Guess the price" (#95)
+
+/// Which of the pair a `GuessShareCardView` renders.
+enum GuessCardStyle {
+    /// The question: photo, what was paid, and the estimate covered.
+    case guess
+    /// The answer: the estimate, labelled as an AI estimate, with the QR.
+    case reveal
+}
+
+/// How a typed guess compares to the estimate, in the words the reveal shows.
+///
+/// Pure, so the copy is testable. Inside the range is a win; outside says by
+/// how much, against the nearer end — "under the low end" rather than a
+/// distance to some midpoint the user never saw.
+enum GuessScoring {
+    static func verdict(guess: Double, low: Double, high: Double) -> String {
+        let lo = min(low, high), hi = max(low, high)
+        if guess >= lo && guess <= hi {
+            return "Spot on — your guess is inside the estimate."
+        }
+        if guess < lo {
+            return "\(money(lo - guess)) under the low end."
+        }
+        return "\(money(guess - hi)) over the high end."
+    }
+
+    /// Parses what the user typed: digits with an optional decimal point,
+    /// currency symbols and grouping ignored. Nil when it is not a number.
+    static func parse(_ text: String) -> Double? {
+        let trimmed = text.trimmingCharacters(in: .whitespaces)
+        guard !trimmed.hasPrefix("-") else { return nil }
+        let cleaned = trimmed.filter { $0.isNumber || $0 == "." }
+        guard !cleaned.isEmpty, let value = Double(cleaned), value.isFinite, value >= 0 else { return nil }
+        return value
+    }
+
+    private static func money(_ value: Double) -> String {
+        NumberFormatter.snapCurrency.string(from: NSNumber(value: value.rounded())) ?? "$\(Int(value.rounded()))"
+    }
+}
+
+/// The two story cards. Same 540×960 brand canvas and fixed colours as
+/// `ShareCardView`, so they sit beside it in a story without a seam.
+struct GuessShareCardView: View {
+    let result: ScanResult
+    let photo: UIImage?
+    let style: GuessCardStyle
+
+    static let cardWidth:  CGFloat = 540
+    static let cardHeight: CGFloat = 960
+    private let sidePad:  CGFloat = 24
+    private let innerPad: CGFloat = 36
+
+    var body: some View {
+        VStack(spacing: 0) {
+            photoSection
+                .padding(.horizontal, sidePad)
+                .padding(.top, 28)
+
+            if let paid = result.paidPrice {
+                Text(paid == 0 ? "Free find" : "Paid \(fmtCurrency(paid))")
+                    .font(Font.dmSans(17, weight: .semibold))
+                    .foregroundStyle(Color(hex: "8B7D71"))
+                    .lineLimit(1)
+                    .padding(.top, 22)
+            }
+
+            switch style {
+            case .guess:
+                Text("Guess what it could resell for 👇")
+                    .font(Font.fraunces(30, weight: .bold))
+                    .foregroundStyle(Color(hex: "2B211C"))
+                    .multilineTextAlignment(.center)
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.7)
+                    .padding(.top, result.paidPrice == nil ? 24 : 10)
+                    .padding(.horizontal, innerPad)
+
+                // The covered estimate. Solid, not blurred: a blur of the real
+                // number can be read back by anyone who tries.
+                RoundedRectangle(cornerRadius: 20, style: .continuous)
+                    .fill(Color(hex: "EFE6DC"))
+                    .frame(height: 92)
+                    .overlay(
+                        Text("$ ? ? ?")
+                            .font(Font.fraunces(46, weight: .bold))
+                            .foregroundStyle(Color(hex: "8B7D71").opacity(0.55))
+                    )
+                    .padding(.top, 16)
+                    .padding(.horizontal, innerPad + 24)
+
+            case .reveal:
+                Text(result.formattedRange)
+                    .font(Font.fraunces(56, weight: .bold))
+                    .foregroundStyle(Color(hex: "6F8F6B"))
+                    .minimumScaleFactor(0.45)
+                    .lineLimit(1)
+                    .padding(.top, result.paidPrice == nil ? 24 : 6)
+                    .padding(.horizontal, innerPad)
+                Text("AI resale estimate")
+                    .font(Font.dmSans(15, weight: .medium))
+                    .foregroundStyle(Color(hex: "8B7D71"))
+                    .padding(.top, 2)
+            }
+
+            Text(result.itemName)
+                .font(Font.fraunces(24, weight: .semibold))
+                .foregroundStyle(Color(hex: "2B211C"))
+                .multilineTextAlignment(.center)
+                .lineLimit(2)
+                .truncationMode(.tail)
+                .minimumScaleFactor(0.7)
+                .padding(.top, 14)
+                .padding(.horizontal, innerPad)
+
+            Spacer()
+
+            Rectangle()
+                .fill(Color(hex: "EFE6DC"))
+                .frame(height: 1)
+                .padding(.horizontal, innerPad)
+
+            HStack(spacing: 14) {
+                // The QR only on the reveal: the question card is the hook,
+                // and a download prompt on it gives the game away.
+                if style == .reveal, let qr = snapShareCardQR() {
+                    Image(uiImage: qr)
+                        .interpolation(.none)
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 48, height: 48)
+                        .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                }
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("SnapWorth")
+                        .font(Font.fraunces(20, weight: .bold))
+                        .foregroundStyle(Color(hex: "2B211C"))
+                    Text(style == .reveal ? "Get SnapWorth" : "Answer on the next slide")
+                        .font(Font.dmSans(14))
+                        .foregroundStyle(Color(hex: "8B7D71"))
+                }
+                Spacer()
+            }
+            .padding(.horizontal, innerPad)
+            .padding(.top, 16)
+            .padding(.bottom, 44)
+        }
+        .frame(width: Self.cardWidth, height: Self.cardHeight)
+        .background(Color(hex: "FBF7F2"))
+    }
+
+    private func fmtCurrency(_ value: Double) -> String {
+        NumberFormatter.snapCurrency.string(from: NSNumber(value: value)) ?? "$\(Int(value))"
+    }
+
+    @ViewBuilder
+    private var photoSection: some View {
+        let w = Self.cardWidth - sidePad * 2
+        if let photo {
+            Image(uiImage: photo)
+                .resizable()
+                .scaledToFill()
+                .frame(width: w, height: 440)
+                .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
+        } else {
+            RoundedRectangle(cornerRadius: 28, style: .continuous)
+                .fill(Color(hex: "EFE6DC"))
+                .frame(width: w, height: 440)
+                .overlay(
+                    Image(systemName: "photo")
+                        .snapSymbol(72)
+                        .foregroundStyle(Color(hex: "8B7D71").opacity(0.4))
+                )
+        }
+    }
+}
+
+/// The in-app game: guess first, tap to reveal, then share the pair.
+///
+/// The reveal is a spring — the covered number scales up and un-blurs while
+/// the cover pill falls away — with a success haptic. Reduce Motion gets the
+/// state change as a cross-fade (`snapAnimation` drops the movement), and
+/// VoiceOver gets one element that reads as a button until revealed.
+struct GuessThePriceSheet: View {
+    let result: ScanResult
+    let photo: UIImage?
+
+    @Environment(\.dismiss) private var dismiss
+    @Environment(\.displayScale) private var displayScale
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var vm = ResultViewModel()
+    @State private var guessText = ""
+    @State private var revealed = false
+    @State private var shareItems: [UIImage]?
+    @State private var shareStyle = "pair"
+    @State private var showShare = false
+    @FocusState private var guessFocused: Bool
+
+    private var guess: Double? { GuessScoring.parse(guessText) }
+
+    private var verdict: String? {
+        guard revealed, let guess else { return nil }
+        return GuessScoring.verdict(guess: guess, low: result.displayValueLow, high: result.displayValueHigh)
+    }
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(spacing: 18) {
+                    if let photo {
+                        Image(uiImage: photo)
+                            .resizable()
+                            .scaledToFill()
+                            .frame(height: 240)
+                            .frame(maxWidth: .infinity)
+                            .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+                            .accessibilityHidden(true)
+                    }
+
+                    Text(result.itemName)
+                        .font(.fraunces(22, weight: .semibold, relativeTo: .title2))
+                        .foregroundStyle(Color.snapEspresso)
+                        .multilineTextAlignment(.center)
+                        .lineLimit(2)
+
+                    if let paid = result.paidPrice {
+                        Text(paid == 0 ? "Free find" : "You paid \(fmtCurrency(paid))")
+                            .font(.snapCaption)
+                            .foregroundStyle(Color.snapWarmGray)
+                    }
+
+                    if !revealed {
+                        HStack(spacing: 6) {
+                            Text("$")
+                                .font(.dmSans(17, weight: .medium))
+                                .foregroundStyle(Color.snapWarmGray)
+                                .accessibilityHidden(true)
+                            TextField("Your guess (optional)", text: $guessText)
+                                .keyboardType(.decimalPad)
+                                .font(.dmSans(17, weight: .medium))
+                                .foregroundStyle(Color.snapEspresso)
+                                .focused($guessFocused)
+                                .accessibilityLabel("Your guess in dollars, optional")
+                        }
+                        .padding(16)
+                        .background(Color.snapCard)
+                        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                    }
+
+                    estimateReveal
+
+                    if let verdict {
+                        Text(verdict)
+                            .font(.dmSans(16, weight: .semibold))
+                            .foregroundStyle(Color.snapEspresso)
+                            .multilineTextAlignment(.center)
+                            .transition(.opacity)
+                    }
+                    if revealed {
+                        Text("An AI estimate, not a sold price.")
+                            .font(.snapCaption)
+                            .foregroundStyle(Color.snapWarmGray)
+                    }
+
+                    VStack(spacing: 10) {
+                        shareButton("Share as a story — question, then reveal", style: "pair")
+                        shareButton("Share the question only", style: "guess")
+                    }
+                    .padding(.top, 6)
+                }
+                .padding(20)
+            }
+            .scrollDismissesKeyboard(.interactively)
+            .background(Color.snapBackground)
+            .navigationTitle("Guess the price")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("Done") { dismiss() }
+                        .font(.dmSans(15, weight: .semibold))
+                        .foregroundStyle(Color.snapTerracotta)
+                }
+                ToolbarItemGroup(placement: .keyboard) {
+                    Spacer()
+                    Button("Done") { guessFocused = false }
+                        .font(.dmSans(15, weight: .semibold))
+                        .foregroundStyle(Color.snapTerracotta)
+                }
+            }
+            .sheet(isPresented: $showShare) {
+                if let items = shareItems {
+                    ActivityShareSheet(items: items) { _ in
+                        Analytics.shared.track(.guessCardShared(style: shareStyle))
+                    }
+                }
+            }
+        }
+    }
+
+    // MARK: - The reveal
+
+    private var estimateReveal: some View {
+        ZStack {
+            Text(result.formattedRange)
+                .font(.fraunces(44, weight: .bold, relativeTo: .largeTitle))
+                .foregroundStyle(Color.snapSage)
+                .minimumScaleFactor(0.5)
+                .lineLimit(1)
+                .blur(radius: revealed ? 0 : 16)
+                .opacity(revealed ? 1 : 0.35)
+                .scaleEffect(revealed ? 1 : 0.9)
+                .padding(.horizontal, 24)
+                .accessibilityHidden(!revealed)
+
+            if !revealed {
+                Text("Tap to reveal")
+                    .font(.dmSans(15, weight: .semibold))
+                    .foregroundStyle(Color.snapOnAccent)
+                    .padding(.horizontal, 18)
+                    .padding(.vertical, 10)
+                    .background(Color.snapTerracotta)
+                    .clipShape(Capsule())
+                    .transition(.scale(scale: 0.7).combined(with: .opacity))
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 28)
+        .background(Color.snapCard)
+        .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+        .contentShape(Rectangle())
+        .onTapGesture { reveal() }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(revealed ? "AI estimate \(result.formattedRange)" : "Tap to reveal the AI estimate")
+        .accessibilityAddTraits(revealed ? [] : .isButton)
+    }
+
+    private func reveal() {
+        guard !revealed else { return }
+        guessFocused = false
+        // Reduce Motion: the same state change as a plain cross-fade — no
+        // spring, no scale — which is what the covered number and the pill's
+        // transition fall back to without an explicit animation.
+        withAnimation(reduceMotion ? .easeInOut(duration: 0.2)
+                                   : .spring(response: 0.45, dampingFraction: 0.62)) {
+            revealed = true
+        }
+        Haptics.success()
+        Analytics.shared.track(.guessRevealed(withGuess: guess != nil))
+    }
+
+    // MARK: - Sharing
+
+    private func shareButton(_ title: String, style: String) -> some View {
+        Button {
+            let cards = vm.renderGuessCards(result: result, photo: photo, displayScale: displayScale)
+            var items: [UIImage] = []
+            if let g = cards.guess { items.append(g) }
+            if style == "pair", let r = cards.reveal { items.append(r) }
+            guard !items.isEmpty else { return }
+            Haptics.light()
+            shareStyle = style
+            shareItems = items
+            showShare = true
+        } label: {
+            Text(title)
+                .font(.dmSans(15, weight: .semibold))
+                .foregroundStyle(style == "pair" ? Color.snapOnAccent : Color.snapEspresso)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 14)
+                .background(style == "pair" ? Color.snapTerracotta : Color.snapCard)
+                .clipShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .snapHitTarget()
+    }
+
+    private func fmtCurrency(_ value: Double) -> String {
+        NumberFormatter.snapCurrency.string(from: NSNumber(value: value)) ?? "$\(Int(value))"
+    }
+}
+
 // MARK: - Previews
 
 #Preview("Unpaid — no photo") {
