@@ -34,14 +34,21 @@ struct ResultView: View {
 
     private var isPro: Bool { purchaseService.isSubscribed }
 
+    /// Only a *fresh* scan starts with its value covered. Reopening the same
+    /// find from My Finds or My Flips shows the number straight away — the
+    /// guess is a once-per-find moment, not a toll on every visit.
+    private let coverPrice: Bool
+
     init(result: ScanResult,
          purchaseService: any PurchaseService,
          onDismiss: @escaping () -> Void,
-         didSave: Bool = true) {
+         didSave: Bool = true,
+         coverPrice: Bool = false) {
         self.result = result
         self.purchaseService = purchaseService
         self.onDismiss = onDismiss
         self.didSave = didSave
+        self.coverPrice = coverPrice
         _paidPriceText = State(initialValue: Self.moneyField(result.paidPrice))
         _soldPriceText = State(initialValue: Self.moneyField(result.soldPrice))
         _feesText      = State(initialValue: Self.moneyField(result.feesEstimate))
@@ -78,6 +85,8 @@ struct ResultView: View {
                             .offset(y: -28)
 
                         paidPriceCard
+                            .padding(.horizontal, 20)
+                            .padding(.top, 12)
 
                         flipStatusCard
                             .padding(.horizontal, 20)
@@ -572,7 +581,7 @@ struct ResultView: View {
     // MARK: - Value Card
 
     /// Whether the value is still under its cover.
-    private var priceCovered: Bool { guessFirst && !priceRevealed }
+    private var priceCovered: Bool { coverPrice && guessFirst && !priceRevealed }
 
     private var quickGuess: Double? { GuessScoring.parse(quickGuessText) }
 
