@@ -76,7 +76,12 @@ struct ResultView: View {
                         if !priceCovered {
                             whyThisPriceCard
                                 .padding(.horizontal, 20)
-                                .padding(.top, -16)
+                                // The value card above is offset up by 28pt for
+                                // the hero overlap; -12 here leaves a 16pt gap to
+                                // it, and the bottom padding keeps Condition from
+                                // sitting on this card's shadow.
+                                .padding(.top, -12)
+                                .padding(.bottom, 8)
                         }
 
                         conditionCard
