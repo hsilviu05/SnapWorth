@@ -1591,3 +1591,63 @@ final class GuessFirstPreferenceTests: XCTestCase {
         XCTAssertEqual(GuessFirst.key, "snapworth_guess_first")
     }
 }
+
+
+// MARK: - Trending at the thrift (#96)
+
+final class TrendsDecodingTests: XCTestCase {
+    private let free = """
+    {"days":7,"scans":128,
+     "categories":[{"name":"clothing","count":54,"change_pct":18},
+                   {"name":"shoes","count":31,"change_pct":-7},
+                   {"name":"home","count":22}],
+     "brands":[{"name":"Carhartt","count":14,"change_pct":40}],
+     "notable_finds":[]}
+    """
+
+    private let pro = """
+    {"days":7,"scans":128,
+     "categories":[{"name":"home","count":22,"change_pct":9,"average_estimate":58}],
+     "brands":[{"name":"Le Creuset","count":7}],
+     "notable_finds":[{"name":"Le Creuset Dutch Oven 5.5qt","category":"home","low":120,"high":220}]}
+    """
+
+    func test_freeShapeDecodesWithoutAveragesOrFinds() throws {
+        let trends = try JSONDecoder().decode(Trends.self, from: free.data(using: .utf8)!)
+        XCTAssertEqual(trends.scans, 128)
+        XCTAssertEqual(trends.categories.map(\.name), ["clothing", "shoes", "home"])
+        XCTAssertEqual(trends.categories[0].changePct, 18)
+        XCTAssertNil(trends.categories[2].changePct, "a row without both weeks has no direction")
+        XCTAssertNil(trends.categories[0].averageEstimate)
+        XCTAssertTrue(trends.notableFinds.isEmpty)
+        XCTAssertFalse(trends.isEmpty)
+    }
+
+    func test_proShapeDecodes() throws {
+        let trends = try JSONDecoder().decode(Trends.self, from: pro.data(using: .utf8)!)
+        XCTAssertEqual(trends.categories[0].averageEstimate, 58)
+        XCTAssertEqual(trends.notableFinds.first?.name, "Le Creuset Dutch Oven 5.5qt")
+        XCTAssertEqual(trends.notableFinds.first?.high, 220)
+    }
+
+    func test_aQuietWeekIsEmptyRatherThanAnEmptyHeading() throws {
+        let quiet = try JSONDecoder().decode(
+            Trends.self, from: #"{"days":7,"scans":2,"categories":[],"brands":[]}"#.data(using: .utf8)!)
+        XCTAssertTrue(quiet.isEmpty)
+        XCTAssertTrue(quiet.notableFinds.isEmpty, "a missing key decodes as empty, not a throw")
+    }
+
+    func test_voiceOverReadsARowAsOneSentence() {
+        let row = TrendRow(name: "clothing", count: 54, changePct: 18, averageEstimate: 46)
+        XCTAssertEqual(TrendingCard.rowLabel(row, isPro: true),
+                       "Clothing, 54 scans, average estimate $46, up 18 percent")
+        XCTAssertEqual(TrendingCard.rowLabel(row, isPro: false),
+                       "Clothing, 54 scans, up 18 percent", "free never hears the average")
+        let down = TrendRow(name: "shoes", count: 9, changePct: -7, averageEstimate: nil)
+        XCTAssertEqual(TrendingCard.rowLabel(down, isPro: true), "Shoes, 9 scans, down 7 percent")
+    }
+
+    func test_paywallTriggerExists() {
+        XCTAssertEqual(PaywallTrigger.trends.rawValue, "trends")
+    }
+}

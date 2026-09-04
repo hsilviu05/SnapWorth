@@ -1974,6 +1974,121 @@ async def _week_top(now: datetime | None = None) -> dict:
     }
 
 
+# ── Trends, for the app (#96) ────────────────────────────────────────────────
+#
+# The same tallies the bot reads, shaped for users. Aggregates only, with a
+# floor: a category or brand appears only once enough different scans back it,
+# so nothing here can be traced to one person's afternoon. Notable finds carry
+# an item name and a range and nothing else — no device, no photo, no time of
+# day. Pro sees the averages and the finds; free sees the counts.
+
+TRENDS_MIN_COUNT = 5          # below this a row says more about one user than a trend
+TRENDS_FREE_ROWS = 3
+TRENDS_PRO_ROWS = 6
+TRENDS_FINDS = 5
+TRENDS_CACHE_KEY = "opsstate:trends"
+TRENDS_CACHE_TTL = 15 * 60
+
+
+def _trend_rows(counts: list[tuple[str, int]], previous: dict[str, int],
+                limit: int) -> list[dict]:
+    """Rows above the floor, with last week's direction where it exists."""
+    rows = []
+    for name, count in counts:
+        if count < TRENDS_MIN_COUNT:
+            continue
+        row: dict = {"name": name, "count": count}
+        before = previous.get(name)
+        if isinstance(before, int) and before >= TRENDS_MIN_COUNT:
+            row["change_pct"] = round((count - before) / before * 100)
+        rows.append(row)
+        if len(rows) >= limit:
+            break
+    return rows
+
+
+async def _tallies(days: list[str]) -> tuple[dict[str, int], dict[str, int], list[dict], int]:
+    cats: dict[str, int] = {}
+    brands: dict[str, int] = {}
+    finds: list[dict] = []
+    scans = 0
+    for day in days:
+        try:
+            doc = json.loads(await _cache.get(_stat_key(day, "top")) or "{}")
+        except Exception:
+            doc = {}
+        for c, n in (doc.get("cats") or {}).items():
+            cats[c] = cats.get(c, 0) + int(n)
+        for b, n in (doc.get("brands") or {}).items():
+            brands[b] = brands.get(b, 0) + int(n)
+        for f in doc.get("finds") or []:
+            if isinstance(f, dict):
+                finds.append(f)
+        scans += await _read_stat(day, "scans_free") + await _read_stat(day, "scans_pro")
+    return cats, brands, finds, scans
+
+
+async def trends(*, is_pro: bool, now: datetime | None = None) -> dict:
+    """This week's categories and brands, against the week before.
+
+    Cached for everyone (the numbers are identical per tier), so a burst of
+    app launches costs one pass over fourteen day-documents rather than one
+    per request.
+    """
+    if _cache is None:
+        return {"days": 7, "scans": 0, "categories": [], "brands": []}
+    tier = "pro" if is_pro else "free"
+    try:
+        cached = await _cache.get(f"{TRENDS_CACHE_KEY}:{tier}")
+        if cached:
+            return json.loads(cached)
+    except Exception:
+        pass
+
+    now = now or datetime.now(timezone.utc)
+    this_week = _days_ending_today(7, now)
+    last_week = [_day(now - timedelta(days=i)) for i in range(7, 14)]
+    cats, brands, finds, scans = await _tallies(this_week)
+    prev_cats, prev_brands, _, _ = await _tallies(last_week)
+
+    limit = TRENDS_PRO_ROWS if is_pro else TRENDS_FREE_ROWS
+    payload: dict = {
+        "days": 7,
+        "scans": scans,
+        "categories": _trend_rows(sorted(cats.items(), key=lambda kv: -kv[1]), prev_cats, limit),
+        "brands": _trend_rows(sorted(brands.items(), key=lambda kv: -kv[1]), prev_brands, limit),
+    }
+    if is_pro:
+        # Average estimate per category, from the day's best finds only —
+        # which is what the tallies keep. Labelled as such by the client.
+        by_category: dict[str, list[float]] = {}
+        for f in finds:
+            category = str(f.get("c") or "other")
+            try:
+                low, high = float(f.get("lo") or 0), float(f.get("hi") or 0)
+            except (TypeError, ValueError):
+                continue
+            if high > 0:
+                by_category.setdefault(category, []).append((low + high) / 2)
+        for row in payload["categories"]:
+            values = by_category.get(row["name"]) or []
+            if len(values) >= 3:      # an average of one or two is not an average
+                row["average_estimate"] = round(sum(values) / len(values))
+        payload["notable_finds"] = [
+            {"name": str(f.get("n") or "Unidentified item")[:60],
+             "category": str(f.get("c") or "other"),
+             "low": round(float(f.get("lo") or 0)), "high": round(float(f.get("hi") or 0))}
+            for f in sorted(finds, key=lambda f: -float(f.get("hi") or 0))[:TRENDS_FINDS]
+            if float(f.get("hi") or 0) > 0
+        ]
+
+    try:
+        await _cache.set(f"{TRENDS_CACHE_KEY}:{tier}", json.dumps(payload), TRENDS_CACHE_TTL)
+    except Exception as exc:
+        log.debug("trends cache write failed: %s", type(exc).__name__)
+    return payload
+
+
 def _find_line(rank: int, f: dict) -> str:
     emoji = CATEGORY_EMOJI.get(str(f.get("c") or ""), "📦")
     name = html.escape(str(f.get("n") or "Unidentified item"))

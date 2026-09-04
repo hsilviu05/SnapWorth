@@ -258,3 +258,109 @@ actor ListingAPIClient {
         NSDecimalNumber(decimal: d).doubleValue
     }
 }
+
+
+// ═══════════════════════════════════════════════════════════════════
+// MARK: - Trends (#96)
+// ═══════════════════════════════════════════════════════════════════
+
+/// One row of the weekly trend: a category or a brand, how many scans it drew,
+/// and — when both weeks had enough of them — which way it moved.
+struct TrendRow: Decodable, Identifiable, Equatable {
+    let name: String
+    let count: Int
+    let changePct: Int?
+    /// Pro only, and only once enough finds support it.
+    let averageEstimate: Double?
+
+    var id: String { name }
+
+    enum CodingKeys: String, CodingKey {
+        case name, count
+        case changePct = "change_pct"
+        case averageEstimate = "average_estimate"
+    }
+}
+
+struct NotableFind: Decodable, Identifiable, Equatable {
+    let name: String
+    let category: String
+    let low: Double
+    let high: Double
+
+    var id: String { "\(name)-\(low)-\(high)" }
+}
+
+/// What the app shows on My Finds. Aggregates about everyone, never about a
+/// person: the server applies a floor before any of this is sent.
+struct Trends: Decodable, Equatable {
+    let days: Int
+    let scans: Int
+    let categories: [TrendRow]
+    let brands: [TrendRow]
+    let notableFinds: [NotableFind]
+
+    enum CodingKeys: String, CodingKey {
+        case days, scans, categories, brands
+        case notableFinds = "notable_finds"
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        days = try c.decodeIfPresent(Int.self, forKey: .days) ?? 7
+        scans = try c.decodeIfPresent(Int.self, forKey: .scans) ?? 0
+        categories = try c.decodeIfPresent([TrendRow].self, forKey: .categories) ?? []
+        brands = try c.decodeIfPresent([TrendRow].self, forKey: .brands) ?? []
+        notableFinds = try c.decodeIfPresent([NotableFind].self, forKey: .notableFinds) ?? []
+    }
+
+    init(days: Int = 7, scans: Int = 0, categories: [TrendRow] = [],
+         brands: [TrendRow] = [], notableFinds: [NotableFind] = []) {
+        self.days = days
+        self.scans = scans
+        self.categories = categories
+        self.brands = brands
+        self.notableFinds = notableFinds
+    }
+
+    /// Nothing cleared the server's floor this week — show nothing rather than
+    /// an empty heading.
+    var isEmpty: Bool { categories.isEmpty && brands.isEmpty }
+}
+
+/// Reads `GET /trends`. Same session, same device header, same auth retry as
+/// every other call; the free/Pro shape is decided by the server.
+actor TrendsAPIClient {
+    static let shared = TrendsAPIClient()
+    private init() {}
+
+    private let session: URLSession = .snapWorthAPI
+    private var deviceID: String { DeviceIdentity.shared.id }
+
+    func fetch() async throws -> Trends {
+        if Config.mockScans { return Self.mock }
+
+        var request = URLRequest(url: Config.baseURL.appendingPathComponent("trends"))
+        request.httpMethod = "GET"
+        request.setValue(deviceID, forHTTPHeaderField: "x-device-id")
+        await request.attachBearerToken()
+
+        let (data, http) = try await request.sendRetryingAuth(on: session)
+        guard (200..<300).contains(http.statusCode) else {
+            throw ScanAPIError.serverError(http.statusCode, APIErrorDetail.parse(data))
+        }
+        return try JSONDecoder().decode(Trends.self, from: data)
+    }
+
+    /// For the Simulator's mock-scans scheme.
+    static let mock = Trends(
+        days: 7, scans: 128,
+        categories: [TrendRow(name: "clothing", count: 54, changePct: 18, averageEstimate: 46),
+                     TrendRow(name: "shoes", count: 31, changePct: -7, averageEstimate: 72),
+                     TrendRow(name: "home", count: 22, changePct: nil, averageEstimate: 58)],
+        brands: [TrendRow(name: "Carhartt", count: 14, changePct: 40, averageEstimate: nil),
+                 TrendRow(name: "Nike", count: 11, changePct: 5, averageEstimate: nil),
+                 TrendRow(name: "Le Creuset", count: 7, changePct: nil, averageEstimate: nil)],
+        notableFinds: [NotableFind(name: "Le Creuset Dutch Oven 5.5qt", category: "home", low: 120, high: 220),
+                       NotableFind(name: "The North Face Nuptse 700", category: "clothing", low: 110, high: 200)])
+}
