@@ -158,7 +158,7 @@ actor ListingAPIClient {
                   condition: Condition,
                   marketplace: Marketplace) async throws -> GeneratedListing {
         let range = result.priceRange(for: condition)
-        if Config.mockMode {
+        if Config.mockScans {
             return mockListing(result: result, condition: condition, marketplace: marketplace, range: range)
         }
         return try await liveGenerate(result: result, condition: condition,

@@ -17,22 +17,38 @@ struct ResultView: View {
     @State private var feesText: String
     @FocusState private var focusedField: Field?
     @State private var showShareSheet = false
-    @State private var showGuessGame = false
+    @State private var showShareChoice = false
+    /// What the share sheet carries: the result card, or the guess story pair.
+    @State private var shareItems: [Any] = []
     @State private var showPaywall = false
     @State private var showListingShare = false
 
-    private enum Field { case paid, sold, fees }
+    private enum Field { case paid, sold, fees, guess }
+
+    // ── Guess before the estimate ─────────────────────────────────────────────
+    @AppStorage(GuessFirst.key) private var guessFirst = GuessFirst.defaultOn
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    /// Per result: a fresh sheet starts covered when the preference is on.
+    @State private var priceRevealed = false
+    @State private var quickGuessText = ""
 
     private var isPro: Bool { purchaseService.isSubscribed }
+
+    /// Only a *fresh* scan starts with its value covered. Reopening the same
+    /// find from My Finds or My Flips shows the number straight away — the
+    /// guess is a once-per-find moment, not a toll on every visit.
+    private let coverPrice: Bool
 
     init(result: ScanResult,
          purchaseService: any PurchaseService,
          onDismiss: @escaping () -> Void,
-         didSave: Bool = true) {
+         didSave: Bool = true,
+         coverPrice: Bool = false) {
         self.result = result
         self.purchaseService = purchaseService
         self.onDismiss = onDismiss
         self.didSave = didSave
+        self.coverPrice = coverPrice
         _paidPriceText = State(initialValue: Self.moneyField(result.paidPrice))
         _soldPriceText = State(initialValue: Self.moneyField(result.soldPrice))
         _feesText      = State(initialValue: Self.moneyField(result.feesEstimate))
@@ -56,9 +72,17 @@ struct ResultView: View {
                             .padding(.horizontal, 20)
                             .offset(y: -28)
 
-                        whyThisPriceCard
-                            .padding(.horizontal, 20)
-                            .padding(.top, -16)
+                        // The ladder would give the covered number away.
+                        if !priceCovered {
+                            whyThisPriceCard
+                                .padding(.horizontal, 20)
+                                // The value card above is offset up by 28pt for
+                                // the hero overlap; -12 here leaves a 16pt gap to
+                                // it, and the bottom padding keeps Condition from
+                                // sitting on this card's shadow.
+                                .padding(.top, -12)
+                                .padding(.bottom, 8)
+                        }
 
                         conditionCard
                             .padding(.horizontal, 20)
@@ -66,7 +90,6 @@ struct ResultView: View {
                             .offset(y: -28)
 
                         paidPriceCard
-                        guessGameCard
                             .padding(.horizontal, 20)
                             .padding(.top, 12)
 
@@ -107,7 +130,7 @@ struct ResultView: View {
                     Button {
                         guard vm.shareCard != nil else { return }
                         Analytics.shared.track(.shareCardOpened)
-                        showShareSheet = true
+                        showShareChoice = true
                     } label: {
                         circleButton(icon: "square.and.arrow.up")
                     }
@@ -115,7 +138,22 @@ struct ResultView: View {
                     .accessibilityLabel("Share")
                     .accessibilityHint(vm.shareCard == nil
                         ? "Share card is still being prepared"
-                        : "Creates a shareable card for this find")
+                        : "Share this find as a card, or as a guess-the-price story")
+                    .confirmationDialog("Share", isPresented: $showShareChoice, titleVisibility: .hidden) {
+                        Button("Result card") {
+                            if let card = vm.shareCard {
+                                shareItems = [card]
+                                showShareSheet = true
+                            }
+                        }
+                        Button("Guess-the-price story (question, then reveal)") {
+                            let cards = vm.renderGuessCards(result: result, photo: photo, displayScale: displayScale)
+                            shareItems = [cards.guess, cards.reveal].compactMap { $0 }
+                            guard !shareItems.isEmpty else { return }
+                            Analytics.shared.track(.guessCardShared(style: "pair"))
+                            showShareSheet = true
+                        }
+                    }
                 }
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button(action: onDismiss) {
@@ -154,14 +192,11 @@ struct ResultView: View {
             result.feesEstimate = newValue.isEmpty ? nil : Double(newValue)
         }
         .sheet(isPresented: $showShareSheet) {
-            if let card = vm.shareCard {
-                ActivityShareSheet(items: [card]) { activityType in
+            if !shareItems.isEmpty {
+                ActivityShareSheet(items: shareItems) { activityType in
                     Analytics.shared.track(.shareCardShared(activityType: activityType))
                 }
             }
-        }
-        .sheet(isPresented: $showGuessGame) {
-            GuessThePriceSheet(result: result, photo: photo)
         }
         .sheet(isPresented: $showListingShare) {
             if let items = vm.listingShareItems {
@@ -214,7 +249,8 @@ struct ResultView: View {
             // VoiceOver user learns the outcome without hunting for it.
             UIAccessibility.post(
                 notification: .announcement,
-                argument: "\(condition.label). Estimate \(result.formattedRange)"
+                argument: priceCovered ? condition.label
+                                       : "\(condition.label). Estimate \(result.formattedRange)"
             )
         } label: {
             Text(condition.label)
@@ -271,45 +307,6 @@ struct ResultView: View {
         .background(Color.snapCard)
         .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
         .shadow(color: Color.snapCardShadow.opacity(0.08), radius: 24, x: 0, y: 8)
-    }
-
-    // MARK: - Guess the price
-
-    /// The share format that actually spreads: the question, not the answer.
-    /// Free for everyone — it is marketing.
-    private var guessGameCard: some View {
-        Button {
-            Haptics.light()
-            showGuessGame = true
-        } label: {
-            HStack(spacing: 14) {
-                Text("🎯")
-                    .font(.system(size: 26))
-                    .accessibilityHidden(true)
-                VStack(alignment: .leading, spacing: 3) {
-                    Text("Guess the price")
-                        .font(.dmSans(17, weight: .semibold))
-                        .foregroundStyle(Color.snapEspresso)
-                    Text("Turn this find into a story: the question first, the estimate on the reveal.")
-                        .font(.snapCaption)
-                        .foregroundStyle(Color.snapWarmGray)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-                Spacer(minLength: 0)
-                Image(systemName: "chevron.right")
-                    .snapSymbol(14, weight: .semibold)
-                    .foregroundStyle(Color.snapWarmGray)
-                    .accessibilityHidden(true)
-            }
-            .padding(20)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color.snapCard)
-            .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
-            .shadow(color: Color.snapCardShadow.opacity(0.08), radius: 24, x: 0, y: 8)
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel("Guess the price")
-        .accessibilityHint("Opens a game that hides the estimate until you reveal it, with cards to share")
     }
 
     // MARK: - Flip Status Card
@@ -588,7 +585,74 @@ struct ResultView: View {
 
     // MARK: - Value Card
 
+    /// Whether the value is still under its cover.
+    private var priceCovered: Bool { coverPrice && guessFirst && !priceRevealed }
+
+    private var quickGuess: Double? { GuessScoring.parse(quickGuessText) }
+
+    private var quickVerdict: String? {
+        guard priceRevealed, let quickGuess else { return nil }
+        return GuessScoring.verdict(guess: quickGuess, low: result.displayValueLow,
+                                    high: result.displayValueHigh)
+    }
+
+    @ViewBuilder
     private var valueCard: some View {
+        if priceCovered {
+            coveredValueCard
+        } else {
+            revealedValueCard
+        }
+    }
+
+    /// The moment before the number. The range is under a solid cover with an
+    /// optional guess; one tap on Reveal springs it in with a haptic.
+    private var coveredValueCard: some View {
+        VStack(spacing: 14) {
+            Text("What do you think it could resell for?")
+                .font(.snapCaption)
+                .foregroundStyle(Color.snapWarmGray)
+
+            ZStack {
+                ValueRangeView(low: result.displayValueLow, high: result.displayValueHigh)
+                    .blur(radius: 18)
+                    .opacity(0.25)
+                    .accessibilityHidden(true)
+                Text("$ ? ? ?")
+                    .font(.fraunces(34, weight: .bold, relativeTo: .largeTitle))
+                    .foregroundStyle(Color.snapWarmGray.opacity(0.6))
+                    .accessibilityHidden(true)
+            }
+            .frame(maxWidth: .infinity)
+
+            HStack(spacing: 6) {
+                Text("$")
+                    .font(.dmSans(17, weight: .medium))
+                    .foregroundStyle(Color.snapWarmGray)
+                    .accessibilityHidden(true)
+                TextField("Your guess (optional)", text: $quickGuessText)
+                    .keyboardType(.decimalPad)
+                    .font(.dmSans(17, weight: .medium))
+                    .foregroundStyle(Color.snapEspresso)
+                    .focused($focusedField, equals: .guess)
+                    .accessibilityLabel("Your guess in dollars, optional")
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 10)
+            .background(Color.snapBackground)
+            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+
+            PrimaryButton(title: "Reveal the estimate") { revealPrice() }
+        }
+        .padding(20)
+        .frame(maxWidth: .infinity)
+        .background(Color.snapCard)
+        .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+        .shadow(color: Color.snapCardShadow.opacity(0.12), radius: 24, x: 0, y: 8)
+        .accessibilitySortPriority(100)
+    }
+
+    private var revealedValueCard: some View {
         VStack(spacing: 16) {
             VStack(spacing: 6) {
                 Text("Estimated Resale Value")
@@ -596,6 +660,14 @@ struct ResultView: View {
                     .foregroundStyle(Color.snapWarmGray)
 
                 ValueRangeView(low: result.displayValueLow, high: result.displayValueHigh)
+            }
+
+            if let quickVerdict {
+                Text(quickVerdict)
+                    .font(.dmSans(15, weight: .semibold))
+                    .foregroundStyle(Color.snapEspresso)
+                    .multilineTextAlignment(.center)
+                    .transition(.opacity)
             }
 
             Divider()
@@ -622,10 +694,22 @@ struct ResultView: View {
         .accessibilityLabel("Estimated resale value")
         .accessibilityValue(
             "\(result.formattedRange). \(result.confidence) confidence AI estimate."
+            + (quickVerdict.map { " \($0)" } ?? "")
         )
         // Read first when the sheet opens — it is why the user is here.
         .accessibilitySortPriority(100)
         .accessibilityAddTraits(.isSummaryElement)
+    }
+
+    private func revealPrice() {
+        guard !priceRevealed else { return }
+        focusedField = nil
+        withAnimation(reduceMotion ? .easeInOut(duration: 0.2)
+                                   : .spring(response: 0.45, dampingFraction: 0.62)) {
+            priceRevealed = true
+        }
+        Haptics.success()
+        Analytics.shared.track(.guessRevealed(withGuess: quickGuess != nil))
     }
 
     // MARK: - Why this price (#87)

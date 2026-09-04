@@ -269,9 +269,9 @@ actor ScanAPIClient {
     private var deviceID: String { DeviceIdentity.shared.id }
 
     /// Uploads `image` to the backend and returns the AI analysis.
-    /// When `Config.mockMode` is true, returns realistic canned data instantly.
+    /// When `Config.mockScans` is true, returns realistic canned data instantly.
     func scan(image: UIImage) async throws -> ScanAPIResponse {
-        if Config.mockMode {
+        if Config.mockScans {
             return try await mockScan()
         }
         return try await liveScan(image: image)
@@ -292,7 +292,17 @@ actor ScanAPIClient {
                 estValueHighUsd: 90,
                 confidence: "High",
                 listingTitle: "Patagonia Better Sweater Fleece 1/4-Zip Medium",
-                listingDescription: "Classic Patagonia Better Sweater in great used condition. Light pilling typical of normal wear — no stains, holes, or fading. Retails for $149 new. Ships same day in smoke-free home."
+                listingDescription: "Classic Patagonia Better Sweater in great used condition. Light pilling typical of normal wear — no stains, holes, or fading. Retails for $149 new. Ships same day in smoke-free home.",
+                confidenceScore: 78,
+                confidenceSummary: "The brand and model are clearly legible and the item is common on the secondhand market.",
+                confidenceReasons: ["Logo and zip pull visible", "Well-known model with steady demand", "Photo is sharp"],
+                quickSalePriceUsd: 45, expectedPriceUsd: 62, bestCasePriceUsd: 90, worstCasePriceUsd: 38,
+                valueDrivers: ["Classic neutral colourway", "Patagonia's repair reputation keeps resale strong"],
+                assumptions: ["Size M as read from the label", "No hidden damage on the reverse"],
+                improveEstimate: ["Photograph the inside care tag", "Show the cuffs where pilling gathers"],
+                authenticityAssessment: "Consistent with genuine",
+                authenticityReasoning: "Label typography, zip and stitching match the current production run.",
+                demand: "steady", supply: "plentiful", conditionGrade: "Good", size: "M", material: "Fleece"
             ),
             ScanAPIResponse(
                 itemName: "Levi's 501 Original Straight Jeans, 32x32",
@@ -303,7 +313,15 @@ actor ScanAPIClient {
                 estValueHighUsd: 55,
                 confidence: "High",
                 listingTitle: "Levi's 501 Original Straight Jeans 32x32 Vintage",
-                listingDescription: "Authentic Levi's 501 in excellent secondhand condition. Minimal wear with original dark wash intact. Classic fit that never goes out of style."
+                listingDescription: "Authentic Levi's 501 in excellent secondhand condition. Minimal wear with original dark wash intact. Classic fit that never goes out of style.",
+                confidenceScore: 66,
+                confidenceSummary: "The model is unmistakable; the era and origin are not visible from this angle.",
+                confidenceReasons: ["Red tab and back patch visible", "Wash and fit read as modern", "Inside label not shown"],
+                quickSalePriceUsd: 28, expectedPriceUsd: 38, bestCasePriceUsd: 55, worstCasePriceUsd: 22,
+                valueDrivers: ["501 is the most-searched vintage denim model", "Dark, even wash"],
+                assumptions: ["Imported, not made in USA", "Measured waist matches the tag"],
+                improveEstimate: ["Photograph the inside label — a made-in-USA or big-E tab changes the range", "Lay flat and show the hem"],
+                demand: "high", supply: "plentiful", conditionGrade: "Very good", size: "32x32", era: "2010s", material: "Denim"
             ),
             ScanAPIResponse(
                 itemName: "Nike Air Max 90 Sneakers, Size 10",
@@ -314,7 +332,17 @@ actor ScanAPIClient {
                 estValueHighUsd: 110,
                 confidence: "Medium",
                 listingTitle: "Nike Air Max 90 White Size 10 — Clean & Ready",
-                listingDescription: "Nike Air Max 90 in good used condition. Some normal creasing on the toe box but soles are clean and cushioning is excellent. Includes original laces."
+                listingDescription: "Nike Air Max 90 in good used condition. Some normal creasing on the toe box but soles are clean and cushioning is excellent. Includes original laces.",
+                confidenceScore: 54,
+                confidenceSummary: "The silhouette is clear, but the colourway and the sole condition drive this price and neither is fully visible.",
+                confidenceReasons: ["Air Max 90 silhouette is distinctive", "Colourway partly out of frame", "Sole wear not shown"],
+                quickSalePriceUsd: 55, expectedPriceUsd: 72, bestCasePriceUsd: 110, worstCasePriceUsd: 45,
+                valueDrivers: ["General-release colourways resell steadily; collaborations far higher"],
+                assumptions: ["General release, not a collaboration", "Midsole not yellowed"],
+                improveEstimate: ["Photograph the sole and heel tab", "Show the size on the tongue label"],
+                authenticityAssessment: "Cannot tell from this photo",
+                authenticityReasoning: "The tongue label and box label are the usual tells, and neither is in frame.",
+                demand: "steady", supply: "plentiful", conditionGrade: "Good", size: "US 10"
             ),
         ]
 

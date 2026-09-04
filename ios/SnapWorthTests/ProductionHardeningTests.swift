@@ -1584,3 +1584,10 @@ final class ValuationDetailTests: XCTestCase {
         XCTAssertEqual(PaywallTrigger.valuationDetail.rawValue, "valuation_detail")
     }
 }
+
+final class GuessFirstPreferenceTests: XCTestCase {
+    func test_defaultsOnAndHasAStableKey() {
+        XCTAssertTrue(GuessFirst.defaultOn)
+        XCTAssertEqual(GuessFirst.key, "snapworth_guess_first")
+    }
+}

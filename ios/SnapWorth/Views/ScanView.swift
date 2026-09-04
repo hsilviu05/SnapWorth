@@ -315,7 +315,8 @@ struct ScanView: View {
                 result: result,
                 purchaseService: purchaseService,
                 onDismiss: { showResult = false },
-                didSave: !vm.saveFailed
+                didSave: !vm.saveFailed,
+                coverPrice: true
             )
             .presentationDetents([.large])
             .presentationDragIndicator(.visible)
