@@ -1530,6 +1530,51 @@ async def _retry_as_json(raw: str) -> dict | None:
     return None
 
 
+class TrendRow(BaseModel):
+    name: str
+    count: int
+    change_pct: int | None = None
+    average_estimate: float | None = None      # Pro only
+
+
+class NotableFind(BaseModel):
+    name: str
+    category: str
+    low: float
+    high: float
+
+
+class TrendsResponse(BaseModel):
+    days: int
+    scans: int
+    categories: list[TrendRow] = Field(default_factory=list)
+    brands: list[TrendRow] = Field(default_factory=list)
+    notable_finds: list[NotableFind] = Field(default_factory=list)   # Pro only
+
+
+@app.get("/trends", response_model=TrendsResponse)
+async def trends(
+    request: Request,
+    principal: Principal = Depends(require_auth),
+) -> TrendsResponse:
+    """What people scanned this week — anonymous aggregates.
+
+    The backend has kept these tallies since the operator bot shipped: counts
+    per category and per brand, and the day's most valuable finds as an item
+    name and a price range. Nothing in them identifies a device, and nothing
+    here changes that — a row appears only once at least five scans back it,
+    so a single user's afternoon cannot become a "trend", and an average is
+    withheld until three finds support it.
+
+    The free/Pro split is decided **here**, from the verified principal, never
+    by the client asking nicely: free gets the top three categories and brands
+    with counts and direction, Pro also gets the average estimate per category
+    and the week's notable finds.
+    """
+    await _enforce_limits(principal.subject, _client_ip(request))
+    return TrendsResponse(**await notify.trends(is_pro=principal.is_pro))
+
+
 @app.post("/listing", response_model=ListingResponse)
 async def listing(
     request: Request,

@@ -623,3 +623,43 @@ class TestRepeatedSafetyBlocks:
             model.generate_content_async = AsyncMock(return_value=self._blocked_response())
             codes = [_make_scan_request(device_id="off").status_code for _ in range(4)]
         assert codes == [422, 422, 422, 422]
+
+
+class TestTrendsEndpoint:
+    """The tier split is decided from the verified principal, not the client."""
+
+    def _seed(self):
+        import asyncio
+        import json as _json
+        from datetime import datetime, timezone
+
+        import notify
+        from cache import InMemoryCache, ResilientCache
+        # Only notify's cache is involved; main._cache is deliberately left
+        # alone, since assigning a memory-backed one there makes /health report
+        # "degraded" for every later test in the process.
+        cache = ResilientCache(None, InMemoryCache())
+        notify.configure(cache)
+        day = datetime.now(timezone.utc).strftime("%Y%m%d")
+        asyncio.run(cache.set(
+            notify._stat_key(day, "top"),
+            _json.dumps({"cats": {"clothing": 9}, "brands": {"Nike": 6},
+                         "finds": [{"n": "Carhartt Detroit Jacket", "c": "clothing",
+                                    "lo": 60, "hi": 100}] * 3}), 600))
+        return cache
+
+    def test_free_caller_gets_counts_without_finds(self):
+        self._seed()
+        r = client.get("/trends", headers={"x-device-id": "trends-free"})
+        assert r.status_code == 200
+        body = r.json()
+        assert body["categories"][0]["name"] == "clothing"
+        assert body["notable_finds"] == []
+        assert body["categories"][0]["average_estimate"] is None
+
+    def test_response_never_carries_a_device_or_a_photo(self):
+        self._seed()
+        body = client.get("/trends", headers={"x-device-id": "trends-shape"}).json()
+        assert set(body) == {"days", "scans", "categories", "brands", "notable_finds"}
+        for row in body["categories"] + body["brands"]:
+            assert set(row) <= {"name", "count", "change_pct", "average_estimate"}
