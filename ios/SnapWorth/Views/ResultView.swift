@@ -21,7 +21,14 @@ struct ResultView: View {
     @State private var showPaywall = false
     @State private var showListingShare = false
 
-    private enum Field { case paid, sold, fees }
+    private enum Field { case paid, sold, fees, guess }
+
+    // ── Guess before the estimate ─────────────────────────────────────────────
+    @AppStorage(GuessFirst.key) private var guessFirst = GuessFirst.defaultOn
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    /// Per result: a fresh sheet starts covered when the preference is on.
+    @State private var priceRevealed = false
+    @State private var quickGuessText = ""
 
     private var isPro: Bool { purchaseService.isSubscribed }
 
@@ -588,7 +595,74 @@ struct ResultView: View {
 
     // MARK: - Value Card
 
+    /// Whether the value is still under its cover.
+    private var priceCovered: Bool { guessFirst && !priceRevealed }
+
+    private var quickGuess: Double? { GuessScoring.parse(quickGuessText) }
+
+    private var quickVerdict: String? {
+        guard priceRevealed, let quickGuess else { return nil }
+        return GuessScoring.verdict(guess: quickGuess, low: result.displayValueLow,
+                                    high: result.displayValueHigh)
+    }
+
+    @ViewBuilder
     private var valueCard: some View {
+        if priceCovered {
+            coveredValueCard
+        } else {
+            revealedValueCard
+        }
+    }
+
+    /// The moment before the number. The range is under a solid cover with an
+    /// optional guess; one tap on Reveal springs it in with a haptic.
+    private var coveredValueCard: some View {
+        VStack(spacing: 14) {
+            Text("What do you think it could resell for?")
+                .font(.snapCaption)
+                .foregroundStyle(Color.snapWarmGray)
+
+            ZStack {
+                ValueRangeView(low: result.displayValueLow, high: result.displayValueHigh)
+                    .blur(radius: 18)
+                    .opacity(0.25)
+                    .accessibilityHidden(true)
+                Text("$ ? ? ?")
+                    .font(.fraunces(34, weight: .bold, relativeTo: .largeTitle))
+                    .foregroundStyle(Color.snapWarmGray.opacity(0.6))
+                    .accessibilityHidden(true)
+            }
+            .frame(maxWidth: .infinity)
+
+            HStack(spacing: 6) {
+                Text("$")
+                    .font(.dmSans(17, weight: .medium))
+                    .foregroundStyle(Color.snapWarmGray)
+                    .accessibilityHidden(true)
+                TextField("Your guess (optional)", text: $quickGuessText)
+                    .keyboardType(.decimalPad)
+                    .font(.dmSans(17, weight: .medium))
+                    .foregroundStyle(Color.snapEspresso)
+                    .focused($focusedField, equals: .guess)
+                    .accessibilityLabel("Your guess in dollars, optional")
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 10)
+            .background(Color.snapBackground)
+            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+
+            PrimaryButton(title: "Reveal the estimate") { revealPrice() }
+        }
+        .padding(20)
+        .frame(maxWidth: .infinity)
+        .background(Color.snapCard)
+        .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+        .shadow(color: Color.snapCardShadow.opacity(0.12), radius: 24, x: 0, y: 8)
+        .accessibilitySortPriority(100)
+    }
+
+    private var revealedValueCard: some View {
         VStack(spacing: 16) {
             VStack(spacing: 6) {
                 Text("Estimated Resale Value")
@@ -596,6 +670,14 @@ struct ResultView: View {
                     .foregroundStyle(Color.snapWarmGray)
 
                 ValueRangeView(low: result.displayValueLow, high: result.displayValueHigh)
+            }
+
+            if let quickVerdict {
+                Text(quickVerdict)
+                    .font(.dmSans(15, weight: .semibold))
+                    .foregroundStyle(Color.snapEspresso)
+                    .multilineTextAlignment(.center)
+                    .transition(.opacity)
             }
 
             Divider()
@@ -622,10 +704,22 @@ struct ResultView: View {
         .accessibilityLabel("Estimated resale value")
         .accessibilityValue(
             "\(result.formattedRange). \(result.confidence) confidence AI estimate."
+            + (quickVerdict.map { " \($0)" } ?? "")
         )
         // Read first when the sheet opens — it is why the user is here.
         .accessibilitySortPriority(100)
         .accessibilityAddTraits(.isSummaryElement)
+    }
+
+    private func revealPrice() {
+        guard !priceRevealed else { return }
+        focusedField = nil
+        withAnimation(reduceMotion ? .easeInOut(duration: 0.2)
+                                   : .spring(response: 0.45, dampingFraction: 0.62)) {
+            priceRevealed = true
+        }
+        Haptics.success()
+        Analytics.shared.track(.guessRevealed(withGuess: quickGuess != nil))
     }
 
     // MARK: - Why this price (#87)

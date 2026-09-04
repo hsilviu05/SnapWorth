@@ -12,6 +12,7 @@ struct SettingsView: View {
     @State private var showDeleteAlert = false
     @AppStorage(Analytics.enabledKey) private var analyticsEnabled = true
     @AppStorage(Haptics.preferenceKey) private var hapticsEnabled = true
+    @AppStorage(GuessFirst.key) private var guessFirst = GuessFirst.defaultOn
 
     /// Marketing version read from the bundle so it never goes stale.
     private static var appVersion: String {
@@ -112,8 +113,27 @@ struct SettingsView: View {
                         // Fire once on enable so the change is felt, not just read.
                         if enabled { Haptics.selection() }
                     }
+
+                    Toggle(isOn: $guessFirst) {
+                        HStack(spacing: 14) {
+                            Image(systemName: "questionmark.circle")
+                                .snapSymbol(16, weight: .medium)
+                                .foregroundStyle(Color.snapTerracotta)
+                                .frame(minWidth: 24)
+                                .accessibilityHidden(true)
+                            Text("Guess before the estimate")
+                                .font(.snapBody)
+                                .foregroundStyle(Color.snapEspresso)
+                        }
+                        .frame(minHeight: 44)
+                    }
+                    .tint(Color.snapTerracotta)
+                    .accessibilityLabel("Guess before the estimate")
+                    .accessibilityHint("When on, each result opens with the price covered until you tap Reveal")
                 } header: {
                     Text("Feel")
+                } footer: {
+                    Text("Guess before the estimate covers the price on every new result until you tap Reveal. Turn it off to see the number straight away.")
                 }
 
                 // ── Privacy ────────────────────────────────────────────────

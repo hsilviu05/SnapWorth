@@ -302,6 +302,15 @@ struct MonthShareCardView: View {
 
 // MARK: - "Guess the price" (#95)
 
+/// The "guess before the estimate" preference: when on, a result opens with
+/// its value covered and reveals on a tap. On by default — the moment before
+/// the number is the fun part — and one switch in Settings for people who
+/// scan fifty things an afternoon and just want the number.
+enum GuessFirst {
+    static let key = "snapworth_guess_first"
+    static let defaultOn = true
+}
+
 /// Which of the pair a `GuessShareCardView` renders.
 enum GuessCardStyle {
     /// The question: photo, what was paid, and the estimate covered.
