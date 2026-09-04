@@ -1073,6 +1073,9 @@ EXTENT PERMITTED BY LAW, WE DISCLAIM ALL WARRANTIES, EXPRESS OR IMPLIED.</p>
 async def scan(
     request: Request,
     file: UploadFile = File(...),
+    # Optional close-up of the label (#88). Absent for every client before
+    # 1.3.5 and for the free tier, which is why nothing below may require it.
+    tag: UploadFile | None = File(default=None),
     x_device_id: str = Header(default="anonymous", alias="x-device-id"),
     principal: Principal = Depends(require_auth),
 ) -> ScanResponse:
@@ -1106,6 +1109,22 @@ async def scan(
                         outcome="denied", reason=str(exc))
         raise HTTPException(status_code=400, detail=str(exc)) from None
 
+    # The tag photo, when one came with the request. Validated exactly like the
+    # item photo; a bad one is dropped rather than failing the scan, because
+    # the item photo alone still produces the answer the user asked for.
+    tag_bytes: bytes | None = None
+    tag_type = ""
+    if tag is not None and principal.is_pro:
+        candidate = await tag.read()
+        if 0 < len(candidate) <= 10 * 1024 * 1024:
+            try:
+                tag_type = imagevalidation.validate(
+                    candidate, tag.content_type or "application/octet-stream")
+                tag_bytes = candidate
+                metrics.upload_bytes.observe(len(candidate))
+            except imagevalidation.ImageValidationError as exc:
+                log.info("tag photo rejected, scanning the item alone: %s", exc)
+
     # Gate on rate limit only after validation — bad requests don't burn quota
     await _enforce_limits(principal.subject, _client_ip(request))
 
@@ -1119,9 +1138,10 @@ async def scan(
     auditlog.record(AuditEvent.SCAN_AUTHORISED, principal.subject, tier=principal.tier)
 
     log.info("scan start", extra={"device": device_short, "size_kb": image_kb,
-                                  "type": content_type})
+                                  "type": content_type, "tag_photo": tag_bytes is not None})
     response, elapsed = await _analyse(image_bytes, content_type,
-                                       subject=principal.subject, device_short=device_short)
+                                       subject=principal.subject, device_short=device_short,
+                                       tag_bytes=tag_bytes, tag_type=tag_type)
 
     # Charge only for work that produced a result.
     quota_status = await consume_quota(principal)
@@ -1139,7 +1159,8 @@ async def scan(
 
 
 async def _analyse(image_bytes: bytes, content_type: str, *, subject: str,
-                   device_short: str) -> tuple[ScanResponse, float]:
+                   device_short: str, tag_bytes: bytes | None = None,
+                   tag_type: str = "") -> tuple[ScanResponse, float]:
     """The scan itself: model call, parse, normalise, clamp, score.
 
     Everything between "the upload is valid and allowed" and "charge for it":
@@ -1157,13 +1178,26 @@ async def _analyse(image_bytes: bytes, content_type: str, *, subject: str,
     # Measured before the model call and independent of it — see imagequality.py.
     # A blurry photo genuinely carries less information, so it must lower the
     # reported confidence no matter how fluent the model's answer sounds.
+    #
+    # Deliberately the *item* photo only. The tag close-up is usually shot at
+    # arm's length against fabric and scores worse on blur; letting it drag the
+    # confidence down would punish the user for supplying more information.
     quality = imagequality.analyse(image_bytes)
 
     prompt_text, prompt_version = prompts.get_prompt(SCAN_PROMPT_VERSION)
 
+    contents: list = [prompt_text, image_part]
+    if tag_bytes:
+        # Item first, label second — the prompt addendum names them in that
+        # order, and the model has no other way to tell which is which.
+        prompt_text = prompts.with_tag_photo(prompt_text)
+        contents = [prompt_text, image_part,
+                    {"mime_type": tag_type or content_type,
+                     "data": base64.standard_b64encode(tag_bytes).decode()}]
+
     try:
         raw, usage = await _generate_with_retry(
-            [prompt_text, image_part], label="scan")
+            contents, label="scan_with_tag" if tag_bytes else "scan")
     except aiconfig.ModelBlocked as exc:
         # A safety block is not an outage. Thrift inventory includes penknives,
         # lighters and vintage militaria; telling the user the service is down

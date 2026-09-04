@@ -72,6 +72,28 @@ final class ScanResult {
     /// sheet asks for it.
     var valuationDetail: ValuationDetail? { ValuationDetail.decode(valuationDetailData) }
 
+    /// Replace this find's valuation with a re-read that had the label photo
+    /// too (#88).
+    ///
+    /// Deliberately partial: the photo, what the user paid, the ledger status
+    /// and any condition they chose are theirs and survive. Only what the model
+    /// produced is replaced — and `conditionRaw` is left alone so a re-read
+    /// never silently undoes a correction the user made by hand.
+    func applySharpened(_ response: ScanAPIResponse) {
+        itemName = response.itemName
+        brand = response.brand
+        category = response.category
+        conditionNotes = response.conditionNotes
+        valueLow = response.estValueLowUsd
+        valueHigh = response.estValueHighUsd
+        confidence = response.confidence
+        listingTitle = response.listingTitle
+        listingDescription = response.listingDescription
+        if let detail = ValuationDetail(response: response) {
+            valuationDetailData = detail.encoded()
+        }
+    }
+
     init(
         id: UUID = UUID(),
         timestamp: Date = Date(),

@@ -37,6 +37,8 @@ enum AnalyticsEvent {
     /// A guess card left through the share sheet: "pair" (question + reveal),
     /// "guess" (question only) or "reveal".
     case guessCardShared(style: String)
+    /// A label close-up was sent with a re-read (#88).
+    case tagPhotoAdded(succeeded: Bool)
 
     // ── Snap → Sell ──────────────────────────────────────────────────
     case listingGenerated(marketplace: String)
@@ -102,6 +104,7 @@ enum AnalyticsEvent {
         case .shareCardShared:      return "share_card_shared"
         case .guessRevealed:        return "guess_revealed"
         case .guessCardShared:      return "guess_card_shared"
+        case .tagPhotoAdded:        return "tag_photo_added"
         case .listingGenerated:     return "listing_generated"
         case .thriftFlipCalculated: return "thrift_flip_calculated"
         case .ledgerItemMarkedSold: return "ledger_item_marked_sold"
@@ -140,6 +143,8 @@ enum AnalyticsEvent {
             return [:]
         case let .guessRevealed(withGuess):
             return ["with_guess": String(withGuess)]
+        case let .tagPhotoAdded(succeeded):
+            return ["succeeded": String(succeeded)]
         case let .guessCardShared(style):
             return ["style": style]
         case let .notificationScheduled(category), let .notificationOpened(category):
@@ -237,6 +242,7 @@ enum PaywallTrigger: String {
     case portfolioTrend = "portfolio_trend"
     case valuationDetail = "valuation_detail"
     case trends = "trends"
+    case addTag = "add_tag"
 }
 
 // ═══════════════════════════════════════════════════════════════════
