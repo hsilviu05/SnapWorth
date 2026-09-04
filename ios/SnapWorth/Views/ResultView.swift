@@ -18,6 +18,9 @@ struct ResultView: View {
     @FocusState private var focusedField: Field?
     @State private var showShareSheet = false
     @State private var showShareChoice = false
+    @State private var showTagCamera = false
+    @State private var isRescanning = false
+    @State private var tagError: String?
     /// What the share sheet carries: the result card, or the guess story pair.
     @State private var shareItems: [Any] = []
     @State private var showPaywall = false
@@ -81,6 +84,10 @@ struct ResultView: View {
                                 // it, and the bottom padding keeps Condition from
                                 // sitting on this card's shadow.
                                 .padding(.top, -12)
+                                .padding(.bottom, 8)
+
+                            addTagCard
+                                .padding(.horizontal, 20)
                                 .padding(.bottom, 8)
                         }
 
@@ -190,6 +197,12 @@ struct ResultView: View {
         }
         .onChange(of: feesText) { _, newValue in
             result.feesEstimate = newValue.isEmpty ? nil : Double(newValue)
+        }
+        .fullScreenCover(isPresented: $showTagCamera) {
+            TagCameraSheet { image in
+                showTagCamera = false
+                if let image { rescan(withTag: image) }
+            }
         }
         .sheet(isPresented: $showShareSheet) {
             if !shareItems.isEmpty {
@@ -712,6 +725,88 @@ struct ResultView: View {
         Analytics.shared.track(.guessRevealed(withGuess: quickGuess != nil))
     }
 
+    // MARK: - Add the tag (#88)
+
+    /// The second photo. Identification is what the estimate rests on, and the
+    /// tag is the biggest single lever on it — which is why "Sharpen this
+    /// estimate" above so often says "photograph the tag" and, until now, gave
+    /// the user nowhere to put it.
+    ///
+    /// Offered on a fresh result only (`coverPrice` marks one): re-pricing a
+    /// find from My Finds weeks later would rewrite a number the user has
+    /// already acted on.
+    @ViewBuilder
+    private var addTagCard: some View {
+        if coverPrice {
+            VStack(alignment: .leading, spacing: 10) {
+                HStack {
+                    Text("Sharpen this estimate")
+                        .snapSectionHeader()
+                    Spacer()
+                    if !isPro { proBadge }
+                }
+                Text("Photograph the care tag, size label or sole stamp and we'll re-read the item with both photos.")
+                    .font(.snapBody)
+                    .foregroundStyle(Color.snapWarmGray)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                if let tagError {
+                    Text(tagError)
+                        .font(.snapCaption)
+                        .foregroundStyle(Color.snapTerracotta)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                PrimaryButton(title: isRescanning ? "Re-reading…" : "Add the tag") {
+                    guard !isRescanning else { return }
+                    if isPro {
+                        tagError = nil
+                        showTagCamera = true
+                    } else {
+                        Analytics.shared.track(.paywallViewed(trigger: .addTag))
+                        showPaywall = true
+                    }
+                }
+                .disabled(isRescanning)
+            }
+            .padding(20)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Color.snapCard)
+            .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+            .shadow(color: Color.snapCardShadow.opacity(0.08), radius: 24, x: 0, y: 8)
+        }
+    }
+
+    /// Re-scan with both photos and replace the estimate in place.
+    ///
+    /// The item photo is the one already stored on the result, so the user
+    /// photographs the label only. A failure leaves the original estimate
+    /// exactly as it was and says so — the first answer was paid for and must
+    /// not be lost to a second attempt.
+    private func rescan(withTag tagImage: UIImage) {
+        guard let photo else {
+            tagError = "The original photo is no longer available for this find."
+            return
+        }
+        isRescanning = true
+        tagError = nil
+        Task {
+            defer { isRescanning = false }
+            do {
+                let response = try await ScanAPIClient.shared.scan(image: photo, tagImage: tagImage)
+                result.applySharpened(response)
+                priceRevealed = true          // the user has seen the first number already
+                Haptics.success()
+                Analytics.shared.track(.tagPhotoAdded(succeeded: true))
+            } catch {
+                tagError = AppError.from(error).errorDescription
+                    ?? "That didn't work. Your estimate is unchanged."
+                Haptics.failure()
+                Analytics.shared.track(.tagPhotoAdded(succeeded: false))
+            }
+        }
+    }
+
     // MARK: - Why this price (#87)
 
     /// The panel the backend has been paying for since July. Pro sees it all;
@@ -1225,5 +1320,90 @@ struct ValuationDetailView: View {
 
     static func money(_ value: Double) -> String {
         NumberFormatter.snapCurrency.string(from: NSNumber(value: value)) ?? "$\(Int(value))"
+    }
+}
+
+
+// ═══════════════════════════════════════════════════════════════════
+// MARK: - Tag camera (#88)
+// ═══════════════════════════════════════════════════════════════════
+
+/// A camera for one close-up of a label, with a guide shaped like a care tag.
+///
+/// Its own `CameraManager` rather than the scan tab's: this is presented over
+/// a result sheet, and reusing the tab's session would leave the scan camera
+/// running behind two layers of presentation.
+struct TagCameraSheet: View {
+    /// Nil when the user backed out.
+    let onCapture: (UIImage?) -> Void
+
+    @StateObject private var camera = CameraManager()
+
+    var body: some View {
+        ZStack {
+            Color.snapCharcoal.ignoresSafeArea()
+
+            if camera.authStatus == .authorized {
+                CameraPreview(session: camera.session)
+                    .ignoresSafeArea()
+            }
+
+            VStack(spacing: 0) {
+                HStack {
+                    Button("Cancel") { onCapture(nil) }
+                        .font(.dmSans(15, weight: .semibold))
+                        .foregroundStyle(Color.snapOnCharcoal)
+                        .snapHitTarget()
+                    Spacer()
+                }
+                .padding(.horizontal, 20)
+                .padding(.top, 12)
+
+                Spacer()
+
+                // A tag is wider than it is tall and sits close to the lens;
+                // the guide says "fill this" without a paragraph of copy.
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .strokeBorder(Color.snapOnCharcoal.opacity(0.6), lineWidth: 2)
+                    .frame(width: 300, height: 190)
+                    .accessibilityHidden(true)
+
+                Text("Fill the frame with the label")
+                    .font(.snapBody)
+                    .foregroundStyle(Color.snapOnCharcoal)
+                    .padding(.top, 16)
+                Text("Care tag, size label, sole stamp or serial plate. Hold steady — the small print is the point.")
+                    .font(.snapCaption)
+                    .foregroundStyle(Color.snapOnCharcoal.opacity(0.7))
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 40)
+                    .padding(.top, 4)
+
+                Spacer()
+
+                Button {
+                    Haptics.capture()
+                    camera.capturePhoto()
+                } label: {
+                    ZStack {
+                        Circle().fill(Color.snapOnCharcoal).frame(width: 80, height: 80)
+                        Circle().strokeBorder(Color.snapOnCharcoal.opacity(0.4), lineWidth: 3)
+                            .frame(width: 94, height: 94)
+                    }
+                }
+                .disabled(camera.authStatus != .authorized)
+                .accessibilityLabel("Take the label photo")
+                .padding(.bottom, 44)
+            }
+        }
+        .onAppear {
+            Haptics.prepare()
+            camera.requestPermissionAndSetup()
+        }
+        .onDisappear { camera.stopSession() }
+        .onChange(of: camera.capturedImage) { _, image in
+            guard let image else { return }
+            onCapture(image)
+        }
     }
 }

@@ -1651,3 +1651,69 @@ final class TrendsDecodingTests: XCTestCase {
         XCTAssertEqual(PaywallTrigger.trends.rawValue, "trends")
     }
 }
+
+
+// MARK: - Add the tag (#88)
+
+final class SharpenedResultTests: XCTestCase {
+    private func result() -> ScanResult {
+        let r = ScanResult(itemName: "Fleece", brand: "Unknown", category: "clothing",
+                           conditionNotes: "Good", valueLow: 20, valueHigh: 90,
+                           confidence: "Low", soldListingsCount: 0,
+                           listingTitle: "Old title", listingDescription: "Old body",
+                           imageData: Data([0xFF, 0xD8]), paidPrice: 4)
+        r.statusRaw = "listed"
+        r.conditionRaw = "likeNew"
+        return r
+    }
+
+    private func response() -> ScanAPIResponse {
+        ScanAPIResponse(
+            itemName: "Patagonia Better Sweater 1/4-Zip, Size M", brand: "Patagonia",
+            category: "clothing", conditionNotes: "Good — light pilling",
+            estValueLowUsd: 45, estValueHighUsd: 85, confidence: "High",
+            listingTitle: "New title", listingDescription: "New body",
+            confidenceScore: 88, confidenceSummary: "The label confirms the model.",
+            confidenceReasons: ["Care tag read"], improveEstimate: [])
+    }
+
+    func test_theModelsFieldsAreReplaced() {
+        let r = result()
+        r.applySharpened(response())
+        XCTAssertEqual(r.itemName, "Patagonia Better Sweater 1/4-Zip, Size M")
+        XCTAssertEqual(r.brand, "Patagonia")
+        XCTAssertEqual(r.valueLow, 45)
+        XCTAssertEqual(r.valueHigh, 85)
+        XCTAssertEqual(r.confidence, "High")
+        XCTAssertEqual(r.listingTitle, "New title")
+        XCTAssertEqual(r.valuationDetail?.confidenceScore, 88)
+    }
+
+    func test_whatTheUserOwnsSurvives() {
+        let r = result()
+        r.applySharpened(response())
+        XCTAssertEqual(r.paidPrice, 4, "what they paid is theirs")
+        XCTAssertEqual(r.statusRaw, "listed", "the ledger is theirs")
+        XCTAssertEqual(r.conditionRaw, "likeNew", "a hand-made correction is never undone")
+        XCTAssertNotNil(r.imageData, "the photo they took stays")
+    }
+
+    func test_aThinResponseDoesNotWipeTheDetailPanel() {
+        let r = result()
+        r.applySharpened(response())
+        // A later re-read from a server that sends no v2 fields must not
+        // blank what the first one produced.
+        r.applySharpened(ScanAPIResponse(
+            itemName: "x", brand: "x", category: "clothing", conditionNotes: "x",
+            estValueLowUsd: 1, estValueHighUsd: 2, confidence: "Low",
+            listingTitle: "t", listingDescription: "d"))
+        XCTAssertEqual(r.valuationDetail?.confidenceScore, 88)
+    }
+
+    func test_analyticsAndTriggerAreBounded() {
+        XCTAssertEqual(AnalyticsEvent.tagPhotoAdded(succeeded: true).name, "tag_photo_added")
+        XCTAssertEqual(AnalyticsEvent.tagPhotoAdded(succeeded: false).parameters,
+                       ["succeeded": "false"])
+        XCTAssertEqual(PaywallTrigger.addTag.rawValue, "add_tag")
+    }
+}

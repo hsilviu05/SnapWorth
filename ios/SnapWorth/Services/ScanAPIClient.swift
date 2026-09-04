@@ -270,15 +270,18 @@ actor ScanAPIClient {
 
     /// Uploads `image` to the backend and returns the AI analysis.
     /// When `Config.mockScans` is true, returns realistic canned data instantly.
-    func scan(image: UIImage) async throws -> ScanAPIResponse {
+    /// `tagImage` is an optional close-up of the item's label (#88). When
+    /// present it is uploaded alongside the item photo and the backend hands
+    /// both to one model call; when absent nothing changes.
+    func scan(image: UIImage, tagImage: UIImage? = nil) async throws -> ScanAPIResponse {
         if Config.mockScans {
-            return try await mockScan()
+            return try await mockScan(sharpened: tagImage != nil)
         }
-        return try await liveScan(image: image)
+        return try await liveScan(image: image, tagImage: tagImage)
     }
 
     // ── Mock ──────────────────────────────────────────────────────────────────
-    private func mockScan() async throws -> ScanAPIResponse {
+    private func mockScan(sharpened: Bool = false) async throws -> ScanAPIResponse {
         // Simulate ~2 second network + AI latency
         try await Task.sleep(for: .seconds(2.2))
 
@@ -346,14 +349,49 @@ actor ScanAPIClient {
             ),
         ]
 
-        return mocks[Int.random(in: 0..<mocks.count)]
+        let picked = mocks[Int.random(in: 0..<mocks.count)]
+        return sharpened ? Self.sharpened(picked) : picked
+    }
+
+    /// What a label close-up buys, for the mock-scans scheme: a tighter range,
+    /// higher confidence, and evidence that names the tag. The real thing comes
+    /// from the model; this only makes the flow visible in the Simulator.
+    private static func sharpened(_ base: ScanAPIResponse) -> ScanAPIResponse {
+        let low = base.estValueLowUsd + (base.estValueHighUsd - base.estValueLowUsd) * 0.25
+        let high = base.estValueHighUsd - (base.estValueHighUsd - base.estValueLowUsd) * 0.1
+        return ScanAPIResponse(
+            itemName: base.itemName, brand: base.brand, category: base.category,
+            conditionNotes: base.conditionNotes,
+            estValueLowUsd: low.rounded(), estValueHighUsd: high.rounded(),
+            confidence: "High",
+            listingTitle: base.listingTitle, listingDescription: base.listingDescription,
+            confidenceScore: min(96, (base.confidenceScore ?? 60) + 17),
+            confidenceSummary: "The label confirms the model, size and fabric.",
+            confidenceReasons: ["Care tag read: size and composition confirmed",
+                                "Style code matches the current production run",
+                                "Item photo clear enough to grade condition"],
+            quickSalePriceUsd: base.quickSalePriceUsd, expectedPriceUsd: base.expectedPriceUsd,
+            bestCasePriceUsd: base.bestCasePriceUsd, worstCasePriceUsd: base.worstCasePriceUsd,
+            valueDrivers: base.valueDrivers, assumptions: [],
+            uncertaintyFactors: base.uncertaintyFactors,
+            improveEstimate: [],
+            authenticityAssessment: base.authenticityAssessment,
+            authenticityReasoning: base.authenticityReasoning,
+            demand: base.demand, supply: base.supply,
+            conditionGrade: base.conditionGrade, size: base.size, era: base.era,
+            material: base.material)
     }
 
     // ── Live ──────────────────────────────────────────────────────────────────
-    private func liveScan(image: UIImage) async throws -> ScanAPIResponse {
+    private func liveScan(image: UIImage, tagImage: UIImage? = nil) async throws -> ScanAPIResponse {
         guard let jpegData = await Self.encodeForUpload(image) else {
             throw ScanAPIError.imageEncodingFailed
         }
+        // Same longest edge as the item photo: the label's small print is
+        // exactly the detail this feature exists to read, so downscaling it
+        // further would defeat the point. A failure to encode it is not fatal —
+        // the scan proceeds on the item photo alone.
+        let tagData = tagImage == nil ? nil : await Self.encodeForUpload(tagImage!)
 
         let endpoint = Config.baseURL.appendingPathComponent("scan")
         var request = URLRequest(url: endpoint)
@@ -365,7 +403,7 @@ actor ScanAPIClient {
 
         let boundary = "Boundary-\(UUID().uuidString)"
         request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
-        request.httpBody = buildMultipart(data: jpegData, boundary: boundary)
+        request.httpBody = buildMultipart(data: jpegData, tagData: tagData, boundary: boundary)
 
         let (data, http) = try await request.sendRetryingAuth(on: session)
 
@@ -467,14 +505,22 @@ actor ScanAPIClient {
         }
     }
 
-    private func buildMultipart(data: Data, boundary: String) -> Data {
+    private func buildMultipart(data: Data, tagData: Data? = nil, boundary: String) -> Data {
         var body = Data()
         let crlf = "\r\n"
-        body.append(Data("--\(boundary)\(crlf)".utf8))
-        body.append(Data("Content-Disposition: form-data; name=\"file\"; filename=\"scan.jpg\"\(crlf)".utf8))
-        body.append(Data("Content-Type: image/jpeg\(crlf)\(crlf)".utf8))
-        body.append(data)
-        body.append(Data("\(crlf)--\(boundary)--\(crlf)".utf8))
+        func part(name: String, filename: String, payload: Data) {
+            body.append(Data("--\(boundary)\(crlf)".utf8))
+            body.append(Data("Content-Disposition: form-data; name=\"\(name)\"; filename=\"\(filename)\"\(crlf)".utf8))
+            body.append(Data("Content-Type: image/jpeg\(crlf)\(crlf)".utf8))
+            body.append(payload)
+            body.append(Data(crlf.utf8))
+        }
+        part(name: "file", filename: "scan.jpg", payload: data)
+        // The field name the backend reads for the label close-up. Omitted
+        // entirely when there is no second photo, so the request is
+        // byte-identical to what every earlier version sent.
+        if let tagData { part(name: "tag", filename: "tag.jpg", payload: tagData) }
+        body.append(Data("--\(boundary)--\(crlf)".utf8))
         return body
     }
 }
