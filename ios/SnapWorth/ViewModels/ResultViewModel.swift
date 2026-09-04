@@ -32,6 +32,19 @@ final class ResultViewModel {
         shareCard = renderer.uiImage
     }
 
+    /// The two "Guess the price" cards — the question with the estimate
+    /// covered, and the reveal. Rendered on demand when the game opens; the
+    /// standard card above stays the one prepared eagerly for the toolbar.
+    func renderGuessCards(result: ScanResult, photo: UIImage?,
+                          displayScale: CGFloat) -> (guess: UIImage?, reveal: UIImage?) {
+        func render(_ style: GuessCardStyle) -> UIImage? {
+            let renderer = ImageRenderer(content: GuessShareCardView(result: result, photo: photo, style: style))
+            renderer.scale = max(displayScale, 2)
+            return renderer.uiImage
+        }
+        return (render(.guess), render(.reveal))
+    }
+
     func scheduleShareCardUpdate(result: ScanResult, photo: UIImage?, displayScale: CGFloat) {
         shareCardDebounce?.cancel()
         shareCardDebounce = Task {

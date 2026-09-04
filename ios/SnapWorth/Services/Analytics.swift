@@ -31,6 +31,12 @@ enum AnalyticsEvent {
     case restoreCompleted
     case shareCardOpened
     case shareCardShared(activityType: String?)
+    /// "Guess the price": the estimate was revealed in the game, with or
+    /// without the user having typed a guess first.
+    case guessRevealed(withGuess: Bool)
+    /// A guess card left through the share sheet: "pair" (question + reveal),
+    /// "guess" (question only) or "reveal".
+    case guessCardShared(style: String)
 
     // ── Snap → Sell ──────────────────────────────────────────────────
     case listingGenerated(marketplace: String)
@@ -94,6 +100,8 @@ enum AnalyticsEvent {
         case .restoreCompleted:     return "restore_completed"
         case .shareCardOpened:      return "share_card_opened"
         case .shareCardShared:      return "share_card_shared"
+        case .guessRevealed:        return "guess_revealed"
+        case .guessCardShared:      return "guess_card_shared"
         case .listingGenerated:     return "listing_generated"
         case .thriftFlipCalculated: return "thrift_flip_calculated"
         case .ledgerItemMarkedSold: return "ledger_item_marked_sold"
@@ -130,6 +138,10 @@ enum AnalyticsEvent {
         case let .shareCardShared(activityType):
             if let activityType { return ["activity_type": activityType] }
             return [:]
+        case let .guessRevealed(withGuess):
+            return ["with_guess": String(withGuess)]
+        case let .guessCardShared(style):
+            return ["style": style]
         case let .notificationScheduled(category), let .notificationOpened(category):
             return ["category": category]
         case let .listingGenerated(marketplace):

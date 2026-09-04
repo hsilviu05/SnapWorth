@@ -1475,3 +1475,38 @@ final class FreeScanReminderIdentifierTests: XCTestCase {
                        .freeScan)
     }
 }
+
+
+// MARK: - Guess the price (#95)
+
+final class GuessScoringTests: XCTestCase {
+    func test_insideTheRangeIsAWin() {
+        XCTAssertEqual(GuessScoring.verdict(guess: 60, low: 45, high: 90),
+                       "Spot on — your guess is inside the estimate.")
+        XCTAssertEqual(GuessScoring.verdict(guess: 45, low: 45, high: 90),
+                       "Spot on — your guess is inside the estimate.", "the ends count")
+    }
+
+    func test_outsideSaysHowFarFromTheNearerEnd() {
+        XCTAssertEqual(GuessScoring.verdict(guess: 20, low: 45, high: 90), "$25 under the low end.")
+        XCTAssertEqual(GuessScoring.verdict(guess: 130, low: 45, high: 90), "$40 over the high end.")
+        // A swapped range is handled rather than trusted.
+        XCTAssertEqual(GuessScoring.verdict(guess: 20, low: 90, high: 45), "$25 under the low end.")
+    }
+
+    func test_parseIsForgivingAboutWhatPeopleType() {
+        XCTAssertEqual(GuessScoring.parse("$1,250"), 1250)
+        XCTAssertEqual(GuessScoring.parse(" 45.5 "), 45.5)
+        XCTAssertNil(GuessScoring.parse(""))
+        XCTAssertNil(GuessScoring.parse("lots"))
+        XCTAssertNil(GuessScoring.parse("-5"), "a negative guess is not a guess")
+        XCTAssertNil(GuessScoring.parse("."))
+    }
+
+    func test_analyticsCarryOnlyStyleAndABoolean() {
+        XCTAssertEqual(AnalyticsEvent.guessRevealed(withGuess: true).name, "guess_revealed")
+        XCTAssertEqual(AnalyticsEvent.guessRevealed(withGuess: false).parameters, ["with_guess": "false"])
+        XCTAssertEqual(AnalyticsEvent.guessCardShared(style: "pair").name, "guess_card_shared")
+        XCTAssertEqual(AnalyticsEvent.guessCardShared(style: "pair").parameters, ["style": "pair"])
+    }
+}
