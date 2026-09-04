@@ -159,6 +159,27 @@ PROMPTS: dict[str, str] = {
 
 DEFAULT_PROMPT_VERSION = "v2"
 
+# Appended when the client sent a close-up of the label as well (#88). Kept
+# separate from the prompt bodies so it applies to every version and so the
+# single-photo prompts stay byte-identical — the eval baselines are measured
+# against them.
+TAG_PHOTO_ADDENDUM = """
+
+TWO PHOTOS ARE PROVIDED. The first is the item. The second is a close-up of its
+label, tag, sole stamp or serial plate, photographed by the same person at the
+same time. Read the second photo for what it actually shows — brand, model,
+size, material, fabric composition, country of manufacture, style or lot codes,
+date markers — and let it override any guess you would have made from the first
+photo alone. Say what you read in `visual_evidence`. If the label is
+unreadable, blurred or belongs to a different item, ignore it and say so in
+`uncertainty_factors` rather than inventing a reading; a confident wrong size
+is worse than an honest range."""
+
+
+def with_tag_photo(prompt: str) -> str:
+    """The same prompt, told that a label close-up follows the item photo."""
+    return prompt + TAG_PHOTO_ADDENDUM
+
 
 def get_prompt(version: str | None = None) -> tuple[str, str]:
     """Return `(prompt_text, resolved_version)`. Falls back to the default."""
