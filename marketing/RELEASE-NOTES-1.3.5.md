@@ -1,6 +1,6 @@
 # What's New — SnapWorth 1.3.5
 
-**Version:** 1.3.5 (build 12) · **Previous release:** 1.3.4 (build 11, tag `v1.3.4`) · **Status:** in development
+**Version:** 1.3.5 (build 12) · **Previous release:** 1.3.4 (build 11, commit `aff1004`) · **Status:** in development
 
 ## Scope so far
 
@@ -47,7 +47,7 @@ never a certification.
 
 ## Pre-submit checklist
 
-- [ ] Archive 1.3.4 first, from tag `v1.3.4`, if it has not been submitted.
+- [ ] Archive 1.3.4 first, from commit `aff1004` (`git checkout aff1004`), if it has not been submitted.
 - [ ] Xcode: confirm **1.3.5 (12)** in the target's General tab.
 - [ ] Run the test target once (`⌘U`).
 - [ ] Paste the What's New above; subtitle, keywords and screenshots unchanged from 1.3.4.
