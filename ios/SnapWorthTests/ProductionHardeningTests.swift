@@ -1510,3 +1510,77 @@ final class GuessScoringTests: XCTestCase {
         XCTAssertEqual(AnalyticsEvent.guessCardShared(style: "pair").parameters, ["style": "pair"])
     }
 }
+
+
+// MARK: - Why this price (#87)
+
+final class ValuationDetailTests: XCTestCase {
+    private let v1 = """
+    {"item_name":"Patagonia Better Sweater","brand":"Patagonia","category":"clothing",
+     "condition_notes":"Good","est_value_low_usd":45.0,"est_value_high_usd":90.0,
+     "confidence":"High","listing_title":"T","listing_description":"D"}
+    """
+
+    private var v2: String {
+        v1.replacingOccurrences(of: #""confidence":"High","#, with: #"""
+        "confidence":"High","confidence_score":72,"confidence_summary":"Brand and model are legible.",
+        "confidence_reasons":["Logo visible","Common item","Clear photo","Fourth reason"],
+        "quick_sale_price_usd":45,"expected_price_usd":58,"best_case_price_usd":90,"worst_case_price_usd":40,
+        "value_drivers":["Classic colourway"],"assumptions":["Size M"],"uncertainty_factors":["Pilling not visible"],
+        "improve_estimate":["Photograph the tag"],"authenticity_assessment":"Consistent with genuine",
+        "authenticity_reasoning":"Stitching and label match","demand":"steady","supply":"plentiful",
+        "condition_grade":"Good","size":"M","era":"2019","material":"fleece",
+        """#)
+    }
+
+    func test_v1ResponseYieldsNoDetail() throws {
+        let response = try JSONDecoder().decode(ScanAPIResponse.self, from: v1.data(using: .utf8)!)
+        XCTAssertNil(response.confidenceScore)
+        XCTAssertEqual(response.confidenceReasons, [])
+        XCTAssertNil(ValuationDetail(response: response), "an old server must not produce an empty panel")
+    }
+
+    func test_v2ResponseDecodesAndRoundTripsThroughTheStoredBlob() throws {
+        let response = try JSONDecoder().decode(ScanAPIResponse.self, from: v2.data(using: .utf8)!)
+        XCTAssertEqual(response.confidenceScore, 72)
+        XCTAssertEqual(response.expectedPriceUsd, 58)
+        XCTAssertEqual(response.improveEstimate, ["Photograph the tag"])
+
+        let detail = try XCTUnwrap(ValuationDetail(response: response))
+        XCTAssertEqual(detail.ladder.map(\.label), ["Floor", "Quick sale", "Expected", "Best case"])
+        XCTAssertEqual(detail.ladder.map(\.value), [40, 45, 58, 90])
+        XCTAssertEqual(detail.facts, ["Good", "M", "2019", "fleece"])
+
+        let data = try XCTUnwrap(detail.encoded())
+        XCTAssertEqual(ValuationDetail.decode(data), detail)
+        XCTAssertNil(ValuationDetail.decode(nil))
+        XCTAssertNil(ValuationDetail.decode(Data("garbage".utf8)))
+    }
+
+    func test_ladderSkipsMissingAndZeroPoints() {
+        var detail = ValuationDetail()
+        detail.expected = 58
+        detail.bestCase = 0
+        XCTAssertEqual(detail.ladder.map(\.label), ["Expected"])
+        XCTAssertFalse(detail.isEmpty)
+    }
+
+    func test_scanResultStoresTheBlobAdditively() throws {
+        var detail = ValuationDetail()
+        detail.confidenceScore = 61
+        let result = ScanResult(itemName: "x", brand: "x", category: "x", conditionNotes: "x",
+                                valueLow: 1, valueHigh: 2, confidence: "High", soldListingsCount: 0,
+                                listingTitle: "", listingDescription: "",
+                                valuationDetailData: detail.encoded())
+        XCTAssertEqual(result.valuationDetail?.confidenceScore, 61)
+        let legacy = ScanResult(itemName: "x", brand: "x", category: "x", conditionNotes: "x",
+                                valueLow: 1, valueHigh: 2, confidence: "High", soldListingsCount: 0,
+                                listingTitle: "", listingDescription: "")
+        XCTAssertNil(legacy.valuationDetailData)
+        XCTAssertNil(legacy.valuationDetail)
+    }
+
+    func test_paywallTriggerExists() {
+        XCTAssertEqual(PaywallTrigger.valuationDetail.rawValue, "valuation_detail")
+    }
+}

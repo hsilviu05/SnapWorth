@@ -77,7 +77,8 @@ final class ScanViewModel {
                 soldListingsCount: response.soldListingsCount,
                 listingTitle: response.listingTitle,
                 listingDescription: response.listingDescription,
-                imageData: jpegData
+                imageData: jpegData,
+                valuationDetailData: ValuationDetail(response: response)?.encoded()
             )
 
             // Present first, persist second.

@@ -59,7 +59,8 @@ final class ThriftFlipViewModel {
                 soldListingsCount: response.soldListingsCount,
                 listingTitle: response.listingTitle,
                 listingDescription: response.listingDescription,
-                imageData: storedImage
+                imageData: storedImage,
+                valuationDetailData: ValuationDetail(response: response)?.encoded()
             )
             scanResult = result
             // Seed the resale field with the condition-adjusted likely value.

@@ -27,6 +27,31 @@ struct ScanAPIResponse: Decodable {
     /// its local count rather than invent a number.
     let freeScansRemaining: Int?
 
+    // ── v2 detail (#87) ──────────────────────────────────────────────────────
+    // Everything the backend has returned since July and the app ignored: the
+    // four price points, the computed confidence with its reasons, what drives
+    // the value, what was assumed, how to sharpen the estimate, and the
+    // authenticity read. All optional — an older server simply omits them.
+    let confidenceScore: Int?
+    let confidenceSummary: String?
+    let confidenceReasons: [String]
+    let quickSalePriceUsd: Double?
+    let expectedPriceUsd: Double?
+    let bestCasePriceUsd: Double?
+    let worstCasePriceUsd: Double?
+    let valueDrivers: [String]
+    let assumptions: [String]
+    let uncertaintyFactors: [String]
+    let improveEstimate: [String]
+    let authenticityAssessment: String?
+    let authenticityReasoning: String?
+    let demand: String?
+    let supply: String?
+    let conditionGrade: String?
+    let size: String?
+    let era: String?
+    let material: String?
+
     enum CodingKeys: String, CodingKey {
         case itemName            = "item_name"
         case brand
@@ -39,6 +64,22 @@ struct ScanAPIResponse: Decodable {
         case listingTitle        = "listing_title"
         case listingDescription  = "listing_description"
         case freeScansRemaining  = "free_scans_remaining"
+        case confidenceScore     = "confidence_score"
+        case confidenceSummary   = "confidence_summary"
+        case confidenceReasons   = "confidence_reasons"
+        case quickSalePriceUsd   = "quick_sale_price_usd"
+        case expectedPriceUsd    = "expected_price_usd"
+        case bestCasePriceUsd    = "best_case_price_usd"
+        case worstCasePriceUsd   = "worst_case_price_usd"
+        case valueDrivers        = "value_drivers"
+        case assumptions
+        case uncertaintyFactors  = "uncertainty_factors"
+        case improveEstimate     = "improve_estimate"
+        case authenticityAssessment = "authenticity_assessment"
+        case authenticityReasoning  = "authenticity_reasoning"
+        case demand, supply
+        case conditionGrade      = "condition_grade"
+        case size, era, material
     }
 
     init(from decoder: Decoder) throws {
@@ -54,13 +95,42 @@ struct ScanAPIResponse: Decodable {
         freeScansRemaining  = try c.decodeIfPresent(Int.self, forKey: .freeScansRemaining)
         listingTitle        = try c.decode(String.self, forKey: .listingTitle)
         listingDescription  = try c.decode(String.self, forKey: .listingDescription)
+
+        confidenceScore     = try c.decodeIfPresent(Int.self, forKey: .confidenceScore)
+        confidenceSummary   = try c.decodeIfPresent(String.self, forKey: .confidenceSummary)
+        confidenceReasons   = try c.decodeIfPresent([String].self, forKey: .confidenceReasons) ?? []
+        quickSalePriceUsd   = try c.decodeIfPresent(Double.self, forKey: .quickSalePriceUsd)
+        expectedPriceUsd    = try c.decodeIfPresent(Double.self, forKey: .expectedPriceUsd)
+        bestCasePriceUsd    = try c.decodeIfPresent(Double.self, forKey: .bestCasePriceUsd)
+        worstCasePriceUsd   = try c.decodeIfPresent(Double.self, forKey: .worstCasePriceUsd)
+        valueDrivers        = try c.decodeIfPresent([String].self, forKey: .valueDrivers) ?? []
+        assumptions         = try c.decodeIfPresent([String].self, forKey: .assumptions) ?? []
+        uncertaintyFactors  = try c.decodeIfPresent([String].self, forKey: .uncertaintyFactors) ?? []
+        improveEstimate     = try c.decodeIfPresent([String].self, forKey: .improveEstimate) ?? []
+        authenticityAssessment = try c.decodeIfPresent(String.self, forKey: .authenticityAssessment)
+        authenticityReasoning  = try c.decodeIfPresent(String.self, forKey: .authenticityReasoning)
+        demand              = try c.decodeIfPresent(String.self, forKey: .demand)
+        supply              = try c.decodeIfPresent(String.self, forKey: .supply)
+        conditionGrade      = try c.decodeIfPresent(String.self, forKey: .conditionGrade)
+        size                = try c.decodeIfPresent(String.self, forKey: .size)
+        era                 = try c.decodeIfPresent(String.self, forKey: .era)
+        material            = try c.decodeIfPresent(String.self, forKey: .material)
     }
 
     /// Memberwise init retained for mocks and previews.
     init(itemName: String, brand: String, category: String, conditionNotes: String,
          estValueLowUsd: Double, estValueHighUsd: Double, confidence: String,
          soldListingsCount: Int = 0, listingTitle: String, listingDescription: String,
-         freeScansRemaining: Int? = nil) {
+         freeScansRemaining: Int? = nil,
+         confidenceScore: Int? = nil, confidenceSummary: String? = nil,
+         confidenceReasons: [String] = [], quickSalePriceUsd: Double? = nil,
+         expectedPriceUsd: Double? = nil, bestCasePriceUsd: Double? = nil,
+         worstCasePriceUsd: Double? = nil, valueDrivers: [String] = [],
+         assumptions: [String] = [], uncertaintyFactors: [String] = [],
+         improveEstimate: [String] = [], authenticityAssessment: String? = nil,
+         authenticityReasoning: String? = nil, demand: String? = nil, supply: String? = nil,
+         conditionGrade: String? = nil, size: String? = nil, era: String? = nil,
+         material: String? = nil) {
         self.itemName = itemName
         self.brand = brand
         self.category = category
@@ -72,6 +142,116 @@ struct ScanAPIResponse: Decodable {
         self.listingTitle = listingTitle
         self.listingDescription = listingDescription
         self.freeScansRemaining = freeScansRemaining
+        self.confidenceScore = confidenceScore
+        self.confidenceSummary = confidenceSummary
+        self.confidenceReasons = confidenceReasons
+        self.quickSalePriceUsd = quickSalePriceUsd
+        self.expectedPriceUsd = expectedPriceUsd
+        self.bestCasePriceUsd = bestCasePriceUsd
+        self.worstCasePriceUsd = worstCasePriceUsd
+        self.valueDrivers = valueDrivers
+        self.assumptions = assumptions
+        self.uncertaintyFactors = uncertaintyFactors
+        self.improveEstimate = improveEstimate
+        self.authenticityAssessment = authenticityAssessment
+        self.authenticityReasoning = authenticityReasoning
+        self.demand = demand
+        self.supply = supply
+        self.conditionGrade = conditionGrade
+        self.size = size
+        self.era = era
+        self.material = material
+    }
+}
+
+// MARK: - Valuation detail (#87)
+
+/// The "why this price" payload, kept with the scan.
+///
+/// One Codable blob stored on `ScanResult.valuationDetailData` rather than
+/// nineteen new SwiftData properties: it is only ever read whole for one
+/// result's panel, never queried across rows, and a single optional `Data`
+/// column is the smallest possible additive migration (the same reasoning as
+/// `valueHistoryData`). Nil for every scan saved before this shipped and for
+/// any server that does not send the fields; the panel simply does not appear.
+struct ValuationDetail: Codable, Equatable {
+    var confidenceScore: Int?
+    var confidenceSummary: String?
+    var confidenceReasons: [String] = []
+    var quickSale: Double?
+    var expected: Double?
+    var bestCase: Double?
+    var worstCase: Double?
+    var valueDrivers: [String] = []
+    var assumptions: [String] = []
+    var uncertaintyFactors: [String] = []
+    var improveEstimate: [String] = []
+    var authenticityAssessment: String?
+    var authenticityReasoning: String?
+    var demand: String?
+    var supply: String?
+    var conditionGrade: String?
+    var size: String?
+    var era: String?
+    var material: String?
+
+    /// Nil when the response carried nothing beyond the v1 fields, so an old
+    /// server never produces an empty panel.
+    init?(response r: ScanAPIResponse) {
+        confidenceScore = r.confidenceScore
+        confidenceSummary = r.confidenceSummary
+        confidenceReasons = r.confidenceReasons
+        quickSale = r.quickSalePriceUsd
+        expected = r.expectedPriceUsd
+        bestCase = r.bestCasePriceUsd
+        worstCase = r.worstCasePriceUsd
+        valueDrivers = r.valueDrivers
+        assumptions = r.assumptions
+        uncertaintyFactors = r.uncertaintyFactors
+        improveEstimate = r.improveEstimate
+        authenticityAssessment = r.authenticityAssessment
+        authenticityReasoning = r.authenticityReasoning
+        demand = r.demand
+        supply = r.supply
+        conditionGrade = r.conditionGrade
+        size = r.size
+        era = r.era
+        material = r.material
+        guard !isEmpty else { return nil }
+    }
+
+    init() {}
+
+    var isEmpty: Bool {
+        confidenceScore == nil && confidenceSummary == nil && confidenceReasons.isEmpty
+            && quickSale == nil && expected == nil && bestCase == nil && worstCase == nil
+            && valueDrivers.isEmpty && assumptions.isEmpty && uncertaintyFactors.isEmpty
+            && improveEstimate.isEmpty && authenticityAssessment == nil
+            && demand == nil && supply == nil && conditionGrade == nil
+            && size == nil && era == nil && material == nil
+    }
+
+    /// The price points that exist, floor to ceiling, ready to render.
+    var ladder: [(label: String, value: Double)] {
+        var rows: [(String, Double)] = []
+        if let v = worstCase, v > 0 { rows.append(("Floor", v)) }
+        if let v = quickSale, v > 0 { rows.append(("Quick sale", v)) }
+        if let v = expected, v > 0 { rows.append(("Expected", v)) }
+        if let v = bestCase, v > 0 { rows.append(("Best case", v)) }
+        return rows.map { (label: $0.0, value: $0.1) }
+    }
+
+    /// Identification facts worth a line: grade, size, era, material.
+    var facts: [String] {
+        [conditionGrade, size, era, material].compactMap { $0 }.filter { !$0.isEmpty }
+    }
+
+    func encoded() -> Data? { try? JSONEncoder().encode(self) }
+
+    static func decode(_ data: Data?) -> ValuationDetail? {
+        guard let data, let detail = try? JSONDecoder().decode(ValuationDetail.self, from: data),
+              !detail.isEmpty else { return nil }
+        return detail
     }
 }
 

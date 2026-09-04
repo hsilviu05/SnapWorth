@@ -56,6 +56,10 @@ struct ResultView: View {
                             .padding(.horizontal, 20)
                             .offset(y: -28)
 
+                        whyThisPriceCard
+                            .padding(.horizontal, 20)
+                            .padding(.top, -16)
+
                         conditionCard
                             .padding(.horizontal, 20)
                             .padding(.top, 12)
@@ -624,6 +628,69 @@ struct ResultView: View {
         .accessibilityAddTraits(.isSummaryElement)
     }
 
+    // MARK: - Why this price (#87)
+
+    /// The panel the backend has been paying for since July. Pro sees it all;
+    /// free sees the header, a blurred first line, and the way in.
+    @ViewBuilder
+    private var whyThisPriceCard: some View {
+        if let detail = result.valuationDetail {
+            VStack(alignment: .leading, spacing: 14) {
+                HStack {
+                    Text("Why this price")
+                        .snapSectionHeader()
+                    Spacer()
+                    if !isPro { proBadge }
+                }
+                if isPro {
+                    ValuationDetailView(detail: detail)
+                } else {
+                    lockedDetailTeaser(detail)
+                }
+            }
+            .padding(20)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Color.snapCard)
+            .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+            .shadow(color: Color.snapCardShadow.opacity(0.08), radius: 24, x: 0, y: 8)
+        }
+    }
+
+    private func lockedDetailTeaser(_ detail: ValuationDetail) -> some View {
+        ZStack {
+            VStack(alignment: .leading, spacing: 6) {
+                Text(detail.confidenceSummary
+                     ?? "Confidence \(detail.confidenceScore ?? 0) out of 100")
+                    .font(.dmSans(15, weight: .semibold))
+                    .foregroundStyle(Color.snapEspresso)
+                    .lineLimit(1)
+                Text(detail.valueDrivers.first
+                     ?? detail.improveEstimate.first
+                     ?? "Quick-sale, expected and best-case prices, and what moves them…")
+                    .font(.snapBody)
+                    .foregroundStyle(Color.snapWarmGray)
+                    .lineLimit(2)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .blur(radius: 5)
+            .accessibilityHidden(true)
+
+            VStack(spacing: 10) {
+                Image(systemName: "lock.fill")
+                    .snapSymbol(18)
+                    .foregroundStyle(Color.snapTerracotta)
+                PrimaryButton(title: "Unlock why this price") {
+                    Analytics.shared.track(.paywallViewed(trigger: .valuationDetail))
+                    showPaywall = true
+                }
+                Text("Four price points, what drives the value, and how to sharpen the estimate.")
+                    .font(.snapCaption)
+                    .foregroundStyle(Color.snapWarmGray)
+                    .multilineTextAlignment(.center)
+            }
+        }
+    }
+
     // MARK: - Details Card
 
     @ViewBuilder
@@ -920,5 +987,159 @@ struct ResultView: View {
                 .foregroundStyle(Color.snapWarmGray.opacity(0.5))
                 .kerning(0.5)
         }
+    }
+}
+
+
+// MARK: - Valuation detail panel (#87)
+
+/// Renders a `ValuationDetail`. Every section is conditional on its data, so a
+/// thin response shows a thin panel rather than empty headings. Copy rule:
+/// "estimate", never "worth" or "sells for" — the same line marketing holds.
+struct ValuationDetailView: View {
+    let detail: ValuationDetail
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            if !detail.ladder.isEmpty { ladder }
+            if detail.confidenceScore != nil || !detail.confidenceReasons.isEmpty { confidence }
+            bullets("What drives the value", detail.valueDrivers, icon: "arrow.up.right")
+            bullets("What we assumed", detail.assumptions, icon: "questionmark.circle")
+            bullets("Sharpen this estimate", detail.improveEstimate, icon: "camera.viewfinder")
+            if let read = detail.authenticityAssessment, !read.isEmpty { authenticity(read) }
+            factsRow
+        }
+    }
+
+    // ── Price ladder ──
+
+    private var ladder: some View {
+        HStack(alignment: .top, spacing: 0) {
+            ForEach(Array(detail.ladder.enumerated()), id: \.offset) { _, row in
+                VStack(spacing: 3) {
+                    Text(Self.money(row.value))
+                        .font(.fraunces(20, weight: .bold, relativeTo: .title3))
+                        .foregroundStyle(row.label == "Expected" ? Color.snapSage : Color.snapEspresso)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.6)
+                    Text(row.label)
+                        .font(.snapCaption)
+                        .foregroundStyle(Color.snapWarmGray)
+                }
+                .frame(maxWidth: .infinity)
+                .accessibilityElement(children: .combine)
+                .accessibilityLabel("\(row.label) \(Self.money(row.value))")
+            }
+        }
+        .padding(.vertical, 12)
+        .background(Color.snapBackground)
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("Price points")
+    }
+
+    // ── Confidence ──
+
+    private var confidence: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 8) {
+                if let score = detail.confidenceScore {
+                    Text("\(score)")
+                        .font(.fraunces(22, weight: .bold, relativeTo: .title2))
+                        .foregroundStyle(Color.snapEspresso)
+                    Text("/ 100 confidence")
+                        .font(.snapCaption)
+                        .foregroundStyle(Color.snapWarmGray)
+                } else {
+                    Text("Confidence")
+                        .snapSectionHeader()
+                }
+            }
+            if let summary = detail.confidenceSummary, !summary.isEmpty {
+                Text(summary)
+                    .font(.snapBody)
+                    .foregroundStyle(Color.snapEspresso)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            ForEach(Array(detail.confidenceReasons.prefix(3).enumerated()), id: \.offset) { _, reason in
+                bullet(reason, icon: "checkmark.circle")
+            }
+        }
+    }
+
+    // ── Generic bullet sections ──
+
+    @ViewBuilder
+    private func bullets(_ title: String, _ items: [String], icon: String) -> some View {
+        if !items.isEmpty {
+            VStack(alignment: .leading, spacing: 6) {
+                Text(title)
+                    .snapSectionHeader()
+                ForEach(Array(items.prefix(4).enumerated()), id: \.offset) { _, item in
+                    bullet(item, icon: icon)
+                }
+            }
+        }
+    }
+
+    private func bullet(_ text: String, icon: String) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+            Image(systemName: icon)
+                .snapSymbol(13, weight: .semibold)
+                .foregroundStyle(Color.snapTerracotta)
+                .accessibilityHidden(true)
+            Text(text)
+                .font(.snapBody)
+                .foregroundStyle(Color.snapEspresso)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    // ── Authenticity: an observation about the photo, never a verdict ──
+
+    private func authenticity(_ read: String) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("What the photo suggests about authenticity")
+                .snapSectionHeader()
+            Text(read)
+                .font(.dmSans(15, weight: .semibold))
+                .foregroundStyle(Color.snapEspresso)
+            if let why = detail.authenticityReasoning, !why.isEmpty {
+                Text(why)
+                    .font(.snapBody)
+                    .foregroundStyle(Color.snapWarmGray)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Text("From this photo only — not a certification.")
+                .font(.snapCaption)
+                .foregroundStyle(Color.snapWarmGray)
+        }
+    }
+
+    // ── Facts ──
+
+    @ViewBuilder
+    private var factsRow: some View {
+        let facts = detail.facts
+        let market = [detail.demand.map { "Demand \($0)" }, detail.supply.map { "supply \($0)" }]
+            .compactMap { $0 }
+        if !facts.isEmpty || !market.isEmpty {
+            VStack(alignment: .leading, spacing: 4) {
+                if !facts.isEmpty {
+                    Text(facts.joined(separator: " · "))
+                        .font(.snapCaption)
+                        .foregroundStyle(Color.snapWarmGray)
+                }
+                if !market.isEmpty {
+                    Text(market.joined(separator: " · "))
+                        .font(.snapCaption)
+                        .foregroundStyle(Color.snapWarmGray)
+                }
+            }
+        }
+    }
+
+    static func money(_ value: Double) -> String {
+        NumberFormatter.snapCurrency.string(from: NSNumber(value: value)) ?? "$\(Int(value))"
     }
 }

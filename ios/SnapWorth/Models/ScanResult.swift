@@ -62,6 +62,16 @@ final class ScanResult {
     /// entity would add a relationship to migrate for no query benefit.
     var valueHistoryData: Data?
 
+    // ── Why this price (#87) ───────────────────────────────────────────────────
+    /// `ValuationDetail`, JSON-encoded. Optional and additive, like the two
+    /// above. Nil for every row written before this shipped; the panel that
+    /// reads it is simply absent for those.
+    var valuationDetailData: Data?
+
+    /// Decoded on read. Cheap — a few hundred bytes — and only the result
+    /// sheet asks for it.
+    var valuationDetail: ValuationDetail? { ValuationDetail.decode(valuationDetailData) }
+
     init(
         id: UUID = UUID(),
         timestamp: Date = Date(),
@@ -85,7 +95,8 @@ final class ScanResult {
         notes: String? = nil,
         conditionRaw: String? = nil,
         portfolioValueRaw: Double? = nil,
-        valueHistoryData: Data? = nil
+        valueHistoryData: Data? = nil,
+        valuationDetailData: Data? = nil
     ) {
         self.id = id
         self.timestamp = timestamp
@@ -110,6 +121,7 @@ final class ScanResult {
         self.conditionRaw = conditionRaw
         self.portfolioValueRaw = portfolioValueRaw
         self.valueHistoryData = valueHistoryData
+        self.valuationDetailData = valuationDetailData
     }
 
     // ── Condition & re-pricing ─────────────────────────────────────────────────
