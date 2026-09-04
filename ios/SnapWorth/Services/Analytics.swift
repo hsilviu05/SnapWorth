@@ -236,6 +236,7 @@ enum PaywallTrigger: String {
     case thriftFlip    = "thrift_flip"
     case portfolioTrend = "portfolio_trend"
     case valuationDetail = "valuation_detail"
+    case trends = "trends"
 }
 
 // ═══════════════════════════════════════════════════════════════════

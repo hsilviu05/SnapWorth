@@ -11,6 +11,7 @@ struct HistoryView: View {
     @State private var selectedResult: ScanResult?
     @State private var isEditing = false
     @State private var recapLabel: String?
+    @State private var trends: Trends?
     /// Pending single-item deletion, awaiting confirmation.
     ///
     /// "Delete all" in Settings already confirms. A single find vanishing with
@@ -67,6 +68,19 @@ struct HistoryView: View {
                                 onUnlock: {
                                     Analytics.shared.track(
                                         .paywallViewed(trigger: .portfolioTrend))
+                                    showPaywall = true
+                                }
+                            )
+                            .padding(.horizontal, hPad)
+                        }
+
+                        // ── Trending at the thrift ─────────────────────────────
+                        if let trends, !trends.isEmpty {
+                            TrendingCard(
+                                trends: trends,
+                                isPro: purchaseService.isSubscribed,
+                                onUnlock: {
+                                    Analytics.shared.track(.paywallViewed(trigger: .trends))
                                     showPaywall = true
                                 }
                             )
@@ -219,6 +233,12 @@ struct HistoryView: View {
                 if results.isEmpty { isEditing = false }
             }
             .task { recapLabel = NotificationManager.shared.readyRecapLabel() }
+            // Best-effort: a failure leaves the card absent, which is the same
+            // as a quiet week. Never an error banner — this is a nice-to-have
+            // above the user's own finds, not something they asked for.
+            .task {
+                trends = try? await TrendsAPIClient.shared.fetch()
+            }
         }
         .sheet(isPresented: $showPaywall) {
             PaywallView(purchaseService: purchaseService, trigger: .portfolioTrend)
@@ -490,5 +510,154 @@ private struct Sparkline: Shape {
             i == 0 ? path.move(to: point) : path.addLine(to: point)
         }
         return path
+    }
+}
+
+
+// ═══════════════════════════════════════════════════════════════════
+// MARK: - Trending at the thrift (#96)
+// ═══════════════════════════════════════════════════════════════════
+
+/// What everyone scanned this week. Aggregates only — the server applies a
+/// floor before sending, so nothing here is about one person.
+///
+/// Free sees the counts and which way each moved; Pro also sees the average
+/// estimate per category and the week's notable finds. Absent entirely when
+/// the week was too quiet to say anything, rather than an empty heading.
+struct TrendingCard: View {
+    let trends: Trends
+    let isPro: Bool
+    var onUnlock: () -> Void = {}
+
+    private static let emoji = [
+        "clothing": "🧥", "shoes": "👟", "accessories": "👜", "electronics": "📱",
+        "books": "📚", "furniture": "🪑", "home": "🏠", "sports": "⚽",
+        "toys": "🧸", "collectibles": "🏺", "other": "📦",
+    ]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(alignment: .firstTextBaseline) {
+                Text("Trending at the thrift")
+                    .snapSectionHeader()
+                Spacer()
+                Text("\(trends.scans) scans this week")
+                    .font(.snapCaption)
+                    .foregroundStyle(Color.snapWarmGray)
+            }
+
+            if !trends.categories.isEmpty {
+                VStack(alignment: .leading, spacing: 8) {
+                    ForEach(trends.categories) { row in
+                        categoryRow(row)
+                    }
+                }
+            }
+
+            if !trends.brands.isEmpty {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Most-scanned brands")
+                        .font(.snapCaption)
+                        .foregroundStyle(Color.snapWarmGray)
+                    Text(trends.brands.map(\.name).joined(separator: " · "))
+                        .font(.dmSans(15, weight: .semibold))
+                        .foregroundStyle(Color.snapEspresso)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+
+            if isPro {
+                if !trends.notableFinds.isEmpty {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Notable finds")
+                            .font(.snapCaption)
+                            .foregroundStyle(Color.snapWarmGray)
+                        ForEach(trends.notableFinds.prefix(3)) { find in
+                            HStack(spacing: 8) {
+                                Text(Self.emoji[find.category] ?? "📦")
+                                    .accessibilityHidden(true)
+                                Text(find.name)
+                                    .font(.snapBody)
+                                    .foregroundStyle(Color.snapEspresso)
+                                    .lineLimit(1)
+                                Spacer(minLength: 4)
+                                Text("\(Self.money(find.low))–\(Self.money(find.high))")
+                                    .font(.dmSans(14, weight: .semibold))
+                                    .foregroundStyle(Color.snapSage)
+                            }
+                            .accessibilityElement(children: .combine)
+                        }
+                    }
+                }
+            } else {
+                Button(action: onUnlock) {
+                    HStack(spacing: 8) {
+                        Image(systemName: "lock.fill")
+                            .snapSymbol(13, weight: .semibold)
+                            .accessibilityHidden(true)
+                        Text("See average prices and the week's best finds")
+                            .font(.dmSans(14, weight: .semibold))
+                        Spacer(minLength: 0)
+                    }
+                    .foregroundStyle(Color.snapTerracotta)
+                }
+                .buttonStyle(.plain)
+                .snapHitTarget()
+                .accessibilityHint("Opens subscription options")
+            }
+
+            Text("Anonymous totals from everyone using SnapWorth. AI estimates.")
+                .font(.snapCaption)
+                .foregroundStyle(Color.snapWarmGray.opacity(0.8))
+        }
+        .padding(20)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.snapCard)
+        .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+    }
+
+    private func categoryRow(_ row: TrendRow) -> some View {
+        HStack(spacing: 10) {
+            Text(Self.emoji[row.name] ?? "📦")
+                .accessibilityHidden(true)
+            Text(row.name.capitalized)
+                .font(.snapBody)
+                .foregroundStyle(Color.snapEspresso)
+            if let average = row.averageEstimate, isPro {
+                Text("avg \(Self.money(average))")
+                    .font(.snapCaption)
+                    .foregroundStyle(Color.snapWarmGray)
+            }
+            Spacer(minLength: 4)
+            Text("\(row.count)")
+                .font(.dmSans(15, weight: .semibold))
+                .foregroundStyle(Color.snapEspresso)
+            if let change = row.changePct {
+                Text(change > 0 ? "▲\(change)%" : change < 0 ? "▼\(-change)%" : "＝")
+                    .font(.snapCaption.bold())
+                    .foregroundStyle(change > 0 ? Color.snapSage
+                                     : change < 0 ? Color.snapTerracotta : Color.snapWarmGray)
+            }
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(Self.rowLabel(row, isPro: isPro))
+    }
+
+    /// One spoken sentence per row — "clothing, 54 scans, up 18 percent" —
+    /// rather than five fragments VoiceOver reads out of context.
+    static func rowLabel(_ row: TrendRow, isPro: Bool) -> String {
+        var parts = ["\(row.name.capitalized), \(row.count) scans"]
+        if let average = row.averageEstimate, isPro {
+            parts.append("average estimate \(money(average))")
+        }
+        if let change = row.changePct {
+            parts.append(change > 0 ? "up \(change) percent"
+                         : change < 0 ? "down \(-change) percent" : "unchanged")
+        }
+        return parts.joined(separator: ", ")
+    }
+
+    static func money(_ value: Double) -> String {
+        NumberFormatter.snapCurrency.string(from: NSNumber(value: value)) ?? "$\(Int(value))"
     }
 }
