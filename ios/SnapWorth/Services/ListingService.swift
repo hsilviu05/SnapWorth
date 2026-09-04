@@ -364,21 +364,3 @@ actor TrendsAPIClient {
         notableFinds: [NotableFind(name: "Le Creuset Dutch Oven 5.5qt", category: "home", low: 120, high: 220),
                        NotableFind(name: "The North Face Nuptse 700", category: "clothing", low: 110, high: 200)])
 }
-
-extension TrendRow {
-    init(name: String, count: Int, changePct: Int?, averageEstimate: Double?) {
-        self.name = name
-        self.count = count
-        self.changePct = changePct
-        self.averageEstimate = averageEstimate
-    }
-}
-
-extension NotableFind {
-    init(name: String, category: String, low: Double, high: Double) {
-        self.name = name
-        self.category = category
-        self.low = low
-        self.high = high
-    }
-}
