@@ -34,6 +34,17 @@ Same as 1.3.4: "estimate", never "worth" or "sells for"; nothing about sold
 listings or market data; authenticity is an observation about the photo,
 never a certification.
 
+## Testing in the Simulator
+
+App Attest does not exist in the Simulator, so against production every scan
+fails with "Scanning needs a real iPhone". To exercise the whole flow offline:
+Xcode → **Product → Scheme → Edit Scheme…** → Run → Arguments → *Arguments
+Passed On Launch* → add `-mock-scans`. Scans then return three canned results
+(Patagonia fleece, Levi's 501, Air Max 90) that carry the full "Why this
+price" detail, so the result sheet, the Pro panel, Guess the price and the
+streak all work. Remove the argument to go back to the live backend. An App
+Store build can never receive a launch argument, so this cannot ship on.
+
 ## Testing on a device (Xcode → your iPhone)
 
 - Scan anything → the **Why this price** card sits under the value. On a

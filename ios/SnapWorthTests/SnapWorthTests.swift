@@ -465,6 +465,11 @@ final class ConfigSecurityTests: XCTestCase {
     func test_mockMode_isDisabled() {
         XCTAssertFalse(Config.mockMode,
                        "mockMode must be false before App Store submission")
+        // The launch-argument override is off unless the scheme passes it —
+        // which the test host does not — and its name is what the release
+        // notes tell the developer to type.
+        XCTAssertFalse(Config.mockScans)
+        XCTAssertEqual(Config.mockScansLaunchArgument, "-mock-scans")
     }
 
     func test_productIDs_areNonEmpty() {

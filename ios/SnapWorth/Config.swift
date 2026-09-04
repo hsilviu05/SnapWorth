@@ -9,6 +9,21 @@ enum Config {
     /// Flip to false once your backend is deployed and the URL above is set.
     static let mockMode = false
 
+    /// The Simulator cannot attest (App Attest does not exist there), so
+    /// against production every scan fails and nothing downstream of a scan —
+    /// the result sheet, Guess the price, Why this price, the streak — can be
+    /// exercised. This launch argument turns the canned responses on for one
+    /// run without touching `mockMode`, which stays false and is guarded by a
+    /// test. Xcode → Edit Scheme… → Run → Arguments Passed On Launch.
+    /// An App Store build can never receive a launch argument, so it cannot
+    /// ship on.
+    static let mockScansLaunchArgument = "-mock-scans"
+
+    /// Whether scans (and Snap → Sell listings) come from canned data.
+    static var mockScans: Bool {
+        mockMode || CommandLine.arguments.contains(mockScansLaunchArgument)
+    }
+
     // ── Transport security ───────────────────────────────────────────────────
     /// Base64 SHA-256 hashes of pinned SubjectPublicKeyInfo blobs for
     /// `api.snapworth.eu`, extracted 2026-07-28 from the live chain.
