@@ -1865,6 +1865,77 @@ class TestHistoryAndArchive:
             await notify.aclose()
 
     @pytest.mark.asyncio
+    async def test_one_unforwardable_id_does_not_lose_the_whole_archive(self, cache, monkeypatch):
+        """Telegram answers a forward batch as a whole, the way it answers a
+        delete batch. A tracked list mixes the bot's messages with service
+        messages and ones already gone, so a single refusal used to archive
+        nothing at all and report a mute '0 forwarded'."""
+        monkeypatch.setenv(notify.ARCHIVE_CHAT_ENV, "-5401463470")
+
+        class PickyForwarder(TestPolling.Bot):
+            """Refuses any batch containing 1001, like the real API."""
+            def handler(self, request):
+                if request.url.path.endswith("/forwardMessages"):
+                    body = json.loads(request.content)
+                    ids = body["message_ids"]
+                    assert ids == sorted(set(ids)), "forwardMessages needs increasing ids"
+                    if 1001 in ids:
+                        return httpx.Response(400, json={
+                            "ok": False,
+                            "description": "Bad Request: message to forward not found"})
+                    self.forwarded.append((body["chat_id"], ids))
+                    return httpx.Response(200, json={"ok": True, "result": [
+                        {"message_id": 7000 + i} for i in ids]})
+                return super().handler(request)
+
+        bot = PickyForwarder([TestPolling.update(840, FAKE_CHAT, "/status")])
+        notifier = notify.TelegramNotifier(
+            FAKE_TOKEN, FAKE_CHAT,
+            client=httpx.AsyncClient(transport=httpx.MockTransport(bot.handler)))
+        notify.configure(cache, notifier=notifier)
+        bot.updates[0]["message"]["message_id"] = 600
+        try:
+            await notify.poll_once(None)
+            bot.updates = [TestPolling.update(841, FAKE_CHAT, "/clear")]
+            await notify.poll_once(842)
+
+            forwarded_ids = [i for _, ids in bot.forwarded for i in ids]
+            assert 600 in forwarded_ids, "the good message must still reach the archive"
+            assert 1001 not in forwarded_ids
+            assert "1 forwarded to the archive chat" in bot.replies[-1]
+        finally:
+            await notify.aclose()
+
+    @pytest.mark.asyncio
+    async def test_zero_forwarded_says_why(self, cache, monkeypatch):
+        """'0 forwarded' with no reason is the failure mode that hides a
+        misconfigured archive; Telegram's own words go in the reply."""
+        monkeypatch.setenv(notify.ARCHIVE_CHAT_ENV, "-5401463470")
+
+        class RefusesEverything(TestPolling.Bot):
+            def handler(self, request):
+                if request.url.path.endswith("/forwardMessages"):
+                    return httpx.Response(400, json={
+                        "ok": False, "description": "Bad Request: chat not found"})
+                return super().handler(request)
+
+        bot = RefusesEverything([TestPolling.update(850, FAKE_CHAT, "/status")])
+        notifier = notify.TelegramNotifier(
+            FAKE_TOKEN, FAKE_CHAT,
+            client=httpx.AsyncClient(transport=httpx.MockTransport(bot.handler)))
+        notify.configure(cache, notifier=notifier)
+        bot.updates[0]["message"]["message_id"] = 600
+        try:
+            await notify.poll_once(None)
+            bot.updates = [TestPolling.update(851, FAKE_CHAT, "/clear")]
+            await notify.poll_once(852)
+            reply = bot.replies[-1]
+            assert "0 forwarded to the archive chat." in reply
+            assert "chat not found" in reply, "the reason, not silence"
+        finally:
+            await notify.aclose()
+
+    @pytest.mark.asyncio
     async def test_snippet_strips_tags_and_bounds(self):
         long = "<b>Title</b>\n\n" + "x" * 1000 + " &amp; <i>done</i>"
         out = notify._snippet(long, limit=50)
