@@ -287,6 +287,8 @@ class TelegramNotifier:
         self._chat_id = chat_id
         # Why the last forward batch was refused, for /clear to show.
         self.last_forward_refusal: str | None = None
+        # The id Telegram redirected the archive to, if the chat moved.
+        self.last_forward_migrated_to: str | None = None
         self._client = client          # injectable for tests
         # Told the message_id of every message this notifier sends, so /clear
         # can take them back. Set by `configure`; None is "don't bother".
@@ -350,6 +352,20 @@ class TelegramNotifier:
             return str((resp.json() or {}).get("description") or "")[:200]
         except Exception:
             return ""
+
+    @staticmethod
+    def _migrate_to(resp) -> str | None:
+        """The id Telegram hands back when a chat has moved.
+
+        Promoting a bot to administrator turns a basic group into a supergroup,
+        and the supergroup gets a different id. Telegram says so in the error's
+        `parameters.migrate_to_chat_id` rather than making anyone derive it —
+        so read it instead of guessing a -100 prefix."""
+        try:
+            new = ((resp.json() or {}).get("parameters") or {}).get("migrate_to_chat_id")
+            return str(new) if new is not None else None
+        except Exception:
+            return None
 
     @property
     def chat_id(self) -> str:
@@ -427,6 +443,7 @@ class TelegramNotifier:
         forwarded = 0
         calls = 0
         self.last_forward_refusal = None
+        self.last_forward_migrated_to = None
         try:
             client = await self._http()
             # Strictly increasing ids are required by forwardMessages, and
@@ -442,7 +459,21 @@ class TelegramNotifier:
                           "message_ids": chunk, "disable_notification": True})
                 if resp.status_code == 200 and (resp.json() or {}).get("ok"):
                     forwarded += len((resp.json() or {}).get("result") or chunk)
-                elif len(chunk) > 1:
+                    continue
+
+                # The chat moved: follow it once, put the batch back, and
+                # remember the new id so /clear can name it. Archiving to a
+                # chat that has merely been upgraded should not need a redeploy
+                # to succeed — only to stop needing this hop.
+                moved = self._migrate_to(resp)
+                if moved and moved != to_chat_id and self.last_forward_migrated_to is None:
+                    log.info("archive chat %s migrated to %s", to_chat_id, moved)
+                    self.last_forward_migrated_to = moved
+                    to_chat_id = moved
+                    pending.append(chunk)
+                    continue
+
+                if len(chunk) > 1:
                     half = len(chunk) // 2
                     pending += [chunk[:half], chunk[half:]]
                 else:
@@ -2608,7 +2639,12 @@ async def _clear_chat() -> None:
             note += f" {archived} of the bot's kept — 🗂 History shows them."
         if archive_chat:
             note += f" {forwarded} forwarded to the archive chat."
-            if not forwarded:
+            moved = getattr(_notifier, "last_forward_migrated_to", None)
+            if moved:
+                note += (f"\n⚠️ That chat is now a supergroup — set "
+                         f"{ARCHIVE_CHAT_ENV} to <code>{html.escape(str(moved))}</code>; "
+                         "this run followed the move.")
+            elif not forwarded:
                 why = getattr(_notifier, "last_forward_refusal", None)
                 note += (f" (Telegram refused: {html.escape(str(why))})" if why else
                          " (nothing in the tracked list could be forwarded)")

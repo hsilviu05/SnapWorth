@@ -1907,6 +1907,46 @@ class TestHistoryAndArchive:
             await notify.aclose()
 
     @pytest.mark.asyncio
+    async def test_an_upgraded_group_is_followed_and_the_new_id_reported(self, cache, monkeypatch):
+        """Promoting the bot to admin turns a basic group into a supergroup with
+        a different id, and the archive silently stops working. Telegram names
+        the new id in parameters.migrate_to_chat_id; the run should follow it
+        and tell the operator what to put in the environment."""
+        monkeypatch.setenv(notify.ARCHIVE_CHAT_ENV, "-5401463470")
+
+        class Migrated(TestPolling.Bot):
+            def handler(self, request):
+                if request.url.path.endswith("/forwardMessages"):
+                    body = json.loads(request.content)
+                    if body["chat_id"] == "-5401463470":
+                        return httpx.Response(400, json={
+                            "ok": False,
+                            "description": "Bad Request: group chat was upgraded to a supergroup chat",
+                            "parameters": {"migrate_to_chat_id": -1005401463470}})
+                    self.forwarded.append((body["chat_id"], body["message_ids"]))
+                    return httpx.Response(200, json={"ok": True, "result": [
+                        {"message_id": 7000 + i} for i in body["message_ids"]]})
+                return super().handler(request)
+
+        bot = Migrated([TestPolling.update(860, FAKE_CHAT, "/status")])
+        notifier = notify.TelegramNotifier(
+            FAKE_TOKEN, FAKE_CHAT,
+            client=httpx.AsyncClient(transport=httpx.MockTransport(bot.handler)))
+        notify.configure(cache, notifier=notifier)
+        bot.updates[0]["message"]["message_id"] = 600
+        try:
+            await notify.poll_once(None)
+            bot.updates = [TestPolling.update(861, FAKE_CHAT, "/clear")]
+            await notify.poll_once(862)
+            reply = bot.replies[-1]
+            assert [c for c, _ in bot.forwarded] == ["-1005401463470"], \
+                "the messages must reach the moved chat, not be dropped"
+            assert "0 forwarded" not in reply
+            assert "now a supergroup" in reply and "-1005401463470" in reply
+        finally:
+            await notify.aclose()
+
+    @pytest.mark.asyncio
     async def test_zero_forwarded_says_why(self, cache, monkeypatch):
         """'0 forwarded' with no reason is the failure mode that hides a
         misconfigured archive; Telegram's own words go in the reply."""
