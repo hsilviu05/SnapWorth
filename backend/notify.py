@@ -230,6 +230,7 @@ ARCHIVE_CHAT_ENV = "TELEGRAM_ARCHIVE_CHAT_ID"
 CLEAR_SWEEP_IDS = 600
 # Upper bound on deleteMessages calls per /clear, however the batches split.
 DELETE_MAX_CALLS = 60
+FORWARD_MAX_CALLS = 60
 
 # What happened to the last deploy ping, so /status can answer "did it go
 # out?" without anyone reading Railway logs.
@@ -284,6 +285,8 @@ class TelegramNotifier:
     def __init__(self, bot_token: str, chat_id: str, client=None) -> None:
         self._token = bot_token
         self._chat_id = chat_id
+        # Why the last forward batch was refused, for /clear to show.
+        self.last_forward_refusal: str | None = None
         self._client = client          # injectable for tests
         # Told the message_id of every message this notifier sends, so /clear
         # can take them back. Set by `configure`; None is "don't bother".
@@ -409,22 +412,47 @@ class TelegramNotifier:
 
     async def forward_messages(self, to_chat_id: str, message_ids: list[int]) -> int:
         """Copy messages to another chat — the archive — before /clear deletes
-        them here. Up to 100 per call. Returns how many were forwarded."""
+        them here. Returns how many were forwarded.
+
+        Telegram answers a forward batch as a whole, exactly as it does a
+        delete batch: one id it will not forward — a service message ("X
+        created the group"), a message already gone, one whose content is
+        protected — refuses the entire call, and the tracked list mixes the
+        bot's own messages with everything it saw the operator send. Sending
+        all of them in one call therefore archives *nothing* the moment a
+        single id is unforwardable, which is how a healthy chat reports
+        "0 forwarded". So a refused batch is halved and retried down to single
+        ids, isolating the unforwardable ones, under the same call cap as
+        delete."""
         forwarded = 0
+        calls = 0
+        self.last_forward_refusal = None
         try:
             client = await self._http()
-            for start in range(0, len(message_ids), 100):
-                chunk = message_ids[start:start + 100]
+            # Strictly increasing ids are required by forwardMessages, and
+            # halving a sorted list keeps every chunk sorted.
+            ordered = sorted(set(message_ids))
+            pending = [ordered[i:i + 100] for i in range(0, len(ordered), 100)]
+            while pending and calls < FORWARD_MAX_CALLS:
+                chunk = pending.pop()
+                calls += 1
                 resp = await client.post(
                     f"{TELEGRAM_API}/bot{self._token}/forwardMessages",
                     json={"chat_id": to_chat_id, "from_chat_id": self._chat_id,
                           "message_ids": chunk, "disable_notification": True})
                 if resp.status_code == 200 and (resp.json() or {}).get("ok"):
                     forwarded += len((resp.json() or {}).get("result") or chunk)
+                elif len(chunk) > 1:
+                    half = len(chunk) // 2
+                    pending += [chunk[:half], chunk[half:]]
                 else:
-                    log.info("telegram forwardMessages refused: HTTP %s %s",
-                             resp.status_code, self._description(resp))
+                    # The last one standing explains the whole batch: keep it
+                    # for /clear to show, so "0 forwarded" is never mute.
+                    self.last_forward_refusal = self._description(resp)
+                    log.info("telegram forwardMessages refused id %s: %s",
+                             chunk[0], self.last_forward_refusal)
         except Exception as exc:
+            self.last_forward_refusal = type(exc).__name__
             log.warning("telegram forwardMessages failed: %s", type(exc).__name__)
         return forwarded
 
@@ -2580,6 +2608,10 @@ async def _clear_chat() -> None:
             note += f" {archived} of the bot's kept — 🗂 History shows them."
         if archive_chat:
             note += f" {forwarded} forwarded to the archive chat."
+            if not forwarded:
+                why = getattr(_notifier, "last_forward_refusal", None)
+                note += (f" (Telegram refused: {html.escape(str(why))})" if why else
+                         " (nothing in the tracked list could be forwarded)")
     else:
         note = ("🧹 Nothing to clear yet — the bot has not sent or seen a message since this "
                 "process started.")
