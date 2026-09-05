@@ -544,9 +544,15 @@ class TestPolling:
                 return httpx.Response(200, json={"ok": True, "result": True})
             if path.endswith("/getChat"):
                 cid = request.url.params["chat_id"]
-                if cid == "-1005401463470":
+                # The real archive chat: a *basic group*, so -<id> with no
+                # -100 prefix. -1005401463470 is deliberately absent — that is
+                # the form an operator reaches for, and it resolves to nothing.
+                if cid == "-5401463470":
                     return httpx.Response(200, json={"ok": True, "result": {
-                        "id": -1005401463470, "type": "channel", "title": "SnapWorth archive"}})
+                        "id": -5401463470, "type": "group", "title": "History"}})
+                if cid == "-1009000000001":
+                    return httpx.Response(200, json={"ok": True, "result": {
+                        "id": -1009000000001, "type": "channel", "title": "SnapWorth archive"}})
                 return httpx.Response(400, json={"ok": False, "description": "Bad Request: chat not found"})
             if path.endswith("/forwardMessages"):
                 body = json.loads(request.content)
@@ -1900,19 +1906,42 @@ class TestArchiveChatCheck:
             await notify.aclose()
 
     @pytest.mark.asyncio
-    async def test_a_positive_number_is_called_out_with_the_likely_fix(self, cache):
+    async def test_a_positive_number_is_called_out_with_both_fixes(self, cache):
+        """It used to name only the -100 form, which is wrong for a basic group
+        and cost a real operator two redeploys chasing an id that never was."""
         line = await self.line(cache, "5401463470")
         assert "positive — a user or bot id" in line
-        assert "<code>-1005401463470</code>" in line
+        assert "<code>-5401463470</code>" in line, "the basic-group form"
+        assert "<code>-1005401463470</code>" in line, "the supergroup/channel form"
+
+    @pytest.mark.asyncio
+    async def test_a_basic_group_resolves_as_a_group(self, cache):
+        assert await self.line(cache, "-5401463470") == \
+            "Archive chat: History (group) ✅ — /clear forwards here first"
+
+    @pytest.mark.asyncio
+    async def test_the_wrong_form_of_a_real_chat_names_the_right_one(self, cache):
+        """The case that actually happened: a basic group's id wearing the -100
+        prefix meant for supergroups. It resolves to nothing, and blaming the
+        bot's membership sends the operator to settings that were never the
+        problem — the number was right, only its form was wrong."""
+        line = await self.line(cache, "-1005401463470")
+        assert "<code>-5401463470</code> is the same chat" in line
+        assert "not in it" not in line, "don't blame membership when the id resolves"
+
+    @pytest.mark.asyncio
+    async def test_a_chat_that_exists_in_no_form_still_blames_membership(self, cache):
+        line = await self.line(cache, "-1009999")
+        assert "not reachable — the bot is not in it" in line
+        assert "is the same chat" not in line
 
     @pytest.mark.asyncio
     async def test_a_real_channel_resolves_to_its_title(self, cache):
-        assert await self.line(cache, "-1005401463470") == \
+        assert await self.line(cache, "-1009000000001") == \
             "Archive chat: SnapWorth archive (channel) ✅ — /clear forwards here first"
 
     @pytest.mark.asyncio
-    async def test_unknown_and_garbage(self, cache):
-        assert "not reachable" in await self.line(cache, "-1009999")
+    async def test_garbage(self, cache):
         assert "not a chat id" in await self.line(cache, "archive")
 
     @pytest.mark.asyncio

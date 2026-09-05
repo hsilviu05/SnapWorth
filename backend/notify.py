@@ -2314,23 +2314,55 @@ def _probe_reason(exc: Exception) -> str:
     return type(exc).__name__
 
 
+def _negative_forms(digits: str) -> list[str]:
+    """The negative chat ids a bare positive number could stand for.
+
+    Telegram writes the same chat three ways and web.telegram.org shows the id
+    without saying which: a **basic group** is -<id>, a **supergroup or
+    channel** is -100<id>, and a positive number is a person or a bot. Offering
+    only the -100 form sends an operator with a plain group to an id that can
+    never resolve, so offer both and let getChat settle it."""
+    forms = [f"-{digits}"]
+    if not digits.startswith("100"):
+        forms.append(f"-100{digits}")
+    return forms
+
+
 async def _archive_chat_line(chat_id: str) -> str:
     """One checkup line about TELEGRAM_ARCHIVE_CHAT_ID.
 
-    The commonest mistake is pasting a user id: channels are negative and
-    start with -100, and a positive number is a person or a bot. Say so before
-    /clear forwards the whole chat to it."""
+    Says which chat the id actually names before /clear forwards the whole
+    conversation into it — and, when it names nothing, which other form of the
+    same number does."""
     shown = html.escape(chat_id)
     if not chat_id.lstrip("-").isdigit():
-        return f"Archive chat: <code>{shown}</code> is not a chat id (digits only, negative for a channel)"
+        return (f"Archive chat: <code>{shown}</code> is not a chat id "
+                "(digits only, negative for a group or channel)")
+
     if not chat_id.startswith("-"):
-        hint = f"-100{chat_id}" if not chat_id.startswith("100") else f"-{chat_id}"
-        return (f"Archive chat: <code>{shown}</code> is positive — a user or bot id, not a channel. "
-                f"A channel id is negative and starts with -100; did you mean <code>{hint}</code>?")
+        forms = " or ".join(f"<code>{f}</code>" for f in _negative_forms(chat_id))
+        return (f"Archive chat: <code>{shown}</code> is positive — a user or bot id. "
+                f"A group or channel id is negative: try {forms} "
+                "(a basic group is <code>-id</code>, a supergroup or channel <code>-100id</code>).")
+
     info = await _notifier.get_chat(chat_id)
     if not info:
+        # The number is probably right and only its form is wrong — the mistake
+        # this line used to *cause*. Try the other form before blaming the bot's
+        # membership, so the fix is the id in front of the operator.
+        digits = chat_id.lstrip("-")
+        others = [f for f in _negative_forms(digits) if f != chat_id]
+        if digits.startswith("100"):
+            others.append(f"-{digits[3:]}")
+        for other in others:
+            if await _notifier.get_chat(other):
+                return (f"Archive chat: <code>{shown}</code> not reachable, but "
+                        f"<code>{other}</code> is the same chat — set "
+                        f"{ARCHIVE_CHAT_ENV} to that.")
         return (f"Archive chat: <code>{shown}</code> not reachable — the bot is not in it, "
-                "or the id is wrong. Add the bot as an administrator of the channel.")
+                "or the id is wrong. Add the bot to the chat (as an administrator, "
+                "for a channel).")
+
     title = html.escape(str(info.get("title") or info.get("username") or "untitled"))
     kind = html.escape(str(info.get("type") or "chat"))
     return f"Archive chat: {title} ({kind}) ✅ — /clear forwards here first"
