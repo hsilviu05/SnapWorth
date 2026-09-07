@@ -204,8 +204,14 @@ class DeviceCheckClient:
             if "device" in note.lower():
                 return True, ("credentials accepted — Apple refused only the probe's "
                               f"fake device token ({note})")
-            return False, ("key rejected — check APPLE_TEAM_ID, DEVICECHECK_KEY_ID "
-                           "and that the key has the DeviceCheck capability"
+            # Show what was actually signed with. Both are identifiers, not
+            # secrets — they travel in the clear in every JWT header Apple
+            # receives — and seeing them settles the commonest cause in one
+            # glance: a KEY_ID left over from a different key, so the signature
+            # cannot match the kid it claims.
+            return False, (f"key rejected — signed as team {self._team_id} with key "
+                           f"{self._key_id}. Check those match the .p8, and that the "
+                           "key has the DeviceCheck capability"
                            + (f" · Apple said: {note}" if note else ""))
         if status in (200, 400):
             # 200 would mean Apple somehow knew the probe token; either way the
