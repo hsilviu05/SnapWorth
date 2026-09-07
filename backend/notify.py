@@ -580,6 +580,10 @@ _generator: Callable[..., Awaitable[str]] | None = None
 # declared_type) -> dict` with the response's fields plus "elapsed".
 _scanner: Callable[..., Awaitable[dict]] | None = None
 
+# Asks Apple whether the DeviceCheck credentials actually sign, injected by
+# main. `async () -> (ok, detail)`; None when the app did not wire one.
+_device_check_probe: Callable[[], Awaitable[tuple[bool, str]]] | None = None
+
 # Identifies this replica as the poll-lock holder.
 _poll_token = secrets.token_hex(8)
 
@@ -597,18 +601,21 @@ def enabled() -> bool:
 def configure(cache, notifier: TelegramNotifier | None = None,
               status_provider: Callable[[], dict] | None = None,
               social=None, generator: Callable[..., Awaitable[str]] | None = None,
-              scanner: Callable[..., Awaitable[dict]] | None = None) -> None:
+              scanner: Callable[..., Awaitable[dict]] | None = None,
+              device_check_probe: Callable[[], Awaitable[tuple[bool, str]]] | None = None) -> None:
     """Wire the notifier from the environment. Called once at startup.
 
     With the env vars unset this leaves everything disabled and every public
     function a no-op — the feature costs nothing until it is turned on.
     """
     global _notifier, _cache, _status_provider, _social, _generator, _scanner
+    global _device_check_probe
     _cache = cache
     _status_provider = status_provider
     _social = social
     _generator = generator
     _scanner = scanner
+    _device_check_probe = device_check_probe
 
     if notifier is not None:
         _notifier = notifier
@@ -2427,6 +2434,27 @@ def _negative_forms(digits: str) -> list[str]:
     return forms
 
 
+async def _device_check_line(configured: bool) -> str:
+    """Whether reinstall protection is actually working, not merely switched on.
+
+    Three non-empty environment variables is what `is_configured` knows, and a
+    typo'd key looks identical to a healthy one from here: every DeviceCheck
+    failure degrades open by design, so a wrong key silently hands every
+    reinstall a fresh allowance. The probe asks Apple."""
+    if not configured:
+        return "DeviceCheck: NOT configured — reinstalls get a fresh allowance"
+    if _device_check_probe is None:
+        return "DeviceCheck: configured"
+    try:
+        ok, detail = await asyncio.wait_for(_device_check_probe(), 8)
+    except Exception as exc:
+        return f"DeviceCheck: configured · probe failed ({type(exc).__name__})"
+    if ok:
+        return f"DeviceCheck: configured ✅ — {html.escape(detail)}"
+    return (f"DeviceCheck: configured but REJECTED — {html.escape(detail)}. "
+            "Reinstalls get a fresh allowance until this is fixed.")
+
+
 async def _archive_chat_line(chat_id: str) -> str:
     """One checkup line about TELEGRAM_ARCHIVE_CHAT_ID.
 
@@ -2511,7 +2539,7 @@ async def _checkup_text() -> str:
             f"degraded ({html.escape(str(info.get('model_failure_kind') or 'unknown'))})"
         lines.append(f"Provider health as seen by /scan: {model}")
         if "devicecheck" in info:
-            lines.append(f"DeviceCheck: {'configured' if info['devicecheck'] else 'NOT configured — reinstalls get a fresh allowance'}")
+            lines.append(await _device_check_line(bool(info["devicecheck"])))
         lines.append(f"Auth: {'enforcing' if info.get('auth_enforcing') else 'NOT enforcing'} · "
                      f"build <code>{html.escape(str(info.get('commit', '?')))}</code>")
 

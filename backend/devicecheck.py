@@ -32,6 +32,10 @@ SANDBOX_HOST = "https://api.development.devicecheck.apple.com"
 
 _HTTP_TIMEOUT = 5.0
 
+# Valid base64, certainly not a real device token. Used only by `verify()`,
+# which cares about the Authorization header Apple checks first.
+_PROBE_TOKEN = base64.b64encode(b"snapworth-devicecheck-probe").decode()
+
 
 class DeviceCheckError(Exception):
     """DeviceCheck call failed. Never surfaced to the client verbatim."""
@@ -123,6 +127,44 @@ class DeviceCheckClient:
         })
         if status != 200:
             raise DeviceCheckError(f"DeviceCheck update failed ({status})")
+
+    async def verify(self) -> tuple[bool, str]:
+        """Prove the credentials actually sign, without needing a real device.
+
+        `is_configured` only says three environment variables are non-empty. It
+        cannot tell a working key from a typo, and every DeviceCheck failure
+        degrades open on purpose (see `quota.starting_balance`) — so a wrong key
+        looks exactly like a healthy service that keeps handing out free scans.
+
+        Apple reads the Authorization header before the request body, which
+        separates the two answers we need:
+
+          * **401** — the JWT was refused: `APPLE_TEAM_ID`, `DEVICECHECK_KEY_ID`
+            or the key itself is wrong.
+          * **400** — the JWT was *accepted* and Apple got as far as rejecting
+            the obviously-fake device token. That is the pass we are after.
+
+        Returns (ok, detail); never raises.
+        """
+        if not self.is_configured:
+            return False, "not configured"
+        try:
+            status, body = await self._post("/v1/query_two_bits", {
+                "device_token": _PROBE_TOKEN,
+                "transaction_id": str(uuid.uuid4()),
+                "timestamp": int(time.time() * 1000),
+            })
+        except Exception as exc:                      # bad PEM, DNS, timeout
+            return False, f"{type(exc).__name__}"
+
+        if status == 401:
+            return False, ("key rejected — check APPLE_TEAM_ID, DEVICECHECK_KEY_ID "
+                           "and that the key has the DeviceCheck capability")
+        if status in (200, 400):
+            # 200 would mean Apple somehow knew the probe token; either way the
+            # signature was good, which is the only thing being asked.
+            return True, "credentials accepted by Apple"
+        return False, f"unexpected HTTP {status}: {body.strip()[:80]}"
 
     @staticmethod
     def looks_like_token(value: str) -> bool:
