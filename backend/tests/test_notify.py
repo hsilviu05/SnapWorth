@@ -2004,6 +2004,43 @@ class TestSafetyBlocks:
         assert "· 4 blocked" in status
 
 
+class TestScanFailureBreakdown:
+    """A bare "3 failed" cannot tell an operator whether the AI service is down
+    or the photos are bad. The kinds are counted apart."""
+
+    @pytest.mark.asyncio
+    async def test_status_and_digest_name_the_kinds_commonest_first(self, cache, enabled_notify):
+        notify.count_scan("free")
+        notify.count_scan_failure("no_price")
+        notify.count_scan_failure("no_price")
+        notify.count_scan_failure("provider")
+        await drain()
+
+        assert await notify._read_stat(notify._day(), "scans_failed") == 3, \
+            "the running total must stay whole for the weekly trend"
+
+        status = await notify.handle_command("/status")
+        assert "1 ok (1 free · 0 Pro) · 3 failed (2 no price · 1 provider)" in status
+
+        digest = await notify._digest_text(datetime.now(timezone.utc))
+        assert "3 failed (2 no price · 1 provider)" in digest
+
+    @pytest.mark.asyncio
+    async def test_an_unknown_kind_lands_in_other_rather_than_vanishing(self, cache, enabled_notify):
+        notify.count_scan_failure("something_new")
+        await drain()
+        assert "1 failed (1 other)" in await notify.handle_command("/status")
+
+    @pytest.mark.asyncio
+    async def test_a_day_recorded_before_the_kinds_existed_reads_as_a_plain_total(
+            self, cache, enabled_notify):
+        """Old days have a total and no parts. They must not gain a bogus
+        breakdown or a zero."""
+        await cache.set(notify._stat_key(notify._day(), "scans_failed"), "4", 600)
+        status = await notify.handle_command("/status")
+        assert "· 4 failed" in status and "failed (" not in status
+
+
 class TestArchiveChatCheck:
     async def line(self, cache, value):
         bot = TestPolling.Bot([])
