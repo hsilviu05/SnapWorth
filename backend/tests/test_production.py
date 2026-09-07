@@ -458,9 +458,12 @@ class TestDeviceCheckVerify:
         ok, detail = self.run(lambda r: httpx.Response(
             401, text="Unable to verify authorization token"))
         assert not ok
-        assert "APPLE_TEAM_ID" in detail and "DEVICECHECK_KEY_ID" in detail
         assert "Apple said: Unable to verify authorization token" in detail, \
             "quote Apple rather than paraphrasing it"
+        # The commonest cause is a KEY_ID left over from another key, which is
+        # invisible unless the line says what it signed with.
+        assert "team TEAM123456" in detail and "key KEY1234567" in detail
+        assert "DeviceCheck capability" in detail
 
     def test_a_401_about_the_device_token_is_a_pass_not_a_rejection(self):
         """The probe assumes Apple answers a bad *device* token with 400. If it
