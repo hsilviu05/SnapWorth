@@ -128,6 +128,25 @@ class DeviceCheckClient:
         if status != 200:
             raise DeviceCheckError(f"DeviceCheck update failed ({status})")
 
+    def _key_problem(self) -> str | None:
+        """A shape problem in the configured PEM, named without echoing it.
+
+        Every malformed key raises the same bare `ValueError` from cryptography
+        — a flattened one-liner, a body with no BEGIN/END, and a truncated file
+        are indistinguishable by exception type. The type alone is useless to
+        whoever has to fix it, so check the two shapes that actually go wrong
+        when a .p8 is pasted into a hosting panel.
+        """
+        key = self._private_key
+        if "BEGIN" not in key or "END" not in key:
+            return ("DEVICECHECK_PRIVATE_KEY has no BEGIN/END lines — paste the whole "
+                    ".p8 file, not just the base64 body")
+        if "\n" not in key.strip():
+            return ("DEVICECHECK_PRIVATE_KEY is on a single line — its newlines were "
+                    "lost in transit. Re-paste it with real line breaks, or with a "
+                    "literal \\n between them")
+        return None
+
     async def verify(self) -> tuple[bool, str]:
         """Prove the credentials actually sign, without needing a real device.
 
@@ -148,14 +167,27 @@ class DeviceCheckClient:
         """
         if not self.is_configured:
             return False, "not configured"
+
+        problem = self._key_problem()
+        if problem:
+            return False, problem
+
+        # Signing is attempted separately from the request so a key that cannot
+        # be read is never reported as though Apple had refused it.
+        try:
+            self._auth_jwt()
+        except Exception as exc:
+            return False, (f"private key unreadable — {str(exc)[:120]} "
+                           "(it must be the unencrypted P-256 .p8 from the Keys page)")
+
         try:
             status, body = await self._post("/v1/query_two_bits", {
                 "device_token": _PROBE_TOKEN,
                 "transaction_id": str(uuid.uuid4()),
                 "timestamp": int(time.time() * 1000),
             })
-        except Exception as exc:                      # bad PEM, DNS, timeout
-            return False, f"{type(exc).__name__}"
+        except Exception as exc:                      # DNS, TLS, timeout
+            return False, f"could not reach Apple ({type(exc).__name__})"
 
         if status == 401:
             return False, ("key rejected — check APPLE_TEAM_ID, DEVICECHECK_KEY_ID "
