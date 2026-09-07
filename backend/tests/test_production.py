@@ -455,9 +455,24 @@ class TestDeviceCheckVerify:
 
     def test_a_401_names_the_variables_to_check(self):
         import httpx
-        ok, detail = self.run(lambda r: httpx.Response(401, text="Unauthorized"))
+        ok, detail = self.run(lambda r: httpx.Response(
+            401, text="Unable to verify authorization token"))
         assert not ok
         assert "APPLE_TEAM_ID" in detail and "DEVICECHECK_KEY_ID" in detail
+        assert "Apple said: Unable to verify authorization token" in detail, \
+            "quote Apple rather than paraphrasing it"
+
+    def test_a_401_about_the_device_token_is_a_pass_not_a_rejection(self):
+        """The probe assumes Apple answers a bad *device* token with 400. If it
+        ever answers 401 instead, a good key would read as rejected and send
+        someone hunting through the developer portal for nothing. Apple's own
+        wording is what distinguishes the two, so it decides."""
+        import httpx
+        ok, detail = self.run(lambda r: httpx.Response(
+            401, text="Unable to verify device token"))
+        assert ok, "the authorization was accepted; only the fake token was not"
+        assert "probe's fake device token" in detail
+        assert "key rejected" not in detail
 
     def test_an_unexpected_status_is_reported_verbatim_not_swallowed(self):
         import httpx

@@ -189,14 +189,29 @@ class DeviceCheckClient:
         except Exception as exc:                      # DNS, TLS, timeout
             return False, f"could not reach Apple ({type(exc).__name__})"
 
+        note = body.strip()[:140]
+
         if status == 401:
+            # This probe rests on Apple answering a bad *device* token with 400
+            # and only a bad *key* with 401. That is not something we can prove
+            # from here, and if Apple ever answers 401 for the deliberately fake
+            # token, a perfectly good key reads as rejected — a false alarm that
+            # sends someone hunting through the developer portal.
+            #
+            # Apple's own words settle it, so quote them instead of guessing:
+            # a complaint about the *device* token means the authorization was
+            # accepted and only this probe's token was refused.
+            if "device" in note.lower():
+                return True, ("credentials accepted — Apple refused only the probe's "
+                              f"fake device token ({note})")
             return False, ("key rejected — check APPLE_TEAM_ID, DEVICECHECK_KEY_ID "
-                           "and that the key has the DeviceCheck capability")
+                           "and that the key has the DeviceCheck capability"
+                           + (f" · Apple said: {note}" if note else ""))
         if status in (200, 400):
             # 200 would mean Apple somehow knew the probe token; either way the
             # signature was good, which is the only thing being asked.
             return True, "credentials accepted by Apple"
-        return False, f"unexpected HTTP {status}: {body.strip()[:80]}"
+        return False, f"unexpected HTTP {status}: {note[:80]}"
 
     @staticmethod
     def looks_like_token(value: str) -> bool:
