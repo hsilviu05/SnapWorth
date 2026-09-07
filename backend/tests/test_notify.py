@@ -2004,6 +2004,58 @@ class TestSafetyBlocks:
         assert "· 4 blocked" in status
 
 
+class TestDeviceCheckLine:
+    """`is_configured` only proves three variables are non-empty. Because every
+    DeviceCheck failure degrades open, a typo'd key looks exactly like a healthy
+    one while every reinstall gets a fresh allowance."""
+
+    async def line(self, cache, monkeypatch, configured, probe):
+        monkeypatch.setattr(notify, "_tls_days_left", lambda host, timeout=5.0: 60)
+        bot = TestPolling.Bot([])
+        notifier = notify.TelegramNotifier(
+            FAKE_TOKEN, FAKE_CHAT,
+            client=httpx.AsyncClient(transport=httpx.MockTransport(bot.handler)))
+        notify.configure(cache, notifier=notifier,
+                         status_provider=lambda: {"devicecheck": configured,
+                                                  "commit": "abc123"},
+                         device_check_probe=probe)
+        try:
+            checkup = await notify.handle_command("/checkup")
+        finally:
+            await notify.aclose()
+        return [ln for ln in checkup.split("\n") if ln.startswith("DeviceCheck")][0]
+
+    @pytest.mark.asyncio
+    async def test_working_credentials_say_so(self, cache, monkeypatch):
+        async def probe():
+            return True, "credentials accepted by Apple"
+        line = await self.line(cache, monkeypatch, True, probe)
+        assert line == "DeviceCheck: configured \u2705 — credentials accepted by Apple"
+
+    @pytest.mark.asyncio
+    async def test_a_rejected_key_is_not_reported_as_configured(self, cache, monkeypatch):
+        async def probe():
+            return False, "key rejected — check APPLE_TEAM_ID"
+        line = await self.line(cache, monkeypatch, True, probe)
+        assert "REJECTED" in line and "key rejected" in line
+        assert "Reinstalls get a fresh allowance until this is fixed." in line
+
+    @pytest.mark.asyncio
+    async def test_a_probe_that_blows_up_does_not_take_the_checkup_with_it(
+            self, cache, monkeypatch):
+        async def probe():
+            raise TimeoutError("apple unreachable")
+        line = await self.line(cache, monkeypatch, True, probe)
+        assert line == "DeviceCheck: configured · probe failed (TimeoutError)"
+
+    @pytest.mark.asyncio
+    async def test_unconfigured_is_unchanged(self, cache, monkeypatch):
+        async def probe():                      # must never be consulted
+            raise AssertionError("probed while unconfigured")
+        line = await self.line(cache, monkeypatch, False, probe)
+        assert line == "DeviceCheck: NOT configured — reinstalls get a fresh allowance"
+
+
 class TestScanFailureBreakdown:
     """A bare "3 failed" cannot tell an operator whether the AI service is down
     or the photos are bad. The kinds are counted apart."""

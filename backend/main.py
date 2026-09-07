@@ -206,7 +206,8 @@ async def _lifespan(_app: FastAPI):
     social.configure(social_readers)
     notify.configure(_cache, status_provider=_status_snapshot,
                      social=social_readers if social_readers.configured else None,
-                     generator=_bot_generate, scanner=_bot_scan)
+                     generator=_bot_generate, scanner=_bot_scan,
+                     device_check_probe=dc.verify)
 
     cfg = auth.deps.config
     if cfg.enforce and not cfg.is_configured:

@@ -304,6 +304,50 @@ rotation needs no flag day:
 4. Revoke the old key
 5. CI already blocks committed keys (`.github/workflows/backend.yml`)
 
+### 8.3 Provisioning DeviceCheck
+
+DeviceCheck is what stops a reinstall from resetting the free-scan allowance.
+Unset, the service runs fine and every reinstall gets a fresh allowance —
+`🩺 Checkup` says so.
+
+**In the Apple Developer portal** (Certificates, Identifiers & Profiles → Keys):
+
+1. **+**, name it (e.g. `SnapWorth DeviceCheck`), tick **DeviceCheck**, Continue → Register.
+2. **Download the `.p8`. Apple lets you download it once**, and it cannot be
+   re-issued — only revoked and replaced.
+3. Note the **Key ID** on that page, and the **Team ID** from Membership.
+
+**In Railway** — three variables, not two:
+
+| Variable | Value |
+|---|---|
+| `APPLE_TEAM_ID` | Team ID (already set if App Attest is enforcing) |
+| `DEVICECHECK_KEY_ID` | the Key ID from step 3 |
+| `DEVICECHECK_PRIVATE_KEY` | the whole `.p8` file, `BEGIN`/`END` lines included |
+
+The private key may be pasted with literal `\n` instead of newlines; the client
+converts them (`devicecheck.py`, `__init__`). All three must be non-empty or
+`is_configured` stays False and the checks are skipped.
+
+**Then verify — do not trust "configured".** `is_configured` only means the
+three variables are non-empty, and *every* DeviceCheck failure degrades open
+(§5.6), so a typo'd key silently hands every reinstall a fresh allowance.
+Run `🩺 Checkup`:
+
+- `DeviceCheck: configured ✅ — credentials accepted by Apple` — Apple signed off.
+- `DeviceCheck: configured but REJECTED — key rejected …` — one of the three
+  variables is wrong, or the key lacks the DeviceCheck capability.
+
+The probe sends a deliberately fake device token: Apple reads the
+Authorization header first, so a `400` about the token proves the key signs
+while a `401` proves it does not. No device is involved.
+
+**`DEVICECHECK_SANDBOX`**: leave unset. Device tokens from an Xcode-run debug
+build belong to Apple's development environment and will be refused by the
+production host — expected, and harmless because the path degrades open. Set it
+only if you ever point a build at the sandbox deliberately; a stale `true` would
+break DeviceCheck for real App Store users, silently.
+
 ---
 
 ## 9. Disaster recovery

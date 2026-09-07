@@ -409,6 +409,83 @@ class TestDeviceCheckPooling:
         asyncio.run(run())
 
 
+class TestDeviceCheckVerify:
+    """`is_configured` is three non-empty variables. `verify()` asks Apple.
+
+    Apple checks the Authorization header before the request body, so a
+    deliberately fake device token separates "the key signs" (400 — it got as
+    far as the token) from "the key is wrong" (401). That distinction is the
+    whole probe, and it needs no real device.
+    """
+
+    # A syntactically valid P-256 key, so pyjwt can actually sign. Test-only.
+    KEY = (
+        "-----BEGIN PRIVATE KEY-----\n"
+        "MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQgevZzL1gdAFr88hb2\n"
+        "OF/2NxApJCzGCEDdfSp6VQO30hyhRANCAAQRWz+jn65BtOMvdyHKcvjBeBSDZH2r\n"
+        "1RTwjmYSi9R/zpBnuQ4EiMnCqfMPWiZqB4QdbAd0E7oH50VpuZ1P087G\n"
+        "-----END PRIVATE KEY-----\n"
+    )
+
+    def client(self, handler, **kw):
+        import httpx
+        dc = devicecheck.DeviceCheckClient(
+            team_id="TEAM123456", key_id="KEY1234567", private_key_pem=self.KEY, **kw)
+        devicecheck._client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+        return dc
+
+    def run(self, handler, **kw):
+        async def go():
+            dc = self.client(handler, **kw)
+            try:
+                return await dc.verify()
+            finally:
+                await devicecheck.aclose()
+        return asyncio.run(go())
+
+    def test_a_bad_token_with_a_good_key_is_a_pass(self):
+        import httpx
+
+        def apple(request):
+            assert request.headers["Authorization"].startswith("Bearer ")
+            return httpx.Response(400, text="Missing or incorrectly formatted device token")
+
+        ok, detail = self.run(apple)
+        assert ok and detail == "credentials accepted by Apple"
+
+    def test_a_401_names_the_variables_to_check(self):
+        import httpx
+        ok, detail = self.run(lambda r: httpx.Response(401, text="Unauthorized"))
+        assert not ok
+        assert "APPLE_TEAM_ID" in detail and "DEVICECHECK_KEY_ID" in detail
+
+    def test_an_unexpected_status_is_reported_verbatim_not_swallowed(self):
+        import httpx
+        ok, detail = self.run(lambda r: httpx.Response(503, text="try later"))
+        assert not ok and "503" in detail
+
+    def test_the_probe_token_is_never_a_real_one(self):
+        """It must be valid base64 so it reaches Apple's token check rather
+        than being rejected by our own shape guard."""
+        assert devicecheck.DeviceCheckClient.looks_like_token(devicecheck._PROBE_TOKEN)
+
+    def test_unconfigured_says_so_without_calling_apple(self):
+        async def go():
+            dc = devicecheck.DeviceCheckClient()      # nothing set
+            return await dc.verify()
+        ok, detail = asyncio.run(go())
+        assert not ok and detail == "not configured"
+
+    def test_a_broken_private_key_is_caught_not_raised(self):
+        async def go():
+            dc = devicecheck.DeviceCheckClient(
+                team_id="TEAM123456", key_id="KEY1234567",
+                private_key_pem="-----BEGIN PRIVATE KEY-----\nnope\n-----END PRIVATE KEY-----")
+            return await dc.verify()
+        ok, detail = asyncio.run(go())
+        assert not ok and detail       # some exception name, never a crash
+
+
 # ═══ Container configuration ══════════════════════════════════════════════════
 
 class TestDockerfile:
