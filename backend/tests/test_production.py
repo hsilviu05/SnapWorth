@@ -483,7 +483,44 @@ class TestDeviceCheckVerify:
                 private_key_pem="-----BEGIN PRIVATE KEY-----\nnope\n-----END PRIVATE KEY-----")
             return await dc.verify()
         ok, detail = asyncio.run(go())
-        assert not ok and detail       # some exception name, never a crash
+        assert not ok
+        assert "private key unreadable" in detail
+        assert "Keys page" in detail, "say where a good key comes from"
+
+    def test_a_flattened_pem_is_named_not_left_as_a_bare_valueerror(self):
+        """A hosting panel that eats newlines is the commonest way this breaks,
+        and cryptography raises the same ValueError for every malformed key —
+        so the type alone tells whoever has to fix it nothing."""
+        async def go():
+            dc = devicecheck.DeviceCheckClient(
+                team_id="TEAM123456", key_id="KEY1234567",
+                private_key_pem=("-----BEGIN PRIVATE KEY----- MIGHAgEAMBMGByqGSM49"
+                                 "AgEGCCqGSM49AwEHBG0wawIBAQQg -----END PRIVATE KEY-----"))
+            return await dc.verify()
+        ok, detail = asyncio.run(go())
+        assert not ok
+        assert "single line" in detail and "newlines were lost" in detail
+
+    def test_a_bare_base64_body_says_to_paste_the_whole_file(self):
+        async def go():
+            dc = devicecheck.DeviceCheckClient(
+                team_id="TEAM123456", key_id="KEY1234567",
+                private_key_pem="MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQg")
+            return await dc.verify()
+        ok, detail = asyncio.run(go())
+        assert not ok and "no BEGIN/END lines" in detail
+
+    def test_a_key_that_signs_but_cannot_reach_apple_says_which_failed(self):
+        """A network problem must never read as Apple refusing the key."""
+        import httpx
+
+        def dead(request):
+            raise httpx.ConnectError("no route to host")
+
+        ok, detail = self.run(dead)
+        assert not ok
+        assert "could not reach Apple" in detail
+        assert "rejected" not in detail
 
 
 # ═══ Container configuration ══════════════════════════════════════════════════

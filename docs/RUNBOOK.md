@@ -329,6 +329,17 @@ The private key may be pasted with literal `\n` instead of newlines; the client
 converts them (`devicecheck.py`, `__init__`). All three must be non-empty or
 `is_configured` stays False and the checks are skipped.
 
+**The newlines are what usually breaks.** A panel that flattens the `.p8` to one
+line produces the same bare `ValueError` from `cryptography` as a truncated or
+body-only key, so the checkup names the shape instead:
+
+| Checkup says | Fix |
+|---|---|
+| `…is on a single line — its newlines were lost` | re-paste with real line breaks, or with a literal `\n` between them |
+| `…has no BEGIN/END lines` | paste the whole file, not just the base64 body |
+| `private key unreadable — …` | the envelope is right but the contents are not a P-256 key; check it is the unencrypted `.p8` Apple issued |
+| `could not reach Apple (…)` | network, not credentials — nothing to change |
+
 **Then verify — do not trust "configured".** `is_configured` only means the
 three variables are non-empty, and *every* DeviceCheck failure degrades open
 (§5.6), so a typo'd key silently hands every reinstall a fresh allowance.
