@@ -1212,7 +1212,7 @@ async def _analyse(image_bytes: bytes, content_type: str, *, subject: str,
         ) from None
     except aiconfig.ModelUnavailable as exc:
         log.error("gemini failed after retries: %s", exc)
-        notify.count_scan_failure()
+        notify.count_scan_failure("provider")
         raise HTTPException(
             status_code=502,
             detail="The AI service is temporarily unavailable. Please try again.",
@@ -1228,7 +1228,7 @@ async def _analyse(image_bytes: bytes, content_type: str, *, subject: str,
         data = await _retry_as_json(raw)
         if data is None:
             log.error("scan unparseable after reformat", extra={"raw_prefix": raw[:200]})
-            notify.count_scan_failure()
+            notify.count_scan_failure("unreadable")
             raise HTTPException(
                 status_code=502,
                 detail="The AI response couldn't be read. Please try again.",
@@ -1251,7 +1251,7 @@ async def _analyse(image_bytes: bytes, content_type: str, *, subject: str,
                   extra={"item": val.item_name, "category": val.category,
                          "keys": sorted(data)[:20]})
         metrics.model_calls.inc(operation="scan", outcome="no_price")
-        notify.count_scan_failure()
+        notify.count_scan_failure("no_price")
         raise HTTPException(
             status_code=502,
             detail="The AI couldn't price this item. Please try again.",

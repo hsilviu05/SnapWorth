@@ -700,11 +700,47 @@ def count_scan(tier: str) -> None:
     _spawn(_bump("scans_pro" if tier == "pro" else "scans_free"))
 
 
-def count_scan_failure() -> None:
-    """Tally one scan that reached the model and still failed the user."""
+# The ways a scan that reached the model can still fail the user. They are
+# counted apart because they call for different responses: "provider" is the
+# AI service being down and nothing to do with the photo, "no price" usually
+# is the photo, and "unreadable" means the model answered but not in JSON we
+# could use even after the reformat retry. A bare "3 failed" cannot tell an
+# operator which of those happened, which is the whole point of the line.
+#
+# Note what is NOT here: an attestation refusal never reaches the model, so it
+# 401s long before this counter and is not a scan failure in this sense.
+SCAN_FAILURE_LABELS = {
+    "provider": "provider",
+    "unreadable": "unreadable",
+    "no_price": "no price",
+    "other": "other",
+}
+
+
+def count_scan_failure(kind: str = "other") -> None:
+    """Tally one scan that reached the model and still failed the user.
+
+    `scans_failed` stays the running total, so the digest, the weekly trend and
+    every day already recorded stay continuous; the per-kind counter is the new
+    detail beside it."""
     if _notifier is None:
         return
     _spawn(_bump("scans_failed"))
+    _spawn(_bump(f"scans_failed_{kind if kind in SCAN_FAILURE_LABELS else 'other'}"))
+
+
+async def _failure_breakdown(day: str) -> str:
+    """"2 no price · 1 provider", commonest first; "" when nothing is tagged.
+
+    Days recorded before the per-kind counters existed have a total but no
+    parts, and read correctly as a plain "3 failed" rather than a wrong zero."""
+    counts = []
+    for kind, label in SCAN_FAILURE_LABELS.items():
+        found = await _read_stat(day, f"scans_failed_{kind}")
+        if found:
+            counts.append((found, label))
+    counts.sort(key=lambda c: (-c[0], c[1]))
+    return " · ".join(f"{found} {label}" for found, label in counts)
 
 
 # One 🚫 per device per day: the pause itself stops the traffic, and every
@@ -1050,6 +1086,7 @@ async def _digest_text(when: datetime) -> str:
     free = await _read_stat(day, "scans_free")
     pro = await _read_stat(day, "scans_pro")
     failed = await _read_stat(day, "scans_failed")
+    why = await _failure_breakdown(day) if failed else ""
     blocked = await _read_stat(day, "scans_blocked")
     subs = await _read_stat(day, "new_subs")
     users = await _read_stat(day, "active_users")
@@ -1057,6 +1094,7 @@ async def _digest_text(when: datetime) -> str:
         f"📊 <b>SnapWorth — {when.strftime('%Y-%m-%d')}</b>",
         f"Active users: {users}",
         f"Scans: {free + pro} ok ({free} free · {pro} Pro) · {failed} failed"
+        + (f" ({why})" if why else "")
         + (f" · {blocked} blocked by the safety filter" if blocked else ""),
         f"New subscriptions: {subs}",
         await _subscribers_line(),
@@ -1164,6 +1202,7 @@ async def _status_text() -> str:
     free = await _read_stat(day, "scans_free")
     pro = await _read_stat(day, "scans_pro")
     failed = await _read_stat(day, "scans_failed")
+    why = await _failure_breakdown(day) if failed else ""
     blocked = await _read_stat(day, "scans_blocked")
     subs = await _read_stat(day, "new_subs")
 
@@ -1172,6 +1211,7 @@ async def _status_text() -> str:
         f"Active users: {active_now} since {_window_start(window):%H:%M} UTC "
         f"· {active_today} today",
         f"Scans today: {free + pro} ok ({free} free · {pro} Pro) · {failed} failed"
+        + (f" ({why})" if why else "")
         + (f" · {blocked} blocked" if blocked else ""),
         f"New subscriptions today: {subs}",
         await _subscribers_line(),
