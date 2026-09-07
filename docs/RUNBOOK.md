@@ -359,6 +359,31 @@ production host — expected, and harmless because the path degrades open. Set i
 only if you ever point a build at the sandbox deliberately; a stale `true` would
 break DeviceCheck for real App Store users, silently.
 
+### 8.4 DeviceCheck key rotation
+
+**Add, verify, revoke — in that order.** Revoking first leaves DeviceCheck
+failing for as long as it takes to paste the replacement, and it fails *open*
+(§5.6): every reinstall in that window gets a fresh free allowance, silently.
+
+1. Portal → Keys → **+**, tick **DeviceCheck**, Register, download the `.p8`.
+2. Railway: set `DEVICECHECK_KEY_ID` and `DEVICECHECK_PRIVATE_KEY` to the new
+   pair **together**. A half-swap — new key id, old key — is the mismatch that
+   produces `Unable to verify authorization token`.
+3. `🩺 Checkup` → `DeviceCheck: configured ✅ — credentials accepted by Apple`.
+   Do not proceed on anything else; the rejection line names the team and key
+   it signed with, which is what a half-swap looks like.
+4. Only now: portal → the old key → **Revoke**.
+
+**The stored bits survive.** DeviceCheck's two bits are held per device against
+the *team*, not the key that wrote them, so a new key under the same
+`APPLE_TEAM_ID` reads exactly what the old one wrote. Rotation costs no
+reinstall protection — devices already marked stay marked.
+
+Rotate when the key may have been exposed. The blast radius is small by
+construction — a DeviceCheck key can read and write two bits per device and
+nothing else, no user data and no App Store Connect access — so this is
+housekeeping, not an incident, and step 3 matters more than speed.
+
 ---
 
 ## 9. Disaster recovery
