@@ -8,7 +8,6 @@ struct ResultView: View {
     /// showing an already-persisted find (My Finds) are unaffected.
     var didSave: Bool = true
 
-    @Environment(\.displayScale) private var displayScale
 
     @State private var vm = ResultViewModel()
     @State private var photo: UIImage?
@@ -21,6 +20,8 @@ struct ResultView: View {
     @State private var showTagCamera = false
     @State private var isRescanning = false
     @State private var tagError: String?
+    /// Success counterpart to `tagError` — see `rescan(withTag:)`.
+    @State private var tagSuccess: String?
     /// What the share sheet carries: the result card, or the guess story pair.
     @State private var shareItems: [Any] = []
     @State private var showPaywall = false
@@ -154,7 +155,7 @@ struct ResultView: View {
                             }
                         }
                         Button("Guess-the-price story (question, then reveal)") {
-                            let cards = vm.renderGuessCards(result: result, photo: photo, displayScale: displayScale)
+                            let cards = vm.renderGuessCards(result: result, photo: photo)
                             shareItems = [cards.guess, cards.reveal].compactMap { $0 }
                             guard !shareItems.isEmpty else { return }
                             Analytics.shared.track(.guessCardShared(style: "pair"))
@@ -186,7 +187,7 @@ struct ResultView: View {
                     UIImage(data: data)
                 }.value
             }
-            vm.prepareShareCard(result: result, photo: photo, displayScale: displayScale)
+            vm.prepareShareCard(result: result, photo: photo)
         }
         // `Double(newValue)` here discarded every comma-decimal amount — see
         // `MoneyInput`. Clearing the field still clears the stored value; a
@@ -195,7 +196,7 @@ struct ResultView: View {
         .onChange(of: paidPriceText) { _, newValue in
             if newValue.isEmpty { result.paidPrice = nil }
             else if let parsed = MoneyInput.parse(newValue) { result.paidPrice = parsed }
-            vm.scheduleShareCardUpdate(result: result, photo: photo, displayScale: displayScale)
+            vm.scheduleShareCardUpdate(result: result, photo: photo)
         }
         .onChange(of: soldPriceText) { _, newValue in
             if newValue.isEmpty { result.soldPrice = nil }
@@ -264,7 +265,7 @@ struct ResultView: View {
             // value moves. Record the new point so the portfolio trend reflects
             // it; the call is a no-op when the number did not actually change.
             result.refreshPortfolioValue()
-            vm.scheduleShareCardUpdate(result: result, photo: photo, displayScale: displayScale)
+            vm.scheduleShareCardUpdate(result: result, photo: photo)
             // Selection re-prices the estimate; announce the new value so a
             // VoiceOver user learns the outcome without hunting for it.
             UIAccessibility.post(
@@ -764,6 +765,13 @@ struct ResultView: View {
                         .fixedSize(horizontal: false, vertical: true)
                 }
 
+                if let tagSuccess {
+                    Label(tagSuccess, systemImage: "checkmark.circle.fill")
+                        .font(.snapCaption)
+                        .foregroundStyle(Color.snapSage)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
                 PrimaryButton(title: isRescanning ? "Re-reading…" : "Add the tag") {
                     guard !isRescanning else { return }
                     if isPro {
@@ -797,6 +805,7 @@ struct ResultView: View {
         }
         isRescanning = true
         tagError = nil
+        tagSuccess = nil
         Task {
             defer { isRescanning = false }
             do {
@@ -804,6 +813,13 @@ struct ResultView: View {
                 result.applySharpened(response)
                 priceRevealed = true          // the user has seen the first number already
                 Haptics.success()
+                // A haptic is the whole of the feedback a sighted user gets, and
+                // the estimate may not visibly move at all — so on success this
+                // said nothing, and said nothing at all to VoiceOver. Both are
+                // fixed here: a line that persists, and an announcement.
+                tagSuccess = "Re-read with the tag. Estimate updated."
+                UIAccessibility.post(notification: .announcement,
+                                     argument: "Re-read with the tag. Estimate updated.")
                 Analytics.shared.track(.tagPhotoAdded(succeeded: true))
             } catch {
                 tagError = AppError.from(error).errorDescription
@@ -1089,7 +1105,9 @@ struct ResultView: View {
             }
             .font(.dmSans(13, weight: .semibold))
             .foregroundStyle(Color.snapTerracotta)
-            .frame(maxWidth: .infinity)
+            .frame(maxWidth: .infinity, minHeight: 44)
+            .contentShape(Rectangle())
+            .accessibilityHint("Writes a new listing for this item")
         }
     }
 

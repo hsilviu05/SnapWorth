@@ -86,17 +86,26 @@
 		<dict>
 			<key>NSPrivacyAccessedAPIType</key>
 			<string>NSPrivacyAccessedAPICategoryUserDefaults</string>
+			<!-- CA92.1: defaults private to the app. 1C8F.1: the
+			     group.eu.snapworth.app suite the widget extension reads,
+			     which CA92.1 alone does not cover. -->
 			<key>NSPrivacyAccessedAPITypeReasons</key>
 			<array>
 				<string>CA92.1</string>
+				<string>1C8F.1</string>
 			</array>
 		</dict>
 		<dict>
 			<key>NSPrivacyAccessedAPIType</key>
 			<string>NSPrivacyAccessedAPICategoryFileTimestamp</string>
+			<!-- C617.1: files inside the app container — StoreProtection
+			     reads the SwiftData store's attributes to verify its data
+			     protection class. This declared 0A2A.1, the reason reserved
+			     for a third-party SDK wrapping the timestamp APIs, which
+			     this app is not. -->
 			<key>NSPrivacyAccessedAPITypeReasons</key>
 			<array>
-				<string>0A2A.1</string>
+				<string>C617.1</string>
 			</array>
 		</dict>
 	</array>

@@ -743,9 +743,10 @@ struct ScanHistoryCard: View {
                     imageLoadAttempted = true
                     return
                 }
-                thumbnail = await Task.detached(priority: .utility) {
-                    UIImage(data: data)
-                }.value
+                // `UIImage(data:)` alone left the decode to the first draw, on
+                // the main thread inside `body` — see `decodedThumbnail`.
+                thumbnail = await ScanAPIClient.decodedThumbnail(
+                    from: data, side: max(width - 24, 120))
                 imageLoadAttempted = true
             }
 

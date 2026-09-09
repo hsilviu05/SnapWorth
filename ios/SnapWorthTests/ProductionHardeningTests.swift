@@ -1,3 +1,5 @@
+import AVFoundation
+import CoreMedia
 import DeviceCheck
 import XCTest
 import UIKit
@@ -1008,6 +1010,125 @@ final class PrivacyManifestTests: XCTestCase {
     func test_trackingIsDisabledAtTheManifestLevel(){
         let value = try? manifest()["NSPrivacyTracking"] as? Bool
         XCTAssertEqual(value, false)
+    }
+
+    private func reasons(for category: String) throws -> [String] {
+        let accessed = try manifest()["NSPrivacyAccessedAPITypes"] as? [[String: Any]] ?? []
+        let entry = accessed.first { $0["NSPrivacyAccessedAPIType"] as? String == category }
+        return entry?["NSPrivacyAccessedAPITypeReasons"] as? [String] ?? []
+    }
+
+    /// The manifest declared the right *categories* with the wrong *reasons*,
+    /// and nothing checked the reasons — which is how it went unnoticed.
+    func test_userDefaultsDeclaresTheAppGroupReason() throws {
+        let declared = try reasons(for: "NSPrivacyAccessedAPICategoryUserDefaults")
+        // The widget extension reads WidgetDataStore's shared suite, so the
+        // app-group reason is required alongside the app-private one.
+        XCTAssertTrue(declared.contains("CA92.1"), "missing the app-private reason")
+        XCTAssertTrue(declared.contains("1C8F.1"),
+                      "the widget shares \(WidgetDataStore.appGroupID); 1C8F.1 is required")
+    }
+
+    func test_fileTimestampReasonIsTheFirstPartyOne() throws {
+        let declared = try reasons(for: "NSPrivacyAccessedAPICategoryFileTimestamp")
+        XCTAssertEqual(declared, ["C617.1"],
+                       "0A2A.1 is the third-party-SDK-wrapper reason; this app reads its own container")
+    }
+}
+
+// MARK: - Money typed on a comma-decimal keypad
+
+/// `Double("12,50")` is nil, and every money field wrote `Double(newValue)`
+/// straight onto the model on each keystroke — so on a German, French,
+/// Romanian or Brazilian keypad the amount silently vanished.
+final class MoneyInputTests: XCTestCase {
+    func test_pointAndCommaBothParse() {
+        XCTAssertEqual(MoneyInput.parse("12.50"), 12.5)
+        XCTAssertEqual(MoneyInput.parse("12,50"), 12.5)
+        XCTAssertEqual(MoneyInput.parse(" 12,50 "), 12.5)
+        XCTAssertEqual(MoneyInput.parse("8"), 8)
+    }
+
+    func test_emptyAndJunkAreNil() {
+        XCTAssertNil(MoneyInput.parse(""))
+        XCTAssertNil(MoneyInput.parse("   "))
+        XCTAssertNil(MoneyInput.parse("abc"))
+    }
+
+    func test_decimalVariantMatches() {
+        XCTAssertEqual(MoneyInput.decimal("12,50"), Decimal(string: "12.50"))
+        XCTAssertNil(MoneyInput.decimal(""))
+    }
+
+    /// The guess field stripped the comma rather than folding it, so "12,50"
+    /// scored as 1250 — a hundredfold-wrong guess, worse than refusing it.
+    func test_guessParsingFoldsTheCommaRatherThanStrippingIt() {
+        XCTAssertEqual(GuessScoring.parse("12,50"), 12.5)
+        XCTAssertEqual(GuessScoring.parse("$12.50"), 12.5)
+        XCTAssertNil(GuessScoring.parse("-5"))
+    }
+}
+
+// MARK: - Capture resolution
+
+/// `maxPhotoDimensions` was hard-coded to 4032x3024. AVFoundation aborts the
+/// process for a value the active format does not list, and this target
+/// installs on the 8MP iPads in compatibility mode.
+final class PhotoDimensionTests: XCTestCase {
+    private func dims(_ w: Int32, _ h: Int32) -> CMVideoDimensions {
+        CMVideoDimensions(width: w, height: h)
+    }
+
+    func test_picksTheTwelveMegapixelOptionWhenOffered() {
+        let chosen = CameraManager.preferredPhotoDimensions(
+            [dims(1920, 1080), dims(4032, 3024)])
+        XCTAssertEqual(chosen?.width, 4032)
+        XCTAssertEqual(chosen?.height, 3024)
+    }
+
+    /// A 48MP Pro camera lists 8064x6048. Taking the maximum would quadruple
+    /// decode cost and memory for an image downscaled to 1568px before it
+    /// leaves the device.
+    func test_doesNotClimbAboveTheCap() {
+        let chosen = CameraManager.preferredPhotoDimensions(
+            [dims(4032, 3024), dims(8064, 6048)])
+        XCTAssertEqual(chosen?.width, 4032)
+    }
+
+    /// The iPad case: nothing at or above 12MP, so take the largest on offer
+    /// rather than a value the format would reject.
+    func test_fallsBackToTheLargestOnEightMegapixelHardware() {
+        let chosen = CameraManager.preferredPhotoDimensions(
+            [dims(1920, 1080), dims(3264, 2448)])
+        XCTAssertEqual(chosen?.width, 3264)
+        XCTAssertEqual(chosen?.height, 2448)
+    }
+
+    func test_nilWhenTheFormatListsNothing() {
+        XCTAssertNil(CameraManager.preferredPhotoDimensions([]))
+    }
+}
+
+// MARK: - Paywall benefits
+
+/// The benefits list named none of the gates that actually present the
+/// paywall, and led with "Full scan history", which is not gated at all.
+final class PaywallBenefitsTests: XCTestCase {
+    func test_everyRowNamesSomethingReal() {
+        let texts = PaywallCopy.benefits.map(\.text)
+        XCTAssertFalse(texts.contains { $0.localizedCaseInsensitiveContains("scan history") },
+                       "scan history is not gated — HistoryView's grid has no isPro check")
+        XCTAssertTrue(texts.contains { $0.localizedCaseInsensitiveContains("unlimited scans") })
+        XCTAssertTrue(texts.contains { $0.localizedCaseInsensitiveContains("thrift flip") })
+        XCTAssertTrue(texts.contains { $0.localizedCaseInsensitiveContains("tag") })
+        XCTAssertTrue(texts.contains { $0.localizedCaseInsensitiveContains("export") })
+    }
+
+    func test_rowsAreDistinctAndNonEmpty() {
+        let texts = PaywallCopy.benefits.map(\.text)
+        XCTAssertEqual(Set(texts).count, texts.count)
+        XCTAssertFalse(texts.contains(where: \.isEmpty))
+        XCTAssertFalse(PaywallCopy.benefits.contains { $0.icon.isEmpty })
     }
 }
 

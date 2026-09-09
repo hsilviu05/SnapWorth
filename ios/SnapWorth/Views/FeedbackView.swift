@@ -69,6 +69,12 @@ struct FeedbackView: View {
                                 }
                                 .buttonStyle(.plain)
                                 .snapAnimation(.spring(duration: 0.2), value: feedbackType)
+                                // 9pt of vertical padding left a ~31pt target,
+                                // and selection was carried by colour alone.
+                                .snapHitTarget()
+                                .accessibilityLabel(type.rawValue)
+                                .accessibilityAddTraits(
+                                    feedbackType == type ? [.isButton, .isSelected] : .isButton)
                             }
                         }
                         .padding(.horizontal, 20)

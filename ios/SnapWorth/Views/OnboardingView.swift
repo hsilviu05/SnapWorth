@@ -17,9 +17,13 @@ struct OnboardingView: View {
                             .font(.dmSans(15, weight: .medium))
                             .foregroundStyle(Color.snapWarmGray)
                             .transition(.opacity)
+                            // A ~20pt tappable label in the corner, and the
+                            // only escape from onboarding.
+                            .snapHitTarget()
+                            .accessibilityHint("Skips the introduction")
                     }
                 }
-                .frame(height: 24)
+                .frame(height: 44)
                 .padding(.horizontal, 24)
                 .padding(.top, 8)
                 .snapAnimation(.easeInOut(duration: 0.2), value: vm.isLastPage)

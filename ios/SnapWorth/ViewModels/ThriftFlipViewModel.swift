@@ -50,6 +50,11 @@ final class ThriftFlipViewModel {
             let response = try await ScanAPIClient.shared.scan(image: image)
             // Encoded off the main actor — see ScanAPIClient.encodeForStorage.
             let storedImage = await ScanAPIClient.encodeForStorage(image)
+            // Drop the original now the encodes are done: the only surface that
+            // shows it is a 64pt header thumbnail, and holding the picker's
+            // untouched image for the rest of the session was the largest
+            // allocation in this flow.
+            itemImage = await ScanAPIClient.thumbnail(image, side: 64)
             let result = ScanResult(
                 itemName: response.itemName,
                 brand: response.brand,

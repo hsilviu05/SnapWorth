@@ -23,15 +23,47 @@ private enum ShareCardError: Error { case renderFailed }
 
 /// QR code for the App Store link, shared by every branded card so the footer
 /// is identical everywhere.
+///
+/// Both the `CIContext` and the finished image are cached. This is called from
+/// three card bodies, each of which re-renders on every keystroke behind the
+/// share-card debounce and on every condition tap — and it was building a fresh
+/// `CIContext` each time. A `CIContext` allocates a Metal command queue and its
+/// backing caches; it is explicitly the object Core Image documents as
+/// expensive to create and intended to be reused. The QR itself encodes a
+/// constant URL, so it never needed re-rendering at all.
 func snapShareCardQR(_ urlString: String = Config.appStoreURL) -> UIImage? {
+    if let cached = QRCache.cached(urlString) { return cached }
     guard let data = urlString.data(using: .utf8),
           let filter = CIFilter(name: "CIQRCodeGenerator") else { return nil }
     filter.setValue(data, forKey: "inputMessage")
     filter.setValue("M", forKey: "inputCorrectionLevel")
     guard let ci = filter.outputImage else { return nil }
     let scaled = ci.transformed(by: CGAffineTransform(scaleX: 8, y: 8))
-    guard let cg = CIContext().createCGImage(scaled, from: scaled.extent) else { return nil }
-    return UIImage(cgImage: cg)
+    guard let cg = QRCache.context.createCGImage(scaled, from: scaled.extent) else { return nil }
+    let image = UIImage(cgImage: cg)
+    QRCache.store(image, for: urlString)
+    return image
+}
+
+/// Lock-guarded rather than actor-isolated: `snapShareCardQR` is called from
+/// plain computed properties inside card bodies, which carry no isolation of
+/// their own.
+private enum QRCache {
+    static let context = CIContext()
+
+    private static let lock = NSLock()
+    /// Keyed by URL; in practice one entry, for `Config.appStoreURL`.
+    nonisolated(unsafe) private static var images: [String: UIImage] = [:]
+
+    static func cached(_ key: String) -> UIImage? {
+        lock.lock(); defer { lock.unlock() }
+        return images[key]
+    }
+
+    static func store(_ image: UIImage, for key: String) {
+        lock.lock(); defer { lock.unlock() }
+        images[key] = image
+    }
 }
 
 // MARK: - Branded share card

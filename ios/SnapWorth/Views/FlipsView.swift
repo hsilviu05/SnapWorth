@@ -7,7 +7,6 @@ import SwiftData
 struct FlipsView: View {
     let purchaseService: any PurchaseService
 
-    @Environment(\.displayScale) private var displayScale
     @Query private var allResults: [ScanResult]
     @State private var vm = FlipsViewModel()
 
@@ -289,18 +288,11 @@ struct FlipsView: View {
 
     @ViewBuilder
     private func thumbnail(_ item: ScanResult) -> some View {
-        if let data = item.imageData, let img = UIImage(data: data) {
-            Image(uiImage: img)
-                .resizable()
-                .scaledToFill()
-                .frame(width: 46, height: 46)
-                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-        } else {
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .fill(Color.snapBorder)
-                .frame(width: 46, height: 46)
-                .overlay(Image(systemName: "bag").foregroundStyle(Color.snapWarmGray))
-        }
+        // This used to fault the externalStorage blob and decode it inline in
+        // `body` — ~3MB of main-thread work per newly-visible row, repaid on
+        // every filter and sort tap. `FlipThumbnail` moves both off the main
+        // actor and keeps only the 46pt the row draws.
+        FlipThumbnail(imageData: item.imageData)
     }
 
     private func statusBadge(_ status: FlipStatus) -> some View {
@@ -438,7 +430,7 @@ struct FlipsView: View {
     }
 
     private func shareMonth() {
-        guard let card = vm.renderMonthCard(allResults, displayScale: displayScale) else { return }
+        guard let card = vm.renderMonthCard(allResults) else { return }
         shareOnComplete = { _ in Analytics.shared.track(.ledgerMonthShared) }
         shareItems = [card]
         showShare = true
@@ -518,4 +510,30 @@ private func sample(
 #Preview("Empty state") {
     FlipsView(purchaseService: MockPurchaseService(forcedSubscribed: false))
         .modelContainer(previewContainer { _ in })
+}
+
+/// A 46pt ledger-row thumbnail, decoded off the main actor.
+private struct FlipThumbnail: View {
+    let imageData: Data?
+    @State private var image: UIImage?
+
+    var body: some View {
+        Group {
+            if let image {
+                Image(uiImage: image)
+                    .resizable()
+                    .scaledToFill()
+            } else {
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .fill(Color.snapBorder)
+                    .overlay(Image(systemName: "bag").foregroundStyle(Color.snapWarmGray))
+            }
+        }
+        .frame(width: 46, height: 46)
+        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .task(id: imageData?.count) {
+            guard let imageData else { return }
+            image = await ScanAPIClient.decodedThumbnail(from: imageData, side: 46)
+        }
+    }
 }
