@@ -282,7 +282,14 @@ jobs:
             # decides that.
             body=$(curl -fsS --max-time 10 "$HEALTH_URL" 2>/dev/null || true)
             live=$(printf '%s' "$body" | python3 -c 'import json,sys; print((json.load(sys.stdin) or {}).get("commit",""))' 2>/dev/null || true)
-            if [ "$live" = "$GITHUB_SHA" ]; then
+            # Prefix match, not equality: /health reports `sha[:12]`
+            # (`resolve_git_commit`), so comparing it to the full 40-char
+            # GITHUB_SHA can never succeed. The first run of this check failed
+            # on a deploy that had in fact landed correctly — the log read
+            # "still serving d687791a6c54 … never reported d687791a6c54bd78…",
+            # which is the same commit twice. Guard on non-empty first, since
+            # every string has the empty string as a prefix.
+            if [ -n "$live" ] && [ "${GITHUB_SHA#"$live"}" != "$GITHUB_SHA" ]; then
               echo "live on ${live}"
               exit 0
             fi
