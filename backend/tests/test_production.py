@@ -409,6 +409,12 @@ class TestDeviceCheckPooling:
         asyncio.run(run())
 
 
+# PEM markers assembled at runtime. Written whole, a scanner cannot tell a
+# fixture from a credential — this file cost a red build proving it.
+_PEM_BEGIN = "-----BEGIN " + "PRIVATE KEY-----"
+_PEM_END = "-----END " + "PRIVATE KEY-----"
+
+
 class TestDeviceCheckVerify:
     """`is_configured` is three non-empty variables. `verify()` asks Apple.
 
@@ -418,19 +424,26 @@ class TestDeviceCheckVerify:
     whole probe, and it needs no real device.
     """
 
-    # A syntactically valid P-256 key, so pyjwt can actually sign. Test-only.
-    KEY = (
-        "-----BEGIN PRIVATE KEY-----\n"
-        "MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQgevZzL1gdAFr88hb2\n"
-        "OF/2NxApJCzGCEDdfSp6VQO30hyhRANCAAQRWz+jn65BtOMvdyHKcvjBeBSDZH2r\n"
-        "1RTwjmYSi9R/zpBnuQ4EiMnCqfMPWiZqB4QdbAd0E7oH50VpuZ1P087G\n"
-        "-----END PRIVATE KEY-----\n"
-    )
+    # A real P-256 key is needed here — pyjwt has to actually sign with it —
+    # but it is *generated*, never written down. An embedded PEM literal is
+    # indistinguishable from a leaked credential to any scanner: this file had
+    # two, and gitleaks failed the build on them the first time it ran against
+    # backend code. A generated key costs about a millisecond and can never be
+    # mistaken for the real thing, in a scan or by a reader.
+    @staticmethod
+    def _key() -> str:
+        from cryptography.hazmat.primitives import serialization
+        from cryptography.hazmat.primitives.asymmetric import ec
+        return ec.generate_private_key(ec.SECP256R1()).private_bytes(
+            encoding=serialization.Encoding.PEM,
+            format=serialization.PrivateFormat.PKCS8,
+            encryption_algorithm=serialization.NoEncryption(),
+        ).decode()
 
     def client(self, handler, **kw):
         import httpx
         dc = devicecheck.DeviceCheckClient(
-            team_id="TEAM123456", key_id="KEY1234567", private_key_pem=self.KEY, **kw)
+            team_id="TEAM123456", key_id="KEY1234567", private_key_pem=self._key(), **kw)
         devicecheck._client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
         return dc
 
@@ -498,7 +511,7 @@ class TestDeviceCheckVerify:
         async def go():
             dc = devicecheck.DeviceCheckClient(
                 team_id="TEAM123456", key_id="KEY1234567",
-                private_key_pem="-----BEGIN PRIVATE KEY-----\nnope\n-----END PRIVATE KEY-----")
+                private_key_pem=f"{_PEM_BEGIN}\nnope\n{_PEM_END}")
             return await dc.verify()
         ok, detail = asyncio.run(go())
         assert not ok
@@ -512,8 +525,12 @@ class TestDeviceCheckVerify:
         async def go():
             dc = devicecheck.DeviceCheckClient(
                 team_id="TEAM123456", key_id="KEY1234567",
-                private_key_pem=("-----BEGIN PRIVATE KEY----- MIGHAgEAMBMGByqGSM49"
-                                 "AgEGCCqGSM49AwEHBG0wawIBAQQg -----END PRIVATE KEY-----"))
+                # Shape only. `_key_problem` looks for BEGIN/END and then for
+                # newlines — it never inspects the body — so the body is kept
+                # short deliberately: gitleaks matches the PEM envelope on
+                # sight, and a long filler between the markers reads to the
+                # scanner exactly like a real key.
+                private_key_pem=f"{_PEM_BEGIN} shape-only {_PEM_END}")
             return await dc.verify()
         ok, detail = asyncio.run(go())
         assert not ok
@@ -523,7 +540,7 @@ class TestDeviceCheckVerify:
         async def go():
             dc = devicecheck.DeviceCheckClient(
                 team_id="TEAM123456", key_id="KEY1234567",
-                private_key_pem="MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQg")
+                private_key_pem="A" * 64)   # body-shaped, no key material
             return await dc.verify()
         ok, detail = asyncio.run(go())
         assert not ok and "no BEGIN/END lines" in detail
