@@ -160,6 +160,29 @@ final class PaymentRequiredMappingTests: XCTestCase {
         XCTAssertFalse(message.contains("402"))
         XCTAssertFalse(message.lowercased().contains("server error"))
     }
+
+    // I-23. The mapping above existed and was correct; nothing consumed it.
+    // Both 402s reached the generic "Scan Failed / OK" alert — a dead end at
+    // the moment of highest purchase intent — and were filed as
+    // scan_failed{reason:no_result}, the wrong bucket in the one funnel the
+    // free-scan experiment is read against.
+    func test_bothPaymentRequiredCases_areRoutedToThePaywall() {
+        let quota = AppError.from(ScanAPIError.serverError(402, "You've used all 3 free scans today."))
+        let pro = AppError.from(ScanAPIError.serverError(402, "Listing drafts are a SnapWorth Pro feature."))
+        XCTAssertTrue(quota.isPaywall)
+        XCTAssertTrue(pro.isPaywall)
+    }
+
+    func test_realFailures_areNotRoutedToThePaywall() {
+        // A paywall shown for a network blip would be worse than the dead end
+        // it replaces: it asks for money over a problem money cannot fix.
+        for error: AppError in [.network, .timeout, .rateLimit, .serverUnavailable,
+                                .sessionExpired, .imageEncodingFailed, .persistence,
+                                .aiFailed("couldn't price it"), .unusablePhoto("too blurry"),
+                                .unknown("?")] {
+            XCTAssertFalse(error.isPaywall, "\(error) must not open the paywall")
+        }
+    }
 }
 
 // MARK: - Legacy response compatibility

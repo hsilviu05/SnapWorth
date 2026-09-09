@@ -72,8 +72,19 @@ final class ThriftFlipViewModel {
             )
             ScanViewModel.noteScanForStreakAndReminder(isPro: purchaseService.isSubscribed)
         } catch {
-            scanError = AppError.from(error).errorDescription
-            Analytics.shared.track(.scanFailed(reason: ScanFailureReason(AppError.from(error))))
+            let appError = AppError.from(error)
+
+            // Same 402-is-the-paywall rule as ScanViewModel.startScan: this
+            // path shares the daily cap, so it shares the local-vs-UTC day skew
+            // that lets a spent allowance past the pre-flight gate.
+            if appError.isPaywall {
+                Analytics.shared.track(.freeScanLimitHit)
+                showPaywall = true
+                return
+            }
+
+            scanError = appError.errorDescription
+            Analytics.shared.track(.scanFailed(reason: ScanFailureReason(appError)))
         }
     }
 

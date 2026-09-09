@@ -26,6 +26,21 @@ enum AppError: LocalizedError, Equatable {
     case persistence
     case unknown(String)
 
+    /// A 402 from the server: the free allowance is spent, or a Pro-only
+    /// endpoint refused a free caller. Not a failure — the paywall, arriving
+    /// from the authority that actually counts scans.
+    ///
+    /// The client's own pre-flight gate misses it whenever the two disagree
+    /// about which day it is: `FreeScanCounter` resets at *local* midnight,
+    /// `quota.py` counts *UTC* days. In the hours between, a user who has
+    /// scanned today reads as fresh to the client and spent to the server.
+    var isPaywall: Bool {
+        switch self {
+        case .quotaExceeded, .proRequired: return true
+        default:                           return false
+        }
+    }
+
     var errorDescription: String? {
         switch self {
         case .network:
