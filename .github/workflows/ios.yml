@@ -1,16 +1,30 @@
 name: iOS
 
+# The `contract/**` and `backend/main.py|valuation.py|prompts.py` entries are
+# not decoration. This workflow and backend.yml had mutually exclusive path
+# filters, so a backend change to the /scan response shape ran no iOS test at
+# all — eight commits since 2026-08-20 deployed exactly that way. A change to
+# the response contract now runs the client's decode test, which is the only
+# thing that would notice a renamed field before an installed app did.
 on:
   push:
     branches: [main]
     paths:
       - 'ios/**'
       - '.github/workflows/ios.yml'
+      - 'contract/**'
+      - 'backend/main.py'
+      - 'backend/valuation.py'
+      - 'backend/prompts.py'
   pull_request:
     branches: [main]
     paths:
       - 'ios/**'
       - '.github/workflows/ios.yml'
+      - 'contract/**'
+      - 'backend/main.py'
+      - 'backend/valuation.py'
+      - 'backend/prompts.py'
 
 jobs:
   build-test:
@@ -20,10 +34,21 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - name: Select Xcode 16
+      - name: Select the newest installed Xcode
         run: |
-          # Pick the latest installed Xcode 16.x
-          XCODE=$(ls /Applications/ | grep -E "^Xcode_16" | sort -V | tail -1)
+          # Was pinned to Xcode_16.*, which validated the app against a
+          # different toolchain generation from the one that builds the
+          # binary: project.pbxproj's LastUpgradeCheck is 2640 (Xcode 26.4),
+          # so App Store builds compile against the iOS 26 SDK while CI
+          # compiled against 16.4 and ran the tests on iOS 18.5, the oldest
+          # runtime on the image. A compiler or SDK behaviour change between
+          # those generations would ship without CI ever seeing it.
+          #
+          # Newest installed, not a hardcoded version: the runner image moves,
+          # and a pin to a version that is later removed fails the whole job
+          # for a reason unrelated to the change under test.
+          XCODE=$(ls /Applications/ | grep -E "^Xcode_[0-9]" | sort -V | tail -1)
+          echo "Selecting $XCODE"
           sudo xcode-select -s "/Applications/$XCODE"
           xcodebuild -version
 
@@ -42,10 +67,24 @@ jobs:
           echo "=== Available devices ==="
           xcrun simctl list devices available
 
-          # Find an available iPhone simulator UDID
+          # The NEWEST iOS runtime's iPhone, not the first row `simctl` prints.
+          #
+          # `head -1` took the oldest — iOS 18.5 on this image, with runtimes
+          # through 26.2 installed and unused. The shipped binary targets the
+          # iOS 26 SDK, so the tests were running on a generation the App
+          # Store build never sees.
+          #
+          # `simctl list devices available` groups by runtime in ascending
+          # order, so the last iPhone line belongs to the newest runtime.
+          # `awk` on the section headers is deliberate: it survives a device
+          # name containing "iOS".
+          xcrun simctl list devices available \
+            | awk '/^-- iOS /{rt=$0} /iPhone/{print rt" | "$0}' \
+            | tail -5
           UDID=$(xcrun simctl list devices available \
+            | awk '/^-- iOS /{ok=1; next} /^-- /{ok=0} ok' \
             | grep "iPhone" \
-            | head -1 \
+            | tail -1 \
             | grep -oE '[A-F0-9]{8}-[A-F0-9]{4}-[A-F0-9]{4}-[A-F0-9]{4}-[A-F0-9]{12}' \
             || true)
 
@@ -55,7 +94,7 @@ jobs:
               | grep "iOS" \
               | grep -v "unavailable" \
               | tail -1 \
-              | awk '{print $NF}')
+              | awk '{print $NF}')     # newest, matching the selection above
             echo "Runtime identifier: $RT"
             UDID=$(xcrun simctl create "CI-iPhone" \
               com.apple.CoreSimulator.SimDeviceType.iPhone-16 \
@@ -70,6 +109,17 @@ jobs:
       - name: Build & run unit tests
         run: |
           set -o pipefail
+          # No `-quiet`. It suppressed the test counts entirely: a green run
+          # printed "Testing started" and nothing else, so a suite that
+          # silently stopped running most of its tests would have looked
+          # identical to a healthy one. The full log goes to a file and the
+          # summary step below prints what actually ran.
+          # `set +e` around the pipeline, and read PIPESTATUS[0] explicitly.
+          # A trailing `|| true` would have been wrong here: `true` runs as a
+          # simple command and resets PIPESTATUS, so a failing build would
+          # have reported success — the exact class of bug this step exists
+          # to stop hiding.
+          set +e
           xcodebuild test \
             -project ios/SnapWorth.xcodeproj \
             -scheme SnapWorth \
@@ -79,7 +129,24 @@ jobs:
             CODE_SIGN_IDENTITY="" \
             CODE_SIGNING_REQUIRED=NO \
             ONLY_ACTIVE_ARCH=YES \
-            -quiet
+            2>&1 | tee /tmp/xcodebuild.log | grep -E \
+              "^(Test Suite|Test Case|.*(error|warning): |\*\* TEST|Executed )"
+          status=${PIPESTATUS[0]}
+          set -e
+          exit "$status"
+
+      - name: Test summary
+        if: always()
+        run: |
+          echo "### iOS tests" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          grep -E "Executed [0-9]+ test" /tmp/xcodebuild.log | tail -2 \
+            >> "$GITHUB_STEP_SUMMARY" || echo "no test counts in the log" \
+            >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          grep -E "Executed [0-9]+ test" /tmp/xcodebuild.log | tail -2 || true
+          xcodebuild -version | head -1
+          xcrun simctl list devices | grep -A1 "^-- iOS" | tail -3 || true
 
   # ── Security gate: no real keys committed ───────────────────────────────────
   # ── SwiftLint (reporting only) ───────────────────────────────────────────────

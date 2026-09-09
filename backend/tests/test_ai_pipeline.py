@@ -9,7 +9,9 @@ model's self-assessment, and strict backwards compatibility of the response.
 from __future__ import annotations
 
 import io
+import json
 import os
+import pathlib
 import sys
 
 import pytest
@@ -476,10 +478,44 @@ def _scan_with(payload: dict):
         )
 
 
+# The shared fixture. Both this suite and the iOS decode test read this exact
+# file — see contract/README.md. It used to be a Python dict here and a
+# hand-typed JSON literal in Swift, with nothing comparing the two.
+CONTRACT_PATH = (pathlib.Path(__file__).resolve().parents[2]
+                 / "contract" / "scan-response.json")
+
+
+def _contract() -> dict:
+    return json.loads(CONTRACT_PATH.read_text())
+
+
 class TestScanResponseContract:
     V1_REQUIRED = ("item_name", "brand", "category", "condition_notes",
                    "est_value_low_usd", "est_value_high_usd", "confidence",
                    "listing_title", "listing_description")
+
+    def test_the_shared_fixture_carries_every_required_field(self):
+        """If this fails, the iOS client cannot decode a real response — its
+        own test reads this same file."""
+        body = _contract()
+        missing = [f for f in self.V1_REQUIRED if f not in body]
+        assert not missing, f"contract fixture is missing {missing}"
+
+    def test_the_server_can_actually_produce_the_shared_fixture(self):
+        """The fixture is only worth anything if it is a real response shape.
+        Feed the v2 payload through /scan and check every field the fixture
+        promises comes back."""
+        served = _scan_with(V2_PAYLOAD).json()
+        for field in self.V1_REQUIRED:
+            assert field in served, f"/scan no longer returns {field}"
+
+    def test_the_fixture_and_the_payload_have_not_drifted_apart(self):
+        """The two are written for different purposes — the payload is what
+        the model returns, the fixture is what we serve — but every v1 field
+        in the fixture must be one the server knows how to produce."""
+        served = set(_scan_with(V2_PAYLOAD).json())
+        unknown = [f for f in self.V1_REQUIRED if f not in served]
+        assert not unknown, f"fixture promises fields /scan does not send: {unknown}"
 
     def test_v1_fields_all_present_and_non_null(self):
         body = _scan_with(V2_PAYLOAD).json()

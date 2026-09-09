@@ -6,11 +6,13 @@ on:
     paths:
       - 'backend/**'
       - '.github/workflows/backend.yml'
+      - 'contract/**'
   pull_request:
     branches: [main]
     paths:
       - 'backend/**'
       - '.github/workflows/backend.yml'
+      - 'contract/**'
 
 jobs:
   # ── Tests ───────────────────────────────────────────────────────────────────
@@ -186,7 +188,16 @@ jobs:
       - uses: actions/checkout@v7
 
       - name: Install Railway CLI
-        run: npm install -g @railway/cli@latest
+        # Pinned, like gitleaks, SwiftLint and pip-audit. `@latest` was the
+        # only unpinned tool in CI, on the job that touches production — so a
+        # breaking CLI release would have landed mid-deploy with no change on
+        # our side to point at. Dependabot does not cover npm in this repo, so
+        # this needs bumping by hand; that is the cost of the pin and it is
+        # cheaper than the alternative.
+        # 5.49.6 is what `@latest` resolved to on 2026-09-09, so pinning
+        # changes nothing about today's deploy — it only stops tomorrow's
+        # from changing on its own.
+        run: npm install -g @railway/cli@5.49.6
 
       - name: Deploy
         env:
