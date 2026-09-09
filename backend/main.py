@@ -45,7 +45,8 @@ import social
 import tokens
 import valuation as valuation_module
 from auditlog import AuditEvent
-from auth import Principal, consume_quota, enforce_quota, require_auth
+from auth import (Principal, record_quota_consumed, refund_quota,
+                  require_auth, reserve_quota)
 from entitlements import EntitlementService
 from fastapi import Depends
 from observability import RequestContextMiddleware, configure_production_logging
@@ -194,6 +195,9 @@ async def _lifespan(_app: FastAPI):
     _cache = await cache_module.build_cache()
     dc = devicecheck.client_from_env()
     auth.deps.cache = _cache
+    # The three unauthenticated /auth routes run before there is a principal,
+    # so they never reached `_enforce_limits`. Hand them the IP limiter.
+    auth.deps.ip_limiter = _enforce_ip_limit
     auth.deps.signer = tokens.signer_from_env()
     auth.deps.device_check = dc
     auth.deps.entitlements = EntitlementService(
@@ -339,8 +343,17 @@ async def _bot_scan(image_bytes: bytes, declared_type: str) -> dict:
         content_type = imagevalidation.validate(image_bytes, declared_type)
     except imagevalidation.ImageValidationError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from None
+    # `count=False` is what makes the docstring above true. `_analyse` calls
+    # `notify.count_scan_failure` at three sites and `_note_safety_block` at a
+    # fourth, so an operator test photo the model could not price was filed as
+    # a *user* scan failure — and could trip the "Device paused" alert for the
+    # pseudonym `telegram-operator`, which nothing ever actually pauses. At
+    # 1-4 real scans a day, one test photo is a 25-100% distortion of the
+    # day's failure rate, on the number the operator reads to decide whether
+    # something is wrong.
     response, elapsed = await _analyse(image_bytes, content_type,
-                                       subject="telegram-operator", device_short="telegram")
+                                       subject="telegram-operator",
+                                       device_short="telegram", count=False)
     return {"elapsed": elapsed, **response.model_dump()}
 
 
@@ -530,6 +543,20 @@ def _check_rate_limit(device_id: str, ip: str | None = None) -> None:
         if ip is not None:
             _ip_memory.check_sync(ip, IP_RATE_MAX_REQUESTS)
         _device_memory.check_sync(device_id, RATE_MAX_REQUESTS)
+    except RateLimitExceeded as exc:
+        raise HTTPException(status_code=429, detail=exc.message,
+                            headers={"Retry-After": str(exc.retry_after)}) from None
+
+
+async def _enforce_ip_limit(ip: str | None) -> None:
+    """IP-only limit, for routes that have no device or subject yet."""
+    if ip is None:
+        return
+    try:
+        if _ip_limiter is None:
+            _ip_memory.check_sync(ip, IP_RATE_MAX_REQUESTS)
+        else:
+            await _ip_limiter.check(f"ip:{ip}", IP_RATE_MAX_REQUESTS)
     except RateLimitExceeded as exc:
         raise HTTPException(status_code=429, detail=exc.message,
                             headers={"Retry-After": str(exc.retry_after)}) from None
@@ -824,7 +851,19 @@ def _validate_listing(data: dict, req: ListingRequest) -> ListingResponse:
 
 
 def _extract_json(text: str) -> dict:
-    """Extract the first JSON object from the model response, handling markdown fences."""
+    """Extract the first JSON object from the model response, handling markdown fences.
+
+    The return annotation says `dict`, and now the function guarantees it.
+    Both callers trusted that annotation: `/scan`'s no-price log path does
+    `sorted(data)` and `/listing`'s validator subscripts it, so a reply that
+    parsed as a bare scalar or array — `"nope"`, `[1,2]` — reached them as a
+    str or list and raised a TypeError, surfacing as a 500 instead of the
+    502-or-fallback both paths already implement for unparseable replies.
+    Rare under JSON mode, reproduced by simulation.
+
+    Raises `ValueError` for anything that is not a JSON object, which is the
+    exception both callers already catch alongside `JSONDecodeError`.
+    """
     text = text.strip()
     # Strip markdown code fences if present
     match = re.search(r"```(?:json)?\s*([\s\S]*?)```", text)
@@ -834,7 +873,10 @@ def _extract_json(text: str) -> dict:
     obj_match = re.search(r"\{[\s\S]*\}", text)
     if obj_match:
         text = obj_match.group(0)
-    return json.loads(text)
+    parsed = json.loads(text)
+    if not isinstance(parsed, dict):
+        raise ValueError(f"model reply parsed as {type(parsed).__name__}, not an object")
+    return parsed
 
 
 # ── Endpoints ────────────────────────────────────────────────────────────────
@@ -1186,19 +1228,33 @@ async def scan(
     # quota and before the model: nothing to bill, nothing to analyse.
     await _refuse_if_paused(principal.subject)
 
-    # Free allowance is checked before the paid third-party call, and consumed
-    # only after it succeeds, so a failed scan is never charged.
-    await enforce_quota(principal)
+    # The free allowance is *reserved* before the paid third-party call and
+    # handed back if that call produces nothing, so a failed scan is still
+    # never charged — but two concurrent scans can no longer both be granted
+    # the same last allowance, which check-then-consume allowed.
+    quota_status = await reserve_quota(principal)
     auditlog.record(AuditEvent.SCAN_AUTHORISED, principal.subject, tier=principal.tier)
 
     log.info("scan start", extra={"device": device_short, "size_kb": image_kb,
                                   "type": content_type, "tag_photo": tag_bytes is not None})
-    response, elapsed = await _analyse(image_bytes, content_type,
-                                       subject=principal.subject, device_short=device_short,
-                                       tag_bytes=tag_bytes, tag_type=tag_type)
+    try:
+        response, elapsed = await _analyse(image_bytes, content_type,
+                                           subject=principal.subject, device_short=device_short,
+                                           tag_bytes=tag_bytes, tag_type=tag_type)
+    except BaseException:
+        await refund_quota(principal)
+        raise
 
-    # Charge only for work that produced a result.
-    quota_status = await consume_quota(principal)
+    # The iOS client gives up at 35s (CertificatePinning.swift). Past that
+    # nothing we produce can reach it, so charging for it is charging for
+    # something the user will never see — and they will scan again.
+    if await request.is_disconnected():
+        await refund_quota(principal)
+        log.info("client gone before the result — allowance returned",
+                 extra={"device": device_short})
+        return response
+
+    record_quota_consumed(principal)
     notify.scan_completed(
         tier=principal.tier, item_name=response.item_name, brand=response.brand,
         category=response.category, low=response.est_value_low_usd,
@@ -1214,7 +1270,7 @@ async def scan(
 
 async def _analyse(image_bytes: bytes, content_type: str, *, subject: str,
                    device_short: str, tag_bytes: bytes | None = None,
-                   tag_type: str = "") -> tuple[ScanResponse, float]:
+                   tag_type: str = "", count: bool = True) -> tuple[ScanResponse, float]:
     """The scan itself: model call, parse, normalise, clamp, score.
 
     Everything between "the upload is valid and allowed" and "charge for it":
@@ -1250,8 +1306,15 @@ async def _analyse(image_bytes: bytes, content_type: str, *, subject: str,
                      "data": base64.standard_b64encode(tag_bytes).decode()}]
 
     try:
-        raw, usage = await _generate_with_retry(
-            contents, label="scan_with_tag" if tag_bytes else "scan")
+        # `count=False` is the operator testing the service through the bot, so
+        # it is labelled as such: the cost is real and belongs in the total, but
+        # not in the "$/scan" and "given away" figures, which are statements
+        # about users. At 1-4 real scans a day one test photo moved both.
+        if count:
+            label = "scan_with_tag" if tag_bytes else "scan"
+        else:
+            label = "bot_scan_with_tag" if tag_bytes else "bot_scan"
+        raw, usage = await _generate_with_retry(contents, label=label)
     except aiconfig.ModelBlocked as exc:
         # A safety block is not an outage. Thrift inventory includes penknives,
         # lighters and vintage militaria; telling the user the service is down
@@ -1259,14 +1322,16 @@ async def _analyse(image_bytes: bytes, content_type: str, *, subject: str,
         log.info("scan blocked by safety filter", extra={"reason": str(exc)})
         auditlog.record(AuditEvent.SCAN_BLOCKED, subject,
                         outcome="denied", reason=str(exc))
-        await _note_safety_block(subject)
+        if count:
+            await _note_safety_block(subject)
         raise HTTPException(
             status_code=422,
             detail="This photo couldn't be analysed. Try a clear photo of a single item.",
         ) from None
     except aiconfig.ModelUnavailable as exc:
         log.error("gemini failed after retries: %s", exc)
-        notify.count_scan_failure("provider")
+        if count:
+            notify.count_scan_failure("provider")
         raise HTTPException(
             status_code=502,
             detail="The AI service is temporarily unavailable. Please try again.",
@@ -1282,7 +1347,8 @@ async def _analyse(image_bytes: bytes, content_type: str, *, subject: str,
         data = await _retry_as_json(raw)
         if data is None:
             log.error("scan unparseable after reformat", extra={"raw_prefix": raw[:200]})
-            notify.count_scan_failure("unreadable")
+            if count:
+                notify.count_scan_failure("unreadable")
             raise HTTPException(
                 status_code=502,
                 detail="The AI response couldn't be read. Please try again.",
@@ -1305,7 +1371,8 @@ async def _analyse(image_bytes: bytes, content_type: str, *, subject: str,
                   extra={"item": val.item_name, "category": val.category,
                          "keys": sorted(data)[:20]})
         metrics.model_calls.inc(operation="scan", outcome="no_price")
-        notify.count_scan_failure("no_price")
+        if count:
+            notify.count_scan_failure("no_price")
         raise HTTPException(
             status_code=502,
             detail="The AI couldn't price this item. Please try again.",
@@ -1598,24 +1665,32 @@ async def _retry_as_json(raw: str) -> dict | None:
         "and no commentary. Preserve the values exactly; invent nothing.\n\n"
         f"{promptsafety.fence(raw[:4000])}"
     )
-    with contextlib.suppress(Exception):
-        response = await _model.generate_content_async(prompt)
-        # A billed call like any other: without this the reformat's tokens
-        # were missing from /costs and the token metrics, so the per-scan
-        # cost the bot reported ran low on exactly the scans that cost most.
-        usage = aiconfig.usage_of(response)
-        metrics.model_calls.inc(operation="reformat", outcome="success")
-        notify.model_usage("reformat", usage)
-        for kind, key in (("prompt", "prompt_tokens"), ("output", "output_tokens"),
-                          ("thoughts", "thoughts_tokens")):
-            if key in usage:
-                metrics.model_tokens.inc(usage[key], operation="reformat", kind=kind)
-        # `or ""`: google-genai returns None for .text on an empty or blocked
-        # candidate, where the previous SDK raised. The suppress() above would
-        # have swallowed the resulting AttributeError and returned None anyway,
-        # which is the right outcome — but by accident rather than intent.
-        return _extract_json((response.text or "").strip())
-    return None
+    # Routed through `_generate_with_retry` like every other model call.
+    # This used to call the model directly under a blanket `suppress`, which
+    # skipped the retry classification, the metrics and the health recorder —
+    # so a provider outage hit during the reformat step was reported to the
+    # user as "unreadable" rather than as an outage, and left no trace in the
+    # health signal that would have said which it was.
+    #
+    # `record_health=False` deliberately: this is a best-effort second attempt
+    # at one reply, and a failure here is already counted against the primary
+    # call. Recording it twice would make one bad scan look like two.
+    try:
+        text, _usage = await _generate_with_retry(
+            prompt, label="reformat", record_health=False)
+    except aiconfig.ModelUnavailable:
+        # A real outage, correctly classified. The caller's own 502 already
+        # says "try again", which is the right advice for this.
+        log.warning("reformat unavailable — provider outage, not an unreadable reply")
+        return None
+    except Exception as exc:
+        log.warning("reformat failed: %s", exc)
+        return None
+
+    try:
+        return _extract_json(text.strip())
+    except (json.JSONDecodeError, ValueError):
+        return None
 
 
 class TrendRow(BaseModel):

@@ -257,6 +257,14 @@ def verify_assertion(
     except Exception:
         raise AttestationError("Assertion could not be decoded.") from None
 
+    # Same class of gap as the attestation path above: a non-bytes
+    # `authenticatorData` reached `len()` and `struct.unpack` as whatever type
+    # the sender chose, and the resulting TypeError became a 500 rather than
+    # an AttestationError.
+    if not isinstance(signature, (bytes, bytearray)):
+        raise AttestationError("Assertion signature is malformed.")
+    if not isinstance(auth_data, (bytes, bytearray)):
+        raise AttestationError("Malformed assertion data.")
     if len(auth_data) < 37:
         raise AttestationError("Malformed assertion data.")
     rp_id_hash = auth_data[0:32]

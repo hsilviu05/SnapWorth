@@ -36,6 +36,7 @@ from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import ec
 
 import notify
+from cache import CacheUnavailable
 
 log = logging.getLogger("snapworth.entitlements")
 
@@ -140,6 +141,14 @@ def _is_legacy_subject(identity: str) -> bool:
 
 class EntitlementError(Exception):
     """Signed transaction was missing, malformed, or failed verification."""
+
+
+class EntitlementsUnavailable(Exception):
+    """The durable store could not be reached, so entitlement is *unknown*.
+
+    Distinct from a genuine miss, which means "this subject is free". Reading
+    an outage as a miss downgraded every paying subscriber for its duration.
+    """
 
 
 @dataclass(frozen=True)
@@ -578,8 +587,18 @@ class EntitlementService:
         A miss falls through to the stored proof rather than straight to FREE,
         which costs a second cache read on the free path and buys a subscriber
         their Pro access back without a cold launch.
+
+        Raises `EntitlementsUnavailable` when the durable cache is unreachable.
+        This read used to be unqualified, so `ResilientCache` returned `None`
+        for an outage exactly as it does for a genuine miss — and every Pro
+        subscriber silently read as free for the duration, with `/listing`
+        402ing people who had paid. "No record" and "no answer" are different
+        facts and the caller has to be able to tell them apart.
         """
-        raw = await self._cache.get(self._key(subject))
+        try:
+            raw = await self._cache.get(self._key(subject), required=True)
+        except CacheUnavailable as exc:
+            raise EntitlementsUnavailable(str(exc)) from exc
         if raw:
             try:
                 ent = Entitlement.from_json(raw)
@@ -598,7 +617,9 @@ class EntitlementService:
         longer verifies, or when the subscription it proves has ended.
         """
         try:
-            jws_value = await self._cache.get(self._proof_key(subject))
+            jws_value = await self._cache.get(self._proof_key(subject), required=True)
+        except CacheUnavailable as exc:
+            raise EntitlementsUnavailable(str(exc)) from exc
         except Exception as exc:
             log.warning("entitlement proof read failed: %s", exc)
             return FREE

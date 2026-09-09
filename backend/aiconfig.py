@@ -164,6 +164,11 @@ def generation_config(
     }
     if json_mode and JSON_MODE:
         kwargs["response_mime_type"] = "application/json"
+    # Only when explicitly configured — see THINKING_BUDGET. Passing the
+    # field at all changes model behaviour, so an unset knob must not.
+    if THINKING_BUDGET is not None:
+        kwargs["thinking_config"] = types.ThinkingConfig(
+            thinking_budget=THINKING_BUDGET)
     return types.GenerateContentConfig(**kwargs)
 
 
@@ -177,7 +182,31 @@ def generation_config(
 # 60s against a p95 /scan budget of 20s (see RUNBOOK §3): generous enough that a
 # slow-but-working call still completes, bounded enough that a dead one fails
 # fast and hits the retry loop. Milliseconds, per the SDK's field.
-REQUEST_TIMEOUT_MS = int(os.environ.get("GEMINI_TIMEOUT_MS", "60000"))
+# 25s, not the previous 60s. The iOS client gives up at 30s request / 35s
+# resource (`CertificatePinning.swift:149,154`), and `_generate_with_retry`
+# will attempt this twice — so a 60s ceiling meant the *first* attempt could
+# still be running long after the only caller had stopped listening, and the
+# retry could only bill Gemini for a result nobody would receive. 25s leaves
+# room for one retry inside the client's own budget.
+REQUEST_TIMEOUT_MS = int(os.environ.get("GEMINI_TIMEOUT_MS", "25000"))
+
+# Cap on the model's internal reasoning tokens. Unset by default, which is
+# exactly today's behaviour — this adds the knob, not a new setting.
+#
+# Worth having because thinking is the largest single component of per-scan
+# cost: 1138-1777 tokens billed as output against a ~700-900 token answer,
+# so roughly half the spend and a good share of the latency. There was no way
+# to influence it from configuration at all.
+#
+# Deliberately not given a default value. Capping reasoning on a valuation
+# model is a quality decision, and the right way to make it is to run
+# `backend/eval/runner.py` at a candidate budget and compare, not to pick a
+# number here and ship it. `0` disables thinking entirely; the SDK also
+# accepts `-1` for "let the model decide", which is the current behaviour.
+_THINKING_BUDGET_RAW = os.environ.get("GEMINI_THINKING_BUDGET", "").strip()
+THINKING_BUDGET: int | None = (
+    int(_THINKING_BUDGET_RAW) if _THINKING_BUDGET_RAW.lstrip("-").isdigit() else None
+)
 
 
 @lru_cache(maxsize=1)

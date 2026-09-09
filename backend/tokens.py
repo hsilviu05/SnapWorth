@@ -124,7 +124,12 @@ class TokenSigner:
             raise TokenError("Token key is not recognised.")
 
         expected = self._sign(payload, kid)
-        if not hmac.compare_digest(expected, signature):
+        # Compared as bytes, not str. `compare_digest` raises TypeError on str
+        # inputs containing non-ASCII, so a single stray byte in the signature
+        # turned a rejection into a 500 — reproduced over HTTP. `/metrics`
+        # (main.py:993) already had this guard; this, the hot auth path, did not.
+        if not hmac.compare_digest(expected.encode("utf-8", "surrogatepass"),
+                                   signature.encode("utf-8", "surrogatepass")):
             raise TokenError("Token signature is invalid.")
 
         exp = claims.get("exp")

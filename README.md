@@ -96,7 +96,7 @@ open ios/SnapWorth.xcodeproj
 
 ## Deployment notes
 
-- **Backend:** container deploys anywhere Docker runs (Railway, Fly.io). Required env var: `GEMINI_API_KEY`. Production instance: `api.snapworth.eu`.
+- **Backend:** container deploys anywhere Docker runs (Railway, Fly.io). Required env vars in production: `GEMINI_API_KEY` and `TOKEN_KEYS` — `tokens.py` **refuses to boot** without the latter when `ENVIRONMENT=production`, because an ephemeral signing key signs every user out on each deploy and makes replicas reject each other's tokens. This line used to name only `GEMINI_API_KEY`. See `backend/.env.example` for the full set. Production instance: `api.snapworth.eu`.
 - **In-app purchases:** two auto-renewable subscriptions in the "SnapWorth Premium" group — `com.snapworth.monthly` and `com.snapworth.yearly` — matching `Config.swift`.
 - **Privacy:** camera, photo library, and photo-add usage strings are declared in `Info.plist`; the privacy manifest lives at `ios/SnapWorth/PrivacyInfo.xcprivacy`. Photos are sent to the backend for analysis and are not stored server-side.
 - **Website:** `website/` deploys to Vercel (`vercel.json`), serving the landing page and the App Store–required support URL.

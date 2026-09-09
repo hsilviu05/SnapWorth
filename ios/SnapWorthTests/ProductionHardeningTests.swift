@@ -280,10 +280,72 @@ final class PrivacyPolicyDisclosureTests: XCTestCase {
     }
 }
 
+// MARK: - The shared /scan contract
+//
+// C-3. The `/scan` response shape was asserted twice, independently and in two
+// languages: once in `backend/tests/test_ai_pipeline.py` against a Python
+// dict, and once here against a hand-typed JSON string literal. Nothing
+// compared them — and because the two CI workflows have mutually exclusive
+// path filters, eight non-merge commits changed `main.py`, `valuation.py` or
+// `prompts.py` and deployed to production with zero client-decode
+// verification. A renamed field would have been caught by neither suite.
+//
+// `contract/scan-response.json` is now the single fixture both sides read.
+
+final class ScanContractTests: XCTestCase {
+
+    /// The repo-root fixture, located from this file rather than from a
+    /// bundle: the test target has no resources phase, and adding one to
+    /// carry a single JSON file would be more machinery than the file.
+    static func contractData() throws -> Data {
+        let url = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()   // SnapWorthTests
+            .deletingLastPathComponent()   // ios
+            .deletingLastPathComponent()   // repo root
+            .appendingPathComponent("contract/scan-response.json")
+        return try Data(contentsOf: url)
+    }
+
+    func test_theSharedFixtureDecodes() throws {
+        let decoded = try JSONDecoder().decode(
+            ScanAPIResponse.self, from: Self.contractData())
+        XCTAssertEqual(decoded.brand, "Patagonia")
+        XCTAssertEqual(decoded.category, "clothing")
+        XCTAssertEqual(decoded.estValueLowUsd, 32.0)
+        XCTAssertEqual(decoded.estValueHighUsd, 85.0)
+        XCTAssertFalse(decoded.itemName.isEmpty)
+        XCTAssertFalse(decoded.listingTitle.isEmpty)
+        XCTAssertFalse(decoded.listingDescription.isEmpty)
+    }
+
+    /// The v2 valuation payload is what powers "why this price". It is
+    /// optional on the wire, so a decode failure here is silent in the app —
+    /// the panel simply never appears — which is exactly why it needs a test.
+    func test_theSharedFixtureCarriesTheValuationDetail() throws {
+        let decoded = try JSONDecoder().decode(
+            ScanAPIResponse.self, from: Self.contractData())
+        let detail = ValuationDetail(response: decoded)
+        XCTAssertNotNil(detail, "the v2 payload in the shared fixture no longer decodes")
+    }
+
+    func test_freeScansRemainingDecodesAsOptional() throws {
+        // Nil when the server omits it (Pro, or the quota store is down) —
+        // see I-3. The fixture carries a value, so this checks the present
+        // case; the absent case is covered below by `base`.
+        let decoded = try JSONDecoder().decode(
+            ScanAPIResponse.self, from: Self.contractData())
+        XCTAssertEqual(decoded.freeScansRemaining, 2)
+    }
+}
+
 // MARK: - Legacy response compatibility
 
 final class ScanAPIResponseDecodingTests: XCTestCase {
 
+    /// Deliberately still a literal: this is the *minimal* v1 body, which is
+    /// what an old server or a trimmed response looks like. The full,
+    /// current shape lives in `contract/scan-response.json` and is checked by
+    /// `ScanContractTests` above.
     private let base = """
     {"item_name":"Patagonia Better Sweater","brand":"Patagonia","category":"clothing",
      "condition_notes":"Good","est_value_low_usd":45.0,"est_value_high_usd":90.0,

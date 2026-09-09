@@ -90,7 +90,27 @@ class TestOn:
         q = make(3, dc=_Reinstalled())
         assert await q.starting_balance("s", "device-token") == 0
         assert (await q.status("s", False)).limit == 1
-        assert await q._cache.get(q._welcome_key("s")) is None
+        # The refusal is *recorded*. This assertion used to read `is None`,
+        # which locked in the bug below: nothing marked the welcome as spent,
+        # so the same reinstall could come back and claim it.
+        assert await q._cache.get(q._welcome_key("s")) == "denied"
+
+    @pytest.mark.asyncio
+    async def test_a_refused_reinstall_cannot_claim_the_welcome_later(self):
+        """B-7. The counter and the `seen` marker both expire with the day;
+        the welcome marker does not. Without writing it on the refusal path,
+        the same reinstall looked new again ~30h later and was handed the
+        welcome allowance it had just been denied."""
+        q = make(3, dc=_Reinstalled())
+        assert await q.starting_balance("s", "device-token") == 0
+
+        # A day passes: the counter and `seen` marker lapse, the welcome
+        # marker (400-day TTL) does not.
+        await q._cache.delete(q._counter_key("s"))
+        await q._cache.delete(q._seen_key("s"))
+
+        assert await q.starting_balance("s", "device-token") == 0
+        assert (await q.status("s", False)).limit == 1
 
     @pytest.mark.asyncio
     async def test_pro_is_untouched(self):

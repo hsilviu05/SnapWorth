@@ -8,7 +8,7 @@ with FAQ schema for rich results.
 
 Run:  python3 website/seo/build_seo.py
 """
-import html, pathlib, datetime
+import html, pathlib, datetime, re
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]          # website/
 OUT = ROOT / "worth"
@@ -16,6 +16,11 @@ OUT.mkdir(parents=True, exist_ok=True)
 
 SITE = "https://www.snapworth.eu"
 APP_STORE = "https://apps.apple.com/us/app/snapworth-resale-scanner/id6788521307"
+APP_ID = "6788521307"
+# Smart App Banner. The product is iPhone-only and every CTA on every page is
+# "download it from the App Store", so on iOS Safari this is the shortest path
+# from a search result to an install — and it was on none of the 19 pages.
+SMART_BANNER = f'<meta name="apple-itunes-app" content="app-id={APP_ID}">\n'
 TODAY = datetime.date.today().isoformat()
 YEAR = datetime.date.today().year
 
@@ -157,6 +162,21 @@ ITEMS = [
 PLURAL = {"levis-501-vintage", "dr-martens-1460-boots", "lululemon-align-leggings",
           "birkenstock-arizona-sandals", "ray-ban-wayfarer-sunglasses", "vintage-pyrex-bowls"}
 
+def condition_bounds(it):
+    """Lowest and highest figure in the item's own condition table.
+
+    The headline range and the table were two independent hand-written sets of
+    numbers, and on 13 of the 16 items they disagreed: the table's worst tier
+    sat below the headline "typical resale value", and below the figure the
+    FAQ JSON-LD answer was built from. A reader who scrolled saw the page
+    contradict itself, and so did anyone parsing the structured data.
+
+    Deriving both from one source makes them unable to disagree again.
+    """
+    figures = [int(n) for _, rng in it["conditions"] for n in re.findall(r"\d+", rng)]
+    return (min(figures), max(figures)) if figures else (it["low"], it["high"])
+
+
 def is_plural(it): return it["slug"] in PLURAL
 def base(name): return name[4:] if name.startswith("The ") else name          # drop leading "The "
 def obj(it):                                                                  # object phrase w/ article
@@ -168,7 +188,9 @@ def answer(it):
     b = base(it["name"])
     verb = "typically resell" if is_plural(it) else "typically resells"
     subj = b if is_plural(it) else f"A {b}"
-    return f"{subj} {verb} for ${it['low']}–${it['high']} in the US secondhand market, depending on condition, style, and demand."
+    lo, hi = condition_bounds(it)
+    return (f"{subj} {verb} for ${lo}–${hi} in the US secondhand market, "
+            "depending on condition, style, and demand.")
 
 # ── Shared chrome ────────────────────────────────────────────────────────────
 STYLE = """
@@ -222,7 +244,7 @@ ul{margin:0 0 16px 20px;}li{margin-bottom:6px;}
 .cta{background:var(--dark);border-radius:20px;padding:28px;margin:36px 0;text-align:center;}
 .cta h3{font-family:'Fraunces',serif;color:#fff;font-size:24px;font-weight:600;margin-bottom:8px;}
 .cta p{color:#C0B6AB;margin-bottom:18px;}
-.cta a{display:inline-block;background:var(--terracotta);color:#fff;text-decoration:none;font-weight:700;padding:13px 26px;border-radius:12px;}
+.cta a{display:inline-block;background:var(--terra-text);color:#fff;text-decoration:none;font-weight:700;padding:13px 26px;border-radius:12px;}
 .related{background:var(--card);border-radius:16px;padding:22px 24px;margin:28px 0;}
 .related h2{font-size:20px;margin:0 0 10px;}
 .related a{display:block;padding:6px 0;}
@@ -267,9 +289,17 @@ def cta(name):
             f'<a href="{APP_STORE}">Download SnapWorth — free</a></div>')
 
 def page_html(item, related):
+    RANGE_LOW, RANGE_HIGH = condition_bounds(item)
     name = item["name"]; e = html.escape
-    title = (f"How Much Are {base(name)} Worth to Resell? ({YEAR} Resale Value)" if is_plural(item)
-             else f"How Much Is a {base(name)} Worth to Resell? ({YEAR} Resale Value)")
+    # No "({YEAR} Resale Value)" suffix. It cost 20 characters on titles that
+    # already ran 66-77 — so every one of the 16 was over the ~60 SERPs show,
+    # and the suffix was the part being cut. It was also a dated string in a
+    # file nothing regenerates on a schedule (there is no website CI job), so
+    # on 1 January every title would have read as a year out of date. The year
+    # stays in the meta description and the H1, where truncation does not bite
+    # and where it is worth having.
+    title = (f"How Much Are {base(name)} Worth to Resell?" if is_plural(item)
+             else f"How Much Is a {base(name)} Worth to Resell?")
     desc = f"{name} resale value is typically ${item['low']}–${item['high']} depending on condition. See what affects the price, where to sell, and how to check your own item."
     url = f"{SITE}/worth/{item['slug']}"
 
@@ -282,20 +312,43 @@ def page_html(item, related):
         f'<a href="/worth/{r["slug"]}">{e(r["name"])} <span>${r["low"]}–${r["high"]}</span></a>'
         for r in related)
 
-    faq_ld = {
-        "@context": "https://schema.org", "@type": "FAQPage",
-        "mainEntity": [
-            {"@type": "Question", "name": q,
-             "acceptedAnswer": {"@type": "Answer", "text": a}}
-            for q, a in ([(question(item), answer(item))] + item["faqs"])
-        ]
+    # FAQPage plus BreadcrumbList, emitted as one @graph.
+    #
+    # FAQPage alone earns nothing: Google restricted FAQ rich results to
+    # government and health sites in August 2023, so the only structured data
+    # on the site was the one kind that cannot produce a rich result. The
+    # breadcrumb trail below was rendering as a plain <div> of text and ›
+    # characters, which is exactly the markup BreadcrumbList exists to
+    # describe — and that one *does* still show in results.
+    ld = {
+        "@context": "https://schema.org",
+        "@graph": [
+            {
+                "@type": "FAQPage",
+                "mainEntity": [
+                    {"@type": "Question", "name": q,
+                     "acceptedAnswer": {"@type": "Answer", "text": a}}
+                    for q, a in ([(question(item), answer(item))] + item["faqs"])
+                ],
+            },
+            {
+                "@type": "BreadcrumbList",
+                "itemListElement": [
+                    {"@type": "ListItem", "position": 1, "name": "Home",
+                     "item": f"{SITE}/"},
+                    {"@type": "ListItem", "position": 2, "name": "Resale Values",
+                     "item": f"{SITE}/worth"},
+                    {"@type": "ListItem", "position": 3, "name": name, "item": url},
+                ],
+            },
+        ],
     }
     import json
-    faq_json = json.dumps(faq_ld, ensure_ascii=False)
+    faq_json = json.dumps(ld, ensure_ascii=False)
 
     return f"""<!doctype html><html lang="en"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>{e(title)}</title>
+{SMART_BANNER}<title>{e(title)}</title>
 <meta name="description" content="{e(desc)}">
 <link rel="canonical" href="{url}">
 <meta property="og:type" content="article"><meta property="og:title" content="{e(title)}">
@@ -311,10 +364,10 @@ def page_html(item, related):
 </head><body>
 {header()}
 <main><div class="wrap">
-<div class="crumbs"><a href="/">Home</a> › <a href="/worth">Resale Values</a> › {e(name)}</div>
+<nav class="crumbs" aria-label="Breadcrumb"><a href="/">Home</a> › <a href="/worth">Resale Values</a> › {e(name)}</nav>
 <h1>{e(question(item))}</h1>
 <p class="lede">{e(item['intro'])}</p>
-<div class="range">Typical resale value: ${item['low']}–${item['high']}</div>
+<div class="range">Resale value: ${RANGE_LOW}–${RANGE_HIGH}, by condition</div>
 
 <h2>{e(name)} resale value by condition</h2>
 <table><thead><tr><th>Condition</th><th style="text-align:right">Typical resale</th></tr></thead>
@@ -349,11 +402,40 @@ def hub_html():
             f'<a href="/worth/{it["slug"]}">{e(it["name"])}<span>${it["low"]}–${it["high"]}</span></a>'
             for it in cats[cat])
         blocks += f"<h2>{e(cat)}</h2><div class='grid'>{cards}</div>"
-    title = f"Resale Value Guides — What Your Thrift Finds Are Worth ({YEAR})"
+    title = "Resale Value Guides — What Your Thrift Finds Are Worth"
     desc = "Free resale value guides for popular secondhand items — clothing, shoes, bags, and home goods. See typical prices, what affects value, and where to sell."
+    # The hub had no structured data at all. An ItemList describes what it
+    # actually is — an index of 16 guides — and the BreadcrumbList matches the
+    # trail rendered below it.
+    import json
+    hub_ld = json.dumps({
+        "@context": "https://schema.org",
+        "@graph": [
+            {
+                "@type": "BreadcrumbList",
+                "itemListElement": [
+                    {"@type": "ListItem", "position": 1, "name": "Home",
+                     "item": f"{SITE}/"},
+                    {"@type": "ListItem", "position": 2, "name": "Resale Values",
+                     "item": f"{SITE}/worth"},
+                ],
+            },
+            {
+                "@type": "ItemList",
+                "name": "Resale value guides",
+                "numberOfItems": len(ITEMS),
+                "itemListElement": [
+                    {"@type": "ListItem", "position": n, "name": it["name"],
+                     "url": f"{SITE}/worth/{it['slug']}"}
+                    for n, it in enumerate(ITEMS, start=1)
+                ],
+            },
+        ],
+    }, ensure_ascii=False)
+
     return f"""<!doctype html><html lang="en"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>{e(title)}</title><meta name="description" content="{e(desc)}">
+{SMART_BANNER}<title>{e(title)}</title><meta name="description" content="{e(desc)}">
 <link rel="canonical" href="{SITE}/worth">
 <meta property="og:type" content="website"><meta property="og:title" content="{e(title)}">
 <meta property="og:description" content="{e(desc)}"><meta property="og:url" content="{SITE}/worth">
@@ -363,10 +445,11 @@ def hub_html():
 <meta name="twitter:title" content="{e(title)}"><meta name="twitter:description" content="{e(desc)}">
 <meta name="twitter:image" content="{SITE}/og-image.png">
 <link rel="icon" href="/favicon-32.png" sizes="32x32">
-<style>{STYLE}</style></head><body>
+<style>{STYLE}</style>
+<script type="application/ld+json">{hub_ld}</script></head><body>
 {header()}
 <main><div class="wrap">
-<div class="crumbs"><a href="/">Home</a> › Resale Values</div>
+<nav class="crumbs" aria-label="Breadcrumb"><a href="/">Home</a> › Resale Values</nav>
 <h1>What are your thrift finds worth?</h1>
 <p class="lede">Typical secondhand resale values for popular items, plus what drives the price and where to sell. Want a range for your own item and its condition? Snap a photo with SnapWorth.</p>
 {blocks}
@@ -383,17 +466,31 @@ def build():
     # hub
     (OUT / "index.html").write_text(hub_html(), encoding="utf-8")
     # sitemap
-    urls = [f"{SITE}/", f"{SITE}/worth", f"{SITE}/support"] + [f"{SITE}/worth/{it['slug']}" for it in ITEMS]
+    # `lastmod` per URL, from the mtime of the file each one serves.
+    #
+    # Every entry used to carry `date.today()` from whenever the generator last
+    # ran — so all 19 URLs claimed 2026-08-22 while index.html had changed on
+    # 09-05 and support.html on 08-31. Google ignores lastmod entirely once it
+    # is demonstrably inconsistent with the content, which makes a uniform
+    # stamp worse than none: it spends the signal without carrying information.
+    pages = [(f"{SITE}/", ROOT / "index.html"),
+             (f"{SITE}/worth", OUT / "index.html"),
+             (f"{SITE}/support", ROOT / "support.html")]
+    pages += [(f"{SITE}/worth/{it['slug']}", OUT / f"{it['slug']}.html") for it in ITEMS]
     sm = ['<?xml version="1.0" encoding="UTF-8"?>',
           '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">']
-    for u in urls:
-        sm.append(f"  <url><loc>{u}</loc><lastmod>{TODAY}</lastmod></url>")
+    for u, path in pages:
+        try:
+            stamp = datetime.date.fromtimestamp(path.stat().st_mtime).isoformat()
+        except OSError:
+            stamp = TODAY
+        sm.append(f"  <url><loc>{u}</loc><lastmod>{stamp}</lastmod></url>")
     sm.append("</urlset>")
     (ROOT / "sitemap.xml").write_text("\n".join(sm) + "\n", encoding="utf-8")
     # robots
     (ROOT / "robots.txt").write_text(
         f"User-agent: *\nAllow: /\nSitemap: {SITE}/sitemap.xml\n", encoding="utf-8")
-    print(f"Built {len(ITEMS)} pages + hub + sitemap ({len(urls)} urls) + robots.txt -> {OUT}")
+    print(f"Built {len(ITEMS)} pages + hub + sitemap ({len(pages)} urls) + robots.txt -> {OUT}")
 
 if __name__ == "__main__":
     build()

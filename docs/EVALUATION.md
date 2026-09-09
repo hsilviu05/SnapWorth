@@ -317,11 +317,19 @@ if any shipped sample record ever becomes scoreable again.
 | Dataset schema & governance | ✅ Implemented and tested |
 | Experiment framework | ✅ Implemented and tested |
 | Error taxonomy | ✅ Implemented and tested |
+| CLI wrapper (`eval/cli.py`) | ✅ Implemented and tested |
 | Calibration fitting | ✅ Implemented, ⚠️ never fitted on real data |
 | CI gates | ✅ Wired, ⏭️ skip until a gold set exists |
 | Dashboard models | ✅ Implemented, no frontend |
 | **Gold dataset** | ❌ **Does not exist** |
 | **Any measured result** | ❌ **None** |
+
+The two rows above the calibration line were true of the logic and not of the
+wrapper around it: until 2026-09-09 `eval/cli.py` — which CI invokes — and
+`eval/erroranalysis.py` had no tests at all, 721 lines covered by a claim that
+rested on `eval/gates.py` alone. `tests/test_eval_cli.py` now covers both.
+"Tested" in this table means there is a test that fails when the behaviour
+changes; each row should be read as a claim someone can check.
 
 **Evaluation maturity: 3 / 5** — instrumented, not yet measuring. Level 4
 requires a gold set and a recorded baseline; level 5 requires continuous

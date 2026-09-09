@@ -387,7 +387,7 @@ def status_class(code: int) -> str:
 # `endpoint` label taken from the raw path is a cardinality bomb, because a
 # scanner probing random URLs would create a series per probe.
 KNOWN_ENDPOINTS = frozenset({
-    "/scan", "/listing", "/health", "/health/live", "/health/ready",
+    "/scan", "/listing", "/trends", "/health", "/health/live", "/health/ready",
     "/metrics", "/privacy", "/terms",
     "/auth/challenge", "/auth/attest", "/auth/refresh", "/auth/entitlement",
 })

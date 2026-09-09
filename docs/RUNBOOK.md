@@ -31,7 +31,41 @@ flowchart LR
 | Durable state | Redis — quota, entitlements, rate limits, attestation |
 | System of record | **None.** Redis is a cache; scan history lives on-device |
 | Metrics | `/metrics`, Prometheus text format `[DESIGNED]` |
-| Collector | `[NOT IMPLEMENTED]` — no scraper configured yet |
+| Collector | `[NOT IMPLEMENTED]` — and **not planned**; see below |
+| Monitoring surface | **The Telegram ops bot.** This is the real one |
+
+---
+
+## 1b. How this service is actually monitored
+
+Read this before anything else in the file, because until 2026-09-09 the file
+did not say it. `[NOT IMPLEMENTED]` against the metrics collector was true and
+misleading at the same time: it implied nothing was watching, while §8 told the
+reader to "Run 🩺 Checkup" without ever saying what that is or where to run it.
+The word "Telegram" did not appear in this document.
+
+**The ops bot is the monitoring surface.** It lives in `backend/notify.py`,
+posts to the operator's Telegram chat, and is where every operational signal
+actually arrives:
+
+| You want | Command | What it does |
+|---|---|---|
+| Is anything broken right now | `🩺 Checkup` | Probes the model, Redis, DeviceCheck and the App Store build in one message |
+| Current state | `/status` | Build, cache backend, auth enforcement, last deploy ping, today's counters |
+| What it costs | `/costs` | Gemini spend by window, `$/scan`, free-tier giveaway, and the operator's own bot usage listed separately |
+| Subscribers | `/subs` | Active, paid, comped, and MRR |
+| Yesterday | The daily digest | Sent automatically at `DIGEST_HOUR_UTC`; a weekly report on Mondays |
+
+Unprompted alerts arrive the same way: a new subscription, a deploy ping per
+commit, a quiet-hours note when nothing has scanned during US daytime, a
+budget warning, and a device-paused alert after repeated unanalysable photos.
+
+**The decision on `/metrics` (previously tracked as A-7, open and unrecorded
+for five days): accept it as designed-but-unscraped.** One replica and a
+single operator do not justify running Prometheus, and the bot already answers
+the questions a dashboard would. `/metrics` stays because it costs nothing to
+keep and is the right shape if a second replica ever appears. It is not
+monitoring today, and this table is what is.
 
 ---
 
@@ -410,23 +444,40 @@ engineering Redis persistence for it.
 
 ## 10. Cost model `[ESTIMATED]`
 
+> **Corrected 2026-09-09.** The previous version of this section was ~19×
+> too low per scan and its headline conclusion was backwards. Two errors:
+> it used $0.075/1M input and $0.30/1M output, against the $0.30/$2.50 this
+> codebase actually bills at (`notify.py:88-89`), and it omitted **thinking
+> tokens entirely** — which are billed as output and are the single largest
+> line item. It also said the free tier was 3/day; it has been 1/day since
+> `quota.py:33`. Nothing has been decided on the strength of the old numbers,
+> but anyone planning pricing or a free-tier change from them would have been
+> badly misled.
+
 **Assumptions — these dominate the result and none is measured:**
 
 - 30% of installs become monthly actives
-- 4 scans/active/month (free tier is 3/day, most users scan far less)
-- Gemini 2.5 Flash: ~$0.075/1M input, ~$0.30/1M output `[public pricing, 2026-07]`
-- Per scan: ~260 image tokens + ~700 prompt = ~960 input, ~800 output
+- 4 scans/active/month (free tier is 1/day; most users scan far less)
+- Gemini 2.5 Flash: **~$0.30/1M input, ~$2.50/1M output**, matching
+  `GEMINI_PRICE_INPUT_PER_M` / `GEMINI_PRICE_OUTPUT_PER_M` `[2026-09]`
+- Per scan: ~260 image + ~700 prompt = ~960 input; ~800 answer **plus
+  ~1,450 thinking tokens** (measured 1,138–1,777) = ~2,250 output
+- **~$0.0059/scan**, which agrees with `quota.py:33`'s own ~$0.0060 figure and
+  with today's observed $0.02–0.06/day across 1–4 scans
 - 3% paid conversion at $39.99/yr blended
 
 | Users | MAU | Scans/mo | Gemini/mo | Infra/mo | Total/mo | Revenue/mo | Margin |
 |---|---|---|---|---|---|---|---|
-| 10k | 3k | 12k | ~$4 | ~$25 | **~$29** | ~$1,000 | 97% |
-| 100k | 30k | 120k | ~$40 | ~$120 | **~$160** | ~$10,000 | 98% |
-| 1M | 300k | 1.2M | ~$400 | ~$800 | **~$1,200** | ~$100,000 | 99% |
+| 10k | 3k | 12k | ~$71 | ~$25 | **~$96** | ~$1,000 | 90% |
+| 100k | 30k | 120k | ~$710 | ~$120 | **~$830** | ~$10,000 | 92% |
+| 1M | 300k | 1.2M | ~$7,100 | ~$800 | **~$7,900** | ~$100,000 | 92% |
 
-Gemini Flash is cheap enough that **infrastructure dominates, not inference** —
-which inverts the usual assumption for an AI product and means optimisation
-effort belongs in container efficiency, not prompt golf.
+**Inference dominates, not infrastructure** — the opposite of what this section
+used to say. Gemini is roughly 3× the container bill at 10k users and ~9× at
+1M, and about **75% of the model spend is thinking tokens, not the answer**.
+Optimisation effort belongs in what the model is asked to reason about, not in
+container efficiency. Margins stay healthy either way; the ranking of what to
+work on does not.
 
 ### Optimisations, ranked by value
 
@@ -434,12 +485,22 @@ effort belongs in container efficiency, not prompt golf.
    item. A 7-day cache on the image digest would cut both cost and latency, and
    is the single highest-value item here.
 2. **Client-side downscale** `[MEASURED]` — already shipped; cut upload ~92%.
-3. **Prompt length** — v2 is ~700 tokens. Trimming saves ~$40/mo at 1M users;
-   not worth degrading output for.
-4. **Retry discipline** `[MEASURED]` — non-retryable errors are no longer
+3. **Thinking budget** `[KNOB ADDED, UNSET]` — `GEMINI_THINKING_BUDGET` caps
+   the reasoning tokens that are ~75% of model spend. Deliberately unset, so
+   today's behaviour is unchanged: capping reasoning on a valuation model is a
+   quality decision and belongs to `backend/eval/runner.py`, run at a candidate
+   budget and compared, not to a number picked here. This is the highest-value
+   *cost* lever in the list and the one most able to damage the product.
+4. **Prompt length** — v2 is ~700 tokens of the ~960 input. Input is ~5% of
+   per-scan cost, so trimming saves ~$85/mo at 1M users; not worth degrading
+   output for. (The old model put this at ~$40/mo on prices 4× too low.)
+5. **Retry discipline** `[MEASURED]` — non-retryable errors are no longer
    retried, halving the cost of a bad-key incident.
-5. **`_retry_as_json` second call** — fires on unparseable output. Constrained
+6. **`_retry_as_json` second call** — fires on unparseable output. Constrained
    JSON decoding made it rare; monitor `model_calls_total` before optimising.
+   It now goes through `_generate_with_retry` like every other call, so a
+   provider outage during it is classified as one rather than reported to the
+   user as an unreadable reply.
 
 ---
 
