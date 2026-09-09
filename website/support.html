@@ -19,10 +19,42 @@
   <meta name="twitter:image" content="https://www.snapworth.eu/og-image.png">
   <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
   <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,ital,wght@9..144,0,400;9..144,0,700;9..144,0,900&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+  <!-- Smart App Banner. iPhone-only product, App-Store CTA on every page: on
+       iOS Safari this is the shortest path from a search result to an install,
+       and it was on none of the 19 pages. -->
+  <meta name="apple-itunes-app" content="app-id=6788521307">
+  <!-- Self-hosted fonts (variable, latin subset) — preload the LCP heading font.
+       This page was the only one still loading Fraunces and DM Sans from
+       fonts.googleapis.com: a render-blocking stylesheet on a second origin,
+       for the exact files index.html, 404.html and every generated /worth page
+       already serve from this one. The preconnects mitigated most of the cost
+       in production, so this is duplicate bytes and an inconsistency rather
+       than a first-paint stall — but there was no reason for it either way. -->
+  <link rel="preload" href="fonts/fraunces-latin.woff2" as="font" type="font/woff2" crossorigin>
   <style>
+    /* ── Self-hosted variable fonts ─────────────────────────────────── */
+    @font-face {
+      font-family: 'Fraunces';
+      font-style: normal;
+      font-weight: 100 900;
+      font-display: swap;
+      src: url('fonts/fraunces-latin.woff2') format('woff2');
+    }
+    @font-face {
+      font-family: 'Fraunces';
+      font-style: italic;
+      font-weight: 100 900;
+      font-display: swap;
+      src: url('fonts/fraunces-italic-latin.woff2') format('woff2');
+    }
+    @font-face {
+      font-family: 'DM Sans';
+      font-style: normal;
+      font-weight: 100 900;
+      font-display: swap;
+      src: url('fonts/dmsans-latin.woff2') format('woff2');
+    }
+
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     :root {
@@ -31,6 +63,10 @@
       --dark:       #1C1410;
       --dark2:      #2B211C;
       --terracotta: #D96C47;
+      /* White on #D96C47 is 3.39:1, below AA's 4.5:1. Anything painting white
+         text on a terracotta fill uses this instead (5.51:1). This page did
+         not define the token at all, so its download CTA had no AA option. */
+      --terra-text: #A94E29;
       --sage:       #7A9E7E;
       --warm-gray:  #8B7B75;
       --border:     #E8DDD7;
@@ -166,7 +202,9 @@
       display: inline-flex;
       align-items: center;
       gap: 8px;
-      background: var(--terracotta);
+      /* --terra-text, not --terracotta: white on #D96C47 is 3.39:1, below
+         AA. See the token comment in index.html. */
+      background: var(--terra-text);
       color: var(--white);
       font-size: 14px;
       font-weight: 600;
