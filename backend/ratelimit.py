@@ -217,9 +217,19 @@ async def build_limiter() -> tuple[ResilientRateLimiter, InMemoryRateLimiter]:
             socket_timeout=2,
             health_check_interval=30,
         )
+    except Exception as exc:
+        log.error("redis client could not be constructed, using in-process limits: %s", exc)
+        return ResilientRateLimiter(None, fallback), fallback
+
+    try:
         await client.ping()
         log.info("redis rate limiter connected")
-        return ResilientRateLimiter(RedisRateLimiter(client), fallback), fallback
     except Exception as exc:
-        log.error("redis connection failed at startup, using in-process limits: %s", exc)
-        return ResilientRateLimiter(None, fallback), fallback
+        # Keep the client. redis-py's pool reconnects transparently, so a
+        # startup blip must not permanently downgrade the process — discarding
+        # it here turned a five-second outage into per-process limits for the
+        # life of the replica, resetting on every restart. `cache.py:289-298`
+        # deliberately does exactly this for the same situation; these two
+        # now agree.
+        log.error("redis rate limiter ping failed at startup, will retry on demand: %s", exc)
+    return ResilientRateLimiter(RedisRateLimiter(client), fallback), fallback

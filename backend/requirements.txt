@@ -1,15 +1,25 @@
-# 0.133.0 is the first FastAPI release that drops the starlette upper bound
-# (0.115.5 pinned starlette<0.42.0; 0.132.1 still capped at <1.0.0), so it is the
-# minimum version that can take a patched starlette. Deliberately not the latest
-# (0.141.1, which also works): 0.133.0 stops short of 0.137.0, which upstream
-# flags as a major breaking release, and buys nothing extra security-wise.
+# 0.133.0 was the first FastAPI release to drop the starlette upper bound
+# (0.115.5 pinned starlette<0.42.0; 0.132.1 still capped at <1.0.0), which is
+# what let a patched starlette in. The pin has since moved forward with
+# Dependabot and is now past 0.137.0, upstream's flagged breaking release —
+# taken deliberately, with the suite green on it.
+#
+# This comment used to argue for staying on 0.133.0 while the line beneath it
+# read 0.141.1. A rationale that contradicts its own pin is worse than none:
+# the next reader can't tell which of the two is the mistake.
 fastapi==0.141.1
 # Pinned explicitly rather than left transitive. It was only ever pulled in via
 # FastAPI, which is precisely why seven advisories against it went unnoticed —
 # an indirect dependency has no line in this file to review. 1.3.1 closes all
 # seven, of which two were reachable: PYSEC-2026-1941 (multipart >1MB spool
 # rollover blocking the event loop on /scan) and PYSEC-2026-249
-# (max_fields/max_part_size silently ignored for urlencoded bodies).
+# (max_fields/max_part_size silently ignored for urlencoded bodies). The pin
+# has moved past 1.3.1 with Dependabot since; the advisories above are the
+# floor, not the pin.
+#
+# Note for anyone sizing uploads from here: `max_part_size` guards non-file
+# parts only. File parts spool unbounded, which is why /scan does its own
+# chunked read with a hard ceiling rather than trusting this.
 starlette==1.6.0
 uvicorn[standard]==0.52.4
 # Migrated off google-generativeai, which reached end-of-life at 0.8.6 and said
@@ -24,7 +34,8 @@ google-genai==2.22.0
 # reachable by an unauthenticated POST: preamble and part-header parsing DoS
 # (PYSEC-2026-3036/3037/3038/3039) and an unvalidated negative Content-Length
 # (PYSEC-2026-3040). This is the highest-exploitability item in the tree — the
-# upload path is the app's front door.
+# upload path is the app's front door. 0.0.31 is the floor those advisories
+# set; the pin has moved past it with Dependabot.
 python-multipart==0.0.32
 # NOT on the original fix list — surfaced by the audit added in this change.
 # PYSEC-2026-2270: set_key()/unset_key() follow symlinks when rewriting .env,
@@ -48,7 +59,11 @@ redis==8.1.0
 # bytes on /auth/attest, which is unauthenticated by design (it is the bootstrap
 # that mints the first token), so decoder bugs are directly reachable. 5.9.0
 # closes an integer overflow in the C decoder (PYSEC-2025-238) plus PYSEC-2025-90
-# and PYSEC-2026-2123.
+# and PYSEC-2026-2123; that is the floor, and the pin has since moved to 6.x.
+#
+# The parser above this is not the only defence: `appattest.py` type-checks
+# every field it reads out of the decoded map, because CBOR decodes to whatever
+# the sender encoded and a bare int top-level used to reach `.get` as a 500.
 cbor2==6.1.4
 # StoreKit 2 signed transactions are ES256 JWS. 2.13.0 closes six advisories,
 # including PYSEC-2026-176, a verifier-side algorithm allow-list bypass that
@@ -94,7 +109,7 @@ PyJWT==2.13.0
 # bytes and verifying each link with key.verify(). So none of the three is
 # directly exploitable here; the upgrade is taken because the primitives
 # underneath are load-bearing and 50.0.0 is the single version clearing all
-# three.
+# three. The pin sits one patch release above that floor.
 cryptography==50.0.1
 # DeviceCheck API calls.
 httpx==0.28.1

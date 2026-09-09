@@ -20,6 +20,8 @@ requests from one device. A short-lived token keeps the hot path stateless.
 
 from __future__ import annotations
 
+from collections.abc import Awaitable, Callable
+
 import base64
 import json
 import logging
@@ -37,6 +39,7 @@ from cache import KeyValueStore
 from devicecheck import DeviceCheckClient
 from auditlog import AuditEvent
 from entitlements import EntitlementError, EntitlementService
+from entitlements import EntitlementsUnavailable
 from quota import QuotaExceeded, QuotaStatus, QuotaUnavailable, ScanQuota
 from tokens import TokenError, TokenSigner
 
@@ -108,6 +111,12 @@ class AuthDeps:
     # below, and the test fixtures wire `device_check = None` on purpose.
     signer: TokenSigner | None = None
     device_check: DeviceCheckClient | None = None
+
+    # Per-IP limiter for the three unauthenticated routes below. Injected by
+    # `main._lifespan` because the limiter lives in `main`, which imports this
+    # module — a direct import would be circular. `None` means "not wired
+    # yet", which only happens before startup and in tests that do not care.
+    ip_limiter: Callable[[str | None], Awaitable[None]] | None = None
 
     config: AuthConfig = AuthConfig()
 
@@ -191,7 +200,17 @@ async def _issue_token(subject: str, device_token: str | None) -> TokenResponse:
     if signer is None:
         raise RuntimeError("auth.deps.signer is not configured")
 
-    ent = await deps.entitlements.current(subject)
+    try:
+        ent = await deps.entitlements.current(subject)
+    except EntitlementsUnavailable:
+        # There is no prior token to fall back on here — this call *creates*
+        # one — so minting "free" would bake a wrong tier in for the token's
+        # whole lifetime. Refuse instead; the client already retries a mint.
+        log.error("entitlement store unavailable while issuing a token")
+        raise HTTPException(
+            status_code=503,
+            detail="Subscription status is temporarily unavailable. Please try again shortly.",
+        ) from None
     token, claims = signer.mint(subject, tier=ent.tier)
 
     remaining = 0
@@ -212,9 +231,25 @@ async def _issue_token(subject: str, device_token: str | None) -> TokenResponse:
     )
 
 
+async def _limit_unauthenticated(request: Request) -> None:
+    """Rate-limit the three routes that run before there is a principal.
+
+    `_enforce_limits` is only reachable once a caller is authenticated, so
+    these three had no limiter at all: `/challenge` wrote a Redis key per
+    call with no principal behind it, and `/attest` ran a full x.509 chain
+    walk unthrottled. Both are cheap individually — the point is that nothing
+    bounded how many of them one source could ask for.
+    """
+    if deps.ip_limiter is None:
+        return
+    client = request.client
+    await deps.ip_limiter(client.host if client else None)
+
+
 @router.post("/challenge", response_model=ChallengeResponse)
-async def challenge() -> ChallengeResponse:
+async def challenge(request: Request) -> ChallengeResponse:
     """Mint a single-use nonce for attestation or assertion."""
+    await _limit_unauthenticated(request)
     value = secrets.token_urlsafe(32)
     await deps.cache.set(_challenge_key(value), "1", CHALLENGE_TTL)
     auditlog.record(AuditEvent.ATTEST_CHALLENGE_ISSUED)
@@ -231,7 +266,8 @@ async def _consume_challenge(value: str) -> None:
 
 
 @router.post("/attest", response_model=TokenResponse)
-async def attest(req: AttestRequest) -> TokenResponse:
+async def attest(req: AttestRequest, request: Request) -> TokenResponse:
+    await _limit_unauthenticated(request)
     cfg = deps.config
     if not cfg.is_configured:
         raise HTTPException(status_code=503, detail="Attestation is not configured.")
@@ -279,8 +315,9 @@ async def attest(req: AttestRequest) -> TokenResponse:
 
 
 @router.post("/refresh", response_model=TokenResponse)
-async def refresh(req: AssertRequest) -> TokenResponse:
+async def refresh(req: AssertRequest, request: Request) -> TokenResponse:
     """Re-issue a token by proving possession of the attested key."""
+    await _limit_unauthenticated(request)
     cfg = deps.config
     await _consume_challenge(req.challenge)
 
@@ -342,9 +379,19 @@ async def require_auth(
         # Entitlement is re-read from the cache rather than trusted from the
         # token, so an expired or refunded subscription stops working within
         # one cache TTL instead of one token lifetime.
-        ent = await deps.entitlements.current(subject)
-        notify.saw_user(subject, tier=ent.tier)
-        return Principal(subject=subject, tier=ent.tier, authenticated=True)
+        try:
+            ent_tier = (await deps.entitlements.current(subject)).tier
+        except EntitlementsUnavailable as exc:
+            # The store is down, not empty. Reading that as "free" took Pro
+            # away from paying subscribers mid-outage. This token was minted
+            # with a tier this service verified, and it expires — so trusting
+            # it for the rest of its own lifetime is bounded, and strictly
+            # better than guessing "free".
+            ent_tier = claims.get("tier") or "free"
+            log.warning("entitlement store unavailable, honouring the token's tier: %s",
+                        exc, extra={"tier": ent_tier})
+        notify.saw_user(subject, tier=ent_tier)
+        return Principal(subject=subject, tier=ent_tier, authenticated=True)
 
     if cfg.enforce:
         auditlog.record(AuditEvent.TOKEN_REJECTED, outcome="failure", reason="missing_token")
@@ -406,12 +453,23 @@ async def _device_token_for(subject: str) -> str | None:
         return None
 
 
-async def enforce_quota(principal: Principal) -> None:
-    """Raise 402 when the free allowance is spent. Fails closed."""
+async def reserve_quota(principal: Principal) -> QuotaStatus | None:
+    """Claim one free scan, or raise 402. Fails closed.
+
+    This used to be `enforce_quota`, which only *read* the counter and left
+    the increment to `consume_quota` after the model call — so concurrent
+    scans from one device all read the same pre-scan count and all passed.
+    The claim now happens up front and is handed back by `refund_quota` if the
+    work fails, which is the same guarantee from the user's side and a real
+    one from the counter's.
+
+    Returns the post-reservation status so the caller can report the true
+    remaining allowance; `None` only for Pro, which has no count.
+    """
     if principal.is_pro:
-        return
+        return None
     try:
-        await deps.quota.check(principal.subject, principal.is_pro)
+        return await deps.quota.reserve(principal.subject, principal.is_pro)
     except QuotaExceeded as exc:
         auditlog.record(AuditEvent.QUOTA_EXCEEDED, principal.subject, outcome="denied")
         # Mark the physical device as having spent its allowance. Without this
@@ -433,19 +491,20 @@ async def enforce_quota(principal: Principal) -> None:
         ) from None
 
 
-async def consume_quota(principal: Principal) -> QuotaStatus | None:
-    """Record one successful use. Never fails the request it just served.
+async def refund_quota(principal: Principal) -> None:
+    """Hand back a reservation whose work produced nothing.
 
-    Returns the post-consumption status so the caller can report the real
-    remaining allowance to the client, which otherwise has to guess from a
-    hardcoded constant. `None` means the count is genuinely unknown — the
-    caller must omit it rather than substitute a made-up number.
+    Never raises: the request has already failed, and a failed refund is
+    exactly the outcome the previous check-then-consume code produced on
+    *every* failure. Not worth a second error on top of the first.
     """
     try:
-        status = await deps.quota.consume(principal.subject, principal.is_pro)
-        auditlog.record(AuditEvent.QUOTA_CONSUMED, principal.subject)
-        return status
-    except QuotaUnavailable:
-        log.error("quota consume failed — usage not recorded",
+        await deps.quota.refund(principal.subject, principal.is_pro)
+    except Exception as exc:                                # pragma: no cover
+        log.error("quota refund failed — user charged for a failed scan: %s", exc,
                   extra={"subject": auditlog.pseudonymise(principal.subject)})
-        return None
+
+
+def record_quota_consumed(principal: Principal) -> None:
+    """Audit-log a reservation that went on to produce a real result."""
+    auditlog.record(AuditEvent.QUOTA_CONSUMED, principal.subject)

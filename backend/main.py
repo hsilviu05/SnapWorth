@@ -45,7 +45,8 @@ import social
 import tokens
 import valuation as valuation_module
 from auditlog import AuditEvent
-from auth import Principal, consume_quota, enforce_quota, require_auth
+from auth import (Principal, record_quota_consumed, refund_quota,
+                  require_auth, reserve_quota)
 from entitlements import EntitlementService
 from fastapi import Depends
 from observability import RequestContextMiddleware, configure_production_logging
@@ -194,6 +195,9 @@ async def _lifespan(_app: FastAPI):
     _cache = await cache_module.build_cache()
     dc = devicecheck.client_from_env()
     auth.deps.cache = _cache
+    # The three unauthenticated /auth routes run before there is a principal,
+    # so they never reached `_enforce_limits`. Hand them the IP limiter.
+    auth.deps.ip_limiter = _enforce_ip_limit
     auth.deps.signer = tokens.signer_from_env()
     auth.deps.device_check = dc
     auth.deps.entitlements = EntitlementService(
@@ -535,6 +539,20 @@ def _check_rate_limit(device_id: str, ip: str | None = None) -> None:
                             headers={"Retry-After": str(exc.retry_after)}) from None
 
 
+async def _enforce_ip_limit(ip: str | None) -> None:
+    """IP-only limit, for routes that have no device or subject yet."""
+    if ip is None:
+        return
+    try:
+        if _ip_limiter is None:
+            _ip_memory.check_sync(ip, IP_RATE_MAX_REQUESTS)
+        else:
+            await _ip_limiter.check(f"ip:{ip}", IP_RATE_MAX_REQUESTS)
+    except RateLimitExceeded as exc:
+        raise HTTPException(status_code=429, detail=exc.message,
+                            headers={"Retry-After": str(exc.retry_after)}) from None
+
+
 async def _enforce_limits(device_id: str, ip: str | None) -> None:
     """Distributed limit check used by the request path."""
     device_id = device_id[:64]
@@ -824,7 +842,19 @@ def _validate_listing(data: dict, req: ListingRequest) -> ListingResponse:
 
 
 def _extract_json(text: str) -> dict:
-    """Extract the first JSON object from the model response, handling markdown fences."""
+    """Extract the first JSON object from the model response, handling markdown fences.
+
+    The return annotation says `dict`, and now the function guarantees it.
+    Both callers trusted that annotation: `/scan`'s no-price log path does
+    `sorted(data)` and `/listing`'s validator subscripts it, so a reply that
+    parsed as a bare scalar or array — `"nope"`, `[1,2]` — reached them as a
+    str or list and raised a TypeError, surfacing as a 500 instead of the
+    502-or-fallback both paths already implement for unparseable replies.
+    Rare under JSON mode, reproduced by simulation.
+
+    Raises `ValueError` for anything that is not a JSON object, which is the
+    exception both callers already catch alongside `JSONDecodeError`.
+    """
     text = text.strip()
     # Strip markdown code fences if present
     match = re.search(r"```(?:json)?\s*([\s\S]*?)```", text)
@@ -834,7 +864,10 @@ def _extract_json(text: str) -> dict:
     obj_match = re.search(r"\{[\s\S]*\}", text)
     if obj_match:
         text = obj_match.group(0)
-    return json.loads(text)
+    parsed = json.loads(text)
+    if not isinstance(parsed, dict):
+        raise ValueError(f"model reply parsed as {type(parsed).__name__}, not an object")
+    return parsed
 
 
 # ── Endpoints ────────────────────────────────────────────────────────────────
@@ -1186,19 +1219,33 @@ async def scan(
     # quota and before the model: nothing to bill, nothing to analyse.
     await _refuse_if_paused(principal.subject)
 
-    # Free allowance is checked before the paid third-party call, and consumed
-    # only after it succeeds, so a failed scan is never charged.
-    await enforce_quota(principal)
+    # The free allowance is *reserved* before the paid third-party call and
+    # handed back if that call produces nothing, so a failed scan is still
+    # never charged — but two concurrent scans can no longer both be granted
+    # the same last allowance, which check-then-consume allowed.
+    quota_status = await reserve_quota(principal)
     auditlog.record(AuditEvent.SCAN_AUTHORISED, principal.subject, tier=principal.tier)
 
     log.info("scan start", extra={"device": device_short, "size_kb": image_kb,
                                   "type": content_type, "tag_photo": tag_bytes is not None})
-    response, elapsed = await _analyse(image_bytes, content_type,
-                                       subject=principal.subject, device_short=device_short,
-                                       tag_bytes=tag_bytes, tag_type=tag_type)
+    try:
+        response, elapsed = await _analyse(image_bytes, content_type,
+                                           subject=principal.subject, device_short=device_short,
+                                           tag_bytes=tag_bytes, tag_type=tag_type)
+    except BaseException:
+        await refund_quota(principal)
+        raise
 
-    # Charge only for work that produced a result.
-    quota_status = await consume_quota(principal)
+    # The iOS client gives up at 35s (CertificatePinning.swift). Past that
+    # nothing we produce can reach it, so charging for it is charging for
+    # something the user will never see — and they will scan again.
+    if await request.is_disconnected():
+        await refund_quota(principal)
+        log.info("client gone before the result — allowance returned",
+                 extra={"device": device_short})
+        return response
+
+    record_quota_consumed(principal)
     notify.scan_completed(
         tier=principal.tier, item_name=response.item_name, brand=response.brand,
         category=response.category, low=response.est_value_low_usd,
@@ -1598,24 +1645,32 @@ async def _retry_as_json(raw: str) -> dict | None:
         "and no commentary. Preserve the values exactly; invent nothing.\n\n"
         f"{promptsafety.fence(raw[:4000])}"
     )
-    with contextlib.suppress(Exception):
-        response = await _model.generate_content_async(prompt)
-        # A billed call like any other: without this the reformat's tokens
-        # were missing from /costs and the token metrics, so the per-scan
-        # cost the bot reported ran low on exactly the scans that cost most.
-        usage = aiconfig.usage_of(response)
-        metrics.model_calls.inc(operation="reformat", outcome="success")
-        notify.model_usage("reformat", usage)
-        for kind, key in (("prompt", "prompt_tokens"), ("output", "output_tokens"),
-                          ("thoughts", "thoughts_tokens")):
-            if key in usage:
-                metrics.model_tokens.inc(usage[key], operation="reformat", kind=kind)
-        # `or ""`: google-genai returns None for .text on an empty or blocked
-        # candidate, where the previous SDK raised. The suppress() above would
-        # have swallowed the resulting AttributeError and returned None anyway,
-        # which is the right outcome — but by accident rather than intent.
-        return _extract_json((response.text or "").strip())
-    return None
+    # Routed through `_generate_with_retry` like every other model call.
+    # This used to call the model directly under a blanket `suppress`, which
+    # skipped the retry classification, the metrics and the health recorder —
+    # so a provider outage hit during the reformat step was reported to the
+    # user as "unreadable" rather than as an outage, and left no trace in the
+    # health signal that would have said which it was.
+    #
+    # `record_health=False` deliberately: this is a best-effort second attempt
+    # at one reply, and a failure here is already counted against the primary
+    # call. Recording it twice would make one bad scan look like two.
+    try:
+        text, _usage = await _generate_with_retry(
+            prompt, label="reformat", record_health=False)
+    except aiconfig.ModelUnavailable:
+        # A real outage, correctly classified. The caller's own 502 already
+        # says "try again", which is the right advice for this.
+        log.warning("reformat unavailable — provider outage, not an unreadable reply")
+        return None
+    except Exception as exc:
+        log.warning("reformat failed: %s", exc)
+        return None
+
+    try:
+        return _extract_json(text.strip())
+    except (json.JSONDecodeError, ValueError):
+        return None
 
 
 class TrendRow(BaseModel):

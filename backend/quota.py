@@ -6,15 +6,20 @@ jailbroken device could edit it outright.
 
 Here it is authoritative. Three properties matter:
 
-* **Atomic.** The increment and the limit check are one operation, so
-  concurrent requests can't both observe "2 used" and both proceed.
+* **Atomic.** The allowance is *reserved* with a single `INCR` whose return
+  value is the limit check, so concurrent requests can't both observe "2 used"
+  and both proceed. This docstring used to claim that property while `check`
+  was a plain `GET` and the `INCR` happened afterwards in `consume` — five
+  concurrent scans against a limit of 1 all reached the model. `reserve` is
+  the atomic path; `check`/`consume` remain for callers that genuinely want
+  to read without claiming.
 * **Fails closed.** If the durable cache is unreachable the request is refused
   rather than granted. A quota that fails open is not a quota.
 * **Reinstall-resistant.** A brand-new subject is cross-checked against the
   device's DeviceCheck bit before being handed a fresh allowance.
 
-Consumption happens *after* a scan succeeds. Charging for a failed scan is both
-unfair and a support burden.
+A reservation is released when the work it was claimed for produces nothing:
+charging for a failed scan is both unfair and a support burden.
 """
 
 from __future__ import annotations
@@ -52,6 +57,11 @@ FREE_SCANS_FIRST_DAY = 0
 # The welcome grant outlives any counter, so a subject can never be welcomed
 # twice. Matches the attestation-state horizon.
 _WELCOME_TTL = 60 * 60 * 24 * 400
+
+# Written into the welcome key when the welcome was *refused* (a reinstall
+# DeviceCheck recognised). Any value that is not a UTC day string works —
+# `_limit_for` compares against today's day — but a named constant says so.
+_DENIED = "denied"
 
 
 class QuotaExceeded(Exception):
@@ -154,6 +164,63 @@ class ScanQuota:
             )
         return status
 
+    async def reserve(self, subject: str, is_pro: bool) -> QuotaStatus:
+        """Claim one use atomically, *before* the work runs.
+
+        The `INCR`'s return value is the check: if it lands above the limit
+        this request was not entitled to it, so the claim is handed straight
+        back and `QuotaExceeded` is raised. Two requests cannot both receive
+        the same number, which is what separates this from `check` + `consume`.
+
+        The caller must `refund` if the work fails.
+        """
+        if is_pro:
+            return QuotaStatus(used=0, limit=self._limit, unlimited=True)
+        limit = await self._limit_for(subject)
+        try:
+            used = await self._cache.incr(
+                self._counter_key(subject), _COUNTER_TTL, required=True)
+        except CacheUnavailable as exc:
+            raise QuotaUnavailable(str(exc)) from exc
+
+        if used > limit:
+            # Refused, so it must not leave the counter raised against the
+            # next request — otherwise a burst would push the count
+            # arbitrarily far past the limit and delay the reset.
+            await self._release(subject)
+            raise QuotaExceeded(
+                _exhausted_message(limit),
+                resets_at=int(time.time()) + _seconds_until_utc_midnight(),
+            )
+        return QuotaStatus(used=used, limit=limit, unlimited=False)
+
+    async def refund(self, subject: str, is_pro: bool) -> None:
+        """Return a reservation whose work produced no result.
+
+        Best-effort: a failed refund costs the user one scan, which is the
+        same outcome the pre-reservation code had on every failure, so it is
+        never worth failing the request over.
+        """
+        if is_pro:
+            return
+        await self._release(subject)
+
+    async def _release(self, subject: str) -> None:
+        try:
+            used = await self._cache.incr(
+                self._counter_key(subject), _COUNTER_TTL, amount=-1, required=True)
+        except CacheUnavailable as exc:
+            log.error("quota refund failed — user charged for nothing: %s", exc)
+            return
+        if used < 0:
+            # Only reachable if the counter was reset underneath a live
+            # reservation (a day boundary, or an operator clearing it).
+            try:
+                await self._cache.set(
+                    self._counter_key(subject), "0", _COUNTER_TTL, required=True)
+            except CacheUnavailable:
+                pass
+
     async def consume(self, subject: str, is_pro: bool) -> QuotaStatus:
         """Atomically record one use. Call only after the work succeeded."""
         if is_pro:
@@ -214,6 +281,16 @@ class ScanQuota:
             try:
                 await self._cache.set(
                     self._counter_key(subject), str(self._limit), _COUNTER_TTL, required=True)
+            except CacheUnavailable:
+                pass
+            # Burn the welcome marker too. Without this the counter expires
+            # with the day and the `seen` marker with it, so the very same
+            # reinstall came back ~30h later, looked "new" again, and was
+            # handed the FREE_SCANS_FIRST_DAY welcome the branch above just
+            # refused. The marker outlives both, so the refusal sticks.
+            try:
+                await self._cache.add(
+                    self._welcome_key(subject), _DENIED, _WELCOME_TTL, required=True)
             except CacheUnavailable:
                 pass
             return 0

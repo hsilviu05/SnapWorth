@@ -22,6 +22,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import cbor2
 import pytest
+from fastapi import HTTPException, Request
 from fastapi.testclient import TestClient
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -364,6 +365,55 @@ class TestQuota:
             assert status.used == 10           # every increment landed
         asyncio.run(run())
 
+    def test_reserve_is_a_single_atomic_claim(self):
+        """The bug this replaces: `check` was a plain GET and the INCR came
+        afterwards, so N concurrent scans all read the same pre-scan count.
+        Five parallel reservations against a limit of 1 must yield one winner.
+        """
+        q = _quota(1)
+
+        async def run():
+            results = await asyncio.gather(
+                *(q.reserve("s", False) for _ in range(5)),
+                return_exceptions=True,
+            )
+            granted = [r for r in results if not isinstance(r, BaseException)]
+            refused = [r for r in results if isinstance(r, QuotaExceeded)]
+            assert len(granted) == 1, f"expected one winner, got {len(granted)}"
+            assert len(refused) == 4
+            # And the four refusals must not have left the counter raised.
+            assert (await q.status("s", False)).used == 1
+        asyncio.run(run())
+
+    def test_refund_returns_the_allowance(self):
+        q = _quota(1)
+
+        async def run():
+            await q.reserve("s", False)
+            await q.refund("s", False)
+            assert (await q.status("s", False)).used == 0
+            await q.reserve("s", False)          # usable again, must not raise
+        asyncio.run(run())
+
+    def test_refund_never_drives_the_counter_negative(self):
+        """Reachable if the counter resets under a live reservation."""
+        q = _quota(1)
+
+        async def run():
+            await q.refund("s", False)
+            assert (await q.status("s", False)).used == 0
+        asyncio.run(run())
+
+    def test_pro_reservations_are_free_and_unlimited(self):
+        q = _quota(1)
+
+        async def run():
+            for _ in range(50):
+                await q.reserve("s", True)
+            await q.refund("s", True)
+            assert (await q.status("s", True)).unlimited
+        asyncio.run(run())
+
     def test_exceeded_carries_reset_time(self):
         q = _quota(1)
 
@@ -479,6 +529,64 @@ class TestReinstallResistance:
 # one that was never configured. Conflating them made every `required` call
 # silently fall back to per-process memory — a fail-open quota.
 
+class TestEntitlementOutageIsNotADowngrade:
+    """B-3: `current()` read an outage as a miss, so every Pro subscriber
+    silently became free for its duration and `/listing` 402'd people who
+    had paid."""
+
+    class _Broken:
+        async def get(self, *a, **k): raise ConnectionError("down")
+        async def set(self, *a, **k): raise ConnectionError("down")
+        async def add(self, *a, **k): raise ConnectionError("down")
+        async def incr(self, *a, **k): raise ConnectionError("down")
+        async def delete(self, *a, **k): raise ConnectionError("down")
+        async def ping(self): raise ConnectionError("down")
+
+    def _down(self):
+        from entitlements import EntitlementService
+        return EntitlementService(
+            ResilientCache(self._Broken(), InMemoryCache()), "eu.snapworth.app")
+
+    def test_outage_raises_rather_than_reporting_free(self):
+        from entitlements import EntitlementsUnavailable
+        with pytest.raises(EntitlementsUnavailable):
+            asyncio.run(self._down().current("subj"))
+
+    def test_a_genuine_miss_is_still_free(self):
+        from entitlements import EntitlementService
+        svc = EntitlementService(
+            ResilientCache(None, InMemoryCache()), "eu.snapworth.app")
+        assert asyncio.run(svc.current("nobody")).tier == "free"
+
+    def test_authenticated_pro_keeps_pro_through_an_outage(self):
+        """The token was minted with a tier this service verified, and it
+        expires — so honouring it is bounded, and better than guessing."""
+        build_deps(enforce=True)
+        assert auth.deps.signer is not None
+        token, _ = auth.deps.signer.mint("pro-subject", tier="pro")
+        auth.deps.entitlements = self._down()
+        try:
+            request = Request({"type": "http", "method": "POST", "path": "/scan",
+                               "headers": [], "client": ("1.2.3.4", 0)})
+            principal = asyncio.run(auth.require_auth(
+                request, authorization=f"Bearer {token}", x_device_id="d"))
+            assert principal.tier == "pro"
+            assert principal.is_pro
+        finally:
+            build_deps()
+
+    def test_minting_refuses_rather_than_baking_in_a_wrong_tier(self):
+        """No prior token to fall back on here — this call creates one."""
+        build_deps(enforce=True)
+        auth.deps.entitlements = self._down()
+        try:
+            with pytest.raises(HTTPException) as exc:
+                asyncio.run(auth._issue_token("subj", None))
+            assert exc.value.status_code == 503
+        finally:
+            build_deps()
+
+
 class TestCacheFailurePolicy:
     def test_unconfigured_cache_serves_required_calls_from_memory(self):
         """Single-instance deployment: memory IS the source of truth."""
@@ -543,10 +651,9 @@ class TestReinstallDefenceWiring:
                                    device_token="device-token")
 
         async def run():
-            await auth.enforce_quota(principal)          # 1st: allowed
-            await auth.deps.quota.consume("subj", False)
-            with pytest.raises(Exception):               # 2nd: 402
-                await auth.enforce_quota(principal)
+            await auth.reserve_quota(principal)           # 1st: allowed
+            with pytest.raises(Exception):                # 2nd: 402
+                await auth.reserve_quota(principal)
         asyncio.run(run())
         assert dc.updated and dc.bits["bit0"] is True
 
@@ -563,10 +670,9 @@ class TestReinstallDefenceWiring:
         principal = auth.Principal(subject="subj", tier="free", authenticated=True)
 
         async def run():
-            await auth.enforce_quota(principal)
-            await auth.deps.quota.consume("subj", False)
+            await auth.reserve_quota(principal)
             with pytest.raises(Exception):
-                await auth.enforce_quota(principal)
+                await auth.reserve_quota(principal)
         asyncio.run(run())
         assert dc.updated and dc.bits["bit0"] is True
 
@@ -575,5 +681,5 @@ class TestReinstallDefenceWiring:
         build_deps()
         auth.deps.quota = ScanQuota(ResilientCache(None, InMemoryCache()), dc, limit=1)
         principal = auth.Principal(subject="pro", tier="pro", authenticated=True)
-        asyncio.run(auth.enforce_quota(principal))
+        asyncio.run(auth.reserve_quota(principal))
         assert not dc.updated
