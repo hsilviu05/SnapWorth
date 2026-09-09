@@ -309,6 +309,12 @@ struct PrimaryButton: View {
     var isLoading: Bool = false
     let action: () -> Void
 
+    // `.disabled()` applied by a caller lands here, and nothing used to read
+    // it — so a button SwiftUI had already made inert still rendered at full
+    // terracotta and animated on press. On the paywall that meant a CTA that
+    // looked buyable and did nothing when StoreKit failed to return products.
+    @Environment(\.isEnabled) private var isEnabled
+
     var body: some View {
         Button(action: action) {
             ZStack {
@@ -323,11 +329,12 @@ struct PrimaryButton: View {
             }
             .frame(maxWidth: .infinity)
             .frame(minHeight: 56)          // min, not fixed: grows with Dynamic Type
-            .background(Color.snapTerracotta)
+            .background(Color.snapTerracotta.opacity(isEnabled ? 1 : 0.4))
             .clipShape(Capsule())
         }
-        .buttonStyle(PressableButtonStyle())
+        .buttonStyle(PressableButtonStyle(scale: isEnabled ? 0.97 : 1))
         .disabled(isLoading)
+        .animation(.easeInOut(duration: 0.2), value: isEnabled)
         .animation(.easeInOut(duration: 0.2), value: isLoading)
     }
 }

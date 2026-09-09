@@ -87,6 +87,11 @@ struct MainTabView: View {
         .onChange(of: scenePhase) { _, phase in
             guard phase == .active else { return }
             Task {
+                // An expiry produces no `Transaction.updates` event, so a
+                // long-resident session kept painting Pro chrome after the
+                // subscription lapsed. Re-read entitlements first: the
+                // notification sync below branches on `isSubscribed`.
+                await purchaseService.refreshEntitlements()
                 await NotificationManager.shared.syncEligible(
                     context: modelContext, purchaseService: purchaseService)
             }

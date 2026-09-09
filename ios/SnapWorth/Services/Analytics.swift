@@ -253,6 +253,17 @@ enum PaywallTrigger: String {
 /// vendor SDK outside `TelemetryDeckAnalytics`, and so tests can inject a spy.
 protocol AnalyticsService: AnyObject {
     func track(_ event: AnalyticsEvent)
+
+    /// Propagate the user's opt-out into the backend itself.
+    ///
+    /// Gating `track` is not enough for an SDK that emits its own launch and
+    /// session signals — see `TelemetryDeckAnalytics.setEnabled`.
+    func setEnabled(_ enabled: Bool)
+}
+
+extension AnalyticsService {
+    /// Backends with nothing of their own to silence (test spies) need no work.
+    func setEnabled(_ enabled: Bool) {}
 }
 
 /// The single entry point for analytics. Every call site uses
@@ -265,12 +276,17 @@ final class Analytics {
     static let shared = Analytics()
     private init() {}
 
-    /// Persisted opt-out. Defaults to on; flipping it off silences everything.
+    /// Persisted opt-out. Defaults to on; flipping it off silences everything —
+    /// including the backend SDK's own session and install signals, which this
+    /// gate used to miss entirely.
     static let enabledKey = "snapworth_analytics_enabled"
 
     var isEnabled: Bool {
         get { UserDefaults.standard.object(forKey: Self.enabledKey) as? Bool ?? true }
-        set { UserDefaults.standard.set(newValue, forKey: Self.enabledKey) }
+        set {
+            UserDefaults.standard.set(newValue, forKey: Self.enabledKey)
+            backend?.setEnabled(newValue)
+        }
     }
 
     private var backend: AnalyticsService?

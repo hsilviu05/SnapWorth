@@ -41,10 +41,11 @@ final class MockPurchaseService: PurchaseService, ObservableObject {
         isPricingLoaded = true
     }
 
-    func purchase(productID: String) async throws {
+    func purchase(productID: String) async throws -> PurchaseOutcome {
         // Simulate network latency
         try await Task.sleep(for: .seconds(1.5))
         isSubscribed = true
+        return .completed
     }
 
     func restorePurchases() async throws {

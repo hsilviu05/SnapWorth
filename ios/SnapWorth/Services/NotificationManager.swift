@@ -444,6 +444,16 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
     /// global "1 notification per day" cap (priority: trial > ledger > recap).
     private func add(id: String, category: Category, fireDate: Date, body: String) async {
         guard isEnabled(category) else { return }
+        // A fire date in the past is not a reminder. `syncEligible` runs on
+        // every foreground and re-schedules the ledger follow-up for every
+        // listed item, including ones listed more than 14 days ago — so each
+        // stale listing re-added a past-dated request and tracked a
+        // `notification_scheduled` event on every single foreground.
+        // `syncTrialReminder` already guards this way; nothing else did.
+        guard fireDate > Date() else {
+            center.removePendingNotificationRequests(withIdentifiers: [id])
+            return
+        }
         guard await isAuthorized() else { return }              // no-op until permitted
         guard await resolveDailyCap(for: category, fireDate: fireDate, ownID: id) else { return }
 

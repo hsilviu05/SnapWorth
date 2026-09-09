@@ -671,10 +671,11 @@ final class PaywallReentrancyTests: XCTestCase {
         @Published private(set) var isSubscribed = false
         private(set) var purchaseCalls = 0
 
-        func purchase(productID: String) async throws {
+        func purchase(productID: String) async throws -> PurchaseOutcome {
             purchaseCalls += 1
             try await Task.sleep(for: .milliseconds(120))
             isSubscribed = true
+            return .completed
         }
 
         func restorePurchases() async throws {}

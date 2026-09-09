@@ -5,6 +5,7 @@ struct PaywallView: View {
     @State private var vm = PaywallViewModel()
     @State private var showPrivacy = false
     @State private var showTerms = false
+    @State private var isReloadingPricing = false
     let purchaseService: any PurchaseService
     /// What surfaced this paywall — attributed to `paywall_viewed`.
     var trigger: PaywallTrigger = .upgradeButton
@@ -74,12 +75,14 @@ struct PaywallView: View {
                     .redacted(reason: purchaseService.isPricingLoaded ? [] : .placeholder)
 
                     // ── Benefits ───────────────────────────────────────────
+                    // Every row below is a real gate — one of the places that
+                    // actually presents this paywall (see `PaywallTrigger`).
+                    // "Full scan history" used to head the list and is not
+                    // gated at all: HistoryView's grid has no `isPro` check.
                     VStack(alignment: .leading, spacing: 14) {
-                        BenefitRow(icon: "infinity", text: "Unlimited scans")
-                        BenefitRow(icon: "chart.line.uptrend.xyaxis", text: "AI resale estimates")
-                        BenefitRow(icon: "cart.fill", text: "Snap → Sell marketplace listings")
-                        BenefitRow(icon: "arrow.triangle.2.circlepath", text: "Thrift Flip profit calculator")
-                        BenefitRow(icon: "clock.arrow.circlepath", text: "Full scan history")
+                        ForEach(PaywallCopy.benefits, id: \.text) { benefit in
+                            BenefitRow(icon: benefit.icon, text: benefit.text)
+                        }
                     }
                     .padding(20)
                     .snapCard()
@@ -87,6 +90,42 @@ struct PaywallView: View {
                     .padding(.top, 24)
                     .accessibilityElement(children: .contain)
                     .accessibilityLabel("What's included")
+
+                    // ── Deferred purchase (Ask to Buy / SCA) ───────────────
+                    // Not red: nothing failed, and nothing is owed.
+                    if let pending = vm.pendingMessage {
+                        Text(pending)
+                            .font(.snapCaption)
+                            .foregroundStyle(Color.snapWarmGray)
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal, 20)
+                            .padding(.top, 12)
+                    }
+
+                    // ── Pricing unavailable ────────────────────────────────
+                    // The fetch finished and returned nothing. Without this the
+                    // cards read "—" forever and the CTA sat there inert with
+                    // nothing said; the retry was reachable only by dismissing
+                    // and reopening the sheet.
+                    if purchaseService.pricingFailed, !purchaseService.isPricingLoaded {
+                        VStack(spacing: 10) {
+                            Text("Couldn't load plans. Check your connection and try again.")
+                                .font(.snapCaption)
+                                .foregroundStyle(Color.snapWarmGray)
+                                .multilineTextAlignment(.center)
+
+                            GhostButton(title: "Try again", isLoading: isReloadingPricing) {
+                                Task {
+                                    isReloadingPricing = true
+                                    await purchaseService.reloadProducts()
+                                    isReloadingPricing = false
+                                }
+                            }
+                            .disabled(isReloadingPricing)
+                        }
+                        .padding(.horizontal, 20)
+                        .padding(.top, 16)
+                    }
 
                     // ── Error ──────────────────────────────────────────────
                     if let error = vm.errorMessage {
@@ -251,6 +290,26 @@ enum PaywallCopy {
         guard isYearly, let trial else { return "Unlock\nSnapWorth Pro" }
         return "Try SnapWorth\nfree for \(trialDuration(trial))"
     }
+
+    /// One row of the paywall's "what's included" card.
+    struct Benefit: Equatable {
+        let icon: String
+        let text: String
+    }
+
+    /// The real Pro gates, in the order a user meets them. Each one maps to a
+    /// `PaywallTrigger` that presents this screen, so the list can be checked
+    /// against the gates rather than drifting from them.
+    static let benefits: [Benefit] = [
+        Benefit(icon: "infinity", text: "Unlimited scans"),
+        Benefit(icon: "chart.line.uptrend.xyaxis",
+                text: "Why it's worth that — four price points and what drives them"),
+        Benefit(icon: "cart.fill", text: "Snap → Sell marketplace listings"),
+        Benefit(icon: "arrow.triangle.2.circlepath", text: "Thrift Flip profit calculator"),
+        Benefit(icon: "tag.fill", text: "Read the care tag for a sharper estimate"),
+        Benefit(icon: "chart.pie.fill", text: "Portfolio value, trend and thrift trends"),
+        Benefit(icon: "square.and.arrow.up", text: "Unlimited sold flips, and CSV export"),
+    ]
 
     /// "3-day free trial" → "3 days". Falls back to the raw phrase.
     static func trialDuration(_ offer: String) -> String {

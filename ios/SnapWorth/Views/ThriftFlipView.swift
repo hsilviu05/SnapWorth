@@ -345,9 +345,14 @@ struct ThriftFlipView: View {
     }
 
     private var saveToLedgerButton: some View {
+        VStack(spacing: 8) {
         Button {
-            vm.saveToLedger(repository: ScanRepository(context: modelContext))
-            Haptics.success()
+            // Only celebrate a write that happened.
+            if vm.saveToLedger(repository: ScanRepository(context: modelContext)) {
+                Haptics.success()
+            } else {
+                Haptics.failure()
+            }
         } label: {
             HStack(spacing: 6) {
                 Image(systemName: "bag.badge.plus")
@@ -362,6 +367,14 @@ struct ThriftFlipView: View {
             .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).strokeBorder(Color.snapBorder, lineWidth: 1))
         }
         .buttonStyle(.plain)
+
+            if let saveError = vm.saveError {
+                Text(saveError)
+                    .font(.snapCaption)
+                    .foregroundStyle(.red)
+                    .multilineTextAlignment(.center)
+            }
+        }
     }
 
     private var honestNote: some View {

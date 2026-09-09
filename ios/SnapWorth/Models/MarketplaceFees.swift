@@ -1,5 +1,35 @@
 import Foundation
 
+// ── Money entered by hand ─────────────────────────────────────────────────────
+
+/// Parses an amount typed into a `.decimalPad` field.
+///
+/// `Double("12,50")` is `nil`, and every money field in the app used to write
+/// `Double(newValue)` straight onto the model on each keystroke — so on a
+/// German, French, Romanian or Brazilian keypad, whose decimal separator *is*
+/// the comma, the amount silently vanished with nothing shown to the user.
+///
+/// Both separators are accepted regardless of locale: the field is free text,
+/// a paste can carry either, and there is no ambiguity to resolve at this
+/// scale (nobody types a thousands separator into a two-figure resale price).
+enum MoneyInput {
+    /// Nil for empty or unparseable input — the caller keeps the previous
+    /// value rather than clobbering it with a zero.
+    static func parse(_ text: String) -> Double? {
+        let trimmed = text.trimmingCharacters(in: .whitespaces)
+        guard !trimmed.isEmpty else { return nil }
+        return Double(trimmed.replacingOccurrences(of: ",", with: "."))
+    }
+
+    /// Same rules, as a `Decimal` — money math elsewhere in the app avoids
+    /// binary floating point.
+    static func decimal(_ text: String) -> Decimal? {
+        let trimmed = text.trimmingCharacters(in: .whitespaces)
+        guard !trimmed.isEmpty else { return nil }
+        return Decimal(string: trimmed.replacingOccurrences(of: ",", with: "."))
+    }
+}
+
 // ── Marketplace fees ──────────────────────────────────────────────────────────
 
 /// One marketplace's seller-side fees. `sellingFeePercent` is a fraction

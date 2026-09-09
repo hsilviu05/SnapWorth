@@ -188,15 +188,22 @@ struct ResultView: View {
             }
             vm.prepareShareCard(result: result, photo: photo, displayScale: displayScale)
         }
+        // `Double(newValue)` here discarded every comma-decimal amount — see
+        // `MoneyInput`. Clearing the field still clears the stored value; a
+        // half-typed or unparseable one now leaves the last good value alone
+        // instead of writing nil on the way through.
         .onChange(of: paidPriceText) { _, newValue in
-            result.paidPrice = newValue.isEmpty ? nil : Double(newValue)
+            if newValue.isEmpty { result.paidPrice = nil }
+            else if let parsed = MoneyInput.parse(newValue) { result.paidPrice = parsed }
             vm.scheduleShareCardUpdate(result: result, photo: photo, displayScale: displayScale)
         }
         .onChange(of: soldPriceText) { _, newValue in
-            result.soldPrice = newValue.isEmpty ? nil : Double(newValue)
+            if newValue.isEmpty { result.soldPrice = nil }
+            else if let parsed = MoneyInput.parse(newValue) { result.soldPrice = parsed }
         }
         .onChange(of: feesText) { _, newValue in
-            result.feesEstimate = newValue.isEmpty ? nil : Double(newValue)
+            if newValue.isEmpty { result.feesEstimate = nil }
+            else if let parsed = MoneyInput.parse(newValue) { result.feesEstimate = parsed }
         }
         .fullScreenCover(isPresented: $showTagCamera) {
             TagCameraSheet { image in

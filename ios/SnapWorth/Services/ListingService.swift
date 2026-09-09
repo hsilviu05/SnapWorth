@@ -337,8 +337,23 @@ actor TrendsAPIClient {
     private let session: URLSession = .snapWorthAPI
     private var deviceID: String { DeviceIdentity.shared.id }
 
+    /// How long a fetched payload stays good.
+    ///
+    /// `/trends` is a 7-day rollup — it barely moves within an hour — but the
+    /// My Finds tab re-fetched it on *every* appearance, and `/trends` shares
+    /// the same 20-requests-per-hour device rate limiter as `/scan` with no Pro
+    /// exemption. So idly switching tabs spent the user's actual scan budget on
+    /// a card that hadn't changed.
+    private static let ttl: TimeInterval = 30 * 60
+
+    private var cached: (value: Trends, at: Date)?
+
     func fetch() async throws -> Trends {
         if Config.mockScans { return Self.mock }
+
+        if let cached, Date().timeIntervalSince(cached.at) < Self.ttl {
+            return cached.value
+        }
 
         var request = URLRequest(url: Config.baseURL.appendingPathComponent("trends"))
         request.httpMethod = "GET"
@@ -349,7 +364,9 @@ actor TrendsAPIClient {
         guard (200..<300).contains(http.statusCode) else {
             throw ScanAPIError.serverError(http.statusCode, APIErrorDetail.parse(data))
         }
-        return try JSONDecoder().decode(Trends.self, from: data)
+        let trends = try JSONDecoder().decode(Trends.self, from: data)
+        cached = (trends, Date())
+        return trends
     }
 
     /// For the Simulator's mock-scans scheme.

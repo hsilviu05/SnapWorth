@@ -249,8 +249,11 @@ actor AttestationService {
         // here means the count is right at launch, before any scan — including
         // a reinstall whose allowance the server withheld, which the local
         // counter would otherwise report as untouched.
-        if decoded.tier != "pro" {
-            FreeScanCounter.serverRemaining = decoded.freeScansRemaining
+        // Only a number the server actually knows is worth persisting. A nil
+        // (or a fail-closed 0 the server could not substantiate) leaves the
+        // local count in charge rather than pinning the user at zero.
+        if decoded.tier != "pro", let remaining = decoded.freeScansRemaining {
+            FreeScanCounter.serverRemaining = remaining
         }
         return token.value
     }
@@ -296,7 +299,15 @@ private struct TokenResponse: Decodable {
     let accessToken: String
     let expiresIn: Int
     let tier: String
-    let freeScansRemaining: Int
+    /// Optional on purpose, matching `ScanResponse`'s field of the same name.
+    ///
+    /// When the quota store is unreachable the server fails closed and sends 0
+    /// (`auth.py`), which is right for that request and wrong to persist: the
+    /// client wrote it into the day-stamped counter and preferred it over the
+    /// local count, so one blip at mint locked a free user out for the rest of
+    /// their local day with no way to clear it. `/scan` already sends `null`
+    /// for the same condition; this makes the two agree.
+    let freeScansRemaining: Int?
 
     enum CodingKeys: String, CodingKey {
         case accessToken = "access_token"

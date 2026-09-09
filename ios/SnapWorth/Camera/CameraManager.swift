@@ -66,7 +66,16 @@ final class CameraManager: NSObject, ObservableObject {
             if self.session.canAddOutput(self.photoOutput) {
                 self.session.addOutput(self.photoOutput)
                 if #available(iOS 16.0, *) {
-                    self.photoOutput.maxPhotoDimensions = CMVideoDimensions(width: 4032, height: 3024)
+                    // 4032×3024 was hard-coded here. AVFoundation raises
+                    // `NSInvalidArgumentException` — an uncatchable abort — for
+                    // a value the active format does not list, and this target
+                    // installs on iPad in compatibility mode, where the 8MP
+                    // (3264×2448) cameras of the iPad 6–9, mini 5 and Air 3
+                    // never offered it. Ask the format what it supports.
+                    if let best = device.activeFormat.supportedMaxPhotoDimensions
+                        .max(by: { Int($0.width) * Int($0.height) < Int($1.width) * Int($1.height) }) {
+                        self.photoOutput.maxPhotoDimensions = best
+                    }
                 } else {
                     self.photoOutput.isHighResolutionCaptureEnabled = true
                 }
