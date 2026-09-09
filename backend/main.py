@@ -479,7 +479,6 @@ _ip_limiter: ratelimit.ResilientRateLimiter | None = None
 # X-Forwarded-For is client-spoofable, so we only consult it when explicitly told
 # we sit behind a trusted proxy/CDN — and then take the RIGHTMOST entry, which is
 # the hop our own proxy appended and a client cannot forge.
-_TRUSTED_PROXY = os.environ.get("TRUSTED_PROXY", "").lower() in {"1", "true", "yes"}
 
 
 async def _init_rate_limiters() -> None:
@@ -494,11 +493,27 @@ async def _init_rate_limiters() -> None:
 
 
 def _client_ip(request: Request) -> str:
-    """Best-effort source IP used as the rate-limit backstop."""
-    if _TRUSTED_PROXY:
-        xff = request.headers.get("x-forwarded-for", "")
-        if xff:
-            return xff.split(",")[-1].strip()
+    """Best-effort source IP used as the rate-limit backstop.
+
+    Always the **rightmost** `X-Forwarded-For` hop when the header is present,
+    and no longer conditional on `TRUSTED_PROXY`.
+
+    The flag was worse than useless unset. The container runs uvicorn with
+    `--forwarded-allow-ips='*'`, which makes `request.client.host` the
+    *leftmost* — i.e. entirely client-supplied — hop. So with the flag off, the
+    limiter keyed on a value the caller chooses per request: not "everyone
+    collapses into one bucket", as the runbook and the earlier audit both said,
+    but a fresh bucket on demand, which is no limit at all. A security control
+    that silently depends on an environment variable being remembered is not a
+    control, so this no longer asks.
+
+    The rightmost entry is the one appended by the proxy nearest to us, the
+    only hop a caller cannot forge by sending their own header. Truncated
+    because the value reaches a cache key and is attacker-influenced.
+    """
+    xff = request.headers.get("x-forwarded-for", "")
+    if xff:
+        return xff.split(",")[-1].strip()[:64] or "unknown"
     return request.client.host if request.client else "unknown"
 
 
@@ -1070,6 +1085,42 @@ EXTENT PERMITTED BY LAW, WE DISCLAIM ALL WARRANTIES, EXPRESS OR IMPLIED.</p>
 </body></html>"""
 
 
+# ── Upload limits ────────────────────────────────────────────────────────────
+# 10 MB, the number the client is told and the tests assert. Kept as a constant
+# because it was written out at three call sites that could drift apart.
+MAX_UPLOAD_BYTES = 10 * 1024 * 1024
+_UPLOAD_CHUNK = 64 * 1024
+
+
+async def _read_capped(upload: UploadFile, limit: int = MAX_UPLOAD_BYTES) -> bytes:
+    """Read an upload, refusing *at* the limit rather than after it.
+
+    `await upload.read()` returns the whole part before anyone can measure it,
+    so the size check downstream only ever ran on bytes already resident in
+    memory. The `content-length` guard above it read a multipart *part* header
+    that no client sends, and Starlette's `max_part_size` does not cover file
+    parts — so nothing actually bounded the read. With uvicorn on a single
+    worker (`Dockerfile`), one oversized body could OOM the replica and take
+    every in-flight scan with it.
+
+    Reading in chunks and stopping one byte past the limit bounds what a caller
+    can make the process hold, whatever the headers claim. The status stays 400
+    (not 413) because that is the contract the client already maps and the
+    tests already assert; the bug here is the memory, not the code.
+    """
+    chunks: list[bytes] = []
+    total = 0
+    while True:
+        chunk = await upload.read(_UPLOAD_CHUNK)
+        if not chunk:
+            break
+        total += len(chunk)
+        if total > limit:
+            raise HTTPException(status_code=400, detail="Image exceeds 10 MB limit.")
+        chunks.append(chunk)
+    return b"".join(chunks)
+
+
 @app.post("/scan", response_model=ScanResponse)
 async def scan(
     request: Request,
@@ -1084,19 +1135,11 @@ async def scan(
 
     declared_type = file.content_type or "application/octet-stream"
 
-    # Reject oversized uploads before reading the body to avoid buffering huge payloads.
-    raw_cl = file.headers.get("content-length") if file.headers else None
-    if raw_cl is not None:
-        try:
-            if int(raw_cl) > 10 * 1024 * 1024:
-                raise HTTPException(status_code=400, detail="Image exceeds 10 MB limit.")
-        except ValueError:
-            pass
-
-    image_bytes = await file.read()
+    # Bounded read: refuses at 10 MB instead of buffering the whole part first.
+    # The `content-length` check that used to stand here inspected a multipart
+    # *part* header that no client sends, so it never fired.
+    image_bytes = await _read_capped(file)
     image_kb = len(image_bytes) // 1024
-    if len(image_bytes) > 10 * 1024 * 1024:
-        raise HTTPException(status_code=400, detail="Image exceeds 10 MB limit.")
 
     # Validate what the bytes *are*, not what the client claimed. The sniffed
     # type is what we forward, so a mislabelled-but-valid image still works.
@@ -1116,8 +1159,10 @@ async def scan(
     tag_bytes: bytes | None = None
     tag_type = ""
     if tag is not None and principal.is_pro:
-        candidate = await tag.read()
-        if 0 < len(candidate) <= 10 * 1024 * 1024:
+        # Same bounded read; an oversized tag is a 400 like an oversized item
+        # photo, rather than something the process has to hold first.
+        candidate = await _read_capped(tag)
+        if candidate:
             try:
                 tag_type = imagevalidation.validate(
                     candidate, tag.content_type or "application/octet-stream")

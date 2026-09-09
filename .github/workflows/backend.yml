@@ -198,8 +198,12 @@ jobs:
           REPOSITORY: ${{ github.repository }}
         run: |
           if [ -z "$RAILWAY_TOKEN" ]; then
-            echo "::warning::RAILWAY_TOKEN secret not set — skipping deploy. Add it in GitHub repo Settings → Secrets."
-            exit 0
+            # Was `exit 0` with a warning, which made "nobody configured the
+            # deploy" indistinguishable from "the deploy succeeded" — a green
+            # check on a push that never shipped. This job only runs on pushes
+            # to main in this repo, so a missing token is a broken pipeline.
+            echo "::error::RAILWAY_TOKEN secret not set — cannot deploy. Add it in Settings → Secrets."
+            exit 1
           fi
           # Companion to BUILD_COMMIT below: the commit message and change
           # size, for the operator's deploy message. Best-effort — a malformed
@@ -253,3 +257,37 @@ jobs:
           echo "deploying commit ${GITHUB_SHA}"
 
           railway up --service snapworth-backend --detach
+
+      # `railway up --detach` returns as soon as the upload is accepted — before
+      # the image builds and long before it boots. Every deploy step therefore
+      # went green in ~2s whether or not the container ever started, and a
+      # boot-time refusal (a missing key, a refused config) looked exactly like
+      # success. The only thing that ever caught it was a human noticing the
+      # Telegram deploy ping had not arrived.
+      #
+      # /health reports the commit it was built from (backend/BUILD_COMMIT,
+      # written above), so polling it until that equals this push's SHA is a
+      # genuine end-to-end check: image built, container booted, app serving,
+      # and serving *this* code.
+      - name: Verify the deploy is live
+        env:
+          HEALTH_URL: ${{ vars.HEALTH_URL || 'https://api.snapworth.eu/health' }}
+        run: |
+          echo "waiting for ${HEALTH_URL} to report ${GITHUB_SHA}"
+          deadline=$(( SECONDS + 300 ))
+          live=""
+          while [ "$SECONDS" -lt "$deadline" ]; do
+            # `|| true`: the endpoint is legitimately unreachable mid-swap, and
+            # one refused connection is not a failed deploy. Only the deadline
+            # decides that.
+            body=$(curl -fsS --max-time 10 "$HEALTH_URL" 2>/dev/null || true)
+            live=$(printf '%s' "$body" | python3 -c 'import json,sys; print((json.load(sys.stdin) or {}).get("commit",""))' 2>/dev/null || true)
+            if [ "$live" = "$GITHUB_SHA" ]; then
+              echo "live on ${live}"
+              exit 0
+            fi
+            [ -n "$live" ] && echo "  still serving ${live}"
+            sleep 10
+          done
+          echo "::error::${HEALTH_URL} never reported ${GITHUB_SHA} (last seen: ${live:-unreachable}). The build may have failed or the container may not have booted — check the Railway dashboard."
+          exit 1

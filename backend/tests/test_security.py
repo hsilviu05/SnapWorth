@@ -6,10 +6,12 @@ attacks, HTTP method enforcement, response sanitisation, and error-message
 information leakage.
 """
 
+import asyncio
 import io
 import json
 import time
 import pytest
+from fastapi import HTTPException
 from unittest.mock import AsyncMock, MagicMock, patch
 from fastapi.testclient import TestClient
 
@@ -148,6 +150,90 @@ class TestFileUploadSecurity:
         r = _scan(content=big)
         assert r.status_code == 400
         assert "10 MB" in r.json()["detail"]
+
+    def test_client_ip_takes_the_rightmost_forwarded_hop(self):
+        """B-14: the rate-limit key must not be one the caller picks.
+
+        uvicorn runs with `--forwarded-allow-ips='*'`, so `request.client.host`
+        is the *leftmost* — client-supplied — hop. Keying on it gave an attacker
+        a fresh bucket per request. The rightmost hop is the one our own proxy
+        appended.
+        """
+        import main
+
+        class Req:
+            def __init__(self, xff=None, client="10.0.0.1"):
+                self.headers = {"x-forwarded-for": xff} if xff else {}
+                self.client = type("C", (), {"host": client})() if client else None
+
+        # Spoofed hops on the left are ignored; the proxy's own hop wins.
+        assert main._client_ip(Req("1.1.1.1, 2.2.2.2, 203.0.113.9")) == "203.0.113.9"
+        # A single forged header cannot promote itself past the proxy either.
+        assert main._client_ip(Req("evil")) == "evil"      # only hop there is
+        # No header at all: fall back to the socket peer.
+        assert main._client_ip(Req(None, client="198.51.100.4")) == "198.51.100.4"
+        assert main._client_ip(Req(None, client=None)) == "unknown"
+
+    def test_client_ip_is_truncated_and_never_empty(self):
+        """It reaches a cache key and is attacker-influenced."""
+        import main
+
+        class Req:
+            def __init__(self, xff):
+                self.headers = {"x-forwarded-for": xff}
+                self.client = type("C", (), {"host": "10.0.0.1"})()
+
+        assert len(main._client_ip(Req("x" * 500))) == 64
+        assert main._client_ip(Req("1.1.1.1,   ")) == "unknown"
+
+    def test_no_trusted_proxy_flag_remains(self):
+        """The control must not depend on an env var being remembered."""
+        import main
+
+        assert not hasattr(main, "_TRUSTED_PROXY")
+
+    def test_oversized_upload_is_refused_without_buffering_it_all(self):
+        """B-1: the size check used to run *after* `await file.read()`, so the
+        process held the whole body before deciding to reject it. The reader is
+        chunked now; assert it stops early rather than reading to the end."""
+        import main
+
+        reads = []
+
+        class CountingUpload:
+            """Looks like an UploadFile, and would yield ~50 MB if drained."""
+            headers = {}
+            content_type = "image/jpeg"
+
+            async def read(self, size=-1):
+                if len(reads) >= 800:          # 800 * 64 KiB ≈ 50 MB
+                    return b""
+                reads.append(size)
+                return b"\x00" * (64 * 1024)
+
+        with pytest.raises(HTTPException) as caught:
+            asyncio.run(main._read_capped(CountingUpload()))
+        assert caught.value.status_code == 400
+        assert "10 MB" in caught.value.detail
+        # 10 MB / 64 KiB = 160 chunks; it must give up right after crossing.
+        assert len(reads) <= 165, f"read {len(reads)} chunks before refusing"
+
+    def test_capped_reader_returns_everything_under_the_limit(self):
+        import main
+
+        payload = b"\xff\xd8\xff" + b"\x00" * (200 * 1024)
+
+        class OneShot:
+            headers = {}
+            _done = False
+
+            async def read(self, size=-1):
+                if self._done:
+                    return b""
+                self._done = True
+                return payload
+
+        assert asyncio.run(main._read_capped(OneShot())) == payload
 
     def test_accepts_exactly_10mb(self):
         # 10MB - 3 bytes (for the JPEG header) to stay just under limit

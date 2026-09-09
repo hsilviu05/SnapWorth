@@ -128,8 +128,27 @@ final class ScanViewModel {
             Task { await NotificationManager.shared.scheduleMonthlyRecap(monthScanCount: monthScans) }
 
         } catch {
-            Haptics.failure()
             let appError = AppError.from(error)
+
+            // A 402 is the paywall, not a failure. It reaches here whenever the
+            // pre-flight gate above and the server disagree about which day it
+            // is — the client resets at local midnight, the server counts UTC
+            // days — so a user mid-window sees "Scan Failed / OK" at the exact
+            // moment of highest purchase intent, with no way to subscribe.
+            //
+            // It also filed the event as `scan_failed{reason:no_result}`, which
+            // is the wrong bucket in the one funnel the free-scan experiment is
+            // read against: free_scan_limit_hit -> paywall_viewed ->
+            // purchase_started. A quota refusal counted as a scan failure both
+            // undercounts the limit hits and inflates the failures.
+            if appError.isPaywall {
+                Analytics.shared.track(.freeScanLimitHit)
+                paywallTrigger = .scanLimit
+                showPaywall = true
+                return
+            }
+
+            Haptics.failure()
             errorMessage = appError.errorDescription
             Analytics.shared.track(.scanFailed(reason: ScanFailureReason(appError)))
         }

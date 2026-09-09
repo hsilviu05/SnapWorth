@@ -1059,7 +1059,7 @@ Note `SCAN.source` — the field that makes honest labelling possible.
 | **SEC-M1** | Certificate pinning inert | `Config.swift`, `CertificatePinning.swift:61` | Enable with backup pin + kill switch, or delete |
 | **SEC-M2** | Cert chain verification doesn't check `basicConstraints`/`keyUsage` on intermediates | `entitlements.py:110-134` | Assert `ca=True` and `keyCertSign` on non-leaf certs. Root pinning limits blast radius, but a permissive intermediate check is a latent flaw |
 | **SEC-M3** | `TOKEN_KEYS` absent → ephemeral random signing key, service still starts | `tokens.py:165-171` | Fail startup in production. `AuthConfig.enforce` has the right pattern (`auth.py:81-85`) — apply it here |
-| **SEC-M4** | Device ID header is client-supplied and used as a rate-limit key | `main.py:517`, `ratelimit.py:34` | Already correctly documented as best-effort. Ensure IP limiting is the real backstop and that `TRUSTED_PROXY` is set in production — otherwise `_client_ip` returns the proxy's IP for everyone and IP limiting collapses to a single bucket |
+| **SEC-M4** | Device ID header is client-supplied and used as a rate-limit key | `main.py:517`, `ratelimit.py:34` | **Fixed 2026-09-09.** The remedy in this row was wrong in both directions: unset, `_client_ip` returned the *client-supplied* hop (uvicorn runs `--forwarded-allow-ips='*'`), so IP limiting was spoofable per request rather than collapsed into one bucket. `_client_ip` now always takes the rightmost `X-Forwarded-For` hop and `TRUSTED_PROXY` is gone. See AUDIT-2026-09-07 B-14 |
 | **SEC-M5** | No `Strict-Transport-Security` header | `main.py:117-124` | Add `max-age=63072000; includeSubDomains; preload` |
 | **SEC-M6** | Attestation state TTL is 400 days in Redis | `auth.py:44` | Fine, but document that Redis eviction under memory pressure forces mass re-attestation. Use a separate Redis DB or `noeviction` for auth keys |
 | **SEC-M7** | Error `detail` decoded as `[String: String]` | `ScanAPIClient.swift:130`, `AttestationService.swift:189` | FastAPI 422 returns `detail` as an array; decode fails → user sees "Unknown error" |
@@ -1372,7 +1372,7 @@ Note `valuation.source` and `comp_count` — the fields that let the UI make a t
 - [ ] Cache distinguishes configured/connected (C-4)
 - [ ] `REDIS_URL` set and required in production
 - [ ] `TOKEN_KEYS` set (not ephemeral)
-- [ ] `TRUSTED_PROXY` set correctly behind Railway
+- [x] ~~`TRUSTED_PROXY` set correctly behind Railway~~ — variable removed; no longer read (B-14)
 - [ ] Prices read from StoreKit
 - [ ] Icon dark + tinted variants
 - [ ] Verify Fraunces variable font actually loads (not falling back)

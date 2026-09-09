@@ -467,7 +467,12 @@ effort belongs in container efficiency, not prompt golf.
 - [ ] `TOKEN_KEYS` + `TOKEN_CURRENT_KID` set
 - [ ] `ENVIRONMENT=production` (enables strict startup checks)
 - [ ] `AUDIT_SALT` set to a real value
-- [ ] `TRUSTED_PROXY=true` (else per-IP limits collapse to one bucket)
+- [x] ~~`TRUSTED_PROXY=true`~~ — **no longer read.** `_client_ip` now always takes the
+      rightmost `X-Forwarded-For` hop, so the per-IP limit no longer depends on this
+      variable being remembered. The old note here was also wrong about the failure:
+      unset did not collapse everyone into one bucket, it gave each caller a bucket of
+      their own choosing (uvicorn runs with `--forwarded-allow-ips='*'`, which makes
+      `request.client.host` the client-supplied hop). Safe to delete from Railway.
 - [ ] `ALLOWED_STOREKIT_ENVIRONMENTS=Production`
 - [ ] `LOG_FORMAT=json`
 - [ ] Platform health-check path set to `/health/ready`
