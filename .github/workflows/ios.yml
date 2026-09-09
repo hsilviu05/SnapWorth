@@ -145,7 +145,14 @@ jobs:
             >> "$GITHUB_STEP_SUMMARY"
           echo '```' >> "$GITHUB_STEP_SUMMARY"
           grep -E "Executed [0-9]+ test" /tmp/xcodebuild.log | tail -2 || true
-          xcodebuild -version | head -1
+          # `awk NR==1`, not `head -1`: head closes the pipe after one line and
+          # xcodebuild dies writing the rest, printing an NSException stack
+          # trace into the summary step. awk reads to EOF, so there is nothing
+          # to break. The step passed either way only because its status is
+          # the last command's — a later `set -o pipefail` here would have
+          # turned it red for no reason.
+          xcodebuild -version | awk 'NR==1'
+
           xcrun simctl list devices | grep -A1 "^-- iOS" | tail -3 || true
 
   # ── Security gate: no real keys committed ───────────────────────────────────
