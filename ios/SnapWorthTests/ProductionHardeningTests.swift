@@ -1049,10 +1049,33 @@ final class MoneyInputTests: XCTestCase {
         XCTAssertEqual(MoneyInput.parse("8"), 8)
     }
 
+    /// The comma cannot simply be folded: "$1,250" is a real thing a US user
+    /// types, and folding reads it as 1.25.
+    func test_aLoneCommaIsGroupingWhenThreeDigitsFollow() {
+        XCTAssertEqual(MoneyInput.parse("1,250"), 1250)
+        XCTAssertEqual(MoneyInput.parse("1,234,567"), 1234567)
+        XCTAssertEqual(MoneyInput.parse("12,5"), 12.5, "one digit is a decimal")
+        XCTAssertEqual(MoneyInput.parse("12,50"), 12.5, "two digits is a decimal")
+    }
+
+    /// With both separators present the last one is the decimal, so each
+    /// writing convention lands on the same number.
+    func test_bothSeparatorsResolveByPosition() {
+        XCTAssertEqual(MoneyInput.parse("1.234,56"), 1234.56)
+        XCTAssertEqual(MoneyInput.parse("1,234.56"), 1234.56)
+    }
+
+    func test_currencySymbolsAreIgnored() {
+        XCTAssertEqual(MoneyInput.parse("$45.50"), 45.5)
+        XCTAssertEqual(MoneyInput.parse("44,99 €"), 44.99)
+    }
+
     func test_emptyAndJunkAreNil() {
         XCTAssertNil(MoneyInput.parse(""))
         XCTAssertNil(MoneyInput.parse("   "))
         XCTAssertNil(MoneyInput.parse("abc"))
+        XCTAssertNil(MoneyInput.parse("."), "a separator alone is not a number")
+        XCTAssertNil(MoneyInput.parse(","))
     }
 
     func test_decimalVariantMatches() {
@@ -1062,9 +1085,10 @@ final class MoneyInputTests: XCTestCase {
 
     /// The guess field stripped the comma rather than folding it, so "12,50"
     /// scored as 1250 — a hundredfold-wrong guess, worse than refusing it.
-    func test_guessParsingFoldsTheCommaRatherThanStrippingIt() {
+    func test_guessParsingReadsTheCommaRatherThanStrippingIt() {
         XCTAssertEqual(GuessScoring.parse("12,50"), 12.5)
         XCTAssertEqual(GuessScoring.parse("$12.50"), 12.5)
+        XCTAssertEqual(GuessScoring.parse("$1,250"), 1250, "still a thousands separator")
         XCTAssertNil(GuessScoring.parse("-5"))
     }
 }

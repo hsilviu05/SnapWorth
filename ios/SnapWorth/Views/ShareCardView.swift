@@ -371,16 +371,14 @@ enum GuessScoring {
     /// Parses what the user typed: digits with an optional decimal separator,
     /// currency symbols ignored. Nil when it is not a number.
     ///
-    /// The comma is folded to a point rather than stripped. Stripping it turned
-    /// a comma-decimal keypad's "12,50" into 1250 — a hundredfold-wrong guess
-    /// scored against the estimate, worse than refusing the input.
+    /// Shares `MoneyInput`'s separator rules. This used to strip the comma
+    /// outright, which read a comma-decimal keypad's "12,50" as 1250 — a
+    /// hundredfold-wrong guess scored against the estimate, and worse than
+    /// refusing the input. It still reads "$1,250" as 1250.
     static func parse(_ text: String) -> Double? {
         let trimmed = text.trimmingCharacters(in: .whitespaces)
         guard !trimmed.hasPrefix("-") else { return nil }
-        let cleaned = trimmed
-            .replacingOccurrences(of: ",", with: ".")
-            .filter { $0.isNumber || $0 == "." }
-        guard !cleaned.isEmpty, let value = Double(cleaned), value.isFinite, value >= 0 else { return nil }
+        guard let value = MoneyInput.parse(trimmed), value.isFinite, value >= 0 else { return nil }
         return value
     }
 
