@@ -31,7 +31,41 @@ flowchart LR
 | Durable state | Redis — quota, entitlements, rate limits, attestation |
 | System of record | **None.** Redis is a cache; scan history lives on-device |
 | Metrics | `/metrics`, Prometheus text format `[DESIGNED]` |
-| Collector | `[NOT IMPLEMENTED]` — no scraper configured yet |
+| Collector | `[NOT IMPLEMENTED]` — and **not planned**; see below |
+| Monitoring surface | **The Telegram ops bot.** This is the real one |
+
+---
+
+## 1b. How this service is actually monitored
+
+Read this before anything else in the file, because until 2026-09-09 the file
+did not say it. `[NOT IMPLEMENTED]` against the metrics collector was true and
+misleading at the same time: it implied nothing was watching, while §8 told the
+reader to "Run 🩺 Checkup" without ever saying what that is or where to run it.
+The word "Telegram" did not appear in this document.
+
+**The ops bot is the monitoring surface.** It lives in `backend/notify.py`,
+posts to the operator's Telegram chat, and is where every operational signal
+actually arrives:
+
+| You want | Command | What it does |
+|---|---|---|
+| Is anything broken right now | `🩺 Checkup` | Probes the model, Redis, DeviceCheck and the App Store build in one message |
+| Current state | `/status` | Build, cache backend, auth enforcement, last deploy ping, today's counters |
+| What it costs | `/costs` | Gemini spend by window, `$/scan`, free-tier giveaway, and the operator's own bot usage listed separately |
+| Subscribers | `/subs` | Active, paid, comped, and MRR |
+| Yesterday | The daily digest | Sent automatically at `DIGEST_HOUR_UTC`; a weekly report on Mondays |
+
+Unprompted alerts arrive the same way: a new subscription, a deploy ping per
+commit, a quiet-hours note when nothing has scanned during US daytime, a
+budget warning, and a device-paused alert after repeated unanalysable photos.
+
+**The decision on `/metrics` (previously tracked as A-7, open and unrecorded
+for five days): accept it as designed-but-unscraped.** One replica and a
+single operator do not justify running Prometheus, and the bot already answers
+the questions a dashboard would. `/metrics` stays because it costs nothing to
+keep and is the right shape if a second replica ever appears. It is not
+monitoring today, and this table is what is.
 
 ---
 

@@ -343,8 +343,17 @@ async def _bot_scan(image_bytes: bytes, declared_type: str) -> dict:
         content_type = imagevalidation.validate(image_bytes, declared_type)
     except imagevalidation.ImageValidationError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from None
+    # `count=False` is what makes the docstring above true. `_analyse` calls
+    # `notify.count_scan_failure` at three sites and `_note_safety_block` at a
+    # fourth, so an operator test photo the model could not price was filed as
+    # a *user* scan failure — and could trip the "Device paused" alert for the
+    # pseudonym `telegram-operator`, which nothing ever actually pauses. At
+    # 1-4 real scans a day, one test photo is a 25-100% distortion of the
+    # day's failure rate, on the number the operator reads to decide whether
+    # something is wrong.
     response, elapsed = await _analyse(image_bytes, content_type,
-                                       subject="telegram-operator", device_short="telegram")
+                                       subject="telegram-operator",
+                                       device_short="telegram", count=False)
     return {"elapsed": elapsed, **response.model_dump()}
 
 
@@ -1261,7 +1270,7 @@ async def scan(
 
 async def _analyse(image_bytes: bytes, content_type: str, *, subject: str,
                    device_short: str, tag_bytes: bytes | None = None,
-                   tag_type: str = "") -> tuple[ScanResponse, float]:
+                   tag_type: str = "", count: bool = True) -> tuple[ScanResponse, float]:
     """The scan itself: model call, parse, normalise, clamp, score.
 
     Everything between "the upload is valid and allowed" and "charge for it":
@@ -1297,8 +1306,15 @@ async def _analyse(image_bytes: bytes, content_type: str, *, subject: str,
                      "data": base64.standard_b64encode(tag_bytes).decode()}]
 
     try:
-        raw, usage = await _generate_with_retry(
-            contents, label="scan_with_tag" if tag_bytes else "scan")
+        # `count=False` is the operator testing the service through the bot, so
+        # it is labelled as such: the cost is real and belongs in the total, but
+        # not in the "$/scan" and "given away" figures, which are statements
+        # about users. At 1-4 real scans a day one test photo moved both.
+        if count:
+            label = "scan_with_tag" if tag_bytes else "scan"
+        else:
+            label = "bot_scan_with_tag" if tag_bytes else "bot_scan"
+        raw, usage = await _generate_with_retry(contents, label=label)
     except aiconfig.ModelBlocked as exc:
         # A safety block is not an outage. Thrift inventory includes penknives,
         # lighters and vintage militaria; telling the user the service is down
@@ -1306,14 +1322,16 @@ async def _analyse(image_bytes: bytes, content_type: str, *, subject: str,
         log.info("scan blocked by safety filter", extra={"reason": str(exc)})
         auditlog.record(AuditEvent.SCAN_BLOCKED, subject,
                         outcome="denied", reason=str(exc))
-        await _note_safety_block(subject)
+        if count:
+            await _note_safety_block(subject)
         raise HTTPException(
             status_code=422,
             detail="This photo couldn't be analysed. Try a clear photo of a single item.",
         ) from None
     except aiconfig.ModelUnavailable as exc:
         log.error("gemini failed after retries: %s", exc)
-        notify.count_scan_failure("provider")
+        if count:
+            notify.count_scan_failure("provider")
         raise HTTPException(
             status_code=502,
             detail="The AI service is temporarily unavailable. Please try again.",
@@ -1329,7 +1347,8 @@ async def _analyse(image_bytes: bytes, content_type: str, *, subject: str,
         data = await _retry_as_json(raw)
         if data is None:
             log.error("scan unparseable after reformat", extra={"raw_prefix": raw[:200]})
-            notify.count_scan_failure("unreadable")
+            if count:
+                notify.count_scan_failure("unreadable")
             raise HTTPException(
                 status_code=502,
                 detail="The AI response couldn't be read. Please try again.",
@@ -1352,7 +1371,8 @@ async def _analyse(image_bytes: bytes, content_type: str, *, subject: str,
                   extra={"item": val.item_name, "category": val.category,
                          "keys": sorted(data)[:20]})
         metrics.model_calls.inc(operation="scan", outcome="no_price")
-        notify.count_scan_failure("no_price")
+        if count:
+            notify.count_scan_failure("no_price")
         raise HTTPException(
             status_code=502,
             detail="The AI couldn't price this item. Please try again.",

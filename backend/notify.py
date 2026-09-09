@@ -148,6 +148,11 @@ POLL_LOCK_TTL = 90
 # Short, because this is exactly the gap between a deploy landing and the bot
 # answering again: a cache read every fifteen seconds is nothing.
 POLL_LOCK_RETRY_SECONDS = 15
+# Ceiling on the failed-poll backoff, and the elapsed time above which an
+# empty poll is a real long-poll timeout rather than a transport failure.
+# See `_command_loop`.
+POLL_BACKOFF_MAX_SECONDS = 60
+POLL_LONG_ENOUGH_SECONDS = 10
 # Where the poller left off, so a successor replica confirms what its
 # predecessor already handled rather than being handed it again.
 POLL_OFFSET_KEY = "opsstate:tgoffset"
@@ -290,6 +295,10 @@ class TelegramNotifier:
         # The id Telegram redirected the archive to, if the chat moved.
         self.last_forward_migrated_to: str | None = None
         self._client = client          # injectable for tests
+        # Consecutive-identical-failure tracking, so an outage is logged with
+        # decreasing frequency rather than every ~2s. See `_note_failure`.
+        self._last_failure: str = ""
+        self._failure_streak: int = 0
         # Told the message_id of every message this notifier sends, so /clear
         # can take them back. Set by `configure`; None is "don't bother".
         self.on_sent: Callable[[int, str], Awaitable[None]] | None = None
@@ -343,7 +352,7 @@ class TelegramNotifier:
                     pass
             return True
         except Exception as exc:
-            log.warning("telegram send failed: %s", type(exc).__name__)
+            self._note_failure("send", type(exc).__name__)
             return False
 
     @staticmethod
@@ -371,6 +380,32 @@ class TelegramNotifier:
     def chat_id(self) -> str:
         return self._chat_id
 
+    def _note_failure(self, what: str, detail: str) -> None:
+        """Log a transport failure without flooding.
+
+        `SamplingFilter` never samples WARNING and above — deliberately, since
+        a dropped error is an incident you cannot investigate — so the poll
+        loop's one WARNING every ~2s during a Telegram outage or a revoked
+        token became ~43k identical lines a day, burying the signal it was
+        supposed to be. Consecutive identical failures are now logged on the
+        1st, 2nd, 4th, 8th... occurrence, so an outage is still visible and
+        still timestamped at both ends, at a fraction of the volume.
+        """
+        key = f"{what}:{detail}"
+        if key == self._last_failure:
+            self._failure_streak += 1
+        else:
+            self._last_failure, self._failure_streak = key, 1
+        streak = self._failure_streak
+        if streak & (streak - 1) == 0:            # 1, 2, 4, 8, 16, ...
+            suffix = f" (x{streak})" if streak > 1 else ""
+            log.warning("telegram %s failed: %s%s", what, detail, suffix)
+
+    def _note_success(self, what: str) -> None:
+        if self._failure_streak:
+            log.info("telegram %s recovered after %d failures", what, self._failure_streak)
+        self._last_failure, self._failure_streak = "", 0
+
     async def get_updates(self, offset: int | None) -> list[dict]:
         """Long-poll for incoming messages. Returns [] on any failure."""
         params: dict = {"timeout": POLL_TIMEOUT_SECONDS,
@@ -383,12 +418,13 @@ class TelegramNotifier:
                 f"{TELEGRAM_API}/bot{self._token}/getUpdates",
                 params=params, timeout=POLL_TIMEOUT_SECONDS + 10)
             if resp.status_code != 200:
-                log.warning("telegram poll failed: HTTP %s", resp.status_code)
+                self._note_failure("poll", f"HTTP {resp.status_code}")
                 return []
             body = resp.json()
+            self._note_success("poll")
             return list(body.get("result") or []) if body.get("ok") else []
         except Exception as exc:
-            log.warning("telegram poll failed: %s", type(exc).__name__)
+            self._note_failure("poll", type(exc).__name__)
             return []
 
     async def delete_messages(self, message_ids: list[int]) -> int:
@@ -818,7 +854,20 @@ async def entitlement_recorded(subject: str, ent) -> None:
                 lines.append(f"first purchased {_date(purchased)}")
             if ent.expires_at:
                 lines.append(f"renews or expires {_date(ent.expires_at)}")
-            await _notifier.send("\n".join(lines))
+            # The guard above was consumed *before* this send and its result
+            # was discarded, so a Telegram failure burned a 400-day marker
+            # and the alert for that sale was never seen. `_announce_deploy`
+            # already hands its guard back on failure; this now does too.
+            #
+            # The sale itself was never lost — `_index_subscription` has
+            # already run and `/subs` lists them — but the one push that says
+            # "someone just paid you" was, silently.
+            if not await _notifier.send("\n".join(lines)):
+                log.warning("subscription alert failed to send, releasing the guard")
+                try:
+                    await _cache.delete(f"opsseen:sub:{otid}")
+                except Exception:
+                    pass
         else:
             if not await _cache.add(
                     f"opsseen:down:{subject}", "1", DOWNGRADE_THROTTLE_TTL):
@@ -930,9 +979,18 @@ async def _announce_deploy(commit: str, cache_backend: str, auth_enforcing: bool
                            info: dict | None) -> None:
     guard = f"opsseen:deploy:{commit}"
     try:
-        # One ping per commit, however many replicas boot it or however often
-        # Railway restarts the container. A build that crash-loops has other
-        # symptoms; a stream of identical "deployed" messages would only bury them.
+        # A rollback is a deploy. The guard is keyed on the commit and lives
+        # 35 days, so rolling back to a build deployed inside that window used
+        # to be completely silent — no ping, and /status went on describing
+        # the commit that had just been rolled *out* of. Clearing the guard
+        # when the recorded deploy is a different commit makes any transition
+        # announce itself, in either direction.
+        if str((await _last_deploy_record() or {}).get("commit") or "") not in ("", commit):
+            await _cache.delete(guard)
+        # Otherwise: one ping per commit, however many replicas boot it or
+        # however often Railway restarts the container. A build that
+        # crash-loops has other symptoms; a stream of identical "deployed"
+        # messages would only bury them.
         if not await _cache.add(guard, "1", STATS_TTL):
             return
     except Exception as exc:
@@ -967,13 +1025,18 @@ async def _record_deploy(commit: str, *, sent: bool, attempts: int) -> None:
         log.debug("deploy record failed: %s", type(exc).__name__)
 
 
-async def _deploy_line(current_commit: str | None) -> str:
-    """One /status line: did this build's deploy ping go out, and when."""
+async def _last_deploy_record() -> dict | None:
     try:
         raw = await _cache.get(LAST_DEPLOY_KEY)
         rec = json.loads(raw) if raw else None
+        return rec if isinstance(rec, dict) else None
     except Exception:
-        rec = None
+        return None
+
+
+async def _deploy_line(current_commit: str | None) -> str:
+    """One /status line: did this build's deploy ping go out, and when."""
+    rec = await _last_deploy_record()
     if not rec:
         return "Deploy ping: no record for this build — it predates the record, or the ping never ran"
     when = datetime.fromtimestamp(int(rec.get("at") or 0), timezone.utc).strftime("%d %b %H:%M")
@@ -1120,6 +1183,17 @@ async def _digest_text(when: datetime) -> str:
 
 
 async def _digest_loop() -> None:
+    # Catch up before sleeping. This loop used to sleep first unconditionally,
+    # so a process that restarted across the digest hour — a deploy, a Railway
+    # restart — skipped that day entirely, and a restart on a Monday took the
+    # weekly report with it. Nothing reported the gap; the digest simply never
+    # arrived.
+    #
+    # Safe to attempt: `send_digest` and `send_weekly` are both guarded by a
+    # per-day cache `add`, which is what already stops two replicas
+    # double-sending, so a catch-up that is not needed is a no-op.
+    await _catch_up_digest()
+
     while True:
         await asyncio.sleep(
             _seconds_until_next(_digest_hour(), datetime.now(timezone.utc)))
@@ -1130,6 +1204,35 @@ async def _digest_loop() -> None:
                 await send_weekly(now)
         except Exception as exc:          # the loop must outlive any one send
             log.warning("digest send failed: %s", type(exc).__name__)
+
+
+# Set the first time the digest loop runs against a given cache. Its presence
+# is what distinguishes "this process restarted" from "this cache has never
+# seen the loop", which is the difference between a digest that was missed and
+# one that was never due.
+DIGEST_LOOP_SEEN_KEY = "opsstate:digestloopseen"
+
+
+async def _catch_up_digest() -> None:
+    """Send today's digest if its hour has already passed and it never went."""
+    now = datetime.now(timezone.utc)
+    if now.hour < _digest_hour():
+        return                            # not due yet today; nothing missed
+    try:
+        # A fresh cache means a fresh deployment, not a restart: there is no
+        # missed digest to send and no data to send it from. Only a cache that
+        # has already seen this loop can tell us the process went away.
+        if await _cache.add(DIGEST_LOOP_SEEN_KEY, "1", STATS_TTL):
+            return
+    except Exception:
+        return
+    try:
+        if await send_digest(now):
+            log.info("sent a digest missed while this process was down")
+        if now.weekday() == WEEKLY_REPORT_WEEKDAY and await send_weekly(now):
+            log.info("sent a weekly report missed while this process was down")
+    except Exception as exc:
+        log.warning("digest catch-up failed: %s", type(exc).__name__)
 
 
 def _start_digest() -> None:
@@ -1382,72 +1485,115 @@ async def poll_once(offset: int | None) -> tuple[int | None, int]:
     before = offset
     for update in await _notifier.get_updates(offset):
         offset = int(update.get("update_id", 0)) + 1
-        callback = update.get("callback_query")
-        if callback:
-            # A button press. It carries the message it was attached to, and
-            # that message's chat is the one that must match.
-            message = callback.get("message") or {}
-            text = "/" + str(callback.get("data") or "")
-        else:
-            message = update.get("message") or {}
-            text = message.get("text") or ""
-            if str((message.get("chat") or {}).get("id", "")) == _notifier.chat_id \
-                    and message.get("message_id") is not None:
-                await _remember_message(int(message["message_id"]))
-            # A reply to one of the bot's own questions is the argument for
-            # the command the question named.
-            quoted = (message.get("reply_to_message") or {}).get("text") or ""
-            asked = _ASK_QUOTE.match(quoted)
-            if asked and text and not text.startswith("/"):
-                text = f"/{asked.group(1)} {text}"
-        chat_id = str((message.get("chat") or {}).get("id", ""))
-        if chat_id != _notifier.chat_id:
-            continue
-        if callback:
-            await _notifier.answer_callback(str(callback.get("id", "")))
-        if not callback and message.get("photo"):
-            await _test_scan(message["photo"])
-            handled += 1
-            continue
-        if text.startswith("/ask "):
-            command = text.split(None, 1)[1].strip().lower()
-            if command in ASKS:
-                question, placeholder = ASKS[command]
-                await _notifier.send(question, ask=placeholder)
-                handled += 1
-            continue
-        if text.split("@", 1)[0].lower() == "/clear":
-            await _clear_chat()
-            handled += 1
-            continue
-        reply = await handle_command_with_buttons(text)
-        if reply:
-            await _notifier.send(reply[0], reply[1])
-            handled += 1
+        try:
+            handled += await _handle_update(update)
+        except Exception as exc:
+            # The offset has already advanced past this update, and it stays
+            # advanced. Previously the whole batch ran unguarded and
+            # `_command_loop` caught at the batch level, so one raising update
+            # — `"/ask "` with a trailing space was enough — meant the offset
+            # was never stored, the same batch came back every 5s, and the bot
+            # answered nothing until Telegram expired the update ~24h later or
+            # someone bumped the offset by hand. One bad message must not be
+            # able to silence the bot.
+            log.warning("dropping update %s: %s", update.get("update_id"),
+                        type(exc).__name__)
     if offset != before:
         await _remember_offset(offset)
     return offset, handled
 
 
+async def _handle_update(update: dict) -> int:
+    """Act on one update. Returns 1 if it was handled, 0 if ignored.
+
+    Lifted out of `poll_once` so a single update can be wrapped in its own
+    try/except: the offset must advance past a message that raises, or that
+    one message silences the bot until Telegram expires it.
+    """
+    callback = update.get("callback_query")
+    if callback:
+        # A button press. It carries the message it was attached to, and
+        # that message's chat is the one that must match.
+        message = callback.get("message") or {}
+        text = "/" + str(callback.get("data") or "")
+    else:
+        message = update.get("message") or {}
+        text = message.get("text") or ""
+        if str((message.get("chat") or {}).get("id", "")) == _notifier.chat_id \
+                and message.get("message_id") is not None:
+            await _remember_message(int(message["message_id"]))
+        # A reply to one of the bot's own questions is the argument for
+        # the command the question named.
+        quoted = (message.get("reply_to_message") or {}).get("text") or ""
+        asked = _ASK_QUOTE.match(quoted)
+        if asked and text and not text.startswith("/"):
+            text = f"/{asked.group(1)} {text}"
+
+    chat_id = str((message.get("chat") or {}).get("id", ""))
+    if chat_id != _notifier.chat_id:
+        return 0
+    if callback:
+        await _notifier.answer_callback(str(callback.get("id", "")))
+    if not callback and message.get("photo"):
+        await _test_scan(message["photo"])
+        return 1
+    if text.startswith("/ask "):
+        # `split(None, 1)[1]` raised IndexError on "/ask " with nothing after
+        # it — the concrete case behind T-1. Handled here as well as by the
+        # caller's guard, so it is a no-op rather than a dropped update.
+        parts = text.split(None, 1)
+        command = parts[1].strip().lower() if len(parts) > 1 else ""
+        if command in ASKS:
+            question, placeholder = ASKS[command]
+            await _notifier.send(question, ask=placeholder)
+            return 1
+        return 0
+    if text.split("@", 1)[0].lower() == "/clear":
+        await _clear_chat()
+        return 1
+    reply = await handle_command_with_buttons(text)
+    if reply:
+        await _notifier.send(reply[0], reply[1])
+        return 1
+    return 0
+
+
+
 async def _command_loop() -> None:
     offset: int | None = await _read_offset()
+    idle = 0
     while True:
         try:
             if not await _hold_poll_lock():
                 await asyncio.sleep(POLL_LOCK_RETRY_SECONDS)
                 continue
             before = offset
+            started = time.monotonic()
             offset, _ = await poll_once(offset)
-            if offset == before:
-                # Empty poll: a long-poll timeout (25s spent) or a transport
-                # failure (returned at once). The pause only matters for the
-                # second, so a failing API is not hammered.
-                await asyncio.sleep(2)
+            elapsed = time.monotonic() - started
+            if offset != before:
+                idle = 0                  # real work; back to full speed
+            elif elapsed >= POLL_LONG_ENOUGH_SECONDS:
+                # A genuine long-poll timeout. It already spent 25s waiting,
+                # so there is nothing to back off from and the next poll
+                # should go straight out.
+                idle = 0
+            else:
+                # Returned at once with nothing: a transport failure, not a
+                # quiet chat. This used to sleep a flat 2s, so a Telegram
+                # outage or a revoked token was retried ~43k times a day with
+                # a WARNING each — WARNING is never sampled, by design, so the
+                # flood buried exactly the signal it was reporting. Backing
+                # off costs up to a minute of latency on the first command
+                # after an outage ends, and only after an outage.
+                idle += 1
+                await asyncio.sleep(min(2 * idle, POLL_BACKOFF_MAX_SECONDS))
         except asyncio.CancelledError:
             raise
         except Exception as exc:           # the loop must outlive any one poll
+            idle += 1
             log.warning("command loop error: %s", type(exc).__name__)
-            await asyncio.sleep(5)
+            await asyncio.sleep(min(5 * idle, POLL_BACKOFF_MAX_SECONDS))
 
 
 def _start_command_loop() -> None:
@@ -1881,6 +2027,13 @@ async def _note_usage(label: str, usage: dict) -> None:
             await _cache.incr(_stat_key(day, "tok_out"), STATS_TTL, tok_out)
         await _cache.incr(_stat_key(day, "model_calls"), STATS_TTL)
         await _cache.incr(_stat_key(day, f"calls_{label}"), STATS_TTL)
+        # Per-label tokens, so /costs can separate what users cost from what
+        # the operator's own bot usage costs. `calls_{label}` alone could not:
+        # it counts calls, and an ideas generation is not the size of a scan.
+        if tok_in:
+            await _cache.incr(_stat_key(day, f"tok_in_{label}"), STATS_TTL, tok_in)
+        if tok_out:
+            await _cache.incr(_stat_key(day, f"tok_out_{label}"), STATS_TTL, tok_out)
 
         budget = GEMINI_DAILY_BUDGET_USD
         if budget > 0:
@@ -1906,6 +2059,19 @@ def _days_ending_today(n: int, now: datetime | None = None) -> list[str]:
     return [_day(now - timedelta(days=i)) for i in range(n)]
 
 
+# Model calls the operator makes through the bot: /post ideas, the /checkup
+# one-token probe, and a photo sent to the bot as a test scan. They are billed
+# like any other call and belong in the total — but not in "$/scan" or in what
+# the free tier is "given away", both of which are statements about users.
+_OPERATOR_LABELS = ("ideas", "probe", "bot_scan", "bot_scan_with_tag")
+
+
+async def _operator_spend(days: list[str]) -> float:
+    tok_in = sum([await _sum_stat(days, f"tok_in_{label}") for label in _OPERATOR_LABELS])
+    tok_out = sum([await _sum_stat(days, f"tok_out_{label}") for label in _OPERATOR_LABELS])
+    return _cost_usd(tok_in, tok_out)
+
+
 async def _costs_text() -> str:
     lines = ["💸 <b>Gemini spend</b>"]
     for label, n in (("Today", 1), ("Last 7 days", 7), ("Last 30 days", 30)):
@@ -1915,18 +2081,30 @@ async def _costs_text() -> str:
         calls = await _sum_stat(days, "model_calls")
         scans = await _sum_stat(days, "scans_free") + await _sum_stat(days, "scans_pro")
         spend = _cost_usd(tok_in, tok_out)
+        mine = await _operator_spend(days)
         parts = [f"{label}: {_usd(spend)}", f"{calls} calls",
                  f"{_kilo(tok_in)} in / {_kilo(tok_out)} out"]
         if scans:
-            parts.append(f"{_usd_fine(spend / scans)}/scan")
+            # Users' spend, not total spend. This used to divide the whole
+            # figure — operator test scans, /post and /checkup probes included
+            # — by the user scan count, which at 1-4 scans a day made "$/scan"
+            # substantially the operator's own usage.
+            parts.append(f"{_usd_fine(max(spend - mine, 0.0) / scans)}/scan")
+        if mine > 0:
+            parts.append(f"{_usd(mine)} mine")
         lines.append(" · ".join(parts))
 
     month = _days_ending_today(30)
     free = await _sum_stat(month, "scans_free")
     total = free + await _sum_stat(month, "scans_pro")
     if total:
-        given = (await _spend(month)) * free / total
+        users = max((await _spend(month)) - (await _operator_spend(month)), 0.0)
+        given = users * free / total
         lines.append(f"Free tier, 30 days: {free} of {total} scans ≈ {_usd(given)} given away")
+    mine_month = await _operator_spend(month)
+    if mine_month > 0:
+        lines.append(f"My own bot usage, 30 days: ≈ {_usd(mine_month)} "
+                     f"(/post, /checkup — excluded from the two figures above)")
 
     _, _, _, _, mrr = _subs_summary(await _read_index(SUBS_INDEX_KEY))
     lines.append("vs MRR ≈ " + (" + ".join(_money(v, c) for c, v in sorted(mrr.items()))
@@ -2579,6 +2757,19 @@ async def _checkup_text() -> str:
 
 # ── Anomalies: a quiet day, a spike ──────────────────────────────────────────
 
+def _quiet_window(now: datetime) -> str:
+    """Identify the quiet window `now` falls in, not the calendar day.
+
+    QUIET_HOURS_UTC runs 13:00 through 03:59, so one window straddles UTC
+    midnight. Keying the once-per-window guard on `_day(now)` therefore let a
+    single silence fire the note twice — reproduced at 22:15 (note), 23:45
+    (correctly suppressed), 00:15 next day (second note for the same silence).
+    Hours after midnight belong to the window that opened the day before.
+    """
+    start = now - timedelta(days=1) if now.hour < 12 else now
+    return _day(start)
+
+
 async def _quiet_check(now: datetime | None = None) -> bool:
     """Send the quiet-hours note if due. Returns whether it was sent."""
     now = now or datetime.now(timezone.utc)
@@ -2591,7 +2782,7 @@ async def _quiet_check(now: datetime | None = None) -> bool:
     if silent < QUIET_AFTER_SECONDS:
         return False
     try:
-        if not await _cache.add(f"opsseen:quiet:{_day(now)}", "1", STATS_TTL):
+        if not await _cache.add(f"opsseen:quiet:{_quiet_window(now)}", "1", STATS_TTL):
             return False
     except Exception:
         return False
@@ -2700,9 +2891,19 @@ async def _clear_chat() -> None:
     except Exception:
         pass
     swept = await _notifier.delete_messages(sweep) if sweep else 0
-    total = deleted + swept
     if known:
-        note = f"🧹 Cleared {total} message{'s' if total != 1 else ''}."
+        # Report the tracked deletions, which are a real count, and describe
+        # the sweep as a sweep. These used to be added together and presented
+        # as "Cleared N" — but Telegram answers `deleteMessages` with ok for
+        # ids it silently skips (a message that never existed, or one past the
+        # 48-hour limit), so every id in the blind sweep counted as a deletion
+        # and N was really just the sweep's range size. It read as a precise
+        # figure and was not one.
+        note = f"🧹 Cleared {deleted} tracked message{'s' if deleted != 1 else ''}."
+        if swept:
+            note += (f" Also swept {swept} untracked id"
+                     f"{'s' if swept != 1 else ''} below the newest — Telegram "
+                     "does not say how many of those existed.")
         if archived:
             note += f" {archived} of the bot's kept — 🗂 History shows them."
         if archive_chat:
