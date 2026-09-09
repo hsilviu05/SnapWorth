@@ -1,3 +1,4 @@
+import DeviceCheck
 import XCTest
 import UIKit
 @testable import SnapWorth
@@ -182,6 +183,98 @@ final class PaymentRequiredMappingTests: XCTestCase {
                                 .unknown("?")] {
             XCTAssertFalse(error.isPaywall, "\(error) must not open the paywall")
         }
+    }
+}
+
+// MARK: - App Attest key recovery (I-1)
+//
+// The key id lives in UserDefaults, which iCloud backup and Quick Start
+// restore onto a new iPhone. The Secure Enclave key it names does not
+// migrate, so `generateAssertion` throws DCError.invalidKey before any
+// request leaves the device. That error used to escape mintToken: callers
+// sent unauthenticated, got 401, and the user was told to reinstall — and
+// every retry repeated it, because nothing cleared the stale id.
+//
+// The decision of *which* failures justify discarding the key is the part
+// worth pinning: throwing it away on a transient DeviceCheck outage forces a
+// pointless re-attestation, so the rule has to be narrow in both directions.
+
+final class AppAttestKeyRecoveryTests: XCTestCase {
+
+    private func dcError(_ code: DCError.Code) -> Error {
+        NSError(domain: DCErrorDomain, code: code.rawValue)
+    }
+
+    func test_aKeyTheEnclaveDoesNotHave_forcesFreshAttestation() {
+        XCTAssertTrue(AttestationService.requiresFreshKey(dcError(.invalidKey)),
+                      "device migration must recover, not dead-end")
+    }
+
+    func test_anUnusableStoredValue_forcesFreshAttestation() {
+        XCTAssertTrue(AttestationService.requiresFreshKey(dcError(.invalidInput)))
+    }
+
+    func test_transientFailures_keepTheExistingKey() {
+        // Re-attesting on an Apple outage burns a server record and a round
+        // trip for a condition that will clear on its own.
+        XCTAssertFalse(AttestationService.requiresFreshKey(dcError(.serverUnavailable)))
+        XCTAssertFalse(AttestationService.requiresFreshKey(dcError(.unknownSystemFailure)))
+    }
+
+    func test_unsupportedDevice_doesNotRetryForever() {
+        // A new key cannot help where the feature is absent.
+        XCTAssertFalse(AttestationService.requiresFreshKey(dcError(.featureUnsupported)))
+    }
+
+    func test_nonDeviceCheckErrors_areNotTreatedAsKeyProblems() {
+        XCTAssertFalse(AttestationService.requiresFreshKey(URLError(.notConnectedToInternet)))
+        XCTAssertFalse(AttestationService.requiresFreshKey(AttestationError.challengeFailed))
+    }
+}
+
+// MARK: - Privacy policy disclosure (I-18)
+//
+// The web copy at /privacy gained a Service Providers section on 2026-09-03;
+// the shipped in-app copy did not. For a week the app told users their data
+// was not shared with anyone — on the screen the paywall links to, which is
+// also what App Review and an EU user read — while photos went to Google on
+// every scan. Nothing caught it because the text lived inside a view body
+// where no test could reach it.
+
+final class PrivacyPolicyDisclosureTests: XCTestCase {
+
+    private var policy: String {
+        PrivacyPolicy.sections.map { ($0.heading ?? "") + " " + $0.text }.joined(separator: "\n")
+    }
+
+    func test_everyProcessorThatReceivesData_isNamed() {
+        for processor in PrivacyPolicy.processors {
+            XCTAssertTrue(policy.contains(processor),
+                          "\(processor) receives user data but the policy does not name it")
+        }
+    }
+
+    func test_policyDoesNotClaimDataIsUnshared() {
+        // The exact sentence that was false: "We do not sell, rent, or share
+        // your photos or device identifier with third parties, except as
+        // required by law." Any unqualified version of it is a false claim.
+        XCTAssertTrue(policy.contains("except for the service providers below"),
+                      "the sharing sentence must point at the processor list")
+    }
+
+    func test_analyticsAndDeviceCheckCollectionAreDisclosed() {
+        // Both are collected by the shipped app; neither was mentioned.
+        XCTAssertTrue(policy.contains("TelemetryDeck"))
+        XCTAssertTrue(policy.contains("DeviceCheck"))
+        XCTAssertTrue(policy.lowercased().contains("turn analytics off"),
+                      "an opt-out that exists must be findable in the policy")
+    }
+
+    func test_updatedDateIsNotOlderThanTheProcessorDisclosure() {
+        // A policy that gains processors but keeps its old date reads as
+        // unchanged to anyone checking whether they need to re-consent.
+        XCTAssertNotEqual(PrivacyPolicy.updated, "September 2, 2026",
+                          "the date must move when the policy does")
     }
 }
 

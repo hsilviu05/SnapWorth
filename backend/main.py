@@ -992,7 +992,7 @@ def privacy():
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Privacy Policy — SnapWorth</title><style>{_STYLE}</style></head><body>
 <h1>Privacy Policy</h1>
-<p>Last updated: September 3, 2026</p>
+<p>Last updated: September 9, 2026</p>
 <p>SnapWorth ("we", "our", or "us") operates the SnapWorth mobile application.
 This page informs you of our policies regarding the collection, use, and
 disclosure of personal data when you use our Service.</p>
@@ -1004,6 +1004,11 @@ are not stored after the response is returned.</p>
 <p>We collect an anonymous device identifier (UUID) for rate limiting (20 scans
 per hour) and to limit how many devices can use one subscription. This ID is not
 linked to your identity.</p>
+<p>To tell a reinstall from a genuinely new device &mdash; so a free allowance
+cannot be reset by deleting and reinstalling &mdash; we send Apple's DeviceCheck
+token when your device first verifies itself. Apple stores two bits against the
+hardware on our behalf; we store the token to read them. It contains no personal
+information and cannot identify you.</p>
 <p>We collect anonymous usage analytics to understand how the app is used and
 improve it. Using TelemetryDeck, we record in-app events &mdash; such as opening
 the app, starting a scan, viewing the paywall, and completing a purchase &mdash;
@@ -1024,6 +1029,9 @@ with third parties, except for the service providers below and as required by la
 Google's Gemini API, which identifies the item and estimates its resale value.
 Google processes them under its API terms of service and does not use them to
 train its models. Photos are not retained by us after the response is returned.</p>
+<p><strong>Apple (DeviceCheck).</strong> Receives the device token described
+above, and stores two bits against your hardware so a reinstall does not reset
+the free allowance.</p>
 <p><strong>TelemetryDeck.</strong> Receives the anonymous usage events described
 above. It never receives photos, item names, prices, or identifiers.</p>
 <p><strong>Telegram.</strong> To monitor the service, aggregate operational
