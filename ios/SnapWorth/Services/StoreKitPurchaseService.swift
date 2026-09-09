@@ -12,6 +12,7 @@ final class StoreKitPurchaseService: PurchaseService, ObservableObject {
     /// Localised pricing straight from StoreKit, keyed by product ID.
     @Published private(set) var pricing: [String: PlanPricing] = [:]
     @Published private(set) var isPricingLoaded = false
+    @Published private(set) var pricingFailed = false
 
     private static let cacheKey = "snapworth_is_subscribed"
     private let productIDs = [Config.monthlyProductID, Config.yearlyProductID]
@@ -40,7 +41,7 @@ final class StoreKitPurchaseService: PurchaseService, ObservableObject {
 
     // MARK: - PurchaseService
 
-    func purchase(productID: String) async throws {
+    func purchase(productID: String) async throws -> PurchaseOutcome {
         let product = try await product(for: productID)
 
         let result: Product.PurchaseResult
@@ -64,13 +65,15 @@ final class StoreKitPurchaseService: PurchaseService, ObservableObject {
             await refreshSubscriptionStatus()
             // Fires on the confirmed StoreKit transaction — never on the tap.
             Analytics.shared.track(.purchaseCompleted(productID: transaction.productID))
+            return .completed
         case .userCancelled:
             Analytics.shared.track(.purchaseFailed(productID: productID, reason: "cancelled"))
             throw PurchaseError.cancelled
         case .pending:
             // Deferred (e.g. Ask to Buy / SCA). Not a failure — leave state as-is.
-            // The transaction listener finalizes it once approved.
-            break
+            // The transaction listener finalizes it once approved. Reported as
+            // its own outcome so the paywall does not dismiss on it.
+            return .pending
         @unknown default:
             Analytics.shared.track(.purchaseFailed(productID: productID, reason: "unknown"))
             throw PurchaseError.failed("This purchase could not be completed.")
@@ -107,10 +110,18 @@ final class StoreKitPurchaseService: PurchaseService, ObservableObject {
     }
 
     private func loadProducts() async {
-        defer { isPricingLoaded = true }
+        // `isPricingLoaded` used to be set unconditionally, so a failed fetch
+        // looked exactly like a finished one: the redaction lifted, the price
+        // cards read "—" forever, and the CTA sat there inert with nothing
+        // said. The flag now means "we have prices", and `pricingFailed`
+        // carries the other case so the paywall can offer a retry.
+        defer { isPricingLoaded = !products.isEmpty }
         if let fetched = try? await Product.products(for: productIDs), !fetched.isEmpty {
             products = fetched
             pricing = Self.buildPricing(from: fetched)
+            pricingFailed = false
+        } else {
+            pricingFailed = true
         }
     }
 
@@ -184,6 +195,12 @@ final class StoreKitPurchaseService: PurchaseService, ObservableObject {
         let ratio = (twelveMonths - yearly.price) / twelveMonths * 100
         let percent = NSDecimalNumber(decimal: ratio).intValue
         return percent > 0 ? percent : nil
+    }
+
+    /// `PurchaseService` conformance — see the protocol for why an expiry needs
+    /// a poll rather than an update stream.
+    func refreshEntitlements() async {
+        await refreshSubscriptionStatus()
     }
 
     private func refreshSubscriptionStatus() async {

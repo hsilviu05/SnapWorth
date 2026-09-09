@@ -144,7 +144,7 @@ final class FlipsViewModel {
         all.contains { $0.status == .sold && isInCurrentMonth($0.soldDate) }
     }
 
-    func renderMonthCard(_ all: [ScanResult], displayScale: CGFloat) -> UIImage? {
+    func renderMonthCard(_ all: [ScanResult]) -> UIImage? {
         guard hasSalesThisMonth(all) else { return nil }
         let s = summary(all, scope: .month)
         let card = MonthShareCardView(
@@ -155,7 +155,9 @@ final class FlipsViewModel {
             bestFlipProfit: s.bestFlip?.realizedProfit
         )
         let renderer = ImageRenderer(content: card)
-        renderer.scale = max(displayScale, 2)
+        // Capped at 2 for the same reason as the result-sheet cards — see
+        // `ResultViewModel.shareCardScale`.
+        renderer.scale = ResultViewModel.shareCardScale
         return renderer.uiImage
     }
 

@@ -276,11 +276,29 @@ enum FreeScanCounter {
     private static let dateKey = "snapworth_free_scans_date"
     private static let serverRemainingKey = "snapworth_free_scans_server_remaining"
 
+    /// The allowance resets on the server's day, not the phone's.
+    ///
+    /// This used `Calendar.current.isDateInToday`, while `quota.py` counts UTC
+    /// days. For anyone east of UTC the two disagree for as many hours as their
+    /// offset — Romania (UTC+3) gets a window from local midnight to 03:00 in
+    /// which the client believes the allowance has reset and the server does
+    /// not. The user scans, the client lets it through, and the server answers
+    /// 402: the dead-end alert I-23 fixes, arrived at from the other direction.
+    ///
+    /// Matching UTC here removes the disagreement rather than handling it. The
+    /// cost is that a user in UTC-8 sees their allowance reset at 16:00 local,
+    /// which is odd but honest — it is when the server actually resets it.
+    private static func isServerToday(_ stamped: Date) -> Bool {
+        var utc = Calendar(identifier: .gregorian)
+        utc.timeZone = TimeZone(secondsFromGMT: 0) ?? .gmt
+        return utc.isDateInToday(stamped)
+    }
+
     static var used: Int {
         get {
             let defaults = UserDefaults.standard
             guard let stamped = defaults.object(forKey: dateKey) as? Date,
-                  Calendar.current.isDateInToday(stamped) else {
+                  isServerToday(stamped) else {
                 return 0
             }
             return defaults.integer(forKey: usedKey)
@@ -306,7 +324,7 @@ enum FreeScanCounter {
         get {
             let defaults = UserDefaults.standard
             guard let stamped = defaults.object(forKey: dateKey) as? Date,
-                  Calendar.current.isDateInToday(stamped),
+                  isServerToday(stamped),
                   defaults.object(forKey: serverRemainingKey) != nil else {
                 return nil
             }

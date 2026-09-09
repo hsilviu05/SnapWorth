@@ -4,11 +4,19 @@ import Foundation
 ///
 /// Why this exists
 /// ---------------
-/// The store holds every scan the user has ever taken — item names, valuations,
-/// timestamps and the photo of each item — and nothing was setting a protection
-/// class explicitly. The platform default applied, which meant the guarantee was
-/// whatever the OS happened to do rather than something this app had decided and
-/// could be held to.
+/// The store holds every scan the user has ever taken — item names, valuations
+/// and timestamps — and nothing was setting a protection class explicitly. The
+/// platform default applied, which meant the guarantee was whatever the OS
+/// happened to do rather than something this app had decided and could be held
+/// to.
+///
+/// Scope, precisely: this covers the `.store` file and its `-wal`/`-shm`
+/// sidecars. Item photos are `@Attribute(.externalStorage)` blobs that SwiftData
+/// writes to its own directory beside the store, and those are *not* touched
+/// here — this doc comment used to claim otherwise. No regression follows from
+/// that: the blobs sit at the same platform default the store itself sat at
+/// before this type existed. Tightening them means walking SwiftData's external
+/// storage directory, whose layout is not API.
 ///
 /// Why `.completeUntilFirstUserAuthentication` and not `.complete`
 /// --------------------------------------------------------------

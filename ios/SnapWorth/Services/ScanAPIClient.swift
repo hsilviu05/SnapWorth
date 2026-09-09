@@ -467,6 +467,37 @@ actor ScanAPIClient {
         }.value
     }
 
+    /// A small copy sized for a thumbnail, produced off the main actor.
+    ///
+    /// Thrift Flip retained the picker's untouched original — up to ~98MB
+    /// decoded — for the whole session purely to paint a 64pt header image.
+    ///
+    /// - Parameter side: the displayed side in points; the pixel size is
+    ///   `side × 3` so the thumbnail is sharp on every current screen.
+    static func thumbnail(_ image: UIImage, side: CGFloat) async -> UIImage {
+        await Task.detached(priority: .userInitiated) {
+            downscale(image, maxEdge: side * 3)
+        }.value
+    }
+
+    /// Decode a stored JPEG straight to a display-sized image, off the main
+    /// actor.
+    ///
+    /// `UIImage(data:)` is lazy — it holds the data and decodes on first draw,
+    /// which happens on the main thread inside `body`. So a cell that looked
+    /// like it had done its work in a detached task was still paying a full
+    /// 1024px decode per newly-visible row or grid cell, on every filter tap,
+    /// sort change and scroll. Rendering here forces the decode where the work
+    /// belongs and keeps only the pixels the cell shows.
+    ///
+    /// - Parameter side: the longest displayed edge in points.
+    static func decodedThumbnail(from data: Data, side: CGFloat) async -> UIImage? {
+        await Task.detached(priority: .utility) {
+            guard let image = UIImage(data: data) else { return nil }
+            return downscale(image, maxEdge: side * 3)
+        }.value
+    }
+
     /// Aspect-preserving downscale. Returns the original when already small
     /// enough, so a library pick of a tiny image is never upscaled.
     ///

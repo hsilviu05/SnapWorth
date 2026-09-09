@@ -25,32 +25,41 @@ final class ResultViewModel {
         copyGeneratedResetTask?.cancel()
     }
 
-    func prepareShareCard(result: ScanResult, photo: UIImage?, displayScale: CGFloat) {
+    /// Render scale for every share card.
+    ///
+    /// Fixed at 2, not `max(displayScale, 2)`. The canvas is 540×960pt, so
+    /// scale 2 is exactly the 1080×1920px these cards target — the size
+    /// Instagram Stories, WhatsApp status and TikTok all want. On a 3× phone
+    /// the old expression rendered 1620×2880 instead: an 18.7MB bitmap, on the
+    /// main actor, for an image that is downsampled again by every one of those
+    /// destinations. Nothing is gained and the hitch is real, so it is capped.
+    static let shareCardScale: CGFloat = 2
+
+    func prepareShareCard(result: ScanResult, photo: UIImage?) {
         let view = ShareCardView(result: result, photo: photo)
         let renderer = ImageRenderer(content: view)
-        renderer.scale = max(displayScale, 2)
+        renderer.scale = Self.shareCardScale
         shareCard = renderer.uiImage
     }
 
     /// The two "Guess the price" cards — the question with the estimate
     /// covered, and the reveal. Rendered on demand when the game opens; the
     /// standard card above stays the one prepared eagerly for the toolbar.
-    func renderGuessCards(result: ScanResult, photo: UIImage?,
-                          displayScale: CGFloat) -> (guess: UIImage?, reveal: UIImage?) {
+    func renderGuessCards(result: ScanResult, photo: UIImage?) -> (guess: UIImage?, reveal: UIImage?) {
         func render(_ style: GuessCardStyle) -> UIImage? {
             let renderer = ImageRenderer(content: GuessShareCardView(result: result, photo: photo, style: style))
-            renderer.scale = max(displayScale, 2)
+            renderer.scale = Self.shareCardScale
             return renderer.uiImage
         }
         return (render(.guess), render(.reveal))
     }
 
-    func scheduleShareCardUpdate(result: ScanResult, photo: UIImage?, displayScale: CGFloat) {
+    func scheduleShareCardUpdate(result: ScanResult, photo: UIImage?) {
         shareCardDebounce?.cancel()
         shareCardDebounce = Task {
             try? await Task.sleep(for: .milliseconds(300))
             guard !Task.isCancelled else { return }
-            prepareShareCard(result: result, photo: photo, displayScale: displayScale)
+            prepareShareCard(result: result, photo: photo)
         }
     }
 

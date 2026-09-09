@@ -66,7 +66,23 @@ final class CameraManager: NSObject, ObservableObject {
             if self.session.canAddOutput(self.photoOutput) {
                 self.session.addOutput(self.photoOutput)
                 if #available(iOS 16.0, *) {
-                    self.photoOutput.maxPhotoDimensions = CMVideoDimensions(width: 4032, height: 3024)
+                    // 4032×3024 was hard-coded here. AVFoundation raises
+                    // `NSInvalidArgumentException` — an uncatchable abort — for
+                    // a value the active format does not list, and this target
+                    // installs on iPad in compatibility mode, where the 8MP
+                    // (3264×2448) cameras of the iPad 6–9, mini 5 and Air 3
+                    // never offered it.
+                    //
+                    // This stays a *cap*, not a maximum: the 48MP wide camera on
+                    // Pro iPhones lists 8064×6048, and asking for it would
+                    // quadruple decode cost and memory for an image that is
+                    // downscaled to 1568px before it leaves the device. So take
+                    // the largest supported size at or under 12MP, and fall back
+                    // to the largest on hardware that offers nothing that big.
+                    if let dimensions = Self.preferredPhotoDimensions(
+                        device.activeFormat.supportedMaxPhotoDimensions) {
+                        self.photoOutput.maxPhotoDimensions = dimensions
+                    }
                 } else {
                     self.photoOutput.isHighResolutionCaptureEnabled = true
                 }
@@ -90,6 +106,18 @@ final class CameraManager: NSObject, ObservableObject {
             guard let self, self.session.isRunning else { return }
             self.session.stopRunning()
         }
+    }
+
+    /// Largest supported size at or below the 12MP cap, else the largest on
+    /// offer. Nil only when the format lists nothing at all.
+    nonisolated static func preferredPhotoDimensions(
+        _ supported: [CMVideoDimensions]
+    ) -> CMVideoDimensions? {
+        let cap = 4032 * 3024
+        func pixels(_ d: CMVideoDimensions) -> Int { Int(d.width) * Int(d.height) }
+        let atOrUnderCap = supported.filter { pixels($0) <= cap }
+        let candidates = atOrUnderCap.isEmpty ? supported : atOrUnderCap
+        return candidates.max { pixels($0) < pixels($1) }
     }
 
     func capturePhoto() {

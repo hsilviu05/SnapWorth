@@ -17,6 +17,11 @@ struct ScanView: View {
     /// actually seen their first result. Shown once, then never again here.
     @AppStorage("hasSeenFirstResultPaywall") private var hasSeenFirstResultPaywall = false
 
+    /// Anything presented on top of the camera. See the `onChange` below.
+    private var isCameraObscured: Bool {
+        showResult || showThriftFlip || showNotifPriming || vm.showPaywall
+    }
+
     var body: some View {
         let isAnalyzing = vm.isAnalyzing
         ZStack {
@@ -236,6 +241,18 @@ struct ScanView: View {
             }
         }
         .onDisappear { cameraManager.stopSession() }
+        // A sheet or cover presented *over* this view does not fire its
+        // `onDisappear`, so the full photo-preset capture pipeline — sensor,
+        // ISP and a 30fps preview — kept running behind the result sheet, the
+        // paywall and Thrift Flip, for however long the user spent reading or
+        // typing. Thrift Flip then started a second session on top of it.
+        .onChange(of: isCameraObscured) { _, obscured in
+            if obscured {
+                cameraManager.stopSession()
+            } else if cameraManager.authStatus == .authorized {
+                cameraManager.startSession()
+            }
+        }
         .sheet(isPresented: $showResult, onDismiss: {
             // Runs whether the user taps "Done" or swipes down
             vm.reset()
@@ -352,6 +369,15 @@ struct ScanView: View {
     private func triggerScan(image: UIImage) async {
         let repository = ScanRepository(context: modelContext)
         await vm.startScan(image: image, purchaseService: purchaseService, repository: repository)
+        // Release the full-resolution capture the moment it stops being
+        // needed. Both the upload (1568px) and the stored copy (1024px) are
+        // already encoded by now, and the only view that reads this image is
+        // the freeze-frame behind the analysing overlay, which has just gone.
+        // These references used to be cleared in `sheet(onDismiss:)`, so a
+        // 12MP capture — 48.8MB decoded, and up to 195MB on a 48MP HEIF —
+        // stayed resident for the whole time the result sheet was open.
+        vm.capturedImage = nil
+        cameraManager.capturedImage = nil
         if vm.scanResult != nil {
             showResult = true
         }

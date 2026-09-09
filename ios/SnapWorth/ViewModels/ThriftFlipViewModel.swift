@@ -27,6 +27,8 @@ final class ThriftFlipViewModel {
     var isReadingTag = false
     var ocrNote: String?
     var didSaveToLedger = false
+    /// Set when the ledger write itself failed — see `saveToLedger`.
+    var saveError: String?
 
     // ── Scan the item (respects the shared daily free-scan cap) ─────────────────
     func scanItem(image: UIImage, purchaseService: any PurchaseService) async {
@@ -48,6 +50,11 @@ final class ThriftFlipViewModel {
             let response = try await ScanAPIClient.shared.scan(image: image)
             // Encoded off the main actor — see ScanAPIClient.encodeForStorage.
             let storedImage = await ScanAPIClient.encodeForStorage(image)
+            // Drop the original now the encodes are done: the only surface that
+            // shows it is a 64pt header thumbnail, and holding the picker's
+            // untouched image for the rest of the session was the largest
+            // allocation in this flow.
+            itemImage = await ScanAPIClient.thumbnail(image, side: 64)
             let result = ScanResult(
                 itemName: response.itemName,
                 brand: response.brand,
@@ -66,7 +73,18 @@ final class ThriftFlipViewModel {
             // Seed the resale field with the condition-adjusted likely value.
             resalePriceText = Self.moneyField(result.priceRange(for: result.condition).likely)
 
-            if !purchaseService.isSubscribed { FreeScanCounter.increment() }
+            if !purchaseService.isSubscribed {
+                FreeScanCounter.increment()
+                // The server's count, not just the local one — `remaining`
+                // prefers the server value, so incrementing alone left the Scan
+                // tab showing the pre-scan number. On a FREE_SCANS_FIRST_DAY=3
+                // welcome day that meant three Thrift Flip scans still read
+                // "3 left", and the fourth 402'd. This is the daily trigger for
+                // the dead-end alert I-23 fixes; both were needed.
+                if let remaining = response.freeScansRemaining {
+                    FreeScanCounter.serverRemaining = remaining
+                }
+            }
             Analytics.shared.track(
                 .scanCompleted(success: true, category: ItemCategory(normalizing: response.category))
             )
@@ -125,12 +143,23 @@ final class ThriftFlipViewModel {
 
     /// Saves the flip into the "My Flips" ledger as an owned item, carrying the
     /// paid price forward so realized profit can be tracked when it sells.
-    func saveToLedger(repository: ScanRepository) {
-        guard let result = scanResult, let purchase = Self.decimal(shelfPriceText) else { return }
+    /// - Returns: whether the flip actually reached the ledger. This used to
+    ///   `try?` the save and set `didSaveToLedger` regardless, so a failed
+    ///   write gave a success haptic, hid the button, and lost the flip.
+    @discardableResult
+    func saveToLedger(repository: ScanRepository) -> Bool {
+        guard let result = scanResult, let purchase = Self.decimal(shelfPriceText) else { return false }
         result.paidPrice = NSDecimalNumber(decimal: purchase).doubleValue
         result.status = .owned
-        try? repository.save(result)
+        do {
+            try repository.save(result)
+        } catch {
+            saveError = "Couldn't save this flip. Try again."
+            return false
+        }
+        saveError = nil
         didSaveToLedger = true
+        return true
     }
 
     func reset() {
@@ -142,6 +171,7 @@ final class ThriftFlipViewModel {
         shippingText = ""
         ocrNote = nil
         didSaveToLedger = false
+        saveError = nil
     }
 
     // ── Formatting helpers ──────────────────────────────────────────────────────
@@ -167,9 +197,8 @@ final class ThriftFlipViewModel {
         return "\(value)%"
     }
 
+    /// Shared with ResultView's money fields — see `MoneyInput`.
     private static func decimal(_ text: String) -> Decimal? {
-        let trimmed = text.trimmingCharacters(in: .whitespaces)
-        guard !trimmed.isEmpty else { return nil }
-        return Decimal(string: trimmed.replacingOccurrences(of: ",", with: "."))
+        MoneyInput.decimal(text)
     }
 }

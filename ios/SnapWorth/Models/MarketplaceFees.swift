@@ -1,5 +1,84 @@
 import Foundation
 
+// ── Money entered by hand ─────────────────────────────────────────────────────
+
+/// Parses an amount typed into a `.decimalPad` field.
+///
+/// `Double("12,50")` is `nil`, and every money field in the app used to write
+/// `Double(newValue)` straight onto the model on each keystroke — so on a
+/// German, French, Romanian or Brazilian keypad, whose decimal separator *is*
+/// the comma, the amount silently vanished with nothing shown to the user.
+///
+/// The comma cannot simply be folded to a point, because `$1,250` is a real
+/// thing a US user types and folding would read it as 1.25. `normalized`
+/// resolves that; the rule is documented there.
+enum MoneyInput {
+    /// Rewrites a typed amount as a plain `.`-decimal string, or nil when there
+    /// is no number in it.
+    ///
+    /// Which separator is the decimal one:
+    ///
+    /// - **Both present** — the *last* one is the decimal separator and the
+    ///   other is grouping. `1.234,56` is 1234.56 and `1,234.56` is also
+    ///   1234.56, which is exactly what each writer meant.
+    /// - **Only a point** — it is the decimal separator. `45.5` is 45.5.
+    /// - **Only a comma** — ambiguous, and settled by what follows it: exactly
+    ///   three digits is grouping (`1,250` → 1250, how a US user writes it),
+    ///   one or two is a decimal (`12,50` → 12.50, how most of Europe writes a
+    ///   price). The case this gets wrong is a European writing `1,250` for one
+    ///   euro twenty-five — three decimal places in a price field, which no
+    ///   keypad encourages and no marketplace charges.
+    ///
+    /// Everything that is not a digit or a separator is dropped, so a pasted
+    /// currency symbol costs nothing.
+    static func normalized(_ text: String) -> String? {
+        let kept = text.filter { $0.isNumber || $0 == "." || $0 == "," }
+        guard kept.contains(where: \.isNumber) else { return nil }
+
+        let lastComma = kept.lastIndex(of: ",")
+        let lastDot = kept.lastIndex(of: ".")
+
+        let decimalIndex: String.Index?
+        switch (lastComma, lastDot) {
+        case let (comma?, dot?):
+            decimalIndex = comma > dot ? comma : dot
+        case (nil, let dot?):
+            decimalIndex = dot
+        case let (comma?, nil):
+            let digitsAfter = kept.distance(from: kept.index(after: comma), to: kept.endIndex)
+            decimalIndex = digitsAfter == 3 ? nil : comma
+        case (nil, nil):
+            decimalIndex = nil
+        }
+
+        var out = ""
+        var index = kept.startIndex
+        while index < kept.endIndex {
+            let character = kept[index]
+            if character.isNumber {
+                out.append(character)
+            } else if index == decimalIndex {
+                out.append(".")
+            }
+            // Any other separator is grouping, and is dropped.
+            index = kept.index(after: index)
+        }
+        return out
+    }
+
+    /// Nil for empty or unparseable input — the caller keeps the previous
+    /// value rather than clobbering it with a zero.
+    static func parse(_ text: String) -> Double? {
+        normalized(text).flatMap(Double.init)
+    }
+
+    /// Same rules, as a `Decimal` — money math elsewhere in the app avoids
+    /// binary floating point.
+    static func decimal(_ text: String) -> Decimal? {
+        normalized(text).flatMap { Decimal(string: $0) }
+    }
+}
+
 // ── Marketplace fees ──────────────────────────────────────────────────────────
 
 /// One marketplace's seller-side fees. `sellingFeePercent` is a fraction

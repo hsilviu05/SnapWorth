@@ -176,6 +176,14 @@ struct ThriftFlipView: View {
                             .overlay(Capsule().strokeBorder(Color.snapBorder, lineWidth: selected ? 0 : 1))
                     }
                     .buttonStyle(.plain)
+                    // ResultView's equivalent chips already do both of these.
+                    // Without the trait VoiceOver cannot tell which marketplace
+                    // is active — the state was carried by colour alone — and
+                    // the 9pt vertical padding left a ~31pt target.
+                    .snapHitTarget()
+                    .accessibilityLabel(marketplace.displayName)
+                    .accessibilityAddTraits(selected ? [.isButton, .isSelected] : .isButton)
+                    .accessibilityHint("Calculates fees for \(marketplace.displayName)")
                 }
               }
             }
@@ -210,7 +218,8 @@ struct ThriftFlipView: View {
                     }
                     .disabled(vm.isReadingTag)
                 }
-                moneyField($vm.shelfPriceText, field: .purchase, placeholder: "0")
+                moneyField($vm.shelfPriceText, field: .purchase, placeholder: "0",
+                           label: "Shop price")
                 if let note = vm.ocrNote {
                     Text(note)
                         .font(.snapCaption)
@@ -345,9 +354,14 @@ struct ThriftFlipView: View {
     }
 
     private var saveToLedgerButton: some View {
+        VStack(spacing: 8) {
         Button {
-            vm.saveToLedger(repository: ScanRepository(context: modelContext))
-            Haptics.success()
+            // Only celebrate a write that happened.
+            if vm.saveToLedger(repository: ScanRepository(context: modelContext)) {
+                Haptics.success()
+            } else {
+                Haptics.failure()
+            }
         } label: {
             HStack(spacing: 6) {
                 Image(systemName: "bag.badge.plus")
@@ -362,6 +376,14 @@ struct ThriftFlipView: View {
             .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).strokeBorder(Color.snapBorder, lineWidth: 1))
         }
         .buttonStyle(.plain)
+
+            if let saveError = vm.saveError {
+                Text(saveError)
+                    .font(.snapCaption)
+                    .foregroundStyle(.red)
+                    .multilineTextAlignment(.center)
+            }
+        }
     }
 
     private var honestNote: some View {
@@ -374,22 +396,40 @@ struct ThriftFlipView: View {
 
     // MARK: - Inputs
 
-    private func moneyField(_ text: Binding<String>, field: Field, placeholder: String) -> some View {
+    // Both rows below mirror `ResultView.moneyRow`: the "$" is decorative and
+    // hidden, and the field carries the label, the value and the unit. Without
+    // that, VoiceOver read these three fields as "text field" with no way to
+    // tell the shop price from the resale price or the shipping cost.
+    private func moneyField(_ text: Binding<String>, field: Field,
+                            placeholder: String, label: String) -> some View {
         HStack(spacing: 4) {
-            Text("$").font(.dmSans(17, weight: .medium)).foregroundStyle(Color.snapWarmGray)
+            Text("$")
+                .font(.dmSans(17, weight: .medium))
+                .foregroundStyle(Color.snapWarmGray)
+                .accessibilityHidden(true)
             TextField(placeholder, text: text)
                 .keyboardType(.decimalPad)
                 .font(.dmSans(17, weight: .medium))
                 .foregroundStyle(Color.snapEspresso)
                 .focused($focusedField, equals: field)
+                .accessibilityLabel(label)
+                .accessibilityValue(text.wrappedValue.isEmpty
+                    ? "Not set" : "\(text.wrappedValue) dollars")
+                .accessibilityHint("Enter an amount in dollars")
         }
     }
 
     private func labeledMoneyRow(_ title: String, text: Binding<String>, field: Field) -> some View {
         HStack {
-            Text(title).font(.dmSans(14, weight: .medium)).foregroundStyle(Color.snapWarmGray)
+            Text(title)
+                .font(.dmSans(14, weight: .medium))
+                .foregroundStyle(Color.snapWarmGray)
+                // Carried by the field below; reading it twice is noise.
+                .accessibilityHidden(true)
             Spacer()
-            Text("$").foregroundStyle(Color.snapWarmGray)
+            Text("$")
+                .foregroundStyle(Color.snapWarmGray)
+                .accessibilityHidden(true)
             TextField("0", text: text)
                 .keyboardType(.decimalPad)
                 .multilineTextAlignment(.trailing)
@@ -397,6 +437,10 @@ struct ThriftFlipView: View {
                 .focused($focusedField, equals: field)
                 .font(.dmSans(15, weight: .semibold))
                 .foregroundStyle(Color.snapEspresso)
+                .accessibilityLabel(title)
+                .accessibilityValue(text.wrappedValue.isEmpty
+                    ? "Not set" : "\(text.wrappedValue) dollars")
+                .accessibilityHint("Enter an amount in dollars")
         }
     }
 

@@ -7,6 +7,8 @@ final class PaywallViewModel {
     var isPurchasing: Bool = false
     var isRestoring: Bool = false
     var errorMessage: String?
+    /// A purchase that is neither done nor failed — see `PurchaseOutcome.pending`.
+    var pendingMessage: String?
     var showCloseButton: Bool = false
     var isPurchaseComplete: Bool = false
 
@@ -33,11 +35,20 @@ final class PaywallViewModel {
         guard !isPurchasing, !isRestoring else { return }
         isPurchasing = true
         errorMessage = nil
+        pendingMessage = nil
         defer { isPurchasing = false }
         Analytics.shared.track(.purchaseStarted(productID: selectedProductID))
         do {
-            try await service.purchase(productID: selectedProductID)
-            isPurchaseComplete = true
+            switch try await service.purchase(productID: selectedProductID) {
+            case .completed:
+                isPurchaseComplete = true
+            case .pending:
+                // Ask to Buy or an SCA challenge. Dismissing here — which is
+                // what setting isPurchaseComplete used to do — left the user
+                // with no subscription, no explanation, and the same paywall on
+                // their next scan. Stay put and say what is happening.
+                pendingMessage = "Waiting for approval. Your subscription starts as soon as it's approved — you don't need to buy again."
+            }
         } catch {
             let appError = AppError.from(error)
             if appError != .purchaseCancelled {

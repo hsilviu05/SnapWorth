@@ -207,6 +207,14 @@ struct SettingsView: View {
 // MARK: - Subscription Card
 private struct SubscriptionCard: View {
     let isSubscribed: Bool
+
+    /// Derived, not typed out. This row read "3 free scans a day" for six weeks
+    /// against a compiled-in allowance of 1 — true only on the welcome day the
+    /// server grants extra, wrong every day after it.
+    static var freeAllowanceText: String {
+        let allowed = Config.freeScansAllowed
+        return "\(allowed) free scan\(allowed == 1 ? "" : "s") a day"
+    }
     let onUpgrade: () -> Void
 
     var body: some View {
@@ -222,7 +230,7 @@ private struct SubscriptionCard: View {
                     .foregroundStyle(Color.snapEspresso)
                 Text(isSubscribed
                      ? "Unlimited scans · Active"
-                     : "3 free scans a day · Upgrade for unlimited"
+                     : "\(Self.freeAllowanceText) · Upgrade for unlimited"
                 )
                 .font(.snapCaption)
                 .foregroundStyle(Color.snapWarmGray)
@@ -233,7 +241,7 @@ private struct SubscriptionCard: View {
             .accessibilityLabel(isSubscribed ? "SnapWorth Pro" : "Free Plan")
             .accessibilityValue(isSubscribed
                 ? "Unlimited scans, active"
-                : "3 free scans a day")
+                : Self.freeAllowanceText)
 
             Spacer()
 
