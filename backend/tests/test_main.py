@@ -210,6 +210,20 @@ class TestLegalEndpoints:
         assert "text/html" in r.headers["content-type"]
         assert "Privacy Policy" in r.text
 
+    def test_privacy_names_every_processor_that_receives_data(self):
+        """I-18. A policy that omits a processor is not a lesser policy, it is
+        a false one — this page is linked from the paywall and is what App
+        Review and an EU user read."""
+        body = client.get("/privacy").text
+        for processor in ("Google", "Gemini", "TelemetryDeck", "Telegram", "DeviceCheck"):
+            assert processor in body, f"{processor} receives data but is not disclosed"
+
+    def test_privacy_does_not_claim_data_is_unshared(self):
+        """The pre-2026-09-03 wording said outright that nothing was shared
+        with third parties, while photos were going to Google on every scan."""
+        body = client.get("/privacy").text
+        assert "except for the service providers below" in body
+
     def test_terms_returns_html(self):
         r = client.get("/terms")
         assert r.status_code == 200

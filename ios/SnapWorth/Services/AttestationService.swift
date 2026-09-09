@@ -122,9 +122,48 @@ actor AttestationService {
             } catch AttestationError.reattestationRequired {
                 log.notice("server requires re-attestation; regenerating key")
                 UserDefaults.standard.removeObject(forKey: Keys.keyID)
+            } catch let error where Self.requiresFreshKey(error) {
+                // The key id outlived the key it names.
+                //
+                // The id lives in UserDefaults, which iCloud backup and Quick
+                // Start restore onto a new iPhone. The Secure Enclave key it
+                // refers to is hardware-bound and does not migrate, and the
+                // bearer token is `…ThisDeviceOnly`, so the new device has to
+                // mint — and `generateAssertion` throws `DCError.invalidKey`
+                // before any request leaves the phone.
+                //
+                // Without this branch that error escaped `mintToken`, callers
+                // sent unauthenticated, the server answered 401, and the user
+                // was told to reinstall. Every retry repeated it identically:
+                // nothing cleared the stale id, so the app was dead on that
+                // device until a reinstall wiped UserDefaults.
+                log.notice("stored App Attest key is unusable on this device; re-attesting")
+                UserDefaults.standard.removeObject(forKey: Keys.keyID)
             }
         }
         return try await attestFresh()
+    }
+
+    /// Whether a `generateAssertion` failure means the stored key id is
+    /// unusable *on this device*, so only a fresh attestation can recover.
+    ///
+    /// Deliberately narrow. Discarding the key on a transient failure is not
+    /// free — it forces a full attestation and a new server record — so a
+    /// DeviceCheck outage (`.serverUnavailable`) or an unexplained system
+    /// failure must retry with the key we have, not throw it away. Only
+    /// errors that say *this id cannot work here* qualify.
+    static func requiresFreshKey(_ error: Error) -> Bool {
+        guard let code = (error as? DCError)?.code else { return false }
+        switch code {
+        case .invalidKey, .invalidInput:
+            // The Enclave has no such key (device migration), or the stored
+            // string is not a key id at all. Re-attesting is the only path.
+            return true
+        default:
+            // .serverUnavailable, .unknownSystemFailure, .featureUnsupported —
+            // transient or hopeless; either way a new key does not help.
+            return false
+        }
     }
 
     private func attestFresh() async throws -> String {
