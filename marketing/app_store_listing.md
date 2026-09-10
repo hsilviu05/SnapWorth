@@ -1,5 +1,33 @@
 # App Store Listing
 
+> ## ⚠️ NOT YET LIVE — paste this at the 1.3.7 submission
+>
+> **The FREE & PRO section and one WHAT YOU GET bullet in this file differ
+> from what App Store Connect is currently serving.** They were corrected on
+> 2026-09-10 and deliberately not pasted, because the operator is holding
+> them for the 1.3.7 launch.
+>
+> Until that paste happens, the live listing still says:
+>
+> - *"Upgrade to Pro for unlimited scans, **full scan history**, and AI
+>   listing drafts"* — scan history is not gated. `HistoryView`'s grid has no
+>   `isPro` check. Someone upgrading for that line gets nothing new.
+> - *"AI listing draft — title and description **tailored to** eBay,
+>   Poshmark, …"* under free WHAT YOU GET — a draft is free
+>   (`listing_title`/`listing_description` are required on every `/scan`
+>   response), but the tailored rewrite is `/listing`, which 402s for
+>   non-Pro. The free bullet describes the paid feature.
+>
+> Closes I-26 (`docs/AUDIT-2026-09-07.md`) on its last surface; the app was
+> fixed in 1.3.6 and the website was already correct.
+>
+> **At submission:** paste the Description below into App Store Connect,
+> delete this block, and note the date in `docs/AUDIT-2026-09.md`.
+>
+> One open decision first: **#128** — if Thrift Flip's arithmetic is
+> un-blurred, it should not be added to the Pro list. If the gate stays, it
+> can be (there are ~1,600 characters spare under Apple's 4,000 limit).
+
 ## App name (30 chars max)
 SnapWorth: Resale Value
 
@@ -64,7 +92,7 @@ WHAT YOU GET
 
 • Instant resale value — an estimated low-to-high range for your item
 • Confidence score — see how clearly the AI could identify your item
-• AI listing draft — title and description tailored to eBay, Poshmark, Mercari, Depop, Facebook Marketplace, Vinted, or OLX
+• AI listing draft — a ready-to-post title and description with every scan
 • Scan history — every find saved automatically with its value
 • Total haul tracker — see what your collection is worth at a glance
 
@@ -81,9 +109,16 @@ BUILT FOR
 
 FREE & PRO
 
-SnapWorth is free to try — no account needed. You get one free scan every day, forever.
+SnapWorth is free to try — no account needed. You get one free scan every day, forever. Every find is saved to your device with its value, and your history is yours whether you pay or not.
 
-Upgrade to Pro for unlimited scans, full scan history, and AI listing drafts:
+Pro adds:
+• Unlimited scans
+• Listing drafts rewritten for the marketplace you pick — eBay, Poshmark, Mercari, Depop, Facebook Marketplace, Vinted or OLX
+• Why this price — the full breakdown behind an estimate, including the price ladder and what drove the value
+• Read the care tag — photograph the label for a sharper estimate
+• Portfolio value, trend and thrift trends
+• Your profit ledger — what you paid, what it sold for, and what you actually made after fees, with CSV export
+
 • Monthly: $4.99/month
 • Yearly: $39.99/year (3-day free trial included)
 
