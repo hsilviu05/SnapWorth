@@ -94,8 +94,25 @@ struct ResultView: View {
 
                         conditionCard
                             .padding(.horizontal, 20)
-                            .padding(.top, 12)
-                            .offset(y: -28)
+                            // Padding, not `offset`. This carried
+                            // `.offset(y: -28)`, copied from `valueCard`'s
+                            // hero overlap above — but offset moves pixels and
+                            // not the layout frame, so the VStack went on
+                            // reserving the original slot: 28pt came off the
+                            // gap above this card and was added to the gap
+                            // below it. On screen that is a cramped join to
+                            // "Sharpen this estimate" and a ~40pt hole before
+                            // "What did you pay?".
+                            //
+                            // It cannot simply be dropped, because the value
+                            // it was absorbing is real in one branch. With the
+                            // price hidden, `whyThisPriceCard` and
+                            // `addTagCard` are both absent and this card
+                            // follows `valueCard`, whose own -28 offset leaves
+                            // 28pt of phantom space; -8 there gives the same
+                            // 20pt gap that 12 gives against `addTagCard`'s
+                            // 8pt bottom padding in the revealed branch.
+                            .padding(.top, priceCovered ? -8 : 12)
 
                         paidPriceCard
                             .padding(.horizontal, 20)
