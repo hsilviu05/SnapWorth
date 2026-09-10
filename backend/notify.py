@@ -181,6 +181,18 @@ SPIKE_FACTOR = 3.0
 SPIKE_MIN_SCANS = 10
 
 TREND_DAYS = 30
+
+# The free-scan experiment, A-6 in docs/AUDIT-2026-09.md. `FREE_SCANS_FIRST_DAY`
+# was armed 2026-09-07, but until 1.3.6 shipped a spent allowance was filed as a
+# scan failure (I-23) and the client's own count could be wrong three separate
+# ways (I-3, I-4, I-5) — so the window opens on approval day, not arming day.
+EXPERIMENT_START_DAY = os.environ.get("EXPERIMENT_START_DAY", "20260910")
+EXPERIMENT_END_DAY = os.environ.get("EXPERIMENT_END_DAY", "20260924")
+# `limit_hits` only began counting at 18:29 UTC on this day, so that column
+# covers about five and a half hours of it while every other column is a whole
+# day. Marked in the table rather than dropped: the row is real, and the mark is
+# what stops it being read as a full day's figure.
+EXPERIMENT_PARTIAL_DAY = os.environ.get("EXPERIMENT_PARTIAL_DAY", "20260910")
 SPARK = "▁▂▃▄▅▆▇█"
 
 # /checkup's model probe. JSON, because the model runs in JSON mode; and room
@@ -246,6 +258,7 @@ COMMANDS: tuple[tuple[str, str], ...] = (
     ("subs", "Every subscription seen: plan, how obtained, renews"),
     ("users", "Devices seen, 7-day and 30-day actives, most active"),
     ("costs", "Gemini spend: today, 7 and 30 days, per scan, vs MRR"),
+    ("experiment", "Free-scan experiment: limit hits vs subscriptions, whole window"),
     ("social", "TikTok: followers, likes and the latest videos"),
     ("finds", "Best finds this week: the most valuable scans"),
     ("post", "Three TikTok post ideas from what people scanned; add a topic"),
@@ -1418,6 +1431,8 @@ async def handle_command_with_buttons(text: str) -> tuple[str, Buttons] | None:
         return await _users_text(), await _buttons()
     if command == "/costs":
         return await _costs_text(), await _buttons()
+    if command == "/experiment":
+        return await _experiment_text(), await _buttons()
     if command == "/social":
         return await _social_text(), await _buttons()
     if command == "/finds":
@@ -2551,6 +2566,134 @@ async def _trend_text(term: str) -> str:
         lines.append(f"Average estimate among the day's best finds: ${sum(estimates) / len(estimates):,.0f} "
                      f"({len(estimates)} items)")
     return "\n".join(lines)
+
+
+# ── The free-scan experiment ─────────────────────────────────────────────────
+
+def _parse_day(day: str) -> datetime | None:
+    try:
+        return datetime.strptime(day, "%Y%m%d").replace(tzinfo=timezone.utc)
+    except ValueError:
+        return None
+
+
+def _day_span(start: datetime, end: datetime) -> list[str]:
+    """Every day from start to end inclusive, oldest first."""
+    out, cur = [], start
+    while cur <= end:
+        out.append(_day(cur))
+        cur += timedelta(days=1)
+    return out
+
+
+async def _experiment_text(now: datetime | None = None) -> str:
+    """The experiment's server-side half, whole window at once.
+
+    The digest reports one day at a time, which answers "what happened
+    yesterday" and not "is this working" — for that the operator would have to
+    scroll back through a fortnight of messages and add them up by hand. This is
+    the running total, and since issue #125 was closed it is the only automated
+    read of the experiment: the client's half is a dashboard someone has to
+    remember to open.
+
+    Deliberately not a conversion claim. `new_subs` beside `limit_hits` is a
+    coincidence within a window, not an attribution — nothing here knows whether
+    the person who subscribed is the one who hit the limit. TelemetryDeck holds
+    the per-user path. These are the totals, and the value of two instruments is
+    that they can disagree.
+    """
+    now = now or datetime.now(timezone.utc)
+    start, end = _parse_day(EXPERIMENT_START_DAY), _parse_day(EXPERIMENT_END_DAY)
+    if start is None or end is None or end < start:
+        return ("\U0001F9EA <b>Free-scan experiment</b>\n"
+                "Window misconfigured — EXPERIMENT_START_DAY and "
+                "EXPERIMENT_END_DAY must both be YYYYMMDD, end on or after start.")
+
+    today = _day(now)
+    if today < EXPERIMENT_START_DAY:
+        off = (start.date() - now.date()).days
+        return (f"\U0001F9EA <b>Free-scan experiment</b>\nWindow opens "
+                f"{start:%d %b} — {off} day{'s' if off != 1 else ''} from now. "
+                "Nothing counted yet.")
+
+    span = _day_span(start, end)
+    shown = [d for d in span if d <= today]
+    # A day's counters carry STATS_TTL from their last write, so a window read
+    # long after it closed reports zeros that are really absences. Say which.
+    ttl_days = STATS_TTL // 86400
+
+    # Literal spaces between the columns, not just field widths: a number wider
+    # than its column would otherwise run into its neighbour and the row would
+    # be unreadable without anything reporting a problem.
+    rows = [f"<code>{'day':<6}{'act':>6} {'free':>5} {'hit':>5} {'sub':>5}</code>"]
+    hits = subs = free_scans = expired = 0
+    partial = False
+    for d in shown:
+        dt = _parse_day(d)
+        label = f"{d[4:6]}-{d[6:]}"
+        if dt is not None and (now - dt).days >= ttl_days:
+            expired += 1
+            rows.append(
+                f"<code>{label:<6}{'—':>6} {'—':>5} {'—':>5} {'—':>5}</code>")
+            continue
+        act = await _read_stat(d, "active_users")
+        fr = await _read_stat(d, "scans_free")
+        hi = await _read_stat(d, "limit_hits")
+        sb = await _read_stat(d, "new_subs")
+        hits += hi
+        subs += sb
+        free_scans += fr
+        mark = ""
+        if d == EXPERIMENT_PARTIAL_DAY:
+            partial, mark = True, " *"
+        rows.append(
+            f"<code>{label:<6}{act:>6} {fr:>5} {hi:>5} {sb:>5}</code>{mark}")
+
+    closed = today > EXPERIMENT_END_DAY
+    left = max(0, (end.date() - now.date()).days)
+    head = ("\U0001F9EA <b>Free-scan experiment</b> — "
+            + (f"closed after {len(span)} days" if closed
+               else f"day {len(shown)} of {len(span)}"))
+    armed = os.environ.get("FREE_SCANS_FIRST_DAY", "")
+    lever = (f"FREE_SCANS_FIRST_DAY={html.escape(armed)}" if armed
+             else "<b>lever not armed</b> — FREE_SCANS_FIRST_DAY is unset")
+    window = (f"{start:%d %b} → {end:%d %b}"
+              + ("" if closed else f" · {left} day{'s' if left != 1 else ''} left")
+              + f" · {lever}")
+
+    # Every total is over the days that could actually be read. Saying "no limit
+    # hits" about a day whose counters have expired would be a claim the data
+    # cannot support — and the footnote contradicting the headline is worse than
+    # either alone.
+    readable = len(shown) - expired
+    scope = (f" across {readable} readable day{'s' if readable != 1 else ''}"
+             if expired else "")
+    if hits:
+        total = (f"<b>{hits} limit hit{'s' if hits != 1 else ''} · {subs} "
+                 f"new subscription{'s' if subs != 1 else ''} "
+                 f"({100.0 * subs / hits:.0f}%)</b>{scope}")
+    elif not readable:
+        total = ("<b>Nothing readable</b> — every day in the window is past the "
+                 f"{ttl_days}-day counter TTL.")
+    elif free_scans:
+        total = (f"<b>No limit hits</b>{scope} — {free_scans} free scan"
+                 f"{'s' if free_scans != 1 else ''}, none of which spent the "
+                 "day's allowance.")
+    else:
+        total = f"<b>No limit hits</b>{scope} — and no free scans recorded yet."
+
+    notes = []
+    if partial:
+        notes.append("* limit hits counted from 18:29 UTC that day only — the "
+                     "counter shipped mid-day. Every other column is a whole day.")
+    if hits:
+        notes.append("% is subscriptions ÷ limit hits across the window — "
+                     "coincidence, not attribution.")
+    if expired:
+        notes.append(f"— {expired} day{'s' if expired != 1 else ''} older than the "
+                     f"{ttl_days}-day counter TTL: those figures are gone, not zero.")
+
+    return "\n".join([head, window, *rows, total, *notes])
 
 
 # ── One device, for a support email ──────────────────────────────────────────

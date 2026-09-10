@@ -54,7 +54,8 @@ actually arrives:
 | Current state | `/status` | Build, cache backend, auth enforcement, last deploy ping, today's counters |
 | What it costs | `/costs` | Gemini spend by window, `$/scan`, free-tier giveaway, and the operator's own bot usage listed separately |
 | Subscribers | `/subs` | Active, paid, comped, and MRR |
-| Yesterday | The daily digest | Sent automatically at `DIGEST_HOUR_UTC`; a weekly report on Mondays |
+| Is the free-scan experiment working | `/experiment` | The whole window at once: limit hits against new subscriptions, day by day, with a running total |
+| Yesterday | The daily digest | Sent automatically at `TELEGRAM_DIGEST_UTC_HOUR` (default 06:00 UTC); a weekly report on Mondays |
 
 Unprompted alerts arrive the same way: a new subscription, a deploy ping per
 commit, a quiet-hours note when nothing has scanned during US daytime, a
