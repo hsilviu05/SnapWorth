@@ -650,7 +650,7 @@ class TestPolling:
             await drain()
             (menu,) = bot.command_menus
             assert [c["command"] for c in menu] == [
-                "status", "subs", "users", "costs", "social", "finds", "post", "calendar",
+                "status", "subs", "users", "costs", "experiment", "social", "finds", "post", "calendar",
                 "caption", "hooks", "reply", "price", "trend", "user", "checkup", "clear",
                 "history", "feed", "digest", "week", "help"]
         finally:
@@ -2302,3 +2302,146 @@ class TestHistorySnippet:
         assert out.count("\n") == notify.HISTORY_SNIPPET_LINES - 1
         assert out.endswith("…") and "Build abc" not in out
         assert notify._snippet("<i>one line</i>") == "one line"
+
+
+class TestExperimentCommand:
+    """`/experiment` — the free-scan experiment's server-side half.
+
+    The digest answers "what happened yesterday". This answers "is it working",
+    which needs the whole window at once. The tests that matter here are the
+    ones about honesty rather than arithmetic: a counter that has expired must
+    not read as a zero, a day that was only half-counted must say so, and a
+    lever someone quietly unset must be visible — because each of those failures
+    produces a confident number that is wrong, which is worse than no number.
+    """
+
+    START, END = "20260910", "20260924"
+
+    def _window(self, monkeypatch, partial: str = "20260910") -> None:
+        monkeypatch.setattr(notify, "EXPERIMENT_START_DAY", self.START)
+        monkeypatch.setattr(notify, "EXPERIMENT_END_DAY", self.END)
+        monkeypatch.setattr(notify, "EXPERIMENT_PARTIAL_DAY", partial)
+        monkeypatch.setenv("FREE_SCANS_FIRST_DAY", "3")
+
+    async def _seed(self, cache, day: str, *, act=0, free=0, hits=0, subs=0) -> None:
+        for name, value in (("active_users", act), ("scans_free", free),
+                            ("limit_hits", hits), ("new_subs", subs)):
+            if value:
+                await cache.set(notify._stat_key(day, name), str(value))
+
+    @pytest.mark.asyncio
+    async def test_totals_the_whole_window_not_just_one_day(
+            self, enabled_notify, cache, monkeypatch):
+        self._window(monkeypatch)
+        await self._seed(cache, "20260910", act=6, free=4, hits=1)
+        await self._seed(cache, "20260911", act=8, free=7, hits=3)
+        await self._seed(cache, "20260912", act=9, free=8, hits=2, subs=1)
+        text = await notify._experiment_text(
+            datetime(2026, 9, 12, 20, 0, tzinfo=timezone.utc))
+        assert "day 3 of 15" in text
+        assert "6 limit hits · 1 new subscription (17%)" in text
+        assert "12 days left" in text
+
+    @pytest.mark.asyncio
+    async def test_the_half_counted_first_day_is_marked(
+            self, enabled_notify, cache, monkeypatch):
+        """The counter shipped at 18:29 UTC, so that row is ~5.5 hours of a day
+        sitting in a column of whole ones. Averaging it in silently is how a
+        real effect gets read as a weak one."""
+        self._window(monkeypatch)
+        await self._seed(cache, "20260910", act=6, free=4, hits=1)
+        text = await notify._experiment_text(
+            datetime(2026, 9, 10, 20, 0, tzinfo=timezone.utc))
+        assert "09-10" in text
+        assert "*" in text
+        assert "18:29 UTC" in text
+
+    @pytest.mark.asyncio
+    async def test_a_day_past_the_counter_ttl_reads_as_gone_not_as_zero(
+            self, enabled_notify, cache, monkeypatch):
+        """The counters carry a 35-day TTL. Read the window a month later and
+        every expired day returns 0 — so the command would report a confident
+        "no limit hits" about days whose evidence no longer exists."""
+        self._window(monkeypatch)
+        await self._seed(cache, "20260910", act=6, free=4, hits=5)
+        text = await notify._experiment_text(
+            datetime(2026, 10, 25, 8, 0, tzinfo=timezone.utc))
+        assert "—" in text
+        assert "gone, not zero" in text
+        assert "readable day" in text
+        # The expired hits must not be counted as though they were zero.
+        assert "5 limit hits" not in text
+
+    @pytest.mark.asyncio
+    async def test_every_day_expired_says_nothing_readable(
+            self, enabled_notify, cache, monkeypatch):
+        self._window(monkeypatch)
+        text = await notify._experiment_text(
+            datetime(2026, 11, 30, 8, 0, tzinfo=timezone.utc))
+        assert "Nothing readable" in text
+        assert "No limit hits" not in text
+
+    @pytest.mark.asyncio
+    async def test_before_the_window_opens_it_counts_nothing(
+            self, enabled_notify, cache, monkeypatch):
+        self._window(monkeypatch)
+        await self._seed(cache, "20260910", hits=99)
+        text = await notify._experiment_text(
+            datetime(2026, 9, 8, 9, 0, tzinfo=timezone.utc))
+        assert "Window opens 10 Sep" in text
+        assert "2 days from now" in text
+        assert "99" not in text
+
+    @pytest.mark.asyncio
+    async def test_after_it_closes_the_table_stops_at_the_end_date(
+            self, enabled_notify, cache, monkeypatch):
+        """Read in October, the window is still 15 rows — not every day since."""
+        self._window(monkeypatch)
+        text = await notify._experiment_text(
+            datetime(2026, 9, 30, 8, 0, tzinfo=timezone.utc))
+        assert "closed after 15 days" in text
+        assert "09-24" in text
+        assert "09-25" not in text
+        assert "days left" not in text
+
+    @pytest.mark.asyncio
+    async def test_an_unarmed_lever_is_visible(
+            self, enabled_notify, cache, monkeypatch):
+        """Someone unsetting the variable mid-window ends the experiment without
+        ending the report. The table would keep printing zeros that look like a
+        finding rather than an absence."""
+        self._window(monkeypatch)
+        monkeypatch.delenv("FREE_SCANS_FIRST_DAY", raising=False)
+        text = await notify._experiment_text(
+            datetime(2026, 9, 12, 8, 0, tzinfo=timezone.utc))
+        assert "lever not armed" in text
+
+    @pytest.mark.asyncio
+    async def test_no_limit_hits_does_not_divide_by_zero(
+            self, enabled_notify, cache, monkeypatch):
+        self._window(monkeypatch)
+        await self._seed(cache, "20260911", act=4, free=3)
+        text = await notify._experiment_text(
+            datetime(2026, 9, 11, 8, 0, tzinfo=timezone.utc))
+        assert "No limit hits" in text
+        assert "%" not in text
+
+    @pytest.mark.asyncio
+    async def test_a_misconfigured_window_explains_itself(
+            self, enabled_notify, monkeypatch):
+        monkeypatch.setattr(notify, "EXPERIMENT_START_DAY", "not-a-day")
+        monkeypatch.setattr(notify, "EXPERIMENT_END_DAY", self.END)
+        text = await notify._experiment_text(
+            datetime(2026, 9, 12, 8, 0, tzinfo=timezone.utc))
+        assert "misconfigured" in text
+
+        monkeypatch.setattr(notify, "EXPERIMENT_START_DAY", self.END)
+        monkeypatch.setattr(notify, "EXPERIMENT_END_DAY", self.START)
+        assert "misconfigured" in await notify._experiment_text(
+            datetime(2026, 9, 12, 8, 0, tzinfo=timezone.utc))
+
+    @pytest.mark.asyncio
+    async def test_the_command_is_reachable_and_listed(self, enabled_notify, monkeypatch):
+        self._window(monkeypatch)
+        assert (await notify.handle_command("/experiment")).startswith("🧪")
+        assert "/experiment" in await notify.handle_command("/help")
