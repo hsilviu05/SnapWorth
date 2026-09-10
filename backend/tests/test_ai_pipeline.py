@@ -434,6 +434,7 @@ import io as _io  # noqa: E402
 import json as _json  # noqa: E402
 from unittest.mock import AsyncMock, MagicMock, patch  # noqa: E402
 
+import auth  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
 
 from main import ScanResponse, app, _rate_store, _ip_rate_store  # noqa: E402
@@ -464,17 +465,50 @@ V2_PAYLOAD = {
 }
 
 
-def _scan_with(payload: dict):
+def _pro_headers(subject: str) -> dict:
+    """Auth header for a subject the entitlement cache reports as Pro.
+
+    `require_auth` re-reads the tier from the cache rather than trusting the
+    token claim, so the cache has to be seeded — a `tier="pro"` token alone is
+    not enough. Mirrors `tests/test_main.py::_pro_headers`.
+    """
+    import asyncio as _asyncio
+    import time as _time
+
+    from entitlements import Entitlement
+
+    ent = Entitlement(
+        tier="pro",
+        product_id="com.snapworth.yearly",
+        expires_at=int(_time.time()) + 86_400,
+        original_transaction_id=f"txn-{subject}",
+        environment="Production",
+    )
+    _asyncio.run(auth.deps.cache.set(f"ent:{subject}", ent.to_json(), 3600))
+    assert auth.deps.signer is not None
+    token, _ = auth.deps.signer.mint(subject, tier="pro")
+    return {"Authorization": f"Bearer {token}"}
+
+
+def _scan_with(payload: dict, *, pro: bool = False):
+    """Post a scan. `pro=True` for the tier that receives the full v2 detail.
+
+    The default is deliberately free, because that is the tier most of these
+    assertions are about and the one the Pro-detail gate acts on.
+    """
     _rate_store.clear()
     _ip_rate_store.clear()
     mock = MagicMock()
     mock.text = _json.dumps(payload)
+    headers = {"x-device-id": "v2-contract"}
+    if pro:
+        headers |= _pro_headers("v2-contract-pro")
     with patch("main._model") as m:
         m.generate_content_async = AsyncMock(return_value=mock)
         return _client.post(
             "/scan",
             files={"file": ("s.jpg", _io.BytesIO(_img("JPEG")), "image/jpeg")},
-            headers={"x-device-id": "v2-contract"},
+            headers=headers,
         )
 
 
@@ -539,7 +573,9 @@ class TestScanResponseContract:
         assert _scan_with(V2_PAYLOAD).json()["confidence"] in {"High", "Medium", "Low"}
 
     def test_v2_fields_are_populated(self):
-        body = _scan_with(V2_PAYLOAD).json()
+        # Pro: the v2 valuation detail is Pro-only on the wire now, not just
+        # blurred in the client. See TestProDetailGate below.
+        body = _scan_with(V2_PAYLOAD, pro=True).json()
         assert body["expected_price_usd"] == 58
         assert body["model_name"] == "Better Sweater 1/4-Zip"
         assert body["confidence_score"] > 0
@@ -558,7 +594,7 @@ class TestScanResponseContract:
             "condition_notes": "Good", "est_value_low_usd": 28,
             "est_value_high_usd": 55, "confidence": "High",
             "listing_title": "T", "listing_description": "D",
-        }).json()
+        }, pro=True).json()
         for field_name in self.V1_REQUIRED:
             assert body[field_name] is not None
         # Four price points are derived from the legacy range.
@@ -567,7 +603,7 @@ class TestScanResponseContract:
         assert body["expected_price_usd"] is not None
 
     def test_prices_are_ordered_in_the_response(self):
-        body = _scan_with(V2_PAYLOAD).json()
+        body = _scan_with(V2_PAYLOAD, pro=True).json()
         assert (body["worst_case_price_usd"] <= body["quick_sale_price_usd"]
                 <= body["expected_price_usd"] <= body["best_case_price_usd"])
 
@@ -575,7 +611,7 @@ class TestScanResponseContract:
         payload = dict(V2_PAYLOAD, worst_case_price_usd=200,
                        quick_sale_price_usd=10, expected_price_usd=150,
                        best_case_price_usd=20)
-        body = _scan_with(payload).json()
+        body = _scan_with(payload, pro=True).json()
         assert body["worst_case_price_usd"] <= body["best_case_price_usd"]
 
     def test_low_quality_signals_yield_low_confidence_band(self):
@@ -852,3 +888,54 @@ class TestImagePartConversion:
         converted = [aiconfig._as_part(c) for c in contents]
         assert converted[0] == "prompt text"
         assert type(converted[1]).__name__ == "Part"
+
+
+class TestProDetailGate:
+    """The "Why this price" payload is Pro-only. Until now the gate was a
+    `.blur()` in ResultView over data that had already left the server."""
+
+    def test_free_does_not_receive_the_price_ladder(self):
+        body = _scan_with(V2_PAYLOAD).json()
+        for field in ("quick_sale_price_usd", "expected_price_usd",
+                      "best_case_price_usd", "worst_case_price_usd"):
+            assert body[field] is None, f"{field} leaked to a free scan"
+
+    def test_free_does_not_receive_the_explainability_payload(self):
+        body = _scan_with(V2_PAYLOAD).json()
+        for field in ("value_drivers", "assumptions", "uncertainty_factors",
+                      "improve_estimate", "visual_evidence", "confidence_reasons"):
+            assert body[field] == [], f"{field} leaked to a free scan"
+        for field in ("authenticity_assessment", "authenticity_reasoning",
+                      "demand", "supply", "model_name", "variant",
+                      "size", "material", "era", "condition_grade"):
+            assert body[field] is None, f"{field} leaked to a free scan"
+
+    def test_pro_receives_all_of_it(self):
+        body = _scan_with(V2_PAYLOAD, pro=True).json()
+        assert body["expected_price_usd"] == 58
+        assert body["model_name"] == "Better Sweater 1/4-Zip"
+        assert body["value_drivers"]
+        assert body["authenticity_assessment"] == "no_concerns"
+
+    def test_the_teaser_fields_survive_for_free_users(self):
+        """The one that stops this being a regression.
+
+        `ResultView.whyThisPriceCard` renders `if let detail =
+        result.valuationDetail`, and `ValuationDetail.init?` returns nil when
+        every field is empty. Strip the lot and the card disappears from the
+        free tier — taking the locked teaser and the "Unlock why this price"
+        button with it. That is a paywall trigger deleted on every installed
+        client, which no app update could reach.
+
+        `confidence_score` and `confidence_summary` are what the teaser blurs,
+        so they stay.
+        """
+        body = _scan_with(V2_PAYLOAD).json()
+        assert body["confidence_score"] > 0
+        assert body["confidence_summary"]
+
+    def test_the_v1_contract_is_untouched_for_free_users(self):
+        """Whatever else changes, an installed client must still decode."""
+        body = _scan_with(V2_PAYLOAD).json()
+        for field in TestScanResponseContract.V1_REQUIRED:
+            assert body[field] is not None, f"{field} missing from a free scan"

@@ -1254,6 +1254,11 @@ async def scan(
                  extra={"device": device_short})
         return response
 
+    # The panel this feeds is Pro-only; until now only the client's blur said
+    # so. See `_strip_pro_detail` for what deliberately survives.
+    if not principal.is_pro:
+        response = _strip_pro_detail(response)
+
     record_quota_consumed(principal)
     notify.scan_completed(
         tier=principal.tier, item_name=response.item_name, brand=response.brand,
@@ -1459,6 +1464,51 @@ async def _analyse(image_bytes: bytes, content_type: str, *, subject: str,
         prompt_version=prompt_version,
     )
     return response, elapsed
+
+
+# ── Pro-gated valuation detail ───────────────────────────────────────────────
+#
+# The "Why this price" panel is Pro-only, but the whole payload behind it was
+# built into every /scan response with no tier check anywhere in `_analyse` —
+# the gate was a `.blur()` in `ResultView` over data that had already left the
+# server. Anyone reading the raw response on a free account had the Pro content
+# in full, with no client change needed to see it.
+#
+# What is NOT stripped, and why it matters more than it looks:
+# `ResultView.whyThisPriceCard` renders `if let detail = result.valuationDetail`,
+# and `ValuationDetail.init?` returns nil when every field is empty. Strip the
+# lot and the card vanishes from the free tier — taking the locked teaser and
+# the "Unlock why this price" button with it. That is one of twelve paywall
+# triggers, deleted on every installed client, and no app update could reach
+# the ones already out there.
+#
+# So `confidence_score` and `confidence_summary` stay. They are what the teaser
+# blurs, they keep the card (and the paywall) alive, and they are the least of
+# what a subscriber is paying for. Everything the panel actually sells — the
+# four-point price ladder, the drivers, the assumptions, the authenticity
+# read — is withheld.
+#
+# Note this saves no tokens. The model still generates all of it; only the
+# serialised response is trimmed. Charging free scans less would mean a second
+# prompt, which forks the thing the whole valuation rests on.
+_PRO_ONLY_DETAIL_FIELDS = (
+    "confidence_reasons",
+    "quick_sale_price_usd", "expected_price_usd",
+    "best_case_price_usd", "worst_case_price_usd",
+    "model_name", "variant", "size", "material", "era", "condition_grade",
+    "demand", "supply",
+    "authenticity_assessment", "authenticity_reasoning",
+    "visual_evidence", "assumptions", "uncertainty_factors",
+    "improve_estimate", "value_drivers",
+)
+
+
+def _strip_pro_detail(response: "ScanResponse") -> "ScanResponse":
+    """Blank the Pro-only valuation fields on a free user's response."""
+    for field in _PRO_ONLY_DETAIL_FIELDS:
+        current = getattr(response, field, None)
+        setattr(response, field, [] if isinstance(current, list) else None)
+    return response
 
 
 _RETRY_ATTEMPTS = int(os.environ.get("GEMINI_RETRY_ATTEMPTS", "2"))

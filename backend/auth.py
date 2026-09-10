@@ -472,6 +472,11 @@ async def reserve_quota(principal: Principal) -> QuotaStatus | None:
         return await deps.quota.reserve(principal.subject, principal.is_pro)
     except QuotaExceeded as exc:
         auditlog.record(AuditEvent.QUOTA_EXCEEDED, principal.subject, outcome="denied")
+        # Countable, not just audited. The audit log is per-event and nothing
+        # aggregates it, so the server half of the free-scan funnel did not
+        # exist — the FREE_SCANS_FIRST_DAY experiment was being measured by
+        # the client alone, with no way to cross-check it.
+        notify.count_limit_hit()
         # Mark the physical device as having spent its allowance. Without this
         # the reinstall defence in `ScanQuota.starting_balance` reads a bit that
         # nothing ever sets, so delete-and-reinstall mints a fresh allowance
