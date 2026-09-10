@@ -2427,6 +2427,38 @@ class TestExperimentCommand:
         assert "%" not in text
 
     @pytest.mark.asyncio
+    async def test_the_partial_day_does_not_claim_the_allowance_was_unspent(
+            self, enabled_notify, cache, monkeypatch):
+        """Shipped wrong the first time and caught in production.
+
+        "None of which spent the day's allowance" is an inference from
+        hits == 0, and it holds only if hits were counted over the same hours as
+        the scans. On the partial day they were not — the scans are a whole day,
+        the hits are the tail of one — so an allowance spent that morning would
+        have printed as nobody spending one, with the footnote directly below
+        contradicting it.
+        """
+        self._window(monkeypatch)
+        await self._seed(cache, "20260910", act=7, free=8)
+        text = await notify._experiment_text(
+            datetime(2026, 9, 10, 19, 30, tzinfo=timezone.utc))
+        assert "No limit hits recorded" in text
+        assert "spent the" not in text          # the claim itself is gone
+        assert "8 free scans in the window" in text
+
+    @pytest.mark.asyncio
+    async def test_a_whole_day_window_still_says_the_allowance_was_unspent(
+            self, enabled_notify, cache, monkeypatch):
+        """The inference is sound once no half-counted day is in view, and
+        dropping it everywhere would lose the more useful sentence."""
+        self._window(monkeypatch, partial="20250101")   # outside this window
+        await self._seed(cache, "20260910", act=7, free=8)
+        text = await notify._experiment_text(
+            datetime(2026, 9, 10, 19, 30, tzinfo=timezone.utc))
+        assert "none of which spent the day's allowance" in text
+        assert "*" not in text
+
+    @pytest.mark.asyncio
     async def test_a_misconfigured_window_explains_itself(
             self, enabled_notify, monkeypatch):
         monkeypatch.setattr(notify, "EXPERIMENT_START_DAY", "not-a-day")

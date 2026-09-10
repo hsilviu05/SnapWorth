@@ -2675,10 +2675,18 @@ async def _experiment_text(now: datetime | None = None) -> str:
     elif not readable:
         total = ("<b>Nothing readable</b> — every day in the window is past the "
                  f"{ttl_days}-day counter TTL.")
-    elif free_scans:
+    elif free_scans and not partial:
         total = (f"<b>No limit hits</b>{scope} — {free_scans} free scan"
                  f"{'s' if free_scans != 1 else ''}, none of which spent the "
                  "day's allowance.")
+    elif free_scans:
+        # "None spent the allowance" is an inference from hits == 0, and it only
+        # holds if hits were counted over the same hours as the scans. On the
+        # partial day they were not: the scans are a whole day and the hits are
+        # the tail of one, so an allowance spent that morning would print as
+        # nobody spending one. Report the count and let the mark carry the rest.
+        total = (f"<b>No limit hits recorded</b>{scope} — {free_scans} free scan"
+                 f"{'s' if free_scans != 1 else ''} in the window.")
     else:
         total = f"<b>No limit hits</b>{scope} — and no free scans recorded yet."
 
