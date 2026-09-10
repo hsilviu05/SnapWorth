@@ -1271,6 +1271,14 @@ a:focus-visible, button:focus-visible {
 .swing-tag-sub { display: block; font-size: 9.5px; font-weight: 600; line-height: 1.25;
   letter-spacing: .3px; text-transform: uppercase; color: var(--warm-gray); }
 
+/* The line under the ticker that opens the guessing game. */
+.tg-line { text-align: center; padding: 20px 0 4px; font-size: 15px;
+  color: rgba(250,247,244,.62); }
+.tg-line a { color: #FAF7F4; font-weight: 600; text-decoration: none;
+  border-bottom: 1px solid rgba(250,247,244,.35); padding-bottom: 2px;
+  white-space: nowrap; }
+.tg-line a:hover { border-bottom-color: #FAF7F4; }
+
 /* The ledger ticker. */
 .ticker { border-top: 1px solid rgba(255,255,255,.09); padding: 17px 0;
   overflow: hidden; position: relative;
@@ -1697,6 +1705,17 @@ details[open] .faq-x::after { transform: rotate(90deg); }
         </div>
       </div>
     </nav>
+
+    <!-- The game, from the row of prices directly above it. Someone reading
+         sixteen resale ranges has already been invited to have an opinion
+         about them; this is the next sentence, not a banner. Kept inside the
+         same section deliberately — a separate band would read as an ad. -->
+    <div class="hd-wrap">
+      <p class="tg-line">
+        Think you could have guessed those?
+        <a href="/guess">Take ten rounds &rarr;</a>
+      </p>
+    </div>
   </section>
 
 

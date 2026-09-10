@@ -235,6 +235,8 @@ h1{font-family:'Fraunces',serif;font-weight:600;font-size:40px;line-height:1.1;l
 h2{font-family:'Fraunces',serif;font-weight:600;font-size:26px;color:var(--dark);margin:36px 0 12px;}
 p{margin-bottom:16px;}
 .lede{font-size:19px;color:var(--dark);}
+.hub-game{margin-top:10px;font-size:15px;color:var(--warm-gray);}
+.hub-game a{color:var(--terra-text);font-weight:600;}
 .range{display:inline-block;background:var(--sage-dim);color:var(--sage-text);font-weight:700;font-family:'Fraunces',serif;font-size:22px;padding:6px 16px;border-radius:12px;margin:6px 0 8px;}
 table{width:100%;border-collapse:collapse;margin:8px 0 4px;}
 th,td{text-align:left;padding:12px 14px;border-bottom:1px solid var(--border);}
@@ -452,6 +454,7 @@ def hub_html():
 <nav class="crumbs" aria-label="Breadcrumb"><a href="/">Home</a> › Resale Values</nav>
 <h1>What are your thrift finds worth?</h1>
 <p class="lede">Typical secondhand resale values for popular items, plus what drives the price and where to sell. Want a range for your own item and its condition? Snap a photo with SnapWorth.</p>
+<p class="hub-game">Or find out how good your eye already is &mdash; <a href="/guess">guess the price on ten of these</a>.</p>
 {blocks}
 {cta('thrift find')}
 </div></main>
