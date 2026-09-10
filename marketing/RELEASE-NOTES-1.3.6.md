@@ -1,6 +1,6 @@
 # What's New — SnapWorth 1.3.6
 
-**Version:** 1.3.6 (build 13) · **Previous release:** 1.3.5 (build 12) · **Status:** ready to archive
+**Version:** 1.3.6 (build 13) · **Previous release:** 1.3.5 (build 12) · **Status:** **approved and live, 2026-09-10**
 
 ## Scope
 
@@ -274,17 +274,32 @@ The release is broad, so the pass is broader than 1.3.5's.
   decision rule and unexercised on that hardware. Worth knowing rather than
   pretending otherwise.
 
-## Pre-submit checklist
+## Pre-submit checklist — done
 
-- [ ] **1.3.5 is approved and live** — Apple processes one version at a time.
-- [ ] Xcode: confirm **1.3.6 (13)** in the target's General tab.
-- [ ] Scheme is plain **SnapWorth**, not *SnapWorth (Mock scans)*.
-- [ ] Run the test target once (`⌘U`).
-- [ ] The device pass above.
-- [ ] Paste the What's New; subtitle, keywords and screenshots unchanged from 1.3.5.
-- [ ] After approval: the `FREE_SCANS_FIRST_DAY` funnel becomes readable for the
-      first time — I-23 is what stops quota refusals being filed as failures.
-      Read it ~21 September as planned, but note the first days of data predate
-      this fix.
-- [ ] The 41 non-iOS audit findings are still open. They are not gated on this
-      release.
+- [x] **1.3.5 approved and live** — was live 2026-09-06.
+- [x] Xcode: **1.3.6 (13)**, verified in `project.pbxproj` (all four entries).
+- [x] Scheme plain **SnapWorth**.
+- [x] Test target — CI ran it: 312 tests, 0 failures, Xcode 26.3 on iOS 26.2.
+- [x] What's New pasted; subtitle, keywords and screenshots unchanged from 1.3.5.
+- [x] **Approved 2026-09-10.**
+- [x] The 41 non-iOS findings shipped separately on 2026-09-09 (PR #119) and
+      are live on the backend, bot and website.
+
+## After approval — open
+
+- [ ] **Read the `FREE_SCANS_FIRST_DAY` funnel from 2026-09-10 to 09-24.** The
+      clean window opens now, not on 09-07 when the flag was armed: until I-23
+      shipped, a spent allowance was filed as `scan_failed{reason:no_result}`,
+      so 09-07 to 09-09 undercounts limit hits and overcounts failures by the
+      same events. Approval is not installation, so the first days are a blend
+      that shifts clean as people update — weight the back half if it is close.
+- [ ] **Correct the App Store description.** It still lists "Full scan history"
+      as a Pro benefit. History is not gated — `HistoryView` has no `isPro`
+      check — and the app's own paywall (I-26) and the website's pricing cards
+      both dropped the claim on 09-09. The description is the last place it
+      survives. It needs no build, so it can be edited in App Store Connect
+      whenever.
+- [ ] **I-1 and I-8 remain unexercised on hardware.** A backup restored onto a
+      second iPhone, and an 8MP iPad. Both ship covered by unit tests on the
+      decision rule and by nothing else. Not a blocker; worth knowing if a
+      report ever comes in from either.
