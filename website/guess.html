@@ -1,0 +1,319 @@
+<!doctype html><html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="apple-itunes-app" content="app-id=6788521307">
+<title>Guess the Resale Price — How Good Is Your Thrift Eye?</title>
+<meta name="description" content="Ten rounds. Guess what each secondhand item is really worth. Most people overrate anything that looks old and underrate plain workwear — find out if you do.">
+<link rel="canonical" href="https://www.snapworth.eu/guess">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Guess the Resale Price — how good is your thrift eye?">
+<meta property="og:description" content="Ten rounds of secondhand items. Guess what each one is worth. Most people are confidently wrong in the same direction.">
+<meta property="og:url" content="https://www.snapworth.eu/guess">
+<meta property="og:image" content="https://www.snapworth.eu/og-image.png">
+<meta property="og:image:width" content="1200"><meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Guess the Resale Price — how good is your thrift eye?">
+<meta name="twitter:description" content="Ten rounds of secondhand items. Guess what each one is worth. Most people are confidently wrong in the same direction.">
+<meta name="twitter:image" content="https://www.snapworth.eu/og-image.png">
+<link rel="icon" href="/favicon-32.png" sizes="32x32">
+<link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+<style>
+@font-face{font-family:'Fraunces';font-style:normal;font-weight:100 900;font-display:swap;src:url('/fonts/fraunces-latin.woff2') format('woff2');}
+@font-face{font-family:'Fraunces';font-style:italic;font-weight:100 900;font-display:swap;src:url('/fonts/fraunces-italic-latin.woff2') format('woff2');}
+@font-face{font-family:'DM Sans';font-style:normal;font-weight:100 900;font-display:swap;src:url('/fonts/dmsans-latin.woff2') format('woff2');}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+:root{--bg:#FAF7F4;--card:#F3EDE8;--dark:#1C1410;--terracotta:#D96C47;--terra-text:#A94E29;--sage-text:#4F7355;--sage-dim:rgba(122,158,126,0.12);--warm-gray:#6E625B;--border:#E8DDD7;--white:#fff;--text-muted:#726860;}
+body{background:var(--bg);color:var(--dark);font-family:'DM Sans',sans-serif;font-size:17px;line-height:1.65;-webkit-font-smoothing:antialiased;}
+a{color:var(--terra-text);}
+/* ── Motion ─────────────────────────────────────────────────────────────────
+   CSS-only on these pages, deliberately. They are SEO content: the homepage
+   can justify an IntersectionObserver, but here an entrance animation that
+   depends on JavaScript would risk hiding article text from a reader (or a
+   crawler) if the script never runs. A pure keyframe with `both` fill always
+   resolves to the visible state, so the worst case is that the text simply
+   appears.
+   Everything is disabled under prefers-reduced-motion. */
+@media (prefers-reduced-motion: no-preference){
+  @keyframes riseIn{from{opacity:.001;transform:translate3d(0,14px,0)}to{opacity:1;transform:none}}
+  h1,.lede,.crumbs,table,h2,p,ul,.cta,.related{animation:riseIn .5s cubic-bezier(.22,.61,.36,1) both}
+  .crumbs{animation-delay:.02s} h1{animation-delay:.06s} .lede{animation-delay:.12s}
+  table{animation-delay:.18s}
+  .cta{animation-delay:.24s}
+  a,.cta a{transition:transform .18s cubic-bezier(.22,.61,.36,1),opacity .18s ease}
+  .cta a:hover{transform:translateY(-2px)}
+  .related a:hover{transform:translateX(3px)}
+}
+@media (prefers-reduced-motion: reduce){
+  *,*::before,*::after{animation-duration:.001ms!important;transition-duration:.001ms!important}
+}
+a:focus-visible{outline:2px solid var(--terra-text);outline-offset:3px;border-radius:4px;}
+.wrap{max-width:760px;margin:0 auto;padding:0 20px;}
+header.site{border-bottom:1px solid var(--border);background:var(--bg);}
+header.site .wrap{display:flex;align-items:center;justify-content:space-between;height:64px;}
+.logo{font-family:'Fraunces',serif;font-weight:700;font-size:22px;color:var(--dark);text-decoration:none;}
+.nav-cta{background:var(--terra-text);color:#fff;text-decoration:none;font-weight:600;font-size:14px;padding:9px 18px;border-radius:10px;}
+main{padding:48px 0 24px;}
+.crumbs{font-size:14px;color:var(--warm-gray);margin-bottom:20px;}
+.crumbs a{color:var(--warm-gray);}
+h1{font-family:'Fraunces',serif;font-weight:600;font-size:40px;line-height:1.1;letter-spacing:-1px;color:var(--dark);margin-bottom:12px;}
+h2{font-family:'Fraunces',serif;font-weight:600;font-size:26px;color:var(--dark);margin:36px 0 12px;}
+p{margin-bottom:16px;}
+.lede{font-size:19px;color:var(--dark);}
+.range{display:inline-block;background:var(--sage-dim);color:var(--sage-text);font-weight:700;font-family:'Fraunces',serif;font-size:22px;padding:6px 16px;border-radius:12px;margin:6px 0 8px;}
+table{width:100%;border-collapse:collapse;margin:8px 0 4px;}
+th,td{text-align:left;padding:12px 14px;border-bottom:1px solid var(--border);}
+th{font-size:13px;text-transform:uppercase;letter-spacing:.5px;color:var(--warm-gray);}
+td.val{font-weight:700;color:var(--sage-text);text-align:right;}
+ul{margin:0 0 16px 20px;}li{margin-bottom:6px;}
+.cta{background:var(--dark);border-radius:20px;padding:28px;margin:36px 0;text-align:center;}
+.cta h3{font-family:'Fraunces',serif;color:#fff;font-size:24px;font-weight:600;margin-bottom:8px;}
+.cta p{color:#C0B6AB;margin-bottom:18px;}
+.cta a{display:inline-block;background:var(--terra-text);color:#fff;text-decoration:none;font-weight:700;padding:13px 26px;border-radius:12px;}
+.related{background:var(--card);border-radius:16px;padding:22px 24px;margin:28px 0;}
+.related h2{font-size:20px;margin:0 0 10px;}
+.related a{display:block;padding:6px 0;}
+details{border-bottom:1px solid var(--border);padding:14px 0;}
+summary{font-weight:600;cursor:pointer;color:var(--dark);}
+details p{margin:10px 0 0;color:var(--text-muted);}
+footer.site{border-top:1px solid var(--border);margin-top:40px;padding:28px 0;font-size:14px;color:var(--warm-gray);}
+footer.site a{color:var(--warm-gray);margin-right:16px;}
+.disclaimer{font-size:13px;color:var(--warm-gray);margin-top:24px;}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:20px 0;}
+.grid a{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:16px 18px;text-decoration:none;color:var(--dark);font-weight:600;}
+.grid a span{display:block;font-size:13px;color:var(--sage-text);font-weight:700;margin-top:4px;}
+@media(max-width:600px){h1{font-size:32px;}.grid{grid-template-columns:1fr;}}
+
+/* ── Game ──────────────────────────────────────────────────────────────── */
+.g-wrap{max-width:560px;margin:0 auto;padding:28px 20px 64px;}
+.g-head{text-align:center;margin-bottom:26px;}
+.g-head h1{font-family:'Fraunces',serif;font-weight:900;font-size:clamp(30px,7vw,44px);
+  line-height:1.05;letter-spacing:-1px;color:var(--dark);margin-bottom:10px;}
+.g-head p{color:var(--warm-gray);font-size:15px;line-height:1.55;}
+.g-bar{display:flex;align-items:center;gap:10px;margin-bottom:18px;}
+.g-track{flex:1;height:6px;background:var(--border);border-radius:99px;overflow:hidden;}
+.g-fill{height:100%;background:var(--terra-text);border-radius:99px;width:0;
+  transition:width .35s ease;}
+.g-count{font-size:12px;font-weight:700;color:var(--warm-gray);
+  letter-spacing:.4px;text-transform:uppercase;white-space:nowrap;}
+.g-card{background:var(--card);border:1px solid var(--border);border-radius:22px;
+  padding:26px 22px;}
+.g-cat{font-size:11px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;
+  color:var(--terra-text);margin-bottom:8px;}
+.g-item{font-family:'Fraunces',serif;font-weight:700;font-size:26px;line-height:1.2;
+  color:var(--dark);margin-bottom:6px;}
+.g-cond{font-size:14px;color:var(--warm-gray);margin-bottom:22px;}
+.g-cond b{color:var(--dark);font-weight:600;}
+.g-label{display:block;font-size:13px;font-weight:600;color:var(--warm-gray);
+  margin-bottom:8px;}
+.g-input{display:flex;align-items:center;gap:8px;background:var(--white);
+  border:2px solid var(--border);border-radius:14px;padding:0 14px;
+  transition:border-color .15s;}
+.g-input:focus-within{border-color:var(--terra-text);}
+.g-input span{font-family:'Fraunces',serif;font-size:22px;font-weight:700;
+  color:var(--warm-gray);}
+.g-input input{flex:1;border:0;outline:0;background:transparent;font-family:'DM Sans',sans-serif;
+  font-size:22px;font-weight:600;color:var(--dark);padding:14px 0;min-width:0;}
+.g-btn{display:block;width:100%;margin-top:14px;background:var(--terra-text);color:#fff;
+  border:0;border-radius:14px;padding:15px;font-family:'DM Sans',sans-serif;
+  font-size:16px;font-weight:700;cursor:pointer;min-height:48px;}
+.g-btn:disabled{opacity:.45;cursor:default;}
+.g-btn.ghost{background:transparent;color:var(--terra-text);
+  border:2px solid var(--border);}
+.g-reveal{margin-top:20px;padding-top:20px;border-top:1px solid var(--border);}
+.g-verdict{font-family:'Fraunces',serif;font-size:21px;font-weight:700;
+  margin-bottom:6px;}
+.g-hit{color:var(--sage-text);} .g-miss{color:var(--terra-text);}
+.g-actual{font-size:15px;color:var(--dark);margin-bottom:10px;}
+.g-why{font-size:14px;line-height:1.55;color:var(--warm-gray);}
+.g-why a{color:var(--terra-text);font-weight:600;}
+.g-score{text-align:center;}
+.g-big{font-family:'Fraunces',serif;font-size:60px;font-weight:900;
+  color:var(--terra-text);line-height:1;margin:6px 0 2px;}
+.g-outof{font-size:14px;color:var(--warm-gray);margin-bottom:16px;}
+.g-verdict-line{font-size:16px;line-height:1.6;color:var(--dark);margin-bottom:22px;}
+.g-cta{background:var(--card);border:1px solid var(--border);border-radius:18px;
+  padding:22px;margin-top:22px;text-align:center;}
+.g-cta h3{font-family:'Fraunces',serif;font-size:20px;font-weight:700;
+  color:var(--dark);margin-bottom:8px;}
+.g-cta p{font-size:14px;line-height:1.55;color:var(--warm-gray);margin-bottom:16px;}
+.g-cta a{display:inline-block;background:var(--terra-text);color:#fff;
+  text-decoration:none;font-weight:700;padding:13px 26px;border-radius:12px;
+  min-height:44px;line-height:20px;}
+.g-foot{margin-top:26px;font-size:12.5px;line-height:1.6;color:var(--warm-gray);
+  text-align:center;}
+.g-foot a{color:var(--terra-text);}
+@media (prefers-reduced-motion:reduce){
+  .g-fill{transition:none;}
+}
+</style>
+</head><body>
+<div class="g-wrap">
+  <div class="g-head">
+    <h1>How good is your thrift eye?</h1>
+    <p>Ten secondhand items. Guess what each one actually resells for.
+       Most people are confidently wrong — and wrong in the same direction.</p>
+  </div>
+
+  <div class="g-bar">
+    <div class="g-track"><div class="g-fill" id="fill"></div></div>
+    <div class="g-count" id="count">1 / 10</div>
+  </div>
+
+  <div class="g-card" id="card"></div>
+
+  <p class="g-foot">
+    Ranges are typical US secondhand prices for guidance, not sold-listing data.
+    <a href="/worth">See where they come from</a>.
+  </p>
+</div>
+
+<script id="rounds" type="application/json">[{"item": "Patagonia Better Sweater", "cat": "Clothing", "slug": "patagonia-better-sweater", "condition": "Like new", "low": 65, "high": 85, "why": "Colorway (classic neutrals and retro tones sell fastest)"}, {"item": "Patagonia Better Sweater", "cat": "Clothing", "slug": "patagonia-better-sweater", "condition": "Good", "low": 40, "high": 60, "why": "Colorway (classic neutrals and retro tones sell fastest)"}, {"item": "Patagonia Better Sweater", "cat": "Clothing", "slug": "patagonia-better-sweater", "condition": "Worn / pilled", "low": 25, "high": 38, "why": "Colorway (classic neutrals and retro tones sell fastest)"}, {"item": "The North Face Nuptse 700", "cat": "Clothing", "slug": "north-face-nuptse-700", "condition": "Like new", "low": 160, "high": 200, "why": "Colorway (black and bold retro colors lead)"}, {"item": "The North Face Nuptse 700", "cat": "Clothing", "slug": "north-face-nuptse-700", "condition": "Good", "low": 120, "high": 150, "why": "Colorway (black and bold retro colors lead)"}, {"item": "The North Face Nuptse 700", "cat": "Clothing", "slug": "north-face-nuptse-700", "condition": "Worn", "low": 80, "high": 110, "why": "Colorway (black and bold retro colors lead)"}, {"item": "Vintage Levi's 501 Jeans", "cat": "Clothing", "slug": "levis-501-vintage", "condition": "Vintage / made in USA", "low": 60, "high": 90, "why": "Made in USA vs. imported"}, {"item": "Vintage Levi's 501 Jeans", "cat": "Clothing", "slug": "levis-501-vintage", "condition": "Good modern pair", "low": 35, "high": 55, "why": "Made in USA vs. imported"}, {"item": "Vintage Levi's 501 Jeans", "cat": "Clothing", "slug": "levis-501-vintage", "condition": "Worn / flawed", "low": 20, "high": 30, "why": "Made in USA vs. imported"}, {"item": "Carhartt Detroit Jacket", "cat": "Clothing", "slug": "carhartt-detroit-jacket", "condition": "Vintage / union made", "low": 110, "high": 150, "why": "Union-made / vintage tags"}, {"item": "Carhartt Detroit Jacket", "cat": "Clothing", "slug": "carhartt-detroit-jacket", "condition": "Good", "low": 70, "high": 100, "why": "Union-made / vintage tags"}, {"item": "Carhartt Detroit Jacket", "cat": "Clothing", "slug": "carhartt-detroit-jacket", "condition": "Heavily worn", "low": 45, "high": 65, "why": "Union-made / vintage tags"}, {"item": "Nike Air Max 90", "cat": "Shoes", "slug": "nike-air-max-90", "condition": "Deadstock / unworn", "low": 90, "high": 120, "why": "Colorway and collaborations"}, {"item": "Nike Air Max 90", "cat": "Shoes", "slug": "nike-air-max-90", "condition": "Good", "low": 55, "high": 80, "why": "Colorway and collaborations"}, {"item": "Nike Air Max 90", "cat": "Shoes", "slug": "nike-air-max-90", "condition": "Used", "low": 40, "high": 50, "why": "Colorway and collaborations"}, {"item": "Lululemon Align Leggings", "cat": "Clothing", "slug": "lululemon-align-leggings", "condition": "Like new", "low": 45, "high": 60, "why": "Color (rare/discontinued colors spike)"}, {"item": "Lululemon Align Leggings", "cat": "Clothing", "slug": "lululemon-align-leggings", "condition": "Good", "low": 32, "high": 44, "why": "Color (rare/discontinued colors spike)"}, {"item": "Lululemon Align Leggings", "cat": "Clothing", "slug": "lululemon-align-leggings", "condition": "Worn / pilled", "low": 20, "high": 28, "why": "Color (rare/discontinued colors spike)"}, {"item": "Dr. Martens 1460 Boots", "cat": "Shoes", "slug": "dr-martens-1460-boots", "condition": "Made in England / vintage", "low": 85, "high": 110, "why": "Made in England vs. current production"}, {"item": "Dr. Martens 1460 Boots", "cat": "Shoes", "slug": "dr-martens-1460-boots", "condition": "Good", "low": 55, "high": 75, "why": "Made in England vs. current production"}, {"item": "Dr. Martens 1460 Boots", "cat": "Shoes", "slug": "dr-martens-1460-boots", "condition": "Worn", "low": 40, "high": 50, "why": "Made in England vs. current production"}, {"item": "Coach Leather Handbag", "cat": "Bags", "slug": "coach-leather-handbag", "condition": "Vintage leather / excellent", "low": 110, "high": 150, "why": "Full leather vs. coated canvas"}, {"item": "Coach Leather Handbag", "cat": "Bags", "slug": "coach-leather-handbag", "condition": "Good", "low": 60, "high": 95, "why": "Full leather vs. coated canvas"}, {"item": "Coach Leather Handbag", "cat": "Bags", "slug": "coach-leather-handbag", "condition": "Worn", "low": 40, "high": 55, "why": "Full leather vs. coated canvas"}, {"item": "Le Creuset Dutch Oven", "cat": "Home", "slug": "le-creuset-dutch-oven", "condition": "Excellent / rare color", "low": 180, "high": 250, "why": "Size (5.5qt and 7.25qt are popular)"}, {"item": "Le Creuset Dutch Oven", "cat": "Home", "slug": "le-creuset-dutch-oven", "condition": "Good", "low": 110, "high": 160, "why": "Size (5.5qt and 7.25qt are popular)"}, {"item": "Le Creuset Dutch Oven", "cat": "Home", "slug": "le-creuset-dutch-oven", "condition": "Chipped enamel", "low": 70, "high": 95, "why": "Size (5.5qt and 7.25qt are popular)"}, {"item": "Vintage Pyrex Bowls", "cat": "Home", "slug": "vintage-pyrex-bowls", "condition": "Rare pattern / complete set", "low": 70, "high": 120, "why": "Pattern rarity (promotional patterns spike)"}, {"item": "Vintage Pyrex Bowls", "cat": "Home", "slug": "vintage-pyrex-bowls", "condition": "Good common pattern", "low": 30, "high": 55, "why": "Pattern rarity (promotional patterns spike)"}, {"item": "Vintage Pyrex Bowls", "cat": "Home", "slug": "vintage-pyrex-bowls", "condition": "Faded / worn", "low": 18, "high": 28, "why": "Pattern rarity (promotional patterns spike)"}, {"item": "Stanley Quencher Tumbler", "cat": "Home", "slug": "stanley-quencher-tumbler", "condition": "Limited color / new", "low": 45, "high": 60, "why": "Limited-edition and collab colors"}, {"item": "Stanley Quencher Tumbler", "cat": "Home", "slug": "stanley-quencher-tumbler", "condition": "Good used", "low": 28, "high": 40, "why": "Limited-edition and collab colors"}, {"item": "Stanley Quencher Tumbler", "cat": "Home", "slug": "stanley-quencher-tumbler", "condition": "Scratched", "low": 20, "high": 26, "why": "Limited-edition and collab colors"}, {"item": "Ralph Lauren Polo Sweater", "cat": "Clothing", "slug": "ralph-lauren-polo-sweater", "condition": "Vintage / excellent", "low": 50, "high": 70, "why": "Vintage logo era"}, {"item": "Ralph Lauren Polo Sweater", "cat": "Clothing", "slug": "ralph-lauren-polo-sweater", "condition": "Good", "low": 30, "high": 45, "why": "Vintage logo era"}, {"item": "Ralph Lauren Polo Sweater", "cat": "Clothing", "slug": "ralph-lauren-polo-sweater", "condition": "Worn", "low": 20, "high": 28, "why": "Vintage logo era"}, {"item": "Birkenstock Arizona Sandals", "cat": "Shoes", "slug": "birkenstock-arizona-sandals", "condition": "Like new", "low": 55, "high": 70, "why": "Material (suede/leather/shearling)"}, {"item": "Birkenstock Arizona Sandals", "cat": "Shoes", "slug": "birkenstock-arizona-sandals", "condition": "Good", "low": 35, "high": 48, "why": "Material (suede/leather/shearling)"}, {"item": "Birkenstock Arizona Sandals", "cat": "Shoes", "slug": "birkenstock-arizona-sandals", "condition": "Worn footbed", "low": 25, "high": 32, "why": "Material (suede/leather/shearling)"}, {"item": "Ray-Ban Wayfarer Sunglasses", "cat": "Accessories", "slug": "ray-ban-wayfarer-sunglasses", "condition": "Excellent / with case", "low": 70, "high": 90, "why": "Authenticity (etched logo, engravings)"}, {"item": "Ray-Ban Wayfarer Sunglasses", "cat": "Accessories", "slug": "ray-ban-wayfarer-sunglasses", "condition": "Good", "low": 45, "high": 60, "why": "Authenticity (etched logo, engravings)"}, {"item": "Ray-Ban Wayfarer Sunglasses", "cat": "Accessories", "slug": "ray-ban-wayfarer-sunglasses", "condition": "Scratched lenses", "low": 30, "high": 40, "why": "Authenticity (etched logo, engravings)"}, {"item": "KitchenAid Stand Mixer", "cat": "Home", "slug": "kitchenaid-stand-mixer", "condition": "Excellent / extra attachments", "low": 220, "high": 300, "why": "Working motor and gears"}, {"item": "KitchenAid Stand Mixer", "cat": "Home", "slug": "kitchenaid-stand-mixer", "condition": "Good working", "low": 150, "high": 200, "why": "Working motor and gears"}, {"item": "KitchenAid Stand Mixer", "cat": "Home", "slug": "kitchenaid-stand-mixer", "condition": "Cosmetic wear", "low": 120, "high": 145, "why": "Working motor and gears"}, {"item": "Vintage Band T-Shirt", "cat": "Clothing", "slug": "vintage-band-t-shirt", "condition": "Rare band / true vintage", "low": 120, "high": 200, "why": "Band and tour rarity"}, {"item": "Vintage Band T-Shirt", "cat": "Clothing", "slug": "vintage-band-t-shirt", "condition": "Good vintage", "low": 50, "high": 90, "why": "Band and tour rarity"}, {"item": "Vintage Band T-Shirt", "cat": "Clothing", "slug": "vintage-band-t-shirt", "condition": "Newer / reprint", "low": 25, "high": 40, "why": "Band and tour rarity"}]</script>
+<script>
+(function () {
+  var ALL = JSON.parse(document.getElementById('rounds').textContent);
+  var ROUNDS = 10, PER = 100;
+  var card = document.getElementById('card');
+  var fill = document.getElementById('fill');
+  var count = document.getElementById('count');
+  var deck = [], i = 0, score = 0, hits = 0, high = 0, low = 0;
+
+  function shuffle(a) {
+    a = a.slice();
+    for (var n = a.length - 1; n > 0; n--) {
+      var j = Math.floor(Math.random() * (n + 1));
+      var t = a[n]; a[n] = a[j]; a[j] = t;
+    }
+    return a;
+  }
+
+  // Accepts 12.50 and 12,50 — the same rule the app uses, because a comma is
+  // a decimal separator for most of the people who will play this.
+  function parse(text) {
+    var kept = (text || '').replace(/[^0-9.,]/g, '');
+    if (!/[0-9]/.test(kept)) return null;
+    var lc = kept.lastIndexOf(','), ld = kept.lastIndexOf('.');
+    var dec = -1;
+    if (lc > -1 && ld > -1) dec = Math.max(lc, ld);
+    else if (ld > -1) dec = ld;
+    else if (lc > -1) dec = (kept.length - lc - 1) === 3 ? -1 : lc;
+    var out = '';
+    for (var n = 0; n < kept.length; n++) {
+      if (kept[n] >= '0' && kept[n] <= '9') out += kept[n];
+      else if (n === dec) out += '.';
+    }
+    var v = parseFloat(out);
+    return isFinite(v) && v >= 0 ? v : null;
+  }
+
+  function money(v) { return '$' + Math.round(v); }
+
+  function points(guess, r) {
+    if (guess >= r.low && guess <= r.high) return PER;
+    var mid = (r.low + r.high) / 2;
+    var off = Math.abs(guess - mid) / mid;           // relative, so a $20 item
+    return Math.max(0, Math.round(PER * (1 - off))); // isn't easier than a $300 one
+  }
+
+  function ask() {
+    var r = deck[i];
+    count.textContent = (i + 1) + ' / ' + ROUNDS;
+    fill.style.width = (i / ROUNDS * 100) + '%';
+    card.innerHTML =
+      '<div class="g-cat">' + r.cat + '</div>' +
+      '<div class="g-item">' + r.item + '</div>' +
+      '<div class="g-cond">Condition: <b>' + r.condition + '</b></div>' +
+      '<label class="g-label" for="guess">What does it resell for?</label>' +
+      '<div class="g-input"><span>$</span>' +
+      '<input id="guess" type="text" inputmode="decimal" autocomplete="off" placeholder="0"></div>' +
+      '<button class="g-btn" id="go" disabled>Lock it in</button>';
+    var input = document.getElementById('guess'), go = document.getElementById('go');
+    input.addEventListener('input', function () { go.disabled = parse(input.value) === null; });
+    input.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter' && !go.disabled) go.click();
+    });
+    go.addEventListener('click', function () { reveal(parse(input.value), r); });
+    input.focus();
+  }
+
+  function reveal(guess, r) {
+    var got = points(guess, r), inside = guess >= r.low && guess <= r.high;
+    score += got;
+    if (inside) hits++;
+    else if (guess > r.high) high++;
+    else low++;
+    card.innerHTML =
+      '<div class="g-cat">' + r.cat + '</div>' +
+      '<div class="g-item">' + r.item + '</div>' +
+      '<div class="g-cond">Condition: <b>' + r.condition + '</b></div>' +
+      '<div class="g-reveal">' +
+        '<div class="g-verdict ' + (inside ? 'g-hit' : 'g-miss') + '">' +
+          (inside ? 'Inside the range.' :
+            guess > r.high ? 'Too high by ' + money(guess - r.high) + '.'
+                           : 'Too low by ' + money(r.low - guess) + '.') +
+        '</div>' +
+        '<div class="g-actual">Typically ' + money(r.low) + '–' + money(r.high) +
+          '. You said ' + money(guess) + ' · +' + got + ' pts</div>' +
+        (r.why ? '<div class="g-why">' + r.why +
+          ' · <a href="/worth/' + r.slug + '">full guide</a></div>' : '') +
+      '</div>' +
+      '<button class="g-btn" id="next">' +
+        (i + 1 >= ROUNDS ? 'See how you did' : 'Next item') + '</button>';
+    document.getElementById('next').addEventListener('click', function () {
+      i++;
+      if (i >= ROUNDS) finish(); else ask();
+    });
+  }
+
+  function finish() {
+    fill.style.width = '100%';
+    count.textContent = 'Done';
+    var max = ROUNDS * PER;
+    var pct = Math.round(score / max * 100);
+    var lean = high > low ? 'You lean high — you overrate things that look valuable.'
+             : low > high ? 'You lean low — you are leaving money on the shelf.'
+             : 'Your misses go both ways, which is rarer than you would think.';
+    var band = pct >= 80 ? 'You have done this before.'
+             : pct >= 55 ? 'Better than most.'
+             : pct >= 30 ? 'Rough, but the instinct is there.'
+                         : 'Genuinely bad. Which is the normal result.';
+    var share = 'I scored ' + score + '/' + max +
+      ' guessing what thrift finds resell for. ' + band + ' Try it:';
+    var url = 'https://www.snapworth.eu/guess';
+    card.innerHTML =
+      '<div class="g-score">' +
+        '<div class="g-cat">Your score</div>' +
+        '<div class="g-big">' + score + '</div>' +
+        '<div class="g-outof">out of ' + max + ' · ' + hits + ' of ' + ROUNDS +
+          ' inside the range</div>' +
+        '<div class="g-verdict-line"><b>' + band + '</b><br>' + lean + '</div>' +
+        '<button class="g-btn" id="share">Share your score</button>' +
+        '<button class="g-btn ghost" id="again">Play again</button>' +
+      '</div>' +
+      '<div class="g-cta">' +
+        '<h3>Now do it with something in your hands</h3>' +
+        '<p>SnapWorth gives you an AI resale estimate from a photo of the actual ' +
+          'item — with the price hidden first, so you can guess. One free scan a ' +
+          'day, no account.</p>' +
+        '<a href="https://apps.apple.com/us/app/snapworth-resale-scanner/id6788521307">Get it on the App Store</a>' +
+      '</div>';
+    document.getElementById('again').addEventListener('click', start);
+    document.getElementById('share').addEventListener('click', function () {
+      if (navigator.share) {
+        navigator.share({ text: share, url: url }).catch(function () {});
+      } else {
+        window.open('https://twitter.com/intent/tweet?text=' +
+          encodeURIComponent(share) + '&url=' + encodeURIComponent(url),
+          '_blank', 'noopener');
+      }
+    });
+  }
+
+  function start() {
+    deck = shuffle(ALL).slice(0, ROUNDS);
+    i = 0; score = 0; hits = 0; high = 0; low = 0;
+    ask();
+  }
+
+  start();
+})();
+</script>
+</body></html>
