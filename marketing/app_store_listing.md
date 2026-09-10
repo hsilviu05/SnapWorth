@@ -1,5 +1,33 @@
 # App Store Listing
 
+> ## ⚠️ NOT YET LIVE — paste this at the 1.3.7 submission
+>
+> **The FREE & PRO section and one WHAT YOU GET bullet in this file differ
+> from what App Store Connect is currently serving.** They were corrected on
+> 2026-09-10 and deliberately not pasted, because the operator is holding
+> them for the 1.3.7 launch.
+>
+> Until that paste happens, the live listing still says:
+>
+> - *"Upgrade to Pro for unlimited scans, **full scan history**, and AI
+>   listing drafts"* — scan history is not gated. `HistoryView`'s grid has no
+>   `isPro` check. Someone upgrading for that line gets nothing new.
+> - *"AI listing draft — title and description **tailored to** eBay,
+>   Poshmark, …"* under free WHAT YOU GET — a draft is free
+>   (`listing_title`/`listing_description` are required on every `/scan`
+>   response), but the tailored rewrite is `/listing`, which 402s for
+>   non-Pro. The free bullet describes the paid feature.
+>
+> Closes I-26 (`docs/AUDIT-2026-09-07.md`) on its last surface; the app was
+> fixed in 1.3.6 and the website was already correct.
+>
+> **At submission:** paste the Description below into App Store Connect,
+> delete this block, and note the date in `docs/AUDIT-2026-09.md`.
+>
+> One open decision first: **#128** — if Thrift Flip's arithmetic is
+> un-blurred, it should not be added to the Pro list. If the gate stays, it
+> can be (there are ~1,600 characters spare under Apple's 4,000 limit).
+
 ## App name (30 chars max)
 SnapWorth: Resale Value
 
