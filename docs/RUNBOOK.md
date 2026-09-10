@@ -474,7 +474,11 @@ engineering Redis persistence for it.
 
 **Inference dominates, not infrastructure** — the opposite of what this section
 used to say. Gemini is roughly 3× the container bill at 10k users and ~9× at
-1M, and about **75% of the model spend is thinking tokens, not the answer**.
+1M, and **~61% of the model spend is thinking tokens, not the answer** — 64%
+of the output tokens, which at $2.50/M output against $0.30/M input is where
+the money goes. (This read 75% when the section was rewritten on 09-09. That
+figure did not follow from the assumptions directly above it: 1,450 thinking
+tokens at $2.50/M is $0.0036 of a $0.0059 scan. Corrected 09-10.)
 Optimisation effort belongs in what the model is asked to reason about, not in
 container efficiency. Margins stay healthy either way; the ranking of what to
 work on does not.
@@ -486,7 +490,7 @@ work on does not.
    is the single highest-value item here.
 2. **Client-side downscale** `[MEASURED]` — already shipped; cut upload ~92%.
 3. **Thinking budget** `[KNOB ADDED, UNSET]` — `GEMINI_THINKING_BUDGET` caps
-   the reasoning tokens that are ~75% of model spend. Deliberately unset, so
+   the reasoning tokens that are ~61% of model spend. Deliberately unset, so
    today's behaviour is unchanged: capping reasoning on a valuation model is a
    quality decision and belongs to `backend/eval/runner.py`, run at a candidate
    budget and compared, not to a number picked here. This is the highest-value
