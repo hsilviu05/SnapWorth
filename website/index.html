@@ -1274,10 +1274,17 @@ a:focus-visible, button:focus-visible {
 /* The line under the ticker that opens the guessing game. */
 .tg-line { text-align: center; padding: 20px 0 4px; font-size: 15px;
   color: rgba(250,247,244,.62); }
-.tg-line a { color: #FAF7F4; font-weight: 600; text-decoration: none;
-  border-bottom: 1px solid rgba(250,247,244,.35); padding-bottom: 2px;
-  white-space: nowrap; }
-.tg-line a:hover { border-bottom-color: #FAF7F4; }
+/* `text-decoration` rather than `border-bottom`, so the rule hugs the text
+   while the box grows: at 393px this line wraps and the link lands on its own,
+   reading as a call to action rather than a link inside a sentence — so it
+   needs a call to action's 44pt target, not the inline exemption. The padding
+   is what buys that; a border-bottom would have been dragged 11px down with
+   the box. */
+.tg-line a { color: #FAF7F4; font-weight: 600; white-space: nowrap;
+  display: inline-block; padding: 11px 6px;
+  text-decoration: underline; text-decoration-color: rgba(250,247,244,.35);
+  text-decoration-thickness: 1px; text-underline-offset: 4px; }
+.tg-line a:hover { text-decoration-color: #FAF7F4; }
 
 /* The ledger ticker. */
 .ticker { border-top: 1px solid rgba(255,255,255,.09); padding: 17px 0;
