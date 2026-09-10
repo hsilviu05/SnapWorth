@@ -475,6 +475,7 @@ def build():
     # stamp worse than none: it spends the signal without carrying information.
     pages = [(f"{SITE}/", ROOT / "index.html"),
              (f"{SITE}/worth", OUT / "index.html"),
+             (f"{SITE}/guess", ROOT / "guess.html"),
              (f"{SITE}/support", ROOT / "support.html")]
     pages += [(f"{SITE}/worth/{it['slug']}", OUT / f"{it['slug']}.html") for it in ITEMS]
     sm = ['<?xml version="1.0" encoding="UTF-8"?>',
