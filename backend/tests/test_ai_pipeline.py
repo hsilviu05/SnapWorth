@@ -907,8 +907,20 @@ class TestProDetailGate:
             assert body[field] == [], f"{field} leaked to a free scan"
         for field in ("authenticity_assessment", "authenticity_reasoning",
                       "demand", "supply", "model_name", "variant",
-                      "size", "material", "era", "condition_grade"):
+                      "size", "material", "era"):
             assert body[field] is None, f"{field} leaked to a free scan"
+
+    def test_free_still_receives_the_condition_grade(self):
+        """Not a Pro field, and gating it broke pricing for everyone.
+
+        `condition_grade` is the baseline the estimate is quoted against, not
+        something Pro sells — its four values are the four the condition
+        selector already shows every free user. While it was stripped, the
+        client recovered the baseline by keyword-matching the model's prose,
+        which reads the prompt's own example note ("no stains or holes
+        visible") as damage and re-prices a clean item 22% down.
+        """
+        assert _scan_with(V2_PAYLOAD).json()["condition_grade"] == "good"
 
     def test_pro_receives_all_of_it(self):
         body = _scan_with(V2_PAYLOAD, pro=True).json()

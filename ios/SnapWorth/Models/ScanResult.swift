@@ -148,11 +148,31 @@ final class ScanResult {
 
     // ── Condition & re-pricing ─────────────────────────────────────────────────
 
+    /// The condition the AI's `valueLow`/`valueHigh` were priced for.
+    ///
+    /// Prefers `condition_grade` — the grade the model actually returned,
+    /// validated server-side against exactly these four values — and reads the
+    /// prose notes only when there is none: an older server, or a record stored
+    /// while the field was still gated to Pro. Parsing English to recover a
+    /// value the model already handed us in a closed vocabulary was always the
+    /// weaker path; it stays only because old records still need it.
+    ///
+    /// One property, used by both `condition` and `priceRange`, deliberately.
+    /// They must agree: if the getter defaults to one baseline and the re-scale
+    /// divides by another, an untouched record is silently mispriced.
+    var baselineCondition: Condition {
+        if let grade = valuationDetail?.conditionGrade,
+           let graded = Condition(serverGrade: grade) {
+            return graded
+        }
+        return Condition.inferred(from: conditionNotes)
+    }
+
     /// The resale condition driving the estimate. Reads the user's explicit
-    /// choice when set; otherwise the condition inferred from the model's notes,
-    /// so an untouched record prices exactly as the AI returned it.
+    /// choice when set; otherwise the baseline above, so an untouched record
+    /// prices exactly as the AI returned it.
     var condition: Condition {
-        get { conditionRaw.flatMap(Condition.init(rawValue:)) ?? Condition.inferred(from: conditionNotes) }
+        get { conditionRaw.flatMap(Condition.init(rawValue:)) ?? baselineCondition }
         set { conditionRaw = newValue.rawValue }
     }
 
@@ -162,7 +182,7 @@ final class ScanResult {
     /// features (listing price, flip resale) read from here.
     func priceRange(for condition: Condition) -> (low: Decimal, likely: Decimal, high: Decimal) {
         guard valueLow.isFinite, valueHigh.isFinite else { return (0, 0, 0) }
-        let baseline = Condition.inferred(from: conditionNotes)
+        let baseline = baselineCondition
         let factor = condition.priceMultiplier / baseline.priceMultiplier
         let low = Decimal(valueLow) * factor
         let high = Decimal(valueHigh) * factor
@@ -317,22 +337,78 @@ enum Condition: String, CaseIterable, Identifiable {
         }
     }
 
+    /// The closed vocabulary `condition_grade` is validated against server-side
+    /// (`valuation.py` `_CONDITION_GRADES`). Case- and spacing-tolerant because
+    /// the value is model-generated and older records carry "Good" and
+    /// "like new" as well as the canonical forms.
+    init?(serverGrade raw: String) {
+        switch raw.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() {
+        case "new":                            self = .new
+        case "likenew", "like new", "like-new": self = .likeNew
+        case "good":                           self = .good
+        case "used":                           self = .used
+        default:                               return nil
+        }
+    }
+
+    /// Where a negation stops applying: punctuation, and the contrastive
+    /// conjunctions that end a negated span — "no stains **but** heavy wear at
+    /// the cuffs" is a worn item, and scoping the "no" to the whole sentence
+    /// would read it as a clean one.
+    private static let clauseBreaks = [";", ",", ".", " but ", " though ",
+                                       " however ", " although ", " apart from ",
+                                       " other than ", " except "]
+
+    private static let negators = ["no ", "not ", "without ", "free of ",
+                                   "free from ", "none ", "n't "]
+
+    private static func clauses(of text: String) -> [String] {
+        var parts = [text]
+        for separator in clauseBreaks {
+            parts = parts.flatMap { $0.components(separatedBy: separator) }
+        }
+        return parts
+    }
+
+    /// True when `needle` appears somewhere it is actually being asserted,
+    /// rather than denied.
+    private static func asserts(_ needle: String, in clauses: [String]) -> Bool {
+        for clause in clauses {
+            guard let hit = clause.range(of: needle) else { continue }
+            let before = clause[clause.startIndex..<hit.lowerBound]
+            if !negators.contains(where: { before.contains($0) }) { return true }
+        }
+        return false
+    }
+
     /// Best-effort starting condition parsed from the model's free-text notes.
-    /// Used only until the user makes an explicit choice. Order matters: the
-    /// strongest signals ("new with tags", "like new") are checked before the
-    /// weaker "good"/"used" fallbacks.
+    /// The fallback for records with no `condition_grade`; see
+    /// `ScanResult.baselineCondition`.
+    ///
+    /// Negation-aware, and it has to be. `prompts.py` tells the model to write
+    /// notes like "Light pilling at cuffs and collar; no stains or holes
+    /// visible" — its own canonical example — and a plain `contains("stain")`
+    /// grades that clean item `.used`. Since `.used` carries a 0.78 multiplier
+    /// and `priceRange` divides by this baseline, correcting the wrong chip
+    /// then jumped the estimate 28% for a correction that should have moved
+    /// nothing at all.
+    ///
+    /// Order matters: the strongest signals ("new with tags", "like new") are
+    /// checked before the weaker "good"/"used" fallbacks.
     static func inferred(from notes: String) -> Condition {
-        let n = notes.lowercased()
-        if n.contains("new with tag") || n.contains("nwt") || n.contains("brand new") || n.contains("unused") {
-            return .new
+        let parts = clauses(of: notes.lowercased())
+        func says(_ terms: [String]) -> Bool {
+            terms.contains { asserts($0, in: parts) }
         }
-        if n.contains("like new") || n.contains("excellent") || n.contains("mint") || n.contains("very good") {
-            return .likeNew
-        }
-        if n.contains("fair") || n.contains("poor") || n.contains("worn") || n.contains("heavy")
-            || n.contains("damage") || n.contains("flaw") || n.contains("stain") || n.contains("tear") {
-            return .used
-        }
+        if says(["new with tag", "nwt", "brand new", "unused"]) { return .new }
+        if says(["like new", "excellent", "mint", "very good"])  { return .likeNew }
+        // Substrings, so each term has to be checked against the vocabulary of
+        // secondhand clothing before it is added. "torn" is safe. "rip" is not
+        // — it matches "striped". "wear" is not — it matches "menswear",
+        // "outerwear", "activewear". That trap is the same one that produced
+        // this bug in the first place.
+        if says(["fair", "poor", "worn", "torn", "heavy",
+                 "damage", "flaw", "stain", "tear"])             { return .used }
         return .good
     }
 }

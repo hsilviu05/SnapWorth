@@ -1495,7 +1495,14 @@ _PRO_ONLY_DETAIL_FIELDS = (
     "confidence_reasons",
     "quick_sale_price_usd", "expected_price_usd",
     "best_case_price_usd", "worst_case_price_usd",
-    "model_name", "variant", "size", "material", "era", "condition_grade",
+    # `condition_grade` is deliberately NOT here. It is not something Pro
+    # sells — it is the baseline the price is quoted against, and the four
+    # values it can take are the four the condition selector already shows
+    # every free user. Gating it left the client recovering the baseline by
+    # keyword-matching the model's prose, which reads "no stains or holes
+    # visible" as damage and re-prices a clean item 22% down. The ladder,
+    # the drivers and the authenticity read stay Pro; the baseline does not.
+    "model_name", "variant", "size", "material", "era",
     "demand", "supply",
     "authenticity_assessment", "authenticity_reasoning",
     "visual_evidence", "assumptions", "uncertainty_factors",

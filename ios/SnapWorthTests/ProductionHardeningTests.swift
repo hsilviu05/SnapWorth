@@ -2041,3 +2041,125 @@ final class SharpenedResultTests: XCTestCase {
         XCTAssertEqual(PaywallTrigger.addTag.rawValue, "add_tag")
     }
 }
+
+// MARK: - Condition baseline
+//
+// The estimate is quoted against a condition, and until now the app recovered
+// that condition by keyword-matching the model's prose. `prompts.py` tells the
+// model to write notes like "Light pilling at cuffs and collar; no stains or
+// holes visible" — its own canonical example — and a plain `contains("stain")`
+// reads that clean item as damaged. `.used` carries a 0.78 multiplier and
+// `priceRange` divides by this baseline, so correcting the wrong chip jumped
+// the estimate 28% for a correction that should have moved nothing.
+//
+// The real fix is that the model already returns `condition_grade` in a closed
+// vocabulary. These pin both: that the grade wins, and that the prose fallback
+// no longer reads a denial as an assertion.
+
+final class ConditionBaselineTests: XCTestCase {
+
+    // MARK: The bug
+
+    func test_negatedDamageIsNotDamage() {
+        // The exact note prompts.py teaches the model to write.
+        XCTAssertEqual(
+            Condition.inferred(from: "Light pilling at cuffs and collar; no stains or holes visible"),
+            .good)
+        XCTAssertEqual(Condition.inferred(from: "No stains, no damage"), .good)
+        XCTAssertEqual(Condition.inferred(from: "Great condition, no flaws"), .good)
+        XCTAssertEqual(Condition.inferred(from: "Clean throughout, without tears"), .good)
+        XCTAssertEqual(Condition.inferred(from: "Free of stains or damage"), .good)
+    }
+
+    func test_realDamageStillReadsAsUsed() {
+        XCTAssertEqual(Condition.inferred(from: "Heavy pilling, stains at the cuffs"), .used)
+        XCTAssertEqual(Condition.inferred(from: "Visible damage to the zipper"), .used)
+        XCTAssertEqual(Condition.inferred(from: "Worn, fading throughout"), .used)
+    }
+
+    func test_aNegationStopsAtTheContrast() {
+        // "no stains BUT heavy wear" is a worn item. Scoping the "no" to the
+        // whole sentence would have read it as a clean one — which is the
+        // failure mode opposite to the bug, and just as wrong.
+        XCTAssertEqual(Condition.inferred(from: "No stains but heavy wear at the cuffs"), .used)
+        XCTAssertEqual(Condition.inferred(from: "No holes, though the hem is torn"), .used)
+        XCTAssertEqual(Condition.inferred(from: "No damage apart from a faint stain"), .used)
+    }
+
+    func test_theStrongerSignalsStillWinAndAreAlsoNegationAware() {
+        XCTAssertEqual(Condition.inferred(from: "New with tags"), .new)
+        XCTAssertEqual(Condition.inferred(from: "Like new, barely used"), .likeNew)
+        XCTAssertEqual(Condition.inferred(from: "Not new, some pilling"), .good)
+    }
+
+    func test_unremarkableNotesAreGoodNotUsed() {
+        XCTAssertEqual(Condition.inferred(from: "Solid secondhand piece"), .good)
+        XCTAssertEqual(Condition.inferred(from: ""), .good)
+    }
+
+    // MARK: The real fix — prefer the grade the model returned
+
+    func test_serverGradeParsesTheClosedVocabulary() {
+        XCTAssertEqual(Condition(serverGrade: "new"), .new)
+        XCTAssertEqual(Condition(serverGrade: "likeNew"), .likeNew)
+        XCTAssertEqual(Condition(serverGrade: "good"), .good)
+        XCTAssertEqual(Condition(serverGrade: "used"), .used)
+        // Model-generated and stored in old records, so tolerate the variants.
+        XCTAssertEqual(Condition(serverGrade: "Good"), .good)
+        XCTAssertEqual(Condition(serverGrade: " like new "), .likeNew)
+        XCTAssertNil(Condition(serverGrade: "pristine"))
+        XCTAssertNil(Condition(serverGrade: ""))
+    }
+
+    private func result(notes: String, grade: String?) -> ScanResult {
+        var detail = ValuationDetail()
+        detail.conditionGrade = grade
+        return ScanResult(itemName: "Better Sweater", brand: "Patagonia",
+                          category: "clothing", conditionNotes: notes,
+                          valueLow: 45, valueHigh: 90, confidence: "High",
+                          soldListingsCount: 0,
+                          listingTitle: "T", listingDescription: "D",
+                          valuationDetailData: grade == nil ? nil : detail.encoded())
+    }
+
+    func test_theGradeBeatsTheProse() {
+        // Prose that trips the old matcher, and a grade that does not.
+        let r = result(notes: "Light pilling; no stains or holes visible", grade: "good")
+        XCTAssertEqual(r.baselineCondition, .good)
+    }
+
+    func test_theProseIsTheFallbackWhenNoGradeWasSent() {
+        let r = result(notes: "Heavy staining at the hem", grade: nil)
+        XCTAssertEqual(r.baselineCondition, .used)
+    }
+
+    func test_anUntouchedRecordPricesExactlyAsTheAIReturnedIt() {
+        // The invariant that makes one baseline property necessary: if the
+        // `condition` getter defaults to one baseline and `priceRange` divides
+        // by another, an untouched record is silently mispriced.
+        for grade in ["new", "likeNew", "good", "used", "pristine"] {
+            let r = result(notes: "Some wear", grade: grade)
+            let range = r.priceRange(for: r.condition)
+            XCTAssertEqual(range.low, 45, "baseline drifted for grade \(grade)")
+            XCTAssertEqual(range.high, 90, "baseline drifted for grade \(grade)")
+        }
+    }
+
+    func test_correctingACleanItemNoLongerInflatesThePrice() {
+        // The user-visible bug: the chip defaulted to `.used` for an item the
+        // model graded `good`, and putting it back jumped the estimate 28%.
+        let r = result(notes: "Light pilling; no stains or holes visible", grade: "good")
+        XCTAssertEqual(r.condition, .good, "defaulted to the wrong chip")
+        let corrected = r.priceRange(for: .good)
+        XCTAssertEqual(corrected.low, 45)
+        XCTAssertEqual(corrected.high, 90)
+    }
+
+    func test_agenuineDowngradeStillRescales() {
+        // Not a claim that corrections never move the price — only that a
+        // correction to the baseline does not.
+        let r = result(notes: "Light pilling; no stains or holes visible", grade: "good")
+        let worse = r.priceRange(for: .used)
+        XCTAssertEqual(worse.low, Decimal(45) * Decimal(string: "0.78")!)
+    }
+}
