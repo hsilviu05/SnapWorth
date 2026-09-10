@@ -324,6 +324,48 @@ class TestDigest:
         assert "New subscriptions: 0" in digest
 
     @pytest.mark.asyncio
+    async def test_free_limit_hits_are_reported_against_subscriptions(
+            self, enabled_notify, cache):
+        """The server half of the free-scan funnel. Nothing counted this
+        before — the experiment was measured by the client alone."""
+        from datetime import timedelta
+        now = datetime.now(timezone.utc)
+        notify.count_scan("free")
+        for _ in range(3):
+            notify.count_limit_hit()
+        await drain()
+
+        await notify.send_digest(now=now + timedelta(days=1))
+        digest = enabled_notify.texts[-1]
+        assert "Free limit reached: 3" in digest
+        assert "nobody subscribed" in digest
+
+    @pytest.mark.asyncio
+    async def test_a_limit_hit_is_not_a_scan_failure(self, enabled_notify, cache):
+        """Nothing reached the model and nothing was billed. Counting it beside
+        scans_failed would make a working paywall look like an outage."""
+        from datetime import timedelta
+        now = datetime.now(timezone.utc)
+        notify.count_limit_hit()
+        await drain()
+
+        await notify.send_digest(now=now + timedelta(days=1))
+        digest = enabled_notify.texts[-1]
+        assert "0 failed" in digest
+        assert "Free limit reached: 1" in digest
+
+    @pytest.mark.asyncio
+    async def test_a_day_with_no_limit_hits_says_nothing(self, enabled_notify, cache):
+        """A quiet day stays quiet — the line is omitted, not zeroed."""
+        from datetime import timedelta
+        now = datetime.now(timezone.utc)
+        notify.count_scan("free")
+        await drain()
+
+        await notify.send_digest(now=now + timedelta(days=1))
+        assert "Free limit reached" not in enabled_notify.texts[-1]
+
+    @pytest.mark.asyncio
     async def test_only_one_replica_sends(self, enabled_notify):
         assert await notify.send_digest() is True
         # Same day, second replica: the NX guard already belongs to the first.

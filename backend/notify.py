@@ -743,6 +743,24 @@ def count_scan(tier: str) -> None:
     _spawn(_bump("scans_pro" if tier == "pro" else "scans_free"))
 
 
+def count_limit_hit() -> None:
+    """Tally one free user refused because the day's allowance was spent.
+
+    The other half of the funnel. The client reports `free_scan_limit_hit` to
+    TelemetryDeck, and `auth.enforce`'s refusal wrote an audit event and
+    nothing countable — so the only instrument on the measurement that the
+    FREE_SCANS_FIRST_DAY experiment turns on was the client's, with no way to
+    cross-check it from the server.
+
+    Deliberately not a scan failure: nothing reached the model, nothing was
+    billed, and the user was told exactly what happened. Counting it beside
+    `scans_failed` would make a working paywall look like an outage.
+    """
+    if _notifier is None:
+        return
+    _spawn(_bump("limit_hits"))
+
+
 # The ways a scan that reached the model can still fail the user. They are
 # counted apart because they call for different responses: "provider" is the
 # AI service being down and nothing to do with the photo, "no price" usually
@@ -1160,12 +1178,19 @@ async def _digest_text(when: datetime) -> str:
     blocked = await _read_stat(day, "scans_blocked")
     subs = await _read_stat(day, "new_subs")
     users = await _read_stat(day, "active_users")
+    limits = await _read_stat(day, "limit_hits")
     lines = [
         f"📊 <b>SnapWorth — {when.strftime('%Y-%m-%d')}</b>",
         f"Active users: {users}",
         f"Scans: {free + pro} ok ({free} free · {pro} Pro) · {failed} failed"
         + (f" ({why})" if why else "")
         + (f" · {blocked} blocked by the safety filter" if blocked else ""),
+        # The line the free-scan experiment is read on. Against new_subs it is
+        # the first server-side answer to "does hitting the limit move anyone".
+        # Omitted entirely on a day with none, so a quiet day stays quiet.
+        *([f"Free limit reached: {limits}"
+           + (f" · {subs} subscribed" if subs else " · nobody subscribed")]
+          if limits else []),
         f"New subscriptions: {subs}",
         await _subscribers_line(),
         await _spend_line([day], free + pro),
@@ -1315,6 +1340,7 @@ async def _status_text() -> str:
     why = await _failure_breakdown(day) if failed else ""
     blocked = await _read_stat(day, "scans_blocked")
     subs = await _read_stat(day, "new_subs")
+    limits = await _read_stat(day, "limit_hits")
 
     lines = [
         "📡 <b>SnapWorth status</b>",
@@ -1323,6 +1349,7 @@ async def _status_text() -> str:
         f"Scans today: {free + pro} ok ({free} free · {pro} Pro) · {failed} failed"
         + (f" ({why})" if why else "")
         + (f" · {blocked} blocked" if blocked else ""),
+        *([f"Free limit reached: {limits} today"] if limits else []),
         f"New subscriptions today: {subs}",
         await _subscribers_line(),
         await _spend_line([day], free + pro),
