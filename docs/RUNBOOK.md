@@ -650,20 +650,27 @@ curl -sS -o /dev/null -w '%{http_code}\n' -X POST \
 `400` means deployed and refusing an unsigned payload. `404` means not
 deployed. `422` means the request never reached the handler.
 
-**2. Ask Apple to deliver a real one.** This is the only end-to-end proof, and
-it needs an App Store Connect **In-App Purchase** key (Users and Access → Keys
-→ In-App Purchase) to sign a JWT for the App Store Server API:
+**2. Ask Apple to deliver a real one.** The only end-to-end proof:
 
 ```
-POST https://api.storekit.itunes.apple.com/inApps/v1/notifications/test
-→ { "testNotificationToken": "..." }
-
-GET  https://api.storekit.itunes.apple.com/inApps/v1/notifications/test/{token}
-→ the status code Apple got back from us, and the body we returned
+python3 backend/tools/appstore_test_notification.py \
+    --key-id ABC123DEFG \
+    --issuer-id 12345678-1234-1234-1234-123456789012 \
+    --key ~/Downloads/SubscriptionKey_ABC123DEFG.p8
 ```
 
-Expect `200` and `{"status":"test"}`, **and a Telegram message** saying App
-Store Server Notifications are connected. A `TEST` notification carries no
+Needs an **In-App Purchase** key (App Store Connect → Users and Access →
+Integrations → **In-App Purchase**, not the App Store Connect API tab — they
+are different key families and the wrong one 401s). The Issuer ID is above the
+key list.
+
+Apple reports a `sendAttemptResult`, not an HTTP status: **`SUCCESS`** means it
+reached us and got a 2xx. `UNSUCCESSFUL_HTTP_RESPONSE_CODE` means it reached us
+and we refused — check the logs for `rejected App Store notification` or the
+Version 1 warning. `NO_RESPONSE` means nothing answered at that URL.
+
+A success also sends **a Telegram message** saying App Store Server
+Notifications are connected. A `TEST` notification carries no
 transaction — there is no purchase behind it — so it is recognised before
 anything reads `signedTransactionInfo`; it is still verified against Apple's
 chain, our bundle and the environment gate.
