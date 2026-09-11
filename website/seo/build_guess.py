@@ -90,11 +90,11 @@ PAGE = """<!doctype html><html lang="en"><head>
 .g-wrap{{max-width:560px;margin:0 auto;padding:28px 20px 64px;}}
 .g-head{{text-align:center;margin-bottom:26px;}}
 .g-head h1{{font-family:'Fraunces',serif;font-weight:900;font-size:clamp(30px,7vw,44px);
-  line-height:1.05;letter-spacing:-1px;color:var(--dark);margin-bottom:10px;}}
+  line-height:1.05;letter-spacing:-1px;color:var(--ink);margin-bottom:10px;}}
 .g-head p{{color:var(--warm-gray);font-size:15px;line-height:1.55;}}
 .g-bar{{display:flex;align-items:center;gap:10px;margin-bottom:18px;}}
 .g-track{{flex:1;height:6px;background:var(--border);border-radius:99px;overflow:hidden;}}
-.g-fill{{height:100%;background:var(--terra-text);border-radius:99px;width:0;
+.g-fill{{height:100%;background:var(--terra-fill);border-radius:99px;width:0;
   transition:width .35s ease;}}
 .g-count{{font-size:12px;font-weight:700;color:var(--warm-gray);
   letter-spacing:.4px;text-transform:uppercase;white-space:nowrap;}}
@@ -103,20 +103,20 @@ PAGE = """<!doctype html><html lang="en"><head>
 .g-cat{{font-size:11px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;
   color:var(--terra-text);margin-bottom:8px;}}
 .g-item{{font-family:'Fraunces',serif;font-weight:700;font-size:26px;line-height:1.2;
-  color:var(--dark);margin-bottom:6px;}}
+  color:var(--ink);margin-bottom:6px;}}
 .g-cond{{font-size:14px;color:var(--warm-gray);margin-bottom:22px;}}
-.g-cond b{{color:var(--dark);font-weight:600;}}
+.g-cond b{{color:var(--ink);font-weight:600;}}
 .g-label{{display:block;font-size:13px;font-weight:600;color:var(--warm-gray);
   margin-bottom:8px;}}
-.g-input{{display:flex;align-items:center;gap:8px;background:var(--white);
+.g-input{{display:flex;align-items:center;gap:8px;background:var(--surface);
   border:2px solid var(--border);border-radius:14px;padding:0 14px;
   transition:border-color .15s;}}
 .g-input:focus-within{{border-color:var(--terra-text);}}
 .g-input span{{font-family:'Fraunces',serif;font-size:22px;font-weight:700;
   color:var(--warm-gray);}}
 .g-input input{{flex:1;border:0;outline:0;background:transparent;font-family:'DM Sans',sans-serif;
-  font-size:22px;font-weight:600;color:var(--dark);padding:14px 0;min-width:0;}}
-.g-btn{{display:block;width:100%;margin-top:14px;background:var(--terra-text);color:#fff;
+  font-size:22px;font-weight:600;color:var(--ink);padding:14px 0;min-width:0;}}
+.g-btn{{display:block;width:100%;margin-top:14px;background:var(--terra-fill);color:#fff;
   border:0;border-radius:14px;padding:15px;font-family:'DM Sans',sans-serif;
   font-size:16px;font-weight:700;cursor:pointer;min-height:48px;}}
 .g-btn:disabled{{opacity:.45;cursor:default;}}
@@ -126,20 +126,20 @@ PAGE = """<!doctype html><html lang="en"><head>
 .g-verdict{{font-family:'Fraunces',serif;font-size:21px;font-weight:700;
   margin-bottom:6px;}}
 .g-hit{{color:var(--sage-text);}} .g-miss{{color:var(--terra-text);}}
-.g-actual{{font-size:15px;color:var(--dark);margin-bottom:10px;}}
+.g-actual{{font-size:15px;color:var(--ink);margin-bottom:10px;}}
 .g-why{{font-size:14px;line-height:1.55;color:var(--warm-gray);}}
 .g-why a{{color:var(--terra-text);font-weight:600;}}
 .g-score{{text-align:center;}}
 .g-big{{font-family:'Fraunces',serif;font-size:60px;font-weight:900;
   color:var(--terra-text);line-height:1;margin:6px 0 2px;}}
 .g-outof{{font-size:14px;color:var(--warm-gray);margin-bottom:16px;}}
-.g-verdict-line{{font-size:16px;line-height:1.6;color:var(--dark);margin-bottom:22px;}}
+.g-verdict-line{{font-size:16px;line-height:1.6;color:var(--ink);margin-bottom:22px;}}
 .g-cta{{background:var(--card);border:1px solid var(--border);border-radius:18px;
   padding:22px;margin-top:22px;text-align:center;}}
 .g-cta h3{{font-family:'Fraunces',serif;font-size:20px;font-weight:700;
-  color:var(--dark);margin-bottom:8px;}}
+  color:var(--ink);margin-bottom:8px;}}
 .g-cta p{{font-size:14px;line-height:1.55;color:var(--warm-gray);margin-bottom:16px;}}
-.g-cta a{{display:inline-block;background:var(--terra-text);color:#fff;
+.g-cta a{{display:inline-block;background:var(--terra-fill);color:#fff;
   text-decoration:none;font-weight:700;padding:13px 26px;border-radius:12px;
   min-height:44px;line-height:20px;}}
 .g-foot{{margin-top:26px;font-size:12.5px;line-height:1.6;color:var(--warm-gray);
