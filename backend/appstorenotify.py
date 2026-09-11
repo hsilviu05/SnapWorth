@@ -53,6 +53,12 @@ DID_CHANGE_RENEWAL_STATUS = "DID_CHANGE_RENEWAL_STATUS"
 REFUND = "REFUND"
 REVOKE = "REVOKE"
 
+# Apple sends this when the operator asks for one, to prove the endpoint is
+# reachable. It carries no transaction — there is no purchase behind it — so it
+# has to be handled before anything reads `signedTransactionInfo`, or the one
+# mechanism Apple gives for testing the integration reports it as broken.
+TEST = "TEST"
+
 INDEXED_TYPES = frozenset({
     SUBSCRIBED, DID_RENEW, EXPIRED, DID_FAIL_TO_RENEW,
     DID_CHANGE_RENEWAL_STATUS, REFUND, REVOKE,
@@ -68,12 +74,19 @@ class Notification:
     # Apple's idempotency key. The same notification is redelivered until we
     # answer 2xx, so this is what stops a retry being counted twice.
     uuid: str
-    entitlement: Entitlement
+    # None only for a TEST notification, which has no purchase behind it.
+    entitlement: Entitlement | None
+    environment: str = "Production"
     signed_date: int | None = None
 
     @property
+    def is_test(self) -> bool:
+        return self.notification_type == TEST
+
+    @property
     def is_indexed(self) -> bool:
-        return self.notification_type in INDEXED_TYPES
+        return (self.entitlement is not None
+                and self.notification_type in INDEXED_TYPES)
 
     @property
     def is_paid_period(self) -> bool:
@@ -89,7 +102,8 @@ class Notification:
         knew a moment ago, so that judgement belongs to the caller that can see
         the previous row.
         """
-        return (self.notification_type in {SUBSCRIBED, DID_RENEW}
+        return (self.entitlement is not None
+                and self.notification_type in {SUBSCRIBED, DID_RENEW}
                 and self.entitlement.offer_type is None
                 and self.entitlement.revoked_at is None)
 
@@ -168,6 +182,27 @@ def parse_notification(
                            "allowed": sorted(environments)})
         raise EntitlementError("Notification is from the wrong environment.")
 
+    notification_type = payload.get("notificationType")
+    if not isinstance(notification_type, str) or not notification_type:
+        raise EntitlementError("Notification has no type.")
+
+    uuid = payload.get("notificationUUID")
+    if not isinstance(uuid, str) or not uuid:
+        raise EntitlementError("Notification has no UUID.")
+
+    subtype = payload.get("subtype")
+    subtype = subtype if isinstance(subtype, str) and subtype else None
+    signed_ms = payload.get("signedDate")
+    signed_date = (int(signed_ms / 1000)
+                   if isinstance(signed_ms, (int, float)) else None)
+
+    if notification_type == TEST:
+        # Everything above still ran: this is signed by Apple, for our bundle,
+        # in an allowed environment. There is simply nothing to record.
+        return Notification(
+            notification_type=TEST, subtype=subtype, uuid=uuid,
+            entitlement=None, environment=environment, signed_date=signed_date)
+
     signed_transaction = data.get("signedTransactionInfo")
     if not isinstance(signed_transaction, str):
         raise EntitlementError("Notification carries no signed transaction.")
@@ -180,22 +215,11 @@ def parse_notification(
         signed_transaction, bundle_id, allowed_product_ids, allowed_environments,
         allow_inactive=True)
 
-    notification_type = payload.get("notificationType")
-    if not isinstance(notification_type, str) or not notification_type:
-        raise EntitlementError("Notification has no type.")
-
-    uuid = payload.get("notificationUUID")
-    if not isinstance(uuid, str) or not uuid:
-        raise EntitlementError("Notification has no UUID.")
-
-    subtype = payload.get("subtype")
-    signed_ms = payload.get("signedDate")
-
     return Notification(
         notification_type=notification_type,
-        subtype=subtype if isinstance(subtype, str) and subtype else None,
+        subtype=subtype,
         uuid=uuid,
         entitlement=ent,
-        signed_date=(int(signed_ms / 1000)
-                     if isinstance(signed_ms, (int, float)) else None),
+        environment=environment,
+        signed_date=signed_date,
     )

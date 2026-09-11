@@ -1187,6 +1187,13 @@ async def apple_notifications(body: AppleNotification) -> dict:
     if not first:
         return {"status": "duplicate"}
 
+    if note.is_test:
+        # Apple's own reachability check. Answered 200 and echoed to the
+        # operator's Telegram, so "did it arrive?" is answerable from a phone.
+        log.info("App Store test notification received (%s)", note.environment)
+        await notify.appstore_test_notification(note.environment)
+        return {"status": "test", "environment": note.environment}
+
     if not note.is_indexed:
         return {"status": "ignored", "type": note.notification_type}
 

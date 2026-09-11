@@ -247,6 +247,58 @@ class TestSemantics:
         assert note.is_cancellation
         assert not note.is_loss
 
+    def test_apples_own_test_notification_is_accepted(self, pinned):
+        """`TEST` carries no transaction — there is no purchase behind it. It
+        has to be recognised before anything reads signedTransactionInfo, or
+        the one mechanism Apple gives for proving the endpoint works reports it
+        as broken while real notifications are fine."""
+        leaf_key, chain = pinned
+        envelope = make_jws({
+            "notificationType": "TEST",
+            "notificationUUID": "test-uuid",
+            "version": "2.0",
+            "signedDate": int(time.time() * 1000),
+            # Exactly what Apple sends: no signedTransactionInfo.
+            "data": {"bundleId": BUNDLE_ID, "environment": "Production"},
+        }, leaf_key, chain)
+        note = appstorenotify.parse_notification(envelope, BUNDLE_ID, PRODUCTS)
+        assert note.is_test
+        assert note.entitlement is None
+        assert note.environment == "Production"
+        assert not note.is_indexed, "nothing to record"
+        assert not note.is_paid_period, "must not read a missing entitlement"
+
+    def test_a_test_notification_is_still_verified(self, pinned):
+        """Carrying no transaction does not make it a free pass: it is still
+        signed by Apple, for our bundle, in an allowed environment."""
+        _, _ = pinned
+        other_key, other_chain = build_chain()
+        envelope = make_jws({
+            "notificationType": "TEST", "notificationUUID": "t",
+            "data": {"bundleId": BUNDLE_ID, "environment": "Production"},
+        }, other_key, other_chain)
+        with pytest.raises(EntitlementError):
+            appstorenotify.parse_notification(envelope, BUNDLE_ID, PRODUCTS)
+
+    def test_a_test_notification_for_another_app_is_rejected(self, pinned):
+        leaf_key, chain = pinned
+        envelope = make_jws({
+            "notificationType": "TEST", "notificationUUID": "t",
+            "data": {"bundleId": "com.someone.else", "environment": "Production"},
+        }, leaf_key, chain)
+        with pytest.raises(EntitlementError):
+            appstorenotify.parse_notification(envelope, BUNDLE_ID, PRODUCTS)
+
+    def test_a_non_test_type_still_requires_its_transaction(self, pinned):
+        """The TEST branch must not become a way to skip the transaction."""
+        leaf_key, chain = pinned
+        envelope = make_jws({
+            "notificationType": "DID_RENEW", "notificationUUID": "t",
+            "data": {"bundleId": BUNDLE_ID, "environment": "Production"},
+        }, leaf_key, chain)
+        with pytest.raises(EntitlementError):
+            appstorenotify.parse_notification(envelope, BUNDLE_ID, PRODUCTS)
+
     def test_an_unrecognised_type_is_parsed_but_not_indexed(self, pinned):
         """Verified and acknowledged; never allowed to write a guessed row."""
         leaf_key, chain = pinned

@@ -636,7 +636,39 @@ against Apple's pinned root CA with our bundle ID checked on both the envelope
 and the transaction inside it. A caller who forged a valid Apple signature
 could tell us about a purchase, not create one.
 
-### Checking it
+### Proving it works
+
+**1. The endpoint is reachable and rejects what it should** (10 seconds, no
+credentials):
+
+```
+curl -sS -o /dev/null -w '%{http_code}\n' -X POST \
+  https://api.snapworth.eu/apple/notifications \
+  -H 'Content-Type: application/json' -d '{"signedPayload":"garbage"}'
+```
+
+`400` means deployed and refusing an unsigned payload. `404` means not
+deployed. `422` means the request never reached the handler.
+
+**2. Ask Apple to deliver a real one.** This is the only end-to-end proof, and
+it needs an App Store Connect **In-App Purchase** key (Users and Access → Keys
+→ In-App Purchase) to sign a JWT for the App Store Server API:
+
+```
+POST https://api.storekit.itunes.apple.com/inApps/v1/notifications/test
+→ { "testNotificationToken": "..." }
+
+GET  https://api.storekit.itunes.apple.com/inApps/v1/notifications/test/{token}
+→ the status code Apple got back from us, and the body we returned
+```
+
+Expect `200` and `{"status":"test"}`, **and a Telegram message** saying App
+Store Server Notifications are connected. A `TEST` notification carries no
+transaction — there is no purchase behind it — so it is recognised before
+anything reads `signedTransactionInfo`; it is still verified against Apple's
+chain, our bundle and the environment gate.
+
+### Checking it in normal operation
 
 - `/subs` in the bot. A row's `seen` should move without anyone opening the
   app, and `renews` should read `refund` after a refund rather than a date.
