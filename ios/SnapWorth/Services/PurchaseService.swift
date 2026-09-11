@@ -21,6 +21,49 @@ enum PurchaseOutcome: Equatable {
 /// storefront currency with the correct locale formatting. Hardcoding these
 /// showed a German user "$39.99" while Apple charged €44,99 — a refund
 /// generator and an App Review risk under Guideline 2.3.
+/// A StoreKit introductory offer, kept as data rather than as a sentence.
+///
+/// This used to be a `String?` built in the service, and every caller read
+/// "non-nil" as "free trial". StoreKit has three payment modes and two of them
+/// charge money, so a paid introductory offer rendered as
+///
+/// > Try SnapWorth free for $9.99 for 3 months
+///
+/// — free and priced in one breath, and the half a reader believes is "free".
+/// Keeping the mode means the copy can branch on it instead of guessing, and an
+/// offer we do not recognise can be dropped rather than described wrongly.
+struct IntroOffer: Equatable, Sendable {
+    /// StoreKit's `Product.SubscriptionOffer.PaymentMode`, minus the modes we
+    /// have no copy for — those become `nil` at the source.
+    enum Kind: Equatable, Sendable {
+        /// Free for the whole introductory period.
+        case freeTrial
+        /// One up-front payment covering the whole introductory period.
+        case payUpFront
+        /// A reduced price charged once per period, for `periodCount` periods.
+        case payAsYouGo
+    }
+
+    let kind: Kind
+    /// Localised price of the offer, already in the user's storefront currency.
+    /// Empty for a free trial, which has no price to show.
+    let displayPrice: String
+    /// Length of one offer period, as a count and a singular unit — 3 + "day".
+    let unitCount: Int
+    let unit: String
+    /// How many of those periods the offer runs for. StoreKit fixes this at 1
+    /// for `freeTrial` and `payUpFront`; only `payAsYouGo` repeats.
+    let periodCount: Int
+
+    /// Total length of the offer, in `unit`s. Periods are uniform, so the whole
+    /// offer is always expressible in the same unit as one period.
+    var totalUnits: Int { unitCount * periodCount }
+
+    /// True only for a genuinely free offer. The one thing callers may use to
+    /// decide whether the word "free" is allowed on screen.
+    var isFree: Bool { kind == .freeTrial }
+}
+
 struct PlanPricing: Equatable, Sendable {
     let productID: String
     /// Localised total price, e.g. "$39.99" / "44,99 €".
@@ -28,8 +71,9 @@ struct PlanPricing: Equatable, Sendable {
     /// Localised price per week, for the yearly plan's value framing. Nil when
     /// StoreKit can't express the period.
     let displayPricePerWeek: String?
-    /// Introductory offer duration, e.g. "3-day free trial". Nil when none.
-    let introductoryOffer: String?
+    /// Introductory offer, or nil when the product has none — or has one whose
+    /// payment mode we have no honest copy for.
+    let introductoryOffer: IntroOffer?
     /// Percentage saved against the monthly plan, when comparable.
     let savingsPercent: Int?
 
@@ -64,8 +108,13 @@ protocol PurchaseService: AnyObject {
     /// rather than two.
     var isPricingLoaded: Bool { get }
 
-    /// A product fetch completed and returned nothing usable. The paywall
+    /// A product fetch did not come back with every plan we sell. The paywall
     /// shows this rather than an inert CTA over em-dashes.
+    ///
+    /// A *partial* fetch counts. It used to look identical to a complete one,
+    /// and when the missing product was the yearly plan — the default
+    /// selection — the paywall sat on "Loading plans…" behind a disabled CTA
+    /// with the retry gated off, because the retry keyed on this flag.
     var pricingFailed: Bool { get }
 
     /// Retry a failed product fetch — surfaced behind the paywall's error state.

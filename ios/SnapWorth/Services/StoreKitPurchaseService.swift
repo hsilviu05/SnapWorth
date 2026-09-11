@@ -7,7 +7,8 @@ import StoreKit
 @MainActor
 final class StoreKitPurchaseService: PurchaseService, ObservableObject {
     @Published private(set) var isSubscribed: Bool
-    /// End of an active introductory free trial, when the user is in one.
+    /// End of an active *free* introductory trial, when the user is in one.
+    /// Nil during a paid introductory offer — see `refreshSubscriptionStatus`.
     @Published private(set) var trialEndDate: Date?
     /// Localised pricing straight from StoreKit, keyed by product ID.
     @Published private(set) var pricing: [String: PlanPricing] = [:]
@@ -116,13 +117,20 @@ final class StoreKitPurchaseService: PurchaseService, ObservableObject {
         // said. The flag now means "we have prices", and `pricingFailed`
         // carries the other case so the paywall can offer a retry.
         defer { isPricingLoaded = !products.isEmpty }
-        if let fetched = try? await Product.products(for: productIDs), !fetched.isEmpty {
-            products = fetched
-            pricing = Self.buildPricing(from: fetched)
-            pricingFailed = false
-        } else {
+        guard let fetched = try? await Product.products(for: productIDs),
+              !fetched.isEmpty else {
             pricingFailed = true
+            return
         }
+        products = fetched
+        pricing = Self.buildPricing(from: fetched)
+        // A *partial* fetch used to land here as an unqualified success. If the
+        // missing product was the yearly plan — which the paywall selects by
+        // default — the user got "Loading plans…", a disabled CTA, and no
+        // retry, because the retry is gated on this flag. Anything short of
+        // every plan is a failure now; whatever did arrive is still kept, so
+        // the paywall can offer the plan it does have.
+        pricingFailed = fetched.count < productIDs.count
     }
 
     // MARK: - Pricing
@@ -142,7 +150,7 @@ final class StoreKitPurchaseService: PurchaseService, ObservableObject {
                 productID: product.id,
                 displayPrice: product.displayPrice,
                 displayPricePerWeek: isYearly ? weeklyPrice(for: product) : nil,
-                introductoryOffer: introductoryDescription(for: product),
+                introductoryOffer: introOffer(for: product),
                 savingsPercent: isYearly ? savings(yearly: product, monthly: monthly) : nil
             )
         }
@@ -157,34 +165,43 @@ final class StoreKitPurchaseService: PurchaseService, ObservableObject {
         return product.priceFormatStyle.format(perWeek)
     }
 
-    /// "3-day free trial" / "1 month free", from the product's real offer.
-    /// Returns nil when no introductory offer is configured, so the paywall
-    /// cannot advertise a trial that App Store Connect does not grant.
-    private static func introductoryDescription(for product: Product) -> String? {
+    /// The product's real introductory offer, as data.
+    ///
+    /// Returns nil when none is configured — so the paywall cannot advertise an
+    /// offer App Store Connect does not grant — and also when the payment mode
+    /// is one we have no copy for. Dropping an offer costs a line of value
+    /// framing; describing it wrongly is a pricing claim made at the moment a
+    /// user decides whether to pay.
+    static func introOffer(for product: Product) -> IntroOffer? {
         guard let offer = product.subscription?.introductoryOffer else { return nil }
-        let period = offer.period
+
         let unit: String
-        switch period.unit {
+        switch offer.period.unit {
         case .day:   unit = "day"
         case .week:  unit = "week"
         case .month: unit = "month"
         case .year:  unit = "year"
         @unknown default: return nil
         }
-        let count = period.value
-        let plural = count == 1 ? "" : "s"
 
+        let kind: IntroOffer.Kind
         switch offer.paymentMode {
-        case .freeTrial:
-            // Attributive compound — "3-day free trial", never "3-days". The
-            // paywall headline re-reads this to say "free for 3 days", so
-            // pluralising here too produced "free for 3 dayss" in production.
-            return "\(count)-\(unit) free trial"
-        case .payAsYouGo, .payUpFront:
-            return "\(offer.displayPrice) for \(count) \(unit)\(plural)"
-        default:
-            return nil
+        case .freeTrial:   kind = .freeTrial
+        case .payUpFront:  kind = .payUpFront
+        case .payAsYouGo:  kind = .payAsYouGo
+        default: return nil
         }
+
+        return IntroOffer(
+            kind: kind,
+            // A free trial has no price to show, and `displayPrice` on one is
+            // the storefront's zero ("$0.00") — a figure this must never put
+            // next to the word "free".
+            displayPrice: kind == .freeTrial ? "" : offer.displayPrice,
+            unitCount: offer.period.value,
+            unit: unit,
+            periodCount: offer.periodCount
+        )
     }
 
     /// Percentage the yearly plan saves against 12× monthly.
@@ -215,9 +232,21 @@ final class StoreKitPurchaseService: PurchaseService, ObservableObject {
                 // re-verifies it against Apple's root CA, so entitlement is
                 // never taken on the client's word.
                 activeJWS = result.jwsRepresentation
-                // The only introductory offer on these products is the free
-                // trial, so an introductory entitlement means we're in it.
-                if transaction.offerType == .introductory, let exp = transaction.expirationDate {
+                // `offerType == .introductory` says an introductory offer is
+                // running, not that it is free — a paid intro offer looks the
+                // same here, and would have scheduled "Your SnapWorth trial
+                // ends tomorrow" for someone who paid. The `Transaction` does
+                // not carry the payment mode, so ask the product. If the
+                // product fetch failed we have no answer and stay silent: the
+                // next status refresh retries, and a missed courtesy reminder
+                // is cheaper than telling a paying subscriber they are on a
+                // trial.
+                let isFreeTrial = products
+                    .first { $0.id == transaction.productID }
+                    .flatMap { $0.subscription?.introductoryOffer }
+                    .map { $0.paymentMode == .freeTrial } ?? false
+                if transaction.offerType == .introductory, isFreeTrial,
+                   let exp = transaction.expirationDate {
                     trialEnd = exp
                 }
             }

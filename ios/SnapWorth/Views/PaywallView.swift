@@ -19,8 +19,9 @@ struct PaywallView: View {
                     let yearly = pricing(Config.yearlyProductID)
                     let monthly = pricing(Config.monthlyProductID)
                     let selected = isYearly ? yearly : monthly
-                    // Only promise a trial when StoreKit says one exists.
-                    let trial = yearly.introductoryOffer
+                    // Only promise an offer when StoreKit says one exists —
+                    // and only call it free when StoreKit says it is.
+                    let offer = yearly.introductoryOffer
 
                     VStack(spacing: 16) {
                         Image(systemName: "sparkle")
@@ -29,14 +30,16 @@ struct PaywallView: View {
                             .symbolRenderingMode(.hierarchical)
                             .padding(.top, 56)
 
-                        Text(PaywallCopy.headline(isYearly: isYearly, trial: trial))
+                        Text(PaywallCopy.headline(isYearly: isYearly, offer: offer))
                             .font(.fraunces(32, weight: .bold, relativeTo: .largeTitle))
                             .foregroundStyle(Color.snapEspresso)
                             .multilineTextAlignment(.center)
                             .snapAnimation(.easeInOut(duration: 0.2), value: isYearly)
                             .accessibilityAddTraits(.isHeader)
 
-                        Text(subheadline(isYearly: isYearly, plan: selected, trial: trial))
+                        Text(PaywallCopy.subheadline(isYearly: isYearly,
+                                                     price: selected.displayPrice,
+                                                     offer: offer))
                             .font(.snapCaption)
                             .foregroundStyle(Color.snapWarmGray)
                             .multilineTextAlignment(.center)
@@ -59,6 +62,12 @@ struct PaywallView: View {
                             Haptics.selection()
                             vm.selectedProductID = Config.yearlyProductID
                         }
+                        // Redacted per card, not across both: a fetch that
+                        // returns one plan and not the other should show the
+                        // real price it has rather than hide it behind a
+                        // placeholder, and must never show a placeholder that
+                        // reads like a price it doesn't have.
+                        .redacted(reason: isLoaded(Config.yearlyProductID) ? [] : .placeholder)
 
                         PlanCard(
                             title: "Monthly",
@@ -70,9 +79,9 @@ struct PaywallView: View {
                             Haptics.selection()
                             vm.selectedProductID = Config.monthlyProductID
                         }
+                        .redacted(reason: isLoaded(Config.monthlyProductID) ? [] : .placeholder)
                     }
                     .padding(.horizontal, 20)
-                    .redacted(reason: purchaseService.isPricingLoaded ? [] : .placeholder)
 
                     // ── Benefits ───────────────────────────────────────────
                     // Every row below is a real gate — one of the places that
@@ -103,13 +112,17 @@ struct PaywallView: View {
                     }
 
                     // ── Pricing unavailable ────────────────────────────────
-                    // The fetch finished and returned nothing. Without this the
-                    // cards read "—" forever and the CTA sat there inert with
-                    // nothing said; the retry was reachable only by dismissing
-                    // and reopening the sheet.
-                    if purchaseService.pricingFailed, !purchaseService.isPricingLoaded {
+                    // The fetch didn't come back with every plan. Without this
+                    // the cards read "—" forever and the CTA sat there inert
+                    // with nothing said; the retry was reachable only by
+                    // dismissing and reopening the sheet. It no longer requires
+                    // a *total* failure: one plan missing is enough to strand a
+                    // user on it, because the missing one may be the selected
+                    // one.
+                    if purchaseService.pricingFailed {
                         VStack(spacing: 10) {
-                            Text("Couldn't load plans. Check your connection and try again.")
+                            Text(PaywallCopy.pricingProblem(
+                                hasSomePricing: !purchaseService.pricing.isEmpty))
                                 .font(.snapCaption)
                                 .foregroundStyle(Color.snapWarmGray)
                                 .multilineTextAlignment(.center)
@@ -118,6 +131,7 @@ struct PaywallView: View {
                                 Task {
                                     isReloadingPricing = true
                                     await purchaseService.reloadProducts()
+                                    vm.reconcileSelection(with: purchaseService.pricing)
                                     isReloadingPricing = false
                                 }
                             }
@@ -140,7 +154,7 @@ struct PaywallView: View {
                     // ── CTA ────────────────────────────────────────────────
                     VStack(spacing: 16) {
                         PrimaryButton(
-                            title: ctaTitle(isYearly: isYearly, trial: trial),
+                            title: PaywallCopy.ctaTitle(isYearly: isYearly, offer: offer),
                             isLoading: vm.isPurchasing
                         ) {
                             Task { await vm.purchase(service: purchaseService) }
@@ -214,6 +228,11 @@ struct PaywallView: View {
             if !purchaseService.isPricingLoaded || purchaseService.pricing.isEmpty {
                 await purchaseService.reloadProducts()
             }
+            // The default selection is yearly. If that is the plan StoreKit
+            // didn't return, leaving it selected means a disabled CTA over
+            // "Loading plans…" with a perfectly purchasable monthly card
+            // sitting right there unselected.
+            vm.reconcileSelection(with: purchaseService.pricing)
         }
         .onAppear {
             vm.startCloseButtonTimer()
@@ -252,43 +271,117 @@ private extension PaywallView {
         purchaseService.pricing[productID] ?? .loading(productID)
     }
 
-    func subheadline(isYearly: Bool, plan: PlanPricing, trial: String?) -> String {
-        guard plan.displayPrice != "—" else { return "Loading plans…" }
-        let period = isYearly ? "year" : "month"
-        if isYearly, trial != nil {
-            return "Then \(plan.displayPrice)/\(period). Cancel anytime."
-        }
-        return "\(plan.displayPrice)/\(period). Cancel anytime."
+    /// Whether StoreKit actually returned this plan — not whether the fetch
+    /// finished. A partial fetch finishes.
+    func isLoaded(_ productID: String) -> Bool {
+        purchaseService.pricing[productID] != nil
     }
 
     func yearlyDetail(_ plan: PlanPricing) -> String {
-        var parts: [String] = []
-        if let weekly = plan.displayPricePerWeek { parts.append("\(weekly) per week") }
-        if let intro = plan.introductoryOffer { parts.append(intro) }
-        return parts.isEmpty ? "Best value" : parts.joined(separator: " · ")
+        PaywallCopy.planDetail(weekly: plan.displayPricePerWeek,
+                               offer: plan.introductoryOffer)
     }
-
-    func ctaTitle(isYearly: Bool, trial: String?) -> String {
-        if isYearly, trial != nil { return "Start Free Trial" }
-        return isYearly ? "Subscribe Yearly" : "Subscribe Monthly"
-    }
-
 }
 
 // MARK: - Paywall copy
 
 /// Pure copy helpers, lifted out of the view so they can be tested.
 ///
-/// The headline is the highest-intent string in the app, and it shipped reading
-/// "free for 3 dayss": `StoreKitPurchaseService.introductoryDescription`
-/// pluralised the unit, then `trialDuration` pluralised the result again. Both
-/// sides are now defensive — the source emits the singular attributive form
-/// ("3-day free trial"), and `trialDuration` will not re-pluralise a unit that
-/// already ends in "s".
+/// Two rules hold across everything below.
+///
+/// **The word "free" requires `IntroOffer.isFree`.** The offer used to arrive
+/// as a `String?` and every caller read "non-nil" as "free trial", so a paid
+/// introductory offer produced the headline "Try SnapWorth free for $9.99 for
+/// 3 months" — free and priced in one sentence, and the half a reader believes
+/// is "free". The configured product is a real 3-day free trial today, so this
+/// was never on screen; it becomes so the moment the offer is changed in App
+/// Store Connect, which is a change made without touching the app.
+///
+/// **A unit is pluralised exactly once.** The headline shipped reading "free
+/// for 3 dayss" because the service pluralised a sentence and the view
+/// pluralised the result. The service now emits a singular `unit` and a count,
+/// and nothing round-trips through a string.
 enum PaywallCopy {
-    static func headline(isYearly: Bool, trial: String?) -> String {
-        guard isYearly, let trial else { return "Unlock\nSnapWorth Pro" }
-        return "Try SnapWorth\nfree for \(trialDuration(trial))"
+    static func headline(isYearly: Bool, offer: IntroOffer?) -> String {
+        guard isYearly, let offer, offer.isFree else { return "Unlock\nSnapWorth Pro" }
+        return "Try SnapWorth\nfree for \(duration(offer))"
+    }
+
+    /// The offer spelled out, with what is charged once it ends.
+    ///
+    /// A paid offer states its price here rather than in the headline: the
+    /// headline is two lines of display type, and a price that needs a "then"
+    /// clause to be true does not belong in it.
+    static func subheadline(isYearly: Bool, price: String, offer: IntroOffer?) -> String {
+        guard price != "—" else { return "Loading plans…" }
+        let regular = "\(price)/\(isYearly ? "year" : "month")"
+        guard isYearly, let offer else { return "\(regular). Cancel anytime." }
+        switch offer.kind {
+        case .freeTrial:
+            return "Then \(regular). Cancel anytime."
+        case .payUpFront:
+            return "\(offer.displayPrice) for your first \(duration(offer)), "
+                + "then \(regular). Cancel anytime."
+        case .payAsYouGo:
+            return "\(offer.displayPrice) per \(perPeriod(offer)) for \(duration(offer)), "
+                + "then \(regular). Cancel anytime."
+        }
+    }
+
+    /// The yearly card's detail line: value framing, then the offer.
+    static func planDetail(weekly: String?, offer: IntroOffer?) -> String {
+        var parts: [String] = []
+        if let weekly { parts.append("\(weekly) per week") }
+        if let offer { parts.append(offerPhrase(offer)) }
+        return parts.isEmpty ? "Best value" : parts.joined(separator: " · ")
+    }
+
+    /// The offer in as few words as a card row allows.
+    static func offerPhrase(_ offer: IntroOffer) -> String {
+        switch offer.kind {
+        case .freeTrial:
+            // Attributive compound — "3-day free trial", never "3-days".
+            return "\(offer.totalUnits)-\(offer.unit) free trial"
+        case .payUpFront:
+            return "\(offer.displayPrice) for your first \(duration(offer))"
+        case .payAsYouGo:
+            return "\(offer.displayPrice) per \(perPeriod(offer)) for \(duration(offer))"
+        }
+    }
+
+    /// "Start Free Trial" is a claim about money, so it needs a free offer.
+    static func ctaTitle(isYearly: Bool, offer: IntroOffer?) -> String {
+        if isYearly, let offer, offer.isFree { return "Start Free Trial" }
+        return isYearly ? "Subscribe Yearly" : "Subscribe Monthly"
+    }
+
+    /// Shown beside the retry when a product fetch came back short.
+    ///
+    /// A partial fetch is a different situation from an empty one: something is
+    /// purchasable, so the copy must not imply the screen is dead.
+    static func pricingProblem(hasSomePricing: Bool) -> String {
+        hasSomePricing
+            ? "Couldn't load every plan. Try again, or continue with the one shown."
+            : "Couldn't load plans. Check your connection and try again."
+    }
+
+    /// The whole offer, e.g. "3 days" — one period times however many run.
+    static func duration(_ offer: IntroOffer) -> String {
+        phrase(count: offer.totalUnits, unit: offer.unit)
+    }
+
+    /// What a pay-as-you-go price is charged *per*: "month", or "2 weeks" if
+    /// the period is longer than one unit. Never "per 1 month".
+    static func perPeriod(_ offer: IntroOffer) -> String {
+        offer.unitCount == 1 ? offer.unit : phrase(count: offer.unitCount, unit: offer.unit)
+    }
+
+    /// "3 days" / "1 day". The `hasSuffix` guard is the "3 dayss" bug's
+    /// gravestone: `unit` is singular by construction in the service, and this
+    /// makes it impossible for a caller to double up even if it isn't.
+    static func phrase(count: Int, unit: String) -> String {
+        let needsPlural = count != 1 && !unit.hasSuffix("s")
+        return "\(count) \(unit)\(needsPlural ? "s" : "")"
     }
 
     /// One row of the paywall's "what's included" card.
@@ -310,16 +403,6 @@ enum PaywallCopy {
         Benefit(icon: "chart.pie.fill", text: "Portfolio value, trend and thrift trends"),
         Benefit(icon: "square.and.arrow.up", text: "Unlimited sold flips, and CSV export"),
     ]
-
-    /// "3-day free trial" → "3 days". Falls back to the raw phrase.
-    static func trialDuration(_ offer: String) -> String {
-        let head = offer.replacingOccurrences(of: " free trial", with: "")
-        let parts = head.split(separator: "-")
-        guard parts.count == 2, let count = Int(parts[0]) else { return head }
-        let unit = parts[1]
-        let needsPlural = count != 1 && !unit.hasSuffix("s")
-        return "\(count) \(unit)\(needsPlural ? "s" : "")"
-    }
 }
 
 // MARK: - Benefit Row

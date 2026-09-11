@@ -384,62 +384,251 @@ final class ScanAPIResponseDecodingTests: XCTestCase {
 
 // MARK: - Paywall copy
 //
-// The trial headline shipped reading "Try SnapWorth free for 3 dayss".
-// `StoreKitPurchaseService.introductoryDescription` pluralised the unit into
-// "3-days free trial", then `PaywallCopy.trialDuration` pluralised it again.
-// Nothing caught it because `MockPurchaseService` hardcodes the singular form,
-// so previews and tests rendered the correct string while real StoreKit did not.
+// Two production bugs live here.
+//
+// 1. The trial headline shipped reading "Try SnapWorth free for 3 dayss" —
+//    the service pluralised a sentence and the view pluralised the result.
+//    That round-trip is gone: the offer is data now, and the unit is
+//    pluralised in exactly one place.
+//
+// 2. Every caller read "an introductory offer exists" as "it is free", so a
+//    paid intro offer rendered as "Try SnapWorth free for $9.99 for 3 months".
+//    Not visible today — the configured product is a real 3-day free trial —
+//    but it becomes visible the moment the offer is changed in App Store
+//    Connect, a change made entirely outside the app.
+//
+// `MockPurchaseService` hardcodes the shipping offer, so previews and tests
+// rendered the correct string while real StoreKit did not. Every assertion
+// below builds its own `IntroOffer` rather than leaning on the mock.
 
+// `MockPurchaseService` is `@MainActor`, and one test reads its sample pricing.
+@MainActor
 final class PaywallCopyTests: XCTestCase {
 
-    func test_trialDuration_pluralisesSingularUnit() {
-        // The documented contract: the source emits the attributive singular.
-        XCTAssertEqual(PaywallCopy.trialDuration("3-day free trial"), "3 days")
+    private func freeTrial(_ count: Int = 3, _ unit: String = "day") -> IntroOffer {
+        IntroOffer(kind: .freeTrial, displayPrice: "",
+                   unitCount: count, unit: unit, periodCount: 1)
     }
 
-    func test_trialDuration_doesNotDoublePluralise() {
-        // The actual production regression. Idempotent whichever form arrives.
-        XCTAssertEqual(PaywallCopy.trialDuration("3-days free trial"), "3 days")
+    private func payUpFront(_ price: String = "$9.99",
+                            _ count: Int = 3, _ unit: String = "month") -> IntroOffer {
+        IntroOffer(kind: .payUpFront, displayPrice: price,
+                   unitCount: count, unit: unit, periodCount: 1)
     }
 
-    func test_trialDuration_keepsSingularForOne() {
-        XCTAssertEqual(PaywallCopy.trialDuration("1-day free trial"), "1 day")
+    private func payAsYouGo(_ price: String = "$1.99", unitCount: Int = 1,
+                            unit: String = "month", periods: Int = 3) -> IntroOffer {
+        IntroOffer(kind: .payAsYouGo, displayPrice: price,
+                   unitCount: unitCount, unit: unit, periodCount: periods)
     }
 
-    func test_trialDuration_handlesOtherUnits() {
-        XCTAssertEqual(PaywallCopy.trialDuration("2-week free trial"), "2 weeks")
-        XCTAssertEqual(PaywallCopy.trialDuration("1-month free trial"), "1 month")
+    // ── The paid-offer bug ────────────────────────────────────────────────
+
+    func test_paidOffer_neverSaysFreeAnywhere() {
+        // The whole point. Nothing on this screen may call a paid offer free.
+        for offer in [payUpFront(), payAsYouGo()] {
+            let strings = [
+                PaywallCopy.headline(isYearly: true, offer: offer),
+                PaywallCopy.subheadline(isYearly: true, price: "$39.99", offer: offer),
+                PaywallCopy.offerPhrase(offer),
+                PaywallCopy.planDetail(weekly: "$0.77", offer: offer),
+                PaywallCopy.ctaTitle(isYearly: true, offer: offer),
+            ]
+            for text in strings {
+                XCTAssertFalse(text.lowercased().contains("free"),
+                               "Paid offer described as free: \(text)")
+            }
+        }
     }
 
-    func test_trialDuration_fallsBackToRawPhrase() {
-        // Never emit a malformed duration; show whatever StoreKit gave us.
-        XCTAssertEqual(PaywallCopy.trialDuration("free trial"), "free trial")
-        XCTAssertEqual(PaywallCopy.trialDuration("some-nonsense"), "some-nonsense")
-        XCTAssertEqual(PaywallCopy.trialDuration(""), "")
-    }
-
-    func test_headline_readsCorrectlyForATrial() {
+    func test_paidOffer_doesNotProduceTheShippedContradiction() {
+        // The literal string the old code built.
+        XCTAssertNotEqual(
+            PaywallCopy.headline(isYearly: true, offer: payUpFront()),
+            "Try SnapWorth\nfree for $9.99 for 3 months")
         XCTAssertEqual(
-            PaywallCopy.headline(isYearly: true, trial: "3-day free trial"),
-            "Try SnapWorth\nfree for 3 days")
-        // The exact string that shipped, guarded directly.
-        XCTAssertFalse(
-            PaywallCopy.headline(isYearly: true, trial: "3-days free trial").contains("dayss"))
-    }
-
-    func test_headline_withoutTrialDoesNotPromiseOne() {
-        XCTAssertEqual(
-            PaywallCopy.headline(isYearly: true, trial: nil), "Unlock\nSnapWorth Pro")
-        XCTAssertEqual(
-            PaywallCopy.headline(isYearly: false, trial: "3-day free trial"),
+            PaywallCopy.headline(isYearly: true, offer: payUpFront()),
             "Unlock\nSnapWorth Pro")
     }
 
-    func test_mockTrialStringMatchesHeadline() {
-        // The mock must mirror what `introductoryDescription` really produces,
-        // or tests keep passing while production reads differently.
-        let mockOffer = "3-day free trial"
-        XCTAssertEqual(PaywallCopy.trialDuration(mockOffer), "3 days")
+    func test_payUpFront_statesThePriceAndWhatFollows() {
+        XCTAssertEqual(
+            PaywallCopy.subheadline(isYearly: true, price: "$39.99", offer: payUpFront()),
+            "$9.99 for your first 3 months, then $39.99/year. Cancel anytime.")
+        XCTAssertEqual(PaywallCopy.offerPhrase(payUpFront()),
+                       "$9.99 for your first 3 months")
+    }
+
+    func test_payAsYouGo_statesTheRateAndHowLong() {
+        XCTAssertEqual(
+            PaywallCopy.subheadline(isYearly: true, price: "$39.99", offer: payAsYouGo()),
+            "$1.99 per month for 3 months, then $39.99/year. Cancel anytime.")
+        XCTAssertEqual(PaywallCopy.offerPhrase(payAsYouGo()),
+                       "$1.99 per month for 3 months")
+    }
+
+    func test_payAsYouGo_neverSaysPerOneUnit() {
+        // A one-unit period is "per month", not "per 1 month"; a longer one
+        // keeps its count, because "per week" would understate the charge.
+        XCTAssertEqual(PaywallCopy.perPeriod(payAsYouGo()), "month")
+        XCTAssertEqual(
+            PaywallCopy.perPeriod(payAsYouGo(unitCount: 2, unit: "week")), "2 weeks")
+        XCTAssertEqual(
+            PaywallCopy.offerPhrase(payAsYouGo("$3.00", unitCount: 2, unit: "week")),
+            "$3.00 per 2 weeks for 6 weeks")
+    }
+
+    func test_paidOffer_ctaDoesNotOfferToStartATrial() {
+        XCTAssertEqual(PaywallCopy.ctaTitle(isYearly: true, offer: payUpFront()),
+                       "Subscribe Yearly")
+        XCTAssertEqual(PaywallCopy.ctaTitle(isYearly: true, offer: payAsYouGo()),
+                       "Subscribe Yearly")
+    }
+
+    // ── The free trial still reads exactly as it ships today ──────────────
+
+    func test_freeTrial_isUnchangedFromWhatShips() {
+        let offer = freeTrial()
+        XCTAssertEqual(PaywallCopy.headline(isYearly: true, offer: offer),
+                       "Try SnapWorth\nfree for 3 days")
+        XCTAssertEqual(
+            PaywallCopy.subheadline(isYearly: true, price: "$39.99", offer: offer),
+            "Then $39.99/year. Cancel anytime.")
+        XCTAssertEqual(PaywallCopy.offerPhrase(offer), "3-day free trial")
+        XCTAssertEqual(PaywallCopy.ctaTitle(isYearly: true, offer: offer),
+                       "Start Free Trial")
+    }
+
+    func test_mockMirrorsTheShippingOffer() {
+        // If the mock drifts from the real product, previews and tests keep
+        // rendering a string production no longer produces.
+        let mocked = MockPurchaseService.samplePricing[Config.yearlyProductID]?
+            .introductoryOffer
+        XCTAssertEqual(mocked, freeTrial())
+    }
+
+    // ── Pluralisation, the "3 dayss" gravestone ───────────────────────────
+
+    func test_phrase_pluralisesExactlyOnce() {
+        XCTAssertEqual(PaywallCopy.phrase(count: 3, unit: "day"), "3 days")
+        XCTAssertEqual(PaywallCopy.phrase(count: 1, unit: "day"), "1 day")
+        XCTAssertEqual(PaywallCopy.phrase(count: 2, unit: "week"), "2 weeks")
+        XCTAssertEqual(PaywallCopy.phrase(count: 1, unit: "month"), "1 month")
+        // A unit that already arrived plural is not doubled.
+        XCTAssertEqual(PaywallCopy.phrase(count: 3, unit: "days"), "3 days")
+    }
+
+    func test_headline_neverReadsDayss() {
+        // The exact string that shipped, guarded directly — including from a
+        // caller that hands over an already-plural unit.
+        for unit in ["day", "days"] {
+            XCTAssertFalse(
+                PaywallCopy.headline(isYearly: true, offer: freeTrial(3, unit))
+                    .contains("dayss"))
+        }
+    }
+
+    func test_durationCoversEveryPeriodOfTheOffer() {
+        // periodCount > 1 means the offer repeats; the duration is the whole of
+        // it, not one period.
+        XCTAssertEqual(PaywallCopy.duration(payAsYouGo()), "3 months")
+        XCTAssertEqual(PaywallCopy.duration(freeTrial(1, "month")), "1 month")
+    }
+
+    // ── No offer, and the non-yearly plan ─────────────────────────────────
+
+    func test_headline_withoutOfferDoesNotPromiseOne() {
+        XCTAssertEqual(
+            PaywallCopy.headline(isYearly: true, offer: nil), "Unlock\nSnapWorth Pro")
+        // The offer belongs to the yearly product; selecting monthly must not
+        // inherit it.
+        XCTAssertEqual(
+            PaywallCopy.headline(isYearly: false, offer: freeTrial()),
+            "Unlock\nSnapWorth Pro")
+        XCTAssertEqual(
+            PaywallCopy.ctaTitle(isYearly: false, offer: freeTrial()),
+            "Subscribe Monthly")
+        XCTAssertEqual(
+            PaywallCopy.subheadline(isYearly: false, price: "$4.99", offer: freeTrial()),
+            "$4.99/month. Cancel anytime.")
+    }
+
+    func test_subheadline_withoutAPriceSaysSoRatherThanGuessing() {
+        XCTAssertEqual(
+            PaywallCopy.subheadline(isYearly: true, price: "—", offer: freeTrial()),
+            "Loading plans…")
+    }
+
+    func test_planDetail_survivesEveryMissingPiece() {
+        XCTAssertEqual(PaywallCopy.planDetail(weekly: nil, offer: nil), "Best value")
+        XCTAssertEqual(PaywallCopy.planDetail(weekly: "$0.77", offer: nil),
+                       "$0.77 per week")
+        XCTAssertEqual(PaywallCopy.planDetail(weekly: "$0.77", offer: freeTrial()),
+                       "$0.77 per week · 3-day free trial")
+    }
+
+    // ── Partial fetch copy ────────────────────────────────────────────────
+
+    func test_pricingProblem_distinguishesPartialFromEmpty() {
+        // A partial fetch leaves something purchasable, so the copy must not
+        // read as though the screen is dead.
+        XCTAssertEqual(PaywallCopy.pricingProblem(hasSomePricing: false),
+                       "Couldn't load plans. Check your connection and try again.")
+        XCTAssertTrue(PaywallCopy.pricingProblem(hasSomePricing: true)
+            .contains("continue with the one shown"))
+    }
+}
+
+// MARK: - Paywall selection
+//
+// The paywall selects yearly by default, and `isPurchasable` reads the
+// *selected* plan. A product fetch that returned only the monthly plan
+// therefore left a disabled CTA under "Loading plans…", with a purchasable
+// monthly card sitting unselected beside it and no copy pointing at it.
+
+@MainActor
+final class PaywallSelectionTests: XCTestCase {
+
+    private func pricing(_ id: String) -> [String: PlanPricing] {
+        [id: PlanPricing(productID: id, displayPrice: "$4.99",
+                         displayPricePerWeek: nil, introductoryOffer: nil,
+                         savingsPercent: nil)]
+    }
+
+    func test_fallsBackToTheOnlyPlanThatLoaded() {
+        let vm = PaywallViewModel()
+        XCTAssertEqual(vm.selectedProductID, Config.yearlyProductID)
+        vm.reconcileSelection(with: pricing(Config.monthlyProductID))
+        XCTAssertEqual(vm.selectedProductID, Config.monthlyProductID,
+                       "A selection with no price leaves the CTA permanently disabled")
+    }
+
+    func test_keepsTheDefaultWhenItLoaded() {
+        let vm = PaywallViewModel()
+        vm.reconcileSelection(with: MockPurchaseService.samplePricing)
+        XCTAssertEqual(vm.selectedProductID, Config.yearlyProductID)
+    }
+
+    func test_prefersYearlyWhenTheUserHasNotChosen() {
+        let vm = PaywallViewModel()
+        vm.selectedProductID = "com.snapworth.retired"
+        vm.reconcileSelection(with: MockPurchaseService.samplePricing)
+        XCTAssertEqual(vm.selectedProductID, Config.yearlyProductID)
+    }
+
+    func test_doesNotMoveTheSelectionWhenNothingLoaded() {
+        // Total failure: there is nothing better to move to, and moving would
+        // change the screen for no gain.
+        let vm = PaywallViewModel()
+        vm.reconcileSelection(with: [:])
+        XCTAssertEqual(vm.selectedProductID, Config.yearlyProductID)
+    }
+
+    func test_leavesAnExplicitMonthlyChoiceAlone() {
+        let vm = PaywallViewModel()
+        vm.selectedProductID = Config.monthlyProductID
+        vm.reconcileSelection(with: MockPurchaseService.samplePricing)
+        XCTAssertEqual(vm.selectedProductID, Config.monthlyProductID)
     }
 }
 

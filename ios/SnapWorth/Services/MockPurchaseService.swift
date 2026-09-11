@@ -24,7 +24,8 @@ final class MockPurchaseService: PurchaseService, ObservableObject {
             productID: Config.yearlyProductID,
             displayPrice: "$39.99",
             displayPricePerWeek: "$0.77",
-            introductoryOffer: "3-day free trial",
+            introductoryOffer: IntroOffer(kind: .freeTrial, displayPrice: "",
+                                          unitCount: 3, unit: "day", periodCount: 1),
             savingsPercent: 33
         ),
         Config.monthlyProductID: PlanPricing(
