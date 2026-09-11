@@ -180,6 +180,39 @@ extension WidgetHaulData {
         "\(itemCount) find\(itemCount == 1 ? "" : "s")"
     }
 }
+
+// ── Pending action ───────────────────────────────────────────────────────────
+
+extension WidgetBridge {
+    /// A Control Centre tap waiting for the app to notice it.
+    ///
+    /// A Control Widget cannot carry a `widgetURL` the way a Home Screen widget
+    /// can — it runs an App Intent instead. That intent opens the app, which
+    /// means posting a navigation notification from `perform()` races the
+    /// app's own launch: on a cold start there is no view listening yet, and
+    /// the tap is silently swallowed. Leaving the request here instead lets the
+    /// app drain it when it is ready, cold start or resume alike.
+    static let pendingActionKey = "snapworth.widget.pendingAction"
+
+    enum PendingAction: String {
+        case scan
+    }
+
+    static func request(_ action: PendingAction) {
+        UserDefaults(suiteName: appGroupID)?
+            .set(action.rawValue, forKey: pendingActionKey)
+    }
+
+    /// The waiting action, if any. Clears it, so a tap is acted on once —
+    /// re-reading on every foreground would otherwise reopen the camera every
+    /// time the user came back to the app.
+    static func takePendingAction() -> PendingAction? {
+        guard let suite = UserDefaults(suiteName: appGroupID),
+              let raw = suite.string(forKey: pendingActionKey) else { return nil }
+        suite.removeObject(forKey: pendingActionKey)
+        return PendingAction(rawValue: raw)
+    }
+}
 // ── END SHARED WIDGET MODEL ──────────────────────────────────────────────────
 
 // ── App-Group reader ──────────────────────────────────────────────────────────
