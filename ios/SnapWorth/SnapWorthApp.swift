@@ -90,6 +90,7 @@ struct SnapWorthApp: App {
     // ── Widget URL handling ───────────────────────────────────────────────────
     // snapworth://scan    → navigates to the camera tab
     // snapworth://history → navigates to the history tab
+    // snapworth://flips   → navigates to the profit ledger
 
     /// Act on a Control Centre press.
     ///
@@ -115,6 +116,10 @@ struct SnapWorthApp: App {
             NotificationCenter.default.post(name: .snapWidgetOpenScan, object: nil)
         case "history":
             NotificationCenter.default.post(name: .snapWidgetOpenHistory, object: nil)
+        case "flips":
+            // Reuses the name the notification deep links already post, rather
+            // than adding a second route to the same screen.
+            NotificationCenter.default.post(name: .snapOpenFlips, object: nil)
         default:
             break
         }

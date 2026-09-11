@@ -223,23 +223,13 @@ enum WidgetDataStore {
     static let appGroupID = WidgetBridge.appGroupID
     static let haulKey = WidgetBridge.haulKey
 
-    /// Ledger figures the widgets may show. Passed in rather than read here so
-    /// this file stays free of the Flips model.
-    struct Ledger {
-        let monthProfit: Double
-        let monthFlips: Int
-    }
-
     /// Call this after any insert/delete of ScanResults in the main app.
     ///
-    /// `isPro` and `ledger` default to nil meaning *carry forward whatever is
-    /// already stored*. Most callers are repository writes that have no idea
-    /// about entitlement, and clobbering it to `false` on every scan would
-    /// blank a paying subscriber's Pro widgets until they next opened the
-    /// paywall.
-    static func writeHaul(results: [ScanResult],
-                          isPro: Bool? = nil,
-                          ledger: Ledger? = nil) {
+    /// `isPro` defaults to nil meaning *carry forward whatever is already
+    /// stored*. Most callers are repository writes that have no idea about
+    /// entitlement, and clobbering it to `false` on every scan would blank a
+    /// paying subscriber's Pro widgets until they next opened the paywall.
+    static func writeHaul(results: [ScanResult], isPro: Bool? = nil) {
         // Condition-adjusted, like every other surface. This summed the raw AI
         // baseline while `lastItemRange` below — rendered inches away inside
         // the same medium widget — is adjusted, so a one-item library showed
@@ -267,12 +257,29 @@ enum WidgetDataStore {
                               name: $0.itemName,
                               range: $0.formattedRange) }
 
+        // Month-to-date ledger, by the same rule `FlipsViewModel.monthlyBuckets`
+        // uses: sold, with a sold date inside the current month. Computed here
+        // from the same array rather than passed in, so the widget and the
+        // Flips screen cannot disagree about a month's profit the way four
+        // surfaces once disagreed about an item's value.
+        //
+        // The count is of items that actually *contributed* profit, not of
+        // everything sold: `realizedProfit` is nil without a cost basis, and
+        // "$214 from 6 flips" has to be true of the same six.
+        let monthInterval = Calendar.current.dateInterval(of: .month, for: Date())
+        let monthProfits: [Decimal] = results.compactMap { result in
+            guard result.status == .sold,
+                  let soldDate = result.soldDate,
+                  let monthInterval, monthInterval.contains(soldDate)
+            else { return nil }
+            return result.realizedProfit
+        }
+        let monthProfit = NSDecimalNumber(
+            decimal: monthProfits.reduce(Decimal.zero, +)).doubleValue
+
         // Pro-only figures are written only while Pro, so a lapse clears them
         // on the next write instead of leaving a paid number on the Home
         // Screen indefinitely.
-        let carried = ledger ?? (pro
-            ? previous.monthProfit.map { Ledger(monthProfit: $0, monthFlips: previous.monthFlips) }
-            : nil)
 
         let data = WidgetHaulData(
             totalLow:      lo,
@@ -285,8 +292,8 @@ enum WidgetDataStore {
             isPro:         pro,
             streak:        ScanStreak.current(),
             recentFinds:   Array(recent),
-            monthProfit:   pro ? carried?.monthProfit : nil,
-            monthFlips:    pro ? (carried?.monthFlips ?? 0) : 0
+            monthProfit:   pro && !monthProfits.isEmpty ? monthProfit : nil,
+            monthFlips:    pro ? monthProfits.count : 0
         )
 
         guard
