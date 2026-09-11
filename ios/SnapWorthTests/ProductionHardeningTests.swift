@@ -579,6 +579,39 @@ final class PaywallCopyTests: XCTestCase {
     }
 }
 
+// MARK: - Terms of Service
+//
+// The Terms promised "a 3-day free trial" as a flat fact. Nothing in this
+// repository controls that — App Store Connect does. Changing the offer there
+// to a paid one, or removing it, made the Terms a promise the app does not
+// keep, with no release in between to catch it. The same sentence was served
+// from `GET /terms`, so the falsehood shipped twice.
+
+final class TermsCopyTests: XCTestCase {
+
+    func test_termsDoNotNameAnOfferOnlyAppleControls() {
+        let text = TermsCopy.subscriptions
+        XCTAssertFalse(text.lowercased().contains("free trial"),
+                       "The Terms must not name a trial App Store Connect can withdraw")
+        // No "3-day", "3 days", "1 month" — any concrete offer length.
+        let duration = try? NSRegularExpression(
+            pattern: #"\d+[\s-](day|week|month|year)"#, options: .caseInsensitive)
+        let range = NSRange(text.startIndex..., in: text)
+        XCTAssertEqual(duration?.numberOfMatches(in: text, range: range), 0,
+                       "The Terms state an offer length they cannot guarantee")
+    }
+
+    func test_termsPointAtTheSurfaceThatKnowsTheRealOffer() {
+        // Dropping the claim is only safe if the Terms say where the truth is.
+        let text = TermsCopy.subscriptions
+        XCTAssertTrue(text.contains("shown on the subscription screen"))
+        XCTAssertTrue(text.contains("before you are charged"))
+        // Still says the things the Terms must say.
+        XCTAssertTrue(text.contains("auto-renewing"))
+        XCTAssertTrue(text.contains("cancel at any time"))
+    }
+}
+
 // MARK: - Paywall selection
 //
 // The paywall selects yearly by default, and `isPurchasable` reads the

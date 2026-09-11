@@ -1110,7 +1110,7 @@ def terms():
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Terms of Service — SnapWorth</title><style>{_STYLE}</style></head><body>
 <h1>Terms of Service</h1>
-<p>Last updated: July 5, 2026</p>
+<p>Last updated: September 11, 2026</p>
 <p>By downloading or using SnapWorth you agree to these Terms. If you disagree,
 please do not use the app.</p>
 
@@ -1123,7 +1123,9 @@ responsible for any financial decisions made based on our estimates.</p>
 <p>SnapWorth offers auto-renewing subscriptions (monthly and yearly). Subscriptions
 are charged to your Apple ID account. You can cancel at any time in your device's
 subscription settings. Cancellation takes effect at the end of the current
-billing period. A 3-day free trial is available for new yearly subscribers.</p>
+billing period. Any introductory offer is available to new subscribers only; its
+length, its price, and whether it is free are shown on the subscription screen
+and confirmed by the App Store before you are charged.</p>
 
 <h2>Prohibited Use</h2>
 <p>You may not use SnapWorth to submit illegal content, attempt to reverse-engineer
