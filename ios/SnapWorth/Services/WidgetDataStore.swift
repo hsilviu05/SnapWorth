@@ -1,3 +1,4 @@
+import ActivityKit
 import Foundation
 import SwiftData
 import SwiftUI
@@ -214,6 +215,40 @@ extension WidgetBridge {
         suite.removeObject(forKey: pendingActionKey)
         return PendingAction(rawValue: raw)
     }
+}
+
+// ── Live Activity ────────────────────────────────────────────────────────────
+
+/// A thrift run: one trip, one running total.
+///
+/// Deliberately not the whole library. The haul widgets already answer "what is
+/// everything worth"; this answers "what have I found *since I walked in*",
+/// which is the number you want while deciding whether the next thing is worth
+/// picking up. `startedAt` is what makes that possible — the app counts only
+/// scans at or after it.
+struct ThriftRunAttributes: ActivityAttributes {
+    struct ContentState: Codable, Hashable {
+        var itemCount: Int
+        var totalLow: Double
+        var totalHigh: Double
+        var lastItemName: String
+
+        var formattedRange: String {
+            guard itemCount > 0 else { return "$0" }
+            return "\(WidgetHaulData.money(totalLow)) – \(WidgetHaulData.money(totalHigh))"
+        }
+
+        var compactTotal: String { WidgetHaulData.compactMoney(totalHigh) }
+
+        var findsLabel: String {
+            "\(itemCount) find\(itemCount == 1 ? "" : "s")"
+        }
+
+        static let empty = ContentState(itemCount: 0, totalLow: 0, totalHigh: 0,
+                                        lastItemName: "")
+    }
+
+    var startedAt: Date
 }
 // ── END SHARED WIDGET MODEL ──────────────────────────────────────────────────
 
