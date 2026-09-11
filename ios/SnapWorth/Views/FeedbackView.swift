@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 struct FeedbackView: View {
     var initialType: FeedbackType = .featureRequest
@@ -6,7 +7,13 @@ struct FeedbackView: View {
     @State private var feedbackType: FeedbackType = .featureRequest
     @State private var message: String = ""
     @State private var didSend: Bool = false
+    @State private var didCopy: Bool = false
+    /// Set when `mailto:` could not be opened at all — an iPhone with no mail
+    /// account, or a managed device with Mail restricted. Without this the
+    /// Send button was simply inert and the user had no way to know why.
+    @State private var mailUnavailable: Bool = false
     @State private var sendResetTask: Task<Void, Never>?
+    @State private var copyResetTask: Task<Void, Never>?
 
     private let maxChars = 500
 
@@ -134,11 +141,19 @@ struct FeedbackView: View {
                         HStack(spacing: 8) {
                             Image(systemName: "checkmark.circle.fill")
                                 .foregroundStyle(Color.snapSage)
-                            Text("Thanks! We read every message.")
+                            // Not "thanks, sent": opening a draft is not
+                            // sending it. Saying so is also why the message
+                            // below is still here to send.
+                            Text("Your draft is open in Mail — send it there.")
                                 .font(.snapCaption)
                                 .foregroundStyle(Color.snapWarmGray)
                         }
                         .transition(.opacity.combined(with: .scale(scale: 0.9, anchor: .top)))
+                    }
+
+                    if mailUnavailable {
+                        mailFallback
+                            .transition(.opacity.combined(with: .scale(scale: 0.95, anchor: .top)))
                     }
                 }
                 .padding(.horizontal, 20)
@@ -151,32 +166,174 @@ struct FeedbackView: View {
         .navigationBarTitleDisplayMode(.large)
         .scrollDismissesKeyboard(.interactively)
         .snapAnimation(.spring(duration: 0.3), value: didSend)
+        .snapAnimation(.spring(duration: 0.3), value: mailUnavailable)
         .onAppear { feedbackType = initialType }
-        .onDisappear { sendResetTask?.cancel() }
+        .onDisappear {
+            sendResetTask?.cancel()
+            copyResetTask?.cancel()
+        }
+    }
+
+    // ── Fallback when there is no mail client ─────────────────────────────────
+
+    /// Shown instead of a dead button. The message is the user's work; if we
+    /// cannot hand it to Mail we at least hand it back to them.
+    private var mailFallback: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 8) {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .snapSymbol(13, weight: .medium)
+                    .foregroundStyle(Color.snapTerracotta)
+                Text("Couldn't open Mail")
+                    .font(.dmSans(14, weight: .medium))
+                    .foregroundStyle(Color.snapEspresso)
+            }
+
+            Text("This iPhone has no email account set up. Copy your message and send it to \(Config.supportEmail) from wherever you do have mail.")
+                .font(.snapCaption)
+                .foregroundStyle(Color.snapWarmGray)
+                .fixedSize(horizontal: false, vertical: true)
+
+            Button {
+                UIPasteboard.general.string = composedBody()
+                Haptics.success()
+                didCopy = true
+                copyResetTask?.cancel()
+                copyResetTask = Task {
+                    try? await Task.sleep(for: .seconds(2))
+                    guard !Task.isCancelled else { return }
+                    withAnimation { didCopy = false }
+                }
+            } label: {
+                HStack(spacing: 6) {
+                    Image(systemName: didCopy ? "checkmark" : "doc.on.doc")
+                        .snapSymbol(12, weight: .medium)
+                    Text(didCopy ? "Copied" : "Copy message and address")
+                        .font(.dmSans(13, weight: .medium))
+                }
+                .foregroundStyle(Color.snapTerracotta)
+                .padding(.vertical, 4)
+            }
+            .buttonStyle(.plain)
+            .snapHitTarget()
+            .snapAnimation(.easeInOut(duration: 0.2), value: didCopy)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(14)
+        .background(Color.snapCard)
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .strokeBorder(Color.snapBorder, lineWidth: 1)
+        )
+    }
+
+    // ── Sending ───────────────────────────────────────────────────────────────
+
+    /// The trimmed message plus the diagnostics block. Built once so the
+    /// clipboard fallback carries exactly what the email would have.
+    private func composedBody() -> String {
+        let text = message.trimmingCharacters(in: .whitespacesAndNewlines)
+        return "\(text)\n\n\(SupportMail.diagnostics)"
     }
 
     private func sendFeedback() {
-        var components = URLComponents()
-        components.scheme = "mailto"
-        components.path = "her.silviu.i@gmail.com"
-        components.queryItems = [
-            URLQueryItem(name: "subject", value: feedbackType.subject),
-            URLQueryItem(name: "body", value: message),
-        ]
-        guard let url = components.url else { return }
+        guard let url = SupportMail.composeURL(
+            subject: feedbackType.subject, body: composedBody())
+        else {
+            withAnimation { mailUnavailable = true }
+            return
+        }
 
         UIApplication.shared.open(url) { success in
-            guard success else { return }
             Task { @MainActor in
+                guard success else {
+                    // The old code returned here without a word, so on a
+                    // device with no mail account the button was inert and
+                    // the user had no way to tell that from "sent".
+                    withAnimation(.spring(duration: 0.3)) { self.mailUnavailable = true }
+                    self.didSend = false
+                    return
+                }
+                self.mailUnavailable = false
                 withAnimation(.spring(duration: 0.3)) { self.didSend = true }
-                self.message = ""
+                // The message is deliberately NOT cleared. `open` succeeding
+                // means Mail opened a draft, not that anything was sent —
+                // clearing here destroyed the message of anyone who backed
+                // out of the compose sheet, with no way to get it back.
                 self.sendResetTask?.cancel()
                 self.sendResetTask = Task {
-                    try? await Task.sleep(for: .seconds(3))
+                    try? await Task.sleep(for: .seconds(4))
                     guard !Task.isCancelled else { return }
                     withAnimation { self.didSend = false }
                 }
             }
+        }
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// MARK: - Support mail
+// ═══════════════════════════════════════════════════════════════════
+
+/// Composing the one message this app ever sends.
+///
+/// Every path here used to live inline in `sendFeedback()`, and each had a
+/// way of losing the user's message:
+///
+/// * `URLComponents.queryItems` does not escape `+`, and a mail client
+///   reading a query component decodes a bare `+` as a space. "iOS 26 +
+///   widgets" arrived as "iOS 26   widgets"; a phone number lost its country
+///   code. Encoding the values here with `+` and the query delimiters removed
+///   from the allowed set is what gets the body through byte-for-byte.
+/// * A failed open was swallowed, so on an iPhone with no mail account the
+///   Send button did nothing at all, forever, with no explanation.
+/// * A bug report carried no version, OS or hardware, so the first reply was
+///   always a round trip asking for them.
+enum SupportMail {
+
+    /// `urlQueryAllowed` permits the delimiters that separate a query's own
+    /// fields, plus `+`. Inside a *value* all four have to be escaped.
+    private static let valueAllowed: CharacterSet = {
+        var set = CharacterSet.urlQueryAllowed
+        set.remove(charactersIn: "+&=?#")
+        return set
+    }()
+
+    /// A `mailto:` URL for `Config.supportEmail`, or nil if the subject or
+    /// body cannot be encoded — the caller must surface that, not drop it.
+    static func composeURL(subject: String, body: String) -> URL? {
+        guard !Config.supportEmail.isEmpty,
+              let subject = subject.addingPercentEncoding(withAllowedCharacters: valueAllowed),
+              let body = body.addingPercentEncoding(withAllowedCharacters: valueAllowed)
+        else { return nil }
+        return URL(string: "mailto:\(Config.supportEmail)?subject=\(subject)&body=\(body)")
+    }
+
+    /// What triaging a bug report needs and what a user should never be asked
+    /// to go and look up. Version, OS and hardware only — no identifiers, so
+    /// this adds nothing to what the App Store already knows about a device.
+    static var diagnostics: String {
+        let info = Bundle.main.infoDictionary
+        let version = info?["CFBundleShortVersionString"] as? String ?? "?"
+        let build = info?["CFBundleVersion"] as? String ?? "?"
+        let device = UIDevice.current
+        return """
+        —
+        SnapWorth \(version) (\(build))
+        \(device.systemName) \(device.systemVersion) · \(hardwareModel)
+        """
+    }
+
+    /// `UIDevice.model` is the string "iPhone" on every iPhone ever made. The
+    /// machine identifier ("iPhone17,2") is what tells a 12 mini from a 17
+    /// Pro Max, which is the difference between reproducing a layout bug and
+    /// not.
+    private static var hardwareModel: String {
+        var info = utsname()
+        guard uname(&info) == 0 else { return "unknown" }
+        return withUnsafeBytes(of: info.machine) { raw in
+            String(decoding: raw.prefix(while: { $0 != 0 }), as: UTF8.self)
         }
     }
 }

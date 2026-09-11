@@ -856,3 +856,80 @@ final class USMarketplaceWiringTests: XCTestCase {
         XCTAssertEqual(Marketplace.depop.displayName, "Depop")
     }
 }
+
+// MARK: - Support mail
+
+/// The feedback screen's only job is to hand a message to Mail intact. These
+/// pin the two ways it used to fail: a mangled body, and a missing address.
+final class SupportMailTests: XCTestCase {
+
+    /// The regression that started this. `URLComponents.queryItems` leaves `+`
+    /// alone, and a mail client decodes a bare `+` in a query as a space — so
+    /// this exact message used to arrive with its plus signs replaced.
+    func test_plusInBodyIsPercentEncoded() throws {
+        let url = try XCTUnwrap(SupportMail.composeURL(subject: "S", body: "iOS 26 + widgets"))
+        XCTAssertTrue(url.absoluteString.contains("%2B"),
+                      "a literal + must survive as %2B, not as a space")
+        XCTAssertFalse(url.absoluteString.contains("+ widgets"))
+    }
+
+    /// `&` and `=` would otherwise end the body and invent new query fields,
+    /// silently truncating everything the user wrote after them.
+    func test_queryDelimitersInBodyAreEncoded() throws {
+        let url = try XCTUnwrap(SupportMail.composeURL(subject: "S", body: "a&b=c?d#e"))
+        let string = url.absoluteString
+        for raw in ["a&b", "b=c", "c?d", "d#e"] {
+            XCTAssertFalse(string.contains(raw), "\(raw) must not survive raw")
+        }
+        // Exactly one body field: an unescaped & would have invented more.
+        XCTAssertEqual(string.components(separatedBy: "&body=").count, 2)
+    }
+
+    /// Decoding the body back out must return exactly what was typed —
+    /// newlines, punctuation and all.
+    func test_bodyRoundTripsExactly() throws {
+        let original = "Line one.\nLine two: 100% + tax — “quoted” & done?"
+        let url = try XCTUnwrap(SupportMail.composeURL(subject: "S", body: original))
+        let components = try XCTUnwrap(URLComponents(url: url, resolvingAgainstBaseURL: false))
+        let body = components.queryItems?.first { $0.name == "body" }?.value
+        XCTAssertEqual(body, original)
+    }
+
+    func test_addressAndSubjectComeFromConfig() throws {
+        let url = try XCTUnwrap(SupportMail.composeURL(subject: "SnapWorth Bug Report", body: "hello"))
+        XCTAssertEqual(url.scheme, "mailto")
+        XCTAssertTrue(url.absoluteString.hasPrefix("mailto:\(Config.supportEmail)?"))
+        let components = try XCTUnwrap(URLComponents(url: url, resolvingAgainstBaseURL: false))
+        XCTAssertEqual(components.queryItems?.first { $0.name == "subject" }?.value,
+                       "SnapWorth Bug Report")
+    }
+
+    /// An empty message is the caller's business, not a reason to hand back a
+    /// nil URL — the screen already refuses to send under ten characters.
+    func test_emptyBodyStillProducesAURL() {
+        XCTAssertNotNil(SupportMail.composeURL(subject: "S", body: ""))
+    }
+
+    /// Diagnostics exist so the first reply to a bug report isn't "what
+    /// version are you on?" — and must stay free of anything identifying.
+    func test_diagnosticsCarryVersionAndOSButNoIdentifiers() {
+        let text = SupportMail.diagnostics
+        XCTAssertTrue(text.contains("SnapWorth"), "app name and version")
+        XCTAssertTrue(text.contains("iOS") || text.contains("iPadOS"),
+                      "OS name from UIDevice.systemName")
+        XCTAssertFalse(text.contains("@"), "no address, no account, no email")
+        XCTAssertFalse(text.lowercased().contains("udid"))
+        XCTAssertFalse(text.contains(UIDevice.current.identifierForVendor?.uuidString ?? "\u{0}"),
+                       "the vendor id must never ride along")
+    }
+
+    /// The address is typed once. This is what would have caught the 1.3.4
+    /// drift between the app's inbox and the website's.
+    func test_supportEmailIsAPlausibleAddress() {
+        let address = Config.supportEmail
+        XCTAssertFalse(address.isEmpty)
+        XCTAssertEqual(address.components(separatedBy: "@").count, 2)
+        XCTAssertTrue(address.contains("."))
+        XCTAssertFalse(address.contains(" "))
+    }
+}
