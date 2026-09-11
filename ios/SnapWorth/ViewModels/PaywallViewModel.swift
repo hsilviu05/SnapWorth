@@ -22,6 +22,26 @@ final class PaywallViewModel {
         }
     }
 
+    /// Point the selection at a plan StoreKit actually returned.
+    ///
+    /// The default is yearly. A fetch that came back with only the monthly
+    /// product therefore left the CTA disabled — `isPurchasable` reads the
+    /// *selected* plan — under a "Loading plans…" subheadline, with a
+    /// perfectly purchasable monthly card sitting unselected beside it. The
+    /// only way out was to guess that the other card worked.
+    ///
+    /// Does nothing while pricing is empty (still loading, or a total
+    /// failure): there is nothing better to move to, and moving the selection
+    /// would change what the user sees for no gain.
+    func reconcileSelection(with pricing: [String: PlanPricing]) {
+        guard !pricing.isEmpty, pricing[selectedProductID] == nil else { return }
+        // Same order the cards appear in, so the fallback is the one the user
+        // would have reached for.
+        let preferred = [Config.yearlyProductID, Config.monthlyProductID]
+        guard let fallback = preferred.first(where: { pricing[$0] != nil }) else { return }
+        selectedProductID = fallback
+    }
+
     func cancelTimer() {
         closeButtonTask?.cancel()
         closeButtonTask = nil
