@@ -848,6 +848,25 @@ def safety_blocked(subject: str, count: int, *, paused: bool) -> None:
 
 # ── Subscription events ──────────────────────────────────────────────────────
 
+async def appstore_test_notification(environment: str) -> str:
+    """Apple's "Request a Test Notification" reached us. Say so, out loud.
+
+    This is the only mechanism Apple provides for proving the integration end
+    to end, and it is worth very little if the answer is a 200 nobody sees.
+    Pushing it means the operator can request a test and watch their phone —
+    the whole loop, without reading a log.
+    """
+    if _notifier is None:
+        return "no notifier configured"
+    ok = await _notifier.send(
+        "\u2705 <b>App Store Server Notifications are connected</b>\n"
+        f"Apple delivered a test notification ({html.escape(environment)}). "
+        "Renewals, expiries and refunds will now arrive without waiting for "
+        "anyone to open the app.",
+        _SUBS_BUTTONS)
+    return "sent" if ok else "send failed"
+
+
 async def subscription_event(note) -> None:
     """Record one App Store Server Notification. Awaited, but never raises.
 

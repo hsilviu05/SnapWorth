@@ -801,6 +801,22 @@ class TestAppleNotifications:
         assert any("Version 1" in m and "Set Up URL" in m
                    for m in caplog.messages), "must say which knob to turn"
 
+    def test_apples_test_notification_gets_a_200(self, pinned):
+        """`POST /inApps/v1/notifications/test` is how the integration is
+        proven. Apple reports back whatever status we returned, so a 4xx here
+        reads as a broken endpoint."""
+        leaf_key, chain = pinned
+        from test_entitlements import make_jws
+        envelope = make_jws({
+            "notificationType": "TEST",
+            "notificationUUID": "apple-test-1",
+            "version": "2.0",
+            "data": {"bundleId": "eu.snapworth.app", "environment": "Production"},
+        }, leaf_key, chain)
+        r = client.post("/apple/notifications", json={"signedPayload": envelope})
+        assert r.status_code == 200
+        assert r.json()["status"] == "test"
+
     def test_a_dead_cache_does_not_drop_a_real_notification(self, pinned, monkeypatch):
         """Dedup fails open: a duplicate alert is cheaper than losing a
         conversion."""
