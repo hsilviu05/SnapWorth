@@ -610,9 +610,10 @@ final class PortfolioInsightsTests: XCTestCase {
 // every sentence has to be true from local data and worth an interruption.
 //
 // Specifically NOT tested, because it is deliberately not built: any claim that
-// an item's value moved. Nothing re-values a saved item — `refreshPortfolioValue`
-// runs only on creation and on a user's own condition edit — so "worth $40 more"
-// would report the user's edit back as market movement.
+// an item's value moved. Nothing re-values a saved item on its own —
+// `refreshPortfolioValue` runs on creation, on a user's own condition edit, and
+// on a care-tag re-read (`applySharpened`), all of which the user initiated —
+// so "worth $40 more" would report the user's own edit back as market movement.
 
 final class PortfolioDigestTests: XCTestCase {
 

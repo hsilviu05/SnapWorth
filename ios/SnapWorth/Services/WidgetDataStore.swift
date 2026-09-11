@@ -38,8 +38,21 @@ enum WidgetDataStore {
 
     /// Call this after any insert/delete of ScanResults in the main app.
     static func writeHaul(results: [ScanResult]) {
-        let lo   = results.reduce(0.0) { $0 + $1.valueLow  }
-        let hi   = results.reduce(0.0) { $0 + $1.valueHigh }
+        // Condition-adjusted, like every other surface. This summed the raw AI
+        // baseline while `lastItemRange` below — rendered inches away inside
+        // the same medium widget — is adjusted, so a one-item library showed
+        // two different values for the same item with no way to tell which was
+        // the product's answer.
+        //
+        // Summed as `Decimal` and converted once, matching the portfolio
+        // path's precision rule rather than accumulating `Double` error across
+        // a long history.
+        let lo = NSDecimalNumber(decimal: results.reduce(Decimal.zero) {
+            $0 + $1.priceRange(for: $1.condition).low
+        }).doubleValue
+        let hi = NSDecimalNumber(decimal: results.reduce(Decimal.zero) {
+            $0 + $1.priceRange(for: $1.condition).high
+        }).doubleValue
         let last = results.max(by: { $0.timestamp < $1.timestamp })
 
         let data = WidgetHaulData(

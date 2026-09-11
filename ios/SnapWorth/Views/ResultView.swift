@@ -1,3 +1,4 @@
+import SwiftData
 import SwiftUI
 
 struct ResultView: View {
@@ -32,6 +33,7 @@ struct ResultView: View {
     // ── Guess before the estimate ─────────────────────────────────────────────
     @AppStorage(GuessFirst.key) private var guessFirst = GuessFirst.defaultOn
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.modelContext) private var modelContext
     /// Per result: a fresh sheet starts covered when the preference is on.
     @State private var priceRevealed = false
     @State private var quickGuessText = ""
@@ -282,6 +284,12 @@ struct ResultView: View {
             // value moves. Record the new point so the portfolio trend reflects
             // it; the call is a no-op when the number did not actually change.
             result.refreshPortfolioValue()
+            // The widget aggregates every item's condition-adjusted value, and
+            // a condition change is the only way that moves without a row
+            // being inserted or deleted — the two events the widget already
+            // listens to. Without this it showed the pre-correction total
+            // until the next scan.
+            ScanRepository(context: modelContext).refreshWidget()
             vm.scheduleShareCardUpdate(result: result, photo: photo)
             // Selection re-prices the estimate; announce the new value so a
             // VoiceOver user learns the outcome without hunting for it.

@@ -2163,3 +2163,117 @@ final class ConditionBaselineTests: XCTestCase {
         XCTAssertEqual(worse.low, Decimal(45) * Decimal(string: "0.78")!)
     }
 }
+
+// MARK: - One item, one value
+//
+// Four surfaces disagreed about what an item was worth, all for the same
+// reason: some readers used the raw AI baseline (`valueLow`/`valueHigh`) and
+// others the condition-adjusted value. On anything the user had re-graded, the
+// widget's total, the share card's badge and the portfolio total each said
+// something the result sheet did not.
+
+final class ValueConsistencyTests: XCTestCase {
+
+    private func item(low: Double = 100, high: Double = 200,
+                      condition: Condition? = nil) -> ScanResult {
+        let r = ScanResult(itemName: "Better Sweater", brand: "Patagonia",
+                           category: "clothing", conditionNotes: "Solid piece",
+                           valueLow: low, valueHigh: high, confidence: "High",
+                           soldListingsCount: 0,
+                           listingTitle: "T", listingDescription: "D")
+        if let condition { r.condition = condition }
+        return r
+    }
+
+    func test_widgetHaulIsConditionAdjusted() {
+        // `.used` is 0.78 against a `.good` baseline, so a re-graded item must
+        // not contribute its full un-adjusted range to the haul.
+        let r = item(condition: .used)
+        WidgetDataStore.writeHaul(results: [r])
+        guard let suite = UserDefaults(suiteName: WidgetDataStore.appGroupID),
+              let raw = suite.data(forKey: WidgetDataStore.haulKey),
+              let haul = try? JSONDecoder().decode(WidgetHaulData.self, from: raw) else {
+            return XCTFail("haul was not written")
+        }
+        XCTAssertEqual(haul.totalLow, r.displayValueLow, accuracy: 0.01)
+        XCTAssertEqual(haul.totalHigh, r.displayValueHigh, accuracy: 0.01)
+        XCTAssertNotEqual(haul.totalLow, r.valueLow, accuracy: 0.01,
+                          "still summing the raw AI baseline")
+    }
+
+    func test_widgetTotalAgreesWithTheRangeBesideIt() {
+        // The medium widget prints `lastItemRange` inches from the total. On a
+        // one-item library they are the same item and must not disagree.
+        let r = item(condition: .used)
+        WidgetDataStore.writeHaul(results: [r])
+        guard let suite = UserDefaults(suiteName: WidgetDataStore.appGroupID),
+              let raw = suite.data(forKey: WidgetDataStore.haulKey),
+              let haul = try? JSONDecoder().decode(WidgetHaulData.self, from: raw) else {
+            return XCTFail("haul was not written")
+        }
+        XCTAssertEqual(haul.lastItemRange, r.formattedRange)
+        XCTAssertEqual(haul.totalLow, r.displayValueLow, accuracy: 0.01,
+                       "the total and the range printed beside it disagree")
+        XCTAssertEqual(haul.totalHigh, r.displayValueHigh, accuracy: 0.01)
+    }
+
+    func test_shareBadgeUsesTheSameNumberAsTheHeadlineAboveIt() {
+        // $25 paid on an item the model put at $100–200 that the user graded
+        // `.used`. Adjusted low is $78, so it is a 3x find; off the raw
+        // baseline it would claim 4x — a number the headline above it does not
+        // support, on the one artefact that leaves the app.
+        //
+        // $25 rather than $30 deliberately: at $30 both bases round to 3x and
+        // the test would pass against the bug.
+        let r = item(condition: .used)
+        r.paidPrice = 25
+        let badge = ShareCardView(result: r, photo: nil).findBadge(paid: 25)
+        XCTAssertEqual(badge, "3x find")
+        XCTAssertNotEqual(badge, "4x find", "badge still divides the raw AI baseline")
+    }
+
+    func test_aFreeFindIsStillAFreeFind() {
+        XCTAssertEqual(ShareCardView(result: item(), photo: nil)
+                        .findBadge(paid: 0), "Free find")
+    }
+
+    func test_aTagReReadRefreshesThePortfolioValue() throws {
+        // #88's re-read replaced the estimate and left the portfolio total and
+        // the value history on the old number — the only path that moved a
+        // value without recording it.
+        let r = item(low: 100, high: 200)
+        let before = r.portfolioValueRaw
+        r.applySharpened(ScanAPIResponse(
+            itemName: "Better Sweater", brand: "Patagonia", category: "clothing",
+            conditionNotes: "Solid piece", estValueLowUsd: 300, estValueHighUsd: 400,
+            confidence: "High", listingTitle: "T", listingDescription: "D"))
+        XCTAssertNotEqual(r.portfolioValueRaw, before, "portfolio kept the old number")
+        let after = try XCTUnwrap(r.portfolioValueRaw)
+        XCTAssertEqual(after,
+                       NSDecimalNumber(decimal: r.priceRange(for: r.condition).likely)
+                        .doubleValue, accuracy: 0.01)
+        XCTAssertFalse(r.valueHistory.isEmpty, "the move was never recorded")
+    }
+
+    func test_theRefreshRunsAfterTheGradeItPricesAgainst() throws {
+        // Ordering, not decoration: `baselineCondition` reads `conditionGrade`
+        // out of `valuationDetailData`, and `priceRange` divides by that
+        // multiplier. Refreshing before the blob is stored prices the new
+        // estimate against the previous read's grade.
+        let r = item(low: 100, high: 200)
+        var detail = ValuationDetail()
+        detail.conditionGrade = "used"
+        r.valuationDetailData = detail.encoded()
+        XCTAssertEqual(r.baselineCondition, .used)
+
+        r.applySharpened(ScanAPIResponse(
+            itemName: "Better Sweater", brand: "Patagonia", category: "clothing",
+            conditionNotes: "Solid piece", estValueLowUsd: 100, estValueHighUsd: 200,
+            confidence: "High", listingTitle: "T", listingDescription: "D",
+            conditionGrade: "good"))
+        XCTAssertEqual(r.baselineCondition, .good, "the new grade did not take")
+        // Untouched record: condition == baseline, so the factor is 1 and the
+        // stored value is the midpoint of the AI range exactly.
+        XCTAssertEqual(try XCTUnwrap(r.portfolioValueRaw), 150, accuracy: 0.01)
+    }
+}

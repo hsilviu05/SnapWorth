@@ -92,6 +92,18 @@ final class ScanResult {
         if let detail = ValuationDetail(response: response) {
             valuationDetailData = detail.encoded()
         }
+        // A re-read replaces the estimate, and the estimate is what the
+        // portfolio total and the value history are made of. Without this the
+        // item showed one number and the portfolio kept the old one — the tag
+        // re-read (#88) was the only path that moved a value and did not
+        // record it.
+        //
+        // Must come after `valuationDetailData`: `baselineCondition` reads
+        // `conditionGrade` out of that blob, and `priceRange` divides by its
+        // multiplier. Refreshing first would price against the previous read's
+        // grade. Idempotent and deduplicated at the cent, so a re-read landing
+        // on the same number appends nothing.
+        refreshPortfolioValue()
     }
 
     init(
