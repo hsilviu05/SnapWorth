@@ -2405,10 +2405,36 @@ details[open] .faq-x::after { transform: rotate(90deg); }
   var chips = document.querySelectorAll(".tf-chip");
   var mp = "poshmark";
 
-  /* Strips anything that is not a number, so "$18", "18 usd" and "18" all
-     behave. Negative and non-finite input reads as 0 rather than throwing. */
+  /* Accepts "$18", "18 usd", "18", and — the reason this is not a one-liner —
+     "12,50". Last separator wins, except that a lone comma with exactly three
+     digits after it is a thousands separator: "12,50" is twelve fifty and
+     "$1,250" is one thousand two hundred and fifty.
+
+     This used to be `replace(/[^0-9.]/g, "")`, which deleted the comma and
+     read "12,50" as 1250 — so a visitor in France, Germany, Romania or Brazil
+     typing their own decimal separator was told "Skip it, −$1187" on a find
+     worth flipping, on a calculator this page says is the app's. The app has
+     parsed it correctly since MoneyInput shipped.
+
+     Third copy of this rule: ios MarketplaceFees.MoneyInput and
+     website/seo/build_guess.py's parse() are the others. They must agree.
+
+     Negative and non-finite input still reads as 0 rather than throwing —
+     render() assumes a number, so an empty Shipping field must not be null. */
   function num(v) {
-    var n = parseFloat(String(v).replace(/[^0-9.]/g, ""));
+    var kept = String(v).replace(/[^0-9.,]/g, "");
+    if (!/[0-9]/.test(kept)) return 0;
+    var lastComma = kept.lastIndexOf(","), lastDot = kept.lastIndexOf(".");
+    var cut = -1;
+    if (lastComma >= 0 && lastDot >= 0) cut = Math.max(lastComma, lastDot);
+    else if (lastDot >= 0) cut = lastDot;
+    else if (lastComma >= 0) cut = (kept.length - lastComma - 1) === 3 ? -1 : lastComma;
+    var out = "";
+    for (var i = 0; i < kept.length; i++) {
+      var c = kept.charAt(i);
+      if (c === "," || c === ".") { if (i === cut) out += "."; } else out += c;
+    }
+    var n = parseFloat(out);
     return isFinite(n) && n > 0 ? n : 0;
   }
   function money(n) { return (n < 0 ? "−$" : "$") + Math.abs(n).toFixed(2); }

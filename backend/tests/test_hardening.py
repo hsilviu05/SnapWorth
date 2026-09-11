@@ -136,30 +136,45 @@ class TestFence:
 # ── Valuation sanity bands ───────────────────────────────────────────────────
 
 class TestClampValuation:
+    """The third return value is a *kind*, not a boolean.
+
+    It used to be "did anything change", and the caller docked confidence on
+    it. That made a $0.75 paperback touching its category floor, and a model
+    returning a point estimate instead of a range, both read as implausible
+    valuations. Only "ceiling" and "order" are model errors.
+    """
+
     def test_leaves_plausible_range_untouched(self):
-        low, high, clamped = promptsafety.clamp_valuation(45, 90, "clothing")
-        assert (low, high, clamped) == (45.0, 90.0, False)
+        assert promptsafety.clamp_valuation(45, 90, "clothing") == (45.0, 90.0, "")
 
     def test_clamps_absurd_high_value(self):
-        low, high, clamped = promptsafety.clamp_valuation(10, 99_999, "clothing")
-        assert clamped is True
+        low, high, kind = promptsafety.clamp_valuation(10, 99_999, "clothing")
+        assert kind == "ceiling"
         assert high == 5_000.0
 
     def test_swaps_inverted_range(self):
-        low, high, _ = promptsafety.clamp_valuation(90, 45, "clothing")
-        assert low == 45.0 and high == 90.0
+        low, high, kind = promptsafety.clamp_valuation(90, 45, "clothing")
+        assert (low, high, kind) == (45.0, 90.0, "order")
 
-    def test_spreads_degenerate_range(self):
-        low, high, _ = promptsafety.clamp_valuation(50, 50, "clothing")
+    def test_spreads_degenerate_range_without_calling_it_an_error(self):
+        low, high, kind = promptsafety.clamp_valuation(50, 50, "clothing")
         assert high > low
+        assert kind == "", "widening a point estimate is not a model error"
+
+    def test_a_cheap_item_touching_its_floor_is_not_an_error(self):
+        """A $0.75 paperback is a real price, not an implausible one."""
+        low, high, kind = promptsafety.clamp_valuation(0.75, 8.0, "books")
+        assert kind == "floor"
+        assert low == promptsafety._CATEGORY_BANDS["books"][0]
+        assert high == 8.0
 
     def test_collectibles_allow_high_ceiling(self):
-        _, high, clamped = promptsafety.clamp_valuation(100, 40_000, "collectibles")
-        assert high == 40_000.0 and clamped is False
+        _, high, kind = promptsafety.clamp_valuation(100, 40_000, "collectibles")
+        assert high == 40_000.0 and kind == ""
 
     def test_unknown_category_uses_default_band(self):
-        _, high, clamped = promptsafety.clamp_valuation(1, 99_999, "nonsense")
-        assert clamped is True and high == promptsafety.DEFAULT_BAND[1]
+        _, high, kind = promptsafety.clamp_valuation(1, 99_999, "nonsense")
+        assert kind == "ceiling" and high == promptsafety.DEFAULT_BAND[1]
 
 
 # ── Rate limiting ────────────────────────────────────────────────────────────

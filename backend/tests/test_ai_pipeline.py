@@ -890,6 +890,54 @@ class TestImagePartConversion:
         assert type(converted[1]).__name__ == "Part"
 
 
+class TestClampPreservesTheModelsPointEstimate:
+    """A clamp used to rewrite the headline price.
+
+    When the span moved, the whole ladder was rebuilt with `quick=0,
+    expected=0`, and `reconcile_prices` reads 0 as absent and interpolates —
+    so `expected_price_usd` came back as the exact midpoint of the clamped
+    range. `prompts.py` defines that field as "the single most likely actual
+    sale price... must be your best point estimate, not the midpoint of a
+    range you invented", and it is the number the Pro panel headlines.
+
+    A $0.25 floor adjustment was enough to trigger it.
+    """
+
+    def _cheap(self, **over):
+        p = dict(V2_PAYLOAD)
+        p.update({"category": "books", "worst_case_price_usd": 0.75,
+                  "quick_sale_price_usd": 2.0, "expected_price_usd": 4.0,
+                  "best_case_price_usd": 8.0,
+                  "est_value_low_usd": 0.75, "est_value_high_usd": 8.0})
+        p.update(over)
+        return p
+
+    def test_a_floor_adjustment_keeps_the_models_expected_price(self):
+        body = _scan_with(self._cheap(), pro=True).json()
+        assert body["expected_price_usd"] == 4.0, "midpoint replaced the estimate"
+        assert body["quick_sale_price_usd"] == 2.0
+
+    def test_the_floor_is_still_applied_to_the_visible_range(self):
+        body = _scan_with(self._cheap(), pro=True).json()
+        assert body["est_value_low_usd"] >= 1.0
+        assert body["worst_case_price_usd"] == body["est_value_low_usd"], \
+            "the v1 pair and the v2 ladder must not disagree"
+
+    def test_a_cheap_item_is_not_reported_as_an_implausible_valuation(self):
+        """`was_clamped` lowers confidence. A $0.75 paperback is a real price."""
+        cheap = _scan_with(self._cheap(), pro=True).json()["confidence_score"]
+        normal = _scan_with(self._cheap(worst_case_price_usd=2.0,
+                                        est_value_low_usd=2.0),
+                            pro=True).json()["confidence_score"]
+        assert cheap == normal
+
+    def test_a_genuinely_absurd_ceiling_still_clamps(self):
+        body = _scan_with(self._cheap(category="clothing",
+                                      best_case_price_usd=99_999,
+                                      est_value_high_usd=99_999), pro=True).json()
+        assert body["est_value_high_usd"] == 5_000.0
+
+
 class TestProDetailGate:
     """The "Why this price" payload is Pro-only. Until now the gate was a
     `.blur()` in ResultView over data that had already left the server."""

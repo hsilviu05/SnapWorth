@@ -23,7 +23,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import notify  # noqa: E402
 import observability  # noqa: E402
 from cache import InMemoryCache, ResilientCache  # noqa: E402
-from datetime import datetime, timezone  # noqa: E402
+from datetime import datetime, timedelta, timezone  # noqa: E402
 from entitlements import FREE, Entitlement  # noqa: E402
 
 # Shaped like a real BotFather token; used to prove it never reaches the logs.
@@ -1011,6 +1011,36 @@ class TestSpend:
         assert "Gemini ≈ $0.08 · $0.040/scan · avg scan 6.0s" in status
         digest = await notify._digest_text(datetime.now(timezone.utc))
         assert "Gemini ≈ $0.08" in digest
+
+    @pytest.mark.asyncio
+    async def test_the_digest_per_scan_figure_excludes_the_operators_own_usage(
+            self, enabled_notify):
+        """`/costs` already subtracted operator spend; the digest did not.
+
+        The whole bill includes /post, /price, /caption and the /checkup probe.
+        Dividing all of it by the user scan count reported the operator's own
+        token spend as what a user costs — and at a handful of scans a day that
+        was most of the figure. The two surfaces disagreed and the digest was
+        the one being read every morning.
+        """
+        notify.model_usage("scan", {"prompt_tokens": 100_000, "output_tokens": 20_000})
+        notify.model_usage("ideas", {"prompt_tokens": 100_000, "output_tokens": 20_000})
+        scan()
+        scan()
+        await drain()
+        status = await notify.handle_command("/status")
+        # Bill is both calls ($0.08 total). Per-scan counts only the user half.
+        assert "Gemini ≈ $0.16" in status
+        assert "$0.040/scan" in status
+        assert "$0.08 mine" in status
+
+    @pytest.mark.asyncio
+    async def test_operator_only_spend_never_makes_the_per_scan_figure_negative(
+            self, enabled_notify):
+        notify.model_usage("probe", {"prompt_tokens": 100_000, "output_tokens": 20_000})
+        scan()
+        await drain()
+        assert "$0.000/scan" in await notify.handle_command("/status")
 
     @pytest.mark.asyncio
     async def test_free_tier_share_of_spend(self, enabled_notify):
@@ -2477,3 +2507,46 @@ class TestExperimentCommand:
         self._window(monkeypatch)
         assert (await notify.handle_command("/experiment")).startswith("🧪")
         assert "/experiment" in await notify.handle_command("/help")
+
+
+class TestTrendsWindow:
+    """`trends()` compared a partial today against seven whole days.
+
+    `_days_ending_today` starts at i=0, so "this week" was six complete days
+    plus however much of today had happened, measured against a full-length
+    baseline. Every category leaned ▼ all day and recovered around midnight
+    UTC — a bias that looks exactly like a real cooling trend, which is what
+    makes it worth a test rather than a comment.
+    """
+
+    async def _seed(self, cache, day: str, cat: str, n: int) -> None:
+        await cache.set(notify._stat_key(day, "top"),
+                        json.dumps({"cats": {cat: n}, "brands": {}, "finds": []}))
+        await cache.set(notify._stat_key(day, "scans_free"), str(n))
+
+    @pytest.mark.asyncio
+    async def test_both_windows_end_yesterday(self, enabled_notify, cache):
+        now = datetime(2026, 9, 11, 9, 0, tzinfo=timezone.utc)
+        # Seven whole days each side, identical volume: the honest answer is flat.
+        for i in range(1, 15):
+            day = notify._day(now - timedelta(days=i))
+            await self._seed(cache, day, "clothing", 4)
+        # Today is deliberately busy. If it were counted it would still be
+        # partial, and including it is what produced the bias.
+        await self._seed(cache, notify._day(now), "clothing", 99)
+        payload = await notify.trends(is_pro=True, now=now)
+        assert payload["scans"] == 28, "today leaked into the window"
+        row = next(r for r in payload["categories"] if r["name"] == "clothing")
+        assert row["count"] == 28
+        assert row.get("delta") in (0, None) or row.get("trend") in ("＝", "—"), row
+
+    @pytest.mark.asyncio
+    async def test_a_real_rise_still_reads_as_a_rise(self, enabled_notify, cache):
+        now = datetime(2026, 9, 11, 9, 0, tzinfo=timezone.utc)
+        for i in range(1, 8):
+            await self._seed(cache, notify._day(now - timedelta(days=i)), "shoes", 6)
+        for i in range(8, 15):
+            await self._seed(cache, notify._day(now - timedelta(days=i)), "shoes", 2)
+        payload = await notify.trends(is_pro=True, now=now)
+        row = next(r for r in payload["categories"] if r["name"] == "shoes")
+        assert row["count"] == 42

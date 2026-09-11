@@ -304,6 +304,71 @@ class TestRedaction:
         assert "abcdefghijklmnop" not in record.getMessage()
         assert "AIzaSy" not in record.detail
 
+    def test_filter_redacts_a_traceback(self, caplog):
+        """The biggest carrier, and it was never covered.
+
+        A Telegram token in an api.telegram.org URL, a password in a Redis
+        connection error, a key echoed back by an HTTP client — all of it
+        reached stdout verbatim, while the identical string passed as a plain
+        `str` was correctly redacted. The unit tests passed because they fed
+        strings.
+        """
+        logger = logging.getLogger("test.redaction.tb")
+        logger.addFilter(obs.RedactionFilter())
+        with caplog.at_level(logging.ERROR, logger="test.redaction.tb"):
+            try:
+                raise RuntimeError(
+                    "POST https://api.telegram.org/bot123456789:AAtest-token-abcdefghijklmnopqrstuvwx/send failed")
+            except RuntimeError:
+                logger.exception("send failed")
+        record = caplog.records[-1]
+        assert record.exc_text, "traceback was never formatted for redaction"
+        assert "AAtest-token-abcdefghijklmnopqrstuvwx" not in record.exc_text
+
+    def test_filter_redacts_an_exception_passed_as_the_message(self, caplog):
+        logger = logging.getLogger("test.redaction.msg")
+        logger.addFilter(obs.RedactionFilter())
+        exc = RuntimeError("key AIzaSyABCDEFGHIJKLMNOPQRSTUVWXYZ0123456 rejected")
+        with caplog.at_level(logging.ERROR, logger="test.redaction.msg"):
+            logger.error(exc)
+        assert "AIzaSy" not in caplog.records[-1].getMessage()
+
+    def test_filter_redacts_inside_a_dict_extra(self, caplog):
+        logger = logging.getLogger("test.redaction.dict")
+        logger.addFilter(obs.RedactionFilter())
+        with caplog.at_level(logging.INFO, logger="test.redaction.dict"):
+            logger.info("upstream refused",
+                        extra={"ctx": {"url": "redis://default:hunter2hunter2@10.0.0.1:6379",
+                                       "attempt": 3}})
+        ctx = caplog.records[-1].ctx
+        assert "hunter2hunter2" not in ctx["url"]
+        assert ctx["attempt"] == 3, "a numeric extra must stay a number"
+
+    def test_numeric_extras_keep_their_type(self, caplog):
+        """`observability` itself logs status, duration_ms and rate as numbers.
+        Blanket-stringifying extras to redact them would change the shape of
+        every structured line and break anything parsing them."""
+        logger = logging.getLogger("test.redaction.nums")
+        logger.addFilter(obs.RedactionFilter())
+        with caplog.at_level(logging.INFO, logger="test.redaction.nums"):
+            logger.info("done", extra={"status": 200, "duration_ms": 12.5, "ok": True})
+        r = caplog.records[-1]
+        assert r.status == 200 and isinstance(r.status, int)
+        assert r.duration_ms == 12.5 and isinstance(r.duration_ms, float)
+        assert r.ok is True
+
+    def test_json_formatter_emits_the_redacted_traceback(self):
+        record = logging.LogRecord("n", logging.ERROR, "p", 1, "boom", (), None)
+        try:
+            raise RuntimeError("Bearer abcdefghijklmnopqrstuvwxyz012345")
+        except RuntimeError:
+            import sys as _sys
+            record.exc_info = _sys.exc_info()
+        obs.RedactionFilter().filter(record)
+        payload = json.loads(obs.JSONFormatter().format(record))
+        assert "exception" in payload
+        assert "abcdefghijklmnopqrstuvwxyz012345" not in payload["exception"]
+
     def test_filter_preserves_request_id(self):
         """Correlation ids are hex and must not be mistaken for secrets."""
         record = logging.LogRecord("n", logging.INFO, "p", 1, "msg", (), None)

@@ -645,7 +645,7 @@ class TestTrendsEndpoint:
     def _seed(self):
         import asyncio
         import json as _json
-        from datetime import datetime, timezone
+        from datetime import datetime, timedelta, timezone
 
         import notify
         from cache import InMemoryCache, ResilientCache
@@ -654,7 +654,9 @@ class TestTrendsEndpoint:
         # "degraded" for every later test in the process.
         cache = ResilientCache(None, InMemoryCache())
         notify.configure(cache)
-        day = datetime.now(timezone.utc).strftime("%Y%m%d")
+        # Yesterday: `trends()` windows end yesterday, because comparing a
+        # partial today against seven whole days leaned every category down.
+        day = (datetime.now(timezone.utc) - timedelta(days=1)).strftime("%Y%m%d")
         asyncio.run(cache.set(
             notify._stat_key(day, "top"),
             _json.dumps({"cats": {"clothing": 9}, "brands": {"Nike": 6},
