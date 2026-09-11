@@ -26,11 +26,23 @@ struct HaulProvider: TimelineProvider {
 }
 
 extension WidgetHaulData {
+    /// What the gallery and a redacted snapshot show. Never real data.
     static let placeholder = WidgetHaulData(
         totalLow: 348, totalHigh: 620, itemCount: 8,
         lastItemName: "Patagonia Fleece",
         lastItemRange: "$60 – $95",
-        updatedAt: .now
+        updatedAt: .now,
+        freeScansRemaining: 1,
+        isPro: false,
+        streak: 4,
+        recentFinds: [
+            WidgetFind(id: "1", name: "Patagonia Fleece", range: "$60 – $95"),
+            WidgetFind(id: "2", name: "Levi's 501", range: "$40 – $70"),
+            WidgetFind(id: "3", name: "Nike Air Max", range: "$55 – $85"),
+            WidgetFind(id: "4", name: "Le Creuset Pot", range: "$90 – $140"),
+        ],
+        monthProfit: nil,
+        monthFlips: 0
     )
 }
 
