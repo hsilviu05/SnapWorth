@@ -205,7 +205,11 @@ async def _lifespan(_app: FastAPI):
     auth.deps.quota = ScanQuota(
         _cache, dc,
         limit=int(os.environ.get("FREE_SCANS_PER_DAY", str(FREE_SCANS_PER_DAY))),
-        first_day_limit=int(os.environ.get("FREE_SCANS_FIRST_DAY", "0")))
+        first_day_limit=int(os.environ.get("FREE_SCANS_FIRST_DAY", "0")),
+        # The operator's runtime override, settable from the ops bot. Injected
+        # rather than imported: `quota` must not depend on `notify`, and this
+        # is the one place that already holds both.
+        welcome_override=notify.free_scan_lever)
     social_readers = social.from_env(_cache)
     social.configure(social_readers)
     notify.configure(_cache, status_provider=_status_snapshot,

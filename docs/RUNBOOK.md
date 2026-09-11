@@ -55,6 +55,7 @@ actually arrives:
 | What it costs | `/costs` | Gemini spend by window, `$/scan`, free-tier giveaway, and the operator's own bot usage listed separately |
 | Subscribers | `/subs` | Active, paid, comped, and MRR |
 | Is the free-scan experiment working | `/experiment` | The whole window at once: limit hits against new subscriptions, day by day, with a running total |
+| Start or stop the free-scan experiment | `/lever` | Arms or disarms the first-day allowance without a Railway change or a redeploy. Two taps, clamped, and `/experiment` footnotes any day it moved |
 | Yesterday | The daily digest | Sent automatically at `TELEGRAM_DIGEST_UTC_HOUR` (default 06:00 UTC); a weekly report on Mondays |
 
 Unprompted alerts arrive the same way: a new subscription, a deploy ping per

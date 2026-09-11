@@ -650,7 +650,8 @@ class TestPolling:
             await drain()
             (menu,) = bot.command_menus
             assert [c["command"] for c in menu] == [
-                "status", "subs", "users", "costs", "experiment", "social", "finds", "post", "calendar",
+                "status", "subs", "users", "costs", "experiment", "lever", "social", "finds",
+                "post", "calendar",
                 "caption", "hooks", "reply", "price", "trend", "user", "checkup", "clear",
                 "history", "feed", "digest", "week", "help"]
         finally:
@@ -2550,3 +2551,173 @@ class TestTrendsWindow:
         payload = await notify.trends(is_pro=True, now=now)
         row = next(r for r in payload["categories"] if r["name"] == "shoes")
         assert row["count"] == 42
+
+
+class TestUnsolicitedPushesAreActionable:
+    """Every message the operator did not ask for carries a keyboard.
+
+    Nine send sites went out with none — precisely the class read on a lock
+    screen, and the class where the next step is obvious. The safety-pause
+    alert ended with the literal text "/user a1b2c3 for its history", asking
+    the operator to retype six characters the message had just printed.
+
+    These assert the keyboard exists and that its callback data is a real
+    command, because `_handle_update` turns the data into "/" + data and an
+    unrecognised command falls through to the help screen rather than failing.
+    """
+
+    def _markups(self, recorder) -> list:
+        return [r["body"].get("reply_markup") for r in recorder.sends]
+
+    def _datas(self, recorder) -> list[str]:
+        out = []
+        for markup in self._markups(recorder):
+            for row in ((markup or {}).get("inline_keyboard") or []):
+                out.extend(b["callback_data"] for b in row)
+        return out
+
+    def _assert_actionable(self, recorder) -> None:
+        assert recorder.sends, "nothing was sent"
+        for markup in self._markups(recorder):
+            assert markup, "an unsolicited push went out with no keyboard"
+        known = {c for c, _ in notify.COMMANDS}
+        for data in self._datas(recorder):
+            verb = data.split()[0]
+            assert verb in known, f"button {data!r} is not a command"
+
+    @pytest.mark.asyncio
+    async def test_safety_pause_offers_the_device_instead_of_naming_it(
+            self, enabled_notify, recorder):
+        notify.safety_blocked(SUBJECT, 5, paused=True)
+        await drain()
+        self._assert_actionable(recorder)
+        text = recorder.texts[-1]
+        assert "/user" not in text, "still telling the operator to type it"
+        assert any(d.startswith("user ") for d in self._datas(recorder))
+
+    @pytest.mark.asyncio
+    async def test_a_new_subscription_offers_the_subscription_screens(
+            self, enabled_notify, recorder):
+        await notify.entitlement_recorded(SUBJECT, pro_entitlement())
+        await drain()
+        self._assert_actionable(recorder)
+
+    @pytest.mark.asyncio
+    async def test_a_degraded_provider_offers_checkup(self, enabled_notify, recorder):
+        notify.model_unhealthy("quota_exhausted")
+        await drain()
+        self._assert_actionable(recorder)
+        assert "checkup" in self._datas(recorder)
+
+    @pytest.mark.asyncio
+    async def test_recovery_carries_one_too(self, enabled_notify, recorder):
+        notify.model_unhealthy("quota_exhausted")
+        notify.model_recovered()
+        await drain()
+        self._assert_actionable(recorder)
+
+    @pytest.mark.asyncio
+    async def test_the_live_feed_can_be_silenced_from_the_message(
+            self, enabled_notify, recorder):
+        await notify._set_feed(True)
+        scan()
+        await drain()
+        self._assert_actionable(recorder)
+        assert "feed off" in self._datas(recorder)
+
+    @pytest.mark.asyncio
+    async def test_the_deploy_ping_carries_one(self, enabled_notify, recorder):
+        notify.deployed("abc123def456", cache_backend="redis",
+                        auth_enforcing=True, info=None)
+        await drain()
+        self._assert_actionable(recorder)
+
+    @pytest.mark.asyncio
+    async def test_device_button_uses_the_unescaped_pseudonym(self):
+        """Button labels are plain text. An HTML-escaped id would put a literal
+        "&amp;" on the key and into the command it sends."""
+        label, data = notify._device_button("ab&cd12ef")
+        assert label.endswith("ab&cd1")
+        assert data == "user ab&cd1"
+
+
+class TestFreeScanLever:
+    """`/experiment` could say the lever was not armed and do nothing about it.
+
+    The measurement half of the experiment lives in this module; the control
+    half was a Railway variable and a redeploy, from a phone. `ScanQuota` reads
+    `free_scan_lever` on every free scan, so these are the properties that make
+    a money-spending button in a chat window safe to have.
+    """
+
+    async def _run(self, cmd: str) -> tuple[str, list]:
+        reply = await notify.handle_command_with_buttons(cmd)
+        return reply[0], reply[1]
+
+    def _datas(self, buttons) -> list[str]:
+        return [d for row in (buttons or []) for _, d in row]
+
+    @pytest.mark.asyncio
+    async def test_arming_takes_two_taps(self, enabled_notify):
+        text, buttons = await self._run("/lever arm")
+        assert "Arm the free-scan lever?" in text
+        assert await notify.free_scan_lever() is None, "the first tap must not act"
+        assert any(d.endswith("yes") for d in self._datas(buttons))
+
+    @pytest.mark.asyncio
+    async def test_the_confirm_button_actually_confirms(self, enabled_notify):
+        """Caught by rendering it, not by reasoning about it.
+
+        The arm button carries the value it is confirming — "lever arm 3 yes" —
+        so a check at a fixed `parts[1]` read "3", never matched, and silently
+        re-showed the confirmation. The primary path did nothing.
+        """
+        _, buttons = await self._run("/lever arm")
+        confirm = next(d for d in self._datas(buttons) if d.endswith("yes"))
+        text, _ = await self._run("/" + confirm)
+        assert "Lever armed" in text
+        assert await notify.free_scan_lever() == 3
+
+    @pytest.mark.asyncio
+    async def test_disarming_also_takes_two(self, enabled_notify):
+        await self._run("/lever arm 3 yes")
+        text, _ = await self._run("/lever disarm")
+        assert "Disarm" in text
+        assert await notify.free_scan_lever() == 3, "the first tap must not act"
+        await self._run("/lever disarm yes")
+        assert await notify.free_scan_lever() == 0
+
+    @pytest.mark.asyncio
+    async def test_handing_it_back_to_the_environment_is_not_the_same_as_zero(
+            self, enabled_notify):
+        """Zero is an override that says "no welcome". None is "not my call"."""
+        await self._run("/lever disarm yes")
+        assert await notify.free_scan_lever() == 0
+        await self._run("/lever default yes")
+        assert await notify.free_scan_lever() is None
+
+    @pytest.mark.asyncio
+    async def test_a_fat_fingered_value_is_clamped_here_too(self, enabled_notify):
+        await self._run("/lever arm 9999 yes")
+        assert await notify.free_scan_lever() == 10
+
+    @pytest.mark.asyncio
+    async def test_an_unreadable_lever_reads_as_no_override(self, enabled_notify, cache):
+        await cache.set(notify.LEVERS_KEY, "{not json")
+        assert await notify.free_scan_lever() is None
+
+    @pytest.mark.asyncio
+    async def test_experiment_says_when_the_lever_moved_inside_the_window(
+            self, enabled_notify, monkeypatch):
+        """A window whose lever moved mid-flight and does not say so is worse
+        than no window: the numbers look continuous and are not."""
+        monkeypatch.setattr(notify, "EXPERIMENT_START_DAY", notify._day())
+        monkeypatch.setattr(notify, "EXPERIMENT_END_DAY", notify._day())
+        await self._run("/lever arm 3 yes")
+        text = await notify._experiment_text()
+        assert "lever changed" in text
+
+    @pytest.mark.asyncio
+    async def test_the_experiment_screen_offers_the_lever(self, enabled_notify):
+        _, buttons = await self._run("/experiment")
+        assert any(d.startswith("lever") for d in self._datas(buttons))

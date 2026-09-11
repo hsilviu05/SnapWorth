@@ -113,12 +113,53 @@ class ScanQuota:
     """Authoritative daily free-scan accounting."""
 
     def __init__(self, cache, device_check=None, limit: int = FREE_SCANS_PER_DAY,
-                 first_day_limit: int = FREE_SCANS_FIRST_DAY) -> None:
+                 first_day_limit: int = FREE_SCANS_FIRST_DAY,
+                 welcome_override=None) -> None:
         self._cache = cache
         self._device_check = device_check
         self._limit = limit
+        self._env_first_day = first_day_limit
+        # `welcome_override` is an optional async callable returning the
+        # operator's runtime value for the welcome allowance, or None to use
+        # the environment. It exists so the experiment can be started and
+        # stopped from the ops bot instead of a Railway variable and a
+        # redeploy — the measurement half of that experiment lives in the bot
+        # already, and the control half was in another company's dashboard.
+        self._welcome_override = welcome_override
+
+    # A lever reachable from a chat must not be able to hand out an unbounded
+    # allowance because of a fat finger. Every scan past the daily limit is
+    # real money against the Gemini bill.
+    MAX_FIRST_DAY_SCANS = 10
+
+    async def _first_day_limit(self) -> int:
+        """Today's welcome allowance, or 0 when the welcome is off.
+
+        Resolved per call rather than captured at construction, because the
+        override is settable at runtime. An unreadable override falls back to
+        the environment value: it must never fail the scan, and it must never
+        fail *open* to a larger allowance than was configured.
+
+        This costs one cache read per free scan where the old code short-
+        circuited for free when the welcome was off. At a few hundred scans a
+        month that is not worth optimising, and the accessor is only consulted
+        when one was injected.
+        """
+        configured = self._env_first_day
+        if self._welcome_override is not None:
+            try:
+                value = await self._welcome_override()
+            except Exception:                       # pragma: no cover - defensive
+                value = None
+            if value is not None:
+                configured = value
+        try:
+            configured = int(configured)
+        except (TypeError, ValueError):
+            configured = self._env_first_day
+        configured = max(0, min(configured, self.MAX_FIRST_DAY_SCANS))
         # A first-day limit no larger than the daily one is not a welcome.
-        self._first_day = first_day_limit if first_day_limit > limit else 0
+        return configured if configured > self._limit else 0
 
     @staticmethod
     def _counter_key(subject: str) -> str:
@@ -136,13 +177,14 @@ class ScanQuota:
         """Today's limit for a free subject: the welcome allowance on the day
         it was granted, the daily limit otherwise. Costs nothing while the
         welcome is off."""
-        if not self._first_day:
+        first_day = await self._first_day_limit()
+        if not first_day:
             return self._limit
         try:
             granted = await self._cache.get(self._welcome_key(subject), required=True)
         except CacheUnavailable as exc:
             raise QuotaUnavailable(str(exc)) from exc
-        return self._first_day if granted == _utc_day() else self._limit
+        return first_day if granted == _utc_day() else self._limit
 
     async def status(self, subject: str, is_pro: bool) -> QuotaStatus:
         if is_pro:
@@ -303,7 +345,8 @@ class ScanQuota:
         recurs for anyone who stays away for a day; the welcome marker does
         not, so the allowance is handed out exactly once per subject.
         """
-        if not self._first_day:
+        first_day = await self._first_day_limit()
+        if not first_day:
             return self._limit
         try:
             granted = await self._cache.add(
@@ -311,6 +354,6 @@ class ScanQuota:
         except CacheUnavailable as exc:
             raise QuotaUnavailable(str(exc)) from exc
         if granted:
-            log.info("welcome allowance granted", extra={"scans": self._first_day})
-            return self._first_day
+            log.info("welcome allowance granted", extra={"scans": first_day})
+            return first_day
         return await self._limit_for(subject)
