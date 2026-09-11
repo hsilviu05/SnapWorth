@@ -1,4 +1,5 @@
 import Foundation
+import ImageIO
 import Vision
 import UIKit
 
@@ -22,7 +23,8 @@ enum PriceTagOCR {
     /// price-like is found so the caller can fall back to manual entry.
     static func detectPrice(in image: UIImage) async throws -> Decimal {
         guard let cg = image.cgImage else { throw OCRError.noImage }
-        let observations = try await recognizeText(cg)
+        let observations = try await recognizeText(
+            cg, orientation: CGImagePropertyOrientation(image.imageOrientation))
 
         // Prefer the most prominent (tallest) line that parses to a price — on a
         // shelf tag the headline price is almost always the largest text, not a
@@ -37,7 +39,9 @@ enum PriceTagOCR {
     }
 
     // ── Vision ──────────────────────────────────────────────────────────────
-    private static func recognizeText(_ cg: CGImage) async throws -> [(text: String, height: CGFloat)] {
+    private static func recognizeText(
+        _ cg: CGImage, orientation: CGImagePropertyOrientation
+    ) async throws -> [(text: String, height: CGFloat)] {
         try await withCheckedThrowingContinuation { continuation in
             let request = VNRecognizeTextRequest { req, error in
                 if let error { continuation.resume(throwing: error); return }
@@ -51,7 +55,8 @@ enum PriceTagOCR {
             request.recognitionLevel = .accurate
             request.usesLanguageCorrection = false
 
-            let handler = VNImageRequestHandler(cgImage: cg, options: [:])
+            let handler = VNImageRequestHandler(
+                cgImage: cg, orientation: orientation, options: [:])
             do { try handler.perform([request]) }
             catch { continuation.resume(throwing: error) }
         }
@@ -128,5 +133,41 @@ enum PriceTagOCR {
             }
         }
         return Decimal(string: t)
+    }
+}
+
+
+/// Vision reads a `CGImage`, which is the raw sensor bitmap. `UIImage` keeps the
+/// camera's rotation in `imageOrientation` and never turns the pixels, so the
+/// two disagree for every photo this app takes: it is portrait-only, a back
+/// camera capture arrives `.right`, and the bitmap underneath is landscape with
+/// the tag on its side.
+///
+/// Handing that to Vision as `.up` — which is what omitting the argument does —
+/// presents the tag a quarter turn out. `VNRecognizeTextRequest` corrects skew,
+/// not quarter turns, so the reader failed on essentially every photo taken with
+/// the camera, which is its primary and intended input. The user tapped "read
+/// the tag", waited for accurate-level OCR, and got the manual-entry fallback.
+///
+/// Passing the orientation rather than redrawing: a redraw costs a full
+/// resolution copy to achieve the same thing. It also fixes the "tallest line
+/// wins" heuristic for free — Vision reports `boundingBox` in the *oriented*
+/// space once told, so `height` starts measuring the axis the code always meant.
+///
+/// Internal, not private, so the mapping is testable. A transposed case here is
+/// the classic way this is got wrong, and it is silent.
+extension CGImagePropertyOrientation {
+    init(_ orientation: UIImage.Orientation) {
+        switch orientation {
+        case .up:            self = .up
+        case .upMirrored:    self = .upMirrored
+        case .down:          self = .down
+        case .downMirrored:  self = .downMirrored
+        case .left:          self = .left
+        case .leftMirrored:  self = .leftMirrored
+        case .right:         self = .right
+        case .rightMirrored: self = .rightMirrored
+        @unknown default:    self = .up
+        }
     }
 }
