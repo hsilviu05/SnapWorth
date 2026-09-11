@@ -17,8 +17,14 @@
 @font-face{font-family:'Fraunces';font-style:italic;font-weight:100 900;font-display:swap;src:url('/fonts/fraunces-italic-latin.woff2') format('woff2');}
 @font-face{font-family:'DM Sans';font-style:normal;font-weight:100 900;font-display:swap;src:url('/fonts/dmsans-latin.woff2') format('woff2');}
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
-:root{--bg:#FAF7F4;--card:#F3EDE8;--dark:#1C1410;--terracotta:#D96C47;--terra-text:#A94E29;--sage-text:#4F7355;--sage-dim:rgba(122,158,126,0.12);--warm-gray:#6E625B;--border:#E8DDD7;--white:#fff;--text-muted:#726860;}
-body{background:var(--bg);color:var(--dark);font-family:'DM Sans',sans-serif;font-size:17px;line-height:1.65;-webkit-font-smoothing:antialiased;}
+:root{color-scheme:light;accent-color:#A94E29;--bg:#FAF7F4;--card:#F3EDE8;--surface:#fff;/* --surface is read by build_guess.py, which appends to this STYLE */--band:#1C1410;--ink:#1C1410;--warm-gray:#6E625B;--text-muted:#726860;--terra-fill:#A94E29;--terra-text:#A94E29;--sage-text:#4F7355;--sage-dim:rgba(122,158,126,0.12);--border:#E8DDD7;}
+/* Dark theme. Same palette as index.html, and the same split: --ink is text,
+   --band is the deliberately dark CTA card, and the two used to be one token
+   (--dark) which cannot serve both once the page can invert. --on-band and
+   --terra-fill do not change: both describe white text on a surface that is
+   dark in either theme. */
+@media (prefers-color-scheme:dark){:root{color-scheme:dark;accent-color:#EC8A63;--bg:#1A1512;--card:#231D1A;--surface:#2A2320;--band:#0C0A08;--ink:#F6F1ED;--warm-gray:#ABA098;--text-muted:#A2978F;--terra-text:#EC8A63;--sage-text:#A3C9A8;--sage-dim:rgba(143,184,148,0.18);--border:#3A302A;}}
+body{background:var(--bg);color:var(--ink);font-family:'DM Sans',sans-serif;font-size:17px;line-height:1.65;-webkit-font-smoothing:antialiased;}
 a{color:var(--terra-text);}
 /* ── Motion ─────────────────────────────────────────────────────────────────
    CSS-only on these pages, deliberately. They are SEO content: the homepage
@@ -41,19 +47,27 @@ a{color:var(--terra-text);}
 @media (prefers-reduced-motion: reduce){
   *,*::before,*::after{animation-duration:.001ms!important;transition-duration:.001ms!important}
 }
-a:focus-visible{outline:2px solid var(--terra-text);outline-offset:3px;border-radius:4px;}
+a:focus-visible,button:focus-visible,summary:focus-visible{outline:2px solid var(--terra-text);outline-offset:3px;border-radius:4px;}
+/* --terra-fill, not --terracotta: white on the lighter brand tone is 3.39:1,
+   and a selection nobody can read is worse than the default one. */
+::selection{background:var(--terra-fill);color:#fff;}
+/* Ranges and figures sit in aligned columns; proportional digits make the
+   column ragged and shift it as the numbers change. */
+.range,.val{font-variant-numeric:tabular-nums;}
+h1,h2{text-wrap:balance;}
+.lede{text-wrap:pretty;}
 .wrap{max-width:760px;margin:0 auto;padding:0 20px;}
 header.site{border-bottom:1px solid var(--border);background:var(--bg);}
 header.site .wrap{display:flex;align-items:center;justify-content:space-between;height:64px;}
-.logo{font-family:'Fraunces',serif;font-weight:700;font-size:22px;color:var(--dark);text-decoration:none;}
-.nav-cta{background:var(--terra-text);color:#fff;text-decoration:none;font-weight:600;font-size:14px;padding:9px 18px;border-radius:10px;}
+.logo{font-family:'Fraunces',serif;font-weight:700;font-size:22px;color:var(--ink);text-decoration:none;}
+.nav-cta{background:var(--terra-fill);color:#fff;text-decoration:none;font-weight:600;font-size:14px;padding:9px 18px;border-radius:10px;}
 main{padding:48px 0 24px;}
 .crumbs{font-size:14px;color:var(--warm-gray);margin-bottom:20px;}
 .crumbs a{color:var(--warm-gray);}
-h1{font-family:'Fraunces',serif;font-weight:600;font-size:40px;line-height:1.1;letter-spacing:-1px;color:var(--dark);margin-bottom:12px;}
-h2{font-family:'Fraunces',serif;font-weight:600;font-size:26px;color:var(--dark);margin:36px 0 12px;}
+h1{font-family:'Fraunces',serif;font-weight:600;font-size:40px;line-height:1.1;letter-spacing:-1px;color:var(--ink);margin-bottom:12px;}
+h2{font-family:'Fraunces',serif;font-weight:600;font-size:26px;color:var(--ink);margin:36px 0 12px;}
 p{margin-bottom:16px;}
-.lede{font-size:19px;color:var(--dark);}
+.lede{font-size:19px;color:var(--ink);}
 .hub-game{margin-top:10px;font-size:15px;color:var(--warm-gray);}
 .hub-game a{color:var(--terra-text);font-weight:600;}
 .range{display:inline-block;background:var(--sage-dim);color:var(--sage-text);font-weight:700;font-family:'Fraunces',serif;font-size:22px;padding:6px 16px;border-radius:12px;margin:6px 0 8px;}
@@ -62,21 +76,21 @@ th,td{text-align:left;padding:12px 14px;border-bottom:1px solid var(--border);}
 th{font-size:13px;text-transform:uppercase;letter-spacing:.5px;color:var(--warm-gray);}
 td.val{font-weight:700;color:var(--sage-text);text-align:right;}
 ul{margin:0 0 16px 20px;}li{margin-bottom:6px;}
-.cta{background:var(--dark);border-radius:20px;padding:28px;margin:36px 0;text-align:center;}
+.cta{background:var(--band);border-radius:20px;padding:28px;margin:36px 0;text-align:center;}
 .cta h3{font-family:'Fraunces',serif;color:#fff;font-size:24px;font-weight:600;margin-bottom:8px;}
 .cta p{color:#C0B6AB;margin-bottom:18px;}
-.cta a{display:inline-block;background:var(--terra-text);color:#fff;text-decoration:none;font-weight:700;padding:13px 26px;border-radius:12px;}
+.cta a{display:inline-block;background:var(--terra-fill);color:#fff;text-decoration:none;font-weight:700;padding:13px 26px;border-radius:12px;}
 .related{background:var(--card);border-radius:16px;padding:22px 24px;margin:28px 0;}
 .related h2{font-size:20px;margin:0 0 10px;}
 .related a{display:block;padding:6px 0;}
 details{border-bottom:1px solid var(--border);padding:14px 0;}
-summary{font-weight:600;cursor:pointer;color:var(--dark);}
+summary{font-weight:600;cursor:pointer;color:var(--ink);}
 details p{margin:10px 0 0;color:var(--text-muted);}
 footer.site{border-top:1px solid var(--border);margin-top:40px;padding:28px 0;font-size:14px;color:var(--warm-gray);}
 footer.site a{color:var(--warm-gray);margin-right:16px;}
 .disclaimer{font-size:13px;color:var(--warm-gray);margin-top:24px;}
 .grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:20px 0;}
-.grid a{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:16px 18px;text-decoration:none;color:var(--dark);font-weight:600;}
+.grid a{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:16px 18px;text-decoration:none;color:var(--ink);font-weight:600;}
 .grid a span{display:block;font-size:13px;color:var(--sage-text);font-weight:700;margin-top:4px;}
 @media(max-width:600px){h1{font-size:32px;}.grid{grid-template-columns:1fr;}}
 </style>

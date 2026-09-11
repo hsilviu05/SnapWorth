@@ -30,10 +30,4 @@ final class SettingsViewModel {
         guard let url = URL(string: urlString) else { return }
         UIApplication.shared.open(url)
     }
-
-    func sendFeedback() {
-        let raw = "mailto:her.silviu.i@gmail.com?subject=SnapWorth%20Feedback&body=Hi%20SnapWorth%20team%2C"
-        guard let url = URL(string: raw) else { return }
-        UIApplication.shared.open(url)
-    }
 }

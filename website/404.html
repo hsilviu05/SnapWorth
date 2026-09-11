@@ -15,32 +15,58 @@
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     @font-face { font-family: 'Fraunces'; src: url('/fonts/fraunces-latin.woff2') format('woff2'); font-weight: 300 900; font-display: swap; }
     @font-face { font-family: 'DM Sans'; src: url('/fonts/dmsans-latin.woff2') format('woff2'); font-weight: 400 700; font-display: swap; }
-    :root { --bg: #FAF7F4; --dark: #1C1410; --dark2: #2B211C; --terracotta: #D96C47;
-            --warm-gray: #8B7B75; --border: #E8DDD7; --white: #FFFFFF; }
+    :root {
+      color-scheme: light;
+      --bg: #FAF7F4; --ink: #1C1410; --ink-2: #2B211C; --terracotta: #D96C47;
+      /* Was #8B7B75 — 3.79:1 on --bg, under AA's 4.5:1, and used for the body
+         copy and the whole footer. index.html had already been corrected to
+         this value; this page had not. */
+      --warm-gray: #6E625B; --border: #E8DDD7;
+    }
+    /* Same palette as index.html and support.html. `--ink` is the text colour
+       here and never a background, so there is no --band to keep separate. */
+    @media (prefers-color-scheme: dark) {
+      :root {
+        color-scheme: dark;
+        --bg: #1A1512; --ink: #F6F1ED; --ink-2: #E2D8D1; --terracotta: #E07A55;
+        --warm-gray: #ABA098; --border: #3A302A;
+      }
+    }
     html { background: var(--bg); }
-    body { min-height: 100vh; display: flex; flex-direction: column; color: var(--dark2);
+    body { min-height: 100vh; display: flex; flex-direction: column; color: var(--ink-2);
            font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
            font-size: 17px; line-height: 1.6; -webkit-font-smoothing: antialiased; }
     nav { padding: 20px max(32px, env(safe-area-inset-left)); }
     .logo { font-family: 'Fraunces', Georgia, serif; font-weight: 700; font-size: 22px;
-            color: var(--dark); text-decoration: none; letter-spacing: -0.3px; }
+            color: var(--ink); text-decoration: none; letter-spacing: -0.3px; }
     main { flex: 1; display: grid; place-items: center; padding: 40px 24px 80px; text-align: center; }
     .eyebrow { font-size: 13px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase;
                color: var(--terracotta); margin-bottom: 14px; }
     h1 { font-family: 'Fraunces', Georgia, serif; font-weight: 700; font-size: clamp(34px, 6vw, 56px);
-         line-height: 1.05; letter-spacing: -1px; color: var(--dark); margin-bottom: 18px; }
+         line-height: 1.05; letter-spacing: -1px; color: var(--ink); margin-bottom: 18px; }
     h1 em { font-style: italic; font-weight: 400; color: var(--terracotta); }
     p { color: var(--warm-gray); max-width: 34em; margin: 0 auto 30px; }
     .actions { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
     .btn { display: inline-block; padding: 13px 22px; border-radius: 999px; font-weight: 600;
-           text-decoration: none; font-size: 15px; border: 1.5px solid var(--dark); color: var(--dark); }
-    .btn.primary { background: var(--dark); color: var(--white); }
+           text-decoration: none; font-size: 15px; border: 1.5px solid var(--ink); color: var(--ink); }
+    .btn.primary { background: var(--ink); color: var(--bg); }
     .btn:hover { opacity: .85; }
     footer { padding: 24px max(32px, env(safe-area-inset-left)); border-top: 1px solid var(--border);
              font-size: 14px; color: var(--warm-gray); display: flex; gap: 20px; flex-wrap: wrap; }
     footer a { color: var(--warm-gray); text-decoration: none; }
-    footer a:hover { color: var(--dark); }
-  </style>
+    footer a:hover { color: var(--ink); }
+  
+    /* Keyboard focus, brand selection and balanced headings — index.html had
+       all three and these pages had none of them. */
+    a:focus-visible, button:focus-visible, summary:focus-visible {
+      outline: 2px solid var(--terracotta);
+      outline-offset: 3px;
+      border-radius: 6px;
+    }
+    ::selection { background: #A94E29; color: #fff; }
+    h1, h2 { text-wrap: balance; }
+    p { text-wrap: pretty; }
+</style>
 </head>
 <body>
   <nav><a href="/" class="logo">SnapWorth</a></nav>

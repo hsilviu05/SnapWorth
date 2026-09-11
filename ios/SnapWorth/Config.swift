@@ -75,6 +75,15 @@ enum Config {
     /// Update to the App Store product URL once the app is live. Used for the share-card QR code.
     static let appStoreURL = "https://apps.apple.com/app/id6788521307"
 
+    // ── Support ──────────────────────────────────────────────────────────────
+    /// The one place the support address lives.
+    ///
+    /// It used to be typed out in four Swift files. That is how 1.3.4 shipped
+    /// with the app pointing at one inbox and the website at another (see
+    /// `marketing/RELEASE-NOTES-1.3.4.md`) — a drift no test could catch
+    /// because there was nothing to compare against.
+    static let supportEmail = "her.silviu.i@gmail.com"
+
     // ── Free tier ────────────────────────────────────────────────────────────
     /// Must match the backend's `FREE_SCANS_PER_DAY`. The client renders the
     /// remaining count from this constant rather than from the server's
