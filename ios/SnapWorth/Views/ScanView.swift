@@ -17,6 +17,12 @@ struct ScanView: View {
     /// actually seen their first result. Shown once, then never again here.
     @AppStorage("hasSeenFirstResultPaywall") private var hasSeenFirstResultPaywall = false
 
+    /// Mirrors whether a run is live. `Activity.activities` is the truth — this
+    /// only exists so the button re-renders, and is re-read on appear because a
+    /// run can end while the app is backgrounded (the eight-hour cap) or from
+    /// the Lock Screen itself.
+    @State private var isRunOn = ThriftRunController.isRunning
+
     /// Anything presented on top of the camera. See the `onChange` below.
     private var isCameraObscured: Bool {
         showResult || showThriftFlip || showNotifPriming || vm.showPaywall
@@ -103,6 +109,15 @@ struct ScanView: View {
                     }
                     .padding(.horizontal, 20)
                     .padding(.top, 6)
+                }
+
+                // Thrift run. Hidden entirely when Live Activities are off for
+                // the app — a button that silently does nothing is worse than
+                // no button, and `Activity.request` throws in exactly that case.
+                if ThriftRunController.isAvailable {
+                    ThriftRunControl(isRunning: $isRunOn)
+                        .padding(.horizontal, 20)
+                        .padding(.top, 6)
                 }
 
                 Spacer()
@@ -413,5 +428,53 @@ private struct CornerAccents: View {
             path.addLine(to: CGPoint(x: origin.x, y: origin.y + vLen))
         }
         .stroke(Color.snapOnCharcoal, lineWidth: thick)
+    }
+}
+
+// MARK: - Thrift run control
+
+/// Starts and ends the Live Activity from the scan screen.
+///
+/// Deliberately one control rather than a start button and a separate end
+/// button somewhere else: a run you cannot see how to stop is a run people
+/// stop trusting.
+private struct ThriftRunControl: View {
+    @Binding var isRunning: Bool
+
+    var body: some View {
+        HStack {
+            Spacer()
+            Button {
+                Haptics.selection()
+                Task {
+                    if isRunning {
+                        await ThriftRunController.end()
+                    } else {
+                        ThriftRunController.start()
+                    }
+                    // Read back rather than toggling: `start` returns false if
+                    // the system refuses — permission revoked between the
+                    // availability check and the request, or too many
+                    // Activities live — and a button that lies about its own
+                    // state is how a user ends up with two runs.
+                    isRunning = ThriftRunController.isRunning
+                }
+            } label: {
+                Label(isRunning ? "End run" : "Start a run",
+                      systemImage: isRunning ? "stop.circle.fill" : "play.circle.fill")
+                    .font(.snapCaption.bold())
+                    .foregroundStyle(Color.snapOnCharcoal.opacity(0.9))
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 4)
+                    .background(Color.snapCharcoal.opacity(0.5))
+                    .clipShape(Capsule())
+            }
+            .snapHitTarget()
+            .accessibilityLabel(isRunning ? "End thrift run" : "Start a thrift run")
+            .accessibilityHint(isRunning
+                               ? "Removes the running total from your Lock Screen"
+                               : "Shows a running total of this trip on your Lock Screen")
+        }
+        .onAppear { isRunning = ThriftRunController.isRunning }
     }
 }

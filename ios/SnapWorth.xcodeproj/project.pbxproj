@@ -66,6 +66,7 @@
 		ADD1EC0000000000000000F4 /* NotificationManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = ADD1EC0000000000000000F3 /* NotificationManager.swift */; };
 		ADD1EC0000000000000000F6 /* NotificationSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = ADD1EC0000000000000000F5 /* NotificationSettingsView.swift */; };
 		BB000000000000000000000A /* WidgetDataStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0000000000000000000009 /* WidgetDataStore.swift */; };
+		C0FFEE000000000000000001 /* ThriftRunController.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0FFEE000000000000000002 /* ThriftRunController.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -163,6 +164,7 @@
 		ADD1EC0000000000000000F7 /* SnapWorth.storekit */ = {isa = PBXFileReference; lastKnownFileType = text; path = SnapWorth.storekit; sourceTree = "<group>"; };
 		BB0000000000000000000008 /* SnapWorth.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = SnapWorth.entitlements; sourceTree = "<group>"; };
 		BB0000000000000000000009 /* WidgetDataStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetDataStore.swift; sourceTree = "<group>"; };
+		C0FFEE000000000000000002 /* ThriftRunController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThriftRunController.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -280,6 +282,7 @@
 				FEED0000000000000000C20 /* TokenStore.swift */,
 				FEED0000000000000000C10 /* AttestationService.swift */,
 				BB0000000000000000000009 /* WidgetDataStore.swift */,
+				C0FFEE000000000000000002 /* ThriftRunController.swift */,
 				ADD1EC0000000000000000B1 /* Analytics.swift */,
 				BB0000000000000000000C02 /* AppLaunchState.swift */,
 				BB0000000000000000000D02 /* CrashReporter.swift */,
@@ -543,6 +546,7 @@
 				FEED0000000000000000D20 /* TokenStore.swift in Sources */,
 				FEED0000000000000000D10 /* AttestationService.swift in Sources */,
 				BB000000000000000000000A /* WidgetDataStore.swift in Sources */,
+				C0FFEE000000000000000001 /* ThriftRunController.swift in Sources */,
 				AA00000000000000000000D1 /* CameraManager.swift in Sources */,
 				AA00000000000000000000D3 /* OnboardingViewModel.swift in Sources */,
 				AA00000000000000000000D5 /* PaywallViewModel.swift in Sources */,

@@ -120,6 +120,11 @@ final class ScanRepository {
             try? await Task.sleep(for: .milliseconds(600))
             let all = (try? context.fetch(FetchDescriptor<ScanResult>())) ?? []
             WidgetDataStore.writeHaul(results: all)
+            // Same hook, same debounce. A thrift run moves for exactly the
+            // reasons the widgets do — a scan added, removed, or re-graded —
+            // so giving it its own trigger would be a second thing to keep in
+            // step with this one.
+            await ThriftRunController.update(results: all)
         }
     }
 }

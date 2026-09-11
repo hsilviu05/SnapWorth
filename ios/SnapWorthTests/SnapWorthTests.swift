@@ -857,6 +857,139 @@ final class USMarketplaceWiringTests: XCTestCase {
     }
 }
 
+// MARK: - Widget bridge
+//
+// The widget extension routinely reads a blob written by an *older* build of
+// the app: an update installs the new extension, and the app may not run for
+// days. Swift's synthesised `Codable` initialiser throws `keyNotFound` for a
+// missing key — it does not fall back to a property's default — so adding a
+// field to `WidgetHaulData` without a hand-written decoder would blank every
+// installed Home Screen widget until the owner's next scan.
+
+final class WidgetHaulDataTests: XCTestCase {
+
+    /// Exactly the six keys 1.3.x wrote. Hardcoded rather than generated, so
+    /// it keeps describing the old format even as the struct grows.
+    private let v1 = """
+        {"totalLow":348,"totalHigh":620,"itemCount":8,
+         "lastItemName":"Patagonia Fleece","lastItemRange":"$60 – $95",
+         "updatedAt":768000000}
+        """.data(using: .utf8)!
+
+    func test_aBlobFromTheOldAppStillDecodes() throws {
+        let haul = try JSONDecoder().decode(WidgetHaulData.self, from: v1)
+        XCTAssertEqual(haul.itemCount, 8)
+        XCTAssertEqual(haul.totalLow, 348)
+        XCTAssertEqual(haul.lastItemName, "Patagonia Fleece")
+    }
+
+    func test_fieldsTheOldAppNeverWroteAreSafeDefaults() throws {
+        let haul = try JSONDecoder().decode(WidgetHaulData.self, from: v1)
+        XCTAssertNil(haul.freeScansRemaining)
+        XCTAssertFalse(haul.isPro, "must not read an absent key as Pro")
+        XCTAssertEqual(haul.streak, 0)
+        XCTAssertEqual(haul.recentFinds, [])
+        XCTAssertNil(haul.monthProfit)
+        XCTAssertEqual(haul.monthFlips, 0)
+    }
+
+    func test_aTruncatedBlobDegradesRatherThanThrowing() throws {
+        // A half-written blob should render an empty widget, not no widget.
+        let partial = #"{"itemCount":3}"#.data(using: .utf8)!
+        let haul = try JSONDecoder().decode(WidgetHaulData.self, from: partial)
+        XCTAssertEqual(haul.itemCount, 3)
+        XCTAssertEqual(haul.totalLow, 0)
+        XCTAssertEqual(haul.updatedAt, .distantPast)
+    }
+
+    func test_everyFieldSurvivesARoundTrip() throws {
+        let original = WidgetHaulData(
+            totalLow: 120, totalHigh: 260, itemCount: 4,
+            lastItemName: "Levi's 501", lastItemRange: "$40 – $70",
+            updatedAt: Date(timeIntervalSince1970: 768_000_000),
+            freeScansRemaining: 2, isPro: true, streak: 9,
+            recentFinds: [WidgetFind(id: "a", name: "Levi's 501", range: "$40 – $70")],
+            monthProfit: 214.5, monthFlips: 6)
+        let data = try JSONEncoder().encode(original)
+        XCTAssertEqual(try JSONDecoder().decode(WidgetHaulData.self, from: data),
+                       original)
+    }
+
+    func test_anEmptyHaulReadsTheSameAsTheApp() {
+        // The drift that shipped: the widget's copy had no empty-haul guard,
+        // so a library with no scans read "$0 – $0" there and "$0" in the app.
+        XCTAssertEqual(WidgetHaulData.empty.formattedRange, "$0")
+        XCTAssertFalse(WidgetHaulData.empty.hasScans)
+    }
+
+    func test_aRangeIsFormattedInTheAppsOwnCurrencyStyle() {
+        let haul = WidgetHaulData(
+            totalLow: 348, totalHigh: 620, itemCount: 8,
+            lastItemName: "", lastItemRange: "", updatedAt: .now,
+            freeScansRemaining: nil, isPro: false, streak: 0,
+            recentFinds: [], monthProfit: nil, monthFlips: 0)
+        XCTAssertEqual(haul.formattedRange, "$348 – $620")
+    }
+}
+
+// MARK: - Lock Screen formatting
+//
+// A circular accessory is about 72 points across, so the total is abbreviated.
+// The abbreviation is where this goes wrong: deciding the format from the raw
+// value made 9,999 read "$10.0K" while 10,000 read "$10K" — the same number,
+// spelled two ways, one dollar apart — and put 999.6 in the sub-thousand
+// branch, where it printed the "$1000" the abbreviation exists to avoid.
+
+final class LockScreenMoneyTests: XCTestCase {
+
+    func test_smallAmountsAreNotAbbreviated() {
+        XCTAssertEqual(WidgetHaulData.compactMoney(0), "$0")
+        XCTAssertEqual(WidgetHaulData.compactMoney(348), "$348")
+        XCTAssertEqual(WidgetHaulData.compactMoney(999), "$999")
+    }
+
+    func test_theThousandBoundaryIsDecidedAfterRounding() {
+        // 999.6 rounds to 1,000 and must be spelled as thousands.
+        XCTAssertEqual(WidgetHaulData.compactMoney(999.6), "$1.0K")
+        XCTAssertEqual(WidgetHaulData.compactMoney(1_000), "$1.0K")
+        XCTAssertEqual(WidgetHaulData.compactMoney(1_240), "$1.2K")
+    }
+
+    func test_theTenThousandBoundaryAgreesWithItself() {
+        // The bug: one dollar apart, two spellings.
+        XCTAssertEqual(WidgetHaulData.compactMoney(9_999),
+                       WidgetHaulData.compactMoney(10_000))
+        XCTAssertEqual(WidgetHaulData.compactMoney(9_999), "$10K")
+        XCTAssertEqual(WidgetHaulData.compactMoney(9_949), "$9.9K")
+    }
+
+    func test_largeAmountsDropTheDecimal() {
+        XCTAssertEqual(WidgetHaulData.compactMoney(12_400), "$12K")
+        XCTAssertEqual(WidgetHaulData.compactMoney(250_000), "$250K")
+    }
+
+    func test_nothingEverRendersAThousandsSeparator() {
+        // The whole reason this exists: "$1,240" does not fit in a circular
+        // complication at a legible size.
+        for value in stride(from: 0.0, through: 300_000, by: 617) {
+            XCTAssertFalse(WidgetHaulData.compactMoney(value).contains(","),
+                           "\(value) rendered a separator")
+        }
+    }
+
+    func test_findsLabelIsSingularForOne() {
+        func haul(_ count: Int) -> WidgetHaulData {
+            WidgetHaulData(totalLow: 0, totalHigh: 0, itemCount: count,
+                           lastItemName: "", lastItemRange: "", updatedAt: .now,
+                           freeScansRemaining: nil, isPro: false, streak: 0,
+                           recentFinds: [], monthProfit: nil, monthFlips: 0)
+        }
+        XCTAssertEqual(haul(1).findsLabel, "1 find")
+        XCTAssertEqual(haul(8).findsLabel, "8 finds")
+        XCTAssertEqual(haul(0).findsLabel, "0 finds")
+    }
+}
+
 // MARK: - Support mail
 
 /// The feedback screen's only job is to hand a message to Mail intact. These

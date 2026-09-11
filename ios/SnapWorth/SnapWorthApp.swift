@@ -9,6 +9,12 @@ struct SnapWorthApp: App {
     // ── Onboarding state ──────────────────────────────────────────────────────
     @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding = false
 
+    // ── Lifecycle ─────────────────────────────────────────────────────────────
+    // Read here rather than in MainTabView because the Control Centre button's
+    // App Intent has to be drained above the tab bar: it may arrive before any
+    // tab exists.
+    @Environment(\.scenePhase) private var scenePhase
+
     init() {
         // Wires the analytics backend (no-op until a TelemetryDeck ID is set)
         // and fires app_opened — the top of the launch funnel.
@@ -69,6 +75,13 @@ struct SnapWorthApp: App {
             RootView(purchaseService: purchaseService)
                 .onOpenURL(perform: handleWidgetURL)
                 .task { seedWidgetData() }
+                .task { drainPendingWidgetAction() }
+                .onChange(of: scenePhase) { _, phase in
+                    // Also on resume: a Control Centre press while the app is
+                    // already running never triggers `.task`, and the App
+                    // Intent that wrote the request cannot reach a view.
+                    if phase == .active { drainPendingWidgetAction() }
+                }
                 .task { NotificationManager.shared.registerAsDelegate() }
         }
         .modelContainer(sharedModelContainer)
@@ -77,6 +90,24 @@ struct SnapWorthApp: App {
     // ── Widget URL handling ───────────────────────────────────────────────────
     // snapworth://scan    → navigates to the camera tab
     // snapworth://history → navigates to the history tab
+    // snapworth://flips   → navigates to the profit ledger
+
+    /// Act on a Control Centre press.
+    ///
+    /// The Control Widget runs an App Intent rather than opening a URL, and
+    /// that intent races the app's launch — on a cold start nothing is
+    /// listening for the navigation notification yet. The intent therefore
+    /// leaves its request in the App Group and this drains it once the scene
+    /// exists. `takePendingAction` clears as it reads, so a single press opens
+    /// the camera once rather than on every subsequent foreground.
+    private func drainPendingWidgetAction() {
+        switch WidgetBridge.takePendingAction() {
+        case .scan:
+            NotificationCenter.default.post(name: .snapWidgetOpenScan, object: nil)
+        case nil:
+            break
+        }
+    }
 
     private func handleWidgetURL(_ url: URL) {
         guard url.scheme == "snapworth" else { return }
@@ -85,6 +116,10 @@ struct SnapWorthApp: App {
             NotificationCenter.default.post(name: .snapWidgetOpenScan, object: nil)
         case "history":
             NotificationCenter.default.post(name: .snapWidgetOpenHistory, object: nil)
+        case "flips":
+            // Reuses the name the notification deep links already post, rather
+            // than adding a second route to the same screen.
+            NotificationCenter.default.post(name: .snapOpenFlips, object: nil)
         default:
             break
         }
