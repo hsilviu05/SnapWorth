@@ -20,6 +20,7 @@ import sys
 import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
+import appstorenotify
 import auth
 from entitlements import Entitlement
 import main
@@ -699,3 +700,113 @@ class TestTrendsEndpoint:
         assert set(body) == {"days", "scans", "categories", "brands", "notable_finds"}
         for row in body["categories"] + body["brands"]:
             assert set(row) <= {"name", "count", "change_pct", "average_estimate"}
+
+
+# ── POST /apple/notifications ────────────────────────────────────────────────
+#
+# Unauthenticated by necessity — Apple has no bearer token to present. What
+# makes that safe is that the body is a JWS verified against Apple's pinned
+# root and our bundle ID, so the rejection paths below are the security of this
+# endpoint, not an edge case of it.
+
+_HERE = os.path.dirname(os.path.abspath(__file__))
+if _HERE not in sys.path:
+    sys.path.insert(0, _HERE)
+
+import entitlements as _entitlements  # noqa: E402
+from cache import InMemoryCache, ResilientCache  # noqa: E402
+from test_appstorenotify import make_notification  # noqa: E402
+from test_entitlements import build_chain  # noqa: E402
+
+
+class TestAppleNotifications:
+
+    @pytest.fixture
+    def pinned(self, monkeypatch):
+        from cryptography.hazmat.primitives import serialization
+        leaf_key, chain = build_chain()
+        monkeypatch.setattr(_entitlements, "APPLE_ROOT_CA_G3_PEM",
+                            chain[-1].public_bytes(serialization.Encoding.PEM))
+        monkeypatch.setattr(main, "_cache", ResilientCache(None, InMemoryCache()))
+        return leaf_key, chain
+
+    def test_a_genuine_notification_is_accepted(self, pinned):
+        leaf_key, chain = pinned
+        r = client.post("/apple/notifications", json={
+            "signedPayload": make_notification(leaf_key, chain)})
+        assert r.status_code == 200
+        assert r.json()["type"] == "DID_RENEW"
+
+    def test_an_unsigned_body_is_refused(self, pinned):
+        r = client.post("/apple/notifications", json={"signedPayload": "not-a-jws"})
+        assert r.status_code == 400
+
+    def test_a_payload_signed_by_someone_else_is_refused(self, pinned):
+        """Anyone can POST here. Only Apple can sign."""
+        other_key, other_chain = build_chain()
+        r = client.post("/apple/notifications", json={
+            "signedPayload": make_notification(other_key, other_chain)})
+        assert r.status_code == 400
+
+    def test_a_notification_for_another_app_is_refused(self, pinned):
+        leaf_key, chain = pinned
+        r = client.post("/apple/notifications", json={
+            "signedPayload": make_notification(leaf_key, chain,
+                                               bundle_id="com.someone.else")})
+        assert r.status_code == 400
+
+    def test_apples_retry_is_not_counted_twice(self, pinned):
+        """Apple redelivers until it gets a 2xx. Without the UUID guard one
+        conversion would push the operator two 'trial converted' alerts."""
+        leaf_key, chain = pinned
+        payload = make_notification(leaf_key, chain, uuid="repeat-me")
+        first = client.post("/apple/notifications", json={"signedPayload": payload})
+        again = client.post("/apple/notifications", json={"signedPayload": payload})
+        assert first.json()["status"] == "ok"
+        assert again.json()["status"] == "duplicate"
+        assert again.status_code == 200, "a non-2xx would make Apple retry forever"
+
+    def test_a_type_we_do_not_act_on_is_acknowledged_not_rejected(self, pinned):
+        """Verified, answered 200 so Apple stops, and never allowed to write a
+        guessed row."""
+        leaf_key, chain = pinned
+        r = client.post("/apple/notifications", json={
+            "signedPayload": make_notification(
+                leaf_key, chain, notification_type="CONSUMPTION_REQUEST")})
+        assert r.status_code == 200
+        assert r.json()["status"] == "ignored"
+
+    def test_an_oversized_body_is_rejected_by_the_schema(self, pinned):
+        r = client.post("/apple/notifications", json={
+            "signedPayload": "x" * (appstorenotify.MAX_SIGNED_PAYLOAD + 1)})
+        assert r.status_code == 422
+
+    def test_an_empty_body_is_rejected(self, pinned):
+        assert client.post("/apple/notifications", json={}).status_code == 400
+
+    def test_a_version_1_configuration_is_named_rather_than_guessed_at(
+            self, pinned, caplog):
+        """The version is chosen once in App Store Connect's 'Set Up URL' flow
+        and is invisible afterwards — the Edit dialog shows only the URL. A V1
+        body carries no signedPayload at all, so the misconfiguration has to
+        announce itself or it reads as an integration that silently does not
+        work while Apple retries for days."""
+        r = client.post("/apple/notifications", json={
+            "notification_type": "DID_RENEW",
+            "password": "shared-secret",
+            "unified_receipt": {"status": 0},
+        })
+        assert r.status_code == 400
+        assert "Version 2" in r.json()["detail"]
+        assert any("Version 1" in m and "Set Up URL" in m
+                   for m in caplog.messages), "must say which knob to turn"
+
+    def test_a_dead_cache_does_not_drop_a_real_notification(self, pinned, monkeypatch):
+        """Dedup fails open: a duplicate alert is cheaper than losing a
+        conversion."""
+        leaf_key, chain = pinned
+        monkeypatch.setattr(main, "_cache", None)
+        r = client.post("/apple/notifications", json={
+            "signedPayload": make_notification(leaf_key, chain, uuid="no-cache")})
+        assert r.status_code == 200
+        assert r.json()["status"] == "ok"

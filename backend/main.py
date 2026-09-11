@@ -41,13 +41,14 @@ import notify
 import promptsafety
 import prompts
 import ratelimit
+import appstorenotify
 import social
 import tokens
 import valuation as valuation_module
 from auditlog import AuditEvent
 from auth import (Principal, record_quota_consumed, refund_quota,
                   require_auth, reserve_quota)
-from entitlements import EntitlementService
+from entitlements import EntitlementError, EntitlementService
 from fastapi import Depends
 from observability import RequestContextMiddleware, configure_production_logging
 from quota import FREE_SCANS_PER_DAY, ScanQuota
@@ -1102,6 +1103,95 @@ when posted on this page.</p>
 <p>If you have questions about this Privacy Policy, contact us at
 <a href="mailto:her.silviu.i@gmail.com">her.silviu.i@gmail.com</a>.</p>
 </body></html>"""
+
+
+# ── App Store Server Notifications ───────────────────────────────────────────
+
+class AppleNotification(BaseModel):
+    """Apple's V2 envelope. One field, and it is a JWS.
+
+    `signedPayload` is optional only so a **Version 1** configuration can be
+    recognised and named. The version is chosen once, in App Store Connect's
+    "Set Up URL" flow, and is not shown or editable afterwards — so picking V1
+    there is invisible from the dashboard, and V1 posts an entirely different
+    body with no `signedPayload` in it. Left as a required field, that arrives
+    as a bare 422 from the schema, never reaching any logging here: Apple
+    retries each notification for ~3 days, nothing is recorded, and the
+    operator sees an integration that simply does not work. The handler
+    rejects a missing payload either way; this only buys the error message
+    that says which knob is wrong.
+    """
+    signedPayload: str | None = Field(
+        default=None, min_length=1, max_length=appstorenotify.MAX_SIGNED_PAYLOAD)
+    # Present on a V1 body, absent on V2. Read solely to identify the mistake.
+    notification_type: str | None = None
+
+
+# How long a handled notificationUUID is remembered. Apple redelivers for up to
+# ~3 days when it does not get a 2xx, so the marker has to outlive the retry
+# schedule or a late retry is counted a second time.
+_NOTIFICATION_SEEN_TTL = 60 * 60 * 24 * 5
+
+
+@app.post("/apple/notifications", status_code=200)
+async def apple_notifications(body: AppleNotification) -> dict:
+    """Apple tells the server what the client cannot.
+
+    Unauthenticated by necessity — Apple has no bearer token to present — and
+    that is safe because the payload is a JWS whose chain is verified against
+    Apple's pinned root CA and whose bundle ID must be ours. The signature *is*
+    the authentication; an unsigned or forged body gets a 400 and changes
+    nothing.
+
+    It grants no access either. Everything here feeds the operator's
+    subscription index and the Telegram alerts; a caller who somehow produced a
+    valid Apple signature for our bundle could tell us about a purchase, not
+    create one. Entitlement remains verified per request against the
+    transaction the client presents.
+
+    Answers 200 for anything it understood, including a type it deliberately
+    ignores — a non-2xx makes Apple redeliver the same notification for days.
+    """
+    if body.signedPayload is None:
+        if body.notification_type:
+            log.error(
+                "App Store Server Notifications are configured as Version 1 "
+                "(got notification_type=%s). This server only accepts Version 2. "
+                "In App Store Connect the version is set in the 'Set Up URL' "
+                "flow and cannot be changed by editing the URL: clear the "
+                "Production Server URL, save, then set it up again and choose "
+                "Version 2.", body.notification_type)
+            raise HTTPException(
+                status_code=400,
+                detail="Version 2 notifications required; this is a Version 1 body.")
+        raise HTTPException(status_code=400, detail="Missing signedPayload.")
+
+    try:
+        note = appstorenotify.parse_notification(
+            body.signedPayload, auth.deps.config.bundle_id, _PRODUCT_IDS)
+    except EntitlementError as exc:
+        # Not from Apple, not for this app, or not for a product we sell.
+        # Deliberately a 4xx: retrying it would never succeed.
+        log.warning("rejected App Store notification: %s", exc)
+        raise HTTPException(status_code=400, detail=str(exc)) from None
+
+    # Idempotency. Apple redelivers until it gets a 2xx, and a retry that
+    # re-ran the handler would push the operator a second "trial converted"
+    # for one conversion. Fail *open* if the cache is unreachable: a duplicate
+    # alert is a smaller problem than dropping a real notification, and the
+    # index write is itself idempotent.
+    try:
+        first = await _cache.add(f"apns2:{note.uuid}", "1", _NOTIFICATION_SEEN_TTL)
+    except Exception:
+        first = True
+    if not first:
+        return {"status": "duplicate"}
+
+    if not note.is_indexed:
+        return {"status": "ignored", "type": note.notification_type}
+
+    await notify.subscription_event(note)
+    return {"status": "ok", "type": note.notification_type}
 
 
 @app.get("/terms", response_class=HTMLResponse)

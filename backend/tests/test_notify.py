@@ -2721,3 +2721,174 @@ class TestFreeScanLever:
     async def test_the_experiment_screen_offers_the_lever(self, enabled_notify):
         _, buttons = await self._run("/experiment")
         assert any(d.startswith("lever") for d in self._datas(buttons))
+
+
+# ── App Store Server Notifications ───────────────────────────────────────────
+#
+# The live failure this fixes, from 2026-09-11: subscriber `3c4176` started a
+# 3-day yearly trial on 07 Sep and converted on the 10th. `/auth/entitlement`
+# only fires when the app runs, and that device had not been seen since the
+# 7th, so the index still held the trial transaction — whose expiry had passed
+# — and `/subs` reported the conversion as churn. A converted trial is the
+# customer least likely to relaunch the app, so waiting for a launch failed
+# precisely where it mattered.
+
+class FakeNotification:
+    """The shape `notify.subscription_event` consumes.
+
+    Deliberately duck-typed rather than built through `appstorenotify`:
+    `notify` must not import that module (it would close an import cycle
+    through `entitlements`), and these tests should hold it to the same
+    contract.
+    """
+
+    def __init__(self, ent, *, notification_type="DID_RENEW", subtype=None,
+                 uuid="uuid-1", indexed=True, paid_period=False, refund=False,
+                 revoke=False, expiry=False, cancellation=False,
+                 billing_failure=False) -> None:
+        self.entitlement = ent
+        self.notification_type = notification_type
+        self.subtype = subtype
+        self.uuid = uuid
+        self.is_indexed = indexed
+        self.is_paid_period = paid_period
+        self.is_refund = refund
+        self.is_revoke = revoke
+        self.is_expiry = expiry
+        self.is_cancellation = cancellation
+        self.is_billing_failure = billing_failure
+        self.is_loss = refund or revoke or expiry
+
+
+def _trial(otid: str = "otid-trial", expires_in: int = -86_400) -> Entitlement:
+    """A yearly bought with a free trial, expiring `expires_in` from now."""
+    return Entitlement("pro", "com.snapworth.yearly", int(time.time()) + expires_in,
+                       otid, "Production", offer_type=1,
+                       offer_discount_type="FREE_TRIAL")
+
+
+def _paid(otid: str = "otid-trial", price: float = 39.99) -> Entitlement:
+    """The renewal that follows: no offer, so Apple is charging for it."""
+    return Entitlement("pro", "com.snapworth.yearly",
+                       int(time.time()) + 365 * 86_400, otid, "Production",
+                       price=price, currency="USD")
+
+
+class TestSubscriptionNotifications:
+
+    @pytest.mark.asyncio
+    async def test_a_converted_trial_stops_reading_as_churn(self, enabled_notify):
+        # The state the bot was actually in: a trial whose expiry has passed.
+        await notify._index_subscription("device-a", _trial())
+        before = await notify._read_index(notify.SUBS_INDEX_KEY)
+        assert before["otid-trial"]["acq"] == "trial"
+        assert before["otid-trial"]["expires"] < time.time(), "must start expired"
+
+        await notify.subscription_event(
+            FakeNotification(_paid(), paid_period=True))
+
+        after = await notify._read_index(notify.SUBS_INDEX_KEY)
+        row = after["otid-trial"]
+        assert row["acq"] == "paid", "Apple charged for it; the row must say so"
+        assert row["expires"] > time.time(), "no longer reads as ended"
+        assert row["price"] == 39.99
+
+    @pytest.mark.asyncio
+    async def test_the_conversion_is_pushed_to_the_operator(self, enabled_notify):
+        await notify._index_subscription("device-a", _trial())
+        await notify.subscription_event(
+            FakeNotification(_paid(), paid_period=True))
+        await drain()
+        assert any("converted" in t.lower() for t in enabled_notify.texts), \
+            "the one alert that says a trial turned into money"
+
+    @pytest.mark.asyncio
+    async def test_the_conversion_counts_as_paid_in_the_summary(self, enabled_notify):
+        await notify._index_subscription("device-a", _trial())
+        await notify.subscription_event(
+            FakeNotification(_paid(), paid_period=True))
+        doc = await notify._read_index(notify.SUBS_INDEX_KEY)
+        active, paid, comped, expired, mrr = notify._subs_summary(doc)
+        assert (active, paid, comped, expired) == (1, 1, 0, 0)
+        assert mrr["USD"] == pytest.approx(39.99 / 12)
+
+    @pytest.mark.asyncio
+    async def test_a_payer_no_device_ever_synced_is_recorded(self, enabled_notify):
+        """The monthly subscriber who was absent from the index entirely."""
+        await notify.subscription_event(
+            FakeNotification(_paid("otid-monthly"), paid_period=True))
+        doc = await notify._read_index(notify.SUBS_INDEX_KEY)
+        assert doc["otid-monthly"]["acq"] == "paid"
+        await drain()
+        assert any("new paying subscriber" in t.lower() for t in enabled_notify.texts)
+
+    @pytest.mark.asyncio
+    async def test_apple_never_erases_the_device_we_already_knew(self, enabled_notify):
+        """A notification has no subject. Overwriting `who` with nothing would
+        drop the only link between a payment and a person."""
+        await notify._index_subscription("device-a", _trial())
+        who = (await notify._read_index(notify.SUBS_INDEX_KEY))["otid-trial"]["who"]
+        assert who
+
+        await notify.subscription_event(
+            FakeNotification(_paid(), paid_period=True))
+
+        assert (await notify._read_index(
+            notify.SUBS_INDEX_KEY))["otid-trial"]["who"] == who
+
+    @pytest.mark.asyncio
+    async def test_an_ordinary_renewal_is_not_announced_as_a_conversion(
+            self, enabled_notify):
+        """The tenth yearly renewal looks identical to the first paid period.
+        Only the row it replaces separates them."""
+        await notify._index_subscription("device-a", _paid())
+        await notify.subscription_event(
+            FakeNotification(_paid(), paid_period=True))
+        await drain()
+        assert not any("converted" in t.lower() for t in enabled_notify.texts)
+
+    @pytest.mark.asyncio
+    async def test_a_refund_stops_counting_as_active_revenue(self, enabled_notify):
+        await notify._index_subscription("device-a", _paid())
+        refunded = Entitlement("pro", "com.snapworth.yearly",
+                               int(time.time()) + 365 * 86_400, "otid-trial",
+                               "Production", price=39.99, currency="USD",
+                               revoked_at=int(time.time()))
+        await notify.subscription_event(
+            FakeNotification(refunded, notification_type="REFUND", refund=True))
+
+        doc = await notify._read_index(notify.SUBS_INDEX_KEY)
+        active, paid, comped, expired, mrr = notify._subs_summary(doc)
+        assert (active, paid, expired) == (0, 0, 1), \
+            "a refund keeps its expiry date, so expiry alone would miss it"
+        assert not mrr
+        await drain()
+        assert any("refund" in t.lower() for t in enabled_notify.texts)
+
+    @pytest.mark.asyncio
+    async def test_auto_renew_off_warns_without_declaring_a_loss(self, enabled_notify):
+        await notify._index_subscription("device-a", _paid())
+        await notify.subscription_event(FakeNotification(
+            _paid(), notification_type="DID_CHANGE_RENEWAL_STATUS",
+            subtype="AUTO_RENEW_DISABLED", cancellation=True))
+        await drain()
+        assert any("auto-renew" in t.lower() for t in enabled_notify.texts)
+        doc = await notify._read_index(notify.SUBS_INDEX_KEY)
+        active, paid, _, expired, _ = notify._subs_summary(doc)
+        assert (active, paid, expired) == (1, 1, 0), "still paid until it lapses"
+
+    @pytest.mark.asyncio
+    async def test_an_unindexed_type_writes_nothing(self, enabled_notify):
+        await notify.subscription_event(
+            FakeNotification(_paid("otid-x"), notification_type="CONSUMPTION_REQUEST",
+                             indexed=False))
+        assert await notify._read_index(notify.SUBS_INDEX_KEY) == {}
+
+    @pytest.mark.asyncio
+    async def test_a_failure_never_propagates_to_apple(self, enabled_notify):
+        """A raise here becomes a non-2xx, and Apple redelivers for days."""
+        class Broken:
+            entitlement = None
+            is_indexed = True
+            notification_type = "DID_RENEW"
+        await notify.subscription_event(Broken())  # must not raise
