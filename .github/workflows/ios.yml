@@ -34,6 +34,32 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      # The widget extension cannot import the app's module, and the app target
+      # uses explicit file references while SnapWorthWidgets is a synchronised
+      # folder — so the shared model is two hand-maintained copies. They had
+      # already drifted once: the widget's formatter was its own and its
+      # `formattedRange` lacked the empty-haul guard, so a library with no
+      # scans read "$0 – $0" on the Home Screen and "$0" in the app. Nothing in
+      # a build catches that, because both copies compile perfectly.
+      - name: Widget model is in sync
+        run: |
+          app=ios/SnapWorth/Services/WidgetDataStore.swift
+          ext=ios/SnapWorthWidgets/SnapWorthWidgets.swift
+          extract() {
+            awk '/BEGIN SHARED WIDGET MODEL/,/END SHARED WIDGET MODEL/' "$1"
+          }
+          for f in "$app" "$ext"; do
+            if [ "$(extract "$f" | wc -l)" -eq 0 ]; then
+              echo "::error file=$f::the shared widget model block is missing"
+              exit 1
+            fi
+          done
+          if ! diff -u <(extract "$app") <(extract "$ext"); then
+            echo "::error::the shared widget model has drifted between the app and the widget extension — the diff above is what differs"
+            exit 1
+          fi
+          echo "shared widget model identical in both targets ($(extract "$app" | wc -l) lines)"
+
       - name: Select the newest installed Xcode
         run: |
           # Was pinned to Xcode_16.*, which validated the app against a
