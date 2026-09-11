@@ -177,10 +177,16 @@ struct ShareCardView: View {
         }
     }
 
-    private func findBadge(paid: Double) -> String? {
+    /// `displayValueLow`, not `valueLow`: the range printed directly above this
+    /// badge is condition-adjusted, and the badge was dividing the raw AI
+    /// baseline. On anything the user had re-graded, the card claimed a
+    /// multiple its own headline did not support — and the share card is the
+    /// artefact that leaves the app.
+    func findBadge(paid: Double) -> String? {
         if paid == 0 { return "Free find" }
-        guard paid < result.valueLow else { return nil }
-        let multiple = Int(round(result.valueLow / paid))
+        let low = result.displayValueLow
+        guard paid < low else { return nil }
+        let multiple = Int(round(low / paid))
         return multiple > 1 ? "\(multiple)x find" : nil
     }
 

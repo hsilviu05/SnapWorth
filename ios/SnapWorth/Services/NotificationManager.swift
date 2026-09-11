@@ -355,9 +355,10 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
     ///
     /// Deliberately narrow. The obvious copy for a return hook is "your PS5 is
     /// worth $40 more this week" — and it would be false here. An item's value
-    /// only ever moves when the *user* changes its condition
-    /// (`ResultView` → `refreshPortfolioValue`); nothing re-values a saved item,
-    /// because `ScanAPIClient.scan` is only called for a new photo. Reporting
+    /// only ever moves when the *user* acts — changing its condition
+    /// (`ResultView`) or re-reading the care tag (`applySharpened`), both of
+    /// which call `refreshPortfolioValue`. Nothing re-values a saved item on
+    /// its own; `ScanAPIClient.scan` runs only for a photo the user supplied. Reporting
     /// the user's own edit back to them as market movement would be inventing a
     /// signal, and detecting real movement needs background re-valuation — a
     /// larger feature with a per-user model cost.

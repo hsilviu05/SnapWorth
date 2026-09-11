@@ -104,6 +104,16 @@ final class ScanRepository {
     /// per call site as locals (`ScanRepository(context: modelContext)`), so a
     /// `[weak self]` capture would be nil by the time this ran and the widget
     /// would silently stop updating. The context outlives the repository.
+    /// Re-sync the widget after something other than an insert or a delete
+    /// changed a value.
+    ///
+    /// Changing an item's condition re-prices it — the only way a value moves
+    /// without a row being added or removed — and nothing told the widget, so
+    /// it kept showing the pre-correction total until the next scan.
+    func refreshWidget() {
+        scheduleWidgetSync()
+    }
+
     private func scheduleWidgetSync() {
         let context = self.context
         Task { @MainActor in
