@@ -172,9 +172,15 @@ class Entitlement:
     # carries milliunits). Absent on older transactions.
     price: float | None = None
     currency: str | None = None
+    # When Apple revoked this transaction (refund, family-sharing removal), from
+    # revocationDate. Only ever populated on the reporting path — the access
+    # path turns a revoked transaction into `FREE` before it gets this far.
+    revoked_at: int | None = None
 
     @property
     def is_active(self) -> bool:
+        if self.revoked_at is not None:
+            return False
         if self.tier != "pro":
             return False
         if self.expires_at is None:
@@ -191,6 +197,7 @@ class Entitlement:
             "offer_type": self.offer_type,
             "offer_discount_type": self.offer_discount_type,
             "price": self.price, "currency": self.currency,
+            "revoked_at": self.revoked_at,
         })
 
     @staticmethod
@@ -205,6 +212,7 @@ class Entitlement:
             offer_type=d.get("offer_type"),
             offer_discount_type=d.get("offer_discount_type"),
             price=d.get("price"), currency=d.get("currency"),
+            revoked_at=d.get("revoked_at"),
         )
 
 
@@ -282,20 +290,27 @@ def _require_ca(cert: x509.Certificate) -> None:
         raise EntitlementError("Signed transaction chain is malformed.")
 
 
-def verify_signed_transaction(
-    jws_value: str,
-    bundle_id: str,
-    allowed_product_ids: set[str] | None = None,
-    allowed_environments: frozenset[str] | None = None,
-) -> Entitlement:
-    """Verify a StoreKit 2 JWS and return the entitlement it proves."""
-    if not jws_value or len(jws_value) > 16_384:
-        raise EntitlementError("Missing or oversized signed transaction.")
+def verify_apple_jws(jws_value: str, *, max_length: int = 16_384) -> dict:
+    """Verify an Apple-signed JWS against the pinned root and return its payload.
+
+    Every JWS Apple hands us — a StoreKit signed transaction, and the
+    `signedPayload` of an App Store Server Notification and the transaction
+    nested inside it — is ES256 with the signing chain in the `x5c` header, so
+    this is the one place that decides whether something really came from
+    Apple. It is deliberately shared rather than copied: a second
+    implementation is a second thing to get wrong, and this one is the only
+    reason the server can trust a purchase it never saw a device make.
+
+    Returns the decoded payload. Says nothing about what the payload *means* —
+    bundle, environment and product are the caller's to check.
+    """
+    if not jws_value or len(jws_value) > max_length:
+        raise EntitlementError("Missing or oversized signed payload.")
 
     try:
         header = jwt.get_unverified_header(jws_value)
     except Exception:
-        raise EntitlementError("Signed transaction header could not be read.") from None
+        raise EntitlementError("Signed payload header could not be read.") from None
 
     if header.get("alg") != "ES256":
         # Refuse alg confusion outright, including "none".
@@ -312,18 +327,39 @@ def verify_signed_transaction(
         raise EntitlementError("Unexpected certificate key type.")
 
     try:
-        payload = jwt.decode(
+        return jwt.decode(
             jws_value,
             key=leaf_key,
             algorithms=["ES256"],
-            # Apple's transaction payloads carry no aud/iss; expiry is handled
-            # below against the StoreKit-specific `expiresDate` field.
+            # Apple's payloads carry no aud/iss; subscription expiry is handled
+            # by the caller against StoreKit's own `expiresDate` field.
             options={"verify_aud": False, "verify_iss": False, "verify_exp": False},
         )
     except jwt.InvalidSignatureError:
-        raise EntitlementError("Signed transaction signature is invalid.") from None
+        raise EntitlementError("Signed payload signature is invalid.") from None
     except Exception:
-        raise EntitlementError("Signed transaction could not be decoded.") from None
+        raise EntitlementError("Signed payload could not be decoded.") from None
+
+
+def verify_signed_transaction(
+    jws_value: str,
+    bundle_id: str,
+    allowed_product_ids: set[str] | None = None,
+    allowed_environments: frozenset[str] | None = None,
+    *,
+    allow_inactive: bool = False,
+) -> Entitlement:
+    """Verify a StoreKit 2 JWS and return the entitlement it proves.
+
+    `allow_inactive` returns what the transaction *says* even when it is
+    expired or revoked, instead of collapsing to `FREE`. It exists for the
+    App Store Server Notification path, which has to be able to record a
+    subscription ending — a churn it reported as `FREE` would be
+    indistinguishable from one it never heard about. It must never be set on a
+    path that grants access: `FREE` is what keeps an expired transaction from
+    being Pro, and `Entitlement.is_active` is the check that replaces it.
+    """
+    payload = verify_apple_jws(jws_value)
 
     if payload.get("bundleId") != bundle_id:
         raise EntitlementError("Signed transaction is for a different app.")
@@ -359,10 +395,9 @@ def verify_signed_transaction(
     price = round(price_milli / 1000, 2) if isinstance(price_milli, (int, float)) else None
     currency = payload.get("currency") if isinstance(payload.get("currency"), str) else None
 
-    revoked = payload.get("revocationDate")
-    if revoked:
-        log.info("signed transaction was revoked", extra={"product_id": product_id})
-        return FREE
+    revoked_ms = payload.get("revocationDate")
+    revoked_at = (int(revoked_ms / 1000)
+                  if isinstance(revoked_ms, (int, float)) else None)
 
     ent = Entitlement(
         tier="pro",
@@ -375,7 +410,13 @@ def verify_signed_transaction(
         offer_discount_type=offer_discount_type,
         price=price,
         currency=currency,
+        revoked_at=revoked_at,
     )
+    if allow_inactive:
+        return ent
+    if revoked_at is not None:
+        log.info("signed transaction was revoked", extra={"product_id": product_id})
+        return FREE
     if not ent.is_active:
         log.info("signed transaction has expired", extra={"product_id": product_id})
         return FREE

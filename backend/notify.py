@@ -848,6 +848,83 @@ def safety_blocked(subject: str, count: int, *, paused: bool) -> None:
 
 # ── Subscription events ──────────────────────────────────────────────────────
 
+async def subscription_event(note) -> None:
+    """Record one App Store Server Notification. Awaited, but never raises.
+
+    This is the half of the picture the client cannot give us. `/auth/entitlement`
+    only fires when the app runs, which made two things invisible:
+
+      * a trial converting to paid — the row kept the trial's expiry, went past
+        it, and read as churn. The customer least likely to relaunch the app is
+        exactly the one who just started paying.
+      * a subscriber whose device never synced at all.
+
+    Apple sends these whether or not anyone opens the app, so the row is now
+    written by whoever finds out first.
+
+    Nothing here grants access. The index and the alerts are an operator view;
+    entitlement stays verified per request against the transaction the client
+    presents.
+    """
+    if _notifier is None or _cache is None:
+        return
+    try:
+        ent = note.entitlement
+        otid = ent.original_transaction_id
+        if not otid or not note.is_indexed:
+            return
+
+        before = await _index_subscription(None, ent)
+        was = str(before.get("acq") or "") if before else ""
+        now_acq = _acquisition(ent)
+
+        product = html.escape(ent.product_id or "unknown product")
+        environment = html.escape(ent.environment)
+        detail = f"{product} ({environment})"
+        price = getattr(ent, "price", None)
+        if isinstance(price, (int, float)) and price > 0:
+            detail += f" · {_money(price, getattr(ent, 'currency', None))}"
+
+        lines: list[str] | None = None
+
+        if note.is_paid_period and was and was != "paid":
+            # The headline event. We knew this subscription as a trial or a
+            # comp; Apple has just charged for it. `was` is what makes this a
+            # conversion rather than an ordinary renewal — the notification
+            # itself cannot tell those apart, because they are identical.
+            label = "Trial converted" if was == "trial" else f"{was.capitalize()} converted"
+            lines = [f"🎉 <b>{label} — this is real money</b>", detail]
+        elif note.is_paid_period and not before:
+            # A payer no device ever synced. Before Apple told us directly,
+            # this subscription did not exist as far as the bot was concerned.
+            lines = ["🎉 <b>New paying subscriber</b> (Apple reported it first)", detail]
+        elif note.is_refund:
+            lines = ["↩️ <b>Refund</b>", detail]
+        elif note.is_revoke:
+            lines = ["🚫 <b>Subscription revoked</b>", detail]
+        elif note.is_expiry:
+            lines = ["📉 <b>Subscription ended</b>", f"{detail} · was {was or now_acq}"]
+        elif note.is_cancellation:
+            # Not a loss yet — they keep it until the period ends. It is the
+            # earliest warning of one that Apple gives.
+            when = f" · runs until {_date(ent.expires_at)}" if ent.expires_at else ""
+            lines = ["⚠️ <b>Auto-renew turned off</b>", f"{detail}{when}"]
+        elif note.is_billing_failure:
+            lines = ["💳 <b>Renewal payment failed</b>",
+                     f"{detail} · Apple is retrying"]
+
+        if lines is None:
+            return
+        if ent.expires_at and not note.is_loss:
+            lines.append(f"renews or expires {_date(ent.expires_at)}")
+        if not await _notifier.send("\n".join(lines), _SUBS_BUTTONS):
+            log.warning("subscription notification alert failed to send")
+    except Exception:
+        # An operator ping must never fail Apple's delivery: a non-2xx makes
+        # Apple retry the same notification for hours.
+        log.exception("subscription notification handling failed")
+
+
 async def entitlement_recorded(subject: str, ent) -> None:
     """Note a verified StoreKit transaction. Awaited, but never raises.
 
@@ -2061,21 +2138,38 @@ def _acquisition(ent) -> str:
     return "paid"
 
 
-async def _index_subscription(subject: str, ent) -> None:
+async def _index_subscription(subject: str | None, ent) -> dict:
+    """Record what we now know about one subscription. Returns the previous row.
+
+    `subject` is None when App Store Server Notifications told us rather than a
+    device checking in. There is no pseudonymised device to attribute it to,
+    and — this is the point — the existing `who` must survive: the row may
+    already name the device that first synced it, and overwriting that with
+    nothing would lose the only link between a payment and a person.
+
+    The previous row is returned because a notification alone cannot say
+    whether a paid period is a *conversion*. Only the row it replaces can.
+    """
     doc = await _read_index(SUBS_INDEX_KEY)
     otid = str(ent.original_transaction_id)
-    entry = doc.get(otid) if isinstance(doc.get(otid), dict) else {}
+    before = doc.get(otid) if isinstance(doc.get(otid), dict) else {}
+    entry = dict(before)
     entry.update({
         "product": ent.product_id, "env": ent.environment,
         "first": getattr(ent, "original_purchase_at", None),
         "expires": ent.expires_at,
         "acq": _acquisition(ent),
         "price": getattr(ent, "price", None), "currency": getattr(ent, "currency", None),
-        "who": auditlog.pseudonymise(subject)[:6],
         "seen": int(time.time()),
     })
+    if subject is not None:
+        entry["who"] = auditlog.pseudonymise(subject)[:6]
+    revoked = getattr(ent, "revoked_at", None)
+    if revoked is not None:
+        entry["revoked"] = revoked
     doc[otid] = entry
     await _write_index(SUBS_INDEX_KEY, doc, SUBS_INDEX_CAP, "seen")
+    return before
 
 
 async def _index_user(who: str, *, tier: str, scanned: bool = False) -> None:
@@ -2105,7 +2199,11 @@ def _subs_summary(doc: dict) -> tuple[int, int, int, int, dict[str, float]]:
     active = paid = comped = expired = 0
     mrr: dict[str, float] = {}
     for e in doc.values():
-        alive = e.get("expires") is None or float(e["expires"]) > now
+        # A refund keeps its expiry date — the period was paid for and then
+        # unpaid — so expiry alone would leave a refunded subscription counted
+        # as active revenue until it happened to lapse.
+        alive = (e.get("revoked") is None
+                 and (e.get("expires") is None or float(e["expires"]) > now))
         if not alive:
             expired += 1
             continue
@@ -2141,15 +2239,18 @@ async def _subs_text() -> str:
         return "\n".join(lines)
 
     now = time.time()
-    rows = sorted(doc.values(),
-                  key=lambda e: (not (e.get("expires") is None or float(e["expires"]) > now),
-                                 float(e.get("expires") or 0)))
+    def _alive(e: dict) -> bool:
+        return (e.get("revoked") is None
+                and (e.get("expires") is None or float(e["expires"]) > now))
+
+    rows = sorted(doc.values(), key=lambda e: (not _alive(e), float(e.get("expires") or 0)))
     header = f"{'plan':<8}{'via':<11}{'since':<8}{'renews':<8}{'seen':<7}{'id':<6}"
     body = [header]
     for e in rows[:TABLE_ROWS]:
-        alive = e.get("expires") is None or float(e["expires"]) > now
         renews = _date(int(e["expires"]))[:6] if e.get("expires") else "never"
-        if not alive:
+        if e.get("revoked") is not None:
+            renews = "refund"
+        elif not _alive(e):
             renews = "ended"
         body.append(
             f"{_plan(e.get('product')):<8}{str(e.get('acq') or '?'):<11}"
@@ -2160,7 +2261,8 @@ async def _subs_text() -> str:
         body.append(f"… and {len(rows) - TABLE_ROWS} more")
     lines.append("<pre>" + html.escape("\n".join(body)) + "</pre>")
     due = [e for e in doc.values()
-           if e.get("expires") and now < float(e["expires"]) < now + 7 * 86400]
+           if e.get("revoked") is None
+           and e.get("expires") and now < float(e["expires"]) < now + 7 * 86400]
     if due:
         paid_due = [e for e in due if e.get("acq") == "paid"]
         value: dict[str, float] = {}
@@ -2170,8 +2272,8 @@ async def _subs_text() -> str:
         worth = (" · " + " + ".join(_money(v, c) for c, v in sorted(value.items()))
                  if value else "")
         lines.append(f"Due in 7 days: {len(due)} renew or end ({len(paid_due)} paid{worth})")
-    lines.append("Only subscriptions that have synced since the bot started are listed; "
-                 "every active one checks in at its next app launch.")
+    lines.append("Apple reports renewals, expiries and refunds directly, so this no "
+                 "longer waits for an app launch to notice.")
     return "\n".join(lines)
 
 

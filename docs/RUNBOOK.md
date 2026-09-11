@@ -582,7 +582,67 @@ work on does not.
 
 ---
 
-## 14. Changing the introductory offer
+## 14. App Store Server Notifications
+
+**This does nothing until the URL is pasted into App Store Connect.** The
+endpoint ships inert; Apple has to be told where to send.
+
+App Store Connect → your app → **App Information** → *App Store Server
+Notifications* → Production Server URL:
+
+```
+https://api.snapworth.eu/apple/notifications
+```
+
+Set **Version 2** notifications. Leave the Sandbox URL pointing at a staging
+deployment, or unset — a Sandbox notification is signed by the same Apple chain
+as a production one, and the only thing keeping TestFlight renewals out of the
+revenue view is `ALLOWED_STOREKIT_ENVIRONMENTS` (see §8).
+
+### Why it exists
+
+The subscription index used to be written from one place: the client POSTing
+`/auth/entitlement`, which only fires when the app runs. That was wrong in two
+directions at once, and both were live on 2026-09-11:
+
+- A 3-day trial converted to a paid yearly on 10 Sep. The device had last
+  synced on the 7th, so the index still held the trial transaction — expiry now
+  past — and `/subs` reported the customer as **churned**. A converted trial is
+  the person least likely to relaunch the app.
+- A monthly subscriber had never synced at all and did not exist in the index.
+
+Apple reports renewals, expiries, refunds and cancellations whether or not
+anyone opens the app.
+
+### What it does and does not do
+
+It writes the operator's subscription index and pushes Telegram alerts:
+trial converted, new payer, refund, revoke, subscription ended, auto-renew
+turned off, renewal payment failed.
+
+**It grants no access.** Entitlement stays verified per request against the
+signed transaction the client presents. The endpoint is unauthenticated —
+Apple has no bearer token — and safe because the body is a JWS verified
+against Apple's pinned root CA with our bundle ID checked on both the envelope
+and the transaction inside it. A caller who forged a valid Apple signature
+could tell us about a purchase, not create one.
+
+### Checking it
+
+- `/subs` in the bot. A row's `seen` should move without anyone opening the
+  app, and `renews` should read `refund` after a refund rather than a date.
+- Apple retries a notification until it gets a 2xx. Repeated deliveries of the
+  same `notificationUUID` are answered `{"status": "duplicate"}` and change
+  nothing, so a retry storm cannot double-count a conversion.
+- A type we do not act on is verified, answered 200, and ignored — never
+  written as a guessed row.
+- Rejections log at WARNING as `rejected App Store notification`. A burst of
+  those means either the wrong bundle is configured in App Store Connect or
+  someone is probing the endpoint; neither can write anything.
+
+---
+
+## 15. Changing the introductory offer
 
 The offer lives in **App Store Connect**, not in this repository. Changing it
 there takes effect for users immediately, with no build and no deploy — so
