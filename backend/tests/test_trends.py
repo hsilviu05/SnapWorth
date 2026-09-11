@@ -22,6 +22,11 @@ def cache():
     yield c
 
 
+# `trends()` windows both end YESTERDAY — today is excluded from the counts and
+# from the ratio. It used to compare a partial today-plus-six against seven
+# whole days, which leaned every category ▼ all day and recovered at midnight
+# UTC. So fixtures start at days_ago=1; seeding day 0 puts data outside the
+# window on purpose, not by accident.
 async def seed(cache, days_ago: int, cats: dict, brands: dict, finds=(), scans: int = 0):
     day = notify._day(datetime.now(timezone.utc) - timedelta(days=days_ago))
     await cache.set(notify._stat_key(day, "top"),
@@ -38,7 +43,7 @@ class TestFloor:
     @pytest.mark.asyncio
     async def test_rows_below_the_floor_are_withheld(self, cache):
         # clothing clears the floor; shoes (4) does not, and a lone brand never does.
-        await seed(cache, 0, {"clothing": 9, "shoes": 4}, {"Nike": 6, "Ferrari": 1}, scans=13)
+        await seed(cache, 1, {"clothing": 9, "shoes": 4}, {"Nike": 6, "Ferrari": 1}, scans=13)
         payload = await notify.trends(is_pro=False)
         assert [r["name"] for r in payload["categories"]] == ["clothing"]
         assert [r["name"] for r in payload["brands"]] == ["Nike"]
@@ -46,10 +51,10 @@ class TestFloor:
 
     @pytest.mark.asyncio
     async def test_direction_only_against_a_week_that_also_cleared_the_floor(self, cache):
-        await seed(cache, 0, {"clothing": 12}, {})
+        await seed(cache, 1, {"clothing": 12}, {})
+        await seed(cache, 2, {"home": 8}, {})
         await seed(cache, 8, {"clothing": 6}, {})       # last week, above the floor
         await seed(cache, 9, {"home": 2}, {})           # below it: no direction for home
-        await seed(cache, 1, {"home": 8}, {})
         rows = {r["name"]: r for r in (await notify.trends(is_pro=False))["categories"]}
         assert rows["clothing"]["change_pct"] == 100
         assert "change_pct" not in rows["home"]
@@ -58,7 +63,7 @@ class TestFloor:
 class TestTierSplit:
     @pytest.mark.asyncio
     async def test_free_gets_counts_only(self, cache):
-        await seed(cache, 0, {"clothing": 9}, {"Nike": 6},
+        await seed(cache, 1, {"clothing": 9}, {"Nike": 6},
                    [find("Carhartt Detroit Jacket", "clothing", 60, 100)] * 3)
         payload = await notify.trends(is_pro=False)
         assert "notable_finds" not in payload
@@ -69,7 +74,7 @@ class TestTierSplit:
         finds = [find("Le Creuset 5.5qt", "home", 120, 220),
                  find("KitchenAid Mixer", "home", 100, 180),
                  find("Pyrex set", "home", 40, 80)]
-        await seed(cache, 0, {"home": 9}, {"Le Creuset": 6}, finds)
+        await seed(cache, 1, {"home": 9}, {"Le Creuset": 6}, finds)
         payload = await notify.trends(is_pro=True)
         (home,) = payload["categories"]
         assert home["average_estimate"] == 123        # (170 + 140 + 60) / 3
@@ -80,7 +85,7 @@ class TestTierSplit:
 
     @pytest.mark.asyncio
     async def test_an_average_needs_three_finds(self, cache):
-        await seed(cache, 0, {"home": 9}, {},
+        await seed(cache, 1, {"home": 9}, {},
                    [find("Le Creuset", "home", 120, 220), find("Pyrex", "home", 40, 80)])
         (home,) = (await notify.trends(is_pro=True))["categories"]
         assert "average_estimate" not in home
@@ -89,7 +94,7 @@ class TestTierSplit:
     async def test_more_rows_for_pro(self, cache):
         cats = {name: 9 for name in
                 ["clothing", "shoes", "home", "books", "toys", "sports", "electronics"]}
-        await seed(cache, 0, cats, {})
+        await seed(cache, 1, cats, {})
         assert len((await notify.trends(is_pro=False))["categories"]) == notify.TRENDS_FREE_ROWS
         await cache.delete(f"{notify.TRENDS_CACHE_KEY}:pro")
         assert len((await notify.trends(is_pro=True))["categories"]) == notify.TRENDS_PRO_ROWS
@@ -98,10 +103,10 @@ class TestTierSplit:
 class TestCaching:
     @pytest.mark.asyncio
     async def test_each_tier_is_cached_separately(self, cache):
-        await seed(cache, 0, {"clothing": 9}, {})
+        await seed(cache, 1, {"clothing": 9}, {})
         first = await notify.trends(is_pro=False)
         # A later scan does not change what the cache already answered.
-        await seed(cache, 0, {"clothing": 99}, {})
+        await seed(cache, 1, {"clothing": 99}, {})
         assert (await notify.trends(is_pro=False)) == first
         # Pro has its own entry, computed fresh from the new numbers.
         assert (await notify.trends(is_pro=True))["categories"][0]["count"] == 99

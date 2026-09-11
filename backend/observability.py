@@ -62,8 +62,12 @@ class JSONFormatter(logging.Formatter):
         for key, value in record.__dict__.items():
             if key not in self._RESERVED and not key.startswith("_"):
                 payload[key] = value
-        if record.exc_info:
-            payload["exception"] = self.formatException(record.exc_info)
+        if record.exc_info or record.exc_text:
+            # `exc_text` is set by RedactionFilter and is already redacted.
+            # The fallback covers a record that reached this formatter without
+            # passing the filter, which must not be the unredacted path.
+            payload["exception"] = record.exc_text or redact(
+                self.formatException(record.exc_info))
         return json.dumps(payload, default=str)
 
 
@@ -187,11 +191,41 @@ class RedactionFilter(logging.Filter):
     """
 
     _SKIP = {"request_id", "trace_id", "span_id"}
+    # Never rewritten: `exc_info` is a (type, value, traceback) tuple that
+    # `formatException` needs intact, and `args` is handled above.
+    _OPAQUE = {"exc_info", "args"}
+
+    @classmethod
+    def _scrub(cls, value: object, depth: int = 0) -> object:
+        """Redact string leaves, leave every other type as it was.
+
+        Non-string extras are not stringified. `observability` itself passes
+        `status`, `duration_ms` and `rate` as numbers, and anything reading the
+        JSON lines as numbers would break if they came back quoted.
+        """
+        if isinstance(value, str):
+            return redact(value)
+        if isinstance(value, BaseException):
+            return redact(str(value))
+        if depth >= 4:                       # bounded: log extras are shallow
+            return value
+        if isinstance(value, dict):
+            return {k: cls._scrub(v, depth + 1) for k, v in value.items()}
+        if isinstance(value, list):
+            return [cls._scrub(v, depth + 1) for v in value]
+        if isinstance(value, tuple):
+            return tuple(cls._scrub(v, depth + 1) for v in value)
+        return value
 
     def filter(self, record: logging.LogRecord) -> bool:
         try:
             if isinstance(record.msg, str):
                 record.msg = redact(record.msg)
+            elif not record.args:
+                # `log.error(exc)` parks the exception object here and
+                # `getMessage()` str()s it on the way out, unredacted. Only
+                # safe to fold when there is nothing left to interpolate.
+                record.msg = redact(str(record.msg))
             if record.args:
                 if isinstance(record.args, dict):
                     record.args = {
@@ -202,10 +236,17 @@ class RedactionFilter(logging.Filter):
                     record.args = tuple(
                         redact(a) if isinstance(a, str) else a for a in record.args)
             for key, value in list(record.__dict__.items()):
-                if key in self._SKIP or key.startswith("_"):
+                if key in self._SKIP or key in self._OPAQUE or key.startswith("_"):
                     continue
-                if isinstance(value, str):
-                    record.__dict__[key] = redact(value)
+                record.__dict__[key] = self._scrub(value)
+            # Tracebacks are the single biggest carrier and were never covered:
+            # a Telegram token in an api.telegram.org URL, a password in a Redis
+            # connection error, a key echoed back by an HTTP client. Formatting
+            # it here — before any handler — means both the JSON and plain
+            # formatters get the redacted text, since both prefer `exc_text`.
+            if record.exc_info and not record.exc_text:
+                record.exc_text = redact(
+                    logging.Formatter().formatException(record.exc_info))
         except Exception:      # pragma: no cover
             pass
         return True

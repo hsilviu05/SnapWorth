@@ -176,8 +176,11 @@ async def _predict_one(model, item, prompt_text: str, version: str, root: Path) 
             return prediction
 
     val = valuation_module.normalise(data, image_quality=quality)
-    low, high, clamped = promptsafety.clamp_valuation(
+    low, high, clamp_kind = promptsafety.clamp_valuation(
         val.prices.worst or 1.0, val.prices.best or 5.0, val.category)
+    # Same rule as main.py's /scan path, so the eval scores what production
+    # actually does: a floor touch or a widened point estimate is not an error.
+    clamped = clamp_kind in {"ceiling", "order"}
     conf = confidence_module.compute(
         brand=val.brand, category=val.category,
         identification_certainty=val.identification_certainty,

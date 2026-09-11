@@ -106,31 +106,52 @@ _CATEGORY_BANDS: dict[str, tuple[float, float]] = {
 DEFAULT_BAND = (1.0, 10_000.0)
 
 
-def clamp_valuation(low: float, high: float, category: str) -> tuple[float, float, bool]:
+def clamp_valuation(low: float, high: float, category: str) -> tuple[float, float, str]:
     """Clamp an estimate into its category band.
 
-    Returns ``(low, high, was_clamped)``. A clamped result is a signal the model
-    produced something implausible, so the caller should lower confidence rather
-    than present the number as authoritative.
+    Returns ``(low, high, kind)`` where kind is one of:
+
+    * ``""``      — nothing happened, or only the degenerate-range widening did.
+      A model that returns a single point instead of a range is a formatting
+      quirk the UI needs opened up; it is not evidence the price is wrong.
+    * ``"floor"`` — the low end was raised to the category minimum. A genuinely
+      cheap item (a $0.75 paperback) trips this, and calling that an
+      implausible valuation and docking its confidence is simply wrong.
+    * ``"ceiling"`` / ``"order"`` — the model produced something out of band or
+      out of order. These are real errors and the caller should lower
+      confidence.
+
+    The split exists because the caller used to treat all four the same. Only
+    ceiling and order should reach `was_clamped`.
     """
     floor, ceiling = _CATEGORY_BANDS.get((category or "").lower().strip(), DEFAULT_BAND)
 
     original = (low, high)
-    if low > high:
+    inverted = low > high
+    if inverted:
         low, high = high, low
+    hit_ceiling = low > ceiling or high > ceiling
+    hit_floor = low < floor or high < floor
+
     low = max(floor, min(low, ceiling))
     high = max(floor, min(high, ceiling))
     if high < low:
         high = low
     # Degenerate range (model returned a point estimate) — open it up so the UI
-    # still reads as a range.
+    # still reads as a range. Deliberately not a `kind`: nothing was wrong.
     if high == low:
         high = min(round(low * 1.5, 2), ceiling)
 
-    was_clamped = (round(original[0], 2), round(original[1], 2)) != (round(low, 2), round(high, 2))
-    if was_clamped:
+    kind = "ceiling" if hit_ceiling else "order" if inverted else "floor" if hit_floor else ""
+    if kind in {"ceiling", "order"}:
         log.warning(
             "valuation clamped to category band",
+            extra={"category": category, "kind": kind,
+                   "from": list(original), "to": [low, high]},
+        )
+    elif kind:
+        log.info(
+            "valuation raised to category floor",
             extra={"category": category, "from": list(original), "to": [low, high]},
         )
-    return round(low, 2), round(high, 2), was_clamped
+    return round(low, 2), round(high, 2), kind

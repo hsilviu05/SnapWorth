@@ -2048,13 +2048,29 @@ async def _spend(days: list[str]) -> float:
 
 
 async def _spend_line(days: list[str], scans: int) -> str:
+    """The digest and /status spend line.
+
+    `$/scan` is *users'* spend over user scans. It used to divide the whole
+    bill by the user scan count, and the whole bill includes the operator's own
+    usage — /post, /price, /caption, /hooks, the /checkup probe. At a handful of
+    scans a day that made the figure substantially the operator's own token
+    spend, reported as what a user costs. `/costs` already did this correctly,
+    so the two surfaces disagreed and the digest was the one being read daily.
+
+    `Gemini ≈` stays the true bill, because that is the number that has to
+    match the invoice, and `· N mine` is appended whenever operator usage is
+    non-zero so the subtraction is visible rather than silently applied.
+    """
     spend = await _spend(days)
+    mine = await _operator_spend(days)
     parts = [f"Gemini ≈ {_usd(spend)}"]
     if scans:
-        parts.append(f"{_usd_fine(spend / scans)}/scan")
+        parts.append(f"{_usd_fine(max(spend - mine, 0.0) / scans)}/scan")
         avg_ms = await _sum_stat(days, "scan_ms")
         if avg_ms:
             parts.append(f"avg scan {avg_ms / scans / 1000:.1f}s")
+    if mine > 0:
+        parts.append(f"{_usd(mine)} mine")
     return " · ".join(parts)
 
 
@@ -2372,8 +2388,16 @@ async def trends(*, is_pro: bool, now: datetime | None = None) -> dict:
         pass
 
     now = now or datetime.now(timezone.utc)
-    this_week = _days_ending_today(7, now)
-    last_week = [_day(now - timedelta(days=i)) for i in range(7, 14)]
+    # Both windows end yesterday. `_days_ending_today` starts at i=0, so the
+    # current week used to be six whole days plus however much of today had
+    # happened, compared against seven whole days — every category was measured
+    # short against a full-length baseline and the arrow leaned ▼ all day,
+    # recovering only around midnight UTC. `_weekly_text` already anchors this
+    # way; trends did not. Today is excluded from both the ratio and the scan
+    # count so the percentage and the number printed beside it cannot disagree.
+    end = now - timedelta(days=1)
+    this_week = [_day(end - timedelta(days=i)) for i in range(7)]
+    last_week = [_day(end - timedelta(days=i)) for i in range(7, 14)]
     cats, brands, finds, scans = await _tallies(this_week)
     prev_cats, prev_brands, _, _ = await _tallies(last_week)
 

@@ -1386,12 +1386,32 @@ async def _analyse(image_bytes: bytes, content_type: str, *, subject: str,
     # Category bands remain the outer backstop against order-of-magnitude errors
     # and injected numbers. Applied to the compatibility low/high pair, then the
     # ratio is carried across to the four v2 points so they stay consistent.
-    low, high, was_clamped = promptsafety.clamp_valuation(
+    low, high, clamp_kind = promptsafety.clamp_valuation(
         val.prices.worst, val.prices.best, val.category)
-    val.was_clamped = was_clamped
-    if was_clamped:
+    if (low, high) != (round(val.prices.worst, 2), round(val.prices.best, 2)):
+        # Rebuild whenever the span moved at all, so the v1 low/high pair and
+        # the v2 ladder cannot disagree — the response builds one from `low`
+        # and the other from `val.prices`.
+        #
+        # The interior points are pinned into the new span, not discarded.
+        # Passing quick=0, expected=0 made `reconcile_prices` interpolate them,
+        # so `expected_price_usd` came back as the exact midpoint of the
+        # clamped range — the one thing prompts.py forbids ("must be your best
+        # point estimate, not the midpoint of a range you invented"). A $0.25
+        # floor adjustment was silently rewriting the headline number a Pro
+        # subscriber is paying to see. Zero still means absent, because
+        # `reconcile_prices` reads it that way and interpolating a point the
+        # model never sent is better than pinning it to the floor.
+        def _pin(v: float) -> float:
+            return min(max(v, low), high) if v > 0 else 0.0
+
         val.prices = valuation_module.reconcile_prices(
-            worst=low, quick=0, expected=0, best=high)
+            worst=low, quick=_pin(val.prices.quick),
+            expected=_pin(val.prices.expected), best=high)
+    # Only a real model error lowers confidence. A cheap item touching its
+    # category floor, or a point estimate being opened into a range, is not one.
+    was_clamped = clamp_kind in {"ceiling", "order"}
+    val.was_clamped = was_clamped
 
     # Confidence is computed here, from observable signals — it is no longer
     # whatever the model said about itself. See confidence.py.
