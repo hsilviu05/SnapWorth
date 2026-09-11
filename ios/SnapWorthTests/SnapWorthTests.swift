@@ -911,16 +911,73 @@ final class SupportMailTests: XCTestCase {
     }
 
     /// Diagnostics exist so the first reply to a bug report isn't "what
-    /// version are you on?" — and must stay free of anything identifying.
-    func test_diagnosticsCarryVersionAndOSButNoIdentifiers() {
+    /// version are you on?".
+    func test_diagnosticsCarryVersionAndOS() {
         let text = SupportMail.diagnostics
         XCTAssertTrue(text.contains("SnapWorth"), "app name and version")
         XCTAssertTrue(text.contains("iOS") || text.contains("iPadOS"),
                       "OS name from UIDevice.systemName")
+    }
+
+    /// The block rides in an email the user can read, so the only identifier
+    /// in it may be the server's own pseudonym.
+    func test_diagnosticsCarryNoDeviceIdentifiers() {
+        let text = SupportMail.diagnostics
         XCTAssertFalse(text.contains("@"), "no address, no account, no email")
         XCTAssertFalse(text.lowercased().contains("udid"))
-        XCTAssertFalse(text.contains(UIDevice.current.identifierForVendor?.uuidString ?? "\u{0}"),
-                       "the vendor id must never ride along")
+        if let vendor = UIDevice.current.identifierForVendor?.uuidString {
+            XCTAssertFalse(text.contains(vendor), "the vendor id must never ride along")
+        }
+    }
+
+    /// `/user <id>` on Telegram is documented as being for answering a
+    /// support email, and the email used to carry no id at all.
+    func test_diagnosticsQuoteTheSupportIDWhenThereIsOne() {
+        let saved = SupportMail.supportID
+        defer { SupportMail.supportID = saved }
+
+        SupportMail.supportID = "a1b2c3d4e5f60718"
+        XCTAssertTrue(SupportMail.diagnostics.contains("a1b2c3d4e5f60718"))
+    }
+
+    /// A build talking to a backend that predates `support_id` has none, and
+    /// must still produce a usable block rather than an empty line or "nil".
+    func test_diagnosticsOmitTheLineWhenThereIsNoSupportID() {
+        let saved = SupportMail.supportID
+        defer { SupportMail.supportID = saved }
+
+        SupportMail.supportID = nil
+        let text = SupportMail.diagnostics
+        XCTAssertFalse(text.contains("Device "))
+        XCTAssertFalse(text.contains("nil"))
+        XCTAssertFalse(text.hasSuffix("\n"))
+        XCTAssertTrue(text.contains("SnapWorth"), "the rest of the block survives")
+    }
+
+    /// Setting it to empty is how a server that sent `""` would land, and
+    /// must read back as absent rather than as a blank id.
+    func test_emptySupportIDIsStoredAsAbsent() {
+        let saved = SupportMail.supportID
+        defer { SupportMail.supportID = saved }
+
+        SupportMail.supportID = "abc"
+        SupportMail.supportID = ""
+        XCTAssertNil(SupportMail.supportID)
+    }
+
+    /// The id ends up in the clipboard fallback too, because that path has to
+    /// carry exactly what the email would have.
+    func test_supportIDSurvivesIntoAComposedURL() throws {
+        let saved = SupportMail.supportID
+        defer { SupportMail.supportID = saved }
+
+        SupportMail.supportID = "deadbeefdeadbeef"
+        let url = try XCTUnwrap(SupportMail.composeURL(
+            subject: "S", body: "it broke\n\n" + SupportMail.diagnostics))
+        let components = try XCTUnwrap(URLComponents(url: url, resolvingAgainstBaseURL: false))
+        let body = try XCTUnwrap(components.queryItems?.first { $0.name == "body" }?.value)
+        XCTAssertTrue(body.contains("deadbeefdeadbeef"))
+        XCTAssertTrue(body.hasPrefix("it broke"))
     }
 
     /// The address is typed once. This is what would have caught the 1.3.4

@@ -310,19 +310,49 @@ enum SupportMail {
         return URL(string: "mailto:\(Config.supportEmail)?subject=\(subject)&body=\(body)")
     }
 
+    private static let supportIDKey = "supportID"
+
+    /// The device's pseudonym in the backend's own indexes, as sent by the
+    /// last token mint. `nil` until the app has authenticated once, and on
+    /// any build talking to a backend that predates the field.
+    ///
+    /// Not a credential. It is a salted, truncated hash of the attestation
+    /// subject: it authenticates nothing, and the salt lives on the server,
+    /// which is why the client has to be told rather than deriving it.
+    static var supportID: String? {
+        get { UserDefaults.standard.string(forKey: supportIDKey) }
+        set {
+            let defaults = UserDefaults.standard
+            if let newValue, !newValue.isEmpty {
+                defaults.set(newValue, forKey: supportIDKey)
+            } else {
+                defaults.removeObject(forKey: supportIDKey)
+            }
+        }
+    }
+
     /// What triaging a bug report needs and what a user should never be asked
-    /// to go and look up. Version, OS and hardware only — no identifiers, so
-    /// this adds nothing to what the App Store already knows about a device.
+    /// to go and look up.
+    ///
+    /// Version, OS, hardware, and the support id if there is one — which is
+    /// what makes the operator's `/user <id>` command usable from an email
+    /// for the first time. Nothing else: no vendor id, no address, no scan
+    /// history. The id is pseudonymous by construction and resolves only
+    /// against an index the operator already holds.
     static var diagnostics: String {
         let info = Bundle.main.infoDictionary
         let version = info?["CFBundleShortVersionString"] as? String ?? "?"
         let build = info?["CFBundleVersion"] as? String ?? "?"
         let device = UIDevice.current
-        return """
-        —
-        SnapWorth \(version) (\(build))
-        \(device.systemName) \(device.systemVersion) · \(hardwareModel)
-        """
+        var lines = [
+            "—",
+            "SnapWorth \(version) (\(build))",
+            "\(device.systemName) \(device.systemVersion) · \(hardwareModel)",
+        ]
+        if let id = supportID, !id.isEmpty {
+            lines.append("Device \(id)")
+        }
+        return lines.joined(separator: "\n")
     }
 
     /// `UIDevice.model` is the string "iPhone" on every iPhone ever made. The

@@ -28,6 +28,7 @@ from fastapi.testclient import TestClient
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import appattest  # noqa: E402
+import auditlog  # noqa: E402
 import auth  # noqa: E402
 from cache import CacheUnavailable, InMemoryCache, ResilientCache  # noqa: E402
 from main import app  # noqa: E402
@@ -585,6 +586,54 @@ class TestEntitlementOutageIsNotADowngrade:
             assert exc.value.status_code == 503
         finally:
             build_deps()
+
+
+class TestSupportID:
+    """`/user <id>` on Telegram is documented as being for answering a support
+    email, and took an id the support email had no way to contain: the
+    pseudonym is salted server-side so the client cannot derive it. The mint
+    response now carries it."""
+
+    def test_mint_returns_the_same_pseudonym_the_indexes_are_keyed_on(self):
+        build_deps(enforce=True)
+        try:
+            response = asyncio.run(auth._issue_token("some-attest-key-id", None))
+            assert response.support_id == auditlog.pseudonymise("some-attest-key-id")
+        finally:
+            build_deps()
+
+    def test_support_id_is_stable_across_mints(self):
+        """Two tokens for one device must quote one id, or the operator is
+        looking up a different device than the one that wrote in."""
+        build_deps(enforce=True)
+        try:
+            first = asyncio.run(auth._issue_token("subj", None))
+            second = asyncio.run(auth._issue_token("subj", None))
+            assert first.support_id == second.support_id
+        finally:
+            build_deps()
+
+    def test_support_id_does_not_leak_the_subject(self):
+        """It rides in a support email, so it must not carry the App Attest
+        key id it is derived from."""
+        subject = "0123456789abcdef0123456789abcdef"
+        build_deps(enforce=True)
+        try:
+            response = asyncio.run(auth._issue_token(subject, None))
+        finally:
+            build_deps()
+        assert subject not in response.support_id
+        assert len(response.support_id) == 16
+        assert all(c in "0123456789abcdef" for c in response.support_id)
+
+    def test_different_devices_get_different_ids(self):
+        build_deps(enforce=True)
+        try:
+            a = asyncio.run(auth._issue_token("device-a", None))
+            b = asyncio.run(auth._issue_token("device-b", None))
+        finally:
+            build_deps()
+        assert a.support_id != b.support_id
 
 
 class TestCacheFailurePolicy:
