@@ -1,4 +1,5 @@
 import XCTest
+import ImageIO
 import UIKit
 @testable import SnapWorth
 
@@ -188,6 +189,68 @@ final class FlipMathTests: XCTestCase {
 }
 
 // MARK: - Thrift Flip: price-tag OCR parsing Tests
+
+// MARK: - Price-tag OCR orientation
+//
+// Vision reads the raw sensor bitmap. `UIImage` keeps the camera's rotation in
+// `imageOrientation` and never turns the pixels, so omitting the orientation
+// presented every portrait capture — the reader's primary input — a quarter
+// turn out. The parser tests below are all pure, which is why CI stayed green
+// while the feature was broken end to end.
+
+final class PriceTagOCROrientationTests: XCTestCase {
+
+    /// All eight cases. A transposed `left`/`right` is the classic way this is
+    /// got wrong, and it fails silently: the OCR simply finds nothing.
+    func test_everyUIImageOrientationMapsToItsCGCounterpart() {
+        let pairs: [(UIImage.Orientation, CGImagePropertyOrientation)] = [
+            (.up, .up), (.upMirrored, .upMirrored),
+            (.down, .down), (.downMirrored, .downMirrored),
+            (.left, .left), (.leftMirrored, .leftMirrored),
+            (.right, .right), (.rightMirrored, .rightMirrored),
+        ]
+        for (uiKit, imageIO) in pairs {
+            XCTAssertEqual(CGImagePropertyOrientation(uiKit), imageIO,
+                           "\(uiKit) mapped to the wrong CGImagePropertyOrientation")
+        }
+        // `UIImage.Orientation` is an Objective-C enum and is not CaseIterable,
+        // so the count is asserted against the eight cases UIKit defines rather
+        // than derived. If Apple ever adds one, the `@unknown default` in the
+        // initializer keeps it compiling and this number stops being the truth.
+        XCTAssertEqual(pairs.count, 8)
+    }
+
+    /// A card the reader should manage, upright and untagged.
+    ///
+    /// Guards the regression the fix itself could cause: passing an orientation
+    /// where none was passed before must not break the case that already
+    /// worked. The rotated case is deliberately *not* asserted here — it cannot
+    /// be fixtured and verified in this environment without guessing the sign
+    /// of the rotation, and a test that guesses is worse than none.
+    func test_anUprightTagStillReads() async throws {
+        let image = Self.card(text: "$12.99")
+        let price = try await PriceTagOCR.detectPrice(in: image)
+        XCTAssertEqual(price, Decimal(string: "12.99"))
+    }
+
+    private static func card(text: String) -> UIImage {
+        let size = CGSize(width: 800, height: 400)
+        let format = UIGraphicsImageRendererFormat.default()
+        format.scale = 1
+        format.opaque = true
+        return UIGraphicsImageRenderer(size: size, format: format).image { ctx in
+            UIColor.white.setFill()
+            ctx.fill(CGRect(origin: .zero, size: size))
+            let attributed = NSAttributedString(string: text, attributes: [
+                .font: UIFont.boldSystemFont(ofSize: 160),
+                .foregroundColor: UIColor.black,
+            ])
+            let bounds = attributed.size()
+            attributed.draw(at: CGPoint(x: (size.width - bounds.width) / 2,
+                                        y: (size.height - bounds.height) / 2))
+        }
+    }
+}
 
 final class PriceTagOCRTests: XCTestCase {
 
