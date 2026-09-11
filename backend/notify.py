@@ -259,6 +259,7 @@ COMMANDS: tuple[tuple[str, str], ...] = (
     ("users", "Devices seen, 7-day and 30-day actives, most active"),
     ("costs", "Gemini spend: today, 7 and 30 days, per scan, vs MRR"),
     ("experiment", "Free-scan experiment: limit hits vs subscriptions, whole window"),
+    ("lever", "Arm or disarm the free-scan allowance without a redeploy"),
     ("social", "TikTok: followers, likes and the latest videos"),
     ("finds", "Best finds this week: the most valuable scans"),
     ("post", "Three TikTok post ideas from what people scanned; add a topic"),
@@ -831,8 +832,8 @@ async def _announce_safety_pause(who: str, count: int) -> None:
     await _notifier.send(
         "🚫 <b>Device paused after repeated blocked photos</b>\n"
         f"<code>{html.escape(who[:8])}</code> sent {count} photos today that the safety "
-        "filter refused. Its scans are refused for 24 hours; nothing was stored. "
-        "/user " + html.escape(who[:6]) + " for its history.")
+        "filter refused. Its scans are refused for 24 hours; nothing was stored.",
+        [[_device_button(who)], [("\U0001FA7A Checkup", "checkup")]])
 
 
 def safety_blocked(subject: str, count: int, *, paused: bool) -> None:
@@ -893,7 +894,7 @@ async def entitlement_recorded(subject: str, ent) -> None:
             # The sale itself was never lost — `_index_subscription` has
             # already run and `/subs` lists them — but the one push that says
             # "someone just paid you" was, silently.
-            if not await _notifier.send("\n".join(lines)):
+            if not await _notifier.send("\n".join(lines), _SUBS_BUTTONS):
                 log.warning("subscription alert failed to send, releasing the guard")
                 try:
                     await _cache.delete(f"opsseen:sub:{otid}")
@@ -903,7 +904,8 @@ async def entitlement_recorded(subject: str, ent) -> None:
             if not await _cache.add(
                     f"opsseen:down:{subject}", "1", DOWNGRADE_THROTTLE_TTL):
                 return
-            who = html.escape(auditlog.pseudonymise(subject))
+            pseudonym = auditlog.pseudonymise(subject)
+            who = html.escape(pseudonym)
             await _notifier.send(
                 "⚠️ <b>Subscription ended</b>\n"
                 f"Subject <code>{who}</code> presented a transaction that "
@@ -936,7 +938,8 @@ async def _announce_over_cap(otid: str, product_id: str | None,
     await _notifier.send(
         "🔁 <b>Subscription over the device cap</b>\n"
         f"{product}: more than {max_devices} devices active. Evicted one last "
-        f"seen {hours}h ago — likely sharing, not a replaced phone.")
+        f"seen {hours}h ago — likely sharing, not a replaced phone.",
+        _SUBS_BUTTONS)
 
 
 def subscription_over_cap(original_transaction_id: str, product_id: str | None,
@@ -1031,10 +1034,13 @@ async def _announce_deploy(commit: str, cache_backend: str, auth_enforcing: bool
         log.warning("deploy ping guard failed, sending anyway: %s", type(exc).__name__)
     text = _deploy_text(commit, cache_backend, auth_enforcing, info)
     notifier = _notifier
+    # Built once, outside the loop: this send is retried up to four times and
+    # the keyboard is identical on every attempt.
+    buttons = _DEPLOY_BUTTONS
     for attempt, delay in enumerate((0.0, *DEPLOY_RETRY_DELAYS)):
         if delay:
             await asyncio.sleep(delay)
-        if notifier is None or await notifier.send(text):
+        if notifier is None or await notifier.send(text, buttons):
             await _record_deploy(commit, sent=True, attempts=attempt + 1)
             return
         log.warning("deploy ping attempt %d failed", attempt + 1)
@@ -1096,7 +1102,7 @@ def deployed(commit: str, *, cache_backend: str, auth_enforcing: bool,
 
 # ── Operational alerts ───────────────────────────────────────────────────────
 
-def _alert(key: str, text: str) -> None:
+def _alert(key: str, text: str, buttons: Buttons | None = None) -> None:
     if _notifier is None:
         return
     now = time.monotonic()
@@ -1105,10 +1111,14 @@ def _alert(key: str, text: str) -> None:
         return
     _alert_last_sent[key] = now
     _alert_awaiting_recovery.add(key)
-    _spawn(_notifier.send(text))
+    # Buttons are passed in rather than built here: these two are sync and hand
+    # the send to `_spawn`, so anything awaited would have to move inside the
+    # coroutine. Every keyboard an alert wants is static, so there is nothing
+    # to await.
+    _spawn(_notifier.send(text, buttons))
 
 
-def _recovered(key: str, text: str) -> None:
+def _recovered(key: str, text: str, buttons: Buttons | None = None) -> None:
     """Send the all-clear — only if the matching alert actually went out."""
     if _notifier is None or key not in _alert_awaiting_recovery:
         return
@@ -1116,7 +1126,7 @@ def _recovered(key: str, text: str) -> None:
     # Clear the throttle so a relapse alerts immediately rather than being
     # mistaken for a repeat of the incident that just ended.
     _alert_last_sent.pop(key, None)
-    _spawn(_notifier.send(text))
+    _spawn(_notifier.send(text, buttons))
 
 
 def model_unhealthy(kind: str | None) -> None:
@@ -1127,11 +1137,12 @@ def model_unhealthy(kind: str | None) -> None:
         extra = "\nThis one will not self-heal: top up the provider's billing."
     _alert("model",
            f"🔴 <b>AI provider degraded</b>\nScans are failing ({reason})."
-           f"{extra}")
+           f"{extra}", _HEALTH_BUTTONS)
 
 
 def model_recovered() -> None:
-    _recovered("model", "🟢 <b>AI provider recovered</b> — scans are succeeding again.")
+    _recovered("model", "🟢 <b>AI provider recovered</b> — scans are succeeding again.",
+               _HEALTH_BUTTONS)
 
 
 # ── Daily digest ─────────────────────────────────────────────────────────────
@@ -1390,6 +1401,40 @@ async def _status_text() -> str:
     return "\n".join(lines)
 
 
+# ── Keyboards for the messages nobody asked for ─────────────────────────────
+#
+# Nine send sites — every unsolicited push — went out with no keyboard at all.
+# That is exactly the class of message read on a lock screen, and the class
+# where the next step is obvious: a device to look up, a health screen to open,
+# a bill to check. `_announce_safety_pause` even ended with the literal text
+# "/user a1b2c3 for its history", asking the operator to retype six characters
+# the message had just printed.
+#
+# `_handle_update` turns callback data into "/" + data, so every button here is
+# an existing command and none of this needs new dispatch.
+
+
+def _device_button(pseudonym: str) -> tuple[str, str]:
+    """A tappable device id.
+
+    Takes the *unescaped* pseudonym: button labels are plain text, and an
+    HTML-escaped one would put "&amp;" on the key and in the command.
+    """
+    short = pseudonym[:6]
+    return (f"\U0001F464 {short}", f"user {short}")
+
+
+_HEALTH_BUTTONS: Buttons = [[("\U0001FA7A Checkup", "checkup"),
+                             ("\U0001F4B8 Costs", "costs")]]
+_SUBS_BUTTONS: Buttons = [[("\U0001F4B3 Subs", "subs"),
+                           ("\U0001F465 Users", "users")]]
+_COSTS_BUTTONS: Buttons = [[("\U0001F4B8 Costs", "costs")]]
+_DEPLOY_BUTTONS: Buttons = [[("\U0001F4E1 Status", "status"),
+                             ("\U0001FA7A Checkup", "checkup")]]
+_FEED_BUTTONS: Buttons = [[("\U0001F3C6 Finds", "finds"),
+                           ("\U0001F515 Feed off", "feed off")]]
+
+
 async def _buttons() -> Buttons:
     feed = "🔕 Feed off" if await _feed_enabled() else "🔔 Feed on"
     return [[("🔄 Refresh", "status"), ("📊 Digest", "digest"), ("📈 Week", "week")],
@@ -1432,7 +1477,11 @@ async def handle_command_with_buttons(text: str) -> tuple[str, Buttons] | None:
     if command == "/costs":
         return await _costs_text(), await _buttons()
     if command == "/experiment":
-        return await _experiment_text(), await _buttons()
+        current = (await _levers()).get("free_scans_first_day")
+        return (await _experiment_text(),
+                _lever_buttons(current) + await _buttons())
+    if command == "/lever":
+        return await _lever_command(argument, rest)
     if command == "/social":
         return await _social_text(), await _buttons()
     if command == "/finds":
@@ -1665,6 +1714,137 @@ def _clean_brand(brand: str | None) -> str | None:
     return value
 
 
+# ── The free-scan lever ─────────────────────────────────────────────────────
+#
+# `/experiment` could report that the lever was not armed and do nothing about
+# it. The measurement half of the experiment lives here — `limit_hits`, the
+# window, the partial-day handling — and the control half was a Railway
+# variable and a redeploy, from a phone.
+#
+# `quota.ScanQuota` reads `free_scan_lever` on every free scan and falls back
+# to the environment when it returns None or raises, so an unreadable lever can
+# neither fail a scan nor grant an allowance nobody configured. The value is
+# clamped there too: this is a button that spends money.
+
+LEVERS_KEY = "opsstate:levers"
+LEVER_CHANGES_CAP = 40
+DEFAULT_ARMED_FIRST_DAY = 3
+
+
+async def _levers() -> dict:
+    try:
+        raw = await _cache.get(LEVERS_KEY)
+        doc = json.loads(raw) if raw else {}
+        return doc if isinstance(doc, dict) else {}
+    except Exception:
+        return {}
+
+
+async def free_scan_lever() -> int | None:
+    """The operator's welcome allowance, or None to use the environment.
+
+    Injected into `ScanQuota` from main.py — quota must not import this module.
+    Raises nothing: `_levers` swallows, and a missing key reads as None.
+    """
+    value = (await _levers()).get("free_scans_first_day")
+    return int(value) if isinstance(value, (int, float)) else None
+
+
+async def _set_free_scan_lever(value: int | None) -> dict:
+    """Set or clear the lever, and record the day it changed.
+
+    The record is the point. A measurement window whose lever moved mid-flight
+    and does not say so is worse than no window at all — the numbers look
+    continuous and are not.
+    """
+    doc = await _levers()
+    before = doc.get("free_scans_first_day")
+    if value is None:
+        doc.pop("free_scans_first_day", None)
+    else:
+        doc["free_scans_first_day"] = int(value)
+    changes = [c for c in (doc.get("changes") or []) if isinstance(c, list) and len(c) == 3]
+    changes.append([_day(), before, value])
+    doc["changes"] = changes[-LEVER_CHANGES_CAP:]
+    await _cache.set(LEVERS_KEY, json.dumps(doc))
+    return doc
+
+
+def _lever_label(value: int | None) -> str:
+    if value is None:
+        return "environment default"
+    return f"{value} first-day scan{'s' if value != 1 else ''}"
+
+
+async def _lever_command(argument: str, rest: str) -> tuple[str, Buttons]:
+    """`/lever`, `/lever arm [n]`, `/lever disarm`, and their confirmations.
+
+    Two taps, never one. The first names what is about to change and what it
+    currently is; the second does it. A single-tap lever on a phone, in a chat
+    that also contains the word "Disarm" one row away, is how an experiment
+    gets restarted by accident halfway through.
+    """
+    parts = (rest or "").split()
+    action = parts[0].lower() if parts else ""
+    # Anywhere after the action, not at a fixed index: the arm button carries
+    # the value it is confirming ("lever arm 3 yes"), so checking parts[1]
+    # silently re-showed the confirmation instead of acting on it.
+    confirmed = any(token.lower() == "yes" for token in parts[1:])
+    current = (await _levers()).get("free_scans_first_day")
+
+    if action == "arm":
+        wanted = DEFAULT_ARMED_FIRST_DAY
+        for token in parts[1:]:
+            if token.isdigit():
+                wanted = int(token)
+        wanted = max(0, min(wanted, 10))          # mirrors ScanQuota's clamp
+        if not confirmed:
+            return (f"🧪 <b>Arm the free-scan lever?</b>\n"
+                    f"New users would get <b>{wanted}</b> scan{'s' if wanted != 1 else ''} "
+                    f"on their first day. Currently <b>{_lever_label(current)}</b>.\n"
+                    f"This spends money: every extra scan is a model call.",
+                    [[("✅ Yes, arm it", f"lever arm {wanted} yes"),
+                      ("Cancel", "experiment")]])
+        await _set_free_scan_lever(wanted)
+        return (f"🧪 Lever armed — <b>{_lever_label(wanted)}</b>.",
+                [[("🧪 Experiment", "experiment")]])
+
+    if action == "disarm":
+        if not confirmed:
+            return ("🔕 <b>Disarm the free-scan lever?</b>\n"
+                    f"New users would fall back to the daily limit. Currently "
+                    f"<b>{_lever_label(current)}</b>.\n"
+                    "The window in /experiment keeps running; only the allowance stops.",
+                    [[("✅ Yes, disarm it", "lever disarm yes"),
+                      ("Cancel", "experiment")]])
+        await _set_free_scan_lever(0)
+        return ("🔕 Lever disarmed — new users get the daily limit.",
+                [[("🧪 Experiment", "experiment")]])
+
+    if action == "default":
+        if not confirmed:
+            return ("↩️ <b>Hand the lever back to the environment?</b>\n"
+                    f"FREE_SCANS_FIRST_DAY would decide again. Currently "
+                    f"<b>{_lever_label(current)}</b>.",
+                    [[("✅ Yes", "lever default yes"), ("Cancel", "experiment")]])
+        await _set_free_scan_lever(None)
+        return ("↩️ Lever cleared — the environment decides again.",
+                [[("🧪 Experiment", "experiment")]])
+
+    env = os.environ.get("FREE_SCANS_FIRST_DAY", "")
+    return (f"🎚 <b>Free-scan lever</b>\nOverride: <b>{_lever_label(current)}</b>\n"
+            f"Environment: <code>FREE_SCANS_FIRST_DAY={html.escape(env) or 'unset'}</code>",
+            _lever_buttons(current))
+
+
+def _lever_buttons(current: int | None) -> Buttons:
+    row = [("🧪 Arm", "lever arm")]
+    if current is not None:
+        row.append(("↩️ Use env", "lever default"))
+    row.append(("🔕 Disarm", "lever disarm"))
+    return [row]
+
+
 async def _feed_enabled() -> bool:
     try:
         raw = await _cache.get(FEED_KEY)
@@ -1765,7 +1945,7 @@ async def _note_scan(*, tier: str, item_name: str, brand: str | None,
         if await _feed_enabled():
             await _notifier.send(_feed_text(
                 item_name=item_name, category=category, low=low, high=high,
-                confidence=confidence, tier=tier))
+                confidence=confidence, tier=tier), _FEED_BUTTONS)
     except Exception as exc:
         log.debug("scan feed failed: %s", type(exc).__name__)
 
@@ -2100,7 +2280,8 @@ async def _note_usage(label: str, usage: dict) -> None:
                 await _notifier.send(
                     "💸 <b>Gemini spend over budget</b>\n"
                     f"Today ≈ {_usd(spend)} against a {_usd(budget)} daily budget. "
-                    "Scans keep working; this is a heads-up, not a cut-off.")
+                    "Scans keep working; this is a heads-up, not a cut-off.",
+                    _COSTS_BUTTONS)
     except Exception as exc:
         log.debug("usage note failed: %s", type(exc).__name__)
 
@@ -2715,6 +2896,13 @@ async def _experiment_text(now: datetime | None = None) -> str:
         total = f"<b>No limit hits</b>{scope} — and no free scans recorded yet."
 
     notes = []
+    # A window whose lever moved mid-flight and does not say so is worse than
+    # no window: the numbers look continuous and are not.
+    moved = [c for c in ((await _levers()).get("changes") or [])
+             if isinstance(c, list) and len(c) == 3 and c[0] in shown]
+    for day_changed, before, after in moved[-4:]:
+        notes.append(f"⚠️ lever changed on {day_changed[4:6]}-{day_changed[6:]}: "
+                     f"{_lever_label(before)} → {_lever_label(after)}")
     if partial:
         notes.append("* limit hits counted from 18:29 UTC that day only — the "
                      "counter shipped mid-day. Every other column is a whole day.")

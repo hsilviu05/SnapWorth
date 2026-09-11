@@ -49,7 +49,9 @@ class TestOff:
     @pytest.mark.asyncio
     async def test_a_first_day_limit_not_above_daily_is_off(self):
         q = make(1)
-        assert q._first_day == 0
+        # Resolved per call now, not captured at construction — the value is
+        # overridable at runtime from the ops bot.
+        assert await q._first_day_limit() == 0
         assert await q.starting_balance("s", None) == 1
 
 
@@ -118,3 +120,78 @@ class TestOn:
         status = await q.status("p", True)
         assert status.unlimited
         assert await q._cache.get(q._welcome_key("p")) is None
+
+
+class TestRuntimeOverride:
+    """The welcome allowance is settable from the ops bot at runtime.
+
+    The measurement half of the free-scan experiment lives in the bot
+    (`limit_hits`, `/experiment`); the control half was a Railway variable and
+    a redeploy. These pin the properties that make a lever in a chat window
+    safe to have: it is clamped, it cannot fail open, and an unreadable
+    override falls back to the environment rather than to a guess.
+    """
+
+    def _quota(self, override, *, env_first_day=0, limit=1):
+        from cache import InMemoryCache, ResilientCache
+        return ScanQuota(ResilientCache(None, InMemoryCache()), None,
+                         limit=limit, first_day_limit=env_first_day,
+                         welcome_override=override)
+
+    @pytest.mark.asyncio
+    async def test_the_override_arms_a_welcome_the_environment_never_set(self):
+        async def lever():
+            return 3
+        q = self._quota(lever, env_first_day=0)
+        assert await q._first_day_limit() == 3
+        assert await q.starting_balance("s", None) == 3
+
+    @pytest.mark.asyncio
+    async def test_the_override_can_disarm_one_the_environment_set(self):
+        async def lever():
+            return 0
+        q = self._quota(lever, env_first_day=3)
+        assert await q._first_day_limit() == 0
+        assert await q.starting_balance("s", None) == 1
+
+    @pytest.mark.asyncio
+    async def test_none_means_use_the_environment(self):
+        async def lever():
+            return None
+        q = self._quota(lever, env_first_day=3)
+        assert await q._first_day_limit() == 3
+
+    @pytest.mark.asyncio
+    async def test_an_unreadable_override_falls_back_and_never_fails_open(self):
+        async def lever():
+            raise RuntimeError("cache down")
+        q = self._quota(lever, env_first_day=3)
+        assert await q._first_day_limit() == 3, "must not fail the scan"
+
+        async def lever_off():
+            raise RuntimeError("cache down")
+        off = self._quota(lever_off, env_first_day=0)
+        assert await off._first_day_limit() == 0, \
+            "an unreadable lever must not grant an allowance nobody configured"
+
+    @pytest.mark.asyncio
+    async def test_a_fat_fingered_value_is_clamped(self):
+        """Every scan past the daily limit is real money on the Gemini bill."""
+        async def huge():
+            return 9_999
+        q = self._quota(huge)
+        assert await q._first_day_limit() == ScanQuota.MAX_FIRST_DAY_SCANS
+
+        async def negative():
+            return -5
+        assert await self._quota(negative)._first_day_limit() == 0
+
+        async def nonsense():
+            return "three"
+        assert await self._quota(nonsense, env_first_day=3)._first_day_limit() == 3
+
+    @pytest.mark.asyncio
+    async def test_an_override_no_larger_than_the_daily_limit_is_not_a_welcome(self):
+        async def same():
+            return 1
+        assert await self._quota(same, limit=1)._first_day_limit() == 0
