@@ -782,7 +782,24 @@ class TestAppleNotifications:
         assert r.status_code == 422
 
     def test_an_empty_body_is_rejected(self, pinned):
-        assert client.post("/apple/notifications", json={}).status_code == 422
+        assert client.post("/apple/notifications", json={}).status_code == 400
+
+    def test_a_version_1_configuration_is_named_rather_than_guessed_at(
+            self, pinned, caplog):
+        """The version is chosen once in App Store Connect's 'Set Up URL' flow
+        and is invisible afterwards — the Edit dialog shows only the URL. A V1
+        body carries no signedPayload at all, so the misconfiguration has to
+        announce itself or it reads as an integration that silently does not
+        work while Apple retries for days."""
+        r = client.post("/apple/notifications", json={
+            "notification_type": "DID_RENEW",
+            "password": "shared-secret",
+            "unified_receipt": {"status": 0},
+        })
+        assert r.status_code == 400
+        assert "Version 2" in r.json()["detail"]
+        assert any("Version 1" in m and "Set Up URL" in m
+                   for m in caplog.messages), "must say which knob to turn"
 
     def test_a_dead_cache_does_not_drop_a_real_notification(self, pinned, monkeypatch):
         """Dedup fails open: a duplicate alert is cheaper than losing a

@@ -1108,9 +1108,23 @@ when posted on this page.</p>
 # ── App Store Server Notifications ───────────────────────────────────────────
 
 class AppleNotification(BaseModel):
-    """Apple's V2 envelope. One field, and it is a JWS."""
-    signedPayload: str = Field(min_length=1,
-                               max_length=appstorenotify.MAX_SIGNED_PAYLOAD)
+    """Apple's V2 envelope. One field, and it is a JWS.
+
+    `signedPayload` is optional only so a **Version 1** configuration can be
+    recognised and named. The version is chosen once, in App Store Connect's
+    "Set Up URL" flow, and is not shown or editable afterwards — so picking V1
+    there is invisible from the dashboard, and V1 posts an entirely different
+    body with no `signedPayload` in it. Left as a required field, that arrives
+    as a bare 422 from the schema, never reaching any logging here: Apple
+    retries each notification for ~3 days, nothing is recorded, and the
+    operator sees an integration that simply does not work. The handler
+    rejects a missing payload either way; this only buys the error message
+    that says which knob is wrong.
+    """
+    signedPayload: str | None = Field(
+        default=None, min_length=1, max_length=appstorenotify.MAX_SIGNED_PAYLOAD)
+    # Present on a V1 body, absent on V2. Read solely to identify the mistake.
+    notification_type: str | None = None
 
 
 # How long a handled notificationUUID is remembered. Apple redelivers for up to
@@ -1138,6 +1152,20 @@ async def apple_notifications(body: AppleNotification) -> dict:
     Answers 200 for anything it understood, including a type it deliberately
     ignores — a non-2xx makes Apple redeliver the same notification for days.
     """
+    if body.signedPayload is None:
+        if body.notification_type:
+            log.error(
+                "App Store Server Notifications are configured as Version 1 "
+                "(got notification_type=%s). This server only accepts Version 2. "
+                "In App Store Connect the version is set in the 'Set Up URL' "
+                "flow and cannot be changed by editing the URL: clear the "
+                "Production Server URL, save, then set it up again and choose "
+                "Version 2.", body.notification_type)
+            raise HTTPException(
+                status_code=400,
+                detail="Version 2 notifications required; this is a Version 1 body.")
+        raise HTTPException(status_code=400, detail="Missing signedPayload.")
+
     try:
         note = appstorenotify.parse_notification(
             body.signedPayload, auth.deps.config.bundle_id, _PRODUCT_IDS)

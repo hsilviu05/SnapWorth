@@ -594,8 +594,17 @@ Notifications* → Production Server URL:
 https://api.snapworth.eu/apple/notifications
 ```
 
-Set **Version 2** notifications. Leave the Sandbox URL pointing at a staging
-deployment, or unset — a Sandbox notification is signed by the same Apple chain
+Set **Version 2** notifications. The version is chosen in the *Set Up URL*
+flow and is **not shown or editable afterwards** — the Edit dialog carries only
+the URL field. To change it, clear the Production Server URL, save, then set it
+up again and pick Version 2.
+
+A V1 configuration posts an entirely different body with no `signedPayload`.
+The server recognises that shape and logs it at ERROR naming the remedy, rather
+than letting it read as an integration that silently does not work while Apple
+retries for three days.
+
+Leave the Sandbox URL pointing at a staging deployment, or unset — a Sandbox notification is signed by the same Apple chain
 as a production one, and the only thing keeping TestFlight renewals out of the
 revenue view is `ALLOWED_STOREKIT_ENVIRONMENTS` (see §8).
 
