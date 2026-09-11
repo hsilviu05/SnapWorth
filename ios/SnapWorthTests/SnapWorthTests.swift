@@ -931,3 +931,61 @@ final class WidgetHaulDataTests: XCTestCase {
         XCTAssertEqual(haul.formattedRange, "$348 – $620")
     }
 }
+
+// MARK: - Lock Screen formatting
+//
+// A circular accessory is about 72 points across, so the total is abbreviated.
+// The abbreviation is where this goes wrong: deciding the format from the raw
+// value made 9,999 read "$10.0K" while 10,000 read "$10K" — the same number,
+// spelled two ways, one dollar apart — and put 999.6 in the sub-thousand
+// branch, where it printed the "$1000" the abbreviation exists to avoid.
+
+final class LockScreenMoneyTests: XCTestCase {
+
+    func test_smallAmountsAreNotAbbreviated() {
+        XCTAssertEqual(WidgetHaulData.compactMoney(0), "$0")
+        XCTAssertEqual(WidgetHaulData.compactMoney(348), "$348")
+        XCTAssertEqual(WidgetHaulData.compactMoney(999), "$999")
+    }
+
+    func test_theThousandBoundaryIsDecidedAfterRounding() {
+        // 999.6 rounds to 1,000 and must be spelled as thousands.
+        XCTAssertEqual(WidgetHaulData.compactMoney(999.6), "$1.0K")
+        XCTAssertEqual(WidgetHaulData.compactMoney(1_000), "$1.0K")
+        XCTAssertEqual(WidgetHaulData.compactMoney(1_240), "$1.2K")
+    }
+
+    func test_theTenThousandBoundaryAgreesWithItself() {
+        // The bug: one dollar apart, two spellings.
+        XCTAssertEqual(WidgetHaulData.compactMoney(9_999),
+                       WidgetHaulData.compactMoney(10_000))
+        XCTAssertEqual(WidgetHaulData.compactMoney(9_999), "$10K")
+        XCTAssertEqual(WidgetHaulData.compactMoney(9_949), "$9.9K")
+    }
+
+    func test_largeAmountsDropTheDecimal() {
+        XCTAssertEqual(WidgetHaulData.compactMoney(12_400), "$12K")
+        XCTAssertEqual(WidgetHaulData.compactMoney(250_000), "$250K")
+    }
+
+    func test_nothingEverRendersAThousandsSeparator() {
+        // The whole reason this exists: "$1,240" does not fit in a circular
+        // complication at a legible size.
+        for value in stride(from: 0.0, through: 300_000, by: 617) {
+            XCTAssertFalse(WidgetHaulData.compactMoney(value).contains(","),
+                           "\(value) rendered a separator")
+        }
+    }
+
+    func test_findsLabelIsSingularForOne() {
+        func haul(_ count: Int) -> WidgetHaulData {
+            WidgetHaulData(totalLow: 0, totalHigh: 0, itemCount: count,
+                           lastItemName: "", lastItemRange: "", updatedAt: .now,
+                           freeScansRemaining: nil, isPro: false, streak: 0,
+                           recentFinds: [], monthProfit: nil, monthFlips: 0)
+        }
+        XCTAssertEqual(haul(1).findsLabel, "1 find")
+        XCTAssertEqual(haul(8).findsLabel, "8 finds")
+        XCTAssertEqual(haul(0).findsLabel, "0 finds")
+    }
+}

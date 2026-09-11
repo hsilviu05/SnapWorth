@@ -145,6 +145,43 @@ enum WidgetBridge {
     /// How many finds the list widgets can show at their largest.
     static let maxRecentFinds = 4
 }
+
+// ── Compact money, for the accessory families ────────────────────────────────
+
+extension WidgetHaulData {
+    /// `$1.2K` rather than `$1,240`.
+    ///
+    /// A circular accessory is about 72 points across; a four-figure total with
+    /// a thousands separator does not fit there at a legible size.
+    ///
+    /// Both boundaries are decided *after* rounding, which is where this went
+    /// wrong twice. Choosing the branch from the raw value put 999.6 in the
+    /// sub-thousand case, printing the "$1000" the abbreviation exists to
+    /// avoid; and it made 9,999 read "$10.0K" while 10,000 read "$10K" — the
+    /// same number, spelled two ways, one dollar apart.
+    static func compactMoney(_ value: Double) -> String {
+        let dollars = value.rounded()
+        guard abs(dollars) >= 1_000 else { return "$\(Int(dollars))" }
+
+        let thousands = (dollars / 100).rounded() / 10
+        guard abs(thousands) >= 10 else {
+            return "$\(String(format: "%.1f", thousands))K"
+        }
+        return "$\(Int(thousands.rounded()))K"
+    }
+
+    var compactTotal: String { Self.compactMoney(totalHigh) }
+
+    var compactRange: String {
+        "\(Self.compactMoney(totalLow))–\(Self.compactMoney(totalHigh))"
+    }
+
+    /// "8 finds" / "1 find". Spelled out because the accessory families have no
+    /// room for a label beside the number.
+    var findsLabel: String {
+        "\(itemCount) find\(itemCount == 1 ? "" : "s")"
+    }
+}
 // ── END SHARED WIDGET MODEL ──────────────────────────────────────────────────
 
 // ── Store ─────────────────────────────────────────────────────────────────────

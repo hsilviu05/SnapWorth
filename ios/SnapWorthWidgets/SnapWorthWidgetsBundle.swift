@@ -6,5 +6,6 @@ struct SnapWorthWidgetBundle: WidgetBundle {
     var body: some Widget {
         HaulWidget()
         QuickScanWidget()
+        LockScreenHaulWidget()
     }
 }
