@@ -9,6 +9,7 @@ Run with:
 
 import asyncio
 import json
+import re
 import io
 import time
 import pytest
@@ -229,6 +230,25 @@ class TestLegalEndpoints:
         assert r.status_code == 200
         assert "text/html" in r.headers["content-type"]
         assert "Terms of Service" in r.text
+
+    def test_terms_do_not_name_an_offer_only_apple_controls(self):
+        """These Terms promised "a 3-day free trial" as a flat fact. Nothing in
+        this repository controls that — App Store Connect does. Change the
+        offer there to a paid one, or remove it, and this page is a promise
+        the app does not keep, with no deploy in between to catch it."""
+        body = client.get("/terms").text
+        assert "free trial" not in body.lower()
+        # No "3-day", "3 days", "1 month" — any concrete offer length.
+        assert re.search(r"\d+[\s-](day|week|month|year)", body, re.I) is None
+
+    def test_terms_point_at_the_surface_that_knows_the_real_offer(self):
+        """Dropping the claim is only safe if the page says where the truth
+        is: the paywall reads the live offer from StoreKit, and the App Store
+        confirms it before charging."""
+        body = client.get("/terms").text
+        assert "shown on the subscription screen" in body
+        assert "before you are charged" in body
+        assert "auto-renewing" in body
 
 
 # ── POST /scan ────────────────────────────────────────────────────────────────

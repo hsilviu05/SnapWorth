@@ -71,9 +71,28 @@ enum PrivacyPolicy {
 
 // MARK: - Terms of Service
 
+/// The one paragraph of the Terms that can be made false by someone else.
+///
+/// Lifted out of the view so a test can read it. Everything else in this
+/// document is a statement about how we behave; this is a statement about what
+/// Apple grants, and only App Store Connect controls that.
+enum TermsCopy {
+    /// Deliberately the *rule*, not today's offer.
+    ///
+    /// This used to promise "a 3-day free trial". Change the introductory
+    /// offer in App Store Connect — to a paid one, or to none — and these
+    /// Terms become a promise the app does not keep, with no release in
+    /// between to catch it. The paywall reads the live offer from StoreKit
+    /// (`IntroOffer`), so that is where the specifics belong, and where the
+    /// user sees them before Apple charges anything.
+    static let subscriptions = """
+        SnapWorth offers auto-renewing subscriptions (monthly and yearly). Subscriptions are charged to your Apple ID account. You can cancel at any time in your device's subscription settings. Cancellation takes effect at the end of the current billing period. Any introductory offer is available to new subscribers only; its length, its price, and whether it is free are shown on the subscription screen and confirmed by the App Store before you are charged.
+        """
+}
+
 struct TermsOfServiceView: View {
     var body: some View {
-        LegalDocumentView(title: "Terms of Service", updated: "July 5, 2026") {
+        LegalDocumentView(title: "Terms of Service", updated: "September 11, 2026") {
             LegalSection(heading: nil, text: """
                 By downloading or using SnapWorth you agree to these Terms. If you disagree, please do not use the app.
                 """)
@@ -82,9 +101,7 @@ struct TermsOfServiceView: View {
                 SnapWorth provides AI-generated resale value estimates for informational purposes only. Estimates are not guarantees of actual sale prices. We are not responsible for any financial decisions made based on our estimates.
                 """)
 
-            LegalSection(heading: "Subscriptions", text: """
-                SnapWorth offers auto-renewing subscriptions (monthly and yearly). Subscriptions are charged to your Apple ID account. You can cancel at any time in your device's subscription settings. Cancellation takes effect at the end of the current billing period. A 3-day free trial is available for new yearly subscribers.
-                """)
+            LegalSection(heading: "Subscriptions", text: TermsCopy.subscriptions)
 
             LegalSection(heading: "Prohibited Use", text: """
                 You may not use SnapWorth to submit illegal content, attempt to reverse-engineer the service, or abuse the rate limits.

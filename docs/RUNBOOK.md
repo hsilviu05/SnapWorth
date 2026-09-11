@@ -579,3 +579,46 @@ work on does not.
 - [ ] Preserve logs before they age out
 - [ ] Assess whether GDPR notification applies — no PII is stored, which
       substantially narrows the analysis
+
+---
+
+## 14. Changing the introductory offer
+
+The offer lives in **App Store Connect**, not in this repository. Changing it
+there takes effect for users immediately, with no build and no deploy — so
+anything here that *names* the offer goes stale silently.
+
+Two surfaces read the live offer from StoreKit and need nothing:
+
+- the **paywall** — headline, subheadline, plan card and CTA all branch on
+  `IntroOffer.kind`, and an unrecognised payment mode renders nothing rather
+  than guessing (`PaywallCopy`, `StoreKitPurchaseService.introOffer`)
+- the **"trial ends tomorrow" reminder** — suppressed unless the product's
+  offer is genuinely `freeTrial`
+
+Two surfaces deliberately state the *rule* rather than the offer, and are
+guarded by tests that fail if a concrete duration reappears:
+
+- in-app Terms of Service (`TermsCopy.subscriptions`)
+- `GET /terms` (`backend/main.py`)
+
+Everything below hardcodes today's offer on purpose — marketing copy is
+expected to name the current deal — and is **yours to update by hand** the
+same day you change it in App Store Connect:
+
+- [ ] `website/index.html` — plan cadence line, Pro feature list, the "Is it
+      really free?" FAQ answer, **and the same answer again in the JSON-LD
+      `FAQPage` block** (it is duplicated; search for the trial phrase and
+      expect more than one hit)
+- [ ] `website/support.html` — the cancellation paragraph
+- [ ] `marketing/app_store_listing.md` — the yearly plan line
+- [ ] App Store Connect listing description itself
+
+Check with:
+
+```
+grep -rn "free trial" website/ marketing/
+```
+
+If the new offer is **paid** (`payUpFront` or `payAsYouGo`), the word "free"
+must not survive anywhere in that grep.
