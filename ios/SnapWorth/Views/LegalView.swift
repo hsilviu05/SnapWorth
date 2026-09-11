@@ -65,7 +65,7 @@ enum PrivacyPolicy {
         (heading: "Changes to This Policy", text: """
             We may update this Privacy Policy from time to time. Changes are effective when posted in the app.
             """),
-        (heading: "Contact", text: "Questions? Email us at her.silviu.i@gmail.com")
+        (heading: "Contact", text: "Questions? Email us at \(Config.supportEmail)")
     ]
 }
 
@@ -111,7 +111,7 @@ struct TermsOfServiceView: View {
                 THE SERVICE IS PROVIDED "AS IS" WITHOUT WARRANTIES OF ANY KIND. TO THE MAXIMUM EXTENT PERMITTED BY LAW, WE DISCLAIM ALL WARRANTIES, EXPRESS OR IMPLIED.
                 """)
 
-            LegalSection(heading: "Contact", text: "Questions? Email us at her.silviu.i@gmail.com")
+            LegalSection(heading: "Contact", text: "Questions? Email us at \(Config.supportEmail)")
         }
     }
 }

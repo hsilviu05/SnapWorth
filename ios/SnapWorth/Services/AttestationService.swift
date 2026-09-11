@@ -90,6 +90,10 @@ actor AttestationService {
     func reset() {
         TokenStore.shared.clear()
         UserDefaults.standard.removeObject(forKey: Keys.keyID)
+        // The id is derived from the attestation subject, so it describes a
+        // device identity this call is discarding. Keeping it would have a
+        // support email quote an id the indexes no longer point at.
+        SupportMail.supportID = nil
     }
 
     /// Discards the cached token, keeping the attestation key.
@@ -255,6 +259,13 @@ actor AttestationService {
         if decoded.tier != "pro", let remaining = decoded.freeScansRemaining {
             FreeScanCounter.serverRemaining = remaining
         }
+
+        // Kept so a support email can quote it. Only overwritten when the
+        // server actually sent one: a mint against a backend too old to know
+        // the field must not erase an id we already have.
+        if let id = decoded.supportID, !id.isEmpty {
+            SupportMail.supportID = id
+        }
         return token.value
     }
 
@@ -309,11 +320,18 @@ private struct TokenResponse: Decodable {
     /// for the same condition; this makes the two agree.
     let freeScansRemaining: Int?
 
+    /// The device's pseudonym in the operator's own indexes, for quoting in a
+    /// support email. Optional because a client can outrun the deploy that
+    /// started sending it, and an absent id must degrade to "no id" rather
+    /// than failing the mint that carries the access token.
+    let supportID: String?
+
     enum CodingKeys: String, CodingKey {
         case accessToken = "access_token"
         case expiresIn = "expires_in"
         case tier
         case freeScansRemaining = "free_scans_remaining"
+        case supportID = "support_id"
     }
 }
 

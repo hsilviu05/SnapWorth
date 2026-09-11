@@ -150,6 +150,16 @@ class TokenResponse(BaseModel):
     expires_in: int
     tier: str
     free_scans_remaining: int
+    # The device's own pseudonym — `auditlog.pseudonymise(subject)`, the same
+    # value the `/users` and `/subs` indexes are keyed on and the argument
+    # `/user <id>` takes. The client cannot derive it: the hash is salted
+    # server-side, deliberately. That left the operator's only support-facing
+    # command unusable from a support email, because the email carried no id
+    # of any kind. Sending it here lets the app quote it in a bug report.
+    #
+    # Not a secret and not a credential: a salted truncated hash of a subject
+    # the client already holds, which authenticates nothing on its own.
+    support_id: str
 
 
 class EntitlementRequest(BaseModel):
@@ -228,6 +238,7 @@ async def _issue_token(subject: str, device_token: str | None) -> TokenResponse:
         expires_in=claims["exp"] - claims["iat"],
         tier=ent.tier,
         free_scans_remaining=min(remaining, 10_000),
+        support_id=auditlog.pseudonymise(subject),
     )
 
 

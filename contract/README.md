@@ -28,5 +28,10 @@ the server no longer sent.
 2. **Removing or renaming a field here is a breaking change** for every
    installed client, which cannot be updated in step with a backend deploy.
    Adding an optional field is not.
-3. Changing this file makes the `contract-check` job run **both** suites,
-   whatever else the commit touched — see `.github/workflows/contract.yml`.
+3. Changing this file runs **both** suites, whatever else the commit
+   touched. There is no separate workflow: `backend.yml` and `ios.yml` each
+   carry `contract/**` in their own `paths` filter, which is what makes a
+   commit that only edits this file run the Python *and* the Swift decode
+   test. (This rule used to name a `contract-check` job in
+   `.github/workflows/contract.yml`, which has never existed — the path
+   filters are and always were the mechanism.)

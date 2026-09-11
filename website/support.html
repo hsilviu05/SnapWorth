@@ -58,27 +58,53 @@
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     :root {
+      color-scheme: light;
+
+      --band:       #1C1410;   /* the footer — dark in both themes */
       --bg:         #FAF7F4;
       --card:       #F3EDE8;
-      --dark:       #1C1410;
-      --dark2:      #2B211C;
+      --surface:    #FFFFFF;   /* contact card, FAQ items */
+
+      --ink:        #1C1410;
+      --ink-2:      #2B211C;
+      /* Was #8B7B75 — 3.79:1 on --bg, under AA's 4.5:1, in six places on this
+         page. index.html had already been corrected to this value; this page
+         had not. (--text-muted was #A89990, 2.58:1, and declared but never
+         read, so it is gone rather than corrected.) */
+      --warm-gray:  #6E625B;
+      --on-band:    #FFFFFF;   /* white on --band or a brand fill, both themes */
+
       --terracotta: #D96C47;
       /* White on #D96C47 is 3.39:1, below AA's 4.5:1. Anything painting white
-         text on a terracotta fill uses this instead (5.51:1). This page did
-         not define the token at all, so its download CTA had no AA option. */
-      --terra-text: #A94E29;
-      --sage:       #7A9E7E;
-      --warm-gray:  #8B7B75;
+         text on a terracotta fill uses --terra-fill instead (5.51:1), which
+         must not lighten in dark mode or the white on it fails. */
+      --terra-fill: #A94E29;
       --border:     #E8DDD7;
-      --white:      #FFFFFF;
-      --text-muted: #A89990;
+      --nav-glass:  rgba(250,247,244,0.85);
+    }
+
+    /* Same palette, and the same reasoning, as index.html. */
+    @media (prefers-color-scheme: dark) {
+      :root {
+        color-scheme: dark;
+        --band:       #0C0A08;
+        --bg:         #1A1512;
+        --card:       #231D1A;
+        --surface:    #2A2320;
+        --ink:        #F6F1ED;
+        --ink-2:      #E2D8D1;
+        --warm-gray:  #ABA098;
+        --terracotta: #E07A55;
+        --border:     #3A302A;
+        --nav-glass:  rgba(26,21,18,0.85);
+      }
     }
 
     html { scroll-behavior: smooth; }
 
     body {
       background: var(--bg);
-      color: var(--dark2);
+      color: var(--ink-2);
       font-family: 'DM Sans', sans-serif;
       font-size: 16px;
       line-height: 1.6;
@@ -101,7 +127,7 @@
       display: flex;
       align-items: center;
       justify-content: space-between;
-      background: rgba(250,247,244,0.85);
+      background: var(--nav-glass);
       backdrop-filter: blur(16px);
       -webkit-backdrop-filter: blur(16px);
       border: 1px solid var(--border);
@@ -112,7 +138,7 @@
       font-family: 'Fraunces', serif;
       font-size: 20px;
       font-weight: 700;
-      color: var(--dark2);
+      color: var(--ink-2);
       text-decoration: none;
       letter-spacing: -0.3px;
     }
@@ -124,9 +150,9 @@
       text-decoration: none;
       transition: color 0.15s;
     }
-    .nav-link:hover { color: var(--dark2); }
+    .nav-link:hover { color: var(--ink-2); }
     .nav-cta {
-      background: var(--dark2);
+      background: var(--ink);
       color: var(--bg);
       font-size: 14px;
       font-weight: 600;
@@ -167,7 +193,7 @@
 
     /* ── Contact card ── */
     .contact-card {
-      background: var(--white);
+      background: var(--surface);
       border: 1px solid var(--border);
       border-radius: 20px;
       padding: 36px;
@@ -204,8 +230,8 @@
       gap: 8px;
       /* --terra-text, not --terracotta: white on #D96C47 is 3.39:1, below
          AA. See the token comment in index.html. */
-      background: var(--terra-text);
-      color: var(--white);
+      background: var(--terra-fill);
+      color: var(--on-band);
       font-size: 14px;
       font-weight: 600;
       padding: 10px 20px;
@@ -229,7 +255,7 @@
       gap: 2px;
     }
     .faq-item {
-      background: var(--white);
+      background: var(--surface);
       border: 1px solid var(--border);
       border-radius: 14px;
       overflow: hidden;
@@ -243,7 +269,7 @@
       font-family: 'DM Sans', sans-serif;
       font-size: 15px;
       font-weight: 600;
-      color: var(--dark2);
+      color: var(--ink-2);
       background: none;
       border: none;
       padding: 20px 24px;
@@ -286,11 +312,11 @@
       color: var(--warm-gray);
       line-height: 1.65;
     }
-    .info-box strong { color: var(--dark2); }
+    .info-box strong { color: var(--ink-2); }
 
     /* ── Footer ── */
     footer {
-      background: var(--dark);
+      background: var(--band);
       border-top: 1px solid rgba(255,255,255,0.05);
       padding: 32px;
     }
@@ -313,12 +339,12 @@
     .footer-links { display: flex; gap: 24px; }
     .footer-links a {
       font-size: 13px;
-      color: rgba(255,255,255,0.3);
+      color: rgba(255,255,255,0.55);
       text-decoration: none;
       transition: color 0.15s;
     }
-    .footer-links a:hover { color: rgba(255,255,255,0.7); }
-    .footer-copy { font-size: 13px; color: rgba(255,255,255,0.2); }
+    .footer-links a:hover { color: rgba(255,255,255,0.8); }
+    .footer-copy { font-size: 13px; color: rgba(255,255,255,0.5); }
 
     @media (max-width: 600px) {
       nav { padding: 0 20px; }
@@ -327,7 +353,18 @@
       .contact-card { flex-direction: column; gap: 16px; }
       .footer-inner { flex-direction: column; align-items: flex-start; }
     }
-  </style>
+  
+    /* Keyboard focus, brand selection and balanced headings — index.html had
+       all three and these pages had none of them. */
+    a:focus-visible, button:focus-visible, summary:focus-visible {
+      outline: 2px solid var(--terracotta);
+      outline-offset: 3px;
+      border-radius: 6px;
+    }
+    ::selection { background: var(--terra-fill); color: #fff; }
+    h1, h2 { text-wrap: balance; }
+    p { text-wrap: pretty; }
+</style>
 </head>
 <body>
 

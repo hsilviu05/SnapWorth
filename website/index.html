@@ -54,32 +54,101 @@
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     :root {
-      --bg:          #FAF7F4;
-      --card:        #F3EDE8;
-      --dark:        #1C1410;
-      --dark2:       #2B211C;
+      color-scheme: light;
+
+      /* ── Surfaces, darkest to lightest ────────────────────────────────────
+         --band is a deliberately dark section (hero, platforms, dark CTA,
+         footer) and is NOT the same thing as --ink, the text colour, even
+         though both were #1C1410 in the light theme. Under dark mode they
+         move in opposite directions, which is the whole reason they are two
+         tokens now. */
+      --band:        #1C1410;
+      --band-2:      #2B211C;   /* the featured pricing plan */
+      --bg:          #FAF7F4;   /* the page */
+      --card:        #F3EDE8;   /* recessed panels: steps, maths, strips */
+      --surface:     #FFFFFF;   /* raised cards: features, plans */
+
+      /* ── Text ─────────────────────────────────────────────────────────── */
+      --ink:         #1C1410;   /* headings and figures on a light surface */
+      --ink-2:       #2B211C;   /* body copy on a light surface */
+      --warm-gray:   #6E625B;   /* AA on --bg (5.5:1) */
+      --text-muted:  #726860;   /* AA on --card (4.7:1) and --surface (5.4:1) */
+      --on-band:     #FFFFFF;   /* text on --band, --band-2 or a brand fill —
+                                   stays white in BOTH themes, because those
+                                   surfaces are dark in both */
+
+      /* ── Brand ────────────────────────────────────────────────────────────
+         #D96C47 under white text is 3.39:1, below AA's 4.5:1. So white-on-fill
+         uses --terra-fill (5.51:1), which must NOT lighten in dark mode or the
+         white on top of it fails; --terra-text is free to lighten, because
+         nothing sits on it. --terracotta stays the brand tone for rules and
+         decorative fills that carry no text. */
       --terracotta:  #D96C47;
-      /* #D96C47 white-on-fill is 3.39:1 — below AA's 4.5:1 — so every surface
-         that paints white text on terracotta uses --terra-text (5.51:1)
-         instead. --terracotta stays for borders, rules and decorative fills,
-         where no text sits on it and the lighter tone is the brand. */
-      --terra-text:  #A94E29;   /* AA-compliant terracotta for text and any white-on-fill */
-      --terra-dim:   rgba(217,108,71,0.12);
+      --terra-fill:  #A94E29;
+      --terra-text:  #A94E29;
       --sage:        #7A9E7E;
-      --sage-text:   #4F7355;   /* AA-compliant sage for text/glyphs on light bg */
+      --sage-text:   #4F7355;
       --sage-dim:    rgba(122,158,126,0.12);
-      --warm-gray:   #6E625B;   /* darkened for WCAG AA (~5.5:1 on --bg) */
+
       --border:      #E8DDD7;
-      --border-dark: rgba(255,255,255,0.08);
-      --white:       #FFFFFF;
-      --text-muted:  #726860;   /* darkened for WCAG AA (~4.7:1 on --card, ~5.4:1 on white) */
+      --nav-glass:   rgba(250,247,244,0.85);
+
+      /* Checkbox, range and spinner UI in the Thrift Flip inputs. */
+      accent-color: var(--terracotta);
     }
 
-    html { scroll-behavior: smooth; }
+    /* ── Dark theme ───────────────────────────────────────────────────────────
+       Only the tokens change. Every value below was checked against every
+       surface it can land on: the lowest text ratio in the whole palette is
+       --text-muted on --surface at 5.41:1, so nothing here is under AA.
+
+       Two things deliberately do NOT invert:
+
+       * The iPhone mockup (54 rules, `.iphone`/`.sb-*`/`.app-*`) uses no
+         tokens at all. It is a picture of the app's light UI inside a
+         drawing of a phone, and a photograph of a screen does not turn dark
+         because the page around it did.
+       * --on-band and --terra-fill. Both describe white text on a surface
+         that is dark in either theme, so inverting them would break the one
+         contrast the light theme was careful about. */
+    @media (prefers-color-scheme: dark) {
+      :root {
+        color-scheme: dark;
+
+        --band:        #0C0A08;   /* still the recessed band, now under the page */
+        --band-2:      #382D27;   /* still the raised plan, now above --surface */
+        --bg:          #1A1512;
+        --card:        #231D1A;
+        --surface:     #2A2320;
+
+        --ink:         #F6F1ED;
+        --ink-2:       #E2D8D1;
+        --warm-gray:   #ABA098;   /* 7.08:1 on --bg */
+        --text-muted:  #A2978F;   /* 6.34:1 on --bg, 5.41:1 on --surface */
+
+        --terracotta:  #E07A55;   /* lifted: the light tone reads muddy here */
+        --terra-text:  #EC8A63;   /* 7.23:1 on --bg */
+        --sage:        #8FB894;
+        --sage-text:   #A3C9A8;   /* 9.89:1 on --bg */
+        --sage-dim:    rgba(143,184,148,0.18);
+
+        --border:      #3A302A;
+        --nav-glass:   rgba(26,21,18,0.85);
+      }
+    }
+
+    html {
+      scroll-behavior: smooth;
+      /* The nav is position:fixed and ~68px tall, so #how-it-works, #pricing
+         and #thrift-flip each landed with their own heading hidden behind it.
+         Offsetting the scroll target is the fix; scroll-margin on each section
+         would be three places to forget. */
+      scroll-padding-top: 88px;
+    }
 
     body {
       background: var(--bg);
-      color: var(--dark2);
+      color: var(--ink-2);
       font-family: 'DM Sans', sans-serif;
       font-size: 16px;
       line-height: 1.6;
@@ -104,7 +173,7 @@
       display: flex;
       align-items: center;
       justify-content: space-between;
-      background: rgba(250,247,244,0.85);
+      background: var(--nav-glass);
       backdrop-filter: blur(16px);
       -webkit-backdrop-filter: blur(16px);
       border: 1px solid var(--border);
@@ -115,7 +184,7 @@
       font-family: 'Fraunces', serif;
       font-size: 20px;
       font-weight: 700;
-      color: var(--dark2);
+      color: var(--ink-2);
       text-decoration: none;
       letter-spacing: -0.3px;
     }
@@ -127,9 +196,9 @@
       text-decoration: none;
       transition: color 0.15s;
     }
-    .nav-link:hover { color: var(--dark2); }
+    .nav-link:hover { color: var(--ink-2); }
     .nav-cta {
-      background: var(--dark2);
+      background: var(--ink);
       color: var(--bg);
       font-size: 14px;
       font-weight: 600;
@@ -142,7 +211,7 @@
 
     /* ── Hero ─────────────────────────────────────────────────────── */
     .hero {
-      background: var(--dark);
+      background: var(--band);
       padding: 140px 32px 100px;
       position: relative;
       overflow: hidden;
@@ -197,7 +266,7 @@
       font-weight: 900;
       line-height: 1.05;
       letter-spacing: -2px;
-      color: var(--white);
+      color: var(--on-band);
       margin-bottom: 24px;
     }
     .hero h1 em {
@@ -216,8 +285,8 @@
       display: inline-flex;
       align-items: center;
       gap: 8px;
-      background: var(--terra-text);
-      color: var(--white);
+      background: var(--terra-fill);
+      color: var(--on-band);
       font-size: 15px;
       font-weight: 600;
       padding: 13px 24px;
@@ -244,8 +313,8 @@
       align-items: center;
       gap: 10px;
       margin-top: 20px;
-      background: var(--white);
-      border: 1px solid var(--border);
+      background: var(--on-band);
+      border: 1px solid #E8DDD7;
       border-radius: 12px;
       padding: 8px 16px;
       text-decoration: none;
@@ -254,8 +323,8 @@
     .ph-badge:hover { opacity: 0.9; transform: translateY(-1px); }
     .ph-badge-logo { width: 30px; height: 30px; flex-shrink: 0; }
     .ph-badge-text { display: flex; flex-direction: column; line-height: 1.15; }
-    .ph-badge-eyebrow { font-size: 9px; font-weight: 700; letter-spacing: 1px; color: var(--warm-gray); }
-    .ph-badge-name { font-size: 15px; font-weight: 700; color: var(--dark); }
+    .ph-badge-eyebrow { font-size: 9px; font-weight: 700; letter-spacing: 1px; color: #6E625B; }
+    .ph-badge-name { font-size: 15px; font-weight: 700; color: #1C1410; }
 
     /* ── iPhone 17 Pro mockup ─────────────────────────────────────── */
     .iphone-wrap {
@@ -295,6 +364,28 @@
       width:3px; height:62px;
       background:linear-gradient(to left,#7A7168,#AFA6A0);
       border-radius:0 2px 2px 0;
+    }
+    /* A photograph of a screen does not turn dark because the page around it
+       did. The `.app-*` rules that draw this phone use no tokens at all, but
+       the `.pf-*` and `.sd-*` rules rendering *inside* it do — so the tokens
+       are pinned back to their light values here rather than hardcoded into
+       each of those rules. Custom properties inherit; this covers the whole
+       subtree, including anything added to the mockup later.
+       `.sd-chip` sits outside the screen, on the dark hero, and is
+       deliberately not caught by this. */
+    .iphone-screen {
+      --bg:          #FAF7F4;
+      --card:        #F3EDE8;
+      --surface:     #FFFFFF;
+      --ink:         #1C1410;
+      --ink-2:       #2B211C;
+      --warm-gray:   #6E625B;
+      --text-muted:  #726860;
+      --terracotta:  #D96C47;
+      --terra-text:  #A94E29;
+      --sage:        #7A9E7E;
+      --sage-text:   #4F7355;
+      --border:      #E8DDD7;
     }
     .iphone-screen {
       background: #FAF7F4;
@@ -487,7 +578,7 @@
 
     /* ── Platforms ────────────────────────────────────────────────── */
     .platforms {
-      background: var(--dark);
+      background: var(--band);
       padding: 24px 32px 48px;
     }
     .platforms-inner {
@@ -536,7 +627,7 @@
       font-weight: 700;
       letter-spacing: -1px;
       line-height: 1.12;
-      color: var(--dark2);
+      color: var(--ink-2);
       margin-bottom: 14px;
     }
     .section-sub {
@@ -571,7 +662,7 @@
       font-family: 'Fraunces', serif;
       font-size: 20px;
       font-weight: 700;
-      color: var(--dark2);
+      color: var(--ink-2);
       margin-bottom: 10px;
       letter-spacing: -0.3px;
     }
@@ -589,9 +680,9 @@
       border-radius: 20px;
       padding: 36px;
       transition: border-color 0.2s, transform 0.2s;
-      background: var(--white);
+      background: var(--surface);
     }
-    .feature:hover { border-color: var(--dark2); transform: translateY(-2px); }
+    .feature:hover { border-color: var(--ink-2); transform: translateY(-2px); }
     .feature-icon {
       width: 44px; height: 44px;
       border-radius: 12px;
@@ -607,7 +698,7 @@
       font-family: 'Fraunces', serif;
       font-size: 19px;
       font-weight: 700;
-      color: var(--dark2);
+      color: var(--ink-2);
       margin-bottom: 8px;
       letter-spacing: -0.3px;
     }
@@ -622,20 +713,20 @@
       align-items: start;
     }
     .plan {
-      background: var(--white);
+      background: var(--surface);
       border: 1px solid var(--border);
       border-radius: 20px;
       padding: 32px 28px;
     }
     .plan.featured {
-      background: var(--dark2);
-      border-color: var(--dark2);
+      background: var(--band-2);
+      border-color: var(--band-2);
       transform: scale(1.02);
     }
     .plan-badge {
       display: inline-block;
-      background: var(--terra-text);
-      color: var(--white);
+      background: var(--terra-fill);
+      color: var(--on-band);
       font-size: 11px;
       font-weight: 600;
       letter-spacing: 0.5px;
@@ -657,11 +748,11 @@
       font-family: 'Fraunces', serif;
       font-size: 44px;
       font-weight: 900;
-      color: var(--dark2);
+      color: var(--ink-2);
       letter-spacing: -2px;
       line-height: 1;
     }
-    .plan.featured .plan-price { color: var(--white); }
+    .plan.featured .plan-price { color: var(--on-band); }
     .plan-price sup { font-size: 20px; letter-spacing: 0; vertical-align: super; }
     .plan-cadence {
       font-size: 13px;
@@ -685,7 +776,7 @@
     }
     .plan-features li {
       font-size: 14px;
-      color: var(--dark2);
+      color: var(--ink-2);
       display: flex;
       align-items: flex-start;
       gap: 9px;
@@ -714,12 +805,12 @@
     .plan-cta:hover { opacity: 0.85; transform: translateY(-1px); }
     .plan-cta-outline {
       border: 1.5px solid var(--border);
-      color: var(--dark2);
+      color: var(--ink-2);
     }
-    .plan-cta-outline:hover { border-color: var(--dark2); }
+    .plan-cta-outline:hover { border-color: var(--ink-2); }
     .plan-cta-main {
-      background: var(--terra-text);
-      color: var(--white);
+      background: var(--terra-fill);
+      color: var(--on-band);
     }
     .plan-cta-ghost {
       background: rgba(255,255,255,0.08);
@@ -728,7 +819,7 @@
 
     /* ── Dark CTA ─────────────────────────────────────────────────── */
     .cta-dark {
-      background: var(--dark);
+      background: var(--band);
       padding: 100px 32px;
       text-align: center;
       position: relative;
@@ -749,7 +840,7 @@
       font-weight: 900;
       letter-spacing: -1.5px;
       line-height: 1.08;
-      color: var(--white);
+      color: var(--on-band);
       margin-bottom: 18px;
       position: relative;
     }
@@ -764,8 +855,8 @@
       display: inline-flex;
       align-items: center;
       gap: 8px;
-      background: var(--white);
-      color: var(--dark2);
+      background: var(--on-band);
+      color: #1C1410;
       font-size: 15px;
       font-weight: 600;
       padding: 14px 28px;
@@ -778,7 +869,7 @@
 
     /* ── Footer ───────────────────────────────────────────────────── */
     footer {
-      background: var(--dark);
+      background: var(--band);
       border-top: 1px solid rgba(255,255,255,0.05);
       padding: 32px;
     }
@@ -1001,8 +1092,10 @@ nav.is-scrolled {
 /* ── Focus visibility ────────────────────────────────────────────────────────
    Adding hover states without matching focus states leaves keyboard users
    with less than they had. */
-a:focus-visible, button:focus-visible {
-  outline: 2px solid #D96C47;
+a:focus-visible, button:focus-visible, summary:focus-visible, label:focus-within {
+  /* Tokenised so the ring lifts with the brand tone in dark mode instead of
+     staying at the light theme's #D96C47. */
+  outline: 2px solid var(--terracotta);
   outline-offset: 3px;
   border-radius: 6px;
 }
@@ -1056,7 +1149,7 @@ a:focus-visible, button:focus-visible {
      disagreed with the product would be worse than no calculator.
    ══════════════════════════════════════════════════════════════════════════ */
 
-.hero-dark { background: var(--dark); color: #FAF7F4; position: relative; overflow: hidden; }
+.hero-dark { background: var(--band); color: #FAF7F4; position: relative; overflow: hidden; }
 .hero-dark::after,
 .hero-dark::before { content: ""; position: absolute; pointer-events: none; }
 .hero-dark::before { top: -240px; right: -140px; width: 680px; height: 680px;
@@ -1088,7 +1181,7 @@ a:focus-visible, button:focus-visible {
 /* The site's base `a` rule underlines links; these are buttons and a jump
    affordance, not prose links. */
 .hd-cta, .hd-jump, .tf-foot-cta { text-decoration: none; }
-.hd-cta { display: inline-flex; align-items: center; gap: 10px; background: var(--terra-text);
+.hd-cta { display: inline-flex; align-items: center; gap: 10px; background: var(--terra-fill);
   color: #fff; font-size: 16px; font-weight: 600; padding: 16px 28px; border-radius: 999px; }
 .hd-jump { font-size: 15px; font-weight: 500; color: rgba(250,247,244,.66);
   border-bottom: 1px solid rgba(250,247,244,.3); padding-bottom: 3px; }
@@ -1117,7 +1210,7 @@ a:focus-visible, button:focus-visible {
 /* ── Thrift Flip band ───────────────────────────────────────────────────── */
 .tf { padding: 88px 0 96px; background: var(--bg); }
 .tf-wrap { max-width: 1200px; margin: 0 auto; padding: 0 24px; }
-.tf-rule { border-top: 1.5px solid var(--dark); padding-top: 14px; display: flex;
+.tf-rule { border-top: 1.5px solid var(--ink); padding-top: 14px; display: flex;
   justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-bottom: 52px; }
 .tf-rule span { font-size: 11px; font-weight: 600; letter-spacing: 2.2px; text-transform: uppercase; }
 .tf-rule .l { color: var(--terra-text); }
@@ -1126,8 +1219,8 @@ a:focus-visible, button:focus-visible {
 .tf-top { display: grid; grid-template-columns: 1fr 1fr; gap: 80px;
   align-items: start; margin-bottom: 56px; }
 .tf-h2 { font-family: 'Fraunces', serif; font-size: clamp(32px, 4vw, 52px); font-weight: 900;
-  line-height: 1.02; letter-spacing: -.038em; color: var(--dark); margin: 0 0 22px; text-wrap: pretty; }
-.tf-p { font-size: clamp(16px, 1.4vw, 19px); line-height: 1.65; color: var(--dark2);
+  line-height: 1.02; letter-spacing: -.038em; color: var(--ink); margin: 0 0 22px; text-wrap: pretty; }
+.tf-p { font-size: clamp(16px, 1.4vw, 19px); line-height: 1.65; color: var(--ink-2);
   margin: 0 0 18px; max-width: 520px; }
 .tf-em { font-family: 'Fraunces', serif; font-style: italic; font-size: 17px;
   line-height: 1.6; color: var(--warm-gray); margin: 0; max-width: 480px; }
@@ -1139,17 +1232,17 @@ a:focus-visible, button:focus-visible {
 .tf-chip { font-family: inherit; font-size: 14.5px; font-weight: 600; padding: 13px 24px;
   border-radius: 999px; cursor: pointer; background: transparent; color: var(--warm-gray);
   border: 1px solid var(--border); transition: background .15s, color .15s, border-color .15s; }
-.tf-chip[aria-pressed="true"] { background: var(--terra-text); color: #fff; border-color: var(--terra-text); }
+.tf-chip[aria-pressed="true"] { background: var(--terra-fill); color: #fff; border-color: var(--terra-fill); }
 
 .tf-inputs { display: flex; gap: 14px; flex-wrap: wrap; }
-.tf-field { flex: 1; min-width: 150px; background: #fff; border: 1px solid var(--border);
+.tf-field { flex: 1; min-width: 150px; background: var(--surface); border: 1px solid var(--border);
   border-radius: 20px; padding: 16px 18px; display: block; }
 .tf-field > span:first-child { display: block; font-size: 11px; font-weight: 700;
   letter-spacing: 1.1px; text-transform: uppercase; color: var(--text-muted); margin-bottom: 6px; }
 .tf-money { display: inline-flex; align-items: baseline; gap: 3px; }
 .tf-money .sym { font-family: 'Fraunces', serif; font-size: 22px; font-weight: 700; color: var(--warm-gray); }
 .tf-money input { width: 78px; border: none; background: transparent; font-family: 'Fraunces', serif;
-  font-size: 30px; font-weight: 900; letter-spacing: -1.2px; color: var(--dark); outline-offset: 4px; }
+  font-size: 30px; font-weight: 900; letter-spacing: -1.2px; color: var(--ink); outline-offset: 4px; }
 
 .tf-out { display: grid; grid-template-columns: 1.15fr 1fr; gap: 20px; align-items: stretch; }
 .tf-verdict { border-radius: 28px; padding: 38px 42px;
@@ -1159,7 +1252,7 @@ a:focus-visible, button:focus-visible {
 .tf-verdict-head { display: flex; align-items: center; gap: 10px; font-size: 20px;
   font-weight: 700; margin-bottom: 18px; color: var(--sage-text); }
 .tf-verdict.is-bad .tf-verdict-head { color: var(--terra-text); }
-.tf-sentence { font-size: 19px; line-height: 1.55; color: var(--dark2);
+.tf-sentence { font-size: 19px; line-height: 1.55; color: var(--ink-2);
   margin-bottom: 28px; max-width: 420px; }
 .tf-figures { display: flex; align-items: flex-end; gap: 52px; flex-wrap: wrap; }
 .tf-fig-l { font-size: 11px; font-weight: 700; letter-spacing: 1.1px;
@@ -1168,37 +1261,37 @@ a:focus-visible, button:focus-visible {
   letter-spacing: -.04em; line-height: .9; color: var(--sage-text); font-variant-numeric: tabular-nums; }
 .tf-verdict.is-bad .tf-net { color: var(--terra-text); }
 .tf-roi { font-family: 'Fraunces', serif; font-size: clamp(32px, 3.6vw, 44px); font-weight: 900;
-  letter-spacing: -.04em; line-height: 1; color: var(--dark); font-variant-numeric: tabular-nums; }
+  letter-spacing: -.04em; line-height: 1; color: var(--ink); font-variant-numeric: tabular-nums; }
 
 .tf-maths { background: var(--card); border-radius: 28px; padding: 34px 38px;
   display: flex; flex-direction: column; }
 .tf-row { display: flex; justify-content: space-between; padding: 13px 0;
   border-bottom: 1px solid #E4D8CF; font-size: 15.5px; }
 .tf-row span:first-child { color: var(--warm-gray); }
-.tf-row span:last-child { font-weight: 600; color: var(--dark); font-variant-numeric: tabular-nums; }
-.tf-row.total { border-bottom: 1.5px solid var(--dark); }
+.tf-row span:last-child { font-weight: 600; color: var(--ink); font-variant-numeric: tabular-nums; }
+.tf-row.total { border-bottom: 1.5px solid var(--ink); }
 .tf-row.net { border-bottom: none; padding: 15px 0 0; }
-.tf-row.net span:first-child { font-weight: 600; color: var(--dark); }
+.tf-row.net span:first-child { font-weight: 600; color: var(--ink); }
 .tf-row.net span:last-child { font-family: 'Fraunces', serif; font-size: 22px; font-weight: 900;
   letter-spacing: -.8px; color: var(--sage-text); }
 .tf-out.is-bad .tf-row.net span:last-child { color: var(--terra-text); }
 .tf-note { font-size: 13px; line-height: 1.6; color: var(--text-muted); margin: 22px 0 0; }
 
 .tf-foot { margin-top: 28px; display: flex; gap: 20px; align-items: stretch; flex-wrap: wrap; }
-.tf-foot-dark { flex: 1; min-width: 420px; background: var(--dark); border-radius: 24px;
+.tf-foot-dark { flex: 1; min-width: 420px; background: var(--band); border-radius: 24px;
   padding: 28px 32px; display: flex; align-items: center; justify-content: space-between; gap: 28px; flex-wrap: wrap; }
 .tf-foot-dark h4 { font-size: 16px; font-weight: 600; color: #FAF7F4; margin: 0 0 5px; }
 .tf-foot-dark p { font-size: 14px; line-height: 1.6; color: rgba(250,247,244,.55); max-width: 420px; margin: 0; }
-.tf-foot-cta { display: inline-flex; align-items: center; background: var(--terra-text); color: #fff;
+.tf-foot-cta { display: inline-flex; align-items: center; background: var(--terra-fill); color: #fff;
   font-size: 15px; font-weight: 600; padding: 14px 24px; border-radius: 999px; white-space: nowrap; }
 .tf-foot-note { flex: 1; min-width: 340px; border: 1px solid var(--border); border-radius: 24px;
-  padding: 28px 32px; font-size: 14.5px; line-height: 1.65; color: var(--dark2); }
+  padding: 28px 32px; font-size: 14.5px; line-height: 1.65; color: var(--ink-2); }
 
 /* ── Scan demo (hero phone) ─────────────────────────────────────────────── */
 .iphone-screen { position: relative; }
 .sd-est { text-align: left; }
 .sd-range { font-family: 'Fraunces', serif; font-size: 30px; font-weight: 900;
-  letter-spacing: -1.2px; color: var(--dark); line-height: 1.05; margin: 2px 0 10px;
+  letter-spacing: -1.2px; color: var(--ink); line-height: 1.05; margin: 2px 0 10px;
   font-variant-numeric: tabular-nums; }
 .sd-conf { display: flex; align-items: center; gap: 8px; }
 .sd-conf-bar { flex: 1; height: 5px; border-radius: 999px; background: #E8DDD7; overflow: hidden; }
@@ -1206,7 +1299,7 @@ a:focus-visible, button:focus-visible {
   background: var(--sage); transition: width .4s ease; }
 .sd-conf-label { font-size: 10.5px; font-weight: 600; color: var(--sage-text); white-space: nowrap; }
 .sd-listing { display: inline-block; font-size: 11.5px; font-weight: 700; color: #fff;
-  background: var(--terra-text); border-radius: 999px; padding: 7px 14px; }
+  background: var(--terra-fill); border-radius: 999px; padding: 7px 14px; }
 /* Camera-shutter flash over the screen while a new item "scans" in. */
 .sd-flash { position: absolute; inset: 0; background: #FAF7F4; opacity: 0;
   pointer-events: none; border-radius: 42px; }
@@ -1225,12 +1318,14 @@ a:focus-visible, button:focus-visible {
   color: rgba(250,247,244,.66); border: 1px solid rgba(250,247,244,.22);
   transition: background .15s, color .15s, border-color .15s, transform .15s; }
 .sd-chip:hover { border-color: rgba(250,247,244,.5); color: #FAF7F4; transform: translateY(-1px); }
-.sd-chip[aria-pressed="true"] { background: var(--terra-text); color: #fff;
+.sd-chip[aria-pressed="true"] { background: var(--terra-fill); color: #fff;
   border-color: var(--terracotta); }
 
 /* ── Texture, type, ticker, tag — the handmade layer ────────────────────── */
 
-::selection { background: var(--terracotta); color: #fff; }
+/* --terra-fill, not --terracotta: white on the lighter brand tone is 3.39:1
+   in either theme, and an unreadable selection is worse than the default. */
+::selection { background: var(--terra-fill); color: #fff; }
 
 /* Film grain over the dark bands. A tiled SVG turbulence, not an image
    request; soft-light keeps it a texture rather than dirt. */
@@ -1256,8 +1351,20 @@ a:focus-visible, button:focus-visible {
 /* The swing tag on the phone — a thrift-store price tag, priced honestly. */
 .tilt3d { transform-style: preserve-3d; transition: transform .18s ease-out; }
 .hd-phone { perspective: 1100px; }
+/* A paper price tag hanging off the phone. Like the Product Hunt badge it is an
+   object sitting ON the dark hero, not a surface of the page, so it keeps its
+   cream stock in either theme — following the page turned it into a dark blob
+   on a dark band. Scoped tokens, so the rules below stay readable. */
+.swing-tag {
+  --bg:         #FAF7F4;
+  --card:       #F3EDE8;
+  --ink:        #1C1410;
+  --border:     #E8DDD7;
+  --terra-text: #A94E29;
+  --warm-gray:  #6E625B;
+}
 .swing-tag { position: absolute; top: 64px; right: -30px; z-index: 5;
-  background: var(--bg); color: var(--dark); border-radius: 10px;
+  background: var(--bg); color: var(--ink); border-radius: 10px;
   padding: 9px 13px 10px; text-align: center; transform: rotate(-7deg);
   transform-origin: 50% -24px; box-shadow: 0 10px 24px rgba(0,0,0,.28);
   border: 1px solid var(--border); }
@@ -1380,15 +1487,15 @@ a:focus-visible, button:focus-visible {
 .faq-grid { display: grid; grid-template-columns: 1fr 1.6fr; gap: 72px;
   align-items: start; margin-top: 52px; }
 .faq-h2 { font-family: 'Fraunces', serif; font-size: clamp(34px, 4.4vw, 56px); font-weight: 900;
-  line-height: 1.0; letter-spacing: -.038em; color: var(--dark); margin: 0;
+  line-height: 1.0; letter-spacing: -.038em; color: var(--ink); margin: 0;
   position: sticky; top: 110px; }
 .faq-h2 em { font-style: italic; color: var(--terracotta); }
 .faq-list details { border-bottom: 1px solid var(--border); }
-.faq-list details:first-child { border-top: 1.5px solid var(--dark); }
+.faq-list details:first-child { border-top: 1.5px solid var(--ink); }
 .faq-list summary { display: flex; align-items: center; justify-content: space-between;
   gap: 18px; cursor: pointer; list-style: none; padding: 22px 2px;
   font-family: 'Fraunces', serif; font-size: clamp(17px, 1.6vw, 21px); font-weight: 600;
-  letter-spacing: -.01em; color: var(--dark); }
+  letter-spacing: -.01em; color: var(--ink); }
 .faq-list summary::-webkit-details-marker { display: none; }
 .faq-list summary:hover { color: var(--terra-text); }
 /* Plus that folds into a minus — drawn, not a glyph, so it can rotate cleanly. */
@@ -1422,7 +1529,7 @@ details[open] .faq-x::after { transform: rotate(90deg); }
 .mcta-txt strong { font-family: 'Fraunces', serif; font-size: 15px; font-weight: 700; color: #FAF7F4; }
 .mcta-txt span { font-size: 11.5px; color: rgba(250,247,244,.55); white-space: nowrap; }
 .mcta-btn { display: inline-flex; align-items: center; gap: 7px; flex: 0 0 auto;
-  background: var(--terra-text); color: #fff; font-size: 14px; font-weight: 600;
+  background: var(--terra-fill); color: #fff; font-size: 14px; font-weight: 600;
   padding: 11px 18px; border-radius: 12px; text-decoration: none; }
 @media (min-width: 768px) { .mcta { display: none; } }
 
@@ -1463,25 +1570,25 @@ details[open] .faq-x::after { transform: rotate(90deg); }
 .pf-chips { display: flex; gap: 5px; }
 .pf-chip { flex: 1; text-align: center; border: 1px solid var(--border); color: var(--warm-gray);
   font-size: 10.5px; font-weight: 600; padding: 5px 0; border-radius: 999px; }
-.pf-chip.is-on { background: var(--terra-text); color: #fff; border-color: var(--terra-text); padding: 6px 0; }
+.pf-chip.is-on { background: var(--terra-fill); color: #fff; border-color: var(--terra-fill); padding: 6px 0; }
 
 .pf-rows { padding: 6px 13px; }
 .pf-row { display: flex; align-items: center; justify-content: space-between;
   padding: 9px 0; border-bottom: 1px solid var(--card); }
 .pf-row:last-child { border-bottom: none; }
 .pf-row > span:first-child { font-size: 11.5px; font-weight: 500; color: var(--warm-gray); }
-.pf-row > span:last-child { font-size: 14px; font-weight: 700; color: var(--dark);
+.pf-row > span:last-child { font-size: 14px; font-weight: 700; color: var(--ink);
   display: inline-flex; align-items: center; gap: 8px; }
 .pf-row em { font-style: normal; font-size: 10px; font-weight: 600; color: var(--terracotta); }
 
 .pf-verdict { background: rgba(122,158,126,.10); border: 1px solid rgba(122,158,126,.38);
   border-radius: 18px; padding: 14px; text-align: center; }
 .pf-verdict-t { font-size: 14px; font-weight: 700; color: var(--sage-text); margin-bottom: 8px; }
-.pf-verdict-s { font-size: 11px; color: var(--dark2); line-height: 1.45; margin-bottom: 10px; }
+.pf-verdict-s { font-size: 11px; color: var(--ink-2); line-height: 1.45; margin-bottom: 10px; }
 .pf-verdict-figs { display: flex; justify-content: center; gap: 26px; }
 .pf-fig-l { font-size: 9.5px; color: var(--text-muted); }
 .pf-fig-v { font-family: 'Fraunces', serif; font-size: 20px; font-weight: 900;
-  color: var(--dark); letter-spacing: -.8px; }
+  color: var(--ink); letter-spacing: -.8px; }
 .pf-fig-v.sage { color: var(--sage-text); }
 
   </style>
