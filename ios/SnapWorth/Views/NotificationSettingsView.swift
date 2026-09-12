@@ -84,9 +84,7 @@ struct NotificationSettingsView: View {
         .background(Color.snapBackground)
         .navigationTitle("Notifications")
         .navigationBarTitleDisplayMode(.large)
-        .task {
-            systemDenied = await NotificationManager.shared.authorizationStatus() == .denied
-        }
+        .task { await refreshSystemState() }
     }
 
     private func toggle(
@@ -109,8 +107,32 @@ struct NotificationSettingsView: View {
         .tint(Color.snapTerracotta)
         .onChange(of: binding.wrappedValue) { _, isOn in
             NotificationManager.shared.setEnabled(category, isOn)
-            if category == .freeScan, isOn { resyncFreeScan() }
+            guard isOn else { return }
+            // Switching a reminder on is a request for notifications, so it is
+            // the right moment to ask iOS if we never have. Without this, a
+            // user who tapped "Not now" on the priming alert could never be
+            // asked again by anything in the app: every toggle here wrote a
+            // preference that `add()` then ignored, silently, forever.
+            Task {
+                let allowed = await NotificationManager.shared.requestAuthorizationIfNeeded()
+                await refreshSystemState()
+                if allowed, category == .freeScan { resyncFreeScan() }
+            }
         }
+    }
+
+    /// Whether to show the "notifications are off" banner.
+    ///
+    /// `.notDetermined` counts, not just `.denied`. A user who declined the
+    /// in-app priming alert sits at `.notDetermined` permanently, so the banner
+    /// gated on `.denied` alone never appeared for the one person who most
+    /// needed it — every toggle on this screen was inert and nothing said so.
+    /// Now the toggle itself asks iOS first, and this covers the case where the
+    /// user declines the system alert too.
+    @MainActor
+    private func refreshSystemState() async {
+        let status = await NotificationManager.shared.authorizationStatus()
+        systemDenied = status == .denied || status == .notDetermined
     }
 
     /// Turning the reminder on, or moving its time, schedules the next one

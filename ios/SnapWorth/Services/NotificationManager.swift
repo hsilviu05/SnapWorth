@@ -74,7 +74,53 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
     private static let portfolioID = "portfolio.weekly"
     private static let trialID = "trial.ending"
     // Prefix == Category.freeScan.rawValue: `category(fromID:)` relies on it.
+    //
+    // Retained as the *legacy* identifier. A build before the ladder scheduled
+    // one request under exactly this id, so an upgrading install can have one
+    // pending and it has to be cancellable.
     private static let freeScanID = "freeScan.daily"
+
+    /// How many days of free-scan reminders are scheduled at a time.
+    ///
+    /// The reminder was a single dated one-shot with `repeats: false`, and the
+    /// only things that ever re-armed it — after a scan, on foreground, on a
+    /// settings change — all require the app to be open. There is no
+    /// `BGTaskScheduler` anywhere in the project either. So the reminder whose
+    /// entire purpose is to bring back someone who has stopped opening the app
+    /// fired exactly once and then went silent forever, while Settings kept
+    /// showing "Daily free scan" ON with a time picker and a footer promising
+    /// "one reminder at the time you pick".
+    ///
+    /// A ladder of dated one-shots rather than `repeats: true`: the copy names
+    /// the streak, and a repeating trigger freezes its body, so a user who
+    /// lapsed with a 5-day streak would be told "Day 6 of your streak is
+    /// waiting" every day indefinitely — a daily false statement. Dated
+    /// requests let day one carry the streak (which is known) and the rest
+    /// carry the plain copy (which stays true).
+    ///
+    /// Seven days is also a deliberate stopping point. Someone who has ignored
+    /// a week of reminders should stop receiving them; the ladder refills on
+    /// every foreground, so anyone still using the app never reaches the end.
+    static let freeScanLadderDays = 7
+
+    private static func freeScanLadderID(forDay day: Date) -> String {
+        "freeScan.daily.\(dayKey(day))"
+    }
+
+    /// Every identifier the ladder can be occupying, including the legacy one.
+    ///
+    /// Computed rather than discovered, so `cancel(_:)` stays synchronous —
+    /// it is called from `setEnabled`, which SwiftUI calls from a toggle. The
+    /// range runs a day wider than the ladder at both ends so a device whose
+    /// clock or timezone moved cannot orphan a request.
+    static func freeScanIDs(around now: Date, calendar: Calendar = .current) -> [String] {
+        var ids = [freeScanID]
+        for offset in -1...(freeScanLadderDays + 1) {
+            guard let day = calendar.date(byAdding: .day, value: offset, to: now) else { continue }
+            ids.append(freeScanLadderID(forDay: day))
+        }
+        return ids
+    }
     private static func ledgerDayID(_ dayKey: String) -> String { "ledger.day.\(dayKey)" }
 
     /// Recovers the category from any identifier ("ledger.day.20260801" → .ledger).
@@ -91,6 +137,38 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
     func setEnabled(_ category: Category, _ on: Bool) {
         UserDefaults.standard.set(on, forKey: category.toggleKey)
         if !on { cancel(category) }
+    }
+
+    /// True when iOS has never been asked — so nothing this app schedules will
+    /// ever be delivered, and the user has no way to tell.
+    ///
+    /// `requestAuthorization` used to appear at exactly one place in the whole
+    /// project: inside `enableFromPriming`, reachable only through
+    /// `shouldPrimeAfterScan()`, which is gated on `!primingShown` — and
+    /// `declinePriming()` sets that permanently. So "Not now" on the priming
+    /// alert left the status `.notDetermined` for the life of the install,
+    /// `isAuthorized()` mapped that to false, and `add()` returned silently for
+    /// every category forever. Meanwhile Settings rendered Weekly portfolio,
+    /// Monthly recap, Ledger and Trial reminders all ON (they default on), the
+    /// user could switch on Daily free scan and pick a time, and not one
+    /// notification would ever arrive — not even the heads-up before their
+    /// first trial charge. The "turn them on in iOS Settings" banner was gated
+    /// on `.denied`, which is never this user's status.
+    func needsAuthorizationRequest() async -> Bool {
+        await authorizationStatus() == .notDetermined
+    }
+
+    /// Ask iOS, if it has never been asked. Safe to call from a Settings
+    /// toggle: `requestAuthorization` is a no-op once a decision exists.
+    ///
+    /// Returns whether notifications can now be delivered, so the caller can
+    /// show the "turn them on in iOS Settings" banner if the user declines the
+    /// system alert here.
+    @discardableResult
+    func requestAuthorizationIfNeeded() async -> Bool {
+        guard await needsAuthorizationRequest() else { return await isAuthorized() }
+        primingShown = true          // iOS has now been asked; never prime again
+        return (try? await center.requestAuthorization(options: [.alert, .sound, .badge])) ?? false
     }
 
     // MARK: - Authorization & priming
@@ -290,15 +368,35 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
     /// request is simply replaced by the next correct one.
     func syncFreeScanReminder(isPro: Bool, scannedToday: Bool, streak: Int = 0,
                               now: Date = Date()) async {
-        guard isEnabled(.freeScan), !isPro else {
-            center.removePendingNotificationRequests(withIdentifiers: [Self.freeScanID])
-            return
-        }
+        // Always clear the whole ladder first, including the legacy single id.
+        // Every path below either rebuilds it or wants it gone, and a stale rung
+        // left behind fires on its old day with its old body.
+        center.removePendingNotificationRequests(
+            withIdentifiers: Self.freeScanIDs(around: now))
+        guard isEnabled(.freeScan), !isPro else { return }
+
         let time = freeScanReminderTime
-        guard let fireDate = Self.nextFreeScanDate(after: now, hour: time.hour, minute: time.minute,
-                                                   scannedToday: scannedToday) else { return }
-        await add(id: Self.freeScanID, category: .freeScan, fireDate: fireDate,
-                  body: Self.freeScanBody(streak: streak))
+        guard let first = Self.nextFreeScanDate(after: now, hour: time.hour, minute: time.minute,
+                                                scannedToday: scannedToday) else { return }
+        let calendar = Calendar.current
+        var scheduledAny = false
+        for offset in 0..<Self.freeScanLadderDays {
+            guard let fireDate = calendar.date(byAdding: .day, value: offset, to: first)
+            else { continue }
+            // Only the first rung can honestly name the streak: it is the next
+            // day, and the streak is known now. Beyond that the user may have
+            // scanned, or lapsed, and either claim would be invented.
+            let body = offset == 0 ? Self.freeScanBody(streak: streak)
+                                   : Self.freeScanBody(streak: 0)
+            let added = await add(id: Self.freeScanLadderID(forDay: fireDate),
+                                  category: .freeScan, fireDate: fireDate,
+                                  body: body, track: false)
+            scheduledAny = scheduledAny || added
+        }
+        // One event for one logical reminder, not seven per foreground.
+        if scheduledAny {
+            Analytics.shared.track(.notificationScheduled(category: Category.freeScan.rawValue))
+        }
     }
 
     /// Today at the chosen time if that is still ahead and no scan has happened
@@ -434,7 +532,9 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
         case .recap: center.removePendingNotificationRequests(withIdentifiers: [Self.recapID])
         case .portfolio: center.removePendingNotificationRequests(withIdentifiers: [Self.portfolioID])
         case .trial: center.removePendingNotificationRequests(withIdentifiers: [Self.trialID])
-        case .freeScan: center.removePendingNotificationRequests(withIdentifiers: [Self.freeScanID])
+        case .freeScan:
+            center.removePendingNotificationRequests(
+                withIdentifiers: Self.freeScanIDs(around: Date()))
         case .ledger: cancelAllLedger()
         }
     }
@@ -443,8 +543,15 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
 
     /// Adds a request, honoring the per-category toggle, authorization, and the
     /// global "1 notification per day" cap (priority: trial > ledger > recap).
-    private func add(id: String, category: Category, fireDate: Date, body: String) async {
-        guard isEnabled(category) else { return }
+    /// `track: false` suppresses the `notification_scheduled` event, for a
+    /// caller that schedules several requests for one logical reminder and
+    /// reports it once. Without it the free-scan ladder would emit seven events
+    /// on every foreground — the same event-spam the past-date guard above was
+    /// added to stop.
+    @discardableResult
+    private func add(id: String, category: Category, fireDate: Date, body: String,
+                     track: Bool = true) async -> Bool {
+        guard isEnabled(category) else { return false }
         // A fire date in the past is not a reminder. `syncEligible` runs on
         // every foreground and re-schedules the ledger follow-up for every
         // listed item, including ones listed more than 14 days ago — so each
@@ -453,10 +560,24 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
         // `syncTrialReminder` already guards this way; nothing else did.
         guard fireDate > Date() else {
             center.removePendingNotificationRequests(withIdentifiers: [id])
-            return
+            return false
         }
-        guard await isAuthorized() else { return }              // no-op until permitted
-        guard await resolveDailyCap(for: category, fireDate: fireDate, ownID: id) else { return }
+        guard await isAuthorized() else { return false }         // no-op until permitted
+        guard await resolveDailyCap(for: category, fireDate: fireDate, ownID: id) else {
+            // Cancel, do not just return. Every fixed-ID category (recap,
+            // portfolio, trial, freeScan) gets its idempotence from
+            // `center.add` replacing a pending request under the same
+            // identifier — so a path that returns *before* the add leaves the
+            // previous request alive, and it fires on its old date with its old
+            // body. That contradicts the contract `syncFreeScanReminder`
+            // documents for itself ("the previous request is simply replaced by
+            // the next correct one") and breaks the one-per-day cap this
+            // function exists to enforce, because the leaked request still
+            // occupies its old day. The past-date guard above already cancels;
+            // this one did not.
+            center.removePendingNotificationRequests(withIdentifiers: [id])
+            return false
+        }
 
         let content = UNMutableNotificationContent()
         content.title = "SnapWorth"
@@ -471,9 +592,13 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
 
         do {
             try await center.add(request)   // same identifier replaces any pending
-            Analytics.shared.track(.notificationScheduled(category: category.rawValue))
+            if track {
+                Analytics.shared.track(.notificationScheduled(category: category.rawValue))
+            }
+            return true
         } catch {
             // Scheduling is best-effort; a failure just means no reminder.
+            return false
         }
     }
 
