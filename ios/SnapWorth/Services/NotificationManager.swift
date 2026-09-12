@@ -101,10 +101,32 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
     /// Seven days is also a deliberate stopping point. Someone who has ignored
     /// a week of reminders should stop receiving them; the ladder refills on
     /// every foreground, so anyone still using the app never reaches the end.
-    static let freeScanLadderDays = 7
+    //
+    // A computed `nonisolated` property rather than a `nonisolated static let`:
+    // the latter's availability on a global-actor-isolated type is version
+    // dependent, and there is no Swift toolchain in the environment this was
+    // written in to settle it. A computed one is unambiguous and the literal
+    // is free.
+    nonisolated static var freeScanLadderDays: Int { 7 }
 
-    private static func freeScanLadderID(forDay day: Date) -> String {
-        "freeScan.daily.\(dayKey(day))"
+    /// `freeScan.daily.yyyyMMdd`, the same shape `dayKey` produces.
+    ///
+    /// `nonisolated`, like `nextFreeScanDate` and `freeScanBody` below: this is
+    /// calendar arithmetic, it touches no actor state, and `cancel(_:)` needs
+    /// it from a synchronous context — as do the tests.
+    ///
+    /// Built from `dateComponents` rather than through the shared `dayKey`,
+    /// which reads a `static let DateFormatter`. A `DateFormatter` is not
+    /// `Sendable`, so reaching it from a nonisolated context is exactly the
+    /// shared-mutable-state hazard the isolation is there to flag. The two
+    /// produce identical strings — both use `Calendar.current` — and this one
+    /// needs nothing shared.
+    nonisolated private static func freeScanLadderID(
+        forDay day: Date, calendar: Calendar = .current
+    ) -> String {
+        let parts = calendar.dateComponents([.year, .month, .day], from: day)
+        return String(format: "freeScan.daily.%04d%02d%02d",
+                      parts.year ?? 0, parts.month ?? 0, parts.day ?? 0)
     }
 
     /// Every identifier the ladder can be occupying, including the legacy one.
@@ -113,11 +135,12 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
     /// it is called from `setEnabled`, which SwiftUI calls from a toggle. The
     /// range runs a day wider than the ladder at both ends so a device whose
     /// clock or timezone moved cannot orphan a request.
-    static func freeScanIDs(around now: Date, calendar: Calendar = .current) -> [String] {
+    nonisolated static func freeScanIDs(around now: Date,
+                                        calendar: Calendar = .current) -> [String] {
         var ids = [freeScanID]
         for offset in -1...(freeScanLadderDays + 1) {
             guard let day = calendar.date(byAdding: .day, value: offset, to: now) else { continue }
-            ids.append(freeScanLadderID(forDay: day))
+            ids.append(freeScanLadderID(forDay: day, calendar: calendar))
         }
         return ids
     }

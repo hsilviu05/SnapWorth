@@ -5,6 +5,14 @@ Not a parser. It looks for a short list of mistakes that are silent here and
 only surface as a red CI run five minutes later — the ones that come from
 writing Swift with another language's reflexes.
 
+**What it cannot catch**, stated plainly so it is not mistaken for a compiler:
+anything that needs type or isolation information. Actor isolation is the
+obvious one — calling a `@MainActor` member from a synchronous nonisolated
+test is a hard error and looks perfectly ordinary to a text scanner; that
+happened on the commit right after this file was added. So is availability,
+overload resolution, and whether a `nonisolated static let` is permitted on a
+global-actor-isolated type. For those, CI is still the compiler.
+
 Usage: python3 tools/swift_sanity.py [paths...]     (default: ios/)
 """
 from __future__ import annotations
