@@ -43,6 +43,13 @@ jobs:
       - name: Homepage figures match the guide pages
         run: python3 website/seo/check_homepage_ranges.py
 
+      # A FAQPage entry whose answer is not on the page is markup asserting
+      # something the page does not say. The schema and the visible accordion
+      # were built from two different lists, so the synthesised first pair was
+      # declared on all sixteen pages with its answer only inside the ld+json.
+      - name: Every declared FAQ answer is on the page
+        run: python3 website/seo/check_faq_visible.py
+
       # `website/worth` only, deliberately. sitemap.xml stamps each `lastmod`
       # from the served file's mtime — which is the right signal, and which git
       # does not preserve: every file's mtime in a fresh checkout is the

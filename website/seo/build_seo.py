@@ -176,13 +176,14 @@ def obj(it):                                                                  # 
 def question(it):                                                             # sentence-case H1/FAQ
     b = base(it["name"])
     return f"How much are {b} worth to resell?" if is_plural(it) else f"How much is a {b} worth to resell?"
-def answer(it):
-    b = base(it["name"])
-    verb = "typically resell" if is_plural(it) else "typically resells"
-    subj = b if is_plural(it) else f"A {b}"
-    lo, hi = condition_bounds(it)
-    return (f"{subj} {verb} for ${lo}–${hi} in the US secondhand market, "
-            "depending on condition, style, and demand.")
+# `answer(it)` used to live here, building the one-sentence range prose that
+# the FAQPage schema's synthesised first entry asserted. With that entry gone
+# it had no caller, and nothing to be given: the same fact already reaches the
+# reader three times, better written each time — the `<meta name="description">`
+# ("… resale value is typically $40–$120 depending on condition"), the intro
+# line under the h1, and the by-condition table. Kept as a note rather than as
+# dead code, since an unused generator function is the kind of thing that gets
+# wired back into a template by someone assuming it was meant to be there.
 
 # ── Shared chrome ────────────────────────────────────────────────────────────
 STYLE = """
@@ -317,8 +318,26 @@ def page_html(item, related):
     rows = "".join(f"<tr><td>{e(c)}</td><td class='val'>{e(v)}</td></tr>" for c, v in item["conditions"])
     factors = "".join(f"<li>{e(f)}</li>" for f in item["factors"])
     plats = "".join(f"<li>{e(p)}</li>" for p in item["platforms"])
+    # One list, used by both the visible accordion and the FAQPage schema.
+    #
+    # The schema was built as `[(question(item), answer(item))] + item["faqs"]`
+    # while the accordion iterated `item["faqs"]` alone, so the synthesised
+    # pair was declared as an on-page FAQ with its answer nowhere in the
+    # rendered body — the string occurred exactly once per page, inside the
+    # ld+json block. Google's requirement for FAQPage is that the full question
+    # and answer be visible on the source page, so that entry was markup
+    # asserting something the page did not say, on all sixteen pages.
+    #
+    # Dropped from the schema rather than added to the page. Rendering it was
+    # tried first and the output settled it: `question(item)` is the *same
+    # string* as the `<h1>`, so every page gained an accordion row repeating
+    # its own title, and the range it answers with is already on the page twice
+    # — in the intro line and in the by-condition table. FAQPage also earns no
+    # rich result for a site like this (see the note below), so there is
+    # nothing to weigh against the noise.
+    all_faqs = list(item["faqs"])
     faqs_html = "".join(
-        f"<details><summary>{e(q)}</summary><p>{e(a)}</p></details>" for q, a in item["faqs"])
+        f"<details><summary>{e(q)}</summary><p>{e(a)}</p></details>" for q, a in all_faqs)
     related_html = "".join(
         f'<a href="/worth/{r["slug"]}">{e(r["name"])} '
         f'<span>${condition_bounds(r)[0]}–${condition_bounds(r)[1]}</span></a>'
@@ -340,7 +359,7 @@ def page_html(item, related):
                 "mainEntity": [
                     {"@type": "Question", "name": q,
                      "acceptedAnswer": {"@type": "Answer", "text": a}}
-                    for q, a in ([(question(item), answer(item))] + item["faqs"])
+                    for q, a in all_faqs
                 ],
             },
             {

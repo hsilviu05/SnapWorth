@@ -1303,7 +1303,7 @@ a:focus-visible, button:focus-visible, summary:focus-visible, label:focus-within
 .tf-foot { margin-top: 28px; display: flex; gap: 20px; align-items: stretch; flex-wrap: wrap; }
 .tf-foot-dark { flex: 1; min-width: 420px; background: var(--band); border-radius: 24px;
   padding: 28px 32px; display: flex; align-items: center; justify-content: space-between; gap: 28px; flex-wrap: wrap; }
-.tf-foot-dark h4 { font-size: 16px; font-weight: 600; color: #FAF7F4; margin: 0 0 5px; }
+.tf-foot-dark h3 { font-size: 16px; font-weight: 600; color: #FAF7F4; margin: 0 0 5px; }
 .tf-foot-dark p { font-size: 14px; line-height: 1.6; color: rgba(250,247,244,.55); max-width: 420px; margin: 0; }
 .tf-foot-cta { display: inline-flex; align-items: center; background: var(--terra-fill); color: #fff;
   font-size: 15px; font-weight: 600; padding: 14px 24px; border-radius: 999px; white-space: nowrap; }
@@ -1959,7 +1959,10 @@ details[open] .faq-x::after { transform: rotate(90deg); }
       <div class="tf-foot">
         <div class="tf-foot-dark">
           <div>
-            <h4>Scanning and the resale estimate are free.</h4>
+            <!-- h3, not h4: the nearest heading above this is the section's
+                 `.tf-h2`, so an h4 skips a level and leaves a gap in the
+                 document outline a screen reader reads out. -->
+            <h3>Scanning and the resale estimate are free.</h3>
             <p>The Thrift Flip profit verdict is part of the paid subscription &mdash; one free scan a day either way.</p>
           </div>
           <a href="#pricing" class="tf-foot-cta">See pricing</a>
