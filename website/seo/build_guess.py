@@ -145,29 +145,44 @@ PAGE = """<!doctype html><html lang="en"><head>
 .g-foot{{margin-top:26px;font-size:12.5px;line-height:1.6;color:var(--warm-gray);
   text-align:center;}}
 .g-foot a{{color:var(--terra-text);}}
+/* Visible to a screen reader and to nobody else. Not `display:none` and not
+   `visibility:hidden` — neither is announced. */
+.g-sr{{position:absolute;width:1px;height:1px;margin:-1px;padding:0;
+  overflow:hidden;clip:rect(0 0 0 0);clip-path:inset(50%);
+  white-space:nowrap;border:0;}}
 @media (prefers-reduced-motion:reduce){{
   .g-fill{{transition:none;}}
 }}
 </style>
 </head><body>
 <div class="g-wrap">
-  <div class="g-head">
+  <header class="g-head">
     <h1>How good is your thrift eye?</h1>
     <p>Ten secondhand items. Guess what each one actually resells for.
        Most people are confidently wrong — and wrong in the same direction.</p>
-  </div>
+  </header>
 
-  <div class="g-bar">
-    <div class="g-track"><div class="g-fill" id="fill"></div></div>
-    <div class="g-count" id="count">1 / 10</div>
-  </div>
+  <main>
+    <div class="g-bar">
+      <div class="g-track"><div class="g-fill" id="fill"></div></div>
+      <div class="g-count" id="count">1 / 10</div>
+    </div>
 
-  <div class="g-card" id="card"></div>
+    <div class="g-card" id="card"></div>
 
-  <p class="g-foot">
-    Ranges are typical US secondhand prices for guidance, not sold-listing data.
-    <a href="/worth">See where they come from</a>.
-  </p>
+    <!-- Outside #card deliberately. The script replaces the card's innerHTML
+         on every round, and a live region created in the same paint as the
+         text it should announce is unreliable: it has to already be in the
+         document when the text arrives. -->
+    <div id="g-say" class="g-sr" role="status" aria-live="polite"></div>
+  </main>
+
+  <footer>
+    <p class="g-foot">
+      Ranges are typical US secondhand prices for guidance, not sold-listing data.
+      <a href="/worth">See where they come from</a>.
+    </p>
+  </footer>
 </div>
 
 <script id="rounds" type="application/json">{data}</script>
@@ -217,6 +232,19 @@ PAGE = """<!doctype html><html lang="en"><head>
     return Math.max(0, Math.round(PER * (1 - off))); // isn't easier than a $300 one
   }}
 
+  /* Announce, and move focus.
+   *
+   * `card.innerHTML = ...` destroys the element the user is on — the very
+   * button they just pressed — so focus fell back to the document body ten
+   * times a game, the result was never spoken, and a keyboard user had to tab
+   * from the top of the page to reach "Next item". */
+  function say(message) {{
+    var region = document.getElementById('g-say');
+    if (!region) return;
+    region.textContent = '';   // so an identical string is announced again
+    window.setTimeout(function () {{ region.textContent = message; }}, 50);
+  }}
+
   function ask() {{
     var r = deck[i];
     count.textContent = (i + 1) + ' / ' + ROUNDS;
@@ -261,10 +289,17 @@ PAGE = """<!doctype html><html lang="en"><head>
       '</div>' +
       '<button class="g-btn" id="next">' +
         (i + 1 >= ROUNDS ? 'See how you did' : 'Next item') + '</button>';
-    document.getElementById('next').addEventListener('click', function () {{
+    var next = document.getElementById('next');
+    next.addEventListener('click', function () {{
       i++;
       if (i >= ROUNDS) finish(); else ask();
     }});
+    say((inside ? 'Inside the range.'
+                : guess > r.high ? 'Too high by ' + money(guess - r.high) + '.'
+                                 : 'Too low by ' + money(r.low - guess) + '.') +
+        ' Typically ' + money(r.low) + ' to ' + money(r.high) +
+        '. You said ' + money(guess) + '. Plus ' + got + ' points.');
+    next.focus();
   }}
 
   function finish() {{
@@ -300,6 +335,9 @@ PAGE = """<!doctype html><html lang="en"><head>
         '<a href="{app_store}">Get it on the App Store</a>' +
       '</div>';
     document.getElementById('again').addEventListener('click', start);
+    say('Game over. You scored ' + score + ' out of ' + max + ', with ' +
+        hits + ' of ' + ROUNDS + ' inside the range. ' + band + ' ' + lean);
+    document.getElementById('share').focus();
     document.getElementById('share').addEventListener('click', function () {{
       if (navigator.share) {{
         navigator.share({{ text: share, url: url }}).catch(function () {{}});
@@ -312,7 +350,29 @@ PAGE = """<!doctype html><html lang="en"><head>
   }}
 
   function start() {{
-    deck = shuffle(ALL).slice(0, ROUNDS);
+    /* One row per *item*, not ten rows out of forty-eight.
+     *
+     * ALL is 16 items x 3 condition tiers, so slicing a shuffle of the rows
+     * drew with replacement at the item level: the chance of ten distinct
+     * items was C(16,10)*3^10 / C(48,10) = 7.2%, so 92.8% of games asked
+     * about the same jacket twice — while the page promises "Ten secondhand
+     * items". */
+    var byItem = {{}};
+    ALL.forEach(function (row) {{
+      (byItem[row.item] = byItem[row.item] || []).push(row);
+    }});
+    deck = shuffle(Object.keys(byItem)).slice(0, ROUNDS).map(function (name) {{
+      return shuffle(byItem[name])[0];   // one tier, chosen at random
+    }});
+    /* If the dataset ever carries fewer than ROUNDS distinct items, top up
+     * from the spare tiers rather than shortening the game: every count on
+     * screen is ROUNDS. */
+    if (deck.length < ROUNDS) {{
+      var spare = shuffle(ALL.filter(function (row) {{
+        return deck.indexOf(row) < 0;
+      }}));
+      deck = deck.concat(spare.slice(0, ROUNDS - deck.length));
+    }}
     i = 0; score = 0; hits = 0; high = 0; low = 0;
     ask();
   }}

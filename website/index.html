@@ -89,6 +89,12 @@
       --sage:        #7A9E7E;
       --sage-text:   #4F7355;
       --sage-dim:    rgba(122,158,126,0.12);
+      /* Sage ink for --band-2, which is dark in *both* themes — so this must
+         not follow the theme either, for the same reason --on-band does not.
+         The "Save 33%" pill used --sage-text (tuned for a light ground) on a
+         --sage-dim tint over --band-2: 2.45:1 in light, on the one number
+         that argues for the yearly plan. 7.18:1 light, 6.07:1 dark. */
+      --sage-on-band: #A3C9A8;
 
       --border:      #E8DDD7;
       --nav-glass:   rgba(250,247,244,0.85);
@@ -1199,7 +1205,9 @@ a:focus-visible, button:focus-visible, summary:focus-visible, label:focus-within
   border-bottom: 1px solid rgba(250,247,244,.3); padding-bottom: 3px; }
 
 .hd-meta { display: flex; align-items: center; gap: 26px; flex-wrap: wrap; }
-.hd-note { font-size: 13.5px; line-height: 1.6; color: rgba(250,247,244,.45); max-width: 290px; }
+/* .5, not .45 — cream at 45% over --band composites to 4.29:1 in light and
+   4.30:1 in dark, both just under AA for 13px text. .5 is 5.04:1 in both. */
+.hd-note { font-size: 13.5px; line-height: 1.6; color: rgba(250,247,244,.5); max-width: 290px; }
 
 .hd-steps { border-top: 1px solid rgba(250,247,244,.14); padding-top: 28px;
   display: grid; grid-template-columns: repeat(3, 1fr); gap: 34px; max-width: 640px; }
@@ -1214,7 +1222,7 @@ a:focus-visible, button:focus-visible, summary:focus-visible, label:focus-within
 
 .hd-strip { border-top: 1px solid rgba(255,255,255,.09); padding: 28px 0 44px;
   display: flex; align-items: center; gap: 40px; flex-wrap: wrap; }
-.hd-strip-label { font-size: 13px; color: rgba(250,247,244,.45); }
+.hd-strip-label { font-size: 13px; color: rgba(250,247,244,.5); }
 .hd-strip-list { display: flex; gap: 36px; align-items: center; flex-wrap: wrap; }
 .hd-strip-list span { font-size: 16px; font-weight: 600;
   color: rgba(250,247,244,.68); letter-spacing: -.2px; }
@@ -1526,7 +1534,7 @@ details[open] .faq-x::after { transform: rotate(90deg); }
 
 /* ── Pricing: yearly savings pill ───────────────────────────────────────── */
 .plan-save { display: inline-block; vertical-align: 2px; margin-left: 8px;
-  font-size: 11px; font-weight: 700; letter-spacing: .4px; color: var(--sage-text);
+  font-size: 11px; font-weight: 700; letter-spacing: .4px; color: var(--sage-on-band);
   background: var(--sage-dim); border: 1px solid rgba(122,158,126,.38);
   border-radius: 999px; padding: 3px 10px; }
 

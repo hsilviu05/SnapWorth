@@ -49,12 +49,13 @@ jobs:
       # checkout time, so the sitemap would differ on every run and this step
       # would be red every day for no reason. The pages themselves are
       # deterministic from the dataset, which is what matters here.
-      - name: The committed guide pages are freshly generated
+      - name: The committed generated pages are freshly generated
         run: |
           python3 website/seo/build_seo.py
-          if ! git diff --quiet -- website/worth; then
-            echo "::error::the guide pages are stale — run website/seo/build_seo.py and commit the result"
-            git --no-pager diff --stat -- website/worth
+          python3 website/seo/build_guess.py
+          if ! git diff --quiet -- website/worth website/guess.html; then
+            echo "::error::generated pages are stale — run website/seo/build_seo.py and website/seo/build_guess.py, then commit the result"
+            git --no-pager diff --stat -- website/worth website/guess.html
             exit 1
           fi
-          echo "the committed guide pages match what the generator produces"
+          echo "the committed generated pages match what the generators produce"
