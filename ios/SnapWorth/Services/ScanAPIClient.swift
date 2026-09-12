@@ -408,7 +408,7 @@ actor ScanAPIClient {
         let (data, http) = try await request.sendRetryingAuth(on: session)
 
         guard (200..<300).contains(http.statusCode) else {
-            throw ScanAPIError.serverError(http.statusCode, APIErrorDetail.parse(data))
+            throw ScanAPIError.from(http, data: data)
         }
 
         let decoder = JSONDecoder()
@@ -584,13 +584,48 @@ enum APIErrorDetail {
 
 enum ScanAPIError: LocalizedError {
     case serverError(Int, String)
+    /// A 429, kept apart from `serverError` because it is the one response
+    /// that carries a number in a *header* rather than in `detail`.
+    ///
+    /// The backend computes the real remaining wait on its sliding window and
+    /// sends it as `Retry-After` on every 429 — and the client threw the whole
+    /// response away and showed a fixed "Try again in an hour", which is wrong
+    /// by up to an hour in the user's disfavour. `sendRetryingAuth` has been
+    /// handing the `HTTPURLResponse` to all three call sites all along; the
+    /// value was simply never read, because `serverError(Int, String)` had
+    /// nowhere to put it.
+    case rateLimited(detail: String, retryAfter: TimeInterval?)
     case imageEncodingFailed
+
+    /// `Retry-After` in seconds, or nil when absent or not a plain number.
+    ///
+    /// Only the delta-seconds form is read. RFC 9110 also permits an
+    /// HTTP-date, but this API only ever sends seconds
+    /// (`headers={"Retry-After": str(exc.retry_after)}`), and guessing at a
+    /// date whose clock we do not share would be worse than saying "unknown".
+    static func retryAfter(from response: HTTPURLResponse) -> TimeInterval? {
+        guard let raw = response.value(forHTTPHeaderField: "Retry-After")?
+            .trimmingCharacters(in: .whitespaces),
+              let seconds = Double(raw), seconds.isFinite else { return nil }
+        return seconds
+    }
+
+    /// The error for a non-2xx response, reading whatever that status carries.
+    static func from(_ response: HTTPURLResponse, data: Data) -> ScanAPIError {
+        let detail = APIErrorDetail.parse(data)
+        guard response.statusCode == 429 else {
+            return .serverError(response.statusCode, detail)
+        }
+        return .rateLimited(detail: detail, retryAfter: retryAfter(from: response))
+    }
 
     var errorDescription: String? {
         switch self {
         case .serverError(_, let detail):
             // The status code is diagnostic noise to a user standing in a shop —
             // `detail` already carries a user-safe message from the backend.
+            return detail
+        case .rateLimited(let detail, _):
             return detail
         case .imageEncodingFailed:
             return "That photo couldn't be prepared for analysis. Please try taking it again."
@@ -599,7 +634,10 @@ enum ScanAPIError: LocalizedError {
 
     /// Status code, retained for analytics and paywall routing.
     var statusCode: Int? {
-        if case .serverError(let code, _) = self { return code }
-        return nil
+        switch self {
+        case .serverError(let code, _): return code
+        case .rateLimited:              return 429
+        case .imageEncodingFailed:      return nil
+        }
     }
 }

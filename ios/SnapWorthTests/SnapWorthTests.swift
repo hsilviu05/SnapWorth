@@ -830,6 +830,142 @@ final class USMarketplaceFeeTests: XCTestCase {
     }
 }
 
+/// The runtime override table, which is how fees get corrected between app
+/// releases. It had two money bugs, both silent.
+final class MarketplaceFeeOverrideTests: XCTestCase {
+    private func install(_ json: String) {
+        UserDefaults.standard.set(Data(json.utf8),
+                                  forKey: MarketplaceFees.overrideKey)
+    }
+
+    override func tearDown() {
+        UserDefaults.standard.removeObject(forKey: MarketplaceFees.overrideKey)
+        super.tearDown()
+    }
+
+    func test_anOverrideKeepsTheLowPriceRuleItDidNotMention() {
+        // The bug. `overrideTable` rebuilt each entry with only
+        // (sellingFeePercent:fixedFee:), so `lowPriceFlatFee` fell back to nil
+        // — and `fee(for:)` prefers an override outright. A push correcting
+        // Poshmark's percentage therefore deleted the "$2.95 under $15" rule,
+        // and a $10 sale was charged 20% ($2.00) instead of $2.95. The old wire
+        // shape had no way to express the rule at all, so a push could not have
+        // preserved it even deliberately.
+        install(#"{"poshmark": {"pct": "0.22", "fixed": "0"}}"#)
+        let poshmark = MarketplaceFees.fee(for: .poshmark)!
+        XCTAssertEqual(poshmark.sellingFeePercent, Decimal(string: "0.22")!)
+        XCTAssertEqual(poshmark.lowPriceFlatFee?.below, 15)
+        XCTAssertEqual(poshmark.fees(on: 10), Decimal(string: "2.95")!,
+                       "a cheap sale must still pay the flat charge")
+        XCTAssertEqual(poshmark.fees(on: 20), Decimal(string: "4.40")!,
+                       "and the new percentage applies above the threshold")
+    }
+
+    func test_ratesFromJSONNumbersAreExact() {
+        // `Decimal(pct)` from a Double gave
+        // 0.132500000000000006661338147750939242541790008544921875 — exactly
+        // what the comment on `defaults` says not to do.
+        install(#"{"ebay": {"pct": 0.1325, "fixed": 0.40}}"#)
+        let ebay = MarketplaceFees.fee(for: .ebay)!
+        XCTAssertEqual(ebay.sellingFeePercent, Decimal(string: "0.1325")!)
+        XCTAssertEqual(ebay.fixedFee, Decimal(string: "0.40")!)
+        XCTAssertNotEqual(ebay.sellingFeePercent, Decimal(0.1325),
+                          "Decimal(Double) is the error being avoided")
+        // On a $100 sale the difference is sub-cent, but it compounds through
+        // every margin and ROI figure derived from it.
+        XCTAssertEqual(ebay.fees(on: 100), Decimal(string: "13.65")!)
+    }
+
+    func test_ratesFromJSONStringsAreExact() {
+        install(#"{"ebay": {"pct": "0.1325", "fixed": "0.40"}}"#)
+        XCTAssertEqual(MarketplaceFees.fee(for: .ebay)!.fees(on: 100),
+                       Decimal(string: "13.65")!)
+    }
+
+    func test_aFlatRuleCanBeAddedToAMarketplaceThatHadNone() {
+        install(#"{"mercari": {"flatBelow": "5", "flatFee": "1"}}"#)
+        let mercari = MarketplaceFees.fee(for: .mercari)!
+        XCTAssertEqual(mercari.sellingFeePercent, Decimal(string: "0.10")!,
+                       "an entry naming only the flat rule keeps the default rate")
+        XCTAssertEqual(mercari.fees(on: 4), 1)
+        XCTAssertEqual(mercari.fees(on: 50), 5)
+    }
+
+    func test_aFlatRuleCanBeRemovedOnPurpose() {
+        install(#"{"poshmark": {"flatBelow": 0}}"#)
+        let poshmark = MarketplaceFees.fee(for: .poshmark)!
+        XCTAssertNil(poshmark.lowPriceFlatFee)
+        XCTAssertEqual(poshmark.fees(on: 10), 2, "20% of $10")
+    }
+
+    func test_aFlatFeeAtOrAboveItsThresholdIsRefused() {
+        // Every sale under $15 would net the seller nothing or less. That is a
+        // bad push, not a fee — fall back to the shipped default.
+        install(#"{"poshmark": {"flatBelow": 15, "flatFee": 20}}"#)
+        XCTAssertEqual(MarketplaceFees.fee(for: .poshmark)!.lowPriceFlatFee?.fee,
+                       Decimal(string: "2.95")!)
+    }
+
+    func test_outOfRangeAndMalformedEntriesFallBackToTheDefault() {
+        let ebayDefault = MarketplaceFees.defaults[.ebay]!
+        for bad in [#"{"ebay": {"pct": "1.0", "fixed": "0"}}"#,
+                    #"{"ebay": {"pct": "-0.1", "fixed": "0"}}"#,
+                    #"{"ebay": {"pct": "0.1", "fixed": "-1"}}"#,
+                    #"{"ebay": {"pct": "abc", "fixed": "0"}}"#,
+                    #"{"ebay": {"pct": true, "fixed": "0"}}"#,
+                    #"{"etsy": {"pct": "0.1", "fixed": "0"}}"#,
+                    #"not json at all"#] {
+            install(bad)
+            XCTAssertEqual(MarketplaceFees.fee(for: .ebay), ebayDefault,
+                           "a bad push must never reach the math: \(bad)")
+        }
+    }
+
+    func test_rejectionGranularityIsExplicit() {
+        // Two different granularities, both safe, and chosen rather than
+        // stumbled into:
+        //
+        //   * a value of the wrong *type* fails `JSONDecoder`, so the whole
+        //     push is discarded — you never apply half a fee table;
+        //   * a value of the right type but out of *range* discards only that
+        //     entry, so one bad marketplace does not cost the others.
+        //
+        // Asserted because the difference is invisible in a single-entry test
+        // and would otherwise be a surprise to whoever writes the push.
+        install(#"{"ebay": {"pct": "0.10", "fixed": "0"}, "mercari": {"pct": true}}"#)
+        XCTAssertEqual(MarketplaceFees.fee(for: .ebay), MarketplaceFees.defaults[.ebay],
+                       "a type error anywhere discards the whole push")
+
+        install(#"{"ebay": {"pct": "0.10", "fixed": "0"}, "mercari": {"pct": "5"}}"#)
+        XCTAssertEqual(MarketplaceFees.fee(for: .ebay)!.sellingFeePercent,
+                       Decimal(string: "0.10")!,
+                       "an out-of-range entry elsewhere does not cost this one")
+        XCTAssertEqual(MarketplaceFees.fee(for: .mercari), MarketplaceFees.defaults[.mercari])
+    }
+
+    func test_theWireShapeMatchesTheWebsiteMirror() {
+        // The website carries the same table with `flatBelow`/`flatFee`
+        // (website/index.html, the FEES object). One remote push has to be able
+        // to feed both, so the key names are part of the contract.
+        install(#"""
+        {"poshmark": {"pct": 0.2, "fixed": 0, "flatBelow": 15, "flatFee": 2.95}}
+        """#)
+        let poshmark = MarketplaceFees.fee(for: .poshmark)!
+        XCTAssertEqual(poshmark.sellingFeePercent, Decimal(string: "0.2")!)
+        XCTAssertEqual(poshmark.lowPriceFlatFee?.below, 15)
+        XCTAssertEqual(poshmark.lowPriceFlatFee?.fee, Decimal(string: "2.95")!)
+    }
+
+    func test_noOverrideLeavesTheShippedTableAlone() {
+        UserDefaults.standard.removeObject(forKey: MarketplaceFees.overrideKey)
+        XCTAssertTrue(MarketplaceFees.overrideTable.isEmpty)
+        for marketplace in Marketplace.allCases {
+            XCTAssertEqual(MarketplaceFees.fee(for: marketplace),
+                           MarketplaceFees.defaults[marketplace])
+        }
+    }
+}
+
 final class USMarketplaceWiringTests: XCTestCase {
     func test_apiValuesMatchTheBackendKeys() {
         XCTAssertEqual(Marketplace.poshmark.apiValue, "poshmark")

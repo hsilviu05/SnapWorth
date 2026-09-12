@@ -128,6 +128,102 @@ final class APIErrorDetailTests: XCTestCase {
         XCTAssertTrue(message.contains(" "), "Should be a sentence, not an identifier")
     }
 
+    // ── 429 carries the real wait in a header ────────────────────────────────
+
+    func test_retryAfterIsReadFromTheHeader() {
+        let response = HTTPURLResponse(
+            url: URL(string: "https://api.snapworth.eu/scan")!, statusCode: 429,
+            httpVersion: nil, headerFields: ["Retry-After": "300"])!
+        XCTAssertEqual(ScanAPIError.retryAfter(from: response), 300)
+    }
+
+    func test_retryAfterIsNilWhenAbsentOrNotANumber() {
+        func response(_ headers: [String: String]) -> HTTPURLResponse {
+            HTTPURLResponse(url: URL(string: "https://api.snapworth.eu/scan")!,
+                            statusCode: 429, httpVersion: nil,
+                            headerFields: headers)!
+        }
+        XCTAssertNil(ScanAPIError.retryAfter(from: response([:])))
+        // RFC 9110 also permits an HTTP-date. This API only sends seconds, and
+        // guessing at a date whose clock we do not share is worse than nil.
+        XCTAssertNil(ScanAPIError.retryAfter(
+            from: response(["Retry-After": "Wed, 21 Oct 2026 07:28:00 GMT"])))
+    }
+
+    func test_a429BecomesRateLimitCarryingTheWait() {
+        let response = HTTPURLResponse(
+            url: URL(string: "https://api.snapworth.eu/scan")!, statusCode: 429,
+            httpVersion: nil, headerFields: ["Retry-After": "120"])!
+        let body = Data(#"{"detail": "Rate limit: 20 requests/hour."}"#.utf8)
+        let error = ScanAPIError.from(response, data: body)
+        XCTAssertEqual(error.statusCode, 429)
+        XCTAssertEqual(AppError.from(error), .rateLimit(retryAfter: 120))
+    }
+
+    func test_otherStatusesStillBecomePlainServerErrors() {
+        let response = HTTPURLResponse(
+            url: URL(string: "https://api.snapworth.eu/scan")!, statusCode: 402,
+            httpVersion: nil, headerFields: [:])!
+        let body = Data(#"{"detail": "You've used all 3 free scans today."}"#.utf8)
+        let mapped = AppError.from(ScanAPIError.from(response, data: body))
+        XCTAssertTrue(mapped.isPaywall)
+    }
+
+    func test_rateLimitMessageUsesTheServerWait() {
+        // The fixed "Try again in an hour" was wrong by up to an hour in the
+        // user's disfavour: the window slides, so someone who tripped it 55
+        // minutes ago is minutes away from scanning again.
+        XCTAssertEqual(AppError.rateLimitMessage(retryAfter: 300),
+                       "You've hit the scan limit. Try again in 5 minutes.")
+        XCTAssertEqual(AppError.rateLimitMessage(retryAfter: 45),
+                       "You've hit the scan limit. Try again in 45 seconds.")
+    }
+
+    func test_rateLimitMessageBoundaries() {
+        // Rounding is always up, so the copy never invites a retry that fails.
+        let cases: [(TimeInterval?, String)] = [
+            (nil,   "Try again in an hour."),        // header absent: say the window
+            (0,     "Try again in a few seconds."),
+            (9,     "Try again in a few seconds."),
+            (10,    "Try again in 10 seconds."),
+            (59,    "Try again in 59 seconds."),
+            (60,    "Try again in a minute."),
+            (61,    "Try again in 2 minutes."),      // up, not down
+            (1800,  "Try again in 30 minutes."),
+            (3540,  "Try again in 59 minutes."),
+            (3541,  "Try again in an hour."),        // never "60 minutes"
+            (7200,  "Try again in an hour."),
+        ]
+        for (seconds, tail) in cases {
+            XCTAssertEqual(AppError.rateLimitMessage(retryAfter: seconds),
+                           "You've hit the scan limit. \(tail)",
+                           "wrong copy for retryAfter=\(String(describing: seconds))")
+        }
+    }
+
+    func test_rateLimitStillRevealsNothingAboutTheBackend() {
+        // The property the original copy was protecting; kept while the wait
+        // becomes real. The backend's own detail ("Rate limit: 20
+        // requests/hour.") is deliberately *not* surfaced.
+        for seconds: TimeInterval? in [nil, 5, 45, 300, 3600] {
+            let message = AppError.rateLimitMessage(retryAfter: seconds)
+            XCTAssertFalse(message.contains("GEMINI"))
+            XCTAssertFalse(message.contains("API"))
+            XCTAssertFalse(message.contains("requests/hour"))
+        }
+    }
+
+    func test_twoDifferentWaitsAreNotEqual() {
+        // Otherwise a SwiftUI alert bound to the error would not re-present
+        // when the wait changed — the same bug `.sessionExpired` had.
+        XCTAssertNotEqual(AppError.rateLimit(retryAfter: 60),
+                          AppError.rateLimit(retryAfter: 600))
+        XCTAssertEqual(AppError.rateLimit(retryAfter: 60),
+                       AppError.rateLimit(retryAfter: 60))
+        XCTAssertEqual(AppError.rateLimit(retryAfter: nil),
+                       AppError.rateLimit(retryAfter: nil))
+    }
+
     func test_serverErrorDescription_omitsStatusCodeNoise() {
         let error = ScanAPIError.serverError(502, "Our AI is temporarily unavailable.")
         XCTAssertEqual(error.errorDescription, "Our AI is temporarily unavailable.")
@@ -179,7 +275,7 @@ final class PaymentRequiredMappingTests: XCTestCase {
     func test_realFailures_areNotRoutedToThePaywall() {
         // A paywall shown for a network blip would be worse than the dead end
         // it replaces: it asks for money over a problem money cannot fix.
-        for error: AppError in [.network, .timeout, .rateLimit, .serverUnavailable,
+        for error: AppError in [.network, .timeout, .rateLimit(retryAfter: nil), .serverUnavailable,
                                 .sessionExpired, .imageEncodingFailed, .persistence,
                                 .aiFailed("couldn't price it"), .unusablePhoto("too blurry"),
                                 .unknown("?")] {
@@ -1842,7 +1938,7 @@ final class SessionExpiredCopyTests: XCTestCase {
         // did not equal itself, while still *printing* identically. Enumerated
         // here so the next case added cannot repeat it.
         let cases: [AppError] = [
-            .network, .timeout, .rateLimit, .serverUnavailable, .sessionExpired,
+            .network, .timeout, .rateLimit(retryAfter: nil), .serverUnavailable, .sessionExpired,
             .imageEncodingFailed, .purchaseCancelled, .persistence,
         ]
         for value in cases {

@@ -192,7 +192,7 @@ actor ListingAPIClient {
 
         let (data, http) = try await request.sendRetryingAuth(on: session)
         guard (200..<300).contains(http.statusCode) else {
-            throw ScanAPIError.serverError(http.statusCode, APIErrorDetail.parse(data))
+            throw ScanAPIError.from(http, data: data)
         }
 
         let decoded = try JSONDecoder().decode(ListingAPIResponse.self, from: data)
@@ -362,7 +362,7 @@ actor TrendsAPIClient {
 
         let (data, http) = try await request.sendRetryingAuth(on: session)
         guard (200..<300).contains(http.statusCode) else {
-            throw ScanAPIError.serverError(http.statusCode, APIErrorDetail.parse(data))
+            throw ScanAPIError.from(http, data: data)
         }
         let trends = try JSONDecoder().decode(Trends.self, from: data)
         cached = (trends, Date())
