@@ -582,14 +582,46 @@ class TelegramNotifier:
         except Exception as exc:
             log.debug("telegram answerCallbackQuery failed: %s", type(exc).__name__)
 
+    async def clear_default_commands(self) -> bool:
+        """Withdraw any command menu published at the default scope.
+
+        A chat-scoped list does not replace a default-scoped one, so publishing
+        the operator menu to the right chat is not enough on its own — what is
+        already live has to be taken down.
+        """
+        try:
+            client = await self._http()
+            resp = await client.post(
+                f"{TELEGRAM_API}/bot{self._token}/deleteMyCommands",
+                json={"scope": {"type": "default"}})
+            return resp.status_code == 200
+        except Exception as exc:
+            log.warning("telegram deleteMyCommands failed: %s",
+                        type(exc).__name__)
+            return False
+
     async def set_commands(self, commands=COMMANDS) -> bool:
-        """Publish the command menu Telegram shows behind the "/" button."""
+        """Publish the command menu Telegram shows behind the "/" button.
+
+        Scoped to the operator's chat. Omitting `scope` defaults it to
+        `BotCommandScopeDefault`, which covers every private chat, group and
+        supergroup — so all 23 entries were what any Telegram user saw behind
+        the Menu button on opening the bot, descriptions included: "lever —
+        Arm or disarm the free-scan allowance without a redeploy", "subs —
+        Every subscription seen: plan, how obtained, renews", "costs — Gemini
+        spend: today, 7 and 30 days, per scan, vs MRR".
+
+        No access leaked — the chat gate drops every update from another
+        chat — but the shape of the operation did, along with an invitation to
+        try. A published menu is documentation.
+        """
         try:
             client = await self._http()
             resp = await client.post(
                 f"{TELEGRAM_API}/bot{self._token}/setMyCommands",
                 json={"commands": [{"command": c, "description": d}
-                                   for c, d in commands]})
+                                   for c, d in commands],
+                      "scope": {"type": "chat", "chat_id": self._chat_id}})
             return resp.status_code == 200
         except Exception as exc:
             log.warning("telegram setMyCommands failed: %s", type(exc).__name__)
@@ -683,6 +715,10 @@ def configure(cache, notifier: TelegramNotifier | None = None,
     _start_digest()
     _start_command_loop()
     _start_watch()
+    # Take the default-scope menu down before publishing the chat-scoped one:
+    # a chat scope does not replace a default scope, so without this the list
+    # already live stays live for everyone.
+    _spawn(_notifier.clear_default_commands())
     _spawn(_notifier.set_commands())
     log.info("telegram alerts enabled", extra={"digest_utc_hour": _digest_hour()})
 
@@ -1000,7 +1036,19 @@ async def entitlement_recorded(subject: str, ent) -> None:
             is_new = (purchased is None
                       or time.time() - purchased < NEW_SUBSCRIPTION_WINDOW_SECONDS)
             if is_new:
-                await _cache.incr(_stat_key(_day(), "new_subs"), STATS_TTL)
+                # A second key, and this one is never handed back.
+                #
+                # The guard above gates both the alert and this counter, and
+                # the alert's failure path releases it — so a Telegram outage
+                # left the increment on the counter and let the next
+                # `/auth/entitlement` for the same transaction add another.
+                # That path is not rare: the client calls it at cold launch,
+                # purchase, restore and every `Transaction.updates`, so
+                # re-entry inside the 24-hour `is_new` window is the normal
+                # case. One sale could be counted several times, in the figure
+                # the operator reads as "how many people paid me today".
+                if await _cache.add(f"opsseen:subcount:{otid}", "1", SUB_SEEN_TTL):
+                    await _cache.incr(_stat_key(_day(), "new_subs"), STATS_TTL)
                 headline = "🎉 <b>New Pro subscription</b>"
             else:
                 headline = ("👋 <b>Existing Pro subscriber checked in</b> "
@@ -2265,9 +2313,32 @@ async def _index_subscription(subject: str | None, ent) -> dict:
     })
     if subject is not None:
         entry["who"] = auditlog.pseudonymise(subject)[:6]
+    # The revocation is a tombstone on a *term*, not on the row.
+    #
+    # This only ever set `revoked` and never cleared it, and the row is keyed
+    # on `originalTransactionId` — which Apple keeps stable across renewals
+    # *and* re-subscriptions. So one refund tombstoned the row permanently: a
+    # customer who refunded in March and paid again in June stayed out of the
+    # active count, out of the paid count and out of MRR for the 400-day life
+    # of the index, while `/subs` showed their live subscription as `refund`.
+    #
+    # `entitlements._is_revoked` had to solve exactly this on the access path
+    # and stores the revoked term's own expiry so a later, longer-dated term
+    # survives the tombstone. The operator's index gets the same rule, rather
+    # than clearing on any non-revoked transaction — Apple can redeliver a
+    # pre-refund renewal after the REFUND, and that must not resurrect the row.
     revoked = getattr(ent, "revoked_at", None)
     if revoked is not None:
         entry["revoked"] = revoked
+        entry["revoked_expires"] = ent.expires_at
+    else:
+        tombstoned = entry.get("revoked_expires")
+        if (entry.get("revoked") is not None
+                and ent.expires_at is not None
+                and tombstoned is not None
+                and float(ent.expires_at) > float(tombstoned)):
+            entry.pop("revoked", None)
+            entry.pop("revoked_expires", None)
     doc[otid] = entry
     await _write_index(SUBS_INDEX_KEY, doc, SUBS_INDEX_CAP, "seen")
     return before

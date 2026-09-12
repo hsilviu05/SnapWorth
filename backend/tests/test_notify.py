@@ -560,6 +560,8 @@ class TestPolling:
             self.markups: list[dict | None] = []
             self.polls: list[dict] = []
             self.command_menus: list[list] = []
+            self.command_scopes: list[dict | None] = []
+            self.deleted_scopes: list[dict | None] = []
             self.answered: list[str] = []
             self.deleted: list[int] = []
             self.forwarded: list[tuple[str, list[int]]] = []
@@ -602,7 +604,13 @@ class TestPolling:
                 return httpx.Response(200, json={"ok": True, "result": [
                     {"message_id": 5000 + i} for i in body["message_ids"]]})
             if path.endswith("/setMyCommands"):
-                self.command_menus.append(json.loads(request.content)["commands"])
+                payload = json.loads(request.content)
+                self.command_menus.append(payload["commands"])
+                self.command_scopes.append(payload.get("scope"))
+                return httpx.Response(200, json={"ok": True})
+            if path.endswith("/deleteMyCommands"):
+                self.deleted_scopes.append(
+                    json.loads(request.content).get("scope"))
                 return httpx.Response(200, json={"ok": True})
             if path.endswith("/answerCallbackQuery"):
                 self.answered.append(json.loads(request.content)["callback_query_id"])
@@ -654,6 +662,17 @@ class TestPolling:
                 "post", "calendar",
                 "caption", "hooks", "reply", "price", "trend", "user", "checkup", "clear",
                 "history", "feed", "digest", "week", "help"]
+
+            # Scoped to the operator's chat. Omitting `scope` defaults it to
+            # `BotCommandScopeDefault`, which is every private chat, group and
+            # supergroup — so all 23 entries were what any Telegram user saw
+            # behind the Menu button on opening the bot, descriptions and all.
+            # No access leaked, but the shape of the operation did.
+            assert bot.command_scopes == [{"type": "chat", "chat_id": FAKE_CHAT}]
+
+            # And a chat scope does not replace a default scope, so whatever is
+            # already published has to be taken down.
+            assert {"type": "default"} in bot.deleted_scopes, bot.deleted_scopes
         finally:
             await notify.aclose()
 
@@ -3031,3 +3050,126 @@ class TestLeverFloorAndSource:
         text = await notify.handle_command("/experiment")
         assert "FREE_SCANS_FIRST_DAY=2" in text, text
         assert "lever not armed" not in text, text
+
+
+# ── The sale counter, and the tombstone on a subscription row ───────────────
+
+def subs_rows(text: str) -> list[str]:
+    """The table rows of a `/subs` reply, without the prose around them.
+
+    Asserting on the whole message is how a test passes for the wrong reason:
+    the footer says "Apple reports renewals, expiries and refunds directly",
+    so `"refund" in text` is true of every reply ever sent.
+    """
+    stripped = text.replace("<pre>", "").replace("</pre>", "")
+    return [ln for ln in stripped.splitlines()
+            if ln.startswith(("monthly", "yearly"))]
+
+
+class TestSaleCountingAndResubscribe:
+
+    @pytest.mark.asyncio
+    async def test_a_failed_alert_does_not_let_one_sale_be_counted_twice(
+            self, cache):
+        """The once-per-subscription guard gated both the alert and the
+        counter, and the alert's failure path released it. So a Telegram outage
+        left the increment on the counter and let the next
+        `/auth/entitlement` for the same transaction add another — and the
+        client calls that at cold launch, purchase, restore and every
+        `Transaction.updates`, so re-entry inside the 24-hour window is the
+        normal case, not an edge one.
+        """
+        failing = Recorder(status_code=500)
+        notifier = notify.TelegramNotifier(
+            FAKE_TOKEN, FAKE_CHAT,
+            client=httpx.AsyncClient(
+                transport=httpx.MockTransport(failing.handler)))
+        notify.configure(cache, notifier=notifier)
+        try:
+            ent = sub("otid-retry", first_days_ago=0)
+            for _ in range(3):
+                await notify.entitlement_recorded(SUBJECT, ent)
+            counted = await cache.get(notify._stat_key(notify._day(), "new_subs"))
+            assert counted == "1", (
+                f"one sale counted {counted} times because the guard was "
+                f"handed back after the increment")
+        finally:
+            await notify.aclose()
+
+    @pytest.mark.asyncio
+    async def test_the_alert_is_still_retried_after_a_failure(self, cache):
+        """The alert guard must still be released — that is the behaviour the
+        counter fix has to leave intact."""
+        failing = Recorder(status_code=500)
+        notifier = notify.TelegramNotifier(
+            FAKE_TOKEN, FAKE_CHAT,
+            client=httpx.AsyncClient(
+                transport=httpx.MockTransport(failing.handler)))
+        notify.configure(cache, notifier=notifier)
+        try:
+            ent = sub("otid-alert", first_days_ago=0)
+            await notify.entitlement_recorded(SUBJECT, ent)
+            await notify.entitlement_recorded(SUBJECT, ent)
+            sends = [r for r in failing.requests
+                     if "New Pro subscription" in str(r["body"].get("text", ""))]
+            assert len(sends) == 2, (
+                "the alert was not retried, so the one push saying someone "
+                "paid you is lost on a transient failure")
+        finally:
+            await notify.aclose()
+
+    @pytest.mark.asyncio
+    async def test_a_re_subscriber_is_not_churned_forever(self, enabled_notify):
+        """`revoked` was only ever written, never cleared, and the row is keyed
+        on `originalTransactionId` — which Apple keeps stable across renewals
+        *and* re-subscriptions. One refund therefore tombstoned the row for the
+        400-day life of the index: the customer stayed out of the active count,
+        out of the paid count and out of MRR, and `/subs` showed their live
+        subscription as `refund`.
+        """
+        now = int(time.time())
+        first = Entitlement("pro", "com.snapworth.yearly", now + 30 * 86_400,
+                            "otid-again", "Production",
+                            original_purchase_at=now - 86_400,
+                            price=39.99, currency="USD")
+        await notify.entitlement_recorded("a" * 64, first)
+
+        refunded = Entitlement("pro", "com.snapworth.yearly", now + 30 * 86_400,
+                               "otid-again", "Production",
+                               original_purchase_at=now - 86_400,
+                               price=39.99, currency="USD", revoked_at=now)
+        await notify.entitlement_recorded("a" * 64, refunded)
+        rows = subs_rows(await notify.handle_command("/subs"))
+        assert rows and "refund" in rows[0], rows
+
+        # Same original transaction id, a later term, no revocation.
+        again = Entitlement("pro", "com.snapworth.yearly", now + 365 * 86_400,
+                            "otid-again", "Production",
+                            original_purchase_at=now - 86_400,
+                            price=39.99, currency="USD")
+        await notify.entitlement_recorded("a" * 64, again)
+
+        text = await notify.handle_command("/subs")
+        assert "1 active" in text, text
+        assert "1 paid" in text, text
+        rows = subs_rows(text)
+        assert rows and "refund" not in rows[0], rows
+
+    @pytest.mark.asyncio
+    async def test_a_redelivered_pre_refund_renewal_does_not_resurrect_the_row(
+            self, enabled_notify):
+        """Why the expiry is compared rather than clearing on any non-revoked
+        transaction: Apple can redeliver a renewal from before the refund."""
+        now = int(time.time())
+        common = dict(original_purchase_at=now - 86_400, price=39.99,
+                      currency="USD")
+        await notify.entitlement_recorded("b" * 64, Entitlement(
+            "pro", "com.snapworth.yearly", now + 30 * 86_400, "otid-late",
+            "Production", revoked_at=now, **common))
+        # Same term, arriving after the REFUND.
+        await notify.entitlement_recorded("b" * 64, Entitlement(
+            "pro", "com.snapworth.yearly", now + 30 * 86_400, "otid-late",
+            "Production", **common))
+
+        rows = subs_rows(await notify.handle_command("/subs"))
+        assert rows and "refund" in rows[0], rows

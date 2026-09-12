@@ -381,6 +381,26 @@ def configure_production_logging(
         handler.addFilter(RedactionFilter())
         handler.addFilter(TraceIDFilter())
 
+    # uvicorn keeps its own handlers, and they carry none of these filters.
+    #
+    # `Config.__init__` applies uvicorn's `LOGGING_CONFIG` before the app is
+    # imported, and that config gives `uvicorn` and `uvicorn.access` a handler
+    # each with `propagate: False`. `uvicorn.error` has no handler of its own,
+    # so its records reach `uvicorn`'s and stop there. Nothing uvicorn emits
+    # ever reached a handler holding `RedactionFilter` — so every
+    # unhandled-exception traceback and every access line's query string went
+    # to the logs unredacted, which is the one place redaction has to work.
+    #
+    # Stripping the handlers and letting them propagate is what puts them on
+    # root's handler: attaching the filters to uvicorn's own handlers would
+    # work for redaction but would leave two formatters and two shapes of log
+    # line in production.
+    for name in ("uvicorn", "uvicorn.error", "uvicorn.access"):
+        logger = logging.getLogger(name)
+        for handler in list(logger.handlers):
+            logger.removeHandler(handler)
+        logger.propagate = True
+
     if access_sample_rate < 1.0:
         logging.getLogger("snapworth.access").addFilter(
             SamplingFilter(access_sample_rate))
