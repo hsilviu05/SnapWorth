@@ -171,6 +171,42 @@ _REDACTIONS: tuple[tuple[re.Pattern, str], ...] = (
 )
 
 
+#: Ceiling for a caller-supplied value interpolated into a log record. Matches
+#: the inbound `X-Request-ID` bound in `RequestContextMiddleware`, which exists
+#: for the same reason.
+MAX_LOGGED_VALUE = 64
+
+
+def log_safe(value: object, limit: int = MAX_LOGGED_VALUE) -> str:
+    """Make an untrusted value safe to interpolate into one log line.
+
+    `RequestContextMiddleware` already refuses an inbound `X-Request-ID` that is
+    unbounded, unprintable or newline-bearing, "because it lands in logs, so an
+    unbounded or newline-bearing value would be a log-injection vector". This
+    is the same control, reusable at any log site that interpolates something a
+    caller chose.
+
+    It is needed because `redact` is not it: `redact` masks credentials on the
+    way out and says nothing about newlines or length, and the default
+    formatter is a bare `%(message)s` (see `configure_logging`), so a newline
+    in an interpolated value *is* a second log record as far as any log reader
+    is concerned — one an attacker writes the whole content of.
+
+    Every character outside the printable set is replaced rather than dropped,
+    so the record still shows that something was there.
+    """
+    try:
+        text = value if isinstance(value, str) else str(value)
+    except Exception:          # pragma: no cover — must never break logging
+        return "<unprintable>"
+    if not text:
+        return ""
+    cleaned = "".join(ch if ch.isprintable() else "?" for ch in text)
+    if len(cleaned) > limit:
+        cleaned = cleaned[:limit] + "…truncated"
+    return cleaned
+
+
 def redact(text: str) -> str:
     """Strip credential-shaped substrings. Never raises."""
     if not text:

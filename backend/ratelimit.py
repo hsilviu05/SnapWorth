@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import logging
 import os
+import secrets
 import time
 from collections import defaultdict
 from typing import Any, Protocol
@@ -157,13 +158,33 @@ class RedisRateLimiter:
         self._redis = client
         self._script = client.register_script(_SLIDING_WINDOW_LUA)
         self._counter = 0
+        # Per-instance, random, and the only part of the member that is
+        # actually distinct between replicas. `os.getpid()` was doing this job
+        # and could not: the container runs `uvicorn --workers 1`, so uvicorn
+        # is PID 1 in *every* replica and `os.getpid()` returns 1 everywhere.
+        # `_counter` starts at 0 in each replica too, so two replicas walk
+        # through identical member strings.
+        #
+        # ZADD of a member that already exists updates its score instead of
+        # adding a second entry, so ZCARD stays flat and one request goes
+        # uncounted — the limit quietly rises. This module's docstring names
+        # surviving horizontal scale as one of its two reasons to exist, and
+        # this was the one shared-state detail that did not. Latent at one
+        # replica; live the moment there are two.
+        #
+        # The most exposed key is `rl:ip:<addr>`: behind Railway's edge the
+        # rightmost forwarded hop is the proxy's own address, so every request
+        # from every user shares one hot key at the 60/h cap.
+        self._nonce = secrets.token_hex(4)
 
     async def check(self, key: str, limit: int, window: int = RATE_WINDOW_SECS) -> None:
         now_ms = int(time.time() * 1000)
-        # Unique member per request; the counter disambiguates same-millisecond
-        # calls within a process, which a bare timestamp would collapse.
+        # Unique member per request. The member's only requirement is
+        # uniqueness — nothing reads it back — so the nonce carries
+        # cross-replica distinctness and the counter same-millisecond ordering
+        # within one.
         self._counter += 1
-        member = f"{now_ms}-{os.getpid()}-{self._counter}"
+        member = f"{now_ms}-{self._nonce}-{self._counter}"
         result = await self._script(
             keys=[f"rl:{key}"],
             args=[now_ms, window * 1000, limit, member],

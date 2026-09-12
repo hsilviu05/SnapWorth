@@ -565,7 +565,13 @@ work on does not.
 
 - [ ] `REDIS_URL` set and reachable
 - [ ] `TOKEN_KEYS` + `TOKEN_CURRENT_KID` set
-- [ ] `ENVIRONMENT=production` (enables strict startup checks)
+- [ ] `ENVIRONMENT=production` — two effects, both wanted: strict startup
+      checks (refuses to boot without `TOKEN_KEYS`), and **no `/openapi.json`,
+      `/docs` or `/redoc`**. Unset, the schema is anonymous and complete: it
+      lists `/metrics` with its `authorization` parameter and the docstring
+      explaining that it fails closed, which is precisely the existence the
+      404-not-401 design below is hiding. Also publishes the
+      `/apple/notifications` trust model and every request body's constraints.
 - [ ] `AUDIT_SALT` set to a real value
 - [x] ~~`TRUSTED_PROXY=true`~~ — **no longer read.** `_client_ip` now always takes the
       rightmost `X-Forwarded-For` hop, so the per-IP limit no longer depends on this
@@ -574,7 +580,13 @@ work on does not.
       their own choosing (uvicorn runs with `--forwarded-allow-ips='*'`, which makes
       `request.client.host` the client-supplied hop). Safe to delete from Railway.
 - [ ] `ALLOWED_STOREKIT_ENVIRONMENTS=Production`
-- [ ] `LOG_FORMAT=json`
+- [ ] `LOG_FORMAT=json` — still wanted, but **no longer load-bearing for log
+      injection**. The plain formatter is a bare `%(message)s`, so a newline in
+      an interpolated value reads as a second log record; every caller-supplied
+      value interpolated into a log line now goes through
+      `observability.log_safe` (bounded, printable, one line) regardless of
+      format. `notification_type` on the unauthenticated
+      `/apple/notifications` path was the one that did not.
 - [ ] Platform health-check path set to `/health/ready`
 - [ ] **App Store screenshots corrected** — see `marketing/SCREENSHOT-COMPLIANCE.md`
 

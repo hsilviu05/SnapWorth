@@ -119,6 +119,12 @@ class AuthDeps:
     # yet", which only happens before startup and in tests that do not care.
     ip_limiter: Callable[[str | None], Awaitable[None]] | None = None
 
+    # Per-subject limiter for `/entitlement`, injected the same way and for the
+    # same reason. That route is authenticated so it never reached
+    # `ip_limiter`, and it had no limit of its own — a valid device could ask
+    # for an unbounded number of certificate-chain verifications.
+    entitlement_limiter: Callable[[str, str | None], Awaitable[None]] | None = None
+
     config: AuthConfig = AuthConfig()
 
 
@@ -431,6 +437,7 @@ async def require_auth(
 @router.post("/entitlement", response_model=EntitlementResponse)
 async def record_entitlement(
     req: EntitlementRequest,
+    request: Request,
     principal: Principal = Depends(require_auth),
 ) -> EntitlementResponse:
     """Verify a StoreKit signed transaction and upgrade the caller to Pro.
@@ -438,6 +445,13 @@ async def record_entitlement(
     Re-issues a token so the new tier takes effect immediately rather than at
     the next refresh.
     """
+    # `/scan` and `/trends` are limited; this was not, despite doing more work
+    # per call than either — a three-certificate chain walk with an ECDSA
+    # verification per link. See `main._enforce_entitlement_limit` for why it
+    # gets its own generous bucket rather than the scan one.
+    if deps.entitlement_limiter is not None:
+        await deps.entitlement_limiter(principal.subject,
+                                       ratelimit.client_ip(request))
     # No 409 branch: the device cap now evicts the least-recently-seen binding
     # instead of refusing. It refused for as long as it existed, and because an
     # App Attest key is per install rather than per device, reinstalling burned

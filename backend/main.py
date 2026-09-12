@@ -50,6 +50,7 @@ from auth import (Principal, record_quota_consumed, refund_quota,
                   require_auth, reserve_quota)
 from entitlements import EntitlementError, EntitlementService
 from fastapi import Depends
+import observability
 from observability import RequestContextMiddleware, configure_production_logging
 from quota import FREE_SCANS_PER_DAY, ScanQuota
 from ratelimit import (
@@ -199,6 +200,10 @@ async def _lifespan(_app: FastAPI):
     # The three unauthenticated /auth routes run before there is a principal,
     # so they never reached `_enforce_limits`. Hand them the IP limiter.
     auth.deps.ip_limiter = _enforce_ip_limit
+    # `/auth/entitlement` is authenticated, so it never reached `ip_limiter`
+    # above — and it had no limiter of its own either, which left a full x.509
+    # chain verification unbounded per valid device.
+    auth.deps.entitlement_limiter = _enforce_entitlement_limit
     auth.deps.signer = tokens.signer_from_env()
     auth.deps.device_check = dc
     auth.deps.entitlements = EntitlementService(
@@ -412,7 +417,28 @@ async def _close_dependencies() -> None:
             log.warning("redis close failed: %s", exc)
 
 
-app = FastAPI(title="SnapWorth API", version=API_VERSION, lifespan=_lifespan)
+def _is_production() -> bool:
+    """Same test `tokens.signer_from_env` uses, so the two cannot disagree."""
+    return os.environ.get("ENVIRONMENT", "").lower() in {"production", "prod"}
+
+
+#: `None` also disables `/docs` and `/redoc`, which FastAPI derives from it.
+#:
+#: The schema was anonymous and complete in production, which specifically
+#: defeated a control designed a few hundred lines below: `prometheus_metrics`
+#: answers 404 rather than 401 so that "an unconfigured or unauthorised caller
+#: cannot tell the endpoint exists at all" — while `/openapi.json` listed
+#: `/metrics`, its `authorization` header parameter, and the docstring
+#: explaining that it fails closed when `METRICS_TOKEN` is unset. It also
+#: published the `/apple/notifications` trust model, the `x-device-id` header
+#: name and the exact field constraints of every request body.
+#:
+#: Kept on outside production: it is how the contract tests and the iOS
+#: client's generated types stay honest, and there is no attacker there.
+_OPENAPI_URL = None if _is_production() else "/openapi.json"
+
+app = FastAPI(title="SnapWorth API", version=API_VERSION, lifespan=_lifespan,
+              openapi_url=_OPENAPI_URL)
 
 app.add_middleware(RequestContextMiddleware)
 app.include_router(auth.router)
@@ -544,6 +570,47 @@ async def _enforce_ip_limit(ip: str | None) -> None:
             _ip_memory.check_sync(ip, IP_RATE_MAX_REQUESTS)
         else:
             await _ip_limiter.check(f"ip:{ip}", IP_RATE_MAX_REQUESTS)
+    except RateLimitExceeded as exc:
+        raise HTTPException(status_code=429, detail=exc.message,
+                            headers={"Retry-After": str(exc.retry_after)}) from None
+
+
+#: Per-subject ceiling for `/auth/entitlement`, which had none at all.
+#:
+#: Deliberately *not* `RATE_MAX_REQUESTS` (20/h, the scan bucket). The
+#: legitimate client posts here at cold launch, on purchase, on restore and on
+#: every `Transaction.updates` event, so a user force-quitting and relaunching
+#: could reach 20 in an hour without doing anything unusual — and a 429 here
+#: means the server never records the subscription, so `require_auth` reads
+#: `free`, `/scan` strips the Pro panel and the day's scans come off the free
+#: allowance. A limit that downgrades a paying subscriber is worse than the
+#: unbounded work it was added to bound. 60/h is roughly ten times real usage
+#: and still caps the x.509 chain verification behind this route.
+ENTITLEMENT_RATE_MAX_REQUESTS = int(
+    os.environ.get("ENTITLEMENT_RATE_MAX_REQUESTS", "60"))
+
+
+async def _enforce_entitlement_limit(subject: str, ip: str | None) -> None:
+    """Limit for `/auth/entitlement`. Injected onto `auth.deps`.
+
+    The route is authenticated, so the caller has already paid the App Attest
+    cost — this bounds a *valid* device hammering a signature verification, not
+    an anonymous flood. The IP backstop runs first for the same reason it does
+    in `_enforce_limits`: the subject is derived from a client-held key and a
+    reinstall mints a new one.
+    """
+    try:
+        if ip is not None:
+            if _ip_limiter is None:
+                _ip_memory.check_sync(ip, IP_RATE_MAX_REQUESTS)
+            else:
+                await _ip_limiter.check(f"ip:{ip}", IP_RATE_MAX_REQUESTS)
+        if _device_limiter is None:
+            _device_memory.check_sync(f"ent:{subject[:64]}",
+                                      ENTITLEMENT_RATE_MAX_REQUESTS)
+        else:
+            await _device_limiter.check(f"ent:{subject[:64]}",
+                                       ENTITLEMENT_RATE_MAX_REQUESTS)
     except RateLimitExceeded as exc:
         raise HTTPException(status_code=429, detail=exc.message,
                             headers={"Retry-After": str(exc.retry_after)}) from None
@@ -1111,7 +1178,16 @@ class AppleNotification(BaseModel):
     signedPayload: str | None = Field(
         default=None, min_length=1, max_length=appstorenotify.MAX_SIGNED_PAYLOAD)
     # Present on a V1 body, absent on V2. Read solely to identify the mistake.
-    notification_type: str | None = None
+    #
+    # Bounded, unlike before. Its only use is interpolation into an ERROR log
+    # record on the *first* branch of the handler — before any signature is
+    # checked, on an endpoint that is unauthenticated by necessity — so an
+    # anonymous caller chose both the content and the length of a production
+    # log line. Apple's V1 types are short identifiers
+    # ("DID_CHANGE_RENEWAL_STATUS" is the longest at 25 characters), so 64 is
+    # generous for anything genuine and a 422 is the right answer to the rest.
+    notification_type: str | None = Field(
+        default=None, max_length=observability.MAX_LOGGED_VALUE)
 
 
 # How long a handled notificationUUID is remembered. Apple redelivers for up to
@@ -1147,7 +1223,7 @@ async def apple_notifications(body: AppleNotification) -> dict:
                 "In App Store Connect the version is set in the 'Set Up URL' "
                 "flow and cannot be changed by editing the URL: clear the "
                 "Production Server URL, save, then set it up again and choose "
-                "Version 2.", body.notification_type)
+                "Version 2.", observability.log_safe(body.notification_type))
             raise HTTPException(
                 status_code=400,
                 detail="Version 2 notifications required; this is a Version 1 body.")
