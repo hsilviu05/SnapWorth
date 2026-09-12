@@ -158,15 +158,24 @@ extension WidgetHaulData {
     /// sub-thousand case, printing the "$1000" the abbreviation exists to
     /// avoid; and it made 9,999 read "$10.0K" while 10,000 read "$10K" — the
     /// same number, spelled two ways, one dollar apart.
+    ///
+    /// The sign is prefixed to the whole thing, not left inside the amount.
+    /// Interpolating the signed number straight after the "$" printed a loss
+    /// as "$-1.2K", and the month's profit is the one consumer that expects
+    /// negatives. The app spells the same figure "−$420"
+    /// (`FlipsViewModel.signedMoney`), and one number must not read two ways
+    /// on two surfaces — so this uses the same U+2212 minus.
     static func compactMoney(_ value: Double) -> String {
         let dollars = value.rounded()
-        guard abs(dollars) >= 1_000 else { return "$\(Int(dollars))" }
+        let sign = dollars < 0 ? "−" : ""
+        let magnitude = abs(dollars)
+        guard magnitude >= 1_000 else { return "\(sign)$\(Int(magnitude))" }
 
-        let thousands = (dollars / 100).rounded() / 10
-        guard abs(thousands) >= 10 else {
-            return "$\(String(format: "%.1f", thousands))K"
+        let thousands = (magnitude / 100).rounded() / 10
+        guard thousands >= 10 else {
+            return "\(sign)$\(String(format: "%.1f", thousands))K"
         }
-        return "$\(Int(thousands.rounded()))K"
+        return "\(sign)$\(Int(thousands.rounded()))K"
     }
 
     var compactTotal: String { Self.compactMoney(totalHigh) }
@@ -180,6 +189,99 @@ extension WidgetHaulData {
     var findsLabel: String {
         "\(itemCount) find\(itemCount == 1 ? "" : "s")"
     }
+}
+
+// ── Recent finds, and Scans left ─────────────────────────────────────────────
+//
+// Both live here rather than in the widget views because the app test target
+// cannot import the widget extension. The two defects below compiled fine and
+// were invisible to every test: a widget's strings are only testable if the
+// strings are in the shared model.
+
+extension WidgetHaulData {
+    /// The rows the "Recent finds" widget should draw, newest first.
+    ///
+    /// `recentFinds` is a v2 key, so a 1.3.x blob decodes it to `[]` — the
+    /// hand-written `init(from:)` defaults every v2 field — while `itemCount`
+    /// and the totals decode from v1 perfectly. That is exactly the case this
+    /// model documents above: an update installs the new extension before the
+    /// user next opens the app. The widget's header branched on `hasScans` and
+    /// its body on `recentFinds.isEmpty`, so it rendered "$348 – $620" and
+    /// "Nothing scanned yet" at the same time. A v1 blob does carry one find,
+    /// in `lastItemName`/`lastItemRange` — draw that instead of claiming there
+    /// are none.
+    func recentRows(limit: Int) -> [WidgetFind] {
+        if !recentFinds.isEmpty { return Array(recentFinds.prefix(limit)) }
+        guard hasScans, !lastItemName.isEmpty else { return [] }
+        return [WidgetFind(id: "last", name: lastItemName, range: lastItemRange)]
+    }
+
+    /// What the "Scans left" widget is looking at.
+    ///
+    /// Three states, not a number with a fallback. Every read used
+    /// `freeScansRemaining ?? 0`, and nil on a non-Pro blob does not mean
+    /// zero — it means the app has never written a count: no blob in the App
+    /// Group yet, a decode failure, or a v1 blob from an install that has not
+    /// been reopened since the update. Zero is the alarming branch, a large
+    /// terracotta "0" captioned "Back tomorrow, or go Pro", and it was being
+    /// shown to people whose whole daily allowance was untouched.
+    enum ScansLeft: Equatable {
+        case pro(streak: Int)
+        case remaining(Int)
+        case unknown
+    }
+
+    var scansLeft: ScansLeft {
+        if isPro { return .pro(streak: streak) }
+        guard let left = freeScansRemaining else { return .unknown }
+        return .remaining(left)
+    }
+}
+
+extension WidgetHaulData.ScansLeft {
+    /// Pro carries the streak rather than the word "unlimited": a number that
+    /// never changes is not worth a slot on someone's Home Screen.
+    var headline: String {
+        switch self {
+        case .pro(let streak):     return streak > 0 ? "\(streak)-day streak" : "Pro"
+        case .remaining(let left): return "\(left)"
+        case .unknown:             return "—"
+        }
+    }
+
+    var subtitle: String {
+        switch self {
+        case .pro(let streak):     return streak > 1 ? "Keep it going" : "Unlimited scans"
+        case .remaining(0):        return "Back tomorrow, or go Pro"
+        case .remaining(let left): return "free scan\(left == 1 ? "" : "s") left today"
+        case .unknown:             return "Open SnapWorth"
+        }
+    }
+
+    var circularValue: String {
+        switch self {
+        case .pro(let streak):     return streak > 0 ? "\(streak)" : "∞"
+        case .remaining(let left): return "\(left)"
+        case .unknown:             return "—"
+        }
+    }
+
+    var spoken: String {
+        switch self {
+        case .pro(let streak):
+            return streak > 0 ? "\(streak) day scanning streak" : "SnapWorth Pro"
+        case .remaining(0):
+            return "No free scans left today"
+        case .remaining(let left):
+            return "\(left) free scan\(left == 1 ? "" : "s") left today"
+        case .unknown:
+            return "Scan count not available yet. Open SnapWorth."
+        }
+    }
+
+    /// True only when the count is known and spent — the view paints terracotta
+    /// here, which reads as "you are out" and must not fire on `.unknown`.
+    var isSpent: Bool { self == .remaining(0) }
 }
 
 // ── Pending action ───────────────────────────────────────────────────────────

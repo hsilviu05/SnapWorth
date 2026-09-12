@@ -44,6 +44,10 @@ struct RecentFindsView: View {
             WidgetBridge.maxRecentFinds)
     }
 
+    /// Derived in the shared model so a test can reach it — see
+    /// `WidgetHaulData.recentRows(limit:)` for why the v1 fallback exists.
+    private var rows: [WidgetFind] { haul.recentRows(limit: rowCount) }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 4) {
@@ -61,7 +65,7 @@ struct RecentFindsView: View {
             }
             .padding(.bottom, 8)
 
-            if haul.recentFinds.isEmpty {
+            if rows.isEmpty {
                 Spacer()
                 Text("Nothing scanned yet")
                     .font(.system(size: 13, weight: .medium))
@@ -69,7 +73,7 @@ struct RecentFindsView: View {
                 Spacer()
             } else {
                 VStack(alignment: .leading, spacing: 6) {
-                    ForEach(haul.recentFinds.prefix(rowCount)) { find in
+                    ForEach(rows) { find in
                         HStack(alignment: .firstTextBaseline, spacing: 6) {
                             Text(find.name)
                                 .font(.system(size: 13, weight: .medium))
@@ -122,14 +126,14 @@ struct ScansLeftView: View {
                 VStack(spacing: 0) {
                     Image(systemName: "camera.viewfinder")
                         .font(.system(size: 11, weight: .semibold))
-                    Text(circularValue)
+                    Text(state.circularValue)
                         .font(.system(size: 16, weight: .bold, design: .rounded))
                         .minimumScaleFactor(0.5)
                         .lineLimit(1)
                 }
             }
             .accessibilityElement(children: .ignore)
-            .accessibilityLabel(spokenLabel)
+            .accessibilityLabel(state.spoken)
 
         default:
             VStack(alignment: .leading, spacing: 0) {
@@ -140,56 +144,30 @@ struct ScansLeftView: View {
                         .foregroundStyle(Color.wBackground.opacity(0.7))
                 }
                 Spacer()
-                Text(headline)
+                Text(state.headline)
                     .font(.system(size: haul.isPro ? 18 : 30, weight: .bold, design: .rounded))
-                    .foregroundStyle(haul.isPro ? Color.wSage : accentForRemaining)
+                    .foregroundStyle(accentForRemaining)
                     .minimumScaleFactor(0.5)
                     .lineLimit(1)
-                Text(subtitle)
+                Text(state.subtitle)
                     .font(.system(size: 11, weight: .medium))
                     .foregroundStyle(Color.wWarmGray)
                     .lineLimit(2)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             .accessibilityElement(children: .ignore)
-            .accessibilityLabel(spokenLabel)
+            .accessibilityLabel(state.spoken)
         }
     }
 
-    // Pro has no counter to show, so the widget carries the streak instead of
-    // rendering "unlimited" — a number that never changes is not worth a slot
-    // on someone's Home Screen.
-    private var headline: String {
-        guard !haul.isPro else { return haul.streak > 0 ? "\(haul.streak)-day streak" : "Pro" }
-        return "\(haul.freeScansRemaining ?? 0)"
-    }
-
-    private var subtitle: String {
-        guard !haul.isPro else {
-            return haul.streak > 1 ? "Keep it going" : "Unlimited scans"
-        }
-        let left = haul.freeScansRemaining ?? 0
-        return left == 0 ? "Back tomorrow, or go Pro"
-                         : "free scan\(left == 1 ? "" : "s") left today"
-    }
-
-    private var circularValue: String {
-        guard !haul.isPro else { return haul.streak > 0 ? "\(haul.streak)" : "∞" }
-        return "\(haul.freeScansRemaining ?? 0)"
-    }
+    /// Every string comes from the shared model — see `WidgetHaulData.ScansLeft`
+    /// for why nil is a third state rather than zero.
+    private var state: WidgetHaulData.ScansLeft { haul.scansLeft }
 
     private var accentForRemaining: Color {
-        (haul.freeScansRemaining ?? 0) == 0 ? Color.wTerracotta : Color.wSage
-    }
-
-    private var spokenLabel: String {
-        guard !haul.isPro else {
-            return haul.streak > 0 ? "\(haul.streak) day scanning streak" : "SnapWorth Pro"
-        }
-        let left = haul.freeScansRemaining ?? 0
-        return left == 0
-            ? "No free scans left today"
-            : "\(left) free scan\(left == 1 ? "" : "s") left today"
+        // Neutral unless the count is known and spent: terracotta here reads
+        // as "you are out", which is wrong for an allowance nobody has touched.
+        state.isSpent ? Color.wTerracotta : Color.wSage
     }
 }
 

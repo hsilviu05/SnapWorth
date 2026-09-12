@@ -2499,3 +2499,104 @@ final class ValueConsistencyTests: XCTestCase {
         XCTAssertEqual(try XCTUnwrap(r.portfolioValueRaw), 150, accuracy: 0.01)
     }
 }
+
+// ── The widget blob's Pro flag ───────────────────────────────────────────────
+//
+// `writeHaul(results:isPro:)` resolved a nil `isPro` as "carry forward
+// whatever is already stored". No production caller ever passed the argument,
+// `WidgetHaulData.empty.isPro` is false, and a v1 blob has no `isPro` key to
+// seed from — so the flag could never become true. Two of the six widgets were
+// permanently wrong for subscribers: "Profit this month" rendered its free-tier
+// upsell however many flips they sold, and "Scans left" told a paying customer
+// they had one free scan left today.
+
+final class WidgetEntitlementTests: XCTestCase {
+
+    private func soldItem(paid: Double, sold: Double, soldDate: Date) -> ScanResult {
+        let r = ScanResult(itemName: "Better Sweater", brand: "Patagonia",
+                           category: "clothing", conditionNotes: "Solid piece",
+                           valueLow: 100, valueHigh: 200, confidence: "High",
+                           soldListingsCount: 0,
+                           listingTitle: "T", listingDescription: "D")
+        r.paidPrice = paid
+        r.soldPrice = sold
+        r.soldDate = soldDate
+        r.status = .sold
+        return r
+    }
+
+    private func readBack() throws -> WidgetHaulData {
+        guard let suite = UserDefaults(suiteName: WidgetDataStore.appGroupID),
+              let raw = suite.data(forKey: WidgetDataStore.haulKey) else {
+            throw XCTSkip("no App Group container in this test environment")
+        }
+        return try JSONDecoder().decode(WidgetHaulData.self, from: raw)
+    }
+
+    override func tearDown() {
+        UserDefaults.standard.removeObject(forKey: "snapworth_is_subscribed")
+        super.tearDown()
+    }
+
+    func test_aProWriteReachesTheBlob() throws {
+        WidgetDataStore.writeHaul(results: [], isPro: true)
+        XCTAssertTrue(try readBack().isPro)
+    }
+
+    func test_aProWriteAfterAFreeOneIsNotSwallowed() throws {
+        // The shape of the original defect: whatever was stored won.
+        WidgetDataStore.writeHaul(results: [], isPro: false)
+        WidgetDataStore.writeHaul(results: [], isPro: true)
+        XCTAssertTrue(try readBack().isPro)
+    }
+
+    func test_aLapseClearsTheProFiguresOnTheNextWrite() throws {
+        let item = soldItem(paid: 20, sold: 120, soldDate: .now)
+        WidgetDataStore.writeHaul(results: [item], isPro: true)
+        XCTAssertNotNil(try readBack().monthProfit)
+
+        WidgetDataStore.writeHaul(results: [item], isPro: false)
+        let after = try readBack()
+        XCTAssertFalse(after.isPro)
+        XCTAssertNil(after.monthProfit, "a paid figure outlived the subscription")
+        XCTAssertEqual(after.monthFlips, 0)
+    }
+
+    func test_proGetsNoFreeScanCountAndFreeDoes() throws {
+        WidgetDataStore.writeHaul(results: [], isPro: true)
+        XCTAssertNil(try readBack().freeScansRemaining,
+                     "a subscriber was handed a free-scan count")
+        XCTAssertEqual(try readBack().scansLeft, .pro(streak: 0))
+
+        WidgetDataStore.writeHaul(results: [], isPro: false)
+        XCTAssertNotNil(try readBack().freeScansRemaining)
+    }
+
+    func test_theMonthsProfitIsWrittenForAPaidUser() throws {
+        // $120 sold on a $20 find, this month: $100 from one flip.
+        WidgetDataStore.writeHaul(results: [soldItem(paid: 20, sold: 120, soldDate: .now)],
+                                  isPro: true)
+        let haul = try readBack()
+        XCTAssertEqual(haul.monthProfit ?? 0, 100, accuracy: 0.01)
+        XCTAssertEqual(haul.monthFlips, 1)
+    }
+
+    func test_anOmittedFlagReadsThePersistedEntitlement() throws {
+        // Every production caller omits `isPro`, so this is the path that
+        // matters. Setting the raw key also pins its name: if the purchase
+        // service renames it, this fails loudly instead of quietly reading
+        // false forever, which is how the original defect hid.
+        UserDefaults.standard.set(true, forKey: "snapworth_is_subscribed")
+        XCTAssertTrue(StoreKitPurchaseService.cachedIsSubscribed,
+                      "the cache key this test writes is no longer the one the app reads")
+
+        WidgetDataStore.writeHaul(results: [])
+        XCTAssertTrue(try readBack().isPro)
+    }
+
+    func test_anOmittedFlagOnAFreeAccountStaysFree() throws {
+        UserDefaults.standard.set(false, forKey: "snapworth_is_subscribed")
+        WidgetDataStore.writeHaul(results: [])
+        XCTAssertFalse(try readBack().isPro)
+    }
+}

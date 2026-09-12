@@ -968,6 +968,44 @@ final class LockScreenMoneyTests: XCTestCase {
         XCTAssertEqual(WidgetHaulData.compactMoney(250_000), "$250K")
     }
 
+    // ── Losses ───────────────────────────────────────────────────────────────
+    // The month's profit is the one consumer that can be negative, and the
+    // sign was being interpolated straight after the "$": "$-420", "$-1.2K".
+    // The Flips screen spells the same figure "−$420".
+
+    func test_aLossPutsTheSignBeforeTheDollar() {
+        XCTAssertEqual(WidgetHaulData.compactMoney(-420), "−$420")
+        XCTAssertEqual(WidgetHaulData.compactMoney(-1_240), "−$1.2K")
+        XCTAssertEqual(WidgetHaulData.compactMoney(-12_400), "−$12K")
+    }
+
+    func test_noAmountEverPutsTheSignInsideTheAmount() {
+        for value in stride(from: -300_000.0, through: 300_000, by: 617) {
+            XCTAssertFalse(WidgetHaulData.compactMoney(value).contains("$-"),
+                           "\(value) put the sign inside the amount")
+        }
+    }
+
+    func test_aLossIsSpelledLikeTheFlipsScreenSpellsIt() {
+        // Not a literal check of the other surface, but of the convention it
+        // sets: U+2212, outside the "$". A hyphen-minus here would read as a
+        // different app.
+        XCTAssertTrue(WidgetHaulData.compactMoney(-420).hasPrefix("\u{2212}"))
+        XCTAssertFalse(WidgetHaulData.compactMoney(-420).contains("-"))
+    }
+
+    func test_theNegativeBoundariesAgreeWithThePositiveOnes() {
+        XCTAssertEqual(WidgetHaulData.compactMoney(-9_999),
+                       WidgetHaulData.compactMoney(-10_000))
+        XCTAssertEqual(WidgetHaulData.compactMoney(-999.6), "−$1.0K")
+    }
+
+    func test_aLossTooSmallToShowIsNotSignedZero() {
+        // −0.4 rounds to zero; "−$0" would be a claim about a loss that isn't.
+        XCTAssertEqual(WidgetHaulData.compactMoney(-0.4), "$0")
+        XCTAssertEqual(WidgetHaulData.compactMoney(-0.6), "−$1")
+    }
+
     func test_nothingEverRendersAThousandsSeparator() {
         // The whole reason this exists: "$1,240" does not fit in a circular
         // complication at a legible size.
@@ -1121,5 +1159,172 @@ final class SupportMailTests: XCTestCase {
         XCTAssertEqual(address.components(separatedBy: "@").count, 2)
         XCTAssertTrue(address.contains("."))
         XCTAssertFalse(address.contains(" "))
+    }
+}
+
+// ── Scans left: nil is not zero ───────────────────────────────────────────────
+//
+// Every read of `freeScansRemaining` in the widget was `?? 0`, and nil on a
+// non-Pro blob means *never established* — no blob in the App Group, a decode
+// failure, or a v1 blob from an install not reopened since the update. The
+// zero branch is the alarming one: a large terracotta "0" captioned "Back
+// tomorrow, or go Pro", shown to someone whose whole allowance is untouched.
+// Adding the widget from the gallery before first launch did exactly that.
+
+final class WidgetScansLeftTests: XCTestCase {
+
+    private func haul(isPro: Bool = false,
+                      remaining: Int? = nil,
+                      streak: Int = 0) -> WidgetHaulData {
+        WidgetHaulData(totalLow: 0, totalHigh: 0, itemCount: 0,
+                       lastItemName: "", lastItemRange: "", updatedAt: .now,
+                       freeScansRemaining: remaining, isPro: isPro, streak: streak,
+                       recentFinds: [], monthProfit: nil, monthFlips: 0)
+    }
+
+    func test_anUnwrittenCountIsUnknownRatherThanZero() {
+        let state = haul(remaining: nil).scansLeft
+        XCTAssertEqual(state, .unknown)
+        XCTAssertEqual(state.headline, "—")
+        XCTAssertEqual(state.circularValue, "—")
+        XCTAssertEqual(state.subtitle, "Open SnapWorth")
+    }
+
+    func test_anUnknownCountIsNeverPaintedAsSpent() {
+        // `isSpent` drives the terracotta accent. Firing it here tells someone
+        // with a full allowance that they are out of scans.
+        XCTAssertFalse(haul(remaining: nil).scansLeft.isSpent)
+    }
+
+    func test_theEmptyBlobIsUnknown() {
+        // What `WidgetReader.readHaul()` returns before the app has ever run,
+        // and after any decode failure.
+        XCTAssertEqual(WidgetHaulData.empty.scansLeft, .unknown)
+    }
+
+    func test_aBlobFromTheOldAppIsUnknown() throws {
+        let v1 = """
+            {"totalLow":348,"totalHigh":620,"itemCount":8,
+             "lastItemName":"Patagonia Fleece","lastItemRange":"$60 – $95",
+             "updatedAt":768000000}
+            """.data(using: .utf8)!
+        let decoded = try JSONDecoder().decode(WidgetHaulData.self, from: v1)
+        XCTAssertEqual(decoded.scansLeft, .unknown)
+    }
+
+    func test_anUnknownCountIsNotSpokenAsZero() {
+        XCTAssertEqual(haul(remaining: nil).scansLeft.spoken,
+                       "Scan count not available yet. Open SnapWorth.")
+    }
+
+    func test_aSpentAllowanceStillReadsAsSpent() {
+        let state = haul(remaining: 0).scansLeft
+        XCTAssertEqual(state, .remaining(0))
+        XCTAssertEqual(state.headline, "0")
+        XCTAssertEqual(state.subtitle, "Back tomorrow, or go Pro")
+        XCTAssertEqual(state.spoken, "No free scans left today")
+        XCTAssertTrue(state.isSpent)
+    }
+
+    func test_oneScanIsSingular() {
+        let state = haul(remaining: 1).scansLeft
+        XCTAssertEqual(state.subtitle, "free scan left today")
+        XCTAssertEqual(state.spoken, "1 free scan left today")
+        XCTAssertFalse(state.isSpent)
+    }
+
+    func test_severalScansArePlural() {
+        XCTAssertEqual(haul(remaining: 3).scansLeft.subtitle, "free scans left today")
+    }
+
+    func test_proCarriesTheStreakInsteadOfACount() {
+        let state = haul(isPro: true, remaining: nil, streak: 5).scansLeft
+        XCTAssertEqual(state, .pro(streak: 5))
+        XCTAssertEqual(state.headline, "5-day streak")
+        XCTAssertEqual(state.subtitle, "Keep it going")
+        XCTAssertEqual(state.circularValue, "5")
+        XCTAssertFalse(state.isSpent, "Pro is never out of scans")
+    }
+
+    func test_proWithoutAStreakSaysSoPlainly() {
+        let state = haul(isPro: true, streak: 0).scansLeft
+        XCTAssertEqual(state.headline, "Pro")
+        XCTAssertEqual(state.subtitle, "Unlimited scans")
+        XCTAssertEqual(state.circularValue, "∞")
+    }
+
+    func test_proWinsOverAStaleCount() {
+        // A lapse-and-resubscribe can leave a count in the blob; entitlement
+        // decides what the widget says, not the leftover number.
+        XCTAssertEqual(haul(isPro: true, remaining: 0, streak: 2).scansLeft,
+                       .pro(streak: 2))
+    }
+}
+
+// ── Recent finds: the header and the body must agree ─────────────────────────
+//
+// The header branched on `hasScans` and printed the haul total; the body
+// branched on `recentFinds.isEmpty` and printed "Nothing scanned yet". Those
+// disagree for exactly one blob — the v1 one, where the totals decode and
+// `recentFinds` defaults to empty — which is what an installed widget reads
+// after the update and before the app is next opened.
+
+final class WidgetRecentRowsTests: XCTestCase {
+
+    private let v1 = """
+        {"totalLow":348,"totalHigh":620,"itemCount":8,
+         "lastItemName":"Patagonia Fleece","lastItemRange":"$60 – $95",
+         "updatedAt":768000000}
+        """.data(using: .utf8)!
+
+    private func haul(itemCount: Int,
+                      lastName: String = "",
+                      lastRange: String = "",
+                      finds: [WidgetFind] = []) -> WidgetHaulData {
+        WidgetHaulData(totalLow: 0, totalHigh: 0, itemCount: itemCount,
+                       lastItemName: lastName, lastItemRange: lastRange,
+                       updatedAt: .now, freeScansRemaining: nil, isPro: false,
+                       streak: 0, recentFinds: finds, monthProfit: nil, monthFlips: 0)
+    }
+
+    func test_aHaulWithScansAlwaysHasARowToShow() throws {
+        // The invariant the two halves of the widget were breaking.
+        let decoded = try JSONDecoder().decode(WidgetHaulData.self, from: v1)
+        XCTAssertTrue(decoded.hasScans)
+        XCTAssertTrue(decoded.recentFinds.isEmpty, "v1 carries no find list")
+        XCTAssertFalse(decoded.recentRows(limit: WidgetBridge.maxRecentFinds).isEmpty,
+                       "header printed a total while the body said nothing was scanned")
+    }
+
+    func test_theV1FallbackRowIsTheFindTheOldBlobDoesCarry() throws {
+        let decoded = try JSONDecoder().decode(WidgetHaulData.self, from: v1)
+        let rows = decoded.recentRows(limit: 4)
+        XCTAssertEqual(rows.count, 1)
+        XCTAssertEqual(rows.first?.name, "Patagonia Fleece")
+        XCTAssertEqual(rows.first?.range, "$60 – $95")
+    }
+
+    func test_anEmptyLibraryHasNoRows() {
+        XCTAssertTrue(haul(itemCount: 0).recentRows(limit: 4).isEmpty)
+        XCTAssertTrue(WidgetHaulData.empty.recentRows(limit: 4).isEmpty)
+    }
+
+    func test_aHaulWithScansButNoNameIsNotFakedIntoARow() {
+        // Defensive: an unnamed find would render a blank row, which is worse
+        // than the empty state.
+        XCTAssertTrue(haul(itemCount: 3).recentRows(limit: 4).isEmpty)
+    }
+
+    func test_theListIsCappedAtTheFamilysLimit() {
+        let finds = (1...6).map { WidgetFind(id: "\($0)", name: "Item \($0)", range: "$1") }
+        XCTAssertEqual(haul(itemCount: 6, finds: finds).recentRows(limit: 2).count, 2)
+        XCTAssertEqual(haul(itemCount: 6, finds: finds).recentRows(limit: 4).count, 4)
+    }
+
+    func test_aRealFindListWinsOverTheFallback() {
+        let finds = [WidgetFind(id: "a", name: "Levi's 501", range: "$40 – $70")]
+        let rows = haul(itemCount: 8, lastName: "Patagonia Fleece",
+                        lastRange: "$60 – $95", finds: finds).recentRows(limit: 4)
+        XCTAssertEqual(rows.map(\.name), ["Levi's 501"])
     }
 }

@@ -15,7 +15,19 @@ final class StoreKitPurchaseService: PurchaseService, ObservableObject {
     @Published private(set) var isPricingLoaded = false
     @Published private(set) var pricingFailed = false
 
-    private static let cacheKey = "snapworth_is_subscribed"
+    private nonisolated static let cacheKey = "snapworth_is_subscribed"
+
+    /// The last known entitlement, readable without the service.
+    ///
+    /// `WidgetDataStore.writeHaul` stamps this into the widget blob, and it
+    /// runs from a repository write that holds no purchase service — the same
+    /// way it reads `FreeScanCounter.remaining` and `ScanStreak.current()`.
+    /// `nonisolated` because `UserDefaults` is thread-safe and the widget
+    /// write is not always on the main actor.
+    nonisolated static var cachedIsSubscribed: Bool {
+        UserDefaults.standard.bool(forKey: cacheKey)
+    }
+
     private let productIDs = [Config.monthlyProductID, Config.yearlyProductID]
 
     private var products: [Product] = []
@@ -309,7 +321,10 @@ final class StoreKitPurchaseService: PurchaseService, ObservableObject {
     }
 
     private func setSubscribed(_ value: Bool) {
-        isSubscribed = value
+        // Persist before publishing: anything that reacts to `isSubscribed`
+        // reads the cache through `cachedIsSubscribed`, so the store has to be
+        // the newer of the two, never the older.
         UserDefaults.standard.set(value, forKey: Self.cacheKey)
+        isSubscribed = value
     }
 }
