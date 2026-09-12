@@ -82,9 +82,16 @@ final class ResultViewModel {
         listingError = nil
         defer { isGeneratingListing = false }
 
+        // Snapshot the model here, on the MainActor, before anything crosses to
+        // the actor. `ListingAPIClient` used to take the `ScanResult` itself
+        // and read its SwiftData-backed properties on a cooperative-pool
+        // thread while the main thread was free to mutate the same object —
+        // see `ListingInput`.
+        let input = ListingInput(result: result, condition: result.condition)
+
         do {
             let listing = try await ListingAPIClient.shared.generate(
-                for: result, condition: result.condition, marketplace: selectedMarketplace
+                input, marketplace: selectedMarketplace
             )
             generatedListing = listing
             // Fired on success, not on attempt. Previously this ran before the

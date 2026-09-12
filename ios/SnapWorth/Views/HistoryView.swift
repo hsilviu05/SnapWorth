@@ -236,8 +236,14 @@ struct HistoryView: View {
             // Best-effort: a failure leaves the card absent, which is the same
             // as a quiet week. Never an error banner — this is a nice-to-have
             // above the user's own finds, not something they asked for.
-            .task {
-                trends = try? await TrendsAPIClient.shared.fetch()
+            // `.task(id:)`, so buying from this very card re-fetches. Without
+            // the id it ran once per appearance and the paywall sheet
+            // dismissing in place is not an appearance, so the Pro sections
+            // stayed empty until the user left the tab and came back — or for
+            // the cache's full thirty minutes, whichever was longer.
+            .task(id: purchaseService.isSubscribed) {
+                let isPro = purchaseService.isSubscribed
+                trends = try? await TrendsAPIClient.shared.fetch(isPro: isPro)
             }
         }
         .sheet(isPresented: $showPaywall) {

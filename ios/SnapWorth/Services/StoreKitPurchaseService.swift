@@ -370,10 +370,18 @@ final class StoreKitPurchaseService: PurchaseService, ObservableObject {
     }
 
     private func setSubscribed(_ value: Bool) {
+        let changed = value != isSubscribed
         // Persist before publishing: anything that reacts to `isSubscribed`
         // reads the cache through `cachedIsSubscribed`, so the store has to be
         // the newer of the two, never the older.
         UserDefaults.standard.set(value, forKey: Self.cacheKey)
         isSubscribed = value
+        guard changed else { return }
+        // `/trends` returns a different payload *shape* per tier, and the
+        // client holds it for thirty minutes. The tier key on that cache
+        // covers a user who reaches the card again, and this covers every
+        // other transition — a restore, an expiry, a server-side revoke —
+        // without waiting the TTL out.
+        Task { await TrendsAPIClient.shared.invalidate() }
     }
 }

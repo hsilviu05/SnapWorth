@@ -105,6 +105,48 @@ struct GeneratedListing: Equatable {
     }
 }
 
+// ── Listing input (Sendable snapshot) ─────────────────────────────────────────
+
+/// Everything the listing generator needs, read off the model on the MainActor.
+///
+/// `ListingAPIClient` is an `actor`, so anything handed to it leaves the
+/// MainActor and runs on the cooperative pool. `ScanResult` is a
+/// `@Model final class` and is not `Sendable`: its stored properties go
+/// through `ModelContext`'s snapshot machinery, which is not thread-safe. The
+/// object belongs to `sharedModelContainer.mainContext`, so reading
+/// `valueLow`, `valueHigh` and `conditionRaw` on a pool thread while the main
+/// thread is free to mutate the same object — tapping a condition chip, typing
+/// in the Paid field — is an unsynchronised read/write on one context. Swift 5
+/// language mode downgrades the `Sendable` violation to a warning, which is why
+/// it compiled and shipped.
+///
+/// The fix is structural rather than a lock: nothing that belongs to a
+/// `ModelContext` crosses the boundary at all. Reading these seven values takes
+/// microseconds on the caller's side, and after that the actor holds only
+/// value types.
+struct ListingInput: Sendable {
+    let itemName: String
+    let brand: String
+    let category: String
+    let condition: Condition
+    let low: Decimal
+    let likely: Decimal
+    let high: Decimal
+
+    /// `@MainActor`, so the compiler places the read where the model lives.
+    @MainActor
+    init(result: ScanResult, condition: Condition) {
+        let range = result.priceRange(for: condition)
+        self.itemName = result.itemName
+        self.brand = result.brand
+        self.category = result.category
+        self.condition = condition
+        self.low = range.low
+        self.likely = range.likely
+        self.high = range.high
+    }
+}
+
 // ── API wire models ───────────────────────────────────────────────────────────
 
 private struct ListingAPIRequest: Encodable {
@@ -151,33 +193,31 @@ actor ListingAPIClient {
     // Same device id as ScanAPIClient so the rate-limit backstop is coherent.
     private var deviceID: String { DeviceIdentity.shared.id }
 
-    /// Generates a listing for `result` graded at `condition`, tailored to
-    /// `marketplace`. Throws on network/server failure so the caller can offer a
-    /// retry; the backend guarantees a validated, non-blank body on success.
-    func generate(for result: ScanResult,
-                  condition: Condition,
+    /// Generates a listing for `input`, tailored to `marketplace`. Throws on
+    /// network/server failure so the caller can offer a retry; the backend
+    /// guarantees a validated, non-blank body on success.
+    ///
+    /// Takes a `ListingInput` and not a `ScanResult` — see that type for why a
+    /// `PersistentModel` must not reach this actor.
+    func generate(_ input: ListingInput,
                   marketplace: Marketplace) async throws -> GeneratedListing {
-        let range = result.priceRange(for: condition)
         if Config.mockScans {
-            return mockListing(result: result, condition: condition, marketplace: marketplace, range: range)
+            return mockListing(input, marketplace: marketplace)
         }
-        return try await liveGenerate(result: result, condition: condition,
-                                      marketplace: marketplace, range: range)
+        return try await liveGenerate(input, marketplace: marketplace)
     }
 
     // ── Live ────────────────────────────────────────────────────────────────
-    private func liveGenerate(result: ScanResult,
-                              condition: Condition,
-                              marketplace: Marketplace,
-                              range: (low: Decimal, likely: Decimal, high: Decimal)) async throws -> GeneratedListing {
+    private func liveGenerate(_ input: ListingInput,
+                              marketplace: Marketplace) async throws -> GeneratedListing {
         let body = ListingAPIRequest(
-            item_name: result.itemName,
-            brand: result.brand,
-            category: result.category,
-            condition: condition.rawValue,
-            price_low_usd: Self.double(range.low),
-            price_likely_usd: Self.double(range.likely),
-            price_high_usd: Self.double(range.high),
+            item_name: input.itemName,
+            brand: input.brand,
+            category: input.category,
+            condition: input.condition.rawValue,
+            price_low_usd: Self.double(input.low),
+            price_likely_usd: Self.double(input.likely),
+            price_high_usd: Self.double(input.high),
             marketplace: marketplace.apiValue,
             currency: Self.currency
         )
@@ -207,50 +247,48 @@ actor ListingAPIClient {
     }
 
     // ── Mock ────────────────────────────────────────────────────────────────
-    private func mockListing(result: ScanResult,
-                             condition: Condition,
-                             marketplace: Marketplace,
-                             range: (low: Decimal, likely: Decimal, high: Decimal)) -> GeneratedListing {
-        let ask = (Self.double(range.likely)).rounded()
-        let floor = min((Self.double(range.low)).rounded(), ask)
-        let phrase = condition.listingPhrase
+    private func mockListing(_ input: ListingInput,
+                             marketplace: Marketplace) -> GeneratedListing {
+        let ask = (Self.double(input.likely)).rounded()
+        let floor = min((Self.double(input.low)).rounded(), ask)
+        let phrase = input.condition.listingPhrase
 
         let title: String
         let description: String
         switch marketplace {
         case .ebay:
-            title = String(result.itemName.prefix(80))
-            description = "\(result.itemName) in \(phrase). Ships fast from a smoke-free home. "
+            title = String(input.itemName.prefix(80))
+            description = "\(input.itemName) in \(phrase). Ships fast from a smoke-free home. "
                 + "Please see photos for exact condition — buy with confidence."
         case .vinted:
-            title = String(result.itemName.prefix(80))
-            description = "Lovely \(result.itemName.lowercased()), \(phrase). Happy to share "
+            title = String(input.itemName.prefix(80))
+            description = "Lovely \(input.itemName.lowercased()), \(phrase). Happy to share "
                 + "measurements — just ask! Bundle to save. 💛"
         case .facebook:
-            title = String(result.itemName.prefix(80))
-            description = "\(result.itemName), \(phrase). Local pickup preferred. Price is OBO — "
+            title = String(input.itemName.prefix(80))
+            description = "\(input.itemName), \(phrase). Local pickup preferred. Price is OBO — "
                 + "message me if interested!"
         case .olx:
-            title = String(result.itemName.prefix(80))
-            description = "\(result.itemName) — \(phrase). Cash on local pickup. Serious buyers only, thanks."
+            title = String(input.itemName.prefix(80))
+            description = "\(input.itemName) — \(phrase). Cash on local pickup. Serious buyers only, thanks."
         case .poshmark:
-            title = String(result.itemName.prefix(80))
-            description = "\(result.itemName) in \(phrase). Measurements on request — bundle for a "
+            title = String(input.itemName.prefix(80))
+            description = "\(input.itemName) in \(phrase). Measurements on request — bundle for a "
                 + "discount! Ships next day from a smoke-free closet."
         case .mercari:
-            title = String(result.itemName.prefix(80))
-            description = "\(result.itemName), \(phrase). What you see is what you get. "
+            title = String(input.itemName.prefix(80))
+            description = "\(input.itemName), \(phrase). What you see is what you get. "
                 + "Ships within 1 business day."
         case .depop:
-            title = String(result.itemName.prefix(80))
-            description = "\(result.itemName.lowercased()) — \(phrase). dm for measurements, "
+            title = String(input.itemName.prefix(80))
+            description = "\(input.itemName.lowercased()) — \(phrase). dm for measurements, "
                 + "open to offers. #vintage #thrift #secondhand"
         }
 
         return GeneratedListing(
             title: title, description: description,
             listingPrice: ask, negotiationFloor: floor,
-            category: result.category, marketplace: marketplace
+            category: input.category, marketplace: marketplace
         )
     }
 
@@ -346,12 +384,32 @@ actor TrendsAPIClient {
     /// a card that hadn't changed.
     private static let ttl: TimeInterval = 30 * 60
 
-    private var cached: (value: Trends, at: Date)?
+    /// Keyed on the tier it was fetched under, because `/trends` returns a
+    /// different *shape* per tier: free gets counts and direction, Pro also
+    /// gets `average_estimate` per category and `notable_finds`. The backend
+    /// caches per tier for exactly this reason
+    /// (`f"{TRENDS_CACHE_KEY}:{tier}"`); the client did not.
+    ///
+    /// So a free user whose payload was cached, who then tapped that same
+    /// card's "See average prices and the week's best finds", bought, and came
+    /// back, got the free-shaped payload served to them as Pro for up to
+    /// thirty minutes: `notableFinds` empty so the section is absent, every
+    /// `averageEstimate` nil so no row shows one. They paid and the thing they
+    /// paid for was missing, on the screen they bought it from.
+    private var cached: (value: Trends, at: Date, isPro: Bool)?
 
-    func fetch() async throws -> Trends {
+    /// Drops the cached payload. Called on every entitlement transition, so a
+    /// restore or an expiry is reflected without waiting out the TTL — the
+    /// tier key below handles the common case, this handles the rest.
+    func invalidate() {
+        cached = nil
+    }
+
+    func fetch(isPro: Bool) async throws -> Trends {
         if Config.mockScans { return Self.mock }
 
-        if let cached, Date().timeIntervalSince(cached.at) < Self.ttl {
+        if let cached, cached.isPro == isPro,
+           Date().timeIntervalSince(cached.at) < Self.ttl {
             return cached.value
         }
 
@@ -365,7 +423,7 @@ actor TrendsAPIClient {
             throw ScanAPIError.from(http, data: data)
         }
         let trends = try JSONDecoder().decode(Trends.self, from: data)
-        cached = (trends, Date())
+        cached = (trends, Date(), isPro)
         return trends
     }
 

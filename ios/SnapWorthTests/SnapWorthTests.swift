@@ -384,6 +384,69 @@ final class ListingClientTests: XCTestCase {
     // on the compile-time `Config.mockMode` (false in shipping), so these cover
     // the deterministic contract the UI and backend both depend on.
 
+    // ── Nothing owned by a ModelContext crosses to the actor ─────────────────
+
+    @MainActor
+    func test_theListingInputIsASnapshotNotTheModel() {
+        // `ListingAPIClient` is an `actor`, so its parameters leave the
+        // MainActor. It used to take the `ScanResult` itself — a
+        // `@Model final class`, not `Sendable` — and read `valueLow`,
+        // `valueHigh` and `conditionRaw` on a cooperative-pool thread while
+        // the main thread was free to mutate the same object by tapping a
+        // condition chip or typing in the Paid field. Swift 5 language mode
+        // makes that a warning, not an error, which is why it shipped.
+        let result = ScanResult(itemName: "Patagonia Better Sweater", brand: "Patagonia",
+                                category: "clothing", conditionNotes: "Good",
+                                valueLow: 40, valueHigh: 90, confidence: "High",
+                                soldListingsCount: 0, listingTitle: "T",
+                                listingDescription: "D")
+        let input = ListingInput(result: result, condition: .used)
+
+        XCTAssertEqual(input.itemName, "Patagonia Better Sweater")
+        XCTAssertEqual(input.condition, .used)
+
+        // The snapshot is taken by value, so a later edit cannot reach it —
+        // which is the whole property, since the edit is what used to race.
+        result.itemName = "something else"
+        result.valueLow = 1
+        XCTAssertEqual(input.itemName, "Patagonia Better Sweater")
+    }
+
+    @MainActor
+    func test_theInputCarriesTheConditionAdjustedRange() {
+        // The range has to be computed where the model lives, not on the
+        // actor: `priceRange` reads three stored properties.
+        let result = ScanResult(itemName: "I", brand: "B", category: "clothing",
+                                conditionNotes: "Good", valueLow: 40, valueHigh: 90,
+                                confidence: "High", soldListingsCount: 0,
+                                listingTitle: "T", listingDescription: "D")
+        let expected = result.priceRange(for: .used)
+        let input = ListingInput(result: result, condition: .used)
+        XCTAssertEqual(input.low, expected.low)
+        XCTAssertEqual(input.likely, expected.likely)
+        XCTAssertEqual(input.high, expected.high)
+        XCTAssertLessThan(input.low, Decimal(40), "used prices below the good baseline")
+    }
+
+    func test_theActorTakesNoPersistentModel() {
+        // Source-inspected because the property is about a *type signature*: a
+        // test that calls the actor correctly cannot show that calling it
+        // incorrectly is impossible.
+        let source = try! String(
+            contentsOf: URL(fileURLWithPath: #filePath)
+                .deletingLastPathComponent()
+                .deletingLastPathComponent()
+                .appendingPathComponent("SnapWorth/Services/ListingService.swift"),
+            encoding: .utf8)
+        guard let actorStart = source.range(of: "actor ListingAPIClient") else {
+            return XCTFail("could not locate the actor")
+        }
+        let actorBody = String(source[actorStart.upperBound...])
+        XCTAssertFalse(actorBody.contains("ScanResult"),
+                       "a ScanResult reaching this actor is an unsynchronised "
+                       + "read on the main context")
+    }
+
     func test_generatedListing_shareText_containsTitleAndPrice() {
         let listing = GeneratedListing(
             title: "Nike Air Max 90",
