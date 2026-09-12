@@ -201,6 +201,39 @@ never a free scan.
    full outage, that is a **deliberate, logged decision** — set
    `FREE_SCANS_PER_DAY=0` to make everyone Pro-gated rather than erroring.
 
+### 5.4b Redis *misconfigured* (not unreachable)
+
+Distinguish this from 5.4 before touching the provider. A malformed `REDIS_URL`
+looks identical on the dashboards — `required` calls fail closed exactly as they
+do in an outage — but no amount of waiting fixes it.
+
+*Signature:* `/health` reports `"backend": "redis-unavailable"`,
+`"failures": 0`. A real outage reports `"redis-degraded"` with a non-zero
+failure count — `"redis-unavailable"` means no connection was ever *attempted*,
+because the client could not be built at all. Verified against `cache.health()`:
+
+| state | `backend` | `failures` |
+|---|---|---|
+| misconfigured URL | `redis-unavailable` | `0` |
+| configured, server down | `redis-degraded` | ≥ 1 |
+| no `REDIS_URL` at all | `memory` | `0` |
+
+The startup log says which:
+
+- `REDIS_URL could not be used (ValueError: ...) — starting degraded` — the URL
+  is wrong. `redis.asyncio.from_url` rejects any scheme that is not
+  `redis://`, `rediss://` or `unix://`, and any port that is not an integer.
+  Fix the variable and redeploy.
+- `REDIS_MAX_CONNECTIONS is not a number` — a tuning knob only. Redis is fine
+  and running at the default pool size of 50; fix at leisure.
+- `REDIS_URL is set but the redis package is not installed` — the image is
+  wrong, not the config.
+
+The process deliberately **starts** in all three cases rather than crash-looping,
+because a degraded replica still serves `/scan` (quota goes per-process) while a
+crash-looping one serves nothing. `configured` stays true throughout, so nobody
+gets free Pro out of it.
+
 ### 5.5 Latency collapse
 
 1. Check `model_duration_seconds` p95 first — the model dominates scan latency.

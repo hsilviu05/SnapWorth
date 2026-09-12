@@ -271,9 +271,106 @@ class TestNormalise:
         # Satisfying the checker here would delete what the test verifies.
         assert normalise([1, 2, 3]).brand == "Unknown"  # type: ignore[arg-type]
 
+    def test_price_bounds_pull_the_headline_into_the_served_range(self):
+        """The number the product leads with must be one it actually serves.
+
+        `expected_price_usd` is the headline. When the ceiling cuts below it,
+        the whole ladder has to be rebuilt or the response carries a point
+        estimate outside its own range. The eval harness skipped that rebuild,
+        so it scored 8000 on a scan that returns 5000 — a 60% error on the one
+        figure the report is read for, in the harness built to measure it.
+        """
+        val = normalise({"category": "books", "worst_case_price_usd": 6000,
+                         "quick_sale_price_usd": 7000, "expected_price_usd": 8000,
+                         "best_case_price_usd": 9000})
+        assert val.prices.expected == 8000.0        # pre-clamp
+        low, high, was_clamped = valuation_module.apply_price_bounds(val)
+        assert (low, high) == (5000.0, 5000.0)      # the books ceiling
+        assert low <= val.prices.expected <= high
+        assert was_clamped, "a ceiling hit is a real model error"
+
+    def test_price_bounds_leave_an_in_band_valuation_alone(self):
+        val = normalise({"category": "books", "worst_case_price_usd": 50,
+                         "quick_sale_price_usd": 200, "expected_price_usd": 400,
+                         "best_case_price_usd": 900})
+        low, high, was_clamped = valuation_module.apply_price_bounds(val)
+        assert (low, high) == (50.0, 900.0)
+        assert val.prices.expected == 400.0, "nothing moved, so nothing is rebuilt"
+        assert not was_clamped
+
+    def test_a_floor_touch_is_not_a_model_error(self):
+        """A $0.75 paperback is cheap, not implausible."""
+        val = normalise({"category": "books", "worst_case_price_usd": 0.75,
+                         "best_case_price_usd": 3})
+        _, _, was_clamped = valuation_module.apply_price_bounds(val)
+        assert not was_clamped
+
+    def test_price_bounds_on_a_response_with_no_prices(self):
+        """The case the harness used to paper over with `or 1.0` / `or 5.0`.
+
+        Production passes the real zeroes, so this is what actually happens:
+        the category floor, opened into a range. Asserting it here is the point
+        — the harness scored a substituted 1.0/5.0 pair and stayed silent about
+        the case that occurs.
+        """
+        val = normalise({"category": "books"})
+        low, high, was_clamped = valuation_module.apply_price_bounds(val)
+        assert (low, high) == (1.0, 1.5)
+        assert not was_clamped
+        assert low <= val.prices.expected <= high
+
     def test_field_counting_ignores_placeholder_values(self):
+        assert valuation_module.count_present_fields(normalise(
+            {"model": "null", "variant": "", "size": None, "era": "1990s"})) == 1
+
+    def test_field_counting_ignores_values_normalisation_discarded(self):
+        """Completeness must score what survived, not what arrived.
+
+        The signal's premise is that a half-empty response means the model
+        struggled. Counting the raw payload broke it: `normalise` throws away
+        a `condition_grade` outside the four grades, a `demand` phrased as
+        "extremely high", a list whose every entry sanitises to nothing — and
+        none of that was visible to the counter. This payload fills all fifteen
+        expected fields with values normalise discards, every one; it used to
+        score 11/15, so a model answering entirely off-vocabulary was rewarded
+        with 73% completeness while the user got a valuation with nothing in it.
+        """
+        off_vocabulary = {
+            "model": "unknown", "variant": "n/a", "size": "-",
+            "material": "null", "era": "none",
+            "condition_grade": "pristine",
+            "authenticity_assessment": "definitely real",
+            "demand": "extremely high", "supply": "none at all",
+            "identification_certainty": "very sure",
+            "visual_evidence": ["n/a"], "assumptions": ["none"],
+            "uncertainty_factors": ["null"], "improve_estimate": ["-"],
+            "value_drivers": ["unknown"],
+            "worst_case_price_usd": 10, "best_case_price_usd": 30,
+        }
+        val = normalise(off_vocabulary)
+        assert valuation_module.count_present_fields(val) == 0, (
+            "every one of these fifteen values is discarded by normalise, so "
+            "none of them is evidence the model answered the question")
+
+    def test_field_counting_credits_values_that_survived(self):
+        """The other direction — the count must not simply collapse to zero."""
+        val = normalise({
+            "condition_grade": "Good",              # canonicalised, not dropped
+            "demand": "high",
+            "value_drivers": ["original box", "limited colourway"],
+            "worst_case_price_usd": 10, "best_case_price_usd": 30,
+        })
+        assert val.condition_grade == "good"
+        assert valuation_module.count_present_fields(val) == 3
+
+    def test_field_counting_rejects_a_raw_payload(self):
+        """A dict is no longer the input, and must not score as a partial one.
+
+        Passing `data` here instead of `val` is exactly the bug being fixed, so
+        it should read as zero rather than silently counting keys again.
+        """
         assert valuation_module.count_present_fields(
-            {"model": "null", "variant": "", "size": None, "era": "1990s"}) == 1
+            {"model": "Air Max 90", "demand": "high"}) == 0  # type: ignore[arg-type]
 
 
 # ── Computed confidence ──────────────────────────────────────────────────────

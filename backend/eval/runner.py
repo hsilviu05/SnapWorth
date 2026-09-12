@@ -40,7 +40,6 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import confidence as confidence_module  # noqa: E402
 import imagequality  # noqa: E402
-import promptsafety  # noqa: E402
 import prompts  # noqa: E402
 import valuation as valuation_module  # noqa: E402
 from eval import dataset as dataset_module  # noqa: E402
@@ -176,17 +175,19 @@ async def _predict_one(model, item, prompt_text: str, version: str, root: Path) 
             return prediction
 
     val = valuation_module.normalise(data, image_quality=quality)
-    low, high, clamp_kind = promptsafety.clamp_valuation(
-        val.prices.worst or 1.0, val.prices.best or 5.0, val.category)
-    # Same rule as main.py's /scan path, so the eval scores what production
-    # actually does: a floor touch or a widened point estimate is not an error.
-    clamped = clamp_kind in {"ceiling", "order"}
+    # The same call `/scan` makes, not a paraphrase of it. This was a local
+    # reimplementation that had drifted in two ways: it substituted `or 1.0` /
+    # `or 5.0` for a response carrying no prices, a case production does not
+    # have, and it never rebuilt the interior points, so `predicted_expected`
+    # below was the pre-clamp figure — a headline price `/scan` would never
+    # return, which is the number the whole report leads with.
+    low, high, clamped = valuation_module.apply_price_bounds(val)
     conf = confidence_module.compute(
         brand=val.brand, category=val.category,
         identification_certainty=val.identification_certainty,
         authenticity=val.authenticity, demand=val.demand, supply=val.supply,
         value_low=low, value_high=high, image_quality=quality, was_clamped=clamped,
-        model_field_count=valuation_module.count_present_fields(data),
+        model_field_count=valuation_module.count_present_fields(val),
         expected_field_count=len(valuation_module.EXPECTED_OPTIONAL_FIELDS),
     )
 

@@ -23,6 +23,40 @@ from eval import metrics  # noqa: E402
 from eval.runner import Prediction, evaluate, evaluate_consistency  # noqa: E402
 
 
+# ── The harness must measure the shipping pipeline ───────────────────────────
+# The design note at the top of eval/runner.py claims it "talks to the same
+# valuation/confidence modules the API uses, so it measures the shipping
+# pipeline rather than a parallel reimplementation that can silently drift."
+# It had drifted anyway, in the step between normalise() and confidence: a
+# local clamp that never rebuilt the price ladder and substituted defaults for
+# an empty response. These tests hold that claim to its word, because a
+# benchmark measuring a pipeline no user hits is worse than no benchmark — it
+# is trusted.
+
+class TestHarnessMatchesProduction:
+    def _source(self, name: str) -> str:
+        root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        with open(os.path.join(root, name), encoding="utf-8") as handle:
+            return handle.read()
+
+    def test_both_callers_go_through_the_shared_clamp(self):
+        for name in ("main.py", "eval/runner.py"):
+            source = self._source(name)
+            assert "apply_price_bounds" in source, (
+                f"{name} must clamp through valuation.apply_price_bounds")
+            assert "clamp_valuation" not in source, (
+                f"{name} calls promptsafety.clamp_valuation directly — that is "
+                "the second copy of the rule, and how the two drifted apart")
+
+    def test_both_callers_score_completeness_on_the_normalised_object(self):
+        for name in ("main.py", "eval/runner.py"):
+            source = self._source(name)
+            assert "count_present_fields(val)" in source, (
+                f"{name} must score the normalised Valuation, not the raw "
+                "payload — fields normalise discards are not evidence the "
+                "model answered")
+
+
 # ── Point accuracy ───────────────────────────────────────────────────────────
 
 class TestAccuracyMetrics:

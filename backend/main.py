@@ -1392,6 +1392,35 @@ async def scan(
     return response
 
 
+#: What to say when the model reports no resale value and gives no reason.
+_NOT_RESALABLE_FALLBACK = (
+    "This doesn't look like something with a resale value. "
+    "Try a photo of a single item you'd actually sell.")
+
+
+def _not_resalable_message(val: valuation_module.Valuation) -> str:
+    """The user-facing text for a deliberate zero valuation.
+
+    The prompt asks the model to *explain in `uncertainty_factors`*, and that
+    explanation ("this is a photograph of a cooked meal") is the only part of
+    the response worth showing. It was being discarded along with everything
+    else, so the user was told to try again and never told why.
+
+    The text is model output, so it has already been through
+    `promptsafety.sanitize_text` and `_string_list` in `normalise` — the same
+    path as every field this app displays on a successful scan. Bounded to one
+    factor and one line because this is an error banner, not a result screen.
+    """
+    reason = next((f for f in val.uncertainty_factors if f), "")
+    if not reason:
+        return _NOT_RESALABLE_FALLBACK
+    if len(reason) > 160:
+        reason = reason[:159].rstrip() + "…"
+    if reason[-1] not in ".!?…":
+        reason += "."
+    return f"{reason} Try a photo of a single item you'd actually sell."
+
+
 async def _analyse(image_bytes: bytes, content_type: str, *, subject: str,
                    device_short: str, tag_bytes: bytes | None = None,
                    tag_type: str = "", count: bool = True) -> tuple[ScanResponse, float]:
@@ -1491,6 +1520,26 @@ async def _analyse(image_bytes: bytes, content_type: str, *, subject: str,
     # presented as the estimate. Honest valuation is the product; inventing a
     # number when the model gave none is the one failure mode worth 502-ing for.
     if not val.prices.worst or not val.prices.best:
+        # ...unless the model priced it at zero on purpose. The prompt's last
+        # honesty rule tells it to, for "a person, a pet, a room, a screenshot,
+        # food" — so the documented correct answer was being served as a
+        # gateway error inviting a retry that cannot succeed, on exactly the
+        # photographs someone takes while trying the app out. It also filed
+        # correct behaviour under the `no_price` failure metric, which is the
+        # alarm for the real fault and was being drowned in it.
+        if valuation_module.priced_as_unsellable(data):
+            log.info("scan declined: not a resalable object",
+                     extra={"item": val.item_name, "category": val.category})
+            metrics.model_calls.inc(operation="scan", outcome="not_resalable")
+            # 422, not 502: nothing failed. The model read the photo and
+            # answered. The client renders `detail` verbatim for any non-2xx
+            # and retries nothing automatically, so this reaches the user as
+            # written on every shipped version.
+            raise HTTPException(
+                status_code=422,
+                detail=_not_resalable_message(val),
+            ) from None
+
         log.error("scan produced no usable price",
                   extra={"item": val.item_name, "category": val.category,
                          "keys": sorted(data)[:20]})
@@ -1505,32 +1554,10 @@ async def _analyse(image_bytes: bytes, content_type: str, *, subject: str,
     # Category bands remain the outer backstop against order-of-magnitude errors
     # and injected numbers. Applied to the compatibility low/high pair, then the
     # ratio is carried across to the four v2 points so they stay consistent.
-    low, high, clamp_kind = promptsafety.clamp_valuation(
-        val.prices.worst, val.prices.best, val.category)
-    if (low, high) != (round(val.prices.worst, 2), round(val.prices.best, 2)):
-        # Rebuild whenever the span moved at all, so the v1 low/high pair and
-        # the v2 ladder cannot disagree — the response builds one from `low`
-        # and the other from `val.prices`.
-        #
-        # The interior points are pinned into the new span, not discarded.
-        # Passing quick=0, expected=0 made `reconcile_prices` interpolate them,
-        # so `expected_price_usd` came back as the exact midpoint of the
-        # clamped range — the one thing prompts.py forbids ("must be your best
-        # point estimate, not the midpoint of a range you invented"). A $0.25
-        # floor adjustment was silently rewriting the headline number a Pro
-        # subscriber is paying to see. Zero still means absent, because
-        # `reconcile_prices` reads it that way and interpolating a point the
-        # model never sent is better than pinning it to the floor.
-        def _pin(v: float) -> float:
-            return min(max(v, low), high) if v > 0 else 0.0
-
-        val.prices = valuation_module.reconcile_prices(
-            worst=low, quick=_pin(val.prices.quick),
-            expected=_pin(val.prices.expected), best=high)
-    # Only a real model error lowers confidence. A cheap item touching its
-    # category floor, or a point estimate being opened into a range, is not one.
-    was_clamped = clamp_kind in {"ceiling", "order"}
-    val.was_clamped = was_clamped
+    # The body of this lives in `valuation.apply_price_bounds` because the
+    # evaluation harness has to run the identical step; it had its own copy and
+    # had drifted from this one twice. See that docstring.
+    low, high, was_clamped = valuation_module.apply_price_bounds(val)
 
     # Confidence is computed here, from observable signals — it is no longer
     # whatever the model said about itself. See confidence.py.
@@ -1545,7 +1572,7 @@ async def _analyse(image_bytes: bytes, content_type: str, *, subject: str,
         value_high=high,
         image_quality=quality,
         was_clamped=was_clamped,
-        model_field_count=valuation_module.count_present_fields(data),
+        model_field_count=valuation_module.count_present_fields(val),
         expected_field_count=len(valuation_module.EXPECTED_OPTIONAL_FIELDS),
     )
     val.confidence = conf
