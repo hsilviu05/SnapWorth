@@ -513,7 +513,12 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
         let weekAgo = now.addingTimeInterval(-7 * 86_400)
         return WeeklyDigest(
             itemCount: results.count,
-            total: HistoryViewModel.total(of: results.map(\.portfolioValue)),
+            // `portfolioTotal`, the same "still held" figure the History
+            // header shows. This summed every row including sold ones, so the
+            // weekly push repeated the inflated total the header used to show
+            // — two surfaces stating a number that matched neither the realised
+            // profit nor the held value.
+            total: HistoryViewModel.portfolioTotal(of: results),
             addedThisWeek: results.filter { $0.timestamp >= weekAgo }.count
         )
     }

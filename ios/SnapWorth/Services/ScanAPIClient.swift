@@ -246,6 +246,15 @@ struct ValuationDetail: Codable, Equatable {
         [conditionGrade, size, era, material].compactMap { $0 }.filter { !$0.isEmpty }
     }
 
+    /// `facts`, with the grade marked as the model's read rather than stated
+    /// as the item's condition. For a result whose condition the user has
+    /// corrected — see `ValuationDetailView.factsRow`.
+    var factsWithReadGrade: [String] {
+        let rest = [size, era, material].compactMap { $0 }.filter { !$0.isEmpty }
+        guard let grade = conditionGrade, !grade.isEmpty else { return rest }
+        return ["AI read \(grade)"] + rest
+    }
+
     func encoded() -> Data? { try? JSONEncoder().encode(self) }
 
     static func decode(_ data: Data?) -> ValuationDetail? {

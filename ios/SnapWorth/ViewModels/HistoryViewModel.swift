@@ -47,8 +47,28 @@ final class HistoryViewModel {
         values.reduce(Decimal.zero, +)
     }
 
+    /// What the user still holds — the number under "Your finds are worth".
+    ///
+    /// `insights().unrealized`, not a second sum of its own. It used to total
+    /// *every* row with no status filter, while `insights` routes `.sold` into
+    /// `realized` and deliberately leaves it out of `unrealized` — so the
+    /// headline counted a sold item's estimate while the line three rows below
+    /// it said that same item was not held, and the estimate is not the sale
+    /// price either, so the figure it contributed corresponded to no money
+    /// anywhere.
+    ///
+    /// One item bought for $20, estimated $40–$60, sold for $100 rendered, on
+    /// one card: "Your finds are worth $50.00" / "1 item scanned" / "$70.00
+    /// realised · $0.00 still held". $50 reconciles with neither $70 nor $0.
+    ///
+    /// Deriving it from `insights` rather than adding a matching filter here is
+    /// the point: two sums that must agree will not stay agreed.
+    nonisolated static func portfolioTotal(of results: [ScanResult]) -> Decimal {
+        insights(for: results).unrealized
+    }
+
     func portfolioTotal(from results: [ScanResult]) -> Decimal {
-        Self.total(of: results.map { $0.priceRange(for: $0.condition).likely })
+        Self.portfolioTotal(of: results)
     }
 
     func totalValue(from results: [ScanResult]) -> String {

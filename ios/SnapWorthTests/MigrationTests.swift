@@ -561,6 +561,51 @@ final class PortfolioInsightsTests: XCTestCase {
         XCTAssertEqual(i.unrealized, 0, "a sold item is no longer held")
     }
 
+    // ── The headline and the line under it are one number ───────────────────
+
+    func test_theHeadlineExcludesSoldItemsLikeTheLineBeneathIt() {
+        // The bug, on one card: the headline summed *every* row with no status
+        // filter while `insights` routes `.sold` into `realized` and leaves it
+        // out of `unrealized`. So "Your finds are worth $50.00" sat three rows
+        // above "$70.00 realised · $0.00 still held" — and $50 is the estimate
+        // of an item the same card says is not held, reconciling with neither
+        // $70 nor $0.
+        let sold = item(.sold, paid: 20, sold: 100, fees: 10)
+        let insights = HistoryViewModel.insights(for: [sold])
+
+        XCTAssertGreaterThan(sold.portfolioValue, 0, "it does have an estimate")
+        XCTAssertEqual(HistoryViewModel.portfolioTotal(of: [sold]), 0,
+                       "and the estimate of a sold item is not money held")
+        XCTAssertEqual(HistoryViewModel.portfolioTotal(of: [sold]), insights.unrealized)
+    }
+
+    func test_theHeadlineIsTheSameNumberAsStillHeld() {
+        // Derived from `insights`, not summed again — two sums that must agree
+        // will not stay agreed. This holds it to that.
+        let mixed = [item(.sold, paid: 20, sold: 100, fees: 10),
+                     item(.owned), item(.listed), item(.scanned)]
+        XCTAssertEqual(HistoryViewModel.portfolioTotal(of: mixed),
+                       HistoryViewModel.insights(for: mixed).unrealized)
+    }
+
+    func test_theWeeklyDigestReportsTheSameFigure() {
+        // The push repeated the inflated total, so two surfaces stated a number
+        // matching neither the realised profit nor the held value.
+        let mixed = [item(.sold, paid: 20, sold: 100, fees: 10), item(.owned)]
+        let expected = HistoryViewModel.money(HistoryViewModel.portfolioTotal(of: mixed))
+        XCTAssertEqual(NotificationManager.digest(for: mixed).total,
+                       HistoryViewModel.portfolioTotal(of: mixed))
+        XCTAssertEqual(NotificationManager.digest(for: mixed).body?.contains(expected), true,
+                       "the figure in the notification must be the one in the app")
+    }
+
+    func test_aLibraryOfOnlySoldItemsReportsZeroHeld() {
+        // Honest rather than convenient: the realised line carries the money.
+        let all = [item(.sold, paid: 10, sold: 50), item(.sold, paid: 20, sold: 90)]
+        XCTAssertEqual(HistoryViewModel.portfolioTotal(of: all), 0)
+        XCTAssertGreaterThan(HistoryViewModel.insights(for: all).realized, 0)
+    }
+
     func test_saleWithNoCostBasisContributesNothingRatherThanGuessing() {
         // realizedProfit is nil without a paid price. Treating that as zero is
         // right; inventing a cost basis would not be.

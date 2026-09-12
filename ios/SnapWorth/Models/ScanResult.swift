@@ -245,6 +245,23 @@ final class ScanResult {
         return (low, (low + high) / 2, high)
     }
 
+    /// The factor `priceRange` applies, exposed so a view that renders the
+    /// model's *own* price points can scale them the same way.
+    ///
+    /// `ValuationDetailView` prints the server's four-point ladder raw, and it
+    /// sits directly above the condition chips explaining the headline range —
+    /// which is scaled. Correcting a `good` item to `used` therefore left a
+    /// "Best case" 43% above the headline's own high end, on the one panel
+    /// whose job is to explain the price.
+    var conditionPriceFactor: Decimal {
+        condition.priceMultiplier / baselineCondition.priceMultiplier
+    }
+
+    /// True when the user has picked a condition other than the one the AI
+    /// read, so a surface printing the AI's grade must not present it as
+    /// current.
+    var conditionWasOverridden: Bool { condition != baselineCondition }
+
     /// Condition-adjusted low/high as `Double`, for the existing range views.
     var displayValueLow: Double { NSDecimalNumber(decimal: priceRange(for: condition).low).doubleValue }
     var displayValueHigh: Double { NSDecimalNumber(decimal: priceRange(for: condition).high).doubleValue }

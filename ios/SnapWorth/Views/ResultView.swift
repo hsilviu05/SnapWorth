@@ -280,17 +280,7 @@ struct ResultView: View {
         return Button {
             Haptics.selection()
             result.condition = condition
-            // Changing condition re-prices the item, which is the only way its
-            // value moves. Record the new point so the portfolio trend reflects
-            // it; the call is a no-op when the number did not actually change.
-            result.refreshPortfolioValue()
-            // The widget aggregates every item's condition-adjusted value, and
-            // a condition change is the only way that moves without a row
-            // being inserted or deleted — the two events the widget already
-            // listens to. Without this it showed the pre-correction total
-            // until the next scan.
-            ScanRepository(context: modelContext).refreshWidget()
-            vm.scheduleShareCardUpdate(result: result, photo: photo)
+            valuationDidChange()
             // Selection re-prices the estimate; announce the new value so a
             // VoiceOver user learns the outcome without hunting for it.
             UIAccessibility.post(
@@ -817,6 +807,38 @@ struct ResultView: View {
         }
     }
 
+    /// Everything that has to follow a change to this item's valuation.
+    ///
+    /// There are exactly two ways a saved item's value moves without a row
+    /// being inserted or deleted: the condition chips, and the tag re-read. The
+    /// chip did four of these things and the re-read did one, so a re-read that
+    /// tripled an estimate left behind a Home Screen widget and a thrift-run
+    /// Live Activity still totalling the old number, a cached share card that
+    /// would post the old number, and a generated listing priced for it. The
+    /// comment on the chip asserted a condition change was "the only way that
+    /// moves" — the re-read was the second, and shipped later.
+    ///
+    /// One function rather than a second copy of the list: the next path that
+    /// moves a value will have the same four obligations, and the way this went
+    /// wrong was a list that had to be remembered.
+    private func valuationDidChange() {
+        // Record the new point so the portfolio trend reflects it. A no-op when
+        // the number did not actually change.
+        result.refreshPortfolioValue()
+        // The widget aggregates every item's condition-adjusted value, and the
+        // Live Activity totals the run. Both listen for inserts and deletes,
+        // which this is neither.
+        ScanRepository(context: modelContext).refreshWidget()
+        // The share card is an eagerly rendered bitmap, so it holds the old
+        // item name and the old range until something re-renders it.
+        vm.scheduleShareCardUpdate(result: result, photo: photo)
+        // A listing is written for one condition and one estimate. Keeping it
+        // would show marketplace copy quoting a price the app no longer states
+        // — the same reason `selectMarketplace` clears it.
+        vm.generatedListing = nil
+        vm.listingError = nil
+    }
+
     /// Re-scan with both photos and replace the estimate in place.
     ///
     /// The item photo is the one already stored on the result, so the user
@@ -836,6 +858,7 @@ struct ResultView: View {
             do {
                 let response = try await ScanAPIClient.shared.scan(image: photo, tagImage: tagImage)
                 result.applySharpened(response)
+                valuationDidChange()
                 priceRevealed = true          // the user has seen the first number already
                 Haptics.success()
                 // A haptic is the whole of the feedback a sighted user gets, and
@@ -870,7 +893,9 @@ struct ResultView: View {
                     if !isPro { proBadge }
                 }
                 if isPro {
-                    ValuationDetailView(detail: detail)
+                    ValuationDetailView(detail: detail,
+                                        priceFactor: result.conditionPriceFactor,
+                                        gradeWasOverridden: result.conditionWasOverridden)
                 } else {
                     lockedDetailTeaser(detail)
                 }
@@ -1228,6 +1253,15 @@ struct ResultView: View {
 struct ValuationDetailView: View {
     let detail: ValuationDetail
 
+    /// The condition scaling to apply to the ladder, so it agrees with the
+    /// headline range this panel exists to explain. 1 when the user has not
+    /// corrected the AI's grade, which is the common case.
+    var priceFactor: Decimal = 1
+
+    /// Whether the AI's grade has been overridden, so the facts row stops
+    /// asserting it as the item's current condition.
+    var gradeWasOverridden: Bool = false
+
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             if !detail.ladder.isEmpty { ladder }
@@ -1246,7 +1280,7 @@ struct ValuationDetailView: View {
         HStack(alignment: .top, spacing: 0) {
             ForEach(Array(detail.ladder.enumerated()), id: \.offset) { _, row in
                 VStack(spacing: 3) {
-                    Text(Self.money(row.value))
+                    Text(Self.money(scaled(row.value)))
                         .font(.fraunces(20, weight: .bold, relativeTo: .title3))
                         .foregroundStyle(row.label == "Expected" ? Color.snapSageText : Color.snapEspresso)
                         .lineLimit(1)
@@ -1257,7 +1291,7 @@ struct ValuationDetailView: View {
                 }
                 .frame(maxWidth: .infinity)
                 .accessibilityElement(children: .combine)
-                .accessibilityLabel("\(row.label) \(Self.money(row.value))")
+                .accessibilityLabel("\(row.label) \(Self.money(scaled(row.value)))")
             }
         }
         .padding(.vertical, 12)
@@ -1348,8 +1382,22 @@ struct ValuationDetailView: View {
     // ── Facts ──
 
     @ViewBuilder
+    /// The server's price point, re-scaled to the condition on screen.
+    ///
+    /// `Decimal` throughout, like every other money path in the app, then back
+    /// to `Double` only for the formatter this view already uses.
+    private func scaled(_ value: Double) -> Double {
+        guard priceFactor != 1, value.isFinite else { return value }
+        return NSDecimalNumber(decimal: Decimal(value) * priceFactor).doubleValue
+    }
+
     private var factsRow: some View {
-        let facts = detail.facts
+        // The grade is the AI's read. Once the user has corrected it, printing
+        // it bare claims it as the item's condition — while the chips directly
+        // below say otherwise. Labelled rather than dropped: what the model
+        // thought it was looking at is the most useful fact in the row, and it
+        // is why the estimate started where it did.
+        let facts = gradeWasOverridden ? detail.factsWithReadGrade : detail.facts
         let market = [detail.demand.map { "Demand \($0)" }, detail.supply.map { "supply \($0)" }]
             .compactMap { $0 }
         if !facts.isEmpty || !market.isEmpty {
