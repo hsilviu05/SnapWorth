@@ -1,4 +1,6 @@
+import ActivityKit
 import AVFoundation
+import SwiftUI
 import XCTest
 import ImageIO
 import UIKit
