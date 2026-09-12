@@ -1872,6 +1872,127 @@ final class WidgetPaletteTests: XCTestCase {
             XCTAssertTrue(hex.allSatisfy { $0.isHexDigit && !$0.isLowercase }, hex)
         }
     }
+
+    // ── A dimmed accent is no longer a dark surface ──────────────────────────
+
+    func test_creamOnADimmedAccentIsUnreadable() {
+        // The premise behind `snapOnAccent` being fixed cream — "the accent is
+        // dark enough in both themes" — holds only at full opacity. This is
+        // the measurement that says so, kept as a test so the reasoning cannot
+        // be quietly re-inverted.
+        XCTAssertEqual(contrast(SnapDarkHex.cream, SnapDarkHex.terracottaFill),
+                       5.43, accuracy: 0.02)
+
+        let dimmedOnLight = composite(SnapDarkHex.terracottaFill,
+                                      over: Color.SnapLightHex.background, alpha: 0.4)
+        XCTAssertEqual(contrast(SnapDarkHex.cream, dimmedOnLight),
+                       1.82, accuracy: 0.03,
+                       "cream on a 40% accent over a light ground — the label "
+                       "did not read as disabled, it disappeared")
+    }
+
+    func test_themedInkReadsOnADimmedAccentInEveryVariant() {
+        // What `PrimaryButton` uses when disabled. Every ground the button can
+        // sit on, in both themes and both high-contrast variants.
+        let cases: [(String, String, String)] = [
+            ("light bg",    Color.SnapLightHex.background, Color.SnapLightHex.espresso),
+            ("light card",  Color.SnapLightHex.card,       Color.SnapLightHex.espresso),
+            ("dark bg",     SnapDarkHex.ground,      SnapDarkHex.espresso),
+            ("dark card",   SnapDarkHex.card,        SnapDarkHex.espresso),
+            ("light HC",    Color.SnapLightHex.background, Color.SnapLightHex.espressoHC),
+            ("dark HC",     SnapDarkHex.ground,      "FFFFFF"),
+        ]
+        for (label, ground, ink) in cases {
+            let fill = composite(SnapDarkHex.terracottaFill, over: ground, alpha: 0.4)
+            XCTAssertGreaterThan(contrast(ink, fill), 4.5,
+                                 "\(label): a disabled label still has to be readable")
+        }
+    }
+
+    func test_dimmingTheWholeButtonWouldBeWorse() {
+        // The obvious fix, measured rather than assumed — it fails light mode
+        // anyway and drags dark mode from ~10:1 down under 4:1, because it
+        // dims a cream label toward a dark ground.
+        let lightFill = composite(SnapDarkHex.terracottaFill,
+                                  over: Color.SnapLightHex.background, alpha: 0.5)
+        let lightLabel = composite(SnapDarkHex.cream,
+                                   over: Color.SnapLightHex.background, alpha: 0.5)
+        XCTAssertLessThan(contrast(lightLabel, lightFill), 3.0)
+
+        let darkFill = composite(SnapDarkHex.terracottaFill,
+                                 over: SnapDarkHex.ground, alpha: 0.5)
+        let darkLabel = composite(SnapDarkHex.cream,
+                                  over: SnapDarkHex.ground, alpha: 0.5)
+        XCTAssertLessThan(contrast(darkLabel, darkFill), 4.5,
+                          "and it would break the theme that currently passes")
+    }
+
+    // ── The analysing overlay sits on the user's photo, not on a colour ─────
+
+    func test_theAnalysingCaptionClearsAAOnABrightPhoto() {
+        // The scrim is `snapCharcoal.opacity(0.72)` over the captured photo, so
+        // the ground is only as dark as the photo lets it be. A phone held over
+        // an item on a white shelf is the common case, not the corner one.
+        let scrim = composite(SnapDarkHex.charcoal, over: "FFFFFF", alpha: 0.72)
+        XCTAssertLessThan(contrast(composite(SnapDarkHex.cream, over: scrim, alpha: 0.7),
+                                   scrim), 4.5,
+                          "0.7 was the failing value — 4.21:1 at 13pt")
+        XCTAssertGreaterThan(contrast(composite(SnapDarkHex.cream, over: scrim, alpha: 0.8),
+                                      scrim), 4.5,
+                             "0.8 is what ships")
+    }
+
+    func test_theAnalysingMessageItselfWasNeverTheProblem() {
+        // Full-opacity cream, 17pt. Asserted so a future "fix" does not touch
+        // the line that was already fine.
+        let scrim = composite(SnapDarkHex.charcoal, over: "FFFFFF", alpha: 0.72)
+        XCTAssertGreaterThan(contrast(SnapDarkHex.cream, scrim), 4.5)
+    }
+
+    // ── The shimmer sweep has to be visible on the skeleton ──────────────────
+
+    /// The skeleton surface: `snapBorder.opacity(0.6)` over the card.
+    private func skeleton(border: String, card: String) -> String {
+        composite(border, over: card, alpha: 0.6)
+    }
+
+    func test_aWhiteSweepIsInvisibleOnTheLightSkeleton() {
+        let base = skeleton(border: Color.SnapBorderHex.light, card: Color.SnapLightHex.card)
+        let peak = composite("FFFFFF", over: base, alpha: 0.65)
+        let wash = composite("FFFFFF", over: base, alpha: 0.18)
+        XCTAssertLessThan(contrast(peak, base), 1.1,
+                          "a 1.09:1 peak is below the threshold of visible "
+                          "difference — the placeholder was a static block, so "
+                          "a slow decode looked identical to a missing image")
+        XCTAssertLessThan(contrast(wash, base), 1.05,
+                          "and the Reduce Motion wash conveyed nothing at all")
+    }
+
+    func test_aWhiteSweepIsAColdFlareOnTheDarkSkeleton() {
+        let base = skeleton(border: Color.SnapBorderHex.dark, card: SnapDarkHex.card)
+        let peak = composite("FFFFFF", over: base, alpha: 0.65)
+        XCTAssertGreaterThan(contrast(peak, base), 7.0,
+                             "pure white on a warm espresso card — the same "
+                             "token failing in opposite directions")
+    }
+
+    func test_thePaletteSweepIsVisibleInBothThemes() {
+        // `snapShimmer` resolves to `snapEspresso`: dark ink on light, cream on
+        // dark. 3:1 is WCAG 1.4.11's floor for a meaningful non-text boundary,
+        // and what a "pending" placeholder has to clear to mean anything.
+        let light = skeleton(border: Color.SnapBorderHex.light, card: Color.SnapLightHex.card)
+        XCTAssertGreaterThan(
+            contrast(composite(Color.SnapLightHex.espresso, over: light, alpha: 0.65), light), 3.0)
+        XCTAssertGreaterThan(
+            contrast(composite(Color.SnapLightHex.espresso, over: light, alpha: 0.5), light), 3.0,
+            "including the static Reduce Motion wash")
+
+        let dark = skeleton(border: Color.SnapBorderHex.dark, card: SnapDarkHex.card)
+        XCTAssertGreaterThan(
+            contrast(composite(SnapDarkHex.espresso, over: dark, alpha: 0.65), dark), 3.0)
+        XCTAssertGreaterThan(
+            contrast(composite(SnapDarkHex.espresso, over: dark, alpha: 0.5), dark), 3.0)
+    }
 }
 
 // ── Spoken labels ────────────────────────────────────────────────────────────
