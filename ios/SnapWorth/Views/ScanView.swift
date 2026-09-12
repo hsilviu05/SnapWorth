@@ -268,6 +268,27 @@ struct ScanView: View {
                 cameraManager.startSession()
             }
         }
+        // A scan request means "give me a live camera", not "select tab 0".
+        //
+        // The only observer of this used to be `MainTabView`, which sets
+        // `selectedTab = 0` and nothing else. Every presentation over this
+        // view is private `@State` here, so when the Scan tab was *already*
+        // selected and obscured — the result sheet still up, the intro
+        // paywall, the Thrift Flip cover — the drained press changed nothing
+        // at all, while `takePendingAction` had already consumed it. The user
+        // pressed the Control Centre button, the app came forward, and the
+        // sheet they pressed it to get past was still there.
+        //
+        // Clearing these also re-fires `isCameraObscured` above, which is what
+        // restarts the capture session.
+        .onReceive(NotificationCenter.default.publisher(for: .snapWidgetOpenScan)) { _ in
+            showResult = false
+            showThriftFlip = false
+            showNotifPriming = false
+            vm.showPaywall = false
+            vm.reset()
+            cameraManager.capturedImage = nil
+        }
         .sheet(isPresented: $showResult, onDismiss: {
             // Runs whether the user taps "Done" or swipes down
             vm.reset()

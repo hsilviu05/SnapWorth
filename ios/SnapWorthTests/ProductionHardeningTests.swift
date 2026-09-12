@@ -751,6 +751,53 @@ final class PaywallSelectionTests: XCTestCase {
                          savingsPercent: nil)]
     }
 
+    // ── Restore has to say something either way ─────────────────────────────
+
+    @MainActor
+    func test_restoreWithNothingToRestoreSaysSo() async {
+        // `AppStore.sync()` succeeding with no entitlement is a *success*:
+        // `restorePurchases` throws only on a real sync error, so the catch
+        // never ran, `errorMessage` stayed nil, `isPurchaseComplete` stayed
+        // false and the sheet did not dismiss. The spinner ran for a second,
+        // stopped, and nothing else on screen changed — indistinguishable from
+        // a button that does nothing, which is what an App Review tester on a
+        // fresh sandbox account taps.
+        let vm = PaywallViewModel()
+        let service = MockPurchaseService(forcedSubscribed: false)
+
+        await vm.restore(service: service)
+
+        XCTAssertFalse(vm.isPurchaseComplete)
+        XCTAssertNil(vm.errorMessage, "nothing failed, so nothing is red")
+        XCTAssertEqual(vm.pendingMessage,
+                       "No active subscription found on this Apple ID.")
+        XCTAssertFalse(vm.isRestoring, "the spinner stops either way")
+    }
+
+    @MainActor
+    func test_restoreThatFindsASubscriptionStillCompletes() async {
+        let vm = PaywallViewModel()
+        let service = MockPurchaseService(forcedSubscribed: true)
+
+        await vm.restore(service: service)
+
+        XCTAssertTrue(vm.isPurchaseComplete)
+        XCTAssertNil(vm.pendingMessage, "no 'nothing found' on a success")
+        XCTAssertNil(vm.errorMessage)
+    }
+
+    @MainActor
+    func test_restoreClearsAStalePendingMessage() async {
+        // An Ask-to-Buy attempt leaves "waiting for approval" behind. Without
+        // clearing it, the next Restore reads as its result.
+        let vm = PaywallViewModel()
+        vm.pendingMessage = "Waiting for approval."
+
+        await vm.restore(service: MockPurchaseService(forcedSubscribed: true))
+
+        XCTAssertNil(vm.pendingMessage)
+    }
+
     func test_fallsBackToTheOnlyPlanThatLoaded() {
         let vm = PaywallViewModel()
         XCTAssertEqual(vm.selectedProductID, Config.yearlyProductID)

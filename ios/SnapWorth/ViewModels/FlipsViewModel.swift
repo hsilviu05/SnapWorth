@@ -169,12 +169,29 @@ final class FlipsViewModel {
         let sold = all.filter { $0.status == .sold }
             .sorted { ($0.soldDate ?? $0.timestamp) < ($1.soldDate ?? $1.timestamp) }
 
-        let iso = ISO8601DateFormatter()
-        iso.formatOptions = [.withFullDate]
+        // A local-calendar day, matching every other date rule in this feature.
+        //
+        // This was an `ISO8601DateFormatter` with only `.withFullDate`, and
+        // that formatter's `timeZone` defaults to **GMT** — so the exported day
+        // was the UTC day while `isInCurrentMonth` and `monthlyBuckets` both
+        // use `Calendar.current`, and the export's own filename via
+        // `fileStamp()` uses the local zone. `soldDate` carries a real
+        // time-of-day (wall-clock `Date()` or a local DatePicker), not a
+        // normalised midnight, so the two disagreed for every sale logged after
+        // 17:00 Pacific or 20:00 Eastern — most evenings, for most of the US
+        // user base. At a month boundary the sale exported into the wrong
+        // month; on 31 December, into the wrong tax year, while the app's own
+        // month card counted it correctly.
+        //
+        // Same construction as `fileStamp()`, so the two cannot drift.
+        let day = DateFormatter()
+        day.locale = Locale(identifier: "en_US_POSIX")
+        day.calendar = Calendar.current
+        day.dateFormat = "yyyy-MM-dd"
 
         var rows = ["Date,Item,Paid,Sold,Fees,Profit,ROI"]
         for r in sold {
-            let date = r.soldDate.map { iso.string(from: $0) } ?? ""
+            let date = r.soldDate.map { day.string(from: $0) } ?? ""
             let paid = r.paidPrice.map { Self.decimalString($0) } ?? ""
             let soldStr = r.soldPrice.map { Self.decimalString($0) } ?? ""
             let fees = r.feesEstimate.map { Self.decimalString($0) } ?? ""
