@@ -382,13 +382,55 @@ enum Condition: String, CaseIterable, Identifiable {
         return parts
     }
 
+    /// Endings a matched term may carry and still be the same word, so
+    /// "stains", "damaged" and "tearing" count while "stainless",
+    /// "undamaged" and "teardrop" do not.
+    private static let inflections: Set<String> = ["", "s", "es", "ed", "d", "ing"]
+
+    /// Whether a substring hit is its own word rather than the middle of a
+    /// longer one.
+    ///
+    /// This is the half that was missing. Negation was handled carefully and
+    /// substring containment was not, and the comment on the term list — which
+    /// warns that "rip" matches "striped" and "wear" matches "menswear" — was
+    /// a list of the traps that had been *noticed*. It was incomplete:
+    ///
+    ///   stain   → stainless      flaw  → flawless
+    ///   damage  → undamaged      heavy → heavyweight
+    ///   tear    → teardrop       fair  → fairisle
+    ///   worn    → unworn         ← this one means the opposite
+    ///
+    /// A stainless steel watch, a flawless jacket and an unworn dress were all
+    /// graded `.used`, which carries a 0.78 multiplier — so the estimate came
+    /// back 22% under, and correcting the chip by hand then jumped it 28%.
+    ///
+    /// Structural rather than another vocabulary patch: a term can now be
+    /// added without auditing the rest of the English language for it.
+    private static func isWholeWord(_ hit: Range<String.Index>,
+                                    in clause: String) -> Bool {
+        if hit.lowerBound > clause.startIndex {
+            let preceding = clause[clause.index(before: hit.lowerBound)]
+            if preceding.isLetter { return false }
+        }
+        let remainder = clause[hit.upperBound...].prefix { $0.isLetter }
+        return inflections.contains(String(remainder))
+    }
+
     /// True when `needle` appears somewhere it is actually being asserted,
-    /// rather than denied.
+    /// rather than denied — and as a word rather than inside a longer one.
+    ///
+    /// Every occurrence is considered, not just the first: "stainless steel
+    /// with a stain on the strap" has to reach the second one.
     private static func asserts(_ needle: String, in clauses: [String]) -> Bool {
         for clause in clauses {
-            guard let hit = clause.range(of: needle) else { continue }
-            let before = clause[clause.startIndex..<hit.lowerBound]
-            if !negators.contains(where: { before.contains($0) }) { return true }
+            var searchFrom = clause.startIndex
+            while let hit = clause.range(of: needle,
+                                         range: searchFrom..<clause.endIndex) {
+                searchFrom = hit.upperBound
+                guard isWholeWord(hit, in: clause) else { continue }
+                let before = clause[clause.startIndex..<hit.lowerBound]
+                if !negators.contains(where: { before.contains($0) }) { return true }
+            }
         }
         return false
     }
@@ -412,13 +454,15 @@ enum Condition: String, CaseIterable, Identifiable {
         func says(_ terms: [String]) -> Bool {
             terms.contains { asserts($0, in: parts) }
         }
-        if says(["new with tag", "nwt", "brand new", "unused"]) { return .new }
+        // "unworn" belongs here rather than nowhere: with whole-word matching
+        // it no longer trips the `.used` branch, and grading an unworn item
+        // `.good` understates it by the same 0.78 the old bug applied.
+        if says(["new with tag", "nwt", "brand new", "unused", "unworn"]) { return .new }
         if says(["like new", "excellent", "mint", "very good"])  { return .likeNew }
-        // Substrings, so each term has to be checked against the vocabulary of
-        // secondhand clothing before it is added. "torn" is safe. "rip" is not
-        // — it matches "striped". "wear" is not — it matches "menswear",
-        // "outerwear", "activewear". That trap is the same one that produced
-        // this bug in the first place.
+        // Whole words now, not substrings — see `isWholeWord`. That is what
+        // makes this list safe to extend: "rip" no longer matches "striped"
+        // and "wear" no longer matches "menswear", structurally, rather than
+        // because someone remembered to check.
         if says(["fair", "poor", "worn", "torn", "heavy",
                  "damage", "flaw", "stain", "tear"])             { return .used }
         return .good

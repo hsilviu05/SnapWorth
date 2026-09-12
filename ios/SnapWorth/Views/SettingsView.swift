@@ -152,6 +152,14 @@ struct SettingsView: View {
                         .frame(minHeight: 44)
                     }
                     .tint(Color.snapTerracotta)
+                    // `@AppStorage` writes the key directly, so it never goes
+                    // through `Analytics.isEnabled`'s setter and the SDK was
+                    // never told to stop. Custom events did stop; the SDK's own
+                    // session and install signals, which carry an identifier,
+                    // did not — so turning this off left them flowing.
+                    .onChange(of: analyticsEnabled) { _, _ in
+                        Analytics.shared.syncBackendToPersistedFlag()
+                    }
                     .accessibilityLabel("Share anonymous analytics")
                     .accessibilityHint("Anonymous usage only — never your photos, item names, or prices")
                 } header: {

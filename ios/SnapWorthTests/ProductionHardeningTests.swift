@@ -2293,6 +2293,57 @@ final class ConditionBaselineTests: XCTestCase {
         XCTAssertEqual(Condition.inferred(from: "Free of stains or damage"), .good)
     }
 
+    // MARK: The other half of the same bug — substrings
+
+    func test_aDefectTermInsideALongerWordIsNotADefect() {
+        // The term list carried a comment warning that "rip" matches "striped"
+        // and "wear" matches "menswear". It was a list of the traps someone had
+        // noticed, and it was incomplete. Each of these graded `.used`, which
+        // carries a 0.78 multiplier — so the estimate came back 22% under.
+        XCTAssertEqual(Condition.inferred(from: "Stainless steel case, keeps time"), .good,
+                       "stainless → stain")
+        XCTAssertEqual(Condition.inferred(from: "Flawless condition throughout"), .good,
+                       "flawless → flaw")
+        XCTAssertEqual(Condition.inferred(from: "Undamaged, light patina"), .good,
+                       "undamaged → damage")
+        XCTAssertEqual(Condition.inferred(from: "Heavyweight cotton, holds shape"), .good,
+                       "heavyweight → heavy")
+        XCTAssertEqual(Condition.inferred(from: "Teardrop earrings, sterling silver"), .good,
+                       "teardrop → tear")
+        XCTAssertEqual(Condition.inferred(from: "Fairisle knit, classic pattern"), .good,
+                       "fairisle → fair")
+    }
+
+    func test_unwornIsTheOppositeOfWorn() {
+        // The worst of them: the term matched inside the word that negates it.
+        XCTAssertEqual(Condition.inferred(from: "Unworn, still in the box"), .new)
+    }
+
+    func test_theTrapsTheCommentAlreadyNamedAreNowStructural() {
+        // Not in the term list, but they would be safe to add now, which is
+        // the point of the change.
+        XCTAssertEqual(Condition.inferred(from: "Classic striped oxford"), .good)
+        XCTAssertEqual(Condition.inferred(from: "Menswear, size large"), .good)
+        XCTAssertEqual(Condition.inferred(from: "Outerwear for winter"), .good)
+    }
+
+    func test_inflectionsStillCount() {
+        // A word boundary alone would have lost these.
+        XCTAssertEqual(Condition.inferred(from: "Stains at the hem"), .used)
+        XCTAssertEqual(Condition.inferred(from: "Stained collar"), .used)
+        XCTAssertEqual(Condition.inferred(from: "Tearing along the seam"), .used)
+        XCTAssertEqual(Condition.inferred(from: "Damaged zip"), .used)
+        XCTAssertEqual(Condition.inferred(from: "Several flaws"), .used)
+    }
+
+    func test_aRealDefectAfterAFalseOneIsStillFound() {
+        // Every occurrence is considered, not just the first — otherwise the
+        // "stainless" hit would shadow the real one behind it.
+        XCTAssertEqual(
+            Condition.inferred(from: "Stainless steel with a stain on the strap"),
+            .used)
+    }
+
     func test_realDamageStillReadsAsUsed() {
         XCTAssertEqual(Condition.inferred(from: "Heavy pilling, stains at the cuffs"), .used)
         XCTAssertEqual(Condition.inferred(from: "Visible damage to the zipper"), .used)
@@ -2660,5 +2711,83 @@ final class IntroOfferEligibilityTests: XCTestCase {
         XCTAssertFalse(headline.lowercased().contains("free"))
         XCTAssertFalse(PaywallCopy.ctaTitle(isYearly: true, offer: nil)
                         .lowercased().contains("trial"))
+    }
+}
+
+// ── The analytics opt-out has to reach the SDK ────────────────────────────────
+//
+// The Settings toggle is `@AppStorage(Analytics.enabledKey)`, which writes
+// `UserDefaults` directly and therefore never runs `Analytics.isEnabled`'s
+// setter — the one line that calls `backend.setEnabled`. `track` guards on the
+// flag, so custom events stopped. What did not stop is the SDK's own automatic
+// session and install signals, which carry an identifier and are silenced only
+// by `setEnabled`. A user who turned "Share anonymous analytics" off kept
+// sending them, and the doc comment on the flag claimed otherwise.
+
+private final class AnalyticsBackendSpy: AnalyticsService {
+    var enabledCalls: [Bool] = []
+    var tracked: [String] = []
+    func track(_ event: AnalyticsEvent) { tracked.append(event.name) }
+    func setEnabled(_ enabled: Bool) { enabledCalls.append(enabled) }
+}
+
+final class AnalyticsOptOutTests: XCTestCase {
+
+    private var spy = AnalyticsBackendSpy()
+
+    override func setUp() {
+        super.setUp()
+        spy = AnalyticsBackendSpy()
+        Analytics.shared.configure(spy)
+    }
+
+    override func tearDown() {
+        UserDefaults.standard.removeObject(forKey: Analytics.enabledKey)
+        super.tearDown()
+    }
+
+    func test_theKeyTheToggleWritesIsTheKeyAnalyticsReads() {
+        // Pins the coupling. `@AppStorage(Analytics.enabledKey)` and this flag
+        // must be the same key, and a rename that broke it would be silent.
+        UserDefaults.standard.set(false, forKey: Analytics.enabledKey)
+        XCTAssertFalse(Analytics.shared.isEnabled)
+        UserDefaults.standard.set(true, forKey: Analytics.enabledKey)
+        XCTAssertTrue(Analytics.shared.isEnabled)
+    }
+
+    func test_optingOutThroughTheRawKeyStillReachesTheSDK() {
+        // Exactly what the toggle does, followed by what the view now does.
+        UserDefaults.standard.set(false, forKey: Analytics.enabledKey)
+        Analytics.shared.syncBackendToPersistedFlag()
+
+        XCTAssertEqual(spy.enabledCalls, [false],
+                       "the SDK was never told to stop sending session signals")
+    }
+
+    func test_optingBackInReachesTheSDKToo() {
+        UserDefaults.standard.set(true, forKey: Analytics.enabledKey)
+        Analytics.shared.syncBackendToPersistedFlag()
+        XCTAssertEqual(spy.enabledCalls, [true])
+    }
+
+    func test_theSyncIsIdempotent() {
+        // The view calls it on every change; calling it twice must be harmless.
+        UserDefaults.standard.set(false, forKey: Analytics.enabledKey)
+        Analytics.shared.syncBackendToPersistedFlag()
+        Analytics.shared.syncBackendToPersistedFlag()
+        XCTAssertEqual(spy.enabledCalls, [false, false])
+    }
+
+    func test_customEventsStopWhenOptedOut() {
+        // This half always worked — asserted so the two halves are visibly
+        // separate things.
+        UserDefaults.standard.set(false, forKey: Analytics.enabledKey)
+        Analytics.shared.track(.appOpened)
+        XCTAssertTrue(spy.tracked.isEmpty)
+    }
+
+    func test_defaultIsOptedIn() {
+        UserDefaults.standard.removeObject(forKey: Analytics.enabledKey)
+        XCTAssertTrue(Analytics.shared.isEnabled)
     }
 }
