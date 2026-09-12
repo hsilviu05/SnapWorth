@@ -324,7 +324,26 @@ footer.site a{color:var(--warm-gray);margin-right:16px;}
   }
 
   function start() {
-    deck = shuffle(ALL).slice(0, ROUNDS);
+    // One row per *item*, not ten rows out of forty-eight.
+    //
+    // `ALL` is 16 items x 3 condition tiers = 48 rows, so `shuffle(ALL)
+    // .slice(0, ROUNDS)` sampled rows and therefore drew with replacement at
+    // the item level. The chance of ten distinct items was
+    // C(16,10)*3^10 / C(48,10) = 7.2%, so 92.8% of games asked about the same
+    // jacket twice — while the page promises "Ten secondhand items" and the
+    // meta description promises "Ten rounds".
+    var byItem = {};
+    ALL.forEach(function (r) { (byItem[r.item] = byItem[r.item] || []).push(r); });
+    deck = shuffle(Object.keys(byItem)).slice(0, ROUNDS).map(function (name) {
+      return shuffle(byItem[name])[0];   // one condition tier, chosen at random
+    });
+    // If the data ever carries fewer than ROUNDS distinct items, top up from
+    // the spare tiers rather than shortening the game: every count on screen
+    // is ROUNDS.
+    if (deck.length < ROUNDS) {
+      var spare = shuffle(ALL.filter(function (r) { return deck.indexOf(r) < 0; }));
+      deck = deck.concat(spare.slice(0, ROUNDS - deck.length));
+    }
     i = 0; score = 0; hits = 0; high = 0; low = 0;
     ask();
   }
