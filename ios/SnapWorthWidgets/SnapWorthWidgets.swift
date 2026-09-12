@@ -299,6 +299,15 @@ enum SnapDarkHex {
     static let sage = "8FB08A"
     static let warmGray = "B0A297"
     static let espresso = "F0E9E2"
+    /// Amber stays *light* in both themes — it is a highlight, not a surface —
+    /// which is why anything drawn on it needs fixed dark ink.
+    static let amber = "E5BE7C"
+
+    /// The app's dark-theme surfaces. Not used by the widget extension, whose
+    /// tile is `charcoal` in both themes — they live here so the whole palette
+    /// is measurable from one place.
+    static let ground = "17120F"
+    static let card = "221B17"
 
     /// Terracotta as a *filled* surface with cream on top: the Quick Scan tile
     /// and the medium widget's Scan chip.

@@ -31,7 +31,7 @@ struct NotificationSettingsView: View {
                         HStack(spacing: 14) {
                             Image(systemName: "bell.slash")
                                 .snapSymbol(16, weight: .medium)
-                                .foregroundStyle(Color.snapTerracotta)
+                                .foregroundStyle(Color.snapTerracottaText)
                                 .frame(width: 24)
                             VStack(alignment: .leading, spacing: 2) {
                                 Text("Notifications are off")
@@ -99,7 +99,7 @@ struct NotificationSettingsView: View {
             HStack(spacing: 14) {
                 Image(systemName: icon)
                     .snapSymbol(16, weight: .medium)
-                    .foregroundStyle(Color.snapTerracotta)
+                    .foregroundStyle(Color.snapTerracottaText)
                     .frame(width: 24)
                 Text(label)
                     .font(.snapBody)

@@ -1851,3 +1851,176 @@ final class CameraFlashModeTests: XCTestCase {
         }
     }
 }
+
+// ── The app palette ──────────────────────────────────────────────────────────
+//
+// Every contrast failure this palette has had was invisible to the compiler and
+// to every test, because a `Color` cannot be measured. Three were live at once:
+//
+//   • cream on a terracotta fill — 3.18:1 light, 2.49:1 dark, 4.37:1 even under
+//     Increased Contrast. That is every primary button in the app.
+//   • terracotta as a text colour — 3.39:1 on a card, 3.18:1 on the ground.
+//     About thirty labels, including the keyboard toolbar's "Done", which is
+//     the only way off the money keypad, and every error message.
+//   • cream ink on a dark-mode amber badge — 1.46:1. The "SAVE 33%" on the
+//     yearly plan, which is the reason to pick it.
+//
+// And `snapWarmGray`, deliberately darkened from 3.1:1 to 5.7:1 to clear AA,
+// was being re-diluted by `.opacity()` at thirteen call sites back to 2.3-3.7:1
+// — one of them Apple's required auto-renew disclosure.
+//
+// The hexes are in `Color.SnapLightHex` and `SnapDarkHex` so these assertions
+// can exist at all.
+
+final class AppPaletteTests: XCTestCase {
+
+    private typealias L = Color.SnapLightHex
+
+    private func luminance(_ hex: String) -> Double {
+        let channels = stride(from: 0, to: 6, by: 2).map { offset -> Double in
+            let start = hex.index(hex.startIndex, offsetBy: offset)
+            let end = hex.index(start, offsetBy: 2)
+            let value = Double(UInt8(hex[start..<end], radix: 16) ?? 0) / 255
+            return value <= 0.03928 ? value / 12.92
+                                    : pow((value + 0.055) / 1.055, 2.4)
+        }
+        return 0.2126 * channels[0] + 0.7152 * channels[1] + 0.0722 * channels[2]
+    }
+
+    private func contrast(_ a: String, _ b: String) -> Double {
+        let (x, y) = (luminance(a), luminance(b))
+        return (max(x, y) + 0.05) / (min(x, y) + 0.05)
+    }
+
+    private func assertAA(_ fg: String, on bg: String, _ what: String,
+                          minimum: Double = 4.5,
+                          file: StaticString = #filePath, line: UInt = #line) {
+        let ratio = contrast(fg, bg)
+        XCTAssertGreaterThanOrEqual(
+            ratio, minimum,
+            "\(what) is \(String(format: "%.2f", ratio)):1, needs \(minimum):1",
+            file: file, line: line)
+    }
+
+    // ── Body text, both themes, both surfaces ────────────────────────────────
+
+    func test_bodyTextClearsAAEverywhereItIsDrawn() {
+        assertAA(L.espresso, on: L.background, "espresso on the light ground")
+        assertAA(L.espresso, on: L.card, "espresso on a light card")
+        assertAA(SnapDarkHex.espresso, on: SnapDarkHex.ground, "espresso on the dark ground")
+        assertAA(SnapDarkHex.espresso, on: SnapDarkHex.card, "espresso on a dark card")
+    }
+
+    func test_secondaryTextClearsAAEverywhereItIsDrawn() {
+        // This is the token that was darkened to 5.7:1 on purpose. Thirteen
+        // call sites then put `.opacity()` on it, which is what the sweep in
+        // this commit removed — an opacity here cannot be caught by a test of
+        // the token, so the point of asserting it is that the *token* stays
+        // good enough that undiluted use is always correct.
+        assertAA(L.warmGray, on: L.background, "warm grey on the light ground")
+        assertAA(L.warmGray, on: L.card, "warm grey on a light card")
+        assertAA(SnapDarkHex.warmGray, on: SnapDarkHex.ground, "warm grey on the dark ground")
+        assertAA(SnapDarkHex.warmGray, on: SnapDarkHex.card, "warm grey on a dark card")
+    }
+
+    // ── Accents used as text ─────────────────────────────────────────────────
+
+    func test_terracottaAsTextClearsAA() {
+        assertAA(L.terracottaText, on: L.background, "terracotta text on the ground")
+        assertAA(L.terracottaText, on: L.card, "terracotta text on a card")
+        assertAA(SnapDarkHex.terracotta, on: SnapDarkHex.ground, "terracotta text, dark ground")
+        assertAA(SnapDarkHex.terracotta, on: SnapDarkHex.card, "terracotta text, dark card")
+    }
+
+    func test_theBrandTerracottaWouldNotHaveClearedItAsText() {
+        // Why `snapTerracottaText` exists rather than reusing the brand value.
+        XCTAssertLessThan(contrast(L.terracotta, L.card), 4.5)
+        XCTAssertLessThan(contrast(L.terracotta, L.background), 4.5)
+    }
+
+    func test_theBrandTerracottaIsStillFineForABorder() {
+        // Which is why it was kept, rather than darkened app-wide: WCAG holds a
+        // UI component boundary to 3:1, and every remaining use of the brand
+        // token is a stroke, a tint, a dot or a control accent.
+        assertAA(L.terracotta, on: L.card, "terracotta border on a card", minimum: 3.0)
+        assertAA(L.terracotta, on: L.background, "terracotta border on the ground", minimum: 3.0)
+    }
+
+    func test_sageAsMoneyClearsAA() {
+        // Sage is the money colour — every estimate, every profit figure.
+        assertAA(L.sageText, on: L.background, "money on the light ground")
+        assertAA(L.sageText, on: L.card, "money on a light card")
+        assertAA(SnapDarkHex.sage, on: SnapDarkHex.ground, "money on the dark ground")
+        assertAA(SnapDarkHex.sage, on: SnapDarkHex.card, "money on a dark card")
+    }
+
+    func test_theBrandSageWouldNotHaveClearedItAsText() {
+        // 3.38:1 and 3.61:1. In light mode every number the app exists to show
+        // was under AA, and this test is what found it — no finder did, because
+        // the symptom reported was the *diluted* sage in the History and Flips
+        // captions at 2.09:1, which made the undiluted case look fine.
+        XCTAssertLessThan(contrast(L.sage, L.background), 4.5)
+        XCTAssertLessThan(contrast(L.sage, L.card), 4.5)
+    }
+
+    func test_theBrandSageIsStillFineForATintOrAStroke() {
+        assertAA(L.sage, on: L.card, "sage stroke on a card", minimum: 3.0)
+        assertAA(L.sage, on: L.background, "sage stroke on the ground", minimum: 3.0)
+    }
+
+    // ── Filled accents ──────────────────────────────────────────────────────
+
+    func test_creamInkClearsAAOnEveryFilledAccent() {
+        // `snapOnAccent` is fixed cream, so the fill has to clear AA against
+        // cream in *both* themes — which is why the fill is fixed too.
+        assertAA(SnapDarkHex.cream, on: SnapDarkHex.terracottaFill, "button label on its fill")
+    }
+
+    func test_theBrandTerracottaWouldNotHaveClearedItAsAFill() {
+        XCTAssertLessThan(contrast(SnapDarkHex.cream, L.terracotta), 4.5,
+                          "light terracotta fill")
+        XCTAssertLessThan(contrast(SnapDarkHex.cream, SnapDarkHex.terracotta), 4.5,
+                          "dark terracotta fill")
+        XCTAssertLessThan(contrast(SnapDarkHex.cream, L.terracottaHC), 4.5,
+                          "even the Increased-Contrast value")
+    }
+
+    func test_amberBadgeInkClearsAAInBothThemes() {
+        // The ink is fixed dark precisely because amber stays light in both.
+        assertAA(L.espresso, on: L.amber, "badge ink on light amber")
+        assertAA(L.espresso, on: SnapDarkHex.amber, "badge ink on dark amber")
+    }
+
+    func test_themeFollowingInkOnAmberWouldHaveBeenInvisible() {
+        // 1.46:1 — what shipped.
+        XCTAssertLessThan(contrast(SnapDarkHex.espresso, SnapDarkHex.amber), 2.0)
+    }
+
+    // ── Increased Contrast must never make anything worse ───────────────────
+
+    func test_increasedContrastOnlyEverIncreasesContrast() {
+        let pairs = [
+            ("espresso", L.espresso, L.espressoHC),
+            ("warmGray", L.warmGray, L.warmGrayHC),
+            ("sageText", L.sageText, L.sageTextHC),
+            ("terracottaText", L.terracottaText, L.terracottaTextHC),
+        ]
+        for (name, normal, high) in pairs {
+            XCTAssertGreaterThanOrEqual(
+                contrast(high, L.background), contrast(normal, L.background),
+                "\(name)'s high-contrast value is lighter than its normal one")
+        }
+    }
+
+    func test_everyHexIsSixUppercaseDigits() {
+        let all = [L.background, L.card, L.terracotta, L.terracottaHC,
+                   L.terracottaText, L.terracottaTextHC, L.sage, L.sageHC,
+                   L.sageText, L.sageTextHC,
+                   L.amber, L.espresso, L.espressoHC, L.warmGray, L.warmGrayHC,
+                   L.border]
+        for hex in all {
+            XCTAssertEqual(hex.count, 6, hex)
+            XCTAssertTrue(hex.allSatisfy { $0.isHexDigit && !$0.isLowercase }, hex)
+        }
+    }
+}

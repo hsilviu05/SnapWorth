@@ -63,7 +63,7 @@ struct FeedbackView: View {
                                     }
                                     .padding(.horizontal, 14)
                                     .padding(.vertical, 9)
-                                    .background(feedbackType == type ? Color.snapTerracotta : Color.snapCard)
+                                    .background(feedbackType == type ? Color.snapTerracottaFill : Color.snapCard)
                                     .foregroundStyle(feedbackType == type ? Color.snapBackground : Color.snapEspresso)
                                     .clipShape(Capsule())
                                     .overlay(
@@ -115,14 +115,14 @@ struct FeedbackView: View {
 
                         Text("\(message.count)/\(maxChars)")
                             .font(.dmSans(11))
-                            .foregroundStyle(Color.snapWarmGray.opacity(0.55))
+                            .foregroundStyle(Color.snapWarmGray)
                             .padding(10)
                     }
 
                     if !canSend {
                         Text("\(max(0, 10 - message.trimmingCharacters(in: .whitespacesAndNewlines).count)) more character\(10 - message.trimmingCharacters(in: .whitespacesAndNewlines).count == 1 ? "" : "s") needed.")
                             .font(.dmSans(11))
-                            .foregroundStyle(Color.snapWarmGray.opacity(0.6))
+                            .foregroundStyle(Color.snapWarmGray)
                             .transition(.opacity)
                     }
                 }
@@ -140,7 +140,7 @@ struct FeedbackView: View {
                     if didSend {
                         HStack(spacing: 8) {
                             Image(systemName: "checkmark.circle.fill")
-                                .foregroundStyle(Color.snapSage)
+                                .foregroundStyle(Color.snapSageText)
                             // Not "thanks, sent": opening a draft is not
                             // sending it. Saying so is also why the message
                             // below is still here to send.
@@ -183,7 +183,7 @@ struct FeedbackView: View {
             HStack(spacing: 8) {
                 Image(systemName: "exclamationmark.triangle.fill")
                     .snapSymbol(13, weight: .medium)
-                    .foregroundStyle(Color.snapTerracotta)
+                    .foregroundStyle(Color.snapTerracottaText)
                 Text("Couldn't open Mail")
                     .font(.dmSans(14, weight: .medium))
                     .foregroundStyle(Color.snapEspresso)
@@ -211,7 +211,7 @@ struct FeedbackView: View {
                     Text(didCopy ? "Copied" : "Copy message and address")
                         .font(.dmSans(13, weight: .medium))
                 }
-                .foregroundStyle(Color.snapTerracotta)
+                .foregroundStyle(Color.snapTerracottaText)
                 .padding(.vertical, 4)
             }
             .buttonStyle(.plain)

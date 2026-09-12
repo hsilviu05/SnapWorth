@@ -70,7 +70,7 @@ struct ScanView: View {
                                     .foregroundStyle(Color.snapOnAccent)
                                     .padding(.horizontal, 10)
                                     .padding(.vertical, 5)
-                                    .background(Color.snapTerracotta)
+                                    .background(Color.snapTerracottaFill)
                                     .clipShape(Capsule())
                             }
                             .snapHitTarget()

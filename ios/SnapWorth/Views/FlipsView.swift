@@ -85,17 +85,17 @@ struct FlipsView: View {
         VStack(alignment: .leading, spacing: 6) {
             Text(isPro ? "All-time profit" : "Profit this month")
                 .font(.snapCaption)
-                .foregroundStyle(Color.snapSage.opacity(0.85))
+                .foregroundStyle(Color.snapWarmGray)
 
             Text(vm.signedMoney(s.realizedProfit))
                 .font(.fraunces(38, weight: .bold))
-                .foregroundStyle(s.realizedProfit < 0 ? Color.snapTerracotta : Color.snapSage)
+                .foregroundStyle(s.realizedProfit < 0 ? Color.snapTerracottaText : Color.snapSageText)
                 .lineLimit(1)
                 .minimumScaleFactor(0.5)
 
             Text("\(s.itemsSold) item\(s.itemsSold == 1 ? "" : "s") sold")
                 .font(.snapCaption)
-                .foregroundStyle(Color.snapSage.opacity(0.7))
+                .foregroundStyle(Color.snapWarmGray)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(20)
@@ -195,7 +195,7 @@ struct FlipsView: View {
 
             Text(vm.signedMoney(bucket.profit))
                 .font(.dmSans(12, weight: .semibold))
-                .foregroundStyle(val < 0 ? Color.snapTerracotta : Color.snapEspresso)
+                .foregroundStyle(val < 0 ? Color.snapTerracottaText : Color.snapEspresso)
                 .frame(width: 74, alignment: .trailing)
         }
     }
@@ -318,7 +318,7 @@ struct FlipsView: View {
             if let profit = item.realizedProfit {
                 Text(vm.signedMoney(profit))
                     .font(.dmSans(15, weight: .bold))
-                    .foregroundStyle(profit < 0 ? Color.snapTerracotta : Color.snapSage)
+                    .foregroundStyle(profit < 0 ? Color.snapTerracottaText : Color.snapSageText)
             } else {
                 Text("—")
                     .font(.dmSans(15, weight: .bold))
@@ -348,7 +348,7 @@ struct FlipsView: View {
             }
             .foregroundStyle(Color.snapOnAccent)
             .padding(16)
-            .background(Color.snapTerracotta)
+            .background(Color.snapTerracottaFill)
             .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
         }
         .buttonStyle(.plain)
@@ -383,7 +383,7 @@ struct FlipsView: View {
             .fixedSize(horizontal: true, vertical: false)
             .padding(.horizontal, 28)
             .padding(.vertical, 12)
-            .background(Color.snapTerracotta)
+            .background(Color.snapTerracottaFill)
             .clipShape(Capsule())
             .snapHitTarget()
             .padding(.top, 4)
@@ -412,7 +412,7 @@ struct FlipsView: View {
                         Label("Export CSV", systemImage: "tablecells")
                     }
                 } label: {
-                    Image(systemName: "ellipsis.circle").foregroundStyle(Color.snapTerracotta)
+                    Image(systemName: "ellipsis.circle").foregroundStyle(Color.snapTerracottaText)
                 }
             }
         }

@@ -97,7 +97,7 @@ struct SettingsView: View {
                         HStack(spacing: 14) {
                             Image(systemName: "hand.tap")
                                 .snapSymbol(16, weight: .medium)
-                                .foregroundStyle(Color.snapTerracotta)
+                                .foregroundStyle(Color.snapTerracottaText)
                                 .frame(minWidth: 24)
                                 .accessibilityHidden(true)
                             Text("Haptic feedback")
@@ -118,7 +118,7 @@ struct SettingsView: View {
                         HStack(spacing: 14) {
                             Image(systemName: "questionmark.circle")
                                 .snapSymbol(16, weight: .medium)
-                                .foregroundStyle(Color.snapTerracotta)
+                                .foregroundStyle(Color.snapTerracottaText)
                                 .frame(minWidth: 24)
                                 .accessibilityHidden(true)
                             Text("Guess before the estimate")
@@ -142,7 +142,7 @@ struct SettingsView: View {
                         HStack(spacing: 14) {
                             Image(systemName: "chart.bar")
                                 .snapSymbol(16, weight: .medium)
-                                .foregroundStyle(Color.snapTerracotta)
+                                .foregroundStyle(Color.snapTerracottaText)
                                 .frame(minWidth: 24)
                                 .accessibilityHidden(true)
                             Text("Share anonymous analytics")
@@ -255,7 +255,7 @@ private struct SubscriptionCard: View {
                     .fixedSize(horizontal: true, vertical: false)
                     .padding(.horizontal, 14)
                     .padding(.vertical, 7)
-                    .background(Color.snapTerracotta)
+                    .background(Color.snapTerracottaFill)
                     .clipShape(Capsule())
                     .snapHitTarget()
                     .layoutPriority(1)
@@ -279,7 +279,7 @@ private struct SettingsRowLabel: View {
         HStack(spacing: 14) {
             Image(systemName: icon)
                 .snapSymbol(16, weight: .medium)
-                .foregroundStyle(Color.snapTerracotta)
+                .foregroundStyle(Color.snapTerracottaText)
                 .frame(minWidth: 24)
                 // Icon repeats the adjacent text; announcing it adds noise.
                 .accessibilityHidden(true)
@@ -304,7 +304,7 @@ private struct SettingsRow: View {
             HStack(spacing: 14) {
                 Image(systemName: icon)
                     .snapSymbol(16, weight: .medium)
-                    .foregroundStyle(destructive ? Color.red : Color.snapTerracotta)
+                    .foregroundStyle(destructive ? Color.red : Color.snapTerracottaText)
                     .frame(minWidth: 24)
                     .accessibilityHidden(true)
 

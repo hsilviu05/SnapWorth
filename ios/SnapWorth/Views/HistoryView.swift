@@ -190,7 +190,7 @@ struct HistoryView: View {
                         }
                         .font(.dmSans(16, weight: isEditing ? .semibold : .regular,
                                       relativeTo: .body))
-                        .foregroundStyle(Color.snapTerracotta)
+                        .foregroundStyle(Color.snapTerracottaText)
                         .accessibilityLabel(isEditing ? "Done editing" : "Edit finds")
                         .accessibilityHint(isEditing
                             ? "Stops removing finds"
@@ -218,7 +218,7 @@ struct HistoryView: View {
                         } label: {
                             Image(systemName: "arrow.up.arrow.down")
                                 .snapSymbol(16)
-                                .foregroundStyle(Color.snapTerracotta)
+                                .foregroundStyle(Color.snapTerracottaText)
                         }
                         .disabled(isEditing)
                         .opacity(isEditing ? 0.4 : 1)
@@ -289,7 +289,7 @@ private struct RecapBanner: View {
             HStack(spacing: 14) {
                 Image(systemName: "chart.bar.doc.horizontal")
                     .snapSymbol(20, weight: .medium)
-                    .foregroundStyle(Color.snapTerracotta)
+                    .foregroundStyle(Color.snapTerracottaText)
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Your \(month) recap is ready")
                         .font(.dmSans(15, weight: .semibold))
@@ -339,22 +339,22 @@ private struct PortfolioBanner: View {
         VStack(alignment: .leading, spacing: 6) {
             Text("Your finds are worth")
                 .font(.snapCaption)
-                .foregroundStyle(Color.snapSage.opacity(0.8))
+                .foregroundStyle(Color.snapWarmGray)
 
             Text(totalValue)
                 .font(.fraunces(36, weight: .bold))
-                .foregroundStyle(Color.snapSage)
+                .foregroundStyle(Color.snapSageText)
 
             Text("\(count) item\(count == 1 ? "" : "s") scanned")
                 .font(.snapCaption)
-                .foregroundStyle(Color.snapSage.opacity(0.7))
+                .foregroundStyle(Color.snapWarmGray)
 
             // At most one line, and only when there is something to act on —
             // see HistoryViewModel.insightLine.
             if let insightLine {
                 Text(insightLine)
                     .font(.snapCaption.weight(.medium))
-                    .foregroundStyle(Color.snapTerracotta)
+                    .foregroundStyle(Color.snapTerracottaText)
                     .padding(.top, 2)
             }
 
@@ -430,7 +430,7 @@ private struct EmptyFindsView: View {
             .foregroundStyle(Color.snapOnAccent)
             .padding(.horizontal, 28)
             .padding(.vertical, 12)
-            .background(Color.snapTerracotta)
+            .background(Color.snapTerracottaFill)
             .clipShape(Capsule())
             .buttonStyle(PressableButtonStyle())
             .snapHitTarget()
@@ -471,7 +471,7 @@ private struct TrendStrip: View {
         Button(action: onUnlock) {
             Text("Unlock value history")
                 .font(.snapCaption.weight(.semibold))
-                .foregroundStyle(Color.snapSage)
+                .foregroundStyle(Color.snapSageText)
                 .padding(.horizontal, 14)
                 .padding(.vertical, 7)
                 .background(Capsule().fill(Color.snapCard))
@@ -583,7 +583,7 @@ struct TrendingCard: View {
                                 Spacer(minLength: 4)
                                 Text("\(Self.money(find.low))–\(Self.money(find.high))")
                                     .font(.dmSans(14, weight: .semibold))
-                                    .foregroundStyle(Color.snapSage)
+                                    .foregroundStyle(Color.snapSageText)
                             }
                             .accessibilityElement(children: .combine)
                         }
@@ -599,7 +599,7 @@ struct TrendingCard: View {
                             .font(.dmSans(14, weight: .semibold))
                         Spacer(minLength: 0)
                     }
-                    .foregroundStyle(Color.snapTerracotta)
+                    .foregroundStyle(Color.snapTerracottaText)
                 }
                 .buttonStyle(.plain)
                 .snapHitTarget()
@@ -608,7 +608,7 @@ struct TrendingCard: View {
 
             Text("Anonymous totals from everyone using SnapWorth. AI estimates.")
                 .font(.snapCaption)
-                .foregroundStyle(Color.snapWarmGray.opacity(0.8))
+                .foregroundStyle(Color.snapWarmGray)
         }
         .padding(20)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -635,8 +635,8 @@ struct TrendingCard: View {
             if let change = row.changePct {
                 Text(change > 0 ? "▲\(change)%" : change < 0 ? "▼\(-change)%" : "＝")
                     .font(.snapCaption.bold())
-                    .foregroundStyle(change > 0 ? Color.snapSage
-                                     : change < 0 ? Color.snapTerracotta : Color.snapWarmGray)
+                    .foregroundStyle(change > 0 ? Color.snapSageText
+                                     : change < 0 ? Color.snapTerracottaText : Color.snapWarmGray)
             }
         }
         .accessibilityElement(children: .ignore)

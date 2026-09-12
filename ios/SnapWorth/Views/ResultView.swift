@@ -196,7 +196,7 @@ struct ResultView: View {
                     Spacer()
                     Button("Done") { focusedField = nil }
                         .font(.dmSans(15, weight: .semibold))
-                        .foregroundStyle(Color.snapTerracotta)
+                        .foregroundStyle(Color.snapTerracottaText)
                 }
             }
         }
@@ -304,7 +304,7 @@ struct ResultView: View {
                 .foregroundStyle(selected ? Color.snapOnAccent : Color.snapWarmGray)
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 9)
-                .background(selected ? Color.snapTerracotta : Color.clear)
+                .background(selected ? Color.snapTerracottaFill : Color.clear)
                 .clipShape(Capsule())
                 // Selection is carried by a border weight as well as fill
                 // colour, so it survives Differentiate Without Color.
@@ -344,7 +344,7 @@ struct ResultView: View {
             }
             Text("Adds your find multiple to the share card")
                 .font(.snapCaption)
-                .foregroundStyle(Color.snapWarmGray.opacity(0.7))
+                .foregroundStyle(Color.snapWarmGray)
                 // Already spoken as the field's hint.
                 .accessibilityHidden(true)
         }
@@ -396,7 +396,7 @@ struct ResultView: View {
                 .foregroundStyle(selected ? Color.snapOnAccent : Color.snapWarmGray)
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 9)
-                .background(selected ? Color.snapTerracotta : Color.clear)
+                .background(selected ? Color.snapTerracottaFill : Color.clear)
                 .clipShape(Capsule())
                 .overlay(Capsule().strokeBorder(
                     selected ? Color.snapTerracotta : Color.snapBorder,
@@ -462,7 +462,7 @@ struct ResultView: View {
                 }
                 .labelStyle(.titleAndIcon)
                 .font(.dmSans(17, weight: .bold))
-                .foregroundStyle(profit < 0 ? Color.snapTerracotta : Color.snapSage)
+                .foregroundStyle(profit < 0 ? Color.snapTerracottaText : Color.snapSageText)
             } else {
                 // Sold but no cost basis → profit unknown; never guessed.
                 Text("—")
@@ -538,7 +538,7 @@ struct ResultView: View {
                         .overlay(
                             Image(systemName: "photo")
                                 .snapSymbol(48)
-                                .foregroundStyle(Color.snapWarmGray.opacity(0.5))
+                                .foregroundStyle(Color.snapWarmGray)
                         )
                 }
             }
@@ -666,7 +666,7 @@ struct ResultView: View {
                     .accessibilityHidden(true)
                 Text("$ ? ? ?")
                     .font(.fraunces(34, weight: .bold, relativeTo: .largeTitle))
-                    .foregroundStyle(Color.snapWarmGray.opacity(0.6))
+                    .foregroundStyle(Color.snapWarmGray)
                     .accessibilityHidden(true)
             }
             .frame(maxWidth: .infinity)
@@ -786,14 +786,14 @@ struct ResultView: View {
                 if let tagError {
                     Text(tagError)
                         .font(.snapCaption)
-                        .foregroundStyle(Color.snapTerracotta)
+                        .foregroundStyle(Color.snapTerracottaText)
                         .fixedSize(horizontal: false, vertical: true)
                 }
 
                 if let tagSuccess {
                     Label(tagSuccess, systemImage: "checkmark.circle.fill")
                         .font(.snapCaption)
-                        .foregroundStyle(Color.snapSage)
+                        .foregroundStyle(Color.snapSageText)
                         .fixedSize(horizontal: false, vertical: true)
                 }
 
@@ -905,7 +905,7 @@ struct ResultView: View {
             VStack(spacing: 10) {
                 Image(systemName: "lock.fill")
                     .snapSymbol(18)
-                    .foregroundStyle(Color.snapTerracotta)
+                    .foregroundStyle(Color.snapTerracottaText)
                 PrimaryButton(title: "Unlock why this price") {
                     Analytics.shared.track(.paywallViewed(trigger: .valuationDetail))
                     showPaywall = true
@@ -1007,7 +1007,7 @@ struct ResultView: View {
             // we generate the text; posting stays a manual, user-controlled paste.
             Text("SnapWorth writes it — you paste & post. We never post for you.")
                 .font(.snapCaption)
-                .foregroundStyle(Color.snapWarmGray.opacity(0.7))
+                .foregroundStyle(Color.snapWarmGray)
         }
         .padding(20)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -1022,7 +1022,7 @@ struct ResultView: View {
             .foregroundStyle(Color.snapOnAccent)
             .padding(.horizontal, 8)
             .padding(.vertical, 3)
-            .background(Color.snapTerracotta)
+            .background(Color.snapTerracottaFill)
             .clipShape(Capsule())
             .accessibilityLabel("Pro feature")
     }
@@ -1043,7 +1043,7 @@ struct ResultView: View {
                         .foregroundStyle(selected ? Color.snapOnAccent : Color.snapWarmGray)
                         .padding(.horizontal, 14)
                         .padding(.vertical, 9)
-                        .background(selected ? Color.snapTerracotta : Color.clear)
+                        .background(selected ? Color.snapTerracottaFill : Color.clear)
                         .clipShape(Capsule())
                         .overlay(Capsule().strokeBorder(
                             selected ? Color.snapTerracotta : Color.snapBorder,
@@ -1070,7 +1070,7 @@ struct ResultView: View {
             VStack(spacing: 10) {
                 Text(error)
                     .font(.snapCaption)
-                    .foregroundStyle(Color.snapTerracotta)
+                    .foregroundStyle(Color.snapTerracottaText)
                     .multilineTextAlignment(.center)
                     .frame(maxWidth: .infinity, alignment: .center)
                 PrimaryButton(title: "Try again") {
@@ -1129,7 +1129,7 @@ struct ResultView: View {
                 Task { await vm.generateListing(result: result) }
             }
             .font(.dmSans(13, weight: .semibold))
-            .foregroundStyle(Color.snapTerracotta)
+            .foregroundStyle(Color.snapTerracottaText)
             .frame(maxWidth: .infinity, minHeight: 44)
             .contentShape(Rectangle())
             .accessibilityHint("Writes a new listing for this item")
@@ -1183,7 +1183,7 @@ struct ResultView: View {
             VStack(spacing: 10) {
                 Image(systemName: "lock.fill")
                     .snapSymbol(18)
-                    .foregroundStyle(Color.snapTerracotta)
+                    .foregroundStyle(Color.snapTerracottaText)
                 PrimaryButton(title: "Unlock marketplace listings") {
                     Analytics.shared.track(.paywallViewed(trigger: .snapSell))
                     showPaywall = true
@@ -1200,7 +1200,7 @@ struct ResultView: View {
                 Image(systemName: didSave
                       ? "checkmark.circle.fill"
                       : "exclamationmark.triangle.fill")
-                    .foregroundStyle(didSave ? Color.snapSage : Color.snapAmber)
+                    .foregroundStyle(didSave ? Color.snapSageText : Color.snapTerracottaText)
                 Text(didSave
                      ? "Saved to My Finds"
                      : "Couldn't save to My Finds — this result won't be kept")
@@ -1213,7 +1213,7 @@ struct ResultView: View {
 
             Text("SnapWorth")
                 .font(.fraunces(13, weight: .bold))
-                .foregroundStyle(Color.snapWarmGray.opacity(0.5))
+                .foregroundStyle(Color.snapWarmGray)
                 .kerning(0.5)
         }
     }
@@ -1248,7 +1248,7 @@ struct ValuationDetailView: View {
                 VStack(spacing: 3) {
                     Text(Self.money(row.value))
                         .font(.fraunces(20, weight: .bold, relativeTo: .title3))
-                        .foregroundStyle(row.label == "Expected" ? Color.snapSage : Color.snapEspresso)
+                        .foregroundStyle(row.label == "Expected" ? Color.snapSageText : Color.snapEspresso)
                         .lineLimit(1)
                         .minimumScaleFactor(0.6)
                     Text(row.label)
@@ -1315,7 +1315,7 @@ struct ValuationDetailView: View {
         HStack(alignment: .firstTextBaseline, spacing: 8) {
             Image(systemName: icon)
                 .snapSymbol(13, weight: .semibold)
-                .foregroundStyle(Color.snapTerracotta)
+                .foregroundStyle(Color.snapTerracottaText)
                 .accessibilityHidden(true)
             Text(text)
                 .font(.snapBody)

@@ -185,7 +185,7 @@ private struct ValueEstimateHero: View {
 
                 Text("$45–$90")
                     .font(.fraunces(26, weight: .bold))
-                    .foregroundStyle(Color.snapSage)
+                    .foregroundStyle(Color.snapSageText)
                     .fixedSize()
 
                 ConfidenceBadge(confidence: "High")
@@ -269,7 +269,7 @@ private struct ThriftFlipHero: View {
             VStack(spacing: 4) {
                 Text("+$32 profit")
                     .font(.fraunces(30, weight: .bold))
-                    .foregroundStyle(Color.snapSage)
+                    .foregroundStyle(Color.snapSageText)
                 Text("after marketplace fees")
                     .font(.snapCaption)
                     .foregroundStyle(Color.snapWarmGray)
@@ -277,7 +277,7 @@ private struct ThriftFlipHero: View {
 
             Label("Worth flipping", systemImage: "checkmark.circle.fill")
                 .font(.dmSans(13, weight: .semibold))
-                .foregroundStyle(Color.snapSage)
+                .foregroundStyle(Color.snapSageText)
                 .padding(.horizontal, 12)
                 .padding(.vertical, 6)
                 .background(Color.snapSage.opacity(0.14))
@@ -333,7 +333,7 @@ private struct TrackFindsHero: View {
                         .lineLimit(1)
                     Text(item.2)
                         .font(.fraunces(12, weight: .bold))
-                        .foregroundStyle(Color.snapSage)
+                        .foregroundStyle(Color.snapSageText)
                 }
                 .padding(8)
                 .background(Color.snapCard)
