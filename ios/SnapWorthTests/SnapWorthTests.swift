@@ -1,3 +1,4 @@
+import AVFoundation
 import XCTest
 import ImageIO
 import UIKit
@@ -1792,6 +1793,61 @@ final class WidgetSpokenLabelTests: XCTestCase {
         for label in [full.spokenRange, full.spokenHaul,
                       WidgetHaulData.spoken(full.lastItemRange)] {
             XCTAssertFalse(label.contains("–"), label)
+        }
+    }
+}
+
+// ── Flash mode ───────────────────────────────────────────────────────────────
+//
+// `AVCapturePhotoSettings.flashMode` must be one of the output's
+// `supportedFlashModes`. Anything else raises `NSInvalidArgumentException`,
+// which is an abort and not a throw — there is nothing to catch. `.auto` was
+// being set unconditionally, and an iPad running the app in iPhone
+// compatibility mode reports `[.off]` and nothing else: every shutter tap
+// killed the process, on the one screen the app exists for.
+//
+// The same class of bug was already fixed in this file for photo dimensions,
+// with the same comment about uncatchable aborts. The flash was missed.
+
+final class CameraFlashModeTests: XCTestCase {
+
+    func test_autoIsUsedWhenTheDeviceHasIt() {
+        XCTAssertEqual(
+            CameraManager.flashMode(preferring: .auto, supported: [.off, .on, .auto]),
+            .auto)
+    }
+
+    func test_aFlashlessDeviceGetsOffRatherThanACrash() {
+        // What an iPad in compatibility mode reports.
+        XCTAssertEqual(CameraManager.flashMode(preferring: .auto, supported: [.off]), .off)
+    }
+
+    func test_aDeviceWithoutAutoIsNotHandedOnInstead() {
+        // Falling through to `.first` here would fire a flash nobody asked for.
+        XCTAssertEqual(CameraManager.flashMode(preferring: .auto, supported: [.on, .off]),
+                       .off)
+    }
+
+    func test_anEmptyListAsksForNothing() {
+        // The caller skips assigning `flashMode` at all, which is the only safe
+        // thing to do: every value would raise.
+        XCTAssertNil(CameraManager.flashMode(preferring: .auto, supported: []))
+    }
+
+    func test_theResultIsAlwaysSomethingTheDeviceSupports() {
+        // The invariant that matters: whatever comes back must be assignable.
+        let cases: [[AVCaptureDevice.FlashMode]] = [
+            [], [.off], [.on], [.auto], [.off, .on], [.off, .auto], [.on, .auto],
+            [.off, .on, .auto],
+        ]
+        for supported in cases {
+            guard let chosen = CameraManager.flashMode(preferring: .auto,
+                                                       supported: supported) else {
+                XCTAssertTrue(supported.isEmpty, "returned nil for \(supported)")
+                continue
+            }
+            XCTAssertTrue(supported.contains(chosen),
+                          "\(chosen) is not in \(supported) — this is the abort")
         }
     }
 }

@@ -730,3 +730,54 @@ grep -rn "free trial" website/ marketing/
 
 If the new offer is **paid** (`payUpFront` or `payAsYouGo`), the word "free"
 must not survive anywhere in that grep.
+
+## 16. Revoking Pro after a refund
+
+Apple sends `REFUND` (a user got their money back) and `REVOKE` (family
+sharing withdrawn). Since the audit of 2026-09-12 the server acts on both:
+`POST /apple/notifications` calls `EntitlementService.revoke`, which writes a
+tombstone and makes the access path deny the refunded term.
+
+**Why a tombstone and not a delete.** A notification has no App Attest
+subject — `notify` only ever stores a one-way pseudonym — so the refunded
+user's `entproof:{subject}` key cannot be found from the notification. The
+tombstone is keyed on `originalTransactionId`, which the notification does
+carry, and the access path consults it after verifying a proof.
+
+### Keys
+
+| Key | Holds | TTL |
+|---|---|---|
+| `ent:{subject}` | the derived entitlement | 24h Pro / shorter free |
+| `entproof:{subject}` | Apple's signed transaction | to the term's expiry + 1h |
+| `entrevoked:{originalTransactionId}` | `{revoked_at, expires_at}` | 400 days |
+
+`expires_at` in the tombstone is the **revoked term's** expiry, not the
+revocation date. `originalTransactionId` is stable across renewals *and*
+re-subscriptions, so a tombstone keyed on the id alone would permanently deny
+someone who later paid again. A later term always expires later, so the access
+path treats a proof as dead only when its expiry is at or before the
+tombstone's.
+
+### If a refunded user still has Pro
+
+1. Confirm the notification arrived: the operator Telegram gets `↩️ Refund`.
+   No message means Apple never delivered it — check §14.
+2. Confirm the tombstone exists:
+   `redis-cli GET entrevoked:{originalTransactionId}`. The id is in the
+   refund alert.
+3. If it is missing, the webhook answered 503 and Apple should have retried.
+   A 503 releases the `apns2:{uuid}` idempotency key on purpose, so the
+   redelivery gets a real second attempt rather than landing on the duplicate
+   branch. Check the logs for `could not revoke a refunded entitlement`.
+4. To revoke by hand, write the tombstone yourself:
+   `redis-cli SET entrevoked:{otid} '{"revoked_at":<epoch>,"expires_at":<term expiry epoch>}' EX 34560000`
+5. Access goes away at the user's next request, or immediately if you also
+   `DEL ent:{subject}` — which needs the subject, so usually it is the former.
+
+### What this does not do
+
+Nothing here refunds anyone or changes what Apple charged. It only stops the
+server treating a taken-back term as paid. A user who re-subscribes is
+unaffected, and there is a test for that
+(`test_re_subscribing_after_a_refund_works`).

@@ -57,6 +57,14 @@ final class CameraManager: NSObject, ObservableObject {
                 let input = try? AVCaptureDeviceInput(device: device),
                 self.session.canAddInput(input)
             else {
+                // `beginConfiguration` has to be balanced on every path. This
+                // one returned without committing, so the session stayed
+                // mid-configuration for the life of the process: every later
+                // `startRunning` was a no-op and the preview never came back,
+                // even if the camera became available. A user who denied
+                // access, granted it in Settings and returned got a black
+                // viewfinder until they force-quit.
+                self.session.commitConfiguration()
                 Task { @MainActor [weak self] in self?.error = .setupFailed }
                 return
             }
@@ -120,11 +128,39 @@ final class CameraManager: NSObject, ObservableObject {
         return candidates.max { pixels($0) < pixels($1) }
     }
 
+    /// The flash mode to ask for, given what this device actually offers.
+    ///
+    /// Setting `AVCapturePhotoSettings.flashMode` to a value outside the
+    /// output's `supportedFlashModes` raises `NSInvalidArgumentException` —
+    /// which is an abort, not a throwable error, so there is nothing to catch.
+    /// An iPad running the app in iPhone compatibility mode reports `[.off]`
+    /// and nothing else, and `.auto` was being set unconditionally: every
+    /// shutter tap killed the process, on the one screen the whole app exists
+    /// for.
+    ///
+    /// Pure and `nonisolated` for the same reason `preferredPhotoDimensions`
+    /// is — the hardware case cannot be reproduced in a test, so the decision
+    /// is tested apart from the hardware.
+    nonisolated static func flashMode(
+        preferring preferred: AVCaptureDevice.FlashMode,
+        supported: [AVCaptureDevice.FlashMode]
+    ) -> AVCaptureDevice.FlashMode? {
+        if supported.contains(preferred) { return preferred }
+        // `.off` before `.first`: a device that cannot do `.auto` should not be
+        // handed `.on` as a consolation, which would fire a flash the user
+        // never asked for.
+        if supported.contains(.off) { return .off }
+        return supported.first
+    }
+
     func capturePhoto() {
         sessionQueue.async { [weak self] in
             guard let self, self.session.isRunning else { return }
             let settings = AVCapturePhotoSettings()
-            settings.flashMode = .auto
+            if let mode = Self.flashMode(preferring: .auto,
+                                         supported: self.photoOutput.supportedFlashModes) {
+                settings.flashMode = mode
+            }
             self.photoOutput.capturePhoto(with: settings, delegate: self)
         }
     }

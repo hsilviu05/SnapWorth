@@ -446,6 +446,101 @@ class EntitlementService:
         return f"entproof:{subject}"
 
     @staticmethod
+    def _revoked_key(original_transaction_id: str) -> str:
+        return f"entrevoked:{original_transaction_id}"
+
+    async def revoke(self, ent: Entitlement, revoked_at: int | None = None) -> bool:
+        """Record that Apple has taken a subscription back.
+
+        A stored proof is a *snapshot*: it carries the revocation state it was
+        signed with, and Apple never rewrites it. A refund does not touch
+        `expiresDate`, so the pre-refund JWS keeps verifying and keeps saying
+        active — and `_rederive` re-cached Pro from it on every miss, for the
+        rest of the paid term. A yearly refunded on day three bought unlimited
+        scans until the following September.
+
+        The three things that looked like they prevented this all missed. The
+        proof-deleting branch in `record` only runs if the *client* presents a
+        revoked transaction, and the client never does: it sets `activeJWS`
+        only when `revocationDate == nil`, and `currentEntitlements` omits
+        revoked transactions entirely. `clear()` had no production caller at
+        all. And the notification handler verified the REFUND, sent the
+        operator a Telegram message, and touched no entitlement state — while
+        with a proof store in place, not revoking *is* granting.
+
+        So the revocation has to live on the access path, keyed by something a
+        notification actually carries. A notification has no App Attest
+        subject — `notify` only ever stores a one-way pseudonym — so the
+        subject's proof key cannot be found from here. `originalTransactionId`
+        can, and that is what this is keyed on.
+
+        The tombstone stores the revoked term's own expiry, not just the
+        revocation date, because `originalTransactionId` is stable across
+        renewals *and* re-subscriptions. Keyed on the id alone, this would
+        permanently deny someone who later paid again. A later term always
+        expires later, so comparing expiries lets the tombstone kill exactly
+        the term that was taken back.
+        """
+        otid = ent.original_transaction_id
+        if not otid:
+            # Nothing to key on, and nothing a retry would fix.
+            log.warning("a revocation notification carried no "
+                        "original transaction id")
+            return False
+        payload = json.dumps({
+            "revoked_at": revoked_at or ent.revoked_at or int(time.time()),
+            # None for a non-expiring purchase, which is then treated as fully
+            # revoked — there is no later term it could be confused with.
+            "expires_at": ent.expires_at,
+        })
+        # Exceptions propagate. A tombstone that was not written is a
+        # subscriber who keeps paid access they were refunded for, so the
+        # caller has to know — this is the one write in the entitlement path
+        # that must not be best-effort.
+        #
+        # At least as long as any proof it has to outlive: a proof's TTL is
+        # capped at its own expiry plus grace, so this covers every one.
+        await self._cache.set(self._revoked_key(otid), payload,
+                              ENTITLEMENT_PROOF_TTL)
+        log.info("subscription revoked by Apple",
+                 extra={"product_id": ent.product_id})
+        return True
+
+    async def _is_revoked(self, ent: Entitlement) -> bool:
+        """Whether Apple has since taken back the term this entitlement covers.
+
+        Consulted after verification, because the JWS can never carry a
+        revocation that post-dates its own signature.
+        """
+        otid = ent.original_transaction_id
+        if not otid:
+            return False
+        try:
+            raw = await self._cache.get(self._revoked_key(otid))
+        except Exception as exc:
+            # Fail open, loudly. Both callers have already read the proof or
+            # the entry from this same cache, so a failure on this one key is
+            # not an outage — and refusing Pro here would drop paying
+            # subscribers on a transient error. The invariant is re-checked on
+            # the next request, which is a bounded window; the alternative is
+            # an unbounded one for everyone.
+            log.warning("revocation tombstone read failed: %s", exc)
+            return False
+        if not raw:
+            return False
+        try:
+            tombstone = json.loads(raw)
+        except Exception:
+            # Unparseable, but present. A tombstone is a tombstone.
+            return True
+        revoked_expiry = tombstone.get("expires_at")
+        if ent.expires_at is None or revoked_expiry is None:
+            return True
+        # A re-subscription reuses the original transaction id and extends the
+        # expiry, so only a term ending at or before the revoked one is dead.
+        return ent.expires_at <= revoked_expiry
+
+    @staticmethod
     def _cache_ttl(ent: Entitlement) -> int:
         """Lifetime of the short entitlement entry written for `ent`."""
         ttl = PRO_ENTITLEMENT_CACHE_TTL if ent.tier == "pro" else ENTITLEMENT_CACHE_TTL
@@ -463,6 +558,16 @@ class EntitlementService:
         rather than to `subject`, so reinstalls on one phone occupy one slot.
         """
         ent = verify_signed_transaction(jws_value, self._bundle_id, self._allowed)
+
+        if ent.tier == "pro" and await self._is_revoked(ent):
+            # Apple has taken this term back since the transaction was signed,
+            # so the signature proves nothing about entitlement any more.
+            log.info("refused an entitlement Apple has revoked",
+                     extra={"product_id": ent.product_id})
+            await self._cache.set(
+                self._key(subject), FREE.to_json(), self._cache_ttl(FREE))
+            await self._cache.delete(self._proof_key(subject))
+            return FREE
 
         # Bind before caching. Binding no longer refuses anyone, so this is
         # ordering for its own sake rather than a gate: the record should
@@ -676,6 +781,19 @@ class EntitlementService:
             log.warning("stored entitlement proof no longer verifies: %s", exc)
             return FREE
         if not ent.is_active:
+            return FREE
+
+        if await self._is_revoked(ent):
+            # The loop this breaks: the 24h Pro entry lapses, `current()` falls
+            # through to here, the pre-refund JWS re-verifies and still reads
+            # active because a refund does not move `expiresDate`, and Pro is
+            # re-cached for another 24h. Forever, with no client involvement.
+            log.info("entitlement proof discarded: Apple revoked it",
+                     extra={"product_id": ent.product_id})
+            try:
+                await self._cache.delete(self._proof_key(subject))
+            except Exception as exc:
+                log.warning("could not delete a revoked proof: %s", exc)
             return FREE
 
         # Deliberately not re-bound to the device: this subject was bound when

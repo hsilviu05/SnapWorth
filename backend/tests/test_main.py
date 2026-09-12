@@ -730,6 +730,68 @@ class TestAppleNotifications:
         monkeypatch.setattr(main, "_cache", ResilientCache(None, InMemoryCache()))
         return leaf_key, chain
 
+    # ── A refund has to actually take the access away ───────────────────────
+    #
+    # This endpoint verified the REFUND, pushed the operator a Telegram
+    # message, and touched no entitlement state. With a proof store in place,
+    # not revoking *is* granting: the pre-refund JWS keeps verifying, a refund
+    # does not move `expiresDate`, and `_rederive` re-cached Pro from it on
+    # every miss for the rest of the paid term.
+
+    @pytest.fixture
+    def entitlement_store(self, monkeypatch):
+        """A real service on an in-memory cache, wired where the app looks."""
+        import auth as _auth
+        store = _entitlements.EntitlementService(
+            ResilientCache(None, InMemoryCache()),
+            "eu.snapworth.app", ["com.snapworth.yearly", "com.snapworth.monthly"])
+        monkeypatch.setattr(_auth.deps, "entitlements", store)
+        return store
+
+    def test_a_refund_withdraws_pro_from_the_access_path(
+            self, pinned, entitlement_store):
+        from test_entitlements import make_jws, valid_payload
+        leaf_key, chain = pinned
+        payload = valid_payload()
+
+        # A subscriber checked in, so the server holds a proof for them.
+        assert (asyncio.run(entitlement_store.record(
+            "refunded-subject", make_jws(payload, leaf_key, chain)))).tier == "pro"
+
+        r = client.post("/apple/notifications", json={
+            "signedPayload": make_notification(
+                leaf_key, chain, notification_type="REFUND",
+                uuid="aaaaaaaa-1111-2222-3333-444444444444",
+                revocationDate=int(time.time() * 1000),
+                originalTransactionId=payload["originalTransactionId"])})
+        assert r.status_code == 200
+
+        # The short entry lapses, as it does every 24h in production.
+        asyncio.run(entitlement_store._cache.delete("ent:refunded-subject"))
+
+        assert (asyncio.run(entitlement_store.current(
+            "refunded-subject"))).tier == "free", (
+            "the refunded subscriber is still being re-derived as Pro")
+
+    def test_a_renewal_does_not_revoke_anything(self, pinned, entitlement_store):
+        from test_entitlements import make_jws, valid_payload
+        leaf_key, chain = pinned
+        payload = valid_payload()
+        asyncio.run(entitlement_store.record(
+            "renewing-subject", make_jws(payload, leaf_key, chain)))
+
+        r = client.post("/apple/notifications", json={
+            "signedPayload": make_notification(
+                leaf_key, chain, notification_type="DID_RENEW",
+                uuid="bbbbbbbb-1111-2222-3333-444444444444",
+                originalTransactionId=payload["originalTransactionId"])})
+        assert r.status_code == 200
+
+        asyncio.run(entitlement_store._cache.delete("ent:renewing-subject"))
+        assert (asyncio.run(entitlement_store.current(
+            "renewing-subject"))).tier == "pro", (
+            "a renewal took away the access it was confirming")
+
     def test_a_genuine_notification_is_accepted(self, pinned):
         leaf_key, chain = pinned
         r = client.post("/apple/notifications", json={

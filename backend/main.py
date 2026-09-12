@@ -1194,6 +1194,35 @@ async def apple_notifications(body: AppleNotification) -> dict:
         await notify.appstore_test_notification(note.environment)
         return {"status": "test", "environment": note.environment}
 
+    # A refund or a revoke is the only message Apple sends that has to change
+    # entitlement state, and it is the one the server could not act on: the
+    # stored proof carries the revocation state it was signed with, a refund
+    # does not move `expiresDate`, so the pre-refund JWS kept re-deriving Pro
+    # for the rest of the paid term. See `EntitlementService.revoke`.
+    #
+    # Before the index write, so an operator who sees the Telegram message
+    # knows the access was already withdrawn rather than merely reported.
+    if (note.is_refund or note.is_revoke) and note.entitlement is not None:
+        try:
+            await auth.deps.entitlements.revoke(note.entitlement)
+        except Exception as exc:
+            # Give the uuid back before failing. The idempotency claim above
+            # is made before any work is done, so answering 5xx while holding
+            # it would make Apple's redelivery land on the duplicate branch
+            # and return 200 without ever withdrawing the access — the same
+            # outcome as never having handled the refund. Releasing it means
+            # the retry gets a real second attempt.
+            log.error("could not revoke a refunded entitlement: %s", exc)
+            try:
+                await _cache.delete(f"apns2:{note.uuid}")
+            except Exception:
+                log.error("could not release the notification idempotency key; "
+                          "this refund will not be retried")
+            raise HTTPException(
+                status_code=503,
+                detail="Could not withdraw the entitlement; please retry.",
+            ) from None
+
     if not note.is_indexed:
         return {"status": "ignored", "type": note.notification_type}
 

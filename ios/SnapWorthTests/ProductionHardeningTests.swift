@@ -2604,3 +2604,61 @@ final class WidgetEntitlementTests: XCTestCase {
         XCTAssertFalse(try readBack().isPro)
     }
 }
+
+// ── Introductory-offer eligibility ───────────────────────────────────────────
+//
+// `product.subscription?.introductoryOffer` is the offer *configured on the
+// product* in App Store Connect. It says nothing about the customer in front of
+// you, and Apple grants one introductory offer per subscription group, once.
+//
+// `isEligibleForIntroOffer` appeared nowhere in the app. So anyone who had
+// already taken the 3-day trial — cancelled, or simply lapsed — reopened the
+// app to a headline reading "Try SnapWorth free for 3 days", a card detail
+// reading "3-day free trial", and a button reading "Start Free Trial". Apple's
+// sheet then charged $39.99 today with no trial.
+//
+// This is the third axis of one mistake. The paywall first read "an offer
+// exists" as "a free trial exists", which is wrong for the two paid payment
+// modes. "An offer exists" is not "this person gets it" either.
+
+final class IntroOfferEligibilityTests: XCTestCase {
+
+    private let yearly = Config.yearlyProductID
+    private let monthly = Config.monthlyProductID
+
+    func test_anEligibleProductMayAdvertiseItsOffer() {
+        XCTAssertTrue(StoreKitPurchaseService.isOfferEligible(
+            yearly, in: [yearly: true]))
+    }
+
+    func test_anIneligibleProductMayNot() {
+        XCTAssertFalse(StoreKitPurchaseService.isOfferEligible(
+            yearly, in: [yearly: false]))
+    }
+
+    func test_noAnswerMeansNo() {
+        // The direction that matters. Defaulting the other way would advertise
+        // a free trial on every path where the check did not run — which is
+        // precisely the state the app shipped in.
+        XCTAssertFalse(StoreKitPurchaseService.isOfferEligible(yearly, in: [:]))
+    }
+
+    func test_oneProductsAnswerIsNotAnotherProducts() {
+        // Eligibility is per subscription group, so in practice both plans get
+        // the same answer — but the lookup must not borrow one for the other,
+        // because a second group later would make that silently wrong.
+        let onlyMonthly = [monthly: true]
+        XCTAssertTrue(StoreKitPurchaseService.isOfferEligible(monthly, in: onlyMonthly))
+        XCTAssertFalse(StoreKitPurchaseService.isOfferEligible(yearly, in: onlyMonthly))
+    }
+
+    func test_anIneligibleCustomerSeesNoFreeCopyAnywhere() {
+        // What the gate buys: with no offer, every copy path degrades to the
+        // plain subscribe wording. `PaywallCopy` is already tested against a
+        // nil offer; this states the connection between the two.
+        let headline = PaywallCopy.headline(isYearly: true, offer: nil)
+        XCTAssertFalse(headline.lowercased().contains("free"))
+        XCTAssertFalse(PaywallCopy.ctaTitle(isYearly: true, offer: nil)
+                        .lowercased().contains("trial"))
+    }
+}

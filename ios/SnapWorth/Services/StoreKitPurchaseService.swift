@@ -135,7 +135,30 @@ final class StoreKitPurchaseService: PurchaseService, ObservableObject {
             return
         }
         products = fetched
-        pricing = Self.buildPricing(from: fetched)
+        // Eligibility, asked of StoreKit rather than assumed.
+        //
+        // `introductoryOffer` describes the offer *configured on the product*
+        // in App Store Connect. It says nothing about the customer in front of
+        // you, and Apple grants one introductory offer per subscription
+        // *group*, once. So anyone who has already taken the 3-day trial —
+        // then cancelled, or simply lapsed — was still being shown "Try
+        // SnapWorth free for 3 days" and a button reading "Start Free Trial",
+        // and Apple's sheet then charged them $39.99 today with no trial.
+        //
+        // Unknown counts as ineligible. Dropping an offer costs a line of
+        // value framing; promising free and billing immediately is a pricing
+        // claim made at the exact moment someone decides whether to pay.
+        var eligibility: [String: Bool] = [:]
+        for product in fetched {
+            guard let subscription = product.subscription else {
+                eligibility[product.id] = false
+                continue
+            }
+            // Per group, so both plans get the same answer — asked per product
+            // because that is where StoreKit hangs it, not because they differ.
+            eligibility[product.id] = await subscription.isEligibleForIntroOffer
+        }
+        pricing = Self.buildPricing(from: fetched, eligibility: eligibility)
         // A *partial* fetch used to land here as an unqualified success. If the
         // missing product was the yearly plan — which the paywall selects by
         // default — the user got "Loading plans…", a disabled CTA, and no
@@ -152,7 +175,11 @@ final class StoreKitPurchaseService: PurchaseService, ObservableObject {
     /// `displayPrice` is already localised to the user's storefront currency and
     /// number format. Everything derived (per-week, savings) is computed from
     /// `product.price`, a `Decimal`, so there is no float drift in money math.
-    static func buildPricing(from products: [Product]) -> [String: PlanPricing] {
+    /// `eligibility` maps product ID to whether *this customer* may take the
+    /// product's introductory offer. A product missing from the map is treated
+    /// as ineligible: the offer is only advertised when StoreKit has said yes.
+    static func buildPricing(from products: [Product],
+                             eligibility: [String: Bool]) -> [String: PlanPricing] {
         let monthly = products.first { $0.id == Config.monthlyProductID }
         var result: [String: PlanPricing] = [:]
 
@@ -162,11 +189,24 @@ final class StoreKitPurchaseService: PurchaseService, ObservableObject {
                 productID: product.id,
                 displayPrice: product.displayPrice,
                 displayPricePerWeek: isYearly ? weeklyPrice(for: product) : nil,
-                introductoryOffer: introOffer(for: product),
+                introductoryOffer: introOffer(
+                    for: product,
+                    isEligible: isOfferEligible(product.id, in: eligibility)),
                 savingsPercent: isYearly ? savings(yearly: product, monthly: monthly) : nil
             )
         }
         return result
+    }
+
+    /// Whether to advertise a product's introductory offer.
+    ///
+    /// Fails closed: a product StoreKit gave no answer for is ineligible.
+    /// A lookup defaulting the other way would advertise a free trial on every
+    /// path where the eligibility check did not run — which is exactly the
+    /// state the app was in before it ran at all.
+    static func isOfferEligible(_ productID: String,
+                                in eligibility: [String: Bool]) -> Bool {
+        eligibility[productID] ?? false
     }
 
     /// Formats `price ÷ 52` in the product's own currency.
@@ -177,14 +217,20 @@ final class StoreKitPurchaseService: PurchaseService, ObservableObject {
         return product.priceFormatStyle.format(perWeek)
     }
 
-    /// The product's real introductory offer, as data.
+    /// The introductory offer this customer would actually get, as data.
     ///
     /// Returns nil when none is configured — so the paywall cannot advertise an
-    /// offer App Store Connect does not grant — and also when the payment mode
-    /// is one we have no copy for. Dropping an offer costs a line of value
-    /// framing; describing it wrongly is a pricing claim made at the moment a
-    /// user decides whether to pay.
-    static func introOffer(for product: Product) -> IntroOffer? {
+    /// offer App Store Connect does not grant — when the payment mode is one we
+    /// have no copy for, and when the customer is not eligible. Dropping an
+    /// offer costs a line of value framing; describing it wrongly is a pricing
+    /// claim made at the moment a user decides whether to pay.
+    ///
+    /// The eligibility check is the third axis of the same mistake. First the
+    /// paywall read "an offer exists" as "a free trial exists", which is wrong
+    /// for the two paid payment modes. Now: "an offer exists" is not "this
+    /// person gets it" either.
+    static func introOffer(for product: Product, isEligible: Bool) -> IntroOffer? {
+        guard isEligible else { return nil }
         guard let offer = product.subscription?.introductoryOffer else { return nil }
 
         let unit: String

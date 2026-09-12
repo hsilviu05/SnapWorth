@@ -309,9 +309,15 @@ class TestEntitlementService:
             "plain hit, not another signature check")
 
     @pytest.mark.asyncio
-    async def test_revocation_is_not_resurrected_by_the_proof(self, service, pinned_root):
-        # The proof carries the revocation state it was signed with, not
-        # today's, so a stale one must be dropped when Apple says otherwise.
+    async def test_a_revoked_jws_the_client_presents_drops_the_proof(
+            self, service, pinned_root):
+        # Kept for what it does cover — a revoked transaction arriving through
+        # `record` — but note the shipped client cannot make this call:
+        # `StoreKitPurchaseService` sets `activeJWS` only when
+        # `revocationDate == nil`, and `currentEntitlements` omits revoked
+        # transactions entirely. This test was the whole coverage for refunds,
+        # and it was green over a path that does not exist in production. The
+        # real path is the notification, below.
         leaf_key, chain = pinned_root
         await service.record("subject-h", make_jws(valid_payload(), leaf_key, chain))
         revoked = valid_payload(revocationDate=int(time.time() * 1000))
@@ -321,6 +327,137 @@ class TestEntitlementService:
         assert (await service.current("subject-h")).tier == "free", (
             "A refunded subscription must not come back when the short free "
             "entry lapses")
+
+    # ── Revocation by notification ──────────────────────────────────────────
+    #
+    # The path that actually happens. A refund does not move `expiresDate` and
+    # Apple never rewrites a signed transaction, so the pre-refund proof keeps
+    # verifying and keeps reading active. `_rederive` re-cached Pro from it on
+    # every miss: a yearly refunded on day three bought unlimited scans until
+    # the following September, with no client involvement at all.
+
+    @pytest.mark.asyncio
+    async def test_a_refund_stops_the_proof_re_deriving_pro(
+            self, service, pinned_root):
+        leaf_key, chain = pinned_root
+        payload = valid_payload()
+        await service.record("subject-refund", make_jws(payload, leaf_key, chain))
+        assert (await service.current("subject-refund")).tier == "pro"
+
+        # What the notification handler does, with the entitlement Apple's
+        # REFUND notification carries.
+        refunded = entitlements.Entitlement(
+            tier="pro", product_id=payload["productId"],
+            expires_at=payload["expiresDate"] // 1000,
+            original_transaction_id=payload["originalTransactionId"],
+            environment="Production",
+            revoked_at=int(time.time()))
+        assert await service.revoke(refunded) is True
+
+        # The short entry lapses, exactly as it does in production.
+        await service._cache.delete("ent:subject-refund")
+
+        assert (await service.current("subject-refund")).tier == "free", (
+            "the refunded term is being re-derived from the pre-refund proof")
+
+    @pytest.mark.asyncio
+    async def test_a_revoked_proof_is_deleted_not_just_ignored(
+            self, service, pinned_root):
+        # Otherwise every later request pays for a signature check to reach
+        # the same answer.
+        leaf_key, chain = pinned_root
+        payload = valid_payload()
+        await service.record("subject-del", make_jws(payload, leaf_key, chain))
+        await service.revoke(entitlements.Entitlement(
+            tier="pro", product_id=payload["productId"],
+            expires_at=payload["expiresDate"] // 1000,
+            original_transaction_id=payload["originalTransactionId"],
+            environment="Production"))
+        await service._cache.delete("ent:subject-del")
+        await service.current("subject-del")
+
+        assert await service._cache.get("entproof:subject-del") in (None, ""), (
+            "the dead proof is still stored")
+
+    @pytest.mark.asyncio
+    async def test_a_client_cannot_re_present_a_revoked_term(
+            self, service, pinned_root):
+        # The other way in. `record` must consult the tombstone too, or a
+        # cold launch would re-grant what the refund took away.
+        leaf_key, chain = pinned_root
+        payload = valid_payload()
+        await service.revoke(entitlements.Entitlement(
+            tier="pro", product_id=payload["productId"],
+            expires_at=payload["expiresDate"] // 1000,
+            original_transaction_id=payload["originalTransactionId"],
+            environment="Production"))
+
+        ent = await service.record("subject-re",
+                                   make_jws(payload, leaf_key, chain))
+        assert ent.tier == "free"
+        assert await service._cache.get("entproof:subject-re") in (None, "")
+
+    @pytest.mark.asyncio
+    async def test_re_subscribing_after_a_refund_works(self, service, pinned_root):
+        # The reason the tombstone stores the revoked term's expiry rather
+        # than only the revocation date: `originalTransactionId` is stable
+        # across renewals *and* re-subscriptions, so keyed on the id alone
+        # this would deny someone who later paid again, permanently.
+        leaf_key, chain = pinned_root
+        first = valid_payload()
+        await service.revoke(entitlements.Entitlement(
+            tier="pro", product_id=first["productId"],
+            expires_at=first["expiresDate"] // 1000,
+            original_transaction_id=first["originalTransactionId"],
+            environment="Production"))
+
+        # A later term, same original transaction id, expiring further out.
+        again = valid_payload(
+            expiresDate=int((time.time() + 400 * 86_400) * 1000))
+        ent = await service.record("subject-again",
+                                   make_jws(again, leaf_key, chain))
+
+        assert ent.tier == "pro", (
+            "a re-subscription was killed by the tombstone for the term "
+            "before it")
+
+    @pytest.mark.asyncio
+    async def test_a_revocation_without_a_transaction_id_is_not_retried(
+            self, service):
+        # Nothing to key on, and nothing a retry would fix — so this reports
+        # False rather than raising, and the webhook answers 200.
+        assert await service.revoke(entitlements.Entitlement(
+            tier="pro", product_id="com.snapworth.yearly", expires_at=None,
+            original_transaction_id=None, environment="Production")) is False
+
+    @pytest.mark.asyncio
+    async def test_a_non_expiring_revocation_kills_the_term_outright(
+            self, service, pinned_root):
+        # No expiry to compare against, so there is no later term it could be
+        # confused with.
+        leaf_key, chain = pinned_root
+        payload = valid_payload()
+        await service.revoke(entitlements.Entitlement(
+            tier="pro", product_id=payload["productId"], expires_at=None,
+            original_transaction_id=payload["originalTransactionId"],
+            environment="Production"))
+
+        ent = await service.record("subject-perp",
+                                   make_jws(payload, leaf_key, chain))
+        assert ent.tier == "free"
+
+    @pytest.mark.asyncio
+    async def test_an_unrelated_subscription_is_untouched(
+            self, service, pinned_root):
+        leaf_key, chain = pinned_root
+        await service.revoke(entitlements.Entitlement(
+            tier="pro", product_id="com.snapworth.yearly", expires_at=None,
+            original_transaction_id="2000000000000999",
+            environment="Production"))
+
+        ent = await service.record("subject-other",
+                                   make_jws(valid_payload(), leaf_key, chain))
+        assert ent.tier == "pro", "a tombstone leaked onto another subscription"
 
     @pytest.mark.asyncio
     async def test_expired_proof_reads_free(self, service, pinned_root):
