@@ -78,7 +78,11 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
     // Retained as the *legacy* identifier. A build before the ladder scheduled
     // one request under exactly this id, so an upgrading install can have one
     // pending and it has to be cancellable.
-    private static let freeScanID = "freeScan.daily"
+    // `nonisolated`, because `freeScanIDs` is — referencing a main-actor
+    // static from a nonisolated context is a warning today and an error in the
+    // Swift 6 language mode. A `String` literal is `Sendable`, so there is
+    // nothing here for the isolation to protect.
+    nonisolated private static let freeScanID = "freeScan.daily"
 
     /// How many days of free-scan reminders are scheduled at a time.
     ///

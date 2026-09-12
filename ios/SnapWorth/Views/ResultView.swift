@@ -1381,7 +1381,6 @@ struct ValuationDetailView: View {
 
     // ── Facts ──
 
-    @ViewBuilder
     /// The server's price point, re-scaled to the condition on screen.
     ///
     /// `Decimal` throughout, like every other money path in the app, then back
@@ -1391,6 +1390,10 @@ struct ValuationDetailView: View {
         return NSDecimalNumber(decimal: Decimal(value) * priceFactor).doubleValue
     }
 
+    // `@ViewBuilder` belongs to `factsRow`: its body is a bare `if` with no
+    // `else`, so without the builder there is nothing to return. Inserting
+    // `scaled` above without noticing the attribute is what broke the build.
+    @ViewBuilder
     private var factsRow: some View {
         // The grade is the AI's read. Once the user has corrected it, printing
         // it bare claims it as the item's condition — while the chips directly

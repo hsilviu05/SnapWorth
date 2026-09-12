@@ -13,6 +13,16 @@ happened on the commit right after this file was added. So is availability,
 overload resolution, and whether a `nonisolated static let` is permitted on a
 global-actor-isolated type. For those, CI is still the compiler.
 
+A third mistake also belongs on that list, and a rule for it was written and
+then thrown away: inserting a declaration between a binding attribute
+(`@ViewBuilder`, `@MainActor`) and the declaration it belonged to, which
+silently re-targets the attribute. The detector for it fired on 13 files that
+compile perfectly, because "an attributed declaration with a sibling after it"
+is simply the normal shape — telling the two apart needs to know which
+declaration the author meant. A check with a 13/13 false-positive rate is worse
+than no check: it gets ignored, and then deleted, and takes the true positives
+with it.
+
 Usage: python3 tools/swift_sanity.py [paths...]     (default: ios/)
 """
 from __future__ import annotations
