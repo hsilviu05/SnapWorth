@@ -158,6 +158,50 @@ final class ScanResult {
         self.valuationDetailData = valuationDetailData
     }
 
+    /// A field-for-field copy that belongs to no `ModelContext`.
+    ///
+    /// Exists for one caller: `ScanRepository.save`, which now rolls the shared
+    /// context back when a save fails. Rollback un-registers a
+    /// never-persisted insert, and the result sheet is already on screen
+    /// holding that object — `ScanViewModel` assigns `scanResult` *before*
+    /// attempting the save, deliberately, so a storage failure can never take
+    /// the user's result away from them. Reading a model SwiftData has
+    /// discarded is not something to gamble a crash on, so the copy is taken
+    /// before the insert and handed back with the error.
+    ///
+    /// Every stored property is listed. `test_detachedCopyCarriesEveryStoredProperty`
+    /// fails if one is added to the model and not to here, because a copy that
+    /// silently drops a field would show the user a result missing their photo
+    /// or their paid price.
+    func detachedCopy() -> ScanResult {
+        ScanResult(
+            id: id,
+            timestamp: timestamp,
+            itemName: itemName,
+            brand: brand,
+            category: category,
+            conditionNotes: conditionNotes,
+            valueLow: valueLow,
+            valueHigh: valueHigh,
+            confidence: confidence,
+            soldListingsCount: soldListingsCount,
+            listingTitle: listingTitle,
+            listingDescription: listingDescription,
+            imageData: imageData,
+            paidPrice: paidPrice,
+            statusRaw: statusRaw,
+            listedDate: listedDate,
+            soldPrice: soldPrice,
+            soldDate: soldDate,
+            feesEstimate: feesEstimate,
+            notes: notes,
+            conditionRaw: conditionRaw,
+            portfolioValueRaw: portfolioValueRaw,
+            valueHistoryData: valueHistoryData,
+            valuationDetailData: valuationDetailData
+        )
+    }
+
     // ── Condition & re-pricing ─────────────────────────────────────────────────
 
     /// The condition the AI's `valueLow`/`valueHigh` were priced for.

@@ -929,21 +929,99 @@ import SwiftData
 @MainActor
 final class ScanPersistenceFailureTests: XCTestCase {
 
-    /// A repository whose backing store is torn down, so `save` throws.
-    private func brokenRepository() throws -> ScanRepository {
-        let config = ModelConfiguration(isStoredInMemoryOnly: true)
-        let container = try ModelContainer(for: ScanResult.self, configurations: config)
-        let context = ModelContext(container)
-        // A model the container does not know about makes `context.save()` fail
-        // deterministically without depending on disk conditions.
-        return ScanRepository(context: context)
-    }
+    // A `brokenRepository()` helper used to sit here, unreferenced, with a
+    // comment claiming it made `save()` fail deterministically "without
+    // depending on disk conditions". Its body built an ordinary in-memory
+    // container that saves perfectly well, so it neither did that nor was
+    // called. Removed rather than left as a trap: the next person to reach for
+    // it would have written a test that passes because nothing failed.
+    //
+    // A real save failure on the *shared* context cannot be provoked from a
+    // unit test — every context here is a secondary one, whose autosave
+    // defaults to false — which is exactly why the missing rollback was
+    // invisible to this suite, and why the assertion about it is
+    // source-inspected below.
 
     private func sampleResult() -> ScanResult {
         ScanResult(itemName: "Off-White Out of Office", brand: "Off-White",
                    category: "shoes", conditionNotes: "Excellent",
                    valueLow: 350, valueHigh: 450, confidence: "High",
                    soldListingsCount: 0, listingTitle: "T", listingDescription: "D")
+    }
+
+    func test_aFailedSaveHandsBackSomethingSafeToDisplay() {
+        // `ScanViewModel` assigns `scanResult` before attempting the save, on
+        // purpose: a storage failure must not take the user's result away. The
+        // rollback un-registers that object, so the repository takes a copy
+        // first and returns it with the error — otherwise the sheet would be
+        // holding a model SwiftData had discarded.
+        let original = sampleResult()
+        original.paidPrice = 9.50
+        original.notes = "back-room rail"
+        let copy = original.detachedCopy()
+
+        XCTAssertEqual(copy.id, original.id, "the same find, not a new one")
+        XCTAssertEqual(copy.itemName, original.itemName)
+        XCTAssertEqual(copy.paidPrice, 9.50)
+        XCTAssertEqual(copy.notes, "back-room rail")
+        XCTAssertFalse(copy === original, "a copy, so a rollback cannot reach it")
+    }
+
+    func test_detachedCopyCarriesEveryStoredProperty() {
+        // A copy that silently dropped a field would show the user a result
+        // missing their photo or what they paid. The model's memberwise init
+        // is the list of stored properties, so the copy has to name every
+        // parameter of it.
+        let source = try! String(
+            contentsOf: URL(fileURLWithPath: #filePath)
+                .deletingLastPathComponent()
+                .deletingLastPathComponent()
+                .appendingPathComponent("SnapWorth/Models/ScanResult.swift"),
+            encoding: .utf8)
+
+        guard let initRange = source.range(of: "    init(\n"),
+              let initEnd = source.range(of: "    ) {", range: initRange.lowerBound..<source.endIndex),
+              let copyRange = source.range(of: "func detachedCopy() -> ScanResult {"),
+              let copyEnd = source.range(of: "        )\n    }",
+                                         range: copyRange.lowerBound..<source.endIndex)
+        else { return XCTFail("could not locate init or detachedCopy") }
+
+        func labels(_ text: String) -> Set<String> {
+            Set(text.split(separator: "\n").compactMap { line in
+                let trimmed = line.trimmingCharacters(in: .whitespaces)
+                guard let colon = trimmed.firstIndex(of: ":") else { return nil }
+                let label = String(trimmed[trimmed.startIndex..<colon])
+                return label.allSatisfy { $0.isLetter || $0.isNumber } ? label : nil
+            })
+        }
+
+        let declared = labels(String(source[initRange.upperBound..<initEnd.lowerBound]))
+        let copied = labels(String(source[copyRange.upperBound..<copyEnd.lowerBound]))
+        XCTAssertFalse(declared.isEmpty, "the parser found no init parameters")
+        XCTAssertEqual(declared.subtracting(copied), [],
+                       "detachedCopy() is missing stored properties — a copy "
+                       "that drops a field shows the user an incomplete result")
+    }
+
+    func test_theRepositoryRollsBackOnEveryFailurePath() {
+        // Source-inspected because a real save failure on the *shared* context
+        // cannot be provoked in a unit test — the suite's contexts are
+        // secondary ones, whose autosave defaults to false, which is exactly
+        // why this bug was invisible to the existing tests.
+        let source = try! String(
+            contentsOf: URL(fileURLWithPath: #filePath)
+                .deletingLastPathComponent()
+                .deletingLastPathComponent()
+                .appendingPathComponent("SnapWorth/Services/ScanRepository.swift"),
+            encoding: .utf8)
+        let catches = source.components(separatedBy: "} catch {").dropFirst()
+        XCTAssertEqual(catches.count, 3, "save, delete, deleteAll")
+        for (index, block) in catches.enumerated() {
+            let body = String(block.prefix(400))
+            XCTAssertTrue(body.contains("context.rollback()"),
+                          "failure path \(index) leaves the change in the "
+                          "shared context, which breaks every later save")
+        }
     }
 
     func test_resultIsPresentedBeforePersistenceIsAttempted() {
@@ -2031,7 +2109,47 @@ final class DeviceIdentityTests: XCTestCase {
         store.value = "CHANGED-UNDERNEATH"
         XCTAssertEqual(identity.id, first, "read once per process; the store is not re-queried")
     }
+
+    // ── The mirror must not outlive its purpose ──────────────────────────────
+
+    func test_theDefaultsMirrorIsRemovedOnceTheKeychainHoldsIt() {
+        // The two stores migrate in opposite directions, and the whole design
+        // rests on the Keychain's: `ThisDeviceOnly` is excluded from encrypted
+        // backups and Quick Start, while Library/Preferences/…plist is
+        // included in both. A copy left in UserDefaults is therefore exactly
+        // the carrier this store exists to prevent.
+        let store = MemoryStore()
+        let defaults = freshDefaults()
+
+        let id = DeviceIdentity(store: store, defaults: defaults).id
+        XCTAssertEqual(store.value, id, "the durable copy is the one that stays")
+        XCTAssertNil(defaults.string(forKey: DeviceIdentity.legacyDefaultsKey),
+                     "a surviving mirror migrates this identity to a restored "
+                     "phone, collapsing every restored device onto one binding "
+                     "slot and bypassing the subscription device cap without bound")
+    }
+
+    func test_aRestoredBackupYieldsADistinctIdentity() {
+        // The attack, played out. "Restoring" carries the UserDefaults plist
+        // and not the ThisDeviceOnly Keychain item, so the new phone starts
+        // with an empty store and whatever defaults migrated.
+        let original = freshDefaults()
+        let id = DeviceIdentity(store: MemoryStore(), defaults: original).id
+
+        let restoredDefaults = freshDefaults()
+        for (key, value) in original.dictionaryRepresentation() {
+            restoredDefaults.set(value, forKey: key)     // the backup
+        }
+        let restoredID = DeviceIdentity(store: MemoryStore(),   // Keychain did not travel
+                                        defaults: restoredDefaults).id
+
+        XCTAssertNotEqual(restoredID, id,
+                          "two phones restored from one backup are two devices")
+    }
 }
+// The paired case — the mirror staying when it is the *only* copy — is already
+// covered by `test_unwritableStoreStillYieldsAnIdAndKeepsItInDefaults` above,
+// which is why the removal is conditional rather than the write being dropped.
 
 
 // MARK: - Free-scan reminder and streak (#94)

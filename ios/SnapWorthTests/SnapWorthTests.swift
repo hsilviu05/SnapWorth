@@ -289,6 +289,91 @@ final class PriceTagOCRTests: XCTestCase {
         // A long barcode-like number must not be read as a price.
         XCTAssertNil(PriceTagOCR.firstPrice(in: "123456789012"))
     }
+
+    // ── A dot can be a thousands separator too ───────────────────────────────
+
+    func test_dotGroupedThousandsAreNotReadAsCents() {
+        // There was a branch for both separators and one for comma-only, and
+        // none for dot-only — so the dot fell through to `Decimal(string:)` as
+        // a decimal point, contradicting the regex that matched it as
+        // grouping. "€1.299" became 1.299, and a €1299 item was priced against
+        // a $1.30 cost basis.
+        XCTAssertEqual(PriceTagOCR.normalizedDecimal("1.299"), Decimal(1299))
+        XCTAssertEqual(PriceTagOCR.normalizedDecimal("12.500"), Decimal(12500))
+        XCTAssertEqual(PriceTagOCR.normalizedDecimal("1.500.000"), Decimal(1_500_000))
+        XCTAssertEqual(PriceTagOCR.firstPrice(in: "€1.299"), Decimal(1299))
+    }
+
+    func test_twoDecimalPlacesAreStillCents() {
+        // The other half of the same rule: one separator with one or two
+        // trailing digits is a fraction, three is grouping.
+        XCTAssertEqual(PriceTagOCR.normalizedDecimal("12.99"), Decimal(string: "12.99"))
+        XCTAssertEqual(PriceTagOCR.normalizedDecimal("12.9"), Decimal(string: "12.9"))
+        XCTAssertEqual(PriceTagOCR.normalizedDecimal("5,99"), Decimal(string: "5.99"))
+        XCTAssertEqual(PriceTagOCR.normalizedDecimal("1,299"), Decimal(1299))
+    }
+
+    func test_spaceGroupedThousandsAreOneNumber() {
+        // French, Nordic and Polish tags print 1299 as "1 299", usually with a
+        // no-break space. The `\s?` used to sit outside the numeric group, so
+        // the scanner produced two tokens and returned 299.
+        XCTAssertEqual(PriceTagOCR.firstPrice(in: "1 299 €"), Decimal(1299))
+        XCTAssertEqual(PriceTagOCR.firstPrice(in: "1\u{00A0}299 €"), Decimal(1299))
+        XCTAssertEqual(PriceTagOCR.firstPrice(in: "1\u{202F}299 €"), Decimal(1299))
+    }
+
+    // ── Strength comes from the token, not the value ─────────────────────────
+
+    func test_wholeCentPriceBeatsALargerSizeNumber() {
+        // "19.00" carries an explicit fraction — an unambiguous price signal —
+        // but parses to the integer 19, so strength derived from the *value*
+        // classed it weak and it lost to the waist and length numbers on the
+        // same line. Those are 30-44; thrift prices are 5-20, so the size won
+        // whenever the price was printed without a symbol and with .00 cents.
+        XCTAssertEqual(PriceTagOCR.firstPrice(in: "W32 L34 19.00"),
+                       Decimal(string: "19.00"))
+    }
+
+    func test_aGroupedTokenIsWeakLikeAnyBareInteger() {
+        // The fraction test is anchored and capped at two digits precisely so
+        // the dot-grouping fix above does not also make "1.299" *strong*. A
+        // bare grouped number is a bare number: it loses to a symbol-bearing
+        // candidate even though it is far larger.
+        XCTAssertEqual(PriceTagOCR.parsePrice(from: ["1.299", "$12.99"]),
+                       Decimal(string: "12.99"))
+        // With its symbol, the same token is strong and wins.
+        XCTAssertEqual(PriceTagOCR.parsePrice(from: ["€1.299", "$12.99"]),
+                       Decimal(1299))
+    }
+
+    func test_aTrailingCurrencySymbolCountsAsASymbol() {
+        // Most of Europe prints the symbol after the number, and the docstring
+        // already claimed to handle "Sale 12,99 €" while nothing read it — so
+        // those tags were never strong and any integer could outrank them.
+        XCTAssertEqual(PriceTagOCR.firstPrice(in: "Sale 12,99 € SIZE 40"),
+                       Decimal(string: "12.99"))
+    }
+
+    // ── Percentages and rates are not prices ─────────────────────────────────
+
+    func test_percentagesAreNotPrices() {
+        XCTAssertNil(PriceTagOCR.firstPrice(in: "70% OFF"))
+        XCTAssertNil(PriceTagOCR.firstPrice(in: "100% COTTON"))
+        XCTAssertNil(PriceTagOCR.firstPrice(in: "70 % OFF"))
+    }
+
+    func test_perUnitRatesAndDatesAreNotPrices() {
+        // Both sides of the slash: a rate's denominator is no more a price
+        // than its numerator, and "12/25" is a date.
+        XCTAssertNil(PriceTagOCR.firstPrice(in: "$1.99/oz"))
+        XCTAssertNil(PriceTagOCR.firstPrice(in: "12/25"))
+        XCTAssertNil(PriceTagOCR.firstPrice(in: "SIZE 12/14"))
+    }
+
+    func test_aPriceAfterASlashIsStillAPrice() {
+        // The reason the test is around the token and not the whole match.
+        XCTAssertEqual(PriceTagOCR.firstPrice(in: "Buy 2/$5"), Decimal(5))
+    }
 }
 
 // MARK: - Snap → Sell (ListingAPIClient) Tests

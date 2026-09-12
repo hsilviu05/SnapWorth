@@ -1,6 +1,16 @@
 import SwiftData
 import SwiftUI
 
+/// A persistence failure that hands back something safe to keep on screen.
+///
+/// `AppError.from` maps this to `.persistence` like any other storage error, so
+/// no caller that only wants to report a failure has to know about it.
+enum ScanPersistenceError: Error {
+    /// The insert was rolled back. `replacement` is a context-free copy of the
+    /// row, taken before the insert, for a caller that is already displaying it.
+    case saveFailed(replacement: ScanResult)
+}
+
 /// Owns all SwiftData persistence for ScanResult.
 /// ViewModels call this instead of touching ModelContext directly.
 @MainActor
@@ -11,17 +21,40 @@ final class ScanRepository {
         self.context = context
     }
 
+    // ── Why every failure path rolls back ────────────────────────────────────
+    //
+    // `context` here is `sharedModelContainer.mainContext` (injected by
+    // `.modelContainer` in SnapWorthApp), and nothing in the app sets
+    // `autosaveEnabled`, so it is on. A failed `save()` used to leave the
+    // pending change sitting in that shared context, which has two
+    // consequences:
+    //
+    //   1. SwiftData saves the *whole* context, so one unsavable change makes
+    //      every later `context.save()` in the session fail too, from any call
+    //      site. Delete a find, add a find, clear history — all broken for the
+    //      rest of the launch by one bad row.
+    //   2. Autosave keeps retrying the change the user was told had failed, so
+    //      the row can appear later anyway, contradicting the message.
+    //
+    // The existing tests could not see it: they build on `ModelContext(container)`,
+    // a secondary context whose autosave defaults to *false*.
+
     func save(_ result: ScanResult) throws {
         // Seeds the denormalised portfolio value and the first history point.
         // Done here rather than in the model's init so every persisted row has
         // one, including any future call site that builds a ScanResult
         // differently.
         result.refreshPortfolioValue()
+        // Taken before the insert, so the rollback below cannot reach it. The
+        // result sheet is already on screen holding `result`; see
+        // `detachedCopy()`.
+        let replacement = result.detachedCopy()
         context.insert(result)
         do {
             try context.save()
         } catch {
-            throw AppError.persistence
+            context.rollback()
+            throw ScanPersistenceError.saveFailed(replacement: replacement)
         }
         scheduleWidgetSync()
     }
@@ -32,6 +65,10 @@ final class ScanRepository {
         do {
             try context.save()
         } catch {
+            // Safe without a copy: these rows are already persisted, so
+            // rollback restores them to their stored state rather than
+            // discarding them.
+            context.rollback()
             throw AppError.persistence
         }
         // No orphaned ledger follow-up for a deleted item.
@@ -44,6 +81,7 @@ final class ScanRepository {
         do {
             try context.save()
         } catch {
+            context.rollback()
             throw AppError.persistence
         }
         NotificationManager.shared.cancelAllLedger()

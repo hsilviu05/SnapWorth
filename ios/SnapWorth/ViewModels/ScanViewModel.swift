@@ -114,6 +114,15 @@ final class ScanViewModel {
                 // Emitting a failure for the same scan would double-count it
                 // and make the funnel wrong.
                 saveFailed = true
+                // The repository now rolls the shared context back on failure,
+                // so `result` is no longer registered anywhere. Swap in the
+                // copy it took beforehand: same values, no context, safe to
+                // read for as long as the sheet is up. Without this the sheet
+                // would be holding a model SwiftData has discarded.
+                if let failure = error as? ScanPersistenceError,
+                   case .saveFailed(let replacement) = failure {
+                    scanResult = replacement
+                }
             }
 
             // Ask for a rating on a high point — after the result is on screen.

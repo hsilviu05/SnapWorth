@@ -185,6 +185,11 @@ enum AppError: LocalizedError, Equatable {
             }
         }
 
+        // A rolled-back save. Callers that only want to report the failure
+        // should not have to know the error carries a replacement row.
+        if let failure = error as? ScanPersistenceError,
+           case .saveFailed = failure { return .persistence }
+
         if let purchaseErr = error as? PurchaseError {
             switch purchaseErr {
             case .cancelled:          return .purchaseCancelled
