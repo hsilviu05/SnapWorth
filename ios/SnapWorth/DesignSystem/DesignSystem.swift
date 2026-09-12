@@ -380,6 +380,30 @@ extension NumberFormatter {
         f.maximumFractionDigits = 0
         return f
     }()
+
+    /// Money to the cent, for figures that are printed as arithmetic.
+    ///
+    /// `snapCurrency` drops the fraction, which is right for a valuation
+    /// *range* — "$45–$90" is an estimate and cents would imply a precision it
+    /// does not have. It is wrong for Thrift Flip, which subtracts fees and a
+    /// shop price from a resale price and shows the user every line of it: each
+    /// row rounded independently, so the visible rows did not reconcile with
+    /// the visible total. Resale $20.75, fees $3.15, paid $10.40 printed as
+    /// "$21 − $3 − $10" above a "Net profit" of $7, and $21 − $3 − $10 is $8.
+    ///
+    /// Worse at the decision boundary: any net profit under a dollar printed as
+    /// "$0" while the headline stayed green, because `isProfitable` is the
+    /// exact `netProfit > 0`. A 1-cent profit read "Worth flipping · $0
+    /// profit".
+    static let snapCurrencyCents: NumberFormatter = {
+        let f = NumberFormatter()
+        f.numberStyle = .currency
+        f.currencyCode = "USD"
+        f.locale = Locale(identifier: "en_US")
+        f.minimumFractionDigits = 2
+        f.maximumFractionDigits = 2
+        return f
+    }()
 }
 
 // ═══════════════════════════════════════════════════════════════════

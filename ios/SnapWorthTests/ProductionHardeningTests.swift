@@ -2793,6 +2793,30 @@ final class ValueConsistencyTests: XCTestCase {
         XCTAssertNotEqual(badge, "4x find", "badge still divides the raw AI baseline")
     }
 
+    func test_theBadgeNeverClaimsAMultipleTheRatioDoesNotReach() {
+        // `round` made the threshold for an "Nx find" claim
+        // `low/paid >= N - 0.5`, so the very first badge a user can earn was
+        // already wrong. The badge sits 6pt under the headline range and 6pt
+        // under the "Paid $X" line, so the card printed the two numbers that
+        // disprove its own claim — on the artefact that leaves the app.
+        // Explicit values: `item()` defaults to $100–$200, and the ratios below
+        // are what the test is about.
+        let r = item(low: 45, high: 90)
+        XCTAssertEqual(r.displayValueLow, 45, "the number the badge divides")
+
+        // 1.5x is not a 2x find, and 1.5x is the first ratio round() inflated.
+        XCTAssertNil(ShareCardView(result: r, photo: nil).findBadge(paid: 30),
+                     "45/30 is 1.5x — below the 2x the badge would have claimed")
+        // 2.5x is not 3x. Swift rounds half away from zero, so this was "3x".
+        XCTAssertEqual(ShareCardView(result: r, photo: nil).findBadge(paid: 18),
+                       "2x find")
+        // And an exact multiple still reads as itself.
+        XCTAssertEqual(ShareCardView(result: r, photo: nil).findBadge(paid: 15),
+                       "3x find")
+        XCTAssertEqual(ShareCardView(result: r, photo: nil).findBadge(paid: 22.5),
+                       "2x find")
+    }
+
     func test_aFreeFindIsStillAFreeFind() {
         XCTAssertEqual(ShareCardView(result: item(), photo: nil)
                         .findBadge(paid: 0), "Free find")

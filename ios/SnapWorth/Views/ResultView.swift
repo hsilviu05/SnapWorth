@@ -737,6 +737,12 @@ struct ResultView: View {
         .accessibilityAddTraits(.isSummaryElement)
     }
 
+    // `@MainActor` explicitly: this mutates view state, runs an animation and
+    // posts an accessibility announcement, and the SDK's isolation on
+    // `UIAccessibility.post` has moved between Xcode versions. The only caller
+    // is the reveal button's action, formed in `body`, so it is already on the
+    // main actor — the annotation just says so where the compiler can check it.
+    @MainActor
     private func revealPrice() {
         guard !priceRevealed else { return }
         focusedField = nil
@@ -745,6 +751,28 @@ struct ResultView: View {
             priceRevealed = true
         }
         Haptics.success()
+        // The number the whole flow exists for, spoken.
+        //
+        // The button the user just activated lives inside the card that
+        // disappears, so VoiceOver focus is destroyed and nothing is
+        // announced. `.isSummaryElement` and `.accessibilitySortPriority`
+        // above affect ordering and screen summaries, not announcements — the
+        // card reads correctly if you navigate to it, and a VoiceOver user is
+        // given no reason to think there is anything to navigate to.
+        //
+        // `GuessFirst.defaultOn` is true, so this is the default path on every
+        // fresh scan: a VoiceOver user meets it on their first result. Every
+        // other state change in this file already announces — the condition
+        // chip, the status chip, and the tag re-read, that last one added
+        // because "a haptic is the whole of the feedback... and said nothing
+        // at all to VoiceOver". The same wording as the card's own
+        // `accessibilityValue`, so the announcement and the element agree.
+        UIAccessibility.post(
+            notification: .announcement,
+            argument: "Estimated resale value \(result.formattedRange). "
+                + "\(result.confidence) confidence AI estimate."
+                + (quickVerdict.map { " \($0)" } ?? "")
+        )
         Analytics.shared.track(.guessRevealed(withGuess: quickGuess != nil))
     }
 

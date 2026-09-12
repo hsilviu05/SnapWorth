@@ -646,6 +646,46 @@ final class NumberFormatterTests: XCTestCase {
         XCTAssertEqual(result, "$46")
     }
 
+    func test_snapCurrencyCents_keepsTheCents() {
+        // Thrift Flip prints an itemised subtraction, and every row went
+        // through the 0-decimal formatter — so the rows did not add up to the
+        // total beneath them, and any profit under a dollar read "$0" under a
+        // green "Worth flipping".
+        XCTAssertEqual(NumberFormatter.snapCurrencyCents.string(from: 20.75), "$20.75")
+        XCTAssertEqual(NumberFormatter.snapCurrencyCents.string(from: 3.149375), "$3.15")
+        XCTAssertEqual(NumberFormatter.snapCurrencyCents.string(from: 0.01), "$0.01")
+        XCTAssertEqual(NumberFormatter.snapCurrencyCents.string(from: 7), "$7.00",
+                       "a whole amount still shows cents, so a column lines up")
+    }
+
+    func test_theItemisedRowsReconcileWithTheirTotal() {
+        // The failure in one card: eBay, shop price $10.40, resale $20.75.
+        // Fees are 20.75 * 0.1325 + 0.40 = 3.149375, net 7.200625. At zero
+        // decimals that printed "$21 − $3 − $10" above a net of "$7" — and
+        // 21 − 3 − 10 is 8.
+        let resale = Decimal(string: "20.75")!
+        let fees = Decimal(string: "3.149375")!
+        let paid = Decimal(string: "10.40")!
+        let net = resale - fees - paid
+
+        let shown = { (d: Decimal) in
+            NumberFormatter.snapCurrencyCents.string(from: NSDecimalNumber(decimal: d))
+        }
+        XCTAssertEqual(shown(resale), "$20.75")
+        XCTAssertEqual(shown(fees), "$3.15")
+        XCTAssertEqual(shown(paid), "$10.40")
+        XCTAssertEqual(shown(net), "$7.20")
+        // 20.75 − 3.15 − 10.40 = 7.20 — the rows and the total agree.
+        XCTAssertEqual(shown(Decimal(string: "20.75")! - Decimal(string: "3.15")!
+                             - Decimal(string: "10.40")!), shown(net))
+    }
+
+    func test_aRangeStillHasNoCents() {
+        // The 0-decimal formatter stays where it belongs: a valuation range is
+        // an estimate, and cents would imply precision it does not have.
+        XCTAssertEqual(NumberFormatter.snapCurrency.string(from: 45.99), "$46")
+    }
+
     func test_snapCurrency_alwaysUSD_notDeviceLocale() {
         let result = NumberFormatter.snapCurrency.string(from: 100) ?? ""
         XCTAssertTrue(result.hasPrefix("$"), "Must always be USD, got: \(result)")

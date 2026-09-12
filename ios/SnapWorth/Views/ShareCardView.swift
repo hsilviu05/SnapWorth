@@ -186,7 +186,17 @@ struct ShareCardView: View {
         if paid == 0 { return "Free find" }
         let low = result.displayValueLow
         guard paid < low else { return nil }
-        let multiple = Int(round(low / paid))
+        // `floor`, not `round`. Round-to-nearest made the threshold for an
+        // "Nx find" claim `low/paid >= N - 0.5`, so the very first badge a user
+        // can earn was already wrong: a 1.5x find rendered as "2x find", and a
+        // 2.5x as "3x" (Swift rounds half away from zero). The badge sits 6pt
+        // under the headline range and 6pt under the "Paid $X" line, so the
+        // card printed the two numbers that disprove its own claim — on the
+        // artefact that leaves the app.
+        //
+        // The same class of defect as the divisor bug fixed in the comment
+        // above: that corrected which number to divide, and left the rounding.
+        let multiple = Int((low / paid).rounded(.down))
         return multiple > 1 ? "\(multiple)x find" : nil
     }
 

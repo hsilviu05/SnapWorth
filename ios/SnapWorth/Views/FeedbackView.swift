@@ -17,6 +17,24 @@ struct FeedbackView: View {
 
     private let maxChars = 500
 
+    /// What VoiceOver is told about the message field.
+    ///
+    /// Mirrors exactly what the two visual-only lines below the editor say —
+    /// the character counter and the "N more characters needed" message that
+    /// explains why Send is disabled. Both are `Text` views a VoiceOver user
+    /// would have to go looking for, on a support screen, which is the one
+    /// place a user who cannot see the form most needs to reach someone.
+    private var messageFieldHint: String {
+        let trimmed = message.trimmingCharacters(in: .whitespacesAndNewlines).count
+        guard trimmed >= 10 else {
+            let needed = 10 - trimmed
+            return "\(needed) more character\(needed == 1 ? "" : "s") needed "
+                + "before you can send. Up to \(maxChars) characters."
+        }
+        let left = maxChars - message.count
+        return "\(left) character\(left == 1 ? "" : "s") remaining."
+    }
+
     enum FeedbackType: String, CaseIterable {
         case featureRequest  = "Feature Request"
         case bugReport       = "Bug Report"
@@ -112,11 +130,24 @@ struct FeedbackView: View {
                                     message = String(new.prefix(maxChars))
                                 }
                             }
+                            // A `TextEditor` has no accessible name of its own,
+                            // and the "Your message" header above it is a
+                            // separate `Text` — so VoiceOver announced this as
+                            // an unlabelled text field. The 500-character cap
+                            // and the reason Send is disabled were both visual
+                            // only: the counter below and the "N more
+                            // characters needed" line, neither of which a
+                            // VoiceOver user is given any reason to go and find.
+                            .accessibilityLabel("Your message")
+                            .accessibilityHint(messageFieldHint)
 
                         Text("\(message.count)/\(maxChars)")
                             .font(.dmSans(11))
                             .foregroundStyle(Color.snapWarmGray)
                             .padding(10)
+                            // The hint above says the same thing in words. A
+                            // second stop reading "12 slash 500" is noise.
+                            .accessibilityHidden(true)
                     }
 
                     if !canSend {
