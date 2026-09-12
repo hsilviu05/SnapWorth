@@ -213,6 +213,133 @@ Your closet's resale value. On your Lock Screen. Without unlocking.
 New in SnapWorth 1.4.
 ```
 
+## Artwork — prompt for Claude Design
+
+Paste the block below into Claude Design. It is self-contained: no file in this
+repo needs to be open for it to work.
+
+**What this does and does not replace.** These are the *designed* frames — the
+announcement card, the X header, the TikTok cover. The **hero shots stay
+photographic**: a real Home Screen with real widgets and a real total. A drawn
+widget in a post about widgets is a mockup, and a reselling audience spots it.
+Use the designed frames for the announcement slot and the carousel ends; use
+photographs for anything claiming to show the product.
+
+Palette below is the **app's** light-mode palette from
+`ios/SnapWorth/DesignSystem/DesignSystem.swift`, which is the source of truth.
+Note that `ios/SnapWorthWidgets/SnapWorthWidgets.swift` has drifted from it —
+see "Palette drift" at the end of this file.
+
+```
+Design a set of social artboards for SnapWorth 1.4, an iOS app that estimates
+the resale value of thrift-store finds from a photo. The release is entirely
+widgets, so the work is about small surfaces on a phone.
+
+BRAND
+Typefaces: Fraunces for headlines (serif, warm, slightly quirky), DM Sans for
+everything else.
+Palette — use these exact values, nothing else:
+  cream        #FBF7F2   page ground
+  white        #FFFFFF   cards
+  espresso     #2B211C   primary text
+  warm gray    #6E6055   secondary text
+  terracotta   #D96C47   the single accent: icons, one emphasis per artboard
+  sage         #6F8F6B   money and positive values ONLY
+  amber        #EBB868   badges, sparingly
+  charcoal     #1C1714   dark artboard grounds
+Sage is reserved for figures. If a number is money, it is sage; if it is not
+money, it is not sage. That rule is load-bearing in the app and the artwork
+should not break it.
+
+TONE
+Warm, calm, physical — a jumble sale rather than a trading terminal. No neon,
+no gradients suggesting crypto, no drop shadows pretending to be glass. The app
+is about second-hand clothes.
+
+ARTBOARDS
+
+1. "Widgets" announcement — 1080×1350
+   Cream ground. Fraunces headline, two lines maximum: "Your haul. On your
+   Lock Screen." Below it, three simplified widget shapes arranged as they
+   would sit on a Home Screen grid — one small square, one wide rectangle, one
+   Lock Screen pill. Suggest their content with bars and a single sage figure
+   each; do not draw legible fake data. Bottom-left: small terracotta app mark
+   and "SnapWorth 1.4".
+
+2. "Thrift run" — 1080×1350
+   Charcoal ground, because this one lives on a Lock Screen. Centre: a
+   Dynamic-Island-shaped black pill, wide, with a small terracotta viewfinder
+   glyph on the left and a sage figure on the right. Above it in Fraunces,
+   cream: "Know what's in your arms." Below in DM Sans, warm gray on charcoal
+   (lighten it enough to stay readable — the app lifts its greys in dark
+   mode): "A running total for the trip you're on."
+
+3. "Action Button" — 1080×1350
+   Cream. A single iPhone edge rendered flat and minimal, side-on, with the
+   Action Button marked in terracotta. One Fraunces line: "One press. Camera.
+   Price." Small DM Sans footnote in warm gray: "iPhone 15 Pro and later."
+   Restraint is the brief — this artboard should feel like the six-second
+   video it accompanies.
+
+4. X header — 1500×500
+   Cream, horizontal. App mark left, Fraunces wordmark, and a single line of DM
+   Sans: "Know what your thrift finds are worth before you buy." Keep the
+   middle third clear — the profile avatar overlaps it.
+
+5. TikTok cover — 1080×1920
+   Charcoal. Large Fraunces text, two or three words only, high on the frame so
+   the TikTok caption UI at the bottom does not cover it: "worth it?" Small
+   terracotta viewfinder glyph beneath. Nothing else. A cover competes at
+   thumbnail size and detail is wasted.
+
+6. Instagram story — 1080×1920
+   Cream. Vertical version of artboard 1: headline, one widget shape, and a
+   clear lower third left empty for a "link" sticker.
+
+CONSTRAINTS
+- Every artboard must read at thumbnail size. Test each headline at 15% scale.
+- No numbers that look like real data. Suggest figures with shapes, or use one
+  obviously round sage number. A specific-looking fake total is worse than no
+  number.
+- Leave the bottom 20% of the two 1080×1920 artboards free of text.
+- No stock photography of people. The app has never used any and the shift
+  would read as a different product.
+```
+
+### After generating
+
+The build pipeline for previous releases lives in `marketing/ig/` —
+`.dc.html` artboards, a per-release `build_*.py` that strips the Design
+Component wrapper and swaps the Google Fonts link for the embedded woff2 so the
+canvas and the PNG match. If you want 1.4.0 exports on the same footing, copy
+`marketing/ig/build_1_3_3.py` to `build_1_4.py` and point it at the new
+artboards. Say the word and I will write it.
+
+---
+
+## Palette drift
+
+Three palettes exist for one brand, and they disagree:
+
+| Token | App *(source of truth)* | Widget extension | These marketing docs |
+|---|---|---|---|
+| terracotta | `#D96C47` | `#C9583A` | `#D96C47` |
+| sage | `#6F8F6B` | `#7D9E7E` | `#7A9E7E` |
+| cream | `#FBF7F2` | `#FAF9F7` | `#FAF7F4` |
+| dark | `#1C1714` | `#2C2C2C` | `#1C1410` |
+
+`ios/SnapWorth/DesignSystem/DesignSystem.swift` is canonical — its values carry
+the WCAG contrast work (`snapWarmGray` was 3.1:1 on cream and was darkened to
+5.7:1; the accents are lifted in dark mode and have high-contrast variants).
+The widget extension's palette has none of that history and cannot import the
+app's, so it was typed in by hand and drifted.
+
+**This matters now rather than eventually.** The 1.4.0 posts are photographs of
+the widgets, so whatever the widget extension renders is what appears in the
+marketing. Its terracotta and sage are visibly off the app's.
+
+Worth correcting before any of these frames are shot.
+
 ## Notes
 
 - Both platforms use "link in bio" rather than a pasted URL, because neither
