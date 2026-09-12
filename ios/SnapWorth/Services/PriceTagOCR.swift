@@ -80,7 +80,10 @@ enum PriceTagOCR {
                 cgImage: cg, orientation: orientation, options: [:])
             do {
                 try handler.perform([request])
-                let observations = (request.results as? [VNRecognizedTextObservation]) ?? []
+                // `results` on a `VNRecognizeTextRequest` is already
+                // `[VNRecognizedTextObservation]?`, so the conditional
+                // downcast did nothing but emit a warning.
+                let observations = request.results ?? []
                 continuation.resume(returning: observations.compactMap { obs -> (String, CGFloat)? in
                     guard let text = obs.topCandidates(1).first?.string else { return nil }
                     return (text, obs.boundingBox.height)

@@ -441,8 +441,41 @@ final class ListingClientTests: XCTestCase {
         guard let actorStart = source.range(of: "actor ListingAPIClient") else {
             return XCTFail("could not locate the actor")
         }
-        let actorBody = String(source[actorStart.upperBound...])
-        XCTAssertFalse(actorBody.contains("ScanResult"),
+        // Bound the region to this actor. Reading to end-of-file swept in
+        // `TrendsAPIClient` and everything after it, so an unrelated type
+        // could have failed this, or hidden a real hit behind a rename.
+        let afterStart = String(source[actorStart.upperBound...])
+        let topLevel = ["struct ", "actor ", "enum ", "final class ",
+                        "class ", "extension "]
+        let body = afterStart
+            .split(separator: "\n", omittingEmptySubsequences: false)
+            .prefix { line in !topLevel.contains { line.hasPrefix($0) } }
+            .joined(separator: "\n")
+
+        // And strip comments, because the property is about what the *code*
+        // names. The first version of this test failed on the actor's own doc
+        // comment — the sentence explaining that it deliberately does not take
+        // a `ScanResult` — which is documentation working exactly as intended.
+        // (A `//` inside a string literal would truncate that line early; no
+        // literal in this actor contains one, and the cost would be a missed
+        // hit rather than a false alarm.)
+        let code = body
+            .split(separator: "\n", omittingEmptySubsequences: false)
+            .map { line -> String in
+                guard let marker = line.range(of: "//") else { return String(line) }
+                return String(line[line.startIndex..<marker.lowerBound])
+            }
+            .joined(separator: "\n")
+
+        // The bounding and the stripping are both capable of emptying the
+        // haystack, which would make the assertion below pass for the wrong
+        // reason. Prove there is still an actor in there.
+        XCTAssertTrue(code.contains("func generate("),
+                      "the actor body was lost to bounding or comment-stripping")
+        XCTAssertTrue(code.contains("ListingInput"),
+                      "the actor should still name the Sendable input type")
+
+        XCTAssertFalse(code.contains("ScanResult"),
                        "a ScanResult reaching this actor is an unsynchronised "
                        + "read on the main context")
     }
