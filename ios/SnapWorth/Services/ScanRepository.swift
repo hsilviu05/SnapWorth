@@ -48,6 +48,11 @@ final class ScanRepository {
         }
         NotificationManager.shared.cancelAllLedger()
         WidgetDataStore.writeHaul(results: [])
+        // And the run, which is computed from the same array. Every other
+        // mutation goes through `scheduleWidgetSync`, which updates both; this
+        // one wrote the blob directly and left the Live Activity showing the
+        // total of scans that no longer exist.
+        Task { await ThriftRunController.update(results: []) }
     }
 
     // ── On the portfolio total, and why there is no aggregate here ────────────

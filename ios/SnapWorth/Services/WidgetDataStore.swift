@@ -224,6 +224,37 @@ extension WidgetHaulData {
         "\(itemCount) find\(itemCount == 1 ? "" : "s")"
     }
 
+    /// A display range, respelled for VoiceOver.
+    ///
+    /// `ScanResult.formattedRange` and every `WidgetFind.range` carry an en
+    /// dash, which a voice either reads as "dash" or drops — and dropping it
+    /// runs the two figures together into a number that means nothing. Only
+    /// the separator changes; the money is already formatted.
+    static func spoken(_ range: String) -> String {
+        range.replacingOccurrences(of: "\u{2013}", with: " to ")
+    }
+
+    /// The haul range as a sentence, for VoiceOver.
+    ///
+    /// `formattedRange` is display text, and the widgets were handing it
+    /// straight to `accessibilityLabel`. "$348–$620" is announced as "348 dash
+    /// 620" — or the en dash is swallowed entirely, depending on the voice, so
+    /// the two figures run together into one number that is not the answer to
+    /// anything. A range has to be spoken as a range.
+    var spokenRange: String {
+        guard hasScans else { return "nothing scanned yet" }
+        return "\(Self.money(totalLow)) to \(Self.money(totalHigh))"
+    }
+
+    /// The whole haul as one sentence, for a widget that should be a single
+    /// VoiceOver element rather than five unlabelled fragments and a symbol
+    /// name.
+    var spokenHaul: String {
+        guard hasScans else { return "SnapWorth. Nothing scanned yet." }
+        return "SnapWorth haul, \(Self.itemsLabel(itemCount)) scanned, "
+             + "worth \(spokenRange)."
+    }
+
     /// "8 items" / "1 item".
     ///
     /// Static because the Quick Scan widget's entry carries a bare count
@@ -234,6 +265,55 @@ extension WidgetHaulData {
     static func itemsLabel(_ count: Int) -> String {
         "\(count) item\(count == 1 ? "" : "s")"
     }
+}
+
+// ── Palette ──────────────────────────────────────────────────────────────────
+//
+// The widget extension cannot import `DesignSystem.swift`, so its palette was
+// typed by hand — and drifted. Every accent ended up at a *light-mode* value
+// sitting on a dark tile, which is the wrong half of each adaptive pair, and
+// two of them failed WCAG AA on the ground they were drawn on: terracotta at
+// 3.29:1 and warm grey at 3.82:1 against the old `#2C2C2C`, both carrying
+// 10-13pt text. The app had already done exactly this work — `snapWarmGray`
+// was 3.1:1 on cream and was darkened to 5.7:1 — and the widget's copy never
+// got it.
+//
+// The hexes live here, in the block both targets compile, and
+// `DesignSystem.swift` reads them for its dark-mode values while the
+// extension's `Color` extension reads them for its fixed ones. Being strings
+// rather than `Color`s is what lets a test in the app target compute the
+// contrast ratios — which is how the drift was found.
+
+/// Brand hexes for a dark surface.
+enum SnapDarkHex {
+
+    /// The widget tile, and the camera screen in the app: a dark surface by
+    /// design rather than by theme, so it does not adapt.
+    static let charcoal = "1C1714"
+
+    /// Cream. Text on `charcoal`, and on any filled accent.
+    static let cream = "FBF7F2"
+
+    // Accents, at their dark-mode values. A widget tile is dark, so the
+    // light-mode values are the wrong half of each pair — which is what was
+    // shipping in the extension.
+    static let terracotta = "E8845F"
+    static let sage = "8FB08A"
+    static let warmGray = "B0A297"
+    static let espresso = "F0E9E2"
+
+    /// Terracotta as a *filled* surface with cream on top: the Quick Scan tile
+    /// and the medium widget's Scan chip.
+    ///
+    /// A fill and a foreground are opposite requirements — a foreground on a
+    /// dark ground wants lifting, a fill under cream wants darkening — and one
+    /// token was doing both jobs. Cream on the old `#C9583A` fill was 3.99:1,
+    /// and on the foreground terracotta above it would be 2.53:1. This is
+    /// `snapTerracotta` darkened until cream clears AA: 5.43:1.
+    static let terracottaFill = "A8482C"
+
+    /// The far end of the Quick Scan gradient. 6.99:1 under cream.
+    static let terracottaFillDeep = "8F3B22"
 }
 
 // ── Recent finds, and Scans left ─────────────────────────────────────────────

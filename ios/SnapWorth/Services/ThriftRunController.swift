@@ -34,8 +34,26 @@ enum ThriftRunController {
             startedAt.addingTimeInterval(maximumRunDuration))
     }
 
+    /// The live run, if there is one.
+    ///
+    /// `activities` keeps an Activity after it finishes — `.ended` when
+    /// something ended it, `.dismissed` when the user swiped it away — and the
+    /// system removes those asynchronously. Taking `.first` unconditionally
+    /// counted a finished Activity as a live run, so `start()` refused and the
+    /// user could not begin a new one until the system got round to reaping
+    /// the old one.
+    ///
+    /// Matched by exclusion rather than `== .active`, so `.stale` — a run that
+    /// is still on screen and still the user's — keeps counting, and so does
+    /// any state a later iOS adds. `.stale` itself is 17.2 and the deployment
+    /// target is 17.0, which is the other reason not to name it.
     static var current: Activity<ThriftRunAttributes>? {
-        Activity<ThriftRunAttributes>.activities.first
+        Activity<ThriftRunAttributes>.activities.first { activity in
+            switch activity.activityState {
+            case .ended, .dismissed: return false
+            default:                 return true
+            }
+        }
     }
 
     static var isRunning: Bool { current != nil }

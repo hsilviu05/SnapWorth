@@ -1593,3 +1593,205 @@ final class ThriftRunStaleDateTests: XCTestCase {
                        start.addingTimeInterval(ThriftRunController.staleAfter))
     }
 }
+
+// ── The widget palette ───────────────────────────────────────────────────────
+//
+// The extension cannot import `DesignSystem.swift`, so nothing but a test can
+// keep the two palettes in step — and for 1.4.0 nothing did. Every widget
+// accent was a *light-mode* value drawn on a dark tile, and two of them failed
+// WCAG AA while carrying 10-13pt text.
+//
+// These assertions are the check the compiler cannot make: the hexes still
+// clear AA on the ground they are used on, and the fill token is still darker
+// than the foreground one it was split out of.
+
+final class WidgetPaletteTests: XCTestCase {
+
+    /// WCAG 2.1 relative luminance.
+    private func luminance(_ hex: String) -> Double {
+        let channels = stride(from: 0, to: 6, by: 2).map { offset -> Double in
+            let start = hex.index(hex.startIndex, offsetBy: offset)
+            let end = hex.index(start, offsetBy: 2)
+            let value = Double(UInt8(hex[start..<end], radix: 16) ?? 0) / 255
+            return value <= 0.03928 ? value / 12.92
+                                    : pow((value + 0.055) / 1.055, 2.4)
+        }
+        return 0.2126 * channels[0] + 0.7152 * channels[1] + 0.0722 * channels[2]
+    }
+
+    private func contrast(_ a: String, _ b: String) -> Double {
+        let (x, y) = (luminance(a), luminance(b))
+        return (max(x, y) + 0.05) / (min(x, y) + 0.05)
+    }
+
+    /// Cream over a ground at partial opacity, which is what the widgets draw
+    /// for their secondary labels — the composite is what the eye sees.
+    private func composite(_ hex: String, over ground: String, alpha: Double) -> String {
+        func bytes(_ h: String) -> [Double] {
+            stride(from: 0, to: 6, by: 2).map { offset in
+                let start = h.index(h.startIndex, offsetBy: offset)
+                let end = h.index(start, offsetBy: 2)
+                return Double(UInt8(h[start..<end], radix: 16) ?? 0)
+            }
+        }
+        let (front, back) = (bytes(hex), bytes(ground))
+        return (0..<3).map { i in
+            String(format: "%02X", Int((alpha * front[i] + (1 - alpha) * back[i]).rounded()))
+        }.joined()
+    }
+
+    // ── The helper itself, against known values ──────────────────────────────
+
+    func test_theContrastHelperAgreesWithTheSpec() {
+        XCTAssertEqual(contrast("FFFFFF", "000000"), 21, accuracy: 0.01)
+        XCTAssertEqual(contrast("000000", "000000"), 1, accuracy: 0.01)
+        // WebAIM's worked example: #777777 on white is 4.48:1.
+        XCTAssertEqual(contrast("777777", "FFFFFF"), 4.48, accuracy: 0.02)
+    }
+
+    // ── Every foreground on the tile ─────────────────────────────────────────
+
+    func test_everyForegroundOnTheTileClearsAAForSmallText() {
+        // All of these carry 10-13pt labels somewhere in the bundle, so the
+        // 4.5:1 threshold applies — not the 3:1 large-text one.
+        let foregrounds = [
+            ("cream",      SnapDarkHex.cream),
+            ("terracotta", SnapDarkHex.terracotta),
+            ("sage",       SnapDarkHex.sage),
+            ("warmGray",   SnapDarkHex.warmGray),
+        ]
+        for (name, hex) in foregrounds {
+            let ratio = contrast(hex, SnapDarkHex.charcoal)
+            XCTAssertGreaterThanOrEqual(
+                ratio, 4.5,
+                "\(name) is \(String(format: "%.2f", ratio)):1 on the tile")
+        }
+    }
+
+    func test_theOldPaletteWouldHaveFailedThisTest() {
+        // The values that shipped, so the assertion above is known to bite.
+        XCTAssertLessThan(contrast("C9583A", "2C2C2C"), 4.5, "old terracotta")
+        XCTAssertLessThan(contrast("8A857E", "2C2C2C"), 4.5, "old warm grey")
+    }
+
+    func test_dimmedCreamStillClearsAAOnTheTile() {
+        // The widgets draw their wordmarks and captions at 65-80% cream.
+        for alpha in [0.65, 0.7, 0.75, 0.8] {
+            let blended = composite(SnapDarkHex.cream,
+                                    over: SnapDarkHex.charcoal, alpha: alpha)
+            XCTAssertGreaterThanOrEqual(contrast(blended, SnapDarkHex.charcoal), 4.5,
+                                        "cream at \(alpha)")
+        }
+    }
+
+    // ── Filled accents ───────────────────────────────────────────────────────
+
+    func test_creamClearsAAOnEveryFilledAccent() {
+        // The Quick Scan tile's gradient and the medium widget's Scan chip.
+        for fill in [SnapDarkHex.terracottaFill, SnapDarkHex.terracottaFillDeep] {
+            XCTAssertGreaterThanOrEqual(contrast(SnapDarkHex.cream, fill), 4.5, fill)
+        }
+    }
+
+    func test_theFillIsDarkerThanTheForegroundItWasSplitFrom() {
+        // The whole point of the split: one token cannot be both, and getting
+        // them the wrong way round is silent.
+        XCTAssertLessThan(luminance(SnapDarkHex.terracottaFill),
+                          luminance(SnapDarkHex.terracotta))
+        XCTAssertLessThan(luminance(SnapDarkHex.terracottaFillDeep),
+                          luminance(SnapDarkHex.terracottaFill))
+    }
+
+    func test_theForegroundTerracottaWouldFailAsAFill() {
+        // Why the split exists, stated as a test rather than a comment.
+        XCTAssertLessThan(contrast(SnapDarkHex.cream, SnapDarkHex.terracotta), 3.0)
+    }
+
+    // ── And still the app's own values ───────────────────────────────────────
+
+    func test_theWidgetAccentsAreTheAppsDarkModeValues() {
+        // A widget tile is dark in both themes, so the light-mode half of each
+        // adaptive pair is the wrong one — which is what had been typed in by
+        // hand. `DesignSystem.swift` reads these same constants, so changing a
+        // dark-mode accent there changes the widget with it.
+        XCTAssertEqual(SnapDarkHex.terracotta, "E8845F")
+        XCTAssertEqual(SnapDarkHex.sage, "8FB08A")
+        XCTAssertEqual(SnapDarkHex.warmGray, "B0A297")
+        XCTAssertEqual(SnapDarkHex.espresso, "F0E9E2")
+        XCTAssertEqual(SnapDarkHex.charcoal, "1C1714")
+        XCTAssertEqual(SnapDarkHex.cream, "FBF7F2")
+    }
+
+    func test_everyHexIsSixUppercaseDigits() {
+        // `Color(hex:)` strips non-alphanumerics and scans what is left, so a
+        // typo degrades to a colour rather than a build error.
+        let all = [SnapDarkHex.charcoal, SnapDarkHex.cream, SnapDarkHex.terracotta,
+                   SnapDarkHex.sage, SnapDarkHex.warmGray, SnapDarkHex.espresso,
+                   SnapDarkHex.terracottaFill, SnapDarkHex.terracottaFillDeep]
+        for hex in all {
+            XCTAssertEqual(hex.count, 6, hex)
+            XCTAssertTrue(hex.allSatisfy { $0.isHexDigit && !$0.isLowercase }, hex)
+        }
+    }
+}
+
+// ── Spoken labels ────────────────────────────────────────────────────────────
+//
+// Every widget was handing display strings straight to `accessibilityLabel`.
+// A money range carries an en dash, which a voice either reads as "dash" or
+// drops — and dropping it runs "$348–$620" together into a number that is not
+// the answer to anything. Two widgets had no label at all and read out SF
+// Symbol names instead.
+
+final class WidgetSpokenLabelTests: XCTestCase {
+
+    private func haul(itemCount: Int, low: Double = 0, high: Double = 0,
+                      lastRange: String = "") -> WidgetHaulData {
+        WidgetHaulData(totalLow: low, totalHigh: high, itemCount: itemCount,
+                       lastItemName: "Levi's 501", lastItemRange: lastRange,
+                       updatedAt: .now, freeScansRemaining: nil, isPro: false,
+                       streak: 0, recentFinds: [], monthProfit: nil, monthFlips: 0)
+    }
+
+    func test_aRangeIsSpokenAsARangeNotADash() {
+        let spoken = haul(itemCount: 8, low: 348, high: 620).spokenRange
+        XCTAssertEqual(spoken, "$348 to $620")
+        XCTAssertFalse(spoken.contains("–"), "an en dash reaches the voice")
+    }
+
+    func test_anEmptyHaulIsSpokenPlainly() {
+        XCTAssertEqual(WidgetHaulData.empty.spokenRange, "nothing scanned yet")
+        XCTAssertEqual(WidgetHaulData.empty.spokenHaul, "SnapWorth. Nothing scanned yet.")
+    }
+
+    func test_theWholeHaulIsOneSentence() {
+        XCTAssertEqual(haul(itemCount: 8, low: 348, high: 620).spokenHaul,
+                       "SnapWorth haul, 8 items scanned, worth $348 to $620.")
+    }
+
+    func test_oneItemIsSingularInTheSpokenHaulToo() {
+        XCTAssertTrue(haul(itemCount: 1, low: 60, high: 95).spokenHaul
+                        .contains("1 item scanned"))
+    }
+
+    func test_anItemRangeIsRespelledForTheVoice() {
+        // `ScanResult.formattedRange` and every `WidgetFind.range` come in
+        // already formatted, so only the separator can be changed.
+        XCTAssertEqual(WidgetHaulData.spoken("$60–$95"), "$60 to $95")
+        XCTAssertEqual(WidgetHaulData.spoken("$1,240–$2,100"), "$1,240 to $2,100")
+    }
+
+    func test_respellingLeavesAnythingWithoutADashAlone() {
+        XCTAssertEqual(WidgetHaulData.spoken("$0"), "$0")
+        XCTAssertEqual(WidgetHaulData.spoken(""), "")
+    }
+
+    func test_noSpokenLabelContainsADisplayDash() {
+        // The invariant, over the strings a widget actually hands to VoiceOver.
+        let full = haul(itemCount: 3, low: 95, high: 150, lastRange: "$40–$70")
+        for label in [full.spokenRange, full.spokenHaul,
+                      WidgetHaulData.spoken(full.lastItemRange)] {
+            XCTAssertFalse(label.contains("–"), label)
+        }
+    }
+}

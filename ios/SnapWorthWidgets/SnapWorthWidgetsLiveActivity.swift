@@ -30,6 +30,12 @@ struct ThriftRunLiveActivity: Widget {
                     Label("\(context.state.itemCount)", systemImage: "camera.viewfinder")
                         .font(.system(size: 15, weight: .semibold))
                         .foregroundStyle(Color.wTerracotta)
+                        // Without this the region announced
+                        // "camera.viewfinder, 3" — a symbol name and a bare
+                        // number. Every presentation below was unlabelled the
+                        // same way, and the minimal one announced nothing but
+                        // the symbol name.
+                        .accessibilityLabel(context.state.findsLabel)
                 }
                 DynamicIslandExpandedRegion(.trailing) {
                     Text(context.state.formattedRange)
@@ -37,6 +43,8 @@ struct ThriftRunLiveActivity: Widget {
                         .foregroundStyle(context.isStale ? Color.wWarmGray : Color.wSage)
                         .lineLimit(1)
                         .minimumScaleFactor(0.6)
+                        .accessibilityLabel(
+                            WidgetHaulData.spoken(context.state.formattedRange))
                 }
                 DynamicIslandExpandedRegion(.bottom) {
                     // The last item rather than the elapsed time: a timer
@@ -55,15 +63,21 @@ struct ThriftRunLiveActivity: Widget {
             } compactLeading: {
                 Image(systemName: "camera.viewfinder")
                     .foregroundStyle(Color.wTerracotta)
+                    .accessibilityHidden(true)
             } compactTrailing: {
                 // Compact has room for one number, and the count is the one
                 // that changes on every scan.
                 Text("\(context.state.itemCount)")
                     .font(.system(size: 13, weight: .bold, design: .rounded))
                     .foregroundStyle(context.isStale ? Color.wWarmGray : Color.wSage)
+                    // The icon beside it is hidden, so this one label carries
+                    // the compact presentation on its own.
+                    .accessibilityLabel("Thrift run, \(context.state.findsLabel)")
             } minimal: {
                 Image(systemName: "camera.viewfinder")
                     .foregroundStyle(Color.wTerracotta)
+                    .accessibilityLabel("Thrift run in progress, "
+                                        + context.state.findsLabel)
             }
             .widgetURL(URL(string: "snapworth://scan"))
             .keylineTint(Color.wTerracotta)
@@ -154,7 +168,10 @@ struct ThriftRunLockScreenView: View {
             return isStale ? "Thrift run, last known, nothing scanned yet"
                            : "Thrift run started, nothing scanned yet"
         }
-        let body = "Thrift run, \(state.findsLabel), worth \(state.formattedRange)"
+        // `formattedRange` is display text; spoken, the en dash is either read
+        // as "dash" or dropped, running the two figures together.
+        let body = "Thrift run, \(state.findsLabel), "
+                 + "worth \(WidgetHaulData.spoken(state.formattedRange))"
         return isStale ? body + ". Last known — open SnapWorth to refresh." : body
     }
 }

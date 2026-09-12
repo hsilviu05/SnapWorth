@@ -51,11 +51,20 @@ struct LockScreenInlineView: View {
     let haul: WidgetHaulData
 
     var body: some View {
-        if haul.hasScans {
-            Label(haul.compactRange, systemImage: "camera.viewfinder")
-        } else {
-            Label("No finds yet", systemImage: "camera.viewfinder")
+        Group {
+            if haul.hasScans {
+                Label(haul.compactRange, systemImage: "camera.viewfinder")
+            } else {
+                Label("No finds yet", systemImage: "camera.viewfinder")
+            }
         }
+        // `compactRange` is abbreviated display text — "$348–$620" becomes
+        // "$348K–$620K" territory in a circular, and the dash is not spoken.
+        // The inline had no label at all, so VoiceOver read the symbol name
+        // and then the abbreviation as one run-together number.
+        .accessibilityLabel(haul.hasScans
+                            ? "SnapWorth haul, \(haul.spokenRange)"
+                            : "SnapWorth, no finds scanned yet")
     }
 }
 
@@ -82,7 +91,7 @@ struct LockScreenCircularView: View {
         // fragments it announces an icon and a number with no relationship.
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(haul.hasScans
-                            ? "Haul value up to \(haul.compactTotal), \(haul.findsLabel)"
+                            ? "Haul value \(haul.spokenRange), \(haul.findsLabel)"
                             : "No finds scanned yet")
     }
 }
@@ -127,7 +136,19 @@ struct LockScreenRectangularView: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .accessibilityElement(children: .combine)
+        // `.combine` alone pulled in the SF Symbol's name and read the middle
+        // dot between the find count and the streak as a word, so the
+        // complication announced an icon name and two unrelated numbers.
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(spokenLabel)
+    }
+
+    private var spokenLabel: String {
+        guard haul.hasScans else {
+            return "SnapWorth, no finds yet. Scan something to start."
+        }
+        let body = "SnapWorth haul, \(haul.spokenRange), \(haul.findsLabel)"
+        return streak > 1 ? "\(body), \(streak) day streak" : body
     }
 }
 

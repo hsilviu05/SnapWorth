@@ -45,11 +45,11 @@ extension Color {
 
     // Accents — lifted in dark so they stay legible on a dark ground
     static let snapTerracotta = snapAdaptive(
-        light: Color(hex: "D96C47"), dark: Color(hex: "E8845F"),
+        light: Color(hex: "D96C47"), dark: Color(hex: SnapDarkHex.terracotta),
         lightHighContrast: Color(hex: "BE5433")
     )
     static let snapSage = snapAdaptive(     // money / positive values
-        light: Color(hex: "6F8F6B"), dark: Color(hex: "8FB08A"),
+        light: Color(hex: "6F8F6B"), dark: Color(hex: SnapDarkHex.sage),
         lightHighContrast: Color(hex: "4F6E4B")
     )
     static let snapAmber = snapAdaptive(    // badges / highlights
@@ -59,11 +59,11 @@ extension Color {
     // Text — `snapWarmGray` was 3.1:1 on cream (below WCAG AA); darkened to
     // 5.7:1 while keeping the warmth.
     static let snapEspresso = snapAdaptive(
-        light: Color(hex: "2B211C"), dark: Color(hex: "F0E9E2"),
+        light: Color(hex: "2B211C"), dark: Color(hex: SnapDarkHex.espresso),
         lightHighContrast: Color(hex: "1A120E"), darkHighContrast: .white
     )
     static let snapWarmGray = snapAdaptive(
-        light: Color(hex: "6E6055"), dark: Color(hex: "B0A297"),
+        light: Color(hex: "6E6055"), dark: Color(hex: SnapDarkHex.warmGray),
         lightHighContrast: Color(hex: "544840"), darkHighContrast: Color(hex: "D6CCC3")
     )
 
@@ -75,16 +75,16 @@ extension Color {
 
     /// Camera screen background — deliberately dark in *both* themes; the
     /// viewfinder is a dark surface by design, not by theme.
-    static let snapCharcoal = Color(hex: "1C1714")
+    static let snapCharcoal = Color(hex: SnapDarkHex.charcoal)
 
     /// Content that always sits on `snapCharcoal` (camera chrome). Fixed cream
     /// so it never inverts to dark-on-dark when the system theme flips.
-    static let snapOnCharcoal = Color(hex: "FBF7F2")
+    static let snapOnCharcoal = Color(hex: SnapDarkHex.cream)
 
     /// Content that always sits on a *filled accent* surface — primary button
     /// labels on terracotta. Fixed cream: the accent is dark enough in both
     /// themes that the label must not follow the theme.
-    static let snapOnAccent = Color(hex: "FBF7F2")
+    static let snapOnAccent = Color(hex: SnapDarkHex.cream)
 
     // Card shadow colour (rgba 120,80,50,0.08)
     static let snapCardShadow = Color(red: 120/255, green: 80/255, blue: 50/255)

@@ -71,6 +71,7 @@ struct RecentFindsView: View {
                     Text(haul.formattedRange)
                         .font(.system(size: 11, weight: .semibold))
                         .foregroundStyle(Color.wSage)
+                        .accessibilityLabel("Haul worth \(haul.spokenRange)")
                 }
             }
             .padding(.bottom, 8)
@@ -97,7 +98,9 @@ struct RecentFindsView: View {
                                 .lineLimit(1)
                                 .layoutPriority(1)
                         }
-                        .accessibilityElement(children: .combine)
+                        .accessibilityElement(children: .ignore)
+                        .accessibilityLabel(
+                            "\(find.name), \(WidgetHaulData.spoken(find.range))")
                     }
                 }
                 Spacer(minLength: 0)
