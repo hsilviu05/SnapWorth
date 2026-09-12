@@ -264,6 +264,33 @@ final class PrivacyPolicyDisclosureTests: XCTestCase {
                       "the sharing sentence must point at the processor list")
     }
 
+    func test_theTelegramParagraphDescribesWhatIsActuallyRelayed() {
+        // It said "never a device identifier, never anything that links a scan
+        // to a device or a person" — while five bot surfaces send a stable
+        // salted hash of the device's attestation key plus that device's scan
+        // count, activity dates and subscription state. A one-way hash is
+        // still a pseudonymous identifier, so the sentence was false.
+        //
+        // Same shape as the drift above: the web copy and this copy are two
+        // files, and only a test connects them.
+        XCTAssertFalse(policy.contains("never a device identifier"),
+                       "the claim the bot contradicts is back")
+        XCTAssertTrue(
+            policy.contains("one-way salted hash of your device's attestation key"),
+            "the in-app policy has drifted from /privacy again")
+        for detail in ["scan count", "first and last activity dates",
+                       "subscription state", "400 days"] {
+            XCTAssertTrue(policy.contains(detail),
+                          "the policy no longer mentions \(detail)")
+        }
+    }
+
+    func test_theDisclosureIsNotWiderThanTheTruth() {
+        XCTAssertTrue(policy.contains("Never the photo"))
+        XCTAssertTrue(policy.contains("never your name, email address or location"))
+        XCTAssertTrue(policy.contains("not an advertising identifier"))
+    }
+
     func test_analyticsAndDeviceCheckCollectionAreDisclosed() {
         // Both are collected by the shipped app; neither was mentioned.
         XCTAssertTrue(policy.contains("TelemetryDeck"))

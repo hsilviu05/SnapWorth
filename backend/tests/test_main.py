@@ -205,6 +205,16 @@ class TestBuildIdentity:
 
 # ── GET /privacy and /terms ───────────────────────────────────────────────────
 
+def _prose(html_text: str) -> str:
+    """Collapse whitespace so an assertion reads the sentence, not the wrapping.
+
+    The policy bodies are hard-wrapped at about 78 columns, so any phrase that
+    happens to straddle a line break is not a substring of the raw response —
+    which makes a substring assertion pass or fail on where the author pressed
+    return.
+    """
+    return " ".join(html_text.split())
+
 class TestLegalEndpoints:
     def test_privacy_returns_html(self):
         r = client.get("/privacy")
@@ -225,6 +235,43 @@ class TestLegalEndpoints:
         with third parties, while photos were going to Google on every scan."""
         body = client.get("/privacy").text
         assert "except for the service providers below" in body
+
+    def test_privacy_describes_what_telegram_actually_receives(self):
+        """The paragraph said "never a device identifier, never anything that
+        links a scan to a device or a person" — and five bot surfaces send a
+        stable salted hash of the device's attestation key plus that device's
+        scan count, activity dates and subscription state. A one-way hash is
+        still a pseudonymous identifier, so the sentence was false.
+
+        Pinned here because the claim and the code are in different files and
+        nothing else connects them.
+        """
+        # The policy body is hard-wrapped, so a phrase that spans a line break
+        # is not a substring of it. Every assertion here reads the prose, not
+        # the layout.
+        body = _prose(client.get("/privacy").text)
+        assert "never a device identifier" not in body, (
+            "the claim the bot contradicts is back")
+        assert "one-way salted hash of your device's attestation key" in body
+        for detail in ("scan count", "first and last activity dates",
+                       "subscription state", "400 days"):
+            assert detail in body, f"the policy no longer mentions {detail}"
+
+    def test_the_stated_retention_is_the_retention_the_code_applies(self):
+        """A number in a policy that nothing checks is a number that drifts."""
+        import notify
+        body = _prose(client.get("/privacy").text)
+        days = notify.INDEX_TTL // 86_400
+        assert f"{days} days" in body, (
+            f"the operator index keeps rows for {days} days; the policy says "
+            f"something else")
+
+    def test_privacy_still_refuses_the_things_it_should(self):
+        # Widening the disclosure must not have widened it past the truth.
+        body = _prose(client.get("/privacy").text)
+        assert "Never the photo" in body
+        assert "never your name, email address or location" in body
+        assert "not an advertising identifier" in body
 
     def test_terms_returns_html(self):
         r = client.get("/terms")
