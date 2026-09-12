@@ -895,11 +895,73 @@ class TestSubscriptionsTable:
         assert "4 active" not in text
         assert "3 active · 1 paid · 2 comped/trial · 1 expired" in text
         assert "MRR ≈ $4.99" in text
-        assert "offer code" in text and "trial" in text and "paid" in text
+        # The table shortens the acquisition label — "offer code" is exactly
+        # as wide as the old `via` field, so it got no padding and ran into
+        # the date beside it. `/user` still prints the long form.
+        assert "code" in text and "trial" in text and "paid" in text
         assert "ended" in text
         # The digest and status carry the one-line summary.
         status = await notify.handle_command("/status")
         assert "Subscribers: 3 active · 1 paid · 2 comped/trial" in status
+
+    @pytest.mark.asyncio
+    async def test_no_column_in_the_table_can_touch_its_neighbour(
+            self, enabled_notify):
+        """The `via` field was eleven wide and two of its five possible values
+        were eleven characters, so `str.__format__` added no padding and the
+        row rendered `promo offer12 Sep`. Every column is checked here, for
+        every acquisition label, rather than the two that happened to be
+        short enough."""
+        for i, (offer, discount) in enumerate([
+                (None, None), (1, "FREE_TRIAL"), (1, "PAY_UP_FRONT"),
+                (2, None), (3, None)]):
+            await notify.entitlement_recorded(
+                chr(ord("a") + i) * 64,
+                sub(f"row-{i}", "com.snapworth.yearly",
+                    offer_type=offer, discount=discount, price=39.99))
+
+        text = await notify.handle_command("/subs")
+        # The table is inside a <pre> block, so the first and last lines carry
+        # the tags.
+        stripped = text.replace("<pre>", "").replace("</pre>", "")
+        table = [ln for ln in stripped.splitlines()
+                 if ln.startswith(("yearly", "plan"))]
+        assert len(table) >= 6, f"expected a header and five rows, got {table}"
+
+        # Six whitespace-separated fields, in the header and in every row.
+        #
+        # That is the whole test, and it is enough: a value that fills its
+        # field gets no padding, so it fuses with the next column and the two
+        # become one token — `promo offer12 Sep` splits to
+        # `['promo', 'offer12', 'Sep']` rather than `['promo', '12Sep26']`.
+        # Counting is what catches that, in either direction.
+        assert table[0].split() == ["plan", "via", "since", "renews",
+                                    "seen", "id"], table[0]
+        for row in table[1:]:
+            assert len(row.split()) == 6, f"columns ran together: {row!r}"
+
+    @pytest.mark.asyncio
+    async def test_a_table_date_keeps_its_year(self, enabled_notify):
+        """`_date(...)[:6]` is always exactly `DD Mon`: `%d` is zero-padded and
+        `%b` is three letters, so the slice discarded the year for every input
+        there has ever been. `since` has no lower bound and `seen` is bounded
+        only by the 400-day index TTL, so both could be over a year old and
+        print identically to today."""
+        assert notify._short_date(1_757_000_000) == "04Sep25"
+        assert len(notify._short_date(1_757_000_000)) == 7
+
+        await notify.entitlement_recorded(
+            "e" * 64, sub("dated-1", "com.snapworth.yearly",
+                          price=39.99, first_days_ago=400, expires_in_days=320))
+        text = await notify.handle_command("/subs")
+        stripped = text.replace("<pre>", "").replace("</pre>", "")
+        table = [ln for ln in stripped.splitlines() if ln.startswith("yearly")]
+        assert table, text
+        # Two digits of year on every date in the row, so a 2025 purchase can
+        # never be mistaken for a 2026 one.
+        import re as _re
+        dates = _re.findall(r"\d{2}[A-Z][a-z]{2}\d{2}", table[0])
+        assert len(dates) >= 2, f"a date lost its year: {table[0]!r}"
 
     @pytest.mark.asyncio
     async def test_yearly_paid_counts_a_twelfth_toward_mrr(self, enabled_notify):
@@ -2892,3 +2954,80 @@ class TestSubscriptionNotifications:
             is_indexed = True
             notification_type = "DID_RENEW"
         await notify.subscription_event(Broken())  # must not raise
+
+
+# ── The lever's floor, and the source /experiment reads ─────────────────────
+
+class TestLeverFloorAndSource:
+    """Two ways the operator was told something untrue about the experiment.
+
+    `ScanQuota._first_day_limit` clamps 0..10 *and then* returns
+    `configured if configured > FREE_SCANS_PER_DAY else 0` — so an armed value
+    at or below the daily limit grants nothing. `/lever arm` mirrored only the
+    upper half of that clamp and confirmed "Lever armed — 1 first-day scan",
+    then kept rendering that override on every later call, from a stored
+    document with no TTL.
+
+    And `/experiment` read `FREE_SCANS_FIRST_DAY` from the environment, which
+    `/lever` never writes — so arming from chat left the line that says whether
+    the thing being measured is switched on reading "lever not armed".
+    """
+
+    @pytest.mark.asyncio
+    async def test_arming_at_or_below_the_daily_limit_is_refused(
+            self, enabled_notify, monkeypatch):
+        monkeypatch.setenv("FREE_SCANS_PER_DAY", "1")
+        for value in ("0", "1"):
+            reply = await notify.handle_command(f"/lever arm {value} yes")
+            assert "not a welcome" in reply, reply
+            assert await notify.free_scan_lever() is None, (
+                f"arming {value} stored an override the quota discards")
+
+    @pytest.mark.asyncio
+    async def test_arming_above_the_daily_limit_still_works(
+            self, enabled_notify, monkeypatch):
+        monkeypatch.setenv("FREE_SCANS_PER_DAY", "1")
+        reply = await notify.handle_command("/lever arm 3 yes")
+        assert "not a welcome" not in reply, reply
+        assert await notify.free_scan_lever() == 3
+
+    @pytest.mark.asyncio
+    async def test_the_floor_follows_the_daily_limit(
+            self, enabled_notify, monkeypatch):
+        # Not hardcoded to 1: the refusal has to move with the environment.
+        monkeypatch.setenv("FREE_SCANS_PER_DAY", "3")
+        assert "not a welcome" in await notify.handle_command("/lever arm 3 yes")
+        assert "not a welcome" not in await notify.handle_command("/lever arm 4 yes")
+        assert await notify.free_scan_lever() == 4
+
+    @pytest.mark.asyncio
+    async def test_experiment_reports_a_lever_armed_from_chat(
+            self, enabled_notify, monkeypatch):
+        monkeypatch.setenv("FREE_SCANS_PER_DAY", "1")
+        monkeypatch.delenv("FREE_SCANS_FIRST_DAY", raising=False)
+        await notify.handle_command("/lever arm 3 yes")
+
+        text = await notify.handle_command("/experiment")
+        assert "lever not armed" not in text, text
+        assert "3 first-day scans" in text, text
+
+    @pytest.mark.asyncio
+    async def test_experiment_names_both_when_they_disagree(
+            self, enabled_notify, monkeypatch):
+        # The environment is what a redeploy would fall back to, so an operator
+        # reading this needs to know the two do not match.
+        monkeypatch.setenv("FREE_SCANS_PER_DAY", "1")
+        monkeypatch.setenv("FREE_SCANS_FIRST_DAY", "5")
+        await notify.handle_command("/lever arm 3 yes")
+
+        text = await notify.handle_command("/experiment")
+        assert "3 first-day scans" in text, text
+        assert "FREE_SCANS_FIRST_DAY=5" in text, text
+
+    @pytest.mark.asyncio
+    async def test_experiment_falls_back_to_the_environment(
+            self, enabled_notify, monkeypatch):
+        monkeypatch.setenv("FREE_SCANS_FIRST_DAY", "2")
+        text = await notify.handle_command("/experiment")
+        assert "FREE_SCANS_FIRST_DAY=2" in text, text
+        assert "lever not armed" not in text, text
