@@ -92,6 +92,9 @@
 
       --border:      #E8DDD7;
       --nav-glass:   rgba(250,247,244,0.85);
+      --nav-scrim:   rgba(250,247,244,0.82);
+      --nav-scrim-hairline: rgba(28,20,16,0.07);
+      --nav-scrim-shadow:   rgba(28,20,16,0.35);
 
       /* Checkbox, range and spinner UI in the Thrift Flip inputs. */
       accent-color: var(--terracotta);
@@ -134,6 +137,9 @@
 
         --border:      #3A302A;
         --nav-glass:   rgba(26,21,18,0.85);
+        --nav-scrim:   rgba(26,21,18,0.82);
+        --nav-scrim-hairline: rgba(0,0,0,0.5);
+        --nav-scrim-shadow:   rgba(0,0,0,0.7);
       }
     }
 
@@ -1082,11 +1088,17 @@
 }
 
 /* ── Nav scrolled state (no motion dependency) ───────────────────────────── */
+/* `--nav-scrim`, not a literal. The dark theme is built entirely by
+   re-pointing tokens, so a hardcoded colour here kept its light value: nine
+   pixels of scroll dropped a near-opaque cream band across the top of the
+   espresso page. The shadow was the same mistake in the other direction — a
+   dark hairline under a dark nav, invisible. */
 nav.is-scrolled {
-  background: rgba(250, 247, 244, .82);
+  background: var(--nav-scrim);
   backdrop-filter: saturate(180%) blur(14px);
   -webkit-backdrop-filter: saturate(180%) blur(14px);
-  box-shadow: 0 1px 0 rgba(28, 20, 16, .07), 0 8px 28px -18px rgba(28, 20, 16, .35);
+  box-shadow: 0 1px 0 var(--nav-scrim-hairline),
+              0 8px 28px -18px var(--nav-scrim-shadow);
 }
 
 /* ── Focus visibility ────────────────────────────────────────────────────────
@@ -1266,7 +1278,10 @@ a:focus-visible, button:focus-visible, summary:focus-visible, label:focus-within
 .tf-maths { background: var(--card); border-radius: 28px; padding: 34px 38px;
   display: flex; flex-direction: column; }
 .tf-row { display: flex; justify-content: space-between; padding: 13px 0;
-  border-bottom: 1px solid #E4D8CF; font-size: 15.5px; }
+  /* `--border`, like every other hairline here. As a literal it stayed light
+     on `.tf-maths`'s dark `--card`: 11.90:1, five bright white rules through
+     the arithmetic panel. */
+  border-bottom: 1px solid var(--border); font-size: 15.5px; }
 .tf-row span:first-child { color: var(--warm-gray); }
 .tf-row span:last-child { font-weight: 600; color: var(--ink); font-variant-numeric: tabular-nums; }
 .tf-row.total { border-bottom: 1.5px solid var(--ink); }
@@ -1522,9 +1537,26 @@ details[open] .faq-x::after { transform: rotate(90deg); }
   background: rgba(28,20,16,.94); backdrop-filter: blur(14px);
   -webkit-backdrop-filter: blur(14px); border: 1px solid rgba(255,255,255,.1);
   border-radius: 18px; padding: 10px 10px 10px 18px;
-  transform: translateY(calc(100% + 24px)); transition: transform .35s cubic-bezier(.22,.61,.36,1);
+  transform: translateY(calc(100% + 24px));
+  /* `visibility`, not transform alone. An element pushed off-screen by a
+     transform is still focusable and still in the accessibility tree, so the
+     bar sat in the tab order and in VoiceOver's swipe-through the whole way
+     down the page. The 0s delay holds it visible until the slide-out
+     finishes, so the animation is unchanged. */
+  visibility: hidden;
+  transition: transform .35s cubic-bezier(.22,.61,.36,1),
+              visibility 0s linear .35s;
   box-shadow: 0 12px 32px rgba(28,20,16,.35); }
-.mcta.is-on { transform: translateY(0); }
+.mcta.is-on { transform: translateY(0); visibility: visible;
+  transition: transform .35s cubic-bezier(.22,.61,.36,1), visibility 0s; }
+
+/* The `hidden` attribute needs an author rule to mean anything here.
+   `[hidden] { display: none }` lives in the user-agent stylesheet, and any
+   author declaration beats the UA origin whatever its specificity — so
+   `.mcta { display: flex }` won and the markup's `hidden`, which the comment
+   beside it says keeps the bar out of the page with JavaScript off, did
+   nothing at all. */
+.mcta[hidden] { display: none; }
 .mcta-txt { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
 .mcta-txt strong { font-family: 'Fraunces', serif; font-size: 15px; font-weight: 700; color: #FAF7F4; }
 .mcta-txt span { font-size: 11.5px; color: rgba(250,247,244,.55); white-space: nowrap; }
@@ -2383,14 +2415,20 @@ details[open] .faq-x::after { transform: rotate(90deg); }
 
   /* ── Scroll reveal ──────────────────────────────────────────────────────
      Sections reveal as a block; grids stagger their children. */
+  /* `.section-header`, not `.section-head`. The typo meant the one section
+     header not wrapped in `.features-bg` or `.pricing-bg` — "How it works" —
+     was the only one on the page that never animated in. It stayed fully
+     visible rather than getting stuck, because `.reveal` is only ever *added*
+     by this script, so a selector matching nothing is inert. `.platforms-inner`
+     and `.platforms-list` went with the platforms band the redesign replaced
+     and matched nothing either. */
   var singles = document.querySelectorAll(
-    ".features-bg > *, .pricing-bg > *, .cta-dark, .platforms-inner, " +
-    ".section-head, .faq .tf-rule, .faq-h2, .shots .tf-rule, .shots-note, " +
+    ".features-bg > *, .pricing-bg > *, .cta-dark, " +
+    ".section-header, .faq .tf-rule, .faq-h2, .shots .tf-rule, .shots-note, " +
     "footer .footer-inner"
   );
   var groups = document.querySelectorAll(
-    ".features-grid, .platforms-list, .pricing-grid, .steps, .faq-list, " +
-    ".shots-strip"
+    ".features-grid, .pricing-grid, .steps, .faq-list, .shots-strip"
   );
 
   Array.prototype.forEach.call(singles, function (el) {
