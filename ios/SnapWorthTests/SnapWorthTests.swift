@@ -872,7 +872,7 @@ final class WidgetHaulDataTests: XCTestCase {
     /// it keeps describing the old format even as the struct grows.
     private let v1 = """
         {"totalLow":348,"totalHigh":620,"itemCount":8,
-         "lastItemName":"Patagonia Fleece","lastItemRange":"$60 – $95",
+         "lastItemName":"Patagonia Fleece","lastItemRange":"$60–$95",
          "updatedAt":768000000}
         """.data(using: .utf8)!
 
@@ -905,10 +905,10 @@ final class WidgetHaulDataTests: XCTestCase {
     func test_everyFieldSurvivesARoundTrip() throws {
         let original = WidgetHaulData(
             totalLow: 120, totalHigh: 260, itemCount: 4,
-            lastItemName: "Levi's 501", lastItemRange: "$40 – $70",
+            lastItemName: "Levi's 501", lastItemRange: "$40–$70",
             updatedAt: Date(timeIntervalSince1970: 768_000_000),
             freeScansRemaining: 2, isPro: true, streak: 9,
-            recentFinds: [WidgetFind(id: "a", name: "Levi's 501", range: "$40 – $70")],
+            recentFinds: [WidgetFind(id: "a", name: "Levi's 501", range: "$40–$70")],
             monthProfit: 214.5, monthFlips: 6)
         let data = try JSONEncoder().encode(original)
         XCTAssertEqual(try JSONDecoder().decode(WidgetHaulData.self, from: data),
@@ -917,7 +917,7 @@ final class WidgetHaulDataTests: XCTestCase {
 
     func test_anEmptyHaulReadsTheSameAsTheApp() {
         // The drift that shipped: the widget's copy had no empty-haul guard,
-        // so a library with no scans read "$0 – $0" there and "$0" in the app.
+        // so a library with no scans read "$0–$0" there and "$0" in the app.
         XCTAssertEqual(WidgetHaulData.empty.formattedRange, "$0")
         XCTAssertFalse(WidgetHaulData.empty.hasScans)
     }
@@ -928,7 +928,36 @@ final class WidgetHaulDataTests: XCTestCase {
             lastItemName: "", lastItemRange: "", updatedAt: .now,
             freeScansRemaining: nil, isPro: false, streak: 0,
             recentFinds: [], monthProfit: nil, monthFlips: 0)
-        XCTAssertEqual(haul.formattedRange, "$348 – $620")
+        XCTAssertEqual(haul.formattedRange, "$348–$620")
+    }
+
+    func test_theHaulRangeIsPunctuatedLikeAnItemRange() {
+        // They render a few points apart in the medium widget: the haul total
+        // on the left, `lastItemRange` on the right. The widget's own copy was
+        // spaced and the app's was not, so one card showed "$348 – $620" and
+        // "$60–$95" side by side.
+        let item = ScanResult(itemName: "Better Sweater", brand: "Patagonia",
+                              category: "clothing", conditionNotes: "Solid",
+                              valueLow: 60, valueHigh: 95, confidence: "High",
+                              soldListingsCount: 0,
+                              listingTitle: "T", listingDescription: "D")
+        let haul = WidgetHaulData(
+            totalLow: 348, totalHigh: 620, itemCount: 8,
+            lastItemName: item.itemName, lastItemRange: item.formattedRange,
+            updatedAt: .now, freeScansRemaining: nil, isPro: false, streak: 0,
+            recentFinds: [], monthProfit: nil, monthFlips: 0)
+
+        XCTAssertFalse(haul.formattedRange.contains(" – "),
+                       "the haul total is punctuated differently from the item beside it")
+        XCTAssertFalse(item.formattedRange.contains(" – "))
+        XCTAssertTrue(haul.formattedRange.contains("–"))
+        XCTAssertTrue(item.formattedRange.contains("–"))
+    }
+
+    func test_aThriftRunRangeIsPunctuatedTheSameWay() {
+        let state = ThriftRunAttributes.ContentState(
+            itemCount: 3, totalLow: 95, totalHigh: 150, lastItemName: "Levi's 501")
+        XCTAssertEqual(state.formattedRange, "$95–$150")
     }
 }
 
@@ -1013,6 +1042,14 @@ final class LockScreenMoneyTests: XCTestCase {
             XCTAssertFalse(WidgetHaulData.compactMoney(value).contains(","),
                            "\(value) rendered a separator")
         }
+    }
+
+    func test_itemsLabelIsSingularForOne() {
+        // "1 items in your haul" was the Quick Scan widget's greeting to a
+        // user who had just completed their first scan.
+        XCTAssertEqual(WidgetHaulData.itemsLabel(1), "1 item")
+        XCTAssertEqual(WidgetHaulData.itemsLabel(0), "0 items")
+        XCTAssertEqual(WidgetHaulData.itemsLabel(8), "8 items")
     }
 
     func test_findsLabelIsSingularForOne() {
@@ -1205,7 +1242,7 @@ final class WidgetScansLeftTests: XCTestCase {
     func test_aBlobFromTheOldAppIsUnknown() throws {
         let v1 = """
             {"totalLow":348,"totalHigh":620,"itemCount":8,
-             "lastItemName":"Patagonia Fleece","lastItemRange":"$60 – $95",
+             "lastItemName":"Patagonia Fleece","lastItemRange":"$60–$95",
              "updatedAt":768000000}
             """.data(using: .utf8)!
         let decoded = try JSONDecoder().decode(WidgetHaulData.self, from: v1)
@@ -1273,7 +1310,7 @@ final class WidgetRecentRowsTests: XCTestCase {
 
     private let v1 = """
         {"totalLow":348,"totalHigh":620,"itemCount":8,
-         "lastItemName":"Patagonia Fleece","lastItemRange":"$60 – $95",
+         "lastItemName":"Patagonia Fleece","lastItemRange":"$60–$95",
          "updatedAt":768000000}
         """.data(using: .utf8)!
 
@@ -1301,7 +1338,7 @@ final class WidgetRecentRowsTests: XCTestCase {
         let rows = decoded.recentRows(limit: 4)
         XCTAssertEqual(rows.count, 1)
         XCTAssertEqual(rows.first?.name, "Patagonia Fleece")
-        XCTAssertEqual(rows.first?.range, "$60 – $95")
+        XCTAssertEqual(rows.first?.range, "$60–$95")
     }
 
     func test_anEmptyLibraryHasNoRows() {
@@ -1322,9 +1359,9 @@ final class WidgetRecentRowsTests: XCTestCase {
     }
 
     func test_aRealFindListWinsOverTheFallback() {
-        let finds = [WidgetFind(id: "a", name: "Levi's 501", range: "$40 – $70")]
+        let finds = [WidgetFind(id: "a", name: "Levi's 501", range: "$40–$70")]
         let rows = haul(itemCount: 8, lastName: "Patagonia Fleece",
-                        lastRange: "$60 – $95", finds: finds).recentRows(limit: 4)
+                        lastRange: "$60–$95", finds: finds).recentRows(limit: 4)
         XCTAssertEqual(rows.map(\.name), ["Levi's 501"])
     }
 }

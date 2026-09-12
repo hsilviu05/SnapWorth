@@ -30,16 +30,16 @@ extension WidgetHaulData {
     static let placeholder = WidgetHaulData(
         totalLow: 348, totalHigh: 620, itemCount: 8,
         lastItemName: "Patagonia Fleece",
-        lastItemRange: "$60 – $95",
+        lastItemRange: "$60–$95",
         updatedAt: .now,
         freeScansRemaining: 1,
         isPro: false,
         streak: 4,
         recentFinds: [
-            WidgetFind(id: "1", name: "Patagonia Fleece", range: "$60 – $95"),
-            WidgetFind(id: "2", name: "Levi's 501", range: "$40 – $70"),
-            WidgetFind(id: "3", name: "Nike Air Max", range: "$55 – $85"),
-            WidgetFind(id: "4", name: "Le Creuset Pot", range: "$90 – $140"),
+            WidgetFind(id: "1", name: "Patagonia Fleece", range: "$60–$95"),
+            WidgetFind(id: "2", name: "Levi's 501", range: "$40–$70"),
+            WidgetFind(id: "3", name: "Nike Air Max", range: "$55–$85"),
+            WidgetFind(id: "4", name: "Le Creuset Pot", range: "$90–$140"),
         ],
         monthProfit: nil,
         monthFlips: 0
@@ -79,7 +79,7 @@ struct HaulWidgetSmallView: View {
 
                 // Label
                 Text(haul.itemCount > 0
-                     ? "\(haul.itemCount) item\(haul.itemCount == 1 ? "" : "s") scanned"
+                     ? "\(WidgetHaulData.itemsLabel(haul.itemCount)) scanned"
                      : "Scan your first find")
                     .font(.system(size: 11, weight: .medium))
                     .foregroundStyle(Color.wWarmGray)
@@ -123,7 +123,7 @@ struct HaulWidgetMediumView: View {
                         .minimumScaleFactor(0.6)
                         .lineLimit(1)
 
-                    Text("\(haul.itemCount) item\(haul.itemCount == 1 ? "" : "s")")
+                    Text(WidgetHaulData.itemsLabel(haul.itemCount))
                         .font(.system(size: 12))
                         .foregroundStyle(Color.wWarmGray)
                 }

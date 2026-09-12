@@ -69,9 +69,15 @@ struct WidgetHaulData: Codable, Equatable {
 
     var hasScans: Bool { itemCount > 0 }
 
+    /// Unspaced, matching `ScanResult.formattedRange` — which is what the app
+    /// shows everywhere, and what lands in `lastItemRange` and every
+    /// `WidgetFind.range` in this very blob. This was spaced, so the medium
+    /// widget printed "$348 – $620" for the haul and "$60–$95" for the last
+    /// item a few points to its right: the same kind of quantity, in one card,
+    /// punctuated two ways.
     var formattedRange: String {
         guard hasScans else { return "$0" }
-        return "\(Self.money(totalLow)) – \(Self.money(totalHigh))"
+        return "\(Self.money(totalLow))–\(Self.money(totalHigh))"
     }
 
     var formattedMonthProfit: String? {
@@ -188,6 +194,17 @@ extension WidgetHaulData {
     /// room for a label beside the number.
     var findsLabel: String {
         "\(itemCount) find\(itemCount == 1 ? "" : "s")"
+    }
+
+    /// "8 items" / "1 item".
+    ///
+    /// Static because the Quick Scan widget's entry carries a bare count
+    /// rather than a whole haul — which is how it came to hardcode the plural
+    /// and greet a brand-new user with "1 items in your haul" on the very
+    /// first impression the widget ever makes. Three widgets were spelling
+    /// this out inline; one of them got it wrong.
+    static func itemsLabel(_ count: Int) -> String {
+        "\(count) item\(count == 1 ? "" : "s")"
     }
 }
 
@@ -335,7 +352,7 @@ struct ThriftRunAttributes: ActivityAttributes {
 
         var formattedRange: String {
             guard itemCount > 0 else { return "$0" }
-            return "\(WidgetHaulData.money(totalLow)) – \(WidgetHaulData.money(totalHigh))"
+            return "\(WidgetHaulData.money(totalLow))–\(WidgetHaulData.money(totalHigh))"
         }
 
         var compactTotal: String { WidgetHaulData.compactMoney(totalHigh) }

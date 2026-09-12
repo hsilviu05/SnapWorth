@@ -15,6 +15,12 @@ struct ThriftRunLiveActivity: Widget {
         ActivityConfiguration(for: ThriftRunAttributes.self) { context in
             ThriftRunLockScreenView(state: context.state,
                                     startedAt: context.attributes.startedAt)
+                // The Dynamic Island carried this and the Lock Screen did not,
+                // so a tap on the banner — the surface you actually see with
+                // the phone locked, mid-run, which is the whole point of the
+                // feature — opened the app on whatever tab was last selected
+                // instead of the camera.
+                .widgetURL(URL(string: "snapworth://scan"))
                 .activityBackgroundTint(Color.wCharcoal)
                 .activitySystemActionForegroundColor(Color.wBackground)
         } dynamicIsland: { context in

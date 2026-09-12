@@ -72,7 +72,7 @@ struct QuickScanWidgetView: View {
                         .foregroundStyle(Color.wBackground)
 
                     if entry.itemCount > 0 {
-                        Text("\(entry.itemCount) items in your haul")
+                        Text("\(WidgetHaulData.itemsLabel(entry.itemCount)) in your haul")
                             .font(.system(size: 10, weight: .medium))
                             .foregroundStyle(Color.wBackground.opacity(0.65))
                     } else {
