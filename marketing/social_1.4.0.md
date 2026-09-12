@@ -340,6 +340,92 @@ marketing. Its terracotta and sage are visibly off the app's.
 
 Worth correcting before any of these frames are shot.
 
+## One square image, for both platforms
+
+The minimum viable launch: one 1080×1080 and two captions. Square because
+Instagram accepts it in the feed and X renders 1:1 inline without cropping —
+one asset, two platforms, no re-export.
+
+### Claude Design prompt
+
+```
+Design a single square social image, 1080×1080, for SnapWorth 1.4 — an iOS app
+that estimates what a thrift-store find is worth from a photo. This release is
+all widgets. One image has to carry both Instagram and X, so it must read at
+thumbnail size and hold one idea only.
+
+CONCEPT
+An iPhone shown straight-on, flat and minimal — no photographic mockup, no
+perspective, no hand — displaying its Lock Screen. On it, two SnapWorth
+widgets: a rectangular one reading a money range in sage, and below it a wide
+dark pill shaped like the Dynamic Island with a small terracotta viewfinder
+glyph on the left and a sage figure on the right. The phone occupies the lower
+two-thirds, cropped by the bottom edge of the frame so it feels like it
+continues past it.
+
+Above the phone, a Fraunces headline in two short lines, left-aligned:
+"Your haul.
+On your Lock Screen."
+
+Bottom-left corner, small: a terracotta app mark and "SnapWorth 1.4" in DM Sans.
+
+BRAND
+Fraunces for the headline, DM Sans for everything else.
+  cream        #FBF7F2   ground
+  espresso     #2B211C   headline text
+  warm gray    #6E6055   the small wordmark line
+  terracotta   #D96C47   the app mark and the viewfinder glyph, nothing else
+  sage         #6F8F6B   the money figures only
+  charcoal     #1C1714   the phone body and the Dynamic Island pill
+Sage is money and nothing else. If a number is not money it is not sage.
+
+TONE
+Warm, calm, physical — a jumble sale rather than a trading terminal. No
+gradients, no glow, no glass, no neon. Flat shapes with generous space.
+
+CONSTRAINTS
+- Test the headline at 15% scale; if it stops reading, make it shorter, not
+  smaller.
+- Do not draw legible fake data. The money figures should be one obviously
+  round number each, or suggested with a bar. A specific-looking fake total is
+  worse than no total.
+- Keep a clear margin of at least 80px on every side — Instagram's grid crops
+  square images to a 4:5 preview and X rounds the corners.
+- No stock photography, no people, no hands.
+```
+
+### Instagram caption · 653/2200 · 11 hashtags
+
+```
+SnapWorth 1.4 is out, and it's all widgets. 📲
+
+Your haul total on the Lock Screen. Recent finds on the Home Screen. Free scans left, at a glance. Monthly profit if you're on Pro.
+
+And the one I actually wanted: thrift runs. Start a run when you walk into a shop, and the total for that trip sits in your Dynamic Island while you scan — so you know what's in your arms before you decide on the next thing.
+
+On iPhone 15 Pro and up you can put Scan on the Action Button. Press, camera, done.
+
+Update today 👉 link in bio
+
+#reselling #thriftflip #resellercommunity #sidehustle #depop #vinted #ebayreseller #thrifting #thriftstorefinds #ioswidgets #appupdate
+```
+
+### X post · 262/280
+
+```
+SnapWorth 1.4: widgets.
+
+Your haul total on the Lock Screen. Free scans left on the Home Screen.
+
+And thrift runs — start one walking into a shop and the total for that trip sits in your Dynamic Island while you scan.
+
+Not your whole closet. What's in your arms.
+```
+
+Both counts measured, not estimated. No link in either: Instagram does not make
+caption links tappable and X down-ranks posts that carry one. Bio on Instagram,
+a reply on X.
+
 ## Notes
 
 - Both platforms use "link in bio" rather than a pasted URL, because neither
