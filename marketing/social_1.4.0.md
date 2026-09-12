@@ -5,7 +5,8 @@ of the real widgets on a real phone**, which the 1.4.0 device checklist already
 requires you to produce. Take them while testing and the same frames serve
 Instagram, the App Store slots, and the website.
 
-Accounts: `instagram.com/snapworth.app` · `tiktok.com/@snapworthapp`.
+Accounts: `instagram.com/snapworth.app` · `tiktok.com/@snapworthapp` ·
+`x.com/snapworthapp`.
 
 Brand: Fraunces + DM Sans · terracotta `#D96C47` · sage `#7A9E7E` ·
 cream `#FAF7F4` · dark `#1C1410`.
@@ -139,6 +140,78 @@ SnapWorth 1.4 🔗 in bio
 - The Dynamic Island only exists on iPhone 14 Pro and later. On anything older
   the run shows on the Lock Screen instead, which is a different — and less
   good — shot.
+
+## X
+
+`x.com/snapworthapp`. **280 characters**, per `marketing/x_account_setup.md`.
+Every post below is counted in the heading — they are all under, and the
+numbers were measured rather than estimated.
+
+X down-ranks posts carrying an external link, so the link lives in the last
+post of the thread or in the bio, never in the hook. Video autoplays, which
+makes the Dynamic Island clip from the TikTok shot list do double duty here.
+
+Post 4/ counts as 72 rather than its raw 116: X bills every URL at a flat 23
+characters however long it is, so the 67-character App Store link costs the
+same as a short one and there is no reason to shorten it.
+
+### POST A — single announcement · 192/280 *(attach VIDEO 1)*
+
+```
+SnapWorth 1.4: widgets.
+
+Start a thrift run when you walk into a shop, and the total for that trip sits in your Dynamic Island while you scan.
+
+Not your whole closet. Just what's in your arms.
+```
+
+### THREAD — for the release itself
+
+**1/** · 220/280 *(attach the Home Screen shot)*
+
+```
+SnapWorth 1.4 is out and it's all widgets.
+
+Your haul total on the Lock Screen. Recent finds and free scans left on the Home Screen. Monthly profit if you're on Pro.
+
+And thrift runs, which is the one I actually wanted 👇
+```
+
+**2/** · 255/280 *(attach VIDEO 1 — the Dynamic Island rising)*
+
+```
+You're four items deep, doing maths in your head, wondering if the fifth is worth it.
+
+Start a run and SnapWorth keeps the total for that trip in your Dynamic Island while you scan.
+
+Not everything you own — just what you've picked up since you walked in.
+```
+
+**3/** · 169/280 *(attach VIDEO 2 — the Action Button)*
+
+```
+On iPhone 15 Pro and later you can put Scan on the Action Button.
+
+Press. Camera. Price.
+
+No unlocking, no hunting for the app while holding a jacket in your other hand.
+```
+
+**4/** — the link post · 72/280 effective
+
+```
+Free tier is one scan a day, no account needed.
+
+https://apps.apple.com/us/app/snapworth-resale-scanner/id6788521307
+```
+
+### POST B — standalone, for a quieter day · 90/280
+
+```
+Your closet's resale value. On your Lock Screen. Without unlocking.
+
+New in SnapWorth 1.4.
+```
 
 ## Notes
 
