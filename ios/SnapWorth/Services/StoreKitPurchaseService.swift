@@ -204,8 +204,11 @@ final class StoreKitPurchaseService: PurchaseService, ObservableObject {
     /// A lookup defaulting the other way would advertise a free trial on every
     /// path where the eligibility check did not run — which is exactly the
     /// state the app was in before it ran at all.
-    static func isOfferEligible(_ productID: String,
-                                in eligibility: [String: Bool]) -> Bool {
+    /// `nonisolated` because it is a dictionary lookup — and because the whole
+    /// point of pulling it out was so a test could assert the fail-closed
+    /// direction without standing up the service.
+    nonisolated static func isOfferEligible(_ productID: String,
+                                            in eligibility: [String: Bool]) -> Bool {
         eligibility[productID] ?? false
     }
 
