@@ -977,6 +977,27 @@ async def health() -> dict | JSONResponse:
             # 402-ing real users.
             payload["status"] = "unhealthy"
             return JSONResponse(status_code=503, content=payload)
+
+    # The rate limiters' own state, which nothing read.
+    #
+    # `ResilientRateLimiter.is_degraded` existed with no production reader: the
+    # only references in the tree were its definition and one test. It logs
+    # once at ERROR on the transition, so an operator who happened to be
+    # looking at the log in that second saw it — and after that a replica
+    # running per-process limits was indistinguishable from a healthy one. That
+    # matters because degraded limits are *per replica*: the effective ceiling
+    # multiplies by the replica count, silently, which is the failure the
+    # module was written to avoid.
+    #
+    # Reported, not fatal. Unlike the cache, per-process limits still enforce
+    # something, so draining the replica would be the worse trade.
+    limiters = [limiter for limiter in (_device_limiter, _ip_limiter)
+                if limiter is not None]
+    if limiters:
+        degraded = any(limiter.is_degraded for limiter in limiters)
+        payload["rate_limiter"] = {"distributed": not degraded}
+        if degraded:
+            payload["status"] = "degraded"
     return payload
 
 
@@ -1021,6 +1042,15 @@ async def readiness() -> dict | JSONResponse:
             payload["status"] = "not_ready"
             payload["reason"] = "durable cache configured but unreachable"
             return JSONResponse(status_code=503, content=payload)
+
+    # Set alongside `cache_degraded` so both gauges refresh on the same probe.
+    # Not a readiness failure: per-process limits still enforce something, and
+    # draining the replica would be worse than a ceiling that multiplies.
+    limiters = [limiter for limiter in (_device_limiter, _ip_limiter)
+                if limiter is not None]
+    if limiters:
+        metrics.rate_limiter_degraded.set(
+            1.0 if any(limiter.is_degraded for limiter in limiters) else 0.0)
 
     return payload
 

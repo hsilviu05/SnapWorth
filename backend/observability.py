@@ -102,29 +102,58 @@ class RequestContextMiddleware(BaseHTTPMiddleware):
         rid = incoming if (incoming and len(incoming) <= 64 and incoming.isprintable()
                            and "\n" not in incoming) else uuid.uuid4().hex[:16]
         token = request_id_var.set(rid)
+
+        # W3C trace context, which nothing populated.
+        #
+        # `parse_traceparent`, `trace_id_var`, `span_id_var` and
+        # `TRACEPARENT_HEADER` all existed and were tested, and no production
+        # code ever called or set them — a grep for every symbol in that block
+        # found hits only inside this module and one test file. So
+        # `TraceIDFilter` wrote `trace_id=-` `span_id=-` on every line ever
+        # logged, and the field was dead weight in the JSON output rather than
+        # the thing that lets a request be followed across services.
+        #
+        # Populated here because this is the only middleware that runs, and it
+        # already owns the request-scoped context vars. `parse_traceparent`
+        # rejects a malformed or all-zero header and its regex bounds the
+        # value, so nothing caller-supplied reaches a log line unchecked — the
+        # same property the request-id guard above provides.
+        trace_tokens = []
+        parsed = parse_traceparent(request.headers.get(TRACEPARENT_HEADER, ""))
+        if parsed:
+            trace_tokens = [trace_id_var.set(parsed[0]), span_id_var.set(parsed[1])]
+
         start = time.monotonic()
         try:
-            response = await call_next(request)
-        except Exception:
-            self._log.exception(
-                "request failed",
-                extra={"method": request.method, "path": request.url.path,
-                       "duration_ms": round((time.monotonic() - start) * 1000, 1)},
-            )
-            request_id_var.reset(token)
-            raise
+            try:
+                response = await call_next(request)
+            except Exception:
+                self._log.exception(
+                    "request failed",
+                    extra={"method": request.method, "path": request.url.path,
+                           "duration_ms": round((time.monotonic() - start) * 1000, 1)},
+                )
+                raise
 
-        duration_ms = round((time.monotonic() - start) * 1000, 1)
-        response.headers[REQUEST_ID_HEADER] = rid
-        # Health checks are high-frequency and uninteresting; keep them at DEBUG.
-        level = logging.DEBUG if request.url.path == "/health" else logging.INFO
-        self._log.log(
-            level, "request",
-            extra={"method": request.method, "path": request.url.path,
-                   "status": response.status_code, "duration_ms": duration_ms},
-        )
-        request_id_var.reset(token)
-        return response
+            duration_ms = round((time.monotonic() - start) * 1000, 1)
+            response.headers[REQUEST_ID_HEADER] = rid
+            # Health checks are high-frequency and uninteresting; keep them at DEBUG.
+            level = logging.DEBUG if request.url.path == "/health" else logging.INFO
+            self._log.log(
+                level, "request",
+                extra={"method": request.method, "path": request.url.path,
+                       "status": response.status_code, "duration_ms": duration_ms},
+            )
+            return response
+        finally:
+            # One `finally` for all three, rather than the three reset sites the
+            # two-variable version would have needed. The context vars have to
+            # be reset on every path or a later request on the same task
+            # inherits this one's ids.
+            request_id_var.reset(token)
+            if trace_tokens:
+                span_id_var.reset(trace_tokens[1])
+                trace_id_var.reset(trace_tokens[0])
 
 
 # ═══════════════════════════════════════════════════════════════════════════

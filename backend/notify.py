@@ -979,10 +979,12 @@ async def subscription_event(note) -> None:
             # itself cannot tell those apart, because they are identical.
             label = "Trial converted" if was == "trial" else f"{was.capitalize()} converted"
             lines = [f"🎉 <b>{label} — this is real money</b>", detail]
+            await _count_new_subscription(otid)
         elif note.is_paid_period and not before:
             # A payer no device ever synced. Before Apple told us directly,
             # this subscription did not exist as far as the bot was concerned.
             lines = ["🎉 <b>New paying subscriber</b> (Apple reported it first)", detail]
+            await _count_new_subscription(otid)
         elif note.is_refund:
             lines = ["↩️ <b>Refund</b>", detail]
         elif note.is_revoke:
@@ -1008,6 +1010,36 @@ async def subscription_event(note) -> None:
         # An operator ping must never fail Apple's delivery: a non-2xx makes
         # Apple retry the same notification for hours.
         log.exception("subscription notification handling failed")
+
+
+async def _count_new_subscription(otid: str) -> None:
+    """Count one new paying subscription, once, whichever half found out first.
+
+    There are two ways a subscription first becomes known: the client posts its
+    signed transaction to `/auth/entitlement`, or Apple posts a notification to
+    `/apple/notifications`. Only the first incremented `new_subs`, so a payer
+    whose device never synced before Apple told us — the case
+    `subscription_event` alerts on by name, "New paying subscriber (Apple
+    reported it first)" — never appeared in the number the operator reads as
+    "how many people paid me today". Trial conversions arriving by notification
+    were missing from it too, which is the one figure the whole trial
+    experiment is judged on.
+
+    `opsseen:subcount:{otid}` is the guard, and it is deliberately the *same*
+    key both callers use: whichever path learns of a subscription first counts
+    it, and the other finds the key already set and counts nothing. So the fix
+    cannot double-count the common case where Apple reports a conversion and
+    the client syncs the same transaction minutes later.
+
+    Never raises. A counter is not worth failing an alert or a scan over.
+    """
+    if not otid or _cache is None:
+        return
+    try:
+        if await _cache.add(f"opsseen:subcount:{otid}", "1", SUB_SEEN_TTL):
+            await _cache.incr(_stat_key(_day(), "new_subs"), STATS_TTL)
+    except Exception as exc:                      # pragma: no cover - defensive
+        log.warning("new_subs counter failed for %s: %s", otid, exc)
 
 
 async def entitlement_recorded(subject: str, ent) -> None:
@@ -1047,8 +1079,7 @@ async def entitlement_recorded(subject: str, ent) -> None:
                 # re-entry inside the 24-hour `is_new` window is the normal
                 # case. One sale could be counted several times, in the figure
                 # the operator reads as "how many people paid me today".
-                if await _cache.add(f"opsseen:subcount:{otid}", "1", SUB_SEEN_TTL):
-                    await _cache.incr(_stat_key(_day(), "new_subs"), STATS_TTL)
+                await _count_new_subscription(otid)
                 headline = "🎉 <b>New Pro subscription</b>"
             else:
                 headline = ("👋 <b>Existing Pro subscriber checked in</b> "

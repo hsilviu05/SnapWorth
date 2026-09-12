@@ -285,9 +285,78 @@ class TestNormalise:
                          "best_case_price_usd": 9000})
         assert val.prices.expected == 8000.0        # pre-clamp
         low, high, was_clamped = valuation_module.apply_price_bounds(val)
-        assert (low, high) == (5000.0, 5000.0)      # the books ceiling
+        # The books ceiling is 5000, and both ends were above it. This used to
+        # read `(5000.0, 5000.0)` — see
+        # `test_a_wholly_out_of_band_estimate_is_still_a_range`.
+        assert (low, high) == (3333.33, 5000.0)
         assert low <= val.prices.expected <= high
         assert was_clamped, "a ceiling hit is a real model error"
+
+    def test_a_wholly_out_of_band_estimate_is_still_a_range(self):
+        """A single number must never be presented as a valuation.
+
+        `min(low * 1.5, ceiling)` is a no-op once `low` *is* the ceiling, which
+        is what happens when both ends were out of band: they clamp to the
+        ceiling, become equal, and the widening cannot open them. A
+        prompt-injected "$1,000,000" electronics item came back as
+        `$10,000 – $10,000`, and `apply_price_bounds` then pins the interior
+        ladder into that span, so quick and expected collapsed onto the ceiling
+        too — on the one path where the model's output was least trustworthy.
+        """
+        val = normalise({"category": "electronics",
+                         "worst_case_price_usd": 1_000_000,
+                         "best_case_price_usd": 1_000_000})
+        low, high, was_clamped = valuation_module.apply_price_bounds(val)
+        assert high == 10_000.0, "the electronics ceiling"
+        assert low < high, "a valuation is a range, not a number"
+        assert (low, high) == (6666.67, 10_000.0)
+        assert was_clamped
+        # The ladder has to sit inside the widened span, not on one point.
+        assert low <= val.prices.quick <= val.prices.expected <= high
+
+    def test_an_out_of_order_response_docks_confidence(self):
+        """The `order` clamp kind, reachable again.
+
+        `clamp_valuation`'s docstring says an out-of-order response "is a real
+        error and the caller should lower confidence" — and no real call site
+        could ever reach that branch, because `reconcile_prices` sorts the
+        points before the clamp sees them. The branch works when called
+        directly, and there is a test for it, so it looked covered; the
+        evidence was destroyed upstream. `PricePoints.order_repaired` carries
+        it instead.
+        """
+        messy = normalise({"category": "books", "worst_case_price_usd": 90,
+                           "quick_sale_price_usd": 20, "expected_price_usd": 70,
+                           "best_case_price_usd": 45})
+        assert messy.prices.order_repaired
+        assert messy.prices.coherent, "repaired, not rejected — the scan is kept"
+        _, _, was_clamped = valuation_module.apply_price_bounds(messy)
+        assert was_clamped, (
+            "the prompt requires worst <= quick <= expected <= best; a response "
+            "that violates it is weak evidence the response was a struggle"
+        )
+
+    def test_an_in_order_response_is_not_docked_for_it(self):
+        tidy = normalise({"category": "books", "worst_case_price_usd": 20,
+                          "quick_sale_price_usd": 40, "expected_price_usd": 70,
+                          "best_case_price_usd": 90})
+        assert not tidy.prices.order_repaired
+        _, _, was_clamped = valuation_module.apply_price_bounds(tidy)
+        assert not was_clamped
+
+    def test_the_order_signal_survives_the_clamp_rebuild(self):
+        """The rebuild calls `reconcile_prices` again, with sorted input.
+
+        So it reports `order_repaired=False` and would wipe the flag. The
+        pre-rebuild value is captured for exactly that reason, and this is the
+        case that distinguishes the two — out of order *and* out of band.
+        """
+        val = normalise({"category": "books", "worst_case_price_usd": 9000,
+                         "quick_sale_price_usd": 20, "expected_price_usd": 7000,
+                         "best_case_price_usd": 45})
+        assert val.prices.order_repaired
+        _, _, was_clamped = valuation_module.apply_price_bounds(val)
+        assert was_clamped
 
     def test_price_bounds_leave_an_in_band_valuation_alone(self):
         val = normalise({"category": "books", "worst_case_price_usd": 50,

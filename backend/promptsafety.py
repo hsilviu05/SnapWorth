@@ -139,8 +139,25 @@ def clamp_valuation(low: float, high: float, category: str) -> tuple[float, floa
         high = low
     # Degenerate range (model returned a point estimate) — open it up so the UI
     # still reads as a range. Deliberately not a `kind`: nothing was wrong.
+    #
+    # Widens *downward* when there is no room above. `min(low * 1.5, ceiling)`
+    # is a no-op once `low` is already the ceiling, which is exactly what
+    # happens when both prices were out of band: the lines above clamp them to
+    # the ceiling, they become equal, and the range stayed zero-width. A
+    # prompt-injected "$1,000,000" electronics item came back as
+    # `$10,000 – $10,000`, and `apply_price_bounds` then pins the interior
+    # ladder points into that span, so quick and expected collapsed onto the
+    # ceiling too — a single number presented as a valuation, on the one path
+    # where the model's output was least trustworthy.
+    #
+    # `floor` still bounds the result, so the only zero-width case left is a
+    # band whose floor equals its ceiling, which none of `_CATEGORY_BANDS` has.
     if high == low:
-        high = min(round(low * 1.5, 2), ceiling)
+        opened = min(round(low * 1.5, 2), ceiling)
+        if opened > low:
+            high = opened
+        else:
+            low = max(floor, round(high / 1.5, 2))
 
     kind = "ceiling" if hit_ceiling else "order" if inverted else "floor" if hit_floor else ""
     if kind in {"ceiling", "order"}:

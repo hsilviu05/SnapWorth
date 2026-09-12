@@ -62,6 +62,19 @@ class PricePoints:
     expected: float = 0.0
     best: float = 0.0
 
+    #: True when the model's non-zero points arrived out of order and this
+    #: object is the repaired version.
+    #:
+    #: `promptsafety.clamp_valuation` has an `"order"` kind whose docstring says
+    #: an out-of-order response "is a real error and the caller should lower
+    #: confidence" — and it is unreachable from any real call site, because
+    #: `reconcile_prices` sorts the points before the clamp ever sees them. The
+    #: branch works when called directly (there is a test), so it looked
+    #: covered; the evidence was simply destroyed upstream. Carried here
+    #: instead of re-detected, because by the time anything downstream looks,
+    #: the disorder is gone.
+    order_repaired: bool = False
+
     @property
     def coherent(self) -> bool:
         return self.worst <= self.quick <= self.expected <= self.best
@@ -194,12 +207,19 @@ def reconcile_prices(
     resolved_expected = expected if expected > 0 else (lowest + highest) / 2
     resolved_quick = quick if quick > 0 else resolved_worst + (resolved_expected - resolved_worst) * 0.5
 
-    ordered = sorted([resolved_worst, resolved_quick, resolved_expected, resolved_best])
+    resolved = [resolved_worst, resolved_quick, resolved_expected, resolved_best]
+    ordered = sorted(resolved)
     return PricePoints(
         worst=round(ordered[0], 2),
         quick=round(ordered[1], 2),
         expected=round(ordered[2], 2),
         best=round(ordered[3], 2),
+        # The one place that can still see the disorder. The prompt requires
+        # `worst ≤ quick ≤ expected ≤ best`; a response that violates it is a
+        # formatting failure, which is weak evidence that the response was a
+        # struggle — the same premise the completeness signal rests on. Repair
+        # it, keep the user's scan, and let confidence know.
+        order_repaired=ordered != resolved,
     )
 
 
@@ -347,6 +367,8 @@ def apply_price_bounds(valuation: Valuation) -> tuple[float, float, bool]:
     """
     low, high, clamp_kind = promptsafety.clamp_valuation(
         valuation.prices.worst, valuation.prices.best, valuation.category)
+    # Captured before the rebuild below, which loses it.
+    order_repaired = valuation.prices.order_repaired
 
     if (low, high) != (round(valuation.prices.worst, 2),
                        round(valuation.prices.best, 2)):
@@ -372,7 +394,11 @@ def apply_price_bounds(valuation: Valuation) -> tuple[float, float, bool]:
 
     # Only a real model error lowers confidence. A cheap item touching its
     # category floor, or a point estimate being opened into a range, is not one.
-    was_clamped = clamp_kind in {"ceiling", "order"}
+    #
+    # `order_repaired` is read from the pre-rebuild points: `reconcile_prices`
+    # above is called with values this function already sorted, so it would
+    # report False and wipe the signal it exists to carry.
+    was_clamped = clamp_kind in {"ceiling", "order"} or order_repaired
     valuation.was_clamped = was_clamped
     return low, high, was_clamped
 

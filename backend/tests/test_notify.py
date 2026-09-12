@@ -2903,6 +2903,62 @@ class TestSubscriptionNotifications:
         await drain()
         assert any("new paying subscriber" in t.lower() for t in enabled_notify.texts)
 
+    # ── The daily new-subscriber count ───────────────────────────────────────
+
+    @staticmethod
+    async def _new_subs() -> int:
+        raw = await notify._cache.get(notify._stat_key(notify._day(), "new_subs"))
+        return int(raw or 0)
+
+    @pytest.mark.asyncio
+    async def test_a_payer_apple_reported_first_reaches_the_daily_count(
+            self, enabled_notify):
+        """The only increment used to be in the client-driven path.
+
+        So a payer whose device never synced before Apple told us — the case
+        the alert above names by hand, "New paying subscriber (Apple reported
+        it first)" — never appeared in the number the operator reads as "how
+        many people paid me today".
+        """
+        assert await self._new_subs() == 0
+        await notify.subscription_event(
+            FakeNotification(_paid("otid-monthly"), paid_period=True))
+        assert await self._new_subs() == 1
+
+    @pytest.mark.asyncio
+    async def test_a_conversion_apple_reported_first_counts_too(self, enabled_notify):
+        # The figure the whole trial experiment is judged on.
+        await notify._index_subscription("device-a", _trial())
+        await notify.subscription_event(
+            FakeNotification(_paid(), paid_period=True))
+        assert await self._new_subs() == 1
+
+    @pytest.mark.asyncio
+    async def test_one_subscription_is_counted_once_across_both_paths(
+            self, enabled_notify):
+        """The guard is deliberately the same key in both callers.
+
+        Apple reporting a conversion and the client syncing the same
+        transaction minutes later is the common case, not an edge one, so a
+        second increment there would be worse than the missing one this fixes.
+        """
+        await notify.subscription_event(
+            FakeNotification(_paid("otid-shared"), paid_period=True))
+        assert await self._new_subs() == 1
+
+        await notify.entitlement_recorded("device-a", _paid("otid-shared"))
+        await drain()
+        assert await self._new_subs() == 1, (
+            "the same subscription counted twice once both halves saw it")
+
+    @pytest.mark.asyncio
+    async def test_a_loss_is_not_a_new_subscription(self, enabled_notify):
+        for kwargs in ({"refund": True}, {"revoke": True}, {"expiry": True},
+                       {"cancellation": True}, {"billing_failure": True}):
+            await notify.subscription_event(
+                FakeNotification(_paid(f"otid-{list(kwargs)[0]}"), **kwargs))
+        assert await self._new_subs() == 0
+
     @pytest.mark.asyncio
     async def test_apple_never_erases_the_device_we_already_knew(self, enabled_notify):
         """A notification has no subject. Overwriting `who` with nothing would

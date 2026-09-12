@@ -19,6 +19,7 @@ from fastapi.testclient import TestClient
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import main  # noqa: E402
+import metrics  # noqa: E402
 import observability  # noqa: E402
 import ratelimit  # noqa: E402
 
@@ -224,3 +225,145 @@ class TestEntitlementRouteIsLimited:
         """
         assert main.ENTITLEMENT_RATE_MAX_REQUESTS > main.RATE_MAX_REQUESTS
         assert main.ENTITLEMENT_RATE_MAX_REQUESTS == 60
+
+
+# ── Signals that existed and reached nobody ─────────────────────────────────
+
+class TestTraceContextIsPopulated:
+    def test_an_inbound_traceparent_reaches_the_log_line(self, caplog):
+        """`parse_traceparent` had no production caller.
+
+        It, `trace_id_var`, `span_id_var` and `TRACEPARENT_HEADER` all existed
+        and were tested, and a grep for every one of them found hits only
+        inside `observability` and one test file. So `TraceIDFilter` wrote
+        `trace_id=-` on every line ever logged and the field was dead weight in
+        the JSON output rather than the thing that lets a request be followed
+        across services.
+        """
+        trace = "4bf92f3577b34da6a3ce929d0e0e4736"
+        span = "00f067aa0ba902b7"
+        seen: list[tuple[str, str]] = []
+
+        # Reads the context vars *during* the request, which is the level the
+        # property actually lives at. Asserting `record.trace_id` instead would
+        # have been testing the wrong thing twice over: `TraceIDFilter` is
+        # attached to the root *handler*, so it runs after every logger filter
+        # (the first version of this test saw `<unset>`), and it is only
+        # attached at all by `configure_production_logging`, which this suite
+        # does not call. `TraceIDFilter`'s own mapping is asserted separately
+        # below.
+        class Capture(logging.Filter):
+            def filter(self, record):
+                seen.append((observability.trace_id_var.get(),
+                             observability.span_id_var.get()))
+                return True
+
+        filt = Capture()
+        logger = logging.getLogger("snapworth.access")
+        logger.addFilter(filt)
+        try:
+            # `/health/live`, not `/health`: the middleware logs `/health` at
+            # DEBUG on purpose (high-frequency and uninteresting), so at the
+            # default level it produces no record to inspect.
+            client.get("/health/live", headers={
+                "traceparent": f"00-{trace}-{span}-01",
+            })
+        finally:
+            logger.removeFilter(filt)
+
+        assert seen, "the access logger did not fire"
+        assert (trace, span) in seen, f"trace context never reached it: {seen}"
+
+    def test_the_filter_puts_the_context_on_the_record(self):
+        """The other half, in isolation: the var reaches `record.trace_id`."""
+        record = logging.LogRecord("t", logging.INFO, __file__, 1, "m", None, None)
+        token = observability.trace_id_var.set("4bf92f3577b34da6a3ce929d0e0e4736")
+        try:
+            observability.TraceIDFilter().filter(record)
+        finally:
+            observability.trace_id_var.reset(token)
+        assert record.trace_id == "4bf92f3577b34da6a3ce929d0e0e4736"
+        assert record.span_id == "-", "absent reads as a dash, not an empty field"
+
+    def test_the_context_does_not_leak_into_the_next_request(self):
+        """Reset on every path, or a later request inherits these ids.
+
+        The three resets are now one `finally`, which is what makes the
+        exception path correct too — the original reset the request id twice
+        and the trace vars not at all.
+        """
+        trace = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        client.get("/health", headers={"traceparent": f"00-{trace}-bbbbbbbbbbbbbbbb-01"})
+        assert observability.trace_id_var.get() == ""
+        assert observability.span_id_var.get() == ""
+
+    def test_a_malformed_traceparent_is_ignored(self):
+        # `parse_traceparent` rejects a malformed or all-zero header, so
+        # nothing caller-supplied reaches a log line unchecked.
+        for bad in ["", "garbage", "00-0000000000000000-0000000000000000-01",
+                    "00-" + "0" * 32 + "-" + "0" * 16 + "-01"]:
+            r = client.get("/health", headers={"traceparent": bad})
+            assert r.status_code == 200
+            assert observability.trace_id_var.get() == ""
+
+
+class TestRateLimiterHealthIsReported:
+    """`is_degraded` had no production reader at all.
+
+    The only references in the tree were its definition and one test. It logs
+    once at ERROR on the transition, so an operator looking at the log in that
+    second saw it — and afterwards a replica running per-process limits was
+    indistinguishable from a healthy one. Degraded limits are *per replica*, so
+    the effective ceiling multiplies by the replica count: the exact failure
+    the module was written to avoid.
+
+    The limiters are wired by the startup hook, which this suite does not run,
+    so they are stubbed here rather than skipped — a skipped test asserts
+    nothing and reads as coverage.
+    """
+
+    class _Limiter:
+        def __init__(self, degraded: bool) -> None:
+            self.is_degraded = degraded
+
+    def _health(self, device, ip):
+        previous = (main._device_limiter, main._ip_limiter)
+        main._device_limiter, main._ip_limiter = device, ip
+        try:
+            return client.get("/health").json()
+        finally:
+            main._device_limiter, main._ip_limiter = previous
+
+    def test_health_reports_that_limiting_is_distributed(self):
+        body = self._health(self._Limiter(False), self._Limiter(False))
+        assert body["rate_limiter"] == {"distributed": True}
+        assert body.get("status") != "degraded"
+
+    def test_either_limiter_degrading_is_reported(self):
+        # Two independent facades; either one falling back means the ceiling is
+        # no longer shared, so both have to be consulted.
+        for device, ip in ((True, False), (False, True), (True, True)):
+            body = self._health(self._Limiter(device), self._Limiter(ip))
+            assert body["rate_limiter"] == {"distributed": False}, (device, ip)
+            assert body["status"] == "degraded", (device, ip)
+
+    def test_it_is_reported_not_fatal(self):
+        # Per-process limits still enforce something, so draining the replica
+        # would be the worse trade — unlike an unreachable cache, which fails
+        # quota closed and does return 503.
+        response = client.get("/health")
+        assert response.status_code == 200
+        body = self._health(self._Limiter(True), self._Limiter(True))
+        assert body["status"] == "degraded"
+
+    def test_no_limiters_wired_reports_nothing_rather_than_guessing(self):
+        body = self._health(None, None)
+        assert "rate_limiter" not in body
+
+    def test_there_is_a_gauge_for_it(self):
+        # Its own series, not folded into `cache_degraded`: the limiters build
+        # their own facades and degrade independently, and the consequences are
+        # opposite — an unreachable cache fails quota closed, a degraded
+        # limiter fails open per replica.
+        assert hasattr(metrics, "rate_limiter_degraded")
+        assert metrics.rate_limiter_degraded is not metrics.cache_degraded
