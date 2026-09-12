@@ -813,7 +813,7 @@ final class PortfolioDigestTests: XCTestCase {
         }
         let body = String(branch[..<closing.lowerBound])
         XCTAssertTrue(body.contains("removePendingNotificationRequests"),
-                      "a blocked reschedule must cancel the identifier, not "
+                      "a blocked reschedule must cancel the identifier, not " +
                       "leave the stale request to fire")
     }
 
@@ -838,8 +838,8 @@ final class PortfolioDigestTests: XCTestCase {
         XCTAssertTrue(view.contains("requestAuthorizationIfNeeded"),
                       "the toggle is the moment to ask")
         XCTAssertTrue(view.contains(".notDetermined"),
-                      "the \"notifications are off\" banner must cover the "
-                      "status a declined priming alert leaves behind, not only "
+                      "the \"notifications are off\" banner must cover the " +
+                      "status a declined priming alert leaves behind, not only " +
                       ".denied — which is never that user's status")
     }
 }

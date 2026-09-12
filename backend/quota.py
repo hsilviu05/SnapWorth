@@ -58,6 +58,11 @@ FREE_SCANS_FIRST_DAY = 0
 # twice. Matches the attestation-state horizon.
 _WELCOME_TTL = 60 * 60 * 24 * 400
 
+# How long "I have seen this subject before" is remembered. Same horizon as the
+# welcome marker, because the two answer the same question about the same
+# subject and a shorter one here silently re-opens the welcome.
+_SEEN_TTL = _WELCOME_TTL
+
 # Written into the welcome key when the welcome was *refused* (a reinstall
 # DeviceCheck recognised). Any value that is not a UTC day string works —
 # `_limit_for` compares against today's day — but a named constant says so.
@@ -298,8 +303,21 @@ class ScanQuota:
         nothing back until the next reset.
         """
         try:
+            # `_SEEN_TTL`, not `_COUNTER_TTL`. "Have I ever seen this subject"
+            # is not a 30-hour question, and `cache.add` never refreshes an
+            # existing key — `InMemoryCache.add` returns False without touching
+            # the expiry and `RedisCache.add` is `SET … NX` — so the marker
+            # expired 30 hours after the subject was *first* minted rather than
+            # 30 hours after it was last used. Every subject, however active,
+            # fell back into this `first_time` branch roughly every 30 hours
+            # forever, which also re-ran the DeviceCheck query for the whole
+            # active base on that cadence.
+            #
+            # A reinstall is unaffected either way: App Attest mints a new key
+            # id, so a reinstall is a *different* subject with its own seen
+            # marker. The short TTL only ever made the same subject look new.
             first_time = await self._cache.add(
-                self._seen_key(subject), "1", _COUNTER_TTL, required=True)
+                self._seen_key(subject), "1", _SEEN_TTL, required=True)
         except CacheUnavailable as exc:
             raise QuotaUnavailable(str(exc)) from exc
 
@@ -341,12 +359,41 @@ class ScanQuota:
     async def _welcome(self, subject: str) -> int:
         """Grant the first-day allowance to a genuinely new subject, once.
 
-        The `seen` marker above expires with the counters, so "first time"
-        recurs for anyone who stays away for a day; the welcome marker does
-        not, so the allowance is handed out exactly once per subject.
+        The welcome marker outlives every counter, so the allowance is handed
+        out exactly once per subject — including a subject first seen while the
+        welcome was switched off, which is what the `_DENIED` write below is
+        for.
         """
         first_day = await self._first_day_limit()
         if not first_day:
+            # Record the refusal, do not just return. This path used to write
+            # no marker at all, so a subject first seen while the welcome was
+            # off carried nothing — and the moment the lever was armed, the
+            # next recurrence of `first_time` reached the grant below, `add`
+            # succeeded for an *existing* subject, and `_limit_for` handed them
+            # the first-day allowance for the rest of that UTC day. An existing
+            # user who had already spent today's scan got extra paid Gemini
+            # scans, once for every subject in the install base.
+            #
+            # It is not specific to the ops lever: raising FREE_SCANS_FIRST_DAY
+            # from 0 as a Railway variable does exactly the same thing, and
+            # did. It also contaminated the very funnel the lever exists to
+            # measure, because the "first-day cohort" filled with existing
+            # users.
+            #
+            # The mirror-image case — a DeviceCheck-recognised reinstall
+            # claiming the welcome — was closed by writing `_DENIED` on the
+            # refusal path in `starting_balance`. This is the same fix for the
+            # other way in.
+            try:
+                await self._cache.add(
+                    self._welcome_key(subject), _DENIED, _WELCOME_TTL, required=True)
+            except CacheUnavailable:
+                # Best-effort, like the reinstall refusal: failing a scan over a
+                # marker would be worse than the allowance it guards. `add` is a
+                # no-op when a marker already exists, so a genuinely new subject
+                # arriving after the lever is armed still reaches the grant.
+                pass
             return self._limit
         try:
             granted = await self._cache.add(

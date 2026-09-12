@@ -1972,7 +1972,7 @@ final class WidgetPaletteTests: XCTestCase {
                                       over: Color.SnapLightHex.background, alpha: 0.4)
         XCTAssertEqual(contrast(SnapDarkHex.cream, dimmedOnLight),
                        1.82, accuracy: 0.03,
-                       "cream on a 40% accent over a light ground — the label "
+                       "cream on a 40% accent over a light ground — the label " +
                        "did not read as disabled, it disappeared")
     }
 
@@ -2046,8 +2046,8 @@ final class WidgetPaletteTests: XCTestCase {
         let peak = composite("FFFFFF", over: base, alpha: 0.65)
         let wash = composite("FFFFFF", over: base, alpha: 0.18)
         XCTAssertLessThan(contrast(peak, base), 1.1,
-                          "a 1.09:1 peak is below the threshold of visible "
-                          "difference — the placeholder was a static block, so "
+                          "a 1.09:1 peak is below the threshold of visible " +
+                          "difference — the placeholder was a static block, so " +
                           "a slow decode looked identical to a missing image")
         XCTAssertLessThan(contrast(wash, base), 1.05,
                           "and the Reduce Motion wash conveyed nothing at all")
@@ -2057,7 +2057,7 @@ final class WidgetPaletteTests: XCTestCase {
         let base = skeleton(border: Color.SnapBorderHex.dark, card: SnapDarkHex.card)
         let peak = composite("FFFFFF", over: base, alpha: 0.65)
         XCTAssertGreaterThan(contrast(peak, base), 7.0,
-                             "pure white on a warm espresso card — the same "
+                             "pure white on a warm espresso card — the same " +
                              "token failing in opposite directions")
     }
 

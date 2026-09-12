@@ -999,7 +999,7 @@ final class ScanPersistenceFailureTests: XCTestCase {
         let copied = labels(String(source[copyRange.upperBound..<copyEnd.lowerBound]))
         XCTAssertFalse(declared.isEmpty, "the parser found no init parameters")
         XCTAssertEqual(declared.subtracting(copied), [],
-                       "detachedCopy() is missing stored properties — a copy "
+                       "detachedCopy() is missing stored properties — a copy " +
                        "that drops a field shows the user an incomplete result")
     }
 
@@ -1019,7 +1019,7 @@ final class ScanPersistenceFailureTests: XCTestCase {
         for (index, block) in catches.enumerated() {
             let body = String(block.prefix(400))
             XCTAssertTrue(body.contains("context.rollback()"),
-                          "failure path \(index) leaves the change in the "
+                          "failure path \(index) leaves the change in the " +
                           "shared context, which breaks every later save")
         }
     }
@@ -2124,8 +2124,8 @@ final class DeviceIdentityTests: XCTestCase {
         let id = DeviceIdentity(store: store, defaults: defaults).id
         XCTAssertEqual(store.value, id, "the durable copy is the one that stays")
         XCTAssertNil(defaults.string(forKey: DeviceIdentity.legacyDefaultsKey),
-                     "a surviving mirror migrates this identity to a restored "
-                     "phone, collapsing every restored device onto one binding "
+                     "a surviving mirror migrates this identity to a restored " +
+                     "phone, collapsing every restored device onto one binding " +
                      "slot and bypassing the subscription device cap without bound")
     }
 
