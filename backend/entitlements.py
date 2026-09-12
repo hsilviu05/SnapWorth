@@ -219,10 +219,44 @@ class Entitlement:
 FREE = Entitlement("free", None, None, None, "Production")
 
 
+#: Apple sends leaf, intermediate, root — exactly three, which is what Apple's
+#: own `app-store-server-library` requires (`if len(certificates) != 3`). The
+#: bound is also what stops an unauthenticated caller choosing how much work
+#: the server does.
+X5C_CHAIN_LENGTH = 3
+
+#: The two extension OIDs Apple's own verifier requires, and the reason a
+#: chain-to-the-pinned-root check is not sufficient on its own.
+#:
+#: Apple Root CA G3 is not a StoreKit-only root. It anchors several CA branches
+#: that issue P-256 leaves to ordinary enrolled developers from a CSR — an
+#: Apple Pay payment-processing certificate is the clearest example, where the
+#: developer generates and keeps the private key. Without a purpose check, any
+#: such leaf could sign a transaction payload that this module would accept as
+#: Apple's, because every other property held: it chains to the pinned root
+#: through CA-flagged intermediates and its key is an EC key.
+#:
+#: Verified against
+#: apple/app-store-server-library-python `signed_data_verifier.py`, which
+#: checks the same two OIDs on `trusted_chain[0]` and `trusted_chain[1]`.
+LEAF_PURPOSE_OID = "1.2.840.113635.100.6.11.1"
+INTERMEDIATE_PURPOSE_OID = "1.2.840.113635.100.6.2.1"
+
+
 def _decode_x5c_chain(header: dict) -> list[x509.Certificate]:
     chain = header.get("x5c") or []
-    if len(chain) < 2:
-        raise EntitlementError("Signed transaction certificate chain is incomplete.")
+    # Exactly three, checked *before* any base64 or DER parsing.
+    #
+    # `_verify_chain` walks the whole caller-supplied list: a validity check on
+    # every certificate, a CA check on every non-leaf, and one ECDSA
+    # verification per adjacent pair. The only early abort was the root pin, so
+    # putting the genuine Apple Root CA G3 last bought an attacker the entire
+    # walk over as many certificates as they cared to send — on
+    # `/apple/notifications`, which is unauthenticated by necessity. That is a
+    # CPU amplifier, not a signature check.
+    if len(chain) != X5C_CHAIN_LENGTH:
+        raise EntitlementError(
+            "Signed transaction certificate chain is not Apple's three.")
     try:
         return [x509.load_der_x509_certificate(base64.b64decode(c)) for c in chain]
     except Exception:
@@ -234,15 +268,16 @@ def _verify_chain(certs: list[x509.Certificate]) -> x509.Certificate:
     root = x509.load_pem_x509_certificate(APPLE_ROOT_CA_G3_PEM)
     now = datetime.now(timezone.utc)
 
-    for cert in certs:
-        if cert.not_valid_before_utc > now or cert.not_valid_after_utc < now:
-            raise EntitlementError("Signed transaction certificate is not valid today.")
-
-    # The last element should be Apple's root; compare against our pinned copy
-    # rather than trusting whatever the client supplied.
+    # The root pin runs first: it is one comparison and it rejects every chain
+    # that was not built on Apple's CA, so nothing below is spent on one that
+    # was never going to verify.
     if (certs[-1].public_bytes(serialization.Encoding.DER)
             != root.public_bytes(serialization.Encoding.DER)):
         raise EntitlementError("Signed transaction is not rooted in Apple's CA.")
+
+    for cert in certs:
+        if cert.not_valid_before_utc > now or cert.not_valid_after_utc < now:
+            raise EntitlementError("Signed transaction certificate is not valid today.")
 
     # Every non-leaf certificate must actually be allowed to sign certificates.
     # Without this an attacker who obtains any Apple-chained *leaf* could use it
@@ -268,7 +303,25 @@ def _verify_chain(certs: list[x509.Certificate]) -> x509.Certificate:
                        ec.ECDSA(algorithm))
         except InvalidSignature:
             raise EntitlementError("Signed transaction chain is not signed by Apple.") from None
+
+    # What the certificates are *for*, which the walk above does not establish.
+    _require_purpose(certs[0], LEAF_PURPOSE_OID, "leaf")
+    _require_purpose(certs[1], INTERMEDIATE_PURPOSE_OID, "intermediate")
     return certs[0]
+
+
+def _require_purpose(cert: x509.Certificate, oid: str, what: str) -> None:
+    """Assert a certificate carries the extension marking it for this job.
+
+    Chaining to the pinned root proves who issued the certificate, not what it
+    was issued *for*. See `LEAF_PURPOSE_OID`.
+    """
+    try:
+        cert.extensions.get_extension_for_oid(x509.ObjectIdentifier(oid))
+    except x509.ExtensionNotFound:
+        raise EntitlementError(
+            f"Signed transaction {what} is not an App Store signing "
+            f"certificate.") from None
 
 
 def _require_ca(cert: x509.Certificate) -> None:

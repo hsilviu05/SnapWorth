@@ -35,6 +35,7 @@ from pydantic import BaseModel, Field
 import appattest
 import auditlog
 import notify
+import ratelimit
 from cache import KeyValueStore
 from devicecheck import DeviceCheckClient
 from auditlog import AuditEvent
@@ -253,8 +254,17 @@ async def _limit_unauthenticated(request: Request) -> None:
     """
     if deps.ip_limiter is None:
         return
-    client = request.client
-    await deps.ip_limiter(client.host if client else None)
+    # `ratelimit.client_ip`, not `request.client.host`.
+    #
+    # uvicorn runs with `--forwarded-allow-ips='*'`, so `request.client.host`
+    # is the *leftmost* `X-Forwarded-For` hop — entirely client-supplied. These
+    # three routes were therefore keyed on a value the caller picks per
+    # request, which is a fresh bucket on demand rather than a limit, while
+    # `/scan`, `/trends` and `/listing` were keyed on the rightmost hop all
+    # along. `main._client_ip`'s own docstring describes this exact trap; the
+    # routes added later just did not get it, because the helper lived in a
+    # module `auth` cannot import. It is in `ratelimit` now.
+    await deps.ip_limiter(ratelimit.client_ip(request))
 
 
 @router.post("/challenge", response_model=ChallengeResponse)

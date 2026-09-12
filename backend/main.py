@@ -511,28 +511,10 @@ async def _init_rate_limiters() -> None:
 
 
 def _client_ip(request: Request) -> str:
-    """Best-effort source IP used as the rate-limit backstop.
-
-    Always the **rightmost** `X-Forwarded-For` hop when the header is present,
-    and no longer conditional on `TRUSTED_PROXY`.
-
-    The flag was worse than useless unset. The container runs uvicorn with
-    `--forwarded-allow-ips='*'`, which makes `request.client.host` the
-    *leftmost* — i.e. entirely client-supplied — hop. So with the flag off, the
-    limiter keyed on a value the caller chooses per request: not "everyone
-    collapses into one bucket", as the runbook and the earlier audit both said,
-    but a fresh bucket on demand, which is no limit at all. A security control
-    that silently depends on an environment variable being remembered is not a
-    control, so this no longer asks.
-
-    The rightmost entry is the one appended by the proxy nearest to us, the
-    only hop a caller cannot forge by sending their own header. Truncated
-    because the value reaches a cache key and is attacker-influenced.
-    """
-    xff = request.headers.get("x-forwarded-for", "")
-    if xff:
-        return xff.split(",")[-1].strip()[:64] or "unknown"
-    return request.client.host if request.client else "unknown"
+    """See `ratelimit.client_ip`. Kept as a name because the call sites read
+    better with it, and because `auth` needs the same answer from a module it
+    can import."""
+    return ratelimit.client_ip(request)
 
 
 def _check_rate_limit(device_id: str, ip: str | None = None) -> None:

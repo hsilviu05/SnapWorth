@@ -186,6 +186,45 @@ class TestFileUploadSecurity:
         assert len(main._client_ip(Req("x" * 500))) == 64
         assert main._client_ip(Req("1.1.1.1,   ")) == "unknown"
 
+    def test_unauthenticated_routes_key_on_the_same_hop(self):
+        """The half of B-14 that was missed.
+
+        `/scan`, `/trends` and `/listing` went through `_client_ip`. The three
+        `/auth` routes — added later, in a module that cannot import `main` —
+        passed `request.client.host` straight to the limiter, so the one value
+        an attacker fully controls was the bucket key: rotate the leftmost
+        `X-Forwarded-For` hop and `/challenge` and `/attest` are unthrottled
+        again. Both callers resolve the IP through `ratelimit.client_ip` now,
+        and this asserts they agree rather than that each is separately
+        plausible.
+        """
+        import auth
+        import main
+
+        class Req:
+            def __init__(self, xff):
+                self.headers = {"x-forwarded-for": xff}
+                self.client = type("C", (), {"host": "1.1.1.1"})()
+
+        seen = []
+
+        async def recording_limiter(ip):
+            seen.append(ip)
+
+        previous = auth.deps.ip_limiter
+        auth.deps.ip_limiter = recording_limiter
+        try:
+            xff = "1.1.1.1, 2.2.2.2, 203.0.113.9"
+            asyncio.run(auth._limit_unauthenticated(Req(xff)))
+        finally:
+            auth.deps.ip_limiter = previous
+
+        assert seen == ["203.0.113.9"], (
+            "the unauthenticated limiter must key on the proxy's own hop, not "
+            f"the caller-supplied leftmost one; got {seen}")
+        assert seen[0] == main._client_ip(Req(xff)), (
+            "one resolver, or the two drift apart again")
+
     def test_no_trusted_proxy_flag_remains(self):
         """The control must not depend on an env var being remembered."""
         import main

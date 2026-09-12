@@ -25,7 +25,35 @@ import logging
 import os
 import time
 from collections import defaultdict
-from typing import Protocol
+from typing import Any, Protocol
+
+
+def client_ip(request: Any) -> str:
+    """Best-effort source IP used as the rate-limit backstop.
+
+    Always the **rightmost** `X-Forwarded-For` hop when the header is present.
+
+    The container runs uvicorn with `--forwarded-allow-ips='*'`, which makes
+    `request.client.host` the *leftmost* — i.e. entirely client-supplied — hop.
+    Keying a limiter on that does not collapse everyone into one bucket, as is
+    the usual worry; it hands the caller a fresh bucket per request, which is
+    no limit at all.
+
+    The rightmost entry is the one appended by the proxy nearest to us, the
+    only hop a caller cannot forge by sending their own header. Truncated
+    because the value reaches a cache key and is attacker-influenced.
+
+    It lives here, rather than in `main`, because `auth`'s unauthenticated
+    routes need the same answer and cannot import `main`. They were keyed on
+    `request.client.host` — the forgeable value — so `/challenge`, `/attest`
+    and `/assert` had a limiter that any caller could step around by rotating
+    one header, while `/scan`, `/trends` and `/listing` were keyed correctly.
+    Two implementations was the whole bug.
+    """
+    xff = request.headers.get("x-forwarded-for", "")
+    if xff:
+        return xff.split(",")[-1].strip()[:64] or "unknown"
+    return request.client.host if request.client else "unknown"
 
 log = logging.getLogger("snapworth.ratelimit")
 

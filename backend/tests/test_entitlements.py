@@ -46,7 +46,15 @@ PRODUCTS = {"com.snapworth.monthly", "com.snapworth.yearly"}
 
 # ── Helpers: build a locally-signed JWS mimicking Apple's shape ──────────────
 
-def _make_cert(subject_name, issuer_name, subject_key, issuer_key, ca=False):
+def _make_cert(subject_name, issuer_name, subject_key, issuer_key, ca=False,
+               purpose_oid=None):
+    """Build one certificate.
+
+    `purpose_oid` adds the marker extension Apple puts on its App Store signing
+    certificates. The contents are irrelevant — both Apple's verifier and ours
+    check only that the extension is *present* — so an empty value is a
+    faithful stand-in.
+    """
     now = dt.datetime.now(dt.timezone.utc)
     builder = (
         x509.CertificateBuilder()
@@ -59,16 +67,29 @@ def _make_cert(subject_name, issuer_name, subject_key, issuer_key, ca=False):
     )
     if ca:
         builder = builder.add_extension(x509.BasicConstraints(True, None), critical=True)
+    if purpose_oid is not None:
+        builder = builder.add_extension(
+            x509.UnrecognizedExtension(x509.ObjectIdentifier(purpose_oid), b""),
+            critical=False)
     return builder.sign(issuer_key, hashes.SHA256())
 
 
-def build_chain():
+def build_chain(leaf_purpose=entitlements.LEAF_PURPOSE_OID,
+                intermediate_purpose=entitlements.INTERMEDIATE_PURPOSE_OID):
+    """A three-certificate chain shaped like Apple's.
+
+    The purpose OIDs are parameters so a test can build a chain that is
+    otherwise perfect but carries the wrong marker — the case the extension
+    check exists for, and the one an Apple Pay leaf would present.
+    """
     root_key = ec.generate_private_key(ec.SECP256R1())
     inter_key = ec.generate_private_key(ec.SECP256R1())
     leaf_key = ec.generate_private_key(ec.SECP256R1())
     root = _make_cert("Test Root", "Test Root", root_key, root_key, ca=True)
-    inter = _make_cert("Test Intermediate", "Test Root", inter_key, root_key, ca=True)
-    leaf = _make_cert("Test Leaf", "Test Intermediate", leaf_key, inter_key)
+    inter = _make_cert("Test Intermediate", "Test Root", inter_key, root_key,
+                       ca=True, purpose_oid=intermediate_purpose)
+    leaf = _make_cert("Test Leaf", "Test Intermediate", leaf_key, inter_key,
+                      purpose_oid=leaf_purpose)
     return leaf_key, [leaf, inter, root]
 
 
@@ -176,7 +197,7 @@ class TestVerifySignedTransactionRejects:
     def test_missing_chain_rejected(self):
         leaf_key = ec.generate_private_key(ec.SECP256R1())
         jws = pyjwt.encode(valid_payload(), leaf_key, algorithm="ES256")
-        with pytest.raises(EntitlementError, match="incomplete"):
+        with pytest.raises(EntitlementError, match="three"):
             verify_signed_transaction(jws, BUNDLE_ID, PRODUCTS)
 
     def test_tampered_payload_rejected(self, pinned_root):
@@ -640,6 +661,71 @@ class TestChainConstraints:
         jws = make_jws(valid_payload(), leaf_key, chain)
         with pytest.raises(EntitlementError, match="malformed"):
             verify_signed_transaction(jws, BUNDLE_ID, PRODUCTS)
+
+    @pytest.mark.parametrize("length", [0, 1, 2, 4, 24])
+    def test_chain_must_be_exactly_three(self, length, pinned_root):
+        """Length is bounded before any certificate is parsed.
+
+        `_verify_chain` does work proportional to the list the caller sent — a
+        validity check per certificate and an ECDSA verification per adjacent
+        pair — and `/apple/notifications` cannot be authenticated.
+
+        `verify_apple_jws` already caps the whole JWS at 16,384 characters,
+        which holds a chain to roughly twenty-five certificates: the
+        amplification was about eightfold, not unbounded. 24 is the largest
+        length that still fits under that cap, so it is the case that
+        distinguishes this check from the one already there — a longer chain
+        is rejected by the size cap and proves nothing about this bound.
+        """
+        leaf_key, chain = pinned_root
+        # Pad by repeating the intermediate: the padding is well-formed, so a
+        # rejection can only come from the length check itself.
+        stretched = (chain[:1] + [chain[1]] * max(0, length - 2) + chain[-1:])[:length]
+        x5c = [base64.b64encode(c.public_bytes(serialization.Encoding.DER)).decode()
+               for c in stretched]
+        jws = pyjwt.encode(valid_payload(), leaf_key, algorithm="ES256",
+                           headers={"x5c": x5c})
+        with pytest.raises(EntitlementError, match="three"):
+            verify_signed_transaction(jws, BUNDLE_ID, PRODUCTS)
+
+    def test_leaf_without_the_app_store_purpose_oid_rejected(self, monkeypatch):
+        """The case root pinning alone cannot catch.
+
+        Apple Root CA G3 also anchors branches that issue P-256 leaves to
+        enrolled developers who hold the private key — an Apple Pay
+        payment-processing certificate being the plainest example. Such a leaf
+        satisfies every other property this module checks, so without the
+        purpose extension its holder could sign their own `transactionId` and
+        be granted Pro.
+        """
+        leaf_key, chain = build_chain(leaf_purpose="1.2.840.113635.100.6.38.7")
+        monkeypatch.setattr(entitlements, "APPLE_ROOT_CA_G3_PEM",
+                            chain[-1].public_bytes(serialization.Encoding.PEM))
+        jws = make_jws(valid_payload(), leaf_key, chain)
+        with pytest.raises(EntitlementError,
+                           match="leaf is not an App Store signing"):
+            verify_signed_transaction(jws, BUNDLE_ID, PRODUCTS)
+
+    def test_intermediate_without_the_wwdr_purpose_oid_rejected(self, monkeypatch):
+        leaf_key, chain = build_chain(intermediate_purpose=None)
+        monkeypatch.setattr(entitlements, "APPLE_ROOT_CA_G3_PEM",
+                            chain[-1].public_bytes(serialization.Encoding.PEM))
+        jws = make_jws(valid_payload(), leaf_key, chain)
+        with pytest.raises(EntitlementError,
+                           match="intermediate is not an App Store signing"):
+            verify_signed_transaction(jws, BUNDLE_ID, PRODUCTS)
+
+    def test_the_pinned_oids_are_apple_s(self):
+        """Guards the one thing the generated-certificate tests cannot.
+
+        Every chain above is built by this file, so it would satisfy whatever
+        OID string `entitlements` happened to name — a typo would pass the
+        suite and reject every genuine transaction in production, taking Pro
+        away from all paying users at once. These two literals are transcribed
+        from apple/app-store-server-library-python.
+        """
+        assert entitlements.LEAF_PURPOSE_OID == "1.2.840.113635.100.6.11.1"
+        assert entitlements.INTERMEDIATE_PURPOSE_OID == "1.2.840.113635.100.6.2.1"
 
 
 # ── Device binding cap ───────────────────────────────────────────────────────
