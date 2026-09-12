@@ -1220,7 +1220,7 @@ final class WidgetScansLeftTests: XCTestCase {
     }
 
     func test_anUnwrittenCountIsUnknownRatherThanZero() {
-        let state = haul(remaining: nil).scansLeft
+        let state = haul(remaining: nil).scansLeft(at: .now)
         XCTAssertEqual(state, .unknown)
         XCTAssertEqual(state.headline, "—")
         XCTAssertEqual(state.circularValue, "—")
@@ -1230,13 +1230,13 @@ final class WidgetScansLeftTests: XCTestCase {
     func test_anUnknownCountIsNeverPaintedAsSpent() {
         // `isSpent` drives the terracotta accent. Firing it here tells someone
         // with a full allowance that they are out of scans.
-        XCTAssertFalse(haul(remaining: nil).scansLeft.isSpent)
+        XCTAssertFalse(haul(remaining: nil).scansLeft(at: .now).isSpent)
     }
 
     func test_theEmptyBlobIsUnknown() {
         // What `WidgetReader.readHaul()` returns before the app has ever run,
         // and after any decode failure.
-        XCTAssertEqual(WidgetHaulData.empty.scansLeft, .unknown)
+        XCTAssertEqual(WidgetHaulData.empty.scansLeft(at: .now), .unknown)
     }
 
     func test_aBlobFromTheOldAppIsUnknown() throws {
@@ -1246,16 +1246,16 @@ final class WidgetScansLeftTests: XCTestCase {
              "updatedAt":768000000}
             """.data(using: .utf8)!
         let decoded = try JSONDecoder().decode(WidgetHaulData.self, from: v1)
-        XCTAssertEqual(decoded.scansLeft, .unknown)
+        XCTAssertEqual(decoded.scansLeft(at: .now), .unknown)
     }
 
     func test_anUnknownCountIsNotSpokenAsZero() {
-        XCTAssertEqual(haul(remaining: nil).scansLeft.spoken,
+        XCTAssertEqual(haul(remaining: nil).scansLeft(at: .now).spoken,
                        "Scan count not available yet. Open SnapWorth.")
     }
 
     func test_aSpentAllowanceStillReadsAsSpent() {
-        let state = haul(remaining: 0).scansLeft
+        let state = haul(remaining: 0).scansLeft(at: .now)
         XCTAssertEqual(state, .remaining(0))
         XCTAssertEqual(state.headline, "0")
         XCTAssertEqual(state.subtitle, "Back tomorrow, or go Pro")
@@ -1264,18 +1264,18 @@ final class WidgetScansLeftTests: XCTestCase {
     }
 
     func test_oneScanIsSingular() {
-        let state = haul(remaining: 1).scansLeft
+        let state = haul(remaining: 1).scansLeft(at: .now)
         XCTAssertEqual(state.subtitle, "free scan left today")
         XCTAssertEqual(state.spoken, "1 free scan left today")
         XCTAssertFalse(state.isSpent)
     }
 
     func test_severalScansArePlural() {
-        XCTAssertEqual(haul(remaining: 3).scansLeft.subtitle, "free scans left today")
+        XCTAssertEqual(haul(remaining: 3).scansLeft(at: .now).subtitle, "free scans left today")
     }
 
     func test_proCarriesTheStreakInsteadOfACount() {
-        let state = haul(isPro: true, remaining: nil, streak: 5).scansLeft
+        let state = haul(isPro: true, remaining: nil, streak: 5).scansLeft(at: .now)
         XCTAssertEqual(state, .pro(streak: 5))
         XCTAssertEqual(state.headline, "5-day streak")
         XCTAssertEqual(state.subtitle, "Keep it going")
@@ -1284,7 +1284,7 @@ final class WidgetScansLeftTests: XCTestCase {
     }
 
     func test_proWithoutAStreakSaysSoPlainly() {
-        let state = haul(isPro: true, streak: 0).scansLeft
+        let state = haul(isPro: true, streak: 0).scansLeft(at: .now)
         XCTAssertEqual(state.headline, "Pro")
         XCTAssertEqual(state.subtitle, "Unlimited scans")
         XCTAssertEqual(state.circularValue, "∞")
@@ -1293,7 +1293,7 @@ final class WidgetScansLeftTests: XCTestCase {
     func test_proWinsOverAStaleCount() {
         // A lapse-and-resubscribe can leave a count in the blob; entitlement
         // decides what the widget says, not the leftover number.
-        XCTAssertEqual(haul(isPro: true, remaining: 0, streak: 2).scansLeft,
+        XCTAssertEqual(haul(isPro: true, remaining: 0, streak: 2).scansLeft(at: .now),
                        .pro(streak: 2))
     }
 }
@@ -1363,5 +1363,233 @@ final class WidgetRecentRowsTests: XCTestCase {
         let rows = haul(itemCount: 8, lastName: "Patagonia Fleece",
                         lastRange: "$60–$95", finds: finds).recentRows(limit: 4)
         XCTAssertEqual(rows.map(\.name), ["Levi's 501"])
+    }
+}
+
+// ── Freshness: three snapshots that outlived the period they described ───────
+//
+// The free-scan count is scoped to a UTC day, the streak to a local day, the
+// month's profit to a local month — and all three were stored as bare numbers
+// that the extension cannot recompute: `FreeScanCounter` and `ScanStreak` live
+// in `UserDefaults.standard`, not the App Group, and the ledger is in
+// SwiftData. The providers emitted one entry dated `.now` with a blind hourly
+// policy, so every refresh re-read the same frozen number and the correction
+// waited for the app to be launched.
+
+final class WidgetFreshnessTests: XCTestCase {
+
+    private func utc(_ year: Int, _ month: Int, _ day: Int, _ hour: Int = 12) -> Date {
+        var cal = Calendar(identifier: .gregorian)
+        cal.timeZone = TimeZone(secondsFromGMT: 0) ?? .gmt
+        return cal.date(from: DateComponents(year: year, month: month,
+                                             day: day, hour: hour))!
+    }
+
+    private func haul(updatedAt: Date,
+                      remaining: Int? = nil,
+                      allowance: Int? = nil,
+                      isPro: Bool = false,
+                      streak: Int = 0,
+                      streakLastScan: Date? = nil,
+                      monthProfit: Double? = nil,
+                      monthFlips: Int = 0) -> WidgetHaulData {
+        WidgetHaulData(totalLow: 0, totalHigh: 0, itemCount: 1,
+                       lastItemName: "Levi's 501", lastItemRange: "$40–$70",
+                       updatedAt: updatedAt, freeScansRemaining: remaining,
+                       isPro: isPro, streak: streak, recentFinds: [],
+                       monthProfit: monthProfit, monthFlips: monthFlips,
+                       streakLastScan: streakLastScan, freeScanAllowance: allowance)
+    }
+
+    // ── The allowance resets on the server's UTC day ─────────────────────────
+
+    func test_aSpentAllowanceStaysSpentWithinItsOwnDay() {
+        let state = haul(updatedAt: utc(2026, 9, 12, 1), remaining: 0, allowance: 1)
+            .scansLeft(at: utc(2026, 9, 12, 23))
+        XCTAssertEqual(state, .remaining(0))
+    }
+
+    func test_aSpentAllowanceComesBackAfterTheUTCReset() {
+        // A free user in UTC-7 spends their scan at 18:00 UTC Friday. The
+        // server resets at 00:00 UTC Saturday. The widget kept reading "0 —
+        // Back tomorrow, or go Pro" for the whole of Saturday and beyond.
+        let state = haul(updatedAt: utc(2026, 9, 11, 18), remaining: 0, allowance: 1)
+            .scansLeft(at: utc(2026, 9, 12, 2))
+        XCTAssertEqual(state, .remaining(1))
+        XCTAssertFalse(state.isSpent, "still pointing a user with a scan at the paywall")
+        XCTAssertEqual(state.subtitle, "free scan left today")
+    }
+
+    func test_anAgedBlobWithNoStoredAllowanceIsUnknownRatherThanZero() {
+        // A v2 blob carries the count but not the allowance. Unknown is the
+        // honest answer; zero is the one that sends someone to the paywall.
+        let state = haul(updatedAt: utc(2026, 9, 11, 18), remaining: 0, allowance: nil)
+            .scansLeft(at: utc(2026, 9, 12, 2))
+        XCTAssertEqual(state, .unknown)
+        XCTAssertFalse(state.isSpent)
+    }
+
+    func test_theQuotaDayIsTheServersNotThePhones() {
+        // 23:30 and 00:30 UTC are different allowance days however the phone
+        // is set — this is the UTC-vs-local bug `FreeScanCounter` already
+        // fixed on the app side, arrived at from the widget's direction.
+        let blob = haul(updatedAt: utc(2026, 9, 11, 23), remaining: 0, allowance: 1)
+        XCTAssertTrue(blob.quotaIsCurrent(at: utc(2026, 9, 11, 23)))
+        XCTAssertFalse(blob.quotaIsCurrent(at: utc(2026, 9, 12, 0)))
+    }
+
+    // ── The streak lapses on a local day ─────────────────────────────────────
+
+    func test_aStreakScannedTodayStands() {
+        let now = utc(2026, 9, 12, 12)
+        XCTAssertEqual(haul(updatedAt: now, streak: 5, streakLastScan: now)
+                        .liveStreak(at: now), 5)
+    }
+
+    func test_aStreakScannedYesterdayStillStands() {
+        // Matches `ScanStreak.current()`: today *or* yesterday keeps it alive.
+        let now = utc(2026, 9, 12, 12)
+        let yesterday = Calendar.current.date(byAdding: .day, value: -1, to: now)!
+        XCTAssertEqual(haul(updatedAt: yesterday, streak: 5, streakLastScan: yesterday)
+                        .liveStreak(at: now), 5)
+    }
+
+    func test_aStreakOlderThanYesterdayIsGone() {
+        // A 5-day streak, last scan Friday, read on Sunday: the app itself
+        // would compute 0, and the Lock Screen kept showing 5 all weekend.
+        let now = utc(2026, 9, 13, 12)
+        let friday = Calendar.current.date(byAdding: .day, value: -2, to: now)!
+        XCTAssertEqual(haul(updatedAt: friday, streak: 5, streakLastScan: friday)
+                        .liveStreak(at: now), 0)
+    }
+
+    func test_aStreakFromABlobWithNoDateIsTakenAtFaceValue() {
+        // A v2 blob has no `streakLastScan`. Showing a possibly-stale streak
+        // for one launch beats blanking a real one.
+        let now = utc(2026, 9, 12, 12)
+        XCTAssertEqual(haul(updatedAt: now, streak: 4, streakLastScan: nil)
+                        .liveStreak(at: now), 4)
+    }
+
+    func test_aLapsedStreakTakesTheProHeadlineWithIt() {
+        let now = utc(2026, 9, 13, 12)
+        let friday = Calendar.current.date(byAdding: .day, value: -2, to: now)!
+        let state = haul(updatedAt: friday, isPro: true, streak: 5,
+                         streakLastScan: friday).scansLeft(at: now)
+        XCTAssertEqual(state, .pro(streak: 0))
+        XCTAssertEqual(state.headline, "Pro", "a streak the user has lost")
+    }
+
+    // ── The month's profit belongs to one month ──────────────────────────────
+
+    func test_thisMonthsProfitSurvivesInsideItsMonth() {
+        let written = utc(2026, 9, 5, 12)
+        let later = utc(2026, 9, 28, 12)
+        let blob = haul(updatedAt: written, isPro: true, monthProfit: 214, monthFlips: 6)
+        XCTAssertEqual(blob.monthProfit(at: later) ?? 0, 214, accuracy: 0.01)
+        XCTAssertEqual(blob.monthFlips(at: later), 6)
+    }
+
+    func test_thisMonthsProfitDoesNotFollowTheUserIntoNextMonth() {
+        // Sold six items in September for $214, last opened the app on the
+        // 28th. On 3 October the widget read "$214 · from 6 flips" under a
+        // header saying "This month", while the Flips screen showed $0.
+        let written = utc(2026, 9, 28, 12)
+        let october = Calendar.current.date(byAdding: .month, value: 1, to: written)!
+        let blob = haul(updatedAt: written, isPro: true, monthProfit: 214, monthFlips: 6)
+        XCTAssertNil(blob.monthProfit(at: october))
+        XCTAssertEqual(blob.monthFlips(at: october), 0,
+                       "\"$0 from 6 flips\" is worse than either half alone")
+    }
+
+    func test_theProfitAndTheFlipCountExpireTogether() {
+        let written = utc(2026, 9, 28, 12)
+        let october = Calendar.current.date(byAdding: .month, value: 1, to: written)!
+        let blob = haul(updatedAt: written, isPro: true, monthProfit: 214, monthFlips: 6)
+        XCTAssertEqual(blob.monthProfit(at: october) == nil,
+                       blob.monthFlips(at: october) == 0)
+    }
+
+    // ── The timeline has to carry an entry at each boundary ──────────────────
+
+    func test_everyBoundaryIsInTheFuture() {
+        let now = utc(2026, 9, 12, 12)
+        let dates = WidgetHaulData.refreshBoundaries(after: now)
+        XCTAssertFalse(dates.isEmpty)
+        for date in dates { XCTAssertGreaterThan(date, now) }
+    }
+
+    func test_boundariesAreSortedAndUnique() {
+        // At UTC+0 the server day and the local day are the same instant, and
+        // a duplicated entry date is not something WidgetKit should be handed.
+        let now = utc(2026, 9, 12, 12)
+        let dates = WidgetHaulData.refreshBoundaries(after: now)
+        XCTAssertEqual(dates, dates.sorted())
+        XCTAssertEqual(dates.count, Set(dates).count)
+    }
+
+    func test_theNextServerMidnightIsAlwaysScheduled() {
+        let now = utc(2026, 9, 12, 12)
+        let dates = WidgetHaulData.refreshBoundaries(after: now)
+        XCTAssertTrue(dates.contains(utc(2026, 9, 13, 0)),
+                      "nothing scheduled where the allowance actually resets")
+    }
+
+    func test_aMonthEndIsScheduledWhenItIsNear() {
+        let now = utc(2026, 9, 29, 12)
+        let dates = WidgetHaulData.refreshBoundaries(after: now)
+        let local = Calendar.current
+        let nextMonth = local.dateInterval(of: .month, for: now)!.end
+        XCTAssertTrue(dates.contains(nextMonth))
+    }
+
+    func test_noBoundaryIsMoreThanAMonthOut() {
+        // A timeline entry a year away is not a refresh, it is a leak.
+        let now = utc(2026, 9, 12, 12)
+        let limit = Calendar.current.date(byAdding: .day, value: 32, to: now)!
+        for date in WidgetHaulData.refreshBoundaries(after: now) {
+            XCTAssertLessThanOrEqual(date, limit)
+        }
+    }
+}
+
+// ── The thrift run's stale date ──────────────────────────────────────────────
+//
+// `staleDate` flips `context.isStale`; it does not dim anything by itself, and
+// for a while a comment in the controller claimed it did — which is why no
+// view read the flag. The date also has to sit inside the run: a scan late in
+// a long run was pushing it past the point at which `update` ends the run,
+// so the Activity would never declare itself stale before being killed.
+
+final class ThriftRunStaleDateTests: XCTestCase {
+
+    private let start = Date(timeIntervalSince1970: 1_757_000_000)
+
+    @MainActor
+    func test_theStaleDateIsNinetyMinutesFromTheLastUpdate() {
+        let now = start.addingTimeInterval(10 * 60)
+        XCTAssertEqual(
+            ThriftRunController.staleDate(now: now, startedAt: start),
+            now.addingTimeInterval(ThriftRunController.staleAfter))
+    }
+
+    @MainActor
+    func test_theStaleDateNeverOutlivesTheRun() {
+        // A scan at 7h55m would otherwise set it to 9h25m, past the 8-hour cap
+        // at which `update` ends the run.
+        let lateScan = start.addingTimeInterval(7 * 60 * 60 + 55 * 60)
+        let stale = ThriftRunController.staleDate(now: lateScan, startedAt: start)
+        XCTAssertEqual(stale,
+                       start.addingTimeInterval(ThriftRunController.maximumRunDuration))
+        XCTAssertLessThan(stale, lateScan.addingTimeInterval(ThriftRunController.staleAfter))
+    }
+
+    @MainActor
+    func test_aFreshRunGoesStaleLongBeforeItIsEnded() {
+        XCTAssertLessThan(ThriftRunController.staleAfter,
+                          ThriftRunController.maximumRunDuration,
+                          "a run would be killed before it ever declared itself stale")
+        XCTAssertEqual(ThriftRunController.staleDate(now: start, startedAt: start),
+                       start.addingTimeInterval(ThriftRunController.staleAfter))
     }
 }

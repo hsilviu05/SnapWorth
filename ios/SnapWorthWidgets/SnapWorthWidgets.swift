@@ -60,6 +60,26 @@ struct WidgetHaulData: Codable, Equatable {
     var monthProfit: Double?
     var monthFlips: Int
 
+    // v3 — added 1.4.0, before release
+    //
+    // Three things above are scoped to a period and were stored as bare
+    // numbers: the free-scan count (a UTC day), the streak (a local day), and
+    // the month's profit (a local month). The extension cannot recompute any
+    // of them — `FreeScanCounter` and `ScanStreak` live in
+    // `UserDefaults.standard`, not the App Group, and the ledger is in
+    // SwiftData — and the providers' hourly refresh just re-read the same
+    // frozen number. So each one outlived the period it described: a spent
+    // allowance stayed spent past the reset, a lapsed streak kept showing, and
+    // September's profit carried into October under a header reading "This
+    // month". These two fields plus `updatedAt` are what let the widget tell.
+    /// The day the streak was last extended. `ScanStreak.current()` returns 0
+    /// once that is older than yesterday; without the date the widget has no
+    /// way to apply the same test.
+    var streakLastScan: Date?
+    /// The full daily allowance, so a count that has aged out of its UTC day
+    /// can render the number actually available rather than nothing.
+    var freeScanAllowance: Int?
+
     static let empty = WidgetHaulData(
         totalLow: 0, totalHigh: 0, itemCount: 0,
         lastItemName: "", lastItemRange: "", updatedAt: .distantPast,
@@ -104,12 +124,14 @@ struct WidgetHaulData: Codable, Equatable {
     private enum CodingKeys: String, CodingKey {
         case totalLow, totalHigh, itemCount, lastItemName, lastItemRange, updatedAt
         case freeScansRemaining, isPro, streak, recentFinds, monthProfit, monthFlips
+        case streakLastScan, freeScanAllowance
     }
 
     init(totalLow: Double, totalHigh: Double, itemCount: Int,
          lastItemName: String, lastItemRange: String, updatedAt: Date,
          freeScansRemaining: Int?, isPro: Bool, streak: Int,
-         recentFinds: [WidgetFind], monthProfit: Double?, monthFlips: Int) {
+         recentFinds: [WidgetFind], monthProfit: Double?, monthFlips: Int,
+         streakLastScan: Date? = nil, freeScanAllowance: Int? = nil) {
         self.totalLow = totalLow
         self.totalHigh = totalHigh
         self.itemCount = itemCount
@@ -122,6 +144,8 @@ struct WidgetHaulData: Codable, Equatable {
         self.recentFinds = recentFinds
         self.monthProfit = monthProfit
         self.monthFlips = monthFlips
+        self.streakLastScan = streakLastScan
+        self.freeScanAllowance = freeScanAllowance
     }
 
     init(from decoder: Decoder) throws {
@@ -140,6 +164,8 @@ struct WidgetHaulData: Codable, Equatable {
         recentFinds = try c.decodeIfPresent([WidgetFind].self, forKey: .recentFinds) ?? []
         monthProfit = try c.decodeIfPresent(Double.self, forKey: .monthProfit)
         monthFlips = try c.decodeIfPresent(Int.self, forKey: .monthFlips) ?? 0
+        streakLastScan = try c.decodeIfPresent(Date.self, forKey: .streakLastScan)
+        freeScanAllowance = try c.decodeIfPresent(Int.self, forKey: .freeScanAllowance)
     }
 }
 
@@ -248,11 +274,6 @@ extension WidgetHaulData {
         case unknown
     }
 
-    var scansLeft: ScansLeft {
-        if isPro { return .pro(streak: streak) }
-        guard let left = freeScansRemaining else { return .unknown }
-        return .remaining(left)
-    }
 }
 
 extension WidgetHaulData.ScansLeft {
@@ -299,6 +320,116 @@ extension WidgetHaulData.ScansLeft {
     /// True only when the count is known and spent — the view paints terracotta
     /// here, which reads as "you are out" and must not fire on `.unknown`.
     var isSpent: Bool { self == .remaining(0) }
+}
+
+// ── Freshness ────────────────────────────────────────────────────────────────
+//
+// A widget renders an entry, and an entry has a date. Everything below asks
+// whether a stored number still describes the period it was written for, using
+// that date rather than `Date.now` — so the answer is the same whether it is
+// computed for a timeline entry scheduled at a boundary or for a test.
+
+extension WidgetHaulData {
+    /// A UTC calendar, matching `FreeScanCounter.isServerToday`.
+    ///
+    /// The allowance resets on the server's day, not the phone's — `quota.py`
+    /// counts UTC days — so the widget has to ask the same question the app
+    /// asks, not a local-midnight approximation of it.
+    static var serverCalendar: Calendar {
+        var utc = Calendar(identifier: .gregorian)
+        utc.timeZone = TimeZone(secondsFromGMT: 0) ?? .gmt
+        return utc
+    }
+
+    /// Whether `freeScansRemaining` still describes the day `now` falls in.
+    func quotaIsCurrent(at now: Date) -> Bool {
+        Self.serverCalendar.isDate(updatedAt, inSameDayAs: now)
+    }
+
+    /// The streak as the app would compute it: the stored count if the last
+    /// scan was today or yesterday, else zero. Mirrors `ScanStreak.current()`,
+    /// including its use of the *local* calendar — the streak is a habit, and a
+    /// habit is kept in the timezone you live in, unlike the allowance.
+    ///
+    /// A blob written before `streakLastScan` existed has no date to test
+    /// against, so its count is taken at face value: showing a possibly-stale
+    /// streak for one launch is better than blanking a real one.
+    func liveStreak(at now: Date) -> Int {
+        guard streak > 0 else { return 0 }
+        guard let last = streakLastScan else { return streak }
+        let calendar = Calendar.current
+        if calendar.isDate(last, inSameDayAs: now) { return streak }
+        guard let yesterday = calendar.date(byAdding: .day, value: -1, to: now) else {
+            return streak
+        }
+        return calendar.isDate(last, inSameDayAs: yesterday) ? streak : 0
+    }
+
+    /// Whether `monthProfit` still describes the month `now` falls in. The
+    /// figure is labelled "This month" in the widget, so once this is false the
+    /// label is a false claim and the number has to go.
+    func monthIsCurrent(at now: Date) -> Bool {
+        Calendar.current.isDate(updatedAt, equalTo: now, toGranularity: .month)
+    }
+
+    /// The month's profit, or nil once the month it belongs to has ended.
+    func monthProfit(at now: Date) -> Double? {
+        guard monthIsCurrent(at: now) else { return nil }
+        return monthProfit
+    }
+
+    /// The flip count behind `monthProfit(at:)`, zeroed on the same boundary so
+    /// the two cannot disagree — "$0 from 6 flips" is worse than either alone.
+    func monthFlips(at now: Date) -> Int {
+        monthIsCurrent(at: now) ? monthFlips : 0
+    }
+
+    /// What the "Scans left" widget is looking at, as of `now`.
+    func scansLeft(at now: Date) -> ScansLeft {
+        if isPro { return .pro(streak: liveStreak(at: now)) }
+        guard let left = freeScansRemaining else { return .unknown }
+        guard quotaIsCurrent(at: now) else {
+            // The allowance has reset since this was written, and the app has
+            // not run to record a scan against the new day — so the whole
+            // allowance is available. Saying so beats both the stale zero and
+            // an em dash.
+            guard let allowance = freeScanAllowance, allowance > 0 else { return .unknown }
+            return .remaining(allowance)
+        }
+        return .remaining(left)
+    }
+
+    /// The instants at which one of the snapshots above stops being true.
+    ///
+    /// The providers emitted a single entry dated `.now` with a blind hourly
+    /// `.after` policy, so every refresh re-read the same frozen numbers and
+    /// nothing was scheduled where they actually expire. A timeline entry at
+    /// each boundary makes the correction happen without the app running.
+    ///
+    /// Three boundaries, because the three values are scoped differently: the
+    /// next UTC midnight (the allowance), the next local midnight (the streak),
+    /// and the start of the next local month (the profit). Deduplicated,
+    /// because for anyone at UTC+0 the first two are the same instant.
+    static func refreshBoundaries(after now: Date) -> [Date] {
+        var dates: [Date] = []
+
+        let utc = serverCalendar
+        if let nextServerDay = utc.date(byAdding: .day, value: 1,
+                                        to: utc.startOfDay(for: now)) {
+            dates.append(nextServerDay)
+        }
+
+        let local = Calendar.current
+        if let nextLocalDay = local.date(byAdding: .day, value: 1,
+                                         to: local.startOfDay(for: now)) {
+            dates.append(nextLocalDay)
+        }
+        if let nextMonth = local.dateInterval(of: .month, for: now)?.end {
+            dates.append(nextMonth)
+        }
+
+        return Set(dates.filter { $0 > now }).sorted()
+    }
 }
 
 // ── Pending action ───────────────────────────────────────────────────────────

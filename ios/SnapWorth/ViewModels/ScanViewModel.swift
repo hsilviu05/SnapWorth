@@ -220,6 +220,15 @@ enum ScanStreak {
         return 0
     }
 
+    /// The day the streak was last extended, for the widget blob.
+    ///
+    /// The widget cannot call `current()` — this store is in
+    /// `UserDefaults.standard`, not the App Group — so it needs the date to
+    /// apply the same today-or-yesterday test itself.
+    static var lastScan: Date? {
+        UserDefaults.standard.object(forKey: lastKey) as? Date
+    }
+
     /// Whether a scan has been recorded today — any tier, so the reminder
     /// logic does not depend on the free counter.
     static func scannedToday(now: Date = Date(), defaults: UserDefaults = .standard,

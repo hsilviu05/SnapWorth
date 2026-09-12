@@ -2566,7 +2566,11 @@ final class WidgetEntitlementTests: XCTestCase {
         WidgetDataStore.writeHaul(results: [], isPro: true)
         XCTAssertNil(try readBack().freeScansRemaining,
                      "a subscriber was handed a free-scan count")
-        XCTAssertEqual(try readBack().scansLeft, .pro(streak: 0))
+        // The case, not the payload: the streak in the blob depends on whatever
+        // the shared `ScanStreak` store holds when this test runs.
+        if case .pro = try readBack().scansLeft(at: .now) {} else {
+            XCTFail("a subscriber is not in the Pro state")
+        }
 
         WidgetDataStore.writeHaul(results: [], isPro: false)
         XCTAssertNotNil(try readBack().freeScansRemaining)

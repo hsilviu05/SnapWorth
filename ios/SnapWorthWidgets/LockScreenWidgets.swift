@@ -30,9 +30,16 @@ struct LockScreenProvider: TimelineProvider {
         // Same cadence as the Home Screen widgets: the app calls
         // `reloadAllTimelines()` after every scan, so this hourly refresh only
         // has to cover the case where nothing happened.
-        let next = Calendar.current.date(byAdding: .hour, value: 1, to: .now)!
-        completion(Timeline(entries: [LockScreenEntry(date: .now, haul: WidgetReader.readHaul())],
-                            policy: .after(next)))
+        // Plus an entry at each instant a stored snapshot expires — the
+        // streak is the one that matters here, and it lapses at a local
+        // midnight the hourly policy knows nothing about.
+        let now = Date.now
+        let haul = WidgetReader.readHaul()
+        let entries = [LockScreenEntry(date: now, haul: haul)]
+            + WidgetHaulData.refreshBoundaries(after: now)
+                .map { LockScreenEntry(date: $0, haul: haul) }
+        let next = Calendar.current.date(byAdding: .hour, value: 1, to: now)!
+        completion(Timeline(entries: entries, policy: .after(next)))
     }
 }
 
@@ -84,6 +91,15 @@ struct LockScreenCircularView: View {
 
 struct LockScreenRectangularView: View {
     let haul: WidgetHaulData
+    /// The timeline entry's date. `streak` is a snapshot the app took, and
+    /// `ScanStreak.current()` would return 0 once the last scan is older than
+    /// yesterday — a test the widget can only run if it knows when "now" is.
+    /// Without it, a 5-day streak kept reading "12 finds · 5-day streak" on
+    /// the Lock Screen all weekend.
+    let now: Date
+
+    /// Zero once the streak has lapsed, whatever the stored count says.
+    private var streak: Int { haul.liveStreak(at: now) }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 1) {
@@ -99,8 +115,8 @@ struct LockScreenRectangularView: View {
                     .minimumScaleFactor(0.6)
                     .lineLimit(1)
 
-                Text(haul.streak > 1
-                     ? "\(haul.findsLabel) · \(haul.streak)-day streak"
+                Text(streak > 1
+                     ? "\(haul.findsLabel) · \(streak)-day streak"
                      : haul.findsLabel)
                     .font(.system(size: 12))
             } else {
@@ -144,7 +160,7 @@ struct LockScreenHaulEntryView: View {
         case .accessoryInline:
             LockScreenInlineView(haul: entry.haul)
         case .accessoryRectangular:
-            LockScreenRectangularView(haul: entry.haul)
+            LockScreenRectangularView(haul: entry.haul, now: entry.date)
         default:
             LockScreenCircularView(haul: entry.haul)
         }

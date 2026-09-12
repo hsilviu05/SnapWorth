@@ -17,9 +17,22 @@ enum ThriftRunController {
     /// Activity should not still be there the next morning claiming to be live.
     static let maximumRunDuration: TimeInterval = 8 * 60 * 60
 
-    /// After this the system dims the Activity, signalling "this may be out of
-    /// date" without the app having to be woken to say so.
+    /// After this the Activity's `context.isStale` flips true, and the views
+    /// render a last-known state instead of a live one.
+    ///
+    /// The system does *not* dim it for you — an earlier comment here said it
+    /// did, which is why nothing read `isStale` for a while and an abandoned
+    /// run kept looking live with its timer climbing past the 8-hour cap.
+    /// `staleDate` sets a flag; presenting it is the widget's job.
     static let staleAfter: TimeInterval = 90 * 60
+
+    /// When the Activity should declare itself out of date, never later than
+    /// the moment `update` would end the run — otherwise a scan at 7h55m would
+    /// push the stale date to 9h25m, past a run the app already considers over.
+    static func staleDate(now: Date, startedAt: Date) -> Date {
+        min(now.addingTimeInterval(staleAfter),
+            startedAt.addingTimeInterval(maximumRunDuration))
+    }
 
     static var current: Activity<ThriftRunAttributes>? {
         Activity<ThriftRunAttributes>.activities.first
@@ -44,7 +57,7 @@ enum ThriftRunController {
             _ = try Activity.request(
                 attributes: attributes,
                 content: ActivityContent(state: .empty,
-                                         staleDate: now.addingTimeInterval(staleAfter)),
+                                         staleDate: staleDate(now: now, startedAt: now)),
                 pushType: nil)
             return true
         } catch {
@@ -92,6 +105,6 @@ enum ThriftRunController {
 
         await activity.update(
             ActivityContent(state: state,
-                            staleDate: now.addingTimeInterval(staleAfter)))
+                            staleDate: staleDate(now: now, startedAt: startedAt)))
     }
 }
