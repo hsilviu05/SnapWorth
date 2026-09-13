@@ -39,7 +39,8 @@ struct SettingsView: View {
                             vm.openURL("https://apps.apple.com/account/subscriptions")
                         }
                     }
-                    SettingsRow(icon: "arrow.clockwise", label: "Restore purchases") {
+                    SettingsRow(icon: "arrow.clockwise", label: "Restore purchases",
+                                isBusy: vm.isRestoring) {
                         Task { await vm.restorePurchases(service: purchaseService) }
                     }
                 }
@@ -191,18 +192,23 @@ struct SettingsView: View {
         .sheet(isPresented: $showPaywall) {
             PaywallView(purchaseService: purchaseService, trigger: .settings)
         }
-        .alert("Restore purchases", isPresented: $vm.showRestoreAlert) {
+        .alert(vm.noticeTitle, isPresented: $vm.showNotice) {
             Button("OK", role: .cancel) {}
         } message: {
-            Text(vm.restoreMessage ?? "")
+            Text(vm.noticeMessage)
         }
         .alert("Clear history?", isPresented: $showDeleteAlert) {
             Button("Delete all", role: .destructive) {
                 do {
                     try ScanRepository(context: modelContext).deleteAll(results)
                 } catch {
-                    vm.restoreMessage = AppError.from(error).errorDescription
-                    vm.showRestoreAlert = true
+                    // Titled for what actually failed. This reused the restore
+                    // alert's state, so a storage error arrived under the
+                    // heading "Restore purchases" — telling the user their
+                    // purchases could not be restored when what failed was
+                    // deleting their scans.
+                    vm.report("Couldn't clear history",
+                              AppError.from(error).errorDescription ?? "")
                 }
             }
             Button("Cancel", role: .cancel) {}
@@ -305,6 +311,10 @@ private struct SettingsRow: View {
     let icon: String
     let label: String
     var destructive: Bool = false
+    /// Work is running behind this row. Nothing here had a busy state, so
+    /// "Restore purchases" — which can sit on `AppStore.sync()` for seconds
+    /// with a system sign-in sheet over it — read as a button that did nothing.
+    var isBusy: Bool = false
     let action: () -> Void
 
     var body: some View {
@@ -321,14 +331,24 @@ private struct SettingsRow: View {
                     .foregroundStyle(destructive ? Color.red : Color.snapEspresso)
 
                 Spacer()
+
+                if isBusy {
+                    ProgressView()
+                        .controlSize(.small)
+                }
             }
             .frame(minHeight: 44)
         }
+        .disabled(isBusy)
         // SwiftUI has no destructive accessibility trait (unlike UIKit), and
         // red text conveys nothing to VoiceOver — so the warning goes in the
         // hint, where it is spoken before the user activates the control.
         .accessibilityLabel(label)
         .accessibilityAddTraits(.isButton)
         .accessibilityHint(destructive ? "This cannot be undone" : "")
+        // The spinner is `accessibilityHidden` by default and the row is
+        // disabled, which VoiceOver announces as "dimmed" — true but not
+        // informative. This says which of the two it is.
+        .accessibilityValue(isBusy ? "In progress" : "")
     }
 }

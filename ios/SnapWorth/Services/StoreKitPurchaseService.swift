@@ -93,9 +93,38 @@ final class StoreKitPurchaseService: PurchaseService, ObservableObject {
         }
     }
 
+    /// The restore in flight, so a second tap joins it instead of starting a
+    /// second `AppStore.sync()`.
+    ///
+    /// `sync()` can take seconds and can put a system sign-in sheet on screen.
+    /// Nothing in the app disabled the Settings row while it ran, so the
+    /// natural response to a slow network — tap it again — ran two overlapping
+    /// syncs and potentially two sign-in prompts, with whichever finished last
+    /// overwriting the message. Now the second caller awaits the first and both
+    /// report the same outcome.
+    private var restoreTask: Task<Void, Error>?
+
     func restorePurchases() async throws {
+        if let restoreTask { return try await restoreTask.value }
+        let task = Task { @MainActor in try await self.performRestore() }
+        restoreTask = task
+        defer { restoreTask = nil }
+        try await task.value
+    }
+
+    private func performRestore() async throws {
         do {
             try await AppStore.sync()
+        } catch StoreKitError.userCancelled {
+            // Dismissing the App Store sign-in sheet is a decision, not a
+            // failure, and it was being reported as one: the raw StoreKit
+            // string went straight through `PurchaseError.failed` to
+            // `AppError.purchaseFailed`, whose `errorDescription` returns the
+            // message verbatim, and the paywall rendered it in red. The
+            // purchase path has always distinguished the two (`.userCancelled`
+            // → `PurchaseError.cancelled`, whose `AppError` maps to a nil
+            // description so nothing is shown); restore simply never did.
+            throw PurchaseError.cancelled
         } catch {
             throw PurchaseError.failed(error.localizedDescription)
         }
@@ -122,7 +151,29 @@ final class StoreKitPurchaseService: PurchaseService, ObservableObject {
         await loadProducts()
     }
 
+    /// The product fetch in flight, so overlapping callers share one result.
+    ///
+    /// `loadProducts` writes `pricingFailed` unconditionally on resume, and two
+    /// callers overlap by construction: `init` starts one, and the paywall's
+    /// `.task` starts another via `reloadProducts()` whenever pricing has not
+    /// arrived — which is exactly the window in which the init fetch is still
+    /// running. Last writer won, whichever result was better: a cold launch on
+    /// flaky cellular could show correct, purchasable price cards with
+    /// "Couldn't load every plan. Try again" above them, and the mirror case —
+    /// a late success clearing a real failure while the cards still read "—" —
+    /// is worse. Joining the fetch in flight removes the race rather than
+    /// ordering it.
+    private var loadTask: Task<Void, Never>?
+
     private func loadProducts() async {
+        if let loadTask { return await loadTask.value }
+        let task = Task { @MainActor in await self.performLoad() }
+        loadTask = task
+        defer { loadTask = nil }
+        await task.value
+    }
+
+    private func performLoad() async {
         // `isPricingLoaded` used to be set unconditionally, so a failed fetch
         // looked exactly like a finished one: the redaction lifted, the price
         // cards read "—" forever, and the CTA sat there inert with nothing

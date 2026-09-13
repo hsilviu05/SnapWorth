@@ -3780,3 +3780,149 @@ final class WidgetSyncDebounceTests: XCTestCase {
                       "a second repository could not see the first one's task")
     }
 }
+
+// ── Declining to sign in is not a failure ────────────────────────────────────
+//
+// `restorePurchases` wrapped everything `AppStore.sync()` threw into
+// `PurchaseError.failed`, whose `AppError.purchaseFailed` returns the message
+// verbatim — so dismissing the App Store sign-in sheet put a raw StoreKit
+// string in red above the plan cards, for a user who simply chose not to sign
+// in. The purchase path has always separated the two; restore never did.
+//
+// `MockPurchaseService` cannot fail, so these use a stub that can.
+
+@MainActor
+private final class RestoreStub: PurchaseService {
+    var isSubscribed: Bool = false
+    var restoreError: Error?
+    private(set) var restoreCalls = 0
+
+    func purchase(productID: String) async throws -> PurchaseOutcome { .completed }
+
+    func restorePurchases() async throws {
+        restoreCalls += 1
+        if let restoreError { throw restoreError }
+    }
+}
+
+final class RestoreCancellationTests: XCTestCase {
+
+    // ── The paywall ──────────────────────────────────────────────────────
+
+    @MainActor
+    func test_aCancelledRestoreShowsNothingRed() async {
+        let vm = PaywallViewModel()
+        let stub = RestoreStub()
+        stub.restoreError = PurchaseError.cancelled
+
+        await vm.restore(service: stub)
+
+        XCTAssertNil(vm.errorMessage, "the user declined; nothing failed")
+        XCTAssertNil(vm.pendingMessage)
+        XCTAssertFalse(vm.isPurchaseComplete)
+        XCTAssertFalse(vm.isRestoring)
+    }
+
+    @MainActor
+    func test_aRealRestoreFailureStillSpeaksUp() async {
+        // The other half: suppressing cancellation must not suppress errors.
+        let vm = PaywallViewModel()
+        let stub = RestoreStub()
+        stub.restoreError = PurchaseError.failed("The network connection was lost.")
+
+        await vm.restore(service: stub)
+
+        XCTAssertEqual(vm.errorMessage, "The network connection was lost.")
+    }
+
+    @MainActor
+    func test_thePaywallRestoreIsGuardedLikeItsPurchase() async {
+        // `purchase` has carried this guard all along; `restore` did not, and
+        // it is the path that can put a system sign-in sheet on screen.
+        let vm = PaywallViewModel()
+        let stub = RestoreStub()
+
+        vm.isRestoring = true
+        await vm.restore(service: stub)
+        XCTAssertEqual(stub.restoreCalls, 0, "a second tap started a second restore")
+
+        vm.isRestoring = false
+        vm.isPurchasing = true
+        await vm.restore(service: stub)
+        XCTAssertEqual(stub.restoreCalls, 0, "restore ran during a purchase")
+    }
+
+    // ── Settings ─────────────────────────────────────────────────────────
+
+    @MainActor
+    func test_settingsSaysNothingWhenTheUserDeclinesToSignIn() async {
+        // `AppError.purchaseCancelled.errorDescription` is nil, so alerting
+        // here would put an empty alert on screen — the failure mode the
+        // cancellation fix creates if this path is left alone.
+        let vm = SettingsViewModel()
+        let stub = RestoreStub()
+        stub.restoreError = PurchaseError.cancelled
+
+        await vm.restorePurchases(service: stub)
+
+        XCTAssertFalse(vm.showNotice)
+        XCTAssertFalse(vm.isRestoring)
+    }
+
+    @MainActor
+    func test_settingsReportsARealFailureUnderTheRightHeading() async {
+        let vm = SettingsViewModel()
+        let stub = RestoreStub()
+        stub.restoreError = PurchaseError.failed("Could not connect to the App Store.")
+
+        await vm.restorePurchases(service: stub)
+
+        XCTAssertTrue(vm.showNotice)
+        XCTAssertEqual(vm.noticeTitle, "Restore purchases")
+        XCTAssertEqual(vm.noticeMessage, "Could not connect to the App Store.")
+    }
+
+    @MainActor
+    func test_settingsReportsBothOutcomesOfASuccessfulSync() async {
+        let none = SettingsViewModel()
+        await none.restorePurchases(service: RestoreStub())
+        XCTAssertEqual(none.noticeMessage, "No active subscription found.")
+
+        let found = SettingsViewModel()
+        let stub = RestoreStub()
+        stub.isSubscribed = true
+        await found.restorePurchases(service: stub)
+        XCTAssertEqual(found.noticeMessage, "Your subscription has been restored.")
+        XCTAssertEqual(found.noticeTitle, "Restore purchases")
+    }
+
+    @MainActor
+    func test_theSettingsRowCannotStartTwoRestores() async {
+        // `isRestoring` was set and cleared and read nowhere, so the row gave
+        // no feedback at all — and tapping again, which is what a user does
+        // when a tap looks ignored, started a second `AppStore.sync()`.
+        let vm = SettingsViewModel()
+        let stub = RestoreStub()
+
+        vm.isRestoring = true
+        await vm.restorePurchases(service: stub)
+
+        XCTAssertEqual(stub.restoreCalls, 0)
+    }
+
+    // ── One alert, titled for what it is about ───────────────────────────
+
+    @MainActor
+    func test_theTitleTravelsWithTheMessage() async {
+        // Clearing history used to fail into `restoreMessage` + the alert
+        // titled "Restore purchases", so a storage error told the user their
+        // purchases could not be restored. The title is now part of what a
+        // caller reports.
+        let vm = SettingsViewModel()
+        vm.report("Couldn't clear history", "Could not save your scan. Please try again.")
+
+        XCTAssertTrue(vm.showNotice)
+        XCTAssertEqual(vm.noticeTitle, "Couldn't clear history")
+        XCTAssertNotEqual(vm.noticeTitle, "Restore purchases")
+    }
+}
