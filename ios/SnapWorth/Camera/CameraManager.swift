@@ -314,7 +314,11 @@ final class PreviewUIView: UIView {
 }
 
 // MARK: - Error
-enum CameraError: LocalizedError {
+// `Equatable` is declared rather than left to synthesis: ScanView observes
+// `cameraManager.error` with `onChange(of:)`, whose generic constraint needs
+// it, and an enum's automatic conformance is easy to lose the moment someone
+// adds an associated value to one of these cases.
+enum CameraError: LocalizedError, Equatable {
     case setupFailed
     case captureFailed
     case permissionDenied

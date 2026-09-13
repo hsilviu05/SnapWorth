@@ -151,6 +151,18 @@ final class ScanViewModel {
             // purchase_started. A quota refusal counted as a scan failure both
             // undercounts the limit hits and inflates the failures.
             if appError.isPaywall {
+                // The server has refused: there is nothing left today,
+                // whatever the local count believes. The success path a
+                // hundred lines up already reconciles against
+                // `response.freeScansRemaining` — "prefer it over our own
+                // arithmetic, which is based on a compiled-in limit" — and
+                // this path, the one where the two demonstrably disagree, did
+                // not write anything at all. So the counter went on
+                // advertising a scan the server had already refused: the top
+                // bar said "1 left", the next tap spent a paid model call to
+                // arrive at the same paywall, and `hasFreeScanRemaining` let
+                // Thrift Flip through on the same false premise.
+                FreeScanCounter.serverRemaining = 0
                 Analytics.shared.track(.freeScanLimitHit)
                 paywallTrigger = .scanLimit
                 showPaywall = true
