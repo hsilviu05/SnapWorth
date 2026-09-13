@@ -1094,6 +1094,87 @@ class TestSharingAlertOnMigration:
             "stored under a prefix the client cannot forge — no colon in the pattern"
         assert "%064x" % 4 not in bindings
 
+    @pytest.mark.asyncio
+    async def test_a_zero_cap_disables_detection_instead_of_every_purchase(
+            self, pinned_root, alerts, caplog):
+        """0 means "do not detect", not "the tightest cap expressible".
+
+        `.env.example` calls this "a *detection* threshold, not an
+        authorisation boundary", so an operator who wants the sharing alert off
+        sets it to 0 — the same thing `SAFETY_BLOCKS_BEFORE_PAUSE <= 0` does in
+        main.py. What used to happen instead: on a first-ever binding
+        `len({}) >= 0` is true, `min({})` raised ValueError, and that is
+        outside both try blocks in `_bind_device` and outside the
+        `EntitlementError` the endpoint catches — so /auth/entitlement answered
+        500 for every subscriber, recording no entitlement and storing no
+        proof, on every retry until the variable was changed back.
+
+        Note what this test does NOT do: assert `max(1, ...)`. Clamping reads
+        "stop detecting" as "evict on every second device", which is further
+        from the operator's intent than the crash was.
+        """
+        from cache import InMemoryCache, ResilientCache
+        service = EntitlementService(
+            ResilientCache(None, InMemoryCache()), BUNDLE_ID, PRODUCTS, max_devices=0)
+        leaf_key, chain = pinned_root
+        jws = make_jws(valid_payload(), leaf_key, chain)
+
+        # The first purchase on an empty record — the exact case that raised.
+        await service.record("d" * 64, jws, device_id="8F1C2A3E-0000-4000-8000-000000000001")
+        # And several more, to show nothing is evicted at any size.
+        for n in range(2, 6):
+            await service.record("d" * 64, jws,
+                                 device_id="8F1C2A3E-0000-4000-8000-00000000000%d" % n)
+
+        bindings = json.loads(await service._cache.get("txn:2000000000000001"))
+        assert len(bindings) == 5, "with detection off, nothing is evicted"
+        assert alerts == [], "and nothing is reported"
+
+    @pytest.mark.asyncio
+    async def test_the_eviction_log_reports_the_count_not_the_cap(
+            self, pinned_root, alerts, caplog):
+        """`devices` used to be `self._max_devices` — the same value as `max`.
+
+        Every line ever emitted read `devices=N max=N`, so the one figure that
+        tells a household sitting at the limit apart from twenty strangers
+        churning through it was never recorded at all.
+
+        Seeded deliberately ABOVE the cap: five bindings with the cap at three,
+        which is what an operator lowering `MAX_DEVICES_PER_SUBSCRIPTION` from
+        6 leaves behind. My first attempt at this test seeded exactly three at
+        a cap of three, and the mutant that logs the cap passed it — the two
+        numbers coincide at the boundary, which is the whole reason the defect
+        went unnoticed. It also shows something the honest count makes visible
+        and the old line hid: each record evicts exactly one and adds exactly
+        one, so a record already over the cap stays over it.
+        """
+        import logging
+        from cache import InMemoryCache, ResilientCache
+        service = EntitlementService(
+            ResilientCache(None, InMemoryCache()), BUNDLE_ID, PRODUCTS, max_devices=3)
+        leaf_key, chain = pinned_root
+        jws = make_jws(valid_payload(), leaf_key, chain)
+        now = int(time.time())
+        await service._cache.set("txn:2000000000000001", json.dumps({
+            "8F1C2A3E-0000-4000-8000-00000000000%d" % n: now - (40 - n) * 3600
+            for n in range(1, 6)
+        }))
+
+        with caplog.at_level(logging.INFO, logger="snapworth.entitlements"):
+            await service.record(
+                "d" * 64, jws, device_id="8F1C2A3E-0000-4000-8000-000000000009")
+
+        evictions = [r for r in caplog.records
+                     if r.getMessage() == "device binding evicted to make room"]
+        assert len(evictions) == 1
+        assert evictions[0].devices == 5, "five hold the subscription"
+        assert evictions[0].max == 3, "and the cap is three — reported separately"
+        assert evictions[0].devices != evictions[0].max, \
+            "the two must be able to differ, or neither is worth logging"
+
+        bindings = json.loads(await service._cache.get("txn:2000000000000001"))
+        assert len(bindings) == 5
+
     def test_identity_kinds_are_distinguishable(self):
         assert entitlements._is_legacy_subject("0f" * 32)
         assert not entitlements._is_legacy_subject("8F1C2A3E-0000-4000-8000-000000000001")

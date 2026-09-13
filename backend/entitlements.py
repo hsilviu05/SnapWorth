@@ -757,15 +757,39 @@ class EntitlementService:
         bindings = {s: t for s, t in bindings.items()
                     if now - t < DEVICE_BINDING_IDLE_SECONDS}
 
-        if identity not in bindings and len(bindings) >= self._max_devices:
+        # `> 0` because this is a *detection* threshold and 0 means "do not
+        # detect" — the same reading `SAFETY_BLOCKS_BEFORE_PAUSE <= 0` gets in
+        # main.py, and the one `.env.example` invites: "a *detection*
+        # threshold, not an authorisation boundary". Without it, an operator
+        # who set 0 to turn the sharing alert off broke every purchase
+        # instead: `len({}) >= 0` is true on a first-ever binding, so
+        # `min({})` raised ValueError, which is outside both try blocks here
+        # and outside the `EntitlementError` the endpoint catches — a 500 on
+        # /auth/entitlement for every subscriber, with no entitlement recorded
+        # and no proof stored, on every retry until the variable changed back.
+        #
+        # Clamping the constant to `max(1, …)` instead — which is what the
+        # audit entry proposed — would read an operator's "stop detecting" as
+        # the tightest cap the system can express, evicting on every second
+        # device. That is further from the intent than the crash was.
+        if (self._max_devices > 0
+                and identity not in bindings
+                and len(bindings) >= self._max_devices):
             evicted = min(bindings, key=lambda s: bindings[s])
             idle_seconds = now - bindings.pop(evicted)
             # Worth seeing: on a genuinely shared subscription this is steady
             # churn, which is the signal the cap exists to surface. A short idle
             # time means the evicted device is still in use — real sharing —
             # while a long one is just a device that was replaced.
+            #
+            # `devices` is the count *after* the eviction plus the one about to
+            # be written, which is the number actually holding the
+            # subscription. It used to be `self._max_devices` — the same value
+            # as `max` on every line ever emitted — so the one figure that
+            # distinguishes a household at the limit from twenty strangers
+            # churning through it was never recorded.
             log.info("device binding evicted to make room", extra={
-                "devices": self._max_devices, "max": self._max_devices,
+                "devices": len(bindings) + 1, "max": self._max_devices,
                 "idle_seconds": idle_seconds})
             # Only a *device* being pushed out is a sharing signal. A record
             # written before iOS 1.3.4 holds one per-install attest subject
