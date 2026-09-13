@@ -6,12 +6,24 @@ only surface as a red CI run five minutes later — the ones that come from
 writing Swift with another language's reflexes.
 
 **What it cannot catch**, stated plainly so it is not mistaken for a compiler:
-anything that needs type or isolation information. Actor isolation is the
-obvious one — calling a `@MainActor` member from a synchronous nonisolated
-test is a hard error and looks perfectly ordinary to a text scanner; that
-happened on the commit right after this file was added. So is availability,
-overload resolution, and whether a `nonisolated static let` is permitted on a
-global-actor-isolated type. For those, CI is still the compiler.
+anything that needs type information. Availability, overload resolution, and
+whether a `nonisolated static let` is permitted on a global-actor-isolated
+type. For those, CI is still the compiler.
+
+Actor isolation was on that list, and one *shape* of it has since come off:
+a test method that is neither `@MainActor` itself nor inside a `@MainActor`
+class, touching a member of a type this repo declares `@MainActor`. That does
+not need type inference — only the declarations, which are in these files — and
+it is by some distance the most expensive mistake here, having cost three CI
+cycles. The general case is still out of reach: isolation that arrives through
+a protocol, a closure's inherited context, or a type declared outside this
+repo, none of which a text scan can see.
+
+The rule below is deliberately narrow, and every exclusion in it earned its
+place by producing a false positive on code that compiles: members declared
+`nonisolated`, nested type names reached through their parent, anything inside
+a string literal (a source-scanning test naming a file is not a call), and
+anything preceded by `await` (an async test hopping to the actor is correct).
 
 The array-literal rule below has a matching blind spot worth naming: it sees
 `[1.0, 6, 24 * 3]` because every element is a literal or an arithmetic
@@ -131,12 +143,126 @@ def check(path: Path) -> list[str]:
     return problems
 
 
+# ── Actor isolation, the one case a text scan can reach ──────────────────────
+#
+# The docstring above says isolation needs type information, and it does in
+# general. One shape does not: a test method that is neither `@MainActor` itself
+# nor inside a `@MainActor` class, calling a member of a type this repo declares
+# `@MainActor`. That is a hard error — "call to main actor-isolated ... in a
+# synchronous nonisolated context" — and it has now cost three CI cycles.
+#
+# Everything here is deliberately conservative. A name is only flagged when the
+# type is declared `@MainActor` *in this repo*, the member is not declared
+# `nonisolated` anywhere, and the member is not itself a type name. Each of
+# those exclusions exists because leaving it out produced a false positive on
+# code that compiles today.
+TYPE_DECL = re.compile(
+    r"^\s*(?:public\s+|internal\s+|private\s+|fileprivate\s+|final\s+)*"
+    r"(?:class|struct|enum|actor)\s+([A-Z]\w*)")
+ATTRIBUTE = re.compile(r"^\s*@\w+")
+NONISOLATED_MEMBER = re.compile(
+    r"\bnonisolated\b[^\n]*?\b(?:func|var|let)\s+([a-zA-Z_]\w*)")
+TEST_FUNC = re.compile(r"^\s*func\s+(test\w*)\s*\(")
+CLASS_DECL = re.compile(r"^\s*(?:final\s+)?class\s+(\w*Tests)\b")
+STRING_LITERAL = re.compile(r'"(?:[^"\\\\]|\\\\.)*"')
+
+
+def isolation_facts(files: list[Path]) -> tuple[set[str], set[str], set[str]]:
+    """Main-actor types, names that are safe to touch anyway, and all type names."""
+    isolated: set[str] = set()
+    exempt: set[str] = set()
+    all_types: set[str] = set()
+    for path in files:
+        if "Tests" in path.name:
+            continue
+        lines = path.read_text(encoding="utf-8").split("\n")
+        pending_main_actor = False
+        for line in lines:
+            match = TYPE_DECL.match(line)
+            if match:
+                all_types.add(match.group(1))
+                if pending_main_actor:
+                    isolated.add(match.group(1))
+                pending_main_actor = False
+                continue
+            if ATTRIBUTE.match(line):
+                if line.strip().startswith("@MainActor"):
+                    pending_main_actor = True
+                continue
+            if line.strip():
+                pending_main_actor = False
+        exempt.update(NONISOLATED_MEMBER.findall("\n".join(lines)))
+    return isolated, exempt, all_types
+
+
+def check_actor_isolation(files: list[Path]) -> list[str]:
+    isolated, exempt, all_types = isolation_facts(files)
+    if not isolated:
+        return []
+    problems = []
+    for path in files:
+        if "Tests" not in path.name:
+            continue
+        lines = path.read_text(encoding="utf-8").split("\n")
+        skip = raw_string_spans(lines)
+        class_is_isolated = False
+        pending_main_actor = False
+        for i, line in enumerate(lines):
+            stripped = line.strip()
+            if CLASS_DECL.match(line):
+                class_is_isolated = pending_main_actor
+                pending_main_actor = False
+                continue
+            test = TEST_FUNC.match(line)
+            if test:
+                if class_is_isolated or pending_main_actor:
+                    pending_main_actor = False
+                    continue
+                pending_main_actor = False
+                body = []
+                for later in lines[i + 1:]:
+                    if later.rstrip() == "    }":
+                        break
+                    body.append(later)
+                # String literals are stripped first: a source-scanning test
+                # naming "ViewModels/ResultViewModel.swift" is not a call.
+                text = STRING_LITERAL.sub('""', "\n".join(body))
+                for type_name in isolated:
+                    for hit in re.finditer(
+                            rf"\b{type_name}\s*(?:\.\s*(\w+)|\()", text):
+                        name = hit.group(1) or "init"
+                        if name in exempt or name in all_types:
+                            continue
+                        # `await MockPurchaseService()` from an async test hops
+                        # to the actor and is correct.
+                        if "await" in text[max(0, hit.start() - 12):hit.start()]:
+                            continue
+                        problems.append(
+                            f"{path}:{i + 1}: {test.group(1)} touches "
+                            f"{type_name}.{name}, and {type_name} is @MainActor "
+                            f"— mark the test or its class @MainActor"
+                        )
+                        break
+                    else:
+                        continue
+                    break
+                continue
+            if ATTRIBUTE.match(line):
+                if stripped.startswith("@MainActor"):
+                    pending_main_actor = True
+                continue
+            if stripped and i not in skip:
+                pending_main_actor = False
+    return problems
+
+
 def main(argv: list[str]) -> int:
     roots = [Path(a) for a in argv[1:]] or [Path("ios")]
     files: list[Path] = []
     for root in roots:
         files.extend([root] if root.is_file() else sorted(root.rglob("*.swift")))
     problems = [p for f in files for p in check(f)]
+    problems += check_actor_isolation(files)
     for problem in problems:
         print(problem)
     print(f"{len(files)} files checked, {len(problems)} problem(s)")

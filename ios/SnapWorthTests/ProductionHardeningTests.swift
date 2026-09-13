@@ -4296,6 +4296,10 @@ final class BearerRetryStructureTests: XCTestCase {
 
 // ── Copy that describes the wrong thing ──────────────────────────────────────
 
+// `@MainActor` because `SettingsViewModel` is: a static on a main-actor
+// isolated type is isolated too, and calling it from a synchronous nonisolated
+// test is a hard error that no text scan can see.
+@MainActor
 final class SettingsCopyTests: XCTestCase {
 
     func test_oneScanIsNotPluralised() {
