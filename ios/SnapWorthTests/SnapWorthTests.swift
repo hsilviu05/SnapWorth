@@ -1913,6 +1913,80 @@ final class WidgetFreshnessTests: XCTestCase {
     }
 }
 
+// ── A Control Centre press nobody came forward to collect ────────────────────
+//
+// The intent writes its request into the App Group because it cannot post a
+// navigation notification and be heard — on a cold start nothing is listening
+// yet. Nothing aged the request out: the writer stored no time, the reader
+// returned whatever was there, and nothing clears the key on background. A
+// press the app never drained — a launch the system killed, a phone locked on
+// the way out of a pocket, a mind changed — waited in the App Group until the
+// next launch, whenever that was, and then opened the camera for a tap from
+// days ago.
+//
+// `isFresh` is the decision, split out from `takePendingAction` so it can be
+// asked without an App Group, the way `hasExpired` is split from `endIfExpired`.
+
+final class WidgetPendingActionTests: XCTestCase {
+
+    private let pressed = Date(timeIntervalSince1970: 1_757_000_000)
+
+    func test_aPressIsActedOnWhileTheAppIsStillComingUp() {
+        // The case the hand-off exists for: the intent writes, the app
+        // launches, the scene appears and drains it seconds later.
+        for seconds in [0.0, 0.3, 2, 10, 60] {
+            XCTAssertTrue(
+                WidgetBridge.isFresh(requested: pressed,
+                                     now: pressed.addingTimeInterval(seconds)),
+                "\(seconds)s is still the same press")
+        }
+    }
+
+    func test_thePressIsStillGoodAtExactlyTheWindow() {
+        let ttl = WidgetBridge.pendingActionTTL
+        XCTAssertTrue(
+            WidgetBridge.isFresh(requested: pressed,
+                                 now: pressed.addingTimeInterval(ttl)))
+        XCTAssertFalse(
+            WidgetBridge.isFresh(requested: pressed,
+                                 now: pressed.addingTimeInterval(ttl + 1)))
+    }
+
+    func test_aPressFromDaysAgoDoesNotOpenTheCamera() {
+        // The defect itself. Someone presses the button, the launch dies, and
+        // the app is next opened on Thursday — straight into the camera, for
+        // a thing they were standing in front of on Monday.
+        for hours in [1.0, 6, 24, 24 * 3] {
+            XCTAssertFalse(
+                WidgetBridge.isFresh(requested: pressed,
+                                     now: pressed.addingTimeInterval(hours * 3600)),
+                "\(hours)h later is not the press the user made")
+        }
+    }
+
+    func test_aClockThatMovedBackwardsDropsThePress() {
+        // Timezone change, NTP correction, a user setting the date by hand.
+        // The age is then meaningless rather than small, so it is not treated
+        // as a press made a moment ago.
+        XCTAssertFalse(
+            WidgetBridge.isFresh(requested: pressed,
+                                 now: pressed.addingTimeInterval(-1)))
+        XCTAssertFalse(
+            WidgetBridge.isFresh(requested: pressed,
+                                 now: pressed.addingTimeInterval(-3600)))
+    }
+
+    func test_theWindowOutlastsAColdLaunchWithoutOutlastingTheErrand() {
+        // Bounds rather than the number: long enough that a slow cold start
+        // never loses a real press, short enough that it cannot survive the
+        // walk to the next shop.
+        XCTAssertGreaterThanOrEqual(WidgetBridge.pendingActionTTL, 60,
+                                    "a slow cold launch would lose the press")
+        XCTAssertLessThanOrEqual(WidgetBridge.pendingActionTTL, 15 * 60,
+                                 "long enough to reopen the camera for a forgotten press")
+    }
+}
+
 // ── The thrift run's stale date ──────────────────────────────────────────────
 //
 // `staleDate` flips `context.isStale`; it does not dim anything by itself, and

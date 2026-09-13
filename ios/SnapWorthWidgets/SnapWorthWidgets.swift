@@ -533,24 +533,61 @@ extension WidgetBridge {
     /// the tap is silently swallowed. Leaving the request here instead lets the
     /// app drain it when it is ready, cold start or resume alike.
     static let pendingActionKey = "snapworth.widget.pendingAction"
+    /// When the waiting action was asked for. Written with it, read with it.
+    static let pendingActionDateKey = "snapworth.widget.pendingActionDate"
+
+    /// How long a waiting tap stays worth acting on.
+    ///
+    /// A tap is an instruction about *now* — "open the camera, I am standing
+    /// in front of something". Nothing aged one out: the writer stored no
+    /// time, the reader returned whatever was there regardless, and nothing
+    /// clears the key on background. So a press the app never came forward to
+    /// drain — a launch the system killed, a phone locked on the way out of a
+    /// pocket, a mind changed — sat in the App Group until the next launch,
+    /// whenever that was, and then opened the camera for a tap from days ago.
+    ///
+    /// Five minutes is far longer than any real hand-off (a cold launch is
+    /// seconds) and far shorter than "later today".
+    static let pendingActionTTL: TimeInterval = 5 * 60
 
     enum PendingAction: String {
         case scan
     }
 
-    static func request(_ action: PendingAction) {
-        UserDefaults(suiteName: appGroupID)?
-            .set(action.rawValue, forKey: pendingActionKey)
+    static func request(_ action: PendingAction, now: Date = Date()) {
+        guard let suite = UserDefaults(suiteName: appGroupID) else { return }
+        suite.set(action.rawValue, forKey: pendingActionKey)
+        suite.set(now, forKey: pendingActionDateKey)
     }
 
-    /// The waiting action, if any. Clears it, so a tap is acted on once —
-    /// re-reading on every foreground would otherwise reopen the camera every
-    /// time the user came back to the app.
-    static func takePendingAction() -> PendingAction? {
+    /// The waiting action, if any, and only while it is still fresh. Clears it
+    /// either way, so a tap is acted on once — re-reading on every foreground
+    /// would otherwise reopen the camera every time the user came back.
+    static func takePendingAction(now: Date = Date()) -> PendingAction? {
         guard let suite = UserDefaults(suiteName: appGroupID),
               let raw = suite.string(forKey: pendingActionKey) else { return nil }
+        let requested = suite.object(forKey: pendingActionDateKey) as? Date
         suite.removeObject(forKey: pendingActionKey)
+        suite.removeObject(forKey: pendingActionDateKey)
+        // No date means a request written by a build from before this key
+        // existed. Its age is unknowable, so it is dropped rather than acted
+        // on — losing one tap across one upgrade, against reopening the camera
+        // for an arbitrarily old one.
+        guard let requested, isFresh(requested: requested, now: now) else { return nil }
         return PendingAction(rawValue: raw)
+    }
+
+    /// Whether a request written at `requested` is still worth acting on.
+    ///
+    /// Pure, so the window is testable without an App Group — the same split
+    /// `flashMode` and `hasExpired` use.
+    ///
+    /// A negative age means the clock moved backwards between the write and
+    /// the read, which makes the age meaningless rather than small. Dropped
+    /// for the same reason an undated one is.
+    static func isFresh(requested: Date, now: Date) -> Bool {
+        let age = now.timeIntervalSince(requested)
+        return age >= 0 && age <= pendingActionTTL
     }
 }
 
