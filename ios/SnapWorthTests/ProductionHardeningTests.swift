@@ -3709,3 +3709,74 @@ final class CertificatePinningSPKITests: XCTestCase {
         XCTAssertEqual(Array(spki.prefix(4)), [0x30, 0x76, 0x30, 0x10])
     }
 }
+
+// ── A fixed delay is not a debounce ──────────────────────────────────────────
+//
+// `scheduleWidgetSync` waited 600ms and then did a full-history fetch, a blob
+// write and `reloadAllTimelines()`. Every mutation started its own detached
+// task, so clearing a twenty-item history ran that twenty times, 600ms apart,
+// with nineteen of the results identical to the last. The comment on it said
+// "debounce"; nothing cancelled anything.
+//
+// The pending task is `static` for a reason worth a test of its own: a
+// repository is built per call site as a local, so an instance property could
+// never see the previous call's task.
+
+@MainActor
+final class WidgetSyncDebounceTests: XCTestCase {
+
+    private func repository() throws -> ScanRepository {
+        let config = ModelConfiguration(isStoredInMemoryOnly: true)
+        let container = try ModelContainer(for: ScanResult.self, configurations: config)
+        return ScanRepository(context: ModelContext(container))
+    }
+
+    /// Nothing here should outlive its test: the work sleeps 600ms and the
+    /// test returns long before that. Written as a `defer` in each test rather
+    /// than a `tearDown()` override — `XCTestCase.tearDown()` is nonisolated,
+    /// and overriding it from a `@MainActor` class is an isolation mismatch.
+    private func cancelPendingSync() { ScanRepository.widgetSync?.cancel() }
+
+    func test_theSecondRequestCancelsTheFirst() throws {
+        defer { cancelPendingSync() }
+        let repo = try repository()
+        repo.refreshWidget()
+        let first = try XCTUnwrap(ScanRepository.widgetSync)
+        XCTAssertFalse(first.isCancelled)
+
+        repo.refreshWidget()
+        XCTAssertTrue(first.isCancelled,
+                      "the earlier sync was left to run — that is the defect")
+        let second = try XCTUnwrap(ScanRepository.widgetSync)
+        XCTAssertFalse(second.isCancelled, "the newest request must survive")
+    }
+
+    func test_aBurstLeavesExactlyOneSyncStanding() throws {
+        defer { cancelPendingSync() }
+        let repo = try repository()
+        var started: [Task<Void, Never>] = []
+        for _ in 0..<20 {
+            repo.refreshWidget()
+            started.append(try XCTUnwrap(ScanRepository.widgetSync))
+        }
+        let live = started.filter { !$0.isCancelled }
+        XCTAssertEqual(live.count, 1, "twenty deletions must not mean twenty syncs")
+        XCTAssertEqual(live.first, ScanRepository.widgetSync)
+    }
+
+    func test_repositoriesBuiltPerCallSiteStillCancelEachOther() throws {
+        defer { cancelPendingSync() }
+        // The reason the pending task is `static`. `HistoryView.repository` is
+        // a computed property, so a delete and the refresh after it go through
+        // two different `ScanRepository` values; an instance property would
+        // make the cancellation a no-op and every caller would be back to its
+        // own timer.
+        let a = try repository()
+        let b = try repository()
+        a.refreshWidget()
+        let fromA = try XCTUnwrap(ScanRepository.widgetSync)
+        b.refreshWidget()
+        XCTAssertTrue(fromA.isCancelled,
+                      "a second repository could not see the first one's task")
+    }
+}

@@ -136,17 +136,6 @@ final class ScanRepository {
         return (try? context.fetchCount(descriptor)) ?? 0
     }
 
-    /// Recomputes the widget's haul summary, off the presentation path.
-    ///
-    /// The aggregate genuinely needs every record, so running it synchronously
-    /// inside `save` put an O(history) main-actor fetch directly in the way of
-    /// the result sheet's presentation animation. Deferring lets the sheet
-    /// settle first; a widget has no latency requirement.
-    ///
-    /// Captures the `ModelContext`, not `self`. Repositories are constructed
-    /// per call site as locals (`ScanRepository(context: modelContext)`), so a
-    /// `[weak self]` capture would be nil by the time this ran and the widget
-    /// would silently stop updating. The context outlives the repository.
     /// Re-sync the widget after something other than an insert or a delete
     /// changed a value.
     ///
@@ -157,10 +146,50 @@ final class ScanRepository {
         scheduleWidgetSync()
     }
 
+    /// The sync waiting to run, so the next one can cancel it.
+    ///
+    /// `static`, and that is the whole point rather than an oversight: a
+    /// repository is constructed per call site as a local
+    /// (`ScanRepository(context: modelContext)` — `HistoryView.repository` is
+    /// a *computed* property, so even one view makes a new one every time), so
+    /// an instance property could never see the previous call's task and the
+    /// cancellation would be a no-op. The class is `@MainActor`, so this is
+    /// main-actor state: there is no race to guard.
+    ///
+    /// Readable from the tests — `private(set)` — because cancellation is the
+    /// whole behaviour and there is nothing else to observe: the work itself
+    /// writes to the App Group, which a test host has no access to.
+    private(set) static var widgetSync: Task<Void, Never>?
+
+    /// Recomputes the widget's haul summary, off the presentation path,
+    /// coalescing a burst of mutations into one write.
+    ///
+    /// The aggregate genuinely needs every record, so running it synchronously
+    /// inside `save` put an O(history) main-actor fetch directly in the way of
+    /// the result sheet's presentation animation. Deferring lets the sheet
+    /// settle first; a widget has no latency requirement.
+    ///
+    /// The delay alone was not a debounce, though the comment here called it
+    /// one. Each call started its own detached `Task`, so clearing a
+    /// twenty-item history ran twenty full-history fetches, twenty blob writes
+    /// and twenty `reloadAllTimelines()` calls 600ms apart — nineteen of them
+    /// computing a result identical to the last. Cancelling the pending task
+    /// is what makes the delay do what it claimed.
+    ///
+    /// `Task.sleep` throws on cancellation and `try?` swallows that, so the
+    /// explicit `isCancelled` check is what actually stops the work; without
+    /// it a cancelled sync would sleep, wake, and carry on regardless.
+    ///
+    /// Captures the `ModelContext`, not `self`. Repositories are constructed
+    /// per call site as locals, so a `[weak self]` capture would be nil by the
+    /// time this ran and the widget would silently stop updating. The context
+    /// outlives the repository.
     private func scheduleWidgetSync() {
+        Self.widgetSync?.cancel()
         let context = self.context
-        Task { @MainActor in
+        Self.widgetSync = Task { @MainActor in
             try? await Task.sleep(for: .milliseconds(600))
+            guard !Task.isCancelled else { return }
             let all = (try? context.fetch(FetchDescriptor<ScanResult>())) ?? []
             WidgetDataStore.writeHaul(results: all)
             // Same hook, same debounce. A thrift run moves for exactly the
