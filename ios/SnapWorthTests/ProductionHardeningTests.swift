@@ -5021,3 +5021,106 @@ final class FlipsFreeTierCapTests: XCTestCase {
         XCTAssertEqual(visible.count - gated.rows.count, gated.hiddenSold)
     }
 }
+
+// ── A Thrift Flip scan was charged for and then dropped ──────────────────────
+//
+// The screen spends the shared daily allowance on every successful scan, and
+// the ScanResult it built was only ever written by `saveToLedger` — reachable
+// when the user is Pro, the verdict is profitable and they press the button. A
+// free user could spend their whole allowance here, be told 0 left, and find
+// My Finds empty.
+
+@MainActor
+final class ThriftFlipLibraryPersistenceTests: XCTestCase {
+
+    private func repository() throws -> ScanRepository {
+        let config = ModelConfiguration(isStoredInMemoryOnly: true)
+        let container = try ModelContainer(for: ScanResult.self, configurations: config)
+        return ScanRepository(context: ModelContext(container))
+    }
+
+    private func find() -> ScanResult {
+        ScanResult(itemName: "Better Sweater", brand: "Patagonia", category: "clothing",
+                   conditionNotes: "Solid", valueLow: 60, valueHigh: 95,
+                   confidence: "High", soldListingsCount: 0,
+                   listingTitle: "T", listingDescription: "D")
+    }
+
+    func test_aScannedItemReachesMyFindsWithoutBeingSavedToTheLedger() throws {
+        defer { AppLaunchState.reset() }
+        AppLaunchState.reset()
+        let repo = try repository()
+        let vm = ThriftFlipViewModel()
+        let result = find()
+        vm.scanResult = result
+
+        vm.persistToLibrary(result, repository: repo)
+
+        XCTAssertNil(vm.libraryWarning)
+        XCTAssertEqual(repo.fetchAll().count, 1)
+        XCTAssertEqual(repo.fetchAll().first?.status, .scanned,
+                       "a scan is a find, not an owned flip, until the ledger button")
+        XCTAssertFalse(vm.didSaveToLedger)
+    }
+
+    /// The row is written twice on a saved flip — once at scan, once by
+    /// `saveToLedger` — and that has to leave one row, not two.
+    func test_savingToTheLedgerPromotesTheRowItAlreadyWrote() throws {
+        defer { AppLaunchState.reset() }
+        AppLaunchState.reset()
+        let repo = try repository()
+        let vm = ThriftFlipViewModel()
+        let result = find()
+        vm.scanResult = result
+        vm.persistToLibrary(result, repository: repo)
+        vm.shelfPriceText = "8"
+        vm.resalePriceText = "40"
+
+        XCTAssertTrue(vm.saveToLedger(repository: repo))
+
+        let rows = repo.fetchAll()
+        XCTAssertEqual(rows.count, 1, "the scan and the ledger save are the same row")
+        XCTAssertEqual(rows.first?.status, .owned)
+        XCTAssertEqual(rows.first?.paidPrice, 8)
+        XCTAssertEqual(rows.first?.id, result.id)
+    }
+
+    /// Nothing that fails here blocks the verdict — that is what the user came
+    /// for, and it is computed from values already in hand.
+    func test_aFallbackLaunchWarnsAndKeepsTheVerdictWorking() throws {
+        defer { AppLaunchState.reset() }
+        AppLaunchState.recordPersistentStoreFallback(FallbackMarker())
+        let repo = try repository()
+        let vm = ThriftFlipViewModel()
+        let result = find()
+        vm.scanResult = result
+        vm.resalePriceText = "40"
+        vm.shelfPriceText = "8"
+
+        vm.persistToLibrary(result, repository: repo)
+
+        XCTAssertNotNil(vm.libraryWarning)
+        XCTAssertFalse(try XCTUnwrap(vm.libraryWarning).contains("Try again"),
+                       "a retry on a fallback launch succeeds and is discarded just the same")
+        XCTAssertNotNil(vm.scanResult, "the find stays on screen")
+        XCTAssertNotNil(vm.calculation, "and the verdict still computes")
+        XCTAssertEqual(repo.fetchAll().count, 0)
+    }
+
+    func test_theWarningIsClearedByTheNextItem() throws {
+        defer { AppLaunchState.reset() }
+        AppLaunchState.recordPersistentStoreFallback(FallbackMarker())
+        let repo = try repository()
+        let vm = ThriftFlipViewModel()
+        let result = find()
+        vm.scanResult = result
+        vm.persistToLibrary(result, repository: repo)
+        XCTAssertNotNil(vm.libraryWarning)
+
+        vm.reset()
+
+        XCTAssertNil(vm.libraryWarning)
+    }
+
+    private struct FallbackMarker: Error {}
+}

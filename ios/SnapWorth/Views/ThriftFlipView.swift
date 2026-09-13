@@ -122,6 +122,16 @@ struct ThriftFlipView: View {
     private var loadedContent: some View {
         if let result = vm.scanResult {
             itemHeader(result)
+            // Only ever present when the find could not be added to My Finds.
+            // The verdict below is unaffected, which is what it says.
+            if let warning = vm.libraryWarning {
+                Text(warning)
+                    .font(.snapCaption)
+                    .foregroundStyle(Color.snapTerracottaText)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityAddTraits(.isStaticText)
+            }
             marketplacePicker
             inputsCard
             verdictSection
@@ -467,7 +477,10 @@ struct ThriftFlipView: View {
     private func handleCaptured(_ image: UIImage, for target: CaptureTarget) {
         capture = nil
         switch target {
-        case .item: Task { await vm.scanItem(image: image, purchaseService: purchaseService) }
+        case .item:
+            let repository = ScanRepository(context: modelContext)
+            Task { await vm.scanItem(image: image, purchaseService: purchaseService,
+                                     repository: repository) }
         case .tag:  Task { await vm.readPriceTag(image: image) }
         }
     }

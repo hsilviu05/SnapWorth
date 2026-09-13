@@ -42,8 +42,14 @@ final class ThriftFlipViewModel {
     /// Set when the ledger write itself failed — see `saveToLedger`.
     var saveError: String?
 
+    /// Set when the scan itself succeeded but the find could not be added to
+    /// My Finds — see `persistToLibrary`. Distinct from `scanError`, which
+    /// means there is no verdict to show.
+    var libraryWarning: String?
+
     // ── Scan the item (respects the shared daily free-scan cap) ─────────────────
-    func scanItem(image: UIImage, purchaseService: any PurchaseService) async {
+    func scanItem(image: UIImage, purchaseService: any PurchaseService,
+                  repository: ScanRepository) async {
         guard !isScanningItem else { return }
         // Base valuation stays open, but a scan is a scan — enforce the same daily
         // cap here so Thrift Flip can't be used to bypass it.
@@ -101,6 +107,7 @@ final class ThriftFlipViewModel {
                 .scanCompleted(success: true, category: ItemCategory(normalizing: response.category))
             )
             ScanViewModel.noteScanForStreakAndReminder(isPro: purchaseService.isSubscribed)
+            persistToLibrary(result, repository: repository)
         } catch {
             let appError = AppError.from(error)
 
@@ -220,6 +227,46 @@ final class ThriftFlipViewModel {
         Analytics.shared.track(.thriftFlipCalculated(verdict: calculation.isProfitable ? "profit" : "loss"))
     }
 
+    /// Adds a completed scan to My Finds, the way `ScanViewModel.startScan`
+    /// already does.
+    ///
+    /// This screen spends the shared daily allowance on every successful scan
+    /// — `FreeScanCounter.increment()` plus the server's count — and the
+    /// `ScanResult` it built was only ever written by `saveToLedger`, which the
+    /// UI reaches when the user is Pro, the verdict is profitable, and they
+    /// press the button. So a free user could scan their whole allowance in
+    /// Thrift Flip, be told 0 left and 402'd on the next one, and find My Finds
+    /// empty: no record of any item, valuation or photo they had paid for. Same
+    /// for a Pro user on any "Skip it".
+    ///
+    /// Failure is not blocking — the verdict is the thing the user came for and
+    /// it stays on screen. `libraryWarning` says what did not happen, and says
+    /// it differently for the two failures for the same reason `saveToLedger`
+    /// does: a write that failed can be retried, a fallback launch cannot.
+    /// Internal rather than private only so the tests can reach it: `scanItem`
+    /// itself goes through `ScanAPIClient`, and the behaviour worth pinning is
+    /// what happens to the row and the warning afterwards.
+    func persistToLibrary(_ result: ScanResult, repository: ScanRepository) {
+        do {
+            try repository.save(result)
+            libraryWarning = nil
+        } catch let failure as ScanPersistenceError {
+            if case .saveFailed(let replacement) = failure {
+                // The repository rolled the shared context back, so `result` is
+                // no longer registered with it. Hold the context-free copy it
+                // handed back instead — same values, safe to read and to price
+                // for as long as this screen is up. `.storeUnavailable` throws
+                // before the insert, so there is nothing to swap there.
+                scanResult = replacement
+                libraryWarning = "Couldn't add this to My Finds. The verdict below still works."
+            } else {
+                libraryWarning = "SnapWorth couldn't open your library on this launch, so this find won't be kept."
+            }
+        } catch {
+            libraryWarning = "Couldn't add this to My Finds. The verdict below still works."
+        }
+    }
+
     /// Saves the flip into the "My Flips" ledger as an owned item, carrying the
     /// paid price forward so realized profit can be tracked when it sells.
     /// - Returns: whether the flip actually reached the ledger. This used to
@@ -316,6 +363,7 @@ final class ThriftFlipViewModel {
         // inputs through to the row the user just finished.
         scanResult = nil
         scanError = nil
+        libraryWarning = nil
         shelfPriceText = ""
         resalePriceText = ""
         shippingText = ""
