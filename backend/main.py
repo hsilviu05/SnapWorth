@@ -1235,7 +1235,7 @@ _NOTIFICATION_SEEN_TTL = 60 * 60 * 24 * 5
 
 
 @app.post("/apple/notifications", status_code=200)
-async def apple_notifications(body: AppleNotification) -> dict:
+async def apple_notifications(body: AppleNotification, request: Request) -> dict:
     """Apple tells the server what the client cannot.
 
     Unauthenticated by necessity — Apple has no bearer token to present — and
@@ -1253,6 +1253,15 @@ async def apple_notifications(body: AppleNotification) -> dict:
     Answers 200 for anything it understood, including a type it deliberately
     ignores — a non-2xx makes Apple redeliver the same notification for days.
     """
+    # Unauthenticated and expensive: every accepted body runs a full Apple JWS
+    # verification, with a certificate chain walk and a signature check. It was
+    # the only unauthenticated route with no limiter, while /scan and /listing
+    # both have one. Apple's real volume is a few notifications a day, so the
+    # standard IP bucket is orders of magnitude above anything genuine —
+    # including a three-day retry burst, which arrives spread over days rather
+    # than at once.
+    await _enforce_ip_limit(_client_ip(request))
+
     if body.signedPayload is None:
         if body.notification_type:
             log.error(
@@ -1486,6 +1495,15 @@ async def scan(
     # something the user will never see — and they will scan again.
     if await request.is_disconnected():
         await refund_quota(principal, quota_status)
+        # The allowance goes back, but the model call still happened and was
+        # still paid for. Without this the scan existed in no column at all:
+        # not a completion, not a failure — so $/scan divided a real cost by a
+        # count that excluded it, and the rate drifted up with no visible
+        # cause. `count_scan` rather than `scan_completed` on purpose: it bumps
+        # the count and nothing else, where `scan_completed` would also post
+        # the find to the operator feed and tally it into the day's top
+        # categories — a find nobody ever saw.
+        notify.count_scan(principal.tier)
         log.info("client gone before the result — allowance returned",
                  extra={"device": device_short})
         return response
@@ -1660,7 +1678,12 @@ async def _analyse(image_bytes: bytes, content_type: str, *, subject: str,
         log.error("scan produced no usable price",
                   extra={"item": val.item_name, "category": val.category,
                          "keys": sorted(data)[:20]})
-        metrics.model_calls.inc(operation="scan", outcome="no_price")
+        # `label`, not a hardcoded "scan": it is already bound above as
+        # `scan`/`scan_with_tag`/`bot_scan`/`bot_scan_with_tag`, and every
+        # sibling on this path is gated on `count`. Hardcoded, an operator
+        # testing the service through the Telegram bot was filed as a user's
+        # scan failing — the one metric that decides whether to page someone.
+        metrics.model_calls.inc(operation=label, outcome="no_price")
         if count:
             notify.count_scan_failure("no_price")
         raise HTTPException(

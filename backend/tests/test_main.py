@@ -653,6 +653,90 @@ class TestProbeDoesNotTouchModelHealth:
             assert seen["label"] == "ideas" and seen["record_health"] is True
 
 
+class TestScanAccounting:
+    """What the operator's per-scan numbers are divided by, and labelled with.
+
+    Both defects here were invisible by construction: neither changes a
+    response, and both only show up as a rate that drifts for no visible
+    reason.
+    """
+
+    @staticmethod
+    def _priceless_response():
+        """A model reply the parser accepts and that carries no price."""
+        from unittest.mock import MagicMock
+        body = {k: v for k, v in MOCK_RESPONSE_JSON.items()
+                if k not in {"est_value_low_usd", "est_value_high_usd"}}
+        response = MagicMock()
+        response.text = json.dumps(body)
+        return response
+
+    def test_a_bot_test_photo_is_not_filed_as_a_user_scan_failure(self, monkeypatch):
+        """`operation` was the literal "scan" on the no-price path.
+
+        Every sibling on that path is gated on `count` — the safety-block
+        counter, the Telegram failure tally — because `count=False` means the
+        operator is testing the service through the bot. This one metric was
+        not, so an operator's own test photo was recorded as a user's scan
+        failing: the number that decides whether the AI provider looks broken.
+        """
+        import asyncio
+
+        import main
+        from fastapi import HTTPException
+        calls: list[dict] = []
+        monkeypatch.setattr(main.metrics.model_calls, "inc",
+                            lambda **kw: calls.append(kw))
+
+        with patch("main._model") as model:
+            model.generate_content_async = AsyncMock(
+                return_value=self._priceless_response())
+            for count in (True, False):
+                calls.clear()
+                with pytest.raises(HTTPException):
+                    asyncio.run(main._analyse(
+                        padded_image_bytes("JPEG", 1024), "image/jpeg",
+                        subject="op", device_short="op", count=count))
+                no_price = [c for c in calls if c.get("outcome") == "no_price"]
+                assert len(no_price) == 1
+                assert no_price[0]["operation"] == ("scan" if count else "bot_scan"), \
+                    "the bot's own test photo must not be labelled a user scan"
+
+    def test_a_scan_the_client_abandoned_still_counts_as_a_scan(self, monkeypatch):
+        """It is billed, so it belongs in the denominator of $/scan.
+
+        The allowance is handed back — the user never saw a result — but the
+        model call happened and was paid for. It used to land in no column at
+        all: not a completion, not a failure, so the cost stayed in the
+        numerator and vanished from the divisor, and $/scan drifted up with
+        nothing to point at.
+
+        `count_scan`, not `scan_completed`: the latter would also post the find
+        to the operator feed and tally it into the day's top categories, for a
+        find nobody ever saw.
+        """
+        import main
+        import notify
+        counted: list[str] = []
+        completed: list[dict] = []
+        monkeypatch.setattr(notify, "count_scan", lambda tier: counted.append(tier))
+        monkeypatch.setattr(notify, "scan_completed", lambda **kw: completed.append(kw))
+
+        mock_response = MagicMock()
+        mock_response.text = json.dumps(MOCK_RESPONSE_JSON)
+        _rate_store.clear()
+        _ip_rate_store.clear()
+        with patch("main._model") as model:
+            model.generate_content_async = AsyncMock(return_value=mock_response)
+            with patch("starlette.requests.Request.is_disconnected",
+                       new=AsyncMock(return_value=True)):
+                r = _make_scan_request(device_id="gone-before-the-result")
+
+        assert r.status_code == 200, "the response is still returned"
+        assert counted == ["free"], "the billed call is in the denominator"
+        assert completed == [], "and not announced as a find the user saw"
+
+
 class TestRepeatedSafetyBlocks:
     """Blocked photos are counted per device; past the threshold the device is
     refused for the day before the model is even called."""
@@ -878,6 +962,34 @@ class TestAppleNotifications:
             "signedPayload": make_notification(leaf_key, chain)})
         assert r.status_code == 200
         assert r.json()["type"] == "DID_RENEW"
+
+    def test_the_endpoint_is_rate_limited_like_every_other_open_route(self, pinned):
+        """Unauthenticated, and every accepted body runs a full JWS verify.
+
+        This was the only unauthenticated route with no limiter, while /scan
+        and /listing both have one — so an anonymous caller could make the
+        server walk a certificate chain and check a signature as fast as it
+        could send. Apple's own volume is a few notifications a day, so the
+        standard IP bucket is orders of magnitude above anything genuine,
+        including a three-day retry burst, which arrives spread over days.
+
+        The limiter runs *before* the JWS work, which is the point: the
+        rejections below are cheap, and this makes the expensive path cheap to
+        refuse too. An unsigned body is used here so the test measures the
+        limiter and not the crypto.
+        """
+        from ratelimit import IP_RATE_MAX_REQUESTS
+        _ip_rate_store.clear()
+        _rate_store.clear()
+        codes = [client.post("/apple/notifications",
+                             json={"signedPayload": "not-a-jws"}).status_code
+                 for _ in range(IP_RATE_MAX_REQUESTS + 2)]
+        assert 429 in codes, "the open endpoint must be throttled"
+        # And it throttles rather than failing closed on the first call: a
+        # genuine notification is not the thing being refused here.
+        assert codes[0] == 400
+        _ip_rate_store.clear()
+        _rate_store.clear()
 
     def test_an_unsigned_body_is_refused(self, pinned):
         r = client.post("/apple/notifications", json={"signedPayload": "not-a-jws"})
