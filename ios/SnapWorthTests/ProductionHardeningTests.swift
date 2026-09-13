@@ -4762,3 +4762,105 @@ final class ThriftFlipLedgerFeesTests: XCTestCase {
         XCTAssertGreaterThan(known.platformFees, 0)
     }
 }
+
+// ── The saved row and the screen drifting apart ──────────────────────────────
+//
+// `didSaveToLedger` hides the save button for the rest of the session while
+// every field stays editable and the verdict keeps recomputing. Correcting an
+// OCR'd $8 to the $18 the tag actually said updated the screen and left the
+// persisted row at $8 — no button to press, nothing saying the row was stale,
+// and realized profit for that item overstated by $10 for good.
+
+@MainActor
+final class ThriftFlipSavedRowSyncTests: XCTestCase {
+
+    private func repository() throws -> ScanRepository {
+        let config = ModelConfiguration(isStoredInMemoryOnly: true)
+        let container = try ModelContainer(for: ScanResult.self, configurations: config)
+        return ScanRepository(context: ModelContext(container))
+    }
+
+    private func savedFlip() throws -> ThriftFlipViewModel {
+        AppLaunchState.reset()
+        let vm = ThriftFlipViewModel()
+        vm.scanResult = ScanResult(itemName: "Better Sweater", brand: "Patagonia",
+                                   category: "clothing", conditionNotes: "Solid",
+                                   valueLow: 40, valueHigh: 60, confidence: "High",
+                                   soldListingsCount: 0,
+                                   listingTitle: "T", listingDescription: "D")
+        vm.selectedMarketplace = .ebay
+        vm.resalePriceText = "50"
+        vm.shippingText = "5"
+        vm.shelfPriceText = "8"
+        XCTAssertTrue(vm.saveToLedger(repository: try repository()))
+        XCTAssertEqual(vm.scanResult?.paidPrice, 8)
+        return vm
+    }
+
+    func test_correctingTheShopPriceReachesTheSavedRow() throws {
+        defer { AppLaunchState.reset() }
+        let vm = try savedFlip()
+
+        vm.shelfPriceText = "18"
+
+        XCTAssertEqual(vm.scanResult?.paidPrice, 18,
+                       "the ledger row still holds the price the user corrected")
+    }
+
+    func test_correctingTheShippingReachesTheFeesToo() throws {
+        // The stored fee is shipping plus the platform's cut, so the other
+        // three inputs move it as well as the shop price does.
+        defer { AppLaunchState.reset() }
+        let vm = try savedFlip()
+        let before = try XCTUnwrap(vm.scanResult?.feesEstimate)
+
+        vm.shippingText = "15"
+
+        let after = try XCTUnwrap(vm.scanResult?.feesEstimate)
+        XCTAssertEqual(after - before, 10, accuracy: 0.0001)
+    }
+
+    func test_clearingTheFieldLeavesTheLastSavedValue() throws {
+        // An empty field asserts nothing, and a row with no paid price loses
+        // its profit entirely — worse than a slightly stale one.
+        defer { AppLaunchState.reset() }
+        let vm = try savedFlip()
+
+        vm.shelfPriceText = ""
+
+        XCTAssertEqual(vm.scanResult?.paidPrice, 8)
+    }
+
+    func test_nothingIsWrittenBeforeTheFirstSave() throws {
+        // Typing in the form must not touch a row that was never saved — and
+        // there is nothing to touch, which is the point of the guard.
+        defer { AppLaunchState.reset() }
+        AppLaunchState.reset()
+        let vm = ThriftFlipViewModel()
+        vm.scanResult = ScanResult(itemName: "Item", brand: "B", category: "clothing",
+                                   conditionNotes: "Good", valueLow: 40, valueHigh: 60,
+                                   confidence: "High", soldListingsCount: 0,
+                                   listingTitle: "T", listingDescription: "D")
+
+        vm.shelfPriceText = "18"
+        vm.resalePriceText = "50"
+
+        XCTAssertFalse(vm.didSaveToLedger)
+        XCTAssertNil(vm.scanResult?.paidPrice)
+        XCTAssertNil(vm.scanResult?.feesEstimate)
+    }
+
+    func test_resetDoesNotWriteThroughToTheOldRow() throws {
+        // `reset()` clears the fields, and each one fires the sync. It must
+        // not reach the row that is being left behind.
+        defer { AppLaunchState.reset() }
+        let vm = try savedFlip()
+        let saved = try XCTUnwrap(vm.scanResult)
+
+        vm.reset()
+
+        XCTAssertEqual(saved.paidPrice, 8, "the finished row was rewritten on the way out")
+        XCTAssertNil(vm.scanResult)
+        XCTAssertFalse(vm.didSaveToLedger)
+    }
+}

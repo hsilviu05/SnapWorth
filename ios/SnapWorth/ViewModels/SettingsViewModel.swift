@@ -57,11 +57,6 @@ final class SettingsViewModel {
             : "This will permanently delete all \(count) saved scans."
     }
 
-    func openSettings() {
-        guard let url = URL(string: UIApplication.openSettingsURLString) else { return }
-        UIApplication.shared.open(url)
-    }
-
     func openURL(_ urlString: String) {
         guard let url = URL(string: urlString) else { return }
         UIApplication.shared.open(url)

@@ -15,13 +15,25 @@ final class ThriftFlipViewModel {
     var showPaywall = false
 
     // ── Inputs ───────────────────────────────────────────────────────────────
-    var selectedMarketplace: Marketplace = .ebay
+    // Each of the four inputs re-syncs an already-saved ledger row — see
+    // `syncSavedLedgerRow`. All four, not just the shop price: the fees stored
+    // with the row are computed from the resale price, the shipping and the
+    // marketplace as well.
+    var selectedMarketplace: Marketplace = .ebay {
+        didSet { syncSavedLedgerRow() }
+    }
     /// What the item costs in the shop — the purchase price. From OCR or manual.
-    var shelfPriceText = ""
+    var shelfPriceText = "" {
+        didSet { syncSavedLedgerRow() }
+    }
     /// Expected resale price; defaults to the scan's condition-adjusted "likely".
-    var resalePriceText = ""
+    var resalePriceText = "" {
+        didSet { syncSavedLedgerRow() }
+    }
     /// Expected shipping cost the seller eats; blank == 0.
-    var shippingText = ""
+    var shippingText = "" {
+        didSet { syncSavedLedgerRow() }
+    }
 
     // ── OCR ────────────────────────────────────────────────────────────────────
     var isReadingTag = false
@@ -226,17 +238,10 @@ final class ThriftFlipViewModel {
         // an empty Fees column in the CSV and the same overstatement inherited
         // by the monthly recap and the share card.
         //
-        // Shipping is always carried because the user typed it. The platform
-        // fee is carried only when the table actually had an entry:
-        // `feesUnknown` means the verdict itself was fee-blind and said so,
-        // and recording an assumed zero here would turn a stated uncertainty
-        // into a fact the ledger reports as measured.
-        if let calculation {
-            let known = calculation.feesUnknown
-                ? calculation.shippingCost
-                : calculation.platformFees + calculation.shippingCost
-            result.feesEstimate = NSDecimalNumber(decimal: known).doubleValue
-        }
+        // Which fees, exactly, is `ledgerFees` — and `syncSavedLedgerRow` uses
+        // the same rule, so a correction after the save cannot write a
+        // different kind of number than the save did.
+        result.feesEstimate = Self.ledgerFees(from: calculation)
         result.status = .owned
         do {
             try repository.save(result)
@@ -260,8 +265,55 @@ final class ThriftFlipViewModel {
         return true
     }
 
+    /// What goes into `ScanResult.feesEstimate` for a given verdict.
+    ///
+    /// Shipping is always included because the user typed it. The platform fee
+    /// only when the fee table had an entry: `feesUnknown` means the verdict
+    /// itself was fee-blind and said so on screen, and its `platformFees` is an
+    /// assumed zero — recording that would turn a stated uncertainty into a
+    /// number the ledger reports as measured.
+    ///
+    /// Nil when there is no verdict at all, which leaves the field untouched
+    /// rather than zeroing a fee that was once known.
+    private static func ledgerFees(from calculation: FlipCalculation?) -> Double? {
+        guard let calculation else { return nil }
+        let known = calculation.feesUnknown
+            ? calculation.shippingCost
+            : calculation.platformFees + calculation.shippingCost
+        return NSDecimalNumber(decimal: known).doubleValue
+    }
+
+    /// Keeps an already-saved ledger row in step with the inputs it came from.
+    ///
+    /// `didSaveToLedger` hides the save button for the rest of the session
+    /// while every field stays editable and `calculation` keeps recomputing —
+    /// so correcting an OCR'd $8 to the $18 the tag actually said updated the
+    /// verdict on screen and left the persisted row at $8, with no button to
+    /// press and nothing saying the row had gone stale. Realized profit for
+    /// that item was overstated by $10 for good.
+    ///
+    /// Re-assigning is enough rather than re-saving: after the insert
+    /// `scanResult` is the same context-managed object and the main context
+    /// autosaves. Clearing the field entirely leaves the last saved value in
+    /// place — an empty field asserts nothing, and a row with no paid price
+    /// loses its profit.
+    private func syncSavedLedgerRow() {
+        guard didSaveToLedger,
+              let result = scanResult,
+              let purchase = Self.decimal(shelfPriceText)
+        else { return }
+        result.paidPrice = NSDecimalNumber(decimal: purchase).doubleValue
+        if let fees = Self.ledgerFees(from: calculation) {
+            result.feesEstimate = fees
+        }
+    }
+
     func reset() {
         itemImage = nil
+        // Cleared *before* the text fields, and the order is load-bearing:
+        // each of those has a `didSet` that re-syncs an already-saved ledger
+        // row, and clearing them with `scanResult` still set would write empty
+        // inputs through to the row the user just finished.
         scanResult = nil
         scanError = nil
         shelfPriceText = ""
