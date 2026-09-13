@@ -414,6 +414,13 @@ struct FlipsView: View {
                 } label: {
                     Image(systemName: "ellipsis.circle").foregroundStyle(Color.snapTerracottaText)
                 }
+                // VoiceOver fell back to the symbol name — "ellipsis circle,
+                // button" — for the only route in the app to CSV export, the
+                // month share card and the sort order. `HistoryView` labels the
+                // identical control properly one file away.
+                .accessibilityLabel("Flip options")
+                .accessibilityValue(vm.sort.rawValue)
+                .accessibilityHint("Sort, share the month, or export a CSV")
             }
         }
     }

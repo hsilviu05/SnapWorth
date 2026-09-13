@@ -107,17 +107,56 @@ final class ThriftFlipViewModel {
     }
 
     // ── Read the price tag (on-device OCR, manual fallback) ─────────────────────
+
+    /// Which item the in-flight read belongs to. Bumped when a read begins and
+    /// when the form is cleared.
+    ///
+    /// `private(set)` and the decision split into `applyOCR` because
+    /// `readPriceTag` needs a `UIImage` and a Vision request, neither of which
+    /// a unit test can supply — so the rule is tested apart from the thing it
+    /// governs, the same split `hasExpired` and `isFresh` use.
+    private(set) var ocrGeneration = 0
+
     func readPriceTag(image: UIImage) async {
+        ocrGeneration += 1
+        let generation = ocrGeneration
         isReadingTag = true
         ocrNote = nil
-        defer { isReadingTag = false }
         do {
             let price = try await PriceTagOCR.detectPrice(in: image)
+            applyOCR(.success(price), generation: generation)
+        } catch {
+            applyOCR(.failure(error), generation: generation)
+        }
+    }
+
+    /// Applies a read's outcome, unless the form has moved on since it started.
+    ///
+    /// `readPriceTag` is launched as an unstructured `Task` from the view and
+    /// nothing cancelled it, while "New item" stayed enabled for the whole time
+    /// the spinner was up. So a read of item A's tag finishing after the form
+    /// was cleared wrote A's shop price into B's shelf field — and
+    /// `calculation` went non-nil the instant B's scan seeded the resale price,
+    /// so a full green or red verdict appeared, computed from the wrong item's
+    /// cost, under a note about a field the user never filled in. Save that and
+    /// B's ledger row carries A's `paidPrice` for good.
+    ///
+    /// A generation token rather than cancelling the `Task`: the view owns the
+    /// `Task`, this type does not, and `PriceTagOCR.detectPrice` is not
+    /// cancellable mid-request anyway — so checking whether the answer is still
+    /// wanted is both simpler and the thing that actually has to be true.
+    @discardableResult
+    func applyOCR(_ outcome: Result<Decimal, Error>, generation: Int) -> Bool {
+        guard generation == ocrGeneration else { return false }
+        isReadingTag = false
+        switch outcome {
+        case .success(let price):
             shelfPriceText = Self.moneyField(price)
             ocrNote = "Read \(Self.money(price)) — tap to correct if it's off."
-        } catch {
+        case .failure:
             ocrNote = "Couldn't read the tag — enter the price manually."
         }
+        return true
     }
 
     // ── Verdict ─────────────────────────────────────────────────────────────────
@@ -172,6 +211,10 @@ final class ThriftFlipViewModel {
         ocrNote = nil
         didSaveToLedger = false
         saveError = nil
+        // A read still in flight belongs to the item being cleared, not to the
+        // next one. Its result is dropped rather than written into the form.
+        ocrGeneration += 1
+        isReadingTag = false
     }
 
     // ── Formatting helpers ──────────────────────────────────────────────────────

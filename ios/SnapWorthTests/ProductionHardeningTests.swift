@@ -4021,3 +4021,152 @@ final class FallbackLaunchWidgetTests: XCTestCase {
         XCTAssertEqual(try readBack().itemCount, 2)
     }
 }
+
+// ── A tag read that finishes after you've moved on ───────────────────────────
+//
+// `readPriceTag` is launched as an unstructured `Task` from the view, nothing
+// cancelled it, and "New item" stayed enabled for the whole time the spinner
+// was up. Accurate-level Vision OCR on a full-resolution photo takes a few
+// hundred milliseconds to over a second — long enough to tap it. Item A's tag
+// price then landed in the cleared form, `calculation` went non-nil the moment
+// item B's scan seeded the resale price, and a full green or red verdict
+// appeared computed from A's cost, under "Read $X" for a field B's user never
+// filled in. Save it and B's ledger row carries A's paid price for good.
+
+@MainActor
+final class ThriftFlipOCRStalenessTests: XCTestCase {
+
+    private struct OCRFailed: Error {}
+
+    func test_aReadThatFinishesInTimeIsApplied() {
+        let vm = ThriftFlipViewModel()
+        vm.isReadingTag = true
+        let generation = vm.ocrGeneration
+
+        XCTAssertTrue(vm.applyOCR(.success(Decimal(9)), generation: generation))
+        XCTAssertEqual(vm.shelfPriceText, "9")
+        // `money` is `snapCurrencyCents`, which always prints two places —
+        // unlike `moneyField`, which drops them on a round number.
+        XCTAssertEqual(vm.ocrNote, "Read $9.00 — tap to correct if it's off.")
+        XCTAssertFalse(vm.isReadingTag)
+    }
+
+    func test_newItemDropsAReadThatWasStillRunning() {
+        // The defect, end to end through the two calls the view makes.
+        let vm = ThriftFlipViewModel()
+        vm.isReadingTag = true
+        let generation = vm.ocrGeneration
+
+        vm.reset()
+
+        XCTAssertFalse(vm.applyOCR(.success(Decimal(9)), generation: generation),
+                       "item A's tag price was written into item B's form")
+        XCTAssertEqual(vm.shelfPriceText, "", "the cleared field was repopulated")
+        XCTAssertNil(vm.ocrNote)
+        XCTAssertFalse(vm.isReadingTag, "reset stops the spinner itself")
+    }
+
+    func test_aLateFailureDoesNotBlameTheNewItemsTag() {
+        // The other outcome. "Couldn't read the tag" appearing under an item
+        // whose tag was never photographed is the same defect wearing the
+        // failure branch.
+        let vm = ThriftFlipViewModel()
+        let generation = vm.ocrGeneration
+        vm.reset()
+
+        XCTAssertFalse(vm.applyOCR(.failure(OCRFailed()), generation: generation))
+        XCTAssertNil(vm.ocrNote)
+    }
+
+    func test_aSecondReadSupersedesTheFirst() {
+        // Two "Scan tag" taps without a reset between them: the older read
+        // must not win by finishing later.
+        let vm = ThriftFlipViewModel()
+        let first = vm.ocrGeneration
+        vm.reset()                       // stands in for the second read starting
+        let second = vm.ocrGeneration
+        XCTAssertNotEqual(first, second)
+
+        XCTAssertTrue(vm.applyOCR(.success(Decimal(12)), generation: second))
+        XCTAssertFalse(vm.applyOCR(.success(Decimal(9)), generation: first),
+                       "the stale read overwrote the current one")
+        XCTAssertEqual(vm.shelfPriceText, "12")
+    }
+
+    func test_aStaleCompletionDoesNotStopTheCurrentSpinner() {
+        // `isReadingTag` used to be cleared by a `defer`, so a stale task
+        // finishing turned off the spinner for the read that replaced it.
+        let vm = ThriftFlipViewModel()
+        let stale = vm.ocrGeneration
+        vm.reset()
+        vm.isReadingTag = true           // the new read is running
+
+        XCTAssertFalse(vm.applyOCR(.success(Decimal(9)), generation: stale))
+        XCTAssertTrue(vm.isReadingTag, "someone else's completion stopped this spinner")
+    }
+
+    func test_noVerdictSurvivesTheReset() {
+        // What the user actually sees: a verdict is only ever computed from
+        // two fields, and after "New item" neither may come from the old one.
+        let vm = ThriftFlipViewModel()
+        let generation = vm.ocrGeneration
+        vm.reset()
+        vm.applyOCR(.success(Decimal(9)), generation: generation)
+        vm.resalePriceText = "60"
+
+        XCTAssertNil(vm.calculation,
+                     "a full verdict appeared from the previous item's cost")
+    }
+}
+
+// ── A search query that outlived the library it searched ─────────────────────
+//
+// The field is only *hidden* when the library empties, and `HistoryViewModel`
+// is `@State` for the tab's whole lifetime, so the text stayed. The handler
+// that runs on exactly this transition reset `isEditing` and nothing else.
+
+@MainActor
+final class HistorySearchResetTests: XCTestCase {
+
+    private func find(_ name: String, brand: String) -> ScanResult {
+        ScanResult(itemName: name, brand: brand, category: "clothing",
+                   conditionNotes: "Good", valueLow: 40, valueHigh: 60,
+                   confidence: "High", soldListingsCount: 0,
+                   listingTitle: "T", listingDescription: "D")
+    }
+
+    func test_theFirstFindAfterAWipeIsNotFilteredAway() {
+        // The defect as the user meets it: search "nike", delete everything,
+        // scan a Levi's jacket, and the grid says "No results for nike" under
+        // a banner saying one item was scanned.
+        let vm = HistoryViewModel()
+        vm.searchText = "nike"
+        let levis = find("501 Jacket", brand: "Levi's")
+
+        XCTAssertTrue(vm.filtered([levis]).isEmpty, "precondition: the stale query hides it")
+
+        vm.libraryEmptied()
+
+        XCTAssertEqual(vm.filtered([levis]).count, 1,
+                       "the find they had just made was still not on screen")
+    }
+
+    func test_emptyingClearsTheQueryItself() {
+        let vm = HistoryViewModel()
+        vm.searchText = "nike"
+        vm.libraryEmptied()
+        XCTAssertEqual(vm.searchText, "")
+    }
+
+    func test_theSortOrderIsNotResetWithIt() {
+        // Scoped to the rows that were there, and nothing else: the sort is a
+        // preference about how the tab reads, not about a particular library.
+        let vm = HistoryViewModel()
+        vm.sortOrder = .mostValuable
+        vm.searchText = "nike"
+
+        vm.libraryEmptied()
+
+        XCTAssertEqual(vm.sortOrder, .mostValuable)
+    }
+}

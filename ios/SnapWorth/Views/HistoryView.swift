@@ -238,7 +238,11 @@ struct HistoryView: View {
                 }
             }
             .onChange(of: results.count) { _, _ in
-                if results.isEmpty { isEditing = false }
+                guard results.isEmpty else { return }
+                isEditing = false
+                // And the query, which this handler exists for and did not
+                // clear — see `libraryEmptied`.
+                vm.libraryEmptied()
             }
             .task { recapLabel = NotificationManager.shared.readyRecapLabel() }
             // Best-effort: a failure leaves the card absent, which is the same

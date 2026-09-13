@@ -13,6 +13,19 @@ final class HistoryViewModel {
     var sortOrder: HistorySortOrder = .newest
     var deleteError: String?
 
+    /// The library just became empty. Drops anything scoped to the rows that
+    /// were in it.
+    ///
+    /// `searchText` outlived a wipe: the search field is only *hidden* when the
+    /// library empties, while this view model is `@State` for the whole
+    /// lifetime of the tab. So the first find after a wipe was filtered against
+    /// the old query — a banner reading "1 item scanned" above a grid reading
+    /// "No results for \"nike\"", with the find they had just made nowhere on
+    /// screen.
+    func libraryEmptied() {
+        searchText = ""
+    }
+
     func sorted(_ results: [ScanResult]) -> [ScanResult] {
         switch sortOrder {
         case .newest:
