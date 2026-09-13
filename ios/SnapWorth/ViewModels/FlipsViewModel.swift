@@ -70,6 +70,38 @@ final class FlipsViewModel {
 
     private func effectiveDate(_ r: ScanResult) -> Date { r.soldDate ?? r.timestamp }
 
+    /// The free tier's row cap, applied to *sold* rows only.
+    ///
+    /// It used to be `prefix(cap)` over the whole visible list. That list is
+    /// owned + listed + sold ordered by `soldDate ?? timestamp` descending, so
+    /// ten items scanned and marked Owned today outranked last week's two
+    /// sales, filled the cap, and pushed both sales past it: a free user with
+    /// two sold flips against a ten-sold allowance saw neither of them, and an
+    /// "Unlock 2 more" row in their place. `Config.ledgerFreeSoldCap`'s own
+    /// doc comment, this view's, and AUDIT-2026-09-07 all describe the gate as
+    /// the most recent N *sold*.
+    ///
+    /// Which sales are kept is decided by recency and not by `sort`, so
+    /// changing the sort re-orders the ledger without moving rows across the
+    /// paywall — the rows come back in `visible`'s order either way, because
+    /// `filter` preserves it.
+    ///
+    /// `hiddenSold` counts only the sales withheld. Nothing else is ever
+    /// withheld now, so it is the whole of what "unlock" buys in this list.
+    func freeTierItems(_ visible: [ScanResult],
+                       cap: Int = Config.ledgerFreeSoldCap)
+    -> (rows: [ScanResult], hiddenSold: Int) {
+        let sold = visible.filter { $0.status == .sold }
+        guard sold.count > cap else { return (visible, 0) }
+        let kept = Set(
+            sold.sorted { effectiveDate($0) > effectiveDate($1) }
+                .prefix(cap)
+                .map(\.id)
+        )
+        let rows = visible.filter { $0.status != .sold || kept.contains($0.id) }
+        return (rows, sold.count - cap)
+    }
+
     // ── Summary ────────────────────────────────────────────────────────────────
 
     struct Summary {

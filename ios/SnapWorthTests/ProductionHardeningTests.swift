@@ -4924,3 +4924,100 @@ final class ThriftFlipSavedRowSyncTests: XCTestCase {
         XCTAssertFalse(vm.didSaveToLedger)
     }
 }
+
+// ── The free tier's row cap counted the wrong rows ───────────────────────────
+
+@MainActor
+final class FlipsFreeTierCapTests: XCTestCase {
+
+    private func viewModel() -> FlipsViewModel { FlipsViewModel() }
+
+    private func row(_ name: String, status: FlipStatus, daysAgo: Int) -> ScanResult {
+        let r = ScanResult(itemName: name, brand: "B", category: "clothing",
+                           conditionNotes: "Good", valueLow: 40, valueHigh: 60,
+                           confidence: "High", soldListingsCount: 0,
+                           listingTitle: "T", listingDescription: "D")
+        let when = Date().addingTimeInterval(TimeInterval(-daysAgo) * 86_400)
+        r.timestamp = when
+        r.status = status
+        if status == .sold {
+            r.soldDate = when
+            r.paidPrice = 10
+            r.soldPrice = 40
+        }
+        return r
+    }
+
+    /// The defect, exactly as reported: ten items marked Owned today are newer
+    /// than last week's two sales, so the old whole-list `prefix(10)` spent the
+    /// cap on them and hid both sales behind "Unlock 2 more".
+    func test_freshOwnedRowsNoLongerSpendTheSoldAllowance() {
+        var items = (0..<10).map { row("Owned \($0)", status: .owned, daysAgo: 0) }
+        items += [row("Sold A", status: .sold, daysAgo: 7),
+                  row("Sold B", status: .sold, daysAgo: 8)]
+        let visible = viewModel().visibleItems(items)
+
+        let gated = viewModel().freeTierItems(visible)
+
+        XCTAssertEqual(gated.hiddenSold, 0, "two sales against a ten-sold allowance")
+        XCTAssertEqual(gated.rows.count, 12)
+        XCTAssertTrue(gated.rows.contains { $0.itemName == "Sold A" })
+        XCTAssertTrue(gated.rows.contains { $0.itemName == "Sold B" })
+    }
+
+    func test_nothingThatIsNotSoldIsEverWithheld() {
+        let items = (0..<40).map { row("Owned \($0)", status: .owned, daysAgo: $0) }
+        let visible = viewModel().visibleItems(items)
+
+        let gated = viewModel().freeTierItems(visible)
+
+        XCTAssertEqual(gated.rows.count, 40)
+        XCTAssertEqual(gated.hiddenSold, 0)
+    }
+
+    func test_pastTheAllowanceTheNewestSalesAreTheOnesKept() {
+        let items = (0..<13).map { row("Sold \($0)", status: .sold, daysAgo: $0) }
+        let visible = viewModel().visibleItems(items)
+
+        let gated = viewModel().freeTierItems(visible)
+
+        XCTAssertEqual(gated.rows.count, Config.ledgerFreeSoldCap)
+        XCTAssertEqual(gated.hiddenSold, 3)
+        // 0 is today, 12 is twelve days ago.
+        XCTAssertTrue(gated.rows.contains { $0.itemName == "Sold 0" })
+        XCTAssertFalse(gated.rows.contains { $0.itemName == "Sold 10" })
+        XCTAssertFalse(gated.rows.contains { $0.itemName == "Sold 12" })
+    }
+
+    /// Sorting re-orders the ledger; it must not move rows across the paywall.
+    func test_theSortDoesNotDecideWhichSalesAreUnlocked() {
+        var items = (0..<12).map { row("Sold \($0)", status: .sold, daysAgo: $0) }
+        // Make the oldest sale by far the most profitable one.
+        items[11].soldPrice = 900
+        let vm = viewModel()
+
+        vm.sort = .date
+        let byDate = Set(vm.freeTierItems(vm.visibleItems(items)).rows.map(\.id))
+        vm.sort = .profit
+        let byProfit = vm.freeTierItems(vm.visibleItems(items))
+
+        XCTAssertEqual(Set(byProfit.rows.map(\.id)), byDate,
+                       "the same ten sales, whichever way the list is ordered")
+        XCTAssertEqual(byProfit.hiddenSold, 2)
+        XCTAssertFalse(byProfit.rows.contains { $0.itemName == "Sold 11" },
+                       "the richest sale is still the oldest, and still withheld")
+    }
+
+    /// The count on the unlock row is what unlocking actually reveals.
+    func test_theUnlockCountIsTheNumberOfWithheldSales() {
+        var items = (0..<15).map { row("Sold \($0)", status: .sold, daysAgo: $0) }
+        items += (0..<6).map { row("Owned \($0)", status: .owned, daysAgo: $0) }
+        let vm = viewModel()
+        let visible = vm.visibleItems(items)
+
+        let gated = vm.freeTierItems(visible)
+
+        XCTAssertEqual(gated.hiddenSold, 5)
+        XCTAssertEqual(visible.count - gated.rows.count, gated.hiddenSold)
+    }
+}

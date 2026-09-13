@@ -54,8 +54,8 @@ struct FlipsView: View {
     private var ledger: some View {
         let summary = vm.summary(allResults, scope: scope)
         let items = vm.visibleItems(allResults)
-        let capped = isPro ? items : Array(items.prefix(Config.ledgerFreeSoldCap))
-        let hidden = items.count - capped.count
+        let gated: (rows: [ScanResult], hiddenSold: Int) =
+            isPro ? (rows: items, hiddenSold: 0) : vm.freeTierItems(items)
 
         return ScrollView {
             VStack(spacing: 16) {
@@ -65,11 +65,11 @@ struct FlipsView: View {
                 filterChips
 
                 LazyVStack(spacing: 10) {
-                    ForEach(capped) { itemRow($0) }
+                    ForEach(gated.rows) { itemRow($0) }
                 }
 
-                if hidden > 0 {
-                    unlockRow(hidden: hidden)
+                if gated.hiddenSold > 0 {
+                    unlockRow(hidden: gated.hiddenSold)
                 }
             }
             .padding(.horizontal, 16)
