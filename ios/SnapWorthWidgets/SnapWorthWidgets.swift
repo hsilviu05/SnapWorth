@@ -92,6 +92,23 @@ struct WidgetHaulData: Codable, Equatable {
     /// month" while the Flips screen, on the same data, said two items sold.
     var monthSold: Int
 
+    // v4 — added 1.4.0, before release
+    /// The sum of the condition-adjusted *midpoints* — the middle of the very
+    /// range `totalLow` and `totalHigh` describe.
+    ///
+    /// The blob carried the two ends and nothing between them, so the one place
+    /// a widget has room for a single number — the circular Lock Screen
+    /// complication — drew `totalHigh` unqualified. Three items at $100-$200
+    /// make the app's portfolio banner read "$450" and that complication read
+    /// "$600", 33% higher, with nothing on screen saying it was the top of a
+    /// range; and every re-graded item widens the gap, since the condition
+    /// multiplier scales the spread.
+    ///
+    /// Optional because a blob written by 1.3.x has no such field and there is
+    /// no honest way to derive one from a low and a high — `compactTotal` falls
+    /// back to the old behaviour until the app next runs.
+    var totalLikely: Double?
+
     static let empty = WidgetHaulData(
         totalLow: 0, totalHigh: 0, itemCount: 0,
         lastItemName: "", lastItemRange: "", updatedAt: .distantPast,
@@ -137,6 +154,7 @@ struct WidgetHaulData: Codable, Equatable {
         case totalLow, totalHigh, itemCount, lastItemName, lastItemRange, updatedAt
         case freeScansRemaining, isPro, streak, recentFinds, monthProfit, monthFlips
         case streakLastScan, freeScanAllowance, monthSold
+        case totalLikely
     }
 
     init(totalLow: Double, totalHigh: Double, itemCount: Int,
@@ -144,7 +162,7 @@ struct WidgetHaulData: Codable, Equatable {
          freeScansRemaining: Int?, isPro: Bool, streak: Int,
          recentFinds: [WidgetFind], monthProfit: Double?, monthFlips: Int,
          streakLastScan: Date? = nil, freeScanAllowance: Int? = nil,
-         monthSold: Int = 0) {
+         monthSold: Int = 0, totalLikely: Double? = nil) {
         self.totalLow = totalLow
         self.totalHigh = totalHigh
         self.itemCount = itemCount
@@ -160,6 +178,7 @@ struct WidgetHaulData: Codable, Equatable {
         self.streakLastScan = streakLastScan
         self.freeScanAllowance = freeScanAllowance
         self.monthSold = monthSold
+        self.totalLikely = totalLikely
     }
 
     init(from decoder: Decoder) throws {
@@ -181,6 +200,7 @@ struct WidgetHaulData: Codable, Equatable {
         streakLastScan = try c.decodeIfPresent(Date.self, forKey: .streakLastScan)
         freeScanAllowance = try c.decodeIfPresent(Int.self, forKey: .freeScanAllowance)
         monthSold = try c.decodeIfPresent(Int.self, forKey: .monthSold) ?? 0
+        totalLikely = try c.decodeIfPresent(Double.self, forKey: .totalLikely)
     }
 }
 
@@ -225,7 +245,13 @@ extension WidgetHaulData {
         return "\(sign)$\(Int(thousands.rounded()))K"
     }
 
-    var compactTotal: String { Self.compactMoney(totalHigh) }
+    /// The one number, when there is room for one number.
+    ///
+    /// The midpoint total when the writer had one — that is the figure the app
+    /// prints under "Your finds are worth", and a complication that disagrees
+    /// with the app by a third is worse than no complication. `totalHigh` only
+    /// for a blob from a build that did not write it.
+    var compactTotal: String { Self.compactMoney(totalLikely ?? totalHigh) }
 
     var compactRange: String {
         "\(Self.compactMoney(totalLow))–\(Self.compactMoney(totalHigh))"

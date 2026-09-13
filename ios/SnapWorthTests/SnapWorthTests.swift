@@ -1274,6 +1274,47 @@ final class WidgetHaulDataTests: XCTestCase {
         XCTAssertEqual(haul.recentFinds, [])
         XCTAssertNil(haul.monthProfit)
         XCTAssertEqual(haul.monthFlips, 0)
+        XCTAssertNil(haul.totalLikely,
+                     "1.3.x never wrote a midpoint and none can be derived " +
+                     "from a low and a high")
+    }
+
+    // ── The one number, when there is room for one number ────────────────────
+
+    func test_theSingleFigureIsTheMiddleOfTheRangeNotItsTop() {
+        // Three items at $100-$200: the app's portfolio banner says $450 and
+        // the circular complication used to say $600.
+        let haul = WidgetHaulData(
+            totalLow: 300, totalHigh: 600, itemCount: 3,
+            lastItemName: "", lastItemRange: "", updatedAt: .now,
+            freeScansRemaining: nil, isPro: false, streak: 0,
+            recentFinds: [], monthProfit: nil, monthFlips: 0,
+            totalLikely: 450)
+        XCTAssertEqual(haul.compactTotal, WidgetHaulData.compactMoney(450))
+        XCTAssertNotEqual(haul.compactTotal, WidgetHaulData.compactMoney(600))
+    }
+
+    func test_aBlobWithoutAMidpointStillShowsSomething() throws {
+        // The extension updates before the app next runs, so this is the
+        // ordinary state for a while after an update — not a corner case.
+        let haul = try JSONDecoder().decode(WidgetHaulData.self, from: v1)
+        XCTAssertEqual(haul.compactTotal, WidgetHaulData.compactMoney(620),
+                       "the old behaviour, until the app writes a midpoint")
+    }
+
+    func test_theMidpointIsBracketedByTheRangeItIsTheMiddleOf() {
+        // `totalLikely` is summed over the same items as `totalLow` and
+        // `totalHigh`, so this holds for every blob the app writes.
+        let haul = WidgetHaulData(
+            totalLow: 300, totalHigh: 600, itemCount: 3,
+            lastItemName: "", lastItemRange: "", updatedAt: .now,
+            freeScansRemaining: nil, isPro: false, streak: 0,
+            recentFinds: [], monthProfit: nil, monthFlips: 0,
+            totalLikely: 450)
+        let likely = try? XCTUnwrap(haul.totalLikely)
+        XCTAssertNotNil(likely)
+        XCTAssertGreaterThanOrEqual(likely ?? 0, haul.totalLow)
+        XCTAssertLessThanOrEqual(likely ?? 0, haul.totalHigh)
     }
 
     func test_aTruncatedBlobDegradesRatherThanThrowing() throws {
@@ -1297,7 +1338,7 @@ final class WidgetHaulDataTests: XCTestCase {
             // out of `CodingKeys` round-trips as its default and this is the
             // only place that would notice.
             streakLastScan: Date(timeIntervalSince1970: 767_000_000),
-            freeScanAllowance: 3, monthSold: 8)
+            freeScanAllowance: 3, monthSold: 8, totalLikely: 190)
         let data = try JSONEncoder().encode(original)
         XCTAssertEqual(try JSONDecoder().decode(WidgetHaulData.self, from: data),
                        original)
