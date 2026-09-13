@@ -267,9 +267,12 @@ struct MonthProfitView: View {
         .accessibilityLabel(spoken)
     }
 
-    // `monthProfit` is nil for a free user by construction — the writer never
-    // stores it — so this reads as the upsell rather than as zero profit,
-    // which would be a lie about their ledger.
+    // No tier check anywhere in this view. `monthProfit` is nil when nothing
+    // has been sold this month or when nothing sold has a paid price, and it
+    // means those two things for everyone: the app gives free users this same
+    // month-scoped figure on the Flips tab, so a widget that answered "Pro"
+    // was upselling a feature they already had — and saying the same thing to
+    // a lapsed subscriber, whose ledger had not changed at all.
     /// Read through the entry's date, so the figure disappears when the month
     /// it belongs to ends. It was a bare `Double` computed against the month
     /// that was current at *write* time, rendered under a header hardcoded to
@@ -283,7 +286,7 @@ struct MonthProfitView: View {
     private var sold: Int { haul.monthSold(at: now) }
 
     private var value: String {
-        guard let profit else { return haul.isPro ? "—" : "Pro" }
+        guard let profit else { return "—" }
         return WidgetHaulData.compactMoney(profit)
     }
 
@@ -300,7 +303,6 @@ struct MonthProfitView: View {
     /// same data: "No flips sold yet this month" beside "2 items sold".
     private var caption: String {
         guard profit != nil else {
-            guard haul.isPro else { return "Track profit with Pro" }
             return sold > 0 ? "\(sold) sold · add what you paid"
                             : "No flips sold yet this month"
         }
@@ -309,7 +311,6 @@ struct MonthProfitView: View {
 
     private var spoken: String {
         guard let profit else {
-            guard haul.isPro else { return "Profit tracking is a Pro feature" }
             return sold > 0
                 ? "\(sold) flip\(sold == 1 ? "" : "s") sold this month, "
                   + "profit unknown until you add what you paid"

@@ -115,7 +115,15 @@ struct FlipsView: View {
     private func statsGrid(_ s: FlipsViewModel.Summary) -> some View {
         let cols = [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)]
         return LazyVGrid(columns: cols, spacing: 12) {
-            statCard(title: "Invested", value: vm.money(s.totalInvested))
+            // "(all-time)" because `totalInvested` is, and the header two
+            // rows above says "Profit this month" for a free user. Sell three
+            // items in August and nothing in September and the card read
+            // "Profit this month +$0 / 0 items sold" beside "Invested $150":
+            // cost basis attributed to sales the same card said had not
+            // happened. Stating the window is the honest fix; scoping the
+            // figure would make "Invested" mean one thing for a free user and
+            // another for a subscriber on the same card.
+            statCard(title: "Invested (all-time)", value: vm.money(s.totalInvested))
             statCard(title: "Avg ROI", value: s.averageROI.map { vm.roiPercent($0) } ?? "—")
             statCard(
                 title: "Best flip",
@@ -135,6 +143,12 @@ struct FlipsView: View {
             Text(title)
                 .font(.snapCaption)
                 .foregroundStyle(Color.snapWarmGray)
+                // The longest title is now "Invested (all-time)", which fits
+                // the card at the default size with room to spare — this is so
+                // that it cannot wrap and change the card's height when it
+                // does not.
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
             Text(value)
                 .font(.fraunces(22, weight: .bold))
                 .foregroundStyle(Color.snapEspresso)

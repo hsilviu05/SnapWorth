@@ -725,8 +725,13 @@ enum WidgetDataStore {
     /// `false`, and a v1 blob has no `isPro` key to seed from — so the flag
     /// could never become true and two of the six widgets were permanently
     /// wrong for subscribers. Reading the cache the purchase service already
-    /// keeps also handles the other direction: a lapse clears the Pro figures
-    /// on the next write instead of leaving a paid number on the Home Screen.
+    /// keeps also handles the other direction: a lapse restores the free-scan
+    /// count on the next write instead of leaving a subscriber's presentation
+    /// on the Home Screen.
+    ///
+    /// The month ledger is written for every tier and is not affected by a
+    /// lapse — the app gives free users that figure too, so withholding it
+    /// here upsold a feature they already had.
     static func writeHaul(results: [ScanResult], isPro: Bool? = nil) {
         // Never publish a fallback launch's library.
         //
@@ -796,7 +801,8 @@ enum WidgetDataStore {
 
         // Pro-only figures are written only while Pro, so a lapse clears them
         // on the next write instead of leaving a paid number on the Home
-        // Screen indefinitely.
+        // Screen indefinitely. The month ledger is *not* one of them — see
+        // below.
 
         let data = WidgetHaulData(
             totalLow:      lo,
@@ -809,16 +815,29 @@ enum WidgetDataStore {
             isPro:         pro,
             streak:        ScanStreak.current(),
             recentFinds:   Array(recent),
-            monthProfit:   pro && month.flips > 0 ? month.profit : nil,
-            monthFlips:    pro ? month.flips : 0,
+            // Written for every tier. The app is the authority on what is
+            // paid, and it hands free users this exact figure: `FlipsView`
+            // puts them on the month scope on purpose, under a header reading
+            // "Profit this month", computed by the same month-scoped sum this
+            // writer takes. The real ledger gates are all-time scope, sold
+            // rows past `ledgerFreeSoldCap`, and CSV export.
+            //
+            // Withholding it here made the widget upsell a feature the user
+            // already had, with a deep link that opens the very screen showing
+            // the number — and produced the same blob state for a lapsed
+            // subscriber, telling them profit tracking had been taken away
+            // when it had not.
+            monthProfit:   month.flips > 0 ? month.profit : nil,
+            monthFlips:    month.flips,
             // The day the streak was last extended and the full allowance, so
             // the widget can tell a live streak from a lapsed one and a spent
             // allowance from a reset one without the app running.
             streakLastScan: ScanStreak.lastScan,
             freeScanAllowance: Config.freeScansAllowed,
-            // Gated with the other two: this exists to caption a Pro figure,
-            // and a free user's widget shows the upsell rather than a count.
-            monthSold: pro ? month.sold : 0,
+            // Ungated with the other two: it captions the same figure, and a
+            // caption that says "0 sold" beside a real profit would be its own
+            // contradiction.
+            monthSold: month.sold,
             totalLikely: likely
         )
 

@@ -3281,15 +3281,45 @@ final class WidgetEntitlementTests: XCTestCase {
     }
 
     func test_aLapseClearsTheProFiguresOnTheNextWrite() throws {
-        let item = soldItem(paid: 20, sold: 120, soldDate: .now)
-        WidgetDataStore.writeHaul(results: [item], isPro: true)
-        XCTAssertNotNil(try readBack().monthProfit)
+        // What a lapse clears: the flag, and the free-scan count coming back.
+        // Not the month ledger — see the test below.
+        WidgetDataStore.writeHaul(results: [], isPro: true)
+        XCTAssertTrue(try readBack().isPro)
+        XCTAssertNil(try readBack().freeScansRemaining)
 
-        WidgetDataStore.writeHaul(results: [item], isPro: false)
+        WidgetDataStore.writeHaul(results: [], isPro: false)
         let after = try readBack()
         XCTAssertFalse(after.isPro)
-        XCTAssertNil(after.monthProfit, "a paid figure outlived the subscription")
-        XCTAssertEqual(after.monthFlips, 0)
+        XCTAssertNotNil(after.freeScansRemaining)
+    }
+
+    /// This test used to assert the opposite, and was wrong about the product.
+    ///
+    /// It read "a paid figure outlived the subscription" — but the month's
+    /// profit is not a paid figure. `FlipsView` puts free users on the month
+    /// scope deliberately (`scope = isPro ? .allTime : .month`), headed
+    /// "Profit this month", computed by the same month-scoped sum `writeHaul`
+    /// takes. The ledger's real gates are all-time scope, sold rows past
+    /// `ledgerFreeSoldCap`, and CSV export.
+    ///
+    /// So the widget was upselling a feature the user already had, with a deep
+    /// link that opens the very screen showing the number — and handing a
+    /// lapsed subscriber the same "Track profit with Pro", as though their
+    /// ledger had been taken away, when nothing about it had changed.
+    func test_theMonthLedgerIsWrittenForEveryTier() throws {
+        let item = soldItem(paid: 20, sold: 120, soldDate: .now)
+
+        WidgetDataStore.writeHaul(results: [item], isPro: true)
+        XCTAssertEqual(try readBack().monthProfit ?? 0, 100, accuracy: 0.01)
+
+        WidgetDataStore.writeHaul(results: [item], isPro: false)
+        let free = try readBack()
+        XCTAssertFalse(free.isPro)
+        XCTAssertEqual(free.monthProfit ?? 0, 100, accuracy: 0.01,
+                       "the Flips tab shows a free user this exact number")
+        XCTAssertEqual(free.monthFlips, 1)
+        XCTAssertEqual(free.monthSold, 1,
+                       "the caption has to count the same sale the figure is of")
     }
 
     func test_proGetsNoFreeScanCountAndFreeDoes() throws {
@@ -3313,6 +3343,20 @@ final class WidgetEntitlementTests: XCTestCase {
         let haul = try readBack()
         XCTAssertEqual(haul.monthProfit ?? 0, 100, accuracy: 0.01)
         XCTAssertEqual(haul.monthFlips, 1)
+    }
+
+    /// A sale nobody priced still reads as nil, for everyone. The widget's
+    /// three states — a figure, "N sold · add what you paid", and "No flips
+    /// sold yet this month" — now turn on the ledger alone and never on tier.
+    func test_anUnpricedSaleIsStillNilAndStillCounted() throws {
+        let item = soldItem(paid: 20, sold: 120, soldDate: .now)
+        item.paidPrice = nil
+
+        WidgetDataStore.writeHaul(results: [item], isPro: false)
+        let haul = try readBack()
+        XCTAssertNil(haul.monthProfit)
+        XCTAssertEqual(haul.monthFlips, 0)
+        XCTAssertEqual(haul.monthSold, 1)
     }
 
     func test_anOmittedFlagReadsThePersistedEntitlement() throws {
