@@ -147,15 +147,26 @@ struct ResultView: View {
                             .padding(.horizontal, 20)
                             .padding(.top, 12)
 
-                        if !result.listingTitle.isEmpty || !result.listingDescription.isEmpty {
-                            listingDraftCard
+                        // Both of these print the covered number by another
+                        // route: "Copy listing draft" puts `Asking: $45–$90`
+                        // on the clipboard, and a generated Snap → Sell
+                        // listing shows Ask and Floor, both derived
+                        // server-side from the same range. Leaving them up
+                        // while the value card still reads "$ ? ? ?" ends the
+                        // guess before Reveal is ever tapped, so they wait
+                        // with the ladder — the same reasoning as the comment
+                        // on `priceCovered` above.
+                        if !priceCovered {
+                            if !result.listingTitle.isEmpty || !result.listingDescription.isEmpty {
+                                listingDraftCard
+                                    .padding(.horizontal, 20)
+                                    .padding(.top, 12)
+                            }
+
+                            snapSellCard
                                 .padding(.horizontal, 20)
                                 .padding(.top, 12)
                         }
-
-                        snapSellCard
-                            .padding(.horizontal, 20)
-                            .padding(.top, 12)
 
                         footer
                             .padding(.top, 20)
@@ -1275,6 +1286,17 @@ struct ResultView: View {
             .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).strokeBorder(Color.snapBorder, lineWidth: 1))
         }
         .buttonStyle(.plain)
+        // 11pt of padding around a 14pt label draws a pill just under 40pt
+        // tall, and `.plain` makes that drawn pill the entire strike zone —
+        // while `Open <marketplace>` directly below it is an explicit 44.
+        //
+        // The floor goes *outside* the label, so the pill keeps its exact
+        // size, radius, border and fill; only the tappable area grows to the
+        // 44pt the condition pills, Regenerate and PrimaryButton in this same
+        // card already honour. The finding's own suggestion — padding 11 → 13
+        // — would visibly fatten the pill instead, which is not a change to
+        // make days before a release.
+        .snapHitTarget()
     }
 
     private var lockedListingTeaser: some View {
