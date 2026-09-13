@@ -2330,6 +2330,39 @@ final class CameraFlashModeTests: XCTestCase {
                           "\(chosen) is not in \(supported) — this is the abort")
         }
     }
+
+    // ── Recovering a session we did not stop ─────────────────────────────
+    //
+    // A stop that came from the system used to be permanent: another client
+    // taking the camera, or a mediaserverd reset, left `isRunning` false, the
+    // preview frozen on its last frame, and `capturePhoto` returning at its
+    // own guard — so every shutter tap after that only vibrated. `onAppear`
+    // cannot rescue it because the view never disappeared, and the user's only
+    // fix was force-quitting the app.
+    //
+    // The observers themselves cannot be unit-tested (AVFoundation posts the
+    // notifications, and the hardware states cannot be reproduced), so the
+    // decision is tested apart from the hardware — the same split
+    // `flashMode` and `preferredPhotoDimensions` already use.
+
+    func test_aMediaServicesResetIsWorthRestarting() {
+        // mediaserverd restarted underneath us: the session is stopped but
+        // still configured, so `startRunning` is the whole recovery.
+        XCTAssertTrue(CameraManager.shouldRestart(after: .mediaServicesWereReset))
+    }
+
+    func test_everythingElseIsLeftAlone() {
+        // Not caution for its own sake: a failure a restart cannot fix posts
+        // another runtime error when we retry it, and that is a
+        // notification-and-restart loop for as long as the screen is open.
+        for code in [AVError.Code.deviceAlreadyUsedByAnotherSession,
+                     .sessionConfigurationChanged,
+                     .mediaDiscontinuity,
+                     .unknown] {
+            XCTAssertFalse(CameraManager.shouldRestart(after: code),
+                           "\(code) would loop if we retried it")
+        }
+    }
 }
 
 // ── The app palette ──────────────────────────────────────────────────────────

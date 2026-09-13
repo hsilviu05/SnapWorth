@@ -17,6 +17,29 @@ final class CameraManager: NSObject, ObservableObject {
     override init() {
         super.init()
         authStatus = AVCaptureDevice.authorizationStatus(for: .video)
+
+        // A session this class did not stop itself was never restarted, so any
+        // stop that came from the system was permanent: another client taking
+        // the camera, or a mediaserverd reset, left `isRunning` false, the
+        // preview frozen on its last frame, and `capturePhoto` returning at
+        // its own guard — so every shutter tap after that only vibrated.
+        // `onAppear` cannot rescue it because the view never disappeared. The
+        // user's only fix was force-quitting the app.
+        //
+        // Selector-based observers rather than the closure form on purpose:
+        // NotificationCenter holds these weakly and drops them when the
+        // manager goes away, so there is no token to remove from a `deinit`
+        // that cannot touch main-actor state — and a second manager is built
+        // for every result sheet that offers a tag photo.
+        let center = NotificationCenter.default
+        center.addObserver(self,
+                           selector: #selector(sessionInterruptionEnded(_:)),
+                           name: AVCaptureSession.interruptionEndedNotification,
+                           object: session)
+        center.addObserver(self,
+                           selector: #selector(sessionRuntimeError(_:)),
+                           name: AVCaptureSession.runtimeErrorNotification,
+                           object: session)
     }
 
     func requestPermissionAndSetup() {
@@ -46,6 +69,21 @@ final class CameraManager: NSObject, ObservableObject {
     }
 
     private func setupSession() {
+        // Claimed here, on the actor that reads it in `setupSessionIfNeeded`,
+        // instead of after the session queue finishes. `startRunning` below
+        // blocks that queue for a few hundred milliseconds on real hardware,
+        // and ScanView calls `requestPermissionAndSetup` from `onAppear` on a
+        // TabView tab — so a tab switch inside that window saw
+        // `isConfigured == false` and enqueued a second full configuration
+        // pass. A plain `AVCaptureSession` cannot hold two video inputs (that
+        // needs `AVCaptureMultiCamSession`), so `canAddInput` refused the
+        // duplicate, the guard below failed, and `.setupFailed` was published:
+        // a modal "Camera setup failed. Please restart the app." on top of a
+        // viewfinder that was running perfectly.
+        //
+        // The check and the claim are now the same main-actor turn, so there
+        // is no hop between them for a second call to slip through.
+        isConfigured = true
         sessionQueue.async { [weak self] in
             guard let self else { return }
             self.session.beginConfiguration()
@@ -65,7 +103,14 @@ final class CameraManager: NSObject, ObservableObject {
                 // access, granted it in Settings and returned got a black
                 // viewfinder until they force-quit.
                 self.session.commitConfiguration()
-                Task { @MainActor [weak self] in self?.error = .setupFailed }
+                // Give the claim back: configuration genuinely failed, so a
+                // later appearance has to be allowed to try the whole thing
+                // again. Without this the claim above would turn a real
+                // failure into a permanent one.
+                Task { @MainActor [weak self] in
+                    self?.isConfigured = false
+                    self?.error = .setupFailed
+                }
                 return
             }
             self.session.addInput(input)
@@ -98,7 +143,6 @@ final class CameraManager: NSObject, ObservableObject {
 
             self.session.commitConfiguration()
             self.session.startRunning()
-            Task { @MainActor [weak self] in self?.isConfigured = true }
         }
     }
 
@@ -114,6 +158,45 @@ final class CameraManager: NSObject, ObservableObject {
             guard let self, self.session.isRunning else { return }
             self.session.stopRunning()
         }
+    }
+
+    /// Whether a session runtime error is one that starting the session again
+    /// fixes. `mediaServicesWereReset` means mediaserverd restarted underneath
+    /// us and the session is stopped but still configured, so `startRunning`
+    /// is the whole recovery.
+    ///
+    /// Nothing else is retried, which is why this is a decision rather than an
+    /// unconditional restart: a failure a restart cannot fix posts another
+    /// runtime error when we retry it, and that is a notification-and-restart
+    /// loop for as long as the screen is open.
+    ///
+    /// Pure and `nonisolated` for the same reason `flashMode` is — the
+    /// hardware cases cannot be reproduced in a test, so the decision is
+    /// tested apart from the hardware.
+    nonisolated static func shouldRestart(after code: AVError.Code) -> Bool {
+        code == .mediaServicesWereReset
+    }
+
+    /// The camera came back: another client released it, or the app left Split
+    /// View. AVFoundation makes no promise to resume the session for us, and
+    /// `startSession` no-ops when it is already running, so just ask. A
+    /// session we stopped ourselves is never *interrupted*, so this cannot
+    /// resurrect the preview behind a result sheet that stopped it.
+    ///
+    /// `nonisolated` because AVFoundation posts these from its own queue and
+    /// an `@objc` selector inserts no actor hop; the hop back onto the main
+    /// actor is the explicit `Task`, as in the capture delegate below.
+    @objc private nonisolated func sessionInterruptionEnded(_ notification: Notification) {
+        Task { @MainActor [weak self] in self?.startSession() }
+    }
+
+    /// The `Notification` is read here and never captured — it is not
+    /// `Sendable`, so only the decision crosses into the `Task`.
+    @objc private nonisolated func sessionRuntimeError(_ notification: Notification) {
+        guard let error = notification.userInfo?[AVCaptureSessionErrorKey] as? AVError,
+              Self.shouldRestart(after: error.code)
+        else { return }
+        Task { @MainActor [weak self] in self?.startSession() }
     }
 
     /// Largest supported size at or below the 12MP cap, else the largest on
@@ -155,7 +238,23 @@ final class CameraManager: NSObject, ObservableObject {
 
     func capturePhoto() {
         sessionQueue.async { [weak self] in
-            guard let self, self.session.isRunning else { return }
+            guard let self else { return }
+            // A tap that arrives while the session is stopped used to return
+            // from here without a trace: no photo, no delegate callback, no
+            // error — and `Haptics.capture()` has already fired on the way in,
+            // so the device confirmed a photo that was never taken and the
+            // viewfinder just sat there.
+            //
+            // The queue is serial, so a tap racing `startRunning` is safely
+            // ordered behind it. What is left is the state that does *not*
+            // heal on its own: a configuration that failed, a capture runtime
+            // error, another app holding the camera. There the shutter is dead
+            // for the life of the screen, and publishing the failure is what
+            // turns silence into the alert ScanView already presents.
+            guard self.session.isRunning else {
+                Task { @MainActor [weak self] in self?.error = .captureFailed }
+                return
+            }
             let settings = AVCapturePhotoSettings()
             if let mode = Self.flashMode(preferring: .auto,
                                          supported: self.photoOutput.supportedFlashModes) {
