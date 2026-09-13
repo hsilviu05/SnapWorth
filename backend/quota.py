@@ -85,6 +85,11 @@ class QuotaStatus:
     used: int
     limit: int
     unlimited: bool
+    # The UTC day this status was counted against. A refund has to decrement
+    # the day the reservation was *taken from*, not whichever day the failure
+    # happened to land in — see `refund`. Empty for a status that is not a
+    # reservation, which then means "today".
+    day: str = ""
 
     @property
     def remaining(self) -> int:
@@ -167,8 +172,8 @@ class ScanQuota:
         return configured if configured > self._limit else 0
 
     @staticmethod
-    def _counter_key(subject: str) -> str:
-        return f"quota:{subject}:{_utc_day()}"
+    def _counter_key(subject: str, day: str | None = None) -> str:
+        return f"quota:{subject}:{day or _utc_day()}"
 
     @staticmethod
     def _seen_key(subject: str) -> str:
@@ -224,9 +229,12 @@ class ScanQuota:
         if is_pro:
             return QuotaStatus(used=0, limit=self._limit, unlimited=True)
         limit = await self._limit_for(subject)
+        # Read once and carried, so the refund cannot land on a different key
+        # than the increment did.
+        day = _utc_day()
         try:
             used = await self._cache.incr(
-                self._counter_key(subject), _COUNTER_TTL, required=True)
+                self._counter_key(subject, day), _COUNTER_TTL, required=True)
         except CacheUnavailable as exc:
             raise QuotaUnavailable(str(exc)) from exc
 
@@ -234,15 +242,26 @@ class ScanQuota:
             # Refused, so it must not leave the counter raised against the
             # next request — otherwise a burst would push the count
             # arbitrarily far past the limit and delay the reset.
-            await self._release(subject)
+            await self._release(subject, day)
             raise QuotaExceeded(
                 _exhausted_message(limit),
                 resets_at=int(time.time()) + _seconds_until_utc_midnight(),
             )
-        return QuotaStatus(used=used, limit=limit, unlimited=False)
+        return QuotaStatus(used=used, limit=limit, unlimited=False, day=day)
 
-    async def refund(self, subject: str, is_pro: bool) -> None:
+    async def refund(self, subject: str, is_pro: bool,
+                     day: str | None = None) -> None:
         """Return a reservation whose work produced no result.
+
+        `day` is the UTC day the reservation was counted against — carried on
+        the `QuotaStatus` that `reserve` returned. Without it the key was
+        recomputed from "now", so a scan reserved at 23:59:59 and refunded a
+        second later decremented the *new* day's counter. The day it was
+        actually taken from kept the use, so the user was charged for a scan
+        that produced nothing; and if another scan had already reserved on the
+        new day, its live reservation was handed back instead — two scans out
+        of one allowance. A scan takes seconds and the boundary is one second
+        wide per day, so this was rare and permanent rather than loud.
 
         Best-effort: a failed refund costs the user one scan, which is the
         same outcome the pre-reservation code had on every failure, so it is
@@ -250,21 +269,24 @@ class ScanQuota:
         """
         if is_pro:
             return
-        await self._release(subject)
+        await self._release(subject, day)
 
-    async def _release(self, subject: str) -> None:
+    async def _release(self, subject: str, day: str | None = None) -> None:
+        key = self._counter_key(subject, day)
         try:
             used = await self._cache.incr(
-                self._counter_key(subject), _COUNTER_TTL, amount=-1, required=True)
+                key, _COUNTER_TTL, amount=-1, required=True)
         except CacheUnavailable as exc:
             log.error("quota refund failed — user charged for nothing: %s", exc)
             return
         if used < 0:
             # Only reachable if the counter was reset underneath a live
-            # reservation (a day boundary, or an operator clearing it).
+            # reservation (an operator clearing it, or a key that expired).
+            # No longer reachable by crossing midnight: `key` is the day the
+            # reservation was taken from, and that day's counter still holds
+            # it. Written back to the same key, not to a freshly computed one.
             try:
-                await self._cache.set(
-                    self._counter_key(subject), "0", _COUNTER_TTL, required=True)
+                await self._cache.set(key, "0", _COUNTER_TTL, required=True)
             except CacheUnavailable:
                 pass
 

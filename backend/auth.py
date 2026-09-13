@@ -531,15 +531,23 @@ async def reserve_quota(principal: Principal) -> QuotaStatus | None:
         ) from None
 
 
-async def refund_quota(principal: Principal) -> None:
+async def refund_quota(principal: Principal,
+                       status: QuotaStatus | None = None) -> None:
     """Hand back a reservation whose work produced nothing.
+
+    Pass the `QuotaStatus` that `reserve_quota` returned. It carries the UTC
+    day the reservation was counted against, and without it the refund lands
+    on whichever day the failure happened in — which across midnight is the
+    wrong counter. Optional only so a caller with no reservation in hand still
+    compiles; every real one has it.
 
     Never raises: the request has already failed, and a failed refund is
     exactly the outcome the previous check-then-consume code produced on
     *every* failure. Not worth a second error on top of the first.
     """
     try:
-        await deps.quota.refund(principal.subject, principal.is_pro)
+        await deps.quota.refund(principal.subject, principal.is_pro,
+                                day=status.day if status else None)
     except Exception as exc:                                # pragma: no cover
         log.error("quota refund failed — user charged for a failed scan: %s", exc,
                   extra={"subject": auditlog.pseudonymise(principal.subject)})

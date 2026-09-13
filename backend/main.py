@@ -1475,14 +1475,17 @@ async def scan(
                                            subject=principal.subject, device_short=device_short,
                                            tag_bytes=tag_bytes, tag_type=tag_type)
     except BaseException:
-        await refund_quota(principal)
+        # `quota_status` carries the UTC day the reservation was counted
+        # against. Recomputing the day here refunded the wrong counter for a
+        # scan that started just before midnight.
+        await refund_quota(principal, quota_status)
         raise
 
     # The iOS client gives up at 35s (CertificatePinning.swift). Past that
     # nothing we produce can reach it, so charging for it is charging for
     # something the user will never see — and they will scan again.
     if await request.is_disconnected():
-        await refund_quota(principal)
+        await refund_quota(principal, quota_status)
         log.info("client gone before the result — allowance returned",
                  extra={"device": device_short})
         return response
