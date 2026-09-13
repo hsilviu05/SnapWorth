@@ -346,6 +346,13 @@ class TestScanEndpoint:
         assert "Empty" in r.json()["detail"]
 
     def test_rejects_oversized_file(self):
+        """11 MB is over the route's limit and under the request ceiling.
+
+        So it reaches the route and gets copy the client actually renders.
+        `AppError.from` maps 400 and 422 and has no 413 case at all, which is
+        why `_read_capped` answers 400 — and why `MAX_REQUEST_BYTES` sits well
+        above this rather than duplicating it.
+        """
         big = io.BytesIO(b"\xff\xd8\xff" + b"\x00" * (11 * 1024 * 1024))
         r = client.post(
             "/scan",
@@ -354,6 +361,41 @@ class TestScanEndpoint:
         )
         assert r.status_code == 400
         assert "10 MB" in r.json()["detail"]
+
+    def test_an_implausible_body_is_refused_before_it_is_read(self):
+        """The gap `_read_capped` could not close.
+
+        `_read_capped` bounds what the process will *hold*, but a route's
+        parameters are resolved before its first statement runs — so Starlette
+        had already received the whole multipart part and spooled it to a temp
+        file by then. Auth, the rate limiter and the quota all sat behind an
+        unbounded receive, on a single worker with no proxy body cap in front
+        of it.
+
+        Asserted from the declared `content-length` rather than by sending the
+        bytes: the property is that nothing is read, so pushing 21 MB through
+        the test client would measure the opposite of the point.
+        """
+        r = client.post(
+            "/scan",
+            headers={"x-device-id": "huge", "content-type": "image/jpeg",
+                     "content-length": str(21 * 1024 * 1024)},
+            content=b"",
+        )
+        assert r.status_code == 413
+        assert "too large" in r.json()["detail"]
+        # The middleware sits inside `security_headers`, so a refusal is still
+        # a properly headed response.
+        assert r.headers["X-Content-Type-Options"] == "nosniff"
+
+    def test_a_malformed_content_length_is_refused_not_crashed(self):
+        r = client.post(
+            "/scan",
+            headers={"x-device-id": "bad-len", "content-type": "image/jpeg",
+                     "content-length": "not-a-number"},
+            content=b"",
+        )
+        assert r.status_code in (400, 422), r.status_code
 
     def test_rate_limited_after_20_requests(self):
         mock_response = MagicMock()

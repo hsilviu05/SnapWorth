@@ -468,6 +468,52 @@ if _allowed_origins:
     )
 
 
+# Deliberately well above the 10 MB `MAX_UPLOAD_BYTES` the /scan route
+# enforces itself. This is not a second copy of that limit — it is a ceiling
+# on what any request may be, so an ordinary oversized photo still reaches the
+# route and gets its own friendly "Image exceeds 10 MB limit." rather than a
+# bare 413 the client has no case for (`AppError.from` maps 400 and 422; it
+# has no 413, which is exactly why `_read_capped` answers 400).
+MAX_REQUEST_BYTES = int(os.environ.get("MAX_REQUEST_BYTES", str(20 * 1024 * 1024)))
+
+
+@app.middleware("http")
+async def limit_request_body(request: Request, call_next):
+    """Refuse an implausibly large body before anything reads it.
+
+    `_read_capped` bounds what the process will *hold* — it reads the file part
+    in chunks and stops one byte past 10 MB — but by then Starlette has already
+    received the whole multipart part and spooled it to a temp file, because
+    the route's parameters are resolved before its first statement runs. So
+    auth, the rate limiter and the quota all sat behind an unbounded receive:
+    an anonymous caller could make the replica accept and write hundreds of
+    megabytes per request, with `--workers 1` (see Dockerfile) and no proxy
+    body cap in front of it.
+
+    Checked against the request-level `content-length`, which every client that
+    posts a multipart body sends, so this covers every real caller. A chunked
+    body with no declared length is NOT bounded here — buffering it to measure
+    it would reintroduce the memory problem this is meant to avoid — and stays
+    covered only by `_read_capped`'s 10 MB on the file part.
+    """
+    if request.method in {"POST", "PUT", "PATCH"}:
+        declared = request.headers.get("content-length")
+        if declared is not None:
+            try:
+                length = int(declared)
+            except ValueError:
+                return JSONResponse(status_code=400,
+                                    content={"detail": "Malformed content-length."})
+            if length > MAX_REQUEST_BYTES:
+                log.warning("request body refused before reading",
+                            extra={"declared_bytes": length,
+                                   "max_bytes": MAX_REQUEST_BYTES})
+                return JSONResponse(
+                    status_code=413,
+                    content={"detail": "Request body is too large."})
+    return await call_next(request)
+
+
 @app.middleware("http")
 async def record_metrics(request: Request, call_next):
     """Instrument every request.
