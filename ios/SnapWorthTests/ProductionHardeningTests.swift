@@ -1688,6 +1688,31 @@ final class MoneyInputTests: XCTestCase {
         XCTAssertEqual(MoneyInput.parse("12,50"), 12.5, "two digits is a decimal")
     }
 
+    /// The same rule, applied to the point. It used to be true of the comma
+    /// only — the point was read as a decimal unconditionally — on a keypad
+    /// where the point *is* the grouping separator.
+    func test_aLonePointIsGroupingWhenThreeDigitsFollow() {
+        // A thousandfold error, written silently onto paidPrice, soldPrice,
+        // feesEstimate and the guess field.
+        XCTAssertEqual(MoneyInput.parse("1.250"), 1250, "was 1.25")
+        XCTAssertEqual(MoneyInput.parse("1.234.567"), 1234567, "was 1234.567")
+        // And the decimal readings it must not disturb.
+        XCTAssertEqual(MoneyInput.parse("45.5"), 45.5, "one digit is a decimal")
+        XCTAssertEqual(MoneyInput.parse("45.50"), 45.5, "two digits is a decimal")
+    }
+
+    func test_theGroupingRuleIsTheSameForEitherMark() {
+        // The invariant behind the fix: swapping every point for a comma, or
+        // the reverse, must not change the number. Asymmetry here is what the
+        // defect was.
+        for (dotted, commaed) in [("1.250", "1,250"), ("1.234.567", "1,234,567"),
+                                  ("45.5", "45,5"), ("45.50", "45,50"),
+                                  ("8", "8")] {
+            XCTAssertEqual(MoneyInput.parse(dotted), MoneyInput.parse(commaed),
+                           "\(dotted) and \(commaed) must read the same")
+        }
+    }
+
     /// With both separators present the last one is the decimal, so each
     /// writing convention lands on the same number.
     func test_bothSeparatorsResolveByPosition() {

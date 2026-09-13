@@ -21,13 +21,20 @@ enum MoneyInput {
     /// - **Both present** — the *last* one is the decimal separator and the
     ///   other is grouping. `1.234,56` is 1234.56 and `1,234.56` is also
     ///   1234.56, which is exactly what each writer meant.
-    /// - **Only a point** — it is the decimal separator. `45.5` is 45.5.
-    /// - **Only a comma** — ambiguous, and settled by what follows it: exactly
-    ///   three digits is grouping (`1,250` → 1250, how a US user writes it),
-    ///   one or two is a decimal (`12,50` → 12.50, how most of Europe writes a
-    ///   price). The case this gets wrong is a European writing `1,250` for one
-    ///   euro twenty-five — three decimal places in a price field, which no
-    ///   keypad encourages and no marketplace charges.
+    /// - **Only one kind of separator** — ambiguous, and settled by what
+    ///   follows the last one: exactly three digits is grouping (`1,250` →
+    ///   1250, how a US user writes it; `1.250` → 1250, how a German one
+    ///   does), one or two is a decimal (`12,50` and `12.50` → 12.50). The
+    ///   case this gets wrong is someone writing three decimal places in a
+    ///   price field, which no keypad encourages and no marketplace charges.
+    ///
+    ///   The point used to skip that test — it was read as a decimal
+    ///   unconditionally — so the rule was true of the comma and false of the
+    ///   point, on a keypad where the point *is* the grouping separator.
+    ///   `1.250` parsed as 1.25 and `1.234.567` as 1234.567: a thousandfold
+    ///   error, written silently onto `paidPrice`, `soldPrice`, `feesEstimate`
+    ///   and the guess field. `PriceTagOCR.normalizedDecimal` already applies
+    ///   the symmetric rule, and its own doc claims this function does too.
     ///
     /// Everything that is not a digit or a separator is dropped, so a pasted
     /// currency symbol costs nothing.
@@ -43,16 +50,16 @@ enum MoneyInput {
         case let (comma?, dot?):
             decimalIndex = comma > dot ? comma : dot
         case (nil, let dot?):
-            decimalIndex = dot
+            decimalIndex = Self.groupingRun(after: dot, in: kept) ? nil : dot
         case let (comma?, nil):
-            let digitsAfter = kept.distance(from: kept.index(after: comma), to: kept.endIndex)
-            decimalIndex = digitsAfter == 3 ? nil : comma
+            decimalIndex = Self.groupingRun(after: comma, in: kept) ? nil : comma
         case (nil, nil):
             decimalIndex = nil
         }
 
         var out = ""
         var index = kept.startIndex
+
         while index < kept.endIndex {
             let character = kept[index]
             if character.isNumber {
@@ -64,6 +71,16 @@ enum MoneyInput {
             index = kept.index(after: index)
         }
         return out
+    }
+
+    /// True when exactly three digits follow `separator`, which is what makes
+    /// it a thousands separator rather than a decimal point.
+    ///
+    /// One rule for either mark. Applying it to the comma alone is what let
+    /// `1.250` mean one-and-a-quarter on a keypad where the point groups.
+    private static func groupingRun(after separator: String.Index,
+                                    in text: String) -> Bool {
+        text.distance(from: text.index(after: separator), to: text.endIndex) == 3
     }
 
     /// Nil for empty or unparseable input — the caller keeps the previous
