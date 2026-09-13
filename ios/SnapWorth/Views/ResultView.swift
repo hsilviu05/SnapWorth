@@ -37,6 +37,16 @@ struct ResultView: View {
     /// Per result: a fresh sheet starts covered when the preference is on.
     @State private var priceRevealed = false
     @State private var quickGuessText = ""
+    /// The range the guess was scored against, captured at the reveal.
+    ///
+    /// The estimate goes on moving afterwards — the condition chips re-price
+    /// it, the tag re-read replaces it outright — but the guess was entered
+    /// once, against the number as it stood then, and the field it was typed
+    /// into goes away with the cover. Scoring the live range meant a condition
+    /// correction silently re-graded a verdict the user had already been given
+    /// and could no longer answer: "spot on" could become "$12 under the low
+    /// end" because they told the app the jacket was more worn than it looked.
+    @State private var revealedRange: (low: Double, high: Double)?
 
     private var isPro: Bool { purchaseService.isSubscribed }
 
@@ -216,14 +226,17 @@ struct ResultView: View {
             if newValue.isEmpty { result.paidPrice = nil }
             else if let parsed = MoneyInput.parse(newValue) { result.paidPrice = parsed }
             vm.scheduleShareCardUpdate(result: result, photo: photo)
+            ledgerDidChange()
         }
         .onChange(of: soldPriceText) { _, newValue in
             if newValue.isEmpty { result.soldPrice = nil }
             else if let parsed = MoneyInput.parse(newValue) { result.soldPrice = parsed }
+            ledgerDidChange()
         }
         .onChange(of: feesText) { _, newValue in
             if newValue.isEmpty { result.feesEstimate = nil }
             else if let parsed = MoneyInput.parse(newValue) { result.feesEstimate = parsed }
+            ledgerDidChange()
         }
         .fullScreenCover(isPresented: $showTagCamera) {
             TagCameraSheet { image in
@@ -493,7 +506,14 @@ struct ResultView: View {
             let id = result.id
             Task { await NotificationManager.shared.cancelLedgerFollowUp(itemID: id) }
         case .listed:
-            if result.listedDate == nil { result.listedDate = Date() }
+            // Coming back to Listed restarts the clock. Keeping the original
+            // date puts the fire date 14 days after the *first* listing —
+            // already in the past for anything listed over two weeks ago — and
+            // a past-dated request is dropped silently, so a relisted item
+            // never got the "did it sell?" nudge that is the whole point of
+            // the status. Re-tapping Listed while already Listed is left
+            // alone; only a real re-entry reseeds the date.
+            if previous != .listed || result.listedDate == nil { result.listedDate = Date() }
             let (id, name, listed) = (result.id, result.itemName, result.listedDate ?? Date())
             Task { await NotificationManager.shared.scheduleLedgerFollowUp(itemID: id, itemName: name, from: listed) }
         default:
@@ -503,6 +523,11 @@ struct ResultView: View {
                 Task { await NotificationManager.shared.cancelLedgerFollowUp(itemID: id) }
             }
         }
+
+        // Outside the switch: every branch moved `status`, and two of them also
+        // moved `soldDate`, which is the other half of the widget's month
+        // filter.
+        ledgerDidChange()
     }
 
     private static func signedProfit(_ d: Decimal) -> String {
@@ -628,8 +653,13 @@ struct ResultView: View {
 
     private var quickVerdict: String? {
         guard priceRevealed, let quickGuess else { return nil }
-        return GuessScoring.verdict(guess: quickGuess, low: result.displayValueLow,
-                                    high: result.displayValueHigh)
+        // Scored against the range as it stood at the reveal — see
+        // `revealedRange`. The fallback covers the reveal itself, where the
+        // frozen range and the live one are the same number anyway.
+        let scored = revealedRange
+            ?? (low: result.displayValueLow, high: result.displayValueHigh)
+        return GuessScoring.verdict(guess: quickGuess, low: scored.low,
+                                    high: scored.high)
     }
 
     @ViewBuilder
@@ -746,6 +776,9 @@ struct ResultView: View {
     private func revealPrice() {
         guard !priceRevealed else { return }
         focusedField = nil
+        // Freeze what the verdict is scored against before the range is free
+        // to move again — see `revealedRange`.
+        revealedRange = (low: result.displayValueLow, high: result.displayValueHigh)
         withAnimation(reduceMotion ? .easeInOut(duration: 0.2)
                                    : .spring(response: 0.45, dampingFraction: 0.62)) {
             priceRevealed = true
@@ -865,6 +898,24 @@ struct ResultView: View {
         // — the same reason `selectMarketplace` clears it.
         vm.generatedListing = nil
         vm.listingError = nil
+    }
+
+    /// Everything that has to follow a change to this item's ledger figures.
+    ///
+    /// `WidgetDataStore.writeHaul` computes the Pro widget's month-to-date line
+    /// from status, sold date and realized profit — sold price less paid price
+    /// less fees — and this sheet is the app's only ledger editor. Only
+    /// `valuationDidChange` was resyncing, so a user who marked a find sold and
+    /// typed what it went for was left with "This month: $0 from 0 flips" on
+    /// the Home Screen until they happened to scan or delete something, which
+    /// is the next thing that touches the widget.
+    ///
+    /// Deliberately *not* `valuationDidChange`: the estimate itself has not
+    /// moved, so there is no new portfolio point to record — and throwing away
+    /// a generated listing because the user typed a purchase price would
+    /// destroy work they are in the middle of using.
+    private func ledgerDidChange() {
+        ScanRepository(context: modelContext).refreshWidget()
     }
 
     /// Re-scan with both photos and replace the estimate in place.
