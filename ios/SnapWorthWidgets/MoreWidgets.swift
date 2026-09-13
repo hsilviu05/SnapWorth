@@ -64,7 +64,7 @@ struct RecentFindsView: View {
                 Image(systemName: "clock.arrow.circlepath")
                     .snapWidgetIcon()
                 Text("Recent finds")
-                    .font(.system(size: 11, weight: .semibold, design: .serif))
+                    .wFont(11, weight: .semibold, design: .serif)
                     .foregroundStyle(Color.wBackground.opacity(0.7))
                 Spacer()
                 if haul.hasScans {
@@ -77,10 +77,10 @@ struct RecentFindsView: View {
                     // "Haul worth …"; this is the sighted half of it.
                     HStack(spacing: 3) {
                         Text("Haul")
-                            .font(.system(size: 11, weight: .medium))
+                            .wFont(11, weight: .medium)
                             .foregroundStyle(Color.wBackground.opacity(0.7))
                         Text(haul.formattedRange)
-                            .font(.system(size: 11, weight: .semibold))
+                            .wFont(11, weight: .semibold)
                             .foregroundStyle(Color.wSage)
                     }
                     .lineLimit(1)
@@ -93,7 +93,7 @@ struct RecentFindsView: View {
             if rows.isEmpty {
                 Spacer()
                 Text("Nothing scanned yet")
-                    .font(.system(size: 13, weight: .medium))
+                    .wFont(13, weight: .medium)
                     .foregroundStyle(Color.wWarmGray)
                 Spacer()
             } else {
@@ -101,13 +101,13 @@ struct RecentFindsView: View {
                     ForEach(rows) { find in
                         HStack(alignment: .firstTextBaseline, spacing: 6) {
                             Text(find.name)
-                                .font(.system(size: 13, weight: .medium))
+                                .wFont(13, weight: .medium)
                                 .foregroundStyle(Color.wBackground)
                                 .lineLimit(1)
                                 .truncationMode(.tail)
                             Spacer(minLength: 4)
                             Text(find.range)
-                                .font(.system(size: 13, weight: .semibold, design: .rounded))
+                                .wFont(13, weight: .semibold, design: .rounded)
                                 .foregroundStyle(Color.wSage)
                                 .lineLimit(1)
                                 .layoutPriority(1)
@@ -156,9 +156,9 @@ struct ScansLeftView: View {
                 AccessoryWidgetBackground()
                 VStack(spacing: 0) {
                     Image(systemName: "camera.viewfinder")
-                        .font(.system(size: 11, weight: .semibold))
+                        .wFont(11, weight: .semibold)
                     Text(state.circularValue)
-                        .font(.system(size: 16, weight: .bold, design: .rounded))
+                        .wFont(16, weight: .bold, design: .rounded)
                         .minimumScaleFactor(0.5)
                         .lineLimit(1)
                 }
@@ -171,17 +171,17 @@ struct ScansLeftView: View {
                 HStack(spacing: 4) {
                     Image(systemName: "camera.viewfinder").snapWidgetIcon()
                     Text("SnapWorth")
-                        .font(.system(size: 11, weight: .semibold, design: .serif))
+                        .wFont(11, weight: .semibold, design: .serif)
                         .foregroundStyle(Color.wBackground.opacity(0.7))
                 }
                 Spacer()
                 Text(state.headline)
-                    .font(.system(size: haul.isPro ? 18 : 30, weight: .bold, design: .rounded))
+                    .wFont(haul.isPro ? 18 : 30, weight: .bold, design: .rounded)
                     .foregroundStyle(accentForRemaining)
                     .minimumScaleFactor(0.5)
                     .lineLimit(1)
                 Text(state.subtitle)
-                    .font(.system(size: 11, weight: .medium))
+                    .wFont(11, weight: .medium)
                     .foregroundStyle(Color.wWarmGray)
                     .lineLimit(2)
             }
@@ -248,17 +248,17 @@ struct MonthProfitView: View {
             HStack(spacing: 4) {
                 Image(systemName: "chart.line.uptrend.xyaxis").snapWidgetIcon()
                 Text("This month")
-                    .font(.system(size: 11, weight: .semibold, design: .serif))
+                    .wFont(11, weight: .semibold, design: .serif)
                     .foregroundStyle(Color.wBackground.opacity(0.7))
             }
             Spacer()
             Text(value)
-                .font(.system(size: 24, weight: .bold, design: .rounded))
+                .wFont(24, weight: .bold, design: .rounded)
                 .foregroundStyle(colour)
                 .minimumScaleFactor(0.5)
                 .lineLimit(1)
             Text(caption)
-                .font(.system(size: 11, weight: .medium))
+                .wFont(11, weight: .medium)
                 .foregroundStyle(Color.wWarmGray)
                 .lineLimit(2)
         }
@@ -337,9 +337,76 @@ struct MonthProfitWidget: Widget {
 
 // ── Shared bits ──────────────────────────────────────────────────────────────
 
+/// A fixed point size that follows the user's text-size setting.
+///
+/// `Font.system(size:weight:design:)` is a fixed point size and does not
+/// respond to Larger Text, and every `Text` and `Image` in all eight widget
+/// views used it — so at AX1-AX5 every other element on the Lock Screen and
+/// Home Screen grew and SnapWorth's rendered byte-identically to the default,
+/// leaving 10pt and 11pt captions. The accessory families are the clearest
+/// case, since the system sizes those for the user and this code overrode it.
+/// The app itself does the opposite deliberately: its type ramp anchors every
+/// alias to a `TextStyle` and `snapSymbol` uses `@ScaledMetric` so icons track
+/// growing labels. The extension was the one surface that opted out.
+///
+/// There is no `Font.system(size:relativeTo:)` — `relativeTo` exists only on
+/// `.custom`, for a named face. `@ScaledMetric` is the supported way to scale
+/// a point size against a text style, and it is what `snapSymbol` already
+/// uses. At the default text size it returns the base value unchanged, so
+/// every widget renders exactly as it did.
+struct WidgetScaledFont: ViewModifier {
+    @ScaledMetric private var size: CGFloat
+    private let weight: Font.Weight
+    private let design: Font.Design
+
+    init(size: CGFloat, weight: Font.Weight, design: Font.Design) {
+        _size = ScaledMetric(wrappedValue: size, relativeTo: Self.style(for: size))
+        self.weight = weight
+        self.design = design
+    }
+
+    /// The text style whose own default size is nearest the requested one, so
+    /// a 24pt figure grows at a headline's rate and an 11pt caption at a
+    /// caption's — which are different rates, and the reason this is a lookup
+    /// rather than one style for everything.
+    ///
+    /// `if` rather than a `switch` over ranges: a range pattern here would be
+    /// matching `CGFloat` against `Double` literals and leaning on the 64-bit
+    /// typealias to make them the same type.
+    static func style(for size: CGFloat) -> Font.TextStyle {
+        if size < 11.5 { return .caption2 }      // 11
+        if size < 12.5 { return .caption }       // 12
+        if size < 14   { return .footnote }      // 13
+        if size < 15.5 { return .subheadline }   // 15
+        if size < 18   { return .callout }       // 16
+        if size < 21   { return .title3 }        // 20
+        if size < 25   { return .title2 }        // 22
+        return .title                            // 28
+    }
+
+    func body(content: Content) -> some View {
+        content
+            .font(.system(size: size, weight: weight, design: design))
+            // Widgets have a hard size budget, so growth has to be allowed to
+            // give way rather than clip. Inert at the default size — nothing
+            // is constrained there — and it is the difference between a
+            // caption that shrinks to fit and one that truncates mid-word.
+            .minimumScaleFactor(0.7)
+    }
+}
+
+extension View {
+    /// Use instead of `.font(.system(size:weight:design:))` anywhere in the
+    /// widget extension. See `WidgetScaledFont`.
+    func wFont(_ size: CGFloat, weight: Font.Weight = .regular,
+               design: Font.Design = .default) -> some View {
+        modifier(WidgetScaledFont(size: size, weight: weight, design: design))
+    }
+}
+
 private extension Image {
     func snapWidgetIcon() -> some View {
-        self.font(.system(size: 11, weight: .semibold))
+        self.wFont(11, weight: .semibold)
             .foregroundStyle(Color.wTerracotta)
     }
 }

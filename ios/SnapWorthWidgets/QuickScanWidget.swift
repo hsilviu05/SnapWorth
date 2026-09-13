@@ -40,7 +40,7 @@ struct QuickScanWidgetView: View {
                 // Header wordmark
                 HStack {
                     Text("SnapWorth")
-                        .font(.system(size: 11, weight: .semibold, design: .serif))
+                        .wFont(11, weight: .semibold, design: .serif)
                         .foregroundStyle(Color.wBackground)
                     Spacer()
                 }
@@ -54,7 +54,7 @@ struct QuickScanWidgetView: View {
                         .frame(width: 52, height: 52)
 
                     Image(systemName: "camera.fill")
-                        .font(.system(size: 24, weight: .medium))
+                        .wFont(24, weight: .medium)
                         .foregroundStyle(Color.wBackground)
                 }
 
@@ -63,16 +63,16 @@ struct QuickScanWidgetView: View {
                 // Label
                 VStack(spacing: 2) {
                     Text("Scan now")
-                        .font(.system(size: 14, weight: .bold))
+                        .wFont(14, weight: .bold)
                         .foregroundStyle(Color.wBackground)
 
                     if entry.itemCount > 0 {
                         Text("\(WidgetHaulData.itemsLabel(entry.itemCount)) in your haul")
-                            .font(.system(size: 10, weight: .medium))
+                            .wFont(10, weight: .medium)
                             .foregroundStyle(Color.wBackground)
                     } else {
                         Text("Find out what it's worth")
-                            .font(.system(size: 10, weight: .medium))
+                            .wFont(10, weight: .medium)
                             .foregroundStyle(Color.wBackground)
                     }
                 }

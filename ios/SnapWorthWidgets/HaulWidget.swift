@@ -62,10 +62,10 @@ struct HaulWidgetSmallView: View {
                 // Header
                 HStack(spacing: 4) {
                     Image(systemName: "camera.viewfinder")
-                        .font(.system(size: 11, weight: .semibold))
+                        .wFont(11, weight: .semibold)
                         .foregroundStyle(Color.wTerracotta)
                     Text("SnapWorth")
-                        .font(.system(size: 11, weight: .semibold, design: .serif))
+                        .wFont(11, weight: .semibold, design: .serif)
                         .foregroundStyle(Color.wBackground.opacity(0.7))
                 }
 
@@ -73,8 +73,8 @@ struct HaulWidgetSmallView: View {
 
                 // Value
                 Text(haul.itemCount > 0 ? haul.formattedRange : "No scans yet")
-                    .font(.system(size: haul.itemCount > 0 ? 20 : 14,
-                                  weight: .bold, design: .serif))
+                    .wFont(haul.itemCount > 0 ? 20 : 14,
+                           weight: .bold, design: .serif)
                     .foregroundStyle(haul.itemCount > 0 ? Color.wSage : Color.wWarmGray)
                     .minimumScaleFactor(0.6)
                     .lineLimit(1)
@@ -84,7 +84,7 @@ struct HaulWidgetSmallView: View {
                 Text(haul.itemCount > 0
                      ? "\(WidgetHaulData.itemsLabel(haul.itemCount)) scanned"
                      : "Scan your first find")
-                    .font(.system(size: 11, weight: .medium))
+                    .wFont(11, weight: .medium)
                     .foregroundStyle(Color.wWarmGray)
             }
             .padding(14)
@@ -111,27 +111,27 @@ struct HaulWidgetMediumView: View {
                 VStack(alignment: .leading, spacing: 4) {
                     HStack(spacing: 4) {
                         Image(systemName: "camera.viewfinder")
-                            .font(.system(size: 11, weight: .semibold))
+                            .wFont(11, weight: .semibold)
                             .foregroundStyle(Color.wTerracotta)
                         Text("SnapWorth")
-                            .font(.system(size: 11, weight: .semibold, design: .serif))
+                            .wFont(11, weight: .semibold, design: .serif)
                             .foregroundStyle(Color.wBackground.opacity(0.7))
                     }
 
                     Spacer()
 
                     Text("Your haul")
-                        .font(.system(size: 12, weight: .medium))
+                        .wFont(12, weight: .medium)
                         .foregroundStyle(Color.wWarmGray)
 
                     Text(haul.itemCount > 0 ? haul.formattedRange : "$0")
-                        .font(.system(size: 22, weight: .bold, design: .serif))
+                        .wFont(22, weight: .bold, design: .serif)
                         .foregroundStyle(Color.wSage)
                         .minimumScaleFactor(0.6)
                         .lineLimit(1)
 
                     Text(WidgetHaulData.itemsLabel(haul.itemCount))
-                        .font(.system(size: 12))
+                        .wFont(12)
                         .foregroundStyle(Color.wWarmGray)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -149,7 +149,7 @@ struct HaulWidgetMediumView: View {
                 // Right — last scanned item
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Last scanned")
-                        .font(.system(size: 11, weight: .medium))
+                        .wFont(11, weight: .medium)
                         .foregroundStyle(Color.wWarmGray)
 
                     Spacer()
@@ -157,17 +157,17 @@ struct HaulWidgetMediumView: View {
                     VStack(alignment: .leading, spacing: 4) {
                         if haul.itemCount > 0 {
                             Text(haul.lastItemName)
-                                .font(.system(size: 13, weight: .semibold))
+                                .wFont(13, weight: .semibold)
                                 .foregroundStyle(Color.wBackground)
                                 .lineLimit(2)
                                 .minimumScaleFactor(0.8)
 
                             Text(haul.lastItemRange)
-                                .font(.system(size: 16, weight: .bold, design: .serif))
+                                .wFont(16, weight: .bold, design: .serif)
                                 .foregroundStyle(Color.wSage)
                         } else {
                             Text("Tap to scan\nyour first find")
-                                .font(.system(size: 13))
+                                .wFont(13)
                                 .foregroundStyle(Color.wWarmGray)
                                 .lineLimit(2)
                         }
@@ -188,7 +188,7 @@ struct HaulWidgetMediumView: View {
                     // find" — that promise is now kept by the chip.
                     Link(destination: URL(string: "snapworth://scan")!) {
                         Label("Scan", systemImage: "camera.fill")
-                            .font(.system(size: 11, weight: .semibold))
+                            .wFont(11, weight: .semibold)
                             .foregroundStyle(Color.wBackground)
                             .padding(.horizontal, 10)
                             .padding(.vertical, 5)

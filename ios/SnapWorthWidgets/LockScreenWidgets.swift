@@ -79,9 +79,9 @@ struct LockScreenCircularView: View {
             AccessoryWidgetBackground()
             VStack(spacing: 0) {
                 Image(systemName: "camera.viewfinder")
-                    .font(.system(size: 11, weight: .semibold))
+                    .wFont(11, weight: .semibold)
                 Text(haul.hasScans ? haul.compactTotal : "—")
-                    .font(.system(size: 15, weight: .bold, design: .rounded))
+                    .wFont(15, weight: .bold, design: .rounded)
                     .minimumScaleFactor(0.5)
                     .lineLimit(1)
             }
@@ -113,26 +113,26 @@ struct LockScreenRectangularView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 1) {
             Label("SnapWorth", systemImage: "camera.viewfinder")
-                .font(.system(size: 12, weight: .semibold))
+                .wFont(12, weight: .semibold)
                 // The one element the tint applies to, so the value below stays
                 // readable in every wallpaper's accent colour.
                 .widgetAccentable()
 
             if haul.hasScans {
                 Text(haul.formattedRange)
-                    .font(.system(size: 15, weight: .bold, design: .rounded))
+                    .wFont(15, weight: .bold, design: .rounded)
                     .minimumScaleFactor(0.6)
                     .lineLimit(1)
 
                 Text(streak > 1
                      ? "\(haul.findsLabel) · \(streak)-day streak"
                      : haul.findsLabel)
-                    .font(.system(size: 12))
+                    .wFont(12)
             } else {
                 Text("No finds yet")
-                    .font(.system(size: 15, weight: .semibold, design: .rounded))
+                    .wFont(15, weight: .semibold, design: .rounded)
                 Text("Scan something to start")
-                    .font(.system(size: 12))
+                    .wFont(12)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)

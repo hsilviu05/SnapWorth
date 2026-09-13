@@ -28,7 +28,7 @@ struct ThriftRunLiveActivity: Widget {
             DynamicIsland {
                 DynamicIslandExpandedRegion(.leading) {
                     Label("\(context.state.itemCount)", systemImage: "camera.viewfinder")
-                        .font(.system(size: 15, weight: .semibold))
+                        .wFont(15, weight: .semibold)
                         .foregroundStyle(Color.wTerracotta)
                         // Without this the region announced
                         // "camera.viewfinder, 3" — a symbol name and a bare
@@ -39,7 +39,7 @@ struct ThriftRunLiveActivity: Widget {
                 }
                 DynamicIslandExpandedRegion(.trailing) {
                     Text(context.state.formattedRange)
-                        .font(.system(size: 15, weight: .bold, design: .rounded))
+                        .wFont(15, weight: .bold, design: .rounded)
                         .foregroundStyle(context.isStale ? Color.wWarmGray : Color.wSage)
                         .lineLimit(1)
                         .minimumScaleFactor(0.6)
@@ -55,7 +55,7 @@ struct ThriftRunLiveActivity: Widget {
                          : context.state.lastItemName.isEmpty
                            ? "Scan something to start the run"
                            : "Last: \(context.state.lastItemName)")
-                        .font(.system(size: 12))
+                        .wFont(12)
                         .foregroundStyle(Color.wWarmGray)
                         .lineLimit(1)
                         .frame(maxWidth: .infinity, alignment: .leading)
@@ -68,7 +68,7 @@ struct ThriftRunLiveActivity: Widget {
                 // Compact has room for one number, and the count is the one
                 // that changes on every scan.
                 Text("\(context.state.itemCount)")
-                    .font(.system(size: 13, weight: .bold, design: .rounded))
+                    .wFont(13, weight: .bold, design: .rounded)
                     .foregroundStyle(context.isStale ? Color.wWarmGray : Color.wSage)
                     // The icon beside it is hidden, so this one label carries
                     // the compact presentation on its own.
@@ -103,22 +103,22 @@ struct ThriftRunLockScreenView: View {
             VStack(alignment: .leading, spacing: 2) {
                 HStack(spacing: 4) {
                     Image(systemName: "camera.viewfinder")
-                        .font(.system(size: 11, weight: .semibold))
+                        .wFont(11, weight: .semibold)
                         .foregroundStyle(Color.wTerracotta)
                     Text("Thrift run")
-                        .font(.system(size: 11, weight: .semibold, design: .serif))
+                        .wFont(11, weight: .semibold, design: .serif)
                         .foregroundStyle(Color.wBackground.opacity(0.7))
                 }
 
                 Text(state.itemCount > 0 ? state.formattedRange : "Nothing yet")
-                    .font(.system(size: 20, weight: .bold, design: .rounded))
+                    .wFont(20, weight: .bold, design: .rounded)
                     .foregroundStyle(state.itemCount > 0 && !isStale
                                      ? Color.wSage : Color.wWarmGray)
                     .lineLimit(1)
                     .minimumScaleFactor(0.6)
 
                 Text(subtitle)
-                    .font(.system(size: 12))
+                    .wFont(12)
                     .foregroundStyle(Color.wWarmGray)
                     .lineLimit(1)
             }
@@ -140,14 +140,14 @@ struct ThriftRunLockScreenView: View {
                         Text(startedAt, style: .timer)
                     }
                 }
-                .font(.system(size: 15, weight: .semibold, design: .rounded))
+                .wFont(15, weight: .semibold, design: .rounded)
                 .foregroundStyle(Color.wBackground.opacity(isStale ? 0.6 : 0.8))
                 .monospacedDigit()
                 .lineLimit(1)
                 .frame(maxWidth: 74, alignment: .trailing)
 
                 Text(isStale ? "started" : "elapsed")
-                    .font(.system(size: 10))
+                    .wFont(10)
                     .foregroundStyle(Color.wWarmGray)
             }
         }
