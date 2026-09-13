@@ -456,7 +456,15 @@ struct ThriftFlipView: View {
             TextField("0", text: text)
                 .keyboardType(.decimalPad)
                 .multilineTextAlignment(.trailing)
-                .frame(maxWidth: 90)
+                // A floor, not a ceiling, matching ResultView.moneyRow, which
+                // the comment above says these rows mirror. `maxWidth` capped
+                // the box at 90pt while the font inside scales with Dynamic
+                // Type, so at an accessibility size a four-digit resale price
+                // scrolled inside the field and the user could not see the
+                // number the verdict was computed from. The text is
+                // trailing-aligned and the field has no chrome of its own, so
+                // at the default size nothing moves.
+                .frame(minWidth: 90)
                 .focused($focusedField, equals: field)
                 .font(.dmSans(15, weight: .semibold))
                 .foregroundStyle(Color.snapEspresso)
