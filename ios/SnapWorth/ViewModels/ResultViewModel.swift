@@ -88,18 +88,41 @@ final class ResultViewModel {
         // thread while the main thread was free to mutate the same object —
         // see `ListingInput`.
         let input = ListingInput(result: result, condition: result.condition)
+        // The request is identified by what it was written for, the same way
+        // `input.condition` identifies the price it quotes. Neither chip is
+        // disabled while this runs — only the Generate button is — and both
+        // clear the listing on the way out, `selectMarketplace` here and
+        // `valuationDidChange` in the view. So the user could tap Vinted, see
+        // the eBay draft correctly disappear, and then watch it reinstate
+        // itself when the in-flight response landed: eBay's voice under the
+        // Vinted chip, at eBay's Ask and Floor, behind an "Open eBay" button.
+        // The backend tailors both voice and price per marketplace, so this is
+        // not a cosmetic mismatch.
+        let requested = selectedMarketplace
 
         do {
             let listing = try await ListingAPIClient.shared.generate(
-                input, marketplace: selectedMarketplace
+                input, marketplace: requested
             )
+            // Stale: the user moved on and has already seen this cleared, so
+            // drop it rather than put it back. The `defer` above still resets
+            // `isGeneratingListing`, which brings the Generate button back for
+            // the new selection — and a listing nobody is shown is not a
+            // generated listing, so the event below is skipped with it.
+            guard requested == selectedMarketplace,
+                  input.condition == result.condition else { return }
             generatedListing = listing
             // Fired on success, not on attempt. Previously this ran before the
             // network call, so every timeout and failure counted as a generated
             // listing — inflating the headline adoption metric for a brand-new
             // feature with exactly the cases where it didn't work.
-            Analytics.shared.track(.listingGenerated(marketplace: selectedMarketplace.rawValue))
+            Analytics.shared.track(.listingGenerated(marketplace: requested.rawValue))
         } catch {
+            // Same test on the failure path: a retry banner for a request the
+            // user has already navigated away from is noise, and it would sit
+            // under a chip whose own draft is perfectly fine.
+            guard requested == selectedMarketplace,
+                  input.condition == result.condition else { return }
             generatedListing = nil
             listingError = AppError.from(error).errorDescription
         }

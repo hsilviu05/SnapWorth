@@ -1404,6 +1404,53 @@ final class ListingAnalyticsOrderingTests: XCTestCase {
                           "listingGenerated must fire only after a successful generation")
     }
 
+    func test_aStaleListingResponseIsDroppedNotInstalled() {
+        // Neither the marketplace chip nor the condition chip is disabled
+        // while a generation is in flight — only the Generate button is — and
+        // both clear the draft on the way out. So the user could tap Vinted,
+        // watch the eBay draft correctly disappear, and then see it reinstate
+        // itself when the in-flight response landed: eBay's voice under the
+        // Vinted chip, at eBay's Ask and Floor, behind an "Open eBay" button.
+        //
+        // Source-inspected because the property is an *ordering* one, like its
+        // neighbour above: the guard has to sit between the await and the
+        // assignment, and a test that drives the happy path cannot show that.
+        // Matched on a string that cannot occur in prose, so the explanatory
+        // comment beside the guard cannot satisfy this by accident — the
+        // mistake a source-inspecting test in SnapWorthTests made earlier.
+        let source = try! String(
+            contentsOf: URL(fileURLWithPath: #filePath)
+                .deletingLastPathComponent()
+                .deletingLastPathComponent()
+                .appendingPathComponent("SnapWorth/ViewModels/ResultViewModel.swift"),
+            encoding: .utf8)
+
+        guard let body = source.range(of: "func generateListing") else {
+            return XCTFail("generateListing not found")
+        }
+        let scope = String(source[body.lowerBound...])
+
+        let needle = "guard requested == selectedMarketplace,"
+        let guards = scope.components(separatedBy: needle).count - 1
+        XCTAssertEqual(guards, 2,
+                       "both the success and the failure path must drop a stale response")
+
+        guard let firstGuard = scope.range(of: needle)?.lowerBound,
+              let assign = scope.range(of: "generatedListing = listing")?.lowerBound else {
+            return XCTFail("the guard or the assignment is missing")
+        }
+        XCTAssertLessThan(firstGuard, assign,
+                          "the staleness test must run before the listing is installed")
+
+        // And the request must be pinned before the await, not read back from
+        // live state afterwards — which is the whole defect.
+        guard let pin = scope.range(of: "let requested = selectedMarketplace")?.lowerBound,
+              let call = scope.range(of: "try await ListingAPIClient")?.lowerBound else {
+            return XCTFail("the pinned marketplace is missing")
+        }
+        XCTAssertLessThan(pin, call)
+    }
+
     func test_failurePathDoesNotTrackGeneration() {
         let source = try! String(
             contentsOf: URL(fileURLWithPath: #filePath)
