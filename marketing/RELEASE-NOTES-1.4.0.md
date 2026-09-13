@@ -190,6 +190,15 @@ Each of these is its own commit, so any one can be reverted on its own if it
 photographs badly. Four of them are provably identical at the default text
 size; the two marked **moves pixels** are not.
 
+- [ ] **Profit this month widget, signed out of Pro.** It must show the real
+      figure, not "Pro" / "Track profit with Pro". The app has always given
+      free users that number on the Flips tab — the widget was upselling a
+      feature they already had, with a deep link to the screen showing it.
+      *Moves pixels, and it is a widget: check before the launch photographs.*
+- [ ] **My Flips summary card.** The first stat now reads "Invested
+      (all-time)" rather than "Invested", because it always was — beside a
+      header saying "Profit this month". No number changed; check the longer
+      label still sits on one line on the narrowest device you have.
 - [ ] **Recent finds widget.** The figure in the header now reads
       "Haul $3,480 – $6,200" instead of the bare range. It is the whole
       library, and it sat unlabelled directly above two rows that visibly do
