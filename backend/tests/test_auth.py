@@ -405,6 +405,51 @@ class TestQuota:
             assert (await q.status("s", False)).used == 0
         asyncio.run(run())
 
+    def test_a_refund_across_midnight_returns_the_day_it_took_from(self):
+        """The reservation's day travels on the QuotaStatus, not on the clock.
+
+        A scan reserved at 23:59:59 and refunded a second later used to
+        decrement the *new* day's counter, because the key was recomputed from
+        "now" inside `_release`. Two things went wrong at once: the day the
+        reservation was actually taken from kept the use, so the user was
+        charged for a scan that produced nothing; and if another scan had
+        already reserved on the new day, its live reservation was handed back
+        instead — two scans out of one allowance.
+
+        A scan takes seconds and the window is one second wide per day, so
+        this was rare and permanent rather than loud. It is asserted directly
+        against the counter keys rather than through a faked clock, because
+        what is being tested is which key the decrement lands on.
+        """
+        import quota as quota_module
+        q = _quota(1)
+        current = {"day": "2026-09-12"}
+
+        def fake_day():
+            return current["day"]
+
+        async def run():
+            # Reserved just before midnight.
+            reserved = await q.reserve("s", False)
+            assert reserved.day == "2026-09-12"
+            # Midnight passes, and another scan claims the new day's allowance.
+            current["day"] = "2026-09-13"
+            await q.reserve("s", False)
+            # Now the first scan fails and is refunded.
+            await q.refund("s", False, day=reserved.day)
+
+            # The new day's live reservation is untouched: still spent.
+            assert (await q.status("s", False)).used == 1
+            with pytest.raises(QuotaExceeded):
+                await q.check("s", False)
+            # And yesterday got its allowance back.
+            current["day"] = "2026-09-12"
+            assert (await q.status("s", False)).used == 0
+
+        import unittest.mock
+        with unittest.mock.patch.object(quota_module, "_utc_day", fake_day):
+            asyncio.run(run())
+
     def test_pro_reservations_are_free_and_unlimited(self):
         q = _quota(1)
 
@@ -466,12 +511,22 @@ class TestQuota:
         build_deps()
 
 
+def _this_month() -> str:
+    from datetime import datetime, timezone
+    return datetime.now(timezone.utc).strftime("%Y-%m")
+
+
 class _FakeDeviceCheck:
     """Stands in for Apple's DeviceCheck, which we cannot call from tests."""
 
-    def __init__(self, bit0=False):
+    def __init__(self, bit0=False, last_update_time=None):
         self.is_configured = True
-        self.bits = {"bit0": bit0, "bit1": False}
+        # `last_update_time` is part of Apple's real answer — a "YYYY-MM"
+        # stamp, the only period a two-bit store can carry. The stub used to
+        # omit it, which is why bit0 read as permanent in every test that used
+        # this class: there was nothing to say which month it belonged to.
+        self.bits = {"bit0": bit0, "bit1": False,
+                     "last_update_time": last_update_time or _this_month()}
         self.updated = False
 
     async def query_bits(self, device_token):
@@ -479,7 +534,9 @@ class _FakeDeviceCheck:
 
     async def update_bits(self, device_token, bit0, bit1):
         self.updated = True
-        self.bits = {"bit0": bit0, "bit1": bit1}
+        # A write re-stamps the month, same as Apple's.
+        self.bits = {"bit0": bit0, "bit1": bit1,
+                     "last_update_time": _this_month()}
 
 
 class TestReinstallResistance:

@@ -42,7 +42,7 @@ enum PrivacyPolicy {
 
             To tell a reinstall from a genuinely new device — so a free allowance cannot be reset by deleting and reinstalling — we send Apple's DeviceCheck token when your device first verifies itself. Apple stores two bits against the hardware on our behalf; we store the token to read them. It contains no personal information and cannot identify you.
 
-            We collect anonymous usage analytics to understand how the app is used and improve it. Using TelemetryDeck, we record in-app events — such as opening the app, starting a scan, viewing the paywall, and completing a purchase — along with your device model, operating system version, app version, and locale. A one-way salted hash is used as an anonymous identifier. This data contains no photos, item names, prices, or advertising identifiers (IDFA), is not linked to your identity, and is never used to track you across other apps or websites. You can turn analytics off at any time in Settings.
+            We collect anonymous usage analytics to understand how the app is used and improve it. Using TelemetryDeck, we record in-app events — such as opening the app, starting a scan, viewing the paywall, and completing a purchase — along with your device model, operating system version, app version, locale, time zone, screen size, and device orientation. The analytics SDK also reports how your accessibility settings are configured — such as Reduce Motion, Bold Text, Increase Contrast and your preferred text size — and counts of how often and on how many separate days you have opened the app. A one-way salted hash is used as an anonymous identifier. This data contains no photos, item names, prices, or advertising identifiers (IDFA), is not linked to your identity, and is never used to track you across other apps or websites. You can turn analytics off at any time in Settings.
             """),
         (heading: "How We Use Your Information", text: """
             Photos are used only to generate the valuation response you requested. Analytics data is used only in aggregate to understand usage and improve the app. We do not sell, rent, or share your photos, device identifier, or analytics data with third parties, except for the service providers below and as required by law.
@@ -54,7 +54,7 @@ enum PrivacyPolicy {
 
             TelemetryDeck. Receives the anonymous usage events described above. It never receives photos, item names, prices, or identifiers.
 
-            Telegram. To monitor the service, aggregate operational information may be relayed to the operator through Telegram: the name of an item the AI identified and its estimated price range. Never the photo, never a device identifier, never anything that links a scan to a device or a person.
+            Telegram. To monitor the service, operational information may be relayed to the operator through Telegram: the name of an item the AI identified and its estimated price range; and, so that a support request can be answered, a one-way salted hash of your device's attestation key together with that device's scan count, first and last activity dates, and subscription state. The hash is not the device identifier itself and cannot be reversed to it, and it is not an advertising identifier. This operational record is kept for up to 400 days. Never the photo, and never your name, email address or location.
             """),
         (heading: "Data Retention", text: """
             Photos and scan results are processed in real time and are not retained on our servers. Scan history is stored locally on your device and can be deleted at any time from Settings.
@@ -151,6 +151,14 @@ private struct LegalSection: View {
                 Text(heading)
                     .font(.dmSans(15, weight: .semibold))
                     .foregroundStyle(Color.snapEspresso)
+                    // Both documents are roughly a thousand words of continuous
+                    // prose reachable from the paywall, and neither had a single
+                    // header trait — so the Headings rotor found nothing and the
+                    // only way to reach "Service Providers" was to swipe through
+                    // every paragraph before it. The trait is used correctly in
+                    // four other views, so this was an omission, not a
+                    // convention.
+                    .accessibilityAddTraits(.isHeader)
             }
             Text(text)
                 .font(.snapBody)

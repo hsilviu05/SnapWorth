@@ -12,6 +12,7 @@ on:
     paths:
       - 'ios/**'
       - '.github/workflows/ios.yml'
+      - 'tools/swift_sanity.py'
       - 'contract/**'
       - 'backend/main.py'
       - 'backend/valuation.py'
@@ -21,6 +22,7 @@ on:
     paths:
       - 'ios/**'
       - '.github/workflows/ios.yml'
+      - 'tools/swift_sanity.py'
       - 'contract/**'
       - 'backend/main.py'
       - 'backend/valuation.py'
@@ -41,6 +43,19 @@ jobs:
       # `formattedRange` lacked the empty-haul guard, so a library with no
       # scans read "$0 – $0" on the Home Screen and "$0" in the app. Nothing in
       # a build catches that, because both copies compile perfectly.
+      # Runs before the 4-minute Xcode build, because the mistakes it catches
+      # are the ones that cost a whole cycle to learn about. Swift has no
+      # implicit adjacent-string-literal concatenation, so a message written
+      # across two lines without a `+` is a compile error — easy to write and
+      # invisible without a toolchain. `tools/swift_sanity.py` needs no Xcode
+      # and finishes in under a second.
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.13'
+
+      - name: Swift sanity (no toolchain needed)
+        run: python3 tools/swift_sanity.py ios
+
       - name: Widget model is in sync
         run: |
           app=ios/SnapWorth/Services/WidgetDataStore.swift

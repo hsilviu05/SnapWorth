@@ -42,19 +42,19 @@ struct ThriftFlipView: View {
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
                     Button("Close") { dismiss() }
-                        .foregroundStyle(Color.snapTerracotta)
+                        .foregroundStyle(Color.snapTerracottaText)
                 }
                 if vm.scanResult != nil {
                     ToolbarItem(placement: .navigationBarTrailing) {
                         Button("New item") { vm.reset() }
-                            .foregroundStyle(Color.snapTerracotta)
+                            .foregroundStyle(Color.snapTerracottaText)
                     }
                 }
                 ToolbarItemGroup(placement: .keyboard) {
                     Spacer()
                     Button("Done") { focusedField = nil }
                         .font(.dmSans(15, weight: .semibold))
-                        .foregroundStyle(Color.snapTerracotta)
+                        .foregroundStyle(Color.snapTerracottaText)
                 }
             }
         }
@@ -75,7 +75,7 @@ struct ThriftFlipView: View {
         VStack(spacing: 16) {
             Image(systemName: "arrow.triangle.2.circlepath")
                 .snapSymbol(40, weight: .light)
-                .foregroundStyle(Color.snapTerracotta)
+                .foregroundStyle(Color.snapTerracottaText)
                 .padding(.top, 40)
 
             Text("Should you flip it?")
@@ -97,7 +97,11 @@ struct ThriftFlipView: View {
                     PrimaryButton(title: "Scan item") { present(.item, source: .camera) }
                     Button("Choose from library") { present(.item, source: .photoLibrary) }
                         .font(.dmSans(14, weight: .semibold))
-                        .foregroundStyle(Color.snapTerracotta)
+                        .foregroundStyle(Color.snapTerracottaText)
+                        // A bare text button is only as tall as its line — ~18pt
+                        // here, well under the 44pt minimum, and the only way
+                        // into the library.
+                        .snapHitTarget()
                 }
                 .padding(.top, 8)
             }
@@ -105,7 +109,7 @@ struct ThriftFlipView: View {
             if let error = vm.scanError {
                 Text(error)
                     .font(.snapCaption)
-                    .foregroundStyle(Color.snapTerracotta)
+                    .foregroundStyle(Color.snapTerracottaText)
                     .multilineTextAlignment(.center)
             }
         }
@@ -118,6 +122,16 @@ struct ThriftFlipView: View {
     private var loadedContent: some View {
         if let result = vm.scanResult {
             itemHeader(result)
+            // Only ever present when the find could not be added to My Finds.
+            // The verdict below is unaffected, which is what it says.
+            if let warning = vm.libraryWarning {
+                Text(warning)
+                    .font(.snapCaption)
+                    .foregroundStyle(Color.snapTerracottaText)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityAddTraits(.isStaticText)
+            }
             marketplacePicker
             inputsCard
             verdictSection
@@ -171,7 +185,7 @@ struct ThriftFlipView: View {
                             .foregroundStyle(selected ? Color.snapOnAccent : Color.snapWarmGray)
                             .padding(.horizontal, 14)
                             .padding(.vertical, 9)
-                            .background(selected ? Color.snapTerracotta : Color.clear)
+                            .background(selected ? Color.snapTerracottaFill : Color.clear)
                             .clipShape(Capsule())
                             .overlay(Capsule().strokeBorder(Color.snapBorder, lineWidth: selected ? 0 : 1))
                     }
@@ -214,16 +228,18 @@ struct ThriftFlipView: View {
                             Text("Scan tag")
                         }
                         .font(.dmSans(13, weight: .semibold))
-                        .foregroundStyle(Color.snapTerracotta)
+                        .foregroundStyle(Color.snapTerracottaText)
                     }
                     .disabled(vm.isReadingTag)
+                    // 13pt text and a glyph, with no padding: a ~17pt target.
+                    .snapHitTarget()
                 }
                 moneyField($vm.shelfPriceText, field: .purchase, placeholder: "0",
                            label: "Shop price")
                 if let note = vm.ocrNote {
                     Text(note)
                         .font(.snapCaption)
-                        .foregroundStyle(Color.snapWarmGray.opacity(0.8))
+                        .foregroundStyle(Color.snapWarmGray)
                 }
             }
 
@@ -245,7 +261,10 @@ struct ThriftFlipView: View {
         if let calc = vm.calculation {
             verdictCard(calc)
         } else {
-            Text("Add the shop price to see your profit.")
+            // Which input is actually missing — see `missingInputPrompt`. Nil
+            // only when `calculation` is non-nil, which this branch already
+            // rules out.
+            Text(vm.missingInputPrompt ?? "")
                 .font(.snapCaption)
                 .foregroundStyle(Color.snapWarmGray)
                 .frame(maxWidth: .infinity)
@@ -255,7 +274,7 @@ struct ThriftFlipView: View {
 
     private func verdictCard(_ calc: FlipCalculation) -> some View {
         let green = calc.isProfitable
-        let accent = green ? Color.snapSage : Color.snapTerracotta
+        let accent = green ? Color.snapSageText : Color.snapTerracottaText
 
         return VStack(spacing: 14) {
             // Headline verdict
@@ -291,12 +310,16 @@ struct ThriftFlipView: View {
 
                 if !isPro {
                     VStack(spacing: 10) {
-                        Image(systemName: "lock.fill").foregroundStyle(Color.snapTerracotta)
+                        Image(systemName: "lock.fill").foregroundStyle(Color.snapTerracottaText)
                         Text("Unlock to reveal your profit")
                             .font(.dmSans(14, weight: .semibold))
                             .foregroundStyle(Color.snapEspresso)
                         PrimaryButton(title: "Unlock Thrift Flip") {
-                            Analytics.shared.track(.paywallViewed(trigger: .thriftFlip))
+                            // No tracking call here: `PaywallView` fires
+                            // `paywallViewed` from its own `onAppear`, so this
+                            // was a second event for the same open. One entry
+                            // point, and the sheet already passes
+                            // `.thriftFlip`, so nothing else is needed.
                             vm.showPaywall = true
                         }
                     }
@@ -306,7 +329,7 @@ struct ThriftFlipView: View {
             if calc.feesUnknown {
                 Text("Fees for this marketplace aren't in the table — this is before fees.")
                     .font(.snapCaption)
-                    .foregroundStyle(Color.snapWarmGray.opacity(0.8))
+                    .foregroundStyle(Color.snapWarmGray)
                     .multilineTextAlignment(.center)
             }
         }
@@ -389,7 +412,7 @@ struct ThriftFlipView: View {
     private var honestNote: some View {
         Text("Resale is an AI estimate and fees are approximate — treat the verdict as a guide, not a guarantee.")
             .font(.snapCaption)
-            .foregroundStyle(Color.snapWarmGray.opacity(0.7))
+            .foregroundStyle(Color.snapWarmGray)
             .multilineTextAlignment(.center)
             .padding(.top, 4)
     }
@@ -433,7 +456,15 @@ struct ThriftFlipView: View {
             TextField("0", text: text)
                 .keyboardType(.decimalPad)
                 .multilineTextAlignment(.trailing)
-                .frame(maxWidth: 90)
+                // A floor, not a ceiling, matching ResultView.moneyRow, which
+                // the comment above says these rows mirror. `maxWidth` capped
+                // the box at 90pt while the font inside scales with Dynamic
+                // Type, so at an accessibility size a four-digit resale price
+                // scrolled inside the field and the user could not see the
+                // number the verdict was computed from. The text is
+                // trailing-aligned and the field has no chrome of its own, so
+                // at the default size nothing moves.
+                .frame(minWidth: 90)
                 .focused($focusedField, equals: field)
                 .font(.dmSans(15, weight: .semibold))
                 .foregroundStyle(Color.snapEspresso)
@@ -454,7 +485,10 @@ struct ThriftFlipView: View {
     private func handleCaptured(_ image: UIImage, for target: CaptureTarget) {
         capture = nil
         switch target {
-        case .item: Task { await vm.scanItem(image: image, purchaseService: purchaseService) }
+        case .item:
+            let repository = ScanRepository(context: modelContext)
+            Task { await vm.scanItem(image: image, purchaseService: purchaseService,
+                                     repository: repository) }
         case .tag:  Task { await vm.readPriceTag(image: image) }
         }
     }

@@ -74,7 +74,80 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
     private static let portfolioID = "portfolio.weekly"
     private static let trialID = "trial.ending"
     // Prefix == Category.freeScan.rawValue: `category(fromID:)` relies on it.
-    private static let freeScanID = "freeScan.daily"
+    //
+    // Retained as the *legacy* identifier. A build before the ladder scheduled
+    // one request under exactly this id, so an upgrading install can have one
+    // pending and it has to be cancellable.
+    // `nonisolated`, because `freeScanIDs` is — referencing a main-actor
+    // static from a nonisolated context is a warning today and an error in the
+    // Swift 6 language mode. A `String` literal is `Sendable`, so there is
+    // nothing here for the isolation to protect.
+    nonisolated private static let freeScanID = "freeScan.daily"
+
+    /// How many days of free-scan reminders are scheduled at a time.
+    ///
+    /// The reminder was a single dated one-shot with `repeats: false`, and the
+    /// only things that ever re-armed it — after a scan, on foreground, on a
+    /// settings change — all require the app to be open. There is no
+    /// `BGTaskScheduler` anywhere in the project either. So the reminder whose
+    /// entire purpose is to bring back someone who has stopped opening the app
+    /// fired exactly once and then went silent forever, while Settings kept
+    /// showing "Daily free scan" ON with a time picker and a footer promising
+    /// "one reminder at the time you pick".
+    ///
+    /// A ladder of dated one-shots rather than `repeats: true`: the copy names
+    /// the streak, and a repeating trigger freezes its body, so a user who
+    /// lapsed with a 5-day streak would be told "Day 6 of your streak is
+    /// waiting" every day indefinitely — a daily false statement. Dated
+    /// requests let day one carry the streak (which is known) and the rest
+    /// carry the plain copy (which stays true).
+    ///
+    /// Seven days is also a deliberate stopping point. Someone who has ignored
+    /// a week of reminders should stop receiving them; the ladder refills on
+    /// every foreground, so anyone still using the app never reaches the end.
+    //
+    // A computed `nonisolated` property rather than a `nonisolated static let`:
+    // the latter's availability on a global-actor-isolated type is version
+    // dependent, and there is no Swift toolchain in the environment this was
+    // written in to settle it. A computed one is unambiguous and the literal
+    // is free.
+    nonisolated static var freeScanLadderDays: Int { 7 }
+
+    /// `freeScan.daily.yyyyMMdd`, the same shape `dayKey` produces.
+    ///
+    /// `nonisolated`, like `nextFreeScanDate` and `freeScanBody` below: this is
+    /// calendar arithmetic, it touches no actor state, and `cancel(_:)` needs
+    /// it from a synchronous context — as do the tests.
+    ///
+    /// Built from `dateComponents` rather than through the shared `dayKey`,
+    /// which reads a `static let DateFormatter`. A `DateFormatter` is not
+    /// `Sendable`, so reaching it from a nonisolated context is exactly the
+    /// shared-mutable-state hazard the isolation is there to flag. The two
+    /// produce identical strings — both use `Calendar.current` — and this one
+    /// needs nothing shared.
+    nonisolated private static func freeScanLadderID(
+        forDay day: Date, calendar: Calendar = .current
+    ) -> String {
+        let parts = calendar.dateComponents([.year, .month, .day], from: day)
+        return String(format: "freeScan.daily.%04d%02d%02d",
+                      parts.year ?? 0, parts.month ?? 0, parts.day ?? 0)
+    }
+
+    /// Every identifier the ladder can be occupying, including the legacy one.
+    ///
+    /// Computed rather than discovered, so `cancel(_:)` stays synchronous —
+    /// it is called from `setEnabled`, which SwiftUI calls from a toggle. The
+    /// range runs a day wider than the ladder at both ends so a device whose
+    /// clock or timezone moved cannot orphan a request.
+    nonisolated static func freeScanIDs(around now: Date,
+                                        calendar: Calendar = .current) -> [String] {
+        var ids = [freeScanID]
+        for offset in -1...(freeScanLadderDays + 1) {
+            guard let day = calendar.date(byAdding: .day, value: offset, to: now) else { continue }
+            ids.append(freeScanLadderID(forDay: day, calendar: calendar))
+        }
+        return ids
+    }
     private static func ledgerDayID(_ dayKey: String) -> String { "ledger.day.\(dayKey)" }
 
     /// Recovers the category from any identifier ("ledger.day.20260801" → .ledger).
@@ -91,6 +164,38 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
     func setEnabled(_ category: Category, _ on: Bool) {
         UserDefaults.standard.set(on, forKey: category.toggleKey)
         if !on { cancel(category) }
+    }
+
+    /// True when iOS has never been asked — so nothing this app schedules will
+    /// ever be delivered, and the user has no way to tell.
+    ///
+    /// `requestAuthorization` used to appear at exactly one place in the whole
+    /// project: inside `enableFromPriming`, reachable only through
+    /// `shouldPrimeAfterScan()`, which is gated on `!primingShown` — and
+    /// `declinePriming()` sets that permanently. So "Not now" on the priming
+    /// alert left the status `.notDetermined` for the life of the install,
+    /// `isAuthorized()` mapped that to false, and `add()` returned silently for
+    /// every category forever. Meanwhile Settings rendered Weekly portfolio,
+    /// Monthly recap, Ledger and Trial reminders all ON (they default on), the
+    /// user could switch on Daily free scan and pick a time, and not one
+    /// notification would ever arrive — not even the heads-up before their
+    /// first trial charge. The "turn them on in iOS Settings" banner was gated
+    /// on `.denied`, which is never this user's status.
+    func needsAuthorizationRequest() async -> Bool {
+        await authorizationStatus() == .notDetermined
+    }
+
+    /// Ask iOS, if it has never been asked. Safe to call from a Settings
+    /// toggle: `requestAuthorization` is a no-op once a decision exists.
+    ///
+    /// Returns whether notifications can now be delivered, so the caller can
+    /// show the "turn them on in iOS Settings" banner if the user declines the
+    /// system alert here.
+    @discardableResult
+    func requestAuthorizationIfNeeded() async -> Bool {
+        guard await needsAuthorizationRequest() else { return await isAuthorized() }
+        primingShown = true          // iOS has now been asked; never prime again
+        return (try? await center.requestAuthorization(options: [.alert, .sound, .badge])) ?? false
     }
 
     // MARK: - Authorization & priming
@@ -158,27 +263,90 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
     }
 
     // Recap-ready fallback state (drives the History banner when notifications
-    // are off). Reset whenever a new month's recap is scheduled.
-    private func storeRecapPending(fireDate: Date, label: String) {
+    // are off).
+    private enum RecapKeys {
+        static let fire = "notif_recap_fire"
+        static let label = "notif_recap_label"
+        static let viewed = "notif_recap_viewed"
+        // Where next month's recap waits when this month's is still owed.
+        static let deferredFire = "notif_recap_deferred_fire"
+        static let deferredLabel = "notif_recap_deferred_label"
+    }
+
+    /// Whether writing `incomingLabel` now would erase a recap the user is
+    /// still owed.
+    ///
+    /// `storeRecapPending` overwrote the fire date and label unconditionally
+    /// and reset `viewed` whenever the label changed, so scheduling *next*
+    /// month's recap pushed the fire date a month out and made
+    /// `readyRecapLabel()` return nil — destroying a recap that was already due
+    /// and never seen. The comment on this state says it exists "so the in-app
+    /// banner works even if denied", which is to say: for the users who will
+    /// never receive the notification. They are exactly the population that
+    /// lost it, and on the free tier three scans spread across 1–3 September
+    /// are enough to erase the August banner before History is opened once.
+    ///
+    /// Pure, so the case can be tested without `UserDefaults` or a clock.
+    nonisolated static func recapIsStillOwed(storedLabel: String?,
+                                             storedFire: Date?,
+                                             viewed: Bool,
+                                             incomingLabel: String,
+                                             now: Date) -> Bool {
+        guard let storedLabel, storedLabel != incomingLabel, !viewed,
+              let storedFire, now >= storedFire
+        else { return false }
+        return true
+    }
+
+    private func storeRecapPending(fireDate: Date, label: String, now: Date = Date()) {
         let d = UserDefaults.standard
-        if d.string(forKey: "notif_recap_label") != label {
-            d.set(false, forKey: "notif_recap_viewed")
+        let storedFire = (d.object(forKey: RecapKeys.fire) as? Double)
+            .map { Date(timeIntervalSince1970: $0) }
+
+        if Self.recapIsStillOwed(storedLabel: d.string(forKey: RecapKeys.label),
+                                 storedFire: storedFire,
+                                 viewed: d.bool(forKey: RecapKeys.viewed),
+                                 incomingLabel: label,
+                                 now: now) {
+            // Parked, not discarded. Skipping the write alone would have lost
+            // *this* recap instead for anyone who does not scan again after
+            // reading the banner — trading one silent loss for another.
+            d.set(fireDate.timeIntervalSince1970, forKey: RecapKeys.deferredFire)
+            d.set(label, forKey: RecapKeys.deferredLabel)
+            return
         }
-        d.set(fireDate.timeIntervalSince1970, forKey: "notif_recap_fire")
-        d.set(label, forKey: "notif_recap_label")
+
+        // Anything parked is superseded by a write that is allowed to land.
+        d.removeObject(forKey: RecapKeys.deferredFire)
+        d.removeObject(forKey: RecapKeys.deferredLabel)
+        if d.string(forKey: RecapKeys.label) != label {
+            d.set(false, forKey: RecapKeys.viewed)
+        }
+        d.set(fireDate.timeIntervalSince1970, forKey: RecapKeys.fire)
+        d.set(label, forKey: RecapKeys.label)
     }
 
     /// The recapped month's name if a recap is due and not yet viewed, else nil.
-    func readyRecapLabel() -> String? {
+    func readyRecapLabel(now: Date = Date()) -> String? {
         let d = UserDefaults.standard
-        guard let label = d.string(forKey: "notif_recap_label"),
-              !d.bool(forKey: "notif_recap_viewed") else { return nil }
-        let fire = Date(timeIntervalSince1970: d.double(forKey: "notif_recap_fire"))
-        return Date() >= fire ? label : nil
+        guard let label = d.string(forKey: RecapKeys.label),
+              !d.bool(forKey: RecapKeys.viewed) else { return nil }
+        let fire = Date(timeIntervalSince1970: d.double(forKey: RecapKeys.fire))
+        return now >= fire ? label : nil
     }
 
     func markRecapViewed() {
-        UserDefaults.standard.set(true, forKey: "notif_recap_viewed")
+        let d = UserDefaults.standard
+        d.set(true, forKey: RecapKeys.viewed)
+        // Promote whatever was parked while this one was still owed.
+        guard let label = d.string(forKey: RecapKeys.deferredLabel),
+              let fire = d.object(forKey: RecapKeys.deferredFire) as? Double
+        else { return }
+        d.removeObject(forKey: RecapKeys.deferredLabel)
+        d.removeObject(forKey: RecapKeys.deferredFire)
+        d.set(fire, forKey: RecapKeys.fire)
+        d.set(label, forKey: RecapKeys.label)
+        d.set(false, forKey: RecapKeys.viewed)
     }
 
     // MARK: - 2) Ledger follow-up (14 days after "listed")
@@ -290,15 +458,38 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
     /// request is simply replaced by the next correct one.
     func syncFreeScanReminder(isPro: Bool, scannedToday: Bool, streak: Int = 0,
                               now: Date = Date()) async {
-        guard isEnabled(.freeScan), !isPro else {
-            center.removePendingNotificationRequests(withIdentifiers: [Self.freeScanID])
-            return
-        }
+        // Always clear the whole ladder first, including the legacy single id.
+        // Every path below either rebuilds it or wants it gone, and a stale rung
+        // left behind fires on its old day with its old body.
+        center.removePendingNotificationRequests(
+            withIdentifiers: Self.freeScanIDs(around: now))
+        guard isEnabled(.freeScan), !isPro else { return }
+
         let time = freeScanReminderTime
-        guard let fireDate = Self.nextFreeScanDate(after: now, hour: time.hour, minute: time.minute,
-                                                   scannedToday: scannedToday) else { return }
-        await add(id: Self.freeScanID, category: .freeScan, fireDate: fireDate,
-                  body: Self.freeScanBody(streak: streak))
+        guard let first = Self.nextFreeScanDate(after: now, hour: time.hour, minute: time.minute,
+                                                scannedToday: scannedToday) else { return }
+        let calendar = Calendar.current
+        // Only the first rung can even try to name the streak: beyond that the
+        // user may have scanned, or lapsed, and either claim would be
+        // invented. And it may only try — `streakOutlives` decides whether the
+        // streak that is alive now is still alive on the day that rung fires.
+        let namedStreak = Self.streakOutlives(fireDate: first, now: now,
+                                              scannedToday: scannedToday) ? streak : 0
+        var scheduledAny = false
+        for offset in 0..<Self.freeScanLadderDays {
+            guard let fireDate = calendar.date(byAdding: .day, value: offset, to: first)
+            else { continue }
+            let body = offset == 0 ? Self.freeScanBody(streak: namedStreak)
+                                   : Self.freeScanBody(streak: 0)
+            let added = await add(id: Self.freeScanLadderID(forDay: fireDate),
+                                  category: .freeScan, fireDate: fireDate,
+                                  body: body, track: false)
+            scheduledAny = scheduledAny || added
+        }
+        // One event for one logical reminder, not seven per foreground.
+        if scheduledAny {
+            Analytics.shared.track(.notificationScheduled(category: Category.freeScan.rawValue))
+        }
     }
 
     /// Today at the chosen time if that is still ahead and no scan has happened
@@ -311,6 +502,27 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
         guard let today = calendar.date(from: comps) else { return nil }
         if !scannedToday && today > now { return today }
         return calendar.date(byAdding: .day, value: 1, to: today)
+    }
+
+    /// Whether the streak that is alive at `now` is still alive at `fireDate`.
+    ///
+    /// The body is frozen into the request when it is scheduled, and
+    /// `ScanStreak.current()` counts a streak as alive while the last scan was
+    /// today or yesterday. So a reminder scheduled tonight for *tomorrow*
+    /// evening, on a day the user did not scan, names a streak that will have
+    /// lapsed by the time it fires: the last scan is yesterday now and the day
+    /// before yesterday then. Naming it anyway promises a day number the app
+    /// has already discarded and cannot give them — against the rule
+    /// `freeScanBody` states for itself, that there is no guilt when the
+    /// streak broke, it simply isn't mentioned.
+    ///
+    /// Two cases survive. The rung fires today, so nothing has moved; or the
+    /// user scanned today, which makes today the streak's last day and the
+    /// fire date tomorrow, still inside the window.
+    nonisolated static func streakOutlives(fireDate: Date, now: Date,
+                                           scannedToday: Bool,
+                                           calendar: Calendar = .current) -> Bool {
+        scannedToday || calendar.isDate(fireDate, inSameDayAs: now)
     }
 
     /// The copy. A streak of two or more is worth naming — "day 5" is a reason
@@ -392,7 +604,12 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
         let weekAgo = now.addingTimeInterval(-7 * 86_400)
         return WeeklyDigest(
             itemCount: results.count,
-            total: HistoryViewModel.total(of: results.map(\.portfolioValue)),
+            // `portfolioTotal`, the same "still held" figure the History
+            // header shows. This summed every row including sold ones, so the
+            // weekly push repeated the inflated total the header used to show
+            // — two surfaces stating a number that matched neither the realised
+            // profit nor the held value.
+            total: HistoryViewModel.portfolioTotal(of: results),
             addedThisWeek: results.filter { $0.timestamp >= weekAgo }.count
         )
     }
@@ -434,17 +651,58 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
         case .recap: center.removePendingNotificationRequests(withIdentifiers: [Self.recapID])
         case .portfolio: center.removePendingNotificationRequests(withIdentifiers: [Self.portfolioID])
         case .trial: center.removePendingNotificationRequests(withIdentifiers: [Self.trialID])
-        case .freeScan: center.removePendingNotificationRequests(withIdentifiers: [Self.freeScanID])
+        case .freeScan:
+            center.removePendingNotificationRequests(
+                withIdentifiers: Self.freeScanIDs(around: Date()))
         case .ledger: cancelAllLedger()
         }
     }
 
     // MARK: - Core scheduling (authorization + global daily cap)
 
+    /// The scheduling currently in flight, if any.
+    ///
+    /// `add` reads the notification daemon's pending set, decides from it, and
+    /// then writes — a read-modify-write with two suspension points inside it
+    /// (`isAuthorized`, `pendingNotificationRequests`, `center.add`). Being
+    /// `@MainActor` serialises this class's code only *between* awaits, so two
+    /// `add` calls could each take a snapshot that did not contain the other's
+    /// request, each conclude the day was free, and each schedule — breaking
+    /// the one-per-day cap this type documents for itself at the top of the
+    /// file. The interleave is not hypothetical: every scheduling entry point
+    /// is its own unstructured `Task`, and `ScanViewModel.startScan` starts
+    /// two back to back.
+    ///
+    /// Each `add` therefore chains onto whatever was in flight, so the
+    /// snapshot and the write that depends on it cannot be separated by
+    /// another scheduler. The link is made synchronously — `previous` is read
+    /// and `scheduling` written with no await between them — which is what
+    /// makes the chain a chain rather than a race of its own.
+    private var scheduling: Task<Bool, Never>?
+
     /// Adds a request, honoring the per-category toggle, authorization, and the
     /// global "1 notification per day" cap (priority: trial > ledger > recap).
-    private func add(id: String, category: Category, fireDate: Date, body: String) async {
-        guard isEnabled(category) else { return }
+    /// `track: false` suppresses the `notification_scheduled` event, for a
+    /// caller that schedules several requests for one logical reminder and
+    /// reports it once. Without it the free-scan ladder would emit seven events
+    /// on every foreground — the same event-spam the past-date guard above was
+    /// added to stop.
+    @discardableResult
+    private func add(id: String, category: Category, fireDate: Date, body: String,
+                     track: Bool = true) async -> Bool {
+        let previous = scheduling
+        let mine = Task { @MainActor () -> Bool in
+            _ = await previous?.value
+            return await self.schedule(id: id, category: category, fireDate: fireDate,
+                                       body: body, track: track)
+        }
+        scheduling = mine
+        return await mine.value
+    }
+
+    private func schedule(id: String, category: Category, fireDate: Date, body: String,
+                          track: Bool) async -> Bool {
+        guard isEnabled(category) else { return false }
         // A fire date in the past is not a reminder. `syncEligible` runs on
         // every foreground and re-schedules the ledger follow-up for every
         // listed item, including ones listed more than 14 days ago — so each
@@ -453,10 +711,24 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
         // `syncTrialReminder` already guards this way; nothing else did.
         guard fireDate > Date() else {
             center.removePendingNotificationRequests(withIdentifiers: [id])
-            return
+            return false
         }
-        guard await isAuthorized() else { return }              // no-op until permitted
-        guard await resolveDailyCap(for: category, fireDate: fireDate, ownID: id) else { return }
+        guard await isAuthorized() else { return false }         // no-op until permitted
+        guard await resolveDailyCap(for: category, fireDate: fireDate, ownID: id) else {
+            // Cancel, do not just return. Every fixed-ID category (recap,
+            // portfolio, trial, freeScan) gets its idempotence from
+            // `center.add` replacing a pending request under the same
+            // identifier — so a path that returns *before* the add leaves the
+            // previous request alive, and it fires on its old date with its old
+            // body. That contradicts the contract `syncFreeScanReminder`
+            // documents for itself ("the previous request is simply replaced by
+            // the next correct one") and breaks the one-per-day cap this
+            // function exists to enforce, because the leaked request still
+            // occupies its old day. The past-date guard above already cancels;
+            // this one did not.
+            center.removePendingNotificationRequests(withIdentifiers: [id])
+            return false
+        }
 
         let content = UNMutableNotificationContent()
         content.title = "SnapWorth"
@@ -464,17 +736,65 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
         content.sound = .default
         content.userInfo = ["category": category.rawValue]
 
-        let comps = Calendar.current.dateComponents(
-            [.year, .month, .day, .hour, .minute], from: fireDate)
-        let trigger = UNCalendarNotificationTrigger(dateMatching: comps, repeats: false)
+        let trigger = UNCalendarNotificationTrigger(
+            dateMatching: Self.triggerComponents(for: category, fireDate: fireDate),
+            repeats: false)
         let request = UNNotificationRequest(identifier: id, content: content, trigger: trigger)
 
         do {
             try await center.add(request)   // same identifier replaces any pending
-            Analytics.shared.track(.notificationScheduled(category: category.rawValue))
+            if track {
+                Analytics.shared.track(.notificationScheduled(category: category.rawValue))
+            }
+            return true
         } catch {
             // Scheduling is best-effort; a failure just means no reminder.
+            return false
         }
+    }
+
+    /// Whether the category's fire date means an instant or a wall-clock time.
+    ///
+    /// Four of the five mean wall clock. "Your free scan is back" at 18:00 is
+    /// 18:00 wherever the user wakes up; the recap, the ledger follow-up and
+    /// the weekly digest are all the same — 10:00 local, whatever local turns
+    /// out to be. Those must float with the device's zone.
+    ///
+    /// `.trial` is the exception, and the only one. Its fire date is derived
+    /// from an absolute deadline — 24 hours before Apple charges the card —
+    /// and the body says "ends tomorrow". Floating it means a user who flies
+    /// gets the courtesy warning at the wrong remove from the charge: Tokyo to
+    /// Los Angeles is sixteen hours, which turns a day's notice into eight
+    /// hours, potentially past the point where cancelling still avoids the
+    /// first bill.
+    nonisolated static func isAnchoredToAnInstant(_ category: Category) -> Bool {
+        switch category {
+        case .trial:                              return true
+        case .recap, .ledger, .portfolio, .freeScan: return false
+        }
+    }
+
+    /// The components the trigger is built from — floating or pinned.
+    ///
+    /// `DateComponents` with no `timeZone` is resolved against whatever zone
+    /// the device is in when the trigger is evaluated, which is the floating
+    /// behaviour four of the categories want. Setting `timeZone` pins them to
+    /// the zone they were computed in, so the same instant comes back out.
+    /// `.second` comes along for the pinned case: the deadline is an instant,
+    /// and truncating it to the minute would move the warning by up to 59
+    /// seconds for no reason.
+    ///
+    /// Pure, and takes its calendar, so a test can compute in one zone and
+    /// resolve in another — which is the whole claim.
+    nonisolated static func triggerComponents(for category: Category,
+                                              fireDate: Date,
+                                              calendar: Calendar = .current) -> DateComponents {
+        var comps = calendar.dateComponents([.year, .month, .day, .hour, .minute],
+                                            from: fireDate)
+        guard isAnchoredToAnInstant(category) else { return comps }
+        comps.second = calendar.component(.second, from: fireDate)
+        comps.timeZone = calendar.timeZone
+        return comps
     }
 
     /// Enforces at most one notification per calendar day across all categories.
@@ -580,13 +900,36 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
         return cal.date(from: comps)
     }
 
-    private static let dayKeyFormatter: DateFormatter = {
+    /// Built per call rather than held in a `static let`.
+    ///
+    /// `Calendar.current` is a non-autoupdating snapshot carrying a concrete
+    /// `TimeZone`, and a `static let` is initialised once per process — so this
+    /// formatter's zone was pinned at first use while every other helper in
+    /// this section re-reads `Calendar.current` freshly, including
+    /// `date(fromDayKey:)`, which parsed with the pinned zone and then took the
+    /// components with a fresh one.
+    ///
+    /// Fly from Los Angeles to Tokyo and resume without relaunching: an item
+    /// listed Sep 11 gives a fire date of Sep 25 10:00 JST, `dayKey` formats
+    /// that instant in the pinned LA zone as "20260924", and rescheduling from
+    /// that key lands the 14-day follow-up on Sep 24 — a day early. Two items
+    /// on adjacent days can also coalesce into the wrong bucket.
+    ///
+    /// `monthName` below is built per call for exactly this reason, so this is
+    /// the file's own convention rather than a new one. The cost is one
+    /// `DateFormatter` per ledger scheduling, which happens when an item is
+    /// marked listed.
+    private static var dayKeyFormatter: DateFormatter {
+        let calendar = Calendar.current
         let f = DateFormatter()
         f.locale = Locale(identifier: "en_US_POSIX")
-        f.calendar = Calendar.current
+        f.calendar = calendar
+        // Set explicitly: `DateFormatter` keeps its own `timeZone` and does not
+        // take one from the calendar assigned above.
+        f.timeZone = calendar.timeZone
         f.dateFormat = "yyyyMMdd"
         return f
-    }()
+    }
 
     private static func dayKey(_ date: Date) -> String { dayKeyFormatter.string(from: date) }
 

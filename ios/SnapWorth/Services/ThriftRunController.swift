@@ -17,12 +17,43 @@ enum ThriftRunController {
     /// Activity should not still be there the next morning claiming to be live.
     static let maximumRunDuration: TimeInterval = 8 * 60 * 60
 
-    /// After this the system dims the Activity, signalling "this may be out of
-    /// date" without the app having to be woken to say so.
+    /// After this the Activity's `context.isStale` flips true, and the views
+    /// render a last-known state instead of a live one.
+    ///
+    /// The system does *not* dim it for you — an earlier comment here said it
+    /// did, which is why nothing read `isStale` for a while and an abandoned
+    /// run kept looking live with its timer climbing past the 8-hour cap.
+    /// `staleDate` sets a flag; presenting it is the widget's job.
     static let staleAfter: TimeInterval = 90 * 60
 
+    /// When the Activity should declare itself out of date, never later than
+    /// the moment `update` would end the run — otherwise a scan at 7h55m would
+    /// push the stale date to 9h25m, past a run the app already considers over.
+    static func staleDate(now: Date, startedAt: Date) -> Date {
+        min(now.addingTimeInterval(staleAfter),
+            startedAt.addingTimeInterval(maximumRunDuration))
+    }
+
+    /// The live run, if there is one.
+    ///
+    /// `activities` keeps an Activity after it finishes — `.ended` when
+    /// something ended it, `.dismissed` when the user swiped it away — and the
+    /// system removes those asynchronously. Taking `.first` unconditionally
+    /// counted a finished Activity as a live run, so `start()` refused and the
+    /// user could not begin a new one until the system got round to reaping
+    /// the old one.
+    ///
+    /// Matched by exclusion rather than `== .active`, so `.stale` — a run that
+    /// is still on screen and still the user's — keeps counting, and so does
+    /// any state a later iOS adds. `.stale` itself is 17.2 and the deployment
+    /// target is 17.0, which is the other reason not to name it.
     static var current: Activity<ThriftRunAttributes>? {
-        Activity<ThriftRunAttributes>.activities.first
+        Activity<ThriftRunAttributes>.activities.first { activity in
+            switch activity.activityState {
+            case .ended, .dismissed: return false
+            default:                 return true
+            }
+        }
     }
 
     static var isRunning: Bool { current != nil }
@@ -44,7 +75,7 @@ enum ThriftRunController {
             _ = try Activity.request(
                 attributes: attributes,
                 content: ActivityContent(state: .empty,
-                                         staleDate: now.addingTimeInterval(staleAfter)),
+                                         staleDate: staleDate(now: now, startedAt: now)),
                 pushType: nil)
             return true
         } catch {
@@ -59,6 +90,44 @@ enum ThriftRunController {
         for activity in Activity<ThriftRunAttributes>.activities {
             await activity.end(nil, dismissalPolicy: .immediate)
         }
+    }
+
+    /// Ends a run past the cap without waiting for a scan to notice.
+    ///
+    /// The cap lived only inside `update`, and `update` is reached only from
+    /// the scan-mutation paths in `ScanRepository` — so it could not fire for
+    /// the one case it exists for: a run somebody started and then stopped
+    /// scanning on. `ScanView` re-reads `isRunning` on foreground and its
+    /// comment there claimed a run could "hit the eight-hour cap"; nothing
+    /// implemented that, which is what this closes.
+    ///
+    /// What it buys is dismissal, not the ending. ActivityKit ends an Activity
+    /// of its own accord at eight hours, and `current` already excludes
+    /// `.ended`, so the app's own state was never wrong. But the system's end
+    /// leaves the Activity sitting on the Lock Screen for up to four hours
+    /// more, and `end()` here dismisses it immediately — which is what the
+    /// comment on `maximumRunDuration` actually asks for: "the Activity should
+    /// not still be there the next morning claiming to be live."
+    @discardableResult
+    static func endIfExpired(now: Date = Date()) async -> Bool {
+        guard let activity = current,
+              hasExpired(startedAt: activity.attributes.startedAt, now: now)
+        else { return false }
+        await end()
+        return true
+    }
+
+    /// Whether a run started at `startedAt` has outlived the cap.
+    ///
+    /// Split out for the same reason `staleDate` is: `endIfExpired` has to ask
+    /// ActivityKit for a live Activity, and no test can hand it one — so the
+    /// decision is tested apart from the thing it decides about.
+    ///
+    /// `>=`, not `>`: `staleDate` already pins the stale moment to exactly
+    /// `startedAt + maximumRunDuration`, so the instant the run declares
+    /// itself finally stale is the instant it is over.
+    static func hasExpired(startedAt: Date, now: Date) -> Bool {
+        now.timeIntervalSince(startedAt) >= maximumRunDuration
     }
 
     /// Recompute from the library. Ends a run that has outlived its welcome.
@@ -92,6 +161,6 @@ enum ThriftRunController {
 
         await activity.update(
             ActivityContent(state: state,
-                            staleDate: now.addingTimeInterval(staleAfter)))
+                            staleDate: staleDate(now: now, startedAt: startedAt)))
     }
 }

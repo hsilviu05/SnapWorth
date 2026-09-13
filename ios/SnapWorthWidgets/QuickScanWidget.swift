@@ -33,20 +33,15 @@ struct QuickScanWidgetView: View {
     let entry: QuickScanEntry
 
     var body: some View {
+        // The gradient is the widget's `containerBackground` rather than a
+        // rectangle drawn as content — see `HaulWidgetSmallView` for why.
         ZStack {
-            // Background — terracotta gradient
-            LinearGradient(
-                colors: [Color.wTerracotta, Color(hex: "B84E2A")],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-
             VStack(spacing: 0) {
                 // Header wordmark
                 HStack {
                     Text("SnapWorth")
-                        .font(.system(size: 11, weight: .semibold, design: .serif))
-                        .foregroundStyle(Color.wBackground.opacity(0.75))
+                        .wFont(11, weight: .semibold, design: .serif)
+                        .foregroundStyle(Color.wBackground)
                     Spacer()
                 }
 
@@ -59,7 +54,7 @@ struct QuickScanWidgetView: View {
                         .frame(width: 52, height: 52)
 
                     Image(systemName: "camera.fill")
-                        .font(.system(size: 24, weight: .medium))
+                        .wFont(24, weight: .medium)
                         .foregroundStyle(Color.wBackground)
                 }
 
@@ -68,17 +63,17 @@ struct QuickScanWidgetView: View {
                 // Label
                 VStack(spacing: 2) {
                     Text("Scan now")
-                        .font(.system(size: 14, weight: .bold))
+                        .wFont(14, weight: .bold)
                         .foregroundStyle(Color.wBackground)
 
                     if entry.itemCount > 0 {
-                        Text("\(entry.itemCount) items in your haul")
-                            .font(.system(size: 10, weight: .medium))
-                            .foregroundStyle(Color.wBackground.opacity(0.65))
+                        Text("\(WidgetHaulData.itemsLabel(entry.itemCount)) in your haul")
+                            .wFont(10, weight: .medium)
+                            .foregroundStyle(Color.wBackground)
                     } else {
                         Text("Find out what it's worth")
-                            .font(.system(size: 10, weight: .medium))
-                            .foregroundStyle(Color.wBackground.opacity(0.65))
+                            .wFont(10, weight: .medium)
+                            .foregroundStyle(Color.wBackground)
                     }
                 }
             }
@@ -97,7 +92,16 @@ struct QuickScanWidget: Widget {
             QuickScanWidgetView(entry: entry)
                 // Deep-links directly to the camera scan screen
                 .widgetURL(URL(string: "snapworth://scan"))
-                .containerBackground(Color.wTerracotta, for: .widget)
+                // Terracotta at the *fill* values, and the labels above it
+                // at full cream. It was `wTerracotta -> #B84E2A` with the
+                // 10pt caption at 65% cream: 2.93:1, under even the 3:1 floor
+                // for non-text. The worst point on this tile is now 5.43:1.
+                .containerBackground(for: .widget) {
+                    LinearGradient(
+                        colors: [Color.wTerracottaFill, Color.wTerracottaFillDeep],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing)
+                }
         }
         .configurationDisplayName("Quick Scan")
         .description("One tap to scan any secondhand item.")

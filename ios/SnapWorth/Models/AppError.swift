@@ -3,7 +3,9 @@ import Foundation
 enum AppError: LocalizedError, Equatable {
     case network
     case timeout
-    case rateLimit
+    /// The per-hour request limit, with the real remaining wait when the
+    /// server told us. See `rateLimitMessage`.
+    case rateLimit(retryAfter: TimeInterval?)
     /// Free daily allowance is spent — the server is the authority on this.
     case quotaExceeded(String)
     /// A Pro-only endpoint refused a free-tier caller.
@@ -24,6 +26,10 @@ enum AppError: LocalizedError, Equatable {
     case purchaseCancelled
     case purchaseFailed(String)
     case persistence
+    /// The store could not be opened at launch, so nothing written this
+    /// session survives it. Distinct from `persistence`, which is a write that
+    /// failed and can be retried — this one cannot.
+    case storageUnavailable
     case unknown(String)
 
     /// A 402 from the server: the free allowance is spent, or a Pro-only
@@ -47,8 +53,8 @@ enum AppError: LocalizedError, Equatable {
             return "No internet connection. Check your network and try again."
         case .timeout:
             return "The request timed out. Please try again."
-        case .rateLimit:
-            return "You've hit the scan limit. Try again in an hour."
+        case .rateLimit(let retryAfter):
+            return Self.rateLimitMessage(retryAfter: retryAfter)
         case .quotaExceeded(let msg), .proRequired(let msg):
             return msg
         case .serverUnavailable:
@@ -89,9 +95,51 @@ enum AppError: LocalizedError, Equatable {
             return msg
         case .persistence:
             return "Could not save your scan. Please try again."
+        case .storageUnavailable:
+            // Deliberately not "try again": retrying cannot help. The store
+            // failed to open at launch and the app is running on a throwaway
+            // in-memory one, so a second attempt succeeds exactly as silently
+            // as the first and is lost the same way.
+            return "SnapWorth couldn't open your library on this launch, so this find can't be saved to it. Reopening the app may fix it."
         case .unknown:
             return "Something went wrong. Please try again."
         }
+    }
+
+    /// Copy for a 429, using the wait the server actually computed.
+    ///
+    /// The fixed "Try again in an hour" this replaces was wrong by up to an
+    /// hour in the user's disfavour: the limit is a *sliding* window, so
+    /// someone who tripped it 55 minutes ago is a few minutes from being able
+    /// to scan again and was being told to come back in an hour. The backend
+    /// has always sent the real remaining seconds
+    /// (`retry_after=max(1, int(window - (now - oldest)))`); nothing read them.
+    ///
+    /// Rounding is always *up*, so the message never invites a retry that will
+    /// fail again. `nil` means the header was absent or unparseable, and the
+    /// honest answer there is the window's own length.
+    ///
+    /// Pure and `static` so the boundaries are testable without a server: the
+    /// interesting cases are 59s versus 60s, and 59 minutes versus 60.
+    static func rateLimitMessage(retryAfter: TimeInterval?) -> String {
+        let lead = "You've hit the scan limit."
+        guard let seconds = retryAfter else {
+            return "\(lead) Try again in an hour."
+        }
+        if seconds < 10 {
+            return "\(lead) Try again in a few seconds."
+        }
+        if seconds < 60 {
+            return "\(lead) Try again in \(Int(seconds)) seconds."
+        }
+        let minutes = Int((seconds / 60).rounded(.up))
+        if minutes >= 60 {
+            return "\(lead) Try again in an hour."
+        }
+        if minutes == 1 {
+            return "\(lead) Try again in a minute."
+        }
+        return "\(lead) Try again in \(minutes) minutes."
     }
 
     static func from(_ error: Error) -> AppError {
@@ -101,9 +149,19 @@ enum AppError: LocalizedError, Equatable {
             switch scanErr {
             case .imageEncodingFailed:
                 return .imageEncodingFailed
+            case .rateLimited(_, let retryAfter):
+                // The backend's `detail` here is "Rate limit: 20
+                // requests/hour." — accurate and useless to someone standing in
+                // a shop. This is the one status whose copy is better written
+                // on the client, because what the user needs is the *wait*, and
+                // that arrives in a header.
+                return .rateLimit(retryAfter: retryAfter)
             case .serverError(let code, let detail):
                 switch code {
-                case 429:        return .rateLimit
+                // Reachable only if something throws a plain `serverError`
+                // with a 429; `ScanAPIError.from` produces `.rateLimited`,
+                // which carries the header and is handled above.
+                case 429:        return .rateLimit(retryAfter: nil)
                 // 402 is the server saying "this needs payment" — either the
                 // free daily allowance is spent, or a Pro-only endpoint refused
                 // a free caller. Both route to the paywall, and `detail` is
@@ -129,11 +187,31 @@ enum AppError: LocalizedError, Equatable {
                 // 422 does; the outage detail still reads as an outage because
                 // the backend's own copy says so. Empty detail keeps the fixed
                 // string, and 503 really is the service refusing traffic.
-                case 502:        return detail.isEmpty ? .serverUnavailable
-                                                       : .aiFailed(detail)
+                //
+                // `detail.isEmpty` never held: `APIErrorDetail.parse` returns
+                // its own fixed fallback — the very words `.unknown` prints —
+                // when there is no usable `detail` in the body, so a real
+                // outage with an empty body arrived here carrying "Something
+                // went wrong. Please try again." and became `.aiFailed` with
+                // that text. The one branch written for an outage could not be
+                // reached, and the user was told to try again rather than that
+                // the service was down. Test for what the parser actually
+                // produces.
+                case 502:        return Self.isPlaceholderDetail(detail)
+                                     ? .serverUnavailable
+                                     : .aiFailed(detail)
                 case 503:        return .serverUnavailable
                 default:         return .unknown(detail)
                 }
+            }
+        }
+
+        // A rolled-back save. Callers that only want to report the failure
+        // should not have to know the error carries a replacement row.
+        if let failure = error as? ScanPersistenceError {
+            switch failure {
+            case .saveFailed:      return .persistence
+            case .storeUnavailable: return .storageUnavailable
             }
         }
 
@@ -147,16 +225,31 @@ enum AppError: LocalizedError, Equatable {
 
         let url = error as? URLError
         switch url?.code {
-        case .notConnectedToInternet, .networkConnectionLost, .cannotConnectToHost:
+        // Every one of these is "the phone could not reach us", and all of
+        // them used to fall through. The substring test below cannot rescue
+        // them: iOS's own strings for these codes say "A server with the
+        // specified hostname could not be found." and "An SSL error has
+        // occurred…" — no "network", no "offline", no code number — so they
+        // reached `.unknown` and printed "Something went wrong. Please try
+        // again." to someone standing in a shop with no signal, while the
+        // copy that would have told them lived one case away.
+        case .notConnectedToInternet, .networkConnectionLost, .cannotConnectToHost,
+             .cannotFindHost, .dnsLookupFailed,
+             .dataNotAllowed, .internationalRoamingOff, .callIsActive:
             return .network
         case .timedOut:
             return .timeout
+        // Deliberately NOT mapped here: `.secureConnectionFailed`. This app
+        // pins its certificate, so that code can mean an interception rather
+        // than an outage, and "check your network and try again" is the wrong
+        // advice for it — the retry would be the thing that succeeds. It keeps
+        // falling through to `.unknown` until it has copy of its own.
         default:
             break
         }
 
         let msg = error.localizedDescription.lowercased()
-        if msg.contains("429") || msg.contains("rate limit")       { return .rateLimit }
+        if msg.contains("429") || msg.contains("rate limit")       { return .rateLimit(retryAfter: nil) }
         if msg.contains("network") || msg.contains("offline")      { return .network }
         if msg.contains("timeout") || msg.contains("timed out")    { return .timeout }
         if msg.contains("502") || msg.contains("503")              { return .serverUnavailable }
@@ -164,32 +257,36 @@ enum AppError: LocalizedError, Equatable {
         return .unknown(error.localizedDescription)
     }
 
-    static func == (lhs: AppError, rhs: AppError) -> Bool {
-        switch (lhs, rhs) {
-        case (.network, .network),
-             (.timeout, .timeout),
-             (.rateLimit, .rateLimit),
-             (.serverUnavailable, .serverUnavailable),
-             // Omitted when .sessionExpired was introduced, so it fell to the
-             // `default: false` arm and did not equal itself. Any `== `
-             // comparison or SwiftUI alert de-duplication on this case was
-             // silently wrong.
-             (.sessionExpired, .sessionExpired),
-             (.imageEncodingFailed, .imageEncodingFailed),
-             (.purchaseCancelled, .purchaseCancelled),
-             (.persistence, .persistence):
-            return true
-        case (.purchaseFailed(let a), .purchaseFailed(let b)): return a == b
-        case (.unknown(let a), .unknown(let b)):               return a == b
-        case (.quotaExceeded(let a), .quotaExceeded(let b)):   return a == b
-        case (.proRequired(let a), .proRequired(let b)):       return a == b
-        // Compared by message, like every other case carrying server copy.
-        // Matching on the case alone would make two different "why this photo
-        // failed" explanations equal, and the alert would not re-present when
-        // the reason changed.
-        case (.unusablePhoto(let a), .unusablePhoto(let b)):   return a == b
-        case (.aiFailed(let a), .aiFailed(let b)):             return a == b
-        default: return false
-        }
+    /// True when `detail` is the parser's own stand-in rather than anything
+    /// the backend said.
+    ///
+    /// `APIErrorDetail.parse` never returns an empty string: with no usable
+    /// `detail` in the body it returns a fixed sentence — the same words
+    /// `.unknown` prints. So `detail.isEmpty` was never true at the 502 branch
+    /// above, and a genuine outage with an empty body was reported as an AI
+    /// failure carrying "Something went wrong. Please try again."
+    ///
+    /// Compared case- and whitespace-insensitively against the literal rather
+    /// than reaching into `APIErrorDetail`: this is a *presentation* decision
+    /// about copy the user would see, and coupling the two types would make
+    /// the client's error mapping depend on the API client's internals.
+    static func isPlaceholderDetail(_ detail: String) -> Bool {
+        let trimmed = detail.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty
+            || trimmed.caseInsensitiveCompare("Something went wrong. Please try again.")
+                == .orderedSame
     }
+
+    // The hand-written `==` that used to live here is gone.
+    //
+    // Every one of its arms was exactly what the compiler synthesises — the
+    // payload-free cases matched by case, the rest by their associated value —
+    // so the only thing it contributed was a `default: return false` that had
+    // to be kept in step by hand. Twice it was not. `.sessionExpired` was
+    // omitted when it was introduced and did not equal itself, which the
+    // comment on that arm recorded; `.storageUnavailable` was omitted the same
+    // way and failed the same way, so an alert could not de-duplicate and
+    // `AppError.from(.storeUnavailable(…)) == .storageUnavailable` was false.
+    //
+    // Synthesis cannot drift: a new case is covered the moment it is declared.
 }

@@ -54,8 +54,8 @@ struct FlipsView: View {
     private var ledger: some View {
         let summary = vm.summary(allResults, scope: scope)
         let items = vm.visibleItems(allResults)
-        let capped = isPro ? items : Array(items.prefix(Config.ledgerFreeSoldCap))
-        let hidden = items.count - capped.count
+        let gated: (rows: [ScanResult], hiddenSold: Int) =
+            isPro ? (rows: items, hiddenSold: 0) : vm.freeTierItems(items)
 
         return ScrollView {
             VStack(spacing: 16) {
@@ -65,11 +65,11 @@ struct FlipsView: View {
                 filterChips
 
                 LazyVStack(spacing: 10) {
-                    ForEach(capped) { itemRow($0) }
+                    ForEach(gated.rows) { itemRow($0) }
                 }
 
-                if hidden > 0 {
-                    unlockRow(hidden: hidden)
+                if gated.hiddenSold > 0 {
+                    unlockRow(hidden: gated.hiddenSold)
                 }
             }
             .padding(.horizontal, 16)
@@ -85,17 +85,20 @@ struct FlipsView: View {
         VStack(alignment: .leading, spacing: 6) {
             Text(isPro ? "All-time profit" : "Profit this month")
                 .font(.snapCaption)
-                .foregroundStyle(Color.snapSage.opacity(0.85))
+                .foregroundStyle(Color.snapWarmGray)
 
             Text(vm.signedMoney(s.realizedProfit))
                 .font(.fraunces(38, weight: .bold))
-                .foregroundStyle(s.realizedProfit < 0 ? Color.snapTerracotta : Color.snapSage)
+                .foregroundStyle(s.realizedProfit < 0 ? Color.snapTerracottaText : Color.snapSageText)
                 .lineLimit(1)
                 .minimumScaleFactor(0.5)
 
-            Text("\(s.itemsSold) item\(s.itemsSold == 1 ? "" : "s") sold")
+            // `soldLabel`, not a raw count: the profit above drops sales
+            // with no paid price, and pairing it with a count of *every* sale
+            // rendered one uncosted sale as "+$0" above "1 item sold".
+            Text(s.soldLabel)
                 .font(.snapCaption)
-                .foregroundStyle(Color.snapSage.opacity(0.7))
+                .foregroundStyle(Color.snapWarmGray)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(20)
@@ -112,7 +115,15 @@ struct FlipsView: View {
     private func statsGrid(_ s: FlipsViewModel.Summary) -> some View {
         let cols = [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)]
         return LazyVGrid(columns: cols, spacing: 12) {
-            statCard(title: "Invested", value: vm.money(s.totalInvested))
+            // "(all-time)" because `totalInvested` is, and the header two
+            // rows above says "Profit this month" for a free user. Sell three
+            // items in August and nothing in September and the card read
+            // "Profit this month +$0 / 0 items sold" beside "Invested $150":
+            // cost basis attributed to sales the same card said had not
+            // happened. Stating the window is the honest fix; scoping the
+            // figure would make "Invested" mean one thing for a free user and
+            // another for a subscriber on the same card.
+            statCard(title: "Invested (all-time)", value: vm.money(s.totalInvested))
             statCard(title: "Avg ROI", value: s.averageROI.map { vm.roiPercent($0) } ?? "—")
             statCard(
                 title: "Best flip",
@@ -132,6 +143,12 @@ struct FlipsView: View {
             Text(title)
                 .font(.snapCaption)
                 .foregroundStyle(Color.snapWarmGray)
+                // The longest title is now "Invested (all-time)", which fits
+                // the card at the default size with room to spare — this is so
+                // that it cannot wrap and change the card's height when it
+                // does not.
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
             Text(value)
                 .font(.fraunces(22, weight: .bold))
                 .foregroundStyle(Color.snapEspresso)
@@ -183,6 +200,12 @@ struct FlipsView: View {
             Text(bucket.label)
                 .font(.dmSans(13, weight: .medium))
                 .foregroundStyle(Color.snapWarmGray)
+                // Both columns are fixed widths sized for the default text
+                // size; the fonts are not. `statCard` above scales for the
+                // same reason — without it the month truncates to "Se…" and
+                // the amount wraps under its own bar.
+                .lineLimit(1)
+                .minimumScaleFactor(0.55)
                 .frame(width: 40, alignment: .leading)
 
             GeometryReader { geo in
@@ -195,9 +218,19 @@ struct FlipsView: View {
 
             Text(vm.signedMoney(bucket.profit))
                 .font(.dmSans(12, weight: .semibold))
-                .foregroundStyle(val < 0 ? Color.snapTerracotta : Color.snapEspresso)
+                .foregroundStyle(val < 0 ? Color.snapTerracottaText : Color.snapEspresso)
+                .lineLimit(1)
+                .minimumScaleFactor(0.55)
                 .frame(width: 74, alignment: .trailing)
         }
+        // One stop per month, not three. VoiceOver stopped separately on the
+        // month and the amount, with an unlabelled `Capsule` between them
+        // contributing the magnitude to nobody — twelve stops across six
+        // months, and no way to tell which figure went with which label if a
+        // month's row happened to be empty. Every other row in the app is
+        // combined and spoken as one sentence; this is that convention.
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(bucket.label), \(vm.signedMoney(bucket.profit))")
     }
 
     // MARK: - Filter chips
@@ -318,7 +351,7 @@ struct FlipsView: View {
             if let profit = item.realizedProfit {
                 Text(vm.signedMoney(profit))
                     .font(.dmSans(15, weight: .bold))
-                    .foregroundStyle(profit < 0 ? Color.snapTerracotta : Color.snapSage)
+                    .foregroundStyle(profit < 0 ? Color.snapTerracottaText : Color.snapSageText)
             } else {
                 Text("—")
                     .font(.dmSans(15, weight: .bold))
@@ -348,7 +381,7 @@ struct FlipsView: View {
             }
             .foregroundStyle(Color.snapOnAccent)
             .padding(16)
-            .background(Color.snapTerracotta)
+            .background(Color.snapTerracottaFill)
             .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
         }
         .buttonStyle(.plain)
@@ -383,7 +416,7 @@ struct FlipsView: View {
             .fixedSize(horizontal: true, vertical: false)
             .padding(.horizontal, 28)
             .padding(.vertical, 12)
-            .background(Color.snapTerracotta)
+            .background(Color.snapTerracottaFill)
             .clipShape(Capsule())
             .snapHitTarget()
             .padding(.top, 4)
@@ -412,8 +445,15 @@ struct FlipsView: View {
                         Label("Export CSV", systemImage: "tablecells")
                     }
                 } label: {
-                    Image(systemName: "ellipsis.circle").foregroundStyle(Color.snapTerracotta)
+                    Image(systemName: "ellipsis.circle").foregroundStyle(Color.snapTerracottaText)
                 }
+                // VoiceOver fell back to the symbol name — "ellipsis circle,
+                // button" — for the only route in the app to CSV export, the
+                // month share card and the sort order. `HistoryView` labels the
+                // identical control properly one file away.
+                .accessibilityLabel("Flip options")
+                .accessibilityValue(vm.sort.rawValue)
+                .accessibilityHint("Sort, share the month, or export a CSV")
             }
         }
     }

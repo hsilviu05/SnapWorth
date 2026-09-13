@@ -344,6 +344,18 @@ cache_operations = _counter(
 cache_degraded = _gauge(
     "snapworth_cache_degraded", "1 when the durable cache is configured but unreachable")
 
+#: 1 when a rate limiter has fallen back to per-process counters.
+#:
+#: Worth its own series rather than folding into `cache_degraded`: the limiters
+#: build their own facades (`ratelimit.build_limiter`) and can degrade
+#: independently of the entitlement cache. The consequence is different too —
+#: an unreachable cache fails quota *closed*, while a degraded limiter fails
+#: *open* per replica, so the effective ceiling quietly multiplies by the
+#: replica count.
+rate_limiter_degraded = _gauge(
+    "snapworth_rate_limiter_degraded",
+    "1 when rate limiting has fallen back to per-process counters")
+
 # Valuation quality — the signal that a model or prompt change went wrong in
 # production, visible long before a benchmark run would catch it.
 confidence_score = _histogram(

@@ -582,14 +582,46 @@ class TelegramNotifier:
         except Exception as exc:
             log.debug("telegram answerCallbackQuery failed: %s", type(exc).__name__)
 
+    async def clear_default_commands(self) -> bool:
+        """Withdraw any command menu published at the default scope.
+
+        A chat-scoped list does not replace a default-scoped one, so publishing
+        the operator menu to the right chat is not enough on its own — what is
+        already live has to be taken down.
+        """
+        try:
+            client = await self._http()
+            resp = await client.post(
+                f"{TELEGRAM_API}/bot{self._token}/deleteMyCommands",
+                json={"scope": {"type": "default"}})
+            return resp.status_code == 200
+        except Exception as exc:
+            log.warning("telegram deleteMyCommands failed: %s",
+                        type(exc).__name__)
+            return False
+
     async def set_commands(self, commands=COMMANDS) -> bool:
-        """Publish the command menu Telegram shows behind the "/" button."""
+        """Publish the command menu Telegram shows behind the "/" button.
+
+        Scoped to the operator's chat. Omitting `scope` defaults it to
+        `BotCommandScopeDefault`, which covers every private chat, group and
+        supergroup — so all 23 entries were what any Telegram user saw behind
+        the Menu button on opening the bot, descriptions included: "lever —
+        Arm or disarm the free-scan allowance without a redeploy", "subs —
+        Every subscription seen: plan, how obtained, renews", "costs — Gemini
+        spend: today, 7 and 30 days, per scan, vs MRR".
+
+        No access leaked — the chat gate drops every update from another
+        chat — but the shape of the operation did, along with an invitation to
+        try. A published menu is documentation.
+        """
         try:
             client = await self._http()
             resp = await client.post(
                 f"{TELEGRAM_API}/bot{self._token}/setMyCommands",
                 json={"commands": [{"command": c, "description": d}
-                                   for c, d in commands]})
+                                   for c, d in commands],
+                      "scope": {"type": "chat", "chat_id": self._chat_id}})
             return resp.status_code == 200
         except Exception as exc:
             log.warning("telegram setMyCommands failed: %s", type(exc).__name__)
@@ -683,6 +715,10 @@ def configure(cache, notifier: TelegramNotifier | None = None,
     _start_digest()
     _start_command_loop()
     _start_watch()
+    # Take the default-scope menu down before publishing the chat-scoped one:
+    # a chat scope does not replace a default scope, so without this the list
+    # already live stays live for everyone.
+    _spawn(_notifier.clear_default_commands())
     _spawn(_notifier.set_commands())
     log.info("telegram alerts enabled", extra={"digest_utc_hour": _digest_hour()})
 
@@ -731,6 +767,36 @@ def _spawn(coro) -> None:
 
 def _date(epoch: int) -> str:
     return datetime.fromtimestamp(epoch, timezone.utc).strftime("%d %b %Y")
+
+
+def _short_date(epoch: int) -> str:
+    """`12Sep26` — seven characters, and it keeps the year.
+
+    The tables used `_date(...)[:6]`. `%d` is zero-padded and `%b` is three
+    letters, so that slice is always exactly `DD Mon` and always discards the
+    year — there is no input for which it keeps any part of it. `renews`
+    survived by luck, because a live subscription renews within twelve months,
+    but `since` is `original_purchase_at` with no lower bound and `seen` is
+    bounded only by the 400-day index TTL. Both could be more than a year old
+    and printed identically to today, which is how a 2027 renewal read as
+    "23 Jul".
+    """
+    return datetime.fromtimestamp(epoch, timezone.utc).strftime("%d%b%y")
+
+
+def _sub_is_alive(entry: dict, now: float) -> bool:
+    """Whether a subscription row is currently entitled.
+
+    One function, because there were three copies and one of them had drifted:
+    `/user` tested expiry alone, so a refunded subscription — which keeps its
+    expiry date, the period having been paid for and then unpaid — read as
+    "renews 12 Mar 2027" there while `/subs` showed the same row as `refund`
+    and `/subs`'s summary excluded it from active revenue.
+    """
+    if entry.get("revoked") is not None:
+        return False
+    expires = entry.get("expires")
+    return expires is None or float(expires) > now
 
 
 def _day(at: datetime | None = None) -> str:
@@ -913,10 +979,12 @@ async def subscription_event(note) -> None:
             # itself cannot tell those apart, because they are identical.
             label = "Trial converted" if was == "trial" else f"{was.capitalize()} converted"
             lines = [f"🎉 <b>{label} — this is real money</b>", detail]
+            await _count_new_subscription(otid)
         elif note.is_paid_period and not before:
             # A payer no device ever synced. Before Apple told us directly,
             # this subscription did not exist as far as the bot was concerned.
             lines = ["🎉 <b>New paying subscriber</b> (Apple reported it first)", detail]
+            await _count_new_subscription(otid)
         elif note.is_refund:
             lines = ["↩️ <b>Refund</b>", detail]
         elif note.is_revoke:
@@ -942,6 +1010,36 @@ async def subscription_event(note) -> None:
         # An operator ping must never fail Apple's delivery: a non-2xx makes
         # Apple retry the same notification for hours.
         log.exception("subscription notification handling failed")
+
+
+async def _count_new_subscription(otid: str) -> None:
+    """Count one new paying subscription, once, whichever half found out first.
+
+    There are two ways a subscription first becomes known: the client posts its
+    signed transaction to `/auth/entitlement`, or Apple posts a notification to
+    `/apple/notifications`. Only the first incremented `new_subs`, so a payer
+    whose device never synced before Apple told us — the case
+    `subscription_event` alerts on by name, "New paying subscriber (Apple
+    reported it first)" — never appeared in the number the operator reads as
+    "how many people paid me today". Trial conversions arriving by notification
+    were missing from it too, which is the one figure the whole trial
+    experiment is judged on.
+
+    `opsseen:subcount:{otid}` is the guard, and it is deliberately the *same*
+    key both callers use: whichever path learns of a subscription first counts
+    it, and the other finds the key already set and counts nothing. So the fix
+    cannot double-count the common case where Apple reports a conversion and
+    the client syncs the same transaction minutes later.
+
+    Never raises. A counter is not worth failing an alert or a scan over.
+    """
+    if not otid or _cache is None:
+        return
+    try:
+        if await _cache.add(f"opsseen:subcount:{otid}", "1", SUB_SEEN_TTL):
+            await _cache.incr(_stat_key(_day(), "new_subs"), STATS_TTL)
+    except Exception as exc:                      # pragma: no cover - defensive
+        log.warning("new_subs counter failed for %s: %s", otid, exc)
 
 
 async def entitlement_recorded(subject: str, ent) -> None:
@@ -970,7 +1068,18 @@ async def entitlement_recorded(subject: str, ent) -> None:
             is_new = (purchased is None
                       or time.time() - purchased < NEW_SUBSCRIPTION_WINDOW_SECONDS)
             if is_new:
-                await _cache.incr(_stat_key(_day(), "new_subs"), STATS_TTL)
+                # A second key, and this one is never handed back.
+                #
+                # The guard above gates both the alert and this counter, and
+                # the alert's failure path releases it — so a Telegram outage
+                # left the increment on the counter and let the next
+                # `/auth/entitlement` for the same transaction add another.
+                # That path is not rare: the client calls it at cold launch,
+                # purchase, restore and every `Transaction.updates`, so
+                # re-entry inside the 24-hour `is_new` window is the normal
+                # case. One sale could be counted several times, in the figure
+                # the operator reads as "how many people paid me today".
+                await _count_new_subscription(otid)
                 headline = "🎉 <b>New Pro subscription</b>"
             else:
                 headline = ("👋 <b>Existing Pro subscriber checked in</b> "
@@ -1827,6 +1936,18 @@ LEVER_CHANGES_CAP = 40
 DEFAULT_ARMED_FIRST_DAY = 3
 
 
+def _daily_free_scans() -> int:
+    """FREE_SCANS_PER_DAY, read the way main.py reads it.
+
+    The lever's floor depends on it: `ScanQuota` grants a first-day allowance
+    only when it exceeds the daily one.
+    """
+    try:
+        return int(os.environ.get("FREE_SCANS_PER_DAY", "1"))
+    except ValueError:
+        return 1
+
+
 async def _levers() -> dict:
     try:
         raw = await _cache.get(LEVERS_KEY)
@@ -1893,7 +2014,25 @@ async def _lever_command(argument: str, rest: str) -> tuple[str, Buttons]:
         for token in parts[1:]:
             if token.isdigit():
                 wanted = int(token)
-        wanted = max(0, min(wanted, 10))          # mirrors ScanQuota's clamp
+        # `ScanQuota._first_day_limit` clamps the same way *and then* ends with
+        # `return configured if configured > self._limit else 0` — so anything
+        # at or below FREE_SCANS_PER_DAY resolves to no welcome allowance at
+        # all. This mirrored only the upper half, so arming with 0 or 1 replied
+        # "Lever armed — 1 first-day scan", `/lever` went on rendering that
+        # override on every later call, and the stored document has no TTL, so
+        # the false state survived redeploys. Refuse it where the operator can
+        # see it rather than clamp it silently.
+        wanted = max(0, min(wanted, 10))
+        daily = _daily_free_scans()
+        if wanted <= daily:
+            return (f"🧪 <b>That is not a welcome.</b>\n"
+                    f"Every user already gets <b>{daily}</b> free scan"
+                    f"{'s' if daily != 1 else ''} a day, and a first-day "
+                    f"allowance is only an allowance above that — the quota "
+                    f"discards <b>{wanted}</b> and grants nothing.\n"
+                    f"Arm <b>{daily + 1}</b> or more, or use 🔕 Disarm for "
+                    f"no welcome at all.",
+                    _lever_buttons(current))
         if not confirmed:
             return (f"🧪 <b>Arm the free-scan lever?</b>\n"
                     f"New users would get <b>{wanted}</b> scan{'s' if wanted != 1 else ''} "
@@ -2157,6 +2296,28 @@ def _acquisition(ent) -> str:
     return "paid"
 
 
+#: `_acquisition`'s words, shortened to fit a table column.
+#:
+#: The `/subs` `via` field is eleven wide and two of the five labels are
+#: exactly eleven characters — "promo offer" and "intro offer" — so
+#: `str.__format__` added no padding and the date ran straight into the label:
+#: `promo offer12 Sep`. Every token here is at most five.
+_VIA_SHORT = {
+    "offer code":  "code",
+    "promo offer": "promo",
+    "intro offer": "intro",
+    "trial":       "trial",
+    "paid":        "paid",
+}
+
+
+def _via(acq: str | None) -> str:
+    """The table form of an acquisition label."""
+    if not acq:
+        return "?"
+    return _VIA_SHORT.get(acq, acq[:5])
+
+
 async def _index_subscription(subject: str | None, ent) -> dict:
     """Record what we now know about one subscription. Returns the previous row.
 
@@ -2183,9 +2344,32 @@ async def _index_subscription(subject: str | None, ent) -> dict:
     })
     if subject is not None:
         entry["who"] = auditlog.pseudonymise(subject)[:6]
+    # The revocation is a tombstone on a *term*, not on the row.
+    #
+    # This only ever set `revoked` and never cleared it, and the row is keyed
+    # on `originalTransactionId` — which Apple keeps stable across renewals
+    # *and* re-subscriptions. So one refund tombstoned the row permanently: a
+    # customer who refunded in March and paid again in June stayed out of the
+    # active count, out of the paid count and out of MRR for the 400-day life
+    # of the index, while `/subs` showed their live subscription as `refund`.
+    #
+    # `entitlements._is_revoked` had to solve exactly this on the access path
+    # and stores the revoked term's own expiry so a later, longer-dated term
+    # survives the tombstone. The operator's index gets the same rule, rather
+    # than clearing on any non-revoked transaction — Apple can redeliver a
+    # pre-refund renewal after the REFUND, and that must not resurrect the row.
     revoked = getattr(ent, "revoked_at", None)
     if revoked is not None:
         entry["revoked"] = revoked
+        entry["revoked_expires"] = ent.expires_at
+    else:
+        tombstoned = entry.get("revoked_expires")
+        if (entry.get("revoked") is not None
+                and ent.expires_at is not None
+                and tombstoned is not None
+                and float(ent.expires_at) > float(tombstoned)):
+            entry.pop("revoked", None)
+            entry.pop("revoked_expires", None)
     doc[otid] = entry
     await _write_index(SUBS_INDEX_KEY, doc, SUBS_INDEX_CAP, "seen")
     return before
@@ -2220,9 +2404,8 @@ def _subs_summary(doc: dict) -> tuple[int, int, int, int, dict[str, float]]:
     for e in doc.values():
         # A refund keeps its expiry date — the period was paid for and then
         # unpaid — so expiry alone would leave a refunded subscription counted
-        # as active revenue until it happened to lapse.
-        alive = (e.get("revoked") is None
-                 and (e.get("expires") is None or float(e["expires"]) > now))
+        # as active revenue until it happened to lapse. See `_sub_is_alive`.
+        alive = _sub_is_alive(e, now)
         if not alive:
             expired += 1
             continue
@@ -2259,22 +2442,26 @@ async def _subs_text() -> str:
 
     now = time.time()
     def _alive(e: dict) -> bool:
-        return (e.get("revoked") is None
-                and (e.get("expires") is None or float(e["expires"]) > now))
+        return _sub_is_alive(e, now)
 
     rows = sorted(doc.values(), key=lambda e: (not _alive(e), float(e.get("expires") or 0)))
-    header = f"{'plan':<8}{'via':<11}{'since':<8}{'renews':<8}{'seen':<7}{'id':<6}"
+    # Literal spaces between every column, not field widths alone — the same
+    # reason `_experiment_text` documents for its own table: a value exactly as
+    # wide as its field gets no padding and runs into its neighbour.
+    header = (f"{'plan':<8} {'via':<5} {'since':<7} "
+              f"{'renews':<7} {'seen':<7} {'id':<6}")
     body = [header]
     for e in rows[:TABLE_ROWS]:
-        renews = _date(int(e["expires"]))[:6] if e.get("expires") else "never"
+        renews = _short_date(int(e["expires"])) if e.get("expires") else "never"
         if e.get("revoked") is not None:
             renews = "refund"
         elif not _alive(e):
             renews = "ended"
         body.append(
-            f"{_plan(e.get('product')):<8}{str(e.get('acq') or '?'):<11}"
-            f"{(_date(int(e['first']))[:6] if e.get('first') else '?'):<8}"
-            f"{renews:<8}{(_date(int(e['seen']))[:6] if e.get('seen') else '?'):<7}"
+            f"{_plan(e.get('product')):<8} {_via(e.get('acq')):<5} "
+            f"{(_short_date(int(e['first'])) if e.get('first') else '?'):<7} "
+            f"{renews:<7} "
+            f"{(_short_date(int(e['seen'])) if e.get('seen') else '?'):<7} "
             f"{str(e.get('who') or ''):<6}")
     if len(rows) > TABLE_ROWS:
         body.append(f"… and {len(rows) - TABLE_ROWS} more")
@@ -2311,13 +2498,13 @@ async def _users_text() -> str:
         return "\n".join(lines)
     rows = sorted(doc.items(), key=lambda kv: (-int(kv[1].get("scans", 0)),
                                                -float(kv[1].get("last", 0))))
-    body = [f"{'id':<8}{'tier':<6}{'scans':<7}{'first':<8}{'last':<7}"]
+    body = [f"{'id':<7} {'tier':<5} {'scans':<6} {'first':<7} {'last':<7}"]
     for who, e in rows[:TABLE_ROWS]:
         body.append(
-            f"{who[:6]:<8}{('Pro' if e.get('tier') == 'pro' else 'free'):<6}"
-            f"{int(e.get('scans', 0)):<7}"
-            f"{(_date(int(e['first']))[:6] if e.get('first') else '?'):<8}"
-            f"{(_date(int(e['last']))[:6] if e.get('last') else '?'):<7}")
+            f"{who[:6]:<7} {('Pro' if e.get('tier') == 'pro' else 'free'):<5} "
+            f"{int(e.get('scans', 0)):<6} "
+            f"{(_short_date(int(e['first'])) if e.get('first') else '?'):<7} "
+            f"{(_short_date(int(e['last'])) if e.get('last') else '?'):<7}")
     if len(rows) > TABLE_ROWS:
         body.append(f"… and {len(rows) - TABLE_ROWS} more")
     lines.append("<pre>" + html.escape("\n".join(body)) + "</pre>")
@@ -2980,9 +3167,22 @@ async def _experiment_text(now: datetime | None = None) -> str:
     head = ("\U0001F9EA <b>Free-scan experiment</b> — "
             + (f"closed after {len(span)} days" if closed
                else f"day {len(shown)} of {len(span)}"))
-    armed = os.environ.get("FREE_SCANS_FIRST_DAY", "")
-    lever = (f"FREE_SCANS_FIRST_DAY={html.escape(armed)}" if armed
-             else "<b>lever not armed</b> — FREE_SCANS_FIRST_DAY is unset")
+    # The runtime lever first, then the environment — the order `ScanQuota`
+    # resolves them in. This read the environment only, so the one line telling
+    # the operator whether the thing being measured is switched on consulted a
+    # source that `/lever` never writes: arming from chat left this saying
+    # "lever not armed" for the whole window.
+    override = await free_scan_lever()
+    env = os.environ.get("FREE_SCANS_FIRST_DAY", "")
+    if override is not None:
+        lever = f"lever {override} first-day scans (set from chat)"
+        if env and env != str(override):
+            # Worth printing: the environment is what a redeploy falls back to.
+            lever += f" · env FREE_SCANS_FIRST_DAY={html.escape(env)}"
+    elif env:
+        lever = f"FREE_SCANS_FIRST_DAY={html.escape(env)}"
+    else:
+        lever = "<b>lever not armed</b> — FREE_SCANS_FIRST_DAY is unset"
     window = (f"{start:%d %b} → {end:%d %b}"
               + ("" if closed else f" · {left} day{'s' if left != 1 else ''} left")
               + f" · {lever}")
@@ -3062,10 +3262,20 @@ async def _user_text(argument: str) -> str:
     lines.append(f"Scans since the bot started watching: {int(e.get('scans', 0))}")
     subs = [s for s in (await _read_index(SUBS_INDEX_KEY)).values() if s.get("who") == who[:6]]
     for s in subs:
-        alive = s.get("expires") is None or float(s["expires"]) > now
+        # `_sub_is_alive`, like the two readers of this same index in `/subs`.
+        # This one tested expiry alone, so a refunded subscription — which
+        # keeps its expiry — read "renews 12 Mar 2027" here while `/subs`
+        # showed the same row as `refund`.
+        alive = _sub_is_alive(s, now)
         renews = _date(int(s["expires"])) if s.get("expires") else "never"
-        lines.append(f"Subscription: {_plan(s.get('product'))} · {s.get('acq') or '?'} · "
-                     f"{'renews ' + renews if alive else 'ended ' + renews}")
+        if s.get("revoked") is not None:
+            state = f"refunded or revoked {_date(int(s['revoked']))}"
+        elif alive:
+            state = f"renews {renews}"
+        else:
+            state = f"ended {renews}"
+        lines.append(f"Subscription: {_plan(s.get('product'))} · "
+                     f"{s.get('acq') or '?'} · {state}")
     if not subs:
         lines.append("No subscription has synced from this device.")
     lines.append("Devices, not people — this is the audit log's pseudonym.")

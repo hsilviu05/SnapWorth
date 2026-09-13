@@ -289,6 +289,24 @@ final class Analytics {
         }
     }
 
+    /// Push the persisted flag into the backend SDK.
+    ///
+    /// The Settings toggle is an `@AppStorage(Analytics.enabledKey)` binding,
+    /// which writes `UserDefaults` **directly** — it never goes through the
+    /// setter above, so `backend?.setEnabled` was never called and the SDK was
+    /// never told. `track` guards on `isEnabled`, so custom events did stop;
+    /// what did not stop is the SDK's own automatic session and install
+    /// signals, which carry an identifier and are silenced only by
+    /// `setEnabled`. The doc comment above claimed those were covered. Through
+    /// the only surface a user can actually reach, they were not: someone who
+    /// turned "Share anonymous analytics" off kept sending them.
+    ///
+    /// `@AppStorage` cannot be routed through a setter, so any writer of the
+    /// key has to call this. It is idempotent and cheap.
+    func syncBackendToPersistedFlag() {
+        backend?.setEnabled(isEnabled)
+    }
+
     private var backend: AnalyticsService?
 
     /// Installs the concrete backend. Called once at launch.

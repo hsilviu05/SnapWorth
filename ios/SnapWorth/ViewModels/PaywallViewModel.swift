@@ -78,14 +78,46 @@ final class PaywallViewModel {
     }
 
     func restore(service: any PurchaseService) async {
+        // The same guard `purchase` carries, and for the same reason: the View
+        // disables the button, but that relies on a render cycle, and this
+        // path can put a system sign-in sheet on screen.
+        guard !isPurchasing, !isRestoring else { return }
         isRestoring = true
         errorMessage = nil
+        // Cleared alongside `errorMessage`, so a stale "waiting for approval"
+        // from an Ask-to-Buy attempt is not mistaken for this restore's result.
+        pendingMessage = nil
         defer { isRestoring = false }
         do {
             try await service.restorePurchases()
-            if service.isSubscribed { isPurchaseComplete = true }
+            if service.isSubscribed {
+                isPurchaseComplete = true
+            } else {
+                // The branch that was missing. `AppStore.sync()` succeeding
+                // with nothing to restore *is* a success — `restorePurchases`
+                // throws only on a real sync error — so the catch below never
+                // ran, `errorMessage` stayed nil, and the sheet did not
+                // dismiss. The spinner ran for a second, stopped, and nothing
+                // else on screen changed: no message, no alert, no state. It
+                // was indistinguishable from a button that does nothing, which
+                // is what an App Review tester on a fresh sandbox account sees
+                // when they tap Restore.
+                //
+                // `pendingMessage`, which renders in neutral grey, rather than
+                // the red `errorMessage`: nothing failed. `SettingsViewModel`
+                // has said "No active subscription found." for this case all
+                // along; the paywall's copy of the flow dropped it.
+                pendingMessage = "No active subscription found on this Apple ID."
+            }
         } catch {
-            errorMessage = AppError.from(error).errorDescription
+            // The guard `purchase` above already applies, missing here.
+            // Dismissing the App Store sign-in sheet threw through to this
+            // line, and a cancelled restore put a raw StoreKit string in red
+            // above the plan cards — for a user who chose not to sign in.
+            let appError = AppError.from(error)
+            if appError != .purchaseCancelled {
+                errorMessage = appError.errorDescription
+            }
         }
     }
 }

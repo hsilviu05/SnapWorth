@@ -46,7 +46,15 @@ PRODUCTS = {"com.snapworth.monthly", "com.snapworth.yearly"}
 
 # ── Helpers: build a locally-signed JWS mimicking Apple's shape ──────────────
 
-def _make_cert(subject_name, issuer_name, subject_key, issuer_key, ca=False):
+def _make_cert(subject_name, issuer_name, subject_key, issuer_key, ca=False,
+               purpose_oid=None):
+    """Build one certificate.
+
+    `purpose_oid` adds the marker extension Apple puts on its App Store signing
+    certificates. The contents are irrelevant — both Apple's verifier and ours
+    check only that the extension is *present* — so an empty value is a
+    faithful stand-in.
+    """
     now = dt.datetime.now(dt.timezone.utc)
     builder = (
         x509.CertificateBuilder()
@@ -59,16 +67,29 @@ def _make_cert(subject_name, issuer_name, subject_key, issuer_key, ca=False):
     )
     if ca:
         builder = builder.add_extension(x509.BasicConstraints(True, None), critical=True)
+    if purpose_oid is not None:
+        builder = builder.add_extension(
+            x509.UnrecognizedExtension(x509.ObjectIdentifier(purpose_oid), b""),
+            critical=False)
     return builder.sign(issuer_key, hashes.SHA256())
 
 
-def build_chain():
+def build_chain(leaf_purpose=entitlements.LEAF_PURPOSE_OID,
+                intermediate_purpose=entitlements.INTERMEDIATE_PURPOSE_OID):
+    """A three-certificate chain shaped like Apple's.
+
+    The purpose OIDs are parameters so a test can build a chain that is
+    otherwise perfect but carries the wrong marker — the case the extension
+    check exists for, and the one an Apple Pay leaf would present.
+    """
     root_key = ec.generate_private_key(ec.SECP256R1())
     inter_key = ec.generate_private_key(ec.SECP256R1())
     leaf_key = ec.generate_private_key(ec.SECP256R1())
     root = _make_cert("Test Root", "Test Root", root_key, root_key, ca=True)
-    inter = _make_cert("Test Intermediate", "Test Root", inter_key, root_key, ca=True)
-    leaf = _make_cert("Test Leaf", "Test Intermediate", leaf_key, inter_key)
+    inter = _make_cert("Test Intermediate", "Test Root", inter_key, root_key,
+                       ca=True, purpose_oid=intermediate_purpose)
+    leaf = _make_cert("Test Leaf", "Test Intermediate", leaf_key, inter_key,
+                      purpose_oid=leaf_purpose)
     return leaf_key, [leaf, inter, root]
 
 
@@ -176,7 +197,7 @@ class TestVerifySignedTransactionRejects:
     def test_missing_chain_rejected(self):
         leaf_key = ec.generate_private_key(ec.SECP256R1())
         jws = pyjwt.encode(valid_payload(), leaf_key, algorithm="ES256")
-        with pytest.raises(EntitlementError, match="incomplete"):
+        with pytest.raises(EntitlementError, match="three"):
             verify_signed_transaction(jws, BUNDLE_ID, PRODUCTS)
 
     def test_tampered_payload_rejected(self, pinned_root):
@@ -309,9 +330,15 @@ class TestEntitlementService:
             "plain hit, not another signature check")
 
     @pytest.mark.asyncio
-    async def test_revocation_is_not_resurrected_by_the_proof(self, service, pinned_root):
-        # The proof carries the revocation state it was signed with, not
-        # today's, so a stale one must be dropped when Apple says otherwise.
+    async def test_a_revoked_jws_the_client_presents_drops_the_proof(
+            self, service, pinned_root):
+        # Kept for what it does cover — a revoked transaction arriving through
+        # `record` — but note the shipped client cannot make this call:
+        # `StoreKitPurchaseService` sets `activeJWS` only when
+        # `revocationDate == nil`, and `currentEntitlements` omits revoked
+        # transactions entirely. This test was the whole coverage for refunds,
+        # and it was green over a path that does not exist in production. The
+        # real path is the notification, below.
         leaf_key, chain = pinned_root
         await service.record("subject-h", make_jws(valid_payload(), leaf_key, chain))
         revoked = valid_payload(revocationDate=int(time.time() * 1000))
@@ -321,6 +348,137 @@ class TestEntitlementService:
         assert (await service.current("subject-h")).tier == "free", (
             "A refunded subscription must not come back when the short free "
             "entry lapses")
+
+    # ── Revocation by notification ──────────────────────────────────────────
+    #
+    # The path that actually happens. A refund does not move `expiresDate` and
+    # Apple never rewrites a signed transaction, so the pre-refund proof keeps
+    # verifying and keeps reading active. `_rederive` re-cached Pro from it on
+    # every miss: a yearly refunded on day three bought unlimited scans until
+    # the following September, with no client involvement at all.
+
+    @pytest.mark.asyncio
+    async def test_a_refund_stops_the_proof_re_deriving_pro(
+            self, service, pinned_root):
+        leaf_key, chain = pinned_root
+        payload = valid_payload()
+        await service.record("subject-refund", make_jws(payload, leaf_key, chain))
+        assert (await service.current("subject-refund")).tier == "pro"
+
+        # What the notification handler does, with the entitlement Apple's
+        # REFUND notification carries.
+        refunded = entitlements.Entitlement(
+            tier="pro", product_id=payload["productId"],
+            expires_at=payload["expiresDate"] // 1000,
+            original_transaction_id=payload["originalTransactionId"],
+            environment="Production",
+            revoked_at=int(time.time()))
+        assert await service.revoke(refunded) is True
+
+        # The short entry lapses, exactly as it does in production.
+        await service._cache.delete("ent:subject-refund")
+
+        assert (await service.current("subject-refund")).tier == "free", (
+            "the refunded term is being re-derived from the pre-refund proof")
+
+    @pytest.mark.asyncio
+    async def test_a_revoked_proof_is_deleted_not_just_ignored(
+            self, service, pinned_root):
+        # Otherwise every later request pays for a signature check to reach
+        # the same answer.
+        leaf_key, chain = pinned_root
+        payload = valid_payload()
+        await service.record("subject-del", make_jws(payload, leaf_key, chain))
+        await service.revoke(entitlements.Entitlement(
+            tier="pro", product_id=payload["productId"],
+            expires_at=payload["expiresDate"] // 1000,
+            original_transaction_id=payload["originalTransactionId"],
+            environment="Production"))
+        await service._cache.delete("ent:subject-del")
+        await service.current("subject-del")
+
+        assert await service._cache.get("entproof:subject-del") in (None, ""), (
+            "the dead proof is still stored")
+
+    @pytest.mark.asyncio
+    async def test_a_client_cannot_re_present_a_revoked_term(
+            self, service, pinned_root):
+        # The other way in. `record` must consult the tombstone too, or a
+        # cold launch would re-grant what the refund took away.
+        leaf_key, chain = pinned_root
+        payload = valid_payload()
+        await service.revoke(entitlements.Entitlement(
+            tier="pro", product_id=payload["productId"],
+            expires_at=payload["expiresDate"] // 1000,
+            original_transaction_id=payload["originalTransactionId"],
+            environment="Production"))
+
+        ent = await service.record("subject-re",
+                                   make_jws(payload, leaf_key, chain))
+        assert ent.tier == "free"
+        assert await service._cache.get("entproof:subject-re") in (None, "")
+
+    @pytest.mark.asyncio
+    async def test_re_subscribing_after_a_refund_works(self, service, pinned_root):
+        # The reason the tombstone stores the revoked term's expiry rather
+        # than only the revocation date: `originalTransactionId` is stable
+        # across renewals *and* re-subscriptions, so keyed on the id alone
+        # this would deny someone who later paid again, permanently.
+        leaf_key, chain = pinned_root
+        first = valid_payload()
+        await service.revoke(entitlements.Entitlement(
+            tier="pro", product_id=first["productId"],
+            expires_at=first["expiresDate"] // 1000,
+            original_transaction_id=first["originalTransactionId"],
+            environment="Production"))
+
+        # A later term, same original transaction id, expiring further out.
+        again = valid_payload(
+            expiresDate=int((time.time() + 400 * 86_400) * 1000))
+        ent = await service.record("subject-again",
+                                   make_jws(again, leaf_key, chain))
+
+        assert ent.tier == "pro", (
+            "a re-subscription was killed by the tombstone for the term "
+            "before it")
+
+    @pytest.mark.asyncio
+    async def test_a_revocation_without_a_transaction_id_is_not_retried(
+            self, service):
+        # Nothing to key on, and nothing a retry would fix — so this reports
+        # False rather than raising, and the webhook answers 200.
+        assert await service.revoke(entitlements.Entitlement(
+            tier="pro", product_id="com.snapworth.yearly", expires_at=None,
+            original_transaction_id=None, environment="Production")) is False
+
+    @pytest.mark.asyncio
+    async def test_a_non_expiring_revocation_kills_the_term_outright(
+            self, service, pinned_root):
+        # No expiry to compare against, so there is no later term it could be
+        # confused with.
+        leaf_key, chain = pinned_root
+        payload = valid_payload()
+        await service.revoke(entitlements.Entitlement(
+            tier="pro", product_id=payload["productId"], expires_at=None,
+            original_transaction_id=payload["originalTransactionId"],
+            environment="Production"))
+
+        ent = await service.record("subject-perp",
+                                   make_jws(payload, leaf_key, chain))
+        assert ent.tier == "free"
+
+    @pytest.mark.asyncio
+    async def test_an_unrelated_subscription_is_untouched(
+            self, service, pinned_root):
+        leaf_key, chain = pinned_root
+        await service.revoke(entitlements.Entitlement(
+            tier="pro", product_id="com.snapworth.yearly", expires_at=None,
+            original_transaction_id="2000000000000999",
+            environment="Production"))
+
+        ent = await service.record("subject-other",
+                                   make_jws(valid_payload(), leaf_key, chain))
+        assert ent.tier == "pro", "a tombstone leaked onto another subscription"
 
     @pytest.mark.asyncio
     async def test_expired_proof_reads_free(self, service, pinned_root):
@@ -503,6 +661,71 @@ class TestChainConstraints:
         jws = make_jws(valid_payload(), leaf_key, chain)
         with pytest.raises(EntitlementError, match="malformed"):
             verify_signed_transaction(jws, BUNDLE_ID, PRODUCTS)
+
+    @pytest.mark.parametrize("length", [0, 1, 2, 4, 24])
+    def test_chain_must_be_exactly_three(self, length, pinned_root):
+        """Length is bounded before any certificate is parsed.
+
+        `_verify_chain` does work proportional to the list the caller sent — a
+        validity check per certificate and an ECDSA verification per adjacent
+        pair — and `/apple/notifications` cannot be authenticated.
+
+        `verify_apple_jws` already caps the whole JWS at 16,384 characters,
+        which holds a chain to roughly twenty-five certificates: the
+        amplification was about eightfold, not unbounded. 24 is the largest
+        length that still fits under that cap, so it is the case that
+        distinguishes this check from the one already there — a longer chain
+        is rejected by the size cap and proves nothing about this bound.
+        """
+        leaf_key, chain = pinned_root
+        # Pad by repeating the intermediate: the padding is well-formed, so a
+        # rejection can only come from the length check itself.
+        stretched = (chain[:1] + [chain[1]] * max(0, length - 2) + chain[-1:])[:length]
+        x5c = [base64.b64encode(c.public_bytes(serialization.Encoding.DER)).decode()
+               for c in stretched]
+        jws = pyjwt.encode(valid_payload(), leaf_key, algorithm="ES256",
+                           headers={"x5c": x5c})
+        with pytest.raises(EntitlementError, match="three"):
+            verify_signed_transaction(jws, BUNDLE_ID, PRODUCTS)
+
+    def test_leaf_without_the_app_store_purpose_oid_rejected(self, monkeypatch):
+        """The case root pinning alone cannot catch.
+
+        Apple Root CA G3 also anchors branches that issue P-256 leaves to
+        enrolled developers who hold the private key — an Apple Pay
+        payment-processing certificate being the plainest example. Such a leaf
+        satisfies every other property this module checks, so without the
+        purpose extension its holder could sign their own `transactionId` and
+        be granted Pro.
+        """
+        leaf_key, chain = build_chain(leaf_purpose="1.2.840.113635.100.6.38.7")
+        monkeypatch.setattr(entitlements, "APPLE_ROOT_CA_G3_PEM",
+                            chain[-1].public_bytes(serialization.Encoding.PEM))
+        jws = make_jws(valid_payload(), leaf_key, chain)
+        with pytest.raises(EntitlementError,
+                           match="leaf is not an App Store signing"):
+            verify_signed_transaction(jws, BUNDLE_ID, PRODUCTS)
+
+    def test_intermediate_without_the_wwdr_purpose_oid_rejected(self, monkeypatch):
+        leaf_key, chain = build_chain(intermediate_purpose=None)
+        monkeypatch.setattr(entitlements, "APPLE_ROOT_CA_G3_PEM",
+                            chain[-1].public_bytes(serialization.Encoding.PEM))
+        jws = make_jws(valid_payload(), leaf_key, chain)
+        with pytest.raises(EntitlementError,
+                           match="intermediate is not an App Store signing"):
+            verify_signed_transaction(jws, BUNDLE_ID, PRODUCTS)
+
+    def test_the_pinned_oids_are_apple_s(self):
+        """Guards the one thing the generated-certificate tests cannot.
+
+        Every chain above is built by this file, so it would satisfy whatever
+        OID string `entitlements` happened to name — a typo would pass the
+        suite and reject every genuine transaction in production, taking Pro
+        away from all paying users at once. These two literals are transcribed
+        from apple/app-store-server-library-python.
+        """
+        assert entitlements.LEAF_PURPOSE_OID == "1.2.840.113635.100.6.11.1"
+        assert entitlements.INTERMEDIATE_PURPOSE_OID == "1.2.840.113635.100.6.2.1"
 
 
 # ── Device binding cap ───────────────────────────────────────────────────────
@@ -820,10 +1043,145 @@ class TestSharingAlertOnMigration:
         assert len(alerts) == 1
         assert alerts[0]["idle_seconds"] >= 36 * 3600 - 5
 
+    @pytest.mark.asyncio
+    async def test_a_hex_shaped_device_id_cannot_silence_the_alert(
+            self, service, pinned_root, alerts):
+        """The eviction alert is the only remaining control on a shared JWS.
+
+        `_is_legacy_subject` infers the *kind* of an identity from the shape of
+        its string, and `device_id` arrives from the client — the wire pattern
+        `^[A-Za-z0-9._-]+$` with `max_length=64` admits a 64-character
+        lowercase hex string perfectly well. So a sharer who names every
+        install `0000…01` is read as a pre-1.3.4 reinstall ghost, and the
+        eviction the cap exists to report is filed as migration instead.
+
+        Measured against the real function before the fix: 20 sharers at a cap
+        of 6 produced 14 evictions and zero alerts with hex-shaped ids, and 14
+        evictions with 14 alerts when the same 20 were UUIDs.
+
+        What discriminates here is the *storage* assertion at the bottom, not
+        the alert count: with the record already holding prefixed ids, the
+        evicted one is outside the legacy class either way, so the alert fires
+        on the old code too. The alert assertion is the control — it says the
+        prefix did not cost the signal — and the prefix is what restores the
+        classification on every record from here on.
+
+        One honest limit: bindings already written as bare hex before this fix
+        stay misclassified until they age out at `DEVICE_BINDING_IDLE_SECONDS`
+        or that install records again. Nothing rewrites them, because nothing
+        can tell them apart from a real pre-1.3.4 subject — which is the same
+        ambiguity the prefix exists to stop creating.
+        """
+        leaf_key, chain = pinned_root
+        jws = make_jws(valid_payload(), leaf_key, chain)
+        now = int(time.time())
+        # Three devices already bound, each one named to look like an attest
+        # subject. The oldest is the one that will be pushed out.
+        await service._cache.set("txn:2000000000000001", json.dumps({
+            "dev:" + "%064x" % 1: now - 36 * 3600,
+            "dev:" + "%064x" % 2: now - 30 * 3600,
+            "dev:" + "%064x" % 3: now - 24 * 3600,
+        }))
+
+        await service.record("d" * 64, jws, device_id="%064x" % 4)
+
+        assert len(alerts) == 1, \
+            "a device id shaped like a subject is still a device being evicted"
+        assert alerts[0]["idle_seconds"] >= 36 * 3600 - 5
+
+        bindings = json.loads(await service._cache.get("txn:2000000000000001"))
+        assert "dev:" + "%064x" % 4 in bindings, \
+            "stored under a prefix the client cannot forge — no colon in the pattern"
+        assert "%064x" % 4 not in bindings
+
+    @pytest.mark.asyncio
+    async def test_a_zero_cap_disables_detection_instead_of_every_purchase(
+            self, pinned_root, alerts, caplog):
+        """0 means "do not detect", not "the tightest cap expressible".
+
+        `.env.example` calls this "a *detection* threshold, not an
+        authorisation boundary", so an operator who wants the sharing alert off
+        sets it to 0 — the same thing `SAFETY_BLOCKS_BEFORE_PAUSE <= 0` does in
+        main.py. What used to happen instead: on a first-ever binding
+        `len({}) >= 0` is true, `min({})` raised ValueError, and that is
+        outside both try blocks in `_bind_device` and outside the
+        `EntitlementError` the endpoint catches — so /auth/entitlement answered
+        500 for every subscriber, recording no entitlement and storing no
+        proof, on every retry until the variable was changed back.
+
+        Note what this test does NOT do: assert `max(1, ...)`. Clamping reads
+        "stop detecting" as "evict on every second device", which is further
+        from the operator's intent than the crash was.
+        """
+        from cache import InMemoryCache, ResilientCache
+        service = EntitlementService(
+            ResilientCache(None, InMemoryCache()), BUNDLE_ID, PRODUCTS, max_devices=0)
+        leaf_key, chain = pinned_root
+        jws = make_jws(valid_payload(), leaf_key, chain)
+
+        # The first purchase on an empty record — the exact case that raised.
+        await service.record("d" * 64, jws, device_id="8F1C2A3E-0000-4000-8000-000000000001")
+        # And several more, to show nothing is evicted at any size.
+        for n in range(2, 6):
+            await service.record("d" * 64, jws,
+                                 device_id="8F1C2A3E-0000-4000-8000-00000000000%d" % n)
+
+        bindings = json.loads(await service._cache.get("txn:2000000000000001"))
+        assert len(bindings) == 5, "with detection off, nothing is evicted"
+        assert alerts == [], "and nothing is reported"
+
+    @pytest.mark.asyncio
+    async def test_the_eviction_log_reports_the_count_not_the_cap(
+            self, pinned_root, alerts, caplog):
+        """`devices` used to be `self._max_devices` — the same value as `max`.
+
+        Every line ever emitted read `devices=N max=N`, so the one figure that
+        tells a household sitting at the limit apart from twenty strangers
+        churning through it was never recorded at all.
+
+        Seeded deliberately ABOVE the cap: five bindings with the cap at three,
+        which is what an operator lowering `MAX_DEVICES_PER_SUBSCRIPTION` from
+        6 leaves behind. My first attempt at this test seeded exactly three at
+        a cap of three, and the mutant that logs the cap passed it — the two
+        numbers coincide at the boundary, which is the whole reason the defect
+        went unnoticed. It also shows something the honest count makes visible
+        and the old line hid: each record evicts exactly one and adds exactly
+        one, so a record already over the cap stays over it.
+        """
+        import logging
+        from cache import InMemoryCache, ResilientCache
+        service = EntitlementService(
+            ResilientCache(None, InMemoryCache()), BUNDLE_ID, PRODUCTS, max_devices=3)
+        leaf_key, chain = pinned_root
+        jws = make_jws(valid_payload(), leaf_key, chain)
+        now = int(time.time())
+        await service._cache.set("txn:2000000000000001", json.dumps({
+            "8F1C2A3E-0000-4000-8000-00000000000%d" % n: now - (40 - n) * 3600
+            for n in range(1, 6)
+        }))
+
+        with caplog.at_level(logging.INFO, logger="snapworth.entitlements"):
+            await service.record(
+                "d" * 64, jws, device_id="8F1C2A3E-0000-4000-8000-000000000009")
+
+        evictions = [r for r in caplog.records
+                     if r.getMessage() == "device binding evicted to make room"]
+        assert len(evictions) == 1
+        assert evictions[0].devices == 5, "five hold the subscription"
+        assert evictions[0].max == 3, "and the cap is three — reported separately"
+        assert evictions[0].devices != evictions[0].max, \
+            "the two must be able to differ, or neither is worth logging"
+
+        bindings = json.loads(await service._cache.get("txn:2000000000000001"))
+        assert len(bindings) == 5
+
     def test_identity_kinds_are_distinguishable(self):
         assert entitlements._is_legacy_subject("0f" * 32)
         assert not entitlements._is_legacy_subject("8F1C2A3E-0000-4000-8000-000000000001")
         assert not entitlements._is_legacy_subject("device-1")
+        # And the prefix `_bind_device` applies takes a hex-shaped device id
+        # back out of the legacy class, which is the whole point of it.
+        assert not entitlements._is_legacy_subject("dev:" + "0f" * 32)
 
 
 # ── Offer and price fields ───────────────────────────────────────────────────

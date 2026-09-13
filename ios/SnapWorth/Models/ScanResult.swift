@@ -158,6 +158,50 @@ final class ScanResult {
         self.valuationDetailData = valuationDetailData
     }
 
+    /// A field-for-field copy that belongs to no `ModelContext`.
+    ///
+    /// Exists for one caller: `ScanRepository.save`, which now rolls the shared
+    /// context back when a save fails. Rollback un-registers a
+    /// never-persisted insert, and the result sheet is already on screen
+    /// holding that object — `ScanViewModel` assigns `scanResult` *before*
+    /// attempting the save, deliberately, so a storage failure can never take
+    /// the user's result away from them. Reading a model SwiftData has
+    /// discarded is not something to gamble a crash on, so the copy is taken
+    /// before the insert and handed back with the error.
+    ///
+    /// Every stored property is listed. `test_detachedCopyCarriesEveryStoredProperty`
+    /// fails if one is added to the model and not to here, because a copy that
+    /// silently drops a field would show the user a result missing their photo
+    /// or their paid price.
+    func detachedCopy() -> ScanResult {
+        ScanResult(
+            id: id,
+            timestamp: timestamp,
+            itemName: itemName,
+            brand: brand,
+            category: category,
+            conditionNotes: conditionNotes,
+            valueLow: valueLow,
+            valueHigh: valueHigh,
+            confidence: confidence,
+            soldListingsCount: soldListingsCount,
+            listingTitle: listingTitle,
+            listingDescription: listingDescription,
+            imageData: imageData,
+            paidPrice: paidPrice,
+            statusRaw: statusRaw,
+            listedDate: listedDate,
+            soldPrice: soldPrice,
+            soldDate: soldDate,
+            feesEstimate: feesEstimate,
+            notes: notes,
+            conditionRaw: conditionRaw,
+            portfolioValueRaw: portfolioValueRaw,
+            valueHistoryData: valueHistoryData,
+            valuationDetailData: valuationDetailData
+        )
+    }
+
     // ── Condition & re-pricing ─────────────────────────────────────────────────
 
     /// The condition the AI's `valueLow`/`valueHigh` were priced for.
@@ -200,6 +244,23 @@ final class ScanResult {
         let high = Decimal(valueHigh) * factor
         return (low, (low + high) / 2, high)
     }
+
+    /// The factor `priceRange` applies, exposed so a view that renders the
+    /// model's *own* price points can scale them the same way.
+    ///
+    /// `ValuationDetailView` prints the server's four-point ladder raw, and it
+    /// sits directly above the condition chips explaining the headline range —
+    /// which is scaled. Correcting a `good` item to `used` therefore left a
+    /// "Best case" 43% above the headline's own high end, on the one panel
+    /// whose job is to explain the price.
+    var conditionPriceFactor: Decimal {
+        condition.priceMultiplier / baselineCondition.priceMultiplier
+    }
+
+    /// True when the user has picked a condition other than the one the AI
+    /// read, so a surface printing the AI's grade must not present it as
+    /// current.
+    var conditionWasOverridden: Bool { condition != baselineCondition }
 
     /// Condition-adjusted low/high as `Double`, for the existing range views.
     var displayValueLow: Double { NSDecimalNumber(decimal: priceRange(for: condition).low).doubleValue }
@@ -255,7 +316,16 @@ final class ScanResult {
         let changed = history.last.map { abs($0.value - asDouble) >= 0.005 } ?? true
         if changed {
             history.append(ValueSnapshot(date: date, value: asDouble))
-            if history.count > limit { history.removeFirst(history.count - limit) }
+            // Trimmed out of the middle, never off the front.
+            // `valueChangeSinceAdded` reads `history.first` as the value this
+            // item entered the portfolio at, so dropping the oldest point
+            // re-anchors that figure to whichever re-price happened to survive
+            // the cap — and it keeps its old label while quietly meaning
+            // something else. The entry point is the one snapshot that is not
+            // interchangeable; the interior ones are.
+            if history.count > limit {
+                history = [history[0]] + history.suffix(limit - 1)
+            }
             valueHistoryData = try? JSONEncoder().encode(history)
         }
         portfolioValueRaw = asDouble
@@ -374,21 +444,102 @@ enum Condition: String, CaseIterable, Identifiable {
     private static let negators = ["no ", "not ", "without ", "free of ",
                                    "free from ", "none ", "n't "]
 
+    /// Splits on " and ", but only where it starts a new predicate.
+    ///
+    /// " and " is a weaker break than the contrastive conjunctions above, and
+    /// it goes both ways. In "no stains **and** heavy wear at the cuffs" it
+    /// ends the negated span — that is a worn item, and reading the "no"
+    /// across the whole sentence graded it `.good`, understating the estimate
+    /// by the 0.78 `.used` multiplier. In "no rips **and** tears" it does not:
+    /// that is one negated list, and splitting it blindly grades a clean item
+    /// `.used`, which is the same defect pointing the other way.
+    ///
+    /// Measured, rather than argued: adding " and " to `clauseBreaks`
+    /// unconditionally fixes the first sentence and breaks the second, an
+    /// even trade. Adding " with " as well additionally breaks "New with
+    /// tags". A proximity window on the negator cannot separate them either —
+    /// "free of stains or damage" and "no stains and heavy wear" put the same
+    /// two words between the negator and the term, and want opposite answers.
+    ///
+    /// What does separate them is the shape of what follows: a bare noun is
+    /// the tail of a list the negation still covers, while two or more words
+    /// are a fresh claim. That rule passes all thirty-two cases the suite
+    /// already had plus six new ones, including "no stains and no heavy wear",
+    /// where the negation is simply restated after the break.
+    private static func splitOnConjoinedPredicates(_ part: String) -> [String] {
+        let chunks = part.components(separatedBy: " and ")
+        guard chunks.count > 1 else { return [part] }
+        var out: [String] = []
+        var current = chunks[0]
+        for next in chunks.dropFirst() {
+            if next.split(separator: " ").count > 1 {
+                out.append(current)
+                current = next
+            } else {
+                current += " and " + next
+            }
+        }
+        out.append(current)
+        return out
+    }
+
     private static func clauses(of text: String) -> [String] {
         var parts = [text]
         for separator in clauseBreaks {
             parts = parts.flatMap { $0.components(separatedBy: separator) }
         }
-        return parts
+        return parts.flatMap { splitOnConjoinedPredicates($0) }
+    }
+
+    /// Endings a matched term may carry and still be the same word, so
+    /// "stains", "damaged" and "tearing" count while "stainless",
+    /// "undamaged" and "teardrop" do not.
+    private static let inflections: Set<String> = ["", "s", "es", "ed", "d", "ing"]
+
+    /// Whether a substring hit is its own word rather than the middle of a
+    /// longer one.
+    ///
+    /// This is the half that was missing. Negation was handled carefully and
+    /// substring containment was not, and the comment on the term list — which
+    /// warns that "rip" matches "striped" and "wear" matches "menswear" — was
+    /// a list of the traps that had been *noticed*. It was incomplete:
+    ///
+    ///   stain   → stainless      flaw  → flawless
+    ///   damage  → undamaged      heavy → heavyweight
+    ///   tear    → teardrop       fair  → fairisle
+    ///   worn    → unworn         ← this one means the opposite
+    ///
+    /// A stainless steel watch, a flawless jacket and an unworn dress were all
+    /// graded `.used`, which carries a 0.78 multiplier — so the estimate came
+    /// back 22% under, and correcting the chip by hand then jumped it 28%.
+    ///
+    /// Structural rather than another vocabulary patch: a term can now be
+    /// added without auditing the rest of the English language for it.
+    private static func isWholeWord(_ hit: Range<String.Index>,
+                                    in clause: String) -> Bool {
+        if hit.lowerBound > clause.startIndex {
+            let preceding = clause[clause.index(before: hit.lowerBound)]
+            if preceding.isLetter { return false }
+        }
+        let remainder = clause[hit.upperBound...].prefix { $0.isLetter }
+        return inflections.contains(String(remainder))
     }
 
     /// True when `needle` appears somewhere it is actually being asserted,
-    /// rather than denied.
+    /// rather than denied — and as a word rather than inside a longer one.
+    ///
+    /// Every occurrence is considered, not just the first: "stainless steel
+    /// with a stain on the strap" has to reach the second one.
     private static func asserts(_ needle: String, in clauses: [String]) -> Bool {
         for clause in clauses {
-            guard let hit = clause.range(of: needle) else { continue }
-            let before = clause[clause.startIndex..<hit.lowerBound]
-            if !negators.contains(where: { before.contains($0) }) { return true }
+            var searchFrom = clause.startIndex
+            while let hit = clause.range(of: needle,
+                                         range: searchFrom..<clause.endIndex) {
+                searchFrom = hit.upperBound
+                guard isWholeWord(hit, in: clause) else { continue }
+                let before = clause[clause.startIndex..<hit.lowerBound]
+                if !negators.contains(where: { before.contains($0) }) { return true }
+            }
         }
         return false
     }
@@ -412,13 +563,15 @@ enum Condition: String, CaseIterable, Identifiable {
         func says(_ terms: [String]) -> Bool {
             terms.contains { asserts($0, in: parts) }
         }
-        if says(["new with tag", "nwt", "brand new", "unused"]) { return .new }
+        // "unworn" belongs here rather than nowhere: with whole-word matching
+        // it no longer trips the `.used` branch, and grading an unworn item
+        // `.good` understates it by the same 0.78 the old bug applied.
+        if says(["new with tag", "nwt", "brand new", "unused", "unworn"]) { return .new }
         if says(["like new", "excellent", "mint", "very good"])  { return .likeNew }
-        // Substrings, so each term has to be checked against the vocabulary of
-        // secondhand clothing before it is added. "torn" is safe. "rip" is not
-        // — it matches "striped". "wear" is not — it matches "menswear",
-        // "outerwear", "activewear". That trap is the same one that produced
-        // this bug in the first place.
+        // Whole words now, not substrings — see `isWholeWord`. That is what
+        // makes this list safe to extend: "rip" no longer matches "striped"
+        // and "wear" no longer matches "menswear", structurally, rather than
+        // because someone remembered to check.
         if says(["fair", "poor", "worn", "torn", "heavy",
                  "damage", "flaw", "stain", "tear"])             { return .used }
         return .good

@@ -15,7 +15,19 @@ final class StoreKitPurchaseService: PurchaseService, ObservableObject {
     @Published private(set) var isPricingLoaded = false
     @Published private(set) var pricingFailed = false
 
-    private static let cacheKey = "snapworth_is_subscribed"
+    private nonisolated static let cacheKey = "snapworth_is_subscribed"
+
+    /// The last known entitlement, readable without the service.
+    ///
+    /// `WidgetDataStore.writeHaul` stamps this into the widget blob, and it
+    /// runs from a repository write that holds no purchase service — the same
+    /// way it reads `FreeScanCounter.remaining` and `ScanStreak.current()`.
+    /// `nonisolated` because `UserDefaults` is thread-safe and the widget
+    /// write is not always on the main actor.
+    nonisolated static var cachedIsSubscribed: Bool {
+        UserDefaults.standard.bool(forKey: cacheKey)
+    }
+
     private let productIDs = [Config.monthlyProductID, Config.yearlyProductID]
 
     private var products: [Product] = []
@@ -81,9 +93,38 @@ final class StoreKitPurchaseService: PurchaseService, ObservableObject {
         }
     }
 
+    /// The restore in flight, so a second tap joins it instead of starting a
+    /// second `AppStore.sync()`.
+    ///
+    /// `sync()` can take seconds and can put a system sign-in sheet on screen.
+    /// Nothing in the app disabled the Settings row while it ran, so the
+    /// natural response to a slow network — tap it again — ran two overlapping
+    /// syncs and potentially two sign-in prompts, with whichever finished last
+    /// overwriting the message. Now the second caller awaits the first and both
+    /// report the same outcome.
+    private var restoreTask: Task<Void, Error>?
+
     func restorePurchases() async throws {
+        if let restoreTask { return try await restoreTask.value }
+        let task = Task { @MainActor in try await self.performRestore() }
+        restoreTask = task
+        defer { restoreTask = nil }
+        try await task.value
+    }
+
+    private func performRestore() async throws {
         do {
             try await AppStore.sync()
+        } catch StoreKitError.userCancelled {
+            // Dismissing the App Store sign-in sheet is a decision, not a
+            // failure, and it was being reported as one: the raw StoreKit
+            // string went straight through `PurchaseError.failed` to
+            // `AppError.purchaseFailed`, whose `errorDescription` returns the
+            // message verbatim, and the paywall rendered it in red. The
+            // purchase path has always distinguished the two (`.userCancelled`
+            // → `PurchaseError.cancelled`, whose `AppError` maps to a nil
+            // description so nothing is shown); restore simply never did.
+            throw PurchaseError.cancelled
         } catch {
             throw PurchaseError.failed(error.localizedDescription)
         }
@@ -110,7 +151,29 @@ final class StoreKitPurchaseService: PurchaseService, ObservableObject {
         await loadProducts()
     }
 
+    /// The product fetch in flight, so overlapping callers share one result.
+    ///
+    /// `loadProducts` writes `pricingFailed` unconditionally on resume, and two
+    /// callers overlap by construction: `init` starts one, and the paywall's
+    /// `.task` starts another via `reloadProducts()` whenever pricing has not
+    /// arrived — which is exactly the window in which the init fetch is still
+    /// running. Last writer won, whichever result was better: a cold launch on
+    /// flaky cellular could show correct, purchasable price cards with
+    /// "Couldn't load every plan. Try again" above them, and the mirror case —
+    /// a late success clearing a real failure while the cards still read "—" —
+    /// is worse. Joining the fetch in flight removes the race rather than
+    /// ordering it.
+    private var loadTask: Task<Void, Never>?
+
     private func loadProducts() async {
+        if let loadTask { return await loadTask.value }
+        let task = Task { @MainActor in await self.performLoad() }
+        loadTask = task
+        defer { loadTask = nil }
+        await task.value
+    }
+
+    private func performLoad() async {
         // `isPricingLoaded` used to be set unconditionally, so a failed fetch
         // looked exactly like a finished one: the redaction lifted, the price
         // cards read "—" forever, and the CTA sat there inert with nothing
@@ -123,7 +186,30 @@ final class StoreKitPurchaseService: PurchaseService, ObservableObject {
             return
         }
         products = fetched
-        pricing = Self.buildPricing(from: fetched)
+        // Eligibility, asked of StoreKit rather than assumed.
+        //
+        // `introductoryOffer` describes the offer *configured on the product*
+        // in App Store Connect. It says nothing about the customer in front of
+        // you, and Apple grants one introductory offer per subscription
+        // *group*, once. So anyone who has already taken the 3-day trial —
+        // then cancelled, or simply lapsed — was still being shown "Try
+        // SnapWorth free for 3 days" and a button reading "Start Free Trial",
+        // and Apple's sheet then charged them $39.99 today with no trial.
+        //
+        // Unknown counts as ineligible. Dropping an offer costs a line of
+        // value framing; promising free and billing immediately is a pricing
+        // claim made at the exact moment someone decides whether to pay.
+        var eligibility: [String: Bool] = [:]
+        for product in fetched {
+            guard let subscription = product.subscription else {
+                eligibility[product.id] = false
+                continue
+            }
+            // Per group, so both plans get the same answer — asked per product
+            // because that is where StoreKit hangs it, not because they differ.
+            eligibility[product.id] = await subscription.isEligibleForIntroOffer
+        }
+        pricing = Self.buildPricing(from: fetched, eligibility: eligibility)
         // A *partial* fetch used to land here as an unqualified success. If the
         // missing product was the yearly plan — which the paywall selects by
         // default — the user got "Loading plans…", a disabled CTA, and no
@@ -140,7 +226,11 @@ final class StoreKitPurchaseService: PurchaseService, ObservableObject {
     /// `displayPrice` is already localised to the user's storefront currency and
     /// number format. Everything derived (per-week, savings) is computed from
     /// `product.price`, a `Decimal`, so there is no float drift in money math.
-    static func buildPricing(from products: [Product]) -> [String: PlanPricing] {
+    /// `eligibility` maps product ID to whether *this customer* may take the
+    /// product's introductory offer. A product missing from the map is treated
+    /// as ineligible: the offer is only advertised when StoreKit has said yes.
+    static func buildPricing(from products: [Product],
+                             eligibility: [String: Bool]) -> [String: PlanPricing] {
         let monthly = products.first { $0.id == Config.monthlyProductID }
         var result: [String: PlanPricing] = [:]
 
@@ -150,11 +240,27 @@ final class StoreKitPurchaseService: PurchaseService, ObservableObject {
                 productID: product.id,
                 displayPrice: product.displayPrice,
                 displayPricePerWeek: isYearly ? weeklyPrice(for: product) : nil,
-                introductoryOffer: introOffer(for: product),
+                introductoryOffer: introOffer(
+                    for: product,
+                    isEligible: isOfferEligible(product.id, in: eligibility)),
                 savingsPercent: isYearly ? savings(yearly: product, monthly: monthly) : nil
             )
         }
         return result
+    }
+
+    /// Whether to advertise a product's introductory offer.
+    ///
+    /// Fails closed: a product StoreKit gave no answer for is ineligible.
+    /// A lookup defaulting the other way would advertise a free trial on every
+    /// path where the eligibility check did not run — which is exactly the
+    /// state the app was in before it ran at all.
+    /// `nonisolated` because it is a dictionary lookup — and because the whole
+    /// point of pulling it out was so a test could assert the fail-closed
+    /// direction without standing up the service.
+    nonisolated static func isOfferEligible(_ productID: String,
+                                            in eligibility: [String: Bool]) -> Bool {
+        eligibility[productID] ?? false
     }
 
     /// Formats `price ÷ 52` in the product's own currency.
@@ -165,14 +271,20 @@ final class StoreKitPurchaseService: PurchaseService, ObservableObject {
         return product.priceFormatStyle.format(perWeek)
     }
 
-    /// The product's real introductory offer, as data.
+    /// The introductory offer this customer would actually get, as data.
     ///
     /// Returns nil when none is configured — so the paywall cannot advertise an
-    /// offer App Store Connect does not grant — and also when the payment mode
-    /// is one we have no copy for. Dropping an offer costs a line of value
-    /// framing; describing it wrongly is a pricing claim made at the moment a
-    /// user decides whether to pay.
-    static func introOffer(for product: Product) -> IntroOffer? {
+    /// offer App Store Connect does not grant — when the payment mode is one we
+    /// have no copy for, and when the customer is not eligible. Dropping an
+    /// offer costs a line of value framing; describing it wrongly is a pricing
+    /// claim made at the moment a user decides whether to pay.
+    ///
+    /// The eligibility check is the third axis of the same mistake. First the
+    /// paywall read "an offer exists" as "a free trial exists", which is wrong
+    /// for the two paid payment modes. Now: "an offer exists" is not "this
+    /// person gets it" either.
+    static func introOffer(for product: Product, isEligible: Bool) -> IntroOffer? {
+        guard isEligible else { return nil }
         guard let offer = product.subscription?.introductoryOffer else { return nil }
 
         let unit: String
@@ -309,7 +421,18 @@ final class StoreKitPurchaseService: PurchaseService, ObservableObject {
     }
 
     private func setSubscribed(_ value: Bool) {
-        isSubscribed = value
+        let changed = value != isSubscribed
+        // Persist before publishing: anything that reacts to `isSubscribed`
+        // reads the cache through `cachedIsSubscribed`, so the store has to be
+        // the newer of the two, never the older.
         UserDefaults.standard.set(value, forKey: Self.cacheKey)
+        isSubscribed = value
+        guard changed else { return }
+        // `/trends` returns a different payload *shape* per tier, and the
+        // client holds it for thirty minutes. The tier key on that cache
+        // covers a user who reaches the card again, and this covers every
+        // other transition — a restore, an expiry, a server-side revoke —
+        // without waiting the TTL out.
+        Task { await TrendsAPIClient.shared.invalidate() }
     }
 }

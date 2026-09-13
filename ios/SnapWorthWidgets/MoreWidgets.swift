@@ -24,9 +24,19 @@ struct HaulOnlyProvider: TimelineProvider {
     }
 
     func getTimeline(in context: Context, completion: @escaping (Timeline<HaulOnlyEntry>) -> Void) {
-        let next = Calendar.current.date(byAdding: .hour, value: 1, to: .now)!
-        completion(Timeline(entries: [HaulOnlyEntry(date: .now, haul: WidgetReader.readHaul())],
-                            policy: .after(next)))
+        // One entry now, plus one at each instant a stored snapshot stops
+        // being true — the next UTC midnight, the next local midnight, the
+        // start of the next month. The blob is the same in all of them; what
+        // changes is the entry's date, which is what the views ask about. With
+        // only the hourly policy, every refresh re-read the same frozen number
+        // and the correction waited for the app to run.
+        let now = Date.now
+        let haul = WidgetReader.readHaul()
+        let entries = [HaulOnlyEntry(date: now, haul: haul)]
+            + WidgetHaulData.refreshBoundaries(after: now)
+                .map { HaulOnlyEntry(date: $0, haul: haul) }
+        let next = Calendar.current.date(byAdding: .hour, value: 1, to: now)!
+        completion(Timeline(entries: entries, policy: .after(next)))
     }
 }
 
@@ -44,46 +54,67 @@ struct RecentFindsView: View {
             WidgetBridge.maxRecentFinds)
     }
 
+    /// Derived in the shared model so a test can reach it — see
+    /// `WidgetHaulData.recentRows(limit:)` for why the v1 fallback exists.
+    private var rows: [WidgetFind] { haul.recentRows(limit: rowCount) }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 4) {
                 Image(systemName: "clock.arrow.circlepath")
                     .snapWidgetIcon()
                 Text("Recent finds")
-                    .font(.system(size: 11, weight: .semibold, design: .serif))
+                    .wFont(11, weight: .semibold, design: .serif)
                     .foregroundStyle(Color.wBackground.opacity(0.7))
                 Spacer()
                 if haul.hasScans {
-                    Text(haul.formattedRange)
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundStyle(Color.wSage)
+                    // The figure is the whole library, not these rows. The
+                    // list under it is capped at two or four, so an unlabelled
+                    // total sat directly above rows that visibly do not sum to
+                    // it and read as an arithmetic error in the user's own
+                    // ledger — starkest on a 1.3.x blob, where the v1 fallback
+                    // draws exactly one row. The spoken label has always said
+                    // "Haul worth …"; this is the sighted half of it.
+                    HStack(spacing: 3) {
+                        Text("Haul")
+                            .wFont(11, weight: .medium)
+                            .foregroundStyle(Color.wBackground.opacity(0.7))
+                        Text(haul.formattedRange)
+                            .wFont(11, weight: .semibold)
+                            .foregroundStyle(Color.wSage)
+                    }
+                    .lineLimit(1)
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel("Haul worth \(haul.spokenRange)")
                 }
             }
             .padding(.bottom, 8)
 
-            if haul.recentFinds.isEmpty {
+            if rows.isEmpty {
                 Spacer()
                 Text("Nothing scanned yet")
-                    .font(.system(size: 13, weight: .medium))
+                    .wFont(13, weight: .medium)
                     .foregroundStyle(Color.wWarmGray)
                 Spacer()
             } else {
                 VStack(alignment: .leading, spacing: 6) {
-                    ForEach(haul.recentFinds.prefix(rowCount)) { find in
+                    ForEach(rows) { find in
                         HStack(alignment: .firstTextBaseline, spacing: 6) {
                             Text(find.name)
-                                .font(.system(size: 13, weight: .medium))
+                                .wFont(13, weight: .medium)
                                 .foregroundStyle(Color.wBackground)
                                 .lineLimit(1)
                                 .truncationMode(.tail)
                             Spacer(minLength: 4)
                             Text(find.range)
-                                .font(.system(size: 13, weight: .semibold, design: .rounded))
+                                .wFont(13, weight: .semibold, design: .rounded)
                                 .foregroundStyle(Color.wSage)
                                 .lineLimit(1)
                                 .layoutPriority(1)
                         }
-                        .accessibilityElement(children: .combine)
+                        .accessibilityElement(children: .ignore)
+                        .accessibilityLabel(
+                            "\(find.name), \(WidgetHaulData.spoken(find.range))")
                     }
                 }
                 Spacer(minLength: 0)
@@ -112,6 +143,10 @@ struct RecentFindsWidget: Widget {
 
 struct ScansLeftView: View {
     let haul: WidgetHaulData
+    /// The timeline entry's date, not `Date.now`: an entry scheduled at the
+    /// UTC reset has to render the reset allowance, and it is rendered by the
+    /// system at that instant without this code running again.
+    let now: Date
     @Environment(\.widgetFamily) private var family
 
     var body: some View {
@@ -121,75 +156,49 @@ struct ScansLeftView: View {
                 AccessoryWidgetBackground()
                 VStack(spacing: 0) {
                     Image(systemName: "camera.viewfinder")
-                        .font(.system(size: 11, weight: .semibold))
-                    Text(circularValue)
-                        .font(.system(size: 16, weight: .bold, design: .rounded))
+                        .wFont(11, weight: .semibold)
+                    Text(state.circularValue)
+                        .wFont(16, weight: .bold, design: .rounded)
                         .minimumScaleFactor(0.5)
                         .lineLimit(1)
                 }
             }
             .accessibilityElement(children: .ignore)
-            .accessibilityLabel(spokenLabel)
+            .accessibilityLabel(state.spoken)
 
         default:
             VStack(alignment: .leading, spacing: 0) {
                 HStack(spacing: 4) {
                     Image(systemName: "camera.viewfinder").snapWidgetIcon()
                     Text("SnapWorth")
-                        .font(.system(size: 11, weight: .semibold, design: .serif))
+                        .wFont(11, weight: .semibold, design: .serif)
                         .foregroundStyle(Color.wBackground.opacity(0.7))
                 }
                 Spacer()
-                Text(headline)
-                    .font(.system(size: haul.isPro ? 18 : 30, weight: .bold, design: .rounded))
-                    .foregroundStyle(haul.isPro ? Color.wSage : accentForRemaining)
+                Text(state.headline)
+                    .wFont(haul.isPro ? 18 : 30, weight: .bold, design: .rounded)
+                    .foregroundStyle(accentForRemaining)
                     .minimumScaleFactor(0.5)
                     .lineLimit(1)
-                Text(subtitle)
-                    .font(.system(size: 11, weight: .medium))
+                Text(state.subtitle)
+                    .wFont(11, weight: .medium)
                     .foregroundStyle(Color.wWarmGray)
                     .lineLimit(2)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             .accessibilityElement(children: .ignore)
-            .accessibilityLabel(spokenLabel)
+            .accessibilityLabel(state.spoken)
         }
     }
 
-    // Pro has no counter to show, so the widget carries the streak instead of
-    // rendering "unlimited" — a number that never changes is not worth a slot
-    // on someone's Home Screen.
-    private var headline: String {
-        guard !haul.isPro else { return haul.streak > 0 ? "\(haul.streak)-day streak" : "Pro" }
-        return "\(haul.freeScansRemaining ?? 0)"
-    }
-
-    private var subtitle: String {
-        guard !haul.isPro else {
-            return haul.streak > 1 ? "Keep it going" : "Unlimited scans"
-        }
-        let left = haul.freeScansRemaining ?? 0
-        return left == 0 ? "Back tomorrow, or go Pro"
-                         : "free scan\(left == 1 ? "" : "s") left today"
-    }
-
-    private var circularValue: String {
-        guard !haul.isPro else { return haul.streak > 0 ? "\(haul.streak)" : "∞" }
-        return "\(haul.freeScansRemaining ?? 0)"
-    }
+    /// Every string comes from the shared model — see `WidgetHaulData.ScansLeft`
+    /// for why nil is a third state rather than zero.
+    private var state: WidgetHaulData.ScansLeft { haul.scansLeft(at: now) }
 
     private var accentForRemaining: Color {
-        (haul.freeScansRemaining ?? 0) == 0 ? Color.wTerracotta : Color.wSage
-    }
-
-    private var spokenLabel: String {
-        guard !haul.isPro else {
-            return haul.streak > 0 ? "\(haul.streak) day scanning streak" : "SnapWorth Pro"
-        }
-        let left = haul.freeScansRemaining ?? 0
-        return left == 0
-            ? "No free scans left today"
-            : "\(left) free scan\(left == 1 ? "" : "s") left today"
+        // Neutral unless the count is known and spent: terracotta here reads
+        // as "you are out", which is wrong for an allowance nobody has touched.
+        state.isSpent ? Color.wTerracotta : Color.wSage
     }
 }
 
@@ -217,10 +226,10 @@ struct ScansLeftEntryView: View {
 
     var body: some View {
         if family == .accessoryCircular {
-            ScansLeftView(haul: entry.haul)
+            ScansLeftView(haul: entry.haul, now: entry.date)
                 .containerBackground(.clear, for: .widget)
         } else {
-            ScansLeftView(haul: entry.haul)
+            ScansLeftView(haul: entry.haul, now: entry.date)
                 .containerBackground(Color.wCharcoal, for: .widget)
         }
     }
@@ -230,23 +239,26 @@ struct ScansLeftEntryView: View {
 
 struct MonthProfitView: View {
     let haul: WidgetHaulData
+    /// The timeline entry's date. The header says "This month"; this is how the
+    /// view knows which month that is.
+    let now: Date
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 4) {
                 Image(systemName: "chart.line.uptrend.xyaxis").snapWidgetIcon()
                 Text("This month")
-                    .font(.system(size: 11, weight: .semibold, design: .serif))
+                    .wFont(11, weight: .semibold, design: .serif)
                     .foregroundStyle(Color.wBackground.opacity(0.7))
             }
             Spacer()
             Text(value)
-                .font(.system(size: 24, weight: .bold, design: .rounded))
+                .wFont(24, weight: .bold, design: .rounded)
                 .foregroundStyle(colour)
                 .minimumScaleFactor(0.5)
                 .lineLimit(1)
             Text(caption)
-                .font(.system(size: 11, weight: .medium))
+                .wFont(11, weight: .medium)
                 .foregroundStyle(Color.wWarmGray)
                 .lineLimit(2)
         }
@@ -255,34 +267,57 @@ struct MonthProfitView: View {
         .accessibilityLabel(spoken)
     }
 
-    // `monthProfit` is nil for a free user by construction — the writer never
-    // stores it — so this reads as the upsell rather than as zero profit,
-    // which would be a lie about their ledger.
+    // No tier check anywhere in this view. `monthProfit` is nil when nothing
+    // has been sold this month or when nothing sold has a paid price, and it
+    // means those two things for everyone: the app gives free users this same
+    // month-scoped figure on the Flips tab, so a widget that answered "Pro"
+    // was upselling a feature they already had — and saying the same thing to
+    // a lapsed subscriber, whose ledger had not changed at all.
+    /// Read through the entry's date, so the figure disappears when the month
+    /// it belongs to ends. It was a bare `Double` computed against the month
+    /// that was current at *write* time, rendered under a header hardcoded to
+    /// "This month" — so a Pro user who sold six items in September and did
+    /// not open the app saw "$214 · from 6 flips · This month" on 3 October,
+    /// while the Flips screen correctly showed October at $0.
+    private var profit: Double? { haul.monthProfit(at: now) }
+    private var flips: Int { haul.monthFlips(at: now) }
+    /// Everything sold, cost basis or not. `flips` counts only what could be
+    /// priced, so these differ exactly when a sale has no paid price.
+    private var sold: Int { haul.monthSold(at: now) }
+
     private var value: String {
-        guard let profit = haul.monthProfit else { return haul.isPro ? "—" : "Pro" }
+        guard let profit else { return "—" }
         return WidgetHaulData.compactMoney(profit)
     }
 
     private var colour: Color {
-        guard let profit = haul.monthProfit else { return Color.wWarmGray }
+        guard let profit else { return Color.wWarmGray }
         return profit < 0 ? Color.wTerracotta : Color.wSage
     }
 
+    /// Three states, not two. A nil profit used to mean only one thing here —
+    /// "nothing sold" — and it means two: nothing sold, or things sold that
+    /// nobody entered a paid price for. `paidPrice` is optional and the app
+    /// advertises one benefit for filling it in, so the second is the common
+    /// case, and the widget was flatly contradicting the Flips screen on the
+    /// same data: "No flips sold yet this month" beside "2 items sold".
     private var caption: String {
-        guard haul.monthProfit != nil else {
-            return haul.isPro ? "No flips sold yet this month"
-                              : "Track profit with Pro"
+        guard profit != nil else {
+            return sold > 0 ? "\(sold) sold · add what you paid"
+                            : "No flips sold yet this month"
         }
-        return "from \(haul.monthFlips) flip\(haul.monthFlips == 1 ? "" : "s")"
+        return "from \(flips) flip\(flips == 1 ? "" : "s")"
     }
 
     private var spoken: String {
-        guard let profit = haul.monthProfit else {
-            return haul.isPro ? "No flips sold yet this month"
-                              : "Profit tracking is a Pro feature"
+        guard let profit else {
+            return sold > 0
+                ? "\(sold) flip\(sold == 1 ? "" : "s") sold this month, "
+                  + "profit unknown until you add what you paid"
+                : "No flips sold yet this month"
         }
         return "\(WidgetHaulData.compactMoney(profit)) profit this month "
-             + "from \(haul.monthFlips) flip\(haul.monthFlips == 1 ? "" : "s")"
+             + "from \(flips) flip\(flips == 1 ? "" : "s")"
     }
 }
 
@@ -291,7 +326,7 @@ struct MonthProfitWidget: Widget {
 
     var body: some WidgetConfiguration {
         StaticConfiguration(kind: kind, provider: HaulOnlyProvider()) { entry in
-            MonthProfitView(haul: entry.haul)
+            MonthProfitView(haul: entry.haul, now: entry.date)
                 .widgetURL(URL(string: "snapworth://flips"))
                 .containerBackground(Color.wCharcoal, for: .widget)
         }
@@ -303,9 +338,76 @@ struct MonthProfitWidget: Widget {
 
 // ── Shared bits ──────────────────────────────────────────────────────────────
 
+/// A fixed point size that follows the user's text-size setting.
+///
+/// `Font.system(size:weight:design:)` is a fixed point size and does not
+/// respond to Larger Text, and every `Text` and `Image` in all eight widget
+/// views used it — so at AX1-AX5 every other element on the Lock Screen and
+/// Home Screen grew and SnapWorth's rendered byte-identically to the default,
+/// leaving 10pt and 11pt captions. The accessory families are the clearest
+/// case, since the system sizes those for the user and this code overrode it.
+/// The app itself does the opposite deliberately: its type ramp anchors every
+/// alias to a `TextStyle` and `snapSymbol` uses `@ScaledMetric` so icons track
+/// growing labels. The extension was the one surface that opted out.
+///
+/// There is no `Font.system(size:relativeTo:)` — `relativeTo` exists only on
+/// `.custom`, for a named face. `@ScaledMetric` is the supported way to scale
+/// a point size against a text style, and it is what `snapSymbol` already
+/// uses. At the default text size it returns the base value unchanged, so
+/// every widget renders exactly as it did.
+struct WidgetScaledFont: ViewModifier {
+    @ScaledMetric private var size: CGFloat
+    private let weight: Font.Weight
+    private let design: Font.Design
+
+    init(size: CGFloat, weight: Font.Weight, design: Font.Design) {
+        _size = ScaledMetric(wrappedValue: size, relativeTo: Self.style(for: size))
+        self.weight = weight
+        self.design = design
+    }
+
+    /// The text style whose own default size is nearest the requested one, so
+    /// a 24pt figure grows at a headline's rate and an 11pt caption at a
+    /// caption's — which are different rates, and the reason this is a lookup
+    /// rather than one style for everything.
+    ///
+    /// `if` rather than a `switch` over ranges: a range pattern here would be
+    /// matching `CGFloat` against `Double` literals and leaning on the 64-bit
+    /// typealias to make them the same type.
+    static func style(for size: CGFloat) -> Font.TextStyle {
+        if size < 11.5 { return .caption2 }      // 11
+        if size < 12.5 { return .caption }       // 12
+        if size < 14   { return .footnote }      // 13
+        if size < 15.5 { return .subheadline }   // 15
+        if size < 18   { return .callout }       // 16
+        if size < 21   { return .title3 }        // 20
+        if size < 25   { return .title2 }        // 22
+        return .title                            // 28
+    }
+
+    func body(content: Content) -> some View {
+        content
+            .font(.system(size: size, weight: weight, design: design))
+            // Widgets have a hard size budget, so growth has to be allowed to
+            // give way rather than clip. Inert at the default size — nothing
+            // is constrained there — and it is the difference between a
+            // caption that shrinks to fit and one that truncates mid-word.
+            .minimumScaleFactor(0.7)
+    }
+}
+
+extension View {
+    /// Use instead of `.font(.system(size:weight:design:))` anywhere in the
+    /// widget extension. See `WidgetScaledFont`.
+    func wFont(_ size: CGFloat, weight: Font.Weight = .regular,
+               design: Font.Design = .default) -> some View {
+        modifier(WidgetScaledFont(size: size, weight: weight, design: design))
+    }
+}
+
 private extension Image {
     func snapWidgetIcon() -> some View {
-        self.font(.system(size: 11, weight: .semibold))
+        self.wFont(11, weight: .semibold)
             .foregroundStyle(Color.wTerracotta)
     }
 }

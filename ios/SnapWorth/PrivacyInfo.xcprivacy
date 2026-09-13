@@ -44,6 +44,27 @@
 				<string>NSPrivacyCollectedDataTypePurposeAnalytics</string>
 			</array>
 		</dict>
+		<!-- The analytics SDK's own default payload, which the app does not
+		     choose and cannot switch off short of disabling analytics: the
+		     device's accessibility settings (Reduce Motion, Bold Text, Invert
+		     Colours, Increase Contrast, Reduce Transparency, Differentiate
+		     Without Colour, preferred content size), its time zone, screen
+		     resolution and scale, CPU architecture and orientation. None of
+		     these fits a named type, and "Other" is where Apple puts data that
+		     is collected and does not. The session and distinct-day counters it
+		     also sends are usage, and covered by ProductInteraction above. -->
+		<dict>
+			<key>NSPrivacyCollectedDataType</key>
+			<string>NSPrivacyCollectedDataTypeOtherDataTypes</string>
+			<key>NSPrivacyCollectedDataTypeLinked</key>
+			<false/>
+			<key>NSPrivacyCollectedDataTypeTracking</key>
+			<false/>
+			<key>NSPrivacyCollectedDataTypePurposes</key>
+			<array>
+				<string>NSPrivacyCollectedDataTypePurposeAnalytics</string>
+			</array>
+		</dict>
 		<dict>
 			<key>NSPrivacyCollectedDataType</key>
 			<string>NSPrivacyCollectedDataTypeCrashData</string>

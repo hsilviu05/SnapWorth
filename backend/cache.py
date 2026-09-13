@@ -248,6 +248,35 @@ class ResilientCache:
                 "degraded": self.is_degraded, "failures": self._failures}
 
 
+#: Default pool ceiling. Overridable, but never at the cost of booting.
+DEFAULT_REDIS_MAX_CONNECTIONS = 50
+
+
+def _max_connections() -> int:
+    """`REDIS_MAX_CONNECTIONS`, or the default if it is not a usable number.
+
+    `int(os.environ[...])` raised `ValueError` on `"50 "`-with-a-comment, on an
+    empty override, and on anything a deploy tool substituted wrong — inside
+    the startup path, so a typo in a tuning knob took the whole service down.
+    A pool size is the least important thing in this function; it must not be
+    able to stop the process starting.
+    """
+    raw = os.environ.get("REDIS_MAX_CONNECTIONS", "").strip()
+    if not raw:
+        return DEFAULT_REDIS_MAX_CONNECTIONS
+    try:
+        value = int(raw)
+    except ValueError:
+        log.error("REDIS_MAX_CONNECTIONS is not a number (%r) — using %d",
+                  raw, DEFAULT_REDIS_MAX_CONNECTIONS)
+        return DEFAULT_REDIS_MAX_CONNECTIONS
+    if value < 1:
+        log.error("REDIS_MAX_CONNECTIONS must be at least 1 (got %d) — using %d",
+                  value, DEFAULT_REDIS_MAX_CONNECTIONS)
+        return DEFAULT_REDIS_MAX_CONNECTIONS
+    return value
+
+
 def build_redis_client(url: str):
     """Create a pooled async Redis client, or None if unavailable."""
     try:
@@ -256,18 +285,36 @@ def build_redis_client(url: str):
         log.error("REDIS_URL is set but the redis package is not installed")
         return None
 
-    return aioredis.from_url(
-        url,
-        encoding="utf-8",
-        decode_responses=True,
-        # Bounded so a hung Redis can never hold a request open.
-        socket_connect_timeout=2,
-        socket_timeout=2,
-        socket_keepalive=True,
-        health_check_interval=30,
-        retry_on_timeout=True,
-        max_connections=int(os.environ.get("REDIS_MAX_CONNECTIONS", "50")),
-    )
+    try:
+        return aioredis.from_url(
+            url,
+            encoding="utf-8",
+            decode_responses=True,
+            # Bounded so a hung Redis can never hold a request open.
+            socket_connect_timeout=2,
+            socket_timeout=2,
+            socket_keepalive=True,
+            health_check_interval=30,
+            retry_on_timeout=True,
+            max_connections=_max_connections(),
+        )
+    except Exception as exc:
+        # `from_url` parses eagerly and raises `ValueError` for a scheme that
+        # is not redis/rediss/unix, and for a port that is not an integer. That
+        # escaped through `build_cache` into the lifespan hook, so one mistyped
+        # environment variable was not a degraded replica — it was a
+        # crash-looping one, and a total outage.
+        #
+        # `None` here routes into the same path as a missing redis package,
+        # three lines below: the process starts, the failure is loud, and
+        # `configured=True` keeps `required` operations failing *closed*, so a
+        # broken URL cannot hand anyone free Pro. Degraded and shouting beats
+        # gone, and it is the choice this module already made for the other
+        # unrecoverable misconfiguration in it.
+        log.error("REDIS_URL could not be used (%s: %s) — starting degraded; "
+                  "durable state is unavailable until this is fixed",
+                  type(exc).__name__, exc)
+        return None
 
 
 async def build_cache() -> ResilientCache:

@@ -118,6 +118,125 @@ or a Control Centre button lands in the right place.
 
 ---
 
+## Audit fixes that landed on this branch — worth a device pass
+
+Everything below is covered by the test suite where a test could reach it. These
+are the parts a test could not reach, in rough order of how badly a regression
+would show.
+
+### Notifications
+
+- [ ] **Tap a notification with the app not running.** It must open the screen
+      it names — the recap goes to My Flips, the trial warning to Settings, the
+      free-scan reminder straight to the camera. The delegate used to be
+      installed from a SwiftUI `.task`, which runs *after* launch finishes, so
+      every deep link was dead on a cold start and worked perfectly from the
+      background. Only a real cold launch tests this.
+- [ ] Same tap with the app **in the background**, to confirm nothing regressed
+      on the path that already worked.
+
+### Purchases
+
+- [ ] **Buy Pro on the Scan tab, then switch to Settings.** The card must read
+      SnapWorth Pro, not "Free Plan · Upgrade". Settings had no dependency on
+      the entitlement and only re-rendered when its own state changed.
+- [ ] **Tap Restore purchases in Settings and dismiss Apple's sign-in sheet.**
+      No alert, no red text — declining is not a failure. Then tap it again on
+      a slow connection: the row shows a spinner and cannot be tapped twice.
+- [ ] **Open the paywall on a cold launch on poor signal.** Either prices or the
+      retry — never both, and never "Couldn't load every plan" above prices
+      that loaded.
+
+### Widgets
+
+- [ ] **Profit this month, as Pro, in a month where something sold but no paid
+      price was entered.** It must read "N sold · add what you paid", not "No
+      flips sold yet this month" — which is what it said while My Flips showed
+      the sale. *This changes what the widget prints; check it before the
+      launch photographs.*
+- [ ] **Press the Control Centre / Action Button Scan control during
+      onboarding**, finish onboarding, and confirm the camera opens. The press
+      used to be consumed and posted to nobody.
+- [ ] Press it, then leave the phone for **more than five minutes** before
+      opening the app. The camera must **not** open: a tap is an instruction
+      about now, and one that old is dropped.
+
+### Thrift run
+
+- [ ] Start a run and leave the app for a while, then foreground it. Nothing
+      visible should change — but an Activity older than eight hours is now
+      dismissed on foreground rather than lingering on the Lock Screen.
+- [ ] With VoiceOver on, focus the Live Activity. It should say when the run
+      **started**; the elapsed timer is a system-drawn count that cannot be
+      spoken accurately from a frozen string.
+
+### My Flips
+
+- [ ] **Export CSV and open it in Numbers or Excel.** Profit must carry two
+      decimals like the other money columns, ROI must read like `42.55%`, and
+      an item named `=1+1` must appear as text rather than evaluating.
+- [ ] With VoiceOver on, focus the **⋯ menu**: it must announce "Flip options"
+      and its current sort, not "ellipsis circle".
+
+### My Finds
+
+- [ ] Search for something, **delete every find**, then scan one. The new find
+      must appear — it used to be filtered against the query that survived the
+      wipe, under a banner saying one item was scanned.
+
+### Things that changed how something looks
+
+Each of these is its own commit, so any one can be reverted on its own if it
+photographs badly. Four of them are provably identical at the default text
+size; the two marked **moves pixels** are not.
+
+- [ ] **Profit this month widget, signed out of Pro.** It must show the real
+      figure, not "Pro" / "Track profit with Pro". The app has always given
+      free users that number on the Flips tab — the widget was upselling a
+      feature they already had, with a deep link to the screen showing it.
+      *Moves pixels, and it is a widget: check before the launch photographs.*
+- [ ] **My Flips summary card.** The first stat now reads "Invested
+      (all-time)" rather than "Invested", because it always was — beside a
+      header saying "Profit this month". No number changed; check the longer
+      label still sits on one line on the narrowest device you have.
+- [ ] **Recent finds widget.** The figure in the header now reads
+      "Haul $3,480 – $6,200" instead of the bare range. It is the whole
+      library, and it sat unlabelled directly above two rows that visibly do
+      not sum to it. *Moves pixels — check before the launch photographs.*
+- [ ] **Circular Lock Screen complication.** It now shows the *middle* of the
+      haul range, not its top, so it matches the figure under "Your finds are
+      worth" in the app. A library of three $100-$200 items read $600 there
+      and $450 in the app.
+- [ ] **Thrift Flip: "Scan tag" and "Choose from library".** Both were ~17pt
+      tap targets against Apple's 44pt minimum and now carry the standard hit
+      target, which makes their rows ~27pt taller. *Moves pixels.*
+- [ ] **The paywall's unselected plan card.** Its radio ring and outline were
+      1.2:1 against the card — no visible boundary at all, and Increase
+      Contrast did not help. Both are now readable in either theme. Check the
+      Monthly card looks like a choice and not like a mistake.
+- [ ] **Dark mode, any card.** Cards had no boundary: the shadow was a *warm
+      brown* lighter than the dark ground, so it lightened rather than
+      darkened. There is now a hairline edge in dark mode. Light mode is
+      untouched — worth confirming with a side-by-side.
+- [ ] **Every widget at an accessibility text size.** Nothing in the extension
+      scaled before; all 51 sizes now do. At the *default* size every widget
+      should be unchanged — that is the thing to verify first. Then set Larger
+      Text to AX3 and check nothing clips on the small and accessory families.
+- [ ] **My Finds at an accessibility text size.** The grid drops to one
+      full-width column at AX1 and above; below that it is unchanged.
+
+### Thrift Flip
+
+- [ ] **Scan an item and then just leave** — no ledger save, any verdict.
+      Open My Finds: the item must be there. Scans were charged against the
+      daily allowance and then discarded unless the flip was Pro, profitable
+      and saved, so a free user could spend their whole allowance here and
+      find nothing.
+- [ ] Then scan another, fill both prices and **Save to My Flips**. My Finds
+      must still show **one** row for it, promoted to Owned — not two.
+
+---
+
 ## Pre-submit checklist
 
 - [ ] `MARKETING_VERSION` 1.3.7 → **1.4.0**, `CURRENT_PROJECT_VERSION` 14 → 15,

@@ -62,6 +62,55 @@ struct WidgetHaulData: Codable, Equatable {
     var monthProfit: Double?
     var monthFlips: Int
 
+    // v3 — added 1.4.0, before release
+    //
+    // Three things above are scoped to a period and were stored as bare
+    // numbers: the free-scan count (a UTC day), the streak (a local day), and
+    // the month's profit (a local month). The extension cannot recompute any
+    // of them — `FreeScanCounter` and `ScanStreak` live in
+    // `UserDefaults.standard`, not the App Group, and the ledger is in
+    // SwiftData — and the providers' hourly refresh just re-read the same
+    // frozen number. So each one outlived the period it described: a spent
+    // allowance stayed spent past the reset, a lapsed streak kept showing, and
+    // September's profit carried into October under a header reading "This
+    // month". These two fields plus `updatedAt` are what let the widget tell.
+    /// The day the streak was last extended. `ScanStreak.current()` returns 0
+    /// once that is older than yesterday; without the date the widget has no
+    /// way to apply the same test.
+    var streakLastScan: Date?
+    /// The full daily allowance, so a count that has aged out of its UTC day
+    /// can render the number actually available rather than nothing.
+    var freeScanAllowance: Int?
+    /// Everything sold this month, cost basis or not.
+    ///
+    /// `monthFlips` counts only the items that *contributed* to `monthProfit`,
+    /// which is the right rule for "$214 from 6 flips" and the wrong one for
+    /// answering "did anything sell at all". `realizedProfit` is nil without a
+    /// paid price, `paidPrice` is optional, and the only benefit the app
+    /// advertises for filling it in is the share card's multiple — so a month
+    /// of sales with no cost basis is the common path, not an edge case. It
+    /// wrote `monthProfit: nil`, and nil meant both "sold nothing" and "sold
+    /// things and cannot price them": the widget said "No flips sold yet this
+    /// month" while the Flips screen, on the same data, said two items sold.
+    var monthSold: Int
+
+    // v4 — added 1.4.0, before release
+    /// The sum of the condition-adjusted *midpoints* — the middle of the very
+    /// range `totalLow` and `totalHigh` describe.
+    ///
+    /// The blob carried the two ends and nothing between them, so the one place
+    /// a widget has room for a single number — the circular Lock Screen
+    /// complication — drew `totalHigh` unqualified. Three items at $100-$200
+    /// make the app's portfolio banner read "$450" and that complication read
+    /// "$600", 33% higher, with nothing on screen saying it was the top of a
+    /// range; and every re-graded item widens the gap, since the condition
+    /// multiplier scales the spread.
+    ///
+    /// Optional because a blob written by 1.3.x has no such field and there is
+    /// no honest way to derive one from a low and a high — `compactTotal` falls
+    /// back to the old behaviour until the app next runs.
+    var totalLikely: Double?
+
     static let empty = WidgetHaulData(
         totalLow: 0, totalHigh: 0, itemCount: 0,
         lastItemName: "", lastItemRange: "", updatedAt: .distantPast,
@@ -71,9 +120,15 @@ struct WidgetHaulData: Codable, Equatable {
 
     var hasScans: Bool { itemCount > 0 }
 
+    /// Unspaced, matching `ScanResult.formattedRange` — which is what the app
+    /// shows everywhere, and what lands in `lastItemRange` and every
+    /// `WidgetFind.range` in this very blob. This was spaced, so the medium
+    /// widget printed "$348 – $620" for the haul and "$60–$95" for the last
+    /// item a few points to its right: the same kind of quantity, in one card,
+    /// punctuated two ways.
     var formattedRange: String {
         guard hasScans else { return "$0" }
-        return "\(Self.money(totalLow)) – \(Self.money(totalHigh))"
+        return "\(Self.money(totalLow))–\(Self.money(totalHigh))"
     }
 
     var formattedMonthProfit: String? {
@@ -100,12 +155,16 @@ struct WidgetHaulData: Codable, Equatable {
     private enum CodingKeys: String, CodingKey {
         case totalLow, totalHigh, itemCount, lastItemName, lastItemRange, updatedAt
         case freeScansRemaining, isPro, streak, recentFinds, monthProfit, monthFlips
+        case streakLastScan, freeScanAllowance, monthSold
+        case totalLikely
     }
 
     init(totalLow: Double, totalHigh: Double, itemCount: Int,
          lastItemName: String, lastItemRange: String, updatedAt: Date,
          freeScansRemaining: Int?, isPro: Bool, streak: Int,
-         recentFinds: [WidgetFind], monthProfit: Double?, monthFlips: Int) {
+         recentFinds: [WidgetFind], monthProfit: Double?, monthFlips: Int,
+         streakLastScan: Date? = nil, freeScanAllowance: Int? = nil,
+         monthSold: Int = 0, totalLikely: Double? = nil) {
         self.totalLow = totalLow
         self.totalHigh = totalHigh
         self.itemCount = itemCount
@@ -118,6 +177,10 @@ struct WidgetHaulData: Codable, Equatable {
         self.recentFinds = recentFinds
         self.monthProfit = monthProfit
         self.monthFlips = monthFlips
+        self.streakLastScan = streakLastScan
+        self.freeScanAllowance = freeScanAllowance
+        self.monthSold = monthSold
+        self.totalLikely = totalLikely
     }
 
     init(from decoder: Decoder) throws {
@@ -136,6 +199,10 @@ struct WidgetHaulData: Codable, Equatable {
         recentFinds = try c.decodeIfPresent([WidgetFind].self, forKey: .recentFinds) ?? []
         monthProfit = try c.decodeIfPresent(Double.self, forKey: .monthProfit)
         monthFlips = try c.decodeIfPresent(Int.self, forKey: .monthFlips) ?? 0
+        streakLastScan = try c.decodeIfPresent(Date.self, forKey: .streakLastScan)
+        freeScanAllowance = try c.decodeIfPresent(Int.self, forKey: .freeScanAllowance)
+        monthSold = try c.decodeIfPresent(Int.self, forKey: .monthSold) ?? 0
+        totalLikely = try c.decodeIfPresent(Double.self, forKey: .totalLikely)
     }
 }
 
@@ -160,18 +227,33 @@ extension WidgetHaulData {
     /// sub-thousand case, printing the "$1000" the abbreviation exists to
     /// avoid; and it made 9,999 read "$10.0K" while 10,000 read "$10K" — the
     /// same number, spelled two ways, one dollar apart.
+    ///
+    /// The sign is prefixed to the whole thing, not left inside the amount.
+    /// Interpolating the signed number straight after the "$" printed a loss
+    /// as "$-1.2K", and the month's profit is the one consumer that expects
+    /// negatives. The app spells the same figure "−$420"
+    /// (`FlipsViewModel.signedMoney`), and one number must not read two ways
+    /// on two surfaces — so this uses the same U+2212 minus.
     static func compactMoney(_ value: Double) -> String {
         let dollars = value.rounded()
-        guard abs(dollars) >= 1_000 else { return "$\(Int(dollars))" }
+        let sign = dollars < 0 ? "−" : ""
+        let magnitude = abs(dollars)
+        guard magnitude >= 1_000 else { return "\(sign)$\(Int(magnitude))" }
 
-        let thousands = (dollars / 100).rounded() / 10
-        guard abs(thousands) >= 10 else {
-            return "$\(String(format: "%.1f", thousands))K"
+        let thousands = (magnitude / 100).rounded() / 10
+        guard thousands >= 10 else {
+            return "\(sign)$\(String(format: "%.1f", thousands))K"
         }
-        return "$\(Int(thousands.rounded()))K"
+        return "\(sign)$\(Int(thousands.rounded()))K"
     }
 
-    var compactTotal: String { Self.compactMoney(totalHigh) }
+    /// The one number, when there is room for one number.
+    ///
+    /// The midpoint total when the writer had one — that is the figure the app
+    /// prints under "Your finds are worth", and a complication that disagrees
+    /// with the app by a third is worse than no complication. `totalHigh` only
+    /// for a blob from a build that did not write it.
+    var compactTotal: String { Self.compactMoney(totalLikely ?? totalHigh) }
 
     var compactRange: String {
         "\(Self.compactMoney(totalLow))–\(Self.compactMoney(totalHigh))"
@@ -181,6 +263,311 @@ extension WidgetHaulData {
     /// room for a label beside the number.
     var findsLabel: String {
         "\(itemCount) find\(itemCount == 1 ? "" : "s")"
+    }
+
+    /// A display range, respelled for VoiceOver.
+    ///
+    /// `ScanResult.formattedRange` and every `WidgetFind.range` carry an en
+    /// dash, which a voice either reads as "dash" or drops — and dropping it
+    /// runs the two figures together into a number that means nothing. Only
+    /// the separator changes; the money is already formatted.
+    static func spoken(_ range: String) -> String {
+        range.replacingOccurrences(of: "\u{2013}", with: " to ")
+    }
+
+    /// The haul range as a sentence, for VoiceOver.
+    ///
+    /// `formattedRange` is display text, and the widgets were handing it
+    /// straight to `accessibilityLabel`. "$348–$620" is announced as "348 dash
+    /// 620" — or the en dash is swallowed entirely, depending on the voice, so
+    /// the two figures run together into one number that is not the answer to
+    /// anything. A range has to be spoken as a range.
+    var spokenRange: String {
+        guard hasScans else { return "nothing scanned yet" }
+        return "\(Self.money(totalLow)) to \(Self.money(totalHigh))"
+    }
+
+    /// The whole haul as one sentence, for a widget that should be a single
+    /// VoiceOver element rather than five unlabelled fragments and a symbol
+    /// name.
+    var spokenHaul: String {
+        guard hasScans else { return "SnapWorth. Nothing scanned yet." }
+        return "SnapWorth haul, \(Self.itemsLabel(itemCount)) scanned, "
+             + "worth \(spokenRange)."
+    }
+
+    /// "8 items" / "1 item".
+    ///
+    /// Static because the Quick Scan widget's entry carries a bare count
+    /// rather than a whole haul — which is how it came to hardcode the plural
+    /// and greet a brand-new user with "1 items in your haul" on the very
+    /// first impression the widget ever makes. Three widgets were spelling
+    /// this out inline; one of them got it wrong.
+    static func itemsLabel(_ count: Int) -> String {
+        "\(count) item\(count == 1 ? "" : "s")"
+    }
+}
+
+// ── Palette ──────────────────────────────────────────────────────────────────
+//
+// The widget extension cannot import `DesignSystem.swift`, so its palette was
+// typed by hand — and drifted. Every accent ended up at a *light-mode* value
+// sitting on a dark tile, which is the wrong half of each adaptive pair, and
+// two of them failed WCAG AA on the ground they were drawn on: terracotta at
+// 3.29:1 and warm grey at 3.82:1 against the old `#2C2C2C`, both carrying
+// 10-13pt text. The app had already done exactly this work — `snapWarmGray`
+// was 3.1:1 on cream and was darkened to 5.7:1 — and the widget's copy never
+// got it.
+//
+// The hexes live here, in the block both targets compile, and
+// `DesignSystem.swift` reads them for its dark-mode values while the
+// extension's `Color` extension reads them for its fixed ones. Being strings
+// rather than `Color`s is what lets a test in the app target compute the
+// contrast ratios — which is how the drift was found.
+
+/// Brand hexes for a dark surface.
+enum SnapDarkHex {
+
+    /// The widget tile, and the camera screen in the app: a dark surface by
+    /// design rather than by theme, so it does not adapt.
+    static let charcoal = "1C1714"
+
+    /// Cream. Text on `charcoal`, and on any filled accent.
+    static let cream = "FBF7F2"
+
+    // Accents, at their dark-mode values. A widget tile is dark, so the
+    // light-mode values are the wrong half of each pair — which is what was
+    // shipping in the extension.
+    static let terracotta = "E8845F"
+    static let sage = "8FB08A"
+    static let warmGray = "B0A297"
+    static let espresso = "F0E9E2"
+    /// Amber stays *light* in both themes — it is a highlight, not a surface —
+    /// which is why anything drawn on it needs fixed dark ink.
+    static let amber = "E5BE7C"
+
+    /// The app's dark-theme surfaces. Not used by the widget extension, whose
+    /// tile is `charcoal` in both themes — they live here so the whole palette
+    /// is measurable from one place.
+    static let ground = "17120F"
+    static let card = "221B17"
+
+    /// Terracotta as a *filled* surface with cream on top: the Quick Scan tile
+    /// and the medium widget's Scan chip.
+    ///
+    /// A fill and a foreground are opposite requirements — a foreground on a
+    /// dark ground wants lifting, a fill under cream wants darkening — and one
+    /// token was doing both jobs. Cream on the old `#C9583A` fill was 3.99:1,
+    /// and on the foreground terracotta above it would be 2.53:1. This is
+    /// `snapTerracotta` darkened until cream clears AA: 5.43:1.
+    static let terracottaFill = "A8482C"
+
+    /// The far end of the Quick Scan gradient. 6.99:1 under cream.
+    static let terracottaFillDeep = "8F3B22"
+}
+
+// ── Recent finds, and Scans left ─────────────────────────────────────────────
+//
+// Both live here rather than in the widget views because the app test target
+// cannot import the widget extension. The two defects below compiled fine and
+// were invisible to every test: a widget's strings are only testable if the
+// strings are in the shared model.
+
+extension WidgetHaulData {
+    /// The rows the "Recent finds" widget should draw, newest first.
+    ///
+    /// `recentFinds` is a v2 key, so a 1.3.x blob decodes it to `[]` — the
+    /// hand-written `init(from:)` defaults every v2 field — while `itemCount`
+    /// and the totals decode from v1 perfectly. That is exactly the case this
+    /// model documents above: an update installs the new extension before the
+    /// user next opens the app. The widget's header branched on `hasScans` and
+    /// its body on `recentFinds.isEmpty`, so it rendered "$348 – $620" and
+    /// "Nothing scanned yet" at the same time. A v1 blob does carry one find,
+    /// in `lastItemName`/`lastItemRange` — draw that instead of claiming there
+    /// are none.
+    func recentRows(limit: Int) -> [WidgetFind] {
+        if !recentFinds.isEmpty { return Array(recentFinds.prefix(limit)) }
+        guard hasScans, !lastItemName.isEmpty else { return [] }
+        return [WidgetFind(id: "last", name: lastItemName, range: lastItemRange)]
+    }
+
+    /// What the "Scans left" widget is looking at.
+    ///
+    /// Three states, not a number with a fallback. Every read used
+    /// `freeScansRemaining ?? 0`, and nil on a non-Pro blob does not mean
+    /// zero — it means the app has never written a count: no blob in the App
+    /// Group yet, a decode failure, or a v1 blob from an install that has not
+    /// been reopened since the update. Zero is the alarming branch, a large
+    /// terracotta "0" captioned "Back tomorrow, or go Pro", and it was being
+    /// shown to people whose whole daily allowance was untouched.
+    enum ScansLeft: Equatable {
+        case pro(streak: Int)
+        case remaining(Int)
+        case unknown
+    }
+
+}
+
+extension WidgetHaulData.ScansLeft {
+    /// Pro carries the streak rather than the word "unlimited": a number that
+    /// never changes is not worth a slot on someone's Home Screen.
+    var headline: String {
+        switch self {
+        case .pro(let streak):     return streak > 0 ? "\(streak)-day streak" : "Pro"
+        case .remaining(let left): return "\(left)"
+        case .unknown:             return "—"
+        }
+    }
+
+    var subtitle: String {
+        switch self {
+        case .pro(let streak):     return streak > 1 ? "Keep it going" : "Unlimited scans"
+        case .remaining(0):        return "Back tomorrow, or go Pro"
+        case .remaining(let left): return "free scan\(left == 1 ? "" : "s") left today"
+        case .unknown:             return "Open SnapWorth"
+        }
+    }
+
+    var circularValue: String {
+        switch self {
+        case .pro(let streak):     return streak > 0 ? "\(streak)" : "∞"
+        case .remaining(let left): return "\(left)"
+        case .unknown:             return "—"
+        }
+    }
+
+    var spoken: String {
+        switch self {
+        case .pro(let streak):
+            return streak > 0 ? "\(streak) day scanning streak" : "SnapWorth Pro"
+        case .remaining(0):
+            return "No free scans left today"
+        case .remaining(let left):
+            return "\(left) free scan\(left == 1 ? "" : "s") left today"
+        case .unknown:
+            return "Scan count not available yet. Open SnapWorth."
+        }
+    }
+
+    /// True only when the count is known and spent — the view paints terracotta
+    /// here, which reads as "you are out" and must not fire on `.unknown`.
+    var isSpent: Bool { self == .remaining(0) }
+}
+
+// ── Freshness ────────────────────────────────────────────────────────────────
+//
+// A widget renders an entry, and an entry has a date. Everything below asks
+// whether a stored number still describes the period it was written for, using
+// that date rather than `Date.now` — so the answer is the same whether it is
+// computed for a timeline entry scheduled at a boundary or for a test.
+
+extension WidgetHaulData {
+    /// A UTC calendar, matching `FreeScanCounter.isServerToday`.
+    ///
+    /// The allowance resets on the server's day, not the phone's — `quota.py`
+    /// counts UTC days — so the widget has to ask the same question the app
+    /// asks, not a local-midnight approximation of it.
+    static var serverCalendar: Calendar {
+        var utc = Calendar(identifier: .gregorian)
+        utc.timeZone = TimeZone(secondsFromGMT: 0) ?? .gmt
+        return utc
+    }
+
+    /// Whether `freeScansRemaining` still describes the day `now` falls in.
+    func quotaIsCurrent(at now: Date) -> Bool {
+        Self.serverCalendar.isDate(updatedAt, inSameDayAs: now)
+    }
+
+    /// The streak as the app would compute it: the stored count if the last
+    /// scan was today or yesterday, else zero. Mirrors `ScanStreak.current()`,
+    /// including its use of the *local* calendar — the streak is a habit, and a
+    /// habit is kept in the timezone you live in, unlike the allowance.
+    ///
+    /// A blob written before `streakLastScan` existed has no date to test
+    /// against, so its count is taken at face value: showing a possibly-stale
+    /// streak for one launch is better than blanking a real one.
+    func liveStreak(at now: Date) -> Int {
+        guard streak > 0 else { return 0 }
+        guard let last = streakLastScan else { return streak }
+        let calendar = Calendar.current
+        if calendar.isDate(last, inSameDayAs: now) { return streak }
+        guard let yesterday = calendar.date(byAdding: .day, value: -1, to: now) else {
+            return streak
+        }
+        return calendar.isDate(last, inSameDayAs: yesterday) ? streak : 0
+    }
+
+    /// Whether `monthProfit` still describes the month `now` falls in. The
+    /// figure is labelled "This month" in the widget, so once this is false the
+    /// label is a false claim and the number has to go.
+    func monthIsCurrent(at now: Date) -> Bool {
+        Calendar.current.isDate(updatedAt, equalTo: now, toGranularity: .month)
+    }
+
+    /// The month's profit, or nil once the month it belongs to has ended.
+    func monthProfit(at now: Date) -> Double? {
+        guard monthIsCurrent(at: now) else { return nil }
+        return monthProfit
+    }
+
+    /// The flip count behind `monthProfit(at:)`, zeroed on the same boundary so
+    /// the two cannot disagree — "$0 from 6 flips" is worse than either alone.
+    func monthFlips(at now: Date) -> Int {
+        monthIsCurrent(at: now) ? monthFlips : 0
+    }
+
+    /// Everything sold in the month, on the same boundary as the other two —
+    /// a sold count that outlived its month would caption October with
+    /// September's sales just as the profit figure once did.
+    func monthSold(at now: Date) -> Int {
+        monthIsCurrent(at: now) ? monthSold : 0
+    }
+
+    /// What the "Scans left" widget is looking at, as of `now`.
+    func scansLeft(at now: Date) -> ScansLeft {
+        if isPro { return .pro(streak: liveStreak(at: now)) }
+        guard let left = freeScansRemaining else { return .unknown }
+        guard quotaIsCurrent(at: now) else {
+            // The allowance has reset since this was written, and the app has
+            // not run to record a scan against the new day — so the whole
+            // allowance is available. Saying so beats both the stale zero and
+            // an em dash.
+            guard let allowance = freeScanAllowance, allowance > 0 else { return .unknown }
+            return .remaining(allowance)
+        }
+        return .remaining(left)
+    }
+
+    /// The instants at which one of the snapshots above stops being true.
+    ///
+    /// The providers emitted a single entry dated `.now` with a blind hourly
+    /// `.after` policy, so every refresh re-read the same frozen numbers and
+    /// nothing was scheduled where they actually expire. A timeline entry at
+    /// each boundary makes the correction happen without the app running.
+    ///
+    /// Three boundaries, because the three values are scoped differently: the
+    /// next UTC midnight (the allowance), the next local midnight (the streak),
+    /// and the start of the next local month (the profit). Deduplicated,
+    /// because for anyone at UTC+0 the first two are the same instant.
+    static func refreshBoundaries(after now: Date) -> [Date] {
+        var dates: [Date] = []
+
+        let utc = serverCalendar
+        if let nextServerDay = utc.date(byAdding: .day, value: 1,
+                                        to: utc.startOfDay(for: now)) {
+            dates.append(nextServerDay)
+        }
+
+        let local = Calendar.current
+        if let nextLocalDay = local.date(byAdding: .day, value: 1,
+                                         to: local.startOfDay(for: now)) {
+            dates.append(nextLocalDay)
+        }
+        if let nextMonth = local.dateInterval(of: .month, for: now)?.end {
+            dates.append(nextMonth)
+        }
+
+        return Set(dates.filter { $0 > now }).sorted()
     }
 }
 
@@ -196,24 +583,61 @@ extension WidgetBridge {
     /// the tap is silently swallowed. Leaving the request here instead lets the
     /// app drain it when it is ready, cold start or resume alike.
     static let pendingActionKey = "snapworth.widget.pendingAction"
+    /// When the waiting action was asked for. Written with it, read with it.
+    static let pendingActionDateKey = "snapworth.widget.pendingActionDate"
+
+    /// How long a waiting tap stays worth acting on.
+    ///
+    /// A tap is an instruction about *now* — "open the camera, I am standing
+    /// in front of something". Nothing aged one out: the writer stored no
+    /// time, the reader returned whatever was there regardless, and nothing
+    /// clears the key on background. So a press the app never came forward to
+    /// drain — a launch the system killed, a phone locked on the way out of a
+    /// pocket, a mind changed — sat in the App Group until the next launch,
+    /// whenever that was, and then opened the camera for a tap from days ago.
+    ///
+    /// Five minutes is far longer than any real hand-off (a cold launch is
+    /// seconds) and far shorter than "later today".
+    static let pendingActionTTL: TimeInterval = 5 * 60
 
     enum PendingAction: String {
         case scan
     }
 
-    static func request(_ action: PendingAction) {
-        UserDefaults(suiteName: appGroupID)?
-            .set(action.rawValue, forKey: pendingActionKey)
+    static func request(_ action: PendingAction, now: Date = Date()) {
+        guard let suite = UserDefaults(suiteName: appGroupID) else { return }
+        suite.set(action.rawValue, forKey: pendingActionKey)
+        suite.set(now, forKey: pendingActionDateKey)
     }
 
-    /// The waiting action, if any. Clears it, so a tap is acted on once —
-    /// re-reading on every foreground would otherwise reopen the camera every
-    /// time the user came back to the app.
-    static func takePendingAction() -> PendingAction? {
+    /// The waiting action, if any, and only while it is still fresh. Clears it
+    /// either way, so a tap is acted on once — re-reading on every foreground
+    /// would otherwise reopen the camera every time the user came back.
+    static func takePendingAction(now: Date = Date()) -> PendingAction? {
         guard let suite = UserDefaults(suiteName: appGroupID),
               let raw = suite.string(forKey: pendingActionKey) else { return nil }
+        let requested = suite.object(forKey: pendingActionDateKey) as? Date
         suite.removeObject(forKey: pendingActionKey)
+        suite.removeObject(forKey: pendingActionDateKey)
+        // No date means a request written by a build from before this key
+        // existed. Its age is unknowable, so it is dropped rather than acted
+        // on — losing one tap across one upgrade, against reopening the camera
+        // for an arbitrarily old one.
+        guard let requested, isFresh(requested: requested, now: now) else { return nil }
         return PendingAction(rawValue: raw)
+    }
+
+    /// Whether a request written at `requested` is still worth acting on.
+    ///
+    /// Pure, so the window is testable without an App Group — the same split
+    /// `flashMode` and `hasExpired` use.
+    ///
+    /// A negative age means the clock moved backwards between the write and
+    /// the read, which makes the age meaningless rather than small. Dropped
+    /// for the same reason an undated one is.
+    static func isFresh(requested: Date, now: Date) -> Bool {
+        let age = now.timeIntervalSince(requested)
+        return age >= 0 && age <= pendingActionTTL
     }
 }
 
@@ -235,7 +659,7 @@ struct ThriftRunAttributes: ActivityAttributes {
 
         var formattedRange: String {
             guard itemCount > 0 else { return "$0" }
-            return "\(WidgetHaulData.money(totalLow)) – \(WidgetHaulData.money(totalHigh))"
+            return "\(WidgetHaulData.money(totalLow))–\(WidgetHaulData.money(totalHigh))"
         }
 
         var compactTotal: String { WidgetHaulData.compactMoney(totalHigh) }
@@ -258,13 +682,80 @@ enum WidgetDataStore {
     static let appGroupID = WidgetBridge.appGroupID
     static let haulKey = WidgetBridge.haulKey
 
+    /// The month's ledger figures, from one pass over the library.
+    ///
+    /// Split out because this is the rule the widget's three captions turn on
+    /// and `writeHaul` itself cannot be tested — it writes to the App Group
+    /// and reloads timelines. Same rule `FlipsViewModel.monthlyBuckets` uses:
+    /// sold, with a sold date inside the month `now` falls in.
+    ///
+    /// `flips` counts only the sales that could be priced — `realizedProfit`
+    /// is nil without a paid price — because "$214 from 6 flips" has to be
+    /// true of the same six. `sold` counts every sale. They differ by exactly
+    /// the sales nobody entered a cost basis for, and collapsing that
+    /// difference into one nil is what let the widget print "No flips sold yet
+    /// this month" beside a Flips screen reading "2 items sold".
+    static func monthLedger(results: [ScanResult], now: Date = Date(),
+                            calendar: Calendar = .current)
+    -> (profit: Double, flips: Int, sold: Int) {
+        guard let month = calendar.dateInterval(of: .month, for: now) else {
+            return (0, 0, 0)
+        }
+        let soldThisMonth = results.filter { result in
+            guard result.status == .sold, let soldDate = result.soldDate
+            else { return false }
+            return month.contains(soldDate)
+        }
+        let profits: [Decimal] = soldThisMonth.compactMap(\.realizedProfit)
+        return (NSDecimalNumber(decimal: profits.reduce(Decimal.zero, +)).doubleValue,
+                profits.count,
+                soldThisMonth.count)
+    }
+
     /// Call this after any insert/delete of ScanResults in the main app.
     ///
-    /// `isPro` defaults to nil meaning *carry forward whatever is already
-    /// stored*. Most callers are repository writes that have no idea about
-    /// entitlement, and clobbering it to `false` on every scan would blank a
-    /// paying subscriber's Pro widgets until they next opened the paywall.
+    /// `isPro` defaults to nil meaning *read the persisted entitlement*. Most
+    /// callers are repository writes that have no idea about entitlement, and
+    /// clobbering it to `false` on every scan would blank a paying
+    /// subscriber's Pro widgets until they next opened the paywall.
+    ///
+    /// This used to resolve nil as "carry forward whatever is already
+    /// stored", which sounded conservative and was in fact a dead end: no
+    /// production caller ever passed `isPro`, `WidgetHaulData.empty.isPro` is
+    /// `false`, and a v1 blob has no `isPro` key to seed from — so the flag
+    /// could never become true and two of the six widgets were permanently
+    /// wrong for subscribers. Reading the cache the purchase service already
+    /// keeps also handles the other direction: a lapse restores the free-scan
+    /// count on the next write instead of leaving a subscriber's presentation
+    /// on the Home Screen.
+    ///
+    /// The month ledger is written for every tier and is not affected by a
+    /// lapse — the app gives free users that figure too, so withholding it
+    /// here upsold a feature they already had.
     static func writeHaul(results: [ScanResult], isPro: Bool? = nil) {
+        // Never publish a fallback launch's library.
+        //
+        // When SwiftData cannot open the on-disk store, `SnapWorthApp` falls
+        // back to an in-memory container so the app still runs. A fetch against
+        // it does not throw — it succeeds and returns `[]` — so every caller
+        // here looked like a library that had simply been emptied, and the
+        // launch-path seed reached this function before the app had any idea
+        // whether the store would ever open again. This blob is the only copy
+        // of the haul outside the store, which makes it the only representation
+        // still standing while the store is unreadable; rewriting it to zeros
+        // destroys the last good figures for a condition that, on a transient
+        // failure like a full disk at open time, clears itself next launch.
+        //
+        // The guard lives here rather than at the call site because there is
+        // more than one caller: `seedWidgetData` on launch and on an
+        // entitlement change, and `ScanRepository`'s debounced sync for every
+        // scan written during the fallback session — work that is discarded at
+        // quit and has no business reaching the Home Screen either.
+        //
+        // Stale beats zeroed. The first healthy launch overwrites it with the
+        // truth.
+        guard !AppLaunchState.isRunningOnFallbackStore else { return }
+
         // Condition-adjusted, like every other surface. This summed the raw AI
         // baseline while `lastItemRange` below — rendered inches away inside
         // the same medium widget — is adjusted, so a one-item library showed
@@ -280,10 +771,24 @@ enum WidgetDataStore {
         let hi = NSDecimalNumber(decimal: results.reduce(Decimal.zero) {
             $0 + $1.priceRange(for: $1.condition).high
         }).doubleValue
+        // The midpoint of the very range above — same items, same condition
+        // adjustment, `likely` instead of `low` and `high`. So the circular
+        // complication reads the middle of what the rectangular one shows,
+        // rather than its top. See `WidgetHaulData.totalLikely`.
+        //
+        // Summed over every result, like `lo` and `hi`, and *not* over
+        // `HistoryViewModel.portfolioTotal`'s population, which is the unsold
+        // portfolio. The two agree for a library with nothing sold, which is
+        // the case the finding describes; where they differ they are answering
+        // different questions, and so are `totalLow`/`totalHigh` already. A
+        // widget whose own three figures disagree with each other would be the
+        // worse trade.
+        let likely = NSDecimalNumber(decimal: results.reduce(Decimal.zero) {
+            $0 + $1.priceRange(for: $1.condition).likely
+        }).doubleValue
         let last = results.max(by: { $0.timestamp < $1.timestamp })
 
-        let previous = readHaul()
-        let pro = isPro ?? previous.isPro
+        let pro = isPro ?? StoreKitPurchaseService.cachedIsSubscribed
 
         let recent = results
             .sorted { $0.timestamp > $1.timestamp }
@@ -292,29 +797,12 @@ enum WidgetDataStore {
                               name: $0.itemName,
                               range: $0.formattedRange) }
 
-        // Month-to-date ledger, by the same rule `FlipsViewModel.monthlyBuckets`
-        // uses: sold, with a sold date inside the current month. Computed here
-        // from the same array rather than passed in, so the widget and the
-        // Flips screen cannot disagree about a month's profit the way four
-        // surfaces once disagreed about an item's value.
-        //
-        // The count is of items that actually *contributed* profit, not of
-        // everything sold: `realizedProfit` is nil without a cost basis, and
-        // "$214 from 6 flips" has to be true of the same six.
-        let monthInterval = Calendar.current.dateInterval(of: .month, for: Date())
-        let monthProfits: [Decimal] = results.compactMap { result in
-            guard result.status == .sold,
-                  let soldDate = result.soldDate,
-                  let monthInterval, monthInterval.contains(soldDate)
-            else { return nil }
-            return result.realizedProfit
-        }
-        let monthProfit = NSDecimalNumber(
-            decimal: monthProfits.reduce(Decimal.zero, +)).doubleValue
+        let month = Self.monthLedger(results: results)
 
         // Pro-only figures are written only while Pro, so a lapse clears them
         // on the next write instead of leaving a paid number on the Home
-        // Screen indefinitely.
+        // Screen indefinitely. The month ledger is *not* one of them — see
+        // below.
 
         let data = WidgetHaulData(
             totalLow:      lo,
@@ -327,8 +815,30 @@ enum WidgetDataStore {
             isPro:         pro,
             streak:        ScanStreak.current(),
             recentFinds:   Array(recent),
-            monthProfit:   pro && !monthProfits.isEmpty ? monthProfit : nil,
-            monthFlips:    pro ? monthProfits.count : 0
+            // Written for every tier. The app is the authority on what is
+            // paid, and it hands free users this exact figure: `FlipsView`
+            // puts them on the month scope on purpose, under a header reading
+            // "Profit this month", computed by the same month-scoped sum this
+            // writer takes. The real ledger gates are all-time scope, sold
+            // rows past `ledgerFreeSoldCap`, and CSV export.
+            //
+            // Withholding it here made the widget upsell a feature the user
+            // already had, with a deep link that opens the very screen showing
+            // the number — and produced the same blob state for a lapsed
+            // subscriber, telling them profit tracking had been taken away
+            // when it had not.
+            monthProfit:   month.flips > 0 ? month.profit : nil,
+            monthFlips:    month.flips,
+            // The day the streak was last extended and the full allowance, so
+            // the widget can tell a live streak from a lapsed one and a spent
+            // allowance from a reset one without the app running.
+            streakLastScan: ScanStreak.lastScan,
+            freeScanAllowance: Config.freeScansAllowed,
+            // Ungated with the other two: it captions the same figure, and a
+            // caption that says "0 sold" beside a real profit would be its own
+            // contradiction.
+            monthSold: month.sold,
+            totalLikely: likely
         )
 
         guard

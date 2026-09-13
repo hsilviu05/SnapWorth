@@ -21,13 +21,20 @@ enum MoneyInput {
     /// - **Both present** — the *last* one is the decimal separator and the
     ///   other is grouping. `1.234,56` is 1234.56 and `1,234.56` is also
     ///   1234.56, which is exactly what each writer meant.
-    /// - **Only a point** — it is the decimal separator. `45.5` is 45.5.
-    /// - **Only a comma** — ambiguous, and settled by what follows it: exactly
-    ///   three digits is grouping (`1,250` → 1250, how a US user writes it),
-    ///   one or two is a decimal (`12,50` → 12.50, how most of Europe writes a
-    ///   price). The case this gets wrong is a European writing `1,250` for one
-    ///   euro twenty-five — three decimal places in a price field, which no
-    ///   keypad encourages and no marketplace charges.
+    /// - **Only one kind of separator** — ambiguous, and settled by what
+    ///   follows the last one: exactly three digits is grouping (`1,250` →
+    ///   1250, how a US user writes it; `1.250` → 1250, how a German one
+    ///   does), one or two is a decimal (`12,50` and `12.50` → 12.50). The
+    ///   case this gets wrong is someone writing three decimal places in a
+    ///   price field, which no keypad encourages and no marketplace charges.
+    ///
+    ///   The point used to skip that test — it was read as a decimal
+    ///   unconditionally — so the rule was true of the comma and false of the
+    ///   point, on a keypad where the point *is* the grouping separator.
+    ///   `1.250` parsed as 1.25 and `1.234.567` as 1234.567: a thousandfold
+    ///   error, written silently onto `paidPrice`, `soldPrice`, `feesEstimate`
+    ///   and the guess field. `PriceTagOCR.normalizedDecimal` already applies
+    ///   the symmetric rule, and its own doc claims this function does too.
     ///
     /// Everything that is not a digit or a separator is dropped, so a pasted
     /// currency symbol costs nothing.
@@ -43,16 +50,16 @@ enum MoneyInput {
         case let (comma?, dot?):
             decimalIndex = comma > dot ? comma : dot
         case (nil, let dot?):
-            decimalIndex = dot
+            decimalIndex = Self.groupingRun(after: dot, in: kept) ? nil : dot
         case let (comma?, nil):
-            let digitsAfter = kept.distance(from: kept.index(after: comma), to: kept.endIndex)
-            decimalIndex = digitsAfter == 3 ? nil : comma
+            decimalIndex = Self.groupingRun(after: comma, in: kept) ? nil : comma
         case (nil, nil):
             decimalIndex = nil
         }
 
         var out = ""
         var index = kept.startIndex
+
         while index < kept.endIndex {
             let character = kept[index]
             if character.isNumber {
@@ -64,6 +71,16 @@ enum MoneyInput {
             index = kept.index(after: index)
         }
         return out
+    }
+
+    /// True when exactly three digits follow `separator`, which is what makes
+    /// it a thousands separator rather than a decimal point.
+    ///
+    /// One rule for either mark. Applying it to the comma alone is what let
+    /// `1.250` mean one-and-a-quarter on a keypad where the point groups.
+    private static func groupingRun(after separator: String.Index,
+                                    in text: String) -> Bool {
+        text.distance(from: text.index(after: separator), to: text.endIndex) == 3
     }
 
     /// Nil for empty or unparseable input — the caller keeps the previous
@@ -161,23 +178,118 @@ enum MarketplaceFees {
         overrideTable[marketplace] ?? defaults[marketplace]
     }
 
-    /// Optional override table cached in UserDefaults. Shape:
-    /// `{ "ebay": { "pct": 0.13, "fixed": 0.40 }, ... }`. Any malformed or
-    /// out-of-range entry is ignored in favour of the default, so a bad push can
-    /// never break the math.
+    /// One marketplace's entry in the override JSON.
+    ///
+    /// Shape, matching the website's mirror of the same table
+    /// (`website/index.html`, the `FEES` object):
+    /// `{ "ebay": { "pct": "0.1325", "fixed": "0.40" },
+    ///    "poshmark": { "pct": "0.20", "fixed": "0",
+    ///                  "flatBelow": "15", "flatFee": "2.95" } }`
+    ///
+    /// Every field is optional: an entry replaces only what it names and keeps
+    /// the shipped default for the rest. That is the fix for a silent
+    /// money bug — the decoder used to build
+    /// `MarketplaceFee(sellingFeePercent:fixedFee:)` and nothing else, so
+    /// `lowPriceFlatFee` fell back to its `nil` default. Because `fee(for:)`
+    /// prefers an override over the default outright, a push that touched
+    /// Poshmark's percentage *deleted* the "$2.95 under $15" rule, and a $10
+    /// sale started being charged 20% ($2.00) instead of $2.95. The old wire
+    /// shape could not express the rule at all.
+    ///
+    /// To remove a low-price rule on purpose, send `"flatBelow": 0`.
+    private struct FeeOverride: Decodable {
+        let pct: DecimalValue?
+        let fixed: DecimalValue?
+        let flatBelow: DecimalValue?
+        let flatFee: DecimalValue?
+    }
+
+    /// A rate or amount from the override JSON, decoded **exactly**.
+    ///
+    /// `defaults` above is built from string literals with a comment saying
+    /// why: "so the money math stays exact (Decimal(0.1325) would capture the
+    /// Double's rounding error)". The override decoder then did precisely
+    /// that — `Decimal(pct)` from a `Double` — so a pushed 0.1325 became
+    /// 0.132500000000000006661338147750939242541790008544921875 and every
+    /// fee computed from it carried the error.
+    ///
+    /// A string is the preferred wire form and is parsed exactly. A JSON
+    /// number is accepted for compatibility with the website's shape, via
+    /// `Double.description` — documented to be the shortest string that
+    /// round-trips to the same value, so `0.1325` comes back as `"0.1325"`
+    /// and parses exactly.
+    private struct DecimalValue: Decodable {
+        let value: Decimal
+
+        init(from decoder: Decoder) throws {
+            let container = try decoder.singleValueContainer()
+            if let text = try? container.decode(String.self) {
+                guard let parsed = Decimal(string: text.trimmingCharacters(
+                    in: .whitespaces)) else {
+                    throw DecodingError.dataCorruptedError(
+                        in: container, debugDescription: "unparseable amount")
+                }
+                value = parsed
+                return
+            }
+            let number = try container.decode(Double.self)
+            guard number.isFinite,
+                  let parsed = Decimal(string: "\(number)") else {
+                throw DecodingError.dataCorruptedError(
+                    in: container, debugDescription: "unusable number")
+            }
+            value = parsed
+        }
+    }
+
+    /// Optional override table cached in UserDefaults. A bad push can never
+    /// reach the math, at one of two granularities:
+    ///
+    /// * a value of the wrong **type** fails the decode, so the whole push is
+    ///   discarded — half a fee table is never applied;
+    /// * a value of the right type but out of **range** discards only its own
+    ///   entry, so one bad marketplace does not cost the others.
     static var overrideTable: [Marketplace: MarketplaceFee] {
         guard let data = UserDefaults.standard.data(forKey: overrideKey),
-              let raw = try? JSONDecoder().decode([String: [String: Double]].self, from: data)
+              let raw = try? JSONDecoder().decode(
+                [String: FeeOverride].self, from: data)
         else { return [:] }
 
         var table: [Marketplace: MarketplaceFee] = [:]
-        for (key, values) in raw {
+        for (key, entry) in raw {
             guard let marketplace = Marketplace(rawValue: key),
-                  let pct = values["pct"], let fixed = values["fixed"],
-                  pct >= 0, pct < 1, fixed >= 0 else { continue }
-            table[marketplace] = MarketplaceFee(sellingFeePercent: Decimal(pct), fixedFee: Decimal(fixed))
+                  let base = defaults[marketplace],
+                  let resolved = merged(base, with: entry) else { continue }
+            table[marketplace] = resolved
         }
         return table
+    }
+
+    /// `base` with the fields `entry` names replaced. Nil rejects the entry.
+    private static func merged(_ base: MarketplaceFee,
+                               with entry: FeeOverride) -> MarketplaceFee? {
+        let pct = entry.pct?.value ?? base.sellingFeePercent
+        let fixed = entry.fixed?.value ?? base.fixedFee
+        guard pct >= 0, pct < 1, fixed >= 0 else { return nil }
+
+        var flat = base.lowPriceFlatFee
+        if entry.flatBelow != nil || entry.flatFee != nil {
+            let below = entry.flatBelow?.value ?? 0
+            let fee = entry.flatFee?.value ?? 0
+            guard below >= 0, fee >= 0 else { return nil }
+            if below == 0 {
+                flat = nil                  // deliberate removal
+            } else if fee >= below {
+                // A flat charge at or above its own threshold means every sale
+                // under it nets the seller nothing or less. That is a bad push,
+                // not a fee.
+                return nil
+            } else {
+                flat = MarketplaceFee.LowPriceFlatFee(below: below, fee: fee)
+            }
+        }
+        return MarketplaceFee(sellingFeePercent: pct, fixedFee: fixed,
+                              lowPriceFlatFee: flat)
     }
 }
 

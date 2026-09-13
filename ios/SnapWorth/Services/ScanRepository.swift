@@ -1,6 +1,24 @@
 import SwiftData
 import SwiftUI
 
+/// A persistence failure that hands back something safe to keep on screen.
+///
+/// `AppError.from` maps this to `.persistence` like any other storage error, so
+/// no caller that only wants to report a failure has to know about it.
+enum ScanPersistenceError: Error {
+    /// The insert was rolled back. `replacement` is a context-free copy of the
+    /// row, taken before the insert, for a caller that is already displaying it.
+    case saveFailed(replacement: ScanResult)
+
+    /// The store failed to open at launch, so this session is running on a
+    /// throwaway in-memory container and nothing written to it survives.
+    ///
+    /// Separate from `saveFailed` because the honest thing to say is different:
+    /// that one is a write that failed and can be retried, this one is a write
+    /// that would *succeed* and be discarded at quit.
+    case storeUnavailable(replacement: ScanResult)
+}
+
 /// Owns all SwiftData persistence for ScanResult.
 /// ViewModels call this instead of touching ModelContext directly.
 @MainActor
@@ -11,17 +29,57 @@ final class ScanRepository {
         self.context = context
     }
 
+    // ── Why every failure path rolls back ────────────────────────────────────
+    //
+    // `context` here is `sharedModelContainer.mainContext` (injected by
+    // `.modelContainer` in SnapWorthApp), and nothing in the app sets
+    // `autosaveEnabled`, so it is on. A failed `save()` used to leave the
+    // pending change sitting in that shared context, which has two
+    // consequences:
+    //
+    //   1. SwiftData saves the *whole* context, so one unsavable change makes
+    //      every later `context.save()` in the session fail too, from any call
+    //      site. Delete a find, add a find, clear history — all broken for the
+    //      rest of the launch by one bad row.
+    //   2. Autosave keeps retrying the change the user was told had failed, so
+    //      the row can appear later anyway, contradicting the message.
+    //
+    // The existing tests could not see it: they build on `ModelContext(container)`,
+    // a secondary context whose autosave defaults to *false*.
+
     func save(_ result: ScanResult) throws {
+        // A write to a fallback store is not a save.
+        //
+        // When the on-disk store cannot be opened, `SnapWorthApp` substitutes
+        // an in-memory container so the app still runs — and `context.save()`
+        // against it *succeeds*. Nothing on this path consulted the flag, so
+        // the session behaved exactly like a healthy one: the server charged a
+        // quota unit, the free-scan counter decremented, and the result sheet
+        // told the user the find was added to My Finds. It showed in History
+        // for the rest of the session and was gone on the next launch — a scan
+        // they paid for, positively claimed as saved, beside a library that
+        // looked empty for no stated reason.
+        //
+        // Thrown before the insert, so `result` is still context-free and the
+        // caller keeps the row it is already displaying.
+        guard !AppLaunchState.isRunningOnFallbackStore else {
+            throw ScanPersistenceError.storeUnavailable(replacement: result)
+        }
         // Seeds the denormalised portfolio value and the first history point.
         // Done here rather than in the model's init so every persisted row has
         // one, including any future call site that builds a ScanResult
         // differently.
         result.refreshPortfolioValue()
+        // Taken before the insert, so the rollback below cannot reach it. The
+        // result sheet is already on screen holding `result`; see
+        // `detachedCopy()`.
+        let replacement = result.detachedCopy()
         context.insert(result)
         do {
             try context.save()
         } catch {
-            throw AppError.persistence
+            context.rollback()
+            throw ScanPersistenceError.saveFailed(replacement: replacement)
         }
         scheduleWidgetSync()
     }
@@ -32,6 +90,10 @@ final class ScanRepository {
         do {
             try context.save()
         } catch {
+            // Safe without a copy: these rows are already persisted, so
+            // rollback restores them to their stored state rather than
+            // discarding them.
+            context.rollback()
             throw AppError.persistence
         }
         // No orphaned ledger follow-up for a deleted item.
@@ -44,10 +106,16 @@ final class ScanRepository {
         do {
             try context.save()
         } catch {
+            context.rollback()
             throw AppError.persistence
         }
         NotificationManager.shared.cancelAllLedger()
         WidgetDataStore.writeHaul(results: [])
+        // And the run, which is computed from the same array. Every other
+        // mutation goes through `scheduleWidgetSync`, which updates both; this
+        // one wrote the blob directly and left the Live Activity showing the
+        // total of scans that no longer exist.
+        Task { await ThriftRunController.update(results: []) }
     }
 
     // ── On the portfolio total, and why there is no aggregate here ────────────
@@ -93,17 +161,6 @@ final class ScanRepository {
         return (try? context.fetchCount(descriptor)) ?? 0
     }
 
-    /// Recomputes the widget's haul summary, off the presentation path.
-    ///
-    /// The aggregate genuinely needs every record, so running it synchronously
-    /// inside `save` put an O(history) main-actor fetch directly in the way of
-    /// the result sheet's presentation animation. Deferring lets the sheet
-    /// settle first; a widget has no latency requirement.
-    ///
-    /// Captures the `ModelContext`, not `self`. Repositories are constructed
-    /// per call site as locals (`ScanRepository(context: modelContext)`), so a
-    /// `[weak self]` capture would be nil by the time this ran and the widget
-    /// would silently stop updating. The context outlives the repository.
     /// Re-sync the widget after something other than an insert or a delete
     /// changed a value.
     ///
@@ -114,10 +171,50 @@ final class ScanRepository {
         scheduleWidgetSync()
     }
 
+    /// The sync waiting to run, so the next one can cancel it.
+    ///
+    /// `static`, and that is the whole point rather than an oversight: a
+    /// repository is constructed per call site as a local
+    /// (`ScanRepository(context: modelContext)` — `HistoryView.repository` is
+    /// a *computed* property, so even one view makes a new one every time), so
+    /// an instance property could never see the previous call's task and the
+    /// cancellation would be a no-op. The class is `@MainActor`, so this is
+    /// main-actor state: there is no race to guard.
+    ///
+    /// Readable from the tests — `private(set)` — because cancellation is the
+    /// whole behaviour and there is nothing else to observe: the work itself
+    /// writes to the App Group, which a test host has no access to.
+    private(set) static var widgetSync: Task<Void, Never>?
+
+    /// Recomputes the widget's haul summary, off the presentation path,
+    /// coalescing a burst of mutations into one write.
+    ///
+    /// The aggregate genuinely needs every record, so running it synchronously
+    /// inside `save` put an O(history) main-actor fetch directly in the way of
+    /// the result sheet's presentation animation. Deferring lets the sheet
+    /// settle first; a widget has no latency requirement.
+    ///
+    /// The delay alone was not a debounce, though the comment here called it
+    /// one. Each call started its own detached `Task`, so clearing a
+    /// twenty-item history ran twenty full-history fetches, twenty blob writes
+    /// and twenty `reloadAllTimelines()` calls 600ms apart — nineteen of them
+    /// computing a result identical to the last. Cancelling the pending task
+    /// is what makes the delay do what it claimed.
+    ///
+    /// `Task.sleep` throws on cancellation and `try?` swallows that, so the
+    /// explicit `isCancelled` check is what actually stops the work; without
+    /// it a cancelled sync would sleep, wake, and carry on regardless.
+    ///
+    /// Captures the `ModelContext`, not `self`. Repositories are constructed
+    /// per call site as locals, so a `[weak self]` capture would be nil by the
+    /// time this ran and the widget would silently stop updating. The context
+    /// outlives the repository.
     private func scheduleWidgetSync() {
+        Self.widgetSync?.cancel()
         let context = self.context
-        Task { @MainActor in
+        Self.widgetSync = Task { @MainActor in
             try? await Task.sleep(for: .milliseconds(600))
+            guard !Task.isCancelled else { return }
             let all = (try? context.fetch(FetchDescriptor<ScanResult>())) ?? []
             WidgetDataStore.writeHaul(results: all)
             // Same hook, same debounce. A thrift run moves for exactly the
