@@ -151,6 +151,14 @@ private struct LegalSection: View {
                 Text(heading)
                     .font(.dmSans(15, weight: .semibold))
                     .foregroundStyle(Color.snapEspresso)
+                    // Both documents are roughly a thousand words of continuous
+                    // prose reachable from the paywall, and neither had a single
+                    // header trait — so the Headings rotor found nothing and the
+                    // only way to reach "Service Providers" was to swipe through
+                    // every paragraph before it. The trait is used correctly in
+                    // four other views, so this was an omission, not a
+                    // convention.
+                    .accessibilityAddTraits(.isHeader)
             }
             Text(text)
                 .font(.snapBody)

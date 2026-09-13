@@ -86,9 +86,17 @@ struct SettingsView: View {
                 }
 
                 // ── Data ───────────────────────────────────────────────────
-                Section("Data") {
-                    SettingsRow(icon: "trash", label: "Clear scan history", destructive: true) {
-                        showDeleteAlert = true
+                //
+                // Offered only when there is something to clear. On a fresh
+                // install the destructive row was still there, reading "This
+                // will permanently delete all 0 saved scans." — and confirming
+                // it ran a delete of nothing that still cancelled every ledger
+                // notification and rewrote the widget and Live Activity blobs.
+                if !results.isEmpty {
+                    Section("Data") {
+                        SettingsRow(icon: "trash", label: "Clear scan history", destructive: true) {
+                            showDeleteAlert = true
+                        }
                     }
                 }
 
@@ -213,7 +221,7 @@ struct SettingsView: View {
             }
             Button("Cancel", role: .cancel) {}
         } message: {
-            Text("This will permanently delete all \(results.count) saved scans.")
+            Text(SettingsViewModel.clearHistoryMessage(count: results.count))
         }
     }
 }

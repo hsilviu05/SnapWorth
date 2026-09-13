@@ -45,6 +45,18 @@ final class SettingsViewModel {
         }
     }
 
+    /// Copy for the Clear History confirmation.
+    ///
+    /// It was `"…all \(count) saved scans."` — the raw count with a hardcoded
+    /// plural and no singular case — so a user with one find read "This will
+    /// permanently delete all 1 saved scans." The same file pluralises
+    /// correctly 150 lines further down, so the standard was already set here.
+    static func clearHistoryMessage(count: Int) -> String {
+        count == 1
+            ? "This will permanently delete your saved scan."
+            : "This will permanently delete all \(count) saved scans."
+    }
+
     func openSettings() {
         guard let url = URL(string: UIApplication.openSettingsURLString) else { return }
         UIApplication.shared.open(url)

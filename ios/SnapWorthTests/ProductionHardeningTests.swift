@@ -4293,3 +4293,90 @@ final class BearerRetryStructureTests: XCTestCase {
         }
     }
 }
+
+// ── Copy that describes the wrong thing ──────────────────────────────────────
+
+final class SettingsCopyTests: XCTestCase {
+
+    func test_oneScanIsNotPluralised() {
+        // "This will permanently delete all 1 saved scans." The same file
+        // pluralises correctly 150 lines further down.
+        XCTAssertEqual(SettingsViewModel.clearHistoryMessage(count: 1),
+                       "This will permanently delete your saved scan.")
+        XCTAssertFalse(SettingsViewModel.clearHistoryMessage(count: 1).contains("scans"))
+    }
+
+    func test_severalScansAreCountedAndPluralised() {
+        XCTAssertEqual(SettingsViewModel.clearHistoryMessage(count: 12),
+                       "This will permanently delete all 12 saved scans.")
+    }
+
+    func test_theZeroCaseIsAtLeastGrammatical() {
+        // The row is hidden when the library is empty, so this should not be
+        // reachable — but "all 0 saved scans" was, and copy that depends on a
+        // caller never asking is copy that eventually reads wrong.
+        XCTAssertEqual(SettingsViewModel.clearHistoryMessage(count: 0),
+                       "This will permanently delete all 0 saved scans.")
+    }
+}
+
+@MainActor
+final class ThriftFlipMissingInputTests: XCTestCase {
+
+    func test_itAsksForTheOneThatIsActuallyMissing() {
+        // The defect: clearing the resale field to retype it asked for the
+        // shop price, which was sitting filled in two rows above — and
+        // following that instruction never produced a verdict.
+        let vm = ThriftFlipViewModel()
+        vm.shelfPriceText = "8"
+        vm.resalePriceText = ""
+
+        XCTAssertNil(vm.calculation)
+        XCTAssertEqual(vm.missingInputPrompt,
+                       "Add the expected resale price to see your profit.")
+    }
+
+    func test_itStillAsksForTheShopPriceWhenThatIsTheBlankOne() {
+        let vm = ThriftFlipViewModel()
+        vm.resalePriceText = "65"
+        vm.shelfPriceText = ""
+
+        XCTAssertEqual(vm.missingInputPrompt, "Add the shop price to see your profit.")
+    }
+
+    func test_anEmptyFormAsksForBoth() {
+        XCTAssertEqual(ThriftFlipViewModel().missingInputPrompt,
+                       "Add both prices to see your profit.")
+    }
+
+    func test_aFreeFindIsAShopPriceOfZero() {
+        // `calculation` requires the resale to be positive but the shop price
+        // only to parse — zero is the honest number for something given away,
+        // and the prompt has to agree with the verdict about that.
+        let vm = ThriftFlipViewModel()
+        vm.resalePriceText = "65"
+        vm.shelfPriceText = "0"
+
+        XCTAssertNotNil(vm.calculation)
+        XCTAssertNil(vm.missingInputPrompt, "a verdict is showing; nothing is missing")
+    }
+
+    func test_aZeroResaleIsNotAListing() {
+        let vm = ThriftFlipViewModel()
+        vm.resalePriceText = "0"
+        vm.shelfPriceText = "8"
+
+        XCTAssertNil(vm.calculation)
+        XCTAssertEqual(vm.missingInputPrompt,
+                       "Add the expected resale price to see your profit.")
+    }
+
+    func test_thePromptIsSilentOnceThereIsAVerdict() {
+        let vm = ThriftFlipViewModel()
+        vm.resalePriceText = "65"
+        vm.shelfPriceText = "8"
+
+        XCTAssertNotNil(vm.calculation)
+        XCTAssertNil(vm.missingInputPrompt)
+    }
+}

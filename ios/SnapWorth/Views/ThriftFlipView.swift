@@ -245,7 +245,10 @@ struct ThriftFlipView: View {
         if let calc = vm.calculation {
             verdictCard(calc)
         } else {
-            Text("Add the shop price to see your profit.")
+            // Which input is actually missing — see `missingInputPrompt`. Nil
+            // only when `calculation` is non-nil, which this branch already
+            // rules out.
+            Text(vm.missingInputPrompt ?? "")
                 .font(.snapCaption)
                 .foregroundStyle(Color.snapWarmGray)
                 .frame(maxWidth: .infinity)

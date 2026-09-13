@@ -175,6 +175,34 @@ final class ThriftFlipViewModel {
         )
     }
 
+    /// What the verdict card says while it is still waiting on an input, or
+    /// nil once there is a verdict to show.
+    ///
+    /// The card hardcoded "Add the shop price to see your profit." for both
+    /// missing inputs. `calculation` is nil when *either* the resale price
+    /// fails to parse or is not positive, *or* the shop price fails to parse —
+    /// so clearing the resale field to retype it asked for a shop price that
+    /// was sitting filled in two rows above, and following the instruction
+    /// never produced a verdict.
+    ///
+    /// The two tests differ deliberately, and match `calculation`'s own guards:
+    /// a resale price has to be *positive* (a zero resale is not a listing),
+    /// while a shop price only has to parse, because a free find is a real
+    /// thing and zero is the honest number for it.
+    var missingInputPrompt: String? {
+        guard calculation == nil else { return nil }
+        let hasResale = (Self.decimal(resalePriceText) ?? 0) > 0
+        let hasShelf = Self.decimal(shelfPriceText) != nil
+        switch (hasResale, hasShelf) {
+        case (true, false):
+            return "Add the shop price to see your profit."
+        case (false, true):
+            return "Add the expected resale price to see your profit."
+        default:
+            return "Add both prices to see your profit."
+        }
+    }
+
     func trackVerdict() {
         guard let calculation else { return }
         Analytics.shared.track(.thriftFlipCalculated(verdict: calculation.isProfitable ? "profit" : "loss"))
