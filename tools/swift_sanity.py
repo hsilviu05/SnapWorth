@@ -54,6 +54,19 @@ ARRAY_LITERAL = re.compile(r"\[([^\[\]{}()\"]*)\]")
 FLOAT_LITERAL = re.compile(r"^\d+\.\d+$")
 INT_ARITHMETIC = re.compile(r"^\d+(?:\s*[*/+-]\s*\d+)+$")
 
+# A `case` pattern that uses `as` to *convert a constant* rather than to bind a
+# downcast. In a pattern position `x as String` is read as a cast pattern, not
+# as an expression, so the case keeps the operand's type:
+# `case (kSecAttrKeyTypeRSA as String, 2048)` has type `CFString` and cannot
+# match a `String`. The identical text inside an `if` is an ordinary expression
+# and compiles, which is what makes this so easy to write.
+#
+# `case let error as URLError` and `case is Foo` are the legitimate forms and
+# are excluded by the `let`/`var` test below — flagging those would make this
+# rule noise, and a noisy rule gets deleted along with its true positives.
+CASE_CAST = re.compile(r"^\s*case\b([^:]*)\bas[!?]?\s+[A-Z]\w*")
+CASE_BINDING = re.compile(r"\b(let|var)\b")
+
 
 def raw_string_spans(lines: list[str]) -> set[int]:
     """Line numbers inside a multi-line string, where the rules do not apply."""
@@ -94,6 +107,12 @@ def check(path: Path) -> list[str]:
                     f"{path}:{i + 1}: array literal mixes a float literal with "
                     f"an integer expression — the whole literal becomes [Any]"
                 )
+        case_cast = CASE_CAST.match(line)
+        if case_cast and not CASE_BINDING.search(case_cast.group(1)):
+            problems.append(
+                f"{path}:{i + 1}: `as` inside a `case` pattern is a cast "
+                f"pattern, not an expression — compare in an `if` instead"
+            )
 
     joined = "\n".join(lines)
     for pattern, message in [

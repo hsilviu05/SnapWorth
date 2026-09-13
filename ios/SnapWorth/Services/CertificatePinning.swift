@@ -163,30 +163,39 @@ final class CertificatePinningDelegate: NSObject, URLSessionDelegate {
     /// Pure and `static` so the bytes can be checked against
     /// `openssl pkey -pubout -outform der` without a keychain.
     static func spkiHeader(keyType: String, sizeInBits: Int) -> [UInt8]? {
-        switch (keyType, sizeInBits) {
-        case (kSecAttrKeyTypeRSA as String, 2048):
+        // `if`/`else if` rather than a `switch` over the pair: in a *pattern*
+        // position `kSecAttrKeyTypeRSA as String` is read as a cast pattern,
+        // not an expression, so the case has type `CFString` and cannot match
+        // a `String` — "expression pattern of type 'CFString' cannot match
+        // values of type 'String'", which is what CI said.
+        let rsa = kSecAttrKeyTypeRSA as String
+        let ec = kSecAttrKeyTypeECSECPrimeRandom as String
+
+        if keyType == rsa, sizeInBits == 2048 {
             return [0x30, 0x82, 0x01, 0x22, 0x30, 0x0d, 0x06, 0x09, 0x2a, 0x86, 0x48,
                     0x86, 0xf7, 0x0d, 0x01, 0x01, 0x01, 0x05, 0x00, 0x03, 0x82, 0x01,
                     0x0f, 0x00]
-        case (kSecAttrKeyTypeRSA as String, 4096):
+        }
+        if keyType == rsa, sizeInBits == 4096 {
             return [0x30, 0x82, 0x02, 0x22, 0x30, 0x0d, 0x06, 0x09, 0x2a, 0x86, 0x48,
                     0x86, 0xf7, 0x0d, 0x01, 0x01, 0x01, 0x05, 0x00, 0x03, 0x82, 0x02,
                     0x0f, 0x00]
+        }
         // prime256v1: SEQUENCE(SEQUENCE(id-ecPublicKey, secp256r1), BIT STRING)
-        case (kSecAttrKeyTypeECSECPrimeRandom as String, 256):
+        if keyType == ec, sizeInBits == 256 {
             return [0x30, 0x59, 0x30, 0x13, 0x06, 0x07, 0x2a, 0x86, 0x48, 0xce, 0x3d,
                     0x02, 0x01, 0x06, 0x08, 0x2a, 0x86, 0x48, 0xce, 0x3d, 0x03, 0x01,
                     0x07, 0x03, 0x42, 0x00]
+        }
         // secp384r1, the curve of ISRG Root X2 and the Let's Encrypt E-series
         // intermediates. Same shape, shorter curve OID (06 05 2b 81 04 00 22)
         // and a 97-byte point instead of 65.
-        case (kSecAttrKeyTypeECSECPrimeRandom as String, 384):
+        if keyType == ec, sizeInBits == 384 {
             return [0x30, 0x76, 0x30, 0x10, 0x06, 0x07, 0x2a, 0x86, 0x48, 0xce, 0x3d,
                     0x02, 0x01, 0x06, 0x05, 0x2b, 0x81, 0x04, 0x00, 0x22, 0x03, 0x62,
                     0x00]
-        default:
-            return nil
         }
+        return nil
     }
 }
 
