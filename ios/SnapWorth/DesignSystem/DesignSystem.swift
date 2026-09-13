@@ -958,6 +958,10 @@ struct ScanHistoryCard: View {
             Text(result.formattedRange)
                 .font(.fraunces(16, weight: .bold))
                 .foregroundStyle(Color.snapSageText)
+                // The card is a fixed width computed for the default type
+                // size. "$120 - $180" at 16pt bold already fills most of it.
+                .lineLimit(1)
+                .minimumScaleFactor(0.6)
         }
         .padding(12)
         .frame(width: max(0, width))

@@ -186,6 +186,12 @@ struct FlipsView: View {
             Text(bucket.label)
                 .font(.dmSans(13, weight: .medium))
                 .foregroundStyle(Color.snapWarmGray)
+                // Both columns are fixed widths sized for the default text
+                // size; the fonts are not. `statCard` above scales for the
+                // same reason — without it the month truncates to "Se…" and
+                // the amount wraps under its own bar.
+                .lineLimit(1)
+                .minimumScaleFactor(0.55)
                 .frame(width: 40, alignment: .leading)
 
             GeometryReader { geo in
@@ -199,6 +205,8 @@ struct FlipsView: View {
             Text(vm.signedMoney(bucket.profit))
                 .font(.dmSans(12, weight: .semibold))
                 .foregroundStyle(val < 0 ? Color.snapTerracottaText : Color.snapEspresso)
+                .lineLimit(1)
+                .minimumScaleFactor(0.55)
                 .frame(width: 74, alignment: .trailing)
         }
         // One stop per month, not three. VoiceOver stopped separately on the

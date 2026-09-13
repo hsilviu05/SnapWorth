@@ -5,6 +5,7 @@ struct HistoryView: View {
     let purchaseService: any PurchaseService
 
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Query private var results: [ScanResult]
     @State private var showPaywall = false
     /// Which locked surface opened the paywall.
@@ -28,11 +29,6 @@ struct HistoryView: View {
     /// irreversible here (no soft delete), so it earns the same guard.
     @State private var pendingDelete: ScanResult?
 
-    private let columns = [
-        GridItem(.flexible(), spacing: 12),
-        GridItem(.flexible(), spacing: 12),
-    ]
-
     var filteredResults: [ScanResult] { vm.filtered(results) }
 
     private var repository: ScanRepository { ScanRepository(context: modelContext) }
@@ -43,11 +39,19 @@ struct HistoryView: View {
     var body: some View {
         NavigationStack {
             GeometryReader { geo in
-                let cardWidth = (geo.size.width - hPad * 2 - gridSpacing) / 2
-                let fixedColumns = [
-                    GridItem(.fixed(cardWidth), spacing: gridSpacing),
-                    GridItem(.fixed(cardWidth), spacing: gridSpacing),
-                ]
+                // Two columns at every size but the accessibility ones,
+                // where half a phone width cannot hold a two-line item name
+                // and a price range at 2-3x the type size — the name wrapped
+                // to four lines and the range truncated mid-figure. `perRow`
+                // is 2 for every non-accessibility size, so the arithmetic
+                // below is unchanged for all of them.
+                let perRow = dynamicTypeSize.isAccessibilitySize ? 1 : 2
+                let cardWidth = (geo.size.width - hPad * 2
+                                 - CGFloat(perRow - 1) * gridSpacing) / CGFloat(perRow)
+                let fixedColumns = Array(
+                    repeating: GridItem(.fixed(cardWidth), spacing: gridSpacing),
+                    count: perRow
+                )
 
                 ScrollView {
                     VStack(spacing: 20) {
