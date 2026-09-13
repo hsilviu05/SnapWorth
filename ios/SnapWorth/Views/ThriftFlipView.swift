@@ -98,6 +98,10 @@ struct ThriftFlipView: View {
                     Button("Choose from library") { present(.item, source: .photoLibrary) }
                         .font(.dmSans(14, weight: .semibold))
                         .foregroundStyle(Color.snapTerracottaText)
+                        // A bare text button is only as tall as its line — ~18pt
+                        // here, well under the 44pt minimum, and the only way
+                        // into the library.
+                        .snapHitTarget()
                 }
                 .padding(.top, 8)
             }
@@ -217,6 +221,8 @@ struct ThriftFlipView: View {
                         .foregroundStyle(Color.snapTerracottaText)
                     }
                     .disabled(vm.isReadingTag)
+                    // 13pt text and a glyph, with no padding: a ~17pt target.
+                    .snapHitTarget()
                 }
                 moneyField($vm.shelfPriceText, field: .purchase, placeholder: "0",
                            label: "Shop price")
