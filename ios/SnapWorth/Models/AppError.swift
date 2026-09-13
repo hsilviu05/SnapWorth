@@ -277,32 +277,16 @@ enum AppError: LocalizedError, Equatable {
                 == .orderedSame
     }
 
-    static func == (lhs: AppError, rhs: AppError) -> Bool {
-        switch (lhs, rhs) {
-        case (.network, .network),
-             (.timeout, .timeout),
-             (.serverUnavailable, .serverUnavailable),
-             // Omitted when .sessionExpired was introduced, so it fell to the
-             // `default: false` arm and did not equal itself. Any `== `
-             // comparison or SwiftUI alert de-duplication on this case was
-             // silently wrong.
-             (.sessionExpired, .sessionExpired),
-             (.imageEncodingFailed, .imageEncodingFailed),
-             (.purchaseCancelled, .purchaseCancelled),
-             (.persistence, .persistence):
-            return true
-        case (.rateLimit(let a), .rateLimit(let b)):           return a == b
-        case (.purchaseFailed(let a), .purchaseFailed(let b)): return a == b
-        case (.unknown(let a), .unknown(let b)):               return a == b
-        case (.quotaExceeded(let a), .quotaExceeded(let b)):   return a == b
-        case (.proRequired(let a), .proRequired(let b)):       return a == b
-        // Compared by message, like every other case carrying server copy.
-        // Matching on the case alone would make two different "why this photo
-        // failed" explanations equal, and the alert would not re-present when
-        // the reason changed.
-        case (.unusablePhoto(let a), .unusablePhoto(let b)):   return a == b
-        case (.aiFailed(let a), .aiFailed(let b)):             return a == b
-        default: return false
-        }
-    }
+    // The hand-written `==` that used to live here is gone.
+    //
+    // Every one of its arms was exactly what the compiler synthesises — the
+    // payload-free cases matched by case, the rest by their associated value —
+    // so the only thing it contributed was a `default: return false` that had
+    // to be kept in step by hand. Twice it was not. `.sessionExpired` was
+    // omitted when it was introduced and did not equal itself, which the
+    // comment on that arm recorded; `.storageUnavailable` was omitted the same
+    // way and failed the same way, so an alert could not de-duplicate and
+    // `AppError.from(.storeUnavailable(…)) == .storageUnavailable` was false.
+    //
+    // Synthesis cannot drift: a new case is covered the moment it is declared.
 }

@@ -4595,6 +4595,66 @@ final class FallbackStoreSaveTests: XCTestCase {
         XCTAssertEqual(AppError.from(ScanPersistenceError.storeUnavailable(replacement: row)),
                        .storageUnavailable)
     }
+
+    /// Every case equals itself.
+    ///
+    /// This is not a tautology while `==` is written by hand: the old one
+    /// matched the payload-free cases in an explicit list and returned false
+    /// for everything else, so a case left out of the list did not equal
+    /// itself. `.sessionExpired` was left out once and `.storageUnavailable`
+    /// after it — the second is what sent the assertion above red with two
+    /// sides that printed identically. `==` is synthesised now, and this test
+    /// is what would notice if anyone writes it out again.
+    ///
+    /// The list is spelled out rather than derived: `AppError` cannot be
+    /// `CaseIterable` while it carries associated values, so a missing entry
+    /// here is the one failure mode left. Keep it in step with the enum.
+    func test_everyErrorEqualsItself() {
+        let every: [AppError] = [
+            .network,
+            .timeout,
+            .rateLimit(retryAfter: nil),
+            .rateLimit(retryAfter: 90),
+            .quotaExceeded("spent"),
+            .proRequired("pro"),
+            .serverUnavailable,
+            .aiFailed("no price"),
+            .sessionExpired,
+            .imageEncodingFailed,
+            .unusablePhoto("too dark"),
+            .purchaseCancelled,
+            .purchaseFailed("declined"),
+            .persistence,
+            .storageUnavailable,
+            .unknown("?"),
+        ]
+        for error in every {
+            XCTAssertEqual(error, error, "\(error) does not equal itself")
+        }
+    }
+
+    /// And no two of them are equal to each other — the half of the contract
+    /// that reflexivity alone does not cover, and the reason a synthesised
+    /// `==` is safe here: an alert keyed on `AppError` must re-present when
+    /// the reason changes, including between two messages of the same case.
+    func test_noTwoDifferentErrorsAreEqual() {
+        let distinct: [AppError] = [
+            .network, .timeout, .serverUnavailable, .sessionExpired,
+            .imageEncodingFailed, .purchaseCancelled, .persistence,
+            .storageUnavailable,
+            .rateLimit(retryAfter: nil), .rateLimit(retryAfter: 90),
+            .quotaExceeded("a"), .quotaExceeded("b"),
+            .proRequired("a"),
+            .aiFailed("a"), .aiFailed("b"),
+            .unusablePhoto("a"), .unusablePhoto("b"),
+            .purchaseFailed("a"), .unknown("a"),
+        ]
+        for (i, lhs) in distinct.enumerated() {
+            for rhs in distinct[(i + 1)...] {
+                XCTAssertNotEqual(lhs, rhs, "\(lhs) should not equal \(rhs)")
+            }
+        }
+    }
 }
 
 // ── A profit total and a count that were of different things ─────────────────
