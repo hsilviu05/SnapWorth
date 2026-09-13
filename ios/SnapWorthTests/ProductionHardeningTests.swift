@@ -4492,3 +4492,240 @@ final class NotableFindDedupTests: XCTestCase {
         XCTAssertEqual(Set(out.map(\.id)).count, 3)
     }
 }
+
+// ── A write that succeeds and is thrown away ─────────────────────────────────
+//
+// When the on-disk store cannot be opened, the app substitutes an in-memory
+// container so it still runs — and `context.save()` against that *succeeds*.
+// Nothing on the write path consulted the flag, so the session behaved exactly
+// like a healthy one: the server charged a quota unit, the counter decremented,
+// and the sheet said "Saved to My Finds". It showed in History for the rest of
+// the session and was gone on the next launch.
+
+@MainActor
+final class FallbackStoreSaveTests: XCTestCase {
+
+    private struct NoStore: Error {}
+
+    private func repository() throws -> ScanRepository {
+        let config = ModelConfiguration(isStoredInMemoryOnly: true)
+        let container = try ModelContainer(for: ScanResult.self, configurations: config)
+        return ScanRepository(context: ModelContext(container))
+    }
+
+    private func find() -> ScanResult {
+        ScanResult(itemName: "Better Sweater", brand: "Patagonia", category: "clothing",
+                   conditionNotes: "Solid", valueLow: 60, valueHigh: 95,
+                   confidence: "High", soldListingsCount: 0,
+                   listingTitle: "T", listingDescription: "D")
+    }
+
+    func test_aFallbackLaunchRefusesToClaimTheSave() throws {
+        defer { AppLaunchState.reset() }
+        AppLaunchState.recordPersistentStoreFallback(NoStore())
+
+        let repo = try repository()
+        XCTAssertThrowsError(try repo.save(find())) { error in
+            guard let failure = error as? ScanPersistenceError,
+                  case .storeUnavailable = failure else {
+                return XCTFail("expected storeUnavailable, got \(error)")
+            }
+        }
+    }
+
+    func test_aHealthyLaunchSavesAsBefore() throws {
+        defer { AppLaunchState.reset() }
+        AppLaunchState.reset()
+
+        let repo = try repository()
+        XCTAssertNoThrow(try repo.save(find()))
+    }
+
+    func test_theTwoFailuresDoNotSayTheSameThing() {
+        // "Please try again" is true of a write that failed and false of a
+        // store that will not open: the retry succeeds against the throwaway
+        // container and is lost the same way.
+        let retryable = AppError.persistence.errorDescription ?? ""
+        let permanent = AppError.storageUnavailable.errorDescription ?? ""
+
+        XCTAssertNotEqual(retryable, permanent)
+        XCTAssertTrue(retryable.contains("try again"))
+        XCTAssertFalse(permanent.contains("try again"),
+                       "telling the user to retry is the second false statement")
+        XCTAssertNotEqual(AppError.persistence, AppError.storageUnavailable)
+    }
+
+    func test_bothPersistenceFailuresMapToTheirOwnAppError() {
+        let row = find()
+        XCTAssertEqual(AppError.from(ScanPersistenceError.saveFailed(replacement: row)),
+                       .persistence)
+        XCTAssertEqual(AppError.from(ScanPersistenceError.storeUnavailable(replacement: row)),
+                       .storageUnavailable)
+    }
+}
+
+// ── A profit total and a count that were of different things ─────────────────
+
+@MainActor
+final class FlipsSummaryCountTests: XCTestCase {
+
+    /// Built per test rather than held as a stored property: `FlipsViewModel`
+    /// is `@MainActor`, and a stored-property initialiser runs inside
+    /// `XCTestCase`'s own nonisolated `init`.
+    private func viewModel() -> FlipsViewModel { FlipsViewModel() }
+
+    private func sold(paid: Double?, price: Double, daysAgo: Int = 1) -> ScanResult {
+        let r = ScanResult(itemName: "Item", brand: "B", category: "clothing",
+                           conditionNotes: "Good", valueLow: 40, valueHigh: 60,
+                           confidence: "High", soldListingsCount: 0,
+                           listingTitle: "T", listingDescription: "D")
+        r.paidPrice = paid
+        r.soldPrice = price
+        r.soldDate = Date().addingTimeInterval(TimeInterval(-daysAgo) * 3600)
+        r.status = .sold
+        return r
+    }
+
+    func test_anUncostedSaleIsCountedButNotPriced() {
+        // The defect: "+$0" above "1 item sold" reads as having sold something
+        // for nothing, rather than as a number nobody entered.
+        let s = viewModel().summary([sold(paid: nil, price: 40)], scope: .allTime)
+
+        XCTAssertEqual(s.itemsSold, 1)
+        XCTAssertEqual(s.itemsPriced, 0)
+        XCTAssertEqual(s.realizedProfit, 0)
+        XCTAssertFalse(s.profitCoversEverySale)
+        XCTAssertEqual(s.soldLabel, "1 item sold · 1 needs a paid price")
+    }
+
+    func test_aFullyCostedMonthReadsAsItAlwaysDid() {
+        let s = viewModel().summary([sold(paid: 10, price: 40), sold(paid: 5, price: 25)],
+                           scope: .allTime)
+
+        XCTAssertEqual(s.itemsSold, 2)
+        XCTAssertEqual(s.itemsPriced, 2)
+        XCTAssertEqual(s.realizedProfit, 50)
+        XCTAssertTrue(s.profitCoversEverySale)
+        XCTAssertEqual(s.soldLabel, "2 items sold")
+    }
+
+    func test_theHeadlineSaysHowMuchOfItselfItCovers() {
+        // Two sales, one uncosted: the total understates and nothing on the
+        // header used to say so.
+        let s = viewModel().summary([sold(paid: 10, price: 40), sold(paid: nil, price: 60)],
+                           scope: .allTime)
+
+        XCTAssertEqual(s.realizedProfit, 30)
+        XCTAssertEqual(s.soldLabel, "2 items sold · 1 needs a paid price")
+    }
+
+    func test_anEmptyLedgerSaysNothingOdd() {
+        let s = viewModel().summary([], scope: .allTime)
+        XCTAssertEqual(s.soldLabel, "0 items sold")
+        XCTAssertTrue(s.profitCoversEverySale, "nothing is missing from nothing")
+    }
+}
+
+// ── The verdict said "after fees"; the ledger did not ────────────────────────
+//
+// `saveToLedger` wrote the paid price and the status and nothing else, while
+// `ScanResult.realizedProfit` is `sold − paid − (feesEstimate ?? 0)`. So the
+// screen that had just justified a purchase with "net $27.98 after $7.03 of
+// fees and $5 shipping" handed My Flips a fee-blind row that would later report
+// $40.00 — with an empty Fees column in the CSV, and the same overstatement
+// inherited by the monthly recap and the share card.
+
+@MainActor
+final class ThriftFlipLedgerFeesTests: XCTestCase {
+
+    private func repository() throws -> ScanRepository {
+        let config = ModelConfiguration(isStoredInMemoryOnly: true)
+        let container = try ModelContainer(for: ScanResult.self, configurations: config)
+        return ScanRepository(context: ModelContext(container))
+    }
+
+    private func viewModel(shelf: String, resale: String,
+                           shipping: String) -> ThriftFlipViewModel {
+        let vm = ThriftFlipViewModel()
+        vm.scanResult = ScanResult(itemName: "Better Sweater", brand: "Patagonia",
+                                   category: "clothing", conditionNotes: "Solid",
+                                   valueLow: 40, valueHigh: 60, confidence: "High",
+                                   soldListingsCount: 0,
+                                   listingTitle: "T", listingDescription: "D")
+        vm.selectedMarketplace = .ebay
+        vm.shelfPriceText = shelf
+        vm.resalePriceText = resale
+        vm.shippingText = shipping
+        return vm
+    }
+
+    /// `feesEstimate` is a `Double` on the model while the verdict is `Decimal`,
+    /// so the round trip through storage is not bit-exact — eBay on $50 is
+    /// $7.025 of fee, and 12.025 has no exact binary form. The tolerance is
+    /// that conversion and nothing else; a fee-blind row is out by $12.03.
+    private let storageRounding = 0.0001
+
+    func test_theLedgerRowCarriesTheFeesTheVerdictUsed() throws {
+        defer { AppLaunchState.reset() }
+        AppLaunchState.reset()
+
+        let vm = viewModel(shelf: "10", resale: "50", shipping: "5")
+        let calculation = try XCTUnwrap(vm.calculation)
+        XCTAssertTrue(vm.saveToLedger(repository: try repository()))
+
+        let saved = try XCTUnwrap(vm.scanResult)
+        let expected = NSDecimalNumber(
+            decimal: calculation.platformFees + calculation.shippingCost).doubleValue
+        XCTAssertEqual(expected, 12.025, accuracy: storageRounding, "sanity: $7.025 + $5")
+        XCTAssertEqual(try XCTUnwrap(saved.feesEstimate), expected, accuracy: storageRounding)
+        XCTAssertEqual(saved.paidPrice, 10)
+    }
+
+    func test_theLedgerProfitNowMatchesTheVerdict() throws {
+        // The number the user acted on, and the number My Flips reports for the
+        // same sale, have to be the same number.
+        defer { AppLaunchState.reset() }
+        AppLaunchState.reset()
+
+        let vm = viewModel(shelf: "10", resale: "50", shipping: "5")
+        let verdict = try XCTUnwrap(vm.calculation)
+        XCTAssertTrue(vm.saveToLedger(repository: try repository()))
+
+        let saved = try XCTUnwrap(vm.scanResult)
+        saved.soldPrice = 50
+        saved.status = .sold
+        saved.soldDate = Date()
+
+        let ledger = NSDecimalNumber(decimal: try XCTUnwrap(saved.realizedProfit)).doubleValue
+        XCTAssertEqual(ledger,
+                       NSDecimalNumber(decimal: verdict.netProfit).doubleValue,
+                       accuracy: storageRounding)
+        XCTAssertEqual(ledger, 27.975, accuracy: storageRounding)
+    }
+
+    func test_theOldBehaviourWouldHaveOverstatedByTheFees() {
+        // What the row used to report: sold − paid, with no fees at all.
+        // Stated as a number so the size of the defect is on the record.
+        XCTAssertEqual(50.0 - 10.0 - 27.975, 12.025, accuracy: storageRounding)
+    }
+
+    func test_aFeeBlindVerdictIsNotRecordedAsMeasured() {
+        // `feesUnknown` means the table had no entry and the verdict said so;
+        // its `platformFees` is an assumed zero. `saveToLedger` records only
+        // the shipping the user typed in that case, so a stated uncertainty
+        // does not become a number the ledger reports as fact.
+        //
+        // Asserted on the calculation rather than through the view model: every
+        // marketplace in the picker currently has a fee entry, so the branch is
+        // defensive — which is exactly why it needs to be written down.
+        let blind = FlipMath.calculate(resalePrice: 50, purchasePrice: 10,
+                                       shippingCost: 5, fee: nil)
+        XCTAssertTrue(blind.feesUnknown)
+        XCTAssertEqual(blind.platformFees, 0)
+
+        let known = FlipMath.calculate(resalePrice: 50, purchasePrice: 10, shippingCost: 5,
+                                       fee: MarketplaceFees.fee(for: .ebay))
+        XCTAssertFalse(known.feesUnknown)
+        XCTAssertGreaterThan(known.platformFees, 0)
+    }
+}

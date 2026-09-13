@@ -93,7 +93,10 @@ struct FlipsView: View {
                 .lineLimit(1)
                 .minimumScaleFactor(0.5)
 
-            Text("\(s.itemsSold) item\(s.itemsSold == 1 ? "" : "s") sold")
+            // `soldLabel`, not a raw count: the profit above drops sales
+            // with no paid price, and pairing it with a count of *every* sale
+            // rendered one uncosted sale as "+$0" above "1 item sold".
+            Text(s.soldLabel)
                 .font(.snapCaption)
                 .foregroundStyle(Color.snapWarmGray)
         }

@@ -74,7 +74,26 @@ final class FlipsViewModel {
 
     struct Summary {
         var realizedProfit: Decimal = 0
+        /// Everything sold in scope, priced or not.
         var itemsSold: Int = 0
+        /// The subset `realizedProfit` is actually the profit *of*. Smaller
+        /// than `itemsSold` by exactly the sales with no paid price.
+        var itemsPriced: Int = 0
+
+        /// Whether the headline figure covers every sale it sits above.
+        var profitCoversEverySale: Bool { itemsPriced == itemsSold }
+
+        /// How the sold count should read under a profit total, given that
+        /// some of those sales may not be in it.
+        ///
+        /// Split out so the header and the shareable month card cannot drift:
+        /// they render the same two numbers and there is nowhere else the gap
+        /// can show.
+        var soldLabel: String {
+            let sales = "\(itemsSold) item\(itemsSold == 1 ? "" : "s") sold"
+            guard !profitCoversEverySale else { return sales }
+            return "\(sales) · \(itemsSold - itemsPriced) needs a paid price"
+        }
         var totalInvested: Decimal = 0
         var averageROI: Decimal?          // fraction, e.g. 0.42
         var bestFlip: ScanResult?
@@ -88,8 +107,23 @@ final class FlipsViewModel {
         let sold = all.filter { $0.status == .sold }
         let scopedSold = scope == .month ? sold.filter { isInCurrentMonth($0.soldDate) } : sold
 
+        // Two counts, because they are two different facts.
+        //
+        // `realizedProfit` is nil without a paid price, and dropping those rows
+        // from the sum rather than guessing a cost basis is deliberate and
+        // tested. Pairing that sum with a count taken over the *larger* set was
+        // not: one uncosted sale rendered as "+$0" above "1 item sold", which
+        // reads as having sold something for nothing rather than as a missing
+        // number — and with two sales, one uncosted, the headline quietly
+        // understates real profit with nothing on screen to say so.
+        //
+        // In the list the gap is already visible (the row shows "—" and says
+        // "Profit unknown — add what you paid"). The header and the share card
+        // show only totals, so they need the count to carry it.
         s.itemsSold = scopedSold.count
-        s.realizedProfit = scopedSold.compactMap(\.realizedProfit).reduce(0, +)
+        let priced = scopedSold.compactMap(\.realizedProfit)
+        s.itemsPriced = priced.count
+        s.realizedProfit = priced.reduce(0, +)
 
         let rois = scopedSold.compactMap(\.roi)
         s.averageROI = rois.isEmpty ? nil : rois.reduce(0, +) / Decimal(rois.count)
@@ -147,10 +181,18 @@ final class FlipsViewModel {
     func renderMonthCard(_ all: [ScanResult]) -> UIImage? {
         guard hasSalesThisMonth(all) else { return nil }
         let s = summary(all, scope: .month)
+        // The card carries the *priced* count, not every sale.
+        //
+        // This is the one surface that leaves the app, so the two numbers on it
+        // have to be of the same thing: a total covering one sale printed above
+        // "2 items sold" is a figure nobody can check. The in-app header says
+        // the other half — which sales still need a paid price — because that
+        // is a note to the owner, not something to post.
+        guard s.itemsPriced > 0 else { return nil }
         let card = MonthShareCardView(
             monthTitle: Self.monthYearLabel(Date()),
             realizedProfit: s.realizedProfit,
-            itemsSold: s.itemsSold,
+            itemsSold: s.itemsPriced,
             bestFlipName: s.bestFlip?.itemName,
             bestFlipProfit: s.bestFlip?.realizedProfit
         )

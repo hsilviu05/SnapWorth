@@ -9,6 +9,14 @@ enum ScanPersistenceError: Error {
     /// The insert was rolled back. `replacement` is a context-free copy of the
     /// row, taken before the insert, for a caller that is already displaying it.
     case saveFailed(replacement: ScanResult)
+
+    /// The store failed to open at launch, so this session is running on a
+    /// throwaway in-memory container and nothing written to it survives.
+    ///
+    /// Separate from `saveFailed` because the honest thing to say is different:
+    /// that one is a write that failed and can be retried, this one is a write
+    /// that would *succeed* and be discarded at quit.
+    case storeUnavailable(replacement: ScanResult)
 }
 
 /// Owns all SwiftData persistence for ScanResult.
@@ -40,6 +48,23 @@ final class ScanRepository {
     // a secondary context whose autosave defaults to *false*.
 
     func save(_ result: ScanResult) throws {
+        // A write to a fallback store is not a save.
+        //
+        // When the on-disk store cannot be opened, `SnapWorthApp` substitutes
+        // an in-memory container so the app still runs — and `context.save()`
+        // against it *succeeds*. Nothing on this path consulted the flag, so
+        // the session behaved exactly like a healthy one: the server charged a
+        // quota unit, the free-scan counter decremented, and the result sheet
+        // told the user the find was added to My Finds. It showed in History
+        // for the rest of the session and was gone on the next launch — a scan
+        // they paid for, positively claimed as saved, beside a library that
+        // looked empty for no stated reason.
+        //
+        // Thrown before the insert, so `result` is still context-free and the
+        // caller keeps the row it is already displaying.
+        guard !AppLaunchState.isRunningOnFallbackStore else {
+            throw ScanPersistenceError.storeUnavailable(replacement: result)
+        }
         // Seeds the denormalised portfolio value and the first history point.
         // Done here rather than in the model's init so every persisted row has
         // one, including any future call site that builds a ScanResult

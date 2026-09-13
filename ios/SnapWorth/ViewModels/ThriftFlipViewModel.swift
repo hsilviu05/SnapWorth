@@ -217,9 +217,40 @@ final class ThriftFlipViewModel {
     func saveToLedger(repository: ScanRepository) -> Bool {
         guard let result = scanResult, let purchase = Self.decimal(shelfPriceText) else { return false }
         result.paidPrice = NSDecimalNumber(decimal: purchase).doubleValue
+        // The fees the verdict was computed from, carried into the row.
+        //
+        // Only the paid price went across, and `ScanResult.realizedProfit` is
+        // `sold − paid − (feesEstimate ?? 0)` — so the screen that had just
+        // told the user "net $28.38 after $6.63 of fees and $5 shipping"
+        // handed My Flips a fee-blind row that would later report $40.00, with
+        // an empty Fees column in the CSV and the same overstatement inherited
+        // by the monthly recap and the share card.
+        //
+        // Shipping is always carried because the user typed it. The platform
+        // fee is carried only when the table actually had an entry:
+        // `feesUnknown` means the verdict itself was fee-blind and said so,
+        // and recording an assumed zero here would turn a stated uncertainty
+        // into a fact the ledger reports as measured.
+        if let calculation {
+            let known = calculation.feesUnknown
+                ? calculation.shippingCost
+                : calculation.platformFees + calculation.shippingCost
+            result.feesEstimate = NSDecimalNumber(decimal: known).doubleValue
+        }
         result.status = .owned
         do {
             try repository.save(result)
+        } catch let failure as ScanPersistenceError {
+            // "Try again" is only true of a write that failed. When the store
+            // could not be opened at launch the app is running on a throwaway
+            // in-memory container, so a retry succeeds exactly as silently as
+            // the first attempt and is discarded at quit just the same.
+            if case .storeUnavailable = failure {
+                saveError = "SnapWorth couldn't open your library on this launch, so this flip can't be saved to it."
+            } else {
+                saveError = "Couldn't save this flip. Try again."
+            }
+            return false
         } catch {
             saveError = "Couldn't save this flip. Try again."
             return false

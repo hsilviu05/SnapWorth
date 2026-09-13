@@ -119,6 +119,13 @@ final class ScanViewModel {
                 // copy it took beforehand: same values, no context, safe to
                 // read for as long as the sheet is up. Without this the sheet
                 // would be holding a model SwiftData has discarded.
+                //
+                // Only `.saveFailed` needs the swap. `.storeUnavailable` is
+                // thrown *before* the insert, so the result was never
+                // registered with a context and the sheet is already holding
+                // the right object. The footer reads the same either way:
+                // "Couldn't save to My Finds — this result won't be kept",
+                // which is exactly true of a fallback launch.
                 if let failure = error as? ScanPersistenceError,
                    case .saveFailed(let replacement) = failure {
                     scanResult = replacement

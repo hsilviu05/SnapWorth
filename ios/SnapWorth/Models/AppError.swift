@@ -26,6 +26,10 @@ enum AppError: LocalizedError, Equatable {
     case purchaseCancelled
     case purchaseFailed(String)
     case persistence
+    /// The store could not be opened at launch, so nothing written this
+    /// session survives it. Distinct from `persistence`, which is a write that
+    /// failed and can be retried — this one cannot.
+    case storageUnavailable
     case unknown(String)
 
     /// A 402 from the server: the free allowance is spent, or a Pro-only
@@ -91,6 +95,12 @@ enum AppError: LocalizedError, Equatable {
             return msg
         case .persistence:
             return "Could not save your scan. Please try again."
+        case .storageUnavailable:
+            // Deliberately not "try again": retrying cannot help. The store
+            // failed to open at launch and the app is running on a throwaway
+            // in-memory one, so a second attempt succeeds exactly as silently
+            // as the first and is lost the same way.
+            return "SnapWorth couldn't open your library on this launch, so this find can't be saved to it. Reopening the app may fix it."
         case .unknown:
             return "Something went wrong. Please try again."
         }
@@ -198,8 +208,12 @@ enum AppError: LocalizedError, Equatable {
 
         // A rolled-back save. Callers that only want to report the failure
         // should not have to know the error carries a replacement row.
-        if let failure = error as? ScanPersistenceError,
-           case .saveFailed = failure { return .persistence }
+        if let failure = error as? ScanPersistenceError {
+            switch failure {
+            case .saveFailed:      return .persistence
+            case .storeUnavailable: return .storageUnavailable
+            }
+        }
 
         if let purchaseErr = error as? PurchaseError {
             switch purchaseErr {
