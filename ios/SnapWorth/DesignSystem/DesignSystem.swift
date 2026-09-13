@@ -172,11 +172,44 @@ extension Color {
         static let darkHighContrast = "4C3E35"
     }
 
+    /// The boundary of a *control*, as distinct from a divider.
+    ///
+    /// `snapBorder` measures 1.23:1 against the white card and 1.21:1 against
+    /// the dark one. That is correct for a hairline between two rows of a list
+    /// — a divider is decoration, and WCAG exempts it. It is not enough for
+    /// the edge that says "this is a thing you can pick", which 1.4.11 holds
+    /// to 3:1, and on the paywall that edge is the *only* affordance an
+    /// unselected plan has: the radio's inner dot is drawn when selected, the
+    /// ring and the card outline were both this token, so the Monthly card's
+    /// price and title floated with nothing marking them as an alternative.
+    /// Increase Contrast did not rescue it either — the high-contrast pair is
+    /// 1.70:1 and 1.66:1, a setting whose entire purpose is control edges.
+    ///
+    /// Both values are the *lowest* that clear 3:1 on their card, so this is
+    /// as small a visual change as a correct one can be: 9C8875 is 3.39:1 on
+    /// white, 7A6759 is 3.16:1 on #221B17. The high-contrast pair goes further
+    /// up, to 4.13:1 and 5.01:1, because a user who turned that on is asking
+    /// for more than the minimum.
+    enum SnapControlBorderHex {
+        static let light = "9C8875"
+        static let dark = "7A6759"
+        static let lightHighContrast = "8A7A6C"
+        static let darkHighContrast = "9C8875"
+    }
+
     // Borders / dividers
     static let snapBorder = snapAdaptive(
         light: Color(hex: SnapBorderHex.light), dark: Color(hex: SnapBorderHex.dark),
         lightHighContrast: Color(hex: SnapBorderHex.lightHighContrast),
         darkHighContrast: Color(hex: SnapBorderHex.darkHighContrast)
+    )
+
+    /// Use for the edge of anything the user can pick. See `SnapControlBorderHex`.
+    static let snapControlBorder = snapAdaptive(
+        light: Color(hex: SnapControlBorderHex.light),
+        dark: Color(hex: SnapControlBorderHex.dark),
+        lightHighContrast: Color(hex: SnapControlBorderHex.lightHighContrast),
+        darkHighContrast: Color(hex: SnapControlBorderHex.darkHighContrast)
     )
 
     /// Camera screen background — deliberately dark in *both* themes; the
@@ -212,8 +245,32 @@ extension Color {
     /// second copy of the same pair would be a second thing to keep in step.
     static let snapShimmer = snapEspresso
 
-    // Card shadow colour (rgba 120,80,50,0.08)
-    static let snapCardShadow = Color(red: 120/255, green: 80/255, blue: 50/255)
+    /// Card shadow colour (light: rgba 120,80,50,0.08).
+    ///
+    /// The warm brown was the only colour in the palette not routed through
+    /// `snapAdaptive`, and its luminance (0.0996) is *higher* than the dark
+    /// ground's (0.0065) — so in dark mode the "shadow" was a lightening halo
+    /// that composited to #1F1712 and left the card at 1.04:1 against it: less
+    /// distinguishable from the card than the plain background is at 1.09:1.
+    /// The shadow was working against separation, not for it.
+    ///
+    /// Black in dark mode fixes the direction but cannot fix the problem. A
+    /// drop shadow separates by darkening the ground, and this ground is
+    /// already near-black: even at 45% the halo reaches 1.16:1 against the
+    /// card. That is why `SnapCardModifier` draws a hairline in dark mode —
+    /// see `snapCardEdge`.
+    static let snapCardShadow = snapAdaptive(
+        light: Color(red: 120/255, green: 80/255, blue: 50/255),
+        dark: .black
+    )
+
+    /// The edge that gives a card a boundary where a shadow cannot.
+    ///
+    /// `.clear` in light mode on purpose: there the shadow composites to
+    /// #F1EAE3 and does its job, and adding a stroke would change every card
+    /// in the app for no gain. #584840 is 1.95:1 against the dark card —
+    /// an edge you can see, not an outline you notice.
+    static let snapCardEdge = snapAdaptive(light: .clear, dark: Color(hex: "584840"))
 
     // ── Hex initialiser ──────────────────────────────────────────────
     init(hex: String) {
@@ -415,6 +472,13 @@ struct SnapCardModifier: ViewModifier {
         content
             .background(Color.snapCard)
             .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+            // Drawn under the shadow so the shadow is cast by the whole card,
+            // edge included, exactly as before in light mode — where the edge
+            // is `.clear` and this line changes nothing.
+            .overlay(
+                RoundedRectangle(cornerRadius: 24, style: .continuous)
+                    .strokeBorder(Color.snapCardEdge, lineWidth: 1)
+            )
             .shadow(
                 color: Color.snapCardShadow.opacity(0.08),
                 radius: 24, x: 0, y: 8
@@ -845,7 +909,8 @@ struct PlanCard: View {
                 // Radio indicator
                 ZStack {
                     Circle()
-                        .strokeBorder(isSelected ? Color.snapTerracotta : Color.snapBorder, lineWidth: 2)
+                        .strokeBorder(isSelected ? Color.snapTerracotta : Color.snapControlBorder,
+                                      lineWidth: 2)
                         .frame(width: 22, height: 22)
                     if isSelected {
                         Circle()
@@ -891,7 +956,7 @@ struct PlanCard: View {
             .overlay(
                 RoundedRectangle(cornerRadius: 16, style: .continuous)
                     .strokeBorder(
-                        isSelected ? Color.snapTerracotta : Color.snapBorder,
+                        isSelected ? Color.snapTerracotta : Color.snapControlBorder,
                         lineWidth: isSelected ? 2 : 1
                     )
             )

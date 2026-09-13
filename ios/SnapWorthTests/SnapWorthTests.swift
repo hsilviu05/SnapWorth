@@ -2357,6 +2357,68 @@ final class WidgetPaletteTests: XCTestCase {
         XCTAssertGreaterThan(
             contrast(composite(SnapDarkHex.espresso, over: dark, alpha: 0.5), dark), 3.0)
     }
+
+    // ── A control's edge is held to 3:1; a divider is not ───────────────────
+
+    func test_theDividerTokenCouldNeverHaveBeenAControlEdge() {
+        // Not a regression test on a mistake — the record of why a second
+        // token exists. `snapBorder` is right for dividers and wrong for the
+        // only affordance an unselected plan card has.
+        XCTAssertLessThan(contrast(Color.SnapBorderHex.light, Color.SnapLightHex.card), 1.3)
+        XCTAssertLessThan(contrast(Color.SnapBorderHex.dark, SnapDarkHex.card), 1.3)
+        XCTAssertLessThan(contrast(Color.SnapBorderHex.lightHighContrast,
+                                   Color.SnapLightHex.card), 2.0,
+                          "Increase Contrast did not rescue it either")
+        XCTAssertLessThan(contrast(Color.SnapBorderHex.darkHighContrast, SnapDarkHex.card), 2.0)
+    }
+
+    func test_theControlEdgeClearsThreeToOneInBothThemes() {
+        // WCAG 1.4.11: the visual boundary of a UI component.
+        XCTAssertGreaterThan(contrast(Color.SnapControlBorderHex.light,
+                                      Color.SnapLightHex.card), 3.0)
+        XCTAssertGreaterThan(contrast(Color.SnapControlBorderHex.dark, SnapDarkHex.card), 3.0)
+    }
+
+    func test_increasedContrastGoesFurtherThanTheMinimum() {
+        // Someone who turns the setting on is asking for more than 3:1, and
+        // the old high-contrast pair gave them 0.45 of a ratio point.
+        XCTAssertGreaterThan(contrast(Color.SnapControlBorderHex.lightHighContrast,
+                                      Color.SnapLightHex.card),
+                             contrast(Color.SnapControlBorderHex.light,
+                                      Color.SnapLightHex.card))
+        XCTAssertGreaterThan(contrast(Color.SnapControlBorderHex.darkHighContrast,
+                                      SnapDarkHex.card),
+                             contrast(Color.SnapControlBorderHex.dark, SnapDarkHex.card))
+    }
+
+    // ── A drop shadow cannot separate anything from a near-black ground ─────
+
+    func test_theWarmShadowLightenedTheDarkGroundInsteadOfDarkeningIt() {
+        let halo = composite("785032", over: SnapDarkHex.ground, alpha: 0.08)
+        XCTAssertLessThan(contrast(SnapDarkHex.card, halo),
+                          contrast(SnapDarkHex.card, SnapDarkHex.ground),
+                          "the card was harder to pick out against its own " +
+                          "shadow than against the plain background")
+    }
+
+    func test_blackFixesTheDirectionAndStillCannotDoTheJob() {
+        let halo = composite("000000", over: SnapDarkHex.ground, alpha: 0.08)
+        XCTAssertGreaterThan(contrast(SnapDarkHex.card, halo),
+                             contrast(SnapDarkHex.card, SnapDarkHex.ground))
+        // Which is why the hairline exists: even at 45% the halo is nowhere.
+        XCTAssertLessThan(contrast(SnapDarkHex.card,
+                                   composite("000000", over: SnapDarkHex.ground, alpha: 0.45)),
+                          1.2)
+    }
+
+    func test_theDarkCardEdgeIsAnEdgeYouCanSee() {
+        // Not held to 3:1 — a card is a surface, not a control. It has to be
+        // visible, and more visible than the card's 1.09:1 against the ground.
+        XCTAssertGreaterThan(contrast("584840", SnapDarkHex.card),
+                             contrast(SnapDarkHex.card, SnapDarkHex.ground))
+        XCTAssertLessThan(contrast("584840", SnapDarkHex.card), 3.0,
+                          "an edge, not an outline you notice")
+    }
 }
 
 // ── Spoken labels ────────────────────────────────────────────────────────────
