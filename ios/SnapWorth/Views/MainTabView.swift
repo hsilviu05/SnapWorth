@@ -7,6 +7,15 @@ extension Notification.Name {
 
 struct MainTabView: View {
     let purchaseService: any PurchaseService
+    /// Threaded from `SnapWorthApp` so an entitlement change actually makes
+    /// this view value differ — see the comment at that call site.
+    ///
+    /// Load-bearing for more than the one view it is handed to: the other three
+    /// tabs read `purchaseService.isSubscribed` directly, which registers no
+    /// dependency, and they re-render only because a change to this property
+    /// re-runs *this* body and rebuilds them. Removing it because "only
+    /// Settings uses it" would put the stale-Pro-chrome bug back on all four.
+    let isPro: Bool
     @State private var selectedTab = 0
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.modelContext) private var modelContext
@@ -55,7 +64,7 @@ struct MainTabView: View {
                 .badge(ledgerNeedsUpdateCount > 0 ? Text("\(ledgerNeedsUpdateCount)") : nil)
                 .tag(2)
 
-            SettingsView(purchaseService: purchaseService)
+            SettingsView(purchaseService: purchaseService, isPro: isPro)
                 .tabItem {
                     Label("Settings", systemImage: selectedTab == 3 ? "gearshape.fill" : "gearshape")
                 }

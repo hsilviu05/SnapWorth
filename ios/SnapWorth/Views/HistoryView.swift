@@ -585,12 +585,16 @@ struct TrendingCard: View {
             }
 
             if isPro {
-                if !trends.notableFinds.isEmpty {
+                // Deduped — see `distinctNotableFinds`. The server appends
+                // each day's finds without dedup, so the same item on two days
+                // arrives twice with the same id.
+                let notable = trends.distinctNotableFinds
+                if !notable.isEmpty {
                     VStack(alignment: .leading, spacing: 6) {
                         Text("Notable finds")
                             .font(.snapCaption)
                             .foregroundStyle(Color.snapWarmGray)
-                        ForEach(trends.notableFinds.prefix(3)) { find in
+                        ForEach(notable.prefix(3)) { find in
                             HStack(spacing: 8) {
                                 Text(Self.emoji[find.category] ?? "📦")
                                     .accessibilityHidden(true)

@@ -101,7 +101,19 @@ struct SnapWorthApp: App {
         WindowGroup {
             // No `preferredColorScheme` — the app follows the system theme.
             // Every palette token resolves per trait collection (DesignSystem).
-            RootView(purchaseService: purchaseService)
+            // `isPro` travels as a *value*, not just inside the service.
+            //
+            // `StoreKitPurchaseService` is an `ObservableObject` and this is
+            // the only `@StateObject` in the app, so a change re-runs *this*
+            // body — but every view below took the service as a plain `let`,
+            // so SwiftUI was handed an identical view value each time and had
+            // no registered dependency to re-render on. Buying Pro on the Scan
+            // tab therefore left Settings painting "Free Plan · Upgrade" for a
+            // paying subscriber, and a lapse noticed by `refreshEntitlements`
+            // left it painting "Pro · Active". Passing the flag down makes the
+            // view values differ, which is what SwiftUI actually compares.
+            RootView(purchaseService: purchaseService,
+                     isPro: purchaseService.isSubscribed)
                 .onOpenURL(perform: handleWidgetURL)
                 .task { seedWidgetData() }
                 .task { drainPendingWidgetAction() }
@@ -212,6 +224,9 @@ extension Notification.Name {
 
 struct RootView: View {
     let purchaseService: any PurchaseService
+    /// See the call site in `SnapWorthApp.body` for why this is threaded
+    /// separately from the service that owns it.
+    let isPro: Bool
     @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding = false
 
     var body: some View {
@@ -224,7 +239,7 @@ struct RootView: View {
                 }
                 .transition(.opacity)
             } else {
-                MainTabView(purchaseService: purchaseService)
+                MainTabView(purchaseService: purchaseService, isPro: isPro)
                     .transition(.opacity)
             }
         }

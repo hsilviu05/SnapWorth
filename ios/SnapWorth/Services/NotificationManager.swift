@@ -263,27 +263,90 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
     }
 
     // Recap-ready fallback state (drives the History banner when notifications
-    // are off). Reset whenever a new month's recap is scheduled.
-    private func storeRecapPending(fireDate: Date, label: String) {
+    // are off).
+    private enum RecapKeys {
+        static let fire = "notif_recap_fire"
+        static let label = "notif_recap_label"
+        static let viewed = "notif_recap_viewed"
+        // Where next month's recap waits when this month's is still owed.
+        static let deferredFire = "notif_recap_deferred_fire"
+        static let deferredLabel = "notif_recap_deferred_label"
+    }
+
+    /// Whether writing `incomingLabel` now would erase a recap the user is
+    /// still owed.
+    ///
+    /// `storeRecapPending` overwrote the fire date and label unconditionally
+    /// and reset `viewed` whenever the label changed, so scheduling *next*
+    /// month's recap pushed the fire date a month out and made
+    /// `readyRecapLabel()` return nil — destroying a recap that was already due
+    /// and never seen. The comment on this state says it exists "so the in-app
+    /// banner works even if denied", which is to say: for the users who will
+    /// never receive the notification. They are exactly the population that
+    /// lost it, and on the free tier three scans spread across 1–3 September
+    /// are enough to erase the August banner before History is opened once.
+    ///
+    /// Pure, so the case can be tested without `UserDefaults` or a clock.
+    nonisolated static func recapIsStillOwed(storedLabel: String?,
+                                             storedFire: Date?,
+                                             viewed: Bool,
+                                             incomingLabel: String,
+                                             now: Date) -> Bool {
+        guard let storedLabel, storedLabel != incomingLabel, !viewed,
+              let storedFire, now >= storedFire
+        else { return false }
+        return true
+    }
+
+    private func storeRecapPending(fireDate: Date, label: String, now: Date = Date()) {
         let d = UserDefaults.standard
-        if d.string(forKey: "notif_recap_label") != label {
-            d.set(false, forKey: "notif_recap_viewed")
+        let storedFire = (d.object(forKey: RecapKeys.fire) as? Double)
+            .map { Date(timeIntervalSince1970: $0) }
+
+        if Self.recapIsStillOwed(storedLabel: d.string(forKey: RecapKeys.label),
+                                 storedFire: storedFire,
+                                 viewed: d.bool(forKey: RecapKeys.viewed),
+                                 incomingLabel: label,
+                                 now: now) {
+            // Parked, not discarded. Skipping the write alone would have lost
+            // *this* recap instead for anyone who does not scan again after
+            // reading the banner — trading one silent loss for another.
+            d.set(fireDate.timeIntervalSince1970, forKey: RecapKeys.deferredFire)
+            d.set(label, forKey: RecapKeys.deferredLabel)
+            return
         }
-        d.set(fireDate.timeIntervalSince1970, forKey: "notif_recap_fire")
-        d.set(label, forKey: "notif_recap_label")
+
+        // Anything parked is superseded by a write that is allowed to land.
+        d.removeObject(forKey: RecapKeys.deferredFire)
+        d.removeObject(forKey: RecapKeys.deferredLabel)
+        if d.string(forKey: RecapKeys.label) != label {
+            d.set(false, forKey: RecapKeys.viewed)
+        }
+        d.set(fireDate.timeIntervalSince1970, forKey: RecapKeys.fire)
+        d.set(label, forKey: RecapKeys.label)
     }
 
     /// The recapped month's name if a recap is due and not yet viewed, else nil.
-    func readyRecapLabel() -> String? {
+    func readyRecapLabel(now: Date = Date()) -> String? {
         let d = UserDefaults.standard
-        guard let label = d.string(forKey: "notif_recap_label"),
-              !d.bool(forKey: "notif_recap_viewed") else { return nil }
-        let fire = Date(timeIntervalSince1970: d.double(forKey: "notif_recap_fire"))
-        return Date() >= fire ? label : nil
+        guard let label = d.string(forKey: RecapKeys.label),
+              !d.bool(forKey: RecapKeys.viewed) else { return nil }
+        let fire = Date(timeIntervalSince1970: d.double(forKey: RecapKeys.fire))
+        return now >= fire ? label : nil
     }
 
     func markRecapViewed() {
-        UserDefaults.standard.set(true, forKey: "notif_recap_viewed")
+        let d = UserDefaults.standard
+        d.set(true, forKey: RecapKeys.viewed)
+        // Promote whatever was parked while this one was still owed.
+        guard let label = d.string(forKey: RecapKeys.deferredLabel),
+              let fire = d.object(forKey: RecapKeys.deferredFire) as? Double
+        else { return }
+        d.removeObject(forKey: RecapKeys.deferredLabel)
+        d.removeObject(forKey: RecapKeys.deferredFire)
+        d.set(fire, forKey: RecapKeys.fire)
+        d.set(label, forKey: RecapKeys.label)
+        d.set(false, forKey: RecapKeys.viewed)
     }
 
     // MARK: - 2) Ledger follow-up (14 days after "listed")

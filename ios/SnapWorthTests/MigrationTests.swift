@@ -914,3 +914,119 @@ final class PortfolioDigestTests: XCTestCase {
                       ".denied — which is never that user's status")
     }
 }
+
+// ── The recap that was erased before anyone saw it ───────────────────────────
+//
+// `storeRecapPending` overwrote the fire date and label unconditionally, so
+// scheduling *next* month's recap pushed the fire date a month out and reset
+// `viewed` — destroying a recap that was already due and never read. The state
+// exists, by its own comment, "so the in-app banner works even if denied": for
+// the users who will never receive the notification. They are exactly the ones
+// who lost it. On the free tier, three scans across 1–3 September are enough to
+// erase the August banner before History is opened once.
+
+final class RecapNotClobberedTests: XCTestCase {
+
+    private let august = Date(timeIntervalSince1970: 1_756_684_800)   // 2025-09-01
+    private var later: Date { august.addingTimeInterval(3600) }
+
+    func test_anUnviewedDueRecapIsStillOwed() {
+        // The defect.
+        XCTAssertTrue(NotificationManager.recapIsStillOwed(
+            storedLabel: "August", storedFire: august, viewed: false,
+            incomingLabel: "September", now: later))
+    }
+
+    func test_aRecapAlreadyReadIsNotOwed() {
+        XCTAssertFalse(NotificationManager.recapIsStillOwed(
+            storedLabel: "August", storedFire: august, viewed: true,
+            incomingLabel: "September", now: later))
+    }
+
+    func test_reschedulingTheSameMonthIsNotAClobber() {
+        // Every scan past the third re-runs this with the same label. Treating
+        // that as a clash would park the month against itself and freeze the
+        // fire date at whatever the third scan happened to compute.
+        XCTAssertFalse(NotificationManager.recapIsStillOwed(
+            storedLabel: "August", storedFire: august, viewed: false,
+            incomingLabel: "August", now: later))
+    }
+
+    func test_aRecapThatIsNotDueYetIsNotOwed() {
+        // Nothing has been withheld from the user yet, so nothing is lost by
+        // replacing it.
+        XCTAssertFalse(NotificationManager.recapIsStillOwed(
+            storedLabel: "August", storedFire: later, viewed: false,
+            incomingLabel: "September", now: august))
+    }
+
+    func test_aFirstEverRecapHasNothingToProtect() {
+        XCTAssertFalse(NotificationManager.recapIsStillOwed(
+            storedLabel: nil, storedFire: nil, viewed: false,
+            incomingLabel: "September", now: later))
+        XCTAssertFalse(NotificationManager.recapIsStillOwed(
+            storedLabel: "August", storedFire: nil, viewed: false,
+            incomingLabel: "September", now: later))
+    }
+
+    // ── The parked recap has to come back ────────────────────────────────
+
+    @MainActor
+    func test_viewingTheOwedRecapPromotesTheParkedOne() throws {
+        // Skipping the write alone would trade one silent loss for another:
+        // a user who reads the August banner and never scans again in
+        // September would lose September instead. It is parked, and reading
+        // August promotes it.
+        let d = UserDefaults.standard
+        let keys = ["notif_recap_fire", "notif_recap_label", "notif_recap_viewed",
+                    "notif_recap_deferred_fire", "notif_recap_deferred_label"]
+        let saved = keys.map { ($0, d.object(forKey: $0)) }
+        defer {
+            for (key, value) in saved {
+                if let value { d.set(value, forKey: key) } else { d.removeObject(forKey: key) }
+            }
+        }
+
+        d.set("August", forKey: "notif_recap_label")
+        d.set(august.timeIntervalSince1970, forKey: "notif_recap_fire")
+        d.set(false, forKey: "notif_recap_viewed")
+        d.set("September", forKey: "notif_recap_deferred_label")
+        d.set(later.timeIntervalSince1970, forKey: "notif_recap_deferred_fire")
+
+        XCTAssertEqual(NotificationManager.shared.readyRecapLabel(now: later), "August")
+
+        NotificationManager.shared.markRecapViewed()
+
+        XCTAssertEqual(d.string(forKey: "notif_recap_label"), "September")
+        XCTAssertFalse(d.bool(forKey: "notif_recap_viewed"),
+                       "the promoted recap must not arrive pre-read")
+        XCTAssertNil(d.string(forKey: "notif_recap_deferred_label"),
+                     "the park must be emptied, or it promotes again forever")
+        XCTAssertEqual(NotificationManager.shared.readyRecapLabel(now: later), "September")
+    }
+
+    @MainActor
+    func test_viewingWithNothingParkedChangesNothingElse() throws {
+        let d = UserDefaults.standard
+        let keys = ["notif_recap_fire", "notif_recap_label", "notif_recap_viewed",
+                    "notif_recap_deferred_fire", "notif_recap_deferred_label"]
+        let saved = keys.map { ($0, d.object(forKey: $0)) }
+        defer {
+            for (key, value) in saved {
+                if let value { d.set(value, forKey: key) } else { d.removeObject(forKey: key) }
+            }
+        }
+
+        d.set("August", forKey: "notif_recap_label")
+        d.set(august.timeIntervalSince1970, forKey: "notif_recap_fire")
+        d.set(false, forKey: "notif_recap_viewed")
+        d.removeObject(forKey: "notif_recap_deferred_label")
+        d.removeObject(forKey: "notif_recap_deferred_fire")
+
+        NotificationManager.shared.markRecapViewed()
+
+        XCTAssertEqual(d.string(forKey: "notif_recap_label"), "August")
+        XCTAssertTrue(d.bool(forKey: "notif_recap_viewed"))
+        XCTAssertNil(NotificationManager.shared.readyRecapLabel(now: later))
+    }
+}

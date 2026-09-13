@@ -4380,3 +4380,111 @@ final class ThriftFlipMissingInputTests: XCTestCase {
         XCTAssertNil(vm.missingInputPrompt)
     }
 }
+
+
+// ── A view that never hears about the thing it displays ──────────────────────
+
+final class SettingsEntitlementObservationTests: XCTestCase {
+
+    private func source(_ path: String) throws -> String {
+        let url = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("SnapWorth/\(path)")
+        return try String(contentsOf: url, encoding: .utf8)
+    }
+
+    func test_settingsReadsTheEntitlementAsAValueItCanObserve() throws {
+        // Not a style preference. `purchaseService` is a plain `let` holding an
+        // existential, so reading `.isSubscribed` in the body registers no
+        // SwiftUI dependency: the body re-ran only when Settings' own state
+        // changed. Buying Pro on the Scan tab left this card reading "Free Plan
+        // · Upgrade" for a paying subscriber, and a lapse left it reading "Pro
+        // · Active" — the exact chrome `refreshEntitlements` exists to clear.
+        //
+        // Source-level because the defect is about view *identity*: nothing
+        // in-process can assert that SwiftUI would have re-run a body.
+        let settings = try source("Views/SettingsView.swift")
+        XCTAssertTrue(settings.contains("let isPro: Bool"),
+                      "the entitlement must arrive as a value the view differs on")
+
+        let body = try XCTUnwrap(settings.range(of: "var body: some View {"))
+        let afterBody = String(settings[body.upperBound...])
+        XCTAssertFalse(afterBody.contains("purchaseService.isSubscribed"),
+                       "reading it off the service again registers no dependency")
+
+        // And it has to actually be threaded, or the property is always the
+        // launch value.
+        XCTAssertTrue(try source("Views/MainTabView.swift")
+            .contains("SettingsView(purchaseService: purchaseService, isPro: isPro)"))
+        XCTAssertTrue(try source("SnapWorthApp.swift")
+            .contains("isPro: purchaseService.isSubscribed"))
+    }
+}
+
+// ── The same find, twice, with the same ID ───────────────────────────────────
+//
+// `NotableFind.id` is `name-low-high`, and the server builds `notable_finds` by
+// appending each of the seven day-documents' find lists with no dedup, emitting
+// the truncated name and *rounded* bounds. An item that topped the chart on two
+// days therefore arrives twice, byte-identical — and an ID-keyed `ForEach` over
+// that is undefined: SwiftUI logs "the ID … occurs multiple times within the
+// collection" and renders the row unreliably.
+
+final class NotableFindDedupTests: XCTestCase {
+
+    private func find(_ name: String, _ low: Double, _ high: Double,
+                      category: String = "home") -> NotableFind {
+        NotableFind(name: name, category: category, low: low, high: high)
+    }
+
+    private func trends(_ finds: [NotableFind]) -> Trends {
+        Trends(days: 7, scans: 500, categories: [], brands: [], notableFinds: finds)
+    }
+
+    func test_theSameFindOnTwoDaysIsShownOnce() {
+        let dutchOven = find("Le Creuset Dutch Oven 5.5qt", 180, 260)
+        let out = trends([dutchOven, find("Pendleton Blanket", 90, 140), dutchOven])
+            .distinctNotableFinds
+
+        XCTAssertEqual(out.count, 2)
+        XCTAssertEqual(Set(out.map(\.id)).count, out.count,
+                       "an ID-keyed ForEach over this is undefined")
+    }
+
+    func test_theFirstOccurrenceIsTheOneKept() {
+        // The server orders by day, so the earlier entry is the one the rest of
+        // the list was built around.
+        let a = find("Le Creuset Dutch Oven 5.5qt", 180, 260)
+        let b = find("Le Creuset Dutch Oven 5.5qt", 180, 260, category: "kitchen")
+        let out = trends([a, b]).distinctNotableFinds
+
+        XCTAssertEqual(out.count, 1)
+        XCTAssertEqual(out.first?.category, "home")
+    }
+
+    func test_itemsThatOnlyLookAlikeAreBothKept() {
+        // Same name, different rounded bounds: two genuinely different finds,
+        // and the id already distinguishes them.
+        let out = trends([find("Levi's 501", 40, 70),
+                          find("Levi's 501", 55, 95)]).distinctNotableFinds
+        XCTAssertEqual(out.count, 2)
+    }
+
+    func test_aCleanListIsUntouched() {
+        let finds = [find("A", 1, 2), find("B", 3, 4), find("C", 5, 6)]
+        XCTAssertEqual(trends(finds).distinctNotableFinds, finds)
+    }
+
+    func test_threeDistinctFindsSurviveThePrefix() {
+        // The view takes `.prefix(3)`. Before the dedup, a duplicate inside the
+        // server's five could eat one of those three slots *and* collide.
+        let dupe = find("Le Creuset Dutch Oven 5.5qt", 180, 260)
+        let out = trends([dupe, dupe, find("B", 1, 2), find("C", 3, 4), find("D", 5, 6)])
+            .distinctNotableFinds
+            .prefix(3)
+
+        XCTAssertEqual(out.count, 3)
+        XCTAssertEqual(Set(out.map(\.id)).count, 3)
+    }
+}

@@ -338,6 +338,25 @@ struct Trends: Decodable, Equatable {
     let brands: [TrendRow]
     let notableFinds: [NotableFind]
 
+    /// `notableFinds` with the repeats removed, first occurrence kept.
+    ///
+    /// `NotableFind.id` is `name-low-high`, and the server builds this list by
+    /// appending each of the seven day-documents' find lists with no dedup,
+    /// emitting the truncated name and *rounded* bounds. An item that topped
+    /// the chart on two days therefore arrives twice with a byte-identical id —
+    /// and an ID-keyed `ForEach` over that is undefined: SwiftUI logs "the ID …
+    /// occurs multiple times within the collection" and renders the row
+    /// unreliably, so a Pro user sees the same find twice or one that flickers.
+    ///
+    /// Deduped rather than index-keyed, because "Notable finds" listing the
+    /// same item twice is not a rendering artefact the user should have to
+    /// interpret — the section means three different things worth seeing, and
+    /// the first three *distinct* entries are what the list already meant.
+    var distinctNotableFinds: [NotableFind] {
+        var seen = Set<String>()
+        return notableFinds.filter { seen.insert($0.id).inserted }
+    }
+
     enum CodingKeys: String, CodingKey {
         case days, scans, categories, brands
         case notableFinds = "notable_finds"

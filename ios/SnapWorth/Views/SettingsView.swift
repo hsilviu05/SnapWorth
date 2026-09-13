@@ -4,6 +4,14 @@ import StoreKit
 
 struct SettingsView: View {
     let purchaseService: any PurchaseService
+    /// The entitlement, as a value.
+    ///
+    /// Reading `purchaseService.isSubscribed` in the body looked equivalent and
+    /// was not: the service is a plain `let`, so SwiftUI had no dependency on
+    /// it and this body re-ran only when Settings' own state changed. Buying
+    /// Pro on the Scan tab left this card reading "Free Plan · Upgrade" for a
+    /// paying subscriber; a lapse left it reading "Pro · Active".
+    let isPro: Bool
     @Environment(\.modelContext) private var modelContext
     @Environment(\.requestReview) private var requestReview
     @Query private var results: [ScanResult]
@@ -25,7 +33,7 @@ struct SettingsView: View {
                 // ── Subscription card ──────────────────────────────────────
                 Section {
                     SubscriptionCard(
-                        isSubscribed: purchaseService.isSubscribed,
+                        isSubscribed: isPro,
                         onUpgrade: { showPaywall = true }
                     )
                 }
@@ -34,7 +42,7 @@ struct SettingsView: View {
 
                 // ── Account ────────────────────────────────────────────────
                 Section("Account") {
-                    if purchaseService.isSubscribed {
+                    if isPro {
                         SettingsRow(icon: "creditcard", label: "Manage subscription") {
                             vm.openURL("https://apps.apple.com/account/subscriptions")
                         }
@@ -48,7 +56,7 @@ struct SettingsView: View {
                 // ── Notifications ──────────────────────────────────────────
                 Section("Notifications") {
                     NavigationLink {
-                        NotificationSettingsView(isPro: purchaseService.isSubscribed)
+                        NotificationSettingsView(isPro: isPro)
                     } label: {
                         SettingsRowLabel(icon: "bell", label: "Notifications")
                     }
