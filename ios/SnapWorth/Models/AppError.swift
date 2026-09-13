@@ -177,8 +177,19 @@ enum AppError: LocalizedError, Equatable {
                 // 422 does; the outage detail still reads as an outage because
                 // the backend's own copy says so. Empty detail keeps the fixed
                 // string, and 503 really is the service refusing traffic.
-                case 502:        return detail.isEmpty ? .serverUnavailable
-                                                       : .aiFailed(detail)
+                //
+                // `detail.isEmpty` never held: `APIErrorDetail.parse` returns
+                // its own fixed fallback — the very words `.unknown` prints —
+                // when there is no usable `detail` in the body, so a real
+                // outage with an empty body arrived here carrying "Something
+                // went wrong. Please try again." and became `.aiFailed` with
+                // that text. The one branch written for an outage could not be
+                // reached, and the user was told to try again rather than that
+                // the service was down. Test for what the parser actually
+                // produces.
+                case 502:        return Self.isPlaceholderDetail(detail)
+                                     ? .serverUnavailable
+                                     : .aiFailed(detail)
                 case 503:        return .serverUnavailable
                 default:         return .unknown(detail)
                 }
@@ -200,10 +211,25 @@ enum AppError: LocalizedError, Equatable {
 
         let url = error as? URLError
         switch url?.code {
-        case .notConnectedToInternet, .networkConnectionLost, .cannotConnectToHost:
+        // Every one of these is "the phone could not reach us", and all of
+        // them used to fall through. The substring test below cannot rescue
+        // them: iOS's own strings for these codes say "A server with the
+        // specified hostname could not be found." and "An SSL error has
+        // occurred…" — no "network", no "offline", no code number — so they
+        // reached `.unknown` and printed "Something went wrong. Please try
+        // again." to someone standing in a shop with no signal, while the
+        // copy that would have told them lived one case away.
+        case .notConnectedToInternet, .networkConnectionLost, .cannotConnectToHost,
+             .cannotFindHost, .dnsLookupFailed,
+             .dataNotAllowed, .internationalRoamingOff, .callIsActive:
             return .network
         case .timedOut:
             return .timeout
+        // Deliberately NOT mapped here: `.secureConnectionFailed`. This app
+        // pins its certificate, so that code can mean an interception rather
+        // than an outage, and "check your network and try again" is the wrong
+        // advice for it — the retry would be the thing that succeeds. It keeps
+        // falling through to `.unknown` until it has copy of its own.
         default:
             break
         }
@@ -215,6 +241,26 @@ enum AppError: LocalizedError, Equatable {
         if msg.contains("502") || msg.contains("503")              { return .serverUnavailable }
 
         return .unknown(error.localizedDescription)
+    }
+
+    /// True when `detail` is the parser's own stand-in rather than anything
+    /// the backend said.
+    ///
+    /// `APIErrorDetail.parse` never returns an empty string: with no usable
+    /// `detail` in the body it returns a fixed sentence — the same words
+    /// `.unknown` prints. So `detail.isEmpty` was never true at the 502 branch
+    /// above, and a genuine outage with an empty body was reported as an AI
+    /// failure carrying "Something went wrong. Please try again."
+    ///
+    /// Compared case- and whitespace-insensitively against the literal rather
+    /// than reaching into `APIErrorDetail`: this is a *presentation* decision
+    /// about copy the user would see, and coupling the two types would make
+    /// the client's error mapping depend on the API client's internals.
+    static func isPlaceholderDetail(_ detail: String) -> Bool {
+        let trimmed = detail.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty
+            || trimmed.caseInsensitiveCompare("Something went wrong. Please try again.")
+                == .orderedSame
     }
 
     static func == (lhs: AppError, rhs: AppError) -> Bool {

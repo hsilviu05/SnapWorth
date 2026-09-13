@@ -229,6 +229,57 @@ final class APIErrorDetailTests: XCTestCase {
         XCTAssertEqual(error.errorDescription, "Our AI is temporarily unavailable.")
         XCTAssertEqual(error.statusCode, 502)
     }
+
+    func test_a502WithNoRealDetailIsAnOutageNotAnAIFailure() {
+        // The `.serverUnavailable` branch for 502 was unreachable. It tested
+        // `detail.isEmpty`, and `APIErrorDetail.parse` never returns empty —
+        // with no usable `detail` in the body it returns its own fixed
+        // sentence, the very words `.unknown` prints. So a genuine outage with
+        // an empty body arrived carrying "Something went wrong. Please try
+        // again." and was reported as an AI failure with that text: the user
+        // was told to retry rather than that the service was down.
+        XCTAssertEqual(AppError.from(ScanAPIError.serverError(
+            502, "Something went wrong. Please try again.")), .serverUnavailable)
+        XCTAssertEqual(AppError.from(ScanAPIError.serverError(502, "")),
+                       .serverUnavailable)
+        XCTAssertEqual(AppError.from(ScanAPIError.serverError(502, "   ")),
+                       .serverUnavailable)
+
+        // And real backend copy still reaches the user, which is the whole
+        // reason 502 surfaces its detail at all.
+        guard case .aiFailed(let msg) = AppError.from(ScanAPIError.serverError(
+            502, "The AI couldn't price this item. Please try again.")) else {
+            return XCTFail("real detail must still surface")
+        }
+        XCTAssertEqual(msg, "The AI couldn't price this item. Please try again.")
+    }
+
+    func test_aPhoneWithNoSignalIsToldSoRatherThanSomethingWentWrong() {
+        // iOS's own strings for these codes contain no "network", no
+        // "offline" and no status number, so the substring fallback could not
+        // rescue them and they all reached `.unknown` — "Something went
+        // wrong. Please try again." to someone standing in a shop with no
+        // signal, while the right copy lived one case away.
+        for code in [URLError.Code.cannotFindHost,
+                     .dnsLookupFailed,
+                     .dataNotAllowed,
+                     .internationalRoamingOff,
+                     .callIsActive] {
+            XCTAssertEqual(AppError.from(URLError(code)), .network,
+                           "\(code) should read as a network problem")
+        }
+        // Unchanged, and asserted so the widening did not disturb them.
+        XCTAssertEqual(AppError.from(URLError(.notConnectedToInternet)), .network)
+        XCTAssertEqual(AppError.from(URLError(.timedOut)), .timeout)
+    }
+
+    func test_aPinningFailureIsNotCalledANetworkProblem() {
+        // `.secureConnectionFailed` is deliberately left out of the widening:
+        // this app pins its certificate, so that code can mean interception
+        // rather than an outage, and "check your network and try again" is
+        // advice whose retry is the thing that would succeed.
+        XCTAssertNotEqual(AppError.from(URLError(.secureConnectionFailed)), .network)
+    }
 }
 
 // MARK: - 402 routing
@@ -2326,6 +2377,40 @@ final class GuessScoringTests: XCTestCase {
         XCTAssertEqual(GuessScoring.verdict(guess: 130, low: 45, high: 90), "$40 over the high end.")
         // A swapped range is handled rather than trusted.
         XCTAssertEqual(GuessScoring.verdict(guess: 20, low: 90, high: 45), "$25 under the low end.")
+    }
+
+    func test_aNonZeroMissIsNeverReportedAsZero() {
+        // The bounds are fractional as a matter of course — `priceRange(for:)`
+        // scales stored values by a condition factor — while the range on
+        // screen is whole dollars. Scored raw, a guess of $45 against a
+        // printed "$45–$90" whose real low is 45.40 was outside the range by
+        // 40 cents, and 40 cents through a 0-decimal formatter is "$0 under
+        // the low end.": a non-zero miss reported as zero, directly under a
+        // range the guess appears to match exactly.
+        XCTAssertEqual(GuessScoring.verdict(guess: 45, low: 45.40, high: 90.20),
+                       "Spot on — your guess is inside the estimate.")
+        XCTAssertFalse(
+            GuessScoring.verdict(guess: 45, low: 45.40, high: 90.20).contains("$0"),
+            "no verdict may ever say $0")
+    }
+
+    func test_twoGuessesTheUserCannotTellApartGetTheSameVerdict() {
+        // Both print "$45–$90". Scored raw, the first was outside and the
+        // second inside — a difference the user has no way to see.
+        let above = GuessScoring.verdict(guess: 45, low: 45.40, high: 90.20)
+        let below = GuessScoring.verdict(guess: 45, low: 44.60, high: 90.20)
+        XCTAssertEqual(above, below)
+    }
+
+    func test_aRealMissIsStillReportedAsAMiss() {
+        // The guard against over-correcting: rounding the bounds must not
+        // swallow a miss the user can see.
+        XCTAssertEqual(GuessScoring.verdict(guess: 44, low: 45.40, high: 90.20),
+                       "$1 under the low end.")
+        XCTAssertEqual(GuessScoring.verdict(guess: 91, low: 45.40, high: 90.20),
+                       "$1 over the high end.")
+        XCTAssertEqual(GuessScoring.verdict(guess: 20, low: 45.40, high: 90.20),
+                       "$25 under the low end.")
     }
 
     func test_parseIsForgivingAboutWhatPeopleType() {

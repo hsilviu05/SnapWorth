@@ -373,15 +373,38 @@ enum GuessCardStyle {
 /// how much, against the nearer end — "under the low end" rather than a
 /// distance to some midpoint the user never saw.
 enum GuessScoring {
+    /// Scored against the bounds **as printed**, not the raw ones.
+    ///
+    /// The range the user is looking at is whole dollars — `formattedRange`
+    /// runs through `snapCurrency`, which drops the fraction — while the
+    /// bounds handed in here are fractional as a matter of course
+    /// (`priceRange(for:)` scales the stored values by a condition factor).
+    /// Scoring the raw values against a printed range produced a verdict that
+    /// contradicted the card above it, in two ways at once:
+    ///
+    ///   * a guess of $45 against a printed "$45–$90" whose real low is 45.40
+    ///     was *outside* the range, and the miss — 40 cents — formatted through
+    ///     a 0-decimal formatter as **"$0 under the low end."** A non-zero miss
+    ///     reported as zero, under a range the guess appears to match exactly.
+    ///   * and the reverse: a guess of $45 against a real low of 44.60 printed
+    ///     "$45" too, so two guesses the user cannot tell apart got different
+    ///     verdicts.
+    ///
+    /// Rounding the bounds first makes the verdict answer the question the
+    /// user actually asked — "did I match the number on the screen?" — and
+    /// makes "$0 under" unreachable rather than merely unlikely: any guess
+    /// within half a dollar of a bound now lands inside it.
     static func verdict(guess: Double, low: Double, high: Double) -> String {
-        let lo = min(low, high), hi = max(low, high)
-        if guess >= lo && guess <= hi {
+        // The same rounding `snapCurrency` applies to the range on screen.
+        let lo = min(low, high).rounded(), hi = max(low, high).rounded()
+        let guessed = guess.rounded()
+        if guessed >= lo && guessed <= hi {
             return "Spot on — your guess is inside the estimate."
         }
-        if guess < lo {
-            return "\(money(lo - guess)) under the low end."
+        if guessed < lo {
+            return "\(money(lo - guessed)) under the low end."
         }
-        return "\(money(guess - hi)) over the high end."
+        return "\(money(guessed - hi)) over the high end."
     }
 
     /// Parses what the user typed: digits with an optional decimal separator,
