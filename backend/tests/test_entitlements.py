@@ -1043,10 +1043,64 @@ class TestSharingAlertOnMigration:
         assert len(alerts) == 1
         assert alerts[0]["idle_seconds"] >= 36 * 3600 - 5
 
+    @pytest.mark.asyncio
+    async def test_a_hex_shaped_device_id_cannot_silence_the_alert(
+            self, service, pinned_root, alerts):
+        """The eviction alert is the only remaining control on a shared JWS.
+
+        `_is_legacy_subject` infers the *kind* of an identity from the shape of
+        its string, and `device_id` arrives from the client — the wire pattern
+        `^[A-Za-z0-9._-]+$` with `max_length=64` admits a 64-character
+        lowercase hex string perfectly well. So a sharer who names every
+        install `0000…01` is read as a pre-1.3.4 reinstall ghost, and the
+        eviction the cap exists to report is filed as migration instead.
+
+        Measured against the real function before the fix: 20 sharers at a cap
+        of 6 produced 14 evictions and zero alerts with hex-shaped ids, and 14
+        evictions with 14 alerts when the same 20 were UUIDs.
+
+        What discriminates here is the *storage* assertion at the bottom, not
+        the alert count: with the record already holding prefixed ids, the
+        evicted one is outside the legacy class either way, so the alert fires
+        on the old code too. The alert assertion is the control — it says the
+        prefix did not cost the signal — and the prefix is what restores the
+        classification on every record from here on.
+
+        One honest limit: bindings already written as bare hex before this fix
+        stay misclassified until they age out at `DEVICE_BINDING_IDLE_SECONDS`
+        or that install records again. Nothing rewrites them, because nothing
+        can tell them apart from a real pre-1.3.4 subject — which is the same
+        ambiguity the prefix exists to stop creating.
+        """
+        leaf_key, chain = pinned_root
+        jws = make_jws(valid_payload(), leaf_key, chain)
+        now = int(time.time())
+        # Three devices already bound, each one named to look like an attest
+        # subject. The oldest is the one that will be pushed out.
+        await service._cache.set("txn:2000000000000001", json.dumps({
+            "dev:" + "%064x" % 1: now - 36 * 3600,
+            "dev:" + "%064x" % 2: now - 30 * 3600,
+            "dev:" + "%064x" % 3: now - 24 * 3600,
+        }))
+
+        await service.record("d" * 64, jws, device_id="%064x" % 4)
+
+        assert len(alerts) == 1, \
+            "a device id shaped like a subject is still a device being evicted"
+        assert alerts[0]["idle_seconds"] >= 36 * 3600 - 5
+
+        bindings = json.loads(await service._cache.get("txn:2000000000000001"))
+        assert "dev:" + "%064x" % 4 in bindings, \
+            "stored under a prefix the client cannot forge — no colon in the pattern"
+        assert "%064x" % 4 not in bindings
+
     def test_identity_kinds_are_distinguishable(self):
         assert entitlements._is_legacy_subject("0f" * 32)
         assert not entitlements._is_legacy_subject("8F1C2A3E-0000-4000-8000-000000000001")
         assert not entitlements._is_legacy_subject("device-1")
+        # And the prefix `_bind_device` applies takes a hex-shaped device id
+        # back out of the legacy class, which is the whole point of it.
+        assert not entitlements._is_legacy_subject("dev:" + "0f" * 32)
 
 
 # ── Offer and price fields ───────────────────────────────────────────────────

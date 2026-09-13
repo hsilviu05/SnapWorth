@@ -308,3 +308,106 @@ class TestSemantics:
             BUNDLE_ID, PRODUCTS)
         assert not note.is_indexed
         assert not note.is_paid_period
+
+    def test_a_renewal_extension_summary_is_acknowledged_not_rejected(self, pinned):
+        """`summary` instead of `data`, which the parser used to refuse.
+
+        Apple sends RENEWAL_EXTENSION with subtype SUMMARY when a server-wide
+        renewal extension finishes, and its envelope has no `data` member at
+        all — it carries `summary`. Requiring `data` raised before the type was
+        even read, the endpoint turned that into a 400, and Apple redelivered
+        the same notification for about three days. It is genuine, signed, for
+        this bundle, and there is nothing in it to record: exactly the standing
+        of CONSUMPTION_REQUEST above.
+        """
+        leaf_key, chain = pinned
+        envelope = make_jws({
+            "notificationType": "RENEWAL_EXTENSION",
+            "subtype": "SUMMARY",
+            "notificationUUID": "99999999-8888-7777-6666-555555555555",
+            "version": "2.0",
+            "signedDate": int(time.time() * 1000),
+            "summary": {
+                "bundleId": BUNDLE_ID,
+                "environment": "Production",
+                "productId": "com.snapworth.pro.monthly",
+                "requestIdentifier": "fdb6-4ca4",
+                "storefrontCountryCodes": ["US", "GB"],
+                "succeededCount": 12,
+                "failedCount": 0,
+            },
+        }, leaf_key, chain)
+
+        note = appstorenotify.parse_notification(envelope, BUNDLE_ID, PRODUCTS)
+
+        assert note.notification_type == "RENEWAL_EXTENSION"
+        assert note.subtype == "SUMMARY"
+        assert note.entitlement is None
+        assert not note.is_indexed, "nothing to record, so nothing is recorded"
+        assert note.environment == "Production"
+
+    def test_an_external_purchase_token_is_acknowledged_too(self, pinned):
+        """The other data-less shape. No `environment`, so it defaults."""
+        leaf_key, chain = pinned
+        envelope = make_jws({
+            "notificationType": "EXTERNAL_PURCHASE_TOKEN",
+            "subtype": "UNREPORTED",
+            "notificationUUID": "77777777-6666-5555-4444-333333333333",
+            "version": "2.0",
+            "signedDate": int(time.time() * 1000),
+            "externalPurchaseToken": {
+                "bundleId": BUNDLE_ID,
+                "externalPurchaseId": "ext-1",
+                "tokenCreationDate": int(time.time() * 1000),
+                "appAppleId": 1234567890,
+            },
+        }, leaf_key, chain)
+
+        note = appstorenotify.parse_notification(envelope, BUNDLE_ID, PRODUCTS)
+
+        assert note.entitlement is None
+        assert not note.is_indexed
+
+    def test_the_data_less_shapes_are_still_checked_for_the_bundle(self, pinned):
+        """The gates moved onto the member; they did not stop running."""
+        leaf_key, chain = pinned
+        envelope = make_jws({
+            "notificationType": "RENEWAL_EXTENSION",
+            "subtype": "SUMMARY",
+            "notificationUUID": "99999999-8888-7777-6666-555555555555",
+            "version": "2.0",
+            "signedDate": int(time.time() * 1000),
+            "summary": {"bundleId": "com.someone.else",
+                        "environment": "Production"},
+        }, leaf_key, chain)
+        with pytest.raises(EntitlementError, match="different app"):
+            appstorenotify.parse_notification(envelope, BUNDLE_ID, PRODUCTS)
+
+        sandbox = make_jws({
+            "notificationType": "RENEWAL_EXTENSION",
+            "subtype": "SUMMARY",
+            "notificationUUID": "99999999-8888-7777-6666-555555555556",
+            "version": "2.0",
+            "signedDate": int(time.time() * 1000),
+            "summary": {"bundleId": BUNDLE_ID, "environment": "Sandbox"},
+        }, leaf_key, chain)
+        with pytest.raises(EntitlementError, match="wrong environment"):
+            appstorenotify.parse_notification(
+                sandbox, BUNDLE_ID, PRODUCTS, allowed_environments={"Production"})
+
+    def test_a_shape_with_no_known_member_names_the_type_it_refused(self, pinned):
+        """So the WARNING the endpoint logs says which type arrived.
+
+        Under the old order the type had not been read when this raised, so
+        the operator's log line was a bare "carries no data" with no way to
+        tell a malformed DID_RENEW from a shape Apple has newly added.
+        """
+        leaf_key, chain = pinned
+        envelope = make_jws({
+            "notificationType": "SOMETHING_NEW",
+            "notificationUUID": "66666666-5555-4444-3333-222222222222",
+            "version": "2.0",
+            "signedDate": int(time.time() * 1000),
+        }, leaf_key, chain)
+        with pytest.raises(EntitlementError, match="SOMETHING_NEW carries no data"):
+            appstorenotify.parse_notification(envelope, BUNDLE_ID, PRODUCTS)

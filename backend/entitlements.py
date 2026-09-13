@@ -133,8 +133,11 @@ def _is_legacy_subject(identity: str) -> bool:
     """True for a binding keyed by App Attest key id rather than device id.
 
     Subjects are the hex of a 32-byte key id; device ids are UUID strings.
-    The two never collide, which is what lets the sharing alert tell a
-    pre-1.3.4 ghost apart from a phone.
+    An *honest* client's two never collide, which is what lets the sharing
+    alert tell a pre-1.3.4 ghost apart from a phone. A dishonest one chooses
+    its own `device_id`, so `_bind_device` prefixes any device id of this shape
+    with `dev:` before storing it — the classification cannot be inferred from
+    a string the caller controls.
     """
     return len(identity) == 64 and all(c in "0123456789abcdef" for c in identity)
 
@@ -731,6 +734,16 @@ class EntitlementService:
         device. The cap is anti-abuse, not an authorisation boundary.
         """
         identity = device_id or subject
+        if device_id and _is_legacy_subject(device_id):
+            # A device id shaped like an attest subject reads as a pre-1.3.4
+            # ghost at the eviction below, and silences the sharing alert on
+            # the one eviction it exists to report. Measured against the real
+            # function with the cap at 6 and 20 sharers: 14 evictions and 14
+            # alerts with UUID ids, 14 evictions and *zero* alerts when the
+            # same 20 ids are 64-char lowercase hex. The shape of the id is
+            # the client's to choose; this prefix is not, because the wire
+            # pattern `^[A-Za-z0-9._-]+$` admits no colon.
+            identity = f"dev:{device_id}"
         key = self._device_key(ent.original_transaction_id or "")
         try:
             bindings = self._decode_bindings(await self._cache.get(key))

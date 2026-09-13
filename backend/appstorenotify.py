@@ -74,7 +74,9 @@ class Notification:
     # Apple's idempotency key. The same notification is redelivered until we
     # answer 2xx, so this is what stops a retry being counted twice.
     uuid: str
-    # None only for a TEST notification, which has no purchase behind it.
+    # None for a TEST notification, and for any type whose envelope carries no
+    # transaction at all — a RENEWAL_EXTENSION summary, an external purchase
+    # token. Both are acknowledged and ignored rather than recorded.
     entitlement: Entitlement | None
     environment: str = "Production"
     signed_date: int | None = None
@@ -157,31 +159,6 @@ def parse_notification(
     payload = entitlements.verify_apple_jws(
         signed_payload, max_length=MAX_SIGNED_PAYLOAD)
 
-    data = payload.get("data")
-    if not isinstance(data, dict):
-        raise EntitlementError("Notification carries no data.")
-
-    # Checked here as well as on the nested transaction. The envelope names the
-    # app independently, and a notification for someone else's bundle has no
-    # business reaching the index even if the transaction inside it is valid.
-    if data.get("bundleId") != bundle_id:
-        raise EntitlementError("Notification is for a different app.")
-
-    # Read through the module rather than a from-import: the default is built
-    # from the environment at import time, and a copy bound here would ignore
-    # both a test's monkeypatch and any later change.
-    environments = (entitlements.ALLOWED_ENVIRONMENTS if allowed_environments is None
-                    else allowed_environments)
-    environment = data.get("environment", "Production")
-    if environment not in environments:
-        # Sandbox notifications are signed by the same chain as production
-        # ones. Without this a TestFlight tester's renewals land in the
-        # operator's revenue view as real money.
-        log.warning("rejected notification from disallowed environment",
-                    extra={"environment": environment,
-                           "allowed": sorted(environments)})
-        raise EntitlementError("Notification is from the wrong environment.")
-
     notification_type = payload.get("notificationType")
     if not isinstance(notification_type, str) or not notification_type:
         raise EntitlementError("Notification has no type.")
@@ -196,11 +173,70 @@ def parse_notification(
     signed_date = (int(signed_ms / 1000)
                    if isinstance(signed_ms, (int, float)) else None)
 
+    # Apple's envelope carries exactly one of these three, and which one
+    # depends on the type. A RENEWAL_EXTENSION with subtype SUMMARY carries
+    # `summary`; an EXTERNAL_PURCHASE_TOKEN carries `externalPurchaseToken`;
+    # neither has a `data` member at all. Both are genuine, correctly signed,
+    # for this bundle — and demanding `data` here answered them 400, which
+    # made Apple redeliver the same notification for about three days before
+    # giving up. The comment below this function's own header promises that an
+    # unrecognised type is "verified, acknowledged and ignored"; so does the
+    # runbook. This is the code catching up with both.
+    data = payload.get("data")
+    envelope = data if isinstance(data, dict) else None
+    if envelope is None:
+        for member in ("summary", "externalPurchaseToken"):
+            candidate = payload.get(member)
+            if isinstance(candidate, dict):
+                envelope = candidate
+                break
+    if envelope is None:
+        # Named, now, so the WARNING the caller logs says which type arrived
+        # in a shape this module does not know. Under the old order the type
+        # had not been read yet, so the log line could not name it.
+        raise EntitlementError(
+            f"Notification {notification_type} carries no data.")
+
+    # Checked here as well as on the nested transaction. The envelope names the
+    # app independently, and a notification for someone else's bundle has no
+    # business reaching the index even if the transaction inside it is valid.
+    # Whichever member carried the notification names the app: `summary` and
+    # `externalPurchaseToken` both have `bundleId`, so the gate does not weaken
+    # for the shapes this now accepts.
+    if envelope.get("bundleId") != bundle_id:
+        raise EntitlementError("Notification is for a different app.")
+
+    # Read through the module rather than a from-import: the default is built
+    # from the environment at import time, and a copy bound here would ignore
+    # both a test's monkeypatch and any later change.
+    environments = (entitlements.ALLOWED_ENVIRONMENTS if allowed_environments is None
+                    else allowed_environments)
+    # `summary` carries `environment`; `externalPurchaseToken` does not, and
+    # defaults to Production the same way a `data` without one always has.
+    environment = envelope.get("environment", "Production")
+    if environment not in environments:
+        # Sandbox notifications are signed by the same chain as production
+        # ones. Without this a TestFlight tester's renewals land in the
+        # operator's revenue view as real money.
+        log.warning("rejected notification from disallowed environment",
+                    extra={"environment": environment,
+                           "allowed": sorted(environments)})
+        raise EntitlementError("Notification is from the wrong environment.")
+
     if notification_type == TEST:
         # Everything above still ran: this is signed by Apple, for our bundle,
         # in an allowed environment. There is simply nothing to record.
         return Notification(
             notification_type=TEST, subtype=subtype, uuid=uuid,
+            entitlement=None, environment=environment, signed_date=signed_date)
+
+    if not isinstance(data, dict):
+        # Verified, for our bundle, in an allowed environment, and there is no
+        # transaction in it to record — the same standing as
+        # CONSUMPTION_REQUEST. `entitlement=None` makes `is_indexed` false, so
+        # the endpoint answers 200 "ignored" and Apple stops redelivering.
+        return Notification(
+            notification_type=notification_type, subtype=subtype, uuid=uuid,
             entitlement=None, environment=environment, signed_date=signed_date)
 
     signed_transaction = data.get("signedTransactionInfo")

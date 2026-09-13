@@ -335,8 +335,16 @@ async def _refuse_if_paused(subject: str) -> None:
     if await _safety_block_count(subject) >= SAFETY_BLOCKS_BEFORE_PAUSE > 0:
         auditlog.record(AuditEvent.SCAN_BLOCKED, subject,
                         outcome="denied", reason="paused_after_repeated_blocks")
+        # 422 (not 403) mirrors the single blocked photo in `_analyse`, so the
+        # client's existing "the server looked at it and couldn't use it, here
+        # is why" mapping covers this too. There is no 403 case in
+        # `AppError.from`, so this fell through to `.unknown`, whose fixed copy
+        # is "Something went wrong. Please try again." — the retry, for a whole
+        # day, that this message exists to stop. Same reasoning as the 402 a
+        # few hundred lines down, and the copy here is worth more than the
+        # status-code nicety: nobody reads a status code.
         raise HTTPException(
-            status_code=403,
+            status_code=422,
             detail="Scanning from this device is paused for 24 hours after repeated "
                    "photos that could not be analysed.")
 

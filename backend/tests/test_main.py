@@ -685,12 +685,45 @@ class TestRepeatedSafetyBlocks:
         # Two blocks: each a neutral 422, each a model call.
         assert (first.status_code, second.status_code) == (422, 422)
         assert "couldn't be analysed" in first.json()["detail"]
-        # Third: refused before the model, with a reason the user can act on.
-        assert third.status_code == 403
+        # Third: refused before the model, with a reason the user can act on —
+        # and carried on a status the client actually renders.
+        assert third.status_code == 422
         assert "paused for 24 hours" in third.json()["detail"]
         assert model.generate_content_async.await_count == 3, "the paused scan never reached the model"
         # Another device is unaffected.
         assert other.status_code == 422
+
+    def test_the_pause_carries_a_status_the_client_renders(self, monkeypatch):
+        """A refusal the user cannot read is the same as no refusal.
+
+        The copy here is the whole point of the pause: it says how long, and
+        why, so the user stops retrying. `AppError.from` maps 422 to
+        `.unusablePhoto(detail)` and shows the backend's words verbatim; it has
+        no 403 case at all, so a 403 fell through to `.unknown`, whose fixed
+        copy is "Something went wrong. Please try again." — an invitation to do
+        the exact thing the pause exists to stop, for a day.
+
+        Asserted as an equality against the single blocked photo rather than as
+        a bare `== 422`: what matters is that both refusals travel on the one
+        client mapping for "the server looked at it and could not use it", not
+        which number that mapping happens to be.
+        """
+        from unittest.mock import AsyncMock, patch
+
+        import main
+        from cache import InMemoryCache, ResilientCache
+        monkeypatch.setattr(main, "_cache", ResilientCache(None, InMemoryCache()))
+        monkeypatch.setattr(main, "SAFETY_BLOCKS_BEFORE_PAUSE", 1)
+        _rate_store.clear()
+        _ip_rate_store.clear()
+        with patch("main._model") as model:
+            model.generate_content_async = AsyncMock(return_value=self._blocked_response())
+            blocked = _make_scan_request(device_id="paused-copy")
+            paused = _make_scan_request(device_id="paused-copy")
+        assert paused.status_code == blocked.status_code
+        assert "paused for 24 hours" in paused.json()["detail"]
+        assert model.generate_content_async.await_count == 1, \
+            "the paused scan never reached the model"
 
     def test_disabled_by_zero(self, monkeypatch):
         from unittest.mock import AsyncMock, patch
