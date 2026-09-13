@@ -702,6 +702,29 @@ enum WidgetDataStore {
     /// keeps also handles the other direction: a lapse clears the Pro figures
     /// on the next write instead of leaving a paid number on the Home Screen.
     static func writeHaul(results: [ScanResult], isPro: Bool? = nil) {
+        // Never publish a fallback launch's library.
+        //
+        // When SwiftData cannot open the on-disk store, `SnapWorthApp` falls
+        // back to an in-memory container so the app still runs. A fetch against
+        // it does not throw — it succeeds and returns `[]` — so every caller
+        // here looked like a library that had simply been emptied, and the
+        // launch-path seed reached this function before the app had any idea
+        // whether the store would ever open again. This blob is the only copy
+        // of the haul outside the store, which makes it the only representation
+        // still standing while the store is unreadable; rewriting it to zeros
+        // destroys the last good figures for a condition that, on a transient
+        // failure like a full disk at open time, clears itself next launch.
+        //
+        // The guard lives here rather than at the call site because there is
+        // more than one caller: `seedWidgetData` on launch and on an
+        // entitlement change, and `ScanRepository`'s debounced sync for every
+        // scan written during the fallback session — work that is discarded at
+        // quit and has no business reaching the Home Screen either.
+        //
+        // Stale beats zeroed. The first healthy launch overwrites it with the
+        // truth.
+        guard !AppLaunchState.isRunningOnFallbackStore else { return }
+
         // Condition-adjusted, like every other surface. This summed the raw AI
         // baseline while `lastItemRange` below — rendered inches away inside
         // the same medium widget — is adjusted, so a one-item library showed

@@ -3926,3 +3926,98 @@ final class RestoreCancellationTests: XCTestCase {
         XCTAssertNotEqual(vm.noticeTitle, "Restore purchases")
     }
 }
+
+// ── A launch that lost the store must not take the widget with it ────────────
+//
+// When SwiftData cannot open the on-disk store the app falls back to an
+// in-memory container so it still runs. A fetch against that does not throw —
+// it succeeds and returns `[]` — so `seedWidgetData`'s `try?` guard saw a
+// library that had simply been emptied and wrote zeros over the whole blob on
+// launch, before the app had any idea whether the store would ever open again.
+// That blob is the only copy of the haul outside the store, i.e. the only
+// representation still standing while the store is unreadable.
+
+final class FallbackLaunchWidgetTests: XCTestCase {
+
+    private struct NoStore: Error {}
+
+    private func item() -> ScanResult {
+        ScanResult(itemName: "Better Sweater", brand: "Patagonia",
+                   category: "clothing", conditionNotes: "Solid piece",
+                   valueLow: 100, valueHigh: 200, confidence: "High",
+                   soldListingsCount: 0, listingTitle: "T", listingDescription: "D")
+    }
+
+    private func readBack() throws -> WidgetHaulData {
+        guard let suite = UserDefaults(suiteName: WidgetDataStore.appGroupID),
+              let raw = suite.data(forKey: WidgetDataStore.haulKey) else {
+            throw XCTSkip("no App Group container in this test environment")
+        }
+        return try JSONDecoder().decode(WidgetHaulData.self, from: raw)
+    }
+
+    func test_aFallbackLaunchLeavesTheLastGoodHaulAlone() throws {
+        // Every one of these resets the flag: leaving it set would silently
+        // no-op every other `writeHaul` test in the suite.
+        defer { AppLaunchState.reset() }
+
+        WidgetDataStore.writeHaul(results: [item()], isPro: false)
+        let good = try readBack()
+        XCTAssertEqual(good.itemCount, 1)
+        XCTAssertGreaterThan(good.totalHigh, 0)
+
+        AppLaunchState.recordPersistentStoreFallback(NoStore())
+        XCTAssertTrue(AppLaunchState.isRunningOnFallbackStore)
+        WidgetDataStore.writeHaul(results: [], isPro: false)
+
+        let after = try readBack()
+        XCTAssertEqual(after.itemCount, 1, "the widget was wiped on a fallback launch")
+        XCTAssertEqual(after.totalHigh, good.totalHigh, accuracy: 0.01)
+        XCTAssertEqual(after.lastItemName, good.lastItemName)
+    }
+
+    func test_anEmptyLibraryOnAHealthyLaunchStillZeroesIt() throws {
+        // The other half, and the reason the guard is on the launch state and
+        // not on emptiness: clearing history genuinely means zero, and
+        // `deleteAll` writes exactly this.
+        defer { AppLaunchState.reset() }
+        AppLaunchState.reset()
+
+        WidgetDataStore.writeHaul(results: [item()], isPro: false)
+        XCTAssertEqual(try readBack().itemCount, 1)
+
+        WidgetDataStore.writeHaul(results: [], isPro: false)
+        let after = try readBack()
+        XCTAssertEqual(after.itemCount, 0)
+        XCTAssertEqual(after.totalHigh, 0, accuracy: 0.01)
+        XCTAssertEqual(after.lastItemName, "")
+    }
+
+    func test_theFallbackSessionsOwnScansDoNotReachTheHomeScreenEither() throws {
+        // Not only the launch seed: `ScanRepository`'s debounced sync writes
+        // for every scan made during the fallback session — work that is
+        // discarded at quit and has no business being published as a haul.
+        defer { AppLaunchState.reset() }
+
+        WidgetDataStore.writeHaul(results: [item()], isPro: false)
+        let good = try readBack()
+
+        AppLaunchState.recordPersistentStoreFallback(NoStore())
+        WidgetDataStore.writeHaul(results: [item(), item(), item()], isPro: false)
+
+        XCTAssertEqual(try readBack().itemCount, good.itemCount,
+                       "a fallback session published a haul it cannot keep")
+    }
+
+    func test_theFirstHealthyLaunchOverwritesIt() throws {
+        // Stale, not frozen: the guard must lift the moment the store opens.
+        defer { AppLaunchState.reset() }
+
+        AppLaunchState.recordPersistentStoreFallback(NoStore())
+        WidgetDataStore.writeHaul(results: [], isPro: false)
+
+        AppLaunchState.reset()
+        WidgetDataStore.writeHaul(results: [item(), item()], isPro: false)
+        XCTAssertEqual(try readBack().itemCount, 2)
+    }
+}
