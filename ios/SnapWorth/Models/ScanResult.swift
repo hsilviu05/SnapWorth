@@ -435,12 +435,51 @@ enum Condition: String, CaseIterable, Identifiable {
     private static let negators = ["no ", "not ", "without ", "free of ",
                                    "free from ", "none ", "n't "]
 
+    /// Splits on " and ", but only where it starts a new predicate.
+    ///
+    /// " and " is a weaker break than the contrastive conjunctions above, and
+    /// it goes both ways. In "no stains **and** heavy wear at the cuffs" it
+    /// ends the negated span — that is a worn item, and reading the "no"
+    /// across the whole sentence graded it `.good`, understating the estimate
+    /// by the 0.78 `.used` multiplier. In "no rips **and** tears" it does not:
+    /// that is one negated list, and splitting it blindly grades a clean item
+    /// `.used`, which is the same defect pointing the other way.
+    ///
+    /// Measured, rather than argued: adding " and " to `clauseBreaks`
+    /// unconditionally fixes the first sentence and breaks the second, an
+    /// even trade. Adding " with " as well additionally breaks "New with
+    /// tags". A proximity window on the negator cannot separate them either —
+    /// "free of stains or damage" and "no stains and heavy wear" put the same
+    /// two words between the negator and the term, and want opposite answers.
+    ///
+    /// What does separate them is the shape of what follows: a bare noun is
+    /// the tail of a list the negation still covers, while two or more words
+    /// are a fresh claim. That rule passes all thirty-two cases the suite
+    /// already had plus six new ones, including "no stains and no heavy wear",
+    /// where the negation is simply restated after the break.
+    private static func splitOnConjoinedPredicates(_ part: String) -> [String] {
+        let chunks = part.components(separatedBy: " and ")
+        guard chunks.count > 1 else { return [part] }
+        var out: [String] = []
+        var current = chunks[0]
+        for next in chunks.dropFirst() {
+            if next.split(separator: " ").count > 1 {
+                out.append(current)
+                current = next
+            } else {
+                current += " and " + next
+            }
+        }
+        out.append(current)
+        return out
+    }
+
     private static func clauses(of text: String) -> [String] {
         var parts = [text]
         for separator in clauseBreaks {
             parts = parts.flatMap { $0.components(separatedBy: separator) }
         }
-        return parts
+        return parts.flatMap { splitOnConjoinedPredicates($0) }
     }
 
     /// Endings a matched term may carry and still be the same word, so

@@ -2728,6 +2728,10 @@ final class ConditionBaselineTests: XCTestCase {
         // whole sentence would have read it as a clean one — which is the
         // failure mode opposite to the bug, and just as wrong.
         XCTAssertEqual(Condition.inferred(from: "No stains but heavy wear at the cuffs"), .used)
+        // "and" ends the negated span here too, and used not to: the "no"
+        // reached across the whole sentence and graded a worn item `.good`,
+        // understating the estimate by the 0.78 `.used` multiplier.
+        XCTAssertEqual(Condition.inferred(from: "No stains and heavy wear at the cuffs"), .used)
         XCTAssertEqual(Condition.inferred(from: "No holes, though the hem is torn"), .used)
         XCTAssertEqual(Condition.inferred(from: "No damage apart from a faint stain"), .used)
     }
@@ -2740,6 +2744,25 @@ final class ConditionBaselineTests: XCTestCase {
 
     func test_unremarkableNotesAreGoodNotUsed() {
         XCTAssertEqual(Condition.inferred(from: "Solid secondhand piece"), .good)
+    }
+
+    func test_andDoesNotEndANegatedListOfBareNouns() {
+        // The other half, and the reason " and " is not simply added to
+        // `clauseBreaks`: doing that fixes "no stains and heavy wear" and
+        // breaks these, which is an even trade rather than a fix.
+        //
+        // A bare noun after "and" is the tail of a list the negation still
+        // covers; two or more words are a fresh claim. Measured against the
+        // whole suite before it was written — the naive split fails "no rips
+        // and tears", and adding " with " also fails "New with tags".
+        XCTAssertEqual(Condition.inferred(from: "No rips and tears"), .good)
+        XCTAssertEqual(Condition.inferred(from: "No holes and no damage"), .good)
+        XCTAssertEqual(Condition.inferred(from: "No damage and no stains"), .good)
+        XCTAssertEqual(Condition.inferred(from: "Without holes and light fading"), .good)
+        // The negation restated after the break still holds.
+        XCTAssertEqual(Condition.inferred(from: "No stains and no heavy wear"), .good)
+        // And the case the naive split would have broken, kept as a guard.
+        XCTAssertEqual(Condition.inferred(from: "New with tags"), .new)
         XCTAssertEqual(Condition.inferred(from: ""), .good)
     }
 
