@@ -92,6 +92,44 @@ enum ThriftRunController {
         }
     }
 
+    /// Ends a run past the cap without waiting for a scan to notice.
+    ///
+    /// The cap lived only inside `update`, and `update` is reached only from
+    /// the scan-mutation paths in `ScanRepository` — so it could not fire for
+    /// the one case it exists for: a run somebody started and then stopped
+    /// scanning on. `ScanView` re-reads `isRunning` on foreground and its
+    /// comment there claimed a run could "hit the eight-hour cap"; nothing
+    /// implemented that, which is what this closes.
+    ///
+    /// What it buys is dismissal, not the ending. ActivityKit ends an Activity
+    /// of its own accord at eight hours, and `current` already excludes
+    /// `.ended`, so the app's own state was never wrong. But the system's end
+    /// leaves the Activity sitting on the Lock Screen for up to four hours
+    /// more, and `end()` here dismisses it immediately — which is what the
+    /// comment on `maximumRunDuration` actually asks for: "the Activity should
+    /// not still be there the next morning claiming to be live."
+    @discardableResult
+    static func endIfExpired(now: Date = Date()) async -> Bool {
+        guard let activity = current,
+              hasExpired(startedAt: activity.attributes.startedAt, now: now)
+        else { return false }
+        await end()
+        return true
+    }
+
+    /// Whether a run started at `startedAt` has outlived the cap.
+    ///
+    /// Split out for the same reason `staleDate` is: `endIfExpired` has to ask
+    /// ActivityKit for a live Activity, and no test can hand it one — so the
+    /// decision is tested apart from the thing it decides about.
+    ///
+    /// `>=`, not `>`: `staleDate` already pins the stale moment to exactly
+    /// `startedAt + maximumRunDuration`, so the instant the run declares
+    /// itself finally stale is the instant it is over.
+    static func hasExpired(startedAt: Date, now: Date) -> Bool {
+        now.timeIntervalSince(startedAt) >= maximumRunDuration
+    }
+
     /// Recompute from the library. Ends a run that has outlived its welcome.
     ///
     /// Counts only scans at or after `startedAt`, which is what makes this a

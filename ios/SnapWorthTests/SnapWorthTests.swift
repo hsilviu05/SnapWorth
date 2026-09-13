@@ -1944,6 +1944,47 @@ final class ThriftRunStaleDateTests: XCTestCase {
         XCTAssertLessThan(stale, lateScan.addingTimeInterval(ThriftRunController.staleAfter))
     }
 
+    // ── The cap, and when it is actually asked ───────────────────────────
+    //
+    // It lived only inside `update`, which `ScanRepository` reaches only when
+    // a scan is written — so the one case the cap exists for, a run somebody
+    // started and then stopped scanning on, never met it. `ScanView`'s
+    // foreground handler now asks directly; its comment used to claim that
+    // already happened.
+
+    @MainActor
+    func test_aRunIsOverExactlyAtTheCap() {
+        // `>=`, matching `staleDate`, which pins the final stale moment to
+        // exactly this instant: the run declares itself stale and is over at
+        // the same time rather than a tick apart.
+        let cap = ThriftRunController.maximumRunDuration
+        XCTAssertTrue(ThriftRunController.hasExpired(
+            startedAt: start, now: start.addingTimeInterval(cap)))
+        XCTAssertFalse(ThriftRunController.hasExpired(
+            startedAt: start, now: start.addingTimeInterval(cap - 1)))
+    }
+
+    @MainActor
+    func test_aRunInsideTheCapIsLeftAlone() {
+        // The whole middle of a real trip. A shopper three hours in must not
+        // have the Lock Screen total taken away on returning to the app.
+        for hours in [0.0, 0.5, 1.5, 3, 7, 7.9] {
+            XCTAssertFalse(
+                ThriftRunController.hasExpired(
+                    startedAt: start, now: start.addingTimeInterval(hours * 3600)),
+                "\(hours)h in is still a live run")
+        }
+    }
+
+    @MainActor
+    func test_aRunLeftOvernightIsOver() {
+        // The case in `maximumRunDuration`'s own comment: "People put the
+        // phone in a pocket and go home; the Activity should not still be
+        // there the next morning claiming to be live."
+        XCTAssertTrue(ThriftRunController.hasExpired(
+            startedAt: start, now: start.addingTimeInterval(14 * 3600)))
+    }
+
     @MainActor
     func test_aFreshRunGoesStaleLongBeforeItIsEnded() {
         XCTAssertLessThan(ThriftRunController.staleAfter,

@@ -361,11 +361,18 @@ struct ScanView: View {
         .onChange(of: scenePhase) { _, phase in
             guard phase == .active else { return }
             // Both of these can change while the app is not running: a run can
-            // end from the Lock Screen or hit the eight-hour cap, and Live
-            // Activities can be switched off for the app in Settings. This
-            // view never disappeared, so nothing else would re-read them.
+            // end from the Lock Screen, and Live Activities can be switched
+            // off for the app in Settings. This view never disappeared, so
+            // nothing else would re-read them.
             isRunOn = ThriftRunController.isRunning
             isRunAvailable = ThriftRunController.isAvailable
+            // The eight-hour cap, which this comment used to claim happened by
+            // itself. It did not: the cap lived only inside
+            // `ThriftRunController.update`, reachable only when a scan is
+            // written — so the abandoned run it exists for never met it.
+            Task {
+                if await ThriftRunController.endIfExpired() { isRunOn = false }
+            }
         }
         .onChange(of: cameraManager.authStatus) { _, status in
             if status == .denied {
