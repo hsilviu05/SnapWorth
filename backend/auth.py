@@ -35,6 +35,7 @@ from pydantic import BaseModel, Field
 import appattest
 import auditlog
 import notify
+import ratelimit
 from cache import KeyValueStore
 from devicecheck import DeviceCheckClient
 from auditlog import AuditEvent
@@ -117,6 +118,12 @@ class AuthDeps:
     # module — a direct import would be circular. `None` means "not wired
     # yet", which only happens before startup and in tests that do not care.
     ip_limiter: Callable[[str | None], Awaitable[None]] | None = None
+
+    # Per-subject limiter for `/entitlement`, injected the same way and for the
+    # same reason. That route is authenticated so it never reached
+    # `ip_limiter`, and it had no limit of its own — a valid device could ask
+    # for an unbounded number of certificate-chain verifications.
+    entitlement_limiter: Callable[[str, str | None], Awaitable[None]] | None = None
 
     config: AuthConfig = AuthConfig()
 
@@ -253,8 +260,17 @@ async def _limit_unauthenticated(request: Request) -> None:
     """
     if deps.ip_limiter is None:
         return
-    client = request.client
-    await deps.ip_limiter(client.host if client else None)
+    # `ratelimit.client_ip`, not `request.client.host`.
+    #
+    # uvicorn runs with `--forwarded-allow-ips='*'`, so `request.client.host`
+    # is the *leftmost* `X-Forwarded-For` hop — entirely client-supplied. These
+    # three routes were therefore keyed on a value the caller picks per
+    # request, which is a fresh bucket on demand rather than a limit, while
+    # `/scan`, `/trends` and `/listing` were keyed on the rightmost hop all
+    # along. `main._client_ip`'s own docstring describes this exact trap; the
+    # routes added later just did not get it, because the helper lived in a
+    # module `auth` cannot import. It is in `ratelimit` now.
+    await deps.ip_limiter(ratelimit.client_ip(request))
 
 
 @router.post("/challenge", response_model=ChallengeResponse)
@@ -421,6 +437,7 @@ async def require_auth(
 @router.post("/entitlement", response_model=EntitlementResponse)
 async def record_entitlement(
     req: EntitlementRequest,
+    request: Request,
     principal: Principal = Depends(require_auth),
 ) -> EntitlementResponse:
     """Verify a StoreKit signed transaction and upgrade the caller to Pro.
@@ -428,6 +445,13 @@ async def record_entitlement(
     Re-issues a token so the new tier takes effect immediately rather than at
     the next refresh.
     """
+    # `/scan` and `/trends` are limited; this was not, despite doing more work
+    # per call than either — a three-certificate chain walk with an ECDSA
+    # verification per link. See `main._enforce_entitlement_limit` for why it
+    # gets its own generous bucket rather than the scan one.
+    if deps.entitlement_limiter is not None:
+        await deps.entitlement_limiter(principal.subject,
+                                       ratelimit.client_ip(request))
     # No 409 branch: the device cap now evicts the least-recently-seen binding
     # instead of refusing. It refused for as long as it existed, and because an
     # App Attest key is per install rather than per device, reinstalling burned
@@ -507,15 +531,23 @@ async def reserve_quota(principal: Principal) -> QuotaStatus | None:
         ) from None
 
 
-async def refund_quota(principal: Principal) -> None:
+async def refund_quota(principal: Principal,
+                       status: QuotaStatus | None = None) -> None:
     """Hand back a reservation whose work produced nothing.
+
+    Pass the `QuotaStatus` that `reserve_quota` returned. It carries the UTC
+    day the reservation was counted against, and without it the refund lands
+    on whichever day the failure happened in — which across midnight is the
+    wrong counter. Optional only so a caller with no reservation in hand still
+    compiles; every real one has it.
 
     Never raises: the request has already failed, and a failed refund is
     exactly the outcome the previous check-then-consume code produced on
     *every* failure. Not worth a second error on top of the first.
     """
     try:
-        await deps.quota.refund(principal.subject, principal.is_pro)
+        await deps.quota.refund(principal.subject, principal.is_pro,
+                                day=status.day if status else None)
     except Exception as exc:                                # pragma: no cover
         log.error("quota refund failed — user charged for a failed scan: %s", exc,
                   extra={"subject": auditlog.pseudonymise(principal.subject)})

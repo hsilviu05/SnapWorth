@@ -58,6 +58,11 @@ FREE_SCANS_FIRST_DAY = 0
 # twice. Matches the attestation-state horizon.
 _WELCOME_TTL = 60 * 60 * 24 * 400
 
+# How long "I have seen this subject before" is remembered. Same horizon as the
+# welcome marker, because the two answer the same question about the same
+# subject and a shorter one here silently re-opens the welcome.
+_SEEN_TTL = _WELCOME_TTL
+
 # Written into the welcome key when the welcome was *refused* (a reinstall
 # DeviceCheck recognised). Any value that is not a UTC day string works —
 # `_limit_for` compares against today's day — but a named constant says so.
@@ -80,6 +85,11 @@ class QuotaStatus:
     used: int
     limit: int
     unlimited: bool
+    # The UTC day this status was counted against. A refund has to decrement
+    # the day the reservation was *taken from*, not whichever day the failure
+    # happened to land in — see `refund`. Empty for a status that is not a
+    # reservation, which then means "today".
+    day: str = ""
 
     @property
     def remaining(self) -> int:
@@ -88,6 +98,15 @@ class QuotaStatus:
 
 def _utc_day() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%d")
+
+
+def _utc_month() -> str:
+    """"YYYY-MM" — the granularity Apple's DeviceCheck `last_update_time` has.
+
+    Coarse, and the only period signal DeviceCheck gives. It is what lets a
+    single bit mean "this month" instead of "forever"; see `starting_balance`.
+    """
+    return datetime.now(timezone.utc).strftime("%Y-%m")
 
 
 def _exhausted_message(limit: int) -> str:
@@ -162,8 +181,8 @@ class ScanQuota:
         return configured if configured > self._limit else 0
 
     @staticmethod
-    def _counter_key(subject: str) -> str:
-        return f"quota:{subject}:{_utc_day()}"
+    def _counter_key(subject: str, day: str | None = None) -> str:
+        return f"quota:{subject}:{day or _utc_day()}"
 
     @staticmethod
     def _seen_key(subject: str) -> str:
@@ -219,9 +238,12 @@ class ScanQuota:
         if is_pro:
             return QuotaStatus(used=0, limit=self._limit, unlimited=True)
         limit = await self._limit_for(subject)
+        # Read once and carried, so the refund cannot land on a different key
+        # than the increment did.
+        day = _utc_day()
         try:
             used = await self._cache.incr(
-                self._counter_key(subject), _COUNTER_TTL, required=True)
+                self._counter_key(subject, day), _COUNTER_TTL, required=True)
         except CacheUnavailable as exc:
             raise QuotaUnavailable(str(exc)) from exc
 
@@ -229,15 +251,26 @@ class ScanQuota:
             # Refused, so it must not leave the counter raised against the
             # next request — otherwise a burst would push the count
             # arbitrarily far past the limit and delay the reset.
-            await self._release(subject)
+            await self._release(subject, day)
             raise QuotaExceeded(
                 _exhausted_message(limit),
                 resets_at=int(time.time()) + _seconds_until_utc_midnight(),
             )
-        return QuotaStatus(used=used, limit=limit, unlimited=False)
+        return QuotaStatus(used=used, limit=limit, unlimited=False, day=day)
 
-    async def refund(self, subject: str, is_pro: bool) -> None:
+    async def refund(self, subject: str, is_pro: bool,
+                     day: str | None = None) -> None:
         """Return a reservation whose work produced no result.
+
+        `day` is the UTC day the reservation was counted against — carried on
+        the `QuotaStatus` that `reserve` returned. Without it the key was
+        recomputed from "now", so a scan reserved at 23:59:59 and refunded a
+        second later decremented the *new* day's counter. The day it was
+        actually taken from kept the use, so the user was charged for a scan
+        that produced nothing; and if another scan had already reserved on the
+        new day, its live reservation was handed back instead — two scans out
+        of one allowance. A scan takes seconds and the boundary is one second
+        wide per day, so this was rare and permanent rather than loud.
 
         Best-effort: a failed refund costs the user one scan, which is the
         same outcome the pre-reservation code had on every failure, so it is
@@ -245,21 +278,24 @@ class ScanQuota:
         """
         if is_pro:
             return
-        await self._release(subject)
+        await self._release(subject, day)
 
-    async def _release(self, subject: str) -> None:
+    async def _release(self, subject: str, day: str | None = None) -> None:
+        key = self._counter_key(subject, day)
         try:
             used = await self._cache.incr(
-                self._counter_key(subject), _COUNTER_TTL, amount=-1, required=True)
+                key, _COUNTER_TTL, amount=-1, required=True)
         except CacheUnavailable as exc:
             log.error("quota refund failed — user charged for nothing: %s", exc)
             return
         if used < 0:
             # Only reachable if the counter was reset underneath a live
-            # reservation (a day boundary, or an operator clearing it).
+            # reservation (an operator clearing it, or a key that expired).
+            # No longer reachable by crossing midnight: `key` is the day the
+            # reservation was taken from, and that day's counter still holds
+            # it. Written back to the same key, not to a freshly computed one.
             try:
-                await self._cache.set(
-                    self._counter_key(subject), "0", _COUNTER_TTL, required=True)
+                await self._cache.set(key, "0", _COUNTER_TTL, required=True)
             except CacheUnavailable:
                 pass
 
@@ -280,6 +316,10 @@ class ScanQuota:
 
         Survives reinstall, which the per-install counter cannot. Failures are
         swallowed: this is a hardening signal, not a correctness dependency.
+
+        Apple stamps the write with a month, and `starting_balance` reads that
+        stamp — so re-marking an already-marked device is not a no-op, it
+        refreshes the month the mark belongs to.
         """
         if not device_token or self._device_check is None:
             return
@@ -294,12 +334,35 @@ class ScanQuota:
         """Free scans a *newly seen* subject should start with.
 
         A fresh App Attest key id normally means a new install. If DeviceCheck
-        says this hardware already burned its allowance, the reinstall gets
-        nothing back until the next reset.
+        says this hardware burned its allowance *this month*, the reinstall
+        gets nothing back until the next one.
+
+        "This month" is Apple's `last_update_time`, which is the only period
+        DeviceCheck can express. It used to say "until the next reset" while no
+        reset existed anywhere: `note_exhausted` is the only writer of bit0 in
+        the repo and nothing ever cleared it. With `FREE_SCANS_PER_DAY = 1`
+        that bit is set on the second scan attempt of any day — i.e. for
+        essentially every engaged free user, within their first day — so it did
+        not distinguish abusers from users at all. It flagged almost the whole
+        free base, permanently, and then denied each of them the first-day
+        welcome on any future install of the app on that hardware.
         """
         try:
+            # `_SEEN_TTL`, not `_COUNTER_TTL`. "Have I ever seen this subject"
+            # is not a 30-hour question, and `cache.add` never refreshes an
+            # existing key — `InMemoryCache.add` returns False without touching
+            # the expiry and `RedisCache.add` is `SET … NX` — so the marker
+            # expired 30 hours after the subject was *first* minted rather than
+            # 30 hours after it was last used. Every subject, however active,
+            # fell back into this `first_time` branch roughly every 30 hours
+            # forever, which also re-ran the DeviceCheck query for the whole
+            # active base on that cadence.
+            #
+            # A reinstall is unaffected either way: App Attest mints a new key
+            # id, so a reinstall is a *different* subject with its own seen
+            # marker. The short TTL only ever made the same subject look new.
             first_time = await self._cache.add(
-                self._seen_key(subject), "1", _COUNTER_TTL, required=True)
+                self._seen_key(subject), "1", _SEEN_TTL, required=True)
         except CacheUnavailable as exc:
             raise QuotaUnavailable(str(exc)) from exc
 
@@ -319,6 +382,24 @@ class ScanQuota:
             return await self._welcome(subject)
 
         if bits and bits.get("bit0"):
+            # The mark is only about the month it was written in. Apple returns
+            # that month as `last_update_time`, and it was being discarded.
+            stamp = str(bits.get("last_update_time") or "")[:7]
+            if stamp != _utc_month():
+                # Either an earlier month, or a shape we cannot read. Both are
+                # "recency not established", and the branch above already
+                # grants when Apple is simply unreachable — a hardening signal
+                # must not outweigh a real user on a new phone. Clear it so
+                # the next lookup is cheap and unambiguous.
+                log.info("devicecheck mark is not from this month — granting",
+                         extra={"stamp": stamp or "absent"})
+                try:
+                    await self._device_check.update_bits(
+                        device_token, bit0=False, bit1=False)
+                except Exception as exc:
+                    log.warning("devicecheck reset failed: %s", exc)
+                return await self._welcome(subject)
+
             log.info("reinstall detected via devicecheck — no fresh free scans")
             try:
                 await self._cache.set(
@@ -341,12 +422,41 @@ class ScanQuota:
     async def _welcome(self, subject: str) -> int:
         """Grant the first-day allowance to a genuinely new subject, once.
 
-        The `seen` marker above expires with the counters, so "first time"
-        recurs for anyone who stays away for a day; the welcome marker does
-        not, so the allowance is handed out exactly once per subject.
+        The welcome marker outlives every counter, so the allowance is handed
+        out exactly once per subject — including a subject first seen while the
+        welcome was switched off, which is what the `_DENIED` write below is
+        for.
         """
         first_day = await self._first_day_limit()
         if not first_day:
+            # Record the refusal, do not just return. This path used to write
+            # no marker at all, so a subject first seen while the welcome was
+            # off carried nothing — and the moment the lever was armed, the
+            # next recurrence of `first_time` reached the grant below, `add`
+            # succeeded for an *existing* subject, and `_limit_for` handed them
+            # the first-day allowance for the rest of that UTC day. An existing
+            # user who had already spent today's scan got extra paid Gemini
+            # scans, once for every subject in the install base.
+            #
+            # It is not specific to the ops lever: raising FREE_SCANS_FIRST_DAY
+            # from 0 as a Railway variable does exactly the same thing, and
+            # did. It also contaminated the very funnel the lever exists to
+            # measure, because the "first-day cohort" filled with existing
+            # users.
+            #
+            # The mirror-image case — a DeviceCheck-recognised reinstall
+            # claiming the welcome — was closed by writing `_DENIED` on the
+            # refusal path in `starting_balance`. This is the same fix for the
+            # other way in.
+            try:
+                await self._cache.add(
+                    self._welcome_key(subject), _DENIED, _WELCOME_TTL, required=True)
+            except CacheUnavailable:
+                # Best-effort, like the reinstall refusal: failing a scan over a
+                # marker would be worse than the allowance it guards. `add` is a
+                # no-op when a marker already exists, so a genuinely new subject
+                # arriving after the lever is armed still reaches the grant.
+                pass
             return self._limit
         try:
             granted = await self._cache.add(

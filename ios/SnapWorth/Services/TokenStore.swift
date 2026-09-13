@@ -102,6 +102,24 @@ protocol DeviceIdentityStore {
 /// never carried to another device by a backup, so two phones restored from one
 /// backup are correctly two devices.
 ///
+/// That was not true while a copy also sat in `UserDefaults`. The two stores
+/// have opposite migration semantics, and the whole design rests on the
+/// Keychain's: the item is `AfterFirstUnlockThisDeviceOnly`, excluded from
+/// encrypted backups and from Quick Start, while
+/// `Library/Preferences/eu.snapworth.app.plist` is included in both. So the
+/// mirror was precisely the carrier this store exists to prevent — restore one
+/// encrypted backup of a subscriber's phone onto any number of iPhones, and
+/// each one reads nil from the Keychain, adopts the migrated `UserDefaults`
+/// value, and sends the same `device_id`. All of them collapse onto one
+/// binding slot in `entitlements.record`, so the six-device cap is bypassed
+/// without bound and `subscription_over_cap` never fires — the operator sees
+/// nothing at all on a subscription shared across arbitrarily many phones.
+///
+/// The mirror is kept only while it is the *sole* copy, for the case it was
+/// added for: a Keychain write can fail briefly before first unlock, and the
+/// next launch must find the value rather than mint a second one. Once the
+/// durable write succeeds the mirror is removed.
+///
 /// An existing install keeps the id it already has: the `UserDefaults` value is
 /// adopted into the Keychain on first read, so upgrading does not reset the
 /// server's rate-limit view of this device.
@@ -132,11 +150,16 @@ final class DeviceIdentity: @unchecked Sendable {
         }
 
         let value = defaults.string(forKey: Self.legacyDefaultsKey) ?? UUID().uuidString
-        // Kept in UserDefaults as well: if the Keychain write fails (it can,
+        // Written to defaults *first*: if the Keychain write fails (it can,
         // briefly, before first unlock), the next launch still finds this value
         // and adopts it rather than minting another.
         defaults.set(value, forKey: Self.legacyDefaultsKey)
-        _ = store.write(value)
+        if store.write(value) {
+            // The Keychain now holds it, `ThisDeviceOnly`. A copy left in
+            // UserDefaults would migrate this identity to a restored phone —
+            // see the note above. The fallback has done its job; remove it.
+            defaults.removeObject(forKey: Self.legacyDefaultsKey)
+        }
         cached = value
         return value
     }

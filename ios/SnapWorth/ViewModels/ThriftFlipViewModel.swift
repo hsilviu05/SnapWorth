@@ -183,8 +183,25 @@ final class ThriftFlipViewModel {
         return String(format: fmt, d)
     }
 
+    /// `snapCurrencyCents`, not `snapCurrency`.
+    ///
+    /// This feature prints an itemised subtraction — resale, minus fees, minus
+    /// shipping, minus paid, equals net — and every row went through a
+    /// formatter with `maximumFractionDigits = 0`. Each row rounded
+    /// independently, so the rows did not add up to the total shown beneath
+    /// them: $20.75 − $3.15 − $10.40 rendered as "$21 − $3 − $10" over a net
+    /// of "$7", and 21 − 3 − 10 is 8.
+    ///
+    /// And any profit under a dollar printed as "$0" beneath a green "Worth
+    /// flipping", because `isProfitable` is the exact `netProfit > 0`. A
+    /// 1-cent margin is a *correct* verdict presented as a contradiction, at
+    /// exactly the boundary where the number is the whole decision.
+    ///
+    /// `snapCurrency` stays where it belongs: a valuation range is an estimate
+    /// and cents would imply precision it does not have.
     static func money(_ value: Decimal) -> String {
-        NumberFormatter.snapCurrency.string(from: NSDecimalNumber(decimal: value)) ?? "$0"
+        NumberFormatter.snapCurrencyCents.string(from: NSDecimalNumber(decimal: value))
+            ?? "$0.00"
     }
 
     static func signedMoney(_ value: Decimal) -> String {

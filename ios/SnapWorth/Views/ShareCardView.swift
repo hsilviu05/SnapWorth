@@ -143,7 +143,7 @@ struct ShareCardView: View {
     private var heroSection: some View {
         if let paid = result.paidPrice {
             VStack(spacing: 6) {
-                Text(paid == 0 ? "Free →" : "Paid \(fmtCurrency(paid)) →")
+                Text(printedDollars(paid) == 0 ? "Free →" : "Paid \(fmtCurrency(paid)) →")
                     .font(Font.dmSans(17, weight: .semibold))
                     .foregroundStyle(Color(hex: "8B7D71"))
                     .lineLimit(1)
@@ -183,15 +183,43 @@ struct ShareCardView: View {
     /// multiple its own headline did not support — and the share card is the
     /// artefact that leaves the app.
     func findBadge(paid: Double) -> String? {
-        if paid == 0 { return "Free find" }
-        let low = result.displayValueLow
-        guard paid < low else { return nil }
-        let multiple = Int(round(low / paid))
+        // Both numbers as the card *prints* them, not as they are stored.
+        // `snapCurrency` has `maximumFractionDigits = 0`, so a badge divided
+        // out of the stored values is a claim about figures that appear
+        // nowhere on the card: $0.50 paid printed "Paid $0" beside a "90x
+        // find", and $1.50 printed "Paid $2" beside the 30x taken from 1.50.
+        // The `== 0` test has to move with it, or a paid price the card prints
+        // as $0 escapes the free branch and becomes the divisor of a multiple.
+        let paidShown = printedDollars(paid)
+        let low = printedDollars(result.displayValueLow)
+        if paidShown == 0 { return "Free find" }
+        guard paidShown < low else { return nil }
+        // `floor`, not `round`. Round-to-nearest made the threshold for an
+        // "Nx find" claim `low/paid >= N - 0.5`, so the very first badge a user
+        // can earn was already wrong: a 1.5x find rendered as "2x find", and a
+        // 2.5x as "3x" (Swift rounds half away from zero). The badge sits 6pt
+        // under the headline range and 6pt under the "Paid $X" line, so the
+        // card printed the two numbers that disprove its own claim — on the
+        // artefact that leaves the app.
+        //
+        // The same class of defect as the divisor bug fixed in the comment
+        // above: that corrected which number to divide, and left the rounding.
+        let multiple = Int((low / paidShown).rounded(.down))
         return multiple > 1 ? "\(multiple)x find" : nil
     }
 
     private func fmtCurrency(_ value: Double) -> String {
         NumberFormatter.snapCurrency.string(from: NSNumber(value: value)) ?? "$\(Int(value))"
+    }
+
+    /// A money figure as this card prints it.
+    ///
+    /// `NumberFormatter.snapCurrency` has `maximumFractionDigits = 0`, so
+    /// anything measured against a figure the card shows has to lose its cents
+    /// the same way first. Half-even because that is `NumberFormatter`'s own
+    /// default rounding: $22.50 lands on the $22 the card prints, not on $23.
+    private func printedDollars(_ value: Double) -> Double {
+        value.rounded(.toNearestOrEven)
     }
 
     private var qrImage: UIImage? { snapShareCardQR() }
@@ -363,15 +391,38 @@ enum GuessCardStyle {
 /// how much, against the nearer end — "under the low end" rather than a
 /// distance to some midpoint the user never saw.
 enum GuessScoring {
+    /// Scored against the bounds **as printed**, not the raw ones.
+    ///
+    /// The range the user is looking at is whole dollars — `formattedRange`
+    /// runs through `snapCurrency`, which drops the fraction — while the
+    /// bounds handed in here are fractional as a matter of course
+    /// (`priceRange(for:)` scales the stored values by a condition factor).
+    /// Scoring the raw values against a printed range produced a verdict that
+    /// contradicted the card above it, in two ways at once:
+    ///
+    ///   * a guess of $45 against a printed "$45–$90" whose real low is 45.40
+    ///     was *outside* the range, and the miss — 40 cents — formatted through
+    ///     a 0-decimal formatter as **"$0 under the low end."** A non-zero miss
+    ///     reported as zero, under a range the guess appears to match exactly.
+    ///   * and the reverse: a guess of $45 against a real low of 44.60 printed
+    ///     "$45" too, so two guesses the user cannot tell apart got different
+    ///     verdicts.
+    ///
+    /// Rounding the bounds first makes the verdict answer the question the
+    /// user actually asked — "did I match the number on the screen?" — and
+    /// makes "$0 under" unreachable rather than merely unlikely: any guess
+    /// within half a dollar of a bound now lands inside it.
     static func verdict(guess: Double, low: Double, high: Double) -> String {
-        let lo = min(low, high), hi = max(low, high)
-        if guess >= lo && guess <= hi {
+        // The same rounding `snapCurrency` applies to the range on screen.
+        let lo = min(low, high).rounded(), hi = max(low, high).rounded()
+        let guessed = guess.rounded()
+        if guessed >= lo && guessed <= hi {
             return "Spot on — your guess is inside the estimate."
         }
-        if guess < lo {
-            return "\(money(lo - guess)) under the low end."
+        if guessed < lo {
+            return "\(money(lo - guessed)) under the low end."
         }
-        return "\(money(guess - hi)) over the high end."
+        return "\(money(guessed - hi)) over the high end."
     }
 
     /// Parses what the user typed: digits with an optional decimal separator,

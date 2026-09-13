@@ -205,6 +205,16 @@ class TestBuildIdentity:
 
 # ── GET /privacy and /terms ───────────────────────────────────────────────────
 
+def _prose(html_text: str) -> str:
+    """Collapse whitespace so an assertion reads the sentence, not the wrapping.
+
+    The policy bodies are hard-wrapped at about 78 columns, so any phrase that
+    happens to straddle a line break is not a substring of the raw response —
+    which makes a substring assertion pass or fail on where the author pressed
+    return.
+    """
+    return " ".join(html_text.split())
+
 class TestLegalEndpoints:
     def test_privacy_returns_html(self):
         r = client.get("/privacy")
@@ -225,6 +235,43 @@ class TestLegalEndpoints:
         with third parties, while photos were going to Google on every scan."""
         body = client.get("/privacy").text
         assert "except for the service providers below" in body
+
+    def test_privacy_describes_what_telegram_actually_receives(self):
+        """The paragraph said "never a device identifier, never anything that
+        links a scan to a device or a person" — and five bot surfaces send a
+        stable salted hash of the device's attestation key plus that device's
+        scan count, activity dates and subscription state. A one-way hash is
+        still a pseudonymous identifier, so the sentence was false.
+
+        Pinned here because the claim and the code are in different files and
+        nothing else connects them.
+        """
+        # The policy body is hard-wrapped, so a phrase that spans a line break
+        # is not a substring of it. Every assertion here reads the prose, not
+        # the layout.
+        body = _prose(client.get("/privacy").text)
+        assert "never a device identifier" not in body, (
+            "the claim the bot contradicts is back")
+        assert "one-way salted hash of your device's attestation key" in body
+        for detail in ("scan count", "first and last activity dates",
+                       "subscription state", "400 days"):
+            assert detail in body, f"the policy no longer mentions {detail}"
+
+    def test_the_stated_retention_is_the_retention_the_code_applies(self):
+        """A number in a policy that nothing checks is a number that drifts."""
+        import notify
+        body = _prose(client.get("/privacy").text)
+        days = notify.INDEX_TTL // 86_400
+        assert f"{days} days" in body, (
+            f"the operator index keeps rows for {days} days; the policy says "
+            f"something else")
+
+    def test_privacy_still_refuses_the_things_it_should(self):
+        # Widening the disclosure must not have widened it past the truth.
+        body = _prose(client.get("/privacy").text)
+        assert "Never the photo" in body
+        assert "never your name, email address or location" in body
+        assert "not an advertising identifier" in body
 
     def test_terms_returns_html(self):
         r = client.get("/terms")
@@ -299,6 +346,13 @@ class TestScanEndpoint:
         assert "Empty" in r.json()["detail"]
 
     def test_rejects_oversized_file(self):
+        """11 MB is over the route's limit and under the request ceiling.
+
+        So it reaches the route and gets copy the client actually renders.
+        `AppError.from` maps 400 and 422 and has no 413 case at all, which is
+        why `_read_capped` answers 400 — and why `MAX_REQUEST_BYTES` sits well
+        above this rather than duplicating it.
+        """
         big = io.BytesIO(b"\xff\xd8\xff" + b"\x00" * (11 * 1024 * 1024))
         r = client.post(
             "/scan",
@@ -307,6 +361,41 @@ class TestScanEndpoint:
         )
         assert r.status_code == 400
         assert "10 MB" in r.json()["detail"]
+
+    def test_an_implausible_body_is_refused_before_it_is_read(self):
+        """The gap `_read_capped` could not close.
+
+        `_read_capped` bounds what the process will *hold*, but a route's
+        parameters are resolved before its first statement runs — so Starlette
+        had already received the whole multipart part and spooled it to a temp
+        file by then. Auth, the rate limiter and the quota all sat behind an
+        unbounded receive, on a single worker with no proxy body cap in front
+        of it.
+
+        Asserted from the declared `content-length` rather than by sending the
+        bytes: the property is that nothing is read, so pushing 21 MB through
+        the test client would measure the opposite of the point.
+        """
+        r = client.post(
+            "/scan",
+            headers={"x-device-id": "huge", "content-type": "image/jpeg",
+                     "content-length": str(21 * 1024 * 1024)},
+            content=b"",
+        )
+        assert r.status_code == 413
+        assert "too large" in r.json()["detail"]
+        # The middleware sits inside `security_headers`, so a refusal is still
+        # a properly headed response.
+        assert r.headers["X-Content-Type-Options"] == "nosniff"
+
+    def test_a_malformed_content_length_is_refused_not_crashed(self):
+        r = client.post(
+            "/scan",
+            headers={"x-device-id": "bad-len", "content-type": "image/jpeg",
+                     "content-length": "not-a-number"},
+            content=b"",
+        )
+        assert r.status_code in (400, 422), r.status_code
 
     def test_rate_limited_after_20_requests(self):
         mock_response = MagicMock()
@@ -606,6 +695,90 @@ class TestProbeDoesNotTouchModelHealth:
             assert seen["label"] == "ideas" and seen["record_health"] is True
 
 
+class TestScanAccounting:
+    """What the operator's per-scan numbers are divided by, and labelled with.
+
+    Both defects here were invisible by construction: neither changes a
+    response, and both only show up as a rate that drifts for no visible
+    reason.
+    """
+
+    @staticmethod
+    def _priceless_response():
+        """A model reply the parser accepts and that carries no price."""
+        from unittest.mock import MagicMock
+        body = {k: v for k, v in MOCK_RESPONSE_JSON.items()
+                if k not in {"est_value_low_usd", "est_value_high_usd"}}
+        response = MagicMock()
+        response.text = json.dumps(body)
+        return response
+
+    def test_a_bot_test_photo_is_not_filed_as_a_user_scan_failure(self, monkeypatch):
+        """`operation` was the literal "scan" on the no-price path.
+
+        Every sibling on that path is gated on `count` — the safety-block
+        counter, the Telegram failure tally — because `count=False` means the
+        operator is testing the service through the bot. This one metric was
+        not, so an operator's own test photo was recorded as a user's scan
+        failing: the number that decides whether the AI provider looks broken.
+        """
+        import asyncio
+
+        import main
+        from fastapi import HTTPException
+        calls: list[dict] = []
+        monkeypatch.setattr(main.metrics.model_calls, "inc",
+                            lambda **kw: calls.append(kw))
+
+        with patch("main._model") as model:
+            model.generate_content_async = AsyncMock(
+                return_value=self._priceless_response())
+            for count in (True, False):
+                calls.clear()
+                with pytest.raises(HTTPException):
+                    asyncio.run(main._analyse(
+                        padded_image_bytes("JPEG", 1024), "image/jpeg",
+                        subject="op", device_short="op", count=count))
+                no_price = [c for c in calls if c.get("outcome") == "no_price"]
+                assert len(no_price) == 1
+                assert no_price[0]["operation"] == ("scan" if count else "bot_scan"), \
+                    "the bot's own test photo must not be labelled a user scan"
+
+    def test_a_scan_the_client_abandoned_still_counts_as_a_scan(self, monkeypatch):
+        """It is billed, so it belongs in the denominator of $/scan.
+
+        The allowance is handed back — the user never saw a result — but the
+        model call happened and was paid for. It used to land in no column at
+        all: not a completion, not a failure, so the cost stayed in the
+        numerator and vanished from the divisor, and $/scan drifted up with
+        nothing to point at.
+
+        `count_scan`, not `scan_completed`: the latter would also post the find
+        to the operator feed and tally it into the day's top categories, for a
+        find nobody ever saw.
+        """
+        import main
+        import notify
+        counted: list[str] = []
+        completed: list[dict] = []
+        monkeypatch.setattr(notify, "count_scan", lambda tier: counted.append(tier))
+        monkeypatch.setattr(notify, "scan_completed", lambda **kw: completed.append(kw))
+
+        mock_response = MagicMock()
+        mock_response.text = json.dumps(MOCK_RESPONSE_JSON)
+        _rate_store.clear()
+        _ip_rate_store.clear()
+        with patch("main._model") as model:
+            model.generate_content_async = AsyncMock(return_value=mock_response)
+            with patch("starlette.requests.Request.is_disconnected",
+                       new=AsyncMock(return_value=True)):
+                r = _make_scan_request(device_id="gone-before-the-result")
+
+        assert r.status_code == 200, "the response is still returned"
+        assert counted == ["free"], "the billed call is in the denominator"
+        assert completed == [], "and not announced as a find the user saw"
+
+
 class TestRepeatedSafetyBlocks:
     """Blocked photos are counted per device; past the threshold the device is
     refused for the day before the model is even called."""
@@ -638,12 +811,45 @@ class TestRepeatedSafetyBlocks:
         # Two blocks: each a neutral 422, each a model call.
         assert (first.status_code, second.status_code) == (422, 422)
         assert "couldn't be analysed" in first.json()["detail"]
-        # Third: refused before the model, with a reason the user can act on.
-        assert third.status_code == 403
+        # Third: refused before the model, with a reason the user can act on —
+        # and carried on a status the client actually renders.
+        assert third.status_code == 422
         assert "paused for 24 hours" in third.json()["detail"]
         assert model.generate_content_async.await_count == 3, "the paused scan never reached the model"
         # Another device is unaffected.
         assert other.status_code == 422
+
+    def test_the_pause_carries_a_status_the_client_renders(self, monkeypatch):
+        """A refusal the user cannot read is the same as no refusal.
+
+        The copy here is the whole point of the pause: it says how long, and
+        why, so the user stops retrying. `AppError.from` maps 422 to
+        `.unusablePhoto(detail)` and shows the backend's words verbatim; it has
+        no 403 case at all, so a 403 fell through to `.unknown`, whose fixed
+        copy is "Something went wrong. Please try again." — an invitation to do
+        the exact thing the pause exists to stop, for a day.
+
+        Asserted as an equality against the single blocked photo rather than as
+        a bare `== 422`: what matters is that both refusals travel on the one
+        client mapping for "the server looked at it and could not use it", not
+        which number that mapping happens to be.
+        """
+        from unittest.mock import AsyncMock, patch
+
+        import main
+        from cache import InMemoryCache, ResilientCache
+        monkeypatch.setattr(main, "_cache", ResilientCache(None, InMemoryCache()))
+        monkeypatch.setattr(main, "SAFETY_BLOCKS_BEFORE_PAUSE", 1)
+        _rate_store.clear()
+        _ip_rate_store.clear()
+        with patch("main._model") as model:
+            model.generate_content_async = AsyncMock(return_value=self._blocked_response())
+            blocked = _make_scan_request(device_id="paused-copy")
+            paused = _make_scan_request(device_id="paused-copy")
+        assert paused.status_code == blocked.status_code
+        assert "paused for 24 hours" in paused.json()["detail"]
+        assert model.generate_content_async.await_count == 1, \
+            "the paused scan never reached the model"
 
     def test_disabled_by_zero(self, monkeypatch):
         from unittest.mock import AsyncMock, patch
@@ -730,12 +936,102 @@ class TestAppleNotifications:
         monkeypatch.setattr(main, "_cache", ResilientCache(None, InMemoryCache()))
         return leaf_key, chain
 
+    # ── A refund has to actually take the access away ───────────────────────
+    #
+    # This endpoint verified the REFUND, pushed the operator a Telegram
+    # message, and touched no entitlement state. With a proof store in place,
+    # not revoking *is* granting: the pre-refund JWS keeps verifying, a refund
+    # does not move `expiresDate`, and `_rederive` re-cached Pro from it on
+    # every miss for the rest of the paid term.
+
+    @pytest.fixture
+    def entitlement_store(self, monkeypatch):
+        """A real service on an in-memory cache, wired where the app looks."""
+        import auth as _auth
+        store = _entitlements.EntitlementService(
+            ResilientCache(None, InMemoryCache()),
+            "eu.snapworth.app", ["com.snapworth.yearly", "com.snapworth.monthly"])
+        monkeypatch.setattr(_auth.deps, "entitlements", store)
+        return store
+
+    def test_a_refund_withdraws_pro_from_the_access_path(
+            self, pinned, entitlement_store):
+        from test_entitlements import make_jws, valid_payload
+        leaf_key, chain = pinned
+        payload = valid_payload()
+
+        # A subscriber checked in, so the server holds a proof for them.
+        assert (asyncio.run(entitlement_store.record(
+            "refunded-subject", make_jws(payload, leaf_key, chain)))).tier == "pro"
+
+        r = client.post("/apple/notifications", json={
+            "signedPayload": make_notification(
+                leaf_key, chain, notification_type="REFUND",
+                uuid="aaaaaaaa-1111-2222-3333-444444444444",
+                revocationDate=int(time.time() * 1000),
+                originalTransactionId=payload["originalTransactionId"])})
+        assert r.status_code == 200
+
+        # The short entry lapses, as it does every 24h in production.
+        asyncio.run(entitlement_store._cache.delete("ent:refunded-subject"))
+
+        assert (asyncio.run(entitlement_store.current(
+            "refunded-subject"))).tier == "free", (
+            "the refunded subscriber is still being re-derived as Pro")
+
+    def test_a_renewal_does_not_revoke_anything(self, pinned, entitlement_store):
+        from test_entitlements import make_jws, valid_payload
+        leaf_key, chain = pinned
+        payload = valid_payload()
+        asyncio.run(entitlement_store.record(
+            "renewing-subject", make_jws(payload, leaf_key, chain)))
+
+        r = client.post("/apple/notifications", json={
+            "signedPayload": make_notification(
+                leaf_key, chain, notification_type="DID_RENEW",
+                uuid="bbbbbbbb-1111-2222-3333-444444444444",
+                originalTransactionId=payload["originalTransactionId"])})
+        assert r.status_code == 200
+
+        asyncio.run(entitlement_store._cache.delete("ent:renewing-subject"))
+        assert (asyncio.run(entitlement_store.current(
+            "renewing-subject"))).tier == "pro", (
+            "a renewal took away the access it was confirming")
+
     def test_a_genuine_notification_is_accepted(self, pinned):
         leaf_key, chain = pinned
         r = client.post("/apple/notifications", json={
             "signedPayload": make_notification(leaf_key, chain)})
         assert r.status_code == 200
         assert r.json()["type"] == "DID_RENEW"
+
+    def test_the_endpoint_is_rate_limited_like_every_other_open_route(self, pinned):
+        """Unauthenticated, and every accepted body runs a full JWS verify.
+
+        This was the only unauthenticated route with no limiter, while /scan
+        and /listing both have one — so an anonymous caller could make the
+        server walk a certificate chain and check a signature as fast as it
+        could send. Apple's own volume is a few notifications a day, so the
+        standard IP bucket is orders of magnitude above anything genuine,
+        including a three-day retry burst, which arrives spread over days.
+
+        The limiter runs *before* the JWS work, which is the point: the
+        rejections below are cheap, and this makes the expensive path cheap to
+        refuse too. An unsigned body is used here so the test measures the
+        limiter and not the crypto.
+        """
+        from ratelimit import IP_RATE_MAX_REQUESTS
+        _ip_rate_store.clear()
+        _rate_store.clear()
+        codes = [client.post("/apple/notifications",
+                             json={"signedPayload": "not-a-jws"}).status_code
+                 for _ in range(IP_RATE_MAX_REQUESTS + 2)]
+        assert 429 in codes, "the open endpoint must be throttled"
+        # And it throttles rather than failing closed on the first call: a
+        # genuine notification is not the thing being refused here.
+        assert codes[0] == 400
+        _ip_rate_store.clear()
+        _rate_store.clear()
 
     def test_an_unsigned_body_is_refused(self, pinned):
         r = client.post("/apple/notifications", json={"signedPayload": "not-a-jws"})

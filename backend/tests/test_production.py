@@ -267,6 +267,54 @@ class TestRequestInstrumentation:
 
 # ═══ Log redaction ════════════════════════════════════════════════════════════
 
+class TestUvicornLoggingIsRedactedToo:
+    """uvicorn keeps its own handlers, and they carried none of our filters.
+
+    `Config.__init__` applies uvicorn's `LOGGING_CONFIG` before the app is
+    imported, and that config gives `uvicorn` and `uvicorn.access` a handler
+    each with `propagate: False`. `uvicorn.error` has no handler of its own, so
+    its records reach `uvicorn`'s and stop there. So nothing uvicorn emitted —
+    every unhandled-exception traceback, every access line's query string —
+    ever reached a handler holding `RedactionFilter`.
+    """
+
+    def _replay_production_order(self):
+        """uvicorn's dictConfig first, then ours. That is the real order."""
+        import logging.config
+        import uvicorn.config
+        logging.config.dictConfig(uvicorn.config.LOGGING_CONFIG)
+        obs.configure_production_logging()
+
+    def test_every_uvicorn_logger_reaches_a_redacting_handler(self):
+        self._replay_production_order()
+        root_filters = {type(f).__name__
+                        for h in logging.getLogger().handlers for f in h.filters}
+        assert "RedactionFilter" in root_filters, root_filters
+
+        for name in ("uvicorn", "uvicorn.error", "uvicorn.access"):
+            logger = logging.getLogger(name)
+            # Either it holds a redacting handler itself, or it propagates to
+            # one. Asserting the reachable set rather than the mechanism, so a
+            # different fix still satisfies this.
+            reachable = set()
+            current = logger
+            while current:
+                for handler in current.handlers:
+                    reachable |= {type(f).__name__ for f in handler.filters}
+                current = current.parent if current.propagate else None
+            assert "RedactionFilter" in reachable, (
+                f"{name} can log without redaction (reaches {reachable})")
+
+    def test_one_shape_of_log_line_in_production(self):
+        # Two formatters would mean two shapes of line in one stream, which is
+        # what made the alternative fix (adding filters to uvicorn's own
+        # handlers) the worse one.
+        self._replay_production_order()
+        for name in ("uvicorn", "uvicorn.access"):
+            assert not logging.getLogger(name).handlers, (
+                f"{name} still formats its own lines")
+
+
 class TestRedaction:
     @pytest.mark.parametrize("secret,marker", [
         ("Authorization: Bearer abc123def456ghi789jkl", "Bearer <redacted>"),

@@ -30,9 +30,16 @@ struct LockScreenProvider: TimelineProvider {
         // Same cadence as the Home Screen widgets: the app calls
         // `reloadAllTimelines()` after every scan, so this hourly refresh only
         // has to cover the case where nothing happened.
-        let next = Calendar.current.date(byAdding: .hour, value: 1, to: .now)!
-        completion(Timeline(entries: [LockScreenEntry(date: .now, haul: WidgetReader.readHaul())],
-                            policy: .after(next)))
+        // Plus an entry at each instant a stored snapshot expires — the
+        // streak is the one that matters here, and it lapses at a local
+        // midnight the hourly policy knows nothing about.
+        let now = Date.now
+        let haul = WidgetReader.readHaul()
+        let entries = [LockScreenEntry(date: now, haul: haul)]
+            + WidgetHaulData.refreshBoundaries(after: now)
+                .map { LockScreenEntry(date: $0, haul: haul) }
+        let next = Calendar.current.date(byAdding: .hour, value: 1, to: now)!
+        completion(Timeline(entries: entries, policy: .after(next)))
     }
 }
 
@@ -44,11 +51,20 @@ struct LockScreenInlineView: View {
     let haul: WidgetHaulData
 
     var body: some View {
-        if haul.hasScans {
-            Label(haul.compactRange, systemImage: "camera.viewfinder")
-        } else {
-            Label("No finds yet", systemImage: "camera.viewfinder")
+        Group {
+            if haul.hasScans {
+                Label(haul.compactRange, systemImage: "camera.viewfinder")
+            } else {
+                Label("No finds yet", systemImage: "camera.viewfinder")
+            }
         }
+        // `compactRange` is abbreviated display text — "$348–$620" becomes
+        // "$348K–$620K" territory in a circular, and the dash is not spoken.
+        // The inline had no label at all, so VoiceOver read the symbol name
+        // and then the abbreviation as one run-together number.
+        .accessibilityLabel(haul.hasScans
+                            ? "SnapWorth haul, \(haul.spokenRange)"
+                            : "SnapWorth, no finds scanned yet")
     }
 }
 
@@ -75,7 +91,7 @@ struct LockScreenCircularView: View {
         // fragments it announces an icon and a number with no relationship.
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(haul.hasScans
-                            ? "Haul value up to \(haul.compactTotal), \(haul.findsLabel)"
+                            ? "Haul value \(haul.spokenRange), \(haul.findsLabel)"
                             : "No finds scanned yet")
     }
 }
@@ -84,6 +100,15 @@ struct LockScreenCircularView: View {
 
 struct LockScreenRectangularView: View {
     let haul: WidgetHaulData
+    /// The timeline entry's date. `streak` is a snapshot the app took, and
+    /// `ScanStreak.current()` would return 0 once the last scan is older than
+    /// yesterday — a test the widget can only run if it knows when "now" is.
+    /// Without it, a 5-day streak kept reading "12 finds · 5-day streak" on
+    /// the Lock Screen all weekend.
+    let now: Date
+
+    /// Zero once the streak has lapsed, whatever the stored count says.
+    private var streak: Int { haul.liveStreak(at: now) }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 1) {
@@ -99,8 +124,8 @@ struct LockScreenRectangularView: View {
                     .minimumScaleFactor(0.6)
                     .lineLimit(1)
 
-                Text(haul.streak > 1
-                     ? "\(haul.findsLabel) · \(haul.streak)-day streak"
+                Text(streak > 1
+                     ? "\(haul.findsLabel) · \(streak)-day streak"
                      : haul.findsLabel)
                     .font(.system(size: 12))
             } else {
@@ -111,7 +136,19 @@ struct LockScreenRectangularView: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .accessibilityElement(children: .combine)
+        // `.combine` alone pulled in the SF Symbol's name and read the middle
+        // dot between the find count and the streak as a word, so the
+        // complication announced an icon name and two unrelated numbers.
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(spokenLabel)
+    }
+
+    private var spokenLabel: String {
+        guard haul.hasScans else {
+            return "SnapWorth, no finds yet. Scan something to start."
+        }
+        let body = "SnapWorth haul, \(haul.spokenRange), \(haul.findsLabel)"
+        return streak > 1 ? "\(body), \(streak) day streak" : body
     }
 }
 
@@ -144,7 +181,7 @@ struct LockScreenHaulEntryView: View {
         case .accessoryInline:
             LockScreenInlineView(haul: entry.haul)
         case .accessoryRectangular:
-            LockScreenRectangularView(haul: entry.haul)
+            LockScreenRectangularView(haul: entry.haul, now: entry.date)
         default:
             LockScreenCircularView(haul: entry.haul)
         }

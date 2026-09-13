@@ -33,58 +33,184 @@ extension Color {
         })
     }
 
+    // ── The light-side hexes, so a test can read them ───────────────────────
+    //
+    // The dark ones live in `SnapDarkHex`, in the shared widget model, because
+    // the extension needs them too. These are app-only, but they are pulled
+    // out for the same reason: a `Color` cannot be measured, and every
+    // contrast failure this palette has had — `snapWarmGray` at 3.1:1 on
+    // cream, cream at 3.18:1 on a terracotta fill, cream ink at 1.46:1 on a
+    // dark-mode amber badge — was invisible to the compiler and to every test.
+    // As strings, `WidgetPaletteTests`-style assertions can compute the ratios
+    // and fail the build.
+    enum SnapLightHex {
+        static let background = "FBF7F2"
+        static let card = "FFFFFF"
+        static let terracotta = "D96C47"
+        static let terracottaHC = "BE5433"
+        static let terracottaText = "B34D2E"
+        static let terracottaTextHC = "94381D"
+        static let sage = "6F8F6B"
+        static let sageHC = "4F6E4B"
+        static let sageText = "4F6E4B"
+        static let sageTextHC = "3C5539"
+        static let amber = "EBB868"
+        static let espresso = "2B211C"
+        static let espressoHC = "1A120E"
+        static let warmGray = "6E6055"
+        static let warmGrayHC = "544840"
+        static let border = "EFE6DC"
+    }
+
     // Backgrounds
     static let snapBackground = snapAdaptive(
-        light: Color(hex: "FBF7F2"),          // warm cream
-        dark:  Color(hex: "17120F")           // deep espresso ground
+        light: Color(hex: SnapLightHex.background),   // warm cream
+        dark:  Color(hex: SnapDarkHex.ground)  // deep espresso ground
     )
     static let snapCard = snapAdaptive(
-        light: .white,
-        dark:  Color(hex: "221B17")           // raised warm surface
+        light: Color(hex: SnapLightHex.card),
+        dark:  Color(hex: SnapDarkHex.card)   // raised warm surface
     )
 
     // Accents — lifted in dark so they stay legible on a dark ground
     static let snapTerracotta = snapAdaptive(
-        light: Color(hex: "D96C47"), dark: Color(hex: "E8845F"),
-        lightHighContrast: Color(hex: "BE5433")
+        light: Color(hex: SnapLightHex.terracotta), dark: Color(hex: SnapDarkHex.terracotta),
+        lightHighContrast: Color(hex: SnapLightHex.terracottaHC)
     )
     static let snapSage = snapAdaptive(     // money / positive values
-        light: Color(hex: "6F8F6B"), dark: Color(hex: "8FB08A"),
-        lightHighContrast: Color(hex: "4F6E4B")
+        light: Color(hex: SnapLightHex.sage), dark: Color(hex: SnapDarkHex.sage),
+        lightHighContrast: Color(hex: SnapLightHex.sageHC)
     )
     static let snapAmber = snapAdaptive(    // badges / highlights
-        light: Color(hex: "EBB868"), dark: Color(hex: "E5BE7C")
+        light: Color(hex: SnapLightHex.amber), dark: Color(hex: SnapDarkHex.amber)
     )
+
+    // ── Terracotta has three jobs and they want three different values ──────
+    //
+    // `snapTerracotta` is the brand colour, and as a *foreground* it measures
+    // 3.39:1 on a white card and 3.18:1 on the cream ground — fine for a
+    // border or a stroke, which WCAG holds to 3:1, and under AA's 4.5:1 for
+    // every one of the ~30 labels drawn in it: the keyboard toolbar's "Done"
+    // (the only way off the money keypad), every error message, "Edit",
+    // "Regenerate".
+    //
+    // As a *fill* under the fixed cream of `snapOnAccent` it is worse: 3.18:1
+    // in light and 2.49:1 in dark, and 4.37:1 even under Increased Contrast.
+    // That is every primary button in the app.
+    //
+    // A fill and a foreground pull in opposite directions — a foreground on a
+    // light ground wants darkening, a fill under cream wants darkening too but
+    // much further, and on a dark ground the foreground wants *lifting*. One
+    // token cannot do all three, so it does not: the brand value stays put for
+    // borders, strokes, icons and tints, and text and fills get their own.
+
+    /// Terracotta as text. 5.23:1 on a white card, 4.90:1 on the cream ground.
+    ///
+    /// The dark-mode value is unchanged — `snapTerracotta` already measures
+    /// 6.38:1 on a dark card, because the adaptive pair was only ever wrong on
+    /// the light side.
+    static let snapTerracottaText = snapAdaptive(
+        light: Color(hex: SnapLightHex.terracottaText), dark: Color(hex: SnapDarkHex.terracotta),
+        lightHighContrast: Color(hex: SnapLightHex.terracottaTextHC)
+    )
+
+    /// Terracotta as a filled surface with `snapOnAccent` on top. 5.43:1.
+    ///
+    /// Fixed rather than adaptive, and deliberately: the ink on it is fixed
+    /// cream in both themes, so the fill has to clear AA against cream in both
+    /// themes too, and there is exactly one value that does. Shared with the
+    /// widget extension via `SnapDarkHex`, so a Home Screen tile and a button
+    /// in the app are the same terracotta.
+    static let snapTerracottaFill = Color(hex: SnapDarkHex.terracottaFill)
+
+    /// Sage as text. 5.73:1 on a white card, 5.37:1 on the cream ground.
+    ///
+    /// Sage is the money colour — every estimate, every profit figure, every
+    /// total — and as a foreground the brand value measures **3.38:1** on the
+    /// ground and 3.61:1 on a card. So in light mode every number the app
+    /// exists to show was under AA. A contrast test caught this; no finder
+    /// did, because the reported symptom was the *diluted* sage in the
+    /// History and Flips captions at 2.09:1, and the undiluted case looked
+    /// fine by comparison.
+    ///
+    /// Same split as terracotta, for the same reason: the brand value stays
+    /// for the 10% tints, the strokes and the progress bars, all of which are
+    /// non-text and clear 3:1 comfortably.
+    static let snapSageText = snapAdaptive(
+        light: Color(hex: SnapLightHex.sageText), dark: Color(hex: SnapDarkHex.sage),
+        lightHighContrast: Color(hex: SnapLightHex.sageTextHC)
+    )
+
+    /// Ink for anything drawn on `snapAmber`. Fixed dark: amber stays light in
+    /// both themes, so ink that follows the theme inverts to light-on-light.
+    /// `snapEspresso` on `snapAmber` measured 1.46:1 in dark mode — the plan
+    /// card's "SAVE 33%" badge, functionally invisible.
+    static let snapOnAmber = Color(hex: SnapLightHex.espresso)
 
     // Text — `snapWarmGray` was 3.1:1 on cream (below WCAG AA); darkened to
     // 5.7:1 while keeping the warmth.
     static let snapEspresso = snapAdaptive(
-        light: Color(hex: "2B211C"), dark: Color(hex: "F0E9E2"),
-        lightHighContrast: Color(hex: "1A120E"), darkHighContrast: .white
+        light: Color(hex: SnapLightHex.espresso), dark: Color(hex: SnapDarkHex.espresso),
+        lightHighContrast: Color(hex: SnapLightHex.espressoHC), darkHighContrast: .white
     )
     static let snapWarmGray = snapAdaptive(
-        light: Color(hex: "6E6055"), dark: Color(hex: "B0A297"),
-        lightHighContrast: Color(hex: "544840"), darkHighContrast: Color(hex: "D6CCC3")
+        light: Color(hex: SnapLightHex.warmGray), dark: Color(hex: SnapDarkHex.warmGray),
+        lightHighContrast: Color(hex: SnapLightHex.warmGrayHC), darkHighContrast: Color(hex: "D6CCC3")
     )
+
+    /// Border hexes, named because the contrast tests need them.
+    ///
+    /// `SnapLightHex.border` already existed and `snapBorder` did not use it,
+    /// which is a drift waiting to happen. The dark values cannot go in
+    /// `SnapDarkHex`: that enum is inside the byte-identical shared widget
+    /// block, so a member added there has to be added to the widget extension
+    /// in the same commit.
+    enum SnapBorderHex {
+        static let light = SnapLightHex.border          // EFE6DC
+        static let dark = "342A24"
+        static let lightHighContrast = "D3C4B4"
+        static let darkHighContrast = "4C3E35"
+    }
 
     // Borders / dividers
     static let snapBorder = snapAdaptive(
-        light: Color(hex: "EFE6DC"), dark: Color(hex: "342A24"),
-        lightHighContrast: Color(hex: "D3C4B4"), darkHighContrast: Color(hex: "4C3E35")
+        light: Color(hex: SnapBorderHex.light), dark: Color(hex: SnapBorderHex.dark),
+        lightHighContrast: Color(hex: SnapBorderHex.lightHighContrast),
+        darkHighContrast: Color(hex: SnapBorderHex.darkHighContrast)
     )
 
     /// Camera screen background — deliberately dark in *both* themes; the
     /// viewfinder is a dark surface by design, not by theme.
-    static let snapCharcoal = Color(hex: "1C1714")
+    static let snapCharcoal = Color(hex: SnapDarkHex.charcoal)
 
     /// Content that always sits on `snapCharcoal` (camera chrome). Fixed cream
     /// so it never inverts to dark-on-dark when the system theme flips.
-    static let snapOnCharcoal = Color(hex: "FBF7F2")
+    static let snapOnCharcoal = Color(hex: SnapDarkHex.cream)
 
     /// Content that always sits on a *filled accent* surface — primary button
     /// labels on terracotta. Fixed cream: the accent is dark enough in both
     /// themes that the label must not follow the theme.
-    static let snapOnAccent = Color(hex: "FBF7F2")
+    ///
+    /// Only while the accent is at full opacity. A *dimmed* accent composites
+    /// toward whatever is behind it, so on a light ground it stops being a dark
+    /// surface and cream stops reading on it — see `PrimaryButton`, which
+    /// switches to `snapEspresso` when disabled.
+    static let snapOnAccent = Color(hex: SnapDarkHex.cream)
+
+    /// The travelling highlight on a loading skeleton.
+    ///
+    /// A darkening sweep on light surfaces, a warm cream sweep on dark ones.
+    /// It was `Color.white` in both, which is two separate failures: invisible
+    /// on the light skeleton (a 1.09:1 peak, so the placeholder was a static
+    /// block and a slow decode looked identical to a missing image), and a
+    /// cold pure-white flare at 7.23:1 on the warm dark card — a neutral white
+    /// introduced into a palette whose stated principle is that the warm
+    /// identity is preserved by re-grounding rather than by neutral whites.
+    ///
+    /// Routed through `snapEspresso` rather than given its own hexes, because
+    /// "ink that follows the theme" is exactly what a sweep needs to be, and a
+    /// second copy of the same pair would be a second thing to keep in step.
+    static let snapShimmer = snapEspresso
 
     // Card shadow colour (rgba 120,80,50,0.08)
     static let snapCardShadow = Color(red: 120/255, green: 80/255, blue: 50/255)
@@ -254,6 +380,30 @@ extension NumberFormatter {
         f.maximumFractionDigits = 0
         return f
     }()
+
+    /// Money to the cent, for figures that are printed as arithmetic.
+    ///
+    /// `snapCurrency` drops the fraction, which is right for a valuation
+    /// *range* — "$45–$90" is an estimate and cents would imply a precision it
+    /// does not have. It is wrong for Thrift Flip, which subtracts fees and a
+    /// shop price from a resale price and shows the user every line of it: each
+    /// row rounded independently, so the visible rows did not reconcile with
+    /// the visible total. Resale $20.75, fees $3.15, paid $10.40 printed as
+    /// "$21 − $3 − $10" above a "Net profit" of $7, and $21 − $3 − $10 is $8.
+    ///
+    /// Worse at the decision boundary: any net profit under a dollar printed as
+    /// "$0" while the headline stayed green, because `isProfitable` is the
+    /// exact `netProfit > 0`. A 1-cent profit read "Worth flipping · $0
+    /// profit".
+    static let snapCurrencyCents: NumberFormatter = {
+        let f = NumberFormatter()
+        f.numberStyle = .currency
+        f.currencyCode = "USD"
+        f.locale = Locale(identifier: "en_US")
+        f.minimumFractionDigits = 2
+        f.maximumFractionDigits = 2
+        return f
+    }()
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -323,13 +473,35 @@ struct PrimaryButton: View {
                         .tint(Color.snapOnAccent)
                 } else {
                     Text(title)
-                        .font(.snapButton)
-                        .foregroundStyle(Color.snapOnAccent)
+                        // `snapOnAccent` is fixed cream because "the accent is
+                        // dark enough in both themes that the label must not
+                        // follow the theme" — true at full opacity (5.43:1).
+                        // At 40% over a light ground the accent is no longer
+                        // dark: it composites to #DAB1A3, and cream on that is
+                        // 1.82:1. The label did not read as disabled, it
+                        // vanished, leaving a blank pale-peach capsule — and
+                        // that is the paywall CTA when StoreKit returns no
+                        // products, so the user could not tell what the button
+                        // would have done, only that something was missing.
+                        //
+                        // The premise fails with the surface, so the ink has to
+                        // follow the theme once the surface does: 8.07:1 light,
+                        // 10.50:1 dark, and ≥ 9.49:1 in both high-contrast
+                        // variants.
+                        //
+                        // Dimming the whole button instead — the obvious fix —
+                        // is worse in both directions: 2.16:1 in light mode at
+                        // 0.5, still a failure, and it drags dark mode down
+                        // from 10.50:1 to 3.03:1 by dimming a cream label
+                        // toward a dark ground. The fill keeps the dim; only
+                        // the ink changes.
+                        .foregroundStyle(isEnabled ? Color.snapOnAccent
+                                                   : Color.snapEspresso)
                 }
             }
             .frame(maxWidth: .infinity)
             .frame(minHeight: 56)          // min, not fixed: grows with Dynamic Type
-            .background(Color.snapTerracotta.opacity(isEnabled ? 1 : 0.4))
+            .background(Color.snapTerracottaFill.opacity(isEnabled ? 1 : 0.4))
             .clipShape(Capsule())
         }
         .buttonStyle(PressableButtonStyle(scale: isEnabled ? 0.97 : 1))
@@ -357,7 +529,7 @@ struct GhostButton: View {
                 } else {
                     Text(title)
                         .font(.snapButton)
-                        .foregroundStyle(Color.snapTerracotta)
+                        .foregroundStyle(Color.snapTerracottaText)
                 }
             }
             .frame(maxWidth: .infinity)
@@ -411,7 +583,7 @@ struct ValueRangeView: View {
     var body: some View {
         Text(formatted)
             .font(.snapValueHero)
-            .foregroundStyle(Color.snapSage)
+            .foregroundStyle(Color.snapSageText)
             .minimumScaleFactor(0.6)
             .lineLimit(1)
     }
@@ -476,17 +648,27 @@ struct ShimmerModifier: ViewModifier {
             .overlay(
                 Group {
                     // Reduce Motion: a static wash instead of a travelling one.
-                    // The surface still reads as "pending" without the movement.
+                    //
+                    // At `Color.white.opacity(0.18)` the claim that "the
+                    // surface still reads as pending" was not true: the
+                    // skeleton base is `snapBorder.opacity(0.6)` over the card,
+                    // which composites to #F5F0EA in light mode, and a white
+                    // wash on that is a 1.02:1 change — below the threshold of
+                    // visible difference. 0.5 of the palette sweep is 3.06:1
+                    // light and 4.27:1 dark, which clears the 3:1 that WCAG
+                    // 1.4.11 asks of a meaningful non-text boundary. A
+                    // placeholder whose job is to say "pending" has to be
+                    // visible to say it.
                     if reduceMotion {
-                        Color.white.opacity(0.18)
+                        Color.snapShimmer.opacity(0.5)
                     } else {
                         GeometryReader { geo in
                             LinearGradient(
                                 stops: [
                                     .init(color: .clear, location: 0),
-                                    .init(color: Color.white.opacity(0.45), location: 0.4),
-                                    .init(color: Color.white.opacity(0.65), location: 0.5),
-                                    .init(color: Color.white.opacity(0.45), location: 0.6),
+                                    .init(color: Color.snapShimmer.opacity(0.45), location: 0.4),
+                                    .init(color: Color.snapShimmer.opacity(0.65), location: 0.5),
+                                    .init(color: Color.snapShimmer.opacity(0.45), location: 0.6),
                                     .init(color: .clear, location: 1),
                                 ],
                                 startPoint: .leading,
@@ -592,7 +774,7 @@ struct AnalyzingOverlay: View {
                     .overlay(
                         Image(systemName: "sparkle")
                             .snapSymbol(28, weight: .light)
-                            .foregroundStyle(Color.snapTerracotta)
+                            .foregroundStyle(Color.snapTerracottaText)
                             .shimmering()
                     )
 
@@ -604,7 +786,19 @@ struct AnalyzingOverlay: View {
 
                 Label("Photo captured — you can lower your phone", systemImage: "checkmark.circle.fill")
                     .font(.dmSans(13, weight: .medium))
-                    .foregroundStyle(Color.snapOnCharcoal.opacity(0.7))
+                    // 0.8, not 0.7. This sits on `snapCharcoal.opacity(0.72)`
+                    // over the *captured photo*, so the ground is only as dark
+                    // as the scrim makes it: against a bright photo — a white
+                    // shelf, a lit shop wall, the common case for a phone held
+                    // over an item — the scrim composites to #5C5856 and cream
+                    // at 0.7 measured 4.21:1, under the 4.5:1 that 13pt text
+                    // needs. At 0.8 the worst case is 4.93:1.
+                    //
+                    // Raising the ink rather than deepening the scrim: the
+                    // scrim is the whole overlay's look, and the failure is one
+                    // caption. 0.88 on the scrim would also have worked and
+                    // would have darkened a screen nothing was wrong with.
+                    .foregroundStyle(Color.snapOnCharcoal.opacity(0.8))
                     .labelStyle(.titleAndIcon)
                     .multilineTextAlignment(.center)
                     .fixedSize(horizontal: false, vertical: true)
@@ -678,7 +872,12 @@ struct PlanCard: View {
                     if let badge {
                         Text(badge)
                             .font(.dmSans(10, weight: .semibold))
-                            .foregroundStyle(Color.snapEspresso)
+                            // Not `snapEspresso`: it inverts to a light cream
+                            // in dark mode while amber stays light, which put
+                            // the "SAVE 33%" badge at 1.46:1 — the saving is
+                            // the reason to pick the yearly plan, and it was
+                            // functionally invisible to anyone in dark mode.
+                            .foregroundStyle(Color.snapOnAmber)
                             .padding(.horizontal, 8)
                             .padding(.vertical, 3)
                             .background(Color.snapAmber)
@@ -758,7 +957,7 @@ struct ScanHistoryCard: View {
 
             Text(result.formattedRange)
                 .font(.fraunces(16, weight: .bold))
-                .foregroundStyle(Color.snapSage)
+                .foregroundStyle(Color.snapSageText)
         }
         .padding(12)
         .frame(width: max(0, width))

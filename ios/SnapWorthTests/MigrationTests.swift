@@ -404,6 +404,32 @@ final class PortfolioValueTests: XCTestCase {
         XCTAssertEqual(r.valueHistory.count, 10, "series must stay bounded")
     }
 
+    func test_theCapNeverThrowsAwayTheEntryPoint() {
+        // `valueChangeSinceAdded` reads `history.first` as the value the item
+        // entered the portfolio at. Trimming off the front re-anchored that
+        // figure to whichever re-price happened to survive the cap, so "change
+        // since added" quietly started meaning "change since the 41st
+        // re-price" while keeping its label — and the number it reported
+        // shrank towards zero as the user edited more, which is exactly
+        // backwards.
+        let r = make(low: 40, high: 60)
+        r.valueLow = 10; r.valueHigh = 20
+        r.refreshPortfolioValue(limit: 10)
+        let entry = r.valueHistory[0].value
+
+        for i in 2...50 {
+            r.valueLow = Double(i) * 10; r.valueHigh = Double(i) * 20
+            r.refreshPortfolioValue(limit: 10)
+        }
+
+        XCTAssertEqual(r.valueHistory.count, 10, "still bounded")
+        XCTAssertEqual(r.valueHistory[0].value, entry,
+                       "the entry point is the one snapshot that is not interchangeable")
+        // And the interior is the recent run, not the oldest — a sparkline
+        // still shows what just happened.
+        XCTAssertGreaterThan(r.valueHistory[9].value, r.valueHistory[1].value)
+    }
+
     func test_corruptHistoryReadsAsEmptyRatherThanCrashing() {
         let r = make(low: 40, high: 60)
         r.valueHistoryData = Data("not json".utf8)
@@ -559,6 +585,51 @@ final class PortfolioInsightsTests: XCTestCase {
         let i = HistoryViewModel.insights(for: [item(.sold, paid: 20, sold: 100, fees: 10)])
         XCTAssertEqual(i.realized, 70)
         XCTAssertEqual(i.unrealized, 0, "a sold item is no longer held")
+    }
+
+    // ── The headline and the line under it are one number ───────────────────
+
+    func test_theHeadlineExcludesSoldItemsLikeTheLineBeneathIt() {
+        // The bug, on one card: the headline summed *every* row with no status
+        // filter while `insights` routes `.sold` into `realized` and leaves it
+        // out of `unrealized`. So "Your finds are worth $50.00" sat three rows
+        // above "$70.00 realised · $0.00 still held" — and $50 is the estimate
+        // of an item the same card says is not held, reconciling with neither
+        // $70 nor $0.
+        let sold = item(.sold, paid: 20, sold: 100, fees: 10)
+        let insights = HistoryViewModel.insights(for: [sold])
+
+        XCTAssertGreaterThan(sold.portfolioValue, 0, "it does have an estimate")
+        XCTAssertEqual(HistoryViewModel.portfolioTotal(of: [sold]), 0,
+                       "and the estimate of a sold item is not money held")
+        XCTAssertEqual(HistoryViewModel.portfolioTotal(of: [sold]), insights.unrealized)
+    }
+
+    func test_theHeadlineIsTheSameNumberAsStillHeld() {
+        // Derived from `insights`, not summed again — two sums that must agree
+        // will not stay agreed. This holds it to that.
+        let mixed = [item(.sold, paid: 20, sold: 100, fees: 10),
+                     item(.owned), item(.listed), item(.scanned)]
+        XCTAssertEqual(HistoryViewModel.portfolioTotal(of: mixed),
+                       HistoryViewModel.insights(for: mixed).unrealized)
+    }
+
+    func test_theWeeklyDigestReportsTheSameFigure() {
+        // The push repeated the inflated total, so two surfaces stated a number
+        // matching neither the realised profit nor the held value.
+        let mixed = [item(.sold, paid: 20, sold: 100, fees: 10), item(.owned)]
+        let expected = HistoryViewModel.money(HistoryViewModel.portfolioTotal(of: mixed))
+        XCTAssertEqual(NotificationManager.digest(for: mixed).total,
+                       HistoryViewModel.portfolioTotal(of: mixed))
+        XCTAssertEqual(NotificationManager.digest(for: mixed).body?.contains(expected), true,
+                       "the figure in the notification must be the one in the app")
+    }
+
+    func test_aLibraryOfOnlySoldItemsReportsZeroHeld() {
+        // Honest rather than convenient: the realised line carries the money.
+        let all = [item(.sold, paid: 10, sold: 50), item(.sold, paid: 20, sold: 90)]
+        XCTAssertEqual(HistoryViewModel.portfolioTotal(of: all), 0)
+        XCTAssertGreaterThan(HistoryViewModel.insights(for: all).realized, 0)
     }
 
     func test_saleWithNoCostBasisContributesNothingRatherThanGuessing() {
@@ -720,5 +791,126 @@ final class PortfolioDigestTests: XCTestCase {
         XCTAssertNotEqual(NotificationManager.Category.portfolio.toggleKey,
                           NotificationManager.Category.recap.toggleKey)
         XCTAssertTrue(NotificationManager.Category.allCases.contains(.portfolio))
+    }
+
+    // ── The "daily" reminder has to actually recur ───────────────────────────
+
+    func test_theFreeScanReminderCoversMoreThanOneDay() {
+        // The regression guard. It was a single dated one-shot with
+        // `repeats: false`, and every path that re-armed it required the app to
+        // be open — after a scan, on foreground, on a settings change — with no
+        // `BGTaskScheduler` anywhere in the project. So the reminder whose
+        // whole purpose is to bring back someone who has stopped opening the
+        // app fired once and then went silent forever, while Settings kept
+        // showing it ON with a time picker.
+        XCTAssertGreaterThan(NotificationManager.freeScanLadderDays, 1,
+                             "one day is a one-shot, which is the bug")
+    }
+
+    func test_everyLadderIdentifierResolvesToTheFreeScanCategory() {
+        // `category(fromID:)` takes the first dot-separated component, and the
+        // daily cap and the delegate's deep link both depend on it. A rung
+        // whose id did not start with the category name would be invisible to
+        // both.
+        let ids = NotificationManager.freeScanIDs(around: Date())
+        XCTAssertFalse(ids.isEmpty)
+        for id in ids {
+            XCTAssertTrue(id == "freeScan.daily" || id.hasPrefix("freeScan.daily."),
+                          "unexpected identifier shape: \(id)")
+        }
+        XCTAssertEqual(Set(ids).count, ids.count, "no duplicate identifiers")
+    }
+
+    func test_theCancellableIdSetSpansTheWholeLadder() {
+        // `cancel(.freeScan)` and `syncFreeScanReminder` both clear by computed
+        // id rather than by querying pending requests, so that `setEnabled` can
+        // stay synchronous for the SwiftUI toggle. If the computed set were
+        // narrower than what the ladder schedules, turning the reminder off
+        // would leave rungs pending — which is precisely the class of bug the
+        // cap-blocked path had.
+        let now = Date()
+        let ids = Set(NotificationManager.freeScanIDs(around: now))
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.calendar = Calendar.current
+        formatter.dateFormat = "yyyyMMdd"
+
+        for offset in 0..<NotificationManager.freeScanLadderDays {
+            // The ladder starts at the *next* reminder, which is today or
+            // tomorrow, so a rung can land as far out as ladderDays inclusive.
+            guard let day = Calendar.current.date(byAdding: .day, value: offset + 1, to: now)
+            else { continue }
+            XCTAssertTrue(ids.contains("freeScan.daily.\(formatter.string(from: day))"),
+                          "day +\(offset + 1) is schedulable but not cancellable")
+        }
+    }
+
+    func test_theLegacySingleIdentifierIsStillCancellable() {
+        // A build before the ladder scheduled one request under exactly this
+        // id. An upgrading install can have it pending, and nothing else would
+        // ever clear it.
+        XCTAssertTrue(NotificationManager.freeScanIDs(around: Date())
+            .contains("freeScan.daily"))
+    }
+
+    // ── Source-inspected: the two paths a unit test cannot reach ─────────────
+    //
+    // `NotificationManager` holds `UNUserNotificationCenter.current()` directly,
+    // so neither the cap-blocked branch nor the authorization request can be
+    // driven from a test. Both are one line whose absence is silent, which is
+    // exactly what the source assertions are for.
+
+    private func managerSource() -> String {
+        (try? String(
+            contentsOf: URL(fileURLWithPath: #filePath)
+                .deletingLastPathComponent()
+                .deletingLastPathComponent()
+                .appendingPathComponent("SnapWorth/Services/NotificationManager.swift"),
+            encoding: .utf8)) ?? ""
+    }
+
+    func test_theCapBlockedPathCancelsRatherThanReturning() {
+        // Idempotence here comes from `center.add` replacing a pending request
+        // under the same identifier — so any path that returns *before* the add
+        // leaves the previous request alive, and it fires on its old date with
+        // its old body, still occupying its old day under the one-per-day cap.
+        let source = managerSource()
+        guard let capRange = source.range(of: "resolveDailyCap(for: category") else {
+            return XCTFail("could not locate the cap guard")
+        }
+        let branch = String(source[capRange.upperBound...].prefix(1200))
+        guard let closing = branch.range(of: "\n        }") else {
+            return XCTFail("could not locate the end of the cap guard")
+        }
+        let body = String(branch[..<closing.lowerBound])
+        XCTAssertTrue(body.contains("removePendingNotificationRequests"),
+                      "a blocked reschedule must cancel the identifier, not " +
+                      "leave the stale request to fire")
+    }
+
+    func test_settingsCanAskForAuthorization() {
+        // `requestAuthorization` used to appear at exactly one place in the
+        // project, reachable only from the priming alert — and declining that
+        // alert set `primingShown` permanently. From then on the status stayed
+        // `.notDetermined`, `add()` returned silently for every category
+        // forever, and Settings showed four reminders ON that could never fire.
+        let source = managerSource()
+        XCTAssertTrue(source.contains("func requestAuthorizationIfNeeded"),
+                      "there must be an entry point Settings can call")
+        XCTAssertEqual(source.components(separatedBy: "center.requestAuthorization").count - 1, 2,
+                       "exactly two: the priming alert and the Settings path")
+
+        let view = (try? String(
+            contentsOf: URL(fileURLWithPath: #filePath)
+                .deletingLastPathComponent()
+                .deletingLastPathComponent()
+                .appendingPathComponent("SnapWorth/Views/NotificationSettingsView.swift"),
+            encoding: .utf8)) ?? ""
+        XCTAssertTrue(view.contains("requestAuthorizationIfNeeded"),
+                      "the toggle is the moment to ask")
+        XCTAssertTrue(view.contains(".notDetermined"),
+                      "the \"notifications are off\" banner must cover the " +
+                      "status a declined priming alert leaves behind, not only " +
+                      ".denied — which is never that user's status")
     }
 }

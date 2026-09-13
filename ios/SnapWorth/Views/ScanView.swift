@@ -17,11 +17,45 @@ struct ScanView: View {
     /// actually seen their first result. Shown once, then never again here.
     @AppStorage("hasSeenFirstResultPaywall") private var hasSeenFirstResultPaywall = false
 
+    @Environment(\.scenePhase) private var scenePhase
+
     /// Mirrors whether a run is live. `Activity.activities` is the truth — this
     /// only exists so the button re-renders, and is re-read on appear because a
     /// run can end while the app is backgrounded (the eight-hour cap) or from
     /// the Lock Screen itself.
+    ///
+    /// `onAppear` alone was not enough: this view does not disappear when the
+    /// app is backgrounded, so the eight-hour cap or an End tapped on the Lock
+    /// Screen left the control still reading "End run" for a run that was over.
+    /// Re-read on every return to `.active` as well.
     @State private var isRunOn = ThriftRunController.isRunning
+
+    /// Whether Live Activities are switched on for the app, sampled rather than
+    /// read inside `body`.
+    ///
+    /// `ThriftRunController.isAvailable` builds a fresh
+    /// `ActivityAuthorizationInfo()` on every call, and nothing published it —
+    /// so the control's visibility was only ever right by accident. A user who
+    /// turned Live Activities off in Settings and came back still saw the
+    /// button, and `Activity.request` throws in exactly that case; one who
+    /// turned them *on* did not get the button until something else happened
+    /// to re-render this view.
+    @State private var isRunAvailable = ThriftRunController.isAvailable
+
+    /// A capture has been asked for and its scan has not finished.
+    ///
+    /// `vm.isAnalyzing` cannot carry this: it is set inside the async
+    /// `startScan`, several hops after the tap, and the shutter's `.disabled`
+    /// read it — so two taps inside that window both reached
+    /// `capturePhoto()`. Two photos were then delivered, each spawning its own
+    /// `triggerScan` task, and the first to finish cleared `vm.capturedImage`
+    /// for both: the freeze-frame vanished mid-analysis, leaving the overlay
+    /// over a live viewfinder. On the free tier the second scan could also
+    /// spend the day's remaining allowance on a photo nobody asked for.
+    ///
+    /// Set synchronously in the button action, so the guard and the claim are
+    /// the same run-loop turn and there is no window at all.
+    @State private var captureInFlight = false
 
     /// Anything presented on top of the camera. See the `onChange` below.
     private var isCameraObscured: Bool {
@@ -34,11 +68,30 @@ struct ScanView: View {
             // ── Camera background (warm charcoal) ─────────────────────────
             Color.snapCharcoal.ignoresSafeArea()
 
-            if cameraManager.authStatus == .authorized {
+            // Three states, not two. `authStatus != .authorized` used to send
+            // `.notDetermined` and `.restricted` to the same "access denied /
+            // Open Settings" screen as a real refusal.
+            //
+            // `.notDetermined` is the first launch: the system prompt is on
+            // screen, over this. Accusing a user of denying access in the
+            // half-second before they have been asked is both wrong and the
+            // first thing they see of the app — and "Open Settings" under it
+            // is advice that would take them out of the prompt.
+            //
+            // `.restricted` is Screen Time or an MDM profile. Settings is
+            // still where it is changed, so the button stays, but the copy no
+            // longer says the user denied something they never chose.
+            switch cameraManager.authStatus {
+            case .authorized:
                 CameraPreview(session: cameraManager.session)
                     .ignoresSafeArea()
-            } else {
-                permissionPlaceholder
+            case .notDetermined:
+                // The charcoal ground behind this ZStack is the whole screen.
+                EmptyView()
+            case .restricted:
+                permissionPlaceholder(restricted: true)
+            default:
+                permissionPlaceholder(restricted: false)
             }
 
             // ── Camera UI overlay ─────────────────────────────────────────
@@ -70,7 +123,7 @@ struct ScanView: View {
                                     .foregroundStyle(Color.snapOnAccent)
                                     .padding(.horizontal, 10)
                                     .padding(.vertical, 5)
-                                    .background(Color.snapTerracotta)
+                                    .background(Color.snapTerracottaFill)
                                     .clipShape(Capsule())
                             }
                             .snapHitTarget()
@@ -114,7 +167,7 @@ struct ScanView: View {
                 // Thrift run. Hidden entirely when Live Activities are off for
                 // the app — a button that silently does nothing is worse than
                 // no button, and `Activity.request` throws in exactly that case.
-                if ThriftRunController.isAvailable {
+                if isRunAvailable {
                     ThriftRunControl(isRunning: $isRunOn)
                         .padding(.horizontal, 20)
                         .padding(.top, 6)
@@ -132,11 +185,42 @@ struct ScanView: View {
                     // carries the same information for VoiceOver.
                     .accessibilityHidden(true)
 
+                // The one label in this chrome drawn straight onto the video.
+                //
+                // 70%-opacity cream composited over whatever the camera is
+                // pointed at has no contrast ratio at all — it depends on the
+                // scene. Point the phone at a white shelf, a shop's strip
+                // lighting or a pale garment, which is most of what this app
+                // is pointed at, and the sentence disappears. Every other
+                // label in the same chrome already carries the capsule scrim:
+                // the free-scan counter, the streak pill and the thrift-run
+                // control all sit on `snapCharcoal.opacity(0.5)`.
+                //
+                // Same treatment, same opacity, so this reads as the set it
+                // belongs to rather than a fourth style. The text is unchanged;
+                // what it gains is a ground that can be measured at all.
+                //
+                // Measured, against the worst thing a camera can show: cream
+                // at 0.7 straight onto white was 1.05:1 — invisible. Cream at
+                // 0.9 on a 50% charcoal scrim over the same white is 2.88:1,
+                // and 6.88:1 over mid grey. Better by a factor of nearly three
+                // and still under AA, because the scrim is translucent too.
+                //
+                // Left at 0.5 anyway: the counter, the streak pill and the run
+                // control all use exactly that, so this label's ceiling is the
+                // whole camera chrome's ceiling. Raising one of the four would
+                // buy compliance for the least important of them and make the
+                // set look wrong. That shared ceiling is recorded in the audit
+                // as its own finding rather than half-fixed here.
                 Text("Center the item — tags & logos help")
                     .font(.snapCaption)
-                    .foregroundStyle(Color.snapOnCharcoal.opacity(0.7))
+                    .foregroundStyle(Color.snapOnCharcoal.opacity(0.9))
                     .multilineTextAlignment(.center)
                     .fixedSize(horizontal: false, vertical: true)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 5)
+                    .background(Color.snapCharcoal.opacity(0.5))
+                    .clipShape(Capsule())
                     .padding(.horizontal, 20)
                     .padding(.top, 16)
 
@@ -174,6 +258,12 @@ struct ScanView: View {
 
                     // Shutter button
                     Button {
+                        // Claimed here, synchronously, before anything async:
+                        // see `captureInFlight`. The `.disabled` below reads it
+                        // too, but a disabled Button still has a window while
+                        // SwiftUI re-renders, and this closes it.
+                        guard !captureInFlight else { return }
+                        captureInFlight = true
                         Haptics.capture()
                         cameraManager.capturePhoto()
                     } label: {
@@ -186,7 +276,8 @@ struct ScanView: View {
                                 .frame(width: 94, height: 94)
                         }
                     }
-                    .disabled(vm.isAnalyzing || cameraManager.authStatus != .authorized)
+                    .disabled(vm.isAnalyzing || captureInFlight
+                              || cameraManager.authStatus != .authorized)
                     .accessibilityLabel(vm.isAnalyzing ? "Analyzing item" : "Take photo to scan")
                     .accessibilityHint(vm.isAnalyzing
                         ? "Please wait for the current scan to finish"
@@ -243,12 +334,38 @@ struct ScanView: View {
             vm.capturedImage = image
             Task { await triggerScan(image: image) }
         }
+        // The capture never arrived: the session was not running, or the
+        // delegate could not turn the photo into an image. Without this the
+        // shutter would stay claimed and dead for the life of the screen,
+        // which is a worse failure than the one being reported.
+        .onChange(of: cameraManager.error) { _, error in
+            if error != nil { captureInFlight = false }
+        }
         .onAppear {
-            cameraManager.requestPermissionAndSetup()
+            // Not unconditional. A sheet or cover presented over this view does
+            // not fire `onDisappear`, but it *does* fire `onAppear` again when
+            // the user switches tabs and comes back — so this started the full
+            // photo-preset pipeline behind the result sheet, the paywall and
+            // Thrift Flip, which is exactly the battery leak the
+            // `isCameraObscured` handler below exists to stop. That handler
+            // starts the session when the obstruction goes away, so there is
+            // nothing to do here while one is up.
+            if !isCameraObscured {
+                cameraManager.requestPermissionAndSetup()
+            }
             // Warm the Taptic Engine while the camera starts. The shutter tap
             // is the one haptic a user would notice missing, and it fires when
             // the main thread is busiest.
             Haptics.prepare()
+        }
+        .onChange(of: scenePhase) { _, phase in
+            guard phase == .active else { return }
+            // Both of these can change while the app is not running: a run can
+            // end from the Lock Screen or hit the eight-hour cap, and Live
+            // Activities can be switched off for the app in Settings. This
+            // view never disappeared, so nothing else would re-read them.
+            isRunOn = ThriftRunController.isRunning
+            isRunAvailable = ThriftRunController.isAvailable
         }
         .onChange(of: cameraManager.authStatus) { _, status in
             if status == .denied {
@@ -267,6 +384,27 @@ struct ScanView: View {
             } else if cameraManager.authStatus == .authorized {
                 cameraManager.startSession()
             }
+        }
+        // A scan request means "give me a live camera", not "select tab 0".
+        //
+        // The only observer of this used to be `MainTabView`, which sets
+        // `selectedTab = 0` and nothing else. Every presentation over this
+        // view is private `@State` here, so when the Scan tab was *already*
+        // selected and obscured — the result sheet still up, the intro
+        // paywall, the Thrift Flip cover — the drained press changed nothing
+        // at all, while `takePendingAction` had already consumed it. The user
+        // pressed the Control Centre button, the app came forward, and the
+        // sheet they pressed it to get past was still there.
+        //
+        // Clearing these also re-fires `isCameraObscured` above, which is what
+        // restarts the capture session.
+        .onReceive(NotificationCenter.default.publisher(for: .snapWidgetOpenScan)) { _ in
+            showResult = false
+            showThriftFlip = false
+            showNotifPriming = false
+            vm.showPaywall = false
+            vm.reset()
+            cameraManager.capturedImage = nil
         }
         .sheet(isPresented: $showResult, onDismiss: {
             // Runs whether the user taps "Done" or swipes down
@@ -356,14 +494,19 @@ struct ScanView: View {
     }
 
     // MARK: - Permission Placeholder
-    private var permissionPlaceholder: some View {
+    private func permissionPlaceholder(restricted: Bool) -> some View {
         VStack(spacing: 20) {
             Image(systemName: "camera.slash")
                 .snapSymbol(48, weight: .light)
                 .foregroundStyle(Color.snapOnCharcoal.opacity(0.5))
                 .accessibilityHidden(true)
 
-            Text("Camera access needed to scan items")
+            // Under Screen Time or an MDM profile the camera is not something
+            // the user turned down, and telling them it is makes the app look
+            // broken rather than restricted.
+            Text(restricted
+                 ? "Camera access is restricted on this device"
+                 : "Camera access needed to scan items")
                 .font(.snapBody)
                 .foregroundStyle(Color.snapOnCharcoal.opacity(0.8))
                 .multilineTextAlignment(.center)
@@ -377,11 +520,16 @@ struct ScanView: View {
                 }
             }
             .frame(maxWidth: 200)
-            .accessibilityHint("Opens iOS Settings so you can allow camera access")
+            .accessibilityHint(restricted
+                               ? "Opens iOS Settings, where Screen Time restrictions are changed"
+                               : "Opens iOS Settings so you can allow camera access")
         }
     }
 
     private func triggerScan(image: UIImage) async {
+        // Released on every exit, success or failure, so the shutter comes
+        // back exactly once per capture.
+        defer { captureInFlight = false }
         let repository = ScanRepository(context: modelContext)
         await vm.startScan(image: image, purchaseService: purchaseService, repository: repository)
         // Release the full-resolution capture the moment it stops being
@@ -441,40 +589,78 @@ private struct CornerAccents: View {
 private struct ThriftRunControl: View {
     @Binding var isRunning: Bool
 
+    /// Set when `start()` came back false. Reading the state back afterwards
+    /// keeps the *button* honest — it does not claim a run that never began —
+    /// but it left the tap itself completely silent: the label stayed "Start a
+    /// run", nothing appeared on the Lock Screen, and nothing said why. The
+    /// comment below has always claimed this control avoids "a button that
+    /// silently does nothing", and until now that was only half true.
+    @State private var startRefused = false
+
     var body: some View {
         HStack {
             Spacer()
-            Button {
-                Haptics.selection()
-                Task {
-                    if isRunning {
-                        await ThriftRunController.end()
-                    } else {
-                        ThriftRunController.start()
+            VStack(alignment: .trailing, spacing: 4) {
+                Button {
+                    Haptics.selection()
+                    Task {
+                        if isRunning {
+                            await ThriftRunController.end()
+                            startRefused = false
+                        } else {
+                            // `start` returns false when the system refuses:
+                            // permission revoked between the availability
+                            // check and the request, or too many Activities
+                            // live. The return used to be discarded.
+                            let started = ThriftRunController.start()
+                            startRefused = !started
+                            if !started {
+                                Haptics.failure()
+                                // Spoken, not just drawn. The line below
+                                // appears where there was nothing a moment
+                                // ago, and a VoiceOver user who just activated
+                                // this button has no reason to go looking for
+                                // it.
+                                UIAccessibility.post(
+                                    notification: .announcement,
+                                    argument: "Couldn't start the run. "
+                                        + "Check Live Activities in Settings.")
+                            }
+                        }
+                        // Read back rather than toggling: a button that lies
+                        // about its own state is how a user ends up with two
+                        // runs.
+                        isRunning = ThriftRunController.isRunning
                     }
-                    // Read back rather than toggling: `start` returns false if
-                    // the system refuses — permission revoked between the
-                    // availability check and the request, or too many
-                    // Activities live — and a button that lies about its own
-                    // state is how a user ends up with two runs.
-                    isRunning = ThriftRunController.isRunning
+                } label: {
+                    Label(isRunning ? "End run" : "Start a run",
+                          systemImage: isRunning ? "stop.circle.fill" : "play.circle.fill")
+                        .font(.snapCaption.bold())
+                        .foregroundStyle(Color.snapOnCharcoal.opacity(0.9))
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 4)
+                        .background(Color.snapCharcoal.opacity(0.5))
+                        .clipShape(Capsule())
                 }
-            } label: {
-                Label(isRunning ? "End run" : "Start a run",
-                      systemImage: isRunning ? "stop.circle.fill" : "play.circle.fill")
-                    .font(.snapCaption.bold())
-                    .foregroundStyle(Color.snapOnCharcoal.opacity(0.9))
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 4)
-                    .background(Color.snapCharcoal.opacity(0.5))
-                    .clipShape(Capsule())
+                .snapHitTarget()
+                .accessibilityLabel(isRunning ? "End thrift run" : "Start a thrift run")
+                .accessibilityHint(isRunning
+                                   ? "Removes the running total from your Lock Screen"
+                                   : "Shows a running total of this trip on your Lock Screen")
+
+                if startRefused {
+                    Text("Couldn't start — check Live Activities in Settings")
+                        .font(.snapCaption)
+                        .foregroundStyle(Color.snapOnCharcoal.opacity(0.9))
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 4)
+                        .background(Color.snapCharcoal.opacity(0.5))
+                        .clipShape(Capsule())
+                        .transition(.opacity)
+                }
             }
-            .snapHitTarget()
-            .accessibilityLabel(isRunning ? "End thrift run" : "Start a thrift run")
-            .accessibilityHint(isRunning
-                               ? "Removes the running total from your Lock Screen"
-                               : "Shows a running total of this trip on your Lock Screen")
         }
+        .snapAnimation(.easeInOut(duration: 0.2), value: startRefused)
         .onAppear { isRunning = ThriftRunController.isRunning }
     }
 }

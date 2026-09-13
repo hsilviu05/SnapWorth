@@ -79,6 +79,11 @@
          text on a terracotta fill uses --terra-fill instead (5.51:1), which
          must not lighten in dark mode or the white on it fails. */
       --terra-fill: #A94E29;
+      /* Terracotta as *text*: #D96C47 is 3.39:1 on --surface and 3.18:1 on
+         --bg, both under AA. index.html already carries this token and this
+         page did not, so its FAQ links were painted in the decorative tone.
+         Same values as index.html — 5.51:1 on --surface, 5.17:1 on --bg. */
+      --terra-text: #A94E29;
       --border:     #E8DDD7;
       --nav-glass:  rgba(250,247,244,0.85);
     }
@@ -95,6 +100,7 @@
         --ink-2:      #E2D8D1;
         --warm-gray:  #ABA098;
         --terracotta: #E07A55;
+        --terra-text: #EC8A63;   /* 7.23:1 on --bg, 6.16:1 on --surface */
         --border:     #3A302A;
         --nav-glass:  rgba(26,21,18,0.85);
       }
@@ -263,6 +269,13 @@
     .faq-item + .faq-item { margin-top: -1px; border-radius: 0; }
     .faq-item:first-child { border-radius: 14px 14px 0 0; }
     .faq-item:last-child  { border-radius: 0 0 14px 14px; }
+    /* A <summary>, not a <button>. Every answer on this page used to be
+       `display: none` until an inline `toggle()` added an `open` class, so
+       with JavaScript off — a content blocker, a corporate proxy, a reader
+       mode — the App Store's published support page showed eight bold
+       questions and not one answer. `<details>` needs no script, is keyboard
+       operable, and announces its own expanded state. index.html's FAQ was
+       already built this way. */
     .faq-q {
       width: 100%;
       text-align: left;
@@ -279,7 +292,10 @@
       align-items: center;
       gap: 12px;
     }
+    .faq-q { list-style: none; }
+    .faq-q::-webkit-details-marker { display: none; }
     .faq-q:hover { background: var(--card); }
+    .faq-q:focus-visible { outline: 2px solid var(--terra-text); outline-offset: -2px; }
     .faq-arrow {
       flex-shrink: 0;
       width: 20px; height: 20px;
@@ -290,17 +306,17 @@
       font-size: 12px;
       color: var(--warm-gray);
     }
-    .faq-item.open .faq-arrow { transform: rotate(180deg); }
+    .faq-item[open] .faq-arrow { transform: rotate(180deg); }
     .faq-a {
-      display: none;
       padding: 0 24px 20px;
       font-size: 15px;
       color: var(--warm-gray);
       line-height: 1.7;
     }
-    .faq-item.open .faq-a { display: block; }
-    .faq-a a { color: var(--terracotta); text-decoration: none; }
-    .faq-a a:hover { text-decoration: underline; }
+    /* Underlined always: colour alone was the only cue that these were
+       links, which is WCAG 1.4.1 as well as a contrast problem. */
+    .faq-a a { color: var(--terra-text); text-decoration: underline; }
+    .faq-a a:hover { text-decoration: none; }
 
     /* ── Subscription management box ── */
     .info-box {
@@ -405,90 +421,90 @@
     <h2 class="faq-heading">Frequently asked questions</h2>
     <div class="faq-list">
 
-      <div class="faq-item">
-        <button class="faq-q" onclick="toggle(this)">
+      <details class="faq-item" name="faq">
+        <summary class="faq-q">
           How does SnapWorth work?
           <span class="faq-arrow">▾</span>
-        </button>
+        </summary>
         <div class="faq-a">
           Photograph any secondhand item — a piece of clothing, shoes, electronics, a bag — and SnapWorth's AI identifies it and estimates a resale value range in seconds, so you have a quick sense of what it's worth before you buy.
         </div>
-      </div>
+      </details>
 
-      <div class="faq-item">
-        <button class="faq-q" onclick="toggle(this)">
+      <details class="faq-item" name="faq">
+        <summary class="faq-q">
           What's included in the free plan?
           <span class="faq-arrow">▾</span>
-        </button>
+        </summary>
         <div class="faq-a">
           The free plan includes 1 scan a day. Scans include a full value estimate, AI listing draft, and scan history. No account or payment details required to get started.
         </div>
-      </div>
+      </details>
 
-      <div class="faq-item">
-        <button class="faq-q" onclick="toggle(this)">
+      <details class="faq-item" name="faq">
+        <summary class="faq-q">
           How do I cancel my subscription?
           <span class="faq-arrow">▾</span>
-        </button>
+        </summary>
         <div class="faq-a">
           All subscriptions are managed by Apple. To cancel, go to <strong>Settings → [your name] → Subscriptions</strong> on your iPhone or iPad and tap SnapWorth. You can cancel anytime; access continues until the end of the current billing period.
           <div class="info-box">
             <strong>Yearly subscribers:</strong> the 3-day free trial cancels automatically if you cancel before it ends. You won't be charged.
           </div>
         </div>
-      </div>
+      </details>
 
-      <div class="faq-item">
-        <button class="faq-q" onclick="toggle(this)">
+      <details class="faq-item" name="faq">
+        <summary class="faq-q">
           I was charged but can't access Pro features — what do I do?
           <span class="faq-arrow">▾</span>
-        </button>
+        </summary>
         <div class="faq-a">
           Open SnapWorth, go to <strong>Settings</strong>, and tap <strong>Restore Purchases</strong>. This re-links your existing subscription to the current device. If the issue persists, email us with your Apple ID receipt number and we'll sort it out.
         </div>
-      </div>
+      </details>
 
-      <div class="faq-item">
-        <button class="faq-q" onclick="toggle(this)">
+      <details class="faq-item" name="faq">
+        <summary class="faq-q">
           Are my photos stored or shared?
           <span class="faq-arrow">▾</span>
-        </button>
+        </summary>
         <div class="faq-a">
           No. Photos are sent to our server for real-time processing only and are not retained after the valuation is returned. Your scan history is stored locally on your device and can be deleted at any time from Settings. We do not sell or share your data. See our full <a href="https://api.snapworth.eu/privacy" target="_blank">Privacy Policy</a>.
         </div>
-      </div>
+      </details>
 
-      <div class="faq-item">
-        <button class="faq-q" onclick="toggle(this)">
+      <details class="faq-item" name="faq">
+        <summary class="faq-q">
           How accurate are the valuations?
           <span class="faq-arrow">▾</span>
-        </button>
+        </summary>
         <div class="faq-a">
           Estimates come from an AI model's broad knowledge of the secondhand market and are intended as a useful reference range, not a guaranteed sale price. The confidence level reflects how clearly the AI could identify your item. For anything valuable, we recommend double-checking recent sold prices yourself before you buy or sell.
         </div>
-      </div>
+      </details>
 
-      <div class="faq-item">
-        <button class="faq-q" onclick="toggle(this)">
+      <details class="faq-item" name="faq">
+        <summary class="faq-q">
           I got a poor result — what can improve accuracy?
           <span class="faq-arrow">▾</span>
-        </button>
+        </summary>
         <div class="faq-a">
           Clear, well-lit photos with visible brand tags, labels, or logos give the best results. Including multiple angles can help the AI identify the item more precisely.
         </div>
-      </div>
+      </details>
 
-      <div class="faq-item">
-        <button class="faq-q" onclick="toggle(this)">
+      <details class="faq-item" name="faq">
+        <summary class="faq-q">
           Where can I read the Terms of Service and Privacy Policy?
           <span class="faq-arrow">▾</span>
-        </button>
+        </summary>
         <div class="faq-a">
           Both documents are available in the app (tap <strong>Settings → Terms of Service</strong> or <strong>Privacy Policy</strong>) and online at:<br><br>
           • <a href="https://api.snapworth.eu/terms" target="_blank">Terms of Service</a><br>
           • <a href="https://api.snapworth.eu/privacy" target="_blank">Privacy Policy</a>
         </div>
-      </div>
+      </details>
 
     </div>
   </div>
@@ -508,15 +524,6 @@
       <span class="footer-copy">© 2026 SnapWorth</span>
     </div>
   </footer>
-
-  <script>
-    function toggle(btn) {
-      const item = btn.closest('.faq-item');
-      const isOpen = item.classList.contains('open');
-      document.querySelectorAll('.faq-item.open').forEach(el => el.classList.remove('open'));
-      if (!isOpen) item.classList.add('open');
-    }
-  </script>
 
   <!-- Vercel Web Analytics — cookieless, no consent banner required -->
   <script>window.va=window.va||function(){(window.vaq=window.vaq||[]).push(arguments);};</script>

@@ -1,3 +1,6 @@
+import ActivityKit
+import AVFoundation
+import SwiftUI
 import XCTest
 import ImageIO
 import UIKit
@@ -286,6 +289,91 @@ final class PriceTagOCRTests: XCTestCase {
         // A long barcode-like number must not be read as a price.
         XCTAssertNil(PriceTagOCR.firstPrice(in: "123456789012"))
     }
+
+    // ── A dot can be a thousands separator too ───────────────────────────────
+
+    func test_dotGroupedThousandsAreNotReadAsCents() {
+        // There was a branch for both separators and one for comma-only, and
+        // none for dot-only — so the dot fell through to `Decimal(string:)` as
+        // a decimal point, contradicting the regex that matched it as
+        // grouping. "€1.299" became 1.299, and a €1299 item was priced against
+        // a $1.30 cost basis.
+        XCTAssertEqual(PriceTagOCR.normalizedDecimal("1.299"), Decimal(1299))
+        XCTAssertEqual(PriceTagOCR.normalizedDecimal("12.500"), Decimal(12500))
+        XCTAssertEqual(PriceTagOCR.normalizedDecimal("1.500.000"), Decimal(1_500_000))
+        XCTAssertEqual(PriceTagOCR.firstPrice(in: "€1.299"), Decimal(1299))
+    }
+
+    func test_twoDecimalPlacesAreStillCents() {
+        // The other half of the same rule: one separator with one or two
+        // trailing digits is a fraction, three is grouping.
+        XCTAssertEqual(PriceTagOCR.normalizedDecimal("12.99"), Decimal(string: "12.99"))
+        XCTAssertEqual(PriceTagOCR.normalizedDecimal("12.9"), Decimal(string: "12.9"))
+        XCTAssertEqual(PriceTagOCR.normalizedDecimal("5,99"), Decimal(string: "5.99"))
+        XCTAssertEqual(PriceTagOCR.normalizedDecimal("1,299"), Decimal(1299))
+    }
+
+    func test_spaceGroupedThousandsAreOneNumber() {
+        // French, Nordic and Polish tags print 1299 as "1 299", usually with a
+        // no-break space. The `\s?` used to sit outside the numeric group, so
+        // the scanner produced two tokens and returned 299.
+        XCTAssertEqual(PriceTagOCR.firstPrice(in: "1 299 €"), Decimal(1299))
+        XCTAssertEqual(PriceTagOCR.firstPrice(in: "1\u{00A0}299 €"), Decimal(1299))
+        XCTAssertEqual(PriceTagOCR.firstPrice(in: "1\u{202F}299 €"), Decimal(1299))
+    }
+
+    // ── Strength comes from the token, not the value ─────────────────────────
+
+    func test_wholeCentPriceBeatsALargerSizeNumber() {
+        // "19.00" carries an explicit fraction — an unambiguous price signal —
+        // but parses to the integer 19, so strength derived from the *value*
+        // classed it weak and it lost to the waist and length numbers on the
+        // same line. Those are 30-44; thrift prices are 5-20, so the size won
+        // whenever the price was printed without a symbol and with .00 cents.
+        XCTAssertEqual(PriceTagOCR.firstPrice(in: "W32 L34 19.00"),
+                       Decimal(string: "19.00"))
+    }
+
+    func test_aGroupedTokenIsWeakLikeAnyBareInteger() {
+        // The fraction test is anchored and capped at two digits precisely so
+        // the dot-grouping fix above does not also make "1.299" *strong*. A
+        // bare grouped number is a bare number: it loses to a symbol-bearing
+        // candidate even though it is far larger.
+        XCTAssertEqual(PriceTagOCR.parsePrice(from: ["1.299", "$12.99"]),
+                       Decimal(string: "12.99"))
+        // With its symbol, the same token is strong and wins.
+        XCTAssertEqual(PriceTagOCR.parsePrice(from: ["€1.299", "$12.99"]),
+                       Decimal(1299))
+    }
+
+    func test_aTrailingCurrencySymbolCountsAsASymbol() {
+        // Most of Europe prints the symbol after the number, and the docstring
+        // already claimed to handle "Sale 12,99 €" while nothing read it — so
+        // those tags were never strong and any integer could outrank them.
+        XCTAssertEqual(PriceTagOCR.firstPrice(in: "Sale 12,99 € SIZE 40"),
+                       Decimal(string: "12.99"))
+    }
+
+    // ── Percentages and rates are not prices ─────────────────────────────────
+
+    func test_percentagesAreNotPrices() {
+        XCTAssertNil(PriceTagOCR.firstPrice(in: "70% OFF"))
+        XCTAssertNil(PriceTagOCR.firstPrice(in: "100% COTTON"))
+        XCTAssertNil(PriceTagOCR.firstPrice(in: "70 % OFF"))
+    }
+
+    func test_perUnitRatesAndDatesAreNotPrices() {
+        // Both sides of the slash: a rate's denominator is no more a price
+        // than its numerator, and "12/25" is a date.
+        XCTAssertNil(PriceTagOCR.firstPrice(in: "$1.99/oz"))
+        XCTAssertNil(PriceTagOCR.firstPrice(in: "12/25"))
+        XCTAssertNil(PriceTagOCR.firstPrice(in: "SIZE 12/14"))
+    }
+
+    func test_aPriceAfterASlashIsStillAPrice() {
+        // The reason the test is around the token and not the whole match.
+        XCTAssertEqual(PriceTagOCR.firstPrice(in: "Buy 2/$5"), Decimal(5))
+    }
 }
 
 // MARK: - Snap → Sell (ListingAPIClient) Tests
@@ -295,6 +383,102 @@ final class ListingClientTests: XCTestCase {
     // The listing actor's live path needs the network and its mock path is gated
     // on the compile-time `Config.mockMode` (false in shipping), so these cover
     // the deterministic contract the UI and backend both depend on.
+
+    // ── Nothing owned by a ModelContext crosses to the actor ─────────────────
+
+    @MainActor
+    func test_theListingInputIsASnapshotNotTheModel() {
+        // `ListingAPIClient` is an `actor`, so its parameters leave the
+        // MainActor. It used to take the `ScanResult` itself — a
+        // `@Model final class`, not `Sendable` — and read `valueLow`,
+        // `valueHigh` and `conditionRaw` on a cooperative-pool thread while
+        // the main thread was free to mutate the same object by tapping a
+        // condition chip or typing in the Paid field. Swift 5 language mode
+        // makes that a warning, not an error, which is why it shipped.
+        let result = ScanResult(itemName: "Patagonia Better Sweater", brand: "Patagonia",
+                                category: "clothing", conditionNotes: "Good",
+                                valueLow: 40, valueHigh: 90, confidence: "High",
+                                soldListingsCount: 0, listingTitle: "T",
+                                listingDescription: "D")
+        let input = ListingInput(result: result, condition: .used)
+
+        XCTAssertEqual(input.itemName, "Patagonia Better Sweater")
+        XCTAssertEqual(input.condition, .used)
+
+        // The snapshot is taken by value, so a later edit cannot reach it —
+        // which is the whole property, since the edit is what used to race.
+        result.itemName = "something else"
+        result.valueLow = 1
+        XCTAssertEqual(input.itemName, "Patagonia Better Sweater")
+    }
+
+    @MainActor
+    func test_theInputCarriesTheConditionAdjustedRange() {
+        // The range has to be computed where the model lives, not on the
+        // actor: `priceRange` reads three stored properties.
+        let result = ScanResult(itemName: "I", brand: "B", category: "clothing",
+                                conditionNotes: "Good", valueLow: 40, valueHigh: 90,
+                                confidence: "High", soldListingsCount: 0,
+                                listingTitle: "T", listingDescription: "D")
+        let expected = result.priceRange(for: .used)
+        let input = ListingInput(result: result, condition: .used)
+        XCTAssertEqual(input.low, expected.low)
+        XCTAssertEqual(input.likely, expected.likely)
+        XCTAssertEqual(input.high, expected.high)
+        XCTAssertLessThan(input.low, Decimal(40), "used prices below the good baseline")
+    }
+
+    func test_theActorTakesNoPersistentModel() {
+        // Source-inspected because the property is about a *type signature*: a
+        // test that calls the actor correctly cannot show that calling it
+        // incorrectly is impossible.
+        let source = try! String(
+            contentsOf: URL(fileURLWithPath: #filePath)
+                .deletingLastPathComponent()
+                .deletingLastPathComponent()
+                .appendingPathComponent("SnapWorth/Services/ListingService.swift"),
+            encoding: .utf8)
+        guard let actorStart = source.range(of: "actor ListingAPIClient") else {
+            return XCTFail("could not locate the actor")
+        }
+        // Bound the region to this actor. Reading to end-of-file swept in
+        // `TrendsAPIClient` and everything after it, so an unrelated type
+        // could have failed this, or hidden a real hit behind a rename.
+        let afterStart = String(source[actorStart.upperBound...])
+        let topLevel = ["struct ", "actor ", "enum ", "final class ",
+                        "class ", "extension "]
+        let body = afterStart
+            .split(separator: "\n", omittingEmptySubsequences: false)
+            .prefix { line in !topLevel.contains { line.hasPrefix($0) } }
+            .joined(separator: "\n")
+
+        // And strip comments, because the property is about what the *code*
+        // names. The first version of this test failed on the actor's own doc
+        // comment — the sentence explaining that it deliberately does not take
+        // a `ScanResult` — which is documentation working exactly as intended.
+        // (A `//` inside a string literal would truncate that line early; no
+        // literal in this actor contains one, and the cost would be a missed
+        // hit rather than a false alarm.)
+        let code = body
+            .split(separator: "\n", omittingEmptySubsequences: false)
+            .map { line -> String in
+                guard let marker = line.range(of: "//") else { return String(line) }
+                return String(line[line.startIndex..<marker.lowerBound])
+            }
+            .joined(separator: "\n")
+
+        // The bounding and the stripping are both capable of emptying the
+        // haystack, which would make the assertion below pass for the wrong
+        // reason. Prove there is still an actor in there.
+        XCTAssertTrue(code.contains("func generate("),
+                      "the actor body was lost to bounding or comment-stripping")
+        XCTAssertTrue(code.contains("ListingInput"),
+                      "the actor should still name the Sendable input type")
+
+        XCTAssertFalse(code.contains("ScanResult"),
+                       "a ScanResult reaching this actor is an unsynchronised "
+                       + "read on the main context")
+    }
 
     func test_generatedListing_shareText_containsTitleAndPrice() {
         let listing = GeneratedListing(
@@ -493,6 +677,46 @@ final class NumberFormatterTests: XCTestCase {
     func test_snapCurrency_noDecimals() {
         let result = NumberFormatter.snapCurrency.string(from: 45.99)
         XCTAssertEqual(result, "$46")
+    }
+
+    func test_snapCurrencyCents_keepsTheCents() {
+        // Thrift Flip prints an itemised subtraction, and every row went
+        // through the 0-decimal formatter — so the rows did not add up to the
+        // total beneath them, and any profit under a dollar read "$0" under a
+        // green "Worth flipping".
+        XCTAssertEqual(NumberFormatter.snapCurrencyCents.string(from: 20.75), "$20.75")
+        XCTAssertEqual(NumberFormatter.snapCurrencyCents.string(from: 3.149375), "$3.15")
+        XCTAssertEqual(NumberFormatter.snapCurrencyCents.string(from: 0.01), "$0.01")
+        XCTAssertEqual(NumberFormatter.snapCurrencyCents.string(from: 7), "$7.00",
+                       "a whole amount still shows cents, so a column lines up")
+    }
+
+    func test_theItemisedRowsReconcileWithTheirTotal() {
+        // The failure in one card: eBay, shop price $10.40, resale $20.75.
+        // Fees are 20.75 * 0.1325 + 0.40 = 3.149375, net 7.200625. At zero
+        // decimals that printed "$21 − $3 − $10" above a net of "$7" — and
+        // 21 − 3 − 10 is 8.
+        let resale = Decimal(string: "20.75")!
+        let fees = Decimal(string: "3.149375")!
+        let paid = Decimal(string: "10.40")!
+        let net = resale - fees - paid
+
+        let shown = { (d: Decimal) in
+            NumberFormatter.snapCurrencyCents.string(from: NSDecimalNumber(decimal: d))
+        }
+        XCTAssertEqual(shown(resale), "$20.75")
+        XCTAssertEqual(shown(fees), "$3.15")
+        XCTAssertEqual(shown(paid), "$10.40")
+        XCTAssertEqual(shown(net), "$7.20")
+        // 20.75 − 3.15 − 10.40 = 7.20 — the rows and the total agree.
+        XCTAssertEqual(shown(Decimal(string: "20.75")! - Decimal(string: "3.15")!
+                             - Decimal(string: "10.40")!), shown(net))
+    }
+
+    func test_aRangeStillHasNoCents() {
+        // The 0-decimal formatter stays where it belongs: a valuation range is
+        // an estimate, and cents would imply precision it does not have.
+        XCTAssertEqual(NumberFormatter.snapCurrency.string(from: 45.99), "$46")
     }
 
     func test_snapCurrency_alwaysUSD_notDeviceLocale() {
@@ -827,6 +1051,142 @@ final class USMarketplaceFeeTests: XCTestCase {
     }
 }
 
+/// The runtime override table, which is how fees get corrected between app
+/// releases. It had two money bugs, both silent.
+final class MarketplaceFeeOverrideTests: XCTestCase {
+    private func install(_ json: String) {
+        UserDefaults.standard.set(Data(json.utf8),
+                                  forKey: MarketplaceFees.overrideKey)
+    }
+
+    override func tearDown() {
+        UserDefaults.standard.removeObject(forKey: MarketplaceFees.overrideKey)
+        super.tearDown()
+    }
+
+    func test_anOverrideKeepsTheLowPriceRuleItDidNotMention() {
+        // The bug. `overrideTable` rebuilt each entry with only
+        // (sellingFeePercent:fixedFee:), so `lowPriceFlatFee` fell back to nil
+        // — and `fee(for:)` prefers an override outright. A push correcting
+        // Poshmark's percentage therefore deleted the "$2.95 under $15" rule,
+        // and a $10 sale was charged 20% ($2.00) instead of $2.95. The old wire
+        // shape had no way to express the rule at all, so a push could not have
+        // preserved it even deliberately.
+        install(#"{"poshmark": {"pct": "0.22", "fixed": "0"}}"#)
+        let poshmark = MarketplaceFees.fee(for: .poshmark)!
+        XCTAssertEqual(poshmark.sellingFeePercent, Decimal(string: "0.22")!)
+        XCTAssertEqual(poshmark.lowPriceFlatFee?.below, 15)
+        XCTAssertEqual(poshmark.fees(on: 10), Decimal(string: "2.95")!,
+                       "a cheap sale must still pay the flat charge")
+        XCTAssertEqual(poshmark.fees(on: 20), Decimal(string: "4.40")!,
+                       "and the new percentage applies above the threshold")
+    }
+
+    func test_ratesFromJSONNumbersAreExact() {
+        // `Decimal(pct)` from a Double gave
+        // 0.132500000000000006661338147750939242541790008544921875 — exactly
+        // what the comment on `defaults` says not to do.
+        install(#"{"ebay": {"pct": 0.1325, "fixed": 0.40}}"#)
+        let ebay = MarketplaceFees.fee(for: .ebay)!
+        XCTAssertEqual(ebay.sellingFeePercent, Decimal(string: "0.1325")!)
+        XCTAssertEqual(ebay.fixedFee, Decimal(string: "0.40")!)
+        XCTAssertNotEqual(ebay.sellingFeePercent, Decimal(0.1325),
+                          "Decimal(Double) is the error being avoided")
+        // On a $100 sale the difference is sub-cent, but it compounds through
+        // every margin and ROI figure derived from it.
+        XCTAssertEqual(ebay.fees(on: 100), Decimal(string: "13.65")!)
+    }
+
+    func test_ratesFromJSONStringsAreExact() {
+        install(#"{"ebay": {"pct": "0.1325", "fixed": "0.40"}}"#)
+        XCTAssertEqual(MarketplaceFees.fee(for: .ebay)!.fees(on: 100),
+                       Decimal(string: "13.65")!)
+    }
+
+    func test_aFlatRuleCanBeAddedToAMarketplaceThatHadNone() {
+        install(#"{"mercari": {"flatBelow": "5", "flatFee": "1"}}"#)
+        let mercari = MarketplaceFees.fee(for: .mercari)!
+        XCTAssertEqual(mercari.sellingFeePercent, Decimal(string: "0.10")!,
+                       "an entry naming only the flat rule keeps the default rate")
+        XCTAssertEqual(mercari.fees(on: 4), 1)
+        XCTAssertEqual(mercari.fees(on: 50), 5)
+    }
+
+    func test_aFlatRuleCanBeRemovedOnPurpose() {
+        install(#"{"poshmark": {"flatBelow": 0}}"#)
+        let poshmark = MarketplaceFees.fee(for: .poshmark)!
+        XCTAssertNil(poshmark.lowPriceFlatFee)
+        XCTAssertEqual(poshmark.fees(on: 10), 2, "20% of $10")
+    }
+
+    func test_aFlatFeeAtOrAboveItsThresholdIsRefused() {
+        // Every sale under $15 would net the seller nothing or less. That is a
+        // bad push, not a fee — fall back to the shipped default.
+        install(#"{"poshmark": {"flatBelow": 15, "flatFee": 20}}"#)
+        XCTAssertEqual(MarketplaceFees.fee(for: .poshmark)!.lowPriceFlatFee?.fee,
+                       Decimal(string: "2.95")!)
+    }
+
+    func test_outOfRangeAndMalformedEntriesFallBackToTheDefault() {
+        let ebayDefault = MarketplaceFees.defaults[.ebay]!
+        for bad in [#"{"ebay": {"pct": "1.0", "fixed": "0"}}"#,
+                    #"{"ebay": {"pct": "-0.1", "fixed": "0"}}"#,
+                    #"{"ebay": {"pct": "0.1", "fixed": "-1"}}"#,
+                    #"{"ebay": {"pct": "abc", "fixed": "0"}}"#,
+                    #"{"ebay": {"pct": true, "fixed": "0"}}"#,
+                    #"{"etsy": {"pct": "0.1", "fixed": "0"}}"#,
+                    #"not json at all"#] {
+            install(bad)
+            XCTAssertEqual(MarketplaceFees.fee(for: .ebay), ebayDefault,
+                           "a bad push must never reach the math: \(bad)")
+        }
+    }
+
+    func test_rejectionGranularityIsExplicit() {
+        // Two different granularities, both safe, and chosen rather than
+        // stumbled into:
+        //
+        //   * a value of the wrong *type* fails `JSONDecoder`, so the whole
+        //     push is discarded — you never apply half a fee table;
+        //   * a value of the right type but out of *range* discards only that
+        //     entry, so one bad marketplace does not cost the others.
+        //
+        // Asserted because the difference is invisible in a single-entry test
+        // and would otherwise be a surprise to whoever writes the push.
+        install(#"{"ebay": {"pct": "0.10", "fixed": "0"}, "mercari": {"pct": true}}"#)
+        XCTAssertEqual(MarketplaceFees.fee(for: .ebay), MarketplaceFees.defaults[.ebay],
+                       "a type error anywhere discards the whole push")
+
+        install(#"{"ebay": {"pct": "0.10", "fixed": "0"}, "mercari": {"pct": "5"}}"#)
+        XCTAssertEqual(MarketplaceFees.fee(for: .ebay)!.sellingFeePercent,
+                       Decimal(string: "0.10")!,
+                       "an out-of-range entry elsewhere does not cost this one")
+        XCTAssertEqual(MarketplaceFees.fee(for: .mercari), MarketplaceFees.defaults[.mercari])
+    }
+
+    func test_theWireShapeMatchesTheWebsiteMirror() {
+        // The website carries the same table with `flatBelow`/`flatFee`
+        // (website/index.html, the FEES object). One remote push has to be able
+        // to feed both, so the key names are part of the contract.
+        install(#"""
+        {"poshmark": {"pct": 0.2, "fixed": 0, "flatBelow": 15, "flatFee": 2.95}}
+        """#)
+        let poshmark = MarketplaceFees.fee(for: .poshmark)!
+        XCTAssertEqual(poshmark.sellingFeePercent, Decimal(string: "0.2")!)
+        XCTAssertEqual(poshmark.lowPriceFlatFee?.below, 15)
+        XCTAssertEqual(poshmark.lowPriceFlatFee?.fee, Decimal(string: "2.95")!)
+    }
+
+    func test_noOverrideLeavesTheShippedTableAlone() {
+        UserDefaults.standard.removeObject(forKey: MarketplaceFees.overrideKey)
+        XCTAssertTrue(MarketplaceFees.overrideTable.isEmpty)
+        for marketplace in Marketplace.allCases {
+            XCTAssertEqual(MarketplaceFees.fee(for: marketplace),
+                           MarketplaceFees.defaults[marketplace])
+        }
+    }
+}
+
 final class USMarketplaceWiringTests: XCTestCase {
     func test_apiValuesMatchTheBackendKeys() {
         XCTAssertEqual(Marketplace.poshmark.apiValue, "poshmark")
@@ -872,7 +1232,7 @@ final class WidgetHaulDataTests: XCTestCase {
     /// it keeps describing the old format even as the struct grows.
     private let v1 = """
         {"totalLow":348,"totalHigh":620,"itemCount":8,
-         "lastItemName":"Patagonia Fleece","lastItemRange":"$60 – $95",
+         "lastItemName":"Patagonia Fleece","lastItemRange":"$60–$95",
          "updatedAt":768000000}
         """.data(using: .utf8)!
 
@@ -905,10 +1265,10 @@ final class WidgetHaulDataTests: XCTestCase {
     func test_everyFieldSurvivesARoundTrip() throws {
         let original = WidgetHaulData(
             totalLow: 120, totalHigh: 260, itemCount: 4,
-            lastItemName: "Levi's 501", lastItemRange: "$40 – $70",
+            lastItemName: "Levi's 501", lastItemRange: "$40–$70",
             updatedAt: Date(timeIntervalSince1970: 768_000_000),
             freeScansRemaining: 2, isPro: true, streak: 9,
-            recentFinds: [WidgetFind(id: "a", name: "Levi's 501", range: "$40 – $70")],
+            recentFinds: [WidgetFind(id: "a", name: "Levi's 501", range: "$40–$70")],
             monthProfit: 214.5, monthFlips: 6)
         let data = try JSONEncoder().encode(original)
         XCTAssertEqual(try JSONDecoder().decode(WidgetHaulData.self, from: data),
@@ -917,7 +1277,7 @@ final class WidgetHaulDataTests: XCTestCase {
 
     func test_anEmptyHaulReadsTheSameAsTheApp() {
         // The drift that shipped: the widget's copy had no empty-haul guard,
-        // so a library with no scans read "$0 – $0" there and "$0" in the app.
+        // so a library with no scans read "$0–$0" there and "$0" in the app.
         XCTAssertEqual(WidgetHaulData.empty.formattedRange, "$0")
         XCTAssertFalse(WidgetHaulData.empty.hasScans)
     }
@@ -928,7 +1288,36 @@ final class WidgetHaulDataTests: XCTestCase {
             lastItemName: "", lastItemRange: "", updatedAt: .now,
             freeScansRemaining: nil, isPro: false, streak: 0,
             recentFinds: [], monthProfit: nil, monthFlips: 0)
-        XCTAssertEqual(haul.formattedRange, "$348 – $620")
+        XCTAssertEqual(haul.formattedRange, "$348–$620")
+    }
+
+    func test_theHaulRangeIsPunctuatedLikeAnItemRange() {
+        // They render a few points apart in the medium widget: the haul total
+        // on the left, `lastItemRange` on the right. The widget's own copy was
+        // spaced and the app's was not, so one card showed "$348 – $620" and
+        // "$60–$95" side by side.
+        let item = ScanResult(itemName: "Better Sweater", brand: "Patagonia",
+                              category: "clothing", conditionNotes: "Solid",
+                              valueLow: 60, valueHigh: 95, confidence: "High",
+                              soldListingsCount: 0,
+                              listingTitle: "T", listingDescription: "D")
+        let haul = WidgetHaulData(
+            totalLow: 348, totalHigh: 620, itemCount: 8,
+            lastItemName: item.itemName, lastItemRange: item.formattedRange,
+            updatedAt: .now, freeScansRemaining: nil, isPro: false, streak: 0,
+            recentFinds: [], monthProfit: nil, monthFlips: 0)
+
+        XCTAssertFalse(haul.formattedRange.contains(" – "),
+                       "the haul total is punctuated differently from the item beside it")
+        XCTAssertFalse(item.formattedRange.contains(" – "))
+        XCTAssertTrue(haul.formattedRange.contains("–"))
+        XCTAssertTrue(item.formattedRange.contains("–"))
+    }
+
+    func test_aThriftRunRangeIsPunctuatedTheSameWay() {
+        let state = ThriftRunAttributes.ContentState(
+            itemCount: 3, totalLow: 95, totalHigh: 150, lastItemName: "Levi's 501")
+        XCTAssertEqual(state.formattedRange, "$95–$150")
     }
 }
 
@@ -968,6 +1357,44 @@ final class LockScreenMoneyTests: XCTestCase {
         XCTAssertEqual(WidgetHaulData.compactMoney(250_000), "$250K")
     }
 
+    // ── Losses ───────────────────────────────────────────────────────────────
+    // The month's profit is the one consumer that can be negative, and the
+    // sign was being interpolated straight after the "$": "$-420", "$-1.2K".
+    // The Flips screen spells the same figure "−$420".
+
+    func test_aLossPutsTheSignBeforeTheDollar() {
+        XCTAssertEqual(WidgetHaulData.compactMoney(-420), "−$420")
+        XCTAssertEqual(WidgetHaulData.compactMoney(-1_240), "−$1.2K")
+        XCTAssertEqual(WidgetHaulData.compactMoney(-12_400), "−$12K")
+    }
+
+    func test_noAmountEverPutsTheSignInsideTheAmount() {
+        for value in stride(from: -300_000.0, through: 300_000, by: 617) {
+            XCTAssertFalse(WidgetHaulData.compactMoney(value).contains("$-"),
+                           "\(value) put the sign inside the amount")
+        }
+    }
+
+    func test_aLossIsSpelledLikeTheFlipsScreenSpellsIt() {
+        // Not a literal check of the other surface, but of the convention it
+        // sets: U+2212, outside the "$". A hyphen-minus here would read as a
+        // different app.
+        XCTAssertTrue(WidgetHaulData.compactMoney(-420).hasPrefix("\u{2212}"))
+        XCTAssertFalse(WidgetHaulData.compactMoney(-420).contains("-"))
+    }
+
+    func test_theNegativeBoundariesAgreeWithThePositiveOnes() {
+        XCTAssertEqual(WidgetHaulData.compactMoney(-9_999),
+                       WidgetHaulData.compactMoney(-10_000))
+        XCTAssertEqual(WidgetHaulData.compactMoney(-999.6), "−$1.0K")
+    }
+
+    func test_aLossTooSmallToShowIsNotSignedZero() {
+        // −0.4 rounds to zero; "−$0" would be a claim about a loss that isn't.
+        XCTAssertEqual(WidgetHaulData.compactMoney(-0.4), "$0")
+        XCTAssertEqual(WidgetHaulData.compactMoney(-0.6), "−$1")
+    }
+
     func test_nothingEverRendersAThousandsSeparator() {
         // The whole reason this exists: "$1,240" does not fit in a circular
         // complication at a legible size.
@@ -975,6 +1402,14 @@ final class LockScreenMoneyTests: XCTestCase {
             XCTAssertFalse(WidgetHaulData.compactMoney(value).contains(","),
                            "\(value) rendered a separator")
         }
+    }
+
+    func test_itemsLabelIsSingularForOne() {
+        // "1 items in your haul" was the Quick Scan widget's greeting to a
+        // user who had just completed their first scan.
+        XCTAssertEqual(WidgetHaulData.itemsLabel(1), "1 item")
+        XCTAssertEqual(WidgetHaulData.itemsLabel(0), "0 items")
+        XCTAssertEqual(WidgetHaulData.itemsLabel(8), "8 items")
     }
 
     func test_findsLabelIsSingularForOne() {
@@ -1121,5 +1556,984 @@ final class SupportMailTests: XCTestCase {
         XCTAssertEqual(address.components(separatedBy: "@").count, 2)
         XCTAssertTrue(address.contains("."))
         XCTAssertFalse(address.contains(" "))
+    }
+}
+
+// ── Scans left: nil is not zero ───────────────────────────────────────────────
+//
+// Every read of `freeScansRemaining` in the widget was `?? 0`, and nil on a
+// non-Pro blob means *never established* — no blob in the App Group, a decode
+// failure, or a v1 blob from an install not reopened since the update. The
+// zero branch is the alarming one: a large terracotta "0" captioned "Back
+// tomorrow, or go Pro", shown to someone whose whole allowance is untouched.
+// Adding the widget from the gallery before first launch did exactly that.
+
+final class WidgetScansLeftTests: XCTestCase {
+
+    private func haul(isPro: Bool = false,
+                      remaining: Int? = nil,
+                      streak: Int = 0) -> WidgetHaulData {
+        WidgetHaulData(totalLow: 0, totalHigh: 0, itemCount: 0,
+                       lastItemName: "", lastItemRange: "", updatedAt: .now,
+                       freeScansRemaining: remaining, isPro: isPro, streak: streak,
+                       recentFinds: [], monthProfit: nil, monthFlips: 0)
+    }
+
+    func test_anUnwrittenCountIsUnknownRatherThanZero() {
+        let state = haul(remaining: nil).scansLeft(at: .now)
+        XCTAssertEqual(state, .unknown)
+        XCTAssertEqual(state.headline, "—")
+        XCTAssertEqual(state.circularValue, "—")
+        XCTAssertEqual(state.subtitle, "Open SnapWorth")
+    }
+
+    func test_anUnknownCountIsNeverPaintedAsSpent() {
+        // `isSpent` drives the terracotta accent. Firing it here tells someone
+        // with a full allowance that they are out of scans.
+        XCTAssertFalse(haul(remaining: nil).scansLeft(at: .now).isSpent)
+    }
+
+    func test_theEmptyBlobIsUnknown() {
+        // What `WidgetReader.readHaul()` returns before the app has ever run,
+        // and after any decode failure.
+        XCTAssertEqual(WidgetHaulData.empty.scansLeft(at: .now), .unknown)
+    }
+
+    func test_aBlobFromTheOldAppIsUnknown() throws {
+        let v1 = """
+            {"totalLow":348,"totalHigh":620,"itemCount":8,
+             "lastItemName":"Patagonia Fleece","lastItemRange":"$60–$95",
+             "updatedAt":768000000}
+            """.data(using: .utf8)!
+        let decoded = try JSONDecoder().decode(WidgetHaulData.self, from: v1)
+        XCTAssertEqual(decoded.scansLeft(at: .now), .unknown)
+    }
+
+    func test_anUnknownCountIsNotSpokenAsZero() {
+        XCTAssertEqual(haul(remaining: nil).scansLeft(at: .now).spoken,
+                       "Scan count not available yet. Open SnapWorth.")
+    }
+
+    func test_aSpentAllowanceStillReadsAsSpent() {
+        let state = haul(remaining: 0).scansLeft(at: .now)
+        XCTAssertEqual(state, .remaining(0))
+        XCTAssertEqual(state.headline, "0")
+        XCTAssertEqual(state.subtitle, "Back tomorrow, or go Pro")
+        XCTAssertEqual(state.spoken, "No free scans left today")
+        XCTAssertTrue(state.isSpent)
+    }
+
+    func test_oneScanIsSingular() {
+        let state = haul(remaining: 1).scansLeft(at: .now)
+        XCTAssertEqual(state.subtitle, "free scan left today")
+        XCTAssertEqual(state.spoken, "1 free scan left today")
+        XCTAssertFalse(state.isSpent)
+    }
+
+    func test_severalScansArePlural() {
+        XCTAssertEqual(haul(remaining: 3).scansLeft(at: .now).subtitle, "free scans left today")
+    }
+
+    func test_proCarriesTheStreakInsteadOfACount() {
+        let state = haul(isPro: true, remaining: nil, streak: 5).scansLeft(at: .now)
+        XCTAssertEqual(state, .pro(streak: 5))
+        XCTAssertEqual(state.headline, "5-day streak")
+        XCTAssertEqual(state.subtitle, "Keep it going")
+        XCTAssertEqual(state.circularValue, "5")
+        XCTAssertFalse(state.isSpent, "Pro is never out of scans")
+    }
+
+    func test_proWithoutAStreakSaysSoPlainly() {
+        let state = haul(isPro: true, streak: 0).scansLeft(at: .now)
+        XCTAssertEqual(state.headline, "Pro")
+        XCTAssertEqual(state.subtitle, "Unlimited scans")
+        XCTAssertEqual(state.circularValue, "∞")
+    }
+
+    func test_proWinsOverAStaleCount() {
+        // A lapse-and-resubscribe can leave a count in the blob; entitlement
+        // decides what the widget says, not the leftover number.
+        XCTAssertEqual(haul(isPro: true, remaining: 0, streak: 2).scansLeft(at: .now),
+                       .pro(streak: 2))
+    }
+}
+
+// ── Recent finds: the header and the body must agree ─────────────────────────
+//
+// The header branched on `hasScans` and printed the haul total; the body
+// branched on `recentFinds.isEmpty` and printed "Nothing scanned yet". Those
+// disagree for exactly one blob — the v1 one, where the totals decode and
+// `recentFinds` defaults to empty — which is what an installed widget reads
+// after the update and before the app is next opened.
+
+final class WidgetRecentRowsTests: XCTestCase {
+
+    private let v1 = """
+        {"totalLow":348,"totalHigh":620,"itemCount":8,
+         "lastItemName":"Patagonia Fleece","lastItemRange":"$60–$95",
+         "updatedAt":768000000}
+        """.data(using: .utf8)!
+
+    private func haul(itemCount: Int,
+                      lastName: String = "",
+                      lastRange: String = "",
+                      finds: [WidgetFind] = []) -> WidgetHaulData {
+        WidgetHaulData(totalLow: 0, totalHigh: 0, itemCount: itemCount,
+                       lastItemName: lastName, lastItemRange: lastRange,
+                       updatedAt: .now, freeScansRemaining: nil, isPro: false,
+                       streak: 0, recentFinds: finds, monthProfit: nil, monthFlips: 0)
+    }
+
+    func test_aHaulWithScansAlwaysHasARowToShow() throws {
+        // The invariant the two halves of the widget were breaking.
+        let decoded = try JSONDecoder().decode(WidgetHaulData.self, from: v1)
+        XCTAssertTrue(decoded.hasScans)
+        XCTAssertTrue(decoded.recentFinds.isEmpty, "v1 carries no find list")
+        XCTAssertFalse(decoded.recentRows(limit: WidgetBridge.maxRecentFinds).isEmpty,
+                       "header printed a total while the body said nothing was scanned")
+    }
+
+    func test_theV1FallbackRowIsTheFindTheOldBlobDoesCarry() throws {
+        let decoded = try JSONDecoder().decode(WidgetHaulData.self, from: v1)
+        let rows = decoded.recentRows(limit: 4)
+        XCTAssertEqual(rows.count, 1)
+        XCTAssertEqual(rows.first?.name, "Patagonia Fleece")
+        XCTAssertEqual(rows.first?.range, "$60–$95")
+    }
+
+    func test_anEmptyLibraryHasNoRows() {
+        XCTAssertTrue(haul(itemCount: 0).recentRows(limit: 4).isEmpty)
+        XCTAssertTrue(WidgetHaulData.empty.recentRows(limit: 4).isEmpty)
+    }
+
+    func test_aHaulWithScansButNoNameIsNotFakedIntoARow() {
+        // Defensive: an unnamed find would render a blank row, which is worse
+        // than the empty state.
+        XCTAssertTrue(haul(itemCount: 3).recentRows(limit: 4).isEmpty)
+    }
+
+    func test_theListIsCappedAtTheFamilysLimit() {
+        let finds = (1...6).map { WidgetFind(id: "\($0)", name: "Item \($0)", range: "$1") }
+        XCTAssertEqual(haul(itemCount: 6, finds: finds).recentRows(limit: 2).count, 2)
+        XCTAssertEqual(haul(itemCount: 6, finds: finds).recentRows(limit: 4).count, 4)
+    }
+
+    func test_aRealFindListWinsOverTheFallback() {
+        let finds = [WidgetFind(id: "a", name: "Levi's 501", range: "$40–$70")]
+        let rows = haul(itemCount: 8, lastName: "Patagonia Fleece",
+                        lastRange: "$60–$95", finds: finds).recentRows(limit: 4)
+        XCTAssertEqual(rows.map(\.name), ["Levi's 501"])
+    }
+}
+
+// ── Freshness: three snapshots that outlived the period they described ───────
+//
+// The free-scan count is scoped to a UTC day, the streak to a local day, the
+// month's profit to a local month — and all three were stored as bare numbers
+// that the extension cannot recompute: `FreeScanCounter` and `ScanStreak` live
+// in `UserDefaults.standard`, not the App Group, and the ledger is in
+// SwiftData. The providers emitted one entry dated `.now` with a blind hourly
+// policy, so every refresh re-read the same frozen number and the correction
+// waited for the app to be launched.
+
+final class WidgetFreshnessTests: XCTestCase {
+
+    private func utc(_ year: Int, _ month: Int, _ day: Int, _ hour: Int = 12) -> Date {
+        var cal = Calendar(identifier: .gregorian)
+        cal.timeZone = TimeZone(secondsFromGMT: 0) ?? .gmt
+        return cal.date(from: DateComponents(year: year, month: month,
+                                             day: day, hour: hour))!
+    }
+
+    private func haul(updatedAt: Date,
+                      remaining: Int? = nil,
+                      allowance: Int? = nil,
+                      isPro: Bool = false,
+                      streak: Int = 0,
+                      streakLastScan: Date? = nil,
+                      monthProfit: Double? = nil,
+                      monthFlips: Int = 0) -> WidgetHaulData {
+        WidgetHaulData(totalLow: 0, totalHigh: 0, itemCount: 1,
+                       lastItemName: "Levi's 501", lastItemRange: "$40–$70",
+                       updatedAt: updatedAt, freeScansRemaining: remaining,
+                       isPro: isPro, streak: streak, recentFinds: [],
+                       monthProfit: monthProfit, monthFlips: monthFlips,
+                       streakLastScan: streakLastScan, freeScanAllowance: allowance)
+    }
+
+    // ── The allowance resets on the server's UTC day ─────────────────────────
+
+    func test_aSpentAllowanceStaysSpentWithinItsOwnDay() {
+        let state = haul(updatedAt: utc(2026, 9, 12, 1), remaining: 0, allowance: 1)
+            .scansLeft(at: utc(2026, 9, 12, 23))
+        XCTAssertEqual(state, .remaining(0))
+    }
+
+    func test_aSpentAllowanceComesBackAfterTheUTCReset() {
+        // A free user in UTC-7 spends their scan at 18:00 UTC Friday. The
+        // server resets at 00:00 UTC Saturday. The widget kept reading "0 —
+        // Back tomorrow, or go Pro" for the whole of Saturday and beyond.
+        let state = haul(updatedAt: utc(2026, 9, 11, 18), remaining: 0, allowance: 1)
+            .scansLeft(at: utc(2026, 9, 12, 2))
+        XCTAssertEqual(state, .remaining(1))
+        XCTAssertFalse(state.isSpent, "still pointing a user with a scan at the paywall")
+        XCTAssertEqual(state.subtitle, "free scan left today")
+    }
+
+    func test_anAgedBlobWithNoStoredAllowanceIsUnknownRatherThanZero() {
+        // A v2 blob carries the count but not the allowance. Unknown is the
+        // honest answer; zero is the one that sends someone to the paywall.
+        let state = haul(updatedAt: utc(2026, 9, 11, 18), remaining: 0, allowance: nil)
+            .scansLeft(at: utc(2026, 9, 12, 2))
+        XCTAssertEqual(state, .unknown)
+        XCTAssertFalse(state.isSpent)
+    }
+
+    func test_theQuotaDayIsTheServersNotThePhones() {
+        // 23:30 and 00:30 UTC are different allowance days however the phone
+        // is set — this is the UTC-vs-local bug `FreeScanCounter` already
+        // fixed on the app side, arrived at from the widget's direction.
+        let blob = haul(updatedAt: utc(2026, 9, 11, 23), remaining: 0, allowance: 1)
+        XCTAssertTrue(blob.quotaIsCurrent(at: utc(2026, 9, 11, 23)))
+        XCTAssertFalse(blob.quotaIsCurrent(at: utc(2026, 9, 12, 0)))
+    }
+
+    // ── The streak lapses on a local day ─────────────────────────────────────
+
+    func test_aStreakScannedTodayStands() {
+        let now = utc(2026, 9, 12, 12)
+        XCTAssertEqual(haul(updatedAt: now, streak: 5, streakLastScan: now)
+                        .liveStreak(at: now), 5)
+    }
+
+    func test_aStreakScannedYesterdayStillStands() {
+        // Matches `ScanStreak.current()`: today *or* yesterday keeps it alive.
+        let now = utc(2026, 9, 12, 12)
+        let yesterday = Calendar.current.date(byAdding: .day, value: -1, to: now)!
+        XCTAssertEqual(haul(updatedAt: yesterday, streak: 5, streakLastScan: yesterday)
+                        .liveStreak(at: now), 5)
+    }
+
+    func test_aStreakOlderThanYesterdayIsGone() {
+        // A 5-day streak, last scan Friday, read on Sunday: the app itself
+        // would compute 0, and the Lock Screen kept showing 5 all weekend.
+        let now = utc(2026, 9, 13, 12)
+        let friday = Calendar.current.date(byAdding: .day, value: -2, to: now)!
+        XCTAssertEqual(haul(updatedAt: friday, streak: 5, streakLastScan: friday)
+                        .liveStreak(at: now), 0)
+    }
+
+    func test_aStreakFromABlobWithNoDateIsTakenAtFaceValue() {
+        // A v2 blob has no `streakLastScan`. Showing a possibly-stale streak
+        // for one launch beats blanking a real one.
+        let now = utc(2026, 9, 12, 12)
+        XCTAssertEqual(haul(updatedAt: now, streak: 4, streakLastScan: nil)
+                        .liveStreak(at: now), 4)
+    }
+
+    func test_aLapsedStreakTakesTheProHeadlineWithIt() {
+        let now = utc(2026, 9, 13, 12)
+        let friday = Calendar.current.date(byAdding: .day, value: -2, to: now)!
+        let state = haul(updatedAt: friday, isPro: true, streak: 5,
+                         streakLastScan: friday).scansLeft(at: now)
+        XCTAssertEqual(state, .pro(streak: 0))
+        XCTAssertEqual(state.headline, "Pro", "a streak the user has lost")
+    }
+
+    // ── The month's profit belongs to one month ──────────────────────────────
+
+    func test_thisMonthsProfitSurvivesInsideItsMonth() {
+        let written = utc(2026, 9, 5, 12)
+        let later = utc(2026, 9, 28, 12)
+        let blob = haul(updatedAt: written, isPro: true, monthProfit: 214, monthFlips: 6)
+        XCTAssertEqual(blob.monthProfit(at: later) ?? 0, 214, accuracy: 0.01)
+        XCTAssertEqual(blob.monthFlips(at: later), 6)
+    }
+
+    func test_thisMonthsProfitDoesNotFollowTheUserIntoNextMonth() {
+        // Sold six items in September for $214, last opened the app on the
+        // 28th. On 3 October the widget read "$214 · from 6 flips" under a
+        // header saying "This month", while the Flips screen showed $0.
+        let written = utc(2026, 9, 28, 12)
+        let october = Calendar.current.date(byAdding: .month, value: 1, to: written)!
+        let blob = haul(updatedAt: written, isPro: true, monthProfit: 214, monthFlips: 6)
+        XCTAssertNil(blob.monthProfit(at: october))
+        XCTAssertEqual(blob.monthFlips(at: october), 0,
+                       "\"$0 from 6 flips\" is worse than either half alone")
+    }
+
+    func test_theProfitAndTheFlipCountExpireTogether() {
+        let written = utc(2026, 9, 28, 12)
+        let october = Calendar.current.date(byAdding: .month, value: 1, to: written)!
+        let blob = haul(updatedAt: written, isPro: true, monthProfit: 214, monthFlips: 6)
+        XCTAssertEqual(blob.monthProfit(at: october) == nil,
+                       blob.monthFlips(at: october) == 0)
+    }
+
+    // ── The timeline has to carry an entry at each boundary ──────────────────
+
+    func test_everyBoundaryIsInTheFuture() {
+        let now = utc(2026, 9, 12, 12)
+        let dates = WidgetHaulData.refreshBoundaries(after: now)
+        XCTAssertFalse(dates.isEmpty)
+        for date in dates { XCTAssertGreaterThan(date, now) }
+    }
+
+    func test_boundariesAreSortedAndUnique() {
+        // At UTC+0 the server day and the local day are the same instant, and
+        // a duplicated entry date is not something WidgetKit should be handed.
+        let now = utc(2026, 9, 12, 12)
+        let dates = WidgetHaulData.refreshBoundaries(after: now)
+        XCTAssertEqual(dates, dates.sorted())
+        XCTAssertEqual(dates.count, Set(dates).count)
+    }
+
+    func test_theNextServerMidnightIsAlwaysScheduled() {
+        let now = utc(2026, 9, 12, 12)
+        let dates = WidgetHaulData.refreshBoundaries(after: now)
+        XCTAssertTrue(dates.contains(utc(2026, 9, 13, 0)),
+                      "nothing scheduled where the allowance actually resets")
+    }
+
+    func test_aMonthEndIsScheduledWhenItIsNear() {
+        let now = utc(2026, 9, 29, 12)
+        let dates = WidgetHaulData.refreshBoundaries(after: now)
+        let local = Calendar.current
+        let nextMonth = local.dateInterval(of: .month, for: now)!.end
+        XCTAssertTrue(dates.contains(nextMonth))
+    }
+
+    func test_noBoundaryIsMoreThanAMonthOut() {
+        // A timeline entry a year away is not a refresh, it is a leak.
+        let now = utc(2026, 9, 12, 12)
+        let limit = Calendar.current.date(byAdding: .day, value: 32, to: now)!
+        for date in WidgetHaulData.refreshBoundaries(after: now) {
+            XCTAssertLessThanOrEqual(date, limit)
+        }
+    }
+}
+
+// ── The thrift run's stale date ──────────────────────────────────────────────
+//
+// `staleDate` flips `context.isStale`; it does not dim anything by itself, and
+// for a while a comment in the controller claimed it did — which is why no
+// view read the flag. The date also has to sit inside the run: a scan late in
+// a long run was pushing it past the point at which `update` ends the run,
+// so the Activity would never declare itself stale before being killed.
+
+final class ThriftRunStaleDateTests: XCTestCase {
+
+    private let start = Date(timeIntervalSince1970: 1_757_000_000)
+
+    @MainActor
+    func test_theStaleDateIsNinetyMinutesFromTheLastUpdate() {
+        let now = start.addingTimeInterval(10 * 60)
+        XCTAssertEqual(
+            ThriftRunController.staleDate(now: now, startedAt: start),
+            now.addingTimeInterval(ThriftRunController.staleAfter))
+    }
+
+    @MainActor
+    func test_theStaleDateNeverOutlivesTheRun() {
+        // A scan at 7h55m would otherwise set it to 9h25m, past the 8-hour cap
+        // at which `update` ends the run.
+        let lateScan = start.addingTimeInterval(7 * 60 * 60 + 55 * 60)
+        let stale = ThriftRunController.staleDate(now: lateScan, startedAt: start)
+        XCTAssertEqual(stale,
+                       start.addingTimeInterval(ThriftRunController.maximumRunDuration))
+        XCTAssertLessThan(stale, lateScan.addingTimeInterval(ThriftRunController.staleAfter))
+    }
+
+    @MainActor
+    func test_aFreshRunGoesStaleLongBeforeItIsEnded() {
+        XCTAssertLessThan(ThriftRunController.staleAfter,
+                          ThriftRunController.maximumRunDuration,
+                          "a run would be killed before it ever declared itself stale")
+        XCTAssertEqual(ThriftRunController.staleDate(now: start, startedAt: start),
+                       start.addingTimeInterval(ThriftRunController.staleAfter))
+    }
+}
+
+// ── The widget palette ───────────────────────────────────────────────────────
+//
+// The extension cannot import `DesignSystem.swift`, so nothing but a test can
+// keep the two palettes in step — and for 1.4.0 nothing did. Every widget
+// accent was a *light-mode* value drawn on a dark tile, and two of them failed
+// WCAG AA while carrying 10-13pt text.
+//
+// These assertions are the check the compiler cannot make: the hexes still
+// clear AA on the ground they are used on, and the fill token is still darker
+// than the foreground one it was split out of.
+
+final class WidgetPaletteTests: XCTestCase {
+
+    /// WCAG 2.1 relative luminance.
+    private func luminance(_ hex: String) -> Double {
+        let channels = stride(from: 0, to: 6, by: 2).map { offset -> Double in
+            let start = hex.index(hex.startIndex, offsetBy: offset)
+            let end = hex.index(start, offsetBy: 2)
+            let value = Double(UInt8(hex[start..<end], radix: 16) ?? 0) / 255
+            return value <= 0.03928 ? value / 12.92
+                                    : pow((value + 0.055) / 1.055, 2.4)
+        }
+        return 0.2126 * channels[0] + 0.7152 * channels[1] + 0.0722 * channels[2]
+    }
+
+    private func contrast(_ a: String, _ b: String) -> Double {
+        let (x, y) = (luminance(a), luminance(b))
+        return (max(x, y) + 0.05) / (min(x, y) + 0.05)
+    }
+
+    /// Cream over a ground at partial opacity, which is what the widgets draw
+    /// for their secondary labels — the composite is what the eye sees.
+    private func composite(_ hex: String, over ground: String, alpha: Double) -> String {
+        func bytes(_ h: String) -> [Double] {
+            stride(from: 0, to: 6, by: 2).map { offset in
+                let start = h.index(h.startIndex, offsetBy: offset)
+                let end = h.index(start, offsetBy: 2)
+                return Double(UInt8(h[start..<end], radix: 16) ?? 0)
+            }
+        }
+        let (front, back) = (bytes(hex), bytes(ground))
+        return (0..<3).map { i in
+            String(format: "%02X", Int((alpha * front[i] + (1 - alpha) * back[i]).rounded()))
+        }.joined()
+    }
+
+    // ── The helper itself, against known values ──────────────────────────────
+
+    func test_theContrastHelperAgreesWithTheSpec() {
+        XCTAssertEqual(contrast("FFFFFF", "000000"), 21, accuracy: 0.01)
+        XCTAssertEqual(contrast("000000", "000000"), 1, accuracy: 0.01)
+        // WebAIM's worked example: #777777 on white is 4.48:1.
+        XCTAssertEqual(contrast("777777", "FFFFFF"), 4.48, accuracy: 0.02)
+    }
+
+    // ── Every foreground on the tile ─────────────────────────────────────────
+
+    func test_everyForegroundOnTheTileClearsAAForSmallText() {
+        // All of these carry 10-13pt labels somewhere in the bundle, so the
+        // 4.5:1 threshold applies — not the 3:1 large-text one.
+        let foregrounds = [
+            ("cream",      SnapDarkHex.cream),
+            ("terracotta", SnapDarkHex.terracotta),
+            ("sage",       SnapDarkHex.sage),
+            ("warmGray",   SnapDarkHex.warmGray),
+        ]
+        for (name, hex) in foregrounds {
+            let ratio = contrast(hex, SnapDarkHex.charcoal)
+            XCTAssertGreaterThanOrEqual(
+                ratio, 4.5,
+                "\(name) is \(String(format: "%.2f", ratio)):1 on the tile")
+        }
+    }
+
+    func test_theOldPaletteWouldHaveFailedThisTest() {
+        // The values that shipped, so the assertion above is known to bite.
+        XCTAssertLessThan(contrast("C9583A", "2C2C2C"), 4.5, "old terracotta")
+        XCTAssertLessThan(contrast("8A857E", "2C2C2C"), 4.5, "old warm grey")
+    }
+
+    func test_dimmedCreamStillClearsAAOnTheTile() {
+        // The widgets draw their wordmarks and captions at 65-80% cream.
+        for alpha in [0.65, 0.7, 0.75, 0.8] {
+            let blended = composite(SnapDarkHex.cream,
+                                    over: SnapDarkHex.charcoal, alpha: alpha)
+            XCTAssertGreaterThanOrEqual(contrast(blended, SnapDarkHex.charcoal), 4.5,
+                                        "cream at \(alpha)")
+        }
+    }
+
+    // ── Filled accents ───────────────────────────────────────────────────────
+
+    func test_creamClearsAAOnEveryFilledAccent() {
+        // The Quick Scan tile's gradient and the medium widget's Scan chip.
+        for fill in [SnapDarkHex.terracottaFill, SnapDarkHex.terracottaFillDeep] {
+            XCTAssertGreaterThanOrEqual(contrast(SnapDarkHex.cream, fill), 4.5, fill)
+        }
+    }
+
+    func test_theFillIsDarkerThanTheForegroundItWasSplitFrom() {
+        // The whole point of the split: one token cannot be both, and getting
+        // them the wrong way round is silent.
+        XCTAssertLessThan(luminance(SnapDarkHex.terracottaFill),
+                          luminance(SnapDarkHex.terracotta))
+        XCTAssertLessThan(luminance(SnapDarkHex.terracottaFillDeep),
+                          luminance(SnapDarkHex.terracottaFill))
+    }
+
+    func test_theForegroundTerracottaWouldFailAsAFill() {
+        // Why the split exists, stated as a test rather than a comment.
+        XCTAssertLessThan(contrast(SnapDarkHex.cream, SnapDarkHex.terracotta), 3.0)
+    }
+
+    // ── And still the app's own values ───────────────────────────────────────
+
+    func test_theWidgetAccentsAreTheAppsDarkModeValues() {
+        // A widget tile is dark in both themes, so the light-mode half of each
+        // adaptive pair is the wrong one — which is what had been typed in by
+        // hand. `DesignSystem.swift` reads these same constants, so changing a
+        // dark-mode accent there changes the widget with it.
+        XCTAssertEqual(SnapDarkHex.terracotta, "E8845F")
+        XCTAssertEqual(SnapDarkHex.sage, "8FB08A")
+        XCTAssertEqual(SnapDarkHex.warmGray, "B0A297")
+        XCTAssertEqual(SnapDarkHex.espresso, "F0E9E2")
+        XCTAssertEqual(SnapDarkHex.charcoal, "1C1714")
+        XCTAssertEqual(SnapDarkHex.cream, "FBF7F2")
+    }
+
+    func test_everyHexIsSixUppercaseDigits() {
+        // `Color(hex:)` strips non-alphanumerics and scans what is left, so a
+        // typo degrades to a colour rather than a build error.
+        let all = [SnapDarkHex.charcoal, SnapDarkHex.cream, SnapDarkHex.terracotta,
+                   SnapDarkHex.sage, SnapDarkHex.warmGray, SnapDarkHex.espresso,
+                   SnapDarkHex.terracottaFill, SnapDarkHex.terracottaFillDeep]
+        for hex in all {
+            XCTAssertEqual(hex.count, 6, hex)
+            XCTAssertTrue(hex.allSatisfy { $0.isHexDigit && !$0.isLowercase }, hex)
+        }
+    }
+
+    // ── A dimmed accent is no longer a dark surface ──────────────────────────
+
+    func test_creamOnADimmedAccentIsUnreadable() {
+        // The premise behind `snapOnAccent` being fixed cream — "the accent is
+        // dark enough in both themes" — holds only at full opacity. This is
+        // the measurement that says so, kept as a test so the reasoning cannot
+        // be quietly re-inverted.
+        XCTAssertEqual(contrast(SnapDarkHex.cream, SnapDarkHex.terracottaFill),
+                       5.43, accuracy: 0.02)
+
+        let dimmedOnLight = composite(SnapDarkHex.terracottaFill,
+                                      over: Color.SnapLightHex.background, alpha: 0.4)
+        XCTAssertEqual(contrast(SnapDarkHex.cream, dimmedOnLight),
+                       1.82, accuracy: 0.03,
+                       "cream on a 40% accent over a light ground — the label " +
+                       "did not read as disabled, it disappeared")
+    }
+
+    func test_themedInkReadsOnADimmedAccentInEveryVariant() {
+        // What `PrimaryButton` uses when disabled. Every ground the button can
+        // sit on, in both themes and both high-contrast variants.
+        let cases: [(String, String, String)] = [
+            ("light bg",    Color.SnapLightHex.background, Color.SnapLightHex.espresso),
+            ("light card",  Color.SnapLightHex.card,       Color.SnapLightHex.espresso),
+            ("dark bg",     SnapDarkHex.ground,      SnapDarkHex.espresso),
+            ("dark card",   SnapDarkHex.card,        SnapDarkHex.espresso),
+            ("light HC",    Color.SnapLightHex.background, Color.SnapLightHex.espressoHC),
+            ("dark HC",     SnapDarkHex.ground,      "FFFFFF"),
+        ]
+        for (label, ground, ink) in cases {
+            let fill = composite(SnapDarkHex.terracottaFill, over: ground, alpha: 0.4)
+            XCTAssertGreaterThan(contrast(ink, fill), 4.5,
+                                 "\(label): a disabled label still has to be readable")
+        }
+    }
+
+    func test_dimmingTheWholeButtonWouldBeWorse() {
+        // The obvious fix, measured rather than assumed — it fails light mode
+        // anyway and drags dark mode from ~10:1 down under 4:1, because it
+        // dims a cream label toward a dark ground.
+        let lightFill = composite(SnapDarkHex.terracottaFill,
+                                  over: Color.SnapLightHex.background, alpha: 0.5)
+        let lightLabel = composite(SnapDarkHex.cream,
+                                   over: Color.SnapLightHex.background, alpha: 0.5)
+        XCTAssertLessThan(contrast(lightLabel, lightFill), 3.0)
+
+        let darkFill = composite(SnapDarkHex.terracottaFill,
+                                 over: SnapDarkHex.ground, alpha: 0.5)
+        let darkLabel = composite(SnapDarkHex.cream,
+                                  over: SnapDarkHex.ground, alpha: 0.5)
+        XCTAssertLessThan(contrast(darkLabel, darkFill), 4.5,
+                          "and it would break the theme that currently passes")
+    }
+
+    // ── The analysing overlay sits on the user's photo, not on a colour ─────
+
+    func test_theAnalysingCaptionClearsAAOnABrightPhoto() {
+        // The scrim is `snapCharcoal.opacity(0.72)` over the captured photo, so
+        // the ground is only as dark as the photo lets it be. A phone held over
+        // an item on a white shelf is the common case, not the corner one.
+        let scrim = composite(SnapDarkHex.charcoal, over: "FFFFFF", alpha: 0.72)
+        XCTAssertLessThan(contrast(composite(SnapDarkHex.cream, over: scrim, alpha: 0.7),
+                                   scrim), 4.5,
+                          "0.7 was the failing value — 4.21:1 at 13pt")
+        XCTAssertGreaterThan(contrast(composite(SnapDarkHex.cream, over: scrim, alpha: 0.8),
+                                      scrim), 4.5,
+                             "0.8 is what ships")
+    }
+
+    func test_theAnalysingMessageItselfWasNeverTheProblem() {
+        // Full-opacity cream, 17pt. Asserted so a future "fix" does not touch
+        // the line that was already fine.
+        let scrim = composite(SnapDarkHex.charcoal, over: "FFFFFF", alpha: 0.72)
+        XCTAssertGreaterThan(contrast(SnapDarkHex.cream, scrim), 4.5)
+    }
+
+    // ── The shimmer sweep has to be visible on the skeleton ──────────────────
+
+    /// The skeleton surface: `snapBorder.opacity(0.6)` over the card.
+    private func skeleton(border: String, card: String) -> String {
+        composite(border, over: card, alpha: 0.6)
+    }
+
+    func test_aWhiteSweepIsInvisibleOnTheLightSkeleton() {
+        let base = skeleton(border: Color.SnapBorderHex.light, card: Color.SnapLightHex.card)
+        let peak = composite("FFFFFF", over: base, alpha: 0.65)
+        let wash = composite("FFFFFF", over: base, alpha: 0.18)
+        XCTAssertLessThan(contrast(peak, base), 1.1,
+                          "a 1.09:1 peak is below the threshold of visible " +
+                          "difference — the placeholder was a static block, so " +
+                          "a slow decode looked identical to a missing image")
+        XCTAssertLessThan(contrast(wash, base), 1.05,
+                          "and the Reduce Motion wash conveyed nothing at all")
+    }
+
+    func test_aWhiteSweepIsAColdFlareOnTheDarkSkeleton() {
+        let base = skeleton(border: Color.SnapBorderHex.dark, card: SnapDarkHex.card)
+        let peak = composite("FFFFFF", over: base, alpha: 0.65)
+        XCTAssertGreaterThan(contrast(peak, base), 7.0,
+                             "pure white on a warm espresso card — the same " +
+                             "token failing in opposite directions")
+    }
+
+    func test_thePaletteSweepIsVisibleInBothThemes() {
+        // `snapShimmer` resolves to `snapEspresso`: dark ink on light, cream on
+        // dark. 3:1 is WCAG 1.4.11's floor for a meaningful non-text boundary,
+        // and what a "pending" placeholder has to clear to mean anything.
+        let light = skeleton(border: Color.SnapBorderHex.light, card: Color.SnapLightHex.card)
+        XCTAssertGreaterThan(
+            contrast(composite(Color.SnapLightHex.espresso, over: light, alpha: 0.65), light), 3.0)
+        XCTAssertGreaterThan(
+            contrast(composite(Color.SnapLightHex.espresso, over: light, alpha: 0.5), light), 3.0,
+            "including the static Reduce Motion wash")
+
+        let dark = skeleton(border: Color.SnapBorderHex.dark, card: SnapDarkHex.card)
+        XCTAssertGreaterThan(
+            contrast(composite(SnapDarkHex.espresso, over: dark, alpha: 0.65), dark), 3.0)
+        XCTAssertGreaterThan(
+            contrast(composite(SnapDarkHex.espresso, over: dark, alpha: 0.5), dark), 3.0)
+    }
+}
+
+// ── Spoken labels ────────────────────────────────────────────────────────────
+//
+// Every widget was handing display strings straight to `accessibilityLabel`.
+// A money range carries an en dash, which a voice either reads as "dash" or
+// drops — and dropping it runs "$348–$620" together into a number that is not
+// the answer to anything. Two widgets had no label at all and read out SF
+// Symbol names instead.
+
+final class WidgetSpokenLabelTests: XCTestCase {
+
+    private func haul(itemCount: Int, low: Double = 0, high: Double = 0,
+                      lastRange: String = "") -> WidgetHaulData {
+        WidgetHaulData(totalLow: low, totalHigh: high, itemCount: itemCount,
+                       lastItemName: "Levi's 501", lastItemRange: lastRange,
+                       updatedAt: .now, freeScansRemaining: nil, isPro: false,
+                       streak: 0, recentFinds: [], monthProfit: nil, monthFlips: 0)
+    }
+
+    func test_aRangeIsSpokenAsARangeNotADash() {
+        let spoken = haul(itemCount: 8, low: 348, high: 620).spokenRange
+        XCTAssertEqual(spoken, "$348 to $620")
+        XCTAssertFalse(spoken.contains("–"), "an en dash reaches the voice")
+    }
+
+    func test_anEmptyHaulIsSpokenPlainly() {
+        XCTAssertEqual(WidgetHaulData.empty.spokenRange, "nothing scanned yet")
+        XCTAssertEqual(WidgetHaulData.empty.spokenHaul, "SnapWorth. Nothing scanned yet.")
+    }
+
+    func test_theWholeHaulIsOneSentence() {
+        XCTAssertEqual(haul(itemCount: 8, low: 348, high: 620).spokenHaul,
+                       "SnapWorth haul, 8 items scanned, worth $348 to $620.")
+    }
+
+    func test_oneItemIsSingularInTheSpokenHaulToo() {
+        XCTAssertTrue(haul(itemCount: 1, low: 60, high: 95).spokenHaul
+                        .contains("1 item scanned"))
+    }
+
+    func test_anItemRangeIsRespelledForTheVoice() {
+        // `ScanResult.formattedRange` and every `WidgetFind.range` come in
+        // already formatted, so only the separator can be changed.
+        XCTAssertEqual(WidgetHaulData.spoken("$60–$95"), "$60 to $95")
+        XCTAssertEqual(WidgetHaulData.spoken("$1,240–$2,100"), "$1,240 to $2,100")
+    }
+
+    func test_respellingLeavesAnythingWithoutADashAlone() {
+        XCTAssertEqual(WidgetHaulData.spoken("$0"), "$0")
+        XCTAssertEqual(WidgetHaulData.spoken(""), "")
+    }
+
+    func test_noSpokenLabelContainsADisplayDash() {
+        // The invariant, over the strings a widget actually hands to VoiceOver.
+        let full = haul(itemCount: 3, low: 95, high: 150, lastRange: "$40–$70")
+        for label in [full.spokenRange, full.spokenHaul,
+                      WidgetHaulData.spoken(full.lastItemRange)] {
+            XCTAssertFalse(label.contains("–"), label)
+        }
+    }
+}
+
+// ── Flash mode ───────────────────────────────────────────────────────────────
+//
+// `AVCapturePhotoSettings.flashMode` must be one of the output's
+// `supportedFlashModes`. Anything else raises `NSInvalidArgumentException`,
+// which is an abort and not a throw — there is nothing to catch. `.auto` was
+// being set unconditionally, and an iPad running the app in iPhone
+// compatibility mode reports `[.off]` and nothing else: every shutter tap
+// killed the process, on the one screen the app exists for.
+//
+// The same class of bug was already fixed in this file for photo dimensions,
+// with the same comment about uncatchable aborts. The flash was missed.
+
+final class CameraFlashModeTests: XCTestCase {
+
+    func test_autoIsUsedWhenTheDeviceHasIt() {
+        XCTAssertEqual(
+            CameraManager.flashMode(preferring: .auto, supported: [.off, .on, .auto]),
+            .auto)
+    }
+
+    func test_aFlashlessDeviceGetsOffRatherThanACrash() {
+        // What an iPad in compatibility mode reports.
+        XCTAssertEqual(CameraManager.flashMode(preferring: .auto, supported: [.off]), .off)
+    }
+
+    func test_aDeviceWithoutAutoIsNotHandedOnInstead() {
+        // Falling through to `.first` here would fire a flash nobody asked for.
+        XCTAssertEqual(CameraManager.flashMode(preferring: .auto, supported: [.on, .off]),
+                       .off)
+    }
+
+    func test_anEmptyListAsksForNothing() {
+        // The caller skips assigning `flashMode` at all, which is the only safe
+        // thing to do: every value would raise.
+        XCTAssertNil(CameraManager.flashMode(preferring: .auto, supported: []))
+    }
+
+    func test_theResultIsAlwaysSomethingTheDeviceSupports() {
+        // The invariant that matters: whatever comes back must be assignable.
+        let cases: [[AVCaptureDevice.FlashMode]] = [
+            [], [.off], [.on], [.auto], [.off, .on], [.off, .auto], [.on, .auto],
+            [.off, .on, .auto],
+        ]
+        for supported in cases {
+            guard let chosen = CameraManager.flashMode(preferring: .auto,
+                                                       supported: supported) else {
+                XCTAssertTrue(supported.isEmpty, "returned nil for \(supported)")
+                continue
+            }
+            XCTAssertTrue(supported.contains(chosen),
+                          "\(chosen) is not in \(supported) — this is the abort")
+        }
+    }
+
+    // ── Recovering a session we did not stop ─────────────────────────────
+    //
+    // A stop that came from the system used to be permanent: another client
+    // taking the camera, or a mediaserverd reset, left `isRunning` false, the
+    // preview frozen on its last frame, and `capturePhoto` returning at its
+    // own guard — so every shutter tap after that only vibrated. `onAppear`
+    // cannot rescue it because the view never disappeared, and the user's only
+    // fix was force-quitting the app.
+    //
+    // The observers themselves cannot be unit-tested (AVFoundation posts the
+    // notifications, and the hardware states cannot be reproduced), so the
+    // decision is tested apart from the hardware — the same split
+    // `flashMode` and `preferredPhotoDimensions` already use.
+
+    func test_aMediaServicesResetIsWorthRestarting() {
+        // mediaserverd restarted underneath us: the session is stopped but
+        // still configured, so `startRunning` is the whole recovery.
+        XCTAssertTrue(CameraManager.shouldRestart(after: .mediaServicesWereReset))
+    }
+
+    func test_everythingElseIsLeftAlone() {
+        // Not caution for its own sake: a failure a restart cannot fix posts
+        // another runtime error when we retry it, and that is a
+        // notification-and-restart loop for as long as the screen is open.
+        for code in [AVError.Code.deviceAlreadyUsedByAnotherSession,
+                     .sessionConfigurationChanged,
+                     .mediaDiscontinuity,
+                     .unknown] {
+            XCTAssertFalse(CameraManager.shouldRestart(after: code),
+                           "\(code) would loop if we retried it")
+        }
+    }
+}
+
+// ── The app palette ──────────────────────────────────────────────────────────
+//
+// Every contrast failure this palette has had was invisible to the compiler and
+// to every test, because a `Color` cannot be measured. Three were live at once:
+//
+//   • cream on a terracotta fill — 3.18:1 light, 2.49:1 dark, 4.37:1 even under
+//     Increased Contrast. That is every primary button in the app.
+//   • terracotta as a text colour — 3.39:1 on a card, 3.18:1 on the ground.
+//     About thirty labels, including the keyboard toolbar's "Done", which is
+//     the only way off the money keypad, and every error message.
+//   • cream ink on a dark-mode amber badge — 1.46:1. The "SAVE 33%" on the
+//     yearly plan, which is the reason to pick it.
+//
+// And `snapWarmGray`, deliberately darkened from 3.1:1 to 5.7:1 to clear AA,
+// was being re-diluted by `.opacity()` at thirteen call sites back to 2.3-3.7:1
+// — one of them Apple's required auto-renew disclosure.
+//
+// The hexes are in `Color.SnapLightHex` and `SnapDarkHex` so these assertions
+// can exist at all.
+
+final class AppPaletteTests: XCTestCase {
+
+    private typealias L = Color.SnapLightHex
+
+    private func luminance(_ hex: String) -> Double {
+        let channels = stride(from: 0, to: 6, by: 2).map { offset -> Double in
+            let start = hex.index(hex.startIndex, offsetBy: offset)
+            let end = hex.index(start, offsetBy: 2)
+            let value = Double(UInt8(hex[start..<end], radix: 16) ?? 0) / 255
+            return value <= 0.03928 ? value / 12.92
+                                    : pow((value + 0.055) / 1.055, 2.4)
+        }
+        return 0.2126 * channels[0] + 0.7152 * channels[1] + 0.0722 * channels[2]
+    }
+
+    private func contrast(_ a: String, _ b: String) -> Double {
+        let (x, y) = (luminance(a), luminance(b))
+        return (max(x, y) + 0.05) / (min(x, y) + 0.05)
+    }
+
+    private func assertAA(_ fg: String, on bg: String, _ what: String,
+                          minimum: Double = 4.5,
+                          file: StaticString = #filePath, line: UInt = #line) {
+        let ratio = contrast(fg, bg)
+        XCTAssertGreaterThanOrEqual(
+            ratio, minimum,
+            "\(what) is \(String(format: "%.2f", ratio)):1, needs \(minimum):1",
+            file: file, line: line)
+    }
+
+    // ── Body text, both themes, both surfaces ────────────────────────────────
+
+    func test_bodyTextClearsAAEverywhereItIsDrawn() {
+        assertAA(L.espresso, on: L.background, "espresso on the light ground")
+        assertAA(L.espresso, on: L.card, "espresso on a light card")
+        assertAA(SnapDarkHex.espresso, on: SnapDarkHex.ground, "espresso on the dark ground")
+        assertAA(SnapDarkHex.espresso, on: SnapDarkHex.card, "espresso on a dark card")
+    }
+
+    func test_secondaryTextClearsAAEverywhereItIsDrawn() {
+        // This is the token that was darkened to 5.7:1 on purpose. Thirteen
+        // call sites then put `.opacity()` on it, which is what the sweep in
+        // this commit removed — an opacity here cannot be caught by a test of
+        // the token, so the point of asserting it is that the *token* stays
+        // good enough that undiluted use is always correct.
+        assertAA(L.warmGray, on: L.background, "warm grey on the light ground")
+        assertAA(L.warmGray, on: L.card, "warm grey on a light card")
+        assertAA(SnapDarkHex.warmGray, on: SnapDarkHex.ground, "warm grey on the dark ground")
+        assertAA(SnapDarkHex.warmGray, on: SnapDarkHex.card, "warm grey on a dark card")
+    }
+
+    // ── Accents used as text ─────────────────────────────────────────────────
+
+    func test_terracottaAsTextClearsAA() {
+        assertAA(L.terracottaText, on: L.background, "terracotta text on the ground")
+        assertAA(L.terracottaText, on: L.card, "terracotta text on a card")
+        assertAA(SnapDarkHex.terracotta, on: SnapDarkHex.ground, "terracotta text, dark ground")
+        assertAA(SnapDarkHex.terracotta, on: SnapDarkHex.card, "terracotta text, dark card")
+    }
+
+    func test_theBrandTerracottaWouldNotHaveClearedItAsText() {
+        // Why `snapTerracottaText` exists rather than reusing the brand value.
+        XCTAssertLessThan(contrast(L.terracotta, L.card), 4.5)
+        XCTAssertLessThan(contrast(L.terracotta, L.background), 4.5)
+    }
+
+    func test_theBrandTerracottaIsStillFineForABorder() {
+        // Which is why it was kept, rather than darkened app-wide: WCAG holds a
+        // UI component boundary to 3:1, and every remaining use of the brand
+        // token is a stroke, a tint, a dot or a control accent.
+        assertAA(L.terracotta, on: L.card, "terracotta border on a card", minimum: 3.0)
+        assertAA(L.terracotta, on: L.background, "terracotta border on the ground", minimum: 3.0)
+    }
+
+    func test_sageAsMoneyClearsAA() {
+        // Sage is the money colour — every estimate, every profit figure.
+        assertAA(L.sageText, on: L.background, "money on the light ground")
+        assertAA(L.sageText, on: L.card, "money on a light card")
+        assertAA(SnapDarkHex.sage, on: SnapDarkHex.ground, "money on the dark ground")
+        assertAA(SnapDarkHex.sage, on: SnapDarkHex.card, "money on a dark card")
+    }
+
+    func test_theBrandSageWouldNotHaveClearedItAsText() {
+        // 3.38:1 and 3.61:1. In light mode every number the app exists to show
+        // was under AA, and this test is what found it — no finder did, because
+        // the symptom reported was the *diluted* sage in the History and Flips
+        // captions at 2.09:1, which made the undiluted case look fine.
+        XCTAssertLessThan(contrast(L.sage, L.background), 4.5)
+        XCTAssertLessThan(contrast(L.sage, L.card), 4.5)
+    }
+
+    func test_theBrandSageIsStillFineForATintOrAStroke() {
+        assertAA(L.sage, on: L.card, "sage stroke on a card", minimum: 3.0)
+        assertAA(L.sage, on: L.background, "sage stroke on the ground", minimum: 3.0)
+    }
+
+    // ── Filled accents ──────────────────────────────────────────────────────
+
+    func test_creamInkClearsAAOnEveryFilledAccent() {
+        // `snapOnAccent` is fixed cream, so the fill has to clear AA against
+        // cream in *both* themes — which is why the fill is fixed too.
+        assertAA(SnapDarkHex.cream, on: SnapDarkHex.terracottaFill, "button label on its fill")
+    }
+
+    func test_theBrandTerracottaWouldNotHaveClearedItAsAFill() {
+        XCTAssertLessThan(contrast(SnapDarkHex.cream, L.terracotta), 4.5,
+                          "light terracotta fill")
+        XCTAssertLessThan(contrast(SnapDarkHex.cream, SnapDarkHex.terracotta), 4.5,
+                          "dark terracotta fill")
+        XCTAssertLessThan(contrast(SnapDarkHex.cream, L.terracottaHC), 4.5,
+                          "even the Increased-Contrast value")
+    }
+
+    func test_amberBadgeInkClearsAAInBothThemes() {
+        // The ink is fixed dark precisely because amber stays light in both.
+        assertAA(L.espresso, on: L.amber, "badge ink on light amber")
+        assertAA(L.espresso, on: SnapDarkHex.amber, "badge ink on dark amber")
+    }
+
+    func test_themeFollowingInkOnAmberWouldHaveBeenInvisible() {
+        // 1.46:1 — what shipped.
+        XCTAssertLessThan(contrast(SnapDarkHex.espresso, SnapDarkHex.amber), 2.0)
+    }
+
+    // ── Increased Contrast must never make anything worse ───────────────────
+
+    func test_increasedContrastOnlyEverIncreasesContrast() {
+        let pairs = [
+            ("espresso", L.espresso, L.espressoHC),
+            ("warmGray", L.warmGray, L.warmGrayHC),
+            ("sageText", L.sageText, L.sageTextHC),
+            ("terracottaText", L.terracottaText, L.terracottaTextHC),
+        ]
+        for (name, normal, high) in pairs {
+            XCTAssertGreaterThanOrEqual(
+                contrast(high, L.background), contrast(normal, L.background),
+                "\(name)'s high-contrast value is lighter than its normal one")
+        }
+    }
+
+    func test_everyHexIsSixUppercaseDigits() {
+        let all = [L.background, L.card, L.terracotta, L.terracottaHC,
+                   L.terracottaText, L.terracottaTextHC, L.sage, L.sageHC,
+                   L.sageText, L.sageTextHC,
+                   L.amber, L.espresso, L.espressoHC, L.warmGray, L.warmGrayHC,
+                   L.border]
+        for hex in all {
+            XCTAssertEqual(hex.count, 6, hex)
+            XCTAssertTrue(hex.allSatisfy { $0.isHexDigit && !$0.isLowercase }, hex)
+        }
     }
 }

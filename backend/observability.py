@@ -102,29 +102,58 @@ class RequestContextMiddleware(BaseHTTPMiddleware):
         rid = incoming if (incoming and len(incoming) <= 64 and incoming.isprintable()
                            and "\n" not in incoming) else uuid.uuid4().hex[:16]
         token = request_id_var.set(rid)
+
+        # W3C trace context, which nothing populated.
+        #
+        # `parse_traceparent`, `trace_id_var`, `span_id_var` and
+        # `TRACEPARENT_HEADER` all existed and were tested, and no production
+        # code ever called or set them — a grep for every symbol in that block
+        # found hits only inside this module and one test file. So
+        # `TraceIDFilter` wrote `trace_id=-` `span_id=-` on every line ever
+        # logged, and the field was dead weight in the JSON output rather than
+        # the thing that lets a request be followed across services.
+        #
+        # Populated here because this is the only middleware that runs, and it
+        # already owns the request-scoped context vars. `parse_traceparent`
+        # rejects a malformed or all-zero header and its regex bounds the
+        # value, so nothing caller-supplied reaches a log line unchecked — the
+        # same property the request-id guard above provides.
+        trace_tokens = []
+        parsed = parse_traceparent(request.headers.get(TRACEPARENT_HEADER, ""))
+        if parsed:
+            trace_tokens = [trace_id_var.set(parsed[0]), span_id_var.set(parsed[1])]
+
         start = time.monotonic()
         try:
-            response = await call_next(request)
-        except Exception:
-            self._log.exception(
-                "request failed",
-                extra={"method": request.method, "path": request.url.path,
-                       "duration_ms": round((time.monotonic() - start) * 1000, 1)},
-            )
-            request_id_var.reset(token)
-            raise
+            try:
+                response = await call_next(request)
+            except Exception:
+                self._log.exception(
+                    "request failed",
+                    extra={"method": request.method, "path": request.url.path,
+                           "duration_ms": round((time.monotonic() - start) * 1000, 1)},
+                )
+                raise
 
-        duration_ms = round((time.monotonic() - start) * 1000, 1)
-        response.headers[REQUEST_ID_HEADER] = rid
-        # Health checks are high-frequency and uninteresting; keep them at DEBUG.
-        level = logging.DEBUG if request.url.path == "/health" else logging.INFO
-        self._log.log(
-            level, "request",
-            extra={"method": request.method, "path": request.url.path,
-                   "status": response.status_code, "duration_ms": duration_ms},
-        )
-        request_id_var.reset(token)
-        return response
+            duration_ms = round((time.monotonic() - start) * 1000, 1)
+            response.headers[REQUEST_ID_HEADER] = rid
+            # Health checks are high-frequency and uninteresting; keep them at DEBUG.
+            level = logging.DEBUG if request.url.path == "/health" else logging.INFO
+            self._log.log(
+                level, "request",
+                extra={"method": request.method, "path": request.url.path,
+                       "status": response.status_code, "duration_ms": duration_ms},
+            )
+            return response
+        finally:
+            # One `finally` for all three, rather than the three reset sites the
+            # two-variable version would have needed. The context vars have to
+            # be reset on every path or a later request on the same task
+            # inherits this one's ids.
+            request_id_var.reset(token)
+            if trace_tokens:
+                span_id_var.reset(trace_tokens[1])
+                trace_id_var.reset(trace_tokens[0])
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -169,6 +198,42 @@ _REDACTIONS: tuple[tuple[re.Pattern, str], ...] = (
     # `auditlog.pseudonymise`; this catches the paths that forgot.
     (re.compile(r"\b[a-f0-9]{64}\b"), "<subject-redacted>"),
 )
+
+
+#: Ceiling for a caller-supplied value interpolated into a log record. Matches
+#: the inbound `X-Request-ID` bound in `RequestContextMiddleware`, which exists
+#: for the same reason.
+MAX_LOGGED_VALUE = 64
+
+
+def log_safe(value: object, limit: int = MAX_LOGGED_VALUE) -> str:
+    """Make an untrusted value safe to interpolate into one log line.
+
+    `RequestContextMiddleware` already refuses an inbound `X-Request-ID` that is
+    unbounded, unprintable or newline-bearing, "because it lands in logs, so an
+    unbounded or newline-bearing value would be a log-injection vector". This
+    is the same control, reusable at any log site that interpolates something a
+    caller chose.
+
+    It is needed because `redact` is not it: `redact` masks credentials on the
+    way out and says nothing about newlines or length, and the default
+    formatter is a bare `%(message)s` (see `configure_logging`), so a newline
+    in an interpolated value *is* a second log record as far as any log reader
+    is concerned — one an attacker writes the whole content of.
+
+    Every character outside the printable set is replaced rather than dropped,
+    so the record still shows that something was there.
+    """
+    try:
+        text = value if isinstance(value, str) else str(value)
+    except Exception:          # pragma: no cover — must never break logging
+        return "<unprintable>"
+    if not text:
+        return ""
+    cleaned = "".join(ch if ch.isprintable() else "?" for ch in text)
+    if len(cleaned) > limit:
+        cleaned = cleaned[:limit] + "…truncated"
+    return cleaned
 
 
 def redact(text: str) -> str:
@@ -380,6 +445,26 @@ def configure_production_logging(
     for handler in root.handlers:
         handler.addFilter(RedactionFilter())
         handler.addFilter(TraceIDFilter())
+
+    # uvicorn keeps its own handlers, and they carry none of these filters.
+    #
+    # `Config.__init__` applies uvicorn's `LOGGING_CONFIG` before the app is
+    # imported, and that config gives `uvicorn` and `uvicorn.access` a handler
+    # each with `propagate: False`. `uvicorn.error` has no handler of its own,
+    # so its records reach `uvicorn`'s and stop there. Nothing uvicorn emits
+    # ever reached a handler holding `RedactionFilter` — so every
+    # unhandled-exception traceback and every access line's query string went
+    # to the logs unredacted, which is the one place redaction has to work.
+    #
+    # Stripping the handlers and letting them propagate is what puts them on
+    # root's handler: attaching the filters to uvicorn's own handlers would
+    # work for redaction but would leave two formatters and two shapes of log
+    # line in production.
+    for name in ("uvicorn", "uvicorn.error", "uvicorn.access"):
+        logger = logging.getLogger(name)
+        for handler in list(logger.handlers):
+            logger.removeHandler(handler)
+        logger.propagate = True
 
     if access_sample_rate < 1.0:
         logging.getLogger("snapworth.access").addFilter(

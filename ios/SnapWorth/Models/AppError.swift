@@ -3,7 +3,9 @@ import Foundation
 enum AppError: LocalizedError, Equatable {
     case network
     case timeout
-    case rateLimit
+    /// The per-hour request limit, with the real remaining wait when the
+    /// server told us. See `rateLimitMessage`.
+    case rateLimit(retryAfter: TimeInterval?)
     /// Free daily allowance is spent — the server is the authority on this.
     case quotaExceeded(String)
     /// A Pro-only endpoint refused a free-tier caller.
@@ -47,8 +49,8 @@ enum AppError: LocalizedError, Equatable {
             return "No internet connection. Check your network and try again."
         case .timeout:
             return "The request timed out. Please try again."
-        case .rateLimit:
-            return "You've hit the scan limit. Try again in an hour."
+        case .rateLimit(let retryAfter):
+            return Self.rateLimitMessage(retryAfter: retryAfter)
         case .quotaExceeded(let msg), .proRequired(let msg):
             return msg
         case .serverUnavailable:
@@ -94,6 +96,42 @@ enum AppError: LocalizedError, Equatable {
         }
     }
 
+    /// Copy for a 429, using the wait the server actually computed.
+    ///
+    /// The fixed "Try again in an hour" this replaces was wrong by up to an
+    /// hour in the user's disfavour: the limit is a *sliding* window, so
+    /// someone who tripped it 55 minutes ago is a few minutes from being able
+    /// to scan again and was being told to come back in an hour. The backend
+    /// has always sent the real remaining seconds
+    /// (`retry_after=max(1, int(window - (now - oldest)))`); nothing read them.
+    ///
+    /// Rounding is always *up*, so the message never invites a retry that will
+    /// fail again. `nil` means the header was absent or unparseable, and the
+    /// honest answer there is the window's own length.
+    ///
+    /// Pure and `static` so the boundaries are testable without a server: the
+    /// interesting cases are 59s versus 60s, and 59 minutes versus 60.
+    static func rateLimitMessage(retryAfter: TimeInterval?) -> String {
+        let lead = "You've hit the scan limit."
+        guard let seconds = retryAfter else {
+            return "\(lead) Try again in an hour."
+        }
+        if seconds < 10 {
+            return "\(lead) Try again in a few seconds."
+        }
+        if seconds < 60 {
+            return "\(lead) Try again in \(Int(seconds)) seconds."
+        }
+        let minutes = Int((seconds / 60).rounded(.up))
+        if minutes >= 60 {
+            return "\(lead) Try again in an hour."
+        }
+        if minutes == 1 {
+            return "\(lead) Try again in a minute."
+        }
+        return "\(lead) Try again in \(minutes) minutes."
+    }
+
     static func from(_ error: Error) -> AppError {
         if let appErr = error as? AppError { return appErr }
 
@@ -101,9 +139,19 @@ enum AppError: LocalizedError, Equatable {
             switch scanErr {
             case .imageEncodingFailed:
                 return .imageEncodingFailed
+            case .rateLimited(_, let retryAfter):
+                // The backend's `detail` here is "Rate limit: 20
+                // requests/hour." — accurate and useless to someone standing in
+                // a shop. This is the one status whose copy is better written
+                // on the client, because what the user needs is the *wait*, and
+                // that arrives in a header.
+                return .rateLimit(retryAfter: retryAfter)
             case .serverError(let code, let detail):
                 switch code {
-                case 429:        return .rateLimit
+                // Reachable only if something throws a plain `serverError`
+                // with a 429; `ScanAPIError.from` produces `.rateLimited`,
+                // which carries the header and is handled above.
+                case 429:        return .rateLimit(retryAfter: nil)
                 // 402 is the server saying "this needs payment" — either the
                 // free daily allowance is spent, or a Pro-only endpoint refused
                 // a free caller. Both route to the paywall, and `detail` is
@@ -129,13 +177,29 @@ enum AppError: LocalizedError, Equatable {
                 // 422 does; the outage detail still reads as an outage because
                 // the backend's own copy says so. Empty detail keeps the fixed
                 // string, and 503 really is the service refusing traffic.
-                case 502:        return detail.isEmpty ? .serverUnavailable
-                                                       : .aiFailed(detail)
+                //
+                // `detail.isEmpty` never held: `APIErrorDetail.parse` returns
+                // its own fixed fallback — the very words `.unknown` prints —
+                // when there is no usable `detail` in the body, so a real
+                // outage with an empty body arrived here carrying "Something
+                // went wrong. Please try again." and became `.aiFailed` with
+                // that text. The one branch written for an outage could not be
+                // reached, and the user was told to try again rather than that
+                // the service was down. Test for what the parser actually
+                // produces.
+                case 502:        return Self.isPlaceholderDetail(detail)
+                                     ? .serverUnavailable
+                                     : .aiFailed(detail)
                 case 503:        return .serverUnavailable
                 default:         return .unknown(detail)
                 }
             }
         }
+
+        // A rolled-back save. Callers that only want to report the failure
+        // should not have to know the error carries a replacement row.
+        if let failure = error as? ScanPersistenceError,
+           case .saveFailed = failure { return .persistence }
 
         if let purchaseErr = error as? PurchaseError {
             switch purchaseErr {
@@ -147,16 +211,31 @@ enum AppError: LocalizedError, Equatable {
 
         let url = error as? URLError
         switch url?.code {
-        case .notConnectedToInternet, .networkConnectionLost, .cannotConnectToHost:
+        // Every one of these is "the phone could not reach us", and all of
+        // them used to fall through. The substring test below cannot rescue
+        // them: iOS's own strings for these codes say "A server with the
+        // specified hostname could not be found." and "An SSL error has
+        // occurred…" — no "network", no "offline", no code number — so they
+        // reached `.unknown` and printed "Something went wrong. Please try
+        // again." to someone standing in a shop with no signal, while the
+        // copy that would have told them lived one case away.
+        case .notConnectedToInternet, .networkConnectionLost, .cannotConnectToHost,
+             .cannotFindHost, .dnsLookupFailed,
+             .dataNotAllowed, .internationalRoamingOff, .callIsActive:
             return .network
         case .timedOut:
             return .timeout
+        // Deliberately NOT mapped here: `.secureConnectionFailed`. This app
+        // pins its certificate, so that code can mean an interception rather
+        // than an outage, and "check your network and try again" is the wrong
+        // advice for it — the retry would be the thing that succeeds. It keeps
+        // falling through to `.unknown` until it has copy of its own.
         default:
             break
         }
 
         let msg = error.localizedDescription.lowercased()
-        if msg.contains("429") || msg.contains("rate limit")       { return .rateLimit }
+        if msg.contains("429") || msg.contains("rate limit")       { return .rateLimit(retryAfter: nil) }
         if msg.contains("network") || msg.contains("offline")      { return .network }
         if msg.contains("timeout") || msg.contains("timed out")    { return .timeout }
         if msg.contains("502") || msg.contains("503")              { return .serverUnavailable }
@@ -164,11 +243,30 @@ enum AppError: LocalizedError, Equatable {
         return .unknown(error.localizedDescription)
     }
 
+    /// True when `detail` is the parser's own stand-in rather than anything
+    /// the backend said.
+    ///
+    /// `APIErrorDetail.parse` never returns an empty string: with no usable
+    /// `detail` in the body it returns a fixed sentence — the same words
+    /// `.unknown` prints. So `detail.isEmpty` was never true at the 502 branch
+    /// above, and a genuine outage with an empty body was reported as an AI
+    /// failure carrying "Something went wrong. Please try again."
+    ///
+    /// Compared case- and whitespace-insensitively against the literal rather
+    /// than reaching into `APIErrorDetail`: this is a *presentation* decision
+    /// about copy the user would see, and coupling the two types would make
+    /// the client's error mapping depend on the API client's internals.
+    static func isPlaceholderDetail(_ detail: String) -> Bool {
+        let trimmed = detail.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty
+            || trimmed.caseInsensitiveCompare("Something went wrong. Please try again.")
+                == .orderedSame
+    }
+
     static func == (lhs: AppError, rhs: AppError) -> Bool {
         switch (lhs, rhs) {
         case (.network, .network),
              (.timeout, .timeout),
-             (.rateLimit, .rateLimit),
              (.serverUnavailable, .serverUnavailable),
              // Omitted when .sessionExpired was introduced, so it fell to the
              // `default: false` arm and did not equal itself. Any `== `
@@ -179,6 +277,7 @@ enum AppError: LocalizedError, Equatable {
              (.purchaseCancelled, .purchaseCancelled),
              (.persistence, .persistence):
             return true
+        case (.rateLimit(let a), .rateLimit(let b)):           return a == b
         case (.purchaseFailed(let a), .purchaseFailed(let b)): return a == b
         case (.unknown(let a), .unknown(let b)):               return a == b
         case (.quotaExceeded(let a), .quotaExceeded(let b)):   return a == b

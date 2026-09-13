@@ -114,6 +114,15 @@ final class ScanViewModel {
                 // Emitting a failure for the same scan would double-count it
                 // and make the funnel wrong.
                 saveFailed = true
+                // The repository now rolls the shared context back on failure,
+                // so `result` is no longer registered anywhere. Swap in the
+                // copy it took beforehand: same values, no context, safe to
+                // read for as long as the sheet is up. Without this the sheet
+                // would be holding a model SwiftData has discarded.
+                if let failure = error as? ScanPersistenceError,
+                   case .saveFailed(let replacement) = failure {
+                    scanResult = replacement
+                }
             }
 
             // Ask for a rating on a high point — after the result is on screen.
@@ -142,6 +151,18 @@ final class ScanViewModel {
             // purchase_started. A quota refusal counted as a scan failure both
             // undercounts the limit hits and inflates the failures.
             if appError.isPaywall {
+                // The server has refused: there is nothing left today,
+                // whatever the local count believes. The success path a
+                // hundred lines up already reconciles against
+                // `response.freeScansRemaining` — "prefer it over our own
+                // arithmetic, which is based on a compiled-in limit" — and
+                // this path, the one where the two demonstrably disagree, did
+                // not write anything at all. So the counter went on
+                // advertising a scan the server had already refused: the top
+                // bar said "1 left", the next tap spent a paid model call to
+                // arrive at the same paywall, and `hasFreeScanRemaining` let
+                // Thrift Flip through on the same false premise.
+                FreeScanCounter.serverRemaining = 0
                 Analytics.shared.track(.freeScanLimitHit)
                 paywallTrigger = .scanLimit
                 showPaywall = true
@@ -218,6 +239,15 @@ enum ScanStreak {
             return defaults.integer(forKey: countKey)
         }
         return 0
+    }
+
+    /// The day the streak was last extended, for the widget blob.
+    ///
+    /// The widget cannot call `current()` — this store is in
+    /// `UserDefaults.standard`, not the App Group — so it needs the date to
+    /// apply the same today-or-yesterday test itself.
+    static var lastScan: Date? {
+        UserDefaults.standard.object(forKey: lastKey) as? Date
     }
 
     /// Whether a scan has been recorded today — any tier, so the reminder

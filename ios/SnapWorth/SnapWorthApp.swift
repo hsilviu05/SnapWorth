@@ -82,6 +82,16 @@ struct SnapWorthApp: App {
                     // Intent that wrote the request cannot reach a view.
                     if phase == .active { drainPendingWidgetAction() }
                 }
+                .onChange(of: purchaseService.isSubscribed) { _, isPro in
+                    // A purchase, a restore, or a lapse moves every Pro-gated
+                    // widget. Nothing else writes the blob until the next scan,
+                    // so without this a new subscriber's "Profit this month"
+                    // widget keeps showing the upsell for as long as they don't
+                    // scan — and an expired one keeps showing a paid figure.
+                    // Passed explicitly rather than left to the persisted cache
+                    // so the write cannot race the store.
+                    seedWidgetData(isPro: isPro)
+                }
                 .task { NotificationManager.shared.registerAsDelegate() }
         }
         .modelContainer(sharedModelContainer)
@@ -126,10 +136,14 @@ struct SnapWorthApp: App {
     }
 
     /// Seed widget data on every launch so the widget is never stale after reinstall.
-    private func seedWidgetData() {
+    ///
+    /// `isPro` is nil on the launch path — `writeHaul` reads the persisted
+    /// entitlement — and explicit when an entitlement change is what triggered
+    /// the write.
+    private func seedWidgetData(isPro: Bool? = nil) {
         let ctx = sharedModelContainer.mainContext
         guard let results = try? ctx.fetch(FetchDescriptor<ScanResult>()) else { return }
-        WidgetDataStore.writeHaul(results: results)
+        WidgetDataStore.writeHaul(results: results, isPro: isPro)
     }
 }
 

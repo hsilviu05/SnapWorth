@@ -24,9 +24,19 @@ struct HaulOnlyProvider: TimelineProvider {
     }
 
     func getTimeline(in context: Context, completion: @escaping (Timeline<HaulOnlyEntry>) -> Void) {
-        let next = Calendar.current.date(byAdding: .hour, value: 1, to: .now)!
-        completion(Timeline(entries: [HaulOnlyEntry(date: .now, haul: WidgetReader.readHaul())],
-                            policy: .after(next)))
+        // One entry now, plus one at each instant a stored snapshot stops
+        // being true — the next UTC midnight, the next local midnight, the
+        // start of the next month. The blob is the same in all of them; what
+        // changes is the entry's date, which is what the views ask about. With
+        // only the hourly policy, every refresh re-read the same frozen number
+        // and the correction waited for the app to run.
+        let now = Date.now
+        let haul = WidgetReader.readHaul()
+        let entries = [HaulOnlyEntry(date: now, haul: haul)]
+            + WidgetHaulData.refreshBoundaries(after: now)
+                .map { HaulOnlyEntry(date: $0, haul: haul) }
+        let next = Calendar.current.date(byAdding: .hour, value: 1, to: now)!
+        completion(Timeline(entries: entries, policy: .after(next)))
     }
 }
 
@@ -44,6 +54,10 @@ struct RecentFindsView: View {
             WidgetBridge.maxRecentFinds)
     }
 
+    /// Derived in the shared model so a test can reach it — see
+    /// `WidgetHaulData.recentRows(limit:)` for why the v1 fallback exists.
+    private var rows: [WidgetFind] { haul.recentRows(limit: rowCount) }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 4) {
@@ -57,11 +71,12 @@ struct RecentFindsView: View {
                     Text(haul.formattedRange)
                         .font(.system(size: 11, weight: .semibold))
                         .foregroundStyle(Color.wSage)
+                        .accessibilityLabel("Haul worth \(haul.spokenRange)")
                 }
             }
             .padding(.bottom, 8)
 
-            if haul.recentFinds.isEmpty {
+            if rows.isEmpty {
                 Spacer()
                 Text("Nothing scanned yet")
                     .font(.system(size: 13, weight: .medium))
@@ -69,7 +84,7 @@ struct RecentFindsView: View {
                 Spacer()
             } else {
                 VStack(alignment: .leading, spacing: 6) {
-                    ForEach(haul.recentFinds.prefix(rowCount)) { find in
+                    ForEach(rows) { find in
                         HStack(alignment: .firstTextBaseline, spacing: 6) {
                             Text(find.name)
                                 .font(.system(size: 13, weight: .medium))
@@ -83,7 +98,9 @@ struct RecentFindsView: View {
                                 .lineLimit(1)
                                 .layoutPriority(1)
                         }
-                        .accessibilityElement(children: .combine)
+                        .accessibilityElement(children: .ignore)
+                        .accessibilityLabel(
+                            "\(find.name), \(WidgetHaulData.spoken(find.range))")
                     }
                 }
                 Spacer(minLength: 0)
@@ -112,6 +129,10 @@ struct RecentFindsWidget: Widget {
 
 struct ScansLeftView: View {
     let haul: WidgetHaulData
+    /// The timeline entry's date, not `Date.now`: an entry scheduled at the
+    /// UTC reset has to render the reset allowance, and it is rendered by the
+    /// system at that instant without this code running again.
+    let now: Date
     @Environment(\.widgetFamily) private var family
 
     var body: some View {
@@ -122,14 +143,14 @@ struct ScansLeftView: View {
                 VStack(spacing: 0) {
                     Image(systemName: "camera.viewfinder")
                         .font(.system(size: 11, weight: .semibold))
-                    Text(circularValue)
+                    Text(state.circularValue)
                         .font(.system(size: 16, weight: .bold, design: .rounded))
                         .minimumScaleFactor(0.5)
                         .lineLimit(1)
                 }
             }
             .accessibilityElement(children: .ignore)
-            .accessibilityLabel(spokenLabel)
+            .accessibilityLabel(state.spoken)
 
         default:
             VStack(alignment: .leading, spacing: 0) {
@@ -140,56 +161,30 @@ struct ScansLeftView: View {
                         .foregroundStyle(Color.wBackground.opacity(0.7))
                 }
                 Spacer()
-                Text(headline)
+                Text(state.headline)
                     .font(.system(size: haul.isPro ? 18 : 30, weight: .bold, design: .rounded))
-                    .foregroundStyle(haul.isPro ? Color.wSage : accentForRemaining)
+                    .foregroundStyle(accentForRemaining)
                     .minimumScaleFactor(0.5)
                     .lineLimit(1)
-                Text(subtitle)
+                Text(state.subtitle)
                     .font(.system(size: 11, weight: .medium))
                     .foregroundStyle(Color.wWarmGray)
                     .lineLimit(2)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             .accessibilityElement(children: .ignore)
-            .accessibilityLabel(spokenLabel)
+            .accessibilityLabel(state.spoken)
         }
     }
 
-    // Pro has no counter to show, so the widget carries the streak instead of
-    // rendering "unlimited" — a number that never changes is not worth a slot
-    // on someone's Home Screen.
-    private var headline: String {
-        guard !haul.isPro else { return haul.streak > 0 ? "\(haul.streak)-day streak" : "Pro" }
-        return "\(haul.freeScansRemaining ?? 0)"
-    }
-
-    private var subtitle: String {
-        guard !haul.isPro else {
-            return haul.streak > 1 ? "Keep it going" : "Unlimited scans"
-        }
-        let left = haul.freeScansRemaining ?? 0
-        return left == 0 ? "Back tomorrow, or go Pro"
-                         : "free scan\(left == 1 ? "" : "s") left today"
-    }
-
-    private var circularValue: String {
-        guard !haul.isPro else { return haul.streak > 0 ? "\(haul.streak)" : "∞" }
-        return "\(haul.freeScansRemaining ?? 0)"
-    }
+    /// Every string comes from the shared model — see `WidgetHaulData.ScansLeft`
+    /// for why nil is a third state rather than zero.
+    private var state: WidgetHaulData.ScansLeft { haul.scansLeft(at: now) }
 
     private var accentForRemaining: Color {
-        (haul.freeScansRemaining ?? 0) == 0 ? Color.wTerracotta : Color.wSage
-    }
-
-    private var spokenLabel: String {
-        guard !haul.isPro else {
-            return haul.streak > 0 ? "\(haul.streak) day scanning streak" : "SnapWorth Pro"
-        }
-        let left = haul.freeScansRemaining ?? 0
-        return left == 0
-            ? "No free scans left today"
-            : "\(left) free scan\(left == 1 ? "" : "s") left today"
+        // Neutral unless the count is known and spent: terracotta here reads
+        // as "you are out", which is wrong for an allowance nobody has touched.
+        state.isSpent ? Color.wTerracotta : Color.wSage
     }
 }
 
@@ -217,10 +212,10 @@ struct ScansLeftEntryView: View {
 
     var body: some View {
         if family == .accessoryCircular {
-            ScansLeftView(haul: entry.haul)
+            ScansLeftView(haul: entry.haul, now: entry.date)
                 .containerBackground(.clear, for: .widget)
         } else {
-            ScansLeftView(haul: entry.haul)
+            ScansLeftView(haul: entry.haul, now: entry.date)
                 .containerBackground(Color.wCharcoal, for: .widget)
         }
     }
@@ -230,6 +225,9 @@ struct ScansLeftEntryView: View {
 
 struct MonthProfitView: View {
     let haul: WidgetHaulData
+    /// The timeline entry's date. The header says "This month"; this is how the
+    /// view knows which month that is.
+    let now: Date
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -258,31 +256,40 @@ struct MonthProfitView: View {
     // `monthProfit` is nil for a free user by construction — the writer never
     // stores it — so this reads as the upsell rather than as zero profit,
     // which would be a lie about their ledger.
+    /// Read through the entry's date, so the figure disappears when the month
+    /// it belongs to ends. It was a bare `Double` computed against the month
+    /// that was current at *write* time, rendered under a header hardcoded to
+    /// "This month" — so a Pro user who sold six items in September and did
+    /// not open the app saw "$214 · from 6 flips · This month" on 3 October,
+    /// while the Flips screen correctly showed October at $0.
+    private var profit: Double? { haul.monthProfit(at: now) }
+    private var flips: Int { haul.monthFlips(at: now) }
+
     private var value: String {
-        guard let profit = haul.monthProfit else { return haul.isPro ? "—" : "Pro" }
+        guard let profit else { return haul.isPro ? "—" : "Pro" }
         return WidgetHaulData.compactMoney(profit)
     }
 
     private var colour: Color {
-        guard let profit = haul.monthProfit else { return Color.wWarmGray }
+        guard let profit else { return Color.wWarmGray }
         return profit < 0 ? Color.wTerracotta : Color.wSage
     }
 
     private var caption: String {
-        guard haul.monthProfit != nil else {
+        guard profit != nil else {
             return haul.isPro ? "No flips sold yet this month"
                               : "Track profit with Pro"
         }
-        return "from \(haul.monthFlips) flip\(haul.monthFlips == 1 ? "" : "s")"
+        return "from \(flips) flip\(flips == 1 ? "" : "s")"
     }
 
     private var spoken: String {
-        guard let profit = haul.monthProfit else {
+        guard let profit else {
             return haul.isPro ? "No flips sold yet this month"
                               : "Profit tracking is a Pro feature"
         }
         return "\(WidgetHaulData.compactMoney(profit)) profit this month "
-             + "from \(haul.monthFlips) flip\(haul.monthFlips == 1 ? "" : "s")"
+             + "from \(flips) flip\(flips == 1 ? "" : "s")"
     }
 }
 
@@ -291,7 +298,7 @@ struct MonthProfitWidget: Widget {
 
     var body: some WidgetConfiguration {
         StaticConfiguration(kind: kind, provider: HaulOnlyProvider()) { entry in
-            MonthProfitView(haul: entry.haul)
+            MonthProfitView(haul: entry.haul, now: entry.date)
                 .widgetURL(URL(string: "snapworth://flips"))
                 .containerBackground(Color.wCharcoal, for: .widget)
         }

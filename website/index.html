@@ -89,9 +89,18 @@
       --sage:        #7A9E7E;
       --sage-text:   #4F7355;
       --sage-dim:    rgba(122,158,126,0.12);
+      /* Sage ink for --band-2, which is dark in *both* themes — so this must
+         not follow the theme either, for the same reason --on-band does not.
+         The "Save 33%" pill used --sage-text (tuned for a light ground) on a
+         --sage-dim tint over --band-2: 2.45:1 in light, on the one number
+         that argues for the yearly plan. 7.18:1 light, 6.07:1 dark. */
+      --sage-on-band: #A3C9A8;
 
       --border:      #E8DDD7;
       --nav-glass:   rgba(250,247,244,0.85);
+      --nav-scrim:   rgba(250,247,244,0.82);
+      --nav-scrim-hairline: rgba(28,20,16,0.07);
+      --nav-scrim-shadow:   rgba(28,20,16,0.35);
 
       /* Checkbox, range and spinner UI in the Thrift Flip inputs. */
       accent-color: var(--terracotta);
@@ -134,6 +143,9 @@
 
         --border:      #3A302A;
         --nav-glass:   rgba(26,21,18,0.85);
+        --nav-scrim:   rgba(26,21,18,0.82);
+        --nav-scrim-hairline: rgba(0,0,0,0.5);
+        --nav-scrim-shadow:   rgba(0,0,0,0.7);
       }
     }
 
@@ -1082,11 +1094,17 @@
 }
 
 /* ── Nav scrolled state (no motion dependency) ───────────────────────────── */
+/* `--nav-scrim`, not a literal. The dark theme is built entirely by
+   re-pointing tokens, so a hardcoded colour here kept its light value: nine
+   pixels of scroll dropped a near-opaque cream band across the top of the
+   espresso page. The shadow was the same mistake in the other direction — a
+   dark hairline under a dark nav, invisible. */
 nav.is-scrolled {
-  background: rgba(250, 247, 244, .82);
+  background: var(--nav-scrim);
   backdrop-filter: saturate(180%) blur(14px);
   -webkit-backdrop-filter: saturate(180%) blur(14px);
-  box-shadow: 0 1px 0 rgba(28, 20, 16, .07), 0 8px 28px -18px rgba(28, 20, 16, .35);
+  box-shadow: 0 1px 0 var(--nav-scrim-hairline),
+              0 8px 28px -18px var(--nav-scrim-shadow);
 }
 
 /* ── Focus visibility ────────────────────────────────────────────────────────
@@ -1187,7 +1205,9 @@ a:focus-visible, button:focus-visible, summary:focus-visible, label:focus-within
   border-bottom: 1px solid rgba(250,247,244,.3); padding-bottom: 3px; }
 
 .hd-meta { display: flex; align-items: center; gap: 26px; flex-wrap: wrap; }
-.hd-note { font-size: 13.5px; line-height: 1.6; color: rgba(250,247,244,.45); max-width: 290px; }
+/* .5, not .45 — cream at 45% over --band composites to 4.29:1 in light and
+   4.30:1 in dark, both just under AA for 13px text. .5 is 5.04:1 in both. */
+.hd-note { font-size: 13.5px; line-height: 1.6; color: rgba(250,247,244,.5); max-width: 290px; }
 
 .hd-steps { border-top: 1px solid rgba(250,247,244,.14); padding-top: 28px;
   display: grid; grid-template-columns: repeat(3, 1fr); gap: 34px; max-width: 640px; }
@@ -1202,7 +1222,7 @@ a:focus-visible, button:focus-visible, summary:focus-visible, label:focus-within
 
 .hd-strip { border-top: 1px solid rgba(255,255,255,.09); padding: 28px 0 44px;
   display: flex; align-items: center; gap: 40px; flex-wrap: wrap; }
-.hd-strip-label { font-size: 13px; color: rgba(250,247,244,.45); }
+.hd-strip-label { font-size: 13px; color: rgba(250,247,244,.5); }
 .hd-strip-list { display: flex; gap: 36px; align-items: center; flex-wrap: wrap; }
 .hd-strip-list span { font-size: 16px; font-weight: 600;
   color: rgba(250,247,244,.68); letter-spacing: -.2px; }
@@ -1266,7 +1286,10 @@ a:focus-visible, button:focus-visible, summary:focus-visible, label:focus-within
 .tf-maths { background: var(--card); border-radius: 28px; padding: 34px 38px;
   display: flex; flex-direction: column; }
 .tf-row { display: flex; justify-content: space-between; padding: 13px 0;
-  border-bottom: 1px solid #E4D8CF; font-size: 15.5px; }
+  /* `--border`, like every other hairline here. As a literal it stayed light
+     on `.tf-maths`'s dark `--card`: 11.90:1, five bright white rules through
+     the arithmetic panel. */
+  border-bottom: 1px solid var(--border); font-size: 15.5px; }
 .tf-row span:first-child { color: var(--warm-gray); }
 .tf-row span:last-child { font-weight: 600; color: var(--ink); font-variant-numeric: tabular-nums; }
 .tf-row.total { border-bottom: 1.5px solid var(--ink); }
@@ -1280,7 +1303,7 @@ a:focus-visible, button:focus-visible, summary:focus-visible, label:focus-within
 .tf-foot { margin-top: 28px; display: flex; gap: 20px; align-items: stretch; flex-wrap: wrap; }
 .tf-foot-dark { flex: 1; min-width: 420px; background: var(--band); border-radius: 24px;
   padding: 28px 32px; display: flex; align-items: center; justify-content: space-between; gap: 28px; flex-wrap: wrap; }
-.tf-foot-dark h4 { font-size: 16px; font-weight: 600; color: #FAF7F4; margin: 0 0 5px; }
+.tf-foot-dark h3 { font-size: 16px; font-weight: 600; color: #FAF7F4; margin: 0 0 5px; }
 .tf-foot-dark p { font-size: 14px; line-height: 1.6; color: rgba(250,247,244,.55); max-width: 420px; margin: 0; }
 .tf-foot-cta { display: inline-flex; align-items: center; background: var(--terra-fill); color: #fff;
   font-size: 15px; font-weight: 600; padding: 14px 24px; border-radius: 999px; white-space: nowrap; }
@@ -1511,7 +1534,7 @@ details[open] .faq-x::after { transform: rotate(90deg); }
 
 /* ── Pricing: yearly savings pill ───────────────────────────────────────── */
 .plan-save { display: inline-block; vertical-align: 2px; margin-left: 8px;
-  font-size: 11px; font-weight: 700; letter-spacing: .4px; color: var(--sage-text);
+  font-size: 11px; font-weight: 700; letter-spacing: .4px; color: var(--sage-on-band);
   background: var(--sage-dim); border: 1px solid rgba(122,158,126,.38);
   border-radius: 999px; padding: 3px 10px; }
 
@@ -1522,9 +1545,26 @@ details[open] .faq-x::after { transform: rotate(90deg); }
   background: rgba(28,20,16,.94); backdrop-filter: blur(14px);
   -webkit-backdrop-filter: blur(14px); border: 1px solid rgba(255,255,255,.1);
   border-radius: 18px; padding: 10px 10px 10px 18px;
-  transform: translateY(calc(100% + 24px)); transition: transform .35s cubic-bezier(.22,.61,.36,1);
+  transform: translateY(calc(100% + 24px));
+  /* `visibility`, not transform alone. An element pushed off-screen by a
+     transform is still focusable and still in the accessibility tree, so the
+     bar sat in the tab order and in VoiceOver's swipe-through the whole way
+     down the page. The 0s delay holds it visible until the slide-out
+     finishes, so the animation is unchanged. */
+  visibility: hidden;
+  transition: transform .35s cubic-bezier(.22,.61,.36,1),
+              visibility 0s linear .35s;
   box-shadow: 0 12px 32px rgba(28,20,16,.35); }
-.mcta.is-on { transform: translateY(0); }
+.mcta.is-on { transform: translateY(0); visibility: visible;
+  transition: transform .35s cubic-bezier(.22,.61,.36,1), visibility 0s; }
+
+/* The `hidden` attribute needs an author rule to mean anything here.
+   `[hidden] { display: none }` lives in the user-agent stylesheet, and any
+   author declaration beats the UA origin whatever its specificity — so
+   `.mcta { display: flex }` won and the markup's `hidden`, which the comment
+   beside it says keeps the bar out of the page with JavaScript off, did
+   nothing at all. */
+.mcta[hidden] { display: none; }
 .mcta-txt { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
 .mcta-txt strong { font-family: 'Fraunces', serif; font-size: 15px; font-weight: 700; color: #FAF7F4; }
 .mcta-txt span { font-size: 11.5px; color: rgba(250,247,244,.55); white-space: nowrap; }
@@ -1716,7 +1756,7 @@ details[open] .faq-x::after { transform: rotate(90deg); }
                   </div>
                   <div class="app-card sd-est">
                     <div class="app-card-label">Estimated resale</div>
-                    <div class="sd-range" id="sd-range">$60&ndash;$150</div>
+                    <div class="sd-range" id="sd-range">$45&ndash;$150</div>
                     <div class="sd-conf">
                       <div class="sd-conf-bar"><span id="sd-conf-fill" style="width:82%"></span></div>
                       <span class="sd-conf-label" id="sd-conf">High confidence</span>
@@ -1748,13 +1788,13 @@ details[open] .faq-x::after { transform: rotate(90deg); }
             <span class="hd-try-label">Try a find</span>
             <div class="hd-try-chips">
               <button type="button" class="sd-chip" aria-pressed="true"
-                data-emoji="&#129509;" data-name="Carhartt Detroit Jacket" data-range="$60&ndash;$150" data-conf="High confidence" data-fill="82">Carhartt jacket</button>
+                data-emoji="&#129509;" data-slug="carhartt-detroit-jacket" data-name="Carhartt Detroit Jacket" data-range="$45&ndash;$150" data-conf="High confidence" data-fill="82">Carhartt jacket</button>
               <button type="button" class="sd-chip" aria-pressed="false"
-                data-emoji="&#127858;" data-name="Le Creuset Dutch Oven" data-range="$80&ndash;$250" data-conf="High confidence" data-fill="85">Le Creuset</button>
+                data-emoji="&#127858;" data-slug="le-creuset-dutch-oven" data-name="Le Creuset Dutch Oven" data-range="$70&ndash;$250" data-conf="High confidence" data-fill="85">Le Creuset</button>
               <button type="button" class="sd-chip" aria-pressed="false"
-                data-emoji="&#128086;" data-name="Vintage Levi&rsquo;s 501" data-range="$30&ndash;$90" data-conf="Medium confidence" data-fill="58">Levi&rsquo;s 501</button>
+                data-emoji="&#128086;" data-slug="levis-501-vintage" data-name="Vintage Levi&rsquo;s 501" data-range="$20&ndash;$90" data-conf="Medium confidence" data-fill="58">Levi&rsquo;s 501</button>
               <button type="button" class="sd-chip" aria-pressed="false"
-                data-emoji="&#129379;" data-name="KitchenAid Stand Mixer" data-range="$120&ndash;$300" data-conf="High confidence" data-fill="80">KitchenAid</button>
+                data-emoji="&#129379;" data-slug="kitchenaid-stand-mixer" data-name="KitchenAid Stand Mixer" data-range="$120&ndash;$300" data-conf="High confidence" data-fill="80">KitchenAid</button>
             </div>
           </div>
           <p class="hd-caption">A range and a verdict, not an appraisal. Fees are approximate; the sale price is never guaranteed.</p>
@@ -1782,40 +1822,40 @@ details[open] .faq-x::after { transform: rotate(90deg); }
     <nav class="ticker" aria-label="Typical resale values from our guides">
       <div class="ticker-belt">
         <div class="ticker-track">
-          <a href="/worth/carhartt-detroit-jacket">Carhartt Detroit Jacket <em>$60&ndash;$150</em></a>
-          <a href="/worth/le-creuset-dutch-oven">Le Creuset Dutch Oven <em>$80&ndash;$250</em></a>
-          <a href="/worth/levis-501-vintage">Vintage Levi&rsquo;s 501 <em>$30&ndash;$90</em></a>
-          <a href="/worth/north-face-nuptse-700">North Face Nuptse <em>$110&ndash;$200</em></a>
-          <a href="/worth/vintage-band-t-shirt">Vintage Band Tee <em>$30&ndash;$200</em></a>
+          <a href="/worth/carhartt-detroit-jacket">Carhartt Detroit Jacket <em>$45&ndash;$150</em></a>
+          <a href="/worth/le-creuset-dutch-oven">Le Creuset Dutch Oven <em>$70&ndash;$250</em></a>
+          <a href="/worth/levis-501-vintage">Vintage Levi&rsquo;s 501 <em>$20&ndash;$90</em></a>
+          <a href="/worth/north-face-nuptse-700">North Face Nuptse <em>$80&ndash;$200</em></a>
+          <a href="/worth/vintage-band-t-shirt">Vintage Band Tee <em>$25&ndash;$200</em></a>
           <a href="/worth/kitchenaid-stand-mixer">KitchenAid Mixer <em>$120&ndash;$300</em></a>
-          <a href="/worth/dr-martens-1460-boots">Dr. Martens 1460 <em>$50&ndash;$110</em></a>
+          <a href="/worth/dr-martens-1460-boots">Dr. Martens 1460 <em>$40&ndash;$110</em></a>
           <a href="/worth/coach-leather-handbag">Coach Handbag <em>$40&ndash;$150</em></a>
-          <a href="/worth/vintage-pyrex-bowls">Vintage Pyrex <em>$20&ndash;$120</em></a>
+          <a href="/worth/vintage-pyrex-bowls">Vintage Pyrex <em>$18&ndash;$120</em></a>
           <a href="/worth/nike-air-max-90">Nike Air Max 90 <em>$40&ndash;$120</em></a>
-          <a href="/worth/patagonia-better-sweater">Patagonia Better Sweater <em>$40&ndash;$85</em></a>
-          <a href="/worth/ray-ban-wayfarer-sunglasses">Ray-Ban Wayfarer <em>$40&ndash;$90</em></a>
-          <a href="/worth/birkenstock-arizona-sandals">Birkenstock Arizona <em>$30&ndash;$70</em></a>
-          <a href="/worth/lululemon-align-leggings">Lululemon Align <em>$30&ndash;$60</em></a>
-          <a href="/worth/ralph-lauren-polo-sweater">Ralph Lauren Polo <em>$25&ndash;$70</em></a>
-          <a href="/worth/stanley-quencher-tumbler">Stanley Quencher <em>$25&ndash;$60</em></a>
+          <a href="/worth/patagonia-better-sweater">Patagonia Better Sweater <em>$25&ndash;$85</em></a>
+          <a href="/worth/ray-ban-wayfarer-sunglasses">Ray-Ban Wayfarer <em>$30&ndash;$90</em></a>
+          <a href="/worth/birkenstock-arizona-sandals">Birkenstock Arizona <em>$25&ndash;$70</em></a>
+          <a href="/worth/lululemon-align-leggings">Lululemon Align <em>$20&ndash;$60</em></a>
+          <a href="/worth/ralph-lauren-polo-sweater">Ralph Lauren Polo <em>$20&ndash;$70</em></a>
+          <a href="/worth/stanley-quencher-tumbler">Stanley Quencher <em>$20&ndash;$60</em></a>
         </div>
         <div class="ticker-track" aria-hidden="true">
-          <a tabindex="-1" href="/worth/carhartt-detroit-jacket">Carhartt Detroit Jacket <em>$60&ndash;$150</em></a>
-          <a tabindex="-1" href="/worth/le-creuset-dutch-oven">Le Creuset Dutch Oven <em>$80&ndash;$250</em></a>
-          <a tabindex="-1" href="/worth/levis-501-vintage">Vintage Levi&rsquo;s 501 <em>$30&ndash;$90</em></a>
-          <a tabindex="-1" href="/worth/north-face-nuptse-700">North Face Nuptse <em>$110&ndash;$200</em></a>
-          <a tabindex="-1" href="/worth/vintage-band-t-shirt">Vintage Band Tee <em>$30&ndash;$200</em></a>
+          <a tabindex="-1" href="/worth/carhartt-detroit-jacket">Carhartt Detroit Jacket <em>$45&ndash;$150</em></a>
+          <a tabindex="-1" href="/worth/le-creuset-dutch-oven">Le Creuset Dutch Oven <em>$70&ndash;$250</em></a>
+          <a tabindex="-1" href="/worth/levis-501-vintage">Vintage Levi&rsquo;s 501 <em>$20&ndash;$90</em></a>
+          <a tabindex="-1" href="/worth/north-face-nuptse-700">North Face Nuptse <em>$80&ndash;$200</em></a>
+          <a tabindex="-1" href="/worth/vintage-band-t-shirt">Vintage Band Tee <em>$25&ndash;$200</em></a>
           <a tabindex="-1" href="/worth/kitchenaid-stand-mixer">KitchenAid Mixer <em>$120&ndash;$300</em></a>
-          <a tabindex="-1" href="/worth/dr-martens-1460-boots">Dr. Martens 1460 <em>$50&ndash;$110</em></a>
+          <a tabindex="-1" href="/worth/dr-martens-1460-boots">Dr. Martens 1460 <em>$40&ndash;$110</em></a>
           <a tabindex="-1" href="/worth/coach-leather-handbag">Coach Handbag <em>$40&ndash;$150</em></a>
-          <a tabindex="-1" href="/worth/vintage-pyrex-bowls">Vintage Pyrex <em>$20&ndash;$120</em></a>
+          <a tabindex="-1" href="/worth/vintage-pyrex-bowls">Vintage Pyrex <em>$18&ndash;$120</em></a>
           <a tabindex="-1" href="/worth/nike-air-max-90">Nike Air Max 90 <em>$40&ndash;$120</em></a>
-          <a tabindex="-1" href="/worth/patagonia-better-sweater">Patagonia Better Sweater <em>$40&ndash;$85</em></a>
-          <a tabindex="-1" href="/worth/ray-ban-wayfarer-sunglasses">Ray-Ban Wayfarer <em>$40&ndash;$90</em></a>
-          <a tabindex="-1" href="/worth/birkenstock-arizona-sandals">Birkenstock Arizona <em>$30&ndash;$70</em></a>
-          <a tabindex="-1" href="/worth/lululemon-align-leggings">Lululemon Align <em>$30&ndash;$60</em></a>
-          <a tabindex="-1" href="/worth/ralph-lauren-polo-sweater">Ralph Lauren Polo <em>$25&ndash;$70</em></a>
-          <a tabindex="-1" href="/worth/stanley-quencher-tumbler">Stanley Quencher <em>$25&ndash;$60</em></a>
+          <a tabindex="-1" href="/worth/patagonia-better-sweater">Patagonia Better Sweater <em>$25&ndash;$85</em></a>
+          <a tabindex="-1" href="/worth/ray-ban-wayfarer-sunglasses">Ray-Ban Wayfarer <em>$30&ndash;$90</em></a>
+          <a tabindex="-1" href="/worth/birkenstock-arizona-sandals">Birkenstock Arizona <em>$25&ndash;$70</em></a>
+          <a tabindex="-1" href="/worth/lululemon-align-leggings">Lululemon Align <em>$20&ndash;$60</em></a>
+          <a tabindex="-1" href="/worth/ralph-lauren-polo-sweater">Ralph Lauren Polo <em>$20&ndash;$70</em></a>
+          <a tabindex="-1" href="/worth/stanley-quencher-tumbler">Stanley Quencher <em>$20&ndash;$60</em></a>
         </div>
       </div>
     </nav>
@@ -1919,7 +1959,10 @@ details[open] .faq-x::after { transform: rotate(90deg); }
       <div class="tf-foot">
         <div class="tf-foot-dark">
           <div>
-            <h4>Scanning and the resale estimate are free.</h4>
+            <!-- h3, not h4: the nearest heading above this is the section's
+                 `.tf-h2`, so an h4 skips a level and leaves a gap in the
+                 document outline a screen reader reads out. -->
+            <h3>Scanning and the resale estimate are free.</h3>
             <p>The Thrift Flip profit verdict is part of the paid subscription &mdash; one free scan a day either way.</p>
           </div>
           <a href="#pricing" class="tf-foot-cta">See pricing</a>
@@ -2383,14 +2426,20 @@ details[open] .faq-x::after { transform: rotate(90deg); }
 
   /* ── Scroll reveal ──────────────────────────────────────────────────────
      Sections reveal as a block; grids stagger their children. */
+  /* `.section-header`, not `.section-head`. The typo meant the one section
+     header not wrapped in `.features-bg` or `.pricing-bg` — "How it works" —
+     was the only one on the page that never animated in. It stayed fully
+     visible rather than getting stuck, because `.reveal` is only ever *added*
+     by this script, so a selector matching nothing is inert. `.platforms-inner`
+     and `.platforms-list` went with the platforms band the redesign replaced
+     and matched nothing either. */
   var singles = document.querySelectorAll(
-    ".features-bg > *, .pricing-bg > *, .cta-dark, .platforms-inner, " +
-    ".section-head, .faq .tf-rule, .faq-h2, .shots .tf-rule, .shots-note, " +
+    ".features-bg > *, .pricing-bg > *, .cta-dark, " +
+    ".section-header, .faq .tf-rule, .faq-h2, .shots .tf-rule, .shots-note, " +
     "footer .footer-inner"
   );
   var groups = document.querySelectorAll(
-    ".features-grid, .platforms-list, .pricing-grid, .steps, .faq-list, " +
-    ".shots-strip"
+    ".features-grid, .pricing-grid, .steps, .faq-list, .shots-strip"
   );
 
   Array.prototype.forEach.call(singles, function (el) {

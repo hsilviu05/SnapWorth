@@ -201,6 +201,39 @@ never a free scan.
    full outage, that is a **deliberate, logged decision** — set
    `FREE_SCANS_PER_DAY=0` to make everyone Pro-gated rather than erroring.
 
+### 5.4b Redis *misconfigured* (not unreachable)
+
+Distinguish this from 5.4 before touching the provider. A malformed `REDIS_URL`
+looks identical on the dashboards — `required` calls fail closed exactly as they
+do in an outage — but no amount of waiting fixes it.
+
+*Signature:* `/health` reports `"backend": "redis-unavailable"`,
+`"failures": 0`. A real outage reports `"redis-degraded"` with a non-zero
+failure count — `"redis-unavailable"` means no connection was ever *attempted*,
+because the client could not be built at all. Verified against `cache.health()`:
+
+| state | `backend` | `failures` |
+|---|---|---|
+| misconfigured URL | `redis-unavailable` | `0` |
+| configured, server down | `redis-degraded` | ≥ 1 |
+| no `REDIS_URL` at all | `memory` | `0` |
+
+The startup log says which:
+
+- `REDIS_URL could not be used (ValueError: ...) — starting degraded` — the URL
+  is wrong. `redis.asyncio.from_url` rejects any scheme that is not
+  `redis://`, `rediss://` or `unix://`, and any port that is not an integer.
+  Fix the variable and redeploy.
+- `REDIS_MAX_CONNECTIONS is not a number` — a tuning knob only. Redis is fine
+  and running at the default pool size of 50; fix at leisure.
+- `REDIS_URL is set but the redis package is not installed` — the image is
+  wrong, not the config.
+
+The process deliberately **starts** in all three cases rather than crash-looping,
+because a degraded replica still serves `/scan` (quota goes per-process) while a
+crash-looping one serves nothing. `configured` stays true throughout, so nobody
+gets free Pro out of it.
+
 ### 5.5 Latency collapse
 
 1. Check `model_duration_seconds` p95 first — the model dominates scan latency.
@@ -532,7 +565,13 @@ work on does not.
 
 - [ ] `REDIS_URL` set and reachable
 - [ ] `TOKEN_KEYS` + `TOKEN_CURRENT_KID` set
-- [ ] `ENVIRONMENT=production` (enables strict startup checks)
+- [ ] `ENVIRONMENT=production` — two effects, both wanted: strict startup
+      checks (refuses to boot without `TOKEN_KEYS`), and **no `/openapi.json`,
+      `/docs` or `/redoc`**. Unset, the schema is anonymous and complete: it
+      lists `/metrics` with its `authorization` parameter and the docstring
+      explaining that it fails closed, which is precisely the existence the
+      404-not-401 design below is hiding. Also publishes the
+      `/apple/notifications` trust model and every request body's constraints.
 - [ ] `AUDIT_SALT` set to a real value
 - [x] ~~`TRUSTED_PROXY=true`~~ — **no longer read.** `_client_ip` now always takes the
       rightmost `X-Forwarded-For` hop, so the per-IP limit no longer depends on this
@@ -541,7 +580,13 @@ work on does not.
       their own choosing (uvicorn runs with `--forwarded-allow-ips='*'`, which makes
       `request.client.host` the client-supplied hop). Safe to delete from Railway.
 - [ ] `ALLOWED_STOREKIT_ENVIRONMENTS=Production`
-- [ ] `LOG_FORMAT=json`
+- [ ] `LOG_FORMAT=json` — still wanted, but **no longer load-bearing for log
+      injection**. The plain formatter is a bare `%(message)s`, so a newline in
+      an interpolated value reads as a second log record; every caller-supplied
+      value interpolated into a log line now goes through
+      `observability.log_safe` (bounded, printable, one line) regardless of
+      format. `notification_type` on the unauthenticated
+      `/apple/notifications` path was the one that did not.
 - [ ] Platform health-check path set to `/health/ready`
 - [ ] **App Store screenshots corrected** — see `marketing/SCREENSHOT-COMPLIANCE.md`
 
@@ -730,3 +775,54 @@ grep -rn "free trial" website/ marketing/
 
 If the new offer is **paid** (`payUpFront` or `payAsYouGo`), the word "free"
 must not survive anywhere in that grep.
+
+## 16. Revoking Pro after a refund
+
+Apple sends `REFUND` (a user got their money back) and `REVOKE` (family
+sharing withdrawn). Since the audit of 2026-09-12 the server acts on both:
+`POST /apple/notifications` calls `EntitlementService.revoke`, which writes a
+tombstone and makes the access path deny the refunded term.
+
+**Why a tombstone and not a delete.** A notification has no App Attest
+subject — `notify` only ever stores a one-way pseudonym — so the refunded
+user's `entproof:{subject}` key cannot be found from the notification. The
+tombstone is keyed on `originalTransactionId`, which the notification does
+carry, and the access path consults it after verifying a proof.
+
+### Keys
+
+| Key | Holds | TTL |
+|---|---|---|
+| `ent:{subject}` | the derived entitlement | 24h Pro / shorter free |
+| `entproof:{subject}` | Apple's signed transaction | to the term's expiry + 1h |
+| `entrevoked:{originalTransactionId}` | `{revoked_at, expires_at}` | 400 days |
+
+`expires_at` in the tombstone is the **revoked term's** expiry, not the
+revocation date. `originalTransactionId` is stable across renewals *and*
+re-subscriptions, so a tombstone keyed on the id alone would permanently deny
+someone who later paid again. A later term always expires later, so the access
+path treats a proof as dead only when its expiry is at or before the
+tombstone's.
+
+### If a refunded user still has Pro
+
+1. Confirm the notification arrived: the operator Telegram gets `↩️ Refund`.
+   No message means Apple never delivered it — check §14.
+2. Confirm the tombstone exists:
+   `redis-cli GET entrevoked:{originalTransactionId}`. The id is in the
+   refund alert.
+3. If it is missing, the webhook answered 503 and Apple should have retried.
+   A 503 releases the `apns2:{uuid}` idempotency key on purpose, so the
+   redelivery gets a real second attempt rather than landing on the duplicate
+   branch. Check the logs for `could not revoke a refunded entitlement`.
+4. To revoke by hand, write the tombstone yourself:
+   `redis-cli SET entrevoked:{otid} '{"revoked_at":<epoch>,"expires_at":<term expiry epoch>}' EX 34560000`
+5. Access goes away at the user's next request, or immediately if you also
+   `DEL ent:{subject}` — which needs the subject, so usually it is the former.
+
+### What this does not do
+
+Nothing here refunds anyone or changes what Apple charged. It only stops the
+server treating a taken-back term as paid. A user who re-subscribes is
+unaffected, and there is a test for that
+(`test_re_subscribing_after_a_refund_works`).

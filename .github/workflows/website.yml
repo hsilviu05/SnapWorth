@@ -1,0 +1,68 @@
+name: Website
+
+# The homepage's resale figures and the /worth guide pages were two
+# independent sets of hand-typed numbers, and they had drifted on 13 of the 16
+# items — always on the low bound, always in the same direction, so the
+# homepage advertised a floor up to 60% above the page it linked to. Nothing
+# could have caught that: the guides are generated and the homepage is not.
+#
+# Two checks, both cheap:
+#   1. every figure on index.html equals the guide's own `condition_bounds`
+#   2. the committed guide pages are what the generator produces today
+#
+# (2) matters because the dataset and the generator are edited by hand and the
+# output is committed. Without it, a dataset change that nobody rebuilt would
+# make (1) pass against stale pages.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'website/**'
+      - '.github/workflows/website.yml'
+  pull_request:
+    paths:
+      - 'website/**'
+      - '.github/workflows/website.yml'
+
+concurrency:
+  group: website-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  consistency:
+    name: Site figures agree
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+
+      - name: Homepage figures match the guide pages
+        run: python3 website/seo/check_homepage_ranges.py
+
+      # A FAQPage entry whose answer is not on the page is markup asserting
+      # something the page does not say. The schema and the visible accordion
+      # were built from two different lists, so the synthesised first pair was
+      # declared on all sixteen pages with its answer only inside the ld+json.
+      - name: Every declared FAQ answer is on the page
+        run: python3 website/seo/check_faq_visible.py
+
+      # `website/worth` only, deliberately. sitemap.xml stamps each `lastmod`
+      # from the served file's mtime — which is the right signal, and which git
+      # does not preserve: every file's mtime in a fresh checkout is the
+      # checkout time, so the sitemap would differ on every run and this step
+      # would be red every day for no reason. The pages themselves are
+      # deterministic from the dataset, which is what matters here.
+      - name: The committed generated pages are freshly generated
+        run: |
+          python3 website/seo/build_seo.py
+          python3 website/seo/build_guess.py
+          if ! git diff --quiet -- website/worth website/guess.html; then
+            echo "::error::generated pages are stale — run website/seo/build_seo.py and website/seo/build_guess.py, then commit the result"
+            git --no-pager diff --stat -- website/worth website/guess.html
+            exit 1
+          fi
+          echo "the committed generated pages match what the generators produce"

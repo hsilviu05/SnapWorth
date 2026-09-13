@@ -54,7 +54,7 @@ enum PrivacyPolicy {
 
             TelemetryDeck. Receives the anonymous usage events described above. It never receives photos, item names, prices, or identifiers.
 
-            Telegram. To monitor the service, aggregate operational information may be relayed to the operator through Telegram: the name of an item the AI identified and its estimated price range. Never the photo, never a device identifier, never anything that links a scan to a device or a person.
+            Telegram. To monitor the service, operational information may be relayed to the operator through Telegram: the name of an item the AI identified and its estimated price range; and, so that a support request can be answered, a one-way salted hash of your device's attestation key together with that device's scan count, first and last activity dates, and subscription state. The hash is not the device identifier itself and cannot be reversed to it, and it is not an advertising identifier. This operational record is kept for up to 400 days. Never the photo, and never your name, email address or location.
             """),
         (heading: "Data Retention", text: """
             Photos and scan results are processed in real time and are not retained on our servers. Scan history is stored locally on your device and can be deleted at any time from Settings.

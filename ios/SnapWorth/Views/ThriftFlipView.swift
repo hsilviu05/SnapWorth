@@ -42,19 +42,19 @@ struct ThriftFlipView: View {
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
                     Button("Close") { dismiss() }
-                        .foregroundStyle(Color.snapTerracotta)
+                        .foregroundStyle(Color.snapTerracottaText)
                 }
                 if vm.scanResult != nil {
                     ToolbarItem(placement: .navigationBarTrailing) {
                         Button("New item") { vm.reset() }
-                            .foregroundStyle(Color.snapTerracotta)
+                            .foregroundStyle(Color.snapTerracottaText)
                     }
                 }
                 ToolbarItemGroup(placement: .keyboard) {
                     Spacer()
                     Button("Done") { focusedField = nil }
                         .font(.dmSans(15, weight: .semibold))
-                        .foregroundStyle(Color.snapTerracotta)
+                        .foregroundStyle(Color.snapTerracottaText)
                 }
             }
         }
@@ -75,7 +75,7 @@ struct ThriftFlipView: View {
         VStack(spacing: 16) {
             Image(systemName: "arrow.triangle.2.circlepath")
                 .snapSymbol(40, weight: .light)
-                .foregroundStyle(Color.snapTerracotta)
+                .foregroundStyle(Color.snapTerracottaText)
                 .padding(.top, 40)
 
             Text("Should you flip it?")
@@ -97,7 +97,7 @@ struct ThriftFlipView: View {
                     PrimaryButton(title: "Scan item") { present(.item, source: .camera) }
                     Button("Choose from library") { present(.item, source: .photoLibrary) }
                         .font(.dmSans(14, weight: .semibold))
-                        .foregroundStyle(Color.snapTerracotta)
+                        .foregroundStyle(Color.snapTerracottaText)
                 }
                 .padding(.top, 8)
             }
@@ -105,7 +105,7 @@ struct ThriftFlipView: View {
             if let error = vm.scanError {
                 Text(error)
                     .font(.snapCaption)
-                    .foregroundStyle(Color.snapTerracotta)
+                    .foregroundStyle(Color.snapTerracottaText)
                     .multilineTextAlignment(.center)
             }
         }
@@ -171,7 +171,7 @@ struct ThriftFlipView: View {
                             .foregroundStyle(selected ? Color.snapOnAccent : Color.snapWarmGray)
                             .padding(.horizontal, 14)
                             .padding(.vertical, 9)
-                            .background(selected ? Color.snapTerracotta : Color.clear)
+                            .background(selected ? Color.snapTerracottaFill : Color.clear)
                             .clipShape(Capsule())
                             .overlay(Capsule().strokeBorder(Color.snapBorder, lineWidth: selected ? 0 : 1))
                     }
@@ -214,7 +214,7 @@ struct ThriftFlipView: View {
                             Text("Scan tag")
                         }
                         .font(.dmSans(13, weight: .semibold))
-                        .foregroundStyle(Color.snapTerracotta)
+                        .foregroundStyle(Color.snapTerracottaText)
                     }
                     .disabled(vm.isReadingTag)
                 }
@@ -223,7 +223,7 @@ struct ThriftFlipView: View {
                 if let note = vm.ocrNote {
                     Text(note)
                         .font(.snapCaption)
-                        .foregroundStyle(Color.snapWarmGray.opacity(0.8))
+                        .foregroundStyle(Color.snapWarmGray)
                 }
             }
 
@@ -255,7 +255,7 @@ struct ThriftFlipView: View {
 
     private func verdictCard(_ calc: FlipCalculation) -> some View {
         let green = calc.isProfitable
-        let accent = green ? Color.snapSage : Color.snapTerracotta
+        let accent = green ? Color.snapSageText : Color.snapTerracottaText
 
         return VStack(spacing: 14) {
             // Headline verdict
@@ -291,12 +291,16 @@ struct ThriftFlipView: View {
 
                 if !isPro {
                     VStack(spacing: 10) {
-                        Image(systemName: "lock.fill").foregroundStyle(Color.snapTerracotta)
+                        Image(systemName: "lock.fill").foregroundStyle(Color.snapTerracottaText)
                         Text("Unlock to reveal your profit")
                             .font(.dmSans(14, weight: .semibold))
                             .foregroundStyle(Color.snapEspresso)
                         PrimaryButton(title: "Unlock Thrift Flip") {
-                            Analytics.shared.track(.paywallViewed(trigger: .thriftFlip))
+                            // No tracking call here: `PaywallView` fires
+                            // `paywallViewed` from its own `onAppear`, so this
+                            // was a second event for the same open. One entry
+                            // point, and the sheet already passes
+                            // `.thriftFlip`, so nothing else is needed.
                             vm.showPaywall = true
                         }
                     }
@@ -306,7 +310,7 @@ struct ThriftFlipView: View {
             if calc.feesUnknown {
                 Text("Fees for this marketplace aren't in the table — this is before fees.")
                     .font(.snapCaption)
-                    .foregroundStyle(Color.snapWarmGray.opacity(0.8))
+                    .foregroundStyle(Color.snapWarmGray)
                     .multilineTextAlignment(.center)
             }
         }
@@ -389,7 +393,7 @@ struct ThriftFlipView: View {
     private var honestNote: some View {
         Text("Resale is an AI estimate and fees are approximate — treat the verdict as a guide, not a guarantee.")
             .font(.snapCaption)
-            .foregroundStyle(Color.snapWarmGray.opacity(0.7))
+            .foregroundStyle(Color.snapWarmGray)
             .multilineTextAlignment(.center)
             .padding(.top, 4)
     }

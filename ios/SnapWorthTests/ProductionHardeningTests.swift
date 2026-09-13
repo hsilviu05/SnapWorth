@@ -128,10 +128,157 @@ final class APIErrorDetailTests: XCTestCase {
         XCTAssertTrue(message.contains(" "), "Should be a sentence, not an identifier")
     }
 
+    // ── 429 carries the real wait in a header ────────────────────────────────
+
+    func test_retryAfterIsReadFromTheHeader() {
+        let response = HTTPURLResponse(
+            url: URL(string: "https://api.snapworth.eu/scan")!, statusCode: 429,
+            httpVersion: nil, headerFields: ["Retry-After": "300"])!
+        XCTAssertEqual(ScanAPIError.retryAfter(from: response), 300)
+    }
+
+    func test_retryAfterIsNilWhenAbsentOrNotANumber() {
+        func response(_ headers: [String: String]) -> HTTPURLResponse {
+            HTTPURLResponse(url: URL(string: "https://api.snapworth.eu/scan")!,
+                            statusCode: 429, httpVersion: nil,
+                            headerFields: headers)!
+        }
+        XCTAssertNil(ScanAPIError.retryAfter(from: response([:])))
+        // RFC 9110 also permits an HTTP-date. This API only sends seconds, and
+        // guessing at a date whose clock we do not share is worse than nil.
+        XCTAssertNil(ScanAPIError.retryAfter(
+            from: response(["Retry-After": "Wed, 21 Oct 2026 07:28:00 GMT"])))
+    }
+
+    func test_a429BecomesRateLimitCarryingTheWait() {
+        let response = HTTPURLResponse(
+            url: URL(string: "https://api.snapworth.eu/scan")!, statusCode: 429,
+            httpVersion: nil, headerFields: ["Retry-After": "120"])!
+        let body = Data(#"{"detail": "Rate limit: 20 requests/hour."}"#.utf8)
+        let error = ScanAPIError.from(response, data: body)
+        XCTAssertEqual(error.statusCode, 429)
+        XCTAssertEqual(AppError.from(error), .rateLimit(retryAfter: 120))
+    }
+
+    func test_otherStatusesStillBecomePlainServerErrors() {
+        let response = HTTPURLResponse(
+            url: URL(string: "https://api.snapworth.eu/scan")!, statusCode: 402,
+            httpVersion: nil, headerFields: [:])!
+        let body = Data(#"{"detail": "You've used all 3 free scans today."}"#.utf8)
+        let mapped = AppError.from(ScanAPIError.from(response, data: body))
+        XCTAssertTrue(mapped.isPaywall)
+    }
+
+    func test_rateLimitMessageUsesTheServerWait() {
+        // The fixed "Try again in an hour" was wrong by up to an hour in the
+        // user's disfavour: the window slides, so someone who tripped it 55
+        // minutes ago is minutes away from scanning again.
+        XCTAssertEqual(AppError.rateLimitMessage(retryAfter: 300),
+                       "You've hit the scan limit. Try again in 5 minutes.")
+        XCTAssertEqual(AppError.rateLimitMessage(retryAfter: 45),
+                       "You've hit the scan limit. Try again in 45 seconds.")
+    }
+
+    func test_rateLimitMessageBoundaries() {
+        // Rounding is always up, so the copy never invites a retry that fails.
+        let cases: [(TimeInterval?, String)] = [
+            (nil,   "Try again in an hour."),        // header absent: say the window
+            (0,     "Try again in a few seconds."),
+            (9,     "Try again in a few seconds."),
+            (10,    "Try again in 10 seconds."),
+            (59,    "Try again in 59 seconds."),
+            (60,    "Try again in a minute."),
+            (61,    "Try again in 2 minutes."),      // up, not down
+            (1800,  "Try again in 30 minutes."),
+            (3540,  "Try again in 59 minutes."),
+            (3541,  "Try again in an hour."),        // never "60 minutes"
+            (7200,  "Try again in an hour."),
+        ]
+        for (seconds, tail) in cases {
+            XCTAssertEqual(AppError.rateLimitMessage(retryAfter: seconds),
+                           "You've hit the scan limit. \(tail)",
+                           "wrong copy for retryAfter=\(String(describing: seconds))")
+        }
+    }
+
+    func test_rateLimitStillRevealsNothingAboutTheBackend() {
+        // The property the original copy was protecting; kept while the wait
+        // becomes real. The backend's own detail ("Rate limit: 20
+        // requests/hour.") is deliberately *not* surfaced.
+        for seconds: TimeInterval? in [nil, 5, 45, 300, 3600] {
+            let message = AppError.rateLimitMessage(retryAfter: seconds)
+            XCTAssertFalse(message.contains("GEMINI"))
+            XCTAssertFalse(message.contains("API"))
+            XCTAssertFalse(message.contains("requests/hour"))
+        }
+    }
+
+    func test_twoDifferentWaitsAreNotEqual() {
+        // Otherwise a SwiftUI alert bound to the error would not re-present
+        // when the wait changed — the same bug `.sessionExpired` had.
+        XCTAssertNotEqual(AppError.rateLimit(retryAfter: 60),
+                          AppError.rateLimit(retryAfter: 600))
+        XCTAssertEqual(AppError.rateLimit(retryAfter: 60),
+                       AppError.rateLimit(retryAfter: 60))
+        XCTAssertEqual(AppError.rateLimit(retryAfter: nil),
+                       AppError.rateLimit(retryAfter: nil))
+    }
+
     func test_serverErrorDescription_omitsStatusCodeNoise() {
         let error = ScanAPIError.serverError(502, "Our AI is temporarily unavailable.")
         XCTAssertEqual(error.errorDescription, "Our AI is temporarily unavailable.")
         XCTAssertEqual(error.statusCode, 502)
+    }
+
+    func test_a502WithNoRealDetailIsAnOutageNotAnAIFailure() {
+        // The `.serverUnavailable` branch for 502 was unreachable. It tested
+        // `detail.isEmpty`, and `APIErrorDetail.parse` never returns empty —
+        // with no usable `detail` in the body it returns its own fixed
+        // sentence, the very words `.unknown` prints. So a genuine outage with
+        // an empty body arrived carrying "Something went wrong. Please try
+        // again." and was reported as an AI failure with that text: the user
+        // was told to retry rather than that the service was down.
+        XCTAssertEqual(AppError.from(ScanAPIError.serverError(
+            502, "Something went wrong. Please try again.")), .serverUnavailable)
+        XCTAssertEqual(AppError.from(ScanAPIError.serverError(502, "")),
+                       .serverUnavailable)
+        XCTAssertEqual(AppError.from(ScanAPIError.serverError(502, "   ")),
+                       .serverUnavailable)
+
+        // And real backend copy still reaches the user, which is the whole
+        // reason 502 surfaces its detail at all.
+        guard case .aiFailed(let msg) = AppError.from(ScanAPIError.serverError(
+            502, "The AI couldn't price this item. Please try again.")) else {
+            return XCTFail("real detail must still surface")
+        }
+        XCTAssertEqual(msg, "The AI couldn't price this item. Please try again.")
+    }
+
+    func test_aPhoneWithNoSignalIsToldSoRatherThanSomethingWentWrong() {
+        // iOS's own strings for these codes contain no "network", no
+        // "offline" and no status number, so the substring fallback could not
+        // rescue them and they all reached `.unknown` — "Something went
+        // wrong. Please try again." to someone standing in a shop with no
+        // signal, while the right copy lived one case away.
+        for code in [URLError.Code.cannotFindHost,
+                     .dnsLookupFailed,
+                     .dataNotAllowed,
+                     .internationalRoamingOff,
+                     .callIsActive] {
+            XCTAssertEqual(AppError.from(URLError(code)), .network,
+                           "\(code) should read as a network problem")
+        }
+        // Unchanged, and asserted so the widening did not disturb them.
+        XCTAssertEqual(AppError.from(URLError(.notConnectedToInternet)), .network)
+        XCTAssertEqual(AppError.from(URLError(.timedOut)), .timeout)
+    }
+
+    func test_aPinningFailureIsNotCalledANetworkProblem() {
+        // `.secureConnectionFailed` is deliberately left out of the widening:
+        // this app pins its certificate, so that code can mean interception
+        // rather than an outage, and "check your network and try again" is
+        // advice whose retry is the thing that would succeed.
+        XCTAssertNotEqual(AppError.from(URLError(.secureConnectionFailed)), .network)
     }
 }
 
@@ -179,7 +326,7 @@ final class PaymentRequiredMappingTests: XCTestCase {
     func test_realFailures_areNotRoutedToThePaywall() {
         // A paywall shown for a network blip would be worse than the dead end
         // it replaces: it asks for money over a problem money cannot fix.
-        for error: AppError in [.network, .timeout, .rateLimit, .serverUnavailable,
+        for error: AppError in [.network, .timeout, .rateLimit(retryAfter: nil), .serverUnavailable,
                                 .sessionExpired, .imageEncodingFailed, .persistence,
                                 .aiFailed("couldn't price it"), .unusablePhoto("too blurry"),
                                 .unknown("?")] {
@@ -262,6 +409,33 @@ final class PrivacyPolicyDisclosureTests: XCTestCase {
         // required by law." Any unqualified version of it is a false claim.
         XCTAssertTrue(policy.contains("except for the service providers below"),
                       "the sharing sentence must point at the processor list")
+    }
+
+    func test_theTelegramParagraphDescribesWhatIsActuallyRelayed() {
+        // It said "never a device identifier, never anything that links a scan
+        // to a device or a person" — while five bot surfaces send a stable
+        // salted hash of the device's attestation key plus that device's scan
+        // count, activity dates and subscription state. A one-way hash is
+        // still a pseudonymous identifier, so the sentence was false.
+        //
+        // Same shape as the drift above: the web copy and this copy are two
+        // files, and only a test connects them.
+        XCTAssertFalse(policy.contains("never a device identifier"),
+                       "the claim the bot contradicts is back")
+        XCTAssertTrue(
+            policy.contains("one-way salted hash of your device's attestation key"),
+            "the in-app policy has drifted from /privacy again")
+        for detail in ["scan count", "first and last activity dates",
+                       "subscription state", "400 days"] {
+            XCTAssertTrue(policy.contains(detail),
+                          "the policy no longer mentions \(detail)")
+        }
+    }
+
+    func test_theDisclosureIsNotWiderThanTheTruth() {
+        XCTAssertTrue(policy.contains("Never the photo"))
+        XCTAssertTrue(policy.contains("never your name, email address or location"))
+        XCTAssertTrue(policy.contains("not an advertising identifier"))
     }
 
     func test_analyticsAndDeviceCheckCollectionAreDisclosed() {
@@ -628,6 +802,53 @@ final class PaywallSelectionTests: XCTestCase {
                          savingsPercent: nil)]
     }
 
+    // ── Restore has to say something either way ─────────────────────────────
+
+    @MainActor
+    func test_restoreWithNothingToRestoreSaysSo() async {
+        // `AppStore.sync()` succeeding with no entitlement is a *success*:
+        // `restorePurchases` throws only on a real sync error, so the catch
+        // never ran, `errorMessage` stayed nil, `isPurchaseComplete` stayed
+        // false and the sheet did not dismiss. The spinner ran for a second,
+        // stopped, and nothing else on screen changed — indistinguishable from
+        // a button that does nothing, which is what an App Review tester on a
+        // fresh sandbox account taps.
+        let vm = PaywallViewModel()
+        let service = MockPurchaseService(forcedSubscribed: false)
+
+        await vm.restore(service: service)
+
+        XCTAssertFalse(vm.isPurchaseComplete)
+        XCTAssertNil(vm.errorMessage, "nothing failed, so nothing is red")
+        XCTAssertEqual(vm.pendingMessage,
+                       "No active subscription found on this Apple ID.")
+        XCTAssertFalse(vm.isRestoring, "the spinner stops either way")
+    }
+
+    @MainActor
+    func test_restoreThatFindsASubscriptionStillCompletes() async {
+        let vm = PaywallViewModel()
+        let service = MockPurchaseService(forcedSubscribed: true)
+
+        await vm.restore(service: service)
+
+        XCTAssertTrue(vm.isPurchaseComplete)
+        XCTAssertNil(vm.pendingMessage, "no 'nothing found' on a success")
+        XCTAssertNil(vm.errorMessage)
+    }
+
+    @MainActor
+    func test_restoreClearsAStalePendingMessage() async {
+        // An Ask-to-Buy attempt leaves "waiting for approval" behind. Without
+        // clearing it, the next Restore reads as its result.
+        let vm = PaywallViewModel()
+        vm.pendingMessage = "Waiting for approval."
+
+        await vm.restore(service: MockPurchaseService(forcedSubscribed: true))
+
+        XCTAssertNil(vm.pendingMessage)
+    }
+
     func test_fallsBackToTheOnlyPlanThatLoaded() {
         let vm = PaywallViewModel()
         XCTAssertEqual(vm.selectedProductID, Config.yearlyProductID)
@@ -806,21 +1027,99 @@ import SwiftData
 @MainActor
 final class ScanPersistenceFailureTests: XCTestCase {
 
-    /// A repository whose backing store is torn down, so `save` throws.
-    private func brokenRepository() throws -> ScanRepository {
-        let config = ModelConfiguration(isStoredInMemoryOnly: true)
-        let container = try ModelContainer(for: ScanResult.self, configurations: config)
-        let context = ModelContext(container)
-        // A model the container does not know about makes `context.save()` fail
-        // deterministically without depending on disk conditions.
-        return ScanRepository(context: context)
-    }
+    // A `brokenRepository()` helper used to sit here, unreferenced, with a
+    // comment claiming it made `save()` fail deterministically "without
+    // depending on disk conditions". Its body built an ordinary in-memory
+    // container that saves perfectly well, so it neither did that nor was
+    // called. Removed rather than left as a trap: the next person to reach for
+    // it would have written a test that passes because nothing failed.
+    //
+    // A real save failure on the *shared* context cannot be provoked from a
+    // unit test — every context here is a secondary one, whose autosave
+    // defaults to false — which is exactly why the missing rollback was
+    // invisible to this suite, and why the assertion about it is
+    // source-inspected below.
 
     private func sampleResult() -> ScanResult {
         ScanResult(itemName: "Off-White Out of Office", brand: "Off-White",
                    category: "shoes", conditionNotes: "Excellent",
                    valueLow: 350, valueHigh: 450, confidence: "High",
                    soldListingsCount: 0, listingTitle: "T", listingDescription: "D")
+    }
+
+    func test_aFailedSaveHandsBackSomethingSafeToDisplay() {
+        // `ScanViewModel` assigns `scanResult` before attempting the save, on
+        // purpose: a storage failure must not take the user's result away. The
+        // rollback un-registers that object, so the repository takes a copy
+        // first and returns it with the error — otherwise the sheet would be
+        // holding a model SwiftData had discarded.
+        let original = sampleResult()
+        original.paidPrice = 9.50
+        original.notes = "back-room rail"
+        let copy = original.detachedCopy()
+
+        XCTAssertEqual(copy.id, original.id, "the same find, not a new one")
+        XCTAssertEqual(copy.itemName, original.itemName)
+        XCTAssertEqual(copy.paidPrice, 9.50)
+        XCTAssertEqual(copy.notes, "back-room rail")
+        XCTAssertFalse(copy === original, "a copy, so a rollback cannot reach it")
+    }
+
+    func test_detachedCopyCarriesEveryStoredProperty() {
+        // A copy that silently dropped a field would show the user a result
+        // missing their photo or what they paid. The model's memberwise init
+        // is the list of stored properties, so the copy has to name every
+        // parameter of it.
+        let source = try! String(
+            contentsOf: URL(fileURLWithPath: #filePath)
+                .deletingLastPathComponent()
+                .deletingLastPathComponent()
+                .appendingPathComponent("SnapWorth/Models/ScanResult.swift"),
+            encoding: .utf8)
+
+        guard let initRange = source.range(of: "    init(\n"),
+              let initEnd = source.range(of: "    ) {", range: initRange.lowerBound..<source.endIndex),
+              let copyRange = source.range(of: "func detachedCopy() -> ScanResult {"),
+              let copyEnd = source.range(of: "        )\n    }",
+                                         range: copyRange.lowerBound..<source.endIndex)
+        else { return XCTFail("could not locate init or detachedCopy") }
+
+        func labels(_ text: String) -> Set<String> {
+            Set(text.split(separator: "\n").compactMap { line in
+                let trimmed = line.trimmingCharacters(in: .whitespaces)
+                guard let colon = trimmed.firstIndex(of: ":") else { return nil }
+                let label = String(trimmed[trimmed.startIndex..<colon])
+                return label.allSatisfy { $0.isLetter || $0.isNumber } ? label : nil
+            })
+        }
+
+        let declared = labels(String(source[initRange.upperBound..<initEnd.lowerBound]))
+        let copied = labels(String(source[copyRange.upperBound..<copyEnd.lowerBound]))
+        XCTAssertFalse(declared.isEmpty, "the parser found no init parameters")
+        XCTAssertEqual(declared.subtracting(copied), [],
+                       "detachedCopy() is missing stored properties — a copy " +
+                       "that drops a field shows the user an incomplete result")
+    }
+
+    func test_theRepositoryRollsBackOnEveryFailurePath() {
+        // Source-inspected because a real save failure on the *shared* context
+        // cannot be provoked in a unit test — the suite's contexts are
+        // secondary ones, whose autosave defaults to false, which is exactly
+        // why this bug was invisible to the existing tests.
+        let source = try! String(
+            contentsOf: URL(fileURLWithPath: #filePath)
+                .deletingLastPathComponent()
+                .deletingLastPathComponent()
+                .appendingPathComponent("SnapWorth/Services/ScanRepository.swift"),
+            encoding: .utf8)
+        let catches = source.components(separatedBy: "} catch {").dropFirst()
+        XCTAssertEqual(catches.count, 3, "save, delete, deleteAll")
+        for (index, block) in catches.enumerated() {
+            let body = String(block.prefix(400))
+            XCTAssertTrue(body.contains("context.rollback()"),
+                          "failure path \(index) leaves the change in the " +
+                          "shared context, which breaks every later save")
+        }
     }
 
     func test_resultIsPresentedBeforePersistenceIsAttempted() {
@@ -1103,6 +1402,53 @@ final class ListingAnalyticsOrderingTests: XCTestCase {
         XCTAssertNotNil(track)
         XCTAssertLessThan(assign!, track!,
                           "listingGenerated must fire only after a successful generation")
+    }
+
+    func test_aStaleListingResponseIsDroppedNotInstalled() {
+        // Neither the marketplace chip nor the condition chip is disabled
+        // while a generation is in flight — only the Generate button is — and
+        // both clear the draft on the way out. So the user could tap Vinted,
+        // watch the eBay draft correctly disappear, and then see it reinstate
+        // itself when the in-flight response landed: eBay's voice under the
+        // Vinted chip, at eBay's Ask and Floor, behind an "Open eBay" button.
+        //
+        // Source-inspected because the property is an *ordering* one, like its
+        // neighbour above: the guard has to sit between the await and the
+        // assignment, and a test that drives the happy path cannot show that.
+        // Matched on a string that cannot occur in prose, so the explanatory
+        // comment beside the guard cannot satisfy this by accident — the
+        // mistake a source-inspecting test in SnapWorthTests made earlier.
+        let source = try! String(
+            contentsOf: URL(fileURLWithPath: #filePath)
+                .deletingLastPathComponent()
+                .deletingLastPathComponent()
+                .appendingPathComponent("SnapWorth/ViewModels/ResultViewModel.swift"),
+            encoding: .utf8)
+
+        guard let body = source.range(of: "func generateListing") else {
+            return XCTFail("generateListing not found")
+        }
+        let scope = String(source[body.lowerBound...])
+
+        let needle = "guard requested == selectedMarketplace,"
+        let guards = scope.components(separatedBy: needle).count - 1
+        XCTAssertEqual(guards, 2,
+                       "both the success and the failure path must drop a stale response")
+
+        guard let firstGuard = scope.range(of: needle)?.lowerBound,
+              let assign = scope.range(of: "generatedListing = listing")?.lowerBound else {
+            return XCTFail("the guard or the assignment is missing")
+        }
+        XCTAssertLessThan(firstGuard, assign,
+                          "the staleness test must run before the listing is installed")
+
+        // And the request must be pinned before the await, not read back from
+        // live state afterwards — which is the whole defect.
+        guard let pin = scope.range(of: "let requested = selectedMarketplace")?.lowerBound,
+              let call = scope.range(of: "try await ListingAPIClient")?.lowerBound else {
+            return XCTFail("the pinned marketplace is missing")
+        }
+        XCTAssertLessThan(pin, call)
     }
 
     func test_failurePathDoesNotTrackGeneration() {
@@ -1815,7 +2161,7 @@ final class SessionExpiredCopyTests: XCTestCase {
         // did not equal itself, while still *printing* identically. Enumerated
         // here so the next case added cannot repeat it.
         let cases: [AppError] = [
-            .network, .timeout, .rateLimit, .serverUnavailable, .sessionExpired,
+            .network, .timeout, .rateLimit(retryAfter: nil), .serverUnavailable, .sessionExpired,
             .imageEncodingFailed, .purchaseCancelled, .persistence,
         ]
         for value in cases {
@@ -1908,7 +2254,47 @@ final class DeviceIdentityTests: XCTestCase {
         store.value = "CHANGED-UNDERNEATH"
         XCTAssertEqual(identity.id, first, "read once per process; the store is not re-queried")
     }
+
+    // ── The mirror must not outlive its purpose ──────────────────────────────
+
+    func test_theDefaultsMirrorIsRemovedOnceTheKeychainHoldsIt() {
+        // The two stores migrate in opposite directions, and the whole design
+        // rests on the Keychain's: `ThisDeviceOnly` is excluded from encrypted
+        // backups and Quick Start, while Library/Preferences/…plist is
+        // included in both. A copy left in UserDefaults is therefore exactly
+        // the carrier this store exists to prevent.
+        let store = MemoryStore()
+        let defaults = freshDefaults()
+
+        let id = DeviceIdentity(store: store, defaults: defaults).id
+        XCTAssertEqual(store.value, id, "the durable copy is the one that stays")
+        XCTAssertNil(defaults.string(forKey: DeviceIdentity.legacyDefaultsKey),
+                     "a surviving mirror migrates this identity to a restored " +
+                     "phone, collapsing every restored device onto one binding " +
+                     "slot and bypassing the subscription device cap without bound")
+    }
+
+    func test_aRestoredBackupYieldsADistinctIdentity() {
+        // The attack, played out. "Restoring" carries the UserDefaults plist
+        // and not the ThisDeviceOnly Keychain item, so the new phone starts
+        // with an empty store and whatever defaults migrated.
+        let original = freshDefaults()
+        let id = DeviceIdentity(store: MemoryStore(), defaults: original).id
+
+        let restoredDefaults = freshDefaults()
+        for (key, value) in original.dictionaryRepresentation() {
+            restoredDefaults.set(value, forKey: key)     // the backup
+        }
+        let restoredID = DeviceIdentity(store: MemoryStore(),   // Keychain did not travel
+                                        defaults: restoredDefaults).id
+
+        XCTAssertNotEqual(restoredID, id,
+                          "two phones restored from one backup are two devices")
+    }
 }
+// The paired case — the mirror staying when it is the *only* copy — is already
+// covered by `test_unwritableStoreStillYieldsAnIdAndKeepsItInDefaults` above,
+// which is why the removal is conditional rather than the write being dropped.
 
 
 // MARK: - Free-scan reminder and streak (#94)
@@ -2038,6 +2424,40 @@ final class GuessScoringTests: XCTestCase {
         XCTAssertEqual(GuessScoring.verdict(guess: 130, low: 45, high: 90), "$40 over the high end.")
         // A swapped range is handled rather than trusted.
         XCTAssertEqual(GuessScoring.verdict(guess: 20, low: 90, high: 45), "$25 under the low end.")
+    }
+
+    func test_aNonZeroMissIsNeverReportedAsZero() {
+        // The bounds are fractional as a matter of course — `priceRange(for:)`
+        // scales stored values by a condition factor — while the range on
+        // screen is whole dollars. Scored raw, a guess of $45 against a
+        // printed "$45–$90" whose real low is 45.40 was outside the range by
+        // 40 cents, and 40 cents through a 0-decimal formatter is "$0 under
+        // the low end.": a non-zero miss reported as zero, directly under a
+        // range the guess appears to match exactly.
+        XCTAssertEqual(GuessScoring.verdict(guess: 45, low: 45.40, high: 90.20),
+                       "Spot on — your guess is inside the estimate.")
+        XCTAssertFalse(
+            GuessScoring.verdict(guess: 45, low: 45.40, high: 90.20).contains("$0"),
+            "no verdict may ever say $0")
+    }
+
+    func test_twoGuessesTheUserCannotTellApartGetTheSameVerdict() {
+        // Both print "$45–$90". Scored raw, the first was outside and the
+        // second inside — a difference the user has no way to see.
+        let above = GuessScoring.verdict(guess: 45, low: 45.40, high: 90.20)
+        let below = GuessScoring.verdict(guess: 45, low: 44.60, high: 90.20)
+        XCTAssertEqual(above, below)
+    }
+
+    func test_aRealMissIsStillReportedAsAMiss() {
+        // The guard against over-correcting: rounding the bounds must not
+        // swallow a miss the user can see.
+        XCTAssertEqual(GuessScoring.verdict(guess: 44, low: 45.40, high: 90.20),
+                       "$1 under the low end.")
+        XCTAssertEqual(GuessScoring.verdict(guess: 91, low: 45.40, high: 90.20),
+                       "$1 over the high end.")
+        XCTAssertEqual(GuessScoring.verdict(guess: 20, low: 45.40, high: 90.20),
+                       "$25 under the low end.")
     }
 
     func test_parseIsForgivingAboutWhatPeopleType() {
@@ -2293,6 +2713,57 @@ final class ConditionBaselineTests: XCTestCase {
         XCTAssertEqual(Condition.inferred(from: "Free of stains or damage"), .good)
     }
 
+    // MARK: The other half of the same bug — substrings
+
+    func test_aDefectTermInsideALongerWordIsNotADefect() {
+        // The term list carried a comment warning that "rip" matches "striped"
+        // and "wear" matches "menswear". It was a list of the traps someone had
+        // noticed, and it was incomplete. Each of these graded `.used`, which
+        // carries a 0.78 multiplier — so the estimate came back 22% under.
+        XCTAssertEqual(Condition.inferred(from: "Stainless steel case, keeps time"), .good,
+                       "stainless → stain")
+        XCTAssertEqual(Condition.inferred(from: "Flawless condition throughout"), .good,
+                       "flawless → flaw")
+        XCTAssertEqual(Condition.inferred(from: "Undamaged, light patina"), .good,
+                       "undamaged → damage")
+        XCTAssertEqual(Condition.inferred(from: "Heavyweight cotton, holds shape"), .good,
+                       "heavyweight → heavy")
+        XCTAssertEqual(Condition.inferred(from: "Teardrop earrings, sterling silver"), .good,
+                       "teardrop → tear")
+        XCTAssertEqual(Condition.inferred(from: "Fairisle knit, classic pattern"), .good,
+                       "fairisle → fair")
+    }
+
+    func test_unwornIsTheOppositeOfWorn() {
+        // The worst of them: the term matched inside the word that negates it.
+        XCTAssertEqual(Condition.inferred(from: "Unworn, still in the box"), .new)
+    }
+
+    func test_theTrapsTheCommentAlreadyNamedAreNowStructural() {
+        // Not in the term list, but they would be safe to add now, which is
+        // the point of the change.
+        XCTAssertEqual(Condition.inferred(from: "Classic striped oxford"), .good)
+        XCTAssertEqual(Condition.inferred(from: "Menswear, size large"), .good)
+        XCTAssertEqual(Condition.inferred(from: "Outerwear for winter"), .good)
+    }
+
+    func test_inflectionsStillCount() {
+        // A word boundary alone would have lost these.
+        XCTAssertEqual(Condition.inferred(from: "Stains at the hem"), .used)
+        XCTAssertEqual(Condition.inferred(from: "Stained collar"), .used)
+        XCTAssertEqual(Condition.inferred(from: "Tearing along the seam"), .used)
+        XCTAssertEqual(Condition.inferred(from: "Damaged zip"), .used)
+        XCTAssertEqual(Condition.inferred(from: "Several flaws"), .used)
+    }
+
+    func test_aRealDefectAfterAFalseOneIsStillFound() {
+        // Every occurrence is considered, not just the first — otherwise the
+        // "stainless" hit would shadow the real one behind it.
+        XCTAssertEqual(
+            Condition.inferred(from: "Stainless steel with a stain on the strap"),
+            .used)
+    }
+
     func test_realDamageStillReadsAsUsed() {
         XCTAssertEqual(Condition.inferred(from: "Heavy pilling, stains at the cuffs"), .used)
         XCTAssertEqual(Condition.inferred(from: "Visible damage to the zipper"), .used)
@@ -2304,6 +2775,10 @@ final class ConditionBaselineTests: XCTestCase {
         // whole sentence would have read it as a clean one — which is the
         // failure mode opposite to the bug, and just as wrong.
         XCTAssertEqual(Condition.inferred(from: "No stains but heavy wear at the cuffs"), .used)
+        // "and" ends the negated span here too, and used not to: the "no"
+        // reached across the whole sentence and graded a worn item `.good`,
+        // understating the estimate by the 0.78 `.used` multiplier.
+        XCTAssertEqual(Condition.inferred(from: "No stains and heavy wear at the cuffs"), .used)
         XCTAssertEqual(Condition.inferred(from: "No holes, though the hem is torn"), .used)
         XCTAssertEqual(Condition.inferred(from: "No damage apart from a faint stain"), .used)
     }
@@ -2316,6 +2791,25 @@ final class ConditionBaselineTests: XCTestCase {
 
     func test_unremarkableNotesAreGoodNotUsed() {
         XCTAssertEqual(Condition.inferred(from: "Solid secondhand piece"), .good)
+    }
+
+    func test_andDoesNotEndANegatedListOfBareNouns() {
+        // The other half, and the reason " and " is not simply added to
+        // `clauseBreaks`: doing that fixes "no stains and heavy wear" and
+        // breaks these, which is an even trade rather than a fix.
+        //
+        // A bare noun after "and" is the tail of a list the negation still
+        // covers; two or more words are a fresh claim. Measured against the
+        // whole suite before it was written — the naive split fails "no rips
+        // and tears", and adding " with " also fails "New with tags".
+        XCTAssertEqual(Condition.inferred(from: "No rips and tears"), .good)
+        XCTAssertEqual(Condition.inferred(from: "No holes and no damage"), .good)
+        XCTAssertEqual(Condition.inferred(from: "No damage and no stains"), .good)
+        XCTAssertEqual(Condition.inferred(from: "Without holes and light fading"), .good)
+        // The negation restated after the break still holds.
+        XCTAssertEqual(Condition.inferred(from: "No stains and no heavy wear"), .good)
+        // And the case the naive split would have broken, kept as a guard.
+        XCTAssertEqual(Condition.inferred(from: "New with tags"), .new)
         XCTAssertEqual(Condition.inferred(from: ""), .good)
     }
 
@@ -2454,6 +2948,48 @@ final class ValueConsistencyTests: XCTestCase {
         XCTAssertNotEqual(badge, "4x find", "badge still divides the raw AI baseline")
     }
 
+    func test_theBadgeNeverClaimsAMultipleTheRatioDoesNotReach() {
+        // `round` made the threshold for an "Nx find" claim
+        // `low/paid >= N - 0.5`, so the very first badge a user can earn was
+        // already wrong. The badge sits 6pt under the headline range and 6pt
+        // under the "Paid $X" line, so the card printed the two numbers that
+        // disprove its own claim — on the artefact that leaves the app.
+        // Explicit values: `item()` defaults to $100–$200, and the ratios below
+        // are what the test is about.
+        let r = item(low: 45, high: 90)
+        XCTAssertEqual(r.displayValueLow, 45, "the number the badge divides")
+
+        // 1.5x is not a 2x find, and 1.5x is the first ratio round() inflated.
+        XCTAssertNil(ShareCardView(result: r, photo: nil).findBadge(paid: 30),
+                     "45/30 is 1.5x — below the 2x the badge would have claimed")
+        // 2.5x is not 3x. Swift rounds half away from zero, so this was "3x".
+        XCTAssertEqual(ShareCardView(result: r, photo: nil).findBadge(paid: 18),
+                       "2x find")
+        // And an exact multiple still reads as itself.
+        XCTAssertEqual(ShareCardView(result: r, photo: nil).findBadge(paid: 15),
+                       "3x find")
+        XCTAssertEqual(ShareCardView(result: r, photo: nil).findBadge(paid: 22.5),
+                       "2x find")
+    }
+
+    func test_theBadgeDividesWhatTheCardPrints() {
+        // `snapCurrency` has `maximumFractionDigits = 0`, so a badge divided
+        // out of the stored values is a claim about figures that appear
+        // nowhere on the card. 50c paid printed "Paid $0" next to a "90x
+        // find"; $1.50 printed "Paid $2" next to the 30x taken from 1.50.
+        let r = item(low: 45, high: 90)
+        XCTAssertEqual(ShareCardView(result: r, photo: nil).findBadge(paid: 0.50),
+                       "Free find",
+                       "a paid price the card prints as $0 is a free find, not a divisor")
+        XCTAssertEqual(ShareCardView(result: r, photo: nil).findBadge(paid: 1.50),
+                       "22x find",
+                       "1.50 prints as $2, and 45/2 floors to 22 — not the 30 from 1.50")
+        // Half-even, because that is NumberFormatter's own default: $22.50
+        // prints as $22, so the badge must divide by 22.
+        XCTAssertEqual(ShareCardView(result: r, photo: nil).findBadge(paid: 22.50),
+                       "2x find")
+    }
+
     func test_aFreeFindIsStillAFreeFind() {
         XCTAssertEqual(ShareCardView(result: item(), photo: nil)
                         .findBadge(paid: 0), "Free find")
@@ -2497,5 +3033,246 @@ final class ValueConsistencyTests: XCTestCase {
         // Untouched record: condition == baseline, so the factor is 1 and the
         // stored value is the midpoint of the AI range exactly.
         XCTAssertEqual(try XCTUnwrap(r.portfolioValueRaw), 150, accuracy: 0.01)
+    }
+}
+
+// ── The widget blob's Pro flag ───────────────────────────────────────────────
+//
+// `writeHaul(results:isPro:)` resolved a nil `isPro` as "carry forward
+// whatever is already stored". No production caller ever passed the argument,
+// `WidgetHaulData.empty.isPro` is false, and a v1 blob has no `isPro` key to
+// seed from — so the flag could never become true. Two of the six widgets were
+// permanently wrong for subscribers: "Profit this month" rendered its free-tier
+// upsell however many flips they sold, and "Scans left" told a paying customer
+// they had one free scan left today.
+
+final class WidgetEntitlementTests: XCTestCase {
+
+    private func soldItem(paid: Double, sold: Double, soldDate: Date) -> ScanResult {
+        let r = ScanResult(itemName: "Better Sweater", brand: "Patagonia",
+                           category: "clothing", conditionNotes: "Solid piece",
+                           valueLow: 100, valueHigh: 200, confidence: "High",
+                           soldListingsCount: 0,
+                           listingTitle: "T", listingDescription: "D")
+        r.paidPrice = paid
+        r.soldPrice = sold
+        r.soldDate = soldDate
+        r.status = .sold
+        return r
+    }
+
+    private func readBack() throws -> WidgetHaulData {
+        guard let suite = UserDefaults(suiteName: WidgetDataStore.appGroupID),
+              let raw = suite.data(forKey: WidgetDataStore.haulKey) else {
+            throw XCTSkip("no App Group container in this test environment")
+        }
+        return try JSONDecoder().decode(WidgetHaulData.self, from: raw)
+    }
+
+    override func tearDown() {
+        UserDefaults.standard.removeObject(forKey: "snapworth_is_subscribed")
+        super.tearDown()
+    }
+
+    func test_aProWriteReachesTheBlob() throws {
+        WidgetDataStore.writeHaul(results: [], isPro: true)
+        XCTAssertTrue(try readBack().isPro)
+    }
+
+    func test_aProWriteAfterAFreeOneIsNotSwallowed() throws {
+        // The shape of the original defect: whatever was stored won.
+        WidgetDataStore.writeHaul(results: [], isPro: false)
+        WidgetDataStore.writeHaul(results: [], isPro: true)
+        XCTAssertTrue(try readBack().isPro)
+    }
+
+    func test_aLapseClearsTheProFiguresOnTheNextWrite() throws {
+        let item = soldItem(paid: 20, sold: 120, soldDate: .now)
+        WidgetDataStore.writeHaul(results: [item], isPro: true)
+        XCTAssertNotNil(try readBack().monthProfit)
+
+        WidgetDataStore.writeHaul(results: [item], isPro: false)
+        let after = try readBack()
+        XCTAssertFalse(after.isPro)
+        XCTAssertNil(after.monthProfit, "a paid figure outlived the subscription")
+        XCTAssertEqual(after.monthFlips, 0)
+    }
+
+    func test_proGetsNoFreeScanCountAndFreeDoes() throws {
+        WidgetDataStore.writeHaul(results: [], isPro: true)
+        XCTAssertNil(try readBack().freeScansRemaining,
+                     "a subscriber was handed a free-scan count")
+        // The case, not the payload: the streak in the blob depends on whatever
+        // the shared `ScanStreak` store holds when this test runs.
+        if case .pro = try readBack().scansLeft(at: .now) {} else {
+            XCTFail("a subscriber is not in the Pro state")
+        }
+
+        WidgetDataStore.writeHaul(results: [], isPro: false)
+        XCTAssertNotNil(try readBack().freeScansRemaining)
+    }
+
+    func test_theMonthsProfitIsWrittenForAPaidUser() throws {
+        // $120 sold on a $20 find, this month: $100 from one flip.
+        WidgetDataStore.writeHaul(results: [soldItem(paid: 20, sold: 120, soldDate: .now)],
+                                  isPro: true)
+        let haul = try readBack()
+        XCTAssertEqual(haul.monthProfit ?? 0, 100, accuracy: 0.01)
+        XCTAssertEqual(haul.monthFlips, 1)
+    }
+
+    func test_anOmittedFlagReadsThePersistedEntitlement() throws {
+        // Every production caller omits `isPro`, so this is the path that
+        // matters. Setting the raw key also pins its name: if the purchase
+        // service renames it, this fails loudly instead of quietly reading
+        // false forever, which is how the original defect hid.
+        UserDefaults.standard.set(true, forKey: "snapworth_is_subscribed")
+        XCTAssertTrue(StoreKitPurchaseService.cachedIsSubscribed,
+                      "the cache key this test writes is no longer the one the app reads")
+
+        WidgetDataStore.writeHaul(results: [])
+        XCTAssertTrue(try readBack().isPro)
+    }
+
+    func test_anOmittedFlagOnAFreeAccountStaysFree() throws {
+        UserDefaults.standard.set(false, forKey: "snapworth_is_subscribed")
+        WidgetDataStore.writeHaul(results: [])
+        XCTAssertFalse(try readBack().isPro)
+    }
+}
+
+// ── Introductory-offer eligibility ───────────────────────────────────────────
+//
+// `product.subscription?.introductoryOffer` is the offer *configured on the
+// product* in App Store Connect. It says nothing about the customer in front of
+// you, and Apple grants one introductory offer per subscription group, once.
+//
+// `isEligibleForIntroOffer` appeared nowhere in the app. So anyone who had
+// already taken the 3-day trial — cancelled, or simply lapsed — reopened the
+// app to a headline reading "Try SnapWorth free for 3 days", a card detail
+// reading "3-day free trial", and a button reading "Start Free Trial". Apple's
+// sheet then charged $39.99 today with no trial.
+//
+// This is the third axis of one mistake. The paywall first read "an offer
+// exists" as "a free trial exists", which is wrong for the two paid payment
+// modes. "An offer exists" is not "this person gets it" either.
+
+final class IntroOfferEligibilityTests: XCTestCase {
+
+    private let yearly = Config.yearlyProductID
+    private let monthly = Config.monthlyProductID
+
+    func test_anEligibleProductMayAdvertiseItsOffer() {
+        XCTAssertTrue(StoreKitPurchaseService.isOfferEligible(
+            yearly, in: [yearly: true]))
+    }
+
+    func test_anIneligibleProductMayNot() {
+        XCTAssertFalse(StoreKitPurchaseService.isOfferEligible(
+            yearly, in: [yearly: false]))
+    }
+
+    func test_noAnswerMeansNo() {
+        // The direction that matters. Defaulting the other way would advertise
+        // a free trial on every path where the check did not run — which is
+        // precisely the state the app shipped in.
+        XCTAssertFalse(StoreKitPurchaseService.isOfferEligible(yearly, in: [:]))
+    }
+
+    func test_oneProductsAnswerIsNotAnotherProducts() {
+        // Eligibility is per subscription group, so in practice both plans get
+        // the same answer — but the lookup must not borrow one for the other,
+        // because a second group later would make that silently wrong.
+        let onlyMonthly = [monthly: true]
+        XCTAssertTrue(StoreKitPurchaseService.isOfferEligible(monthly, in: onlyMonthly))
+        XCTAssertFalse(StoreKitPurchaseService.isOfferEligible(yearly, in: onlyMonthly))
+    }
+
+    func test_anIneligibleCustomerSeesNoFreeCopyAnywhere() {
+        // What the gate buys: with no offer, every copy path degrades to the
+        // plain subscribe wording. `PaywallCopy` is already tested against a
+        // nil offer; this states the connection between the two.
+        let headline = PaywallCopy.headline(isYearly: true, offer: nil)
+        XCTAssertFalse(headline.lowercased().contains("free"))
+        XCTAssertFalse(PaywallCopy.ctaTitle(isYearly: true, offer: nil)
+                        .lowercased().contains("trial"))
+    }
+}
+
+// ── The analytics opt-out has to reach the SDK ────────────────────────────────
+//
+// The Settings toggle is `@AppStorage(Analytics.enabledKey)`, which writes
+// `UserDefaults` directly and therefore never runs `Analytics.isEnabled`'s
+// setter — the one line that calls `backend.setEnabled`. `track` guards on the
+// flag, so custom events stopped. What did not stop is the SDK's own automatic
+// session and install signals, which carry an identifier and are silenced only
+// by `setEnabled`. A user who turned "Share anonymous analytics" off kept
+// sending them, and the doc comment on the flag claimed otherwise.
+
+private final class AnalyticsBackendSpy: AnalyticsService {
+    var enabledCalls: [Bool] = []
+    var tracked: [String] = []
+    func track(_ event: AnalyticsEvent) { tracked.append(event.name) }
+    func setEnabled(_ enabled: Bool) { enabledCalls.append(enabled) }
+}
+
+final class AnalyticsOptOutTests: XCTestCase {
+
+    private var spy = AnalyticsBackendSpy()
+
+    override func setUp() {
+        super.setUp()
+        spy = AnalyticsBackendSpy()
+        Analytics.shared.configure(spy)
+    }
+
+    override func tearDown() {
+        UserDefaults.standard.removeObject(forKey: Analytics.enabledKey)
+        super.tearDown()
+    }
+
+    func test_theKeyTheToggleWritesIsTheKeyAnalyticsReads() {
+        // Pins the coupling. `@AppStorage(Analytics.enabledKey)` and this flag
+        // must be the same key, and a rename that broke it would be silent.
+        UserDefaults.standard.set(false, forKey: Analytics.enabledKey)
+        XCTAssertFalse(Analytics.shared.isEnabled)
+        UserDefaults.standard.set(true, forKey: Analytics.enabledKey)
+        XCTAssertTrue(Analytics.shared.isEnabled)
+    }
+
+    func test_optingOutThroughTheRawKeyStillReachesTheSDK() {
+        // Exactly what the toggle does, followed by what the view now does.
+        UserDefaults.standard.set(false, forKey: Analytics.enabledKey)
+        Analytics.shared.syncBackendToPersistedFlag()
+
+        XCTAssertEqual(spy.enabledCalls, [false],
+                       "the SDK was never told to stop sending session signals")
+    }
+
+    func test_optingBackInReachesTheSDKToo() {
+        UserDefaults.standard.set(true, forKey: Analytics.enabledKey)
+        Analytics.shared.syncBackendToPersistedFlag()
+        XCTAssertEqual(spy.enabledCalls, [true])
+    }
+
+    func test_theSyncIsIdempotent() {
+        // The view calls it on every change; calling it twice must be harmless.
+        UserDefaults.standard.set(false, forKey: Analytics.enabledKey)
+        Analytics.shared.syncBackendToPersistedFlag()
+        Analytics.shared.syncBackendToPersistedFlag()
+        XCTAssertEqual(spy.enabledCalls, [false, false])
+    }
+
+    func test_customEventsStopWhenOptedOut() {
+        // This half always worked — asserted so the two halves are visibly
+        // separate things.
+        UserDefaults.standard.set(false, forKey: Analytics.enabledKey)
+        Analytics.shared.track(.appOpened)
+        XCTAssertTrue(spy.tracked.isEmpty)
+    }
+
+    func test_defaultIsOptedIn() {
+        UserDefaults.standard.removeObject(forKey: Analytics.enabledKey)
+        XCTAssertTrue(Analytics.shared.isEnabled)
     }
 }

@@ -26,6 +26,15 @@ struct ResultView: View {
     /// What the share sheet carries: the result card, or the guess story pair.
     @State private var shareItems: [Any] = []
     @State private var showPaywall = false
+    /// Which locked surface opened the paywall.
+    ///
+    /// One sheet serves every entry point here, and it used to hard-code a
+    /// single trigger — so an impression from any other surface was attributed
+    /// to that one, and so was every purchase that followed it. `PaywallView`
+    /// already fires `paywallViewed` from its own `onAppear`, so the tracking
+    /// call that used to sit in each button was a *second* event for the same
+    /// open: the funnel counted every paywall twice.
+    @State private var paywallTrigger: PaywallTrigger = .snapSell
     @State private var showListingShare = false
 
     private enum Field { case paid, sold, fees, guess }
@@ -37,6 +46,16 @@ struct ResultView: View {
     /// Per result: a fresh sheet starts covered when the preference is on.
     @State private var priceRevealed = false
     @State private var quickGuessText = ""
+    /// The range the guess was scored against, captured at the reveal.
+    ///
+    /// The estimate goes on moving afterwards — the condition chips re-price
+    /// it, the tag re-read replaces it outright — but the guess was entered
+    /// once, against the number as it stood then, and the field it was typed
+    /// into goes away with the cover. Scoring the live range meant a condition
+    /// correction silently re-graded a verdict the user had already been given
+    /// and could no longer answer: "spot on" could become "$12 under the low
+    /// end" because they told the app the jacket was more worn than it looked.
+    @State private var revealedRange: (low: Double, high: Double)?
 
     private var isPro: Bool { purchaseService.isSubscribed }
 
@@ -128,15 +147,26 @@ struct ResultView: View {
                             .padding(.horizontal, 20)
                             .padding(.top, 12)
 
-                        if !result.listingTitle.isEmpty || !result.listingDescription.isEmpty {
-                            listingDraftCard
+                        // Both of these print the covered number by another
+                        // route: "Copy listing draft" puts `Asking: $45–$90`
+                        // on the clipboard, and a generated Snap → Sell
+                        // listing shows Ask and Floor, both derived
+                        // server-side from the same range. Leaving them up
+                        // while the value card still reads "$ ? ? ?" ends the
+                        // guess before Reveal is ever tapped, so they wait
+                        // with the ladder — the same reasoning as the comment
+                        // on `priceCovered` above.
+                        if !priceCovered {
+                            if !result.listingTitle.isEmpty || !result.listingDescription.isEmpty {
+                                listingDraftCard
+                                    .padding(.horizontal, 20)
+                                    .padding(.top, 12)
+                            }
+
+                            snapSellCard
                                 .padding(.horizontal, 20)
                                 .padding(.top, 12)
                         }
-
-                        snapSellCard
-                            .padding(.horizontal, 20)
-                            .padding(.top, 12)
 
                         footer
                             .padding(.top, 20)
@@ -196,7 +226,7 @@ struct ResultView: View {
                     Spacer()
                     Button("Done") { focusedField = nil }
                         .font(.dmSans(15, weight: .semibold))
-                        .foregroundStyle(Color.snapTerracotta)
+                        .foregroundStyle(Color.snapTerracottaText)
                 }
             }
         }
@@ -216,14 +246,17 @@ struct ResultView: View {
             if newValue.isEmpty { result.paidPrice = nil }
             else if let parsed = MoneyInput.parse(newValue) { result.paidPrice = parsed }
             vm.scheduleShareCardUpdate(result: result, photo: photo)
+            ledgerDidChange()
         }
         .onChange(of: soldPriceText) { _, newValue in
             if newValue.isEmpty { result.soldPrice = nil }
             else if let parsed = MoneyInput.parse(newValue) { result.soldPrice = parsed }
+            ledgerDidChange()
         }
         .onChange(of: feesText) { _, newValue in
             if newValue.isEmpty { result.feesEstimate = nil }
             else if let parsed = MoneyInput.parse(newValue) { result.feesEstimate = parsed }
+            ledgerDidChange()
         }
         .fullScreenCover(isPresented: $showTagCamera) {
             TagCameraSheet { image in
@@ -244,7 +277,7 @@ struct ResultView: View {
             }
         }
         .sheet(isPresented: $showPaywall) {
-            PaywallView(purchaseService: purchaseService, trigger: .snapSell)
+            PaywallView(purchaseService: purchaseService, trigger: paywallTrigger)
         }
     }
 
@@ -280,17 +313,7 @@ struct ResultView: View {
         return Button {
             Haptics.selection()
             result.condition = condition
-            // Changing condition re-prices the item, which is the only way its
-            // value moves. Record the new point so the portfolio trend reflects
-            // it; the call is a no-op when the number did not actually change.
-            result.refreshPortfolioValue()
-            // The widget aggregates every item's condition-adjusted value, and
-            // a condition change is the only way that moves without a row
-            // being inserted or deleted — the two events the widget already
-            // listens to. Without this it showed the pre-correction total
-            // until the next scan.
-            ScanRepository(context: modelContext).refreshWidget()
-            vm.scheduleShareCardUpdate(result: result, photo: photo)
+            valuationDidChange()
             // Selection re-prices the estimate; announce the new value so a
             // VoiceOver user learns the outcome without hunting for it.
             UIAccessibility.post(
@@ -304,7 +327,7 @@ struct ResultView: View {
                 .foregroundStyle(selected ? Color.snapOnAccent : Color.snapWarmGray)
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 9)
-                .background(selected ? Color.snapTerracotta : Color.clear)
+                .background(selected ? Color.snapTerracottaFill : Color.clear)
                 .clipShape(Capsule())
                 // Selection is carried by a border weight as well as fill
                 // colour, so it survives Differentiate Without Color.
@@ -344,7 +367,7 @@ struct ResultView: View {
             }
             Text("Adds your find multiple to the share card")
                 .font(.snapCaption)
-                .foregroundStyle(Color.snapWarmGray.opacity(0.7))
+                .foregroundStyle(Color.snapWarmGray)
                 // Already spoken as the field's hint.
                 .accessibilityHidden(true)
         }
@@ -396,7 +419,7 @@ struct ResultView: View {
                 .foregroundStyle(selected ? Color.snapOnAccent : Color.snapWarmGray)
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 9)
-                .background(selected ? Color.snapTerracotta : Color.clear)
+                .background(selected ? Color.snapTerracottaFill : Color.clear)
                 .clipShape(Capsule())
                 .overlay(Capsule().strokeBorder(
                     selected ? Color.snapTerracotta : Color.snapBorder,
@@ -462,7 +485,7 @@ struct ResultView: View {
                 }
                 .labelStyle(.titleAndIcon)
                 .font(.dmSans(17, weight: .bold))
-                .foregroundStyle(profit < 0 ? Color.snapTerracotta : Color.snapSage)
+                .foregroundStyle(profit < 0 ? Color.snapTerracottaText : Color.snapSageText)
             } else {
                 // Sold but no cost basis → profit unknown; never guessed.
                 Text("—")
@@ -503,7 +526,14 @@ struct ResultView: View {
             let id = result.id
             Task { await NotificationManager.shared.cancelLedgerFollowUp(itemID: id) }
         case .listed:
-            if result.listedDate == nil { result.listedDate = Date() }
+            // Coming back to Listed restarts the clock. Keeping the original
+            // date puts the fire date 14 days after the *first* listing —
+            // already in the past for anything listed over two weeks ago — and
+            // a past-dated request is dropped silently, so a relisted item
+            // never got the "did it sell?" nudge that is the whole point of
+            // the status. Re-tapping Listed while already Listed is left
+            // alone; only a real re-entry reseeds the date.
+            if previous != .listed || result.listedDate == nil { result.listedDate = Date() }
             let (id, name, listed) = (result.id, result.itemName, result.listedDate ?? Date())
             Task { await NotificationManager.shared.scheduleLedgerFollowUp(itemID: id, itemName: name, from: listed) }
         default:
@@ -513,6 +543,11 @@ struct ResultView: View {
                 Task { await NotificationManager.shared.cancelLedgerFollowUp(itemID: id) }
             }
         }
+
+        // Outside the switch: every branch moved `status`, and two of them also
+        // moved `soldDate`, which is the other half of the widget's month
+        // filter.
+        ledgerDidChange()
     }
 
     private static func signedProfit(_ d: Decimal) -> String {
@@ -538,7 +573,7 @@ struct ResultView: View {
                         .overlay(
                             Image(systemName: "photo")
                                 .snapSymbol(48)
-                                .foregroundStyle(Color.snapWarmGray.opacity(0.5))
+                                .foregroundStyle(Color.snapWarmGray)
                         )
                 }
             }
@@ -638,8 +673,13 @@ struct ResultView: View {
 
     private var quickVerdict: String? {
         guard priceRevealed, let quickGuess else { return nil }
-        return GuessScoring.verdict(guess: quickGuess, low: result.displayValueLow,
-                                    high: result.displayValueHigh)
+        // Scored against the range as it stood at the reveal — see
+        // `revealedRange`. The fallback covers the reveal itself, where the
+        // frozen range and the live one are the same number anyway.
+        let scored = revealedRange
+            ?? (low: result.displayValueLow, high: result.displayValueHigh)
+        return GuessScoring.verdict(guess: quickGuess, low: scored.low,
+                                    high: scored.high)
     }
 
     @ViewBuilder
@@ -666,7 +706,7 @@ struct ResultView: View {
                     .accessibilityHidden(true)
                 Text("$ ? ? ?")
                     .font(.fraunces(34, weight: .bold, relativeTo: .largeTitle))
-                    .foregroundStyle(Color.snapWarmGray.opacity(0.6))
+                    .foregroundStyle(Color.snapWarmGray)
                     .accessibilityHidden(true)
             }
             .frame(maxWidth: .infinity)
@@ -747,14 +787,45 @@ struct ResultView: View {
         .accessibilityAddTraits(.isSummaryElement)
     }
 
+    // `@MainActor` explicitly: this mutates view state, runs an animation and
+    // posts an accessibility announcement, and the SDK's isolation on
+    // `UIAccessibility.post` has moved between Xcode versions. The only caller
+    // is the reveal button's action, formed in `body`, so it is already on the
+    // main actor — the annotation just says so where the compiler can check it.
+    @MainActor
     private func revealPrice() {
         guard !priceRevealed else { return }
         focusedField = nil
+        // Freeze what the verdict is scored against before the range is free
+        // to move again — see `revealedRange`.
+        revealedRange = (low: result.displayValueLow, high: result.displayValueHigh)
         withAnimation(reduceMotion ? .easeInOut(duration: 0.2)
                                    : .spring(response: 0.45, dampingFraction: 0.62)) {
             priceRevealed = true
         }
         Haptics.success()
+        // The number the whole flow exists for, spoken.
+        //
+        // The button the user just activated lives inside the card that
+        // disappears, so VoiceOver focus is destroyed and nothing is
+        // announced. `.isSummaryElement` and `.accessibilitySortPriority`
+        // above affect ordering and screen summaries, not announcements — the
+        // card reads correctly if you navigate to it, and a VoiceOver user is
+        // given no reason to think there is anything to navigate to.
+        //
+        // `GuessFirst.defaultOn` is true, so this is the default path on every
+        // fresh scan: a VoiceOver user meets it on their first result. Every
+        // other state change in this file already announces — the condition
+        // chip, the status chip, and the tag re-read, that last one added
+        // because "a haptic is the whole of the feedback... and said nothing
+        // at all to VoiceOver". The same wording as the card's own
+        // `accessibilityValue`, so the announcement and the element agree.
+        UIAccessibility.post(
+            notification: .announcement,
+            argument: "Estimated resale value \(result.formattedRange). "
+                + "\(result.confidence) confidence AI estimate."
+                + (quickVerdict.map { " \($0)" } ?? "")
+        )
         Analytics.shared.track(.guessRevealed(withGuess: quickGuess != nil))
     }
 
@@ -786,14 +857,14 @@ struct ResultView: View {
                 if let tagError {
                     Text(tagError)
                         .font(.snapCaption)
-                        .foregroundStyle(Color.snapTerracotta)
+                        .foregroundStyle(Color.snapTerracottaText)
                         .fixedSize(horizontal: false, vertical: true)
                 }
 
                 if let tagSuccess {
                     Label(tagSuccess, systemImage: "checkmark.circle.fill")
                         .font(.snapCaption)
-                        .foregroundStyle(Color.snapSage)
+                        .foregroundStyle(Color.snapSageText)
                         .fixedSize(horizontal: false, vertical: true)
                 }
 
@@ -803,7 +874,7 @@ struct ResultView: View {
                         tagError = nil
                         showTagCamera = true
                     } else {
-                        Analytics.shared.track(.paywallViewed(trigger: .addTag))
+                        paywallTrigger = .addTag
                         showPaywall = true
                     }
                 }
@@ -815,6 +886,56 @@ struct ResultView: View {
             .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
             .shadow(color: Color.snapCardShadow.opacity(0.08), radius: 24, x: 0, y: 8)
         }
+    }
+
+    /// Everything that has to follow a change to this item's valuation.
+    ///
+    /// There are exactly two ways a saved item's value moves without a row
+    /// being inserted or deleted: the condition chips, and the tag re-read. The
+    /// chip did four of these things and the re-read did one, so a re-read that
+    /// tripled an estimate left behind a Home Screen widget and a thrift-run
+    /// Live Activity still totalling the old number, a cached share card that
+    /// would post the old number, and a generated listing priced for it. The
+    /// comment on the chip asserted a condition change was "the only way that
+    /// moves" — the re-read was the second, and shipped later.
+    ///
+    /// One function rather than a second copy of the list: the next path that
+    /// moves a value will have the same four obligations, and the way this went
+    /// wrong was a list that had to be remembered.
+    private func valuationDidChange() {
+        // Record the new point so the portfolio trend reflects it. A no-op when
+        // the number did not actually change.
+        result.refreshPortfolioValue()
+        // The widget aggregates every item's condition-adjusted value, and the
+        // Live Activity totals the run. Both listen for inserts and deletes,
+        // which this is neither.
+        ScanRepository(context: modelContext).refreshWidget()
+        // The share card is an eagerly rendered bitmap, so it holds the old
+        // item name and the old range until something re-renders it.
+        vm.scheduleShareCardUpdate(result: result, photo: photo)
+        // A listing is written for one condition and one estimate. Keeping it
+        // would show marketplace copy quoting a price the app no longer states
+        // — the same reason `selectMarketplace` clears it.
+        vm.generatedListing = nil
+        vm.listingError = nil
+    }
+
+    /// Everything that has to follow a change to this item's ledger figures.
+    ///
+    /// `WidgetDataStore.writeHaul` computes the Pro widget's month-to-date line
+    /// from status, sold date and realized profit — sold price less paid price
+    /// less fees — and this sheet is the app's only ledger editor. Only
+    /// `valuationDidChange` was resyncing, so a user who marked a find sold and
+    /// typed what it went for was left with "This month: $0 from 0 flips" on
+    /// the Home Screen until they happened to scan or delete something, which
+    /// is the next thing that touches the widget.
+    ///
+    /// Deliberately *not* `valuationDidChange`: the estimate itself has not
+    /// moved, so there is no new portfolio point to record — and throwing away
+    /// a generated listing because the user typed a purchase price would
+    /// destroy work they are in the middle of using.
+    private func ledgerDidChange() {
+        ScanRepository(context: modelContext).refreshWidget()
     }
 
     /// Re-scan with both photos and replace the estimate in place.
@@ -836,6 +957,7 @@ struct ResultView: View {
             do {
                 let response = try await ScanAPIClient.shared.scan(image: photo, tagImage: tagImage)
                 result.applySharpened(response)
+                valuationDidChange()
                 priceRevealed = true          // the user has seen the first number already
                 Haptics.success()
                 // A haptic is the whole of the feedback a sighted user gets, and
@@ -870,7 +992,9 @@ struct ResultView: View {
                     if !isPro { proBadge }
                 }
                 if isPro {
-                    ValuationDetailView(detail: detail)
+                    ValuationDetailView(detail: detail,
+                                        priceFactor: result.conditionPriceFactor,
+                                        gradeWasOverridden: result.conditionWasOverridden)
                 } else {
                     lockedDetailTeaser(detail)
                 }
@@ -905,9 +1029,9 @@ struct ResultView: View {
             VStack(spacing: 10) {
                 Image(systemName: "lock.fill")
                     .snapSymbol(18)
-                    .foregroundStyle(Color.snapTerracotta)
+                    .foregroundStyle(Color.snapTerracottaText)
                 PrimaryButton(title: "Unlock why this price") {
-                    Analytics.shared.track(.paywallViewed(trigger: .valuationDetail))
+                    paywallTrigger = .valuationDetail
                     showPaywall = true
                 }
                 Text("Four price points, what drives the value, and how to sharpen the estimate.")
@@ -1007,7 +1131,7 @@ struct ResultView: View {
             // we generate the text; posting stays a manual, user-controlled paste.
             Text("SnapWorth writes it — you paste & post. We never post for you.")
                 .font(.snapCaption)
-                .foregroundStyle(Color.snapWarmGray.opacity(0.7))
+                .foregroundStyle(Color.snapWarmGray)
         }
         .padding(20)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -1022,7 +1146,7 @@ struct ResultView: View {
             .foregroundStyle(Color.snapOnAccent)
             .padding(.horizontal, 8)
             .padding(.vertical, 3)
-            .background(Color.snapTerracotta)
+            .background(Color.snapTerracottaFill)
             .clipShape(Capsule())
             .accessibilityLabel("Pro feature")
     }
@@ -1043,7 +1167,7 @@ struct ResultView: View {
                         .foregroundStyle(selected ? Color.snapOnAccent : Color.snapWarmGray)
                         .padding(.horizontal, 14)
                         .padding(.vertical, 9)
-                        .background(selected ? Color.snapTerracotta : Color.clear)
+                        .background(selected ? Color.snapTerracottaFill : Color.clear)
                         .clipShape(Capsule())
                         .overlay(Capsule().strokeBorder(
                             selected ? Color.snapTerracotta : Color.snapBorder,
@@ -1070,7 +1194,7 @@ struct ResultView: View {
             VStack(spacing: 10) {
                 Text(error)
                     .font(.snapCaption)
-                    .foregroundStyle(Color.snapTerracotta)
+                    .foregroundStyle(Color.snapTerracottaText)
                     .multilineTextAlignment(.center)
                     .frame(maxWidth: .infinity, alignment: .center)
                 PrimaryButton(title: "Try again") {
@@ -1129,7 +1253,7 @@ struct ResultView: View {
                 Task { await vm.generateListing(result: result) }
             }
             .font(.dmSans(13, weight: .semibold))
-            .foregroundStyle(Color.snapTerracotta)
+            .foregroundStyle(Color.snapTerracottaText)
             .frame(maxWidth: .infinity, minHeight: 44)
             .contentShape(Rectangle())
             .accessibilityHint("Writes a new listing for this item")
@@ -1162,6 +1286,17 @@ struct ResultView: View {
             .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).strokeBorder(Color.snapBorder, lineWidth: 1))
         }
         .buttonStyle(.plain)
+        // 11pt of padding around a 14pt label draws a pill just under 40pt
+        // tall, and `.plain` makes that drawn pill the entire strike zone —
+        // while `Open <marketplace>` directly below it is an explicit 44.
+        //
+        // The floor goes *outside* the label, so the pill keeps its exact
+        // size, radius, border and fill; only the tappable area grows to the
+        // 44pt the condition pills, Regenerate and PrimaryButton in this same
+        // card already honour. The finding's own suggestion — padding 11 → 13
+        // — would visibly fatten the pill instead, which is not a change to
+        // make days before a release.
+        .snapHitTarget()
     }
 
     private var lockedListingTeaser: some View {
@@ -1183,9 +1318,9 @@ struct ResultView: View {
             VStack(spacing: 10) {
                 Image(systemName: "lock.fill")
                     .snapSymbol(18)
-                    .foregroundStyle(Color.snapTerracotta)
+                    .foregroundStyle(Color.snapTerracottaText)
                 PrimaryButton(title: "Unlock marketplace listings") {
-                    Analytics.shared.track(.paywallViewed(trigger: .snapSell))
+                    paywallTrigger = .snapSell
                     showPaywall = true
                 }
             }
@@ -1200,7 +1335,7 @@ struct ResultView: View {
                 Image(systemName: didSave
                       ? "checkmark.circle.fill"
                       : "exclamationmark.triangle.fill")
-                    .foregroundStyle(didSave ? Color.snapSage : Color.snapAmber)
+                    .foregroundStyle(didSave ? Color.snapSageText : Color.snapTerracottaText)
                 Text(didSave
                      ? "Saved to My Finds"
                      : "Couldn't save to My Finds — this result won't be kept")
@@ -1213,7 +1348,7 @@ struct ResultView: View {
 
             Text("SnapWorth")
                 .font(.fraunces(13, weight: .bold))
-                .foregroundStyle(Color.snapWarmGray.opacity(0.5))
+                .foregroundStyle(Color.snapWarmGray)
                 .kerning(0.5)
         }
     }
@@ -1227,6 +1362,15 @@ struct ResultView: View {
 /// "estimate", never "worth" or "sells for" — the same line marketing holds.
 struct ValuationDetailView: View {
     let detail: ValuationDetail
+
+    /// The condition scaling to apply to the ladder, so it agrees with the
+    /// headline range this panel exists to explain. 1 when the user has not
+    /// corrected the AI's grade, which is the common case.
+    var priceFactor: Decimal = 1
+
+    /// Whether the AI's grade has been overridden, so the facts row stops
+    /// asserting it as the item's current condition.
+    var gradeWasOverridden: Bool = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -1246,9 +1390,9 @@ struct ValuationDetailView: View {
         HStack(alignment: .top, spacing: 0) {
             ForEach(Array(detail.ladder.enumerated()), id: \.offset) { _, row in
                 VStack(spacing: 3) {
-                    Text(Self.money(row.value))
+                    Text(Self.money(scaled(row.value)))
                         .font(.fraunces(20, weight: .bold, relativeTo: .title3))
-                        .foregroundStyle(row.label == "Expected" ? Color.snapSage : Color.snapEspresso)
+                        .foregroundStyle(row.label == "Expected" ? Color.snapSageText : Color.snapEspresso)
                         .lineLimit(1)
                         .minimumScaleFactor(0.6)
                     Text(row.label)
@@ -1257,7 +1401,7 @@ struct ValuationDetailView: View {
                 }
                 .frame(maxWidth: .infinity)
                 .accessibilityElement(children: .combine)
-                .accessibilityLabel("\(row.label) \(Self.money(row.value))")
+                .accessibilityLabel("\(row.label) \(Self.money(scaled(row.value)))")
             }
         }
         .padding(.vertical, 12)
@@ -1315,7 +1459,7 @@ struct ValuationDetailView: View {
         HStack(alignment: .firstTextBaseline, spacing: 8) {
             Image(systemName: icon)
                 .snapSymbol(13, weight: .semibold)
-                .foregroundStyle(Color.snapTerracotta)
+                .foregroundStyle(Color.snapTerracottaText)
                 .accessibilityHidden(true)
             Text(text)
                 .font(.snapBody)
@@ -1347,9 +1491,26 @@ struct ValuationDetailView: View {
 
     // ── Facts ──
 
+    /// The server's price point, re-scaled to the condition on screen.
+    ///
+    /// `Decimal` throughout, like every other money path in the app, then back
+    /// to `Double` only for the formatter this view already uses.
+    private func scaled(_ value: Double) -> Double {
+        guard priceFactor != 1, value.isFinite else { return value }
+        return NSDecimalNumber(decimal: Decimal(value) * priceFactor).doubleValue
+    }
+
+    // `@ViewBuilder` belongs to `factsRow`: its body is a bare `if` with no
+    // `else`, so without the builder there is nothing to return. Inserting
+    // `scaled` above without noticing the attribute is what broke the build.
     @ViewBuilder
     private var factsRow: some View {
-        let facts = detail.facts
+        // The grade is the AI's read. Once the user has corrected it, printing
+        // it bare claims it as the item's condition — while the chips directly
+        // below say otherwise. Labelled rather than dropped: what the model
+        // thought it was looking at is the most useful fact in the row, and it
+        // is why the estimate started where it did.
+        let facts = gradeWasOverridden ? detail.factsWithReadGrade : detail.facts
         let market = [detail.demand.map { "Demand \($0)" }, detail.supply.map { "supply \($0)" }]
             .compactMap { $0 }
         if !facts.isEmpty || !market.isEmpty {

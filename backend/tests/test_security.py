@@ -186,6 +186,45 @@ class TestFileUploadSecurity:
         assert len(main._client_ip(Req("x" * 500))) == 64
         assert main._client_ip(Req("1.1.1.1,   ")) == "unknown"
 
+    def test_unauthenticated_routes_key_on_the_same_hop(self):
+        """The half of B-14 that was missed.
+
+        `/scan`, `/trends` and `/listing` went through `_client_ip`. The three
+        `/auth` routes — added later, in a module that cannot import `main` —
+        passed `request.client.host` straight to the limiter, so the one value
+        an attacker fully controls was the bucket key: rotate the leftmost
+        `X-Forwarded-For` hop and `/challenge` and `/attest` are unthrottled
+        again. Both callers resolve the IP through `ratelimit.client_ip` now,
+        and this asserts they agree rather than that each is separately
+        plausible.
+        """
+        import auth
+        import main
+
+        class Req:
+            def __init__(self, xff):
+                self.headers = {"x-forwarded-for": xff}
+                self.client = type("C", (), {"host": "1.1.1.1"})()
+
+        seen = []
+
+        async def recording_limiter(ip):
+            seen.append(ip)
+
+        previous = auth.deps.ip_limiter
+        auth.deps.ip_limiter = recording_limiter
+        try:
+            xff = "1.1.1.1, 2.2.2.2, 203.0.113.9"
+            asyncio.run(auth._limit_unauthenticated(Req(xff)))
+        finally:
+            auth.deps.ip_limiter = previous
+
+        assert seen == ["203.0.113.9"], (
+            "the unauthenticated limiter must key on the proxy's own hop, not "
+            f"the caller-supplied leftmost one; got {seen}")
+        assert seen[0] == main._client_ip(Req(xff)), (
+            "one resolver, or the two drift apart again")
+
     def test_no_trusted_proxy_flag_remains(self):
         """The control must not depend on an env var being remembered."""
         import main
@@ -351,6 +390,80 @@ class TestResponseSanitisation:
         r = _mock_scan(device_id="neg-test", response_data=neg)
         assert r.status_code == 502
         assert "-100" not in r.text and "-50" not in r.text
+
+    def test_a_deliberate_zero_is_not_a_gateway_error(self):
+        """The prompt's own last honesty rule, honoured.
+
+        prompts.py tells the model: "If this is not a resalable object (a
+        person, a pet, a room, a screenshot, food), set `category` to "other",
+        set all four prices to 0, and explain in `uncertainty_factors`." A
+        model that does exactly that got back `502 The AI couldn't price this
+        item. Please try again.` — a retry that cannot succeed, on the class of
+        photo people take while trying the app out, with the explanation the
+        prompt asked for thrown away.
+        """
+        declined = {**MOCK_AI_RESPONSE,
+                    "item_name": "Plate of pasta", "category": "other",
+                    "est_value_low_usd": 0.0, "est_value_high_usd": 0.0,
+                    "worst_case_price_usd": 0.0, "quick_sale_price_usd": 0.0,
+                    "expected_price_usd": 0.0, "best_case_price_usd": 0.0,
+                    "uncertainty_factors": ["This is a photograph of food"]}
+        r = _mock_scan(device_id="declined-test", response_data=declined)
+        assert r.status_code == 422, (
+            "nothing failed — the model read the photo and answered")
+        detail = r.json()["detail"]
+        assert "photograph of food" in detail, (
+            "the model's own explanation is the only useful part of this "
+            "response and must reach the user")
+        assert "try again" not in detail.lower(), (
+            "retrying the same photo cannot work; do not invite it")
+
+    def test_a_deliberate_zero_without_a_reason_still_explains_itself(self):
+        declined = {**MOCK_AI_RESPONSE, "category": "other",
+                    "est_value_low_usd": 0, "est_value_high_usd": 0,
+                    "worst_case_price_usd": 0, "quick_sale_price_usd": 0,
+                    "expected_price_usd": 0, "best_case_price_usd": 0,
+                    "uncertainty_factors": []}
+        r = _mock_scan(device_id="declined-bare", response_data=declined)
+        assert r.status_code == 422
+        assert "resale value" in r.json()["detail"]
+
+    def test_a_truncated_response_is_still_a_gateway_error(self):
+        """The distinction the whole check rests on.
+
+        A response missing its price keys is a failure, not a judgement.
+        `normalise` defaults both to 0, so this arrives at the guard looking
+        identical to the case above — the only thing that separates them is
+        whether the model *wrote* the zeros.
+        """
+        truncated = {k: v for k, v in MOCK_AI_RESPONSE.items()
+                     if not k.endswith("_usd")}
+        r = _mock_scan(device_id="truncated-test", response_data=truncated)
+        assert r.status_code == 502
+
+    def test_a_deliberate_zero_does_not_burn_the_scan(self):
+        """Quota is reserved before the model call and returned on any raise.
+
+        Worth asserting rather than assuming: this is a new `raise` inside
+        `_analyse`, and if it ever became a `return`, a user would pay a scan
+        for a photo of their cat.
+
+        The refund is observed directly rather than by scanning until a 429.
+        The day's allowance is not enforced in this suite's configuration —
+        eight consecutive scans all return 200 — so a limit-based version of
+        this test passes whether or not the refund happens, which is no test
+        at all.
+        """
+        declined = {**MOCK_AI_RESPONSE, "category": "other",
+                    "est_value_low_usd": 0, "est_value_high_usd": 0,
+                    "worst_case_price_usd": 0, "quick_sale_price_usd": 0,
+                    "expected_price_usd": 0, "best_case_price_usd": 0}
+        with patch("main.refund_quota", new=AsyncMock()) as refund:
+            r = _mock_scan(device_id="declined-quota", response_data=declined)
+        assert r.status_code == 422
+        assert refund.await_count == 1, (
+            "the reserved allowance must be handed back — a declined photo is "
+            f"not a scan the user got; refund awaited {refund.await_count}×")
 
     def test_partial_prices_still_produce_a_valuation(self):
         # The guard must fire only when there is genuinely nothing to show. A

@@ -133,8 +133,11 @@ def _is_legacy_subject(identity: str) -> bool:
     """True for a binding keyed by App Attest key id rather than device id.
 
     Subjects are the hex of a 32-byte key id; device ids are UUID strings.
-    The two never collide, which is what lets the sharing alert tell a
-    pre-1.3.4 ghost apart from a phone.
+    An *honest* client's two never collide, which is what lets the sharing
+    alert tell a pre-1.3.4 ghost apart from a phone. A dishonest one chooses
+    its own `device_id`, so `_bind_device` prefixes any device id of this shape
+    with `dev:` before storing it — the classification cannot be inferred from
+    a string the caller controls.
     """
     return len(identity) == 64 and all(c in "0123456789abcdef" for c in identity)
 
@@ -219,10 +222,44 @@ class Entitlement:
 FREE = Entitlement("free", None, None, None, "Production")
 
 
+#: Apple sends leaf, intermediate, root — exactly three, which is what Apple's
+#: own `app-store-server-library` requires (`if len(certificates) != 3`). The
+#: bound is also what stops an unauthenticated caller choosing how much work
+#: the server does.
+X5C_CHAIN_LENGTH = 3
+
+#: The two extension OIDs Apple's own verifier requires, and the reason a
+#: chain-to-the-pinned-root check is not sufficient on its own.
+#:
+#: Apple Root CA G3 is not a StoreKit-only root. It anchors several CA branches
+#: that issue P-256 leaves to ordinary enrolled developers from a CSR — an
+#: Apple Pay payment-processing certificate is the clearest example, where the
+#: developer generates and keeps the private key. Without a purpose check, any
+#: such leaf could sign a transaction payload that this module would accept as
+#: Apple's, because every other property held: it chains to the pinned root
+#: through CA-flagged intermediates and its key is an EC key.
+#:
+#: Verified against
+#: apple/app-store-server-library-python `signed_data_verifier.py`, which
+#: checks the same two OIDs on `trusted_chain[0]` and `trusted_chain[1]`.
+LEAF_PURPOSE_OID = "1.2.840.113635.100.6.11.1"
+INTERMEDIATE_PURPOSE_OID = "1.2.840.113635.100.6.2.1"
+
+
 def _decode_x5c_chain(header: dict) -> list[x509.Certificate]:
     chain = header.get("x5c") or []
-    if len(chain) < 2:
-        raise EntitlementError("Signed transaction certificate chain is incomplete.")
+    # Exactly three, checked *before* any base64 or DER parsing.
+    #
+    # `_verify_chain` walks the whole caller-supplied list: a validity check on
+    # every certificate, a CA check on every non-leaf, and one ECDSA
+    # verification per adjacent pair. The only early abort was the root pin, so
+    # putting the genuine Apple Root CA G3 last bought an attacker the entire
+    # walk over as many certificates as they cared to send — on
+    # `/apple/notifications`, which is unauthenticated by necessity. That is a
+    # CPU amplifier, not a signature check.
+    if len(chain) != X5C_CHAIN_LENGTH:
+        raise EntitlementError(
+            "Signed transaction certificate chain is not Apple's three.")
     try:
         return [x509.load_der_x509_certificate(base64.b64decode(c)) for c in chain]
     except Exception:
@@ -234,15 +271,16 @@ def _verify_chain(certs: list[x509.Certificate]) -> x509.Certificate:
     root = x509.load_pem_x509_certificate(APPLE_ROOT_CA_G3_PEM)
     now = datetime.now(timezone.utc)
 
-    for cert in certs:
-        if cert.not_valid_before_utc > now or cert.not_valid_after_utc < now:
-            raise EntitlementError("Signed transaction certificate is not valid today.")
-
-    # The last element should be Apple's root; compare against our pinned copy
-    # rather than trusting whatever the client supplied.
+    # The root pin runs first: it is one comparison and it rejects every chain
+    # that was not built on Apple's CA, so nothing below is spent on one that
+    # was never going to verify.
     if (certs[-1].public_bytes(serialization.Encoding.DER)
             != root.public_bytes(serialization.Encoding.DER)):
         raise EntitlementError("Signed transaction is not rooted in Apple's CA.")
+
+    for cert in certs:
+        if cert.not_valid_before_utc > now or cert.not_valid_after_utc < now:
+            raise EntitlementError("Signed transaction certificate is not valid today.")
 
     # Every non-leaf certificate must actually be allowed to sign certificates.
     # Without this an attacker who obtains any Apple-chained *leaf* could use it
@@ -268,7 +306,25 @@ def _verify_chain(certs: list[x509.Certificate]) -> x509.Certificate:
                        ec.ECDSA(algorithm))
         except InvalidSignature:
             raise EntitlementError("Signed transaction chain is not signed by Apple.") from None
+
+    # What the certificates are *for*, which the walk above does not establish.
+    _require_purpose(certs[0], LEAF_PURPOSE_OID, "leaf")
+    _require_purpose(certs[1], INTERMEDIATE_PURPOSE_OID, "intermediate")
     return certs[0]
+
+
+def _require_purpose(cert: x509.Certificate, oid: str, what: str) -> None:
+    """Assert a certificate carries the extension marking it for this job.
+
+    Chaining to the pinned root proves who issued the certificate, not what it
+    was issued *for*. See `LEAF_PURPOSE_OID`.
+    """
+    try:
+        cert.extensions.get_extension_for_oid(x509.ObjectIdentifier(oid))
+    except x509.ExtensionNotFound:
+        raise EntitlementError(
+            f"Signed transaction {what} is not an App Store signing "
+            f"certificate.") from None
 
 
 def _require_ca(cert: x509.Certificate) -> None:
@@ -446,6 +502,101 @@ class EntitlementService:
         return f"entproof:{subject}"
 
     @staticmethod
+    def _revoked_key(original_transaction_id: str) -> str:
+        return f"entrevoked:{original_transaction_id}"
+
+    async def revoke(self, ent: Entitlement, revoked_at: int | None = None) -> bool:
+        """Record that Apple has taken a subscription back.
+
+        A stored proof is a *snapshot*: it carries the revocation state it was
+        signed with, and Apple never rewrites it. A refund does not touch
+        `expiresDate`, so the pre-refund JWS keeps verifying and keeps saying
+        active — and `_rederive` re-cached Pro from it on every miss, for the
+        rest of the paid term. A yearly refunded on day three bought unlimited
+        scans until the following September.
+
+        The three things that looked like they prevented this all missed. The
+        proof-deleting branch in `record` only runs if the *client* presents a
+        revoked transaction, and the client never does: it sets `activeJWS`
+        only when `revocationDate == nil`, and `currentEntitlements` omits
+        revoked transactions entirely. `clear()` had no production caller at
+        all. And the notification handler verified the REFUND, sent the
+        operator a Telegram message, and touched no entitlement state — while
+        with a proof store in place, not revoking *is* granting.
+
+        So the revocation has to live on the access path, keyed by something a
+        notification actually carries. A notification has no App Attest
+        subject — `notify` only ever stores a one-way pseudonym — so the
+        subject's proof key cannot be found from here. `originalTransactionId`
+        can, and that is what this is keyed on.
+
+        The tombstone stores the revoked term's own expiry, not just the
+        revocation date, because `originalTransactionId` is stable across
+        renewals *and* re-subscriptions. Keyed on the id alone, this would
+        permanently deny someone who later paid again. A later term always
+        expires later, so comparing expiries lets the tombstone kill exactly
+        the term that was taken back.
+        """
+        otid = ent.original_transaction_id
+        if not otid:
+            # Nothing to key on, and nothing a retry would fix.
+            log.warning("a revocation notification carried no "
+                        "original transaction id")
+            return False
+        payload = json.dumps({
+            "revoked_at": revoked_at or ent.revoked_at or int(time.time()),
+            # None for a non-expiring purchase, which is then treated as fully
+            # revoked — there is no later term it could be confused with.
+            "expires_at": ent.expires_at,
+        })
+        # Exceptions propagate. A tombstone that was not written is a
+        # subscriber who keeps paid access they were refunded for, so the
+        # caller has to know — this is the one write in the entitlement path
+        # that must not be best-effort.
+        #
+        # At least as long as any proof it has to outlive: a proof's TTL is
+        # capped at its own expiry plus grace, so this covers every one.
+        await self._cache.set(self._revoked_key(otid), payload,
+                              ENTITLEMENT_PROOF_TTL)
+        log.info("subscription revoked by Apple",
+                 extra={"product_id": ent.product_id})
+        return True
+
+    async def _is_revoked(self, ent: Entitlement) -> bool:
+        """Whether Apple has since taken back the term this entitlement covers.
+
+        Consulted after verification, because the JWS can never carry a
+        revocation that post-dates its own signature.
+        """
+        otid = ent.original_transaction_id
+        if not otid:
+            return False
+        try:
+            raw = await self._cache.get(self._revoked_key(otid))
+        except Exception as exc:
+            # Fail open, loudly. Both callers have already read the proof or
+            # the entry from this same cache, so a failure on this one key is
+            # not an outage — and refusing Pro here would drop paying
+            # subscribers on a transient error. The invariant is re-checked on
+            # the next request, which is a bounded window; the alternative is
+            # an unbounded one for everyone.
+            log.warning("revocation tombstone read failed: %s", exc)
+            return False
+        if not raw:
+            return False
+        try:
+            tombstone = json.loads(raw)
+        except Exception:
+            # Unparseable, but present. A tombstone is a tombstone.
+            return True
+        revoked_expiry = tombstone.get("expires_at")
+        if ent.expires_at is None or revoked_expiry is None:
+            return True
+        # A re-subscription reuses the original transaction id and extends the
+        # expiry, so only a term ending at or before the revoked one is dead.
+        return ent.expires_at <= revoked_expiry
+
+    @staticmethod
     def _cache_ttl(ent: Entitlement) -> int:
         """Lifetime of the short entitlement entry written for `ent`."""
         ttl = PRO_ENTITLEMENT_CACHE_TTL if ent.tier == "pro" else ENTITLEMENT_CACHE_TTL
@@ -463,6 +614,16 @@ class EntitlementService:
         rather than to `subject`, so reinstalls on one phone occupy one slot.
         """
         ent = verify_signed_transaction(jws_value, self._bundle_id, self._allowed)
+
+        if ent.tier == "pro" and await self._is_revoked(ent):
+            # Apple has taken this term back since the transaction was signed,
+            # so the signature proves nothing about entitlement any more.
+            log.info("refused an entitlement Apple has revoked",
+                     extra={"product_id": ent.product_id})
+            await self._cache.set(
+                self._key(subject), FREE.to_json(), self._cache_ttl(FREE))
+            await self._cache.delete(self._proof_key(subject))
+            return FREE
 
         # Bind before caching. Binding no longer refuses anyone, so this is
         # ordering for its own sake rather than a gate: the record should
@@ -573,6 +734,16 @@ class EntitlementService:
         device. The cap is anti-abuse, not an authorisation boundary.
         """
         identity = device_id or subject
+        if device_id and _is_legacy_subject(device_id):
+            # A device id shaped like an attest subject reads as a pre-1.3.4
+            # ghost at the eviction below, and silences the sharing alert on
+            # the one eviction it exists to report. Measured against the real
+            # function with the cap at 6 and 20 sharers: 14 evictions and 14
+            # alerts with UUID ids, 14 evictions and *zero* alerts when the
+            # same 20 ids are 64-char lowercase hex. The shape of the id is
+            # the client's to choose; this prefix is not, because the wire
+            # pattern `^[A-Za-z0-9._-]+$` admits no colon.
+            identity = f"dev:{device_id}"
         key = self._device_key(ent.original_transaction_id or "")
         try:
             bindings = self._decode_bindings(await self._cache.get(key))
@@ -586,15 +757,39 @@ class EntitlementService:
         bindings = {s: t for s, t in bindings.items()
                     if now - t < DEVICE_BINDING_IDLE_SECONDS}
 
-        if identity not in bindings and len(bindings) >= self._max_devices:
+        # `> 0` because this is a *detection* threshold and 0 means "do not
+        # detect" — the same reading `SAFETY_BLOCKS_BEFORE_PAUSE <= 0` gets in
+        # main.py, and the one `.env.example` invites: "a *detection*
+        # threshold, not an authorisation boundary". Without it, an operator
+        # who set 0 to turn the sharing alert off broke every purchase
+        # instead: `len({}) >= 0` is true on a first-ever binding, so
+        # `min({})` raised ValueError, which is outside both try blocks here
+        # and outside the `EntitlementError` the endpoint catches — a 500 on
+        # /auth/entitlement for every subscriber, with no entitlement recorded
+        # and no proof stored, on every retry until the variable changed back.
+        #
+        # Clamping the constant to `max(1, …)` instead — which is what the
+        # audit entry proposed — would read an operator's "stop detecting" as
+        # the tightest cap the system can express, evicting on every second
+        # device. That is further from the intent than the crash was.
+        if (self._max_devices > 0
+                and identity not in bindings
+                and len(bindings) >= self._max_devices):
             evicted = min(bindings, key=lambda s: bindings[s])
             idle_seconds = now - bindings.pop(evicted)
             # Worth seeing: on a genuinely shared subscription this is steady
             # churn, which is the signal the cap exists to surface. A short idle
             # time means the evicted device is still in use — real sharing —
             # while a long one is just a device that was replaced.
+            #
+            # `devices` is the count *after* the eviction plus the one about to
+            # be written, which is the number actually holding the
+            # subscription. It used to be `self._max_devices` — the same value
+            # as `max` on every line ever emitted — so the one figure that
+            # distinguishes a household at the limit from twenty strangers
+            # churning through it was never recorded.
             log.info("device binding evicted to make room", extra={
-                "devices": self._max_devices, "max": self._max_devices,
+                "devices": len(bindings) + 1, "max": self._max_devices,
                 "idle_seconds": idle_seconds})
             # Only a *device* being pushed out is a sharing signal. A record
             # written before iOS 1.3.4 holds one per-install attest subject
@@ -676,6 +871,19 @@ class EntitlementService:
             log.warning("stored entitlement proof no longer verifies: %s", exc)
             return FREE
         if not ent.is_active:
+            return FREE
+
+        if await self._is_revoked(ent):
+            # The loop this breaks: the 24h Pro entry lapses, `current()` falls
+            # through to here, the pre-refund JWS re-verifies and still reads
+            # active because a refund does not move `expiresDate`, and Pro is
+            # re-cached for another 24h. Forever, with no client involvement.
+            log.info("entitlement proof discarded: Apple revoked it",
+                     extra={"product_id": ent.product_id})
+            try:
+                await self._cache.delete(self._proof_key(subject))
+            except Exception as exc:
+                log.warning("could not delete a revoked proof: %s", exc)
             return FREE
 
         # Deliberately not re-bound to the device: this subject was bound when

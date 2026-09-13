@@ -26,7 +26,7 @@ struct PaywallView: View {
                     VStack(spacing: 16) {
                         Image(systemName: "sparkle")
                             .snapSymbol(44, weight: .light)
-                            .foregroundStyle(Color.snapTerracotta)
+                            .foregroundStyle(Color.snapTerracottaText)
                             .symbolRenderingMode(.hierarchical)
                             .padding(.top, 56)
 
@@ -172,7 +172,7 @@ struct PaywallView: View {
                         VStack(spacing: 8) {
                             Text("Subscription automatically renews unless cancelled at least 24 hours before the end of the current period. Your Apple ID account will be charged for renewal within 24 hours prior to the end of the current period. Manage or cancel anytime in your Apple ID Account Settings. Any unused portion of a free trial will be forfeited upon purchase.")
                                 .font(.dmSans(10))
-                                .foregroundStyle(Color.snapWarmGray.opacity(0.65))
+                                .foregroundStyle(Color.snapWarmGray)
                                 .multilineTextAlignment(.center)
 
                             HStack(spacing: 16) {
@@ -180,7 +180,7 @@ struct PaywallView: View {
                                     .snapHitTarget()
                                     .accessibilityHint("Opens the terms of service")
                                 Text("·")
-                                    .foregroundStyle(Color.snapWarmGray.opacity(0.5))
+                                    .foregroundStyle(Color.snapWarmGray)
                                     .accessibilityHidden(true)
                                 Button("Privacy Policy") { showPrivacy = true }
                                     .snapHitTarget()
@@ -414,7 +414,7 @@ private struct BenefitRow: View {
         HStack(spacing: 12) {
             Image(systemName: icon)
                 .snapSymbol(16, weight: .medium)
-                .foregroundStyle(Color.snapSage)
+                .foregroundStyle(Color.snapSageText)
                 .frame(minWidth: 24)
 
             Text(text)
