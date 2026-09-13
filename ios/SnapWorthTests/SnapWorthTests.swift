@@ -1934,7 +1934,7 @@ final class WidgetPendingActionTests: XCTestCase {
     func test_aPressIsActedOnWhileTheAppIsStillComingUp() {
         // The case the hand-off exists for: the intent writes, the app
         // launches, the scene appears and drains it seconds later.
-        for seconds in [0.0, 0.3, 2, 10, 60] {
+        for seconds: Double in [0, 0.3, 2, 10, 60] {
             XCTAssertTrue(
                 WidgetBridge.isFresh(requested: pressed,
                                      now: pressed.addingTimeInterval(seconds)),
@@ -1956,7 +1956,7 @@ final class WidgetPendingActionTests: XCTestCase {
         // The defect itself. Someone presses the button, the launch dies, and
         // the app is next opened on Thursday — straight into the camera, for
         // a thing they were standing in front of on Monday.
-        for hours in [1.0, 6, 24, 24 * 3] {
+        for hours: Double in [1, 6, 24, 72] {
             XCTAssertFalse(
                 WidgetBridge.isFresh(requested: pressed,
                                      now: pressed.addingTimeInterval(hours * 3600)),

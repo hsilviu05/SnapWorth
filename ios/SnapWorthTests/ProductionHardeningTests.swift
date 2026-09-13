@@ -3669,7 +3669,9 @@ final class CertificatePinningSPKITests: XCTestCase {
         XCTAssertEqual(
             CertificatePinningDelegate.spkiHeader(keyType: rsa, sizeInBits: 4096)?.count, 24)
         XCTAssertEqual(
-            CertificatePinningDelegate.spkiHeader(keyType: rsa, sizeInBits: 2048)?.prefix(2),
+            CertificatePinningDelegate.spkiHeader(keyType: rsa, sizeInBits: 2048).map {
+                Array($0.prefix(2))
+            },
             [0x30, 0x82])
     }
 
