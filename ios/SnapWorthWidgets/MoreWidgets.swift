@@ -264,6 +264,9 @@ struct MonthProfitView: View {
     /// while the Flips screen correctly showed October at $0.
     private var profit: Double? { haul.monthProfit(at: now) }
     private var flips: Int { haul.monthFlips(at: now) }
+    /// Everything sold, cost basis or not. `flips` counts only what could be
+    /// priced, so these differ exactly when a sale has no paid price.
+    private var sold: Int { haul.monthSold(at: now) }
 
     private var value: String {
         guard let profit else { return haul.isPro ? "—" : "Pro" }
@@ -275,18 +278,28 @@ struct MonthProfitView: View {
         return profit < 0 ? Color.wTerracotta : Color.wSage
     }
 
+    /// Three states, not two. A nil profit used to mean only one thing here —
+    /// "nothing sold" — and it means two: nothing sold, or things sold that
+    /// nobody entered a paid price for. `paidPrice` is optional and the app
+    /// advertises one benefit for filling it in, so the second is the common
+    /// case, and the widget was flatly contradicting the Flips screen on the
+    /// same data: "No flips sold yet this month" beside "2 items sold".
     private var caption: String {
         guard profit != nil else {
-            return haul.isPro ? "No flips sold yet this month"
-                              : "Track profit with Pro"
+            guard haul.isPro else { return "Track profit with Pro" }
+            return sold > 0 ? "\(sold) sold · add what you paid"
+                            : "No flips sold yet this month"
         }
         return "from \(flips) flip\(flips == 1 ? "" : "s")"
     }
 
     private var spoken: String {
         guard let profit else {
-            return haul.isPro ? "No flips sold yet this month"
-                              : "Profit tracking is a Pro feature"
+            guard haul.isPro else { return "Profit tracking is a Pro feature" }
+            return sold > 0
+                ? "\(sold) flip\(sold == 1 ? "" : "s") sold this month, "
+                  + "profit unknown until you add what you paid"
+                : "No flips sold yet this month"
         }
         return "\(WidgetHaulData.compactMoney(profit)) profit this month "
              + "from \(flips) flip\(flips == 1 ? "" : "s")"

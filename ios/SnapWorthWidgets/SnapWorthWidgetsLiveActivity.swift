@@ -170,8 +170,20 @@ struct ThriftRunLockScreenView: View {
         }
         // `formattedRange` is display text; spoken, the en dash is either read
         // as "dash" or dropped, running the two figures together.
+        //
+        // The third figure on the banner is the time, and `children: .combine`
+        // below discards the timer's own synthesised label — so it reaches
+        // VoiceOver only if this string names it. What it names is the
+        // *start*, not the elapsed count on the right: that one is
+        // `Text(style: .timer)`, which the system keeps climbing without
+        // re-rendering this view, so a duration spelled into a string here
+        // would freeze at the last scan and be confidently wrong an hour
+        // later. When the run began cannot go stale, and the stale branch
+        // already shows exactly that.
+        let started = startedAt.formatted(date: .omitted, time: .shortened)
         let body = "Thrift run, \(state.findsLabel), "
-                 + "worth \(WidgetHaulData.spoken(state.formattedRange))"
+                 + "worth \(WidgetHaulData.spoken(state.formattedRange)), "
+                 + "started \(started)"
         return isStale ? body + ". Last known — open SnapWorth to refresh." : body
     }
 }

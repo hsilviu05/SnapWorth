@@ -81,6 +81,18 @@ struct WidgetHaulData: Codable, Equatable {
     /// The full daily allowance, so a count that has aged out of its UTC day
     /// can render the number actually available rather than nothing.
     var freeScanAllowance: Int?
+    /// Everything sold this month, cost basis or not.
+    ///
+    /// `monthFlips` counts only the items that *contributed* to `monthProfit`,
+    /// which is the right rule for "$214 from 6 flips" and the wrong one for
+    /// answering "did anything sell at all". `realizedProfit` is nil without a
+    /// paid price, `paidPrice` is optional, and the only benefit the app
+    /// advertises for filling it in is the share card's multiple — so a month
+    /// of sales with no cost basis is the common path, not an edge case. It
+    /// wrote `monthProfit: nil`, and nil meant both "sold nothing" and "sold
+    /// things and cannot price them": the widget said "No flips sold yet this
+    /// month" while the Flips screen, on the same data, said two items sold.
+    var monthSold: Int
 
     static let empty = WidgetHaulData(
         totalLow: 0, totalHigh: 0, itemCount: 0,
@@ -126,14 +138,15 @@ struct WidgetHaulData: Codable, Equatable {
     private enum CodingKeys: String, CodingKey {
         case totalLow, totalHigh, itemCount, lastItemName, lastItemRange, updatedAt
         case freeScansRemaining, isPro, streak, recentFinds, monthProfit, monthFlips
-        case streakLastScan, freeScanAllowance
+        case streakLastScan, freeScanAllowance, monthSold
     }
 
     init(totalLow: Double, totalHigh: Double, itemCount: Int,
          lastItemName: String, lastItemRange: String, updatedAt: Date,
          freeScansRemaining: Int?, isPro: Bool, streak: Int,
          recentFinds: [WidgetFind], monthProfit: Double?, monthFlips: Int,
-         streakLastScan: Date? = nil, freeScanAllowance: Int? = nil) {
+         streakLastScan: Date? = nil, freeScanAllowance: Int? = nil,
+         monthSold: Int = 0) {
         self.totalLow = totalLow
         self.totalHigh = totalHigh
         self.itemCount = itemCount
@@ -148,6 +161,7 @@ struct WidgetHaulData: Codable, Equatable {
         self.monthFlips = monthFlips
         self.streakLastScan = streakLastScan
         self.freeScanAllowance = freeScanAllowance
+        self.monthSold = monthSold
     }
 
     init(from decoder: Decoder) throws {
@@ -168,6 +182,7 @@ struct WidgetHaulData: Codable, Equatable {
         monthFlips = try c.decodeIfPresent(Int.self, forKey: .monthFlips) ?? 0
         streakLastScan = try c.decodeIfPresent(Date.self, forKey: .streakLastScan)
         freeScanAllowance = try c.decodeIfPresent(Int.self, forKey: .freeScanAllowance)
+        monthSold = try c.decodeIfPresent(Int.self, forKey: .monthSold) ?? 0
     }
 }
 
@@ -475,6 +490,13 @@ extension WidgetHaulData {
         monthIsCurrent(at: now) ? monthFlips : 0
     }
 
+    /// Everything sold in the month, on the same boundary as the other two —
+    /// a sold count that outlived its month would caption October with
+    /// September's sales just as the profit figure once did.
+    func monthSold(at now: Date) -> Int {
+        monthIsCurrent(at: now) ? monthSold : 0
+    }
+
     /// What the "Scans left" widget is looking at, as of `now`.
     func scansLeft(at now: Date) -> ScansLeft {
         if isPro { return .pro(streak: liveStreak(at: now)) }
@@ -634,6 +656,36 @@ enum WidgetDataStore {
     static let appGroupID = WidgetBridge.appGroupID
     static let haulKey = WidgetBridge.haulKey
 
+    /// The month's ledger figures, from one pass over the library.
+    ///
+    /// Split out because this is the rule the widget's three captions turn on
+    /// and `writeHaul` itself cannot be tested — it writes to the App Group
+    /// and reloads timelines. Same rule `FlipsViewModel.monthlyBuckets` uses:
+    /// sold, with a sold date inside the month `now` falls in.
+    ///
+    /// `flips` counts only the sales that could be priced — `realizedProfit`
+    /// is nil without a paid price — because "$214 from 6 flips" has to be
+    /// true of the same six. `sold` counts every sale. They differ by exactly
+    /// the sales nobody entered a cost basis for, and collapsing that
+    /// difference into one nil is what let the widget print "No flips sold yet
+    /// this month" beside a Flips screen reading "2 items sold".
+    static func monthLedger(results: [ScanResult], now: Date = Date(),
+                            calendar: Calendar = .current)
+    -> (profit: Double, flips: Int, sold: Int) {
+        guard let month = calendar.dateInterval(of: .month, for: now) else {
+            return (0, 0, 0)
+        }
+        let soldThisMonth = results.filter { result in
+            guard result.status == .sold, let soldDate = result.soldDate
+            else { return false }
+            return month.contains(soldDate)
+        }
+        let profits: [Decimal] = soldThisMonth.compactMap(\.realizedProfit)
+        return (NSDecimalNumber(decimal: profits.reduce(Decimal.zero, +)).doubleValue,
+                profits.count,
+                soldThisMonth.count)
+    }
+
     /// Call this after any insert/delete of ScanResults in the main app.
     ///
     /// `isPro` defaults to nil meaning *read the persisted entitlement*. Most
@@ -676,25 +728,7 @@ enum WidgetDataStore {
                               name: $0.itemName,
                               range: $0.formattedRange) }
 
-        // Month-to-date ledger, by the same rule `FlipsViewModel.monthlyBuckets`
-        // uses: sold, with a sold date inside the current month. Computed here
-        // from the same array rather than passed in, so the widget and the
-        // Flips screen cannot disagree about a month's profit the way four
-        // surfaces once disagreed about an item's value.
-        //
-        // The count is of items that actually *contributed* profit, not of
-        // everything sold: `realizedProfit` is nil without a cost basis, and
-        // "$214 from 6 flips" has to be true of the same six.
-        let monthInterval = Calendar.current.dateInterval(of: .month, for: Date())
-        let monthProfits: [Decimal] = results.compactMap { result in
-            guard result.status == .sold,
-                  let soldDate = result.soldDate,
-                  let monthInterval, monthInterval.contains(soldDate)
-            else { return nil }
-            return result.realizedProfit
-        }
-        let monthProfit = NSDecimalNumber(
-            decimal: monthProfits.reduce(Decimal.zero, +)).doubleValue
+        let month = Self.monthLedger(results: results)
 
         // Pro-only figures are written only while Pro, so a lapse clears them
         // on the next write instead of leaving a paid number on the Home
@@ -711,13 +745,16 @@ enum WidgetDataStore {
             isPro:         pro,
             streak:        ScanStreak.current(),
             recentFinds:   Array(recent),
-            monthProfit:   pro && !monthProfits.isEmpty ? monthProfit : nil,
-            monthFlips:    pro ? monthProfits.count : 0,
+            monthProfit:   pro && month.flips > 0 ? month.profit : nil,
+            monthFlips:    pro ? month.flips : 0,
             // The day the streak was last extended and the full allowance, so
             // the widget can tell a live streak from a lapsed one and a spent
             // allowance from a reset one without the app running.
             streakLastScan: ScanStreak.lastScan,
-            freeScanAllowance: Config.freeScansAllowed
+            freeScanAllowance: Config.freeScansAllowed,
+            // Gated with the other two: this exists to caption a Pro figure,
+            // and a free user's widget shows the upsell rather than a count.
+            monthSold: pro ? month.sold : 0
         )
 
         guard

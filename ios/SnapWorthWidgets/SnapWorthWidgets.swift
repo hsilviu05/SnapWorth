@@ -79,6 +79,18 @@ struct WidgetHaulData: Codable, Equatable {
     /// The full daily allowance, so a count that has aged out of its UTC day
     /// can render the number actually available rather than nothing.
     var freeScanAllowance: Int?
+    /// Everything sold this month, cost basis or not.
+    ///
+    /// `monthFlips` counts only the items that *contributed* to `monthProfit`,
+    /// which is the right rule for "$214 from 6 flips" and the wrong one for
+    /// answering "did anything sell at all". `realizedProfit` is nil without a
+    /// paid price, `paidPrice` is optional, and the only benefit the app
+    /// advertises for filling it in is the share card's multiple — so a month
+    /// of sales with no cost basis is the common path, not an edge case. It
+    /// wrote `monthProfit: nil`, and nil meant both "sold nothing" and "sold
+    /// things and cannot price them": the widget said "No flips sold yet this
+    /// month" while the Flips screen, on the same data, said two items sold.
+    var monthSold: Int
 
     static let empty = WidgetHaulData(
         totalLow: 0, totalHigh: 0, itemCount: 0,
@@ -124,14 +136,15 @@ struct WidgetHaulData: Codable, Equatable {
     private enum CodingKeys: String, CodingKey {
         case totalLow, totalHigh, itemCount, lastItemName, lastItemRange, updatedAt
         case freeScansRemaining, isPro, streak, recentFinds, monthProfit, monthFlips
-        case streakLastScan, freeScanAllowance
+        case streakLastScan, freeScanAllowance, monthSold
     }
 
     init(totalLow: Double, totalHigh: Double, itemCount: Int,
          lastItemName: String, lastItemRange: String, updatedAt: Date,
          freeScansRemaining: Int?, isPro: Bool, streak: Int,
          recentFinds: [WidgetFind], monthProfit: Double?, monthFlips: Int,
-         streakLastScan: Date? = nil, freeScanAllowance: Int? = nil) {
+         streakLastScan: Date? = nil, freeScanAllowance: Int? = nil,
+         monthSold: Int = 0) {
         self.totalLow = totalLow
         self.totalHigh = totalHigh
         self.itemCount = itemCount
@@ -146,6 +159,7 @@ struct WidgetHaulData: Codable, Equatable {
         self.monthFlips = monthFlips
         self.streakLastScan = streakLastScan
         self.freeScanAllowance = freeScanAllowance
+        self.monthSold = monthSold
     }
 
     init(from decoder: Decoder) throws {
@@ -166,6 +180,7 @@ struct WidgetHaulData: Codable, Equatable {
         monthFlips = try c.decodeIfPresent(Int.self, forKey: .monthFlips) ?? 0
         streakLastScan = try c.decodeIfPresent(Date.self, forKey: .streakLastScan)
         freeScanAllowance = try c.decodeIfPresent(Int.self, forKey: .freeScanAllowance)
+        monthSold = try c.decodeIfPresent(Int.self, forKey: .monthSold) ?? 0
     }
 }
 
@@ -471,6 +486,13 @@ extension WidgetHaulData {
     /// the two cannot disagree — "$0 from 6 flips" is worse than either alone.
     func monthFlips(at now: Date) -> Int {
         monthIsCurrent(at: now) ? monthFlips : 0
+    }
+
+    /// Everything sold in the month, on the same boundary as the other two —
+    /// a sold count that outlived its month would caption October with
+    /// September's sales just as the profit figure once did.
+    func monthSold(at now: Date) -> Int {
+        monthIsCurrent(at: now) ? monthSold : 0
     }
 
     /// What the "Scans left" widget is looking at, as of `now`.

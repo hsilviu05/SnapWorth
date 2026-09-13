@@ -1269,7 +1269,12 @@ final class WidgetHaulDataTests: XCTestCase {
             updatedAt: Date(timeIntervalSince1970: 768_000_000),
             freeScansRemaining: 2, isPro: true, streak: 9,
             recentFinds: [WidgetFind(id: "a", name: "Levi's 501", range: "$40–$70")],
-            monthProfit: 214.5, monthFlips: 6)
+            monthProfit: 214.5, monthFlips: 6,
+            // The name says every field, so it has to mean it: a field left
+            // out of `CodingKeys` round-trips as its default and this is the
+            // only place that would notice.
+            streakLastScan: Date(timeIntervalSince1970: 767_000_000),
+            freeScanAllowance: 3, monthSold: 8)
         let data = try JSONEncoder().encode(original)
         XCTAssertEqual(try JSONDecoder().decode(WidgetHaulData.self, from: data),
                        original)
@@ -2650,5 +2655,124 @@ final class AppPaletteTests: XCTestCase {
             XCTAssertEqual(hex.count, 6, hex)
             XCTAssertTrue(hex.allSatisfy { $0.isHexDigit && !$0.isLowercase }, hex)
         }
+    }
+}
+
+// ── "No flips sold yet this month", about a month with sales in it ───────────
+//
+// `monthFlips` counts the sales that contributed to `monthProfit`, which is
+// right for "$214 from 6 flips" and wrong for "did anything sell". A sale with
+// no paid price has a nil `realizedProfit`, so it was dropped from both, and
+// `monthProfit: nil` meant two different things: nothing sold, and things sold
+// that cannot be priced. `paidPrice` is optional and the app advertises one
+// benefit for entering it, so the second is the ordinary case — and the widget
+// said "No flips sold yet this month" while My Flips, reading the same rows,
+// said two items sold.
+
+final class WidgetMonthLedgerTests: XCTestCase {
+
+    private let cal = Calendar(identifier: .gregorian)
+    private func day(_ month: Int, _ day: Int) -> Date {
+        cal.date(from: DateComponents(year: 2026, month: month, day: day, hour: 12))!
+    }
+
+    private func item(sold: Bool, on date: Date?, paid: Double? = nil,
+                      price: Double? = nil) -> ScanResult {
+        ScanResult(itemName: "Item", brand: "B", category: "clothing",
+                   conditionNotes: "Good", valueLow: 40, valueHigh: 60,
+                   confidence: "High", soldListingsCount: 0,
+                   listingTitle: "T", listingDescription: "D",
+                   paidPrice: paid, statusRaw: sold ? "sold" : "owned",
+                   soldPrice: price, soldDate: date)
+    }
+
+    private func ledger(_ results: [ScanResult]) -> (profit: Double, flips: Int, sold: Int) {
+        WidgetDataStore.monthLedger(results: results, now: day(9, 20), calendar: cal)
+    }
+
+    func test_salesWithNoCostBasisStillCountAsSales() {
+        // The defect. Two sales, neither with a paid price: the profit is
+        // genuinely unknown, but "nothing sold" is a false statement about the
+        // user's own month.
+        let out = ledger([item(sold: true, on: day(9, 3), price: 40),
+                          item(sold: true, on: day(9, 11), price: 25)])
+        XCTAssertEqual(out.sold, 2, "the widget would have said none")
+        XCTAssertEqual(out.flips, 0, "neither can be priced")
+        XCTAssertEqual(out.profit, 0)
+    }
+
+    func test_theTwoCountsDifferByExactlyTheUnpricedSales() {
+        let out = ledger([item(sold: true, on: day(9, 3), paid: 8, price: 65),
+                          item(sold: true, on: day(9, 11), price: 25),
+                          item(sold: true, on: day(9, 18), price: 30)])
+        XCTAssertEqual(out.sold, 3)
+        XCTAssertEqual(out.flips, 1)
+        XCTAssertEqual(out.profit, 57, accuracy: 0.001)
+    }
+
+    func test_aTrulyEmptyMonthIsStillEmpty() {
+        // The caption this fix adds must not appear for someone who sold
+        // nothing — that would be its own false claim.
+        XCTAssertEqual(ledger([]).sold, 0)
+        XCTAssertEqual(ledger([item(sold: false, on: nil)]).sold, 0)
+        XCTAssertEqual(ledger([item(sold: true, on: day(8, 30), price: 40)]).sold, 0,
+                       "August is not this month")
+    }
+
+    func test_onlySoldItemsInTheMonthCount() {
+        let out = ledger([
+            item(sold: false, on: nil, paid: 5),                       // owned
+            // Marked sold in September and then set back to Listed. Nothing
+            // clears `soldDate` when the status moves back
+            // (ResultView.swift:523 only ever sets it), so this state is
+            // reachable and the status test is what keeps it out.
+            item(sold: false, on: day(9, 7), paid: 5, price: 40),
+            item(sold: true, on: nil, paid: 5, price: 40),             // sold, no date
+            item(sold: true, on: day(10, 2), paid: 5, price: 40),      // next month
+            item(sold: true, on: day(9, 1), paid: 5, price: 40),       // counts
+        ])
+        XCTAssertEqual(out.sold, 1)
+        XCTAssertEqual(out.flips, 1)
+        XCTAssertEqual(out.profit, 35, accuracy: 0.001)
+    }
+
+    func test_everyProfitCameFromAnItemThatWasAlsoCounted_asSold() {
+        // The containment the writer's comment asserts: flips can never exceed
+        // sold, whatever the mix.
+        for unpriced in 0...3 {
+            var rows = [item(sold: true, on: day(9, 4), paid: 10, price: 30)]
+            rows += (0..<unpriced).map { _ in item(sold: true, on: day(9, 5), price: 30) }
+            let out = ledger(rows)
+            XCTAssertLessThanOrEqual(out.flips, out.sold)
+            XCTAssertEqual(out.sold - out.flips, unpriced)
+        }
+    }
+
+    // ── The stored count ages out with the rest of the month ─────────────
+
+    private func haul(monthSold: Int, writtenIn month: Int) -> WidgetHaulData {
+        WidgetHaulData(
+            totalLow: 0, totalHigh: 0, itemCount: 0,
+            lastItemName: "", lastItemRange: "", updatedAt: day(month, 15),
+            freeScansRemaining: nil, isPro: true, streak: 0,
+            recentFinds: [], monthProfit: nil, monthFlips: 0,
+            monthSold: monthSold)
+    }
+
+    func test_theSoldCountDiesWithItsMonth() {
+        // Same boundary as `monthProfit` and `monthFlips`. A count that
+        // outlived its month would caption October with September's sales,
+        // which is the defect those two were already fixed for.
+        XCTAssertEqual(haul(monthSold: 2, writtenIn: 9).monthSold(at: day(9, 30)), 2)
+        XCTAssertEqual(haul(monthSold: 2, writtenIn: 9).monthSold(at: day(10, 1)), 0)
+    }
+
+    func test_aBlobFromBeforeThisFieldExistedReadsAsZero() throws {
+        // v2 on disk, v3 in the binary: an upgrading install must not render a
+        // sold count it never wrote.
+        let old = #"{"itemCount":3,"monthFlips":2}"#.data(using: .utf8)!
+        let decoded = try JSONDecoder().decode(WidgetHaulData.self, from: old)
+        XCTAssertEqual(decoded.monthSold, 0)
+        XCTAssertEqual(decoded.monthFlips, 2)
     }
 }
