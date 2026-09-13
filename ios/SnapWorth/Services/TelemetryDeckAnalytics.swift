@@ -14,7 +14,10 @@ final class TelemetryDeckAnalytics: AnalyticsService {
     private let config: TelemetryDeck.Config
 
     init(appID: String, enabled: Bool) {
-        let config = TelemetryDeck.Config(appID: appID)
+        // `salt:` was omitted, and it defaults to the empty string — so the
+        // "salted hash" this file's own header and the in-app privacy policy
+        // both describe was a plain `sha256(IDFV)`. See `Config.telemetryDeckSalt`.
+        let config = TelemetryDeck.Config(appID: appID, salt: Config.telemetryDeckSalt)
         // Without this the opt-out only silenced *our* signals: the SDK sends
         // `TelemetryDeck.Session.started` and `Acquisition.newInstallDetected`
         // itself at launch and on every foreground, each carrying the salted

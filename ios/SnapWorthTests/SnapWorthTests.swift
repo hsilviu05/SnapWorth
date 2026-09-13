@@ -767,6 +767,29 @@ final class ConfigSecurityTests: XCTestCase {
     func test_productIDs_areDistinct() {
         XCTAssertNotEqual(Config.monthlyProductID, Config.yearlyProductID)
     }
+
+    // ── The anonymous identifier has to actually be salted ───────────────
+
+    func test_theTelemetrySaltIsConfiguredAndLongEnough() {
+        // `TelemetryDeck.Config(appID:)` defaults `salt` to the empty string,
+        // so what shipped was a plain `sha256(IDFV)` — a globally fixed
+        // function anyone holding a device's IDFV could compute, while the
+        // in-app privacy policy promised "a one-way salted hash". The SDK's own
+        // documentation asks for 64 characters.
+        XCTAssertEqual(Config.telemetryDeckSalt.count, 64)
+        XCTAssertNotEqual(Config.telemetryDeckSalt, Config.telemetryDeckAppID)
+    }
+
+    func test_theSaltLooksGeneratedRatherThanTyped() {
+        // A placeholder, a repeated phrase or something a person typed would
+        // pass a length check and defeat the point. Sixty-four random draws
+        // from a 79-character alphabet land far above this bound; any
+        // hand-written string of that length lands far below it.
+        XCTAssertGreaterThan(Set(Config.telemetryDeckSalt).count, 24,
+                             "too few distinct characters to have been generated")
+        XCTAssertFalse(Config.telemetryDeckSalt.lowercased().contains("salt"))
+        XCTAssertFalse(Config.telemetryDeckSalt.contains(" "))
+    }
 }
 
 // MARK: - ScanViewModel Security Tests

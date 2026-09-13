@@ -98,4 +98,28 @@ enum Config {
     /// TelemetryDeck app ID (from the telemetrydeck.com dashboard). Analytics
     /// stays a no-op until this is filled in — nothing is sent while empty.
     static let telemetryDeckAppID = "D4C9C11E-F611-4B92-9646-0DF0B2E0F10C"
+
+    /// Salt for the anonymous per-device identifier. **Never change this.**
+    ///
+    /// The SDK computes every signal's user identifier as
+    /// `sha256(identifierForVendor, salt:)`, and the `salt:` argument was never
+    /// passed — it defaults to the empty string, so what shipped was a plain
+    /// `sha256(IDFV)`. That is a globally fixed function with no app-specific
+    /// input: anyone holding a device's IDFV could compute its exact identifier
+    /// and single out that device's entire analytics history. IDFV is shared by
+    /// every app under the same team identifier and is trivially printable from
+    /// any build, which is precisely the linkage a salt exists to break — and
+    /// the in-app privacy policy has been promising "a one-way salted hash" the
+    /// whole time.
+    ///
+    /// This is not a credential. It ships inside the binary by design, so it
+    /// defeats an outside party who has an IDFV, not someone who
+    /// reverse-engineers the app — which is the threat that matters here.
+    ///
+    /// Rotating it makes every existing user look like a new one, so it is
+    /// fixed for the life of the app. Added before 1.4.0 deliberately: the
+    /// install base is the smallest it will ever be, and the one-time
+    /// discontinuity in the retention figures is the price of the policy text
+    /// being true.
+    static let telemetryDeckSalt = "jq9!cuSbW8j=F%l4T-sfKbVB7NdHwBy5dioOYXg!T41!OKTEQ8x#FXBaCi@DJxyc"
 }
