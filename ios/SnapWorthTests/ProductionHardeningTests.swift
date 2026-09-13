@@ -1,6 +1,7 @@
 import AVFoundation
 import CoreMedia
 import DeviceCheck
+import Security
 import XCTest
 import UIKit
 @testable import SnapWorth
@@ -3563,5 +3564,146 @@ final class FlipsCSVExportTests: XCTestCase {
         let line = FlipsViewModel().csv([sold("Nike, Air Max", paid: 10, price: 30)])
             .components(separatedBy: "\r\n")[1]
         XCTAssertTrue(line.contains("\"Nike, Air Max\""))
+    }
+}
+
+// ── The backup pin that could never fire ─────────────────────────────────────
+//
+// `Config` pins ISRG Root X2, which is ECDSA P-384. `spkiHeader` knew RSA-2048,
+// RSA-4096 and P-256 and returned the bare key for anything else — and the
+// SHA-256 of a bare EC point (`04 || X || Y`) bears no relation to the hash
+// openssl produces from the DER SubjectPublicKeyInfo the pins were generated
+// from. So that pin was inert, and invisibly so: the chain served today ends at
+// ISRG Root X1, which is RSA-4096 and handled, so report-only mode showed zero
+// mismatches on a pin set one certificate short of correct.
+//
+// The header bytes below were taken from
+// `openssl ecparam -name <curve> -genkey -noout | openssl pkey -pubout -outform der`,
+// not from a specification read twice.
+
+final class CertificatePinningSPKITests: XCTestCase {
+
+    private let rsa = kSecAttrKeyTypeRSA as String
+    private let ec = kSecAttrKeyTypeECSECPrimeRandom as String
+
+    /// Checks a header actually describes a SubjectPublicKeyInfo wrapping a key
+    /// of `keyBytes` — the outer SEQUENCE length and the BIT STRING length both
+    /// have to add up, which is exactly what a typo'd length byte breaks.
+    private func assertWrapsKey(_ header: [UInt8], keyBytes: Int,
+                                file: StaticString = #filePath, line: UInt = #line) {
+        XCTAssertEqual(header.first, 0x30, "not a SEQUENCE", file: file, line: line)
+
+        // DER length: short form (< 0x80) or long form (0x80 | number of bytes).
+        var index = 1
+        var declared = 0
+        let lengthByte = Int(header[index]); index += 1
+        if lengthByte < 0x80 {
+            declared = lengthByte
+        } else {
+            for _ in 0..<(lengthByte & 0x7f) {
+                declared = declared << 8 | Int(header[index]); index += 1
+            }
+        }
+        XCTAssertEqual(declared, header.count - index + keyBytes,
+                       "the outer SEQUENCE length does not cover the key",
+                       file: file, line: line)
+
+        // The header always ends BIT STRING, length, 0 unused bits.
+        let tail = header.suffix(3)
+        XCTAssertEqual(tail.first, 0x03, "does not end in a BIT STRING",
+                       file: file, line: line)
+        XCTAssertEqual(tail.last, 0x00, "unused-bits byte is not zero",
+                       file: file, line: line)
+        XCTAssertEqual(Int(Array(tail)[1]), keyBytes + 1,
+                       "the BIT STRING length does not cover the point plus its unused-bits byte",
+                       file: file, line: line)
+    }
+
+    func test_theP384BranchExistsAtAll() {
+        // The defect. ISRG Root X2 is P-384; before this there was no branch
+        // for it and `subjectPublicKeyInfo` returned the bare point.
+        XCTAssertNotNil(CertificatePinningDelegate.spkiHeader(keyType: ec, sizeInBits: 384),
+                        "the ISRG Root X2 pin cannot match without this")
+    }
+
+    func test_theP384HeaderIsTheBytesOpensslProduces() {
+        XCTAssertEqual(
+            CertificatePinningDelegate.spkiHeader(keyType: ec, sizeInBits: 384),
+            [0x30, 0x76, 0x30, 0x10, 0x06, 0x07, 0x2a, 0x86, 0x48, 0xce, 0x3d,
+             0x02, 0x01, 0x06, 0x05, 0x2b, 0x81, 0x04, 0x00, 0x22, 0x03, 0x62,
+             0x00])
+    }
+
+    func test_everyEllipticHeaderAddsUpOverItsOwnPoint() {
+        // An EC point from `SecKeyCopyExternalRepresentation` is
+        // `04 || X || Y`: 65 bytes on P-256, 97 on P-384.
+        assertWrapsKey(CertificatePinningDelegate.spkiHeader(keyType: ec, sizeInBits: 256)!,
+                       keyBytes: 65)
+        assertWrapsKey(CertificatePinningDelegate.spkiHeader(keyType: ec, sizeInBits: 384)!,
+                       keyBytes: 97)
+    }
+
+    func test_theTwoCurvesDifferOnlyWhereTheyShould() {
+        // Same structure, different curve OID and different lengths. If these
+        // ever come out equal, one was pasted over the other.
+        let p256 = CertificatePinningDelegate.spkiHeader(keyType: ec, sizeInBits: 256)!
+        let p384 = CertificatePinningDelegate.spkiHeader(keyType: ec, sizeInBits: 384)!
+        XCTAssertNotEqual(p256, p384)
+        // id-ecPublicKey, identical in both.
+        XCTAssertEqual(Array(p256[4..<13]),
+                       [0x06, 0x07, 0x2a, 0x86, 0x48, 0xce, 0x3d, 0x02, 0x01])
+        XCTAssertEqual(Array(p384[4..<13]),
+                       [0x06, 0x07, 0x2a, 0x86, 0x48, 0xce, 0x3d, 0x02, 0x01])
+        // secp256r1 vs secp384r1.
+        XCTAssertEqual(Array(p256[13..<23]),
+                       [0x06, 0x08, 0x2a, 0x86, 0x48, 0xce, 0x3d, 0x03, 0x01, 0x07])
+        XCTAssertEqual(Array(p384[13..<20]),
+                       [0x06, 0x05, 0x2b, 0x81, 0x04, 0x00, 0x22])
+    }
+
+    func test_theRsaShapesTheChainActuallyServesStillWork() {
+        // ISRG Root X1 is RSA-4096 and the YR2 intermediate RSA-2048. A change
+        // to this table must not take out the pins that do fire today.
+        XCTAssertEqual(
+            CertificatePinningDelegate.spkiHeader(keyType: rsa, sizeInBits: 2048)?.count, 24)
+        XCTAssertEqual(
+            CertificatePinningDelegate.spkiHeader(keyType: rsa, sizeInBits: 4096)?.count, 24)
+        XCTAssertEqual(
+            CertificatePinningDelegate.spkiHeader(keyType: rsa, sizeInBits: 2048)?.prefix(2),
+            [0x30, 0x82])
+    }
+
+    func test_anUnknownShapeIsNilRatherThanTheRawKey() {
+        // The class of defect, not just the instance. Returning the bare key
+        // made "this app cannot header that curve" look identical to "someone
+        // is impersonating the host" — the one signal that decides whether
+        // `pinningEnforced` may be turned on.
+        XCTAssertNil(CertificatePinningDelegate.spkiHeader(keyType: ec, sizeInBits: 521))
+        XCTAssertNil(CertificatePinningDelegate.spkiHeader(keyType: rsa, sizeInBits: 3072))
+        XCTAssertNil(CertificatePinningDelegate.spkiHeader(keyType: "nonsense", sizeInBits: 256))
+    }
+
+    func test_aRealP384KeyIsWrappedIntoValidDER() throws {
+        // The empirical half: build an actual P-384 key, take the same bare
+        // representation the delegate gets, and check the header in front of it
+        // produces a 120-byte SPKI that starts where openssl's does.
+        var error: Unmanaged<CFError>?
+        let attributes: [CFString: Any] = [
+            kSecAttrKeyType: kSecAttrKeyTypeECSECPrimeRandom,
+            kSecAttrKeySizeInBits: 384,
+            kSecAttrIsPermanent: false,
+        ]
+        guard let priv = SecKeyCreateRandomKey(attributes as CFDictionary, &error),
+              let pub = SecKeyCopyPublicKey(priv),
+              let raw = SecKeyCopyExternalRepresentation(pub, nil) as Data?
+        else { throw XCTSkip("no P-384 key generation on this runner") }
+
+        XCTAssertEqual(raw.count, 97, "an uncompressed P-384 point is 04 + 48 + 48")
+        XCTAssertEqual(raw.first, 0x04, "not an uncompressed point")
+
+        let header = CertificatePinningDelegate.spkiHeader(keyType: ec, sizeInBits: 384)!
+        let spki = Data(header) + raw
+        XCTAssertEqual(spki.count, 120, "openssl emits 120 bytes for a P-384 SPKI")
+        XCTAssertEqual(Array(spki.prefix(4)), [0x30, 0x76, 0x30, 0x10])
     }
 }

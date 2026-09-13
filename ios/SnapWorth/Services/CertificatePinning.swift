@@ -24,6 +24,10 @@ import os.log
 ///    release cycle means the pin set is correct. The os_log line alone was
 ///    never enough: nobody can read a user's device log, so until the event
 ///    existed this step could not be completed and the flag stayed off.
+///    Note what silence does *not* prove: a pin for a certificate the host
+///    never serves is never exercised, so zero mismatches means "every chain
+///    actually served matched", not "every pin is right". The ISRG Root X2 pin
+///    was inert for exactly that reason and this gate passed anyway.
 /// 3. Set `Config.pinningEnforced = true`.
 ///
 /// ### Rotation
@@ -108,37 +112,81 @@ final class CertificatePinningDelegate: NSObject, URLSessionDelegate {
             guard let publicKey = SecCertificateCopyKey(certificate),
                   let data = SecKeyCopyExternalRepresentation(publicKey, nil) as Data?
             else { continue }
-            let digest = Data(SHA256.hash(data: subjectPublicKeyInfo(for: data, key: publicKey)))
+            guard let spki = subjectPublicKeyInfo(for: data, key: publicKey) else {
+                // Not "no match" — "could not ask". Hashing the raw key here
+                // instead, which is what this used to do, produced a digest
+                // unrelated to any pin and reported it as a mismatch: a key
+                // shape the app cannot header was indistinguishable from an
+                // attacker. Say which shape, so a rotation onto a new curve is
+                // a one-line diagnosis rather than a field mystery.
+                log.error("unpinnable key shape in chain for \(self.host, privacy: .public)")
+                continue
+            }
+            let digest = Data(SHA256.hash(data: spki))
             if pinnedHashes.contains(digest.base64EncodedString()) { return true }
         }
         return false
     }
 
     /// Prefixes the raw key with its ASN.1 SPKI header so the digest matches
-    /// what `openssl pkey -pubin -outform der` produces.
-    private func subjectPublicKeyInfo(for keyData: Data, key: SecKey) -> Data {
+    /// what `openssl pkey -pubin -outform der` produces. Nil when the key's
+    /// shape has no header here — see `spkiHeader`.
+    private func subjectPublicKeyInfo(for keyData: Data, key: SecKey) -> Data? {
         guard let attributes = SecKeyCopyAttributes(key) as? [CFString: Any],
               let type = attributes[kSecAttrKeyType] as? String,
-              let size = attributes[kSecAttrKeySizeInBits] as? Int
-        else { return keyData }
-
-        let header: [UInt8]
-        if type == (kSecAttrKeyTypeRSA as String), size == 2048 {
-            header = [0x30, 0x82, 0x01, 0x22, 0x30, 0x0d, 0x06, 0x09, 0x2a, 0x86, 0x48,
-                      0x86, 0xf7, 0x0d, 0x01, 0x01, 0x01, 0x05, 0x00, 0x03, 0x82, 0x01,
-                      0x0f, 0x00]
-        } else if type == (kSecAttrKeyTypeRSA as String), size == 4096 {
-            header = [0x30, 0x82, 0x02, 0x22, 0x30, 0x0d, 0x06, 0x09, 0x2a, 0x86, 0x48,
-                      0x86, 0xf7, 0x0d, 0x01, 0x01, 0x01, 0x05, 0x00, 0x03, 0x82, 0x02,
-                      0x0f, 0x00]
-        } else if type == (kSecAttrKeyTypeECSECPrimeRandom as String), size == 256 {
-            header = [0x30, 0x59, 0x30, 0x13, 0x06, 0x07, 0x2a, 0x86, 0x48, 0xce, 0x3d,
-                      0x02, 0x01, 0x06, 0x08, 0x2a, 0x86, 0x48, 0xce, 0x3d, 0x03, 0x01,
-                      0x07, 0x03, 0x42, 0x00]
-        } else {
-            return keyData
-        }
+              let size = attributes[kSecAttrKeySizeInBits] as? Int,
+              let header = Self.spkiHeader(keyType: type, sizeInBits: size)
+        else { return nil }
         return Data(header) + keyData
+    }
+
+    /// The ASN.1 SPKI header for a key shape, or nil when the shape is unknown.
+    ///
+    /// `SecKeyCopyExternalRepresentation` hands back the bare key — an RSA
+    /// `SEQUENCE { modulus, exponent }`, or an EC point `04 || X || Y` — while
+    /// the pins in `Config` were generated from a full DER
+    /// `SubjectPublicKeyInfo`. These are the missing wrappers.
+    ///
+    /// **Nil rather than the raw key.** Falling back to the bare bytes looks
+    /// harmless and is not: their SHA-256 bears no relation to any pin, so the
+    /// certificate reports as a mismatch, and a mismatch is the signal that
+    /// decides whether `pinningEnforced` may be turned on. `ISRG Root X2` — one
+    /// of the four pins in `Config` — is ECDSA **P-384**, so before the branch
+    /// below existed that pin could never match anything. It was inert, and
+    /// invisibly so: the chain served today ends at ISRG Root X1, which is
+    /// RSA-4096 and handled, so the report-only telemetry showed zero
+    /// mismatches on a pin set that was one certificate short of correct. Let's
+    /// Encrypt serves the P-384 chain whenever the leaf key is ECDSA, and with
+    /// enforcement on that is every request failing, for every user, until an
+    /// App Store review clears.
+    ///
+    /// Pure and `static` so the bytes can be checked against
+    /// `openssl pkey -pubout -outform der` without a keychain.
+    static func spkiHeader(keyType: String, sizeInBits: Int) -> [UInt8]? {
+        switch (keyType, sizeInBits) {
+        case (kSecAttrKeyTypeRSA as String, 2048):
+            return [0x30, 0x82, 0x01, 0x22, 0x30, 0x0d, 0x06, 0x09, 0x2a, 0x86, 0x48,
+                    0x86, 0xf7, 0x0d, 0x01, 0x01, 0x01, 0x05, 0x00, 0x03, 0x82, 0x01,
+                    0x0f, 0x00]
+        case (kSecAttrKeyTypeRSA as String, 4096):
+            return [0x30, 0x82, 0x02, 0x22, 0x30, 0x0d, 0x06, 0x09, 0x2a, 0x86, 0x48,
+                    0x86, 0xf7, 0x0d, 0x01, 0x01, 0x01, 0x05, 0x00, 0x03, 0x82, 0x02,
+                    0x0f, 0x00]
+        // prime256v1: SEQUENCE(SEQUENCE(id-ecPublicKey, secp256r1), BIT STRING)
+        case (kSecAttrKeyTypeECSECPrimeRandom as String, 256):
+            return [0x30, 0x59, 0x30, 0x13, 0x06, 0x07, 0x2a, 0x86, 0x48, 0xce, 0x3d,
+                    0x02, 0x01, 0x06, 0x08, 0x2a, 0x86, 0x48, 0xce, 0x3d, 0x03, 0x01,
+                    0x07, 0x03, 0x42, 0x00]
+        // secp384r1, the curve of ISRG Root X2 and the Let's Encrypt E-series
+        // intermediates. Same shape, shorter curve OID (06 05 2b 81 04 00 22)
+        // and a 97-byte point instead of 65.
+        case (kSecAttrKeyTypeECSECPrimeRandom as String, 384):
+            return [0x30, 0x76, 0x30, 0x10, 0x06, 0x07, 0x2a, 0x86, 0x48, 0xce, 0x3d,
+                    0x02, 0x01, 0x06, 0x05, 0x2b, 0x81, 0x04, 0x00, 0x22, 0x03, 0x62,
+                    0x00]
+        default:
+            return nil
+        }
     }
 }
 
