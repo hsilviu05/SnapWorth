@@ -1,22 +1,38 @@
 import SwiftData
 import SwiftUI
 
-/// A persistence failure that hands back something safe to keep on screen.
+/// A persistence failure.
 ///
 /// `AppError.from` maps this to `.persistence` like any other storage error, so
 /// no caller that only wants to report a failure has to know about it.
+///
+/// **No payload, deliberately.** Both cases used to carry the `ScanResult` a
+/// caller should keep displaying after a rollback. `Error` requires `Sendable`
+/// under Swift 6 and a SwiftData `@Model` is not one, so the compiler flagged
+/// both cases — correctly in principle, even though nothing here crosses an
+/// actor: this type, the repository and both view models are all `@MainActor`,
+/// and the one non-isolated reader (`AppError.from`) matches on the case and
+/// never touched the payload.
+///
+/// `@unchecked Sendable` would have silenced it by asserting something untrue
+/// of a managed model. The real problem was the design: a persistence error is
+/// the wrong place to carry a view's display object, and a repository has no
+/// business deciding what a screen shows next. A caller that needs to survive
+/// the rollback takes its own `detachedCopy()` before calling `save` — which is
+/// also where the knowledge of whether it needs one lives.
 enum ScanPersistenceError: Error {
-    /// The insert was rolled back. `replacement` is a context-free copy of the
-    /// row, taken before the insert, for a caller that is already displaying it.
-    case saveFailed(replacement: ScanResult)
+    /// The insert was rolled back, so the row passed to `save` is no longer
+    /// registered with any context.
+    case saveFailed
 
     /// The store failed to open at launch, so this session is running on a
     /// throwaway in-memory container and nothing written to it survives.
     ///
     /// Separate from `saveFailed` because the honest thing to say is different:
     /// that one is a write that failed and can be retried, this one is a write
-    /// that would *succeed* and be discarded at quit.
-    case storeUnavailable(replacement: ScanResult)
+    /// that would *succeed* and be discarded at quit. Thrown before the insert,
+    /// so the caller's row is untouched.
+    case storeUnavailable
 }
 
 /// Owns all SwiftData persistence for ScanResult.
@@ -60,26 +76,25 @@ final class ScanRepository {
         // they paid for, positively claimed as saved, beside a library that
         // looked empty for no stated reason.
         //
-        // Thrown before the insert, so `result` is still context-free and the
-        // caller keeps the row it is already displaying.
+        // Thrown before the insert, so `result` is untouched and the caller
+        // keeps the row it is already displaying.
         guard !AppLaunchState.isRunningOnFallbackStore else {
-            throw ScanPersistenceError.storeUnavailable(replacement: result)
+            throw ScanPersistenceError.storeUnavailable
         }
         // Seeds the denormalised portfolio value and the first history point.
         // Done here rather than in the model's init so every persisted row has
         // one, including any future call site that builds a ScanResult
         // differently.
         result.refreshPortfolioValue()
-        // Taken before the insert, so the rollback below cannot reach it. The
-        // result sheet is already on screen holding `result`; see
-        // `detachedCopy()`.
-        let replacement = result.detachedCopy()
         context.insert(result)
         do {
             try context.save()
         } catch {
+            // Rolls back, so `result` is no longer registered with any context.
+            // A caller still displaying it swaps in a copy it took beforehand —
+            // see `ScanPersistenceError`.
             context.rollback()
-            throw ScanPersistenceError.saveFailed(replacement: replacement)
+            throw ScanPersistenceError.saveFailed
         }
         scheduleWidgetSync()
     }

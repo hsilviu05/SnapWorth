@@ -102,6 +102,11 @@ final class ScanViewModel {
             )
             Self.noteScanForStreakAndReminder(isPro: purchaseService.isSubscribed)
 
+            // Taken before the call, because the rollback inside `save` cannot
+            // reach it. The sheet is about to display `result`; if the write
+            // fails, `result` is no longer registered with any context and this
+            // is what the sheet holds instead. See `ScanPersistenceError`.
+            let backup = result.detachedCopy()
             do {
                 try repository.save(result)
             } catch {
@@ -114,11 +119,11 @@ final class ScanViewModel {
                 // Emitting a failure for the same scan would double-count it
                 // and make the funnel wrong.
                 saveFailed = true
-                // The repository now rolls the shared context back on failure,
-                // so `result` is no longer registered anywhere. Swap in the
-                // copy it took beforehand: same values, no context, safe to
-                // read for as long as the sheet is up. Without this the sheet
-                // would be holding a model SwiftData has discarded.
+                // The repository rolls the shared context back on failure, so
+                // `result` is no longer registered anywhere. Swap in the copy
+                // taken above: same values, no context, safe to read for as
+                // long as the sheet is up. Without this the sheet would be
+                // holding a model SwiftData has discarded.
                 //
                 // Only `.saveFailed` needs the swap. `.storeUnavailable` is
                 // thrown *before* the insert, so the result was never
@@ -127,8 +132,8 @@ final class ScanViewModel {
                 // "Couldn't save to My Finds — this result won't be kept",
                 // which is exactly true of a fallback launch.
                 if let failure = error as? ScanPersistenceError,
-                   case .saveFailed(let replacement) = failure {
-                    scanResult = replacement
+                   case .saveFailed = failure {
+                    scanResult = backup
                 }
             }
 

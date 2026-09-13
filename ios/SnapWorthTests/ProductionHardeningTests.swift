@@ -1126,6 +1126,45 @@ final class ScanPersistenceFailureTests: XCTestCase {
                        "that drops a field shows the user an incomplete result")
     }
 
+    /// `ScanPersistenceError` must not carry a `ScanResult`.
+    ///
+    /// Both cases used to. `Error` requires `Sendable` under Swift 6 and a
+    /// SwiftData `@Model` is not one, so the compiler flagged them — and the
+    /// tempting silencer, `@unchecked Sendable`, would assert something untrue
+    /// of a managed model rather than fix anything.
+    ///
+    /// Source-inspected because there is nothing to assert at runtime: a
+    /// payload put back would compile, pass every other test, and only show up
+    /// as a warning nobody reads, or as an error the day the project moves to
+    /// Swift 6.
+    func test_thePersistenceErrorCarriesNoModel() throws {
+        let source = try String(
+            contentsOf: URL(fileURLWithPath: #filePath)
+                .deletingLastPathComponent()
+                .deletingLastPathComponent()
+                .appendingPathComponent("SnapWorth/Services/ScanRepository.swift"),
+            encoding: .utf8)
+
+        guard let start = source.range(of: "enum ScanPersistenceError: Error {"),
+              let end = source.range(of: "\n}", range: start.upperBound..<source.endIndex)
+        else { return XCTFail("could not locate ScanPersistenceError") }
+
+        let body = String(source[start.upperBound..<end.lowerBound])
+        let cases = body
+            .split(separator: "\n")
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { $0.hasPrefix("case ") }
+
+        XCTAssertEqual(cases.count, 2, "the parser found the wrong thing")
+        for line in cases {
+            XCTAssertFalse(line.contains("("),
+                           "\(line) — a persistence error is the wrong place to " +
+                           "carry a view's display object, and a SwiftData model " +
+                           "makes the enum non-Sendable. The caller takes its own " +
+                           "detachedCopy() before calling save().")
+        }
+    }
+
     func test_theRepositoryRollsBackOnEveryFailurePath() {
         // Source-inspected because a real save failure on the *shared* context
         // cannot be provoked in a unit test — the suite's contexts are
@@ -4633,10 +4672,8 @@ final class FallbackStoreSaveTests: XCTestCase {
     }
 
     func test_bothPersistenceFailuresMapToTheirOwnAppError() {
-        let row = find()
-        XCTAssertEqual(AppError.from(ScanPersistenceError.saveFailed(replacement: row)),
-                       .persistence)
-        XCTAssertEqual(AppError.from(ScanPersistenceError.storeUnavailable(replacement: row)),
+        XCTAssertEqual(AppError.from(ScanPersistenceError.saveFailed), .persistence)
+        XCTAssertEqual(AppError.from(ScanPersistenceError.storeUnavailable),
                        .storageUnavailable)
     }
 
