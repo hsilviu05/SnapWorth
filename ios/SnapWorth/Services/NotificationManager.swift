@@ -900,13 +900,36 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
         return cal.date(from: comps)
     }
 
-    private static let dayKeyFormatter: DateFormatter = {
+    /// Built per call rather than held in a `static let`.
+    ///
+    /// `Calendar.current` is a non-autoupdating snapshot carrying a concrete
+    /// `TimeZone`, and a `static let` is initialised once per process — so this
+    /// formatter's zone was pinned at first use while every other helper in
+    /// this section re-reads `Calendar.current` freshly, including
+    /// `date(fromDayKey:)`, which parsed with the pinned zone and then took the
+    /// components with a fresh one.
+    ///
+    /// Fly from Los Angeles to Tokyo and resume without relaunching: an item
+    /// listed Sep 11 gives a fire date of Sep 25 10:00 JST, `dayKey` formats
+    /// that instant in the pinned LA zone as "20260924", and rescheduling from
+    /// that key lands the 14-day follow-up on Sep 24 — a day early. Two items
+    /// on adjacent days can also coalesce into the wrong bucket.
+    ///
+    /// `monthName` below is built per call for exactly this reason, so this is
+    /// the file's own convention rather than a new one. The cost is one
+    /// `DateFormatter` per ledger scheduling, which happens when an item is
+    /// marked listed.
+    private static var dayKeyFormatter: DateFormatter {
+        let calendar = Calendar.current
         let f = DateFormatter()
         f.locale = Locale(identifier: "en_US_POSIX")
-        f.calendar = Calendar.current
+        f.calendar = calendar
+        // Set explicitly: `DateFormatter` keeps its own `timeZone` and does not
+        // take one from the calendar assigned above.
+        f.timeZone = calendar.timeZone
         f.dateFormat = "yyyyMMdd"
         return f
-    }()
+    }
 
     private static func dayKey(_ date: Date) -> String { dayKeyFormatter.string(from: date) }
 

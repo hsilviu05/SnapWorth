@@ -4398,6 +4398,39 @@ final class SettingsEntitlementObservationTests: XCTestCase {
         return try String(contentsOf: url, encoding: .utf8)
     }
 
+    func test_aPlaceholderPlanCardCannotBeSelected() throws {
+        // `.redacted` changes rendering and nothing else: a `PlanCard` is a
+        // `Button` and its action still ran, so tapping the grey card moved the
+        // selection to a product StoreKit never returned. The CTA then went
+        // inert, the price read "—" and the subheadline read "Loading plans…"
+        // with nothing loading — and `reconcileSelection` runs only from
+        // `.task` and the retry, so nothing undid it. The paywall could not be
+        // bought from at all.
+        let paywall = try source("Views/PaywallView.swift")
+        let redactions = paywall.components(separatedBy: ".redacted(reason: isLoaded(")
+        XCTAssertEqual(redactions.count, 3, "expected exactly the two plan cards")
+        for card in redactions.dropFirst() {
+            // Up to whatever comes next, rather than a character window: the
+            // modifier can sit any distance below its comment.
+            let modifiers = card.components(separatedBy: "\n\n").first ?? card
+            XCTAssertTrue(modifiers.contains(".disabled(!isLoaded("),
+                          "a redacted plan card is still tappable")
+        }
+    }
+
+    func test_theRateRowDoesNotSpendASystemPrompt() throws {
+        // `requestReview()` asks the system to *maybe* show a prompt — roughly
+        // three per year per app, ignored otherwise with no error and no
+        // callback — and `ReviewPrompt` already spends that quota on the third
+        // successful scan of each version. So for every engaged user, the only
+        // kind who goes looking for the row, tapping it did nothing.
+        let settings = try source("Views/SettingsView.swift")
+        XCTAssertTrue(settings.contains("action=write-review"),
+                      "the row must open the review composer")
+        XCTAssertFalse(settings.contains("requestReview()"),
+                       "back to the API that silently drops the call")
+    }
+
     func test_settingsReadsTheEntitlementAsAValueItCanObserve() throws {
         // Not a style preference. `purchaseService` is a plain `let` holding an
         // existential, so reading `.isSubscribed` in the body registers no

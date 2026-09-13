@@ -68,6 +68,19 @@ struct PaywallView: View {
                         // placeholder, and must never show a placeholder that
                         // reads like a price it doesn't have.
                         .redacted(reason: isLoaded(Config.yearlyProductID) ? [] : .placeholder)
+                        // `.redacted` changes rendering and nothing else — a
+                        // `PlanCard` is a `Button` and its action still ran. A
+                        // tap on the grey card moved the selection to a product
+                        // StoreKit never returned, which drives three derived
+                        // values wrong at once: the CTA goes inert,
+                        // `pricing(_:)` falls back to a "—" placeholder, and
+                        // the subheadline reads "Loading plans…" forever with
+                        // nothing loading. `reconcileSelection` runs only from
+                        // `.task` and the retry, so it cannot undo it — the
+                        // paywall could not be bought from at all, and the way
+                        // out was guessing that tapping the other card back
+                        // repairs the screen.
+                        .disabled(!isLoaded(Config.yearlyProductID))
 
                         PlanCard(
                             title: "Monthly",
@@ -80,6 +93,7 @@ struct PaywallView: View {
                             vm.selectedProductID = Config.monthlyProductID
                         }
                         .redacted(reason: isLoaded(Config.monthlyProductID) ? [] : .placeholder)
+                        .disabled(!isLoaded(Config.monthlyProductID))
                     }
                     .padding(.horizontal, 20)
 

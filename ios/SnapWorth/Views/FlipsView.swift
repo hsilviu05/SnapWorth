@@ -201,6 +201,14 @@ struct FlipsView: View {
                 .foregroundStyle(val < 0 ? Color.snapTerracottaText : Color.snapEspresso)
                 .frame(width: 74, alignment: .trailing)
         }
+        // One stop per month, not three. VoiceOver stopped separately on the
+        // month and the amount, with an unlabelled `Capsule` between them
+        // contributing the magnitude to nobody — twelve stops across six
+        // months, and no way to tell which figure went with which label if a
+        // month's row happened to be empty. Every other row in the app is
+        // combined and spoken as one sentence; this is that convention.
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(bucket.label), \(vm.signedMoney(bucket.profit))")
     }
 
     // MARK: - Filter chips

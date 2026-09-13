@@ -1,6 +1,5 @@
 import SwiftUI
 import SwiftData
-import StoreKit
 
 struct SettingsView: View {
     let purchaseService: any PurchaseService
@@ -13,7 +12,6 @@ struct SettingsView: View {
     /// paying subscriber; a lapse left it reading "Pro · Active".
     let isPro: Bool
     @Environment(\.modelContext) private var modelContext
-    @Environment(\.requestReview) private var requestReview
     @Query private var results: [ScanResult]
     @State private var vm = SettingsViewModel()
     @State private var showPaywall = false
@@ -89,7 +87,18 @@ struct SettingsView: View {
                         SettingsRowLabel(icon: "ant", label: "Report a bug")
                     }
                     SettingsRow(icon: "star", label: "Rate SnapWorth") {
-                        requestReview()
+                        // A deep link, not the system review prompt.
+                        //
+                        // That API asks the system to *maybe* show a prompt: it
+                        // is rate-limited to roughly three per year per app and
+                        // ignored otherwise, with no error and no callback, and
+                        // Apple's own guidance is not to call it from a user
+                        // action for exactly this reason. `ReviewPrompt` already
+                        // spends the quota automatically on the third successful
+                        // scan of each version — so for every engaged user,
+                        // which is the only kind who goes looking for this row,
+                        // tapping it did nothing at all. Twice.
+                        vm.openURL("\(Config.appStoreURL)?action=write-review")
                     }
                 }
 
