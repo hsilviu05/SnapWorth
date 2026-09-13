@@ -406,14 +406,17 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
         guard let first = Self.nextFreeScanDate(after: now, hour: time.hour, minute: time.minute,
                                                 scannedToday: scannedToday) else { return }
         let calendar = Calendar.current
+        // Only the first rung can even try to name the streak: beyond that the
+        // user may have scanned, or lapsed, and either claim would be
+        // invented. And it may only try — `streakOutlives` decides whether the
+        // streak that is alive now is still alive on the day that rung fires.
+        let namedStreak = Self.streakOutlives(fireDate: first, now: now,
+                                              scannedToday: scannedToday) ? streak : 0
         var scheduledAny = false
         for offset in 0..<Self.freeScanLadderDays {
             guard let fireDate = calendar.date(byAdding: .day, value: offset, to: first)
             else { continue }
-            // Only the first rung can honestly name the streak: it is the next
-            // day, and the streak is known now. Beyond that the user may have
-            // scanned, or lapsed, and either claim would be invented.
-            let body = offset == 0 ? Self.freeScanBody(streak: streak)
+            let body = offset == 0 ? Self.freeScanBody(streak: namedStreak)
                                    : Self.freeScanBody(streak: 0)
             let added = await add(id: Self.freeScanLadderID(forDay: fireDate),
                                   category: .freeScan, fireDate: fireDate,
@@ -436,6 +439,27 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
         guard let today = calendar.date(from: comps) else { return nil }
         if !scannedToday && today > now { return today }
         return calendar.date(byAdding: .day, value: 1, to: today)
+    }
+
+    /// Whether the streak that is alive at `now` is still alive at `fireDate`.
+    ///
+    /// The body is frozen into the request when it is scheduled, and
+    /// `ScanStreak.current()` counts a streak as alive while the last scan was
+    /// today or yesterday. So a reminder scheduled tonight for *tomorrow*
+    /// evening, on a day the user did not scan, names a streak that will have
+    /// lapsed by the time it fires: the last scan is yesterday now and the day
+    /// before yesterday then. Naming it anyway promises a day number the app
+    /// has already discarded and cannot give them — against the rule
+    /// `freeScanBody` states for itself, that there is no guilt when the
+    /// streak broke, it simply isn't mentioned.
+    ///
+    /// Two cases survive. The rung fires today, so nothing has moved; or the
+    /// user scanned today, which makes today the streak's last day and the
+    /// fire date tomorrow, still inside the window.
+    nonisolated static func streakOutlives(fireDate: Date, now: Date,
+                                           scannedToday: Bool,
+                                           calendar: Calendar = .current) -> Bool {
+        scannedToday || calendar.isDate(fireDate, inSameDayAs: now)
     }
 
     /// The copy. A streak of two or more is worth naming — "day 5" is a reason
@@ -573,6 +597,26 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
 
     // MARK: - Core scheduling (authorization + global daily cap)
 
+    /// The scheduling currently in flight, if any.
+    ///
+    /// `add` reads the notification daemon's pending set, decides from it, and
+    /// then writes — a read-modify-write with two suspension points inside it
+    /// (`isAuthorized`, `pendingNotificationRequests`, `center.add`). Being
+    /// `@MainActor` serialises this class's code only *between* awaits, so two
+    /// `add` calls could each take a snapshot that did not contain the other's
+    /// request, each conclude the day was free, and each schedule — breaking
+    /// the one-per-day cap this type documents for itself at the top of the
+    /// file. The interleave is not hypothetical: every scheduling entry point
+    /// is its own unstructured `Task`, and `ScanViewModel.startScan` starts
+    /// two back to back.
+    ///
+    /// Each `add` therefore chains onto whatever was in flight, so the
+    /// snapshot and the write that depends on it cannot be separated by
+    /// another scheduler. The link is made synchronously — `previous` is read
+    /// and `scheduling` written with no await between them — which is what
+    /// makes the chain a chain rather than a race of its own.
+    private var scheduling: Task<Bool, Never>?
+
     /// Adds a request, honoring the per-category toggle, authorization, and the
     /// global "1 notification per day" cap (priority: trial > ledger > recap).
     /// `track: false` suppresses the `notification_scheduled` event, for a
@@ -583,6 +627,18 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
     @discardableResult
     private func add(id: String, category: Category, fireDate: Date, body: String,
                      track: Bool = true) async -> Bool {
+        let previous = scheduling
+        let mine = Task { @MainActor () -> Bool in
+            _ = await previous?.value
+            return await self.schedule(id: id, category: category, fireDate: fireDate,
+                                       body: body, track: track)
+        }
+        scheduling = mine
+        return await mine.value
+    }
+
+    private func schedule(id: String, category: Category, fireDate: Date, body: String,
+                          track: Bool) async -> Bool {
         guard isEnabled(category) else { return false }
         // A fire date in the past is not a reminder. `syncEligible` runs on
         // every foreground and re-schedules the ledger follow-up for every
@@ -617,9 +673,9 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
         content.sound = .default
         content.userInfo = ["category": category.rawValue]
 
-        let comps = Calendar.current.dateComponents(
-            [.year, .month, .day, .hour, .minute], from: fireDate)
-        let trigger = UNCalendarNotificationTrigger(dateMatching: comps, repeats: false)
+        let trigger = UNCalendarNotificationTrigger(
+            dateMatching: Self.triggerComponents(for: category, fireDate: fireDate),
+            repeats: false)
         let request = UNNotificationRequest(identifier: id, content: content, trigger: trigger)
 
         do {
@@ -632,6 +688,50 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
             // Scheduling is best-effort; a failure just means no reminder.
             return false
         }
+    }
+
+    /// Whether the category's fire date means an instant or a wall-clock time.
+    ///
+    /// Four of the five mean wall clock. "Your free scan is back" at 18:00 is
+    /// 18:00 wherever the user wakes up; the recap, the ledger follow-up and
+    /// the weekly digest are all the same — 10:00 local, whatever local turns
+    /// out to be. Those must float with the device's zone.
+    ///
+    /// `.trial` is the exception, and the only one. Its fire date is derived
+    /// from an absolute deadline — 24 hours before Apple charges the card —
+    /// and the body says "ends tomorrow". Floating it means a user who flies
+    /// gets the courtesy warning at the wrong remove from the charge: Tokyo to
+    /// Los Angeles is sixteen hours, which turns a day's notice into eight
+    /// hours, potentially past the point where cancelling still avoids the
+    /// first bill.
+    nonisolated static func isAnchoredToAnInstant(_ category: Category) -> Bool {
+        switch category {
+        case .trial:                              return true
+        case .recap, .ledger, .portfolio, .freeScan: return false
+        }
+    }
+
+    /// The components the trigger is built from — floating or pinned.
+    ///
+    /// `DateComponents` with no `timeZone` is resolved against whatever zone
+    /// the device is in when the trigger is evaluated, which is the floating
+    /// behaviour four of the categories want. Setting `timeZone` pins them to
+    /// the zone they were computed in, so the same instant comes back out.
+    /// `.second` comes along for the pinned case: the deadline is an instant,
+    /// and truncating it to the minute would move the warning by up to 59
+    /// seconds for no reason.
+    ///
+    /// Pure, and takes its calendar, so a test can compute in one zone and
+    /// resolve in another — which is the whole claim.
+    nonisolated static func triggerComponents(for category: Category,
+                                              fireDate: Date,
+                                              calendar: Calendar = .current) -> DateComponents {
+        var comps = calendar.dateComponents([.year, .month, .day, .hour, .minute],
+                                            from: fireDate)
+        guard isAnchoredToAnInstant(category) else { return comps }
+        comps.second = calendar.component(.second, from: fireDate)
+        comps.timeZone = calendar.timeZone
+        return comps
     }
 
     /// Enforces at most one notification per calendar day across all categories.

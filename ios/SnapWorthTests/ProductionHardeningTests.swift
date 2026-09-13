@@ -2420,7 +2420,135 @@ final class FreeScanReminderTests: XCTestCase {
                              NotificationManager.Category.recap.priority)
         XCTAssertEqual(NotificationManager.Category.freeScan.toggleKey, "notif_freeScan_enabled")
     }
+
+    // ── The streak the body names has to survive until the body is read ──────
+    //
+    // The request is written now and read tomorrow. `ScanStreak.current()`
+    // counts a streak as alive while the last scan was today or yesterday, so
+    // a reminder scheduled tonight for tomorrow, on a day nobody scanned,
+    // names a day number that has already been discarded by the time it fires.
+
+    func test_aReminderLandingTodayCanStillNameTheStreak() {
+        // 09:00, unscanned, reminder at 18:00 — same day, nothing moves.
+        let now = at(3, 9)
+        let fire = NotificationManager.nextFreeScanDate(after: now, hour: 18, minute: 0,
+                                                        scannedToday: false, calendar: cal)!
+        XCTAssertTrue(NotificationManager.streakOutlives(
+            fireDate: fire, now: now, scannedToday: false, calendar: cal))
+    }
+
+    func test_aReminderPushedToTomorrowByAnUnscannedDayCannot() {
+        // The defect. Last scan was yesterday, so the streak is alive right
+        // now; 18:00 has passed so the rung lands tomorrow, by which time the
+        // last scan is two days old and `ScanStreak.current()` returns 0. The
+        // body would have promised "Day 5" on a day where a scan can only
+        // produce day 1.
+        let now = at(3, 20)
+        let fire = NotificationManager.nextFreeScanDate(after: now, hour: 18, minute: 0,
+                                                        scannedToday: false, calendar: cal)!
+        XCTAssertEqual(fire, at(4, 18))
+        XCTAssertFalse(NotificationManager.streakOutlives(
+            fireDate: fire, now: now, scannedToday: false, calendar: cal))
+    }
+
+    func test_aScanTodayCarriesTheStreakIntoTomorrowsReminder() {
+        // Scanning today makes today the streak's last day, so tomorrow at
+        // 18:00 it is still inside the window `ScanStreak.current()` allows.
+        let now = at(3, 9)
+        let fire = NotificationManager.nextFreeScanDate(after: now, hour: 18, minute: 0,
+                                                        scannedToday: true, calendar: cal)!
+        XCTAssertEqual(fire, at(4, 18))
+        XCTAssertTrue(NotificationManager.streakOutlives(
+            fireDate: fire, now: now, scannedToday: true, calendar: cal))
+    }
+
+    func test_theFurtherOutTheRungTheLessThereIsToClaim() {
+        // `syncFreeScanReminder` only ever asks about the first rung, and the
+        // question is how far that rung is from now. With nothing scanned
+        // today there is nothing to carry, however far out it lands.
+        //
+        // Note the scanned-today case is deliberately *not* asserted here: the
+        // function's answer for it is yes at any distance, which is only ever
+        // correct because the caller asks solely about the first rung. The
+        // ladder's later rungs get `streak: 0` by construction, not by asking.
+        for day in 4...9 {
+            XCTAssertFalse(
+                NotificationManager.streakOutlives(
+                    fireDate: at(day, 18), now: at(3, 20),
+                    scannedToday: false, calendar: cal),
+                "day \(day)")
+        }
+    }
 }
+
+// ── Wall-clock reminders float; a deadline does not ──────────────────────────
+//
+// `UNCalendarNotificationTrigger` resolves `DateComponents` with no `timeZone`
+// against whatever zone the device is in at delivery. That is right for the
+// four reminders that mean "18:00 local" and wrong for the trial warning,
+// whose fire date is 24 hours before Apple charges the card — a fixed instant
+// that a flight must not move.
+
+final class NotificationTriggerZoneTests: XCTestCase {
+
+    private func calendar(_ zone: String) -> Calendar {
+        var c = Calendar(identifier: .gregorian)
+        c.timeZone = TimeZone(identifier: zone)!
+        return c
+    }
+
+    /// 2026-09-19 18:00:37 in Tokyo — deliberately off the minute, so the
+    /// pinned case has a second to preserve.
+    private var fireDate: Date {
+        calendar("Asia/Tokyo").date(from: DateComponents(
+            year: 2026, month: 9, day: 19, hour: 18, minute: 0, second: 37))!
+    }
+
+    func test_theFourLocalTimeCategoriesCarryNoZone() {
+        for category in NotificationManager.Category.allCases where category != .trial {
+            let comps = NotificationManager.triggerComponents(
+                for: category, fireDate: fireDate, calendar: calendar("Asia/Tokyo"))
+            XCTAssertNil(comps.timeZone, "\(category) must float with the device")
+            XCTAssertNil(comps.second, "\(category) is a wall-clock time, not an instant")
+            XCTAssertFalse(NotificationManager.isAnchoredToAnInstant(category))
+        }
+    }
+
+    func test_theTrialWarningIsPinnedToTheInstantItWasComputedFrom() {
+        XCTAssertTrue(NotificationManager.isAnchoredToAnInstant(.trial))
+        let comps = NotificationManager.triggerComponents(
+            for: .trial, fireDate: fireDate, calendar: calendar("Asia/Tokyo"))
+        XCTAssertEqual(comps.timeZone, TimeZone(identifier: "Asia/Tokyo"))
+        XCTAssertEqual(comps.second, 37)
+    }
+
+    func test_aFlightDoesNotMoveTheTrialWarning() {
+        // Scheduled in Tokyo, delivered after landing in Los Angeles. The
+        // components must still resolve to the same absolute moment — 24 hours
+        // before the charge, not eight.
+        let scheduled = NotificationManager.triggerComponents(
+            for: .trial, fireDate: fireDate, calendar: calendar("Asia/Tokyo"))
+        XCTAssertEqual(calendar("America/Los_Angeles").date(from: scheduled), fireDate)
+        XCTAssertEqual(calendar("Europe/Bucharest").date(from: scheduled), fireDate)
+    }
+
+    func test_aFlightDoesMoveTheDailyReminder_whichIsThePoint() {
+        // The other half of the claim: "your free scan is back" at 18:00 must
+        // be 18:00 where the user now is, so its components deliberately do
+        // not survive the trip.
+        let tokyo = calendar("Asia/Tokyo")
+        let la = calendar("America/Los_Angeles")
+        let scheduled = NotificationManager.triggerComponents(
+            for: .freeScan, fireDate: fireDate, calendar: tokyo)
+        let delivered = la.date(from: scheduled)!
+        let zoneGap = Double(tokyo.timeZone.secondsFromGMT(for: fireDate)
+                             - la.timeZone.secondsFromGMT(for: fireDate))
+        XCTAssertEqual(delivered.timeIntervalSince(fireDate), zoneGap, accuracy: 60,
+                       "18:00 in Tokyo must become 18:00 in Los Angeles")
+        XCTAssertGreaterThan(zoneGap, 0)
+    }
+}
+
 
 
 final class FreeScanReminderIdentifierTests: XCTestCase {
