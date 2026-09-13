@@ -26,6 +26,15 @@ struct ResultView: View {
     /// What the share sheet carries: the result card, or the guess story pair.
     @State private var shareItems: [Any] = []
     @State private var showPaywall = false
+    /// Which locked surface opened the paywall.
+    ///
+    /// One sheet serves every entry point here, and it used to hard-code a
+    /// single trigger — so an impression from any other surface was attributed
+    /// to that one, and so was every purchase that followed it. `PaywallView`
+    /// already fires `paywallViewed` from its own `onAppear`, so the tracking
+    /// call that used to sit in each button was a *second* event for the same
+    /// open: the funnel counted every paywall twice.
+    @State private var paywallTrigger: PaywallTrigger = .snapSell
     @State private var showListingShare = false
 
     private enum Field { case paid, sold, fees, guess }
@@ -257,7 +266,7 @@ struct ResultView: View {
             }
         }
         .sheet(isPresented: $showPaywall) {
-            PaywallView(purchaseService: purchaseService, trigger: .snapSell)
+            PaywallView(purchaseService: purchaseService, trigger: paywallTrigger)
         }
     }
 
@@ -854,7 +863,7 @@ struct ResultView: View {
                         tagError = nil
                         showTagCamera = true
                     } else {
-                        Analytics.shared.track(.paywallViewed(trigger: .addTag))
+                        paywallTrigger = .addTag
                         showPaywall = true
                     }
                 }
@@ -1011,7 +1020,7 @@ struct ResultView: View {
                     .snapSymbol(18)
                     .foregroundStyle(Color.snapTerracottaText)
                 PrimaryButton(title: "Unlock why this price") {
-                    Analytics.shared.track(.paywallViewed(trigger: .valuationDetail))
+                    paywallTrigger = .valuationDetail
                     showPaywall = true
                 }
                 Text("Four price points, what drives the value, and how to sharpen the estimate.")
@@ -1289,7 +1298,7 @@ struct ResultView: View {
                     .snapSymbol(18)
                     .foregroundStyle(Color.snapTerracottaText)
                 PrimaryButton(title: "Unlock marketplace listings") {
-                    Analytics.shared.track(.paywallViewed(trigger: .snapSell))
+                    paywallTrigger = .snapSell
                     showPaywall = true
                 }
             }

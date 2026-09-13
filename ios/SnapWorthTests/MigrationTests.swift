@@ -404,6 +404,32 @@ final class PortfolioValueTests: XCTestCase {
         XCTAssertEqual(r.valueHistory.count, 10, "series must stay bounded")
     }
 
+    func test_theCapNeverThrowsAwayTheEntryPoint() {
+        // `valueChangeSinceAdded` reads `history.first` as the value the item
+        // entered the portfolio at. Trimming off the front re-anchored that
+        // figure to whichever re-price happened to survive the cap, so "change
+        // since added" quietly started meaning "change since the 41st
+        // re-price" while keeping its label — and the number it reported
+        // shrank towards zero as the user edited more, which is exactly
+        // backwards.
+        let r = make(low: 40, high: 60)
+        r.valueLow = 10; r.valueHigh = 20
+        r.refreshPortfolioValue(limit: 10)
+        let entry = r.valueHistory[0].value
+
+        for i in 2...50 {
+            r.valueLow = Double(i) * 10; r.valueHigh = Double(i) * 20
+            r.refreshPortfolioValue(limit: 10)
+        }
+
+        XCTAssertEqual(r.valueHistory.count, 10, "still bounded")
+        XCTAssertEqual(r.valueHistory[0].value, entry,
+                       "the entry point is the one snapshot that is not interchangeable")
+        // And the interior is the recent run, not the oldest — a sparkline
+        // still shows what just happened.
+        XCTAssertGreaterThan(r.valueHistory[9].value, r.valueHistory[1].value)
+    }
+
     func test_corruptHistoryReadsAsEmptyRatherThanCrashing() {
         let r = make(low: 40, high: 60)
         r.valueHistoryData = Data("not json".utf8)

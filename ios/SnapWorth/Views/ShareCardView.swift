@@ -143,7 +143,7 @@ struct ShareCardView: View {
     private var heroSection: some View {
         if let paid = result.paidPrice {
             VStack(spacing: 6) {
-                Text(paid == 0 ? "Free →" : "Paid \(fmtCurrency(paid)) →")
+                Text(printedDollars(paid) == 0 ? "Free →" : "Paid \(fmtCurrency(paid)) →")
                     .font(Font.dmSans(17, weight: .semibold))
                     .foregroundStyle(Color(hex: "8B7D71"))
                     .lineLimit(1)
@@ -183,9 +183,17 @@ struct ShareCardView: View {
     /// multiple its own headline did not support — and the share card is the
     /// artefact that leaves the app.
     func findBadge(paid: Double) -> String? {
-        if paid == 0 { return "Free find" }
-        let low = result.displayValueLow
-        guard paid < low else { return nil }
+        // Both numbers as the card *prints* them, not as they are stored.
+        // `snapCurrency` has `maximumFractionDigits = 0`, so a badge divided
+        // out of the stored values is a claim about figures that appear
+        // nowhere on the card: $0.50 paid printed "Paid $0" beside a "90x
+        // find", and $1.50 printed "Paid $2" beside the 30x taken from 1.50.
+        // The `== 0` test has to move with it, or a paid price the card prints
+        // as $0 escapes the free branch and becomes the divisor of a multiple.
+        let paidShown = printedDollars(paid)
+        let low = printedDollars(result.displayValueLow)
+        if paidShown == 0 { return "Free find" }
+        guard paidShown < low else { return nil }
         // `floor`, not `round`. Round-to-nearest made the threshold for an
         // "Nx find" claim `low/paid >= N - 0.5`, so the very first badge a user
         // can earn was already wrong: a 1.5x find rendered as "2x find", and a
@@ -196,12 +204,22 @@ struct ShareCardView: View {
         //
         // The same class of defect as the divisor bug fixed in the comment
         // above: that corrected which number to divide, and left the rounding.
-        let multiple = Int((low / paid).rounded(.down))
+        let multiple = Int((low / paidShown).rounded(.down))
         return multiple > 1 ? "\(multiple)x find" : nil
     }
 
     private func fmtCurrency(_ value: Double) -> String {
         NumberFormatter.snapCurrency.string(from: NSNumber(value: value)) ?? "$\(Int(value))"
+    }
+
+    /// A money figure as this card prints it.
+    ///
+    /// `NumberFormatter.snapCurrency` has `maximumFractionDigits = 0`, so
+    /// anything measured against a figure the card shows has to lose its cents
+    /// the same way first. Half-even because that is `NumberFormatter`'s own
+    /// default rounding: $22.50 lands on the $22 the card prints, not on $23.
+    private func printedDollars(_ value: Double) -> Double {
+        value.rounded(.toNearestOrEven)
     }
 
     private var qrImage: UIImage? { snapShareCardQR() }

@@ -7,6 +7,15 @@ struct HistoryView: View {
     @Environment(\.modelContext) private var modelContext
     @Query private var results: [ScanResult]
     @State private var showPaywall = false
+    /// Which locked surface opened the paywall.
+    ///
+    /// One sheet serves every entry point here, and it used to hard-code a
+    /// single trigger — so an impression from any other surface was attributed
+    /// to that one, and so was every purchase that followed it. `PaywallView`
+    /// already fires `paywallViewed` from its own `onAppear`, so the tracking
+    /// call that used to sit in each button was a *second* event for the same
+    /// open: the funnel counted every paywall twice.
+    @State private var paywallTrigger: PaywallTrigger = .portfolioTrend
     @State private var vm = HistoryViewModel()
     @State private var selectedResult: ScanResult?
     @State private var isEditing = false
@@ -66,8 +75,7 @@ struct HistoryView: View {
                                 // launch and on every transaction update.
                                 isPro: purchaseService.isSubscribed,
                                 onUnlock: {
-                                    Analytics.shared.track(
-                                        .paywallViewed(trigger: .portfolioTrend))
+                                    paywallTrigger = .portfolioTrend
                                     showPaywall = true
                                 }
                             )
@@ -80,7 +88,7 @@ struct HistoryView: View {
                                 trends: trends,
                                 isPro: purchaseService.isSubscribed,
                                 onUnlock: {
-                                    Analytics.shared.track(.paywallViewed(trigger: .trends))
+                                    paywallTrigger = .trends
                                     showPaywall = true
                                 }
                             )
@@ -247,7 +255,7 @@ struct HistoryView: View {
             }
         }
         .sheet(isPresented: $showPaywall) {
-            PaywallView(purchaseService: purchaseService, trigger: .portfolioTrend)
+            PaywallView(purchaseService: purchaseService, trigger: paywallTrigger)
         }
         .sheet(item: $selectedResult) { result in
             ResultView(result: result, purchaseService: purchaseService,

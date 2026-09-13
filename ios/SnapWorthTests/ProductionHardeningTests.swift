@@ -2972,6 +2972,24 @@ final class ValueConsistencyTests: XCTestCase {
                        "2x find")
     }
 
+    func test_theBadgeDividesWhatTheCardPrints() {
+        // `snapCurrency` has `maximumFractionDigits = 0`, so a badge divided
+        // out of the stored values is a claim about figures that appear
+        // nowhere on the card. 50c paid printed "Paid $0" next to a "90x
+        // find"; $1.50 printed "Paid $2" next to the 30x taken from 1.50.
+        let r = item(low: 45, high: 90)
+        XCTAssertEqual(ShareCardView(result: r, photo: nil).findBadge(paid: 0.50),
+                       "Free find",
+                       "a paid price the card prints as $0 is a free find, not a divisor")
+        XCTAssertEqual(ShareCardView(result: r, photo: nil).findBadge(paid: 1.50),
+                       "22x find",
+                       "1.50 prints as $2, and 45/2 floors to 22 — not the 30 from 1.50")
+        // Half-even, because that is NumberFormatter's own default: $22.50
+        // prints as $22, so the badge must divide by 22.
+        XCTAssertEqual(ShareCardView(result: r, photo: nil).findBadge(paid: 22.50),
+                       "2x find")
+    }
+
     func test_aFreeFindIsStillAFreeFind() {
         XCTAssertEqual(ShareCardView(result: item(), photo: nil)
                         .findBadge(paid: 0), "Free find")

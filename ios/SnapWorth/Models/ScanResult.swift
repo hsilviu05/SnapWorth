@@ -316,7 +316,16 @@ final class ScanResult {
         let changed = history.last.map { abs($0.value - asDouble) >= 0.005 } ?? true
         if changed {
             history.append(ValueSnapshot(date: date, value: asDouble))
-            if history.count > limit { history.removeFirst(history.count - limit) }
+            // Trimmed out of the middle, never off the front.
+            // `valueChangeSinceAdded` reads `history.first` as the value this
+            // item entered the portfolio at, so dropping the oldest point
+            // re-anchors that figure to whichever re-price happened to survive
+            // the cap — and it keeps its old label while quietly meaning
+            // something else. The entry point is the one snapshot that is not
+            // interchangeable; the interior ones are.
+            if history.count > limit {
+                history = [history[0]] + history.suffix(limit - 1)
+            }
             valueHistoryData = try? JSONEncoder().encode(history)
         }
         portfolioValueRaw = asDouble

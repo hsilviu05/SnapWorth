@@ -296,7 +296,11 @@ struct ThriftFlipView: View {
                             .font(.dmSans(14, weight: .semibold))
                             .foregroundStyle(Color.snapEspresso)
                         PrimaryButton(title: "Unlock Thrift Flip") {
-                            Analytics.shared.track(.paywallViewed(trigger: .thriftFlip))
+                            // No tracking call here: `PaywallView` fires
+                            // `paywallViewed` from its own `onAppear`, so this
+                            // was a second event for the same open. One entry
+                            // point, and the sheet already passes
+                            // `.thriftFlip`, so nothing else is needed.
                             vm.showPaywall = true
                         }
                     }
