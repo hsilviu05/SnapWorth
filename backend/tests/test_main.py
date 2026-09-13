@@ -266,6 +266,23 @@ class TestLegalEndpoints:
             f"the operator index keeps rows for {days} days; the policy says "
             f"something else")
 
+    def test_privacy_names_the_analytics_sdks_own_payload(self):
+        """The enumeration stopped short of what the SDK actually attaches.
+
+        Every signal also carries seven accessibility settings, six retention
+        counters, the time zone, the screen resolution and scale, the CPU
+        architecture and the orientation — none of it gated by anything the app
+        sets. An enumeration that stops short of what is sent is a false
+        statement, and this page and the in-app copy are two files that only a
+        test connects.
+        """
+        body = _prose(client.get("/privacy").text)
+        for detail in ("time zone", "screen size", "device orientation",
+                       "Reduce Motion", "Bold Text", "preferred text size",
+                       "how many separate days"):
+            assert detail in body, (
+                f"the analytics paragraph no longer names {detail}")
+
     def test_privacy_still_refuses_the_things_it_should(self):
         # Widening the disclosure must not have widened it past the truth.
         body = _prose(client.get("/privacy").text)

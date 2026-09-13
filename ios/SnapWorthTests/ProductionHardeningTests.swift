@@ -433,6 +433,30 @@ final class PrivacyPolicyDisclosureTests: XCTestCase {
         }
     }
 
+    func test_theAnalyticsParagraphNamesTheSdksOwnPayload() {
+        // The policy enumerated "device model, operating system version, app
+        // version, and locale" and stopped. At the pinned SDK every signal also
+        // carries seven accessibility settings, six retention counters, the
+        // time zone, the screen resolution and scale, the CPU architecture and
+        // the orientation — none of it gated by anything the app sets. An
+        // enumeration that stops short of what is sent is a false statement in
+        // the document App Review and an EU user read.
+        for detail in ["time zone", "screen size", "device orientation",
+                       "Reduce Motion", "Bold Text", "preferred text size",
+                       "how many separate days"] {
+            XCTAssertTrue(policy.contains(detail),
+                          "the analytics paragraph no longer names \(detail)")
+        }
+    }
+
+    func test_theSaltedHashClaimIsStillMade() {
+        // It is now true — `Config.telemetryDeckSalt` is passed to the SDK —
+        // and this is the pairing that must not come apart again: the claim
+        // without the salt is what shipped.
+        XCTAssertTrue(policy.contains("A one-way salted hash is used as an anonymous identifier."))
+        XCTAssertEqual(Config.telemetryDeckSalt.count, 64)
+    }
+
     func test_theDisclosureIsNotWiderThanTheTruth() {
         XCTAssertTrue(policy.contains("Never the photo"))
         XCTAssertTrue(policy.contains("never your name, email address or location"))
@@ -1625,6 +1649,22 @@ final class PrivacyManifestTests: XCTestCase {
         XCTAssertTrue(types.contains("NSPrivacyCollectedDataTypeCrashData"))
         XCTAssertTrue(types.contains("NSPrivacyCollectedDataTypePerformanceData"))
         XCTAssertTrue(types.contains("NSPrivacyCollectedDataTypeOtherDiagnosticData"))
+    }
+
+    func test_theAnalyticsSdksOwnPayloadIsDeclared() throws {
+        // The accessibility settings, time zone, screen metrics, architecture
+        // and orientation the SDK attaches to every signal are collected data
+        // and fit no named type, so they belong under "Other". The manifest
+        // declared six types and none of them covered this.
+        XCTAssertTrue(try declaredTypes().contains("NSPrivacyCollectedDataTypeOtherDataTypes"),
+                      "the SDK's default payload is collected and undeclared")
+
+        let collected = try manifest()["NSPrivacyCollectedDataTypes"] as? [[String: Any]] ?? []
+        let other = collected.first { $0["NSPrivacyCollectedDataType"] as? String
+                                      == "NSPrivacyCollectedDataTypeOtherDataTypes" }
+        let purposes = other?["NSPrivacyCollectedDataTypePurposes"] as? [String] ?? []
+        XCTAssertEqual(purposes, ["NSPrivacyCollectedDataTypePurposeAnalytics"],
+                       "it is attached to analytics signals, and nothing else")
     }
 
     func test_nothingIsLinkedToIdentityOrUsedForTracking() throws {

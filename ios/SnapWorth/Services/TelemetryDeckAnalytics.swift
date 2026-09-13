@@ -4,9 +4,34 @@ import TelemetryDeck
 /// TelemetryDeck-backed analytics. This is the **only** file that imports the
 /// vendor SDK — the rest of the app talks to the `Analytics` facade.
 ///
-/// TelemetryDeck sends: the signal name + our PII-free parameters, plus its own
-/// default context (app/OS version, device model, locale) and a one-way salted
-/// hash as the anonymous user identifier. No IDFA, no cross-app tracking.
+/// TelemetryDeck sends the signal name + our PII-free parameters, and a one-way
+/// salted hash as the anonymous user identifier. No IDFA, no cross-app tracking.
+///
+/// It also attaches a **default payload we do not choose**, and this comment
+/// used to describe it as "app/OS version, device model, locale" and stop
+/// there. At the pinned 2.14.1 (`Package.resolved`, revision `ad4a03e`) it is
+/// considerably more:
+///
+/// * `Signal+Helpers.swift:55-72` — seven accessibility settings:
+///   `isReduceMotionEnabled`, `isBoldTextEnabled`, `isInvertColorsEnabled`,
+///   `isDarkerSystemColorsEnabled`, `isReduceTransparencyEnabled`,
+///   `shouldDifferentiateWithoutColor`, `preferredContentSizeCategory`.
+/// * `Signal.swift:116-130` — `Acquisition.firstSessionDate` and five
+///   `Retention.*` counters (average session seconds, distinct days used,
+///   distinct days last month, total sessions, previous session seconds).
+/// * `Signal.swift:73-84` — `Device.timeZone`, `screenResolutionWidth`/
+///   `Height`, `screenScaleFactor`, `architecture`, `orientation`.
+///
+/// None of it is gated by anything the app sets: `config.sessionStatsEnabled`
+/// gates only `SessionManager.startNewSession()`, not the payload block, and
+/// there is no flag at all for the accessibility one. The only switch is
+/// `analyticsDisabled` below, which stops everything.
+///
+/// So the inventory is stated here in full, the in-app privacy policy names the
+/// same categories, and `PrivacyInfo.xcprivacy` declares
+/// `NSPrivacyCollectedDataTypeOtherDataTypes` for the parts no named type
+/// covers. An SDK bump that adds another field makes all three wrong together —
+/// check this list when the pin moves.
 final class TelemetryDeckAnalytics: AnalyticsService {
     /// The SDK holds this exact instance and re-reads it on every signal, so
     /// mutating `analyticsDisabled` here takes effect immediately — no

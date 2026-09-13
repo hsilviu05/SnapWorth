@@ -1192,7 +1192,11 @@ information and cannot identify you.</p>
 <p>We collect anonymous usage analytics to understand how the app is used and
 improve it. Using TelemetryDeck, we record in-app events &mdash; such as opening
 the app, starting a scan, viewing the paywall, and completing a purchase &mdash;
-along with your device model, operating system version, app version, and locale.
+along with your device model, operating system version, app version, locale,
+time zone, screen size, and device orientation. The analytics SDK also reports
+how your accessibility settings are configured &mdash; such as Reduce Motion,
+Bold Text, Increase Contrast and your preferred text size &mdash; and counts of
+how often and on how many separate days you have opened the app.
 A one-way salted hash is used as an anonymous identifier. This data contains no
 photos, item names, prices, or advertising identifiers (IDFA), is not linked to
 your identity, and is never used to track you across other apps or websites. You
