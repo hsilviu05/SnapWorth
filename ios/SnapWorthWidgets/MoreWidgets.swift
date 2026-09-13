@@ -68,10 +68,24 @@ struct RecentFindsView: View {
                     .foregroundStyle(Color.wBackground.opacity(0.7))
                 Spacer()
                 if haul.hasScans {
-                    Text(haul.formattedRange)
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundStyle(Color.wSage)
-                        .accessibilityLabel("Haul worth \(haul.spokenRange)")
+                    // The figure is the whole library, not these rows. The
+                    // list under it is capped at two or four, so an unlabelled
+                    // total sat directly above rows that visibly do not sum to
+                    // it and read as an arithmetic error in the user's own
+                    // ledger — starkest on a 1.3.x blob, where the v1 fallback
+                    // draws exactly one row. The spoken label has always said
+                    // "Haul worth …"; this is the sighted half of it.
+                    HStack(spacing: 3) {
+                        Text("Haul")
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundStyle(Color.wBackground.opacity(0.7))
+                        Text(haul.formattedRange)
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundStyle(Color.wSage)
+                    }
+                    .lineLimit(1)
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel("Haul worth \(haul.spokenRange)")
                 }
             }
             .padding(.bottom, 8)
