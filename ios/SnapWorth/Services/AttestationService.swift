@@ -72,8 +72,28 @@ actor AttestationService {
             signedTransaction: signedTransaction,
             deviceID: DeviceIdentity.shared.id))
 
-        let (data, response) = try await session.data(for: request)
-        guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
+        // Through the retry wrapper, like every other bearer-carrying request
+        // in the app. This one sent itself with a bare `session.data(for:)`,
+        // so a 401 fell straight into the guard below and threw — and nothing
+        // on that path clears the rejected token. `accessToken()` then keeps
+        // handing back the same dead credential from cache until its
+        // client-computed expiry, up to an hour, so every later attempt fails
+        // identically. That is the exact failure `sendRetryingAuth` was written
+        // for, in almost these words, and the named trigger for it — "the
+        // backend's signing key rotates" — answers 401 on this very route.
+        //
+        // The caller cannot compensate: `syncEntitlementToServer` swallows the
+        // throw into a log line, and its comment claims the retry on every
+        // status refresh makes this "self-healing if an earlier attempt failed
+        // offline" — true for offline, false for 401, because the retry
+        // re-sent the same token. A paying user stayed on the free tier.
+        //
+        // `accessToken()` above stays as it is rather than becoming
+        // `attachBearerToken()`: that helper swallows an attestation failure so
+        // a *scan* can degrade to the unauthenticated path, and there is no
+        // such path for submitting an entitlement.
+        let (data, http) = try await request.sendRetryingAuth(on: session)
+        guard http.statusCode == 200 else {
             throw AttestationError.serverRejected(Self.detail(from: data))
         }
         // The server returns a re-issued token carrying the new tier; adopting

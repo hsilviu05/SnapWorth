@@ -4210,3 +4210,86 @@ final class HistorySearchResetTests: XCTestCase {
         XCTAssertEqual(vm.sortOrder, .mostValuable)
     }
 }
+
+// ── Every credential we attach has to be re-mintable ─────────────────────────
+//
+// `sendRetryingAuth` exists because a 401 means the token we attached is not
+// acceptable, and `accessToken()` keeps handing back that same token from cache
+// until its client-computed expiry — up to an hour — so every later attempt
+// fails identically. Three of the four bearer-carrying requests went through
+// it. `submitEntitlement` built its request by hand and sent it with a bare
+// `session.data(for:)`, so a signing-key rotation left a paying user on the
+// free tier with no way to recover but waiting out the cache.
+//
+// Source-level, because the alternative is a URLProtocol harness around an
+// actor whose token path calls `DCAppAttestService`, which a simulator does not
+// support. What is actually being asserted here is structural, and the defect
+// was structural.
+
+final class BearerRetryStructureTests: XCTestCase {
+
+    private func source(_ path: String) throws -> String {
+        let url = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("SnapWorth/\(path)")
+        return try String(contentsOf: url, encoding: .utf8)
+    }
+
+    /// The body of a top-level method, from its signature to the first line
+    /// that is exactly four spaces and a closing brace — nested closes are
+    /// indented further, so that line is the method's own.
+    private func body(of signature: String, in source: String) throws -> String {
+        let start = try XCTUnwrap(source.range(of: signature),
+                                  "could not find \(signature)")
+        let end = try XCTUnwrap(source.range(of: "\n    }\n",
+                                             range: start.upperBound..<source.endIndex))
+        return String(source[start.upperBound..<end.lowerBound])
+    }
+
+    func test_submitEntitlementRetriesOnAnExpiredToken() throws {
+        let file = try source("Services/AttestationService.swift")
+        let method = try body(
+            of: "func submitEntitlement(signedTransaction: String) async throws {",
+            in: file)
+
+        XCTAssertTrue(method.contains("sendRetryingAuth(on: session)"),
+                      "a rejected token is re-sent until it expires")
+        // Comments in this method quote the old call, so only a real call
+        // counts: a bare send is `try await session.data(...)`.
+        XCTAssertFalse(method.contains("try await session.data(for: request)"),
+                       "still sending the bearer request without the wrapper")
+    }
+
+    func test_theRoutesThatMintATokenDeliberatelyDoNotUseIt() throws {
+        // The other half, so this does not become "wrap everything". The
+        // challenge and attest/refresh posts carry no bearer — they are how one
+        // is obtained — and `post` handles its own 401 on the refresh path.
+        // Wrapping them would ask the token service to re-mint a token in order
+        // to mint a token.
+        let file = try source("Services/AttestationService.swift")
+        for signature in ["private func fetchChallenge() async throws -> String {",
+                          "private func post<B: Encodable>(path: String, body: B) async throws -> String {"] {
+            let method = try body(of: signature, in: file)
+            XCTAssertFalse(method.contains("Authorization"),
+                           "\(signature) attaches a credential and must then retry")
+            XCTAssertTrue(method.contains("session.data(for: request)"))
+        }
+    }
+
+    func test_noServiceAttachesABearerWithoutTheWrapper() throws {
+        // A sweep rather than a proof: file-level, so it catches a whole file
+        // that forgot — which is exactly what happened — but not a second call
+        // site added inside a file that already uses the wrapper elsewhere.
+        for path in ["Services/AttestationService.swift",
+                     "Services/ScanAPIClient.swift",
+                     "Services/ListingService.swift"] {
+            let file = try source(path)
+            let attaches = file.contains("attachBearerToken")
+                || file.contains(#"forHTTPHeaderField: "Authorization""#)
+            guard attaches else { continue }
+            XCTAssertTrue(file.contains("sendRetryingAuth"),
+                          "\(path) attaches a bearer token and never retries one")
+        }
+    }
+}
