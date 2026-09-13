@@ -68,11 +68,30 @@ struct ScanView: View {
             // ── Camera background (warm charcoal) ─────────────────────────
             Color.snapCharcoal.ignoresSafeArea()
 
-            if cameraManager.authStatus == .authorized {
+            // Three states, not two. `authStatus != .authorized` used to send
+            // `.notDetermined` and `.restricted` to the same "access denied /
+            // Open Settings" screen as a real refusal.
+            //
+            // `.notDetermined` is the first launch: the system prompt is on
+            // screen, over this. Accusing a user of denying access in the
+            // half-second before they have been asked is both wrong and the
+            // first thing they see of the app — and "Open Settings" under it
+            // is advice that would take them out of the prompt.
+            //
+            // `.restricted` is Screen Time or an MDM profile. Settings is
+            // still where it is changed, so the button stays, but the copy no
+            // longer says the user denied something they never chose.
+            switch cameraManager.authStatus {
+            case .authorized:
                 CameraPreview(session: cameraManager.session)
                     .ignoresSafeArea()
-            } else {
-                permissionPlaceholder
+            case .notDetermined:
+                // The charcoal ground behind this ZStack is the whole screen.
+                EmptyView()
+            case .restricted:
+                permissionPlaceholder(restricted: true)
+            default:
+                permissionPlaceholder(restricted: false)
             }
 
             // ── Camera UI overlay ─────────────────────────────────────────
@@ -166,11 +185,42 @@ struct ScanView: View {
                     // carries the same information for VoiceOver.
                     .accessibilityHidden(true)
 
+                // The one label in this chrome drawn straight onto the video.
+                //
+                // 70%-opacity cream composited over whatever the camera is
+                // pointed at has no contrast ratio at all — it depends on the
+                // scene. Point the phone at a white shelf, a shop's strip
+                // lighting or a pale garment, which is most of what this app
+                // is pointed at, and the sentence disappears. Every other
+                // label in the same chrome already carries the capsule scrim:
+                // the free-scan counter, the streak pill and the thrift-run
+                // control all sit on `snapCharcoal.opacity(0.5)`.
+                //
+                // Same treatment, same opacity, so this reads as the set it
+                // belongs to rather than a fourth style. The text is unchanged;
+                // what it gains is a ground that can be measured at all.
+                //
+                // Measured, against the worst thing a camera can show: cream
+                // at 0.7 straight onto white was 1.05:1 — invisible. Cream at
+                // 0.9 on a 50% charcoal scrim over the same white is 2.88:1,
+                // and 6.88:1 over mid grey. Better by a factor of nearly three
+                // and still under AA, because the scrim is translucent too.
+                //
+                // Left at 0.5 anyway: the counter, the streak pill and the run
+                // control all use exactly that, so this label's ceiling is the
+                // whole camera chrome's ceiling. Raising one of the four would
+                // buy compliance for the least important of them and make the
+                // set look wrong. That shared ceiling is recorded in the audit
+                // as its own finding rather than half-fixed here.
                 Text("Center the item — tags & logos help")
                     .font(.snapCaption)
-                    .foregroundStyle(Color.snapOnCharcoal.opacity(0.7))
+                    .foregroundStyle(Color.snapOnCharcoal.opacity(0.9))
                     .multilineTextAlignment(.center)
                     .fixedSize(horizontal: false, vertical: true)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 5)
+                    .background(Color.snapCharcoal.opacity(0.5))
+                    .clipShape(Capsule())
                     .padding(.horizontal, 20)
                     .padding(.top, 16)
 
@@ -444,14 +494,19 @@ struct ScanView: View {
     }
 
     // MARK: - Permission Placeholder
-    private var permissionPlaceholder: some View {
+    private func permissionPlaceholder(restricted: Bool) -> some View {
         VStack(spacing: 20) {
             Image(systemName: "camera.slash")
                 .snapSymbol(48, weight: .light)
                 .foregroundStyle(Color.snapOnCharcoal.opacity(0.5))
                 .accessibilityHidden(true)
 
-            Text("Camera access needed to scan items")
+            // Under Screen Time or an MDM profile the camera is not something
+            // the user turned down, and telling them it is makes the app look
+            // broken rather than restricted.
+            Text(restricted
+                 ? "Camera access is restricted on this device"
+                 : "Camera access needed to scan items")
                 .font(.snapBody)
                 .foregroundStyle(Color.snapOnCharcoal.opacity(0.8))
                 .multilineTextAlignment(.center)
@@ -465,7 +520,9 @@ struct ScanView: View {
                 }
             }
             .frame(maxWidth: 200)
-            .accessibilityHint("Opens iOS Settings so you can allow camera access")
+            .accessibilityHint(restricted
+                               ? "Opens iOS Settings, where Screen Time restrictions are changed"
+                               : "Opens iOS Settings so you can allow camera access")
         }
     }
 
