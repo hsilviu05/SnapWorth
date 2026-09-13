@@ -100,6 +100,15 @@ def _utc_day() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%d")
 
 
+def _utc_month() -> str:
+    """"YYYY-MM" — the granularity Apple's DeviceCheck `last_update_time` has.
+
+    Coarse, and the only period signal DeviceCheck gives. It is what lets a
+    single bit mean "this month" instead of "forever"; see `starting_balance`.
+    """
+    return datetime.now(timezone.utc).strftime("%Y-%m")
+
+
 def _exhausted_message(limit: int) -> str:
     """User-facing copy for a spent allowance.
 
@@ -307,6 +316,10 @@ class ScanQuota:
 
         Survives reinstall, which the per-install counter cannot. Failures are
         swallowed: this is a hardening signal, not a correctness dependency.
+
+        Apple stamps the write with a month, and `starting_balance` reads that
+        stamp — so re-marking an already-marked device is not a no-op, it
+        refreshes the month the mark belongs to.
         """
         if not device_token or self._device_check is None:
             return
@@ -321,8 +334,18 @@ class ScanQuota:
         """Free scans a *newly seen* subject should start with.
 
         A fresh App Attest key id normally means a new install. If DeviceCheck
-        says this hardware already burned its allowance, the reinstall gets
-        nothing back until the next reset.
+        says this hardware burned its allowance *this month*, the reinstall
+        gets nothing back until the next one.
+
+        "This month" is Apple's `last_update_time`, which is the only period
+        DeviceCheck can express. It used to say "until the next reset" while no
+        reset existed anywhere: `note_exhausted` is the only writer of bit0 in
+        the repo and nothing ever cleared it. With `FREE_SCANS_PER_DAY = 1`
+        that bit is set on the second scan attempt of any day — i.e. for
+        essentially every engaged free user, within their first day — so it did
+        not distinguish abusers from users at all. It flagged almost the whole
+        free base, permanently, and then denied each of them the first-day
+        welcome on any future install of the app on that hardware.
         """
         try:
             # `_SEEN_TTL`, not `_COUNTER_TTL`. "Have I ever seen this subject"
@@ -359,6 +382,24 @@ class ScanQuota:
             return await self._welcome(subject)
 
         if bits and bits.get("bit0"):
+            # The mark is only about the month it was written in. Apple returns
+            # that month as `last_update_time`, and it was being discarded.
+            stamp = str(bits.get("last_update_time") or "")[:7]
+            if stamp != _utc_month():
+                # Either an earlier month, or a shape we cannot read. Both are
+                # "recency not established", and the branch above already
+                # grants when Apple is simply unreachable — a hardening signal
+                # must not outweigh a real user on a new phone. Clear it so
+                # the next lookup is cheap and unambiguous.
+                log.info("devicecheck mark is not from this month — granting",
+                         extra={"stamp": stamp or "absent"})
+                try:
+                    await self._device_check.update_bits(
+                        device_token, bit0=False, bit1=False)
+                except Exception as exc:
+                    log.warning("devicecheck reset failed: %s", exc)
+                return await self._welcome(subject)
+
             log.info("reinstall detected via devicecheck — no fresh free scans")
             try:
                 await self._cache.set(

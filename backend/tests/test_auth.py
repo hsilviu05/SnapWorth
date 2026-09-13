@@ -511,12 +511,22 @@ class TestQuota:
         build_deps()
 
 
+def _this_month() -> str:
+    from datetime import datetime, timezone
+    return datetime.now(timezone.utc).strftime("%Y-%m")
+
+
 class _FakeDeviceCheck:
     """Stands in for Apple's DeviceCheck, which we cannot call from tests."""
 
-    def __init__(self, bit0=False):
+    def __init__(self, bit0=False, last_update_time=None):
         self.is_configured = True
-        self.bits = {"bit0": bit0, "bit1": False}
+        # `last_update_time` is part of Apple's real answer — a "YYYY-MM"
+        # stamp, the only period a two-bit store can carry. The stub used to
+        # omit it, which is why bit0 read as permanent in every test that used
+        # this class: there was nothing to say which month it belonged to.
+        self.bits = {"bit0": bit0, "bit1": False,
+                     "last_update_time": last_update_time or _this_month()}
         self.updated = False
 
     async def query_bits(self, device_token):
@@ -524,7 +534,9 @@ class _FakeDeviceCheck:
 
     async def update_bits(self, device_token, bit0, bit1):
         self.updated = True
-        self.bits = {"bit0": bit0, "bit1": bit1}
+        # A write re-stamps the month, same as Apple's.
+        self.bits = {"bit0": bit0, "bit1": bit1,
+                     "last_update_time": _this_month()}
 
 
 class TestReinstallResistance:
