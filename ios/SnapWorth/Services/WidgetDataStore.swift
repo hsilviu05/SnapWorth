@@ -211,7 +211,12 @@ enum WidgetBridge {
     static let appGroupID = "group.eu.snapworth.app"
     static let haulKey = "snapworth.widget.haul"
     /// How many finds the list widgets can show at their largest.
-    static let maxRecentFinds = 4
+    ///
+    /// Sized for `.systemLarge`, which is what the writer has to fill: four
+    /// rows occupied about a third of that tile and left a visibly empty
+    /// bottom half, because this number was chosen when the list only ever
+    /// rendered at `.systemMedium`.
+    static let maxRecentFinds = 6
 }
 
 // ── Compact money, for the accessory families ────────────────────────────────
@@ -409,11 +414,18 @@ extension WidgetHaulData {
 }
 
 extension WidgetHaulData.ScansLeft {
-    /// Pro carries the streak rather than the word "unlimited": a number that
-    /// never changes is not worth a slot on someone's Home Screen.
+    /// The widget is called "Scans left", and for a subscriber the answer is
+    /// "unlimited" — so that is what the big line says, at every size.
+    ///
+    /// It used to hand the slot to the streak and print "5-day streak", which
+    /// answered a question nobody had asked of *this* widget: a subscriber
+    /// with a live streak was never told their scans were unlimited, and the
+    /// one state that did say so ("Pro", streak zero) is the state they see
+    /// least. The streak has not been dropped — it moved to the subtitle,
+    /// under the answer rather than in place of it.
     var headline: String {
         switch self {
-        case .pro(let streak):     return streak > 0 ? "\(streak)-day streak" : "Pro"
+        case .pro:                 return "∞"
         case .remaining(let left): return "\(left)"
         case .unknown:             return "—"
         }
@@ -421,25 +433,31 @@ extension WidgetHaulData.ScansLeft {
 
     var subtitle: String {
         switch self {
-        case .pro(let streak):     return streak > 1 ? "Keep it going" : "Unlimited scans"
+        case .pro(let streak):
+            return streak > 0 ? "Unlimited · \(streak)-day streak" : "Unlimited scans"
         case .remaining(0):        return "Back tomorrow, or go Pro"
         case .remaining(let left): return "free scan\(left == 1 ? "" : "s") left today"
         case .unknown:             return "Open SnapWorth"
         }
     }
 
-    var circularValue: String {
-        switch self {
-        case .pro(let streak):     return streak > 0 ? "\(streak)" : "∞"
-        case .remaining(let left): return "\(left)"
-        case .unknown:             return "—"
-        }
-    }
+    /// The same string as `headline`, delegated rather than copied.
+    ///
+    /// These held two different switches over the same three cases until Pro
+    /// stopped printing its streak here, at which point the bodies became
+    /// identical — two names for one string table, free to drift apart while
+    /// they were meant to agree. They stay separate members because a circular
+    /// accessory is about 72 points across and a Home Screen tile is not, so
+    /// the day one of them needs a shorter form is the day this stops being an
+    /// alias. Until then there is exactly one place to change.
+    var circularValue: String { headline }
 
     var spoken: String {
         switch self {
         case .pro(let streak):
-            return streak > 0 ? "\(streak) day scanning streak" : "SnapWorth Pro"
+            return streak > 0
+                ? "Unlimited scans, \(streak) day scanning streak"
+                : "Unlimited scans"
         case .remaining(0):
             return "No free scans left today"
         case .remaining(let left):
