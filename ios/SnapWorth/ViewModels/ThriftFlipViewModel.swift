@@ -247,17 +247,20 @@ final class ThriftFlipViewModel {
     /// itself goes through `ScanAPIClient`, and the behaviour worth pinning is
     /// what happens to the row and the warning afterwards.
     func persistToLibrary(_ result: ScanResult, repository: ScanRepository) {
+        // Taken before the call: the rollback inside `save` cannot reach it,
+        // and this screen keeps pricing off `scanResult` either way.
+        let backup = result.detachedCopy()
         do {
             try repository.save(result)
             libraryWarning = nil
         } catch let failure as ScanPersistenceError {
-            if case .saveFailed(let replacement) = failure {
+            if case .saveFailed = failure {
                 // The repository rolled the shared context back, so `result` is
-                // no longer registered with it. Hold the context-free copy it
-                // handed back instead — same values, safe to read and to price
-                // for as long as this screen is up. `.storeUnavailable` throws
-                // before the insert, so there is nothing to swap there.
-                scanResult = replacement
+                // no longer registered with it. Hold the copy taken above —
+                // same values, safe to read and to price for as long as this
+                // screen is up. `.storeUnavailable` throws before the insert,
+                // so there is nothing to swap there.
+                scanResult = backup
                 libraryWarning = "Couldn't add this to My Finds. The verdict below still works."
             } else {
                 libraryWarning = "SnapWorth couldn't open your library on this launch, so this find won't be kept."
