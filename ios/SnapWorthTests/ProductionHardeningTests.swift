@@ -3312,6 +3312,59 @@ final class WidgetEntitlementTests: XCTestCase {
         XCTAssertTrue(try readBack().isPro)
     }
 
+    // ── What the writer stores is what `.systemLarge` can draw ──────────────
+    //
+    // `RecentFindsView` at `.systemLarge` asks for `maxRecentFinds` rows and
+    // gets exactly what this writer put in the blob — the view cannot conjure
+    // a row that was never stored. That is why a list too short for the tile
+    // is fixed here and not there, and it went unnoticed because the cap had
+    // no test: the writer's `.prefix` was covered by nothing, and the standing
+    // comment on `writeHaul` claims it "cannot be tested", which these very
+    // tests disprove.
+
+    private func scan(_ name: String, at timestamp: Date) -> ScanResult {
+        let r = ScanResult(itemName: name, brand: "Patagonia",
+                           category: "clothing", conditionNotes: "Solid piece",
+                           valueLow: 100, valueHigh: 200, confidence: "High",
+                           soldListingsCount: 0,
+                           listingTitle: "T", listingDescription: "D")
+        r.timestamp = timestamp
+        return r
+    }
+
+    func test_theWriterStoresAFullLargeWidgetsWorthOfFinds() throws {
+        let base = Date(timeIntervalSince1970: 1_789_000_000)
+        let results = (0..<(WidgetBridge.maxRecentFinds + 4)).map {
+            scan("Item \($0)", at: base.addingTimeInterval(Double($0) * 60))
+        }
+        WidgetDataStore.writeHaul(results: results, isPro: false)
+
+        let stored = try readBack().recentFinds
+        XCTAssertEqual(stored.count, WidgetBridge.maxRecentFinds,
+                       "the large family asks for this many and draws what it gets")
+        XCTAssertGreaterThanOrEqual(WidgetBridge.maxRecentFinds, 6,
+                                    "four rows left the bottom half of a 345pt tile blank")
+    }
+
+    func test_theStoredFindsAreTheNewestOnesNewestFirst() throws {
+        // The cap is a `prefix` over a sort, so an off-by-one in either would
+        // store the *oldest* finds and the widget would be stale rather than
+        // short — a failure that looks like working software.
+        let base = Date(timeIntervalSince1970: 1_789_000_000)
+        let results = (0..<8).map {
+            scan("Item \($0)", at: base.addingTimeInterval(Double($0) * 60))
+        }
+        let stored = try readBack(after: results)
+        XCTAssertEqual(stored.first?.name, "Item 7", "newest first")
+        XCTAssertFalse(stored.contains { $0.name == "Item 0" },
+                       "the oldest find is the one that falls off the end")
+    }
+
+    private func readBack(after results: [ScanResult]) throws -> [WidgetFind] {
+        WidgetDataStore.writeHaul(results: results, isPro: false)
+        return try readBack().recentFinds
+    }
+
     func test_aProWriteAfterAFreeOneIsNotSwallowed() throws {
         // The shape of the original defect: whatever was stored won.
         WidgetDataStore.writeHaul(results: [], isPro: false)

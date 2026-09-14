@@ -1703,20 +1703,43 @@ final class WidgetScansLeftTests: XCTestCase {
         XCTAssertEqual(haul(remaining: 3).scansLeft(at: .now).subtitle, "free scans left today")
     }
 
-    func test_proCarriesTheStreakInsteadOfACount() {
+    func test_proAnswersUnlimitedAndKeepsTheStreakUnderIt() {
+        // The widget is "Scans left" and the big line is its answer. It used
+        // to read "5-day streak", so a subscriber with a live streak was never
+        // told their scans were unlimited — the only state that said so was
+        // the streakless one, which is the one they see least. The streak is
+        // still there, in the subtitle.
         let state = haul(isPro: true, remaining: nil, streak: 5).scansLeft(at: .now)
         XCTAssertEqual(state, .pro(streak: 5))
-        XCTAssertEqual(state.headline, "5-day streak")
-        XCTAssertEqual(state.subtitle, "Keep it going")
-        XCTAssertEqual(state.circularValue, "5")
+        XCTAssertEqual(state.headline, "∞")
+        XCTAssertEqual(state.subtitle, "Unlimited · 5-day streak")
+        XCTAssertEqual(state.circularValue, "∞")
+        XCTAssertEqual(state.spoken, "Unlimited scans, 5 day scanning streak")
         XCTAssertFalse(state.isSpent, "Pro is never out of scans")
     }
 
     func test_proWithoutAStreakSaysSoPlainly() {
         let state = haul(isPro: true, streak: 0).scansLeft(at: .now)
-        XCTAssertEqual(state.headline, "Pro")
+        XCTAssertEqual(state.headline, "∞")
         XCTAssertEqual(state.subtitle, "Unlimited scans")
         XCTAssertEqual(state.circularValue, "∞")
+        XCTAssertEqual(state.spoken, "Unlimited scans")
+    }
+
+    func test_theProHeadlineNeverShowsAFiniteCount() {
+        // The complaint this came from: a subscriber's Home Screen showing a
+        // number where "unlimited" belongs. Whatever the streak, and whatever
+        // stale count the blob still carries, the answer is the same glyph.
+        for streak in [0, 1, 2, 30] {
+            for remaining in [nil, 0, 3] as [Int?] {
+                let state = haul(isPro: true, remaining: remaining,
+                                 streak: streak).scansLeft(at: .now)
+                XCTAssertEqual(state.headline, "∞", "streak \(streak)")
+                XCTAssertEqual(state.circularValue, "∞", "streak \(streak)")
+                XCTAssertTrue(state.subtitle.hasPrefix("Unlimited"),
+                              "streak \(streak): \(state.subtitle)")
+            }
+        }
     }
 
     func test_proWinsOverAStaleCount() {
@@ -1785,6 +1808,8 @@ final class WidgetRecentRowsTests: XCTestCase {
         let finds = (1...6).map { WidgetFind(id: "\($0)", name: "Item \($0)", range: "$1") }
         XCTAssertEqual(haul(itemCount: 6, finds: finds).recentRows(limit: 2).count, 2)
         XCTAssertEqual(haul(itemCount: 6, finds: finds).recentRows(limit: 4).count, 4)
+        XCTAssertEqual(haul(itemCount: 6, finds: finds)
+                        .recentRows(limit: WidgetBridge.maxRecentFinds).count, 6)
     }
 
     func test_aRealFindListWinsOverTheFallback() {
@@ -1906,7 +1931,9 @@ final class WidgetFreshnessTests: XCTestCase {
         let state = haul(updatedAt: friday, isPro: true, streak: 5,
                          streakLastScan: friday).scansLeft(at: now)
         XCTAssertEqual(state, .pro(streak: 0))
-        XCTAssertEqual(state.headline, "Pro", "a streak the user has lost")
+        XCTAssertEqual(state.headline, "∞", "still unlimited")
+        XCTAssertEqual(state.subtitle, "Unlimited scans",
+                       "a streak the user has lost is not mentioned")
     }
 
     // ── The month's profit belongs to one month ──────────────────────────────

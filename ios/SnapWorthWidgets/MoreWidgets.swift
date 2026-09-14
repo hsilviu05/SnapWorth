@@ -46,12 +46,25 @@ struct RecentFindsView: View {
     let haul: WidgetHaulData
     @Environment(\.widgetFamily) private var family
 
-    /// Medium fits two rows at a legible size; large fits the four the writer
-    /// stores. Asking for more than `maxRecentFinds` would silently render
-    /// short, so the cap is read rather than assumed.
+    /// Large takes every row the writer stores; medium stays at two.
+    ///
+    /// Large asked for four, which is what `maxRecentFinds` was, and four 13pt
+    /// rows stacked at the top of a 345pt tile filled about a third of it —
+    /// the rest was the `Spacer` below them, so the widget ended in a blank
+    /// half with nothing in it. The writer now stores six (see
+    /// `WidgetBridge.maxRecentFinds`) and the rows share the height rather
+    /// than piling up against the header.
+    ///
+    /// Medium was raised to three in the same change and put back: the height
+    /// distribution below already fills that tile at two, so the extra row
+    /// changed what a medium widget *shows* to fix something that was not
+    /// about medium. It is a separate decision, and it needs its own reason.
+    ///
+    /// No `min` against the cap. Both arms are already within it, and
+    /// `recentRows(limit:)` takes a `prefix`, which is total — asking for more
+    /// than is stored returns what exists rather than rendering short.
     private var rowCount: Int {
-        min(family == .systemLarge ? WidgetBridge.maxRecentFinds : 2,
-            WidgetBridge.maxRecentFinds)
+        family == .systemLarge ? WidgetBridge.maxRecentFinds : 2
     }
 
     /// Derived in the shared model so a test can reach it — see
@@ -69,12 +82,14 @@ struct RecentFindsView: View {
                 Spacer()
                 if haul.hasScans {
                     // The figure is the whole library, not these rows. The
-                    // list under it is capped at two or four, so an unlabelled
-                    // total sat directly above rows that visibly do not sum to
-                    // it and read as an arithmetic error in the user's own
-                    // ledger — starkest on a 1.3.x blob, where the v1 fallback
-                    // draws exactly one row. The spoken label has always said
-                    // "Haul worth …"; this is the sighted half of it.
+                    // list under it shows only the most recent few — see
+                    // `rowCount`, which is the authority and has changed
+                    // twice — so an unlabelled total sat directly above rows
+                    // that visibly do not sum to it and read as an arithmetic
+                    // error in the user's own ledger. Starkest on a 1.3.x
+                    // blob, where the v1 fallback draws exactly one row. The
+                    // spoken label has always said "Haul worth …"; this is the
+                    // sighted half of it.
                     HStack(spacing: 3) {
                         Text("Haul")
                             .wFont(11, weight: .medium)
@@ -97,8 +112,20 @@ struct RecentFindsView: View {
                     .foregroundStyle(Color.wWarmGray)
                 Spacer()
             } else {
-                VStack(alignment: .leading, spacing: 6) {
-                    ForEach(rows) { find in
+                // Each row takes an equal share of what is left instead of a
+                // fixed 13pt line, and the list claims the whole remaining
+                // height rather than handing it to a trailing `Spacer`. That
+                // spacer is what left the bottom of the large tile empty: the
+                // rows were laid out at their intrinsic height, and everything
+                // under them was blank. Rows separated by a hairline so an
+                // evenly distributed list still reads as a list.
+                VStack(alignment: .leading, spacing: 0) {
+                    ForEach(Array(rows.enumerated()), id: \.element.id) { index, find in
+                        if index > 0 {
+                            Rectangle()
+                                .fill(Color.wBackground.opacity(0.12))
+                                .frame(height: 0.5)
+                        }
                         HStack(alignment: .firstTextBaseline, spacing: 6) {
                             Text(find.name)
                                 .wFont(13, weight: .medium)
@@ -112,12 +139,14 @@ struct RecentFindsView: View {
                                 .lineLimit(1)
                                 .layoutPriority(1)
                         }
+                        .frame(maxWidth: .infinity, maxHeight: .infinity,
+                               alignment: .leading)
                         .accessibilityElement(children: .ignore)
                         .accessibilityLabel(
                             "\(find.name), \(WidgetHaulData.spoken(find.range))")
                     }
                 }
-                Spacer(minLength: 0)
+                .frame(maxHeight: .infinity)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
@@ -176,7 +205,11 @@ struct ScansLeftView: View {
                 }
                 Spacer()
                 Text(state.headline)
-                    .wFont(haul.isPro ? 18 : 30, weight: .bold, design: .rounded)
+                    // One size for every state. The Pro branch used to print
+                    // "5-day streak" here and had to shrink to 18pt to fit it;
+                    // the headline is a single glyph or a single digit now, so
+                    // the free tier's size is the right one for all of them.
+                    .wFont(30, weight: .bold, design: .rounded)
                     .foregroundStyle(accentForRemaining)
                     .minimumScaleFactor(0.5)
                     .lineLimit(1)
