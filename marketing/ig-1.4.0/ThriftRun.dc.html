@@ -1,0 +1,100 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=DM+Sans:wght@400;500;600;700&display=swap">
+  <style>
+    body { margin: 0; }
+    a { color: #E8845F; } a:hover { color: #D96C47; }
+  </style>
+</helmet>
+
+<div style="width: 1080px; height: 1350px; background: #17120F; position: relative; overflow: hidden; font-family: 'DM Sans', -apple-system, 'Helvetica Neue', sans-serif;">
+
+  <div style="position: absolute; left: 50%; top: 200px; transform: translateX(-50%); width: 1200px; height: 760px; background: radial-gradient(ellipse at center, rgba(168,72,44,0.26) 0%, rgba(168,72,44,0.08) 46%, rgba(23,18,15,0) 72%); pointer-events: none;"></div>
+
+  <div style="position: relative; display: flex; flex-direction: column; height: 100%; padding: 84px 84px 72px; box-sizing: border-box;">
+
+    <h2 style="font-family: Fraunces, Georgia, serif; font-weight: 700; font-size: 74px; line-height: 1.02; letter-spacing: -0.02em; color: #FBF7F2; margin: 0; text-wrap: balance;">
+      Start a thrift run.
+    </h2>
+    <p style="font-size: 26px; line-height: 1.5; color: #B0A297; margin: 26px 0 0; max-width: 660px;">
+      Your running total for the trip stays on the Lock Screen and in the Dynamic Island while you scan — so you know what the haul is worth before you decide on the next thing.
+    </p>
+
+    <div style="flex-grow: 1; display: flex; flex-direction: column; justify-content: center; gap: 40px;">
+
+      <!-- dynamic island, compact -->
+      <div style="display: flex; justify-content: center;">
+        <div style="background: #000; border-radius: 999px; padding: 15px 26px; display: flex; align-items: center; gap: 18px; min-width: 430px; box-shadow: 0 20px 50px rgba(0,0,0,0.5);">
+          <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#E8845F" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M3 8V5.5A1.5 1.5 0 0 1 4.5 4H7"></path>
+            <path d="M17 4h2.5A1.5 1.5 0 0 1 21 5.5V8"></path>
+            <path d="M21 16v2.5a1.5 1.5 0 0 1-1.5 1.5H17"></path>
+            <path d="M7 20H4.5A1.5 1.5 0 0 1 3 18.5V16"></path>
+            <circle cx="12" cy="12" r="3.2"></circle>
+          </svg>
+          <span style="flex-grow: 1;"></span>
+          <span style="font-size: 27px; font-weight: 700; color: #8FB08A; font-variant-numeric: tabular-nums;">$248</span>
+          <span style="font-size: 23px; font-weight: 500; color: #8A8079; font-variant-numeric: tabular-nums;">18:42</span>
+        </div>
+      </div>
+
+      <!-- live activity card -->
+      <div style="background: #1C1714; border-radius: 40px; padding: 38px 40px; box-shadow: 0 30px 70px rgba(0,0,0,0.5);">
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="#E8845F" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M6 2.5h12l1.6 4.2a2 2 0 0 1-1.9 2.7H6.3a2 2 0 0 1-1.9-2.7L6 2.5Z"></path>
+            <path d="M5.4 9.4V19a2.5 2.5 0 0 0 2.5 2.5h8.2A2.5 2.5 0 0 0 18.6 19V9.4"></path>
+            <path d="M9.6 13.4h4.8"></path>
+          </svg>
+          <span style="font-family: Fraunces, Georgia, serif; font-size: 21px; font-weight: 600; color: rgba(251,247,242,0.7);">Thrift run · Goodwill on 5th</span>
+        </div>
+
+        <div style="display: flex; align-items: flex-end; gap: 26px; margin-top: 26px;">
+          <div>
+            <div style="font-size: 20px; color: #B0A297;">Haul so far</div>
+            <div style="font-family: Fraunces, Georgia, serif; font-size: 78px; font-weight: 700; color: #8FB08A; line-height: 1.04; letter-spacing: -0.02em; font-variant-numeric: tabular-nums;">$248</div>
+          </div>
+          <span style="flex-grow: 1;"></span>
+          <div style="text-align: right; padding-bottom: 12px;">
+            <div style="font-size: 20px; color: #B0A297;">elapsed</div>
+            <div style="font-size: 38px; font-weight: 600; color: #F0E9E2; line-height: 1.1; font-variant-numeric: tabular-nums;">18:42</div>
+          </div>
+        </div>
+
+        <div style="display: flex; gap: 12px; margin-top: 26px;">
+          <div style="background: rgba(143,176,138,0.15); border-radius: 999px; padding: 11px 20px; font-size: 21px; font-weight: 600; color: #8FB08A;">6 items</div>
+          <div style="background: rgba(232,132,95,0.14); border-radius: 999px; padding: 11px 20px; font-size: 21px; font-weight: 600; color: #E8845F;">Best: $95</div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- close -->
+    <div style="display: flex; align-items: center; gap: 16px; padding-top: 12px;">
+      <div style="width: 62px; height: 62px; border-radius: 16px; background: #A8482C; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+        <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="#FBF7F2" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M3 8V5.5A1.5 1.5 0 0 1 4.5 4H7"></path>
+          <path d="M17 4h2.5A1.5 1.5 0 0 1 21 5.5V8"></path>
+          <path d="M21 16v2.5a1.5 1.5 0 0 1-1.5 1.5H17"></path>
+          <path d="M7 20H4.5A1.5 1.5 0 0 1 3 18.5V16"></path>
+          <circle cx="12" cy="12" r="3.2"></circle>
+        </svg>
+      </div>
+      <div>
+        <div style="font-family: Fraunces, Georgia, serif; font-size: 30px; font-weight: 700; color: #FBF7F2; line-height: 1.15;">SnapWorth</div>
+        <div style="font-size: 21px; color: #B0A297;">Free on the App&nbsp;Store · One free scan every day</div>
+      </div>
+    </div>
+
+  </div>
+</div>
+</x-dc>
+</body>
+</html>

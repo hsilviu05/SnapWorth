@@ -1,0 +1,4 @@
+# The assembled canvas: ~2.4 MB, and every byte of it is regenerated from the
+# .dc.html artboards and canvas.json beside it by the design skill's seeder.
+# The artboards are the source; this is the build output.
+snapworth-widgets-launch.html
