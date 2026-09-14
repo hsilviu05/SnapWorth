@@ -79,7 +79,7 @@ cbor2==6.1.4
 # in any case — both call sites are ES256 over an EC P-256 key
 # (entitlements.py:219 verifies, devicecheck.py:72 signs) and no HMAC key
 # exists in production code. No audit allowlist entry is therefore needed.
-PyJWT==2.13.0
+PyJWT==2.14.0
 # Backs the X.509 chain walk that validates StoreKit transactions against the
 # pinned Apple Root CA G3 (entitlements.py:_verify_chain) and the App Attest
 # chain (appattest.py), so its correctness is load-bearing for entitlement
