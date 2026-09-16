@@ -5258,3 +5258,207 @@ final class ThriftFlipLibraryPersistenceTests: XCTestCase {
 
     private struct FallbackMarker: Error {}
 }
+
+// ── The retention funnel: is_first, the tally, and the events ────────────────
+//
+// The funnel had no way to answer "did this person ever get a valuation out of
+// us". `ScanStreak` counts days, `ReviewPrompt` counts per version and
+// `FreeScanCounter` counts today — none of them counts ever. `ScanTally` does,
+// and `is_first` on four events is what makes a Day-0 funnel one filter rather
+// than a parallel family of `first_*` names a later call site could forget.
+
+private final class FunnelSpy: AnalyticsService {
+    var events: [(name: String, params: [String: String])] = []
+    func track(_ event: AnalyticsEvent) {
+        events.append((event.name, event.parameters))
+    }
+    func setEnabled(_ enabled: Bool) {}
+    func params(for name: String) -> [String: String]? {
+        events.first { $0.name == name }?.params
+    }
+}
+
+final class RetentionFunnelTests: XCTestCase {
+
+    private var defaults = UserDefaults.standard
+    private let suite = "snapworth.tests.funnel"
+
+    override func setUp() {
+        super.setUp()
+        UserDefaults().removePersistentDomain(forName: suite)
+        defaults = UserDefaults(suiteName: suite)!
+    }
+
+    override func tearDown() {
+        UserDefaults().removePersistentDomain(forName: suite)
+        super.tearDown()
+    }
+
+    // ── ScanTally ───────────────────────────────────────────────────────────
+
+    func test_theFirstScanIsFirstAndTheSecondIsNot() {
+        XCTAssertTrue(ScanTally.isFirstScan(defaults: defaults))
+        ScanTally.record(defaults: defaults)
+        XCTAssertFalse(ScanTally.isFirstScan(defaults: defaults),
+                       "a user with one scan behind them is not on their first")
+    }
+
+    /// The ordering the call sites depend on: `isFirst` is read *before*
+    /// `record()`, so a first scan that fails and a first scan that succeeds
+    /// both report `is_first=true`.
+    func test_aFirstScanThatFailsIsStillAFirstScan() {
+        let isFirst = ScanTally.isFirstScan(defaults: defaults)
+        XCTAssertTrue(isFirst)
+        // No `record()` — the scan errored, so nothing completed.
+        XCTAssertTrue(ScanTally.isFirstScan(defaults: defaults),
+                      "a failed scan must not spend the user's first-scan status")
+    }
+
+    func test_milestonesFireAtOneThreeAndFiveAndNowhereElse() {
+        var fired: [Int] = []
+        for _ in 1...8 {
+            if let m = ScanTally.record(defaults: defaults) { fired.append(m) }
+        }
+        XCTAssertEqual(fired, ScanTally.milestones)
+        XCTAssertEqual(fired, [1, 3, 5])
+        XCTAssertEqual(ScanTally.completedCount(defaults: defaults), 8)
+    }
+
+    func test_theTallySurvivesAsACountNotAFlag() {
+        // Deliberately not a Bool: `scan_count_milestone` needs the number, and
+        // a flag would have to be widened the first time anyone asks "how far
+        // did they get".
+        for _ in 1...4 { ScanTally.record(defaults: defaults) }
+        XCTAssertEqual(ScanTally.completedCount(defaults: defaults), 4)
+    }
+
+    // ── Event names and payloads ────────────────────────────────────────────
+
+    func test_theNewEventsCarryTheNamesTheDashboardWillQuery() {
+        XCTAssertEqual(AnalyticsEvent.onboardingStarted.name, "onboarding_started")
+        XCTAssertEqual(AnalyticsEvent.onboardingCompleted(via: .skipped).name, "onboarding_completed")
+        XCTAssertEqual(AnalyticsEvent.scanResultShown(isFirst: true).name, "scan_result_shown")
+        XCTAssertEqual(AnalyticsEvent.scanCountMilestone(count: 3).name, "scan_count_milestone")
+        XCTAssertEqual(AnalyticsEvent.paywallDismissed(trigger: .scanLimit).name, "paywall_dismissed")
+    }
+
+    func test_isFirstRidesOnAllFourFunnelEvents() {
+        // One filter has to work across the whole first run, so the parameter
+        // name must be identical on every event that carries it.
+        let events: [AnalyticsEvent] = [
+            .scanStarted(isFirst: true),
+            .scanResultShown(isFirst: true),
+            .scanFailed(reason: .network, isFirst: true),
+            .paywallViewed(trigger: .scanLimit, isFirst: true),
+        ]
+        for event in events {
+            XCTAssertEqual(event.parameters["is_first"], "true",
+                           "\(event.name) is missing is_first")
+        }
+        XCTAssertEqual(AnalyticsEvent.scanStarted(isFirst: false).parameters["is_first"], "false")
+    }
+
+    func test_theFailureReasonBucketIsTheExistingOneAndCarriesNoFreeText() {
+        let event = AnalyticsEvent.scanFailed(reason: ScanFailureReason(.timeout), isFirst: false)
+        XCTAssertEqual(event.parameters["reason"], "network")
+        // Every value is from a fixed enum or a Bool — nothing user-authored,
+        // which is what keeps the App Privacy label unchanged.
+        for value in event.parameters.values {
+            XCTAssertTrue(["network", "no_result", "permission", "true", "false"].contains(value),
+                          "\(value) is not a bucketed value")
+        }
+    }
+
+    func test_onboardingRecordsWhichExitTheUserTook() {
+        XCTAssertEqual(AnalyticsEvent.onboardingCompleted(via: .finished).parameters["via"], "finished")
+        XCTAssertEqual(AnalyticsEvent.onboardingCompleted(via: .skipped).parameters["via"], "skipped")
+    }
+
+    func test_theMilestoneCarriesTheRungItCrossed() {
+        XCTAssertEqual(AnalyticsEvent.scanCountMilestone(count: 5).parameters["count"], "5")
+    }
+
+    func test_paywallDismissedKeepsItsTriggerSoTheRateIsPerSurface() {
+        // Look-to-buy is only meaningful per entry point: the scan-limit paywall
+        // and the settings one are different questions.
+        XCTAssertEqual(AnalyticsEvent.paywallDismissed(trigger: .ledgerExport).parameters["trigger"],
+                       "ledger_export")
+        XCTAssertEqual(AnalyticsEvent.paywallViewed(trigger: .ledgerExport, isFirst: false).parameters["trigger"],
+                       "ledger_export")
+    }
+
+    // ── Where they fire ─────────────────────────────────────────────────────
+
+    /// Source-inspected, like the repo's other "a modifier that must be there"
+    /// tests: a purchase also dismisses the sheet, and counting that as a
+    /// dismissal would put every conversion on both sides of the rate. Nothing
+    /// in-process can assert what SwiftUI's `onDisappear` closure did.
+    func test_aPurchaseIsNotCountedAsAPaywallDismissal() throws {
+        let source = try String(
+            contentsOf: URL(fileURLWithPath: #filePath)
+                .deletingLastPathComponent()
+                .deletingLastPathComponent()
+                .appendingPathComponent("SnapWorth/Views/PaywallView.swift"),
+            encoding: .utf8)
+
+        guard let disappear = source.range(of: ".onDisappear {"),
+              let end = source.range(of: "\n        }", range: disappear.upperBound..<source.endIndex)
+        else { return XCTFail("could not locate the paywall's onDisappear") }
+
+        let body = String(source[disappear.upperBound..<end.lowerBound])
+        XCTAssertTrue(body.contains("paywallDismissed"),
+                      "the dismissal event left onDisappear")
+        XCTAssertTrue(body.contains("!vm.isPurchaseComplete"),
+                      "a completed purchase would be counted as a dismissal too")
+    }
+
+    /// Thrift Flip emitted `scan_completed` and `scan_failed` but never
+    /// `scan_started`, so every started-to-completed rate was computed against a
+    /// denominator missing that tab's scans.
+    func test_bothScanEntryPointsEmitScanStarted() throws {
+        for file in ["SnapWorth/ViewModels/ScanViewModel.swift",
+                     "SnapWorth/ViewModels/ThriftFlipViewModel.swift"] {
+            let source = try String(
+                contentsOf: URL(fileURLWithPath: #filePath)
+                    .deletingLastPathComponent()
+                    .deletingLastPathComponent()
+                    .appendingPathComponent(file),
+                encoding: .utf8)
+            XCTAssertTrue(source.contains(".scanStarted(isFirst:"),
+                          "\(file) does not report the start of a scan")
+        }
+    }
+
+    /// `ResultView` serves three call sites: a fresh scan, My Finds, and the
+    /// ledger. Only the first is a funnel event — left ungated, browsing your
+    /// own library would inflate `scan_result_shown` without limit.
+    func test_onlyAFreshScanReportsItsResultAsShown() throws {
+        func source(_ path: String) throws -> String {
+            try String(contentsOf: URL(fileURLWithPath: #filePath)
+                .deletingLastPathComponent()
+                .deletingLastPathComponent()
+                .appendingPathComponent(path), encoding: .utf8)
+        }
+
+        XCTAssertTrue(try source("SnapWorth/Views/ScanView.swift").contains("isFreshScan: true"),
+                      "the scan path no longer marks its own result as fresh")
+        for browsing in ["SnapWorth/Views/HistoryView.swift",
+                         "SnapWorth/Views/FlipsView.swift"] {
+            XCTAssertFalse(try source(browsing).contains("isFreshScan"),
+                           "\(browsing) reopens saved finds — it must not report them as scans")
+        }
+        XCTAssertTrue(try source("SnapWorth/Views/ResultView.swift").contains("if isFreshScan {"),
+                      "the event is no longer gated")
+    }
+
+    /// The spy proves the envelope: name and parameters reach a backend intact.
+    func test_theBackendReceivesNameAndParametersTogether() {
+        let spy = FunnelSpy()
+        spy.track(.scanResultShown(isFirst: true))
+        spy.track(.onboardingCompleted(via: .skipped))
+
+        XCTAssertEqual(spy.events.map(\.name), ["scan_result_shown", "onboarding_completed"])
+        XCTAssertEqual(spy.params(for: "scan_result_shown")?["is_first"], "true")
+        XCTAssertEqual(spy.params(for: "onboarding_completed")?["via"], "skipped")
+    }
+}

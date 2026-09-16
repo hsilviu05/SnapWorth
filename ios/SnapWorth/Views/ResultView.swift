@@ -8,6 +8,20 @@ struct ResultView: View {
     /// Whether this result reached SwiftData. Defaults to true so call sites
     /// showing an already-persisted find (My Finds) are unaffected.
     var didSave: Bool = true
+    /// Whether this is a valuation the user has just produced, rather than one
+    /// they are re-opening from My Finds or the ledger.
+    ///
+    /// Defaults to false, following `didSave` above: this view serves all three
+    /// call sites, and `scan_result_shown` is a funnel event. Left ungated it
+    /// would fire every time somebody browsed their own library, and the
+    /// first-run number it feeds would be worthless.
+    ///
+    /// Deliberately not `coverPrice`, which is true in exactly the same cases
+    /// today. That one is a presentation choice — whether to play the guess
+    /// moment — and the day someone decides a fresh scan should show its number
+    /// straight away, the funnel would go quiet with nothing to say it had.
+    /// One is what the screen does; this is what happened.
+    var isFreshScan: Bool = false
 
 
     @State private var vm = ResultViewModel()
@@ -68,12 +82,14 @@ struct ResultView: View {
          purchaseService: any PurchaseService,
          onDismiss: @escaping () -> Void,
          didSave: Bool = true,
-         coverPrice: Bool = false) {
+         coverPrice: Bool = false,
+         isFreshScan: Bool = false) {
         self.result = result
         self.purchaseService = purchaseService
         self.onDismiss = onDismiss
         self.didSave = didSave
         self.coverPrice = coverPrice
+        self.isFreshScan = isFreshScan
         _paidPriceText = State(initialValue: Self.moneyField(result.paidPrice))
         _soldPriceText = State(initialValue: Self.moneyField(result.soldPrice))
         _feesText      = State(initialValue: Self.moneyField(result.feesEstimate))
@@ -231,6 +247,17 @@ struct ResultView: View {
             }
         }
         .task(id: result.id) {
+            // Keyed on `result.id`, so this is once per valuation shown rather
+            // than once per redraw. `scan_completed` fires when the response
+            // lands; persistence, image encoding and sheet presentation all sit
+            // between that and the user actually seeing a number.
+            //
+            // `completedCount() <= 1` rather than `isFirstScan()`: the tally has
+            // already been recorded by the time this view appears, so the first
+            // valuation reads 1, not 0. Correct under either ordering.
+            if isFreshScan {
+                Analytics.shared.track(.scanResultShown(isFirst: ScanTally.completedCount() <= 1))
+            }
             if let data = result.imageData {
                 photo = await Task.detached(priority: .userInitiated) {
                     UIImage(data: data)

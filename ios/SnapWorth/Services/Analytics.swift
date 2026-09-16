@@ -9,21 +9,44 @@ import Foundation
 /// event name can never drift between call sites.
 ///
 /// The launch funnel, in order:
-///   app_opened → scan_started → free_scan_limit_hit → paywall_viewed →
-///   purchase_completed
+///   app_opened → onboarding_started → onboarding_completed →
+///   scan_started → scan_result_shown → free_scan_limit_hit →
+///   paywall_viewed → purchase_completed / paywall_dismissed
+///
+/// **Day-0 is a parameter, not a second set of events.** Four events carry
+/// `is_first`, so a first-run funnel is the same query with one filter rather
+/// than a parallel family of `first_*` names that a future call site could
+/// forget to emit. `ScanTally` decides what "first" means, in one place.
 ///
 /// Rules: no PII ever. Categories come from the fixed `ItemCategory` enum;
 /// amounts and item names are never included.
 enum AnalyticsEvent {
     // ── Launch funnel ────────────────────────────────────────────────
     case appOpened
-    case scanStarted
+    /// The first onboarding slide appeared. Fires once per install, before
+    /// anything else the user could do — onboarding had no instrumentation at
+    /// all until now, so a user who never reached the camera was invisible.
+    case onboardingStarted
+    /// Onboarding ended, and how: `finished` walked to the last slide,
+    /// `skipped` used the Skip control.
+    case onboardingCompleted(via: OnboardingExit)
+    case scanStarted(isFirst: Bool)
     case scanCompleted(success: Bool, category: ItemCategory?)
-    case scanFailed(reason: ScanFailureReason)
+    /// A valuation was actually put in front of the user. Distinct from
+    /// `scan_completed`, which fires when the response arrives: between the two
+    /// sit persistence, encoding and sheet presentation.
+    case scanResultShown(isFirst: Bool)
+    case scanFailed(reason: ScanFailureReason, isFirst: Bool)
+    /// The user's Nth successful scan, at the rungs in `ScanTally.milestones`.
+    case scanCountMilestone(count: Int)
     case freeScanLimitHit
     /// A scan advanced (or restarted) the day streak. Bucketed, never exact.
     case scanStreak(bucket: String)
-    case paywallViewed(trigger: PaywallTrigger)
+    case paywallViewed(trigger: PaywallTrigger, isFirst: Bool)
+    /// The paywall closed without a purchase. Pairs with `paywall_viewed` to
+    /// give a look-to-buy rate; a purchase closes it through
+    /// `purchase_completed` instead and does not emit this.
+    case paywallDismissed(trigger: PaywallTrigger)
     case purchaseStarted(productID: String)
     /// Fires on the confirmed StoreKit transaction — never on a button tap.
     case purchaseCompleted(productID: String)
@@ -90,12 +113,17 @@ enum AnalyticsEvent {
     var name: String {
         switch self {
         case .appOpened:            return "app_opened"
+        case .onboardingStarted:    return "onboarding_started"
+        case .onboardingCompleted:  return "onboarding_completed"
         case .scanStarted:          return "scan_started"
         case .scanCompleted:        return "scan_completed"
+        case .scanResultShown:      return "scan_result_shown"
         case .scanFailed:           return "scan_failed"
+        case .scanCountMilestone:   return "scan_count_milestone"
         case .freeScanLimitHit:     return "free_scan_limit_hit"
         case .scanStreak:           return "scan_streak"
         case .paywallViewed:        return "paywall_viewed"
+        case .paywallDismissed:     return "paywall_dismissed"
         case .purchaseStarted:      return "purchase_started"
         case .purchaseCompleted:    return "purchase_completed"
         case .purchaseFailed:       return "purchase_failed"
@@ -130,9 +158,17 @@ enum AnalyticsEvent {
             var p = ["success": String(success)]
             if let category { p["item_category"] = category.rawValue }
             return p
-        case let .scanFailed(reason):
-            return ["reason": reason.rawValue]
-        case let .paywallViewed(trigger), let .ledgerPaywallHit(trigger):
+        case let .scanFailed(reason, isFirst):
+            return ["reason": reason.rawValue, "is_first": String(isFirst)]
+        case let .scanStarted(isFirst), let .scanResultShown(isFirst):
+            return ["is_first": String(isFirst)]
+        case let .scanCountMilestone(count):
+            return ["count": String(count)]
+        case let .onboardingCompleted(via):
+            return ["via": via.rawValue]
+        case let .paywallViewed(trigger, isFirst):
+            return ["trigger": trigger.rawValue, "is_first": String(isFirst)]
+        case let .ledgerPaywallHit(trigger), let .paywallDismissed(trigger):
             return ["trigger": trigger.rawValue]
         case let .purchaseStarted(productID), let .purchaseCompleted(productID):
             return ["product_id": productID]
@@ -211,6 +247,13 @@ enum ItemCategory: String, CaseIterable {
 }
 
 /// The three failure buckets the funnel cares about.
+/// How onboarding ended. Two values, because "did they read it or bail?" is
+/// the question the slides exist to answer.
+enum OnboardingExit: String {
+    case finished
+    case skipped
+}
+
 enum ScanFailureReason: String {
     case network
     case noResult = "no_result"

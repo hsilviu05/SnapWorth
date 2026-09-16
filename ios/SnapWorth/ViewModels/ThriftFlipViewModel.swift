@@ -59,6 +59,12 @@ final class ThriftFlipViewModel {
             return
         }
 
+        // This screen emitted `scan_completed` and `scan_failed` but never
+        // `scan_started`, so every started-to-completed rate in the funnel was
+        // computed against a denominator that left Thrift Flip's scans out.
+        let isFirst = ScanTally.isFirstScan()
+        Analytics.shared.track(.scanStarted(isFirst: isFirst))
+
         isScanningItem = true
         scanError = nil
         itemImage = image
@@ -106,6 +112,9 @@ final class ThriftFlipViewModel {
             Analytics.shared.track(
                 .scanCompleted(success: true, category: ItemCategory(normalizing: response.category))
             )
+            if let milestone = ScanTally.record() {
+                Analytics.shared.track(.scanCountMilestone(count: milestone))
+            }
             ScanViewModel.noteScanForStreakAndReminder(isPro: purchaseService.isSubscribed)
             persistToLibrary(result, repository: repository)
         } catch {
@@ -121,7 +130,7 @@ final class ThriftFlipViewModel {
             }
 
             scanError = appError.errorDescription
-            Analytics.shared.track(.scanFailed(reason: ScanFailureReason(appError)))
+            Analytics.shared.track(.scanFailed(reason: ScanFailureReason(appError), isFirst: isFirst))
         }
     }
 

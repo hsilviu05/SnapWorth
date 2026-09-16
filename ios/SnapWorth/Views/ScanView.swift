@@ -376,7 +376,7 @@ struct ScanView: View {
         }
         .onChange(of: cameraManager.authStatus) { _, status in
             if status == .denied {
-                Analytics.shared.track(.scanFailed(reason: .permission))
+                Analytics.shared.track(.scanFailed(reason: .permission, isFirst: ScanTally.isFirstScan()))
             }
         }
         .onDisappear { cameraManager.stopSession() }
@@ -493,7 +493,8 @@ struct ScanView: View {
                 purchaseService: purchaseService,
                 onDismiss: { showResult = false },
                 didSave: !vm.saveFailed,
-                coverPrice: true
+                coverPrice: true,
+                isFreshScan: true
             )
             .presentationDetents([.large])
             .presentationDragIndicator(.visible)

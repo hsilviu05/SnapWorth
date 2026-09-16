@@ -52,7 +52,10 @@ final class ScanViewModel {
             return
         }
 
-        Analytics.shared.track(.scanStarted)
+        // Read once, before `ScanTally.record()` moves it, so every event this
+        // scan emits agrees about whether it was the first.
+        let isFirst = ScanTally.isFirstScan()
+        Analytics.shared.track(.scanStarted(isFirst: isFirst))
         isAnalyzing = true
         errorMessage = nil
         saveFailed = false
@@ -100,6 +103,9 @@ final class ScanViewModel {
             Analytics.shared.track(
                 .scanCompleted(success: true, category: ItemCategory(normalizing: response.category))
             )
+            if let milestone = ScanTally.record() {
+                Analytics.shared.track(.scanCountMilestone(count: milestone))
+            }
             Self.noteScanForStreakAndReminder(isPro: purchaseService.isSubscribed)
 
             // Taken before the call, because the rollback inside `save` cannot
@@ -183,7 +189,7 @@ final class ScanViewModel {
 
             Haptics.failure()
             errorMessage = appError.errorDescription
-            Analytics.shared.track(.scanFailed(reason: ScanFailureReason(appError)))
+            Analytics.shared.track(.scanFailed(reason: ScanFailureReason(appError), isFirst: isFirst))
         }
     }
 
@@ -220,6 +226,45 @@ final class ScanViewModel {
 /// For the free tier this is what turns "one scan a day" from a limit into a
 /// habit; for Pro it is a small badge of honour. Analytics only ever sees a
 /// bucket, never the exact count.
+/// How many scans this install has ever completed, and therefore what counts
+/// as the user's first.
+///
+/// Nothing in the app knew this. `ScanStreak` counts *days*, `ReviewPrompt`
+/// counts per *version*, and `FreeScanCounter` counts *today* — so "has this
+/// person ever got a valuation out of us" was unanswerable, which is exactly
+/// the question a retention funnel is made of.
+///
+/// `isFirst` is read *before* `record()`, so every event in one scan carries
+/// the same answer: a first scan that fails and a first scan that succeeds both
+/// report `is_first=true`, and the second scan reports false even if the first
+/// never produced a result.
+enum ScanTally {
+    static let countKey = "snapworth_scans_completed_total"
+
+    /// The rungs `scanCountMilestone` fires on. Sparse on purpose: the question
+    /// is how far a new user gets before they stop, and past a handful of scans
+    /// that is a retention question, not a first-run one.
+    static let milestones = [1, 3, 5]
+
+    static func completedCount(defaults: UserDefaults = .standard) -> Int {
+        defaults.integer(forKey: countKey)
+    }
+
+    /// True until the first scan has been recorded.
+    static func isFirstScan(defaults: UserDefaults = .standard) -> Bool {
+        completedCount(defaults: defaults) == 0
+    }
+
+    /// Record a scan that produced a result. Returns the milestone this scan
+    /// just crossed, or nil.
+    @discardableResult
+    static func record(defaults: UserDefaults = .standard) -> Int? {
+        let total = completedCount(defaults: defaults) + 1
+        defaults.set(total, forKey: countKey)
+        return milestones.contains(total) ? total : nil
+    }
+}
+
 enum ScanStreak {
     static let countKey = "snapworth_streak_count"
     static let lastKey = "snapworth_streak_last"
