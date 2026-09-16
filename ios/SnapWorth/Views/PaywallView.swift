@@ -250,9 +250,18 @@ struct PaywallView: View {
         }
         .onAppear {
             vm.startCloseButtonTimer()
-            Analytics.shared.track(.paywallViewed(trigger: trigger))
+            Analytics.shared.track(.paywallViewed(trigger: trigger,
+                                                  isFirst: ScanTally.isFirstScan()))
         }
-        .onDisappear { vm.cancelTimer() }
+        .onDisappear {
+            vm.cancelTimer()
+            // Only a close *without* a purchase. A completed purchase also
+            // dismisses this sheet, and counting that as a dismissal would put
+            // every conversion on both sides of the look-to-buy rate.
+            if !vm.isPurchaseComplete {
+                Analytics.shared.track(.paywallDismissed(trigger: trigger))
+            }
+        }
         .onChange(of: vm.isPurchaseComplete) { _, complete in
             if complete { dismiss() }
         }

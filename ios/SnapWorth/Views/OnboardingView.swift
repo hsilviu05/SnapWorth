@@ -13,7 +13,10 @@ struct OnboardingView: View {
                 HStack {
                     Spacer()
                     if !vm.isLastPage {
-                        Button("Skip") { onFinish() }
+                        Button("Skip") {
+                            Analytics.shared.track(.onboardingCompleted(via: .skipped))
+                            onFinish()
+                        }
                             .font(.dmSans(15, weight: .medium))
                             .foregroundStyle(Color.snapWarmGray)
                             .transition(.opacity)
@@ -58,6 +61,7 @@ struct OnboardingView: View {
                     ) {
                         if vm.isLastPage {
                             Haptics.capture()
+                            Analytics.shared.track(.onboardingCompleted(via: .finished))
                             onFinish()
                         } else {
                             vm.advance()
@@ -69,6 +73,10 @@ struct OnboardingView: View {
                 .padding(.bottom, 48)
             }
         }
+        // Onboarding is only ever presented while `hasCompletedOnboarding` is
+        // false, so this appears once per install — which is what makes it the
+        // denominator every later first-run number is read against.
+        .onAppear { Analytics.shared.track(.onboardingStarted) }
     }
 }
 
