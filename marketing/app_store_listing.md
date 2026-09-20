@@ -1,5 +1,9 @@
 # App Store Listing
 
+English (`en-US`), the primary storefront. Romanian is in
+`app_store_listing.ro.md` — metadata only; the app's interface is English
+everywhere.
+
 ## App name (30 chars max)
 SnapWorth: Resale Value
 
