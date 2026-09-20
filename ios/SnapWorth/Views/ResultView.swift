@@ -210,8 +210,8 @@ struct ResultView: View {
                     .disabled(vm.shareCard == nil)
                     .accessibilityLabel("Share")
                     .accessibilityHint(vm.shareCard == nil
-                        ? "Share card is still being prepared"
-                        : "Share this find as a card, or as a guess-the-price story")
+                        ? String(localized: "Share card is still being prepared")
+                        : String(localized: "Share this find as a card, or as a guess-the-price story"))
                     .confirmationDialog("Share", isPresented: $showShareChoice, titleVisibility: .hidden) {
                         Button("Result card") {
                             if let card = vm.shareCard {
@@ -345,8 +345,9 @@ struct ResultView: View {
             // VoiceOver user learns the outcome without hunting for it.
             UIAccessibility.post(
                 notification: .announcement,
-                argument: priceCovered ? condition.label
-                                       : "\(condition.label). Estimate \(result.formattedRange)"
+                argument: priceCovered
+                    ? condition.label
+                    : String(localized: "\(condition.label). Estimate \(result.formattedRange)")
             )
         } label: {
             Text(condition.label)
@@ -389,7 +390,8 @@ struct ResultView: View {
                     .focused($focusedField, equals: .paid)
                     .accessibilityLabel("What did you pay?")
                     .accessibilityValue(paidPriceText.isEmpty
-                        ? "Not set" : "\(paidPriceText) dollars")
+                        ? String(localized: "Not set")
+                        : String(localized: "\(paidPriceText) dollars"))
                     .accessibilityHint("Adds your find multiple to the share card")
             }
             Text("Adds your find multiple to the share card")
@@ -455,7 +457,7 @@ struct ResultView: View {
         .buttonStyle(.plain)
         .snapHitTarget()
         .accessibilityLabel(status.label)
-        .accessibilityHint("Marks this find as \(status.label.lowercased())")
+        .accessibilityHint(String(localized: "Marks this find as \(status.label.lowercased())"))
         .accessibilityAddTraits(selected ? [.isButton, .isSelected] : .isButton)
     }
 
@@ -469,7 +471,7 @@ struct ResultView: View {
             .tint(Color.snapTerracotta)
     }
 
-    private func moneyRow(title: String, text: Binding<String>, field: Field) -> some View {
+    private func moneyRow(title: LocalizedStringKey, text: Binding<String>, field: Field) -> some View {
         HStack {
             Text(title)
                 .font(.dmSans(14, weight: .medium))
@@ -490,7 +492,8 @@ struct ResultView: View {
                 .foregroundStyle(Color.snapEspresso)
                 .accessibilityLabel(title)
                 .accessibilityValue(text.wrappedValue.isEmpty
-                    ? "Not set" : "\(text.wrappedValue) dollars")
+                    ? String(localized: "Not set")
+                    : String(localized: "\(text.wrappedValue) dollars"))
                 .accessibilityHint("Enter an amount in dollars")
         }
     }
@@ -525,12 +528,20 @@ struct ResultView: View {
         .accessibilityValue(profitAccessibilityValue)
     }
 
+    /// The result's confidence as a phrase, for the two places that speak it.
+    private var confidencePhrase: String { snapConfidencePhrase(result.confidence) }
+
+    /// The chosen grade, worded for the locked listing teaser.
+    private var conditionPhrase: String { result.condition.displayPhrase }
+
     private var profitAccessibilityValue: String {
         guard let profit = result.realizedProfit else {
-            return "Unknown — add what you paid to calculate it"
+            return String(localized: "Unknown — add what you paid to calculate it")
         }
         let amount = Self.signedProfit(profit)
-        return profit < 0 ? "Loss of \(amount)" : "Profit of \(amount)"
+        return profit < 0
+            ? String(localized: "Loss of \(amount)")
+            : String(localized: "Profit of \(amount)")
     }
 
     private var soldDateBinding: Binding<Date> {
@@ -806,7 +817,7 @@ struct ResultView: View {
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Estimated resale value")
         .accessibilityValue(
-            "\(result.formattedRange). \(result.confidence) confidence AI estimate."
+            String(localized: "\(result.formattedRange). \(confidencePhrase) AI estimate.")
             + (quickVerdict.map { " \($0)" } ?? "")
         )
         // Read first when the sheet opens — it is why the user is here.
@@ -849,8 +860,8 @@ struct ResultView: View {
         // `accessibilityValue`, so the announcement and the element agree.
         UIAccessibility.post(
             notification: .announcement,
-            argument: "Estimated resale value \(result.formattedRange). "
-                + "\(result.confidence) confidence AI estimate."
+            argument: String(localized:
+                "Estimated resale value \(result.formattedRange). \(confidencePhrase) AI estimate.")
                 + (quickVerdict.map { " \($0)" } ?? "")
         )
         Analytics.shared.track(.guessRevealed(withGuess: quickGuess != nil))
@@ -973,7 +984,7 @@ struct ResultView: View {
     /// not be lost to a second attempt.
     private func rescan(withTag tagImage: UIImage) {
         guard let photo else {
-            tagError = "The original photo is no longer available for this find."
+            tagError = String(localized: "The original photo is no longer available for this find.")
             return
         }
         isRescanning = true
@@ -991,13 +1002,12 @@ struct ResultView: View {
                 // the estimate may not visibly move at all — so on success this
                 // said nothing, and said nothing at all to VoiceOver. Both are
                 // fixed here: a line that persists, and an announcement.
-                tagSuccess = "Re-read with the tag. Estimate updated."
-                UIAccessibility.post(notification: .announcement,
-                                     argument: "Re-read with the tag. Estimate updated.")
+                tagSuccess = String(localized: "Re-read with the tag. Estimate updated.")
+                UIAccessibility.post(notification: .announcement, argument: tagSuccess ?? "")
                 Analytics.shared.track(.tagPhotoAdded(succeeded: true))
             } catch {
                 tagError = AppError.from(error).errorDescription
-                    ?? "That didn't work. Your estimate is unchanged."
+                    ?? String(localized: "That didn't work. Your estimate is unchanged.")
                 Haptics.failure()
                 Analytics.shared.track(.tagPhotoAdded(succeeded: false))
             }
@@ -1038,13 +1048,13 @@ struct ResultView: View {
         ZStack {
             VStack(alignment: .leading, spacing: 6) {
                 Text(detail.confidenceSummary
-                     ?? "Confidence \(detail.confidenceScore ?? 0) out of 100")
+                     ?? String(localized: "Confidence \(detail.confidenceScore ?? 0) out of 100"))
                     .font(.dmSans(15, weight: .semibold))
                     .foregroundStyle(Color.snapEspresso)
                     .lineLimit(1)
                 Text(detail.valueDrivers.first
                      ?? detail.improveEstimate.first
-                     ?? "Quick-sale, expected and best-case prices, and what moves them…")
+                     ?? String(localized: "Quick-sale, expected and best-case prices, and what moves them…"))
                     .font(.snapBody)
                     .foregroundStyle(Color.snapWarmGray)
                     .lineLimit(2)
@@ -1203,7 +1213,8 @@ struct ResultView: View {
                 .buttonStyle(.plain)
                 .snapHitTarget()
                 .accessibilityLabel(marketplace.displayName)
-                .accessibilityHint("Writes the listing in \(marketplace.displayName)'s style")
+                .accessibilityHint(String(localized:
+                    "Writes the listing in \(marketplace.displayName)'s style"))
                 .accessibilityAddTraits(selected ? [.isButton, .isSelected] : .isButton)
             }
           }
@@ -1231,8 +1242,8 @@ struct ResultView: View {
         } else {
             PrimaryButton(
                 title: vm.isGeneratingListing
-                    ? "Writing your listing…"
-                    : "Generate \(vm.selectedMarketplace.displayName) listing"
+                    ? LocalizedStringKey("Writing your listing…")
+                    : LocalizedStringKey("Generate \(vm.selectedMarketplace.displayName) listing")
             ) {
                 Task { await vm.generateListing(result: result) }
             }
@@ -1287,7 +1298,7 @@ struct ResultView: View {
         }
     }
 
-    private func priceTag(_ label: String, _ value: Double) -> some View {
+    private func priceTag(_ label: LocalizedStringKey, _ value: Double) -> some View {
         VStack(alignment: .leading, spacing: 2) {
             Text(label)
                 .font(.snapCaption)
@@ -1298,7 +1309,7 @@ struct ResultView: View {
         }
     }
 
-    private func secondaryButton(_ title: String, icon: String, action: @escaping () -> Void) -> some View {
+    private func secondaryButton(_ title: LocalizedStringKey, icon: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             HStack(spacing: 6) {
                 Image(systemName: icon)
@@ -1329,11 +1340,11 @@ struct ResultView: View {
     private var lockedListingTeaser: some View {
         ZStack {
             VStack(alignment: .leading, spacing: 6) {
-                Text("\(result.itemName) — \(result.condition.listingPhrase), ready to ship")
+                Text(String(localized: "\(result.itemName) — \(conditionPhrase), ready to ship"))
                     .font(.dmSans(15, weight: .semibold))
                     .foregroundStyle(Color.snapEspresso)
                     .lineLimit(1)
-                Text("A polished description tailored to \(vm.selectedMarketplace.displayName), priced to sell with a smart negotiation floor…")
+                Text(String(localized: "A polished description tailored to \(vm.selectedMarketplace.displayName), priced to sell with a smart negotiation floor…"))
                     .font(.snapBody)
                     .foregroundStyle(Color.snapWarmGray)
                     .lineLimit(2)
@@ -1364,8 +1375,8 @@ struct ResultView: View {
                       : "exclamationmark.triangle.fill")
                     .foregroundStyle(didSave ? Color.snapSageText : Color.snapTerracottaText)
                 Text(didSave
-                     ? "Saved to My Finds"
-                     : "Couldn't save to My Finds — this result won't be kept")
+                     ? String(localized: "Saved to My Finds")
+                     : String(localized: "Couldn't save to My Finds — this result won't be kept"))
                     .font(.snapCaption)
                     .foregroundStyle(Color.snapWarmGray)
                     .multilineTextAlignment(.center)
@@ -1419,7 +1430,7 @@ struct ValuationDetailView: View {
                 VStack(spacing: 3) {
                     Text(Self.money(scaled(row.value)))
                         .font(.fraunces(20, weight: .bold, relativeTo: .title3))
-                        .foregroundStyle(row.label == "Expected" ? Color.snapSageText : Color.snapEspresso)
+                        .foregroundStyle(row.isExpected ? Color.snapSageText : Color.snapEspresso)
                         .lineLimit(1)
                         .minimumScaleFactor(0.6)
                     Text(row.label)
@@ -1428,7 +1439,7 @@ struct ValuationDetailView: View {
                 }
                 .frame(maxWidth: .infinity)
                 .accessibilityElement(children: .combine)
-                .accessibilityLabel("\(row.label) \(Self.money(scaled(row.value)))")
+                .accessibilityLabel(String(localized: "\(row.label) \(Self.money(scaled(row.value)))"))
             }
         }
         .padding(.vertical, 12)
@@ -1470,7 +1481,7 @@ struct ValuationDetailView: View {
     // ── Generic bullet sections ──
 
     @ViewBuilder
-    private func bullets(_ title: String, _ items: [String], icon: String) -> some View {
+    private func bullets(_ title: LocalizedStringKey, _ items: [String], icon: String) -> some View {
         if !items.isEmpty {
             VStack(alignment: .leading, spacing: 6) {
                 Text(title)
@@ -1538,7 +1549,8 @@ struct ValuationDetailView: View {
         // thought it was looking at is the most useful fact in the row, and it
         // is why the estimate started where it did.
         let facts = gradeWasOverridden ? detail.factsWithReadGrade : detail.facts
-        let market = [detail.demand.map { "Demand \($0)" }, detail.supply.map { "supply \($0)" }]
+        let market = [detail.demand.map { String(localized: "Demand \($0)") },
+                      detail.supply.map { String(localized: "supply \($0)") }]
             .compactMap { $0 }
         if !facts.isEmpty || !market.isEmpty {
             VStack(alignment: .leading, spacing: 4) {

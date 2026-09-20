@@ -11,11 +11,31 @@ final class FlipsViewModel {
     enum StatusFilter: String, CaseIterable, Identifiable {
         case all = "All", owned = "Owned", listed = "Listed", sold = "Sold"
         var id: String { rawValue }
+
+        /// What the picker shows. The raw value is the identity and stays
+        /// English — it is the `id`, and `ItemStatus`'s raw values are what
+        /// SwiftData filters on.
+        var label: String {
+            switch self {
+            case .all:    return String(localized: "All", comment: "Flip filter")
+            case .owned:  return String(localized: "Owned", comment: "Flip status")
+            case .listed: return String(localized: "Listed", comment: "Flip status")
+            case .sold:   return String(localized: "Sold", comment: "Flip status")
+            }
+        }
     }
 
     enum SortOrder: String, CaseIterable, Identifiable {
         case date = "Date", profit = "Profit", roi = "ROI"
         var id: String { rawValue }
+
+        var label: String {
+            switch self {
+            case .date:   return String(localized: "Date", comment: "Flip sort order")
+            case .profit: return String(localized: "Profit", comment: "Flip sort order")
+            case .roi:    return String(localized: "ROI", comment: "Flip sort order")
+            }
+        }
     }
 
     /// Totals scope: free tier sees the current month, Pro sees all-time.
@@ -122,9 +142,10 @@ final class FlipsViewModel {
         /// they render the same two numbers and there is nowhere else the gap
         /// can show.
         var soldLabel: String {
-            let sales = "\(itemsSold) item\(itemsSold == 1 ? "" : "s") sold"
+            let sales = String(localized: "\(itemsSold) items sold")
             guard !profitCoversEverySale else { return sales }
-            return "\(sales) · \(itemsSold - itemsPriced) needs a paid price"
+            let gap = String(localized: "\(itemsSold - itemsPriced) needs a paid price")
+            return String(localized: "\(sales) · \(gap)")
         }
         var totalInvested: Decimal = 0
         var averageROI: Decimal?          // fraction, e.g. 0.42

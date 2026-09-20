@@ -53,10 +53,11 @@ struct PaywallView: View {
                     // ── Plan cards ─────────────────────────────────────────
                     VStack(spacing: 12) {
                         PlanCard(
-                            title: "Yearly",
+                            title: String(localized: "Yearly"),
                             price: yearly.displayPrice,
                             priceDetail: yearlyDetail(yearly),
-                            badge: yearly.savingsPercent.map { "SAVE \($0)%" } ?? "BEST VALUE",
+                            badge: yearly.savingsPercent.map { String(localized: "SAVE \($0)%") }
+                                ?? String(localized: "BEST VALUE"),
                             isSelected: vm.selectedProductID == Config.yearlyProductID
                         ) {
                             Haptics.selection()
@@ -83,9 +84,9 @@ struct PaywallView: View {
                         .disabled(!isLoaded(Config.yearlyProductID))
 
                         PlanCard(
-                            title: "Monthly",
+                            title: String(localized: "Monthly"),
                             price: monthly.displayPrice,
-                            priceDetail: "Flexible, cancel anytime",
+                            priceDetail: String(localized: "Flexible, cancel anytime"),
                             badge: nil,
                             isSelected: vm.selectedProductID == Config.monthlyProductID
                         ) {
@@ -168,7 +169,10 @@ struct PaywallView: View {
                     // ── CTA ────────────────────────────────────────────────
                     VStack(spacing: 16) {
                         PrimaryButton(
-                            title: PaywallCopy.ctaTitle(isYearly: isYearly, offer: offer),
+                            // `ctaTitle` returns copy that is already translated, so this is a
+                            // key that will not be found — and `LocalizedStringKey` falls back to
+                            // showing the string it was built from, which is what we want.
+                            title: LocalizedStringKey(PaywallCopy.ctaTitle(isYearly: isYearly, offer: offer)),
                             isLoading: vm.isPurchasing
                         ) {
                             Task { await vm.purchase(service: purchaseService) }
@@ -326,8 +330,10 @@ private extension PaywallView {
 /// and nothing round-trips through a string.
 enum PaywallCopy {
     static func headline(isYearly: Bool, offer: IntroOffer?) -> String {
-        guard isYearly, let offer, offer.isFree else { return "Unlock\nSnapWorth Pro" }
-        return "Try SnapWorth\nfree for \(duration(offer))"
+        guard isYearly, let offer, offer.isFree else {
+            return String(localized: "Unlock\nSnapWorth Pro")
+        }
+        return String(localized: "Try SnapWorth\nfree for \(duration(offer))")
     }
 
     /// The offer spelled out, with what is charged once it ends.
@@ -336,46 +342,59 @@ enum PaywallCopy {
     /// headline is two lines of display type, and a price that needs a "then"
     /// clause to be true does not belong in it.
     static func subheadline(isYearly: Bool, price: String, offer: IntroOffer?) -> String {
-        guard price != "—" else { return "Loading plans…" }
-        let regular = "\(price)/\(isYearly ? "year" : "month")"
-        guard isYearly, let offer else { return "\(regular). Cancel anytime." }
+        guard price != "—" else { return String(localized: "Loading plans…") }
+        let regular = isYearly ? String(localized: "\(price)/year")
+                               : String(localized: "\(price)/month")
+        guard isYearly, let offer else {
+            return String(localized: "\(regular). Cancel anytime.")
+        }
         switch offer.kind {
         case .freeTrial:
-            return "Then \(regular). Cancel anytime."
+            return String(localized: "Then \(regular). Cancel anytime.")
         case .payUpFront:
-            return "\(offer.displayPrice) for your first \(duration(offer)), "
-                + "then \(regular). Cancel anytime."
+            return String(localized:
+                "\(offer.displayPrice) for your first \(duration(offer)), then \(regular). Cancel anytime.")
         case .payAsYouGo:
-            return "\(offer.displayPrice) per \(perPeriod(offer)) for \(duration(offer)), "
-                + "then \(regular). Cancel anytime."
+            return String(localized:
+                "\(offer.displayPrice) per \(perPeriod(offer)) for \(duration(offer)), then \(regular). Cancel anytime.")
         }
     }
 
     /// The yearly card's detail line: value framing, then the offer.
     static func planDetail(weekly: String?, offer: IntroOffer?) -> String {
         var parts: [String] = []
-        if let weekly { parts.append("\(weekly) per week") }
+        if let weekly { parts.append(String(localized: "\(weekly) per week")) }
         if let offer { parts.append(offerPhrase(offer)) }
-        return parts.isEmpty ? "Best value" : parts.joined(separator: " · ")
+        return parts.isEmpty ? String(localized: "Best value") : parts.joined(separator: " · ")
     }
 
     /// The offer in as few words as a card row allows.
     static func offerPhrase(_ offer: IntroOffer) -> String {
         switch offer.kind {
         case .freeTrial:
-            // Attributive compound — "3-day free trial", never "3-days".
-            return "\(offer.totalUnits)-\(offer.unit) free trial"
+            // Attributive compound — "3-day free trial", never "3-days". One key per
+            // unit, each with the count as its only argument, so a language that
+            // inflects at 1 / 2–19 / 20 can say all three from the string table;
+            // English is invariant and repeats itself, which is the point.
+            switch singular(offer.unit) {
+            case "day":   return String(localized: "\(offer.totalUnits)-day free trial")
+            case "week":  return String(localized: "\(offer.totalUnits)-week free trial")
+            case "month": return String(localized: "\(offer.totalUnits)-month free trial")
+            case "year":  return String(localized: "\(offer.totalUnits)-year free trial")
+            default:      return "\(offer.totalUnits)-\(offer.unit) free trial"
+            }
         case .payUpFront:
-            return "\(offer.displayPrice) for your first \(duration(offer))"
+            return String(localized: "\(offer.displayPrice) for your first \(duration(offer))")
         case .payAsYouGo:
-            return "\(offer.displayPrice) per \(perPeriod(offer)) for \(duration(offer))"
+            return String(localized: "\(offer.displayPrice) per \(perPeriod(offer)) for \(duration(offer))")
         }
     }
 
     /// "Start Free Trial" is a claim about money, so it needs a free offer.
     static func ctaTitle(isYearly: Bool, offer: IntroOffer?) -> String {
-        if isYearly, let offer, offer.isFree { return "Start Free Trial" }
-        return isYearly ? "Subscribe Yearly" : "Subscribe Monthly"
+        if isYearly, let offer, offer.isFree { return String(localized: "Start Free Trial") }
+        return isYearly ? String(localized: "Subscribe Yearly")
+                        : String(localized: "Subscribe Monthly")
     }
 
     /// Shown beside the retry when a product fetch came back short.
@@ -384,8 +403,8 @@ enum PaywallCopy {
     /// purchasable, so the copy must not imply the screen is dead.
     static func pricingProblem(hasSomePricing: Bool) -> String {
         hasSomePricing
-            ? "Couldn't load every plan. Try again, or continue with the one shown."
-            : "Couldn't load plans. Check your connection and try again."
+            ? String(localized: "Couldn't load every plan. Try again, or continue with the one shown.")
+            : String(localized: "Couldn't load plans. Check your connection and try again.")
     }
 
     /// The whole offer, e.g. "3 days" — one period times however many run.
@@ -396,15 +415,39 @@ enum PaywallCopy {
     /// What a pay-as-you-go price is charged *per*: "month", or "2 weeks" if
     /// the period is longer than one unit. Never "per 1 month".
     static func perPeriod(_ offer: IntroOffer) -> String {
-        offer.unitCount == 1 ? offer.unit : phrase(count: offer.unitCount, unit: offer.unit)
+        offer.unitCount == 1 ? unitName(offer.unit)
+                             : phrase(count: offer.unitCount, unit: offer.unit)
+    }
+
+    /// One period, with no number in front of it: "month", "lună".
+    static func unitName(_ unit: String) -> String {
+        switch singular(unit) {
+        case "day":   return String(localized: "day", comment: "One subscription period")
+        case "week":  return String(localized: "week", comment: "One subscription period")
+        case "month": return String(localized: "month", comment: "One subscription period")
+        case "year":  return String(localized: "year", comment: "One subscription period")
+        default:      return unit
+        }
+    }
+
+    /// StoreKit hands us a singular unit; this survives a caller that doesn't.
+    static func singular(_ unit: String) -> String {
+        unit.hasSuffix("s") ? String(unit.dropLast()) : unit
     }
 
     /// "3 days" / "1 day". The `hasSuffix` guard is the "3 dayss" bug's
     /// gravestone: `unit` is singular by construction in the service, and this
     /// makes it impossible for a caller to double up even if it isn't.
     static func phrase(count: Int, unit: String) -> String {
-        let needsPlural = count != 1 && !unit.hasSuffix("s")
-        return "\(count) \(unit)\(needsPlural ? "s" : "")"
+        switch singular(unit) {
+        case "day":   return String(localized: "\(count) days")
+        case "week":  return String(localized: "\(count) weeks")
+        case "month": return String(localized: "\(count) months")
+        case "year":  return String(localized: "\(count) years")
+        default:
+            let needsPlural = count != 1 && !unit.hasSuffix("s")
+            return "\(count) \(unit)\(needsPlural ? "s" : "")"
+        }
     }
 
     /// One row of the paywall's "what's included" card.
@@ -417,14 +460,14 @@ enum PaywallCopy {
     /// `PaywallTrigger` that presents this screen, so the list can be checked
     /// against the gates rather than drifting from them.
     static let benefits: [Benefit] = [
-        Benefit(icon: "infinity", text: "Unlimited scans"),
+        Benefit(icon: "infinity", text: String(localized: "Unlimited scans")),
         Benefit(icon: "chart.line.uptrend.xyaxis",
-                text: "Why it's worth that — four price points and what drives them"),
-        Benefit(icon: "cart.fill", text: "Snap → Sell marketplace listings"),
-        Benefit(icon: "arrow.triangle.2.circlepath", text: "Thrift Flip profit calculator"),
-        Benefit(icon: "tag.fill", text: "Read the care tag for a sharper estimate"),
-        Benefit(icon: "chart.pie.fill", text: "Portfolio value, trend and thrift trends"),
-        Benefit(icon: "square.and.arrow.up", text: "Unlimited sold flips, and CSV export"),
+                text: String(localized: "Why it's worth that — four price points and what drives them")),
+        Benefit(icon: "cart.fill", text: String(localized: "Snap → Sell marketplace listings")),
+        Benefit(icon: "arrow.triangle.2.circlepath", text: String(localized: "Thrift Flip profit calculator")),
+        Benefit(icon: "tag.fill", text: String(localized: "Read the care tag for a sharper estimate")),
+        Benefit(icon: "chart.pie.fill", text: String(localized: "Portfolio value, trend and thrift trends")),
+        Benefit(icon: "square.and.arrow.up", text: String(localized: "Unlimited sold flips, and CSV export")),
     ]
 }
 

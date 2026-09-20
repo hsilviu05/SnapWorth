@@ -157,9 +157,9 @@ enum PurchaseError: LocalizedError {
 
     var errorDescription: String? {
         switch self {
-        case .cancelled:        return "Purchase was cancelled."
-        case .failed(let msg):  return "Purchase failed: \(msg)"
-        case .notConfigured:    return "In-app purchases are not configured yet."
+        case .cancelled:        return String(localized: "Purchase was cancelled.")
+        case .failed(let msg):  return String(localized: "Purchase failed: \(msg)")
+        case .notConfigured:    return String(localized: "In-app purchases are not configured yet.")
         }
     }
 }

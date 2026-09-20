@@ -50,6 +50,8 @@
 		BB0000000000000000000A01 /* ProductionHardeningTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0000000000000000000A02 /* ProductionHardeningTests.swift */; };
 		BB0000000000000000000F01 /* MigrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0000000000000000000F02 /* MigrationTests.swift */; };
 		AA000000000000000000010E /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = AA000000000000000000010D /* PrivacyInfo.xcprivacy */; };
+		AA0000000000000000000203 /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000201 /* Localizable.xcstrings */; };
+		AA0000000000000000000204 /* InfoPlist.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000202 /* InfoPlist.xcstrings */; };
 		AA000000000000000000010F /* AppError.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000110 /* AppError.swift */; };
 		AA0000000000000000000111 /* ScanRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000112 /* ScanRepository.swift */; };
 		AA0000000000000000000114 /* ShareCardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000113 /* ShareCardView.swift */; };
@@ -147,6 +149,8 @@
 		BB0000000000000000000A02 /* ProductionHardeningTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProductionHardeningTests.swift; sourceTree = "<group>"; };
 		BB0000000000000000000F02 /* MigrationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MigrationTests.swift; sourceTree = "<group>"; };
 		AA000000000000000000010D /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+		AA0000000000000000000201 /* Localizable.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = Localizable.xcstrings; sourceTree = "<group>"; };
+		AA0000000000000000000202 /* InfoPlist.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = InfoPlist.xcstrings; sourceTree = "<group>"; };
 		AA0000000000000000000110 /* AppError.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppError.swift; sourceTree = "<group>"; };
 		AA0000000000000000000112 /* ScanRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanRepository.swift; sourceTree = "<group>"; };
 		AA0000000000000000000113 /* ShareCardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareCardView.swift; sourceTree = "<group>"; };
@@ -227,6 +231,8 @@
 				AA00000000000000000000EE /* Info.plist */,
 				BB0000000000000000000008 /* SnapWorth.entitlements */,
 				AA000000000000000000010D /* PrivacyInfo.xcprivacy */,
+				AA0000000000000000000201 /* Localizable.xcstrings */,
+				AA0000000000000000000202 /* InfoPlist.xcstrings */,
 				ADD1EC0000000000000000F7 /* SnapWorth.storekit */,
 				AA00000000000000000000F5 /* Fonts */,
 				AA00000000000000000000B8 /* DesignSystem */,
@@ -462,6 +468,7 @@
 			knownRegions = (
 				en,
 				Base,
+				ro,
 			);
 			mainGroup = AA00000000000000000000F0;
 			packageReferences = (
@@ -494,6 +501,8 @@
 				AA00000000000000000000F2 /* Fraunces-Variable.ttf in Resources */,
 				AA00000000000000000000F4 /* DMSans-Variable.ttf in Resources */,
 				AA000000000000000000010E /* PrivacyInfo.xcprivacy in Resources */,
+				AA0000000000000000000203 /* Localizable.xcstrings in Resources */,
+				AA0000000000000000000204 /* InfoPlist.xcstrings in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -618,7 +627,7 @@
 				PRODUCT_BUNDLE_IDENTIFIER = eu.snapworth.app.SnapWorthWidgets;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
-				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -651,7 +660,7 @@
 				PRODUCT_BUNDLE_IDENTIFIER = eu.snapworth.app.SnapWorthWidgets;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
-				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
@@ -719,7 +728,7 @@
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
 				SDKROOT = iphoneos;
-				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 			};
@@ -776,7 +785,7 @@
 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
 				MTL_FAST_MATH = YES;
 				SDKROOT = iphoneos;
-				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
 				SWIFT_COMPILATION_MODE = wholemodule;
 				SWIFT_OPTIMIZATION_LEVEL = "-O";
 				VALIDATE_PRODUCT = YES;

@@ -199,7 +199,7 @@ final class ScanViewModel {
            let image = UIImage(data: data) {
             capturedImage = image
         } else {
-            errorMessage = "Couldn't load the selected photo. Please try another."
+            errorMessage = String(localized: "Couldn't load the selected photo. Please try another.")
         }
         selectedPhotoItem = nil
     }

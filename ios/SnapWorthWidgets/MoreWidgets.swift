@@ -100,7 +100,7 @@ struct RecentFindsView: View {
                     }
                     .lineLimit(1)
                     .accessibilityElement(children: .ignore)
-                    .accessibilityLabel("Haul worth \(haul.spokenRange)")
+                    .accessibilityLabel(String(localized: "Haul worth \(haul.spokenRange)"))
                 }
             }
             .padding(.bottom, 8)
@@ -143,7 +143,7 @@ struct RecentFindsView: View {
                                alignment: .leading)
                         .accessibilityElement(children: .ignore)
                         .accessibilityLabel(
-                            "\(find.name), \(WidgetHaulData.spoken(find.range))")
+                            String(localized: "\(find.name), \(WidgetHaulData.spoken(find.range))"))
                     }
                 }
                 .frame(maxHeight: .infinity)
@@ -336,21 +336,22 @@ struct MonthProfitView: View {
     /// same data: "No flips sold yet this month" beside "2 items sold".
     private var caption: String {
         guard profit != nil else {
-            return sold > 0 ? "\(sold) sold · add what you paid"
-                            : "No flips sold yet this month"
+            return sold > 0
+                ? String(localized: "\(sold) sold · add what you paid")
+                : String(localized: "No flips sold yet this month")
         }
-        return "from \(flips) flip\(flips == 1 ? "" : "s")"
+        return String(localized: "from \(flips) flips")
     }
 
     private var spoken: String {
         guard let profit else {
-            return sold > 0
-                ? "\(sold) flip\(sold == 1 ? "" : "s") sold this month, "
-                  + "profit unknown until you add what you paid"
-                : "No flips sold yet this month"
+            guard sold > 0 else { return String(localized: "No flips sold yet this month") }
+            let count = String(localized: "\(sold) flips sold this month")
+            return String(localized: "\(count), profit unknown until you add what you paid")
         }
-        return "\(WidgetHaulData.compactMoney(profit)) profit this month "
-             + "from \(flips) flip\(flips == 1 ? "" : "s")"
+        let from = String(localized: "from \(flips) flips")
+        return String(localized:
+            "\(WidgetHaulData.compactMoney(profit)) profit this month \(from)")
     }
 }
 

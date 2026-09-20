@@ -519,7 +519,7 @@ struct PressableButtonStyle: ButtonStyle {
 // ═══════════════════════════════════════════════════════════════════
 
 struct PrimaryButton: View {
-    let title: String
+    let title: LocalizedStringKey
     var isLoading: Bool = false
     let action: () -> Void
 
@@ -580,7 +580,7 @@ struct PrimaryButton: View {
 // ═══════════════════════════════════════════════════════════════════
 
 struct GhostButton: View {
-    let title: String
+    let title: LocalizedStringKey
     var isLoading: Bool = false
     let action: () -> Void
 
@@ -637,7 +637,9 @@ struct ValueRangeView: View {
     let high: Double
 
     private var formatted: String {
-        guard low.isFinite && high.isFinite else { return "Price unavailable" }
+        guard low.isFinite && high.isFinite else {
+            return String(localized: "Price unavailable")
+        }
         let fmt = NumberFormatter.snapCurrency
         let lo = fmt.string(from: NSNumber(value: low))  ?? "$\(Int(low))"
         let hi = fmt.string(from: NSNumber(value: high)) ?? "$\(Int(high))"
@@ -657,8 +659,25 @@ struct ValueRangeView: View {
 // MARK: - Confidence Badge
 // ═══════════════════════════════════════════════════════════════════
 
+/// The backend's confidence word — "High", "Medium", "Low" — as a phrase.
+///
+/// Each level is its own string rather than an adjective interpolated into a
+/// frame: Romanian agrees the adjective with the noun's gender, so "High" and
+/// "confidence" cannot be translated separately and joined. The `default` keeps
+/// the old interpolated wording for a level the backend has not sent before.
+func snapConfidencePhrase(_ confidence: String) -> String {
+    switch confidence.lowercased() {
+    case "high":   return String(localized: "High confidence")
+    case "medium": return String(localized: "Medium confidence")
+    case "low":    return String(localized: "Low confidence")
+    default:       return String(localized: "\(confidence) confidence")
+    }
+}
+
 struct ConfidenceBadge: View {
     let confidence: String
+
+    private var label: String { snapConfidencePhrase(confidence) }
 
     private var accentColor: Color {
         switch confidence.lowercased() {
@@ -679,7 +698,7 @@ struct ConfidenceBadge: View {
 
     var body: some View {
         Label {
-            Text("\(confidence) confidence")
+            Text(label)
         } icon: {
             Image(systemName: indicator).snapSymbol(12, weight: .semibold)
         }
@@ -695,7 +714,7 @@ struct ConfidenceBadge: View {
                 .strokeBorder(accentColor, lineWidth: 1)
         )
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("\(confidence) confidence")
+        .accessibilityLabel(label)
     }
 }
 
@@ -820,10 +839,10 @@ struct AnalyzingOverlay: View {
     @State private var rotationTask: Task<Void, Never>?
 
     private let messages = [
-        "Reading the label…",
-        "Analyzing the item…",
-        "Estimating resale value…",
-        "Almost there…",
+        String(localized: "Reading the label…"),
+        String(localized: "Analyzing the item…"),
+        String(localized: "Estimating resale value…"),
+        String(localized: "Almost there…"),
     ]
 
     var body: some View {
@@ -871,7 +890,8 @@ struct AnalyzingOverlay: View {
             // Progress is conveyed by rotating copy; without a live region a
             // VoiceOver user gets silence for the whole 3–6s analysis.
             .accessibilityElement(children: .combine)
-            .accessibilityLabel("\(messages[messageIndex]) Photo captured — you can lower your phone.")
+            .accessibilityLabel(String(localized:
+                "\(messages[messageIndex]) Photo captured — you can lower your phone."))
             .accessibilityAddTraits(.updatesFrequently)
         }
         .onAppear {
@@ -968,7 +988,7 @@ struct PlanCard: View {
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(title)
         .accessibilityValue("\(price). \(priceDetail)\(badge.map { ". \($0)" } ?? "")")
-        .accessibilityHint("Selects the \(title.lowercased()) plan")
+        .accessibilityHint(String(localized: "Selects the \(title.lowercased()) plan"))
         .accessibilityAddTraits(isSelected ? [.isButton, .isSelected] : .isButton)
     }
 }
@@ -1032,7 +1052,8 @@ struct ScanHistoryCard: View {
         .frame(width: max(0, width))
         .snapCard()
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(result.itemName), estimated \(result.formattedRange)")
+        .accessibilityLabel(String(localized:
+            "\(result.itemName), estimated \(result.formattedRange)"))
         .accessibilityAddTraits(.isButton)
     }
 }

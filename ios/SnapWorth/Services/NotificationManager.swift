@@ -259,7 +259,7 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
         storeRecapPending(fireDate: fireDate, label: label)
 
         await add(id: Self.recapID, category: .recap, fireDate: fireDate,
-                  body: "Your \(label) Recap is ready 👀")
+                  body: String(localized: "Your \(label) Recap is ready 👀"))
     }
 
     // Recap-ready fallback state (drives the History banner when notifications
@@ -402,9 +402,9 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
         }
         let body: String
         if items.count == 1, let name = ledgerName(items[0]) {
-            body = "Did \(name) sell? Update your ledger to keep your profit accurate."
+            body = String(localized: "Did \(name) sell? Update your ledger to keep your profit accurate.")
         } else {
-            body = "You have items to update in your ledger."
+            body = String(localized: "You have items to update in your ledger.")
         }
         await add(id: id, category: .ledger, fireDate: fireDate, body: body)
     }
@@ -425,7 +425,7 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
             return
         }
         await add(id: id, category: .trial, fireDate: fireDate,
-                  body: "Your SnapWorth trial ends tomorrow.")
+                  body: String(localized: "Your SnapWorth trial ends tomorrow."))
     }
 
     // MARK: - 4) Daily free-scan reminder (opt-in)
@@ -530,9 +530,9 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
     /// the streak simply isn't mentioned.
     nonisolated static func freeScanBody(streak: Int) -> String {
         if streak >= 2 {
-            return "Day \(streak + 1) of your streak is waiting — your free scan is back."
+            return String(localized: "Day \(streak + 1) of your streak is waiting — your free scan is back.")
         }
-        return "Your free scan is back. What did you find today?"
+        return String(localized: "Your free scan is back. What did you find today?")
     }
 
     // MARK: - Re-sync everything eligible (grant-later / app active)
@@ -587,13 +587,16 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
             guard itemCount > 0 else { return nil }
             let money = HistoryViewModel.money(total)
 
-            if addedThisWeek > 0 {
-                let noun = addedThisWeek == 1 ? "find" : "finds"
-                return "You added \(addedThisWeek) \(noun) this week. Your \(itemCount) "
-                     + "\(itemCount == 1 ? "find is" : "finds are") worth \(money)."
+            // Each count is inflected by itself and the amount is added after: a
+            // plural key agrees with one number, and "you added N … your M are
+            // worth X" has two of them and an amount besides. The amount is last
+            // in both languages, so it can be appended rather than interpolated.
+            let held = String(localized: "Your \(itemCount) finds are worth") + " \(money)."
+            guard addedThisWeek > 0 else {
+                // Nothing new: a plain status line rather than manufactured urgency.
+                return held
             }
-            // Nothing new: a plain status line rather than manufactured urgency.
-            return "Your \(itemCount) \(itemCount == 1 ? "find is" : "finds are") worth \(money)."
+            return String(localized: "You added \(addedThisWeek) finds this week.") + " " + held
         }
     }
 

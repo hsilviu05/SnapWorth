@@ -143,7 +143,9 @@ struct ShareCardView: View {
     private var heroSection: some View {
         if let paid = result.paidPrice {
             VStack(spacing: 6) {
-                Text(printedDollars(paid) == 0 ? "Free →" : "Paid \(fmtCurrency(paid)) →")
+                Text(printedDollars(paid) == 0
+                     ? String(localized: "Free →")
+                     : String(localized: "Paid \(fmtCurrency(paid)) →"))
                     .font(Font.dmSans(17, weight: .semibold))
                     .foregroundStyle(Color(hex: "8B7D71"))
                     .lineLimit(1)
@@ -192,7 +194,7 @@ struct ShareCardView: View {
         // as $0 escapes the free branch and becomes the divisor of a multiple.
         let paidShown = printedDollars(paid)
         let low = printedDollars(result.displayValueLow)
-        if paidShown == 0 { return "Free find" }
+        if paidShown == 0 { return String(localized: "Free find") }
         guard paidShown < low else { return nil }
         // `floor`, not `round`. Round-to-nearest made the threshold for an
         // "Nx find" claim `low/paid >= N - 0.5`, so the very first badge a user
@@ -205,7 +207,7 @@ struct ShareCardView: View {
         // The same class of defect as the divisor bug fixed in the comment
         // above: that corrected which number to divide, and left the rounding.
         let multiple = Int((low / paidShown).rounded(.down))
-        return multiple > 1 ? "\(multiple)x find" : nil
+        return multiple > 1 ? String(localized: "\(multiple)x find") : nil
     }
 
     private func fmtCurrency(_ value: Double) -> String {
@@ -272,7 +274,7 @@ struct MonthShareCardView: View {
         VStack(spacing: 0) {
             Spacer().frame(height: 104)
 
-            Text("MY FLIPS · \(monthTitle.uppercased())")
+            Text(String(localized: "MY FLIPS · \(monthTitle.uppercased())"))
                 .font(Font.dmSans(16, weight: .bold))
                 .tracking(2)
                 .foregroundStyle(Color(hex: "8B7D71"))
@@ -287,7 +289,9 @@ struct MonthShareCardView: View {
                 .padding(.top, 24)
                 .padding(.horizontal, innerPad)
 
-            Text(isProfit ? "profit this month" : "net this month")
+            Text(isProfit
+                 ? String(localized: "profit this month")
+                 : String(localized: "net this month"))
                 .font(Font.dmSans(18))
                 .foregroundStyle(Color(hex: "8B7D71"))
                 .padding(.top, 6)
@@ -295,10 +299,16 @@ struct MonthShareCardView: View {
             Spacer().frame(height: 64)
 
             HStack(alignment: .top, spacing: 0) {
-                statBlock(value: "\(itemsSold)", label: itemsSold == 1 ? "item sold" : "items sold")
+                // The number is the block's value, so the label is the bare noun. Two
+                // forms rather than a plural key, because a plural key inflects a string
+                // that contains the number and this one must not: Romanian's 20-and-up
+                // form ("de obiecte vândute") is the one casualty, on a share card.
+                statBlock(value: "\(itemsSold)",
+                          label: itemsSold == 1 ? String(localized: "item sold")
+                                                : String(localized: "items sold"))
                 if let name = bestFlipName, let profit = bestFlipProfit {
                     Rectangle().fill(Color(hex: "EFE6DC")).frame(width: 1, height: 72)
-                    statBlock(value: signed(profit), label: "best flip", caption: name)
+                    statBlock(value: signed(profit), label: String(localized: "best flip"), caption: name)
                 }
             }
             .padding(.horizontal, innerPad)
@@ -417,12 +427,12 @@ enum GuessScoring {
         let lo = min(low, high).rounded(), hi = max(low, high).rounded()
         let guessed = guess.rounded()
         if guessed >= lo && guessed <= hi {
-            return "Spot on — your guess is inside the estimate."
+            return String(localized: "Spot on — your guess is inside the estimate.")
         }
         if guessed < lo {
-            return "\(money(lo - guessed)) under the low end."
+            return String(localized: "\(money(lo - guessed)) under the low end.")
         }
-        return "\(money(guessed - hi)) over the high end."
+        return String(localized: "\(money(guessed - hi)) over the high end.")
     }
 
     /// Parses what the user typed: digits with an optional decimal separator,
@@ -463,7 +473,9 @@ struct GuessShareCardView: View {
                 .padding(.top, 28)
 
             if let paid = result.paidPrice {
-                Text(paid == 0 ? "Free find" : "Paid \(fmtCurrency(paid))")
+                Text(paid == 0
+                     ? String(localized: "Free find")
+                     : String(localized: "Paid \(fmtCurrency(paid))"))
                     .font(Font.dmSans(17, weight: .semibold))
                     .foregroundStyle(Color(hex: "8B7D71"))
                     .lineLimit(1)
@@ -540,7 +552,9 @@ struct GuessShareCardView: View {
                     Text("SnapWorth")
                         .font(Font.fraunces(20, weight: .bold))
                         .foregroundStyle(Color(hex: "2B211C"))
-                    Text(style == .reveal ? "Get SnapWorth" : "Answer on the next slide")
+                    Text(style == .reveal
+                         ? String(localized: "Get SnapWorth")
+                         : String(localized: "Answer on the next slide"))
                         .font(Font.dmSans(14))
                         .foregroundStyle(Color(hex: "8B7D71"))
                 }

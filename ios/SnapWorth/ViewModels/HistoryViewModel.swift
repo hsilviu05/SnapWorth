@@ -4,6 +4,14 @@ import SwiftData
 enum HistorySortOrder: String, CaseIterable {
     case newest = "Newest"
     case mostValuable = "Most Valuable"
+
+    /// What the sort menu shows; the raw value is the stored identity.
+    var label: String {
+        switch self {
+        case .newest:       return String(localized: "Newest", comment: "Finds sort order")
+        case .mostValuable: return String(localized: "Most Valuable", comment: "Finds sort order")
+        }
+    }
 }
 
 @MainActor
@@ -154,13 +162,13 @@ final class HistoryViewModel {
     /// statistics is a report, not a prompt.
     nonisolated static func insightLine(_ i: Insights) -> String? {
         if i.unlisted > 0 {
-            return "\(i.unlisted) find\(i.unlisted == 1 ? "" : "s") you haven't listed yet"
+            return String(localized: "\(i.unlisted) finds you haven't listed yet")
         }
         if i.realized > 0 {
-            return "\(money(i.realized)) realised · \(money(i.unrealized)) still held"
+            return String(localized: "\(money(i.realized)) realised · \(money(i.unrealized)) still held")
         }
         if let days = i.oldestHoldDays, days >= 30 {
-            return "Held for \(days) days"
+            return String(localized: "Held for \(days) days")
         }
         return nil
     }

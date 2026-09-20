@@ -72,7 +72,9 @@ struct HaulWidgetSmallView: View {
                 Spacer()
 
                 // Value
-                Text(haul.itemCount > 0 ? haul.formattedRange : "No scans yet")
+                Text(haul.itemCount > 0
+                     ? haul.formattedRange
+                     : String(localized: "No scans yet"))
                     .wFont(haul.itemCount > 0 ? 20 : 14,
                            weight: .bold, design: .serif)
                     .foregroundStyle(haul.itemCount > 0 ? Color.wSage : Color.wWarmGray)
@@ -82,8 +84,8 @@ struct HaulWidgetSmallView: View {
 
                 // Label
                 Text(haul.itemCount > 0
-                     ? "\(WidgetHaulData.itemsLabel(haul.itemCount)) scanned"
-                     : "Scan your first find")
+                     ? String(localized: "\(WidgetHaulData.itemsLabel(haul.itemCount)) scanned")
+                     : String(localized: "Scan your first find"))
                     .wFont(11, weight: .medium)
                     .foregroundStyle(Color.wWarmGray)
             }
@@ -206,10 +208,10 @@ struct HaulWidgetMediumView: View {
 
     private var lastScannedLabel: String {
         guard haul.itemCount > 0 else {
-            return "Nothing scanned yet. Tap to scan your first find."
-        }
-        return "Last scanned, \(haul.lastItemName), "
-             + WidgetHaulData.spoken(haul.lastItemRange)
+            return String(localized: "Nothing scanned yet. Tap to scan your first find.")
+            }
+            return String(localized:
+                "Last scanned, \(haul.lastItemName), \(WidgetHaulData.spoken(haul.lastItemRange))")
     }
 }
 

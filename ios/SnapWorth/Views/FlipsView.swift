@@ -83,7 +83,9 @@ struct FlipsView: View {
 
     private func summaryHeader(_ s: FlipsViewModel.Summary) -> some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text(isPro ? "All-time profit" : "Profit this month")
+            Text(isPro
+                 ? String(localized: "All-time profit")
+                 : String(localized: "Profit this month"))
                 .font(.snapCaption)
                 .foregroundStyle(Color.snapWarmGray)
 
@@ -133,12 +135,14 @@ struct FlipsView: View {
             statCard(
                 title: "Not sold yet",
                 value: "\(s.unrealizedCount)",
-                caption: s.unrealizedCount > 0 ? "\(vm.money(s.unrealizedInvested)) in" : nil
+                caption: s.unrealizedCount > 0
+                    ? String(localized: "\(vm.money(s.unrealizedInvested)) in")
+                    : nil
             )
         }
     }
 
-    private func statCard(title: String, value: String, caption: String? = nil) -> some View {
+    private func statCard(title: LocalizedStringKey, value: String, caption: String? = nil) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             Text(title)
                 .font(.snapCaption)
@@ -230,7 +234,7 @@ struct FlipsView: View {
         // month's row happened to be empty. Every other row in the app is
         // combined and spoken as one sentence; this is that convention.
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(bucket.label), \(vm.signedMoney(bucket.profit))")
+        .accessibilityLabel(String(localized: "\(bucket.label), \(vm.signedMoney(bucket.profit))"))
     }
 
     // MARK: - Filter chips
@@ -240,7 +244,7 @@ struct FlipsView: View {
             ForEach(FlipsViewModel.StatusFilter.allCases) { f in
                 let selected = vm.filter == f
                 Button { vm.filter = f } label: {
-                    Text(f.rawValue)
+                    Text(f.label)
                         .font(.dmSans(13, weight: .semibold, relativeTo: .footnote))
                         // Both tokens adapt together, so the pairing stays
                         // legible in either theme (dark chip + cream text in
@@ -259,14 +263,14 @@ struct FlipsView: View {
                 }
                 .buttonStyle(.plain)
                 .snapHitTarget()
-                .accessibilityLabel(f.rawValue)
+                .accessibilityLabel(f.label)
                 .accessibilityAddTraits(selected ? [.isButton, .isSelected] : .isButton)
             }
             Spacer()
         }
         .accessibilityElement(children: .contain)
         .accessibilityLabel("Filter")
-        .accessibilityValue(vm.filter.rawValue)
+        .accessibilityValue(vm.filter.label)
     }
 
     // MARK: - Item row
@@ -309,12 +313,14 @@ struct FlipsView: View {
         if item.status == .sold {
             if let profit = item.realizedProfit {
                 let money = vm.signedMoney(profit)
-                parts.append(profit < 0 ? "Loss of \(money)" : "Profit of \(money)")
+                parts.append(profit < 0
+                             ? String(localized: "Loss of \(money)")
+                             : String(localized: "Profit of \(money)"))
             } else {
-                parts.append("Profit unknown — add what you paid")
+                parts.append(String(localized: "Profit unknown — add what you paid"))
             }
         } else if let paid = item.paidPrice {
-            parts.append("Paid \(vm.money(Decimal(paid)))")
+            parts.append(String(localized: "Paid \(vm.money(Decimal(paid)))"))
         }
         return parts.joined(separator: ". ")
     }
@@ -373,7 +379,7 @@ struct FlipsView: View {
         Button { routeToPaywall(.ledgerHistory) } label: {
             HStack(spacing: 10) {
                 Image(systemName: "lock.fill").snapSymbol(14, weight: .semibold)
-                Text("Unlock \(hidden) more + all-time totals")
+                Text(String(localized: "Unlock \(hidden) more + all-time totals"))
                     .font(.dmSans(14, weight: .semibold, relativeTo: .subheadline))
                     .fixedSize(horizontal: false, vertical: true)
                 Spacer()
@@ -386,7 +392,7 @@ struct FlipsView: View {
         }
         .buttonStyle(.plain)
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("Unlock \(hidden) more flips and all-time totals")
+        .accessibilityLabel(String(localized: "Unlock \(hidden) more flips and all-time totals"))
         .accessibilityHint("Opens subscription options")
         .accessibilityAddTraits(.isButton)
     }
@@ -434,7 +440,7 @@ struct FlipsView: View {
             ToolbarItem(placement: .navigationBarTrailing) {
                 Menu {
                     Picker("Sort", selection: $vm.sort) {
-                        ForEach(FlipsViewModel.SortOrder.allCases) { Text($0.rawValue).tag($0) }
+                        ForEach(FlipsViewModel.SortOrder.allCases) { Text($0.label).tag($0) }
                     }
                     if vm.hasSalesThisMonth(allResults) {
                         Button { shareMonth() } label: {
@@ -452,7 +458,7 @@ struct FlipsView: View {
                 // month share card and the sort order. `HistoryView` labels the
                 // identical control properly one file away.
                 .accessibilityLabel("Flip options")
-                .accessibilityValue(vm.sort.rawValue)
+                .accessibilityValue(vm.sort.label)
                 .accessibilityHint("Sort, share the month, or export a CSV")
             }
         }

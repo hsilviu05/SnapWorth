@@ -130,7 +130,7 @@ struct ScanView: View {
                             .accessibilityLabel("Upgrade to Pro")
                             .accessibilityHint("You've used today's free scans. Opens subscription options.")
                         } else {
-                            Text("\(remaining) free scan\(remaining == 1 ? "" : "s") left today")
+                            Text("\(remaining) free scans left today")
                                 .font(.snapCaption)
                                 .foregroundStyle(Color.snapOnCharcoal.opacity(0.8))
                                 .multilineTextAlignment(.trailing)
@@ -139,7 +139,7 @@ struct ScanView: View {
                                 .background(Color.snapCharcoal.opacity(0.5))
                                 .clipShape(Capsule())
                                 .accessibilityLabel(
-                                    "\(remaining) free scan\(remaining == 1 ? "" : "s") left today")
+                                    String(localized: "\(remaining) free scans left today"))
                         }
                     }
                 }
@@ -158,7 +158,8 @@ struct ScanView: View {
                             .padding(.vertical, 4)
                             .background(Color.snapCharcoal.opacity(0.5))
                             .clipShape(Capsule())
-                            .accessibilityLabel("\(vm.streak) day scanning streak")
+                            .accessibilityLabel(
+                                String(localized: "\(vm.streak) day scanning streak"))
                     }
                     .padding(.horizontal, 20)
                     .padding(.top, 6)
@@ -278,10 +279,12 @@ struct ScanView: View {
                     }
                     .disabled(vm.isAnalyzing || captureInFlight
                               || cameraManager.authStatus != .authorized)
-                    .accessibilityLabel(vm.isAnalyzing ? "Analyzing item" : "Take photo to scan")
+                    .accessibilityLabel(vm.isAnalyzing
+                        ? String(localized: "Analyzing item")
+                        : String(localized: "Take photo to scan"))
                     .accessibilityHint(vm.isAnalyzing
-                        ? "Please wait for the current scan to finish"
-                        : "Captures the item and estimates its resale value")
+                        ? String(localized: "Please wait for the current scan to finish")
+                        : String(localized: "Captures the item and estimates its resale value"))
                     // The primary action: reachable first under VoiceOver.
                     .accessibilitySortPriority(100)
 
@@ -513,8 +516,8 @@ struct ScanView: View {
             // the user turned down, and telling them it is makes the app look
             // broken rather than restricted.
             Text(restricted
-                 ? "Camera access is restricted on this device"
-                 : "Camera access needed to scan items")
+                 ? String(localized: "Camera access is restricted on this device")
+                 : String(localized: "Camera access needed to scan items"))
                 .font(.snapBody)
                 .foregroundStyle(Color.snapOnCharcoal.opacity(0.8))
                 .multilineTextAlignment(.center)
@@ -529,8 +532,8 @@ struct ScanView: View {
             }
             .frame(maxWidth: 200)
             .accessibilityHint(restricted
-                               ? "Opens iOS Settings, where Screen Time restrictions are changed"
-                               : "Opens iOS Settings so you can allow camera access")
+                               ? String(localized: "Opens iOS Settings, where Screen Time restrictions are changed")
+                               : String(localized: "Opens iOS Settings so you can allow camera access"))
         }
     }
 
@@ -631,8 +634,8 @@ private struct ThriftRunControl: View {
                                 // it.
                                 UIAccessibility.post(
                                     notification: .announcement,
-                                    argument: "Couldn't start the run. "
-                                        + "Check Live Activities in Settings.")
+                                    argument: String(localized:
+                                        "Couldn't start the run. Check Live Activities in Settings."))
                             }
                         }
                         // Read back rather than toggling: a button that lies
@@ -641,7 +644,8 @@ private struct ThriftRunControl: View {
                         isRunning = ThriftRunController.isRunning
                     }
                 } label: {
-                    Label(isRunning ? "End run" : "Start a run",
+                    Label(isRunning ? String(localized: "End run")
+                                    : String(localized: "Start a run"),
                           systemImage: isRunning ? "stop.circle.fill" : "play.circle.fill")
                         .font(.snapCaption.bold())
                         .foregroundStyle(Color.snapOnCharcoal.opacity(0.9))
@@ -651,10 +655,12 @@ private struct ThriftRunControl: View {
                         .clipShape(Capsule())
                 }
                 .snapHitTarget()
-                .accessibilityLabel(isRunning ? "End thrift run" : "Start a thrift run")
+                .accessibilityLabel(isRunning
+                                    ? String(localized: "End thrift run")
+                                    : String(localized: "Start a thrift run"))
                 .accessibilityHint(isRunning
-                                   ? "Removes the running total from your Lock Screen"
-                                   : "Shows a running total of this trip on your Lock Screen")
+                                   ? String(localized: "Removes the running total from your Lock Screen")
+                                   : String(localized: "Shows a running total of this trip on your Lock Screen"))
 
                 if startRefused {
                     Text("Couldn't start — check Live Activities in Settings")

@@ -67,7 +67,7 @@ final class PaywallViewModel {
                 // what setting isPurchaseComplete used to do — left the user
                 // with no subscription, no explanation, and the same paywall on
                 // their next scan. Stay put and say what is happening.
-                pendingMessage = "Waiting for approval. Your subscription starts as soon as it's approved — you don't need to buy again."
+                pendingMessage = String(localized: "Waiting for approval. Your subscription starts as soon as it's approved — you don't need to buy again.")
             }
         } catch {
             let appError = AppError.from(error)
@@ -107,7 +107,7 @@ final class PaywallViewModel {
                 // the red `errorMessage`: nothing failed. `SettingsViewModel`
                 // has said "No active subscription found." for this case all
                 // along; the paywall's copy of the flow dropped it.
-                pendingMessage = "No active subscription found on this Apple ID."
+                pendingMessage = String(localized: "No active subscription found on this Apple ID.")
             }
         } catch {
             // The guard `purchase` above already applies, missing here.

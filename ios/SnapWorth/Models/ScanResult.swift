@@ -267,7 +267,9 @@ final class ScanResult {
     var displayValueHigh: Double { NSDecimalNumber(decimal: priceRange(for: condition).high).doubleValue }
 
     var formattedRange: String {
-        guard valueLow.isFinite && valueHigh.isFinite else { return "Price unavailable" }
+        guard valueLow.isFinite && valueHigh.isFinite else {
+            return String(localized: "Price unavailable")
+        }
         let range = priceRange(for: condition)
         let fmt = NumberFormatter.snapCurrency
         let lo = fmt.string(from: NSDecimalNumber(decimal: range.low)) ?? "$\(Int(displayValueLow))"
@@ -390,12 +392,14 @@ enum Condition: String, CaseIterable, Identifiable {
 
     var id: String { rawValue }
 
+    /// Shown on the condition picker. Translated; `rawValue` is what is
+    /// stored and sent to the backend and stays English.
     var label: String {
         switch self {
-        case .new:     return "New"
-        case .likeNew: return "Like New"
-        case .good:    return "Good"
-        case .used:    return "Used"
+        case .new:     return String(localized: "New", comment: "Condition grade")
+        case .likeNew: return String(localized: "Like New", comment: "Condition grade")
+        case .good:    return String(localized: "Good", comment: "Condition grade")
+        case .used:    return String(localized: "Used", comment: "Condition grade")
         }
     }
 
@@ -406,6 +410,19 @@ enum Condition: String, CaseIterable, Identifiable {
         case .likeNew: return 1.15
         case .good:    return 1.0
         case .used:    return 0.78
+        }
+    }
+
+    /// The same grade as `listingPhrase`, for the screen rather than for the
+    /// generator. Separate because `listingPhrase` is an input to listing text
+    /// the backend writes in English — translating it would put a Romanian
+    /// clause inside an English listing.
+    var displayPhrase: String {
+        switch self {
+        case .new:     return String(localized: "brand new, unused")
+        case .likeNew: return String(localized: "like new, barely used")
+        case .good:    return String(localized: "good used condition")
+        case .used:    return String(localized: "used with visible wear")
         }
     }
 
@@ -590,12 +607,15 @@ enum FlipStatus: String, CaseIterable, Identifiable {
 
     var id: String { rawValue }
 
+    /// Shown on the flip-status picker and in My Flips' filter. Translated;
+    /// `rawValue` is the stored value and the SwiftData predicate's operand,
+    /// so it stays English.
     var label: String {
         switch self {
-        case .scanned: return "Scanned"
-        case .owned:   return "Owned"
-        case .listed:  return "Listed"
-        case .sold:    return "Sold"
+        case .scanned: return String(localized: "Scanned", comment: "Flip status")
+        case .owned:   return String(localized: "Owned", comment: "Flip status")
+        case .listed:  return String(localized: "Listed", comment: "Flip status")
+        case .sold:    return String(localized: "Sold", comment: "Flip status")
         }
     }
 

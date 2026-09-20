@@ -51,7 +51,8 @@ struct OnboardingView: View {
                     }
                 }
                 .accessibilityElement(children: .ignore)
-                .accessibilityLabel("Page \(vm.currentPage + 1) of \(vm.slides.count)")
+                .accessibilityLabel(String(localized:
+                    "Page \(vm.currentPage + 1) of \(vm.slides.count)"))
                 .padding(.top, 24)
 
                 // ── CTA ───────────────────────────────────────────────────
@@ -298,7 +299,7 @@ private struct ThriftFlipHero: View {
         .shadow(color: Color.snapCardShadow.opacity(0.12), radius: 20, x: 0, y: 10)
     }
 
-    private func priceBlock(label: String, value: String) -> some View {
+    private func priceBlock(label: LocalizedStringKey, value: String) -> some View {
         VStack(spacing: 2) {
             Text(label)
                 .font(.snapCaption)
@@ -315,7 +316,7 @@ private struct ThriftFlipHero: View {
 private struct TrackFindsHero: View {
     let accent: Color
 
-    private let items: [(String, String, String)] = [
+    private let items: [(String, LocalizedStringKey, String)] = [
         ("tshirt.fill", "Wool Blazer", "$45–$90"),
         ("bag.fill", "Leather Tote", "$60–$120"),
         ("shoe.fill", "Retro Sneakers", "$30–$70"),

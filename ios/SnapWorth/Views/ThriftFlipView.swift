@@ -156,7 +156,7 @@ struct ThriftFlipView: View {
                     .font(.dmSans(16, weight: .semibold))
                     .foregroundStyle(Color.snapEspresso)
                     .lineLimit(2)
-                Text("Resale \(result.formattedRange)")
+                Text(String(localized: "Resale \(result.formattedRange)"))
                     .font(.snapCaption)
                     .foregroundStyle(Color.snapWarmGray)
             }
@@ -197,7 +197,7 @@ struct ThriftFlipView: View {
                     .snapHitTarget()
                     .accessibilityLabel(marketplace.displayName)
                     .accessibilityAddTraits(selected ? [.isButton, .isSelected] : .isButton)
-                    .accessibilityHint("Calculates fees for \(marketplace.displayName)")
+                    .accessibilityHint(String(localized: "Calculates fees for \(marketplace.displayName)"))
                 }
               }
             }
@@ -280,7 +280,9 @@ struct ThriftFlipView: View {
             // Headline verdict
             HStack(spacing: 8) {
                 Image(systemName: green ? "checkmark.seal.fill" : "xmark.seal.fill")
-                Text(green ? "Worth flipping" : "Skip it")
+                Text(green
+                     ? String(localized: "Worth flipping")
+                     : String(localized: "Skip it"))
                     .font(.dmSans(17, weight: .bold))
             }
             .foregroundStyle(accent)
@@ -345,11 +347,11 @@ struct ThriftFlipView: View {
         let resale = ThriftFlipViewModel.money(calc.resalePrice)
         let profit = ThriftFlipViewModel.signedMoney(calc.netProfit)
         return calc.isProfitable
-            ? "Resell at \(resale) → \(profit) profit after fees."
-            : "Resell at \(resale) → \(profit) after fees. Not worth it."
+            ? String(localized: "Resell at \(resale) → \(profit) profit after fees.")
+            : String(localized: "Resell at \(resale) → \(profit) after fees. Not worth it.")
     }
 
-    private func metric(_ label: String, _ value: String, _ color: Color) -> some View {
+    private func metric(_ label: LocalizedStringKey, _ value: String, _ color: Color) -> some View {
         VStack(spacing: 2) {
             Text(label).font(.snapCaption).foregroundStyle(Color.snapWarmGray)
             Text(value).font(.dmSans(18, weight: .bold)).foregroundStyle(color)
@@ -368,7 +370,7 @@ struct ThriftFlipView: View {
         .padding(.top, 4)
     }
 
-    private func breakdownRow(_ label: String, _ value: String) -> some View {
+    private func breakdownRow(_ label: LocalizedStringKey, _ value: String) -> some View {
         HStack {
             Text(label).font(.snapCaption).foregroundStyle(Color.snapWarmGray)
             Spacer()
@@ -424,7 +426,7 @@ struct ThriftFlipView: View {
     // that, VoiceOver read these three fields as "text field" with no way to
     // tell the shop price from the resale price or the shipping cost.
     private func moneyField(_ text: Binding<String>, field: Field,
-                            placeholder: String, label: String) -> some View {
+                            placeholder: String, label: LocalizedStringKey) -> some View {
         HStack(spacing: 4) {
             Text("$")
                 .font(.dmSans(17, weight: .medium))
@@ -437,12 +439,13 @@ struct ThriftFlipView: View {
                 .focused($focusedField, equals: field)
                 .accessibilityLabel(label)
                 .accessibilityValue(text.wrappedValue.isEmpty
-                    ? "Not set" : "\(text.wrappedValue) dollars")
+                    ? String(localized: "Not set")
+                    : String(localized: "\(text.wrappedValue) dollars"))
                 .accessibilityHint("Enter an amount in dollars")
         }
     }
 
-    private func labeledMoneyRow(_ title: String, text: Binding<String>, field: Field) -> some View {
+    private func labeledMoneyRow(_ title: LocalizedStringKey, text: Binding<String>, field: Field) -> some View {
         HStack {
             Text(title)
                 .font(.dmSans(14, weight: .medium))
@@ -470,7 +473,8 @@ struct ThriftFlipView: View {
                 .foregroundStyle(Color.snapEspresso)
                 .accessibilityLabel(title)
                 .accessibilityValue(text.wrappedValue.isEmpty
-                    ? "Not set" : "\(text.wrappedValue) dollars")
+                    ? String(localized: "Not set")
+                    : String(localized: "\(text.wrappedValue) dollars"))
                 .accessibilityHint("Enter an amount in dollars")
         }
     }

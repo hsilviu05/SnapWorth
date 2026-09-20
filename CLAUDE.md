@@ -41,6 +41,28 @@ on build 15 reproduces six bugs that are not in the tree. Say which build a fix
 needs rather than re-fixing it. iOS also caches widget snapshots across an
 extension update — remove and re-add the widget before trusting what it draws.
 
+## Strings are in a catalog, and the catalog is generated
+
+The app is English and Romanian. A user-facing string has to have an entry in
+`ios/Localization/App.json` or `Widgets.json`, keyed by its exact English text;
+`tools/build_xcstrings.py` turns those into the `.xcstrings` Xcode builds.
+**Never hand-edit an entry those files own** — regenerating overwrites it, and
+CI fails on the drift. Xcode does add entries of its own during a build, which
+is how a key whose format specifiers were guessed wrong gets corrected; those
+are kept, and printed as `untranslated:` until they are moved into the source.
+
+The failure when a key is missing is silent: the lookup misses and the English
+literal is shown. So CI also runs `tools/check_localization.py`, which fails on
+a literal in a localizable position with no catalog entry. A string that is
+English on purpose goes in that file's `DELIBERATELY_ENGLISH` with a reason,
+not left out.
+
+Two catalogs because a widget extension cannot read the app's resources —
+`String(localized:)` resolves against `Bundle.main`. The shared widget model
+above is compiled into both targets, so **a string it uses needs an entry in
+both**. `ios/Localization/README.md` has the rest, including why money, listing
+copy and the legal documents stay English.
+
 ## Running the iOS tests
 
 `-destination 'platform=iOS Simulator,name=iPhone 16'` is ambiguous (one name,

@@ -27,18 +27,27 @@ struct FeedbackView: View {
     private var messageFieldHint: String {
         let trimmed = message.trimmingCharacters(in: .whitespacesAndNewlines).count
         guard trimmed >= 10 else {
-            let needed = 10 - trimmed
-            return "\(needed) more character\(needed == 1 ? "" : "s") needed "
-                + "before you can send. Up to \(maxChars) characters."
+            let needed = String(localized: "\(10 - trimmed) more characters")
+            return String(localized: "\(needed) needed before you can send. Up to \(maxChars) characters.")
         }
-        let left = maxChars - message.count
-        return "\(left) character\(left == 1 ? "" : "s") remaining."
+        return String(localized: "\(maxChars - message.count) characters remaining.")
     }
 
     enum FeedbackType: String, CaseIterable {
         case featureRequest  = "Feature Request"
         case bugReport       = "Bug Report"
         case general         = "General Feedback"
+
+        /// What the chip says. The raw value stays English because it is the
+        /// mail subject — support sorts on it, and a subject line that changes
+        /// with the sender's language is a subject line you cannot filter.
+        var label: String {
+            switch self {
+            case .featureRequest: return String(localized: "Feature Request")
+            case .bugReport:      return String(localized: "Bug Report")
+            case .general:        return String(localized: "General Feedback")
+            }
+        }
 
         var icon: String {
             switch self {
@@ -76,7 +85,7 @@ struct FeedbackView: View {
                                     HStack(spacing: 6) {
                                         Image(systemName: type.icon)
                                             .snapSymbol(13, weight: .medium)
-                                        Text(type.rawValue)
+                                        Text(type.label)
                                             .font(.dmSans(13, weight: .medium))
                                     }
                                     .padding(.horizontal, 14)
@@ -151,7 +160,8 @@ struct FeedbackView: View {
                     }
 
                     if !canSend {
-                        Text("\(max(0, 10 - message.trimmingCharacters(in: .whitespacesAndNewlines).count)) more character\(10 - message.trimmingCharacters(in: .whitespacesAndNewlines).count == 1 ? "" : "s") needed.")
+                        Text(String(localized:
+                            "\(max(0, 10 - message.trimmingCharacters(in: .whitespacesAndNewlines).count)) more characters needed."))
                             .font(.dmSans(11))
                             .foregroundStyle(Color.snapWarmGray)
                             .transition(.opacity)
@@ -220,7 +230,7 @@ struct FeedbackView: View {
                     .foregroundStyle(Color.snapEspresso)
             }
 
-            Text("This iPhone has no email account set up. Copy your message and send it to \(Config.supportEmail) from wherever you do have mail.")
+            Text(String(localized: "This iPhone has no email account set up. Copy your message and send it to \(Config.supportEmail) from wherever you do have mail."))
                 .font(.snapCaption)
                 .foregroundStyle(Color.snapWarmGray)
                 .fixedSize(horizontal: false, vertical: true)
@@ -239,7 +249,9 @@ struct FeedbackView: View {
                 HStack(spacing: 6) {
                     Image(systemName: didCopy ? "checkmark" : "doc.on.doc")
                         .snapSymbol(12, weight: .medium)
-                    Text(didCopy ? "Copied" : "Copy message and address")
+                    Text(didCopy
+                         ? String(localized: "Copied")
+                         : String(localized: "Copy message and address"))
                         .font(.dmSans(13, weight: .medium))
                 }
                 .foregroundStyle(Color.snapTerracottaText)
