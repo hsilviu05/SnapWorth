@@ -4,129 +4,187 @@
     " to ": {
       "comment": "Spoken separator between the two ends of a money range.",
       "en": " to ",
-      "ro": " la "
+      "ro": " la ",
+      "es": " a ",
+      "de": " bis "
     },
     "%@ Photo captured — you can lower your phone.": {
       "comment": "VoiceOver label combining the rotating copy with the reassurance.",
       "en": "%@ Photo captured — you can lower your phone.",
-      "ro": "%@ Poza e făcută — poți lăsa telefonul jos."
+      "ro": "%@ Poza e făcută — poți lăsa telefonul jos.",
+      "es": "%@ Foto hecha: ya puedes bajar el móvil.",
+      "de": "%@ Foto aufgenommen – du kannst dein Handy runternehmen."
     },
     "%@ Try again in %@.": {
       "comment": "The second %@ is an already-inflected duration.",
       "en": "%@ Try again in %@.",
-      "ro": "%@ Încearcă din nou peste %@."
+      "ro": "%@ Încearcă din nou peste %@.",
+      "es": "%@ Inténtalo de nuevo en %@.",
+      "de": "%@ Versuch es in %@ noch einmal."
     },
     "%@ Try again in a few seconds.": {
       "en": "%@ Try again in a few seconds.",
-      "ro": "%@ Încearcă din nou peste câteva secunde."
+      "ro": "%@ Încearcă din nou peste câteva secunde.",
+      "es": "%@ Inténtalo de nuevo en unos segundos.",
+      "de": "%@ Versuch es in ein paar Sekunden noch einmal."
     },
     "%@ Try again in a minute.": {
       "en": "%@ Try again in a minute.",
-      "ro": "%@ Încearcă din nou peste un minut."
+      "ro": "%@ Încearcă din nou peste un minut.",
+      "es": "%@ Inténtalo de nuevo en un minuto.",
+      "de": "%@ Versuch es in einer Minute noch einmal."
     },
     "%@ Try again in an hour.": {
       "en": "%@ Try again in an hour.",
-      "ro": "%@ Încearcă din nou peste o oră."
+      "ro": "%@ Încearcă din nou peste o oră.",
+      "es": "%@ Inténtalo de nuevo en una hora.",
+      "de": "%@ Versuch es in einer Stunde noch einmal."
     },
     "%@ confidence": {
       "comment": "Fallback for a confidence level the app does not have a phrase for.",
       "en": "%@ confidence",
-      "ro": "Încredere: %@"
+      "ro": "Încredere: %@",
+      "es": "Confianza: %@",
+      "de": "Sicherheit: %@"
     },
     "%@ dollars": {
       "comment": "VoiceOver value for an amount field.",
       "en": "%@ dollars",
-      "ro": "%@ dolari"
+      "ro": "%@ dolari",
+      "es": "%@ dólares",
+      "de": "%@ Dollar"
     },
     "%@ for your first %@": {
       "en": "%@ for your first %@",
-      "ro": "%@ pentru primele %@"
+      "ro": "%@ pentru primele %@",
+      "es": "%@ los primeros %@",
+      "de": "%@ für die ersten %@"
     },
     "%@ for your first %@, then %@. Cancel anytime.": {
       "en": "%@ for your first %@, then %@. Cancel anytime.",
-      "ro": "%@ pentru primele %@, apoi %@. Anulezi oricând."
+      "ro": "%@ pentru primele %@, apoi %@. Anulezi oricând.",
+      "es": "%@ los primeros %@, luego %@. Cancela cuando quieras.",
+      "de": "%@ für die ersten %@, danach %@. Jederzeit kündbar."
     },
     "%@ in": {
       "comment": "Caption under 'Not sold yet': how much money is tied up.",
       "en": "%@ in",
-      "ro": "%@ investiți"
+      "ro": "%@ investiți",
+      "es": "%@ invertidos",
+      "de": "%@ investiert"
     },
     "%@ needed before you can send. Up to %lld characters.": {
       "en": "%@ needed before you can send. Up to %lld characters.",
-      "ro": "%@ înainte să poți trimite. Maximum %lld caractere."
+      "ro": "%@ înainte să poți trimite. Maximum %lld caractere.",
+      "es": "%@ antes de poder enviar. Máximo %lld caracteres.",
+      "de": "%@ nötig, bevor du senden kannst. Maximal %lld Zeichen."
     },
     "%@ over the high end.": {
       "en": "%@ over the high end.",
-      "ro": "Cu %@ peste maxim."
+      "ro": "Cu %@ peste maxim.",
+      "es": "%@ por encima del máximo.",
+      "de": "%@ über dem oberen Wert."
     },
     "%@ per %@ for %@": {
       "en": "%@ per %@ for %@",
-      "ro": "%@ pe %@ timp de %@"
+      "ro": "%@ pe %@ timp de %@",
+      "es": "%@ por %@ durante %@",
+      "de": "%@ pro %@ für %@"
     },
     "%@ per %@ for %@, then %@. Cancel anytime.": {
       "en": "%@ per %@ for %@, then %@. Cancel anytime.",
-      "ro": "%@ pe %@ timp de %@, apoi %@. Anulezi oricând."
+      "ro": "%@ pe %@ timp de %@, apoi %@. Anulezi oricând.",
+      "es": "%@ por %@ durante %@, luego %@. Cancela cuando quieras.",
+      "de": "%@ pro %@ für %@, danach %@. Jederzeit kündbar."
     },
     "%@ per week": {
       "en": "%@ per week",
-      "ro": "%@ pe săptămână"
+      "ro": "%@ pe săptămână",
+      "es": "%@ por semana",
+      "de": "%@ pro Woche"
     },
     "%@ realised · %@ still held": {
       "en": "%@ realised · %@ still held",
-      "ro": "%@ încasați · %@ încă pe stoc"
+      "ro": "%@ încasați · %@ încă pe stoc",
+      "es": "%@ cobrados · %@ aún sin vender",
+      "de": "%@ realisiert · %@ noch im Bestand"
     },
     "%@ to %@": {
       "en": "%@ to %@",
-      "ro": "%@ la %@"
+      "ro": "%@ la %@",
+      "es": "%@ a %@",
+      "de": "%@ bis %@"
     },
     "%@ under the low end.": {
       "en": "%@ under the low end.",
-      "ro": "Cu %@ sub minim."
+      "ro": "Cu %@ sub minim.",
+      "es": "%@ por debajo del mínimo.",
+      "de": "%@ unter dem unteren Wert."
     },
     "%@ will be permanently removed from your finds.": {
       "en": "%@ will be permanently removed from your finds.",
-      "ro": "%@ va fi șters definitiv din găselnițe."
+      "ro": "%@ va fi șters definitiv din găselnițe.",
+      "es": "%@ se eliminará definitivamente de tus hallazgos.",
+      "de": "%@ wird endgültig aus deinen Funden gelöscht."
     },
     "%@ · Upgrade for unlimited": {
       "en": "%@ · Upgrade for unlimited",
-      "ro": "%@ · Treci pe nelimitat"
+      "ro": "%@ · Treci pe nelimitat",
+      "es": "%@ · Hazte Pro para tenerlos ilimitados",
+      "de": "%@ · Mit Pro unbegrenzt"
     },
     "%@ — %@, ready to ship": {
       "comment": "Locked listing teaser: item name, then the condition phrase.",
       "en": "%@ — %@, ready to ship",
-      "ro": "%@ — %@, gata de expediat"
+      "ro": "%@ — %@, gata de expediat",
+      "es": "%@ — %@, listo para enviar",
+      "de": "%@ – %@, versandfertig"
     },
     "%@, estimated %@": {
       "comment": "VoiceOver label for a history card: item name, then its value range.",
       "en": "%@, estimated %@",
-      "ro": "%@, estimat la %@"
+      "ro": "%@, estimat la %@",
+      "es": "%@, estimado en %@",
+      "de": "%@, geschätzt auf %@"
     },
     "%@, from %@": {
       "comment": "VoiceOver value: the total, then the already-inflected item count.",
       "en": "%@, from %@",
-      "ro": "%@, din %@"
+      "ro": "%@, din %@",
+      "es": "%@, de %@",
+      "de": "%@, aus %@"
     },
     "%@. %@ AI estimate.": {
       "comment": "VoiceOver value of the result card: the range, then the confidence phrase.",
       "en": "%@. %@ AI estimate.",
-      "ro": "%@. Estimare AI. %@."
+      "ro": "%@. Estimare AI. %@.",
+      "es": "%@. Estimación con IA. %@.",
+      "de": "%@. KI-Schätzung. %@."
     },
     "%@. Cancel anytime.": {
       "en": "%@. Cancel anytime.",
-      "ro": "%@. Anulezi oricând."
+      "ro": "%@. Anulezi oricând.",
+      "es": "%@. Cancela cuando quieras.",
+      "de": "%@. Jederzeit kündbar."
     },
     "%@. Estimate %@": {
       "comment": "Spoken after the condition changes: the new grade, then the re-priced range.",
       "en": "%@. Estimate %@",
-      "ro": "%@. Estimare %@"
+      "ro": "%@. Estimare %@",
+      "es": "%@. Estimación %@",
+      "de": "%@. Schätzung %@"
     },
     "%@/month": {
       "en": "%@/month",
-      "ro": "%@/lună"
+      "ro": "%@/lună",
+      "es": "%@/mes",
+      "de": "%@/Monat"
     },
     "%@/year": {
       "en": "%@/year",
-      "ro": "%@/an"
+      "ro": "%@/an",
+      "es": "%@/año",
+      "de": "%@/Jahr"
     },
     "%lld characters remaining.": {
       "en": {
@@ -137,6 +195,14 @@
         "one": "A mai rămas un caracter.",
         "few": "Au mai rămas %lld caractere.",
         "other": "Au mai rămas %lld de caractere."
+      },
+      "es": {
+        "one": "Queda %lld carácter.",
+        "other": "Quedan %lld caracteres."
+      },
+      "de": {
+        "one": "Noch %lld Zeichen.",
+        "other": "Noch %lld Zeichen."
       }
     },
     "%lld day scanning streak": {
@@ -149,6 +215,14 @@
         "one": "serie de scanări de o zi",
         "few": "serie de scanări de %lld zile",
         "other": "serie de scanări de %lld de zile"
+      },
+      "es": {
+        "one": "racha de %lld día escaneando",
+        "other": "racha de %lld días escaneando"
+      },
+      "de": {
+        "one": "%lld Tag Scan-Serie",
+        "other": "%lld Tage Scan-Serie"
       }
     },
     "%lld days": {
@@ -160,6 +234,14 @@
         "one": "o zi",
         "few": "%lld zile",
         "other": "%lld de zile"
+      },
+      "es": {
+        "one": "%lld día",
+        "other": "%lld días"
+      },
+      "de": {
+        "one": "%lld Tag",
+        "other": "%lld Tage"
       }
     },
     "%lld finds": {
@@ -172,6 +254,14 @@
         "one": "o găselniță",
         "few": "%lld găselnițe",
         "other": "%lld de găselnițe"
+      },
+      "es": {
+        "one": "%lld hallazgo",
+        "other": "%lld hallazgos"
+      },
+      "de": {
+        "one": "%lld Fund",
+        "other": "%lld Funde"
       }
     },
     "%lld finds you haven't listed yet": {
@@ -183,6 +273,14 @@
         "one": "o găselniță pe care n-ai postat-o încă",
         "few": "%lld găselnițe pe care nu le-ai postat încă",
         "other": "%lld de găselnițe pe care nu le-ai postat încă"
+      },
+      "es": {
+        "one": "%lld hallazgo que aún no has publicado",
+        "other": "%lld hallazgos que aún no has publicado"
+      },
+      "de": {
+        "one": "%lld Fund, den du noch nicht eingestellt hast",
+        "other": "%lld Funde, die du noch nicht eingestellt hast"
       }
     },
     "%lld free scans a day": {
@@ -194,6 +292,14 @@
         "one": "o scanare gratuită pe zi",
         "few": "%lld scanări gratuite pe zi",
         "other": "%lld de scanări gratuite pe zi"
+      },
+      "es": {
+        "one": "%lld escaneo gratis al día",
+        "other": "%lld escaneos gratis al día"
+      },
+      "de": {
+        "one": "%lld kostenloser Scan pro Tag",
+        "other": "%lld kostenlose Scans pro Tag"
       }
     },
     "%lld free scans left today": {
@@ -206,6 +312,14 @@
         "one": "o scanare gratuită rămasă azi",
         "few": "%lld scanări gratuite rămase azi",
         "other": "%lld de scanări gratuite rămase azi"
+      },
+      "es": {
+        "one": "Queda %lld escaneo gratis hoy",
+        "other": "Quedan %lld escaneos gratis hoy"
+      },
+      "de": {
+        "one": "Noch %lld kostenloser Scan heute",
+        "other": "Noch %lld kostenlose Scans heute"
       }
     },
     "%lld items": {
@@ -217,6 +331,14 @@
         "one": "un obiect",
         "few": "%lld obiecte",
         "other": "%lld de obiecte"
+      },
+      "es": {
+        "one": "%lld artículo",
+        "other": "%lld artículos"
+      },
+      "de": {
+        "one": "%lld Artikel",
+        "other": "%lld Artikel"
       }
     },
     "%lld items scanned": {
@@ -228,6 +350,14 @@
         "one": "un obiect scanat",
         "few": "%lld obiecte scanate",
         "other": "%lld de obiecte scanate"
+      },
+      "es": {
+        "one": "%lld artículo escaneado",
+        "other": "%lld artículos escaneados"
+      },
+      "de": {
+        "one": "%lld Artikel gescannt",
+        "other": "%lld Artikel gescannt"
       }
     },
     "%lld items sold": {
@@ -239,6 +369,14 @@
         "one": "un obiect vândut",
         "few": "%lld obiecte vândute",
         "other": "%lld de obiecte vândute"
+      },
+      "es": {
+        "one": "%lld artículo vendido",
+        "other": "%lld artículos vendidos"
+      },
+      "de": {
+        "one": "%lld Artikel verkauft",
+        "other": "%lld Artikel verkauft"
       }
     },
     "%lld minutes": {
@@ -250,6 +388,14 @@
         "one": "un minut",
         "few": "%lld minute",
         "other": "%lld de minute"
+      },
+      "es": {
+        "one": "%lld minuto",
+        "other": "%lld minutos"
+      },
+      "de": {
+        "one": "%lld Minute",
+        "other": "%lld Minuten"
       }
     },
     "%lld months": {
@@ -261,6 +407,14 @@
         "one": "o lună",
         "few": "%lld luni",
         "other": "%lld de luni"
+      },
+      "es": {
+        "one": "%lld mes",
+        "other": "%lld meses"
+      },
+      "de": {
+        "one": "%lld Monat",
+        "other": "%lld Monate"
       }
     },
     "%lld more characters": {
@@ -272,6 +426,14 @@
         "one": "încă un caracter",
         "few": "încă %lld caractere",
         "other": "încă %lld de caractere"
+      },
+      "es": {
+        "one": "%lld carácter más",
+        "other": "%lld caracteres más"
+      },
+      "de": {
+        "one": "%lld Zeichen mehr",
+        "other": "%lld Zeichen mehr"
       }
     },
     "%lld more characters needed.": {
@@ -283,6 +445,14 @@
         "one": "Mai e nevoie de un caracter.",
         "few": "Mai e nevoie de %lld caractere.",
         "other": "Mai e nevoie de %lld de caractere."
+      },
+      "es": {
+        "one": "Falta %lld carácter.",
+        "other": "Faltan %lld caracteres."
+      },
+      "de": {
+        "one": "Es fehlt noch %lld Zeichen.",
+        "other": "Es fehlen noch %lld Zeichen."
       }
     },
     "%lld needs a paid price": {
@@ -295,6 +465,14 @@
         "one": "unul fără prețul plătit",
         "few": "%lld fără prețul plătit",
         "other": "%lld fără prețul plătit"
+      },
+      "es": {
+        "one": "%lld sin precio de compra",
+        "other": "%lld sin precio de compra"
+      },
+      "de": {
+        "one": "%lld ohne Einkaufspreis",
+        "other": "%lld ohne Einkaufspreis"
       }
     },
     "%lld scans": {
@@ -307,6 +485,14 @@
         "one": "o scanare",
         "few": "%lld scanări",
         "other": "%lld de scanări"
+      },
+      "es": {
+        "one": "%lld escaneo",
+        "other": "%lld escaneos"
+      },
+      "de": {
+        "one": "%lld Scan",
+        "other": "%lld Scans"
       }
     },
     "%lld scans this week": {
@@ -318,6 +504,14 @@
         "one": "o scanare săptămâna asta",
         "few": "%lld scanări săptămâna asta",
         "other": "%lld de scanări săptămâna asta"
+      },
+      "es": {
+        "one": "%lld escaneo esta semana",
+        "other": "%lld escaneos esta semana"
+      },
+      "de": {
+        "one": "%lld Scan diese Woche",
+        "other": "%lld Scans diese Woche"
       }
     },
     "%lld seconds": {
@@ -329,6 +523,14 @@
         "one": "o secundă",
         "few": "%lld secunde",
         "other": "%lld de secunde"
+      },
+      "es": {
+        "one": "%lld segundo",
+        "other": "%lld segundos"
+      },
+      "de": {
+        "one": "%lld Sekunde",
+        "other": "%lld Sekunden"
       }
     },
     "%lld weeks": {
@@ -340,6 +542,14 @@
         "one": "o săptămână",
         "few": "%lld săptămâni",
         "other": "%lld de săptămâni"
+      },
+      "es": {
+        "one": "%lld semana",
+        "other": "%lld semanas"
+      },
+      "de": {
+        "one": "%lld Woche",
+        "other": "%lld Wochen"
       }
     },
     "%lld years": {
@@ -351,6 +561,14 @@
         "one": "un an",
         "few": "%lld ani",
         "other": "%lld de ani"
+      },
+      "es": {
+        "one": "%lld año",
+        "other": "%lld años"
+      },
+      "de": {
+        "one": "%lld Jahr",
+        "other": "%lld Jahre"
       }
     },
     "%lld-day free trial": {
@@ -363,6 +581,14 @@
         "one": "probă gratuită de o zi",
         "few": "probă gratuită de %lld zile",
         "other": "probă gratuită de %lld de zile"
+      },
+      "es": {
+        "one": "%lld día de prueba gratis",
+        "other": "%lld días de prueba gratis"
+      },
+      "de": {
+        "one": "%lld Tag gratis testen",
+        "other": "%lld Tage gratis testen"
       }
     },
     "%lld-month free trial": {
@@ -374,6 +600,14 @@
         "one": "probă gratuită de o lună",
         "few": "probă gratuită de %lld luni",
         "other": "probă gratuită de %lld de luni"
+      },
+      "es": {
+        "one": "%lld mes de prueba gratis",
+        "other": "%lld meses de prueba gratis"
+      },
+      "de": {
+        "one": "%lld Monat gratis testen",
+        "other": "%lld Monate gratis testen"
       }
     },
     "%lld-week free trial": {
@@ -385,6 +619,14 @@
         "one": "probă gratuită de o săptămână",
         "few": "probă gratuită de %lld săptămâni",
         "other": "probă gratuită de %lld de săptămâni"
+      },
+      "es": {
+        "one": "%lld semana de prueba gratis",
+        "other": "%lld semanas de prueba gratis"
+      },
+      "de": {
+        "one": "%lld Woche gratis testen",
+        "other": "%lld Wochen gratis testen"
       }
     },
     "%lld-year free trial": {
@@ -396,526 +638,788 @@
         "one": "probă gratuită de un an",
         "few": "probă gratuită de %lld ani",
         "other": "probă gratuită de %lld de ani"
+      },
+      "es": {
+        "one": "%lld año de prueba gratis",
+        "other": "%lld años de prueba gratis"
+      },
+      "de": {
+        "one": "%lld Jahr gratis testen",
+        "other": "%lld Jahre gratis testen"
       }
     },
     "%lldx find": {
       "comment": "Badge on a share card: how many times over the item is worth what was paid.",
       "en": "%lldx find",
-      "ro": "de %lld ori banii"
+      "ro": "de %lld ori banii",
+      "es": "%lldx lo que pagaste",
+      "de": "%lldx dein Einsatz"
     },
     "+$32 profit": {
       "en": "+$32 profit",
-      "ro": "+32 $ profit"
+      "ro": "+32 $ profit",
+      "es": "+32 $ de ganancia",
+      "de": "+32 $ Gewinn"
     },
     "/ 100 confidence": {
       "en": "/ 100 confidence",
-      "ro": "/ 100 încredere"
+      "ro": "/ 100 încredere",
+      "es": "/ 100 de confianza",
+      "de": "/ 100 Sicherheit"
     },
     "A marketplace-ready listing, tailored to where you sell.": {
       "en": "A marketplace-ready listing, tailored to where you sell.",
-      "ro": "Un anunț gata de postat, pe măsura platformei pe care vinzi."
+      "ro": "Un anunț gata de postat, pe măsura platformei pe care vinzi.",
+      "es": "Un anuncio listo para publicar, adaptado a donde vendes.",
+      "de": "Ein fertiges Inserat, zugeschnitten auf die Plattform, auf der du verkaufst."
     },
     "A polished description tailored to %@, priced to sell with a smart negotiation floor…": {
       "en": "A polished description tailored to %@, priced to sell with a smart negotiation floor…",
-      "ro": "O descriere îngrijită, pe măsura %@, cu un preț care vinde și un minim de negociere…"
+      "ro": "O descriere îngrijită, pe măsura %@, cu un preț care vinde și un minim de negociere…",
+      "es": "Una descripción cuidada y adaptada a %@, con un precio que vende y un mínimo para negociar…",
+      "de": "Eine saubere Beschreibung für %@, mit einem Preis, der verkauft, und einer klugen Verhandlungsgrenze…"
     },
     "AI estimate": {
       "en": "AI estimate",
-      "ro": "estimare AI"
+      "ro": "estimare AI",
+      "es": "estimación con IA",
+      "de": "KI-Schätzung"
     },
     "AI resale estimate": {
       "en": "AI resale estimate",
-      "ro": "Estimare AI de revânzare"
+      "ro": "Estimare AI de revânzare",
+      "es": "Estimación de reventa con IA",
+      "de": "KI-Schätzung für den Wiederverkauf"
     },
     "Account": {
       "en": "Account",
-      "ro": "Cont"
+      "ro": "Cont",
+      "es": "Cuenta",
+      "de": "Konto"
     },
     "Add both prices to see your profit.": {
       "en": "Add both prices to see your profit.",
-      "ro": "Adaugă ambele prețuri ca să vezi profitul."
+      "ro": "Adaugă ambele prețuri ca să vezi profitul.",
+      "es": "Añade los dos precios para ver tu ganancia.",
+      "de": "Trag beide Preise ein, um deinen Gewinn zu sehen."
     },
     "Add the expected resale price to see your profit.": {
       "en": "Add the expected resale price to see your profit.",
-      "ro": "Adaugă prețul estimat de revânzare ca să vezi profitul."
+      "ro": "Adaugă prețul estimat de revânzare ca să vezi profitul.",
+      "es": "Añade el precio de reventa estimado para ver tu ganancia.",
+      "de": "Trag den erwarteten Wiederverkaufspreis ein, um deinen Gewinn zu sehen."
     },
     "Add the shop price to see your profit.": {
       "en": "Add the shop price to see your profit.",
-      "ro": "Adaugă prețul din magazin ca să vezi profitul."
+      "ro": "Adaugă prețul din magazin ca să vezi profitul.",
+      "es": "Añade el precio de la tienda para ver tu ganancia.",
+      "de": "Trag den Ladenpreis ein, um deinen Gewinn zu sehen."
     },
     "Add the tag": {
       "en": "Add the tag",
-      "ro": "Adaugă eticheta"
+      "ro": "Adaugă eticheta",
+      "es": "Añadir la etiqueta",
+      "de": "Etikett hinzufügen"
     },
     "Adds your find multiple to the share card": {
       "comment": "The multiple is resale value ÷ what you paid.",
       "en": "Adds your find multiple to the share card",
-      "ro": "Adaugă pe card de câte ori îți scoți banii"
+      "ro": "Adaugă pe card de câte ori îți scoți banii",
+      "es": "Añade a la tarjeta cuántas veces recuperas lo que pagaste",
+      "de": "Zeigt auf der Karte, um das Wievielfache du deinen Einsatz rausholst"
     },
     "All": {
       "comment": "Flip filter: every status.",
       "en": "All",
-      "ro": "Toate"
+      "ro": "Toate",
+      "es": "Todos",
+      "de": "Alle"
     },
     "All-time profit": {
       "en": "All-time profit",
-      "ro": "Profit total"
+      "ro": "Profit total",
+      "es": "Ganancia total",
+      "de": "Gewinn insgesamt"
     },
     "Almost there…": {
       "en": "Almost there…",
-      "ro": "Aproape gata…"
+      "ro": "Aproape gata…",
+      "es": "Casi está…",
+      "de": "Fast fertig…"
     },
     "Analyzing item": {
       "en": "Analyzing item",
-      "ro": "Analizez obiectul"
+      "ro": "Analizez obiectul",
+      "es": "Analizando el artículo",
+      "de": "Artikel wird analysiert"
     },
     "Analyzing the item…": {
       "en": "Analyzing the item…",
-      "ro": "Analizez obiectul…"
+      "ro": "Analizez obiectul…",
+      "es": "Analizando el artículo…",
+      "de": "Artikel wird analysiert…"
     },
     "Anonymous totals from everyone using SnapWorth. AI estimates.": {
       "en": "Anonymous totals from everyone using SnapWorth. AI estimates.",
-      "ro": "Totaluri anonime de la toți cei care folosesc SnapWorth. Estimări AI."
+      "ro": "Totaluri anonime de la toți cei care folosesc SnapWorth. Estimări AI.",
+      "es": "Totales anónimos de toda la gente que usa SnapWorth. Estimaciones con IA.",
+      "de": "Anonyme Summen von allen, die SnapWorth nutzen. KI-Schätzungen."
     },
     "Anonymous usage only — never your photos, item names, or prices": {
       "en": "Anonymous usage only — never your photos, item names, or prices",
-      "ro": "Doar utilizare anonimă — niciodată pozele, numele obiectelor sau prețurile"
+      "ro": "Doar utilizare anonimă — niciodată pozele, numele obiectelor sau prețurile",
+      "es": "Solo uso anónimo: nunca tus fotos, nombres de artículos ni precios",
+      "de": "Nur anonyme Nutzungsdaten – nie deine Fotos, Artikelnamen oder Preise"
     },
     "Answer on the next slide": {
       "en": "Answer on the next slide",
-      "ro": "Răspunsul pe slide-ul următor"
+      "ro": "Răspunsul pe slide-ul următor",
+      "es": "La respuesta, en la siguiente",
+      "de": "Antwort auf der nächsten Folie"
     },
     "Ask": {
       "comment": "The listing price you ask for.",
       "en": "Ask",
-      "ro": "Cerut"
+      "ro": "Cerut",
+      "es": "Salida",
+      "de": "Startpreis"
     },
     "Avg ROI": {
       "en": "Avg ROI",
-      "ro": "ROI mediu"
+      "ro": "ROI mediu",
+      "es": "ROI medio",
+      "de": "Ø ROI"
     },
     "BEST VALUE": {
       "en": "BEST VALUE",
-      "ro": "CEL MAI AVANTAJOS"
+      "ro": "CEL MAI AVANTAJOS",
+      "es": "MEJOR PRECIO",
+      "de": "BESTES ANGEBOT"
     },
     "Back tomorrow, or go Pro": {
       "en": "Back tomorrow, or go Pro",
-      "ro": "Revii mâine sau treci pe Pro"
+      "ro": "Revii mâine sau treci pe Pro",
+      "es": "Vuelve mañana o hazte Pro",
+      "de": "Morgen wieder – oder hol dir Pro"
     },
     "Best case": {
       "en": "Best case",
-      "ro": "Cel mai bun caz"
+      "ro": "Cel mai bun caz",
+      "es": "Mejor caso",
+      "de": "Bestfall"
     },
     "Best flip": {
       "en": "Best flip",
-      "ro": "Cel mai bun flip"
+      "ro": "Cel mai bun flip",
+      "es": "Mejor reventa",
+      "de": "Bester Flip"
     },
     "Best value": {
       "en": "Best value",
-      "ro": "Cel mai avantajos"
+      "ro": "Cel mai avantajos",
+      "es": "Mejor precio",
+      "de": "Bestes Angebot"
     },
     "Bug Report": {
       "en": "Bug Report",
-      "ro": "Raportare de problemă"
+      "ro": "Raportare de problemă",
+      "es": "Informe de error",
+      "de": "Fehlerbericht"
     },
     "Buy smart.\nFlip for profit.": {
       "en": "Buy smart.\nFlip for profit.",
-      "ro": "Cumperi deștept.\nRevinzi cu profit."
+      "ro": "Cumperi deștept.\nRevinzi cu profit.",
+      "es": "Compra con cabeza.\nRevende con ganancia.",
+      "de": "Klug kaufen.\nMit Gewinn verkaufen."
     },
     "Calculates fees for %@": {
       "en": "Calculates fees for %@",
-      "ro": "Calculează comisioanele pentru %@"
+      "ro": "Calculează comisioanele pentru %@",
+      "es": "Calcula las comisiones de %@",
+      "de": "Berechnet die Gebühren für %@"
     },
     "Camera Error": {
       "en": "Camera Error",
-      "ro": "Eroare de cameră"
+      "ro": "Eroare de cameră",
+      "es": "Error de cámara",
+      "de": "Kamerafehler"
     },
     "Camera access denied. Enable it in Settings.": {
       "en": "Camera access denied. Enable it in Settings.",
-      "ro": "Accesul la cameră e refuzat. Activează-l din Setări."
+      "ro": "Accesul la cameră e refuzat. Activează-l din Setări.",
+      "es": "Acceso a la cámara denegado. Actívalo en Ajustes.",
+      "de": "Kamerazugriff verweigert. Aktiviere ihn in den Einstellungen."
     },
     "Camera access is restricted on this device": {
       "en": "Camera access is restricted on this device",
-      "ro": "Accesul la cameră este restricționat pe acest dispozitiv"
+      "ro": "Accesul la cameră este restricționat pe acest dispozitiv",
+      "es": "El acceso a la cámara está restringido en este dispositivo",
+      "de": "Der Kamerazugriff ist auf diesem Gerät eingeschränkt"
     },
     "Camera access needed to scan items": {
       "en": "Camera access needed to scan items",
-      "ro": "E nevoie de acces la cameră ca să scanezi"
+      "ro": "E nevoie de acces la cameră ca să scanezi",
+      "es": "Hace falta acceso a la cámara para escanear",
+      "de": "Zum Scannen wird Zugriff auf die Kamera gebraucht"
     },
     "Camera setup failed. Please restart the app.": {
       "en": "Camera setup failed. Please restart the app.",
-      "ro": "Pornirea camerei a eșuat. Repornește aplicația."
+      "ro": "Pornirea camerei a eșuat. Repornește aplicația.",
+      "es": "No se pudo iniciar la cámara. Reinicia la app.",
+      "de": "Die Kamera konnte nicht gestartet werden. Starte die App neu."
     },
     "Cancel": {
       "en": "Cancel",
-      "ro": "Anulează"
+      "ro": "Anulează",
+      "es": "Cancelar",
+      "de": "Abbrechen"
     },
     "Captures the item and estimates its resale value": {
       "en": "Captures the item and estimates its resale value",
-      "ro": "Fotografiază obiectul și estimează cât valorează la revânzare"
+      "ro": "Fotografiază obiectul și estimează cât valorează la revânzare",
+      "es": "Fotografía el artículo y estima su valor de reventa",
+      "de": "Fotografiert den Artikel und schätzt seinen Wiederverkaufswert"
     },
     "Care tag, size label, sole stamp or serial plate. Hold steady — the small print is the point.": {
       "en": "Care tag, size label, sole stamp or serial plate. Hold steady — the small print is the point.",
-      "ro": "Eticheta de întreținere, cea de mărime, ștampila de pe talpă sau plăcuța cu seria. Ține telefonul fix — scrisul mărunt e important."
+      "ro": "Eticheta de întreținere, cea de mărime, ștampila de pe talpă sau plăcuța cu seria. Ține telefonul fix — scrisul mărunt e important.",
+      "es": "Etiqueta de cuidado, de talla, sello de la suela o placa con el número de serie. No muevas el móvil: la letra pequeña es lo que importa.",
+      "de": "Pflegeetikett, Größenetikett, Sohlenprägung oder Typenschild. Halt still – das Kleingedruckte ist der Punkt."
     },
     "Center the item — tags & logos help": {
       "en": "Center the item — tags & logos help",
-      "ro": "Centrează obiectul — eticheta și logoul ajută"
+      "ro": "Centrează obiectul — eticheta și logoul ajută",
+      "es": "Centra el artículo: las etiquetas y los logos ayudan",
+      "de": "Artikel mittig halten – Etiketten und Logos helfen"
     },
     "Changes the order of your finds": {
       "en": "Changes the order of your finds",
-      "ro": "Schimbă ordinea găselnițelor"
+      "ro": "Schimbă ordinea găselnițelor",
+      "es": "Cambia el orden de tus hallazgos",
+      "de": "Ändert die Reihenfolge deiner Funde"
     },
     "Check resale profit after fees before you buy": {
       "en": "Check resale profit after fees before you buy",
-      "ro": "Vezi profitul după comisioane înainte să cumperi"
+      "ro": "Vezi profitul după comisioane înainte să cumperi",
+      "es": "Mira la ganancia tras comisiones antes de comprar",
+      "de": "Sieh den Gewinn nach Gebühren, bevor du kaufst"
     },
     "Choose from library": {
       "en": "Choose from library",
-      "ro": "Alege din galerie"
+      "ro": "Alege din galerie",
+      "es": "Elegir de la galería",
+      "de": "Aus der Mediathek wählen"
     },
     "Choose photo from library": {
       "en": "Choose photo from library",
-      "ro": "Alege o poză din galerie"
+      "ro": "Alege o poză din galerie",
+      "es": "Elegir una foto de la galería",
+      "de": "Foto aus der Mediathek wählen"
     },
     "Clear history?": {
       "en": "Clear history?",
-      "ro": "Ștergi istoricul?"
+      "ro": "Ștergi istoricul?",
+      "es": "¿Borrar el historial?",
+      "de": "Verlauf löschen?"
     },
     "Clear scan history": {
       "en": "Clear scan history",
-      "ro": "Șterge istoricul scanărilor"
+      "ro": "Șterge istoricul scanărilor",
+      "es": "Borrar el historial de escaneos",
+      "de": "Scan-Verlauf löschen"
     },
     "Clear search": {
       "en": "Clear search",
-      "ro": "Șterge căutarea"
+      "ro": "Șterge căutarea",
+      "es": "Borrar la búsqueda",
+      "de": "Suche löschen"
     },
     "Close": {
       "en": "Close",
-      "ro": "Închide"
+      "ro": "Închide",
+      "es": "Cerrar",
+      "de": "Schließen"
     },
     "Closes this result and returns to the camera": {
       "en": "Closes this result and returns to the camera",
-      "ro": "Închide rezultatul și te duce înapoi la cameră"
+      "ro": "Închide rezultatul și te duce înapoi la cameră",
+      "es": "Cierra el resultado y vuelve a la cámara",
+      "de": "Schließt das Ergebnis und geht zurück zur Kamera"
     },
     "Condition": {
       "comment": "Section header above the condition chips.",
       "en": "Condition",
-      "ro": "Stare"
+      "ro": "Stare",
+      "es": "Estado",
+      "de": "Zustand"
     },
     "Confidence": {
       "en": "Confidence",
-      "ro": "Încredere"
+      "ro": "Încredere",
+      "es": "Confianza",
+      "de": "Sicherheit"
     },
     "Confidence %lld out of 100": {
       "en": "Confidence %lld out of 100",
-      "ro": "Încredere %lld din 100"
+      "ro": "Încredere %lld din 100",
+      "es": "Confianza %lld sobre 100",
+      "de": "Sicherheit %lld von 100"
     },
     "Copied": {
       "en": "Copied",
-      "ro": "Copiat"
+      "ro": "Copiat",
+      "es": "Copiado",
+      "de": "Kopiert"
     },
     "Copied!": {
       "en": "Copied!",
-      "ro": "Copiat!"
+      "ro": "Copiat!",
+      "es": "¡Copiado!",
+      "de": "Kopiert!"
     },
     "Copy": {
       "en": "Copy",
-      "ro": "Copiază"
+      "ro": "Copiază",
+      "es": "Copiar",
+      "de": "Kopieren"
     },
     "Copy listing draft": {
       "en": "Copy listing draft",
-      "ro": "Copiază ciorna anunțului"
+      "ro": "Copiază ciorna anunțului",
+      "es": "Copiar el borrador del anuncio",
+      "de": "Inserat-Entwurf kopieren"
     },
     "Copy message and address": {
       "en": "Copy message and address",
-      "ro": "Copiază mesajul și adresa"
+      "ro": "Copiază mesajul și adresa",
+      "es": "Copiar el mensaje y la dirección",
+      "de": "Nachricht und Adresse kopieren"
     },
     "Could not capture photo. Try again.": {
       "en": "Could not capture photo. Try again.",
-      "ro": "N-am putut face poza. Încearcă din nou."
+      "ro": "N-am putut face poza. Încearcă din nou.",
+      "es": "No se pudo hacer la foto. Inténtalo de nuevo.",
+      "de": "Das Foto konnte nicht aufgenommen werden. Versuch es noch einmal."
     },
     "Could not process the photo. Please try a different image.": {
       "en": "Could not process the photo. Please try a different image.",
-      "ro": "N-am putut procesa poza. Încearcă altă imagine."
+      "ro": "N-am putut procesa poza. Încearcă altă imagine.",
+      "es": "No se pudo procesar la foto. Prueba con otra imagen.",
+      "de": "Das Foto konnte nicht verarbeitet werden. Probier ein anderes Bild."
     },
     "Could not save your scan. Please try again.": {
       "en": "Could not save your scan. Please try again.",
-      "ro": "N-am putut salva scanarea. Încearcă din nou."
+      "ro": "N-am putut salva scanarea. Încearcă din nou.",
+      "es": "No se pudo guardar el escaneo. Inténtalo de nuevo.",
+      "de": "Der Scan konnte nicht gespeichert werden. Versuch es noch einmal."
     },
     "Couldn't add this to My Finds. The verdict below still works.": {
       "en": "Couldn't add this to My Finds. The verdict below still works.",
-      "ro": "N-am putut adăuga asta în Găselnițe. Verdictul de mai jos rămâne valabil."
+      "ro": "N-am putut adăuga asta în Găselnițe. Verdictul de mai jos rămâne valabil.",
+      "es": "No se pudo añadir a Mis hallazgos. El veredicto de abajo sigue siendo válido.",
+      "de": "Konnte nicht zu Meine Funde hinzugefügt werden. Das Urteil unten gilt trotzdem."
     },
     "Couldn't clear history": {
       "en": "Couldn't clear history",
-      "ro": "N-am putut șterge istoricul"
+      "ro": "N-am putut șterge istoricul",
+      "es": "No se pudo borrar el historial",
+      "de": "Der Verlauf konnte nicht gelöscht werden"
     },
     "Couldn't load every plan. Try again, or continue with the one shown.": {
       "en": "Couldn't load every plan. Try again, or continue with the one shown.",
-      "ro": "N-am putut încărca toate abonamentele. Încearcă din nou sau continuă cu cel afișat."
+      "ro": "N-am putut încărca toate abonamentele. Încearcă din nou sau continuă cu cel afișat.",
+      "es": "No se pudieron cargar todos los planes. Inténtalo de nuevo o continúa con el que se muestra.",
+      "de": "Es konnten nicht alle Abos geladen werden. Versuch es noch einmal oder nimm das angezeigte."
     },
     "Couldn't load plans. Check your connection and try again.": {
       "en": "Couldn't load plans. Check your connection and try again.",
-      "ro": "N-am putut încărca abonamentele. Verifică conexiunea și încearcă din nou."
+      "ro": "N-am putut încărca abonamentele. Verifică conexiunea și încearcă din nou.",
+      "es": "No se pudieron cargar los planes. Revisa tu conexión e inténtalo de nuevo.",
+      "de": "Die Abos konnten nicht geladen werden. Prüf deine Verbindung und versuch es noch einmal."
     },
     "Couldn't load the selected photo. Please try another.": {
       "en": "Couldn't load the selected photo. Please try another.",
-      "ro": "N-am putut încărca poza aleasă. Încearcă alta."
+      "ro": "N-am putut încărca poza aleasă. Încearcă alta.",
+      "es": "No se pudo cargar la foto elegida. Prueba con otra.",
+      "de": "Das gewählte Foto konnte nicht geladen werden. Nimm ein anderes."
     },
     "Couldn't open Mail": {
       "en": "Couldn't open Mail",
-      "ro": "N-am putut deschide Mail"
+      "ro": "N-am putut deschide Mail",
+      "es": "No se pudo abrir Mail",
+      "de": "Mail konnte nicht geöffnet werden"
     },
     "Couldn't reach SnapWorth. Check your connection and try again.": {
       "en": "Couldn't reach SnapWorth. Check your connection and try again.",
-      "ro": "N-am putut contacta SnapWorth. Verifică conexiunea și încearcă din nou."
+      "ro": "N-am putut contacta SnapWorth. Verifică conexiunea și încearcă din nou.",
+      "es": "No se pudo conectar con SnapWorth. Revisa tu conexión e inténtalo de nuevo.",
+      "de": "SnapWorth war nicht erreichbar. Prüf deine Verbindung und versuch es noch einmal."
     },
     "Couldn't read that image.": {
       "en": "Couldn't read that image.",
-      "ro": "N-am putut citi imaginea."
+      "ro": "N-am putut citi imaginea.",
+      "es": "No se pudo leer esa imagen.",
+      "de": "Das Bild konnte nicht gelesen werden."
     },
     "Couldn't read the tag — enter the price manually.": {
       "en": "Couldn't read the tag — enter the price manually.",
-      "ro": "N-am putut citi eticheta — scrie prețul manual."
+      "ro": "N-am putut citi eticheta — scrie prețul manual.",
+      "es": "No se pudo leer la etiqueta: escribe el precio a mano.",
+      "de": "Das Etikett war nicht lesbar – gib den Preis von Hand ein."
     },
     "Couldn't save this flip. Try again.": {
       "en": "Couldn't save this flip. Try again.",
-      "ro": "N-am putut salva flipul. Încearcă din nou."
+      "ro": "N-am putut salva flipul. Încearcă din nou.",
+      "es": "No se pudo guardar esta reventa. Inténtalo de nuevo.",
+      "de": "Dieser Flip konnte nicht gespeichert werden. Versuch es noch einmal."
     },
     "Couldn't save to My Finds — this result won't be kept": {
       "en": "Couldn't save to My Finds — this result won't be kept",
-      "ro": "N-am putut salva în Găselnițe — rezultatul ăsta nu se păstrează"
+      "ro": "N-am putut salva în Găselnițe — rezultatul ăsta nu se păstrează",
+      "es": "No se pudo guardar en Mis hallazgos: este resultado no se conservará",
+      "de": "Konnte nicht in Meine Funde gespeichert werden – dieses Ergebnis bleibt nicht erhalten"
     },
     "Couldn't start the run. Check Live Activities in Settings.": {
       "en": "Couldn't start the run. Check Live Activities in Settings.",
-      "ro": "N-am putut porni tura. Verifică Activitățile live din Setări."
+      "ro": "N-am putut porni tura. Verifică Activitățile live din Setări.",
+      "es": "No se pudo empezar la ruta. Revisa las Actividades en vivo en Ajustes.",
+      "de": "Die Tour konnte nicht gestartet werden. Prüf die Live-Aktivitäten in den Einstellungen."
     },
     "Couldn't start — check Live Activities in Settings": {
       "en": "Couldn't start — check Live Activities in Settings",
-      "ro": "N-a pornit — verifică Activitățile live din Setări"
+      "ro": "N-a pornit — verifică Activitățile live din Setări",
+      "es": "No empezó: revisa las Actividades en vivo en Ajustes",
+      "de": "Nicht gestartet – prüf die Live-Aktivitäten in den Einstellungen"
     },
     "Daily free scan": {
       "en": "Daily free scan",
-      "ro": "Scanarea gratuită zilnică"
+      "ro": "Scanarea gratuită zilnică",
+      "es": "Escaneo gratis diario",
+      "de": "Täglicher Gratis-Scan"
     },
     "Data": {
       "en": "Data",
-      "ro": "Date"
+      "ro": "Date",
+      "es": "Datos",
+      "de": "Daten"
     },
     "Date": {
       "comment": "Flip sort order.",
       "en": "Date",
-      "ro": "Dată"
+      "ro": "Dată",
+      "es": "Fecha",
+      "de": "Datum"
     },
     "Day %lld of your streak is waiting — your free scan is back.": {
       "en": "Day %lld of your streak is waiting — your free scan is back.",
-      "ro": "Ziua %lld din serie te așteaptă — ai iar scanarea gratuită."
+      "ro": "Ziua %lld din serie te așteaptă — ai iar scanarea gratuită.",
+      "es": "Te espera el día %lld de tu racha: ya tienes tu escaneo gratis.",
+      "de": "Tag %lld deiner Serie wartet – dein Gratis-Scan ist wieder da."
     },
     "Delete": {
       "en": "Delete",
-      "ro": "Șterge"
+      "ro": "Șterge",
+      "es": "Eliminar",
+      "de": "Löschen"
     },
     "Delete %@": {
       "comment": "%@ is an item name.",
       "en": "Delete %@",
-      "ro": "Șterge %@"
+      "ro": "Șterge %@",
+      "es": "Eliminar %@",
+      "de": "%@ löschen"
     },
     "Delete Failed": {
       "en": "Delete Failed",
-      "ro": "Ștergerea a eșuat"
+      "ro": "Ștergerea a eșuat",
+      "es": "No se pudo eliminar",
+      "de": "Löschen fehlgeschlagen"
     },
     "Delete all": {
       "en": "Delete all",
-      "ro": "Șterge tot"
+      "ro": "Șterge tot",
+      "es": "Eliminar todo",
+      "de": "Alle löschen"
     },
     "Delete this find?": {
       "en": "Delete this find?",
-      "ro": "Ștergi găselnița asta?"
+      "ro": "Ștergi găselnița asta?",
+      "es": "¿Eliminar este hallazgo?",
+      "de": "Diesen Fund löschen?"
     },
     "Demand %@": {
       "en": "Demand %@",
-      "ro": "Cerere %@"
+      "ro": "Cerere %@",
+      "es": "Demanda %@",
+      "de": "Nachfrage %@"
     },
     "Did %@ sell? Update your ledger to keep your profit accurate.": {
       "en": "Did %@ sell? Update your ledger to keep your profit accurate.",
-      "ro": "S-a vândut %@? Actualizează-ți registrul ca profitul să rămână corect."
+      "ro": "S-a vândut %@? Actualizează-ți registrul ca profitul să rămână corect.",
+      "es": "¿Se vendió %@? Actualiza tu registro para que la ganancia siga siendo exacta.",
+      "de": "Hat sich %@ verkauft? Aktualisier dein Buch, damit der Gewinn stimmt."
     },
     "Dismisses this offer": {
       "en": "Dismisses this offer",
-      "ro": "Închide oferta"
+      "ro": "Închide oferta",
+      "es": "Cierra esta oferta",
+      "de": "Schließt dieses Angebot"
     },
     "Done": {
       "en": "Done",
-      "ro": "Gata"
+      "ro": "Gata",
+      "es": "Listo",
+      "de": "Fertig"
     },
     "Done editing": {
       "en": "Done editing",
-      "ro": "Gata cu editarea"
+      "ro": "Gata cu editarea",
+      "es": "Edición terminada",
+      "de": "Bearbeiten beendet"
     },
     "Edit": {
       "en": "Edit",
-      "ro": "Editează"
+      "ro": "Editează",
+      "es": "Editar",
+      "de": "Bearbeiten"
     },
     "Edit finds": {
       "en": "Edit finds",
-      "ro": "Editează găselnițele"
+      "ro": "Editează găselnițele",
+      "es": "Editar hallazgos",
+      "de": "Funde bearbeiten"
     },
     "Enable notifications": {
       "en": "Enable notifications",
-      "ro": "Activează notificările"
+      "ro": "Activează notificările",
+      "es": "Activar notificaciones",
+      "de": "Mitteilungen aktivieren"
     },
     "End run": {
       "en": "End run",
-      "ro": "Încheie tura"
+      "ro": "Încheie tura",
+      "es": "Terminar ruta",
+      "de": "Tour beenden"
     },
     "End thrift run": {
       "en": "End thrift run",
-      "ro": "Încheie tura de second hand"
+      "ro": "Încheie tura de second hand",
+      "es": "Terminar la ruta de segunda mano",
+      "de": "Second-Hand-Tour beenden"
     },
     "Enter an amount in dollars": {
       "en": "Enter an amount in dollars",
-      "ro": "Introdu o sumă în dolari"
+      "ro": "Introdu o sumă în dolari",
+      "es": "Escribe una cantidad en dólares",
+      "de": "Gib einen Betrag in Dollar ein"
     },
     "Estimated Resale Value": {
       "en": "Estimated Resale Value",
-      "ro": "Preț estimat la revânzare"
+      "ro": "Preț estimat la revânzare",
+      "es": "Valor de reventa estimado",
+      "de": "Geschätzter Wiederverkaufswert"
     },
     "Estimated resale value": {
       "en": "Estimated resale value",
-      "ro": "Preț estimat la revânzare"
+      "ro": "Preț estimat la revânzare",
+      "es": "Valor de reventa estimado",
+      "de": "Geschätzter Wiederverkaufswert"
     },
     "Estimated resale value %@. %@ AI estimate.": {
       "en": "Estimated resale value %@. %@ AI estimate.",
-      "ro": "Preț estimat la revânzare %@. Estimare AI. %@."
+      "ro": "Preț estimat la revânzare %@. Estimare AI. %@.",
+      "es": "Valor de reventa estimado %@. Estimación con IA. %@.",
+      "de": "Geschätzter Wiederverkaufswert %@. KI-Schätzung. %@."
     },
     "Estimating resale value…": {
       "en": "Estimating resale value…",
-      "ro": "Estimez prețul de revânzare…"
+      "ro": "Estimez prețul de revânzare…",
+      "es": "Estimando el valor de reventa…",
+      "de": "Wiederverkaufswert wird geschätzt…"
     },
     "Every find,\nin one place.": {
       "en": "Every find,\nin one place.",
-      "ro": "Toate găselnițele,\nîntr-un singur loc."
+      "ro": "Toate găselnițele,\nîntr-un singur loc.",
+      "es": "Todos tus hallazgos,\nen un solo sitio.",
+      "de": "Alle Funde,\nan einem Ort."
     },
     "Expected": {
       "en": "Expected",
-      "ro": "Așteptat"
+      "ro": "Așteptat",
+      "es": "Esperado",
+      "de": "Erwartet"
     },
     "Expected resale": {
       "en": "Expected resale",
-      "ro": "Revânzare estimată"
+      "ro": "Revânzare estimată",
+      "es": "Reventa estimada",
+      "de": "Erwarteter Wiederverkauf"
     },
     "Export CSV": {
       "en": "Export CSV",
-      "ro": "Exportă CSV"
+      "ro": "Exportă CSV",
+      "es": "Exportar CSV",
+      "de": "CSV exportieren"
     },
     "Feature Request": {
       "en": "Feature Request",
-      "ro": "Propunere de funcție"
+      "ro": "Propunere de funcție",
+      "es": "Sugerencia",
+      "de": "Funktionswunsch"
     },
     "Feel": {
       "comment": "Settings section: haptics and the guess-first toggle.",
       "en": "Feel",
-      "ro": "Experiență"
+      "ro": "Experiență",
+      "es": "Experiencia",
+      "de": "Bedienung"
     },
     "Fees (optional)": {
       "en": "Fees (optional)",
-      "ro": "Comisioane (opțional)"
+      "ro": "Comisioane (opțional)",
+      "es": "Comisiones (opcional)",
+      "de": "Gebühren (optional)"
     },
     "Fees for this marketplace aren't in the table — this is before fees.": {
       "en": "Fees for this marketplace aren't in the table — this is before fees.",
-      "ro": "Comisioanele platformei ăsteia nu sunt în tabel — suma e înainte de comisioane."
+      "ro": "Comisioanele platformei ăsteia nu sunt în tabel — suma e înainte de comisioane.",
+      "es": "Las comisiones de esta plataforma no están en la tabla: esto es antes de comisiones.",
+      "de": "Die Gebühren dieser Plattform stehen nicht in der Tabelle – das ist vor Gebühren."
     },
     "Fill the frame with the label": {
       "en": "Fill the frame with the label",
-      "ro": "Umple cadrul cu eticheta"
+      "ro": "Umple cadrul cu eticheta",
+      "es": "Llena el encuadre con la etiqueta",
+      "de": "Füll das Bild mit dem Etikett"
     },
     "Filter": {
       "en": "Filter",
-      "ro": "Filtru"
+      "ro": "Filtru",
+      "es": "Filtro",
+      "de": "Filter"
     },
     "Filters by item name or brand": {
       "en": "Filters by item name or brand",
-      "ro": "Filtrează după numele obiectului sau după marcă"
+      "ro": "Filtrează după numele obiectului sau după marcă",
+      "es": "Filtra por nombre de artículo o marca",
+      "de": "Filtert nach Artikelname oder Marke"
     },
     "Flexible, cancel anytime": {
       "en": "Flexible, cancel anytime",
-      "ro": "Flexibil, anulezi oricând"
+      "ro": "Flexibil, anulezi oricând",
+      "es": "Flexible, cancela cuando quieras",
+      "de": "Flexibel, jederzeit kündbar"
     },
     "Flip options": {
       "en": "Flip options",
-      "ro": "Opțiuni pentru flipuri"
+      "ro": "Opțiuni pentru flipuri",
+      "es": "Opciones de reventa",
+      "de": "Flip-Optionen"
     },
     "Flip status": {
       "en": "Flip status",
-      "ro": "Stadiul flipului"
+      "ro": "Stadiul flipului",
+      "es": "Estado de la reventa",
+      "de": "Flip-Status"
     },
     "Floor": {
       "comment": "The lowest price to accept, and the bottom of the price ladder.",
       "en": "Floor",
-      "ro": "Minim"
+      "ro": "Minim",
+      "es": "Mínimo",
+      "de": "Minimum"
     },
     "Four price points, what drives the value, and how to sharpen the estimate.": {
       "en": "Four price points, what drives the value, and how to sharpen the estimate.",
-      "ro": "Patru praguri de preț, ce ridică valoarea și cum faci estimarea mai exactă."
+      "ro": "Patru praguri de preț, ce ridică valoarea și cum faci estimarea mai exactă.",
+      "es": "Cuatro niveles de precio, qué sube el valor y cómo afinar la estimación.",
+      "de": "Vier Preispunkte, was den Wert treibt, und wie du die Schätzung schärfst."
     },
     "Free Plan": {
       "en": "Free Plan",
-      "ro": "Plan gratuit"
+      "ro": "Plan gratuit",
+      "es": "Plan gratuito",
+      "de": "Gratis-Tarif"
     },
     "Free find": {
       "en": "Free find",
-      "ro": "Găselniță pe gratis"
+      "ro": "Găselniță pe gratis",
+      "es": "Hallazgo gratis",
+      "de": "Gratis-Fund"
     },
     "Free scan": {
       "en": "Free scan",
-      "ro": "Scanare gratuită"
+      "ro": "Scanare gratuită",
+      "es": "Escaneo gratis",
+      "de": "Gratis-Scan"
     },
     "Free →": {
       "en": "Free →",
-      "ro": "Pe gratis →"
+      "ro": "Pe gratis →",
+      "es": "Gratis →",
+      "de": "Gratis →"
     },
     "From this photo only — not a certification.": {
       "en": "From this photo only — not a certification.",
-      "ro": "Doar din poza asta — nu e o certificare."
+      "ro": "Doar din poza asta — nu e o certificare.",
+      "es": "Solo a partir de esta foto: no es una certificación.",
+      "de": "Nur aus diesem Foto – keine Echtheitsprüfung."
     },
     "General Feedback": {
       "en": "General Feedback",
-      "ro": "Păreri generale"
+      "ro": "Păreri generale",
+      "es": "Comentarios generales",
+      "de": "Allgemeines Feedback"
     },
     "Generate %@ listing": {
       "en": "Generate %@ listing",
-      "ro": "Scrie anunțul pentru %@"
+      "ro": "Scrie anunțul pentru %@",
+      "es": "Generar el anuncio para %@",
+      "de": "Inserat für %@ schreiben"
     },
     "Get SnapWorth": {
       "comment": "Call to action at the foot of a share card.",
       "en": "Get SnapWorth",
-      "ro": "Ia-ți SnapWorth"
+      "ro": "Ia-ți SnapWorth",
+      "es": "Descarga SnapWorth",
+      "de": "Hol dir SnapWorth"
     },
     "Good": {
       "comment": "Condition grade.",
       "en": "Good",
-      "ro": "Bun"
+      "ro": "Bun",
+      "es": "Bueno",
+      "de": "Gut"
     },
     "Guess before the estimate": {
       "en": "Guess before the estimate",
-      "ro": "Ghicește înainte de estimare"
+      "ro": "Ghicește înainte de estimare",
+      "es": "Adivina antes de ver la estimación",
+      "de": "Erst raten, dann schätzen"
     },
     "Guess before the estimate covers the price on every new result until you tap Reveal. Turn it off to see the number straight away.": {
       "en": "Guess before the estimate covers the price on every new result until you tap Reveal. Turn it off to see the number straight away.",
-      "ro": "„Ghicește înainte de estimare” acoperă prețul pe fiecare rezultat nou, până apeși „Arată estimarea”. Oprește-l ca să vezi numărul direct."
+      "ro": "„Ghicește înainte de estimare” acoperă prețul pe fiecare rezultat nou, până apeși „Arată estimarea”. Oprește-l ca să vezi numărul direct.",
+      "es": "«Adivina antes de ver la estimación» tapa el precio en cada resultado nuevo hasta que tocas «Ver la estimación». Desactívalo para ver el número directamente.",
+      "de": "„Erst raten, dann schätzen“ verdeckt den Preis bei jedem neuen Ergebnis, bis du auf „Schätzung zeigen“ tippst. Schalt es aus, um die Zahl sofort zu sehen."
     },
     "Guess what it could resell for 👇": {
       "en": "Guess what it could resell for 👇",
-      "ro": "Ghicește cu cât se revinde 👇"
+      "ro": "Ghicește cu cât se revinde 👇",
+      "es": "Adivina por cuánto se revende 👇",
+      "de": "Rate, was es im Wiederverkauf bringt 👇"
     },
     "Guess-the-price story (question, then reveal)": {
       "en": "Guess-the-price story (question, then reveal)",
-      "ro": "Poveste cu ghicit prețul (întâi întrebarea, apoi răspunsul)"
+      "ro": "Poveste cu ghicit prețul (întâi întrebarea, apoi răspunsul)",
+      "es": "Historia de adivinar el precio (primero la pregunta, luego la respuesta)",
+      "de": "Preisraten-Story (erst die Frage, dann die Antwort)"
     },
     "Haptic feedback": {
       "en": "Haptic feedback",
-      "ro": "Vibrații"
+      "ro": "Vibrații",
+      "es": "Vibración",
+      "de": "Haptisches Feedback"
     },
     "Held for %lld days": {
       "en": {
@@ -926,801 +1430,1191 @@
         "one": "Ținut de o zi",
         "few": "Ținut de %lld zile",
         "other": "Ținut de %lld de zile"
+      },
+      "es": {
+        "one": "En tu poder %lld día",
+        "other": "En tu poder %lld días"
+      },
+      "de": {
+        "one": "Seit %lld Tag im Bestand",
+        "other": "Seit %lld Tagen im Bestand"
       }
     },
     "Helps us improve SnapWorth. Anonymous usage only — never your photos, item names, or prices.": {
       "en": "Helps us improve SnapWorth. Anonymous usage only — never your photos, item names, or prices.",
-      "ro": "Ne ajută să facem SnapWorth mai bun. Doar utilizare anonimă — niciodată pozele, numele obiectelor sau prețurile."
+      "ro": "Ne ajută să facem SnapWorth mai bun. Doar utilizare anonimă — niciodată pozele, numele obiectelor sau prețurile.",
+      "es": "Nos ayuda a mejorar SnapWorth. Solo uso anónimo: nunca tus fotos, nombres de artículos ni precios.",
+      "de": "Hilft uns, SnapWorth besser zu machen. Nur anonyme Nutzungsdaten – nie deine Fotos, Artikelnamen oder Preise."
     },
     "High confidence": {
       "comment": "Badge on a result: how clearly the AI identified the item.",
       "en": "High confidence",
-      "ro": "Încredere mare"
+      "ro": "Încredere mare",
+      "es": "Confianza alta",
+      "de": "Hohe Sicherheit"
     },
     "I want to…": {
       "en": "I want to…",
-      "ro": "Vreau să…"
+      "ro": "Vreau să…",
+      "es": "Quiero…",
+      "de": "Ich möchte…"
     },
     "Identifying…": {
       "en": "Identifying…",
-      "ro": "Îl recunosc…"
+      "ro": "Îl recunosc…",
+      "es": "Identificando…",
+      "de": "Wird erkannt…"
     },
     "In progress": {
       "en": "In progress",
-      "ro": "În curs"
+      "ro": "În curs",
+      "es": "En curso",
+      "de": "Läuft"
     },
     "In-app purchases are not available right now.": {
       "en": "In-app purchases are not available right now.",
-      "ro": "Cumpărăturile din aplicație nu sunt disponibile acum."
+      "ro": "Cumpărăturile din aplicație nu sunt disponibile acum.",
+      "es": "Las compras dentro de la app no están disponibles ahora mismo.",
+      "de": "In-App-Käufe sind gerade nicht verfügbar."
     },
     "In-app purchases are not configured yet.": {
       "en": "In-app purchases are not configured yet.",
-      "ro": "Cumpărăturile din aplicație nu sunt configurate încă."
+      "ro": "Cumpărăturile din aplicație nu sunt configurate încă.",
+      "es": "Las compras dentro de la app aún no están configuradas.",
+      "de": "In-App-Käufe sind noch nicht eingerichtet."
     },
     "Invested (all-time)": {
       "en": "Invested (all-time)",
-      "ro": "Investit (total)"
+      "ro": "Investit (total)",
+      "es": "Invertido (total)",
+      "de": "Investiert (gesamt)"
     },
     "Last 6 months": {
       "en": "Last 6 months",
-      "ro": "Ultimele 6 luni"
+      "ro": "Ultimele 6 luni",
+      "es": "Últimos 6 meses",
+      "de": "Letzte 6 Monate"
     },
     "Last updated: %@": {
       "comment": "Above the privacy policy and the terms, which are English-only — see the docs.",
       "en": "Last updated: %@",
-      "ro": "Ultima actualizare: %@"
+      "ro": "Ultima actualizare: %@",
+      "es": "Última actualización: %@",
+      "de": "Zuletzt aktualisiert: %@"
     },
     "Leather Tote": {
       "en": "Leather Tote",
-      "ro": "Geantă de piele"
+      "ro": "Geantă de piele",
+      "es": "Bolso de piel",
+      "de": "Ledertasche"
     },
     "Ledger reminders": {
       "en": "Ledger reminders",
-      "ro": "Memento pentru registru"
+      "ro": "Memento pentru registru",
+      "es": "Avisos del registro",
+      "de": "Erinnerungen fürs Buch"
     },
     "Legal": {
       "en": "Legal",
-      "ro": "Legal"
+      "ro": "Legal",
+      "es": "Legal",
+      "de": "Rechtliches"
     },
     "Lets you remove finds from your closet": {
       "en": "Lets you remove finds from your closet",
-      "ro": "Îți permite să ștergi găselnițe din colecție"
+      "ro": "Îți permite să ștergi găselnițe din colecție",
+      "es": "Te permite quitar hallazgos de tu colección",
+      "de": "Lässt dich Funde aus deiner Sammlung entfernen"
     },
     "Like New": {
       "comment": "Condition grade.",
       "en": "Like New",
-      "ro": "Ca nou"
+      "ro": "Ca nou",
+      "es": "Como nuevo",
+      "de": "Wie neu"
     },
     "Listed": {
       "comment": "Flip status.",
       "en": "Listed",
-      "ro": "Postat"
+      "ro": "Postat",
+      "es": "Publicado",
+      "de": "Eingestellt"
     },
     "Listing Draft": {
       "en": "Listing Draft",
-      "ro": "Ciornă de anunț"
+      "ro": "Ciornă de anunț",
+      "es": "Borrador del anuncio",
+      "de": "Inserat-Entwurf"
     },
     "Loading plans…": {
       "en": "Loading plans…",
-      "ro": "Se încarcă abonamentele…"
+      "ro": "Se încarcă abonamentele…",
+      "es": "Cargando planes…",
+      "de": "Abos werden geladen…"
     },
     "Loss of %@": {
       "en": "Loss of %@",
-      "ro": "Pierdere de %@"
+      "ro": "Pierdere de %@",
+      "es": "Pérdida de %@",
+      "de": "Verlust von %@"
     },
     "Low confidence": {
       "en": "Low confidence",
-      "ro": "Încredere scăzută"
+      "ro": "Încredere scăzută",
+      "es": "Confianza baja",
+      "de": "Geringe Sicherheit"
     },
     "MY FLIPS · %@": {
       "comment": "%@ is a month, already uppercased.",
       "en": "MY FLIPS · %@",
-      "ro": "FLIPURILE MELE · %@"
+      "ro": "FLIPURILE MELE · %@",
+      "es": "MIS REVENTAS · %@",
+      "de": "MEINE FLIPS · %@"
     },
     "Manage subscription": {
       "en": "Manage subscription",
-      "ro": "Gestionează abonamentul"
+      "ro": "Gestionează abonamentul",
+      "es": "Gestionar la suscripción",
+      "de": "Abo verwalten"
     },
     "Margin": {
       "en": "Margin",
-      "ro": "Marjă"
+      "ro": "Marjă",
+      "es": "Margen",
+      "de": "Marge"
     },
     "Marketplace": {
       "en": "Marketplace",
-      "ro": "Platformă"
+      "ro": "Platformă",
+      "es": "Plataforma",
+      "de": "Plattform"
     },
     "Marks this find as %@": {
       "en": "Marks this find as %@",
-      "ro": "Marchează găselnița drept %@"
+      "ro": "Marchează găselnița drept %@",
+      "es": "Marca este hallazgo como %@",
+      "de": "Markiert diesen Fund als %@"
     },
     "Medium confidence": {
       "en": "Medium confidence",
-      "ro": "Încredere medie"
+      "ro": "Încredere medie",
+      "es": "Confianza media",
+      "de": "Mittlere Sicherheit"
     },
     "Monthly": {
       "en": "Monthly",
-      "ro": "Lunar"
+      "ro": "Lunar",
+      "es": "Mensual",
+      "de": "Monatlich"
     },
     "Monthly recap": {
       "en": "Monthly recap",
-      "ro": "Recapitularea lunii"
+      "ro": "Recapitularea lunii",
+      "es": "Resumen del mes",
+      "de": "Monatsrückblick"
     },
     "Most Valuable": {
       "comment": "Finds sort order.",
       "en": "Most Valuable",
-      "ro": "Cele mai valoroase"
+      "ro": "Cele mai valoroase",
+      "es": "Más valiosos",
+      "de": "Wertvollste"
     },
     "Most-scanned brands": {
       "en": "Most-scanned brands",
-      "ro": "Cele mai scanate mărci"
+      "ro": "Cele mai scanate mărci",
+      "es": "Marcas más escaneadas",
+      "de": "Meistgescannte Marken"
     },
     "My Finds": {
       "comment": "Tab bar item: the saved scan library.",
       "en": "My Finds",
-      "ro": "Găselnițe"
+      "ro": "Găselnițe",
+      "es": "Mis hallazgos",
+      "de": "Meine Funde"
     },
     "My Flips": {
       "comment": "Tab bar item: the profit ledger.",
       "en": "My Flips",
-      "ro": "Flipuri"
+      "ro": "Flipuri",
+      "es": "Mis reventas",
+      "de": "Meine Flips"
     },
     "Net profit": {
       "en": "Net profit",
-      "ro": "Profit net"
+      "ro": "Profit net",
+      "es": "Ganancia neta",
+      "de": "Nettogewinn"
     },
     "New": {
       "comment": "Condition grade.",
       "en": "New",
-      "ro": "Nou"
+      "ro": "Nou",
+      "es": "Nuevo",
+      "de": "Neu"
     },
     "New item": {
       "en": "New item",
-      "ro": "Obiect nou"
+      "ro": "Obiect nou",
+      "es": "Artículo nuevo",
+      "de": "Neuer Artikel"
     },
     "Newest": {
       "comment": "Finds sort order.",
       "en": "Newest",
-      "ro": "Cele mai noi"
+      "ro": "Cele mai noi",
+      "es": "Más recientes",
+      "de": "Neueste"
     },
     "Next": {
       "comment": "Onboarding: advances to the next slide.",
       "en": "Next",
-      "ro": "Continuă"
+      "ro": "Continuă",
+      "es": "Siguiente",
+      "de": "Weiter"
     },
     "No active subscription found on this Apple ID.": {
       "en": "No active subscription found on this Apple ID.",
-      "ro": "Nu am găsit niciun abonament activ pe contul Apple ăsta."
+      "ro": "Nu am găsit niciun abonament activ pe contul Apple ăsta.",
+      "es": "No se encontró ninguna suscripción activa en este ID de Apple.",
+      "de": "Für diese Apple-ID wurde kein aktives Abo gefunden."
     },
     "No active subscription found.": {
       "en": "No active subscription found.",
-      "ro": "Nu am găsit niciun abonament activ."
+      "ro": "Nu am găsit niciun abonament activ.",
+      "es": "No se encontró ninguna suscripción activa.",
+      "de": "Kein aktives Abo gefunden."
     },
     "No finds yet": {
       "en": "No finds yet",
-      "ro": "Nicio găselniță încă"
+      "ro": "Nicio găselniță încă",
+      "es": "Ningún hallazgo aún",
+      "de": "Noch keine Funde"
     },
     "No flips yet": {
       "en": "No flips yet",
-      "ro": "Niciun flip încă"
+      "ro": "Niciun flip încă",
+      "es": "Ninguna reventa aún",
+      "de": "Noch keine Flips"
     },
     "No free scans left today": {
       "en": "No free scans left today",
-      "ro": "Nicio scanare gratuită rămasă azi"
+      "ro": "Nicio scanare gratuită rămasă azi",
+      "es": "No quedan escaneos gratis hoy",
+      "de": "Heute keine Gratis-Scans mehr"
     },
     "No internet connection. Check your network and try again.": {
       "en": "No internet connection. Check your network and try again.",
-      "ro": "Nu ai conexiune la internet. Verifică rețeaua și încearcă din nou."
+      "ro": "Nu ai conexiune la internet. Verifică rețeaua și încearcă din nou.",
+      "es": "Sin conexión a internet. Revisa tu red e inténtalo de nuevo.",
+      "de": "Keine Internetverbindung. Prüf dein Netz und versuch es noch einmal."
     },
     "No price found on the tag.": {
       "en": "No price found on the tag.",
-      "ro": "N-am găsit niciun preț pe etichetă."
+      "ro": "N-am găsit niciun preț pe etichetă.",
+      "es": "No se encontró ningún precio en la etiqueta.",
+      "de": "Auf dem Etikett war kein Preis zu finden."
     },
     "No results for “%@”": {
       "en": "No results for “%@”",
-      "ro": "Niciun rezultat pentru „%@”"
+      "ro": "Niciun rezultat pentru „%@”",
+      "es": "Sin resultados para «%@»",
+      "de": "Keine Treffer für „%@“"
     },
     "Not now": {
       "en": "Not now",
-      "ro": "Nu acum"
+      "ro": "Nu acum",
+      "es": "Ahora no",
+      "de": "Jetzt nicht"
     },
     "Not set": {
       "comment": "VoiceOver value for an empty amount field.",
       "en": "Not set",
-      "ro": "Necompletat"
+      "ro": "Necompletat",
+      "es": "Sin definir",
+      "de": "Nicht angegeben"
     },
     "Not sold yet": {
       "en": "Not sold yet",
-      "ro": "Încă nevândute"
+      "ro": "Încă nevândute",
+      "es": "Aún sin vender",
+      "de": "Noch nicht verkauft"
     },
     "Notable finds": {
       "en": "Notable finds",
-      "ro": "Găselnițe notabile"
+      "ro": "Găselnițe notabile",
+      "es": "Hallazgos destacados",
+      "de": "Bemerkenswerte Funde"
     },
     "Notifications": {
       "en": "Notifications",
-      "ro": "Notificări"
+      "ro": "Notificări",
+      "es": "Notificaciones",
+      "de": "Mitteilungen"
     },
     "Notifications are off": {
       "en": "Notifications are off",
-      "ro": "Notificările sunt oprite"
+      "ro": "Notificările sunt oprite",
+      "es": "Las notificaciones están desactivadas",
+      "de": "Mitteilungen sind aus"
     },
     "Occasional, functional reminders only — a monthly recap, a nudge to update your ledger, and a heads-up before a free trial ends. We never send promotional notifications.": {
       "en": "Occasional, functional reminders only — a monthly recap, a nudge to update your ledger, and a heads-up before a free trial ends. We never send promotional notifications.",
-      "ro": "Doar memento-uri rare și utile — recapitularea lunii, un îndemn să îți actualizezi registrul și un anunț înainte să se termine perioada de probă. Nu trimitem niciodată notificări promoționale."
+      "ro": "Doar memento-uri rare și utile — recapitularea lunii, un îndemn să îți actualizezi registrul și un anunț înainte să se termine perioada de probă. Nu trimitem niciodată notificări promoționale.",
+      "es": "Solo avisos puntuales y útiles: el resumen del mes, un recordatorio para actualizar tu registro y un aviso antes de que acabe una prueba gratuita. Nunca enviamos notificaciones promocionales.",
+      "de": "Nur gelegentliche, nützliche Erinnerungen: der Monatsrückblick, ein Anstoß, dein Buch zu aktualisieren, und ein Hinweis, bevor eine Testphase endet. Werbemitteilungen schicken wir nie."
     },
     "Off by default. When on, one reminder at the time you pick — only on days you haven't scanned yet, and never once you're on Pro.": {
       "en": "Off by default. When on, one reminder at the time you pick — only on days you haven't scanned yet, and never once you're on Pro.",
-      "ro": "Oprit implicit. Când e pornit, un singur memento la ora aleasă — doar în zilele în care n-ai scanat încă și niciodată după ce treci pe Pro."
+      "ro": "Oprit implicit. Când e pornit, un singur memento la ora aleasă — doar în zilele în care n-ai scanat încă și niciodată după ce treci pe Pro.",
+      "es": "Desactivado por defecto. Si lo activas, un solo aviso a la hora que elijas, solo los días en que aún no hayas escaneado y nunca cuando tengas Pro.",
+      "de": "Standardmäßig aus. Wenn du es anschaltest, eine Erinnerung zur gewählten Zeit – nur an Tagen, an denen du noch nicht gescannt hast, und nie mehr, sobald du Pro hast."
     },
     "One snap.\nA ready listing.": {
       "en": "One snap.\nA ready listing.",
-      "ro": "O poză.\nUn anunț gata scris."
+      "ro": "O poză.\nUn anunț gata scris.",
+      "es": "Una foto.\nUn anuncio listo.",
+      "de": "Ein Foto.\nEin fertiges Inserat."
     },
     "Open %@": {
       "comment": "%@ is a marketplace name.",
       "en": "Open %@",
-      "ro": "Deschide %@"
+      "ro": "Deschide %@",
+      "es": "Abrir %@",
+      "de": "%@ öffnen"
     },
     "Open Settings": {
       "en": "Open Settings",
-      "ro": "Deschide Setările"
+      "ro": "Deschide Setările",
+      "es": "Abrir Ajustes",
+      "de": "Einstellungen öffnen"
     },
     "Open SnapWorth": {
       "en": "Open SnapWorth",
-      "ro": "Deschide SnapWorth"
+      "ro": "Deschide SnapWorth",
+      "es": "Abre SnapWorth",
+      "de": "SnapWorth öffnen"
     },
     "Opens My Flips to see the month's results": {
       "en": "Opens My Flips to see the month's results",
-      "ro": "Deschide Flipuri ca să vezi rezultatele lunii"
+      "ro": "Deschide Flipuri ca să vezi rezultatele lunii",
+      "es": "Abre Mis reventas para ver los resultados del mes",
+      "de": "Öffnet Meine Flips mit den Ergebnissen des Monats"
     },
     "Opens iOS Settings so you can allow camera access": {
       "en": "Opens iOS Settings so you can allow camera access",
-      "ro": "Deschide Setările iOS ca să poți permite accesul la cameră"
+      "ro": "Deschide Setările iOS ca să poți permite accesul la cameră",
+      "es": "Abre los Ajustes de iOS para que permitas el acceso a la cámara",
+      "de": "Öffnet die iOS-Einstellungen, damit du den Kamerazugriff erlauben kannst"
     },
     "Opens iOS Settings, where Screen Time restrictions are changed": {
       "en": "Opens iOS Settings, where Screen Time restrictions are changed",
-      "ro": "Deschide Setările iOS, de unde se schimbă restricțiile din Timp de utilizare"
+      "ro": "Deschide Setările iOS, de unde se schimbă restricțiile din Timp de utilizare",
+      "es": "Abre los Ajustes de iOS, donde se cambian las restricciones de Tiempo de uso",
+      "de": "Öffnet die iOS-Einstellungen, wo die Bildschirmzeit-Beschränkungen geändert werden"
     },
     "Opens subscription options": {
       "en": "Opens subscription options",
-      "ro": "Deschide opțiunile de abonament"
+      "ro": "Deschide opțiunile de abonament",
+      "es": "Abre las opciones de suscripción",
+      "de": "Öffnet die Abo-Optionen"
     },
     "Opens subscription options for unlimited scans": {
       "en": "Opens subscription options for unlimited scans",
-      "ro": "Deschide opțiunile de abonament pentru scanări nelimitate"
+      "ro": "Deschide opțiunile de abonament pentru scanări nelimitate",
+      "es": "Abre las opciones de suscripción para escaneos ilimitados",
+      "de": "Öffnet die Abo-Optionen für unbegrenzte Scans"
     },
     "Opens the privacy policy": {
       "en": "Opens the privacy policy",
-      "ro": "Deschide politica de confidențialitate"
+      "ro": "Deschide politica de confidențialitate",
+      "es": "Abre la política de privacidad",
+      "de": "Öffnet die Datenschutzerklärung"
     },
     "Opens the terms of service": {
       "en": "Opens the terms of service",
-      "ro": "Deschide termenii și condițiile"
+      "ro": "Deschide termenii și condițiile",
+      "es": "Abre los términos del servicio",
+      "de": "Öffnet die Nutzungsbedingungen"
     },
     "Opens this find": {
       "en": "Opens this find",
-      "ro": "Deschide găselnița"
+      "ro": "Deschide găselnița",
+      "es": "Abre este hallazgo",
+      "de": "Öffnet diesen Fund"
     },
     "Opens this flip": {
       "en": "Opens this flip",
-      "ro": "Deschide flipul"
+      "ro": "Deschide flipul",
+      "es": "Abre esta reventa",
+      "de": "Öffnet diesen Flip"
     },
     "Our AI is temporarily unavailable. Please try again in a moment.": {
       "en": "Our AI is temporarily unavailable. Please try again in a moment.",
-      "ro": "AI-ul nostru e momentan indisponibil. Încearcă din nou peste puțin timp."
+      "ro": "AI-ul nostru e momentan indisponibil. Încearcă din nou peste puțin timp.",
+      "es": "Nuestra IA no está disponible temporalmente. Inténtalo de nuevo en un momento.",
+      "de": "Unsere KI ist vorübergehend nicht erreichbar. Versuch es gleich noch einmal."
     },
     "Owned": {
       "comment": "Flip status.",
       "en": "Owned",
-      "ro": "În posesie"
+      "ro": "În posesie",
+      "es": "En mi poder",
+      "de": "Im Besitz"
     },
     "Page %lld of %lld": {
       "comment": "VoiceOver label on the onboarding page dots.",
       "en": "Page %lld of %lld",
-      "ro": "Pagina %lld din %lld"
+      "ro": "Pagina %lld din %lld",
+      "es": "Página %lld de %lld",
+      "de": "Seite %lld von %lld"
     },
     "Paid %@": {
       "en": "Paid %@",
-      "ro": "Dat %@"
+      "ro": "Dat %@",
+      "es": "Pagado %@",
+      "de": "%@ bezahlt"
     },
     "Paid %@ →": {
       "en": "Paid %@ →",
-      "ro": "Dat %@ →"
+      "ro": "Dat %@ →",
+      "es": "Pagado %@ →",
+      "de": "%@ bezahlt →"
     },
     "Photo captured — you can lower your phone": {
       "comment": "Reassurance under the analysing spinner.",
       "en": "Photo captured — you can lower your phone",
-      "ro": "Poza e făcută — poți lăsa telefonul jos"
+      "ro": "Poza e făcută — poți lăsa telefonul jos",
+      "es": "Foto hecha: ya puedes bajar el móvil",
+      "de": "Foto aufgenommen – du kannst dein Handy runternehmen"
     },
     "Photograph the care tag, size label or sole stamp and we'll re-read the item with both photos.": {
       "en": "Photograph the care tag, size label or sole stamp and we'll re-read the item with both photos.",
-      "ro": "Fotografiază eticheta de întreținere, cea de mărime sau ștampila de pe talpă și recitim obiectul cu ambele poze."
+      "ro": "Fotografiază eticheta de întreținere, cea de mărime sau ștampila de pe talpă și recitim obiectul cu ambele poze.",
+      "es": "Fotografía la etiqueta de cuidado, la de talla o el sello de la suela y volveremos a leer el artículo con las dos fotos.",
+      "de": "Fotografier das Pflegeetikett, das Größenetikett oder die Sohlenprägung, und wir lesen den Artikel mit beiden Fotos neu."
     },
     "Please wait for the current scan to finish": {
       "en": "Please wait for the current scan to finish",
-      "ro": "Așteaptă să se termine scanarea curentă"
+      "ro": "Așteaptă să se termine scanarea curentă",
+      "es": "Espera a que termine el escaneo actual",
+      "de": "Warte, bis der laufende Scan fertig ist"
     },
     "Point your camera at any thrift find and see its resale value in seconds — before you buy.": {
       "en": "Point your camera at any thrift find and see its resale value in seconds — before you buy.",
-      "ro": "Îndreaptă camera spre orice găsești la second hand și vezi în câteva secunde cât valorează la revânzare — înainte să cumperi."
+      "ro": "Îndreaptă camera spre orice găsești la second hand și vezi în câteva secunde cât valorează la revânzare — înainte să cumperi.",
+      "es": "Apunta con la cámara a cualquier cosa de segunda mano y mira en segundos cuánto vale en reventa, antes de comprarla.",
+      "de": "Halt die Kamera auf irgendeinen Second-Hand-Fund und sieh in Sekunden, was er im Wiederverkauf bringt – bevor du kaufst."
     },
     "Portfolio value, trend and thrift trends": {
       "en": "Portfolio value, trend and thrift trends",
-      "ro": "Valoarea colecției, evoluția ei și trendurile"
+      "ro": "Valoarea colecției, evoluția ei și trendurile",
+      "es": "Valor de tu colección, su evolución y las tendencias",
+      "de": "Wert deiner Sammlung, ihre Entwicklung und die Trends"
     },
     "Price points": {
       "en": "Price points",
-      "ro": "Praguri de preț"
+      "ro": "Praguri de preț",
+      "es": "Niveles de precio",
+      "de": "Preispunkte"
     },
     "Price unavailable": {
       "comment": "Shown in place of a value range when the numbers are not finite.",
       "en": "Price unavailable",
-      "ro": "Preț indisponibil"
+      "ro": "Preț indisponibil",
+      "es": "Precio no disponible",
+      "de": "Preis nicht verfügbar"
     },
     "Privacy": {
       "en": "Privacy",
-      "ro": "Confidențialitate"
+      "ro": "Confidențialitate",
+      "es": "Privacidad",
+      "de": "Datenschutz"
     },
     "Privacy Policy": {
       "en": "Privacy Policy",
-      "ro": "Politica de confidențialitate"
+      "ro": "Politica de confidențialitate",
+      "es": "Política de privacidad",
+      "de": "Datenschutzerklärung"
     },
     "Pro feature": {
       "en": "Pro feature",
-      "ro": "Funcție Pro"
+      "ro": "Funcție Pro",
+      "es": "Función Pro",
+      "de": "Pro-Funktion"
     },
     "Profit": {
       "en": "Profit",
-      "ro": "Profit"
+      "ro": "Profit",
+      "es": "Ganancia",
+      "de": "Gewinn"
     },
     "Profit of %@": {
       "en": "Profit of %@",
-      "ro": "Profit de %@"
+      "ro": "Profit de %@",
+      "es": "Ganancia de %@",
+      "de": "Gewinn von %@"
     },
     "Profit this month": {
       "en": "Profit this month",
-      "ro": "Profitul lunii"
+      "ro": "Profitul lunii",
+      "es": "Ganancia de este mes",
+      "de": "Gewinn diesen Monat"
     },
     "Profit unknown — add what you paid": {
       "en": "Profit unknown — add what you paid",
-      "ro": "Profit necunoscut — adaugă cât ai dat"
+      "ro": "Profit necunoscut — adaugă cât ai dat",
+      "es": "Ganancia desconocida: añade lo que pagaste",
+      "de": "Gewinn unbekannt – trag ein, was du bezahlt hast"
     },
     "Purchase failed: %@": {
       "en": "Purchase failed: %@",
-      "ro": "Cumpărătura a eșuat: %@"
+      "ro": "Cumpărătura a eșuat: %@",
+      "es": "La compra falló: %@",
+      "de": "Kauf fehlgeschlagen: %@"
     },
     "Purchase was cancelled.": {
       "en": "Purchase was cancelled.",
-      "ro": "Cumpărătura a fost anulată."
+      "ro": "Cumpărătura a fost anulată.",
+      "es": "Se canceló la compra.",
+      "de": "Der Kauf wurde abgebrochen."
     },
     "Quick sale": {
       "en": "Quick sale",
-      "ro": "Vânzare rapidă"
+      "ro": "Vânzare rapidă",
+      "es": "Venta rápida",
+      "de": "Schnellverkauf"
     },
     "Quick-sale, expected and best-case prices, and what moves them…": {
       "en": "Quick-sale, expected and best-case prices, and what moves them…",
-      "ro": "Prețul la vânzare rapidă, cel așteptat și cel mai bun caz — și ce le mișcă…"
+      "ro": "Prețul la vânzare rapidă, cel așteptat și cel mai bun caz — și ce le mișcă…",
+      "es": "Precios de venta rápida, esperado y mejor caso, y qué los mueve…",
+      "de": "Preise für Schnellverkauf, Erwartung und Bestfall – und was sie bewegt…"
     },
     "ROI": {
       "comment": "Return on investment. Used in English in Romanian too.",
       "en": "ROI",
-      "ro": "ROI"
+      "ro": "ROI",
+      "es": "ROI",
+      "de": "ROI"
     },
     "Rate SnapWorth": {
       "en": "Rate SnapWorth",
-      "ro": "Evaluează SnapWorth"
+      "ro": "Evaluează SnapWorth",
+      "es": "Valorar SnapWorth",
+      "de": "SnapWorth bewerten"
     },
     "Re-prices the estimate for this condition": {
       "en": "Re-prices the estimate for this condition",
-      "ro": "Recalculează estimarea pentru starea asta"
+      "ro": "Recalculează estimarea pentru starea asta",
+      "es": "Recalcula la estimación para este estado",
+      "de": "Berechnet die Schätzung für diesen Zustand neu"
     },
     "Re-read with the tag. Estimate updated.": {
       "en": "Re-read with the tag. Estimate updated.",
-      "ro": "Recitit cu eticheta. Estimarea s-a actualizat."
+      "ro": "Recitit cu eticheta. Estimarea s-a actualizat.",
+      "es": "Releído con la etiqueta. Estimación actualizada.",
+      "de": "Mit dem Etikett neu gelesen. Schätzung aktualisiert."
     },
     "Re-reading…": {
       "en": "Re-reading…",
-      "ro": "Recitesc…"
+      "ro": "Recitesc…",
+      "es": "Releyendo…",
+      "de": "Wird neu gelesen…"
     },
     "Re-verification needed.": {
       "en": "Re-verification needed.",
-      "ro": "E nevoie de o nouă verificare."
+      "ro": "E nevoie de o nouă verificare.",
+      "es": "Hace falta volver a verificar.",
+      "de": "Erneute Überprüfung nötig."
     },
     "Read %@ — tap to correct if it's off.": {
       "en": "Read %@ — tap to correct if it's off.",
-      "ro": "Am citit %@ — apasă ca să corectezi dacă e greșit."
+      "ro": "Am citit %@ — apasă ca să corectezi dacă e greșit.",
+      "es": "He leído %@: toca para corregirlo si no es correcto.",
+      "de": "%@ gelesen – tippe, um zu korrigieren, falls das nicht stimmt."
     },
     "Read the care tag for a sharper estimate": {
       "en": "Read the care tag for a sharper estimate",
-      "ro": "Citirea etichetei, pentru o estimare mai exactă"
+      "ro": "Citirea etichetei, pentru o estimare mai exactă",
+      "es": "Lectura de la etiqueta para afinar la estimación",
+      "de": "Pflegeetikett lesen für eine genauere Schätzung"
     },
     "Reading the label…": {
       "comment": "Rotating copy while a scan is analysed.",
       "en": "Reading the label…",
-      "ro": "Citesc eticheta…"
+      "ro": "Citesc eticheta…",
+      "es": "Leyendo la etiqueta…",
+      "de": "Etikett wird gelesen…"
     },
     "Regenerate": {
       "en": "Regenerate",
-      "ro": "Scrie din nou"
+      "ro": "Scrie din nou",
+      "es": "Volver a generar",
+      "de": "Neu schreiben"
     },
     "Remind me at": {
       "en": "Remind me at",
-      "ro": "Amintește-mi la"
+      "ro": "Amintește-mi la",
+      "es": "Avísame a las",
+      "de": "Erinnere mich um"
     },
     "Removes the running total from your Lock Screen": {
       "en": "Removes the running total from your Lock Screen",
-      "ro": "Scoate totalul turei de pe ecranul blocat"
+      "ro": "Scoate totalul turei de pe ecranul blocat",
+      "es": "Quita el total de la pantalla bloqueada",
+      "de": "Nimmt die laufende Summe vom Sperrbildschirm"
     },
     "Report a bug": {
       "en": "Report a bug",
-      "ro": "Raportează o problemă"
+      "ro": "Raportează o problemă",
+      "es": "Informar de un error",
+      "de": "Fehler melden"
     },
     "Resale": {
       "comment": "Breakdown row.",
       "en": "Resale",
-      "ro": "Revânzare"
+      "ro": "Revânzare",
+      "es": "Reventa",
+      "de": "Wiederverkauf"
     },
     "Resale %@": {
       "en": "Resale %@",
-      "ro": "Revânzare %@"
+      "ro": "Revânzare %@",
+      "es": "Reventa %@",
+      "de": "Wiederverkauf %@"
     },
     "Resale is an AI estimate and fees are approximate — treat the verdict as a guide, not a guarantee.": {
       "en": "Resale is an AI estimate and fees are approximate — treat the verdict as a guide, not a guarantee.",
-      "ro": "Prețul de revânzare e o estimare AI, iar comisioanele sunt aproximative — ia verdictul ca pe un reper, nu ca pe o garanție."
+      "ro": "Prețul de revânzare e o estimare AI, iar comisioanele sunt aproximative — ia verdictul ca pe un reper, nu ca pe o garanție.",
+      "es": "La reventa es una estimación con IA y las comisiones son aproximadas: toma el veredicto como una orientación, no como una garantía.",
+      "de": "Der Wiederverkaufswert ist eine KI-Schätzung und die Gebühren sind ungefähr – nimm das Urteil als Anhaltspunkt, nicht als Garantie."
     },
     "Resell": {
       "comment": "Onboarding mock: the resale price.",
       "en": "Resell",
-      "ro": "Revinzi"
+      "ro": "Revinzi",
+      "es": "Revendes",
+      "de": "Verkaufst"
     },
     "Resell at %@ → %@ after fees. Not worth it.": {
       "en": "Resell at %@ → %@ after fees. Not worth it.",
-      "ro": "Revinzi cu %@ → %@ după comisioane. Nu merită."
+      "ro": "Revinzi cu %@ → %@ după comisioane. Nu merită.",
+      "es": "Revendes a %@ → %@ tras comisiones. No merece la pena.",
+      "de": "Verkaufst für %@ → %@ nach Gebühren. Lohnt sich nicht."
     },
     "Resell at %@ → %@ profit after fees.": {
       "en": "Resell at %@ → %@ profit after fees.",
-      "ro": "Revinzi cu %@ → %@ profit după comisioane."
+      "ro": "Revinzi cu %@ → %@ profit după comisioane.",
+      "es": "Revendes a %@ → %@ de ganancia tras comisiones.",
+      "de": "Verkaufst für %@ → %@ Gewinn nach Gebühren."
     },
     "Restore purchase": {
       "en": "Restore purchase",
-      "ro": "Restaurează cumpărătura"
+      "ro": "Restaurează cumpărătura",
+      "es": "Restaurar la compra",
+      "de": "Kauf wiederherstellen"
     },
     "Restore purchases": {
       "en": "Restore purchases",
-      "ro": "Restaurează cumpărăturile"
+      "ro": "Restaurează cumpărăturile",
+      "es": "Restaurar compras",
+      "de": "Käufe wiederherstellen"
     },
     "Result card": {
       "en": "Result card",
-      "ro": "Card cu rezultatul"
+      "ro": "Card cu rezultatul",
+      "es": "Tarjeta del resultado",
+      "de": "Ergebniskarte"
     },
     "Retro Sneakers": {
       "en": "Retro Sneakers",
-      "ro": "Sneakers retro"
+      "ro": "Sneakers retro",
+      "es": "Zapatillas retro",
+      "de": "Retro-Sneaker"
     },
     "Reveal the estimate": {
       "en": "Reveal the estimate",
-      "ro": "Arată estimarea"
+      "ro": "Arată estimarea",
+      "es": "Ver la estimación",
+      "de": "Schätzung zeigen"
     },
     "SAVE %lld%": {
       "comment": "The same badge as \"SAVE %lld%%\", under the other spelling of a literal percent sign — whichever key Foundation generates, one of the two matches.",
       "en": "SAVE %lld%",
-      "ro": "ECONOMISEȘTI %lld%"
+      "ro": "ECONOMISEȘTI %lld%",
+      "es": "AHORRA %lld%",
+      "de": "SPARE %lld%"
     },
     "SAVE %lld%%": {
       "en": "SAVE %lld%%",
-      "ro": "ECONOMISEȘTI %lld%%"
+      "ro": "ECONOMISEȘTI %lld%%",
+      "es": "AHORRA %lld%%",
+      "de": "SPARE %lld%%"
     },
     "Save to My Flips": {
       "en": "Save to My Flips",
-      "ro": "Salvează în Flipuri"
+      "ro": "Salvează în Flipuri",
+      "es": "Guardar en Mis reventas",
+      "de": "In Meine Flips speichern"
     },
     "Saved to My Finds": {
       "en": "Saved to My Finds",
-      "ro": "Salvat în Găselnițe"
+      "ro": "Salvat în Găselnițe",
+      "es": "Guardado en Mis hallazgos",
+      "de": "In Meine Funde gespeichert"
     },
     "Scan": {
       "comment": "Tab bar item for the scanner.",
       "en": "Scan",
-      "ro": "Scanează"
+      "ro": "Scanează",
+      "es": "Escanear",
+      "de": "Scannen"
     },
     "Scan Failed": {
       "en": "Scan Failed",
-      "ro": "Scanarea a eșuat"
+      "ro": "Scanarea a eșuat",
+      "es": "Falló el escaneo",
+      "de": "Scan fehlgeschlagen"
     },
     "Scan an item, then mark it Owned or Sold to start tracking your profit here.": {
       "en": "Scan an item, then mark it Owned or Sold to start tracking your profit here.",
-      "ro": "Scanează un obiect, apoi marchează-l „În posesie” sau „Vândut” ca să îți urmărești profitul aici."
+      "ro": "Scanează un obiect, apoi marchează-l „În posesie” sau „Vândut” ca să îți urmărești profitul aici.",
+      "es": "Escanea un artículo y márcalo como «En mi poder» o «Vendido» para empezar a seguir tu ganancia aquí.",
+      "de": "Scann einen Artikel und markier ihn als „Im Besitz“ oder „Verkauft“, um deinen Gewinn hier zu verfolgen."
     },
     "Scan count not available yet. Open SnapWorth.": {
       "en": "Scan count not available yet. Open SnapWorth.",
-      "ro": "Numărul de scanări nu e disponibil încă. Deschide SnapWorth."
+      "ro": "Numărul de scanări nu e disponibil încă. Deschide SnapWorth.",
+      "es": "El número de escaneos aún no está disponible. Abre SnapWorth.",
+      "de": "Die Anzahl der Scans ist noch nicht verfügbar. Öffne SnapWorth."
     },
     "Scan item": {
       "en": "Scan item",
-      "ro": "Scanează obiectul"
+      "ro": "Scanează obiectul",
+      "es": "Escanear el artículo",
+      "de": "Artikel scannen"
     },
     "Scan tag": {
       "en": "Scan tag",
-      "ro": "Scanează eticheta"
+      "ro": "Scanează eticheta",
+      "es": "Escanear la etiqueta",
+      "de": "Etikett scannen"
     },
     "Scan the item to get its resale value, add the shop price, and see your profit after fees — before you buy.": {
       "en": "Scan the item to get its resale value, add the shop price, and see your profit after fees — before you buy.",
-      "ro": "Scanează obiectul ca să afli cât face la revânzare, adaugă prețul din magazin și vezi ce profit îți rămâne după comisioane — înainte să cumperi."
+      "ro": "Scanează obiectul ca să afli cât face la revânzare, adaugă prețul din magazin și vezi ce profit îți rămâne după comisioane — înainte să cumperi.",
+      "es": "Escanea el artículo para saber cuánto vale en reventa, añade el precio de la tienda y mira tu ganancia tras comisiones, antes de comprarlo.",
+      "de": "Scann den Artikel für seinen Wiederverkaufswert, trag den Ladenpreis ein und sieh deinen Gewinn nach Gebühren – bevor du kaufst."
     },
     "Scan your first thrift item to see its resale value here.": {
       "en": "Scan your first thrift item to see its resale value here.",
-      "ro": "Scanează primul obiect ca să vezi aici cât valorează la revânzare."
+      "ro": "Scanează primul obiect ca să vezi aici cât valorează la revânzare.",
+      "es": "Escanea tu primer artículo de segunda mano para ver aquí cuánto vale en reventa.",
+      "de": "Scann deinen ersten Second-Hand-Artikel, um hier seinen Wiederverkaufswert zu sehen."
     },
     "Scanned": {
       "comment": "Flip status.",
       "en": "Scanned",
-      "ro": "Scanat"
+      "ro": "Scanat",
+      "es": "Escaneado",
+      "de": "Gescannt"
     },
     "Scanning needs a real iPhone — device verification (App Attest) isn't available in the Simulator.": {
       "en": "Scanning needs a real iPhone — device verification (App Attest) isn't available in the Simulator.",
-      "ro": "Scanarea are nevoie de un iPhone real — verificarea dispozitivului (App Attest) nu există în Simulator."
+      "ro": "Scanarea are nevoie de un iPhone real — verificarea dispozitivului (App Attest) nu există în Simulator.",
+      "es": "Escanear necesita un iPhone real: la verificación del dispositivo (App Attest) no existe en el simulador.",
+      "de": "Scannen braucht ein echtes iPhone – die Geräteüberprüfung (App Attest) gibt es im Simulator nicht."
     },
     "Search finds": {
       "en": "Search finds",
-      "ro": "Caută în găselnițe"
+      "ro": "Caută în găselnițe",
+      "es": "Buscar en tus hallazgos",
+      "de": "Funde durchsuchen"
     },
     "Search finds…": {
       "en": "Search finds…",
-      "ro": "Caută în găselnițe…"
+      "ro": "Caută în găselnițe…",
+      "es": "Buscar en tus hallazgos…",
+      "de": "Funde durchsuchen…"
     },
     "See average prices and the week's best finds": {
       "en": "See average prices and the week's best finds",
-      "ro": "Vezi prețurile medii și cele mai bune găselnițe ale săptămânii"
+      "ro": "Vezi prețurile medii și cele mai bune găselnițe ale săptămânii",
+      "es": "Mira los precios medios y los mejores hallazgos de la semana",
+      "de": "Sieh die Durchschnittspreise und die besten Funde der Woche"
     },
     "See your exact profit after marketplace fees, right there in the aisle.": {
       "en": "See your exact profit after marketplace fees, right there in the aisle.",
-      "ro": "Vezi exact ce profit îți rămâne după comisioane, chiar acolo, în magazin."
+      "ro": "Vezi exact ce profit îți rămâne după comisioane, chiar acolo, în magazin.",
+      "es": "Mira exactamente cuánto ganas tras las comisiones, allí mismo, en la tienda.",
+      "de": "Sieh deinen genauen Gewinn nach Plattformgebühren – direkt im Laden."
     },
     "See your flips for the month": {
       "en": "See your flips for the month",
-      "ro": "Vezi flipurile lunii"
+      "ro": "Vezi flipurile lunii",
+      "es": "Mira tus reventas del mes",
+      "de": "Sieh deine Flips des Monats"
     },
     "Selects the %@ plan": {
       "comment": "VoiceOver hint on a paywall plan card; %@ is the plan name, lowercased.",
       "en": "Selects the %@ plan",
-      "ro": "Alege abonamentul %@"
+      "ro": "Alege abonamentul %@",
+      "es": "Elige el plan %@",
+      "de": "Wählt das Abo %@"
     },
     "Send Feedback": {
       "en": "Send Feedback",
-      "ro": "Trimite părerea"
+      "ro": "Trimite părerea",
+      "es": "Enviar comentarios",
+      "de": "Feedback senden"
     },
     "Settings": {
       "en": "Settings",
-      "ro": "Setări"
+      "ro": "Setări",
+      "es": "Ajustes",
+      "de": "Einstellungen"
     },
     "Share": {
       "en": "Share",
-      "ro": "Distribuie"
+      "ro": "Distribuie",
+      "es": "Compartir",
+      "de": "Teilen"
     },
     "Share anonymous analytics": {
       "en": "Share anonymous analytics",
-      "ro": "Trimite statistici anonime"
+      "ro": "Trimite statistici anonime",
+      "es": "Compartir estadísticas anónimas",
+      "de": "Anonyme Nutzungsdaten teilen"
     },
     "Share card is still being prepared": {
       "en": "Share card is still being prepared",
-      "ro": "Cardul încă se pregătește"
+      "ro": "Cardul încă se pregătește",
+      "es": "La tarjeta aún se está preparando",
+      "de": "Die Karte wird noch vorbereitet"
     },
     "Share this find as a card, or as a guess-the-price story": {
       "en": "Share this find as a card, or as a guess-the-price story",
-      "ro": "Distribuie găselnița ca un card sau ca o poveste cu ghicit prețul"
+      "ro": "Distribuie găselnița ca un card sau ca o poveste cu ghicit prețul",
+      "es": "Comparte este hallazgo como tarjeta o como historia para adivinar el precio",
+      "de": "Teil diesen Fund als Karte oder als Preisraten-Story"
     },
     "Share this month": {
       "en": "Share this month",
-      "ro": "Distribuie luna asta"
+      "ro": "Distribuie luna asta",
+      "es": "Compartir este mes",
+      "de": "Diesen Monat teilen"
     },
     "Sharpen this estimate": {
       "en": "Sharpen this estimate",
-      "ro": "Fă estimarea mai exactă"
+      "ro": "Fă estimarea mai exactă",
+      "es": "Afina esta estimación",
+      "de": "Schätzung schärfen"
     },
     "Shipping (optional)": {
       "en": "Shipping (optional)",
-      "ro": "Transport (opțional)"
+      "ro": "Transport (opțional)",
+      "es": "Envío (opcional)",
+      "de": "Versand (optional)"
     },
     "Shop price": {
       "en": "Shop price",
-      "ro": "Prețul din magazin"
+      "ro": "Prețul din magazin",
+      "es": "Precio de la tienda",
+      "de": "Ladenpreis"
     },
     "Should you flip it?": {
       "en": "Should you flip it?",
-      "ro": "Merită să-l iei?"
+      "ro": "Merită să-l iei?",
+      "es": "¿Te lo llevas?",
+      "de": "Mitnehmen oder liegen lassen?"
     },
     "Shows a running total of this trip on your Lock Screen": {
       "en": "Shows a running total of this trip on your Lock Screen",
-      "ro": "Arată pe ecranul blocat cât ai strâns în tura asta"
+      "ro": "Arată pe ecranul blocat cât ai strâns în tura asta",
+      "es": "Muestra en la pantalla bloqueada lo que llevas en esta ruta",
+      "de": "Zeigt die laufende Summe dieser Tour auf dem Sperrbildschirm"
     },
     "Shows how your portfolio has changed over time. Requires SnapWorth Pro.": {
       "en": "Shows how your portfolio has changed over time. Requires SnapWorth Pro.",
-      "ro": "Arată cum s-a schimbat colecția ta în timp. Necesită SnapWorth Pro."
+      "ro": "Arată cum s-a schimbat colecția ta în timp. Necesită SnapWorth Pro.",
+      "es": "Muestra cómo ha cambiado tu colección con el tiempo. Requiere SnapWorth Pro.",
+      "de": "Zeigt, wie sich deine Sammlung über die Zeit verändert hat. Erfordert SnapWorth Pro."
     },
     "Skip": {
       "comment": "Onboarding: skips the four intro slides.",
       "en": "Skip",
-      "ro": "Sari peste"
+      "ro": "Sari peste",
+      "es": "Saltar",
+      "de": "Überspringen"
     },
     "Skip it": {
       "en": "Skip it",
-      "ro": "Lasă-l"
+      "ro": "Lasă-l",
+      "es": "Déjalo",
+      "de": "Liegen lassen"
     },
     "Skips the introduction": {
       "en": "Skips the introduction",
-      "ro": "Sare peste introducere"
+      "ro": "Sare peste introducere",
+      "es": "Se salta la introducción",
+      "de": "Überspringt die Einführung"
     },
     "Snap → Sell marketplace listings": {
       "en": "Snap → Sell marketplace listings",
-      "ro": "Anunțuri Snap → Sell pentru platforme"
+      "ro": "Anunțuri Snap → Sell pentru platforme",
+      "es": "Anuncios Snap → Sell para cada plataforma",
+      "de": "Snap-→-Sell-Inserate für jede Plattform"
     },
     "SnapWorth couldn't open your library on this launch, so this find can't be saved to it. Reopening the app may fix it.": {
       "en": "SnapWorth couldn't open your library on this launch, so this find can't be saved to it. Reopening the app may fix it.",
-      "ro": "SnapWorth n-a putut deschide colecția la pornirea asta, așa că găselnița nu poate fi salvată în ea. Repornirea aplicației poate rezolva."
+      "ro": "SnapWorth n-a putut deschide colecția la pornirea asta, așa că găselnița nu poate fi salvată în ea. Repornirea aplicației poate rezolva.",
+      "es": "SnapWorth no pudo abrir tu colección en este arranque, así que este hallazgo no se puede guardar en ella. Reabrir la app puede arreglarlo.",
+      "de": "SnapWorth konnte deine Sammlung bei diesem Start nicht öffnen, deshalb lässt sich dieser Fund nicht darin speichern. Die App neu zu öffnen hilft vielleicht."
     },
     "SnapWorth couldn't open your library on this launch, so this find won't be kept.": {
       "en": "SnapWorth couldn't open your library on this launch, so this find won't be kept.",
-      "ro": "SnapWorth n-a putut deschide colecția la pornirea asta, așa că găselnița nu se păstrează."
+      "ro": "SnapWorth n-a putut deschide colecția la pornirea asta, așa că găselnița nu se păstrează.",
+      "es": "SnapWorth no pudo abrir tu colección en este arranque, así que este hallazgo no se conservará.",
+      "de": "SnapWorth konnte deine Sammlung bei diesem Start nicht öffnen, deshalb bleibt dieser Fund nicht erhalten."
     },
     "SnapWorth couldn't open your library on this launch, so this flip can't be saved to it.": {
       "en": "SnapWorth couldn't open your library on this launch, so this flip can't be saved to it.",
-      "ro": "SnapWorth n-a putut deschide colecția la pornirea asta, așa că flipul nu poate fi salvat în ea."
+      "ro": "SnapWorth n-a putut deschide colecția la pornirea asta, așa că flipul nu poate fi salvat în ea.",
+      "es": "SnapWorth no pudo abrir tu colección en este arranque, así que esta reventa no se puede guardar en ella.",
+      "de": "SnapWorth konnte deine Sammlung bei diesem Start nicht öffnen, deshalb lässt sich dieser Flip nicht darin speichern."
     },
     "SnapWorth haul, %@ scanned, worth %@.": {
       "en": "SnapWorth haul, %@ scanned, worth %@.",
-      "ro": "Colecția SnapWorth, %@ scanate, în valoare de %@."
+      "ro": "Colecția SnapWorth, %@ scanate, în valoare de %@.",
+      "es": "Colección de SnapWorth, %@ escaneados, por valor de %@.",
+      "de": "SnapWorth-Sammlung, %@ gescannt, im Wert von %@."
     },
     "SnapWorth version %@": {
       "en": "SnapWorth version %@",
-      "ro": "SnapWorth versiunea %@"
+      "ro": "SnapWorth versiunea %@",
+      "es": "SnapWorth versión %@",
+      "de": "SnapWorth Version %@"
     },
     "SnapWorth writes it — you paste & post. We never post for you.": {
       "en": "SnapWorth writes it — you paste & post. We never post for you.",
-      "ro": "SnapWorth îl scrie — tu copiezi și postezi. Nu postăm niciodată în locul tău."
+      "ro": "SnapWorth îl scrie — tu copiezi și postezi. Nu postăm niciodată în locul tău.",
+      "es": "SnapWorth lo escribe: tú copias y publicas. Nunca publicamos por ti.",
+      "de": "SnapWorth schreibt es – du kopierst und stellst ein. Wir stellen nie für dich ein."
     },
     "SnapWorth writes the title and description for eBay, Poshmark, Mercari and more. You paste and post.": {
       "en": "SnapWorth writes the title and description for eBay, Poshmark, Mercari and more. You paste and post.",
-      "ro": "SnapWorth scrie titlul și descrierea pentru OLX, Vinted, eBay și altele. Tu doar copiezi și postezi."
+      "ro": "SnapWorth scrie titlul și descrierea pentru OLX, Vinted, eBay și altele. Tu doar copiezi și postezi.",
+      "es": "SnapWorth escribe el título y la descripción para Vinted, Wallapop, eBay y más. Tú copias y publicas.",
+      "de": "SnapWorth schreibt Titel und Beschreibung für Vinted, eBay, Kleinanzeigen und mehr. Du kopierst und stellst ein."
     },
     "SnapWorth. Nothing scanned yet.": {
       "en": "SnapWorth. Nothing scanned yet.",
-      "ro": "SnapWorth. Încă nu ai scanat nimic."
+      "ro": "SnapWorth. Încă nu ai scanat nimic.",
+      "es": "SnapWorth. Aún no has escaneado nada.",
+      "de": "SnapWorth. Noch nichts gescannt."
     },
     "Sold": {
       "comment": "Flip status.",
       "en": "Sold",
-      "ro": "Vândut"
+      "ro": "Vândut",
+      "es": "Vendido",
+      "de": "Verkauft"
     },
     "Sold date": {
       "en": "Sold date",
-      "ro": "Data vânzării"
+      "ro": "Data vânzării",
+      "es": "Fecha de venta",
+      "de": "Verkaufsdatum"
     },
     "Sold for": {
       "en": "Sold for",
-      "ro": "Vândut cu"
+      "ro": "Vândut cu",
+      "es": "Vendido por",
+      "de": "Verkauft für"
     },
     "Something went wrong. Please try again.": {
       "en": "Something went wrong. Please try again.",
-      "ro": "Ceva n-a mers. Încearcă din nou."
+      "ro": "Ceva n-a mers. Încearcă din nou.",
+      "es": "Algo salió mal. Inténtalo de nuevo.",
+      "de": "Da ist etwas schiefgelaufen. Versuch es noch einmal."
     },
     "Sort": {
       "en": "Sort",
-      "ro": "Sortează"
+      "ro": "Sortează",
+      "es": "Ordenar",
+      "de": "Sortieren"
     },
     "Sort, share the month, or export a CSV": {
       "en": "Sort, share the month, or export a CSV",
-      "ro": "Sortează, distribuie luna sau exportă un CSV"
+      "ro": "Sortează, distribuie luna sau exportă un CSV",
+      "es": "Ordena, comparte el mes o exporta un CSV",
+      "de": "Sortieren, den Monat teilen oder als CSV exportieren"
     },
     "Spot on — your guess is inside the estimate.": {
       "en": "Spot on — your guess is inside the estimate.",
-      "ro": "Exact — ai nimerit în interval."
+      "ro": "Exact — ai nimerit în interval.",
+      "es": "Clavado: tu respuesta está dentro de la estimación.",
+      "de": "Volltreffer – dein Tipp liegt in der Schätzung."
     },
     "Start Free Trial": {
       "en": "Start Free Trial",
-      "ro": "Începe perioada gratuită"
+      "ro": "Începe perioada gratuită",
+      "es": "Empezar la prueba gratis",
+      "de": "Gratis testen"
     },
     "Start a run": {
       "en": "Start a run",
-      "ro": "Pornește o tură"
+      "ro": "Pornește o tură",
+      "es": "Empezar una ruta",
+      "de": "Tour starten"
     },
     "Start a thrift run": {
       "en": "Start a thrift run",
-      "ro": "Pornește o tură de second hand"
+      "ro": "Pornește o tură de second hand",
+      "es": "Empezar una ruta de segunda mano",
+      "de": "Second-Hand-Tour starten"
     },
     "Start scanning": {
       "en": "Start scanning",
-      "ro": "Începe să scanezi"
+      "ro": "Începe să scanezi",
+      "es": "Empezar a escanear",
+      "de": "Los scannen"
     },
     "Stay on top of your flips": {
       "comment": "Title of the notification permission priming alert.",
       "en": "Stay on top of your flips",
-      "ro": "Fii la curent cu flipurile tale"
+      "ro": "Fii la curent cu flipurile tale",
+      "es": "No pierdas de vista tus reventas",
+      "de": "Behalt deine Flips im Blick"
     },
     "Stops removing finds": {
       "en": "Stops removing finds",
-      "ro": "Oprește ștergerea găselnițelor"
+      "ro": "Oprește ștergerea găselnițelor",
+      "es": "Deja de quitar hallazgos",
+      "de": "Beendet das Entfernen von Funden"
     },
     "Subscribe Monthly": {
       "en": "Subscribe Monthly",
-      "ro": "Abonează-te lunar"
+      "ro": "Abonează-te lunar",
+      "es": "Suscribirme al plan mensual",
+      "de": "Monatlich abonnieren"
     },
     "Subscribe Yearly": {
       "en": "Subscribe Yearly",
-      "ro": "Abonează-te anual"
+      "ro": "Abonează-te anual",
+      "es": "Suscribirme al plan anual",
+      "de": "Jährlich abonnieren"
     },
     "Subscription automatically renews unless cancelled at least 24 hours before the end of the current period. Your Apple ID account will be charged for renewal within 24 hours prior to the end of the current period. Manage or cancel anytime in your Apple ID Account Settings. Any unused portion of a free trial will be forfeited upon purchase.": {
       "comment": "Apple's required subscription disclosure.",
       "en": "Subscription automatically renews unless cancelled at least 24 hours before the end of the current period. Your Apple ID account will be charged for renewal within 24 hours prior to the end of the current period. Manage or cancel anytime in your Apple ID Account Settings. Any unused portion of a free trial will be forfeited upon purchase.",
-      "ro": "Abonamentul se reînnoiește automat dacă nu este anulat cu cel puțin 24 de ore înainte de sfârșitul perioadei curente. Contul tău Apple va fi taxat pentru reînnoire în ultimele 24 de ore ale perioadei curente. Poți gestiona sau anula abonamentul oricând din setările contului Apple. Partea nefolosită dintr-o perioadă gratuită se pierde la cumpărare."
+      "ro": "Abonamentul se reînnoiește automat dacă nu este anulat cu cel puțin 24 de ore înainte de sfârșitul perioadei curente. Contul tău Apple va fi taxat pentru reînnoire în ultimele 24 de ore ale perioadei curente. Poți gestiona sau anula abonamentul oricând din setările contului Apple. Partea nefolosită dintr-o perioadă gratuită se pierde la cumpărare.",
+      "es": "La suscripción se renueva automáticamente salvo que la canceles al menos 24 horas antes de que acabe el periodo en curso. Se cobrará la renovación a tu cuenta de ID de Apple durante las 24 horas anteriores al fin del periodo en curso. Puedes gestionarla o cancelarla cuando quieras en los ajustes de tu cuenta de ID de Apple. La parte no usada de una prueba gratuita se pierde al comprar.",
+      "de": "Das Abo verlängert sich automatisch, sofern es nicht mindestens 24 Stunden vor Ende des laufenden Zeitraums gekündigt wird. Die Verlängerung wird deiner Apple-ID innerhalb der letzten 24 Stunden des laufenden Zeitraums berechnet. Du kannst das Abo jederzeit in den Einstellungen deines Apple-ID-Accounts verwalten oder kündigen. Ein nicht genutzter Teil einer Testphase verfällt mit dem Kauf."
     },
     "Suggest a feature": {
       "en": "Suggest a feature",
-      "ro": "Propune o funcție"
+      "ro": "Propune o funcție",
+      "es": "Sugerir una función",
+      "de": "Funktion vorschlagen"
     },
     "Support": {
       "en": "Support",
-      "ro": "Asistență"
+      "ro": "Asistență",
+      "es": "Ayuda",
+      "de": "Hilfe"
     },
     "Switches to the camera to scan an item": {
       "en": "Switches to the camera to scan an item",
-      "ro": "Te duce la cameră ca să scanezi un obiect"
+      "ro": "Te duce la cameră ca să scanezi un obiect",
+      "es": "Va a la cámara para escanear un artículo",
+      "de": "Wechselt zur Kamera, um einen Artikel zu scannen"
     },
     "Switches to the camera to scan your first item": {
       "en": "Switches to the camera to scan your first item",
-      "ro": "Te duce la cameră ca să scanezi primul obiect"
+      "ro": "Te duce la cameră ca să scanezi primul obiect",
+      "es": "Va a la cámara para escanear tu primer artículo",
+      "de": "Wechselt zur Kamera, um deinen ersten Artikel zu scannen"
     },
     "Take photo to scan": {
       "en": "Take photo to scan",
-      "ro": "Fă o poză ca să scanezi"
+      "ro": "Fă o poză ca să scanezi",
+      "es": "Hacer una foto para escanear",
+      "de": "Foto aufnehmen und scannen"
     },
     "Take the label photo": {
       "en": "Take the label photo",
-      "ro": "Fă poza etichetei"
+      "ro": "Fă poza etichetei",
+      "es": "Hacer la foto de la etiqueta",
+      "de": "Foto vom Etikett aufnehmen"
     },
     "Terms of Service": {
       "en": "Terms of Service",
-      "ro": "Termeni și condiții"
+      "ro": "Termeni și condiții",
+      "es": "Términos del servicio",
+      "de": "Nutzungsbedingungen"
     },
     "That $4 jacket?\nMight be $90.": {
       "comment": "Onboarding slide 1 headline. The line break is deliberate.",
       "en": "That $4 jacket?\nMight be $90.",
-      "ro": "Geaca aia de 4 $?\nPoate face 90 $."
+      "ro": "Geaca aia de 4 $?\nPoate face 90 $.",
+      "es": "¿Esa chaqueta de 4 $?\nPuede valer 90 $.",
+      "de": "Die Jacke für 4 $?\nVielleicht 90 $ wert."
     },
     "That didn't work. Your estimate is unchanged.": {
       "en": "That didn't work. Your estimate is unchanged.",
-      "ro": "N-a mers. Estimarea a rămas neschimbată."
+      "ro": "N-a mers. Estimarea a rămas neschimbată.",
+      "es": "No funcionó. Tu estimación no ha cambiado.",
+      "de": "Das hat nicht geklappt. Deine Schätzung bleibt unverändert."
     },
     "The original photo is no longer available for this find.": {
       "en": "The original photo is no longer available for this find.",
-      "ro": "Poza originală nu mai e disponibilă pentru găselnița asta."
+      "ro": "Poza originală nu mai e disponibilă pentru găselnița asta.",
+      "es": "La foto original ya no está disponible para este hallazgo.",
+      "de": "Das ursprüngliche Foto ist für diesen Fund nicht mehr da."
     },
     "The request timed out. Please try again.": {
       "en": "The request timed out. Please try again.",
-      "ro": "Cererea a expirat. Încearcă din nou."
+      "ro": "Cererea a expirat. Încearcă din nou.",
+      "es": "La solicitud tardó demasiado. Inténtalo de nuevo.",
+      "de": "Die Anfrage hat zu lange gedauert. Versuch es noch einmal."
     },
     "Then %@. Cancel anytime.": {
       "en": "Then %@. Cancel anytime.",
-      "ro": "Apoi %@. Anulezi oricând."
+      "ro": "Apoi %@. Anulezi oricând.",
+      "es": "Luego %@. Cancela cuando quieras.",
+      "de": "Danach %@. Jederzeit kündbar."
     },
     "This cannot be undone": {
       "en": "This cannot be undone",
-      "ro": "Nu se poate anula"
+      "ro": "Nu se poate anula",
+      "es": "Esto no se puede deshacer",
+      "de": "Das lässt sich nicht rückgängig machen"
     },
     "This device doesn't support secure attestation.": {
       "en": "This device doesn't support secure attestation.",
-      "ro": "Dispozitivul ăsta nu acceptă verificarea securizată."
+      "ro": "Dispozitivul ăsta nu acceptă verificarea securizată.",
+      "es": "Este dispositivo no admite la verificación segura.",
+      "de": "Dieses Gerät unterstützt die sichere Überprüfung nicht."
     },
     "This iPhone has no email account set up. Copy your message and send it to %@ from wherever you do have mail.": {
       "en": "This iPhone has no email account set up. Copy your message and send it to %@ from wherever you do have mail.",
-      "ro": "Pe iPhone-ul ăsta nu e configurat niciun cont de e-mail. Copiază mesajul și trimite-l la %@ de unde ai e-mail."
+      "ro": "Pe iPhone-ul ăsta nu e configurat niciun cont de e-mail. Copiază mesajul și trimite-l la %@ de unde ai e-mail.",
+      "es": "Este iPhone no tiene ninguna cuenta de correo configurada. Copia tu mensaje y envíalo a %@ desde donde sí tengas correo.",
+      "de": "Auf diesem iPhone ist kein E-Mail-Account eingerichtet. Kopier deine Nachricht und schick sie von dort an %@, wo du Mail hast."
     },
     "This purchase could not be completed.": {
       "en": "This purchase could not be completed.",
-      "ro": "Cumpărătura nu a putut fi finalizată."
+      "ro": "Cumpărătura nu a putut fi finalizată.",
+      "es": "No se pudo completar la compra.",
+      "de": "Dieser Kauf konnte nicht abgeschlossen werden."
     },
     "This subscription is currently unavailable. Please try again.": {
       "en": "This subscription is currently unavailable. Please try again.",
-      "ro": "Abonamentul ăsta nu e disponibil momentan. Încearcă din nou."
+      "ro": "Abonamentul ăsta nu e disponibil momentan. Încearcă din nou.",
+      "es": "Esta suscripción no está disponible ahora mismo. Inténtalo de nuevo.",
+      "de": "Dieses Abo ist gerade nicht verfügbar. Versuch es noch einmal."
     },
     "This will permanently delete all %lld saved scans.": {
       "en": {
@@ -1731,55 +2625,87 @@
         "one": "Asta îți șterge definitiv scanarea salvată.",
         "few": "Asta îți șterge definitiv toate cele %lld scanări salvate.",
         "other": "Asta îți șterge definitiv toate cele %lld de scanări salvate."
+      },
+      "es": {
+        "one": "Esto eliminará definitivamente el escaneo guardado.",
+        "other": "Esto eliminará definitivamente los %lld escaneos guardados."
+      },
+      "de": {
+        "one": "Damit wird der gespeicherte Scan endgültig gelöscht.",
+        "other": "Damit werden alle %lld gespeicherten Scans endgültig gelöscht."
       }
     },
     "This will permanently delete your saved scan.": {
       "en": "This will permanently delete your saved scan.",
-      "ro": "Asta îți șterge definitiv scanarea salvată."
+      "ro": "Asta îți șterge definitiv scanarea salvată.",
+      "es": "Esto eliminará definitivamente tu escaneo guardado.",
+      "de": "Damit wird dein gespeicherter Scan endgültig gelöscht."
     },
     "Thrift Flip profit calculator": {
       "en": "Thrift Flip profit calculator",
-      "ro": "Calculatorul de profit Thrift Flip"
+      "ro": "Calculatorul de profit Thrift Flip",
+      "es": "Calculadora de ganancia de Thrift Flip",
+      "de": "Thrift-Flip-Gewinnrechner"
     },
     "Trending at the thrift": {
       "en": "Trending at the thrift",
-      "ro": "Ce se caută la second hand"
+      "ro": "Ce se caută la second hand",
+      "es": "Lo que se busca en segunda mano",
+      "de": "Was im Second Hand gefragt ist"
     },
     "Trial reminders": {
       "en": "Trial reminders",
-      "ro": "Memento pentru perioada de probă"
+      "ro": "Memento pentru perioada de probă",
+      "es": "Avisos de la prueba gratuita",
+      "de": "Erinnerungen zur Testphase"
     },
     "Try SnapWorth\nfree for %@": {
       "en": "Try SnapWorth\nfree for %@",
-      "ro": "Încearcă SnapWorth\ngratuit %@"
+      "ro": "Încearcă SnapWorth\ngratuit %@",
+      "es": "Prueba SnapWorth\ngratis %@",
+      "de": "Teste SnapWorth\n%@ gratis"
     },
     "Try a different item name or brand.": {
       "en": "Try a different item name or brand.",
-      "ro": "Încearcă alt nume de obiect sau altă marcă."
+      "ro": "Încearcă alt nume de obiect sau altă marcă.",
+      "es": "Prueba con otro nombre de artículo u otra marca.",
+      "de": "Probier einen anderen Artikelnamen oder eine andere Marke."
     },
     "Try again": {
       "en": "Try again",
-      "ro": "Încearcă din nou"
+      "ro": "Încearcă din nou",
+      "es": "Inténtalo de nuevo",
+      "de": "Noch einmal versuchen"
     },
     "Turn them on in iOS Settings to get these reminders.": {
       "en": "Turn them on in iOS Settings to get these reminders.",
-      "ro": "Pornește-le din Setările iOS ca să primești memento-urile astea."
+      "ro": "Pornește-le din Setările iOS ca să primești memento-urile astea.",
+      "es": "Actívalas en los Ajustes de iOS para recibir estos avisos.",
+      "de": "Aktivier sie in den iOS-Einstellungen, um diese Erinnerungen zu bekommen."
     },
     "Turns off the taps you feel when scanning and selecting": {
       "en": "Turns off the taps you feel when scanning and selecting",
-      "ro": "Oprește vibrațiile pe care le simți când scanezi și când alegi"
+      "ro": "Oprește vibrațiile pe care le simți când scanezi și când alegi",
+      "es": "Desactiva la vibración al escanear y al elegir",
+      "de": "Schaltet das Vibrieren beim Scannen und Auswählen aus"
     },
     "Unknown — add what you paid to calculate it": {
       "en": "Unknown — add what you paid to calculate it",
-      "ro": "Necunoscut — adaugă cât ai dat ca să îl calculăm"
+      "ro": "Necunoscut — adaugă cât ai dat ca să îl calculăm",
+      "es": "Desconocida: añade lo que pagaste para calcularla",
+      "de": "Unbekannt – trag ein, was du bezahlt hast"
     },
     "Unlimited scans": {
       "en": "Unlimited scans",
-      "ro": "Scanări nelimitate"
+      "ro": "Scanări nelimitate",
+      "es": "Escaneos ilimitados",
+      "de": "Unbegrenzte Scans"
     },
     "Unlimited scans · Active": {
       "en": "Unlimited scans · Active",
-      "ro": "Scanări nelimitate · Activ"
+      "ro": "Scanări nelimitate · Activ",
+      "es": "Escaneos ilimitados · Activo",
+      "de": "Unbegrenzte Scans · Aktiv"
     },
     "Unlimited scans, %lld day scanning streak": {
       "en": {
@@ -1790,15 +2716,27 @@
         "one": "Scanări nelimitate, serie de scanări de o zi",
         "few": "Scanări nelimitate, serie de scanări de %lld zile",
         "other": "Scanări nelimitate, serie de scanări de %lld de zile"
+      },
+      "es": {
+        "one": "Escaneos ilimitados, racha de %lld día escaneando",
+        "other": "Escaneos ilimitados, racha de %lld días escaneando"
+      },
+      "de": {
+        "one": "Unbegrenzte Scans, %lld Tag Scan-Serie",
+        "other": "Unbegrenzte Scans, %lld Tage Scan-Serie"
       }
     },
     "Unlimited scans, active": {
       "en": "Unlimited scans, active",
-      "ro": "Scanări nelimitate, activ"
+      "ro": "Scanări nelimitate, activ",
+      "es": "Escaneos ilimitados, activo",
+      "de": "Unbegrenzte Scans, aktiv"
     },
     "Unlimited sold flips, and CSV export": {
       "en": "Unlimited sold flips, and CSV export",
-      "ro": "Flipuri vândute nelimitate și export CSV"
+      "ro": "Flipuri vândute nelimitate și export CSV",
+      "es": "Reventas vendidas ilimitadas y exportación a CSV",
+      "de": "Unbegrenzt verkaufte Flips und CSV-Export"
     },
     "Unlimited · %lld-day streak": {
       "en": {
@@ -1809,150 +2747,228 @@
         "one": "Nelimitat · serie de o zi",
         "few": "Nelimitat · serie de %lld zile",
         "other": "Nelimitat · serie de %lld de zile"
+      },
+      "es": {
+        "one": "Ilimitados · racha de %lld día",
+        "other": "Ilimitados · racha de %lld días"
+      },
+      "de": {
+        "one": "Unbegrenzt · %lld Tag Serie",
+        "other": "Unbegrenzt · %lld Tage Serie"
       }
     },
     "Unlock\nSnapWorth Pro": {
       "en": "Unlock\nSnapWorth Pro",
-      "ro": "Deblochează\nSnapWorth Pro"
+      "ro": "Deblochează\nSnapWorth Pro",
+      "es": "Desbloquea\nSnapWorth Pro",
+      "de": "Schalte\nSnapWorth Pro frei"
     },
     "Unlock %lld more + all-time totals": {
       "en": "Unlock %lld more + all-time totals",
-      "ro": "Deblochează încă %lld + totalurile pe tot istoricul"
+      "ro": "Deblochează încă %lld + totalurile pe tot istoricul",
+      "es": "Desbloquea %lld más y los totales de siempre",
+      "de": "Schalt %lld weitere und die Gesamtsummen frei"
     },
     "Unlock %lld more flips and all-time totals": {
       "en": "Unlock %lld more flips and all-time totals",
-      "ro": "Deblochează încă %lld flipuri și totalurile pe tot istoricul"
+      "ro": "Deblochează încă %lld flipuri și totalurile pe tot istoricul",
+      "es": "Desbloquea %lld reventas más y los totales de siempre",
+      "de": "Schalt %lld weitere Flips und die Gesamtsummen frei"
     },
     "Unlock Thrift Flip": {
       "en": "Unlock Thrift Flip",
-      "ro": "Deblochează Thrift Flip"
+      "ro": "Deblochează Thrift Flip",
+      "es": "Desbloquear Thrift Flip",
+      "de": "Thrift Flip freischalten"
     },
     "Unlock marketplace listings": {
       "en": "Unlock marketplace listings",
-      "ro": "Deblochează anunțurile pentru platforme"
+      "ro": "Deblochează anunțurile pentru platforme",
+      "es": "Desbloquear los anuncios por plataforma",
+      "de": "Plattform-Inserate freischalten"
     },
     "Unlock to reveal your profit": {
       "en": "Unlock to reveal your profit",
-      "ro": "Deblochează ca să-ți vezi profitul"
+      "ro": "Deblochează ca să-ți vezi profitul",
+      "es": "Desbloquea para ver tu ganancia",
+      "de": "Freischalten, um deinen Gewinn zu sehen"
     },
     "Unlock value history": {
       "en": "Unlock value history",
-      "ro": "Deblochează istoricul valorii"
+      "ro": "Deblochează istoricul valorii",
+      "es": "Desbloquear el historial de valor",
+      "de": "Wertverlauf freischalten"
     },
     "Unlock why this price": {
       "en": "Unlock why this price",
-      "ro": "Deblochează „De ce prețul ăsta”"
+      "ro": "Deblochează „De ce prețul ăsta”",
+      "es": "Desbloquear «Por qué este precio»",
+      "de": "„Warum dieser Preis“ freischalten"
     },
     "Upgrade": {
       "en": "Upgrade",
-      "ro": "Treci pe Pro"
+      "ro": "Treci pe Pro",
+      "es": "Hazte Pro",
+      "de": "Pro holen"
     },
     "Upgrade to Pro": {
       "en": "Upgrade to Pro",
-      "ro": "Treci pe Pro"
+      "ro": "Treci pe Pro",
+      "es": "Hazte Pro",
+      "de": "Pro holen"
     },
     "Used": {
       "comment": "Condition grade.",
       "en": "Used",
-      "ro": "Uzat"
+      "ro": "Uzat",
+      "es": "Usado",
+      "de": "Gebraucht"
     },
     "Values an item from a photo you already have": {
       "en": "Values an item from a photo you already have",
-      "ro": "Evaluează un obiect dintr-o poză pe care o ai deja"
+      "ro": "Evaluează un obiect dintr-o poză pe care o ai deja",
+      "es": "Valora un artículo a partir de una foto que ya tienes",
+      "de": "Bewertet einen Artikel anhand eines Fotos, das du schon hast"
     },
     "Vintage Frames": {
       "en": "Vintage Frames",
-      "ro": "Ramă vintage"
+      "ro": "Ramă vintage",
+      "es": "Gafas vintage",
+      "de": "Vintage-Brille"
     },
     "Vintage Wool Blazer": {
       "comment": "Invented item on the onboarding mock card.",
       "en": "Vintage Wool Blazer",
-      "ro": "Sacou vintage din lână"
+      "ro": "Sacou vintage din lână",
+      "es": "Blazer vintage de lana",
+      "de": "Vintage-Wollblazer"
     },
     "Vintage Wool Blazer — Timeless Tailored Fit": {
       "en": "Vintage Wool Blazer — Timeless Tailored Fit",
-      "ro": "Sacou vintage din lână — croială clasică"
+      "ro": "Sacou vintage din lână — croială clasică",
+      "es": "Blazer vintage de lana — corte clásico atemporal",
+      "de": "Vintage-Wollblazer – zeitloser, taillierter Schnitt"
     },
     "Waiting for approval. Your subscription starts as soon as it's approved — you don't need to buy again.": {
       "comment": "Ask to Buy: a parent has to approve the purchase.",
       "en": "Waiting for approval. Your subscription starts as soon as it's approved — you don't need to buy again.",
-      "ro": "Se așteaptă aprobarea. Abonamentul pornește imediat ce e aprobat — nu trebuie să cumperi din nou."
+      "ro": "Se așteaptă aprobarea. Abonamentul pornește imediat ce e aprobat — nu trebuie să cumperi din nou.",
+      "es": "Esperando aprobación. Tu suscripción empieza en cuanto se apruebe: no hace falta que compres otra vez.",
+      "de": "Warte auf die Freigabe. Dein Abo startet, sobald sie da ist – du musst nicht noch einmal kaufen."
     },
     "We couldn't verify this device. Try again — if it keeps happening, reinstalling the app will reset it.": {
       "en": "We couldn't verify this device. Try again — if it keeps happening, reinstalling the app will reset it.",
-      "ro": "N-am putut verifica dispozitivul. Încearcă din nou — dacă se repetă, reinstalarea aplicației rezolvă."
+      "ro": "N-am putut verifica dispozitivul. Încearcă din nou — dacă se repetă, reinstalarea aplicației rezolvă.",
+      "es": "No pudimos verificar este dispositivo. Inténtalo de nuevo; si sigue pasando, reinstalar la app lo reinicia.",
+      "de": "Wir konnten dieses Gerät nicht überprüfen. Versuch es noch einmal – wenn es weiter passiert, setzt eine Neuinstallation der App das zurück."
     },
     "We'll let you know when your monthly recap is ready and remind you to update your ledger. Functional only — no spam, and you can turn these off anytime in Settings.": {
       "en": "We'll let you know when your monthly recap is ready and remind you to update your ledger. Functional only — no spam, and you can turn these off anytime in Settings.",
-      "ro": "Îți dăm de știre când e gata recapitularea lunii și îți amintim să îți actualizezi registrul. Doar lucruri utile — fără spam, și le poți opri oricând din Setări."
+      "ro": "Îți dăm de știre când e gata recapitularea lunii și îți amintim să îți actualizezi registrul. Doar lucruri utile — fără spam, și le poți opri oricând din Setări.",
+      "es": "Te avisaremos cuando esté listo el resumen del mes y te recordaremos actualizar tu registro. Solo lo útil: nada de spam, y puedes desactivarlo cuando quieras en Ajustes.",
+      "de": "Wir sagen dir Bescheid, wenn dein Monatsrückblick fertig ist, und erinnern dich daran, dein Buch zu aktualisieren. Nur Nützliches – kein Spam, und du kannst das jederzeit in den Einstellungen ausschalten."
     },
     "Weekly portfolio": {
       "en": "Weekly portfolio",
-      "ro": "Colecția, săptămânal"
+      "ro": "Colecția, săptămânal",
+      "es": "Colección semanal",
+      "de": "Sammlung, wöchentlich"
     },
     "What did you pay?": {
       "en": "What did you pay?",
-      "ro": "Cât ai dat?"
+      "ro": "Cât ai dat?",
+      "es": "¿Cuánto pagaste?",
+      "de": "Was hast du bezahlt?"
     },
     "What do you think it could resell for?": {
       "en": "What do you think it could resell for?",
-      "ro": "Cu cât crezi că se revinde?"
+      "ro": "Cu cât crezi că se revinde?",
+      "es": "¿Por cuánto crees que se revende?",
+      "de": "Was bringt es deiner Meinung nach im Wiederverkauf?"
     },
     "What drives the value": {
       "en": "What drives the value",
-      "ro": "Ce ridică valoarea"
+      "ro": "Ce ridică valoarea",
+      "es": "Qué sube el valor",
+      "de": "Was den Wert treibt"
     },
     "What the photo suggests about authenticity": {
       "en": "What the photo suggests about authenticity",
-      "ro": "Ce spune poza despre autenticitate"
+      "ro": "Ce spune poza despre autenticitate",
+      "es": "Qué dice la foto sobre la autenticidad",
+      "de": "Was das Foto über die Echtheit sagt"
     },
     "What we assumed": {
       "en": "What we assumed",
-      "ro": "Ce am presupus"
+      "ro": "Ce am presupus",
+      "es": "Qué hemos supuesto",
+      "de": "Wovon wir ausgegangen sind"
     },
     "What's included": {
       "en": "What's included",
-      "ro": "Ce include"
+      "ro": "Ce include",
+      "es": "Qué incluye",
+      "de": "Was dabei ist"
     },
     "When on, each result opens with the price covered until you tap Reveal": {
       "en": "When on, each result opens with the price covered until you tap Reveal",
-      "ro": "Când e pornit, fiecare rezultat apare cu prețul acoperit până apeși „Arată estimarea”"
+      "ro": "Când e pornit, fiecare rezultat apare cu prețul acoperit până apeși „Arată estimarea”",
+      "es": "Si está activado, cada resultado aparece con el precio tapado hasta que tocas «Ver la estimación»",
+      "de": "Wenn aktiviert, ist der Preis bei jedem Ergebnis verdeckt, bis du auf „Schätzung zeigen“ tippst"
     },
     "Where you'd sell": {
       "en": "Where you'd sell",
-      "ro": "Unde ai vinde"
+      "ro": "Unde ai vinde",
+      "es": "Dónde venderías",
+      "de": "Wo du verkaufen würdest"
     },
     "Why it's worth that — four price points and what drives them": {
       "en": "Why it's worth that — four price points and what drives them",
-      "ro": "De ce valorează atât — patru praguri de preț și ce le mișcă"
+      "ro": "De ce valorează atât — patru praguri de preț și ce le mișcă",
+      "es": "Por qué vale eso: cuatro niveles de precio y qué los mueve",
+      "de": "Warum es so viel wert ist – vier Preispunkte und was sie treibt"
     },
     "Why this price": {
       "en": "Why this price",
-      "ro": "De ce prețul ăsta"
+      "ro": "De ce prețul ăsta",
+      "es": "Por qué este precio",
+      "de": "Warum dieser Preis"
     },
     "Wool Blazer": {
       "en": "Wool Blazer",
-      "ro": "Sacou de lână"
+      "ro": "Sacou de lână",
+      "es": "Blazer de lana",
+      "de": "Wollblazer"
     },
     "Worth flipping": {
       "en": "Worth flipping",
-      "ro": "Merită luat"
+      "ro": "Merită luat",
+      "es": "Merece la pena",
+      "de": "Lohnt sich"
     },
     "Writes a new listing for this item": {
       "en": "Writes a new listing for this item",
-      "ro": "Scrie un anunț nou pentru obiectul ăsta"
+      "ro": "Scrie un anunț nou pentru obiectul ăsta",
+      "es": "Escribe un anuncio nuevo para este artículo",
+      "de": "Schreibt ein neues Inserat für diesen Artikel"
     },
     "Writes the listing in %@'s style": {
       "en": "Writes the listing in %@'s style",
-      "ro": "Scrie anunțul în stilul %@"
+      "ro": "Scrie anunțul în stilul %@",
+      "es": "Escribe el anuncio al estilo de %@",
+      "de": "Schreibt das Inserat im Stil von %@"
     },
     "Writing your listing…": {
       "en": "Writing your listing…",
-      "ro": "Îți scriu anunțul…"
+      "ro": "Îți scriu anunțul…",
+      "es": "Escribiendo tu anuncio…",
+      "de": "Dein Inserat wird geschrieben…"
     },
     "Yearly": {
       "en": "Yearly",
-      "ro": "Anual"
+      "ro": "Anual",
+      "es": "Anual",
+      "de": "Jährlich"
     },
     "You added %lld finds this week.": {
       "en": {
@@ -1963,34 +2979,54 @@
         "one": "Ai adăugat o găselniță săptămâna asta.",
         "few": "Ai adăugat %lld găselnițe săptămâna asta.",
         "other": "Ai adăugat %lld de găselnițe săptămâna asta."
+      },
+      "es": {
+        "one": "Has añadido %lld hallazgo esta semana.",
+        "other": "Has añadido %lld hallazgos esta semana."
+      },
+      "de": {
+        "one": "Du hast diese Woche %lld Fund hinzugefügt.",
+        "other": "Du hast diese Woche %lld Funde hinzugefügt."
       }
     },
     "You have items to update in your ledger.": {
       "en": "You have items to update in your ledger.",
-      "ro": "Ai obiecte de actualizat în registru."
+      "ro": "Ai obiecte de actualizat în registru.",
+      "es": "Tienes artículos que actualizar en tu registro.",
+      "de": "In deinem Buch gibt es Artikel zu aktualisieren."
     },
     "You pay": {
       "comment": "Onboarding mock: the shop price.",
       "en": "You pay",
-      "ro": "Tu dai"
+      "ro": "Tu dai",
+      "es": "Tú pagas",
+      "de": "Du zahlst"
     },
     "You've hit the scan limit.": {
       "en": "You've hit the scan limit.",
-      "ro": "Ai atins limita de scanări."
+      "ro": "Ai atins limita de scanări.",
+      "es": "Has llegado al límite de escaneos.",
+      "de": "Du hast das Scan-Limit erreicht."
     },
     "You've used today's free scans. Opens subscription options.": {
       "en": "You've used today's free scans. Opens subscription options.",
-      "ro": "Ai consumat scanările gratuite de azi. Deschide opțiunile de abonament."
+      "ro": "Ai consumat scanările gratuite de azi. Deschide opțiunile de abonament.",
+      "es": "Has gastado los escaneos gratis de hoy. Abre las opciones de suscripción.",
+      "de": "Du hast die Gratis-Scans von heute verbraucht. Öffnet die Abo-Optionen."
     },
     "Your %@ Recap is ready 👀": {
       "comment": "%@ is a month name.",
       "en": "Your %@ Recap is ready 👀",
-      "ro": "Recapitularea pe %@ e gata 👀"
+      "ro": "Recapitularea pe %@ e gata 👀",
+      "es": "Tu resumen de %@ está listo 👀",
+      "de": "Dein Rückblick für %@ ist da 👀"
     },
     "Your %@ recap is ready": {
       "comment": "%@ is a month name.",
       "en": "Your %@ recap is ready",
-      "ro": "Recapitularea pe %@ e gata"
+      "ro": "Recapitularea pe %@ e gata",
+      "es": "Tu resumen de %@ está listo",
+      "de": "Dein Rückblick für %@ ist da"
     },
     "Your %lld finds are worth": {
       "comment": "The amount is appended after this, in both languages.",
@@ -2002,163 +3038,245 @@
         "one": "Găselnița ta valorează",
         "few": "Cele %lld găselnițe ale tale valorează",
         "other": "Cele %lld de găselnițe ale tale valorează"
+      },
+      "es": {
+        "one": "Tu %lld hallazgo vale",
+        "other": "Tus %lld hallazgos valen"
+      },
+      "de": {
+        "one": "Dein %lld Fund ist wert",
+        "other": "Deine %lld Funde sind wert"
       }
     },
     "Your SnapWorth trial ends tomorrow.": {
       "en": "Your SnapWorth trial ends tomorrow.",
-      "ro": "Perioada gratuită SnapWorth se termină mâine."
+      "ro": "Perioada gratuită SnapWorth se termină mâine.",
+      "es": "Tu prueba de SnapWorth acaba mañana.",
+      "de": "Deine SnapWorth-Testphase endet morgen."
     },
     "Your draft is open in Mail — send it there.": {
       "en": "Your draft is open in Mail — send it there.",
-      "ro": "Ciorna e deschisă în Mail — trimite-o de acolo."
+      "ro": "Ciorna e deschisă în Mail — trimite-o de acolo.",
+      "es": "Tu borrador está abierto en Mail: envíalo desde ahí.",
+      "de": "Dein Entwurf ist in Mail offen – schick ihn von dort ab."
     },
     "Your finds are worth": {
       "en": "Your finds are worth",
-      "ro": "Găselnițele tale valorează"
+      "ro": "Găselnițele tale valorează",
+      "es": "Tus hallazgos valen",
+      "de": "Deine Funde sind wert"
     },
     "Your free scan is back. What did you find today?": {
       "en": "Your free scan is back. What did you find today?",
-      "ro": "Ai iar scanarea gratuită. Ce ai găsit azi?"
+      "ro": "Ai iar scanarea gratuită. Ce ai găsit azi?",
+      "es": "Ya tienes tu escaneo gratis. ¿Qué has encontrado hoy?",
+      "de": "Dein Gratis-Scan ist wieder da. Was hast du heute gefunden?"
     },
     "Your guess (optional)": {
       "en": "Your guess (optional)",
-      "ro": "Cât zici tu (opțional)"
+      "ro": "Cât zici tu (opțional)",
+      "es": "Tu respuesta (opcional)",
+      "de": "Dein Tipp (optional)"
     },
     "Your guess in dollars, optional": {
       "en": "Your guess in dollars, optional",
-      "ro": "Suma ghicită de tine, în dolari, opțional"
+      "ro": "Suma ghicită de tine, în dolari, opțional",
+      "es": "Tu respuesta en dólares, opcional",
+      "de": "Dein Tipp in Dollar, optional"
     },
     "Your message": {
       "en": "Your message",
-      "ro": "Mesajul tău"
+      "ro": "Mesajul tău",
+      "es": "Tu mensaje",
+      "de": "Deine Nachricht"
     },
     "Your purchase could not be verified.": {
       "en": "Your purchase could not be verified.",
-      "ro": "Cumpărătura nu a putut fi verificată."
+      "ro": "Cumpărătura nu a putut fi verificată.",
+      "es": "No se pudo verificar tu compra.",
+      "de": "Dein Kauf konnte nicht bestätigt werden."
     },
     "Your scans are saved to your closet so you can watch the hidden value add up over time.": {
       "en": "Your scans are saved to your closet so you can watch the hidden value add up over time.",
-      "ro": "Scanările se salvează în colecția ta, ca să vezi cum se adună valoarea în timp."
+      "ro": "Scanările se salvează în colecția ta, ca să vezi cum se adună valoarea în timp.",
+      "es": "Tus escaneos se guardan en tu colección para que veas cómo se acumula el valor con el tiempo.",
+      "de": "Deine Scans landen in deiner Sammlung, damit du siehst, wie sich der Wert mit der Zeit summiert."
     },
     "Your subscription has been restored.": {
       "en": "Your subscription has been restored.",
-      "ro": "Abonamentul a fost restaurat."
+      "ro": "Abonamentul a fost restaurat.",
+      "es": "Se ha restaurado tu suscripción.",
+      "de": "Dein Abo wurde wiederhergestellt."
     },
     "after marketplace fees": {
       "en": "after marketplace fees",
-      "ro": "după comisioanele platformei"
+      "ro": "după comisioanele platformei",
+      "es": "tras las comisiones de la plataforma",
+      "de": "nach Plattformgebühren"
     },
     "average estimate %@": {
       "en": "average estimate %@",
-      "ro": "estimare medie %@"
+      "ro": "estimare medie %@",
+      "es": "estimación media %@",
+      "de": "Durchschnittsschätzung %@"
     },
     "avg %@": {
       "en": "avg %@",
-      "ro": "medie %@"
+      "ro": "medie %@",
+      "es": "media %@",
+      "de": "Ø %@"
     },
     "best flip": {
       "en": "best flip",
-      "ro": "cel mai bun flip"
+      "ro": "cel mai bun flip",
+      "es": "mejor reventa",
+      "de": "bester Flip"
     },
     "brand new, unused": {
       "en": "brand new, unused",
-      "ro": "nou-nouț, nefolosit"
+      "ro": "nou-nouț, nefolosit",
+      "es": "nuevo a estrenar, sin usar",
+      "de": "nagelneu, ungetragen"
     },
     "day": {
       "comment": "One subscription period, no number.",
       "en": "day",
-      "ro": "zi"
+      "ro": "zi",
+      "es": "día",
+      "de": "Tag"
     },
     "down %lld percent": {
       "en": "down %lld percent",
-      "ro": "în scădere cu %lld la sută"
+      "ro": "în scădere cu %lld la sută",
+      "es": "un %lld por ciento menos",
+      "de": "%lld Prozent weniger"
     },
     "free scan left today": {
       "comment": "The number is the widget's headline; this is the noun under it.",
       "en": "free scan left today",
-      "ro": "scanare gratuită rămasă azi"
+      "ro": "scanare gratuită rămasă azi",
+      "es": "escaneo gratis hoy",
+      "de": "Gratis-Scan heute übrig"
     },
     "free scans left today": {
       "en": "free scans left today",
-      "ro": "scanări gratuite rămase azi"
+      "ro": "scanări gratuite rămase azi",
+      "es": "escaneos gratis hoy",
+      "de": "Gratis-Scans heute übrig"
     },
     "good used condition": {
       "en": "good used condition",
-      "ro": "stare bună, folosit"
+      "ro": "stare bună, folosit",
+      "es": "usado en buen estado",
+      "de": "guter gebrauchter Zustand"
     },
     "item sold": {
       "comment": "Share card label under a count of 1.",
       "en": "item sold",
-      "ro": "obiect vândut"
+      "ro": "obiect vândut",
+      "es": "artículo vendido",
+      "de": "Artikel verkauft"
     },
     "items sold": {
       "comment": "Share card label under a count.",
       "en": "items sold",
-      "ro": "obiecte vândute"
+      "ro": "obiecte vândute",
+      "es": "artículos vendidos",
+      "de": "Artikel verkauft"
     },
     "like new, barely used": {
       "en": "like new, barely used",
-      "ro": "ca nou, abia folosit"
+      "ro": "ca nou, abia folosit",
+      "es": "como nuevo, apenas usado",
+      "de": "wie neu, kaum getragen"
     },
     "month": {
       "comment": "One subscription period, no number.",
       "en": "month",
-      "ro": "lună"
+      "ro": "lună",
+      "es": "mes",
+      "de": "Monat"
     },
     "net this month": {
       "en": "net this month",
-      "ro": "net luna asta"
+      "ro": "net luna asta",
+      "es": "neto este mes",
+      "de": "netto diesen Monat"
     },
     "nothing scanned yet": {
       "en": "nothing scanned yet",
-      "ro": "nimic scanat încă"
+      "ro": "nimic scanat încă",
+      "es": "nada escaneado aún",
+      "de": "noch nichts gescannt"
     },
     "paid": {
       "comment": "Caption under an amount in the flips list: what was paid for it.",
       "en": "paid",
-      "ro": "dat"
+      "ro": "dat",
+      "es": "pagado",
+      "de": "bezahlt"
     },
     "profit this month": {
       "en": "profit this month",
-      "ro": "profit luna asta"
+      "ro": "profit luna asta",
+      "es": "de ganancia este mes",
+      "de": "Gewinn diesen Monat"
     },
     "supply %@": {
       "en": "supply %@",
-      "ro": "ofertă %@"
+      "ro": "ofertă %@",
+      "es": "oferta %@",
+      "de": "Angebot %@"
     },
     "unchanged": {
       "en": "unchanged",
-      "ro": "neschimbat"
+      "ro": "neschimbat",
+      "es": "sin cambios",
+      "de": "unverändert"
     },
     "up %lld percent": {
       "en": "up %lld percent",
-      "ro": "în creștere cu %lld la sută"
+      "ro": "în creștere cu %lld la sută",
+      "es": "un %lld por ciento más",
+      "de": "%lld Prozent mehr"
     },
     "used with visible wear": {
       "en": "used with visible wear",
-      "ro": "folosit, cu urme vizibile"
+      "ro": "folosit, cu urme vizibile",
+      "es": "usado, con desgaste visible",
+      "de": "gebraucht, mit sichtbaren Spuren"
     },
     "week": {
       "comment": "One subscription period, no number.",
       "en": "week",
-      "ro": "săptămână"
+      "ro": "săptămână",
+      "es": "semana",
+      "de": "Woche"
     },
     "year": {
       "comment": "One subscription period, no number.",
       "en": "year",
-      "ro": "an"
+      "ro": "an",
+      "es": "año",
+      "de": "Jahr"
     },
     "− Fees": {
       "en": "− Fees",
-      "ro": "− Comisioane"
+      "ro": "− Comisioane",
+      "es": "− Comisiones",
+      "de": "− Gebühren"
     },
     "− Paid": {
       "en": "− Paid",
-      "ro": "− Dat"
+      "ro": "− Dat",
+      "es": "− Pagado",
+      "de": "− Bezahlt"
     },
     "− Shipping": {
       "en": "− Shipping",
-      "ro": "− Transport"
+      "ro": "− Transport",
+      "es": "− Envío",
+      "de": "− Versand"
     },
     "🔥 %lld-day streak": {
       "comment": "Streak badge on the scanner. Only shown from two days on.",
@@ -2170,6 +3288,14 @@
         "one": "🔥 serie de o zi",
         "few": "🔥 serie de %lld zile",
         "other": "🔥 serie de %lld de zile"
+      },
+      "es": {
+        "one": "🔥 racha de %lld día",
+        "other": "🔥 racha de %lld días"
+      },
+      "de": {
+        "one": "🔥 %lld Tag Serie",
+        "other": "🔥 %lld Tage Serie"
       }
     }
   }

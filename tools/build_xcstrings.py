@@ -45,9 +45,22 @@ SRC = os.path.join(ROOT, "ios", "Localization")
 SPECIFIER = re.compile(r'%(?:\d+\$)?[-+ #0]*[\d*]*(?:\.[\d*]+)?(?:hh|h|ll|l|q|L|z|t|j)?[@dioux XeEfgGcsSpaAF%]')
 
 PLURAL_CATEGORIES = {"zero", "one", "two", "few", "many", "other"}
-# What each language must define. English inflects at 1; Romanian also has a
-# distinct form from 20 upwards, where the noun takes "de".
-REQUIRED = {"en": {"one", "other"}, "ro": {"one", "few", "other"}}
+
+# Every language the app ships in. `en` is the development language and comes
+# first; the rest are written in `ios/Localization/*.json` beside it.
+LANGUAGES = ("en", "ro", "es", "de")
+
+# The plural categories each language must define, from CLDR. English, Spanish
+# and German all inflect once, at 1. Romanian inflects twice: at 1, and again
+# from 20 upwards, where the noun takes "de" — "o zi", "3 zile", "20 de zile".
+# A language listed here with too few forms prints the wrong one for most
+# numbers, silently, which is why this is checked rather than assumed.
+REQUIRED = {
+    "en": {"one", "other"},
+    "ro": {"one", "few", "other"},
+    "es": {"one", "other"},
+    "de": {"one", "other"},
+}
 
 
 def specifiers(s):
@@ -111,18 +124,25 @@ def variations(forms):
     return {"variations": {"plural": {k: unit(v) for k, v in sorted(forms.items())}}}
 
 
-def build(entries, path, errors, existing=None):
+def build(entries, path, errors, existing=None, untranslated=None):
     """entries: {key: {comment?, en, ro}} where a value is a str or a dict of
     plural forms. Returns the catalog dict, with any entry already in the
     catalog and not in `entries` carried over untouched."""
     strings = dict(existing or {})
+    untranslated = {} if untranslated is None else untranslated
     for key, e in entries.items():
         if not key:
             errors.append(f"{path}: empty key")
             continue
         loc = {}
         base = e["en"]
-        for lang in ("en", "ro"):
+        for lang in LANGUAGES:
+            if lang not in e:
+                # Aggregated below rather than one line per string: a language
+                # part-way through translation would otherwise bury every
+                # other error under hundreds of its own.
+                untranslated.setdefault(lang, []).append(key)
+                continue
             value = e[lang]
             if isinstance(value, dict):
                 missing = REQUIRED[lang] - set(value)
@@ -213,7 +233,13 @@ def main():
         if os.path.exists(out):
             with open(out, encoding="utf-8") as f:
                 before = json.load(f).get("strings", {})
-        catalog = build(spec["strings"], os.path.relpath(source, ROOT), errors, before)
+        untranslated = {}
+        catalog = build(spec["strings"], os.path.relpath(source, ROOT), errors,
+                        before, untranslated)
+        for lang, keys in sorted(untranslated.items()):
+            sample = ", ".join(repr(k) for k in keys[:3])
+            errors.append(f"{os.path.relpath(source, ROOT)}: {len(keys)} string(s) "
+                          f"have no [{lang}] translation, starting with {sample}")
         text = dump(catalog)
 
         stale = [k for k in spec["strings"] if before.get(k) != catalog["strings"][k]]

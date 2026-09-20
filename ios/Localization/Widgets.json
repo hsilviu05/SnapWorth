@@ -4,28 +4,40 @@
     " to ": {
       "comment": "Spoken separator between the two ends of a money range.",
       "en": " to ",
-      "ro": " la "
+      "ro": " la ",
+      "es": " a ",
+      "de": " bis "
     },
     "%@ in your haul": {
       "en": "%@ in your haul",
-      "ro": "%@ în colecție"
+      "ro": "%@ în colecție",
+      "es": "%@ en tu colección",
+      "de": "%@ in deiner Sammlung"
     },
     "%@ profit this month %@": {
       "comment": "Amount, then the already-inflected flip count.",
       "en": "%@ profit this month %@",
-      "ro": "%@ profit luna asta %@"
+      "ro": "%@ profit luna asta %@",
+      "es": "%@ de ganancia este mes %@",
+      "de": "%@ Gewinn diesen Monat %@"
     },
     "%@ scanned": {
       "en": "%@ scanned",
-      "ro": "%@ scanate"
+      "ro": "%@ scanate",
+      "es": "%@ escaneados",
+      "de": "%@ gescannt"
     },
     "%@ this trip": {
       "en": "%@ this trip",
-      "ro": "%@ în tura asta"
+      "ro": "%@ în tura asta",
+      "es": "%@ en esta ruta",
+      "de": "%@ auf dieser Tour"
     },
     "%@ to %@": {
       "en": "%@ to %@",
-      "ro": "%@ la %@"
+      "ro": "%@ la %@",
+      "es": "%@ a %@",
+      "de": "%@ bis %@"
     },
     "%@ · %lld-day streak": {
       "en": {
@@ -36,15 +48,27 @@
         "one": "%@ · serie de o zi",
         "few": "%@ · serie de %lld zile",
         "other": "%@ · serie de %lld de zile"
+      },
+      "es": {
+        "one": "%@ · racha de %lld día",
+        "other": "%@ · racha de %lld días"
+      },
+      "de": {
+        "one": "%@ · %lld Tag Serie",
+        "other": "%@ · %lld Tage Serie"
       }
     },
     "%@, profit unknown until you add what you paid": {
       "en": "%@, profit unknown until you add what you paid",
-      "ro": "%@, profitul rămâne necunoscut până adaugi cât ai dat"
+      "ro": "%@, profitul rămâne necunoscut până adaugi cât ai dat",
+      "es": "%@, la ganancia no se sabe hasta que añadas lo que pagaste",
+      "de": "%@, der Gewinn bleibt unbekannt, bis du einträgst, was du bezahlt hast"
     },
     "%@. Last known — open SnapWorth to refresh.": {
       "en": "%@. Last known — open SnapWorth to refresh.",
-      "ro": "%@. Ultima valoare știută — deschide SnapWorth ca să se actualizeze."
+      "ro": "%@. Ultima valoare știută — deschide SnapWorth ca să se actualizeze.",
+      "es": "%@. Último dato conocido: abre SnapWorth para actualizarlo.",
+      "de": "%@. Letzter bekannter Stand – öffne SnapWorth zum Aktualisieren."
     },
     "%lld day streak": {
       "en": {
@@ -55,6 +79,14 @@
         "one": "serie de o zi",
         "few": "serie de %lld zile",
         "other": "serie de %lld de zile"
+      },
+      "es": {
+        "one": "racha de %lld día",
+        "other": "racha de %lld días"
+      },
+      "de": {
+        "one": "%lld Tag Serie",
+        "other": "%lld Tage Serie"
       }
     },
     "%lld finds": {
@@ -67,6 +99,14 @@
         "one": "o găselniță",
         "few": "%lld găselnițe",
         "other": "%lld de găselnițe"
+      },
+      "es": {
+        "one": "%lld hallazgo",
+        "other": "%lld hallazgos"
+      },
+      "de": {
+        "one": "%lld Fund",
+        "other": "%lld Funde"
       }
     },
     "%lld flips sold this month": {
@@ -78,6 +118,14 @@
         "one": "un flip vândut luna asta",
         "few": "%lld flipuri vândute luna asta",
         "other": "%lld de flipuri vândute luna asta"
+      },
+      "es": {
+        "one": "%lld reventa vendida este mes",
+        "other": "%lld reventas vendidas este mes"
+      },
+      "de": {
+        "one": "%lld Flip diesen Monat verkauft",
+        "other": "%lld Flips diesen Monat verkauft"
       }
     },
     "%lld free scans left today": {
@@ -90,6 +138,14 @@
         "one": "o scanare gratuită rămasă azi",
         "few": "%lld scanări gratuite rămase azi",
         "other": "%lld de scanări gratuite rămase azi"
+      },
+      "es": {
+        "one": "Queda %lld escaneo gratis hoy",
+        "other": "Quedan %lld escaneos gratis hoy"
+      },
+      "de": {
+        "one": "Noch %lld kostenloser Scan heute",
+        "other": "Noch %lld kostenlose Scans heute"
       }
     },
     "%lld items": {
@@ -101,6 +157,14 @@
         "one": "un obiect",
         "few": "%lld obiecte",
         "other": "%lld de obiecte"
+      },
+      "es": {
+        "one": "%lld artículo",
+        "other": "%lld artículos"
+      },
+      "de": {
+        "one": "%lld Artikel",
+        "other": "%lld Artikel"
       }
     },
     "%lld sold · add what you paid": {
@@ -112,216 +176,328 @@
         "one": "unul vândut · adaugă cât ai dat",
         "few": "%lld vândute · adaugă cât ai dat",
         "other": "%lld de vândute · adaugă cât ai dat"
+      },
+      "es": {
+        "one": "%lld vendido · añade lo que pagaste",
+        "other": "%lld vendidos · añade lo que pagaste"
+      },
+      "de": {
+        "one": "%lld verkauft · trag ein, was du bezahlt hast",
+        "other": "%lld verkauft · trag ein, was du bezahlt hast"
       }
     },
     "Back tomorrow, or go Pro": {
       "en": "Back tomorrow, or go Pro",
-      "ro": "Revii mâine sau treci pe Pro"
+      "ro": "Revii mâine sau treci pe Pro",
+      "es": "Vuelve mañana o hazte Pro",
+      "de": "Morgen wieder – oder hol dir Pro"
     },
     "Find out what it's worth": {
       "en": "Find out what it's worth",
-      "ro": "Află cât valorează"
+      "ro": "Află cât valorează",
+      "es": "Descubre cuánto vale",
+      "de": "Finde heraus, was es wert ist"
     },
     "Haul": {
       "en": "Haul",
-      "ro": "Colecție"
+      "ro": "Colecție",
+      "es": "Colección",
+      "de": "Sammlung"
     },
     "Haul Value": {
       "comment": "Widget name in the gallery.",
       "en": "Haul Value",
-      "ro": "Valoarea colecției"
+      "ro": "Valoarea colecției",
+      "es": "Valor de la colección",
+      "de": "Wert der Sammlung"
     },
     "Haul on the Lock Screen": {
       "en": "Haul on the Lock Screen",
-      "ro": "Colecția pe ecranul blocat"
+      "ro": "Colecția pe ecranul blocat",
+      "es": "La colección en la pantalla bloqueada",
+      "de": "Die Sammlung auf dem Sperrbildschirm"
     },
     "Haul value %@, %@": {
       "en": "Haul value %@, %@",
-      "ro": "Colecție de %@, %@"
+      "ro": "Colecție de %@, %@",
+      "es": "Colección por valor de %@, %@",
+      "de": "Sammlung im Wert von %@, %@"
     },
     "Haul worth %@": {
       "en": "Haul worth %@",
-      "ro": "Colecție de %@"
+      "ro": "Colecție de %@",
+      "es": "Colección por valor de %@",
+      "de": "Sammlung im Wert von %@"
     },
     "How many free scans you have today.": {
       "en": "How many free scans you have today.",
-      "ro": "Câte scanări gratuite mai ai azi."
+      "ro": "Câte scanări gratuite mai ai azi.",
+      "es": "Cuántos escaneos gratis te quedan hoy.",
+      "de": "Wie viele Gratis-Scans du heute noch hast."
     },
     "Last known — open SnapWorth to refresh": {
       "en": "Last known — open SnapWorth to refresh",
-      "ro": "Ultima valoare știută — deschide SnapWorth ca să se actualizeze"
+      "ro": "Ultima valoare știută — deschide SnapWorth ca să se actualizeze",
+      "es": "Último dato conocido: abre SnapWorth para actualizarlo",
+      "de": "Letzter bekannter Stand – öffne SnapWorth zum Aktualisieren"
     },
     "Last scanned": {
       "en": "Last scanned",
-      "ro": "Ultima scanare"
+      "ro": "Ultima scanare",
+      "es": "Último escaneado",
+      "de": "Zuletzt gescannt"
     },
     "Last scanned, %@, %@": {
       "en": "Last scanned, %@, %@",
-      "ro": "Ultima scanare, %@, %@"
+      "ro": "Ultima scanare, %@, %@",
+      "es": "Último escaneado, %@, %@",
+      "de": "Zuletzt gescannt, %@, %@"
     },
     "Last: %@": {
       "en": "Last: %@",
-      "ro": "Ultimul: %@"
+      "ro": "Ultimul: %@",
+      "es": "Último: %@",
+      "de": "Zuletzt: %@"
     },
     "No finds scanned yet": {
       "en": "No finds scanned yet",
-      "ro": "Nicio găselniță scanată"
+      "ro": "Nicio găselniță scanată",
+      "es": "Ningún hallazgo escaneado aún",
+      "de": "Noch keine Funde gescannt"
     },
     "No finds yet": {
       "en": "No finds yet",
-      "ro": "Nicio găselniță"
+      "ro": "Nicio găselniță",
+      "es": "Ningún hallazgo aún",
+      "de": "Noch keine Funde"
     },
     "No flips sold yet this month": {
       "en": "No flips sold yet this month",
-      "ro": "Niciun flip vândut luna asta"
+      "ro": "Niciun flip vândut luna asta",
+      "es": "Ninguna reventa vendida este mes",
+      "de": "Diesen Monat noch kein Flip verkauft"
     },
     "No free scans left today": {
       "en": "No free scans left today",
-      "ro": "Nicio scanare gratuită rămasă azi"
+      "ro": "Nicio scanare gratuită rămasă azi",
+      "es": "No quedan escaneos gratis hoy",
+      "de": "Heute keine Gratis-Scans mehr"
     },
     "No scans yet": {
       "en": "No scans yet",
-      "ro": "Nicio scanare încă"
+      "ro": "Nicio scanare încă",
+      "es": "Ningún escaneo aún",
+      "de": "Noch keine Scans"
     },
     "Nothing scanned yet": {
       "en": "Nothing scanned yet",
-      "ro": "Încă nu ai scanat nimic"
+      "ro": "Încă nu ai scanat nimic",
+      "es": "Aún no has escaneado nada",
+      "de": "Noch nichts gescannt"
     },
     "Nothing scanned yet. Tap to scan your first find.": {
       "en": "Nothing scanned yet. Tap to scan your first find.",
-      "ro": "Încă nu ai scanat nimic. Apasă ca să scanezi prima găselniță."
+      "ro": "Încă nu ai scanat nimic. Apasă ca să scanezi prima găselniță.",
+      "es": "Aún no has escaneado nada. Toca para escanear tu primer hallazgo.",
+      "de": "Noch nichts gescannt. Tippe, um deinen ersten Fund zu scannen."
     },
     "Nothing yet": {
       "en": "Nothing yet",
-      "ro": "Nimic încă"
+      "ro": "Nimic încă",
+      "es": "Nada aún",
+      "de": "Noch nichts"
     },
     "One tap to scan any secondhand item.": {
       "en": "One tap to scan any secondhand item.",
-      "ro": "O apăsare și scanezi orice lucru second hand."
+      "ro": "O apăsare și scanezi orice lucru second hand.",
+      "es": "Un toque para escanear cualquier artículo de segunda mano.",
+      "de": "Ein Tipp, und du scannst jeden Second-Hand-Artikel."
     },
     "Open SnapWorth": {
       "en": "Open SnapWorth",
-      "ro": "Deschide SnapWorth"
+      "ro": "Deschide SnapWorth",
+      "es": "Abre SnapWorth",
+      "de": "SnapWorth öffnen"
     },
     "Open SnapWorth with the camera ready.": {
       "en": "Open SnapWorth with the camera ready.",
-      "ro": "Deschide SnapWorth cu camera pregătită."
+      "ro": "Deschide SnapWorth cu camera pregătită.",
+      "es": "Abre SnapWorth con la cámara lista.",
+      "de": "Öffnet SnapWorth mit startbereiter Kamera."
     },
     "Opens SnapWorth with the camera ready.": {
       "en": "Opens SnapWorth with the camera ready.",
-      "ro": "Deschide SnapWorth cu camera pregătită."
+      "ro": "Deschide SnapWorth cu camera pregătită.",
+      "es": "Abre SnapWorth con la cámara lista.",
+      "de": "Öffnet SnapWorth mit startbereiter Kamera."
     },
     "Profit this month": {
       "en": "Profit this month",
-      "ro": "Profitul lunii"
+      "ro": "Profitul lunii",
+      "es": "Ganancia de este mes",
+      "de": "Gewinn diesen Monat"
     },
     "Quick Scan": {
       "en": "Quick Scan",
-      "ro": "Scanare rapidă"
+      "ro": "Scanare rapidă",
+      "es": "Escaneo rápido",
+      "de": "Schnellscan"
     },
     "Recent finds": {
       "en": "Recent finds",
-      "ro": "Găselnițe recente"
+      "ro": "Găselnițe recente",
+      "es": "Hallazgos recientes",
+      "de": "Neueste Funde"
     },
     "Scan": {
       "en": "Scan",
-      "ro": "Scanează"
+      "ro": "Scanează",
+      "es": "Escanear",
+      "de": "Scannen"
     },
     "Scan an item": {
       "en": "Scan an item",
-      "ro": "Scanează un obiect"
+      "ro": "Scanează un obiect",
+      "es": "Escanear un artículo",
+      "de": "Artikel scannen"
     },
     "Scan count not available yet. Open SnapWorth.": {
       "en": "Scan count not available yet. Open SnapWorth.",
-      "ro": "Numărul de scanări nu e disponibil încă. Deschide SnapWorth."
+      "ro": "Numărul de scanări nu e disponibil încă. Deschide SnapWorth.",
+      "es": "El número de escaneos aún no está disponible. Abre SnapWorth.",
+      "de": "Die Anzahl der Scans ist noch nicht verfügbar. Öffne SnapWorth."
     },
     "Scan now": {
       "en": "Scan now",
-      "ro": "Scanează acum"
+      "ro": "Scanează acum",
+      "es": "Escanea ahora",
+      "de": "Jetzt scannen"
     },
     "Scan something to start": {
       "en": "Scan something to start",
-      "ro": "Scanează ceva ca să începi"
+      "ro": "Scanează ceva ca să începi",
+      "es": "Escanea algo para empezar",
+      "de": "Scann etwas, um anzufangen"
     },
     "Scan something to start the run": {
       "en": "Scan something to start the run",
-      "ro": "Scanează ceva ca să pornească tura"
+      "ro": "Scanează ceva ca să pornească tura",
+      "es": "Escanea algo para empezar la ruta",
+      "de": "Scann etwas, um die Tour zu starten"
     },
     "Scan your first find": {
       "en": "Scan your first find",
-      "ro": "Scanează prima găselniță"
+      "ro": "Scanează prima găselniță",
+      "es": "Escanea tu primer hallazgo",
+      "de": "Scann deinen ersten Fund"
     },
     "Scans left": {
       "en": "Scans left",
-      "ro": "Scanări rămase"
+      "ro": "Scanări rămase",
+      "es": "Escaneos restantes",
+      "de": "Scans übrig"
     },
     "See your total resale value at a glance.": {
       "en": "See your total resale value at a glance.",
-      "ro": "Vezi dintr-o privire cât valorează tot."
+      "ro": "Vezi dintr-o privire cât valorează tot.",
+      "es": "Mira de un vistazo cuánto vale todo en reventa.",
+      "de": "Sieh auf einen Blick, was alles im Wiederverkauf wert ist."
     },
     "SnapWorth haul, %@": {
       "en": "SnapWorth haul, %@",
-      "ro": "Colecția SnapWorth, %@"
+      "ro": "Colecția SnapWorth, %@",
+      "es": "Colección de SnapWorth, %@",
+      "de": "SnapWorth-Sammlung, %@"
     },
     "SnapWorth haul, %@ scanned, worth %@.": {
       "en": "SnapWorth haul, %@ scanned, worth %@.",
-      "ro": "Colecția SnapWorth, %@ scanate, în valoare de %@."
+      "ro": "Colecția SnapWorth, %@ scanate, în valoare de %@.",
+      "es": "Colección de SnapWorth, %@ escaneados, por valor de %@.",
+      "de": "SnapWorth-Sammlung, %@ gescannt, im Wert von %@."
     },
     "SnapWorth haul, %@, %@": {
       "en": "SnapWorth haul, %@, %@",
-      "ro": "Colecția SnapWorth, %@, %@"
+      "ro": "Colecția SnapWorth, %@, %@",
+      "es": "Colección de SnapWorth, %@, %@",
+      "de": "SnapWorth-Sammlung, %@, %@"
     },
     "SnapWorth, no finds scanned yet": {
       "en": "SnapWorth, no finds scanned yet",
-      "ro": "SnapWorth, nicio găselniță scanată"
+      "ro": "SnapWorth, nicio găselniță scanată",
+      "es": "SnapWorth, ningún hallazgo escaneado aún",
+      "de": "SnapWorth, noch keine Funde gescannt"
     },
     "SnapWorth, no finds yet. Scan something to start.": {
       "en": "SnapWorth, no finds yet. Scan something to start.",
-      "ro": "SnapWorth, nicio găselniță încă. Scanează ceva ca să începi."
+      "ro": "SnapWorth, nicio găselniță încă. Scanează ceva ca să începi.",
+      "es": "SnapWorth, ningún hallazgo aún. Escanea algo para empezar.",
+      "de": "SnapWorth, noch keine Funde. Scann etwas, um anzufangen."
     },
     "SnapWorth. Nothing scanned yet.": {
       "en": "SnapWorth. Nothing scanned yet.",
-      "ro": "SnapWorth. Încă nu ai scanat nimic."
+      "ro": "SnapWorth. Încă nu ai scanat nimic.",
+      "es": "SnapWorth. Aún no has escaneado nada.",
+      "de": "SnapWorth. Noch nichts gescannt."
     },
     "Tap to scan\nyour first find": {
       "en": "Tap to scan\nyour first find",
-      "ro": "Apasă ca să scanezi\nprima găselniță"
+      "ro": "Apasă ca să scanezi\nprima găselniță",
+      "es": "Toca para escanear\ntu primer hallazgo",
+      "de": "Tippe, um deinen\nersten Fund zu scannen"
     },
     "The last few things you scanned, and what they're worth.": {
       "en": "The last few things you scanned, and what they're worth.",
-      "ro": "Ultimele lucruri scanate și cât valorează."
+      "ro": "Ultimele lucruri scanate și cât valorează.",
+      "es": "Las últimas cosas que escaneaste y cuánto valen.",
+      "de": "Die letzten Dinge, die du gescannt hast, und was sie wert sind."
     },
     "This month": {
       "en": "This month",
-      "ro": "Luna asta"
+      "ro": "Luna asta",
+      "es": "Este mes",
+      "de": "Diesen Monat"
     },
     "Thrift run": {
       "en": "Thrift run",
-      "ro": "Tură de second hand"
+      "ro": "Tură de second hand",
+      "es": "Ruta de segunda mano",
+      "de": "Second-Hand-Tour"
     },
     "Thrift run in progress, %@": {
       "en": "Thrift run in progress, %@",
-      "ro": "Tură de second hand în curs, %@"
+      "ro": "Tură de second hand în curs, %@",
+      "es": "Ruta de segunda mano en curso, %@",
+      "de": "Second-Hand-Tour läuft, %@"
     },
     "Thrift run started, nothing scanned yet": {
       "en": "Thrift run started, nothing scanned yet",
-      "ro": "Tură de second hand pornită, nimic scanat încă"
+      "ro": "Tură de second hand pornită, nimic scanat încă",
+      "es": "Ruta de segunda mano empezada, nada escaneado aún",
+      "de": "Second-Hand-Tour gestartet, noch nichts gescannt"
     },
     "Thrift run, %@": {
       "en": "Thrift run, %@",
-      "ro": "Tură de second hand, %@"
+      "ro": "Tură de second hand, %@",
+      "es": "Ruta de segunda mano, %@",
+      "de": "Second-Hand-Tour, %@"
     },
     "Thrift run, %@, worth %@, started %@": {
       "en": "Thrift run, %@, worth %@, started %@",
-      "ro": "Tură de second hand, %@, în valoare de %@, pornită la %@"
+      "ro": "Tură de second hand, %@, în valoare de %@, pornită la %@",
+      "es": "Ruta de segunda mano, %@, por valor de %@, empezada a las %@",
+      "de": "Second-Hand-Tour, %@, im Wert von %@, gestartet um %@"
     },
     "Thrift run, last known, nothing scanned yet": {
       "en": "Thrift run, last known, nothing scanned yet",
-      "ro": "Tură de second hand, ultima valoare știută, nimic scanat încă"
+      "ro": "Tură de second hand, ultima valoare știută, nimic scanat încă",
+      "es": "Ruta de segunda mano, último dato conocido, nada escaneado aún",
+      "de": "Second-Hand-Tour, letzter bekannter Stand, noch nichts gescannt"
     },
     "Unlimited scans": {
       "en": "Unlimited scans",
-      "ro": "Scanări nelimitate"
+      "ro": "Scanări nelimitate",
+      "es": "Escaneos ilimitados",
+      "de": "Unbegrenzte Scans"
     },
     "Unlimited scans, %lld day scanning streak": {
       "en": {
@@ -332,6 +508,14 @@
         "one": "Scanări nelimitate, serie de scanări de o zi",
         "few": "Scanări nelimitate, serie de scanări de %lld zile",
         "other": "Scanări nelimitate, serie de scanări de %lld de zile"
+      },
+      "es": {
+        "one": "Escaneos ilimitados, racha de %lld día escaneando",
+        "other": "Escaneos ilimitados, racha de %lld días escaneando"
+      },
+      "de": {
+        "one": "Unbegrenzte Scans, %lld Tag Scan-Serie",
+        "other": "Unbegrenzte Scans, %lld Tage Scan-Serie"
       }
     },
     "Unlimited · %lld-day streak": {
@@ -343,28 +527,46 @@
         "one": "Nelimitat · serie de o zi",
         "few": "Nelimitat · serie de %lld zile",
         "other": "Nelimitat · serie de %lld de zile"
+      },
+      "es": {
+        "one": "Ilimitados · racha de %lld día",
+        "other": "Ilimitados · racha de %lld días"
+      },
+      "de": {
+        "one": "Unbegrenzt · %lld Tag Serie",
+        "other": "Unbegrenzt · %lld Tage Serie"
       }
     },
     "What your sold flips actually made.": {
       "en": "What your sold flips actually made.",
-      "ro": "Cât ai făcut de fapt din flipurile vândute."
+      "ro": "Cât ai făcut de fapt din flipurile vândute.",
+      "es": "Lo que has ganado de verdad con tus reventas.",
+      "de": "Was deine verkauften Flips wirklich gebracht haben."
     },
     "Your haul": {
       "en": "Your haul",
-      "ro": "Colecția ta"
+      "ro": "Colecția ta",
+      "es": "Tu colección",
+      "de": "Deine Sammlung"
     },
     "Your total resale value, without unlocking.": {
       "en": "Your total resale value, without unlocking.",
-      "ro": "Cât valorează tot, fără să deblochezi telefonul."
+      "ro": "Cât valorează tot, fără să deblochezi telefonul.",
+      "es": "Cuánto vale todo en reventa, sin desbloquear el móvil.",
+      "de": "Was alles im Wiederverkauf wert ist, ohne zu entsperren."
     },
     "free scan left today": {
       "comment": "The number is the widget's headline; this is the noun under it.",
       "en": "free scan left today",
-      "ro": "scanare gratuită rămasă azi"
+      "ro": "scanare gratuită rămasă azi",
+      "es": "escaneo gratis hoy",
+      "de": "Gratis-Scan heute übrig"
     },
     "free scans left today": {
       "en": "free scans left today",
-      "ro": "scanări gratuite rămase azi"
+      "ro": "scanări gratuite rămase azi",
+      "es": "escaneos gratis hoy",
+      "de": "Gratis-Scans heute übrig"
     },
     "from %lld flips": {
       "en": {
@@ -375,11 +577,21 @@
         "one": "dintr-un flip",
         "few": "din %lld flipuri",
         "other": "din %lld de flipuri"
+      },
+      "es": {
+        "one": "de %lld reventa",
+        "other": "de %lld reventas"
+      },
+      "de": {
+        "one": "aus %lld Flip",
+        "other": "aus %lld Flips"
       }
     },
     "nothing scanned yet": {
       "en": "nothing scanned yet",
-      "ro": "nimic scanat încă"
+      "ro": "nimic scanat încă",
+      "es": "nada escaneado aún",
+      "de": "noch nichts gescannt"
     }
   }
 }

@@ -5,10 +5,22 @@
       "comment" : "Shown by iOS the first time the scanner opens the camera.",
       "extractionState" : "manual",
       "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SnapWorth nutzt deine Kamera, damit du Artikel fotografieren kannst – wir erkennen sie und schätzen, was sie im Wiederverkauf wert sind."
+          }
+        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "SnapWorth uses your camera to photograph items so we can identify them and estimate their resale value."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SnapWorth usa la cámara para que fotografíes artículos, reconocerlos y estimar cuánto valen en reventa."
           }
         },
         "ro" : {
@@ -23,10 +35,22 @@
       "comment" : "Shown when saving a share card to Photos.",
       "extractionState" : "manual",
       "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Erlaube SnapWorth, deine Bewertungskarte in „Fotos“ zu sichern."
+          }
+        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Allow SnapWorth to save your valuation card to Photos."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Permite que SnapWorth guarde en Fotos la tarjeta con la valoración."
           }
         },
         "ro" : {
@@ -41,10 +65,22 @@
       "comment" : "Shown when the user picks an existing photo to scan.",
       "extractionState" : "manual",
       "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mit SnapWorth kannst du Fotos aus deiner Mediathek wählen, um ihren Wiederverkaufswert zu erfahren."
+          }
+        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "SnapWorth lets you pick photos from your library to scan for resale value."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SnapWorth te deja elegir fotos de tu galería para saber cuánto vale en reventa lo que sale en ellas."
           }
         },
         "ro" : {
