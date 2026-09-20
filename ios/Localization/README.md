@@ -1,6 +1,7 @@
 # Localization
 
-The app ships in English (`en`, the development language) and Romanian (`ro`).
+The app ships in English (`en`, the development language), Romanian (`ro`),
+Spanish (`es`) and German (`de`).
 
 ## Where the strings live
 
@@ -12,9 +13,15 @@ from:
 "Reveal the estimate": {
   "comment": "Button under a covered price.",
   "en": "Reveal the estimate",
-  "ro": "Arată estimarea"
+  "ro": "Arată estimarea",
+  "es": "Ver la estimación",
+  "de": "Schätzung zeigen"
 }
 ```
+
+Every string carries a value for every language. A missing one is an error,
+reported per language with a count, because the alternative is a screen that is
+half translated and nothing that says which half.
 
 `tools/build_xcstrings.py` turns them into the two String Catalogs Xcode
 builds — `ios/SnapWorth/Localizable.xcstrings` and
@@ -101,12 +108,14 @@ A key whose value depends on a count is written with all three:
 ```json
 "%lld days": {
   "en": { "one": "%lld day", "other": "%lld days" },
-  "ro": { "one": "o zi", "few": "%lld zile", "other": "%lld de zile" }
+  "ro": { "one": "o zi", "few": "%lld zile", "other": "%lld de zile" },
+  "es": { "one": "%lld día", "other": "%lld días" },
+  "de": { "one": "%lld Tag", "other": "%lld Tage" }
 }
 ```
 
-The builder requires `one`/`other` for English and `one`/`few`/`other` for
-Romanian, and refuses a translation whose format specifiers disagree with the
+English, Spanish and German inflect once, at 1, so they need `one` and `other`.
+Romanian needs `few` as well. The builder requires exactly those, and refuses a translation whose format specifiers disagree with the
 source string — a `%@` where the code passes an `Int` is a crash at the moment
 the string is shown, not a mistranslation. A plural form may leave the number
 out entirely ("o zi", not "1 zi"); the rule still consumes the argument.
@@ -140,20 +149,57 @@ the worked examples.
 string that is English on purpose is distinguishable from one that was
 forgotten.
 
-## Romanian conventions used here
+## Conventions, per language
 
-* Second person singular throughout ("Scanează", "Ai atins limita"), matching
-  the English copy's register. Never the formal plural.
-* iOS vocabulary follows Apple's Romanian: *ecranul blocat* (Lock Screen),
-  *Activități live* (Live Activities), *Centru de control*, *Setări*.
+All three translations use the informal second person, matching the English
+copy's register — `tu` in Romanian, `tú` in Spanish, `du` in German — and never
+the formal form. iOS vocabulary follows Apple's own translations for each
+language. Diacritics and sharp s are always written out.
+
+### Romanian
+
+* iOS vocabulary: *ecranul blocat* (Lock Screen), *Activități live* (Live
+  Activities), *Centru de control*, *Setări*.
 * The app's own nouns: a scan is a *scanare*, a find is a *găselniță*, the
   library is *Găselnițe*, the ledger is *Flipuri*, a flip stays a *flip*.
 * Quotation marks are the Romanian pair „ ", not " ".
-* Diacritics are always written, including *ș* and *ț* with comma below
-  (U+0219, U+021B) rather than the cedilla forms.
+* *ș* and *ț* are written with the comma below (U+0219, U+021B), not the
+  cedilla forms.
 
-## Adding a third language
+### Spanish
 
-Add the code to `knownRegions` in `project.pbxproj`, add the plural categories
-the language needs to `REQUIRED` in `tools/build_xcstrings.py`, add a value per
-entry in the three source files, and regenerate. Nothing in the Swift changes.
+* Peninsular Spanish, but avoiding anything that reads oddly in Latin America:
+  *tú* rather than *vos*, and no *vosotros* — the app never addresses a group.
+* iOS vocabulary: *Ajustes* (Settings), *pantalla bloqueada* (Lock Screen),
+  *Actividades en vivo*, *Tiempo de uso* (Screen Time).
+* The app's own nouns: a scan is an *escaneo*, a find is a *hallazgo*, the
+  library is *Mis hallazgos*, the ledger is *Mis reventas*, a flip is a
+  *reventa*, and thrifting is *segunda mano*.
+* Quotation marks are the Spanish angular pair « », not " ".
+* Opening ¿ and ¡ are always written.
+
+### German
+
+* *du*, lower-case, as Vinted and Kleinanzeigen address their sellers. Never
+  *Sie*, which would make a resale app sound like a bank.
+* iOS vocabulary: *Einstellungen* (Settings), *Sperrbildschirm* (Lock Screen),
+  *Live-Aktivitäten*, *Mitteilungen* (Notifications), *Bildschirmzeit*.
+* The app's own nouns: a scan is a *Scan*, a find is a *Fund*, the library is
+  *Meine Funde*, the ledger is *Meine Flips*, a flip stays a *Flip*, and
+  thrifting is *Second Hand*.
+* Quotation marks are the German pair „ ", not " ".
+* Compounds are written closed or hyphenated as German requires —
+  *Wiederverkaufswert*, *Second-Hand-Tour*, *Gratis-Scan* — never spaced.
+
+## Adding another language
+
+Add the code to `knownRegions` in `project.pbxproj` and to `LANGUAGES` and
+`REQUIRED` in `tools/build_xcstrings.py` — `REQUIRED` being the CLDR plural
+categories that language actually uses — then add a value per entry in the
+three source files and regenerate. Nothing in the Swift changes; the Romanian,
+Spanish and German passes each needed none.
+
+Note that the marketplaces the app knows are eBay, Poshmark, Mercari, Depop,
+Vinted, OLX and Facebook. A language whose sellers use none of them gets a
+translated app that still points them at the wrong places, which is a product
+change and not a translation.
