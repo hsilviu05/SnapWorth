@@ -165,6 +165,26 @@ enum MarketplaceFees {
         .vinted:   MarketplaceFee(sellingFeePercent: 0, fixedFee: 0),
         .facebook: MarketplaceFee(sellingFeePercent: 0, fixedFee: 0),
         .olx:      MarketplaceFee(sellingFeePercent: 0, fixedFee: 0),
+        // Xianyu: no commission on an ordinary personal sale, which is the
+        // platform's whole pitch against Taobao and the case this app is for.
+        // Modelled like Vinted and OLX above.
+        //
+        // NOT modelled: the software service fee Xianyu began charging in
+        // late 2024 on accounts past a monthly volume threshold. It is real
+        // and it is a percentage, but the threshold and the rate are the kind
+        // of number this table cites a source for, and none could be verified
+        // for this entry — so a high-volume seller sees a figure that is a
+        // little optimistic rather than one that was invented.
+        .xianyu:   MarketplaceFee(sellingFeePercent: 0, fixedFee: 0),
+        // Kleinanzeigen: no commission on an ordinary private ad, which is why
+        // it is the platform most Germans sell on. Its "Sicher bezahlen" buyer
+        // protection is charged to the buyer, so by the rule at the top of this
+        // table it is excluded — the same call already made for Vinted.
+        //
+        // NOT modelled: the optional paid listing upgrades, and the subscription
+        // plans for commercial sellers. Neither is a commission and neither
+        // applies to the private reseller this app is for.
+        .kleinanzeigen: MarketplaceFee(sellingFeePercent: 0, fixedFee: 0),
     ]
 
     /// UserDefaults key holding an optional override table (JSON). A future

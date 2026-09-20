@@ -1,8 +1,8 @@
 # App Store Listing
 
 English (`en-US`), the primary storefront. The app also ships in Romanian,
-Spanish and German, each with its own listing beside this one —
-`app_store_listing.ro.md`, `.es.md`, `.de.md`. Those three are metadata for an
+Spanish, German and Simplified Chinese, each with its own listing beside this
+one — `app_store_listing.ro.md`, `.es.md`, `.de.md`, `.zh-Hans.md`. Those three are metadata for an
 app that is translated; the listing and the interface ship together, because a
 localized store page that opens an English app is worse than neither.
 
@@ -79,7 +79,7 @@ WHAT YOU GET
 BUILT FOR
 
 • Thrift store shoppers who want to flip for profit
-• Resellers on eBay, Poshmark, Mercari, Depop, Facebook Marketplace, Vinted, and OLX
+• Resellers on eBay, Poshmark, Mercari, Depop, Facebook Marketplace, Vinted, OLX, Kleinanzeigen and Xianyu
 • Estate sale and yard sale hunters
 • Anyone who's ever thought "is this worth buying?"
 
@@ -91,7 +91,7 @@ SnapWorth is free to try — no account needed. You get one free scan every day,
 
 Pro adds:
 • Unlimited scans
-• Listing drafts rewritten for the marketplace you pick — eBay, Poshmark, Mercari, Depop, Facebook Marketplace, Vinted or OLX
+• Listing drafts rewritten for the marketplace you pick — eBay, Poshmark, Mercari, Depop, Facebook Marketplace, Vinted, OLX, Kleinanzeigen or Xianyu
 • Why this price — the full breakdown behind an estimate, including the price ladder and what drove the value
 • Read the care tag — photograph the label for a sharper estimate
 • Portfolio value, trend and thrift trends

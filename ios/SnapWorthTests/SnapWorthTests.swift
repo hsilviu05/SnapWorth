@@ -1219,7 +1219,64 @@ final class USMarketplaceWiringTests: XCTestCase {
 
     func test_usPlatformsLeadTheChipOrder() {
         XCTAssertEqual(Array(Marketplace.allCases.prefix(4)), [.ebay, .poshmark, .mercari, .depop])
-        XCTAssertEqual(Marketplace.allCases.count, 7, "existing marketplaces are kept, not replaced")
+        // Named rather than counted. The count alone said "kept, not replaced"
+        // and could not tell a removal from an addition — it failed on Xianyu,
+        // which was neither. This says what it meant.
+        XCTAssertTrue(Set(Marketplace.allCases).isSuperset(
+            of: [.ebay, .poshmark, .mercari, .depop, .facebook, .vinted, .olx]),
+            "existing marketplaces are kept, not replaced")
+        XCTAssertEqual(Marketplace.allCases.count, 9,
+                       "a new marketplace needs a fee entry, a sell URL and backend guidance")
+    }
+
+    /// Xianyu is the one marketplace whose listing is not in English, and the
+    /// one whose absence made a Chinese app pointless.
+    func test_xianyuIsWiredLikeTheRest() {
+        XCTAssertEqual(Marketplace.xianyu.apiValue, "xianyu")
+        XCTAssertEqual(Marketplace.xianyu.displayName, "闲鱼")
+        XCTAssertEqual(Marketplace.xianyu.webSellURL.scheme, "https")
+        XCTAssertNil(Marketplace.xianyu.appURLScheme,
+                     "no public scheme could be cited, so none is claimed")
+        XCTAssertNotNil(MarketplaceFees.fee(for: .xianyu))
+        XCTAssertEqual(Marketplace.xianyu.iconName, "fish.fill")
+    }
+
+    /// Kleinanzeigen is the second single-country marketplace, and the second
+    /// whose listing is written in its own language rather than English.
+    func test_kleinanzeigenIsWiredLikeTheRest() {
+        XCTAssertEqual(Marketplace.kleinanzeigen.apiValue, "kleinanzeigen")
+        XCTAssertEqual(Marketplace.kleinanzeigen.displayName, "Kleinanzeigen")
+        XCTAssertEqual(Marketplace.kleinanzeigen.webSellURL.scheme, "https")
+        XCTAssertNil(Marketplace.kleinanzeigen.appURLScheme,
+                     "no public scheme could be cited, so none is claimed")
+        XCTAssertEqual(MarketplaceFees.fee(for: .kleinanzeigen)?.sellingFeePercent, 0,
+                       "a private ad on Kleinanzeigen pays no commission")
+        // Last in the picker: the chip order is US-first by user share.
+        XCTAssertEqual(Marketplace.allCases.last, .kleinanzeigen)
+    }
+
+    /// A Kleinanzeigen ad is read by German buyers, so the grade is German
+    /// whatever language the seller's phone is in.
+    func test_kleinanzeigenConditionPhrasesAreGerman() {
+        for condition in Condition.allCases {
+            let phrase = condition.kleinanzeigenPhrase
+            XCTAssertFalse(phrase.isEmpty)
+            XCTAssertNotEqual(phrase, condition.listingPhrase)
+            XCTAssertNotEqual(phrase, condition.xianyuPhrase)
+        }
+        XCTAssertEqual(Condition.new.kleinanzeigenPhrase, "neu und unbenutzt")
+    }
+
+    /// The grade in a Xianyu listing is Chinese whatever the phone's language,
+    /// because the listing is read by Chinese buyers and not by its author.
+    func test_xianyuConditionPhrasesAreChinese() {
+        for condition in Condition.allCases {
+            let phrase = condition.xianyuPhrase
+            XCTAssertFalse(phrase.isEmpty)
+            XCTAssertTrue(phrase.unicodeScalars.contains { $0.value >= 0x4E00 && $0.value <= 0x9FFF },
+                          "\(condition) should read as Chinese, got \(phrase)")
+            XCTAssertNotEqual(phrase, condition.listingPhrase)
+        }
     }
 
     func test_noFabricatedURLSchemes() {

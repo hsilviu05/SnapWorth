@@ -426,6 +426,34 @@ enum Condition: String, CaseIterable, Identifiable {
         }
     }
 
+    /// The grade in German, for a Kleinanzeigen listing. Same reasoning as
+    /// `xianyuPhrase` below: a single-country marketplace's ad is read by that
+    /// country's buyers, whatever language the seller's phone is in.
+    var kleinanzeigenPhrase: String {
+        switch self {
+        case .new:     return "neu und unbenutzt"
+        case .likeNew: return "neuwertig, kaum benutzt"
+        case .good:    return "gebraucht, guter Zustand"
+        case .used:    return "gebraucht, mit sichtbaren Gebrauchsspuren"
+        }
+    }
+
+    /// The grade in Chinese, for a Xianyu listing.
+    ///
+    /// Its own member rather than a translation of `listingPhrase`: that one is
+    /// an input to listing text the backend writes in English, and this one is
+    /// listing text itself. Not `String(localized:)` either — a Xianyu listing
+    /// is written in Chinese whatever language the seller's phone is in, and
+    /// looking it up would make it follow the interface instead.
+    var xianyuPhrase: String {
+        switch self {
+        case .new:     return "全新未使用"
+        case .likeNew: return "几乎全新，仅试用过"
+        case .good:    return "二手，成色良好"
+        case .used:    return "二手，有使用痕迹"
+        }
+    }
+
     /// Phrase fed to the listing generator so wording matches the chosen grade.
     var listingPhrase: String {
         switch self {

@@ -5,7 +5,9 @@ import Foundation
 /// Marketplaces Snap → Sell can tailor a listing for.
 /// Declaration order is chip order in the pickers: US platforms lead, because
 /// that is where most users are (#54). OLX and Vinted stay for the European
-/// third of the user base.
+/// third of the user base. Xianyu is last and is the reason the Chinese
+/// localization could ship at all — China was 12% of installs with nowhere in
+/// this list to sell.
 enum Marketplace: String, CaseIterable, Identifiable {
     case ebay
     case poshmark
@@ -14,6 +16,8 @@ enum Marketplace: String, CaseIterable, Identifiable {
     case facebook
     case vinted
     case olx
+    case xianyu
+    case kleinanzeigen
 
     var id: String { rawValue }
 
@@ -29,6 +33,8 @@ enum Marketplace: String, CaseIterable, Identifiable {
         case .vinted:   return "Vinted"
         case .facebook: return "Facebook"
         case .olx:      return "OLX"
+        case .xianyu:   return "闲鱼"
+        case .kleinanzeigen: return "Kleinanzeigen"
         }
     }
 
@@ -42,6 +48,8 @@ enum Marketplace: String, CaseIterable, Identifiable {
         case .vinted:   return "tshirt.fill"
         case .facebook: return "person.2.fill"
         case .olx:      return "cart.fill"
+        case .xianyu:   return "fish.fill"
+        case .kleinanzeigen: return "newspaper.fill"
         }
     }
 
@@ -55,7 +63,10 @@ enum Marketplace: String, CaseIterable, Identifiable {
         case .facebook:     return URL(string: "fb://")
         // Poshmark, Mercari and Depop publish no URL scheme; universal links
         // via `webSellURL` open their apps when installed.
-        case .poshmark, .mercari, .depop, .vinted, .olx: return nil
+        // Xianyu publishes no scheme this file can cite, and it does not
+        // guess at one.
+        case .poshmark, .mercari, .depop, .vinted, .olx, .xianyu, .kleinanzeigen:
+            return nil
         }
     }
 
@@ -74,6 +85,12 @@ enum Marketplace: String, CaseIterable, Identifiable {
         case .vinted:   return URL(string: "https://www.vinted.com/items/new")!
         case .facebook: return URL(string: "https://www.facebook.com/marketplace/create/item")!
         case .olx:      return URL(string: "https://www.olx.com/")!
+        // Xianyu's web front is Goofish. Like OLX above this is the site's
+        // own entry point rather than a compose URL — no marketplace here
+        // exposes one.
+        case .xianyu:   return URL(string: "https://www.goofish.com/")!
+        case .kleinanzeigen:
+            return URL(string: "https://www.kleinanzeigen.de/")!
         }
     }
 }
@@ -283,6 +300,20 @@ actor ListingAPIClient {
             title = String(input.itemName.prefix(80))
             description = "\(input.itemName.lowercased()) — \(phrase). dm for measurements, "
                 + "open to offers. #vintage #thrift #secondhand"
+        case .xianyu:
+            // Written in Chinese, because a Xianyu listing in English is one
+            // nobody on Xianyu can read. `phrase` is deliberately unused here:
+            // it is English by construction — see `Condition.listingPhrase`.
+            title = String(input.itemName.prefix(80))
+            description = "\(input.itemName)，\(input.condition.xianyuPhrase)。"
+                + "详情看图，可小刀，有问题随时问。"
+        case .kleinanzeigen:
+            // German, for the same reason Xianyu is Chinese: Kleinanzeigen is
+            // one country's marketplace and the ad is read by its buyers.
+            title = String(input.itemName.prefix(80))
+            description = "\(input.itemName), \(input.condition.kleinanzeigenPhrase). "
+                + "Abholung bevorzugt, Versand nach Absprache. "
+                + "Privatverkauf, keine Rücknahme oder Garantie."
         }
 
         return GeneratedListing(

@@ -1,7 +1,7 @@
 # Localization
 
 The app ships in English (`en`, the development language), Romanian (`ro`),
-Spanish (`es`) and German (`de`).
+Spanish (`es`), German (`de`) and Simplified Chinese (`zh-Hans`).
 
 ## Where the strings live
 
@@ -15,7 +15,8 @@ from:
   "en": "Reveal the estimate",
   "ro": "Arată estimarea",
   "es": "Ver la estimación",
-  "de": "Schätzung zeigen"
+  "de": "Schätzung zeigen",
+  "zh-Hans": "看估价"
 }
 ```
 
@@ -110,12 +111,16 @@ A key whose value depends on a count is written with all three:
   "en": { "one": "%lld day", "other": "%lld days" },
   "ro": { "one": "o zi", "few": "%lld zile", "other": "%lld de zile" },
   "es": { "one": "%lld día", "other": "%lld días" },
-  "de": { "one": "%lld Tag", "other": "%lld Tage" }
+  "de": { "one": "%lld Tag", "other": "%lld Tage" },
+  "zh-Hans": "%lld 天"
 }
 ```
 
 English, Spanish and German inflect once, at 1, so they need `one` and `other`.
-Romanian needs `few` as well. The builder requires exactly those, and refuses a translation whose format specifiers disagree with the
+Romanian needs `few` as well. Chinese does not inflect at all, so its value is
+a plain string — one form covers every number, and writing it as a one-entry
+plural would be a dictionary pretending to a distinction the language does not
+make. The builder requires exactly those, and refuses a translation whose format specifiers disagree with the
 source string — a `%@` where the code passes an `Int` is a crash at the moment
 the string is shown, not a mistranslation. A plural form may leave the number
 out entirely ("o zi", not "1 zi"); the rule still consumes the argument.
@@ -191,6 +196,24 @@ language. Diacritics and sharp s are always written out.
 * Compounds are written closed or hyphenated as German requires —
   *Wiederverkaufswert*, *Second-Hand-Tour*, *Gratis-Scan* — never spaced.
 
+### Simplified Chinese
+
+* Mainland conventions: `zh-Hans`, full-width punctuation （。，、：！？）, and
+  Apple's own curly quotes “ ” rather than 「 」.
+* A space sits between Chinese and any Latin text or digit — *扫描 %lld 次*,
+  *升级 Pro* — which is Apple's own house style and is what makes a mixed line
+  readable.
+* iOS vocabulary: *设置* (Settings), *锁定屏幕* (Lock Screen), *实时活动*
+  (Live Activities), *灵动岛* (Dynamic Island), *通知*, *屏幕使用时间*
+  (Screen Time), *照片*, *邮件*.
+* The app's own nouns: a scan is *扫描*, a find is *好物*, the library is
+  *我的好物*, the ledger is *我的转卖*, a flip is *转卖*, a haul is *收获*, and
+  thrifting is *淘货* / *二手*.
+* Two arguments swap order more often here than in any other language — Chinese
+  puts the period before the price in "前 3 个月 9.99 美元" — so several entries
+  use positional specifiers (`%1$@`, `%2$@`). The builder checks that each one
+  refers to an argument that exists and reads it as the right type.
+
 ## Adding another language
 
 Add the code to `knownRegions` in `project.pbxproj` and to `LANGUAGES` and
@@ -200,6 +223,28 @@ three source files and regenerate. Nothing in the Swift changes; the Romanian,
 Spanish and German passes each needed none.
 
 Note that the marketplaces the app knows are eBay, Poshmark, Mercari, Depop,
-Vinted, OLX and Facebook. A language whose sellers use none of them gets a
-translated app that still points them at the wrong places, which is a product
-change and not a translation.
+Vinted, OLX, Facebook, Xianyu and Kleinanzeigen. A language whose sellers use
+none of them gets a translated app that still points them at the wrong places,
+which is a product change and not a translation — Chinese needed Xianyu added
+before it could ship, and that was the larger half of the work.
+
+## Listings follow the marketplace, not the interface
+
+A generated listing is read by buyers on the platform, not by its author, so
+its language follows the marketplace. Xianyu's is written in Chinese and
+Kleinanzeigen's in German, whatever language the seller's phone is in.
+`Condition.xianyuPhrase` and `Condition.kleinanzeigenPhrase` are separate
+members from `Condition.listingPhrase` for exactly that reason — that one is an
+input to English listing text — and each marketplace's entry in the backend's
+`MARKETPLACE_GUIDANCE` says so to the model in as many words.
+
+**The rule is single-country, not non-English.** Xianyu is China and
+Kleinanzeigen is Germany, so each has a language. Vinted and OLX both operate
+across a dozen countries and have no one language, so they stay English;
+picking one from the seller's phone would put a German ad on a French listing.
+eBay is the same case in reverse — international, and English is the sane
+default.
+
+The price in those listings is still in dollars. Converting would need an FX
+rate the backend does not have, and a made-up yuan or euro figure is worse than
+an honest dollar one.

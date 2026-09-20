@@ -43,8 +43,8 @@ extension update — remove and re-add the widget before trusting what it draws.
 
 ## Strings are in a catalog, and the catalog is generated
 
-The app is English, Romanian, Spanish and German. A user-facing string has to
-have an entry in
+The app is English, Romanian, Spanish, German and Simplified Chinese. A
+user-facing string has to have an entry in
 `ios/Localization/App.json` or `Widgets.json`, keyed by its exact English text;
 `tools/build_xcstrings.py` turns those into the `.xcstrings` Xcode builds.
 **Never hand-edit an entry those files own** — regenerating overwrites it, and

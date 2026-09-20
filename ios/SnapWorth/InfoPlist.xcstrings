@@ -28,6 +28,12 @@
             "state" : "translated",
             "value" : "SnapWorth folosește camera ca să fotografiezi lucrurile găsite, să le recunoască și să estimeze cât valorează la revânzare."
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SnapWorth 需要使用相机，让你拍下物品，我们来识别它并估算转卖价。"
+          }
         }
       }
     },
@@ -58,6 +64,12 @@
             "state" : "translated",
             "value" : "Permite-i lui SnapWorth să salveze în Poze cardul cu evaluarea."
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "允许 SnapWorth 把估价卡片存到“照片”。"
+          }
         }
       }
     },
@@ -87,6 +99,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "SnapWorth îți lasă să alegi poze din galerie, ca să afli cât valorează la revânzare ce e în ele."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SnapWorth 需要访问相册，让你挑选照片来查看照片里物品的转卖价。"
           }
         }
       }

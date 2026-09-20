@@ -3,10 +3,10 @@
 German metadata for the App Store, shipping alongside the German app.
 
 One `de` listing covers Germany, Austria and German-speaking Switzerland.
-Germany is the largest secondhand-fashion market in Europe and the one where
-the app's marketplace support is most nearly complete: Vinted grew out of
-Kleiderkreisel there and eBay.de is still enormous, and both have real fee
-tables in `MarketplaceFees`.
+Germany is the largest secondhand-fashion market in Europe and now the one
+where the app's marketplace support is complete: Kleinanzeigen, Vinted and
+eBay.de all have real fee tables in `MarketplaceFees`, and the Kleinanzeigen ad
+is generated in German.
 
 Mirrors `app_store_listing.md`, including its accuracy rules: no claim of sold
 listings, comps or market data; the one-scan-a-day limit in every plan mention;
@@ -105,7 +105,7 @@ WAS DU BEKOMMST
 FÜR WEN
 
 • Für alle, die Second Hand durchstöbern und mit Gewinn weiterverkaufen wollen
-• Für alle, die auf Vinted, eBay, Poshmark, Mercari, Depop und Facebook Marketplace verkaufen
+• Für alle, die auf Kleinanzeigen, Vinted, eBay, Poshmark, Mercari, Depop oder Facebook Marketplace verkaufen
 • Für Flohmarkt-, Trödel- und Haushaltsauflösungs-Gänger
 • Für alle, die sich schon mal gefragt haben: „Lohnt sich das?"
 
@@ -117,7 +117,7 @@ SnapWorth ist gratis und braucht kein Konto. Du bekommst jeden Tag einen Gratis-
 
 Pro bringt dazu:
 • Unbegrenzte Scans
-• Inserate, neu geschrieben für die Plattform, die du wählst – Vinted, eBay, Poshmark, Mercari, Depop oder Facebook Marketplace
+• Inserate, neu geschrieben für die Plattform, die du wählst – Kleinanzeigen, Vinted, eBay, Poshmark, Mercari, Depop oder Facebook Marketplace. Die Kleinanzeigen-Anzeige wird auf Deutsch geschrieben.
 • „Why this price" – die ganze Erklärung hinter der Schätzung, mit den Preispunkten und dem, was gewogen hat
 • Etikett lesen – fotografier das Pflegeetikett für eine genauere Schätzung
 • Wert deiner Sammlung, ihre Entwicklung und die Trends
@@ -148,17 +148,21 @@ snapworth.eu
 ---
 
 ## Keywords (100 chars max)
-vinted,ebay,kleidung,vintage,flohmarkt,verkaufen,gewinn,gebraucht,schätzen,marke,preis,trödel
+kleinanzeigen,vinted,ebay,kleidung,vintage,flohmarkt,verkaufen,gewinn,gebraucht,schätzen,marke
 
 Words already in the name or subtitle (wiederverkauf, wert, second, hand,
 scannen) are indexed from there and are not repeated.
 
-Vinted and eBay are here because they are the two German-market platforms the
-app actually supports, with real fee tables. **Kleinanzeigen is deliberately
-absent** — it is the biggest secondhand platform in Germany and leaving it out
-costs real search traffic, but it split from eBay in 2023, the app has no fee
-table for it, and a keyword is a claim. Adding it to `MarketplaceFees` would
-change that, and is probably worth more than any other single keyword here.
+**Kleinanzeigen leads**, and it earned the position: it is the biggest
+secondhand platform in Germany, and the app supports it properly now — its own
+fee entry (no commission on a private ad) and a backend prompt that writes the
+ad in German. On the first version of this page it was deliberately absent,
+because the app had no fee table for it and a keyword is a claim. That is what
+changed.
+
+Vinted and eBay follow for the same reason they always could: real fee tables,
+both dominant here. `trödel` came out to make room — it is a narrower word than
+anything it displaced.
 
 ---
 
