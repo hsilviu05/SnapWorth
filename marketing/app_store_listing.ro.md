@@ -170,6 +170,20 @@ Dropped for space, in the order I would add them back: `anticariat`,
 
 ---
 
+## What's New (Version 1.4.2) — Română
+
+This is the one to paste. 1.4.2 is the version Romanian ships with.
+
+```
+SnapWorth e acum în română.
+
+Toată aplicația, nu doar meniurile: camera, ecranul cu rezultatul, Găselnițe, Flipuri și toate widgeturile.
+
+Aplicația ia limba telefonului singură. Din Setări o poți alege și separat, doar pentru SnapWorth.
+
+Estimările rămân în dolari, oriunde ai fi. Atât face lucrul, iar o sumă convertită ar fi doar o presupunere.
+```
+
 ## What's New (Version 1.4.1) — Română — ARCHIVED, do not paste
 
 1.4.1 went to review English-only, so this has no storefront to appear on.
