@@ -76,6 +76,22 @@ what the two catalogs have in common — the other three ("Scan", "No finds
 yet", "Profit this month") are separate strings that happen to read the same
 in the app and in a widget.
 
+## Symbol generation is off, on purpose
+
+`STRING_CATALOG_GENERATE_SYMBOLS` is `NO` in all four build configurations.
+Xcode 26 otherwise turns every key into a Swift identifier, and eleven pairs in
+these catalogs collide when it does: `Nothing scanned yet` (a widget's empty
+state) against `nothing scanned yet` (the same fact mid-sentence, for
+VoiceOver); `Copied` against `Copied!`; `Search finds` against `Search finds…`;
+`Best flip` against `best flip`. Each pair is two strings a reader should see
+differently, and the only way to keep the symbols is to bend the English until
+an identifier generator is satisfied with it.
+
+Nothing here uses the generated symbols — the code says `Text("…")` and
+`String(localized: "…")` — so the setting is off and the copy stays as written.
+`tools/build_xcstrings.py` fails if it is turned back on, because the
+alternative is finding out four minutes into a build.
+
 ## Plurals
 
 Romanian agrees at three boundaries where English agrees at one: `1`, `2–19`,

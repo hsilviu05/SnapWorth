@@ -152,24 +152,6 @@
         }
       }
     },
-    "%@, %@" : {
-      "comment" : "A find's name, then its spoken range.",
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@, %@"
-          }
-        },
-        "ro" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@, %@"
-          }
-        }
-      }
-    },
     "%@, profit unknown until you add what you paid" : {
       "extractionState" : "manual",
       "localizations" : {

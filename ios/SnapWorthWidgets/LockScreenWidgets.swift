@@ -149,7 +149,10 @@ struct LockScreenRectangularView: View {
         }
         let body = String(localized: "SnapWorth haul, \(haul.spokenRange), \(haul.findsLabel)")
         guard streak > 1 else { return body }
-        return String(localized: "\(body), \(String(localized: "\(streak) day streak"))")
+        // A comma and a space need no string table: the two halves are
+        // already translated, and "%@, %@" is a lookup that can only ever
+        // return its own key.
+        return body + ", " + String(localized: "\(streak) day streak")
     }
 }
 

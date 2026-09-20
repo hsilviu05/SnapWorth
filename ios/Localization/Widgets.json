@@ -38,11 +38,6 @@
         "other": "%@ · serie de %lld de zile"
       }
     },
-    "%@, %@": {
-      "comment": "A find's name, then its spoken range.",
-      "en": "%@, %@",
-      "ro": "%@, %@"
-    },
     "%@, profit unknown until you add what you paid": {
       "en": "%@, profit unknown until you add what you paid",
       "ro": "%@, profitul rămâne necunoscut până adaugi cât ai dat"

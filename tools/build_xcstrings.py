@@ -162,9 +162,45 @@ def dump(catalog):
     return text + "\n"
 
 
+SYMBOL_SETTING = "STRING_CATALOG_GENERATE_SYMBOLS"
+PROJECT = os.path.join("ios", "SnapWorth.xcodeproj", "project.pbxproj")
+
+
+def symbol_generation_is_off():
+    """Xcode 26 turns every catalog key into a Swift identifier unless this is
+    off, and two of ours cannot survive that.
+
+    `Nothing scanned yet` (a widget's empty state) and `nothing scanned yet`
+    (the same fact mid-sentence, for VoiceOver) both become `nothingScannedYet`
+    and the build fails; so do nine more pairs in the app's catalog — `Copied`
+    and `Copied!`, `Search finds` and `Search finds…`, `Best flip` and
+    `best flip`. Every one of those pairs is two different strings that a
+    reader should see differently, and the only way to keep the symbols is to
+    bend the English until an identifier generator is happy with it.
+
+    Nothing in this app uses the generated symbols — the code says
+    `Text("…")` and `String(localized: "…")` — so the setting goes off and the
+    copy stays as written. This function is here so that turning it back on
+    fails in a second rather than four minutes into a build.
+    """
+    path = os.path.join(ROOT, PROJECT)
+    if not os.path.exists(path):
+        return []
+    with open(path, encoding="utf-8") as f:
+        lines = f.read().split("\n")
+    return [i + 1 for i, line in enumerate(lines)
+            if SYMBOL_SETTING in line and "YES" in line]
+
+
 def main():
     check = "--check" in sys.argv
     errors, changed = [], []
+
+    for line in symbol_generation_is_off():
+        errors.append(f"{PROJECT}:{line}: {SYMBOL_SETTING} is YES. The "
+                      f"catalogs hold pairs of strings that differ only in "
+                      f"case or punctuation, and symbol generation rejects "
+                      f"them — see symbol_generation_is_off() in this file")
 
     for name in sorted(os.listdir(SRC)):
         if not name.endswith(".json"):
