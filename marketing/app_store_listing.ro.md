@@ -15,11 +15,12 @@ the Pro numbers behind it.
 
 **Adding a language is version-scoped.** Name, subtitle, keywords, description
 and What's New belong to a *version*, so Romanian can only be added to a
-version you can still edit. 1.4.1 is in review — either pull it from review,
-add `ro`, and resubmit, or hold this for 1.4.2. **Promotional text is the
-exception**: it can be changed on a live version at any time, but only for
-locales the version already has, so it cannot be used to sneak Romanian in
-early.
+version you can still edit. That version is **1.4.2** — 1.4.1 went to review
+English-only and was left there rather than pulled and resubmitted. 1.4.2 is
+the build that carries the Romanian app, and this page ships with it.
+**Promotional text is the exception**: it can be changed on a live version at
+any time, but only for locales the version already has, so it cannot be used to
+sneak Romanian in early.
 
 **Screenshots are optional per locale.** With none uploaded for `ro`, Apple
 falls back to the English set. Leave them — English screenshots of an English
@@ -169,7 +170,25 @@ Dropped for space, in the order I would add them back: `anticariat`,
 
 ---
 
-## What's New (Version 1.4.1) — Română
+## What's New (Version 1.4.2) — Română
+
+This is the one to paste. 1.4.2 is the version Romanian ships with.
+
+```
+SnapWorth e acum în română.
+
+Toată aplicația, nu doar meniurile: camera, ecranul cu rezultatul, Găselnițe, Flipuri și toate widgeturile.
+
+Aplicația ia limba telefonului singură. Din Setări o poți alege și separat, doar pentru SnapWorth.
+
+Estimările rămân în dolari, oriunde ai fi. Atât face lucrul, iar o sumă convertită ar fi doar o presupunere.
+```
+
+## What's New (Version 1.4.1) — Română — ARCHIVED, do not paste
+
+1.4.1 went to review English-only, so this has no storefront to appear on.
+Kept as the translation of the English entry, and in case a widget fix
+line is wanted again.
 
 ```
 Corecții pentru widgeturi.

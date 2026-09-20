@@ -171,9 +171,11 @@ anything it displaced.
 ```
 SnapWorth gibt es jetzt auf Deutsch.
 
-Die ganze App: Kamera, Ergebnisse, Gewinnbuch und Widgets.
+Die ganze App: Kamera, Ergebnisse, Gewinnbuch und alle Widgets.
 
-Und Widgets: die Summe deiner Sammlung auf dem Sperrbildschirm, deine letzten Funde und die übrigen Scans auf dem Home-Bildschirm, und mit Pro der Gewinn des Monats.
+Und Kleinanzeigen ist dabei: Die Anzeige wird auf Deutsch geschrieben, so wie man sie dort schreibt, und die Gebühren stehen in der Gewinnrechnung – privat verkaufen kostet dort keine Provision.
+
+Widgets: die Summe deiner Sammlung auf dem Sperrbildschirm, deine letzten Funde und die übrigen Scans auf dem Home-Bildschirm, und mit Pro der Gewinn des Monats.
 
 Starte eine Tour, wenn du in einen Laden gehst, und die Summe dieser Tour bleibt beim Scannen auf dem Sperrbildschirm und in der Dynamic Island.
 ```
