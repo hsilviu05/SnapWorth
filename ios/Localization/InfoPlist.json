@@ -1,6 +1,22 @@
 {
   "output": "ios/SnapWorth/InfoPlist.xcstrings",
   "strings": {
+    "CFBundleDisplayName": {
+      "comment": "The name under the icon on the Home Screen. A brand name, so it is the same in every language — the entry exists to say that deliberately, and to stop Xcode re-extracting it as an untranslated string on every build.",
+      "en": "SnapWorth",
+      "ro": "SnapWorth",
+      "es": "SnapWorth",
+      "de": "SnapWorth",
+      "zh-Hans": "SnapWorth"
+    },
+    "CFBundleName": {
+      "comment": "The bundle's short name, from $(PRODUCT_NAME). Same brand name, same reasoning as CFBundleDisplayName.",
+      "en": "SnapWorth",
+      "ro": "SnapWorth",
+      "es": "SnapWorth",
+      "de": "SnapWorth",
+      "zh-Hans": "SnapWorth"
+    },
     "NSCameraUsageDescription": {
       "comment": "Shown by iOS the first time the scanner opens the camera.",
       "en": "SnapWorth uses your camera to photograph items so we can identify them and estimate their resale value.",
