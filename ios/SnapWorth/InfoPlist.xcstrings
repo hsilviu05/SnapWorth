@@ -1,6 +1,78 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "CFBundleDisplayName" : {
+      "comment" : "The name under the icon on the Home Screen. A brand name, so it is the same in every language — the entry exists to say that deliberately, and to stop Xcode re-extracting it as an untranslated string on every build.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SnapWorth"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SnapWorth"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SnapWorth"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SnapWorth"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SnapWorth"
+          }
+        }
+      }
+    },
+    "CFBundleName" : {
+      "comment" : "The bundle's short name, from $(PRODUCT_NAME). Same brand name, same reasoning as CFBundleDisplayName.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SnapWorth"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SnapWorth"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SnapWorth"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SnapWorth"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SnapWorth"
+          }
+        }
+      }
+    },
     "NSCameraUsageDescription" : {
       "comment" : "Shown by iOS the first time the scanner opens the camera.",
       "extractionState" : "manual",

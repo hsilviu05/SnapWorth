@@ -150,6 +150,14 @@ the worked examples.
   persisted, sent to the backend, and used in SwiftData predicates and mail
   subjects; each of those enums has a separate translated `label`.
 
+  `CFBundleDisplayName` and `CFBundleName` in `InfoPlist.json` are the one
+  place a brand name is nonetheless listed in all five languages, with the same
+  value in each. Leaving them out is what `SWIFT_EMIT_LOC_STRINGS = YES` turns
+  into churn: Xcode re-extracts them on every build as untranslated entries the
+  generator does not own, and the catalogs go dirty in the working tree for no
+  reason. Written down, they carry `extractionState: manual` and Xcode leaves
+  them alone. Five identical values are the point, not an oversight.
+
 `tools/check_localization.py` holds the same list, with the reasons, so a
 string that is English on purpose is distinguishable from one that was
 forgotten.
