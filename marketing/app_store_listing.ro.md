@@ -25,12 +25,12 @@ early.
 falls back to the English set. Leave them — English screenshots of an English
 app are honest, and the v2 set is still 3 of 8 built.
 
-**Feature names stay in English on purpose.** The app's UI is English, so
-"Thrift Flip", "My Flips", "Scans left" and "Pro" are written as they appear
-on screen; translating them in the description would send people looking for
-buttons that do not exist. The description says outright that the app is in
-English — one line that costs a little conversion and saves the one-star
-"nu e în română" reviews.
+**Feature names match the Romanian app.** The interface is Romanian as of the
+version this listing ships with, so the description uses the names the buttons
+actually carry: *Găselnițe*, *Flipuri*, *Scanări rămase*. The two that stayed
+English in the app — "Thrift Flip" and "Why this price" — stay English here for
+the same reason, which is that a reader looking for them will be looking for
+those words.
 
 **Prices.** The text does not name a figure. Romanian tiers are Apple's RON
 tiers, not a conversion of $4.99 and $39.99, and this environment cannot read
@@ -144,8 +144,6 @@ Pozele sunt procesate în timp real și nu sunt stocate pe serverele noastre. Is
 
 --------------------------
 
-Aplicația este în limba engleză.
-
 LEGAL
 
 Politica de confidențialitate: https://api.snapworth.eu/privacy
@@ -212,10 +210,15 @@ Unchanged from the English listing — these are not per-locale fields.
 
 ## What is *not* localized
 
-The app's interface. There is no `.lproj` in the project and no
-`Localizable.strings`; every string is a literal in Swift. Translating the UI
-is a real piece of engineering (extraction, plural rules for Romanian's three
-forms, a RON-aware money formatter, and re-testing every screen at Romanian
-string lengths, which run ~15–20% longer than English) and a binary
-resubmission. Worth doing only if the Romanian listing brings people in —
-which is the thing this file is for finding out.
+**Values are in dollars.** `NumberFormatter.snapCurrency` is pinned to
+`en_US`/USD because the valuation is in dollars whatever the phone's region, so
+a Romanian user sees "$45–$90". That is what the estimate is, not a formatting
+bug — but it is the first thing a reviewer will ask about.
+
+**The privacy policy and the terms** are the English documents served at
+api.snapworth.eu. The links in the listing point at them.
+
+**The listing text the app generates** is written in English by the backend.
+Snap → Sell produces an English title and description whatever the interface
+language, which matters for a seller posting to OLX — see
+`ios/Localization/README.md`.
