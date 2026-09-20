@@ -223,21 +223,28 @@ three source files and regenerate. Nothing in the Swift changes; the Romanian,
 Spanish and German passes each needed none.
 
 Note that the marketplaces the app knows are eBay, Poshmark, Mercari, Depop,
-Vinted, OLX, Facebook and Xianyu. A language whose sellers use none of them
-gets a translated app that still points them at the wrong places, which is a
-product change and not a translation — Chinese needed Xianyu added before it
-could ship, and that was the larger half of the work.
+Vinted, OLX, Facebook, Xianyu and Kleinanzeigen. A language whose sellers use
+none of them gets a translated app that still points them at the wrong places,
+which is a product change and not a translation — Chinese needed Xianyu added
+before it could ship, and that was the larger half of the work.
 
-## Listings are not translated by the interface
+## Listings follow the marketplace, not the interface
 
-Xianyu is the one marketplace whose generated listing is written in Chinese,
-and it is written in Chinese whatever language the seller's phone is in. The
-listing is read by buyers on the platform, not by its author, so it follows the
-marketplace and not the interface. `Condition.xianyuPhrase` is a separate
-member from `Condition.listingPhrase` for exactly that reason, and the
-backend's `MARKETPLACE_GUIDANCE["xianyu"]` says so to the model in as many
-words.
+A generated listing is read by buyers on the platform, not by its author, so
+its language follows the marketplace. Xianyu's is written in Chinese and
+Kleinanzeigen's in German, whatever language the seller's phone is in.
+`Condition.xianyuPhrase` and `Condition.kleinanzeigenPhrase` are separate
+members from `Condition.listingPhrase` for exactly that reason — that one is an
+input to English listing text — and each marketplace's entry in the backend's
+`MARKETPLACE_GUIDANCE` says so to the model in as many words.
 
-The price in that listing is still in dollars. Converting would need an FX rate
-the backend does not have, and a made-up yuan figure is worse than an honest
-dollar one.
+**The rule is single-country, not non-English.** Xianyu is China and
+Kleinanzeigen is Germany, so each has a language. Vinted and OLX both operate
+across a dozen countries and have no one language, so they stay English;
+picking one from the seller's phone would put a German ad on a French listing.
+eBay is the same case in reverse — international, and English is the sane
+default.
+
+The price in those listings is still in dollars. Converting would need an FX
+rate the backend does not have, and a made-up yuan or euro figure is worse than
+an honest dollar one.

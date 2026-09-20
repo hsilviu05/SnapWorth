@@ -176,6 +176,15 @@ enum MarketplaceFees {
         // for this entry — so a high-volume seller sees a figure that is a
         // little optimistic rather than one that was invented.
         .xianyu:   MarketplaceFee(sellingFeePercent: 0, fixedFee: 0),
+        // Kleinanzeigen: no commission on an ordinary private ad, which is why
+        // it is the platform most Germans sell on. Its "Sicher bezahlen" buyer
+        // protection is charged to the buyer, so by the rule at the top of this
+        // table it is excluded — the same call already made for Vinted.
+        //
+        // NOT modelled: the optional paid listing upgrades, and the subscription
+        // plans for commercial sellers. Neither is a commission and neither
+        // applies to the private reseller this app is for.
+        .kleinanzeigen: MarketplaceFee(sellingFeePercent: 0, fixedFee: 0),
     ]
 
     /// UserDefaults key holding an optional override table (JSON). A future

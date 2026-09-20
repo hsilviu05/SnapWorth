@@ -79,7 +79,7 @@ WHAT YOU GET
 BUILT FOR
 
 • Thrift store shoppers who want to flip for profit
-• Resellers on eBay, Poshmark, Mercari, Depop, Facebook Marketplace, Vinted, and OLX
+• Resellers on eBay, Poshmark, Mercari, Depop, Facebook Marketplace, Vinted, OLX, Kleinanzeigen and Xianyu
 • Estate sale and yard sale hunters
 • Anyone who's ever thought "is this worth buying?"
 
@@ -91,7 +91,7 @@ SnapWorth is free to try — no account needed. You get one free scan every day,
 
 Pro adds:
 • Unlimited scans
-• Listing drafts rewritten for the marketplace you pick — eBay, Poshmark, Mercari, Depop, Facebook Marketplace, Vinted or OLX
+• Listing drafts rewritten for the marketplace you pick — eBay, Poshmark, Mercari, Depop, Facebook Marketplace, Vinted, OLX, Kleinanzeigen or Xianyu
 • Why this price — the full breakdown behind an estimate, including the price ladder and what drove the value
 • Read the care tag — photograph the label for a sharper estimate
 • Portfolio value, trend and thrift trends

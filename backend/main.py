@@ -852,6 +852,20 @@ MARKETPLACE_GUIDANCE = {
               "and that the buyer should look at the photos. Mentioning that the price is "
               "negotiable (可小刀) is normal there. Do not translate the price or add a "
               "currency symbol.",
+    # Kleinanzeigen is Germany's dominant classifieds site and, like Xianyu
+    # above, belongs to one country — so the ad is written in that country's
+    # language. The two multi-country platforms here, Vinted and OLX, stay in
+    # English: "Vinted's language" is not a thing, and guessing at one from the
+    # seller's phone would put a German ad on a French listing.
+    "kleinanzeigen": "Kleinanzeigen is Germany's largest classifieds site, local and "
+                     "private-seller first — ads are plain and practical, not marketing. "
+                     "WRITE THE TITLE AND DESCRIPTION IN GERMAN, addressing the reader as "
+                     "du. Title: plain and searchable, brand and item first. Description: a "
+                     "few sentences — condition stated honestly, measurements or size if "
+                     "relevant, and whether it is collection only or can be posted. German "
+                     "private sellers are expected to add a disclaimer that the sale is "
+                     "private with no returns or warranty; include one. Do not translate "
+                     "the price or add a currency symbol.",
 }
 SUPPORTED_MARKETPLACES = set(MARKETPLACE_GUIDANCE)
 

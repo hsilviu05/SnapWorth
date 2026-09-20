@@ -17,6 +17,7 @@ enum Marketplace: String, CaseIterable, Identifiable {
     case vinted
     case olx
     case xianyu
+    case kleinanzeigen
 
     var id: String { rawValue }
 
@@ -33,6 +34,7 @@ enum Marketplace: String, CaseIterable, Identifiable {
         case .facebook: return "Facebook"
         case .olx:      return "OLX"
         case .xianyu:   return "闲鱼"
+        case .kleinanzeigen: return "Kleinanzeigen"
         }
     }
 
@@ -47,6 +49,7 @@ enum Marketplace: String, CaseIterable, Identifiable {
         case .facebook: return "person.2.fill"
         case .olx:      return "cart.fill"
         case .xianyu:   return "fish.fill"
+        case .kleinanzeigen: return "newspaper.fill"
         }
     }
 
@@ -62,7 +65,8 @@ enum Marketplace: String, CaseIterable, Identifiable {
         // via `webSellURL` open their apps when installed.
         // Xianyu publishes no scheme this file can cite, and it does not
         // guess at one.
-        case .poshmark, .mercari, .depop, .vinted, .olx, .xianyu: return nil
+        case .poshmark, .mercari, .depop, .vinted, .olx, .xianyu, .kleinanzeigen:
+            return nil
         }
     }
 
@@ -85,6 +89,8 @@ enum Marketplace: String, CaseIterable, Identifiable {
         // own entry point rather than a compose URL — no marketplace here
         // exposes one.
         case .xianyu:   return URL(string: "https://www.goofish.com/")!
+        case .kleinanzeigen:
+            return URL(string: "https://www.kleinanzeigen.de/")!
         }
     }
 }
@@ -301,6 +307,13 @@ actor ListingAPIClient {
             title = String(input.itemName.prefix(80))
             description = "\(input.itemName)，\(input.condition.xianyuPhrase)。"
                 + "详情看图，可小刀，有问题随时问。"
+        case .kleinanzeigen:
+            // German, for the same reason Xianyu is Chinese: Kleinanzeigen is
+            // one country's marketplace and the ad is read by its buyers.
+            title = String(input.itemName.prefix(80))
+            description = "\(input.itemName), \(input.condition.kleinanzeigenPhrase). "
+                + "Abholung bevorzugt, Versand nach Absprache. "
+                + "Privatverkauf, keine Rücknahme oder Garantie."
         }
 
         return GeneratedListing(
