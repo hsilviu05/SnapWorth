@@ -50,15 +50,15 @@ enum AppError: LocalizedError, Equatable {
     var errorDescription: String? {
         switch self {
         case .network:
-            return "No internet connection. Check your network and try again."
+            return String(localized: "No internet connection. Check your network and try again.")
         case .timeout:
-            return "The request timed out. Please try again."
+            return String(localized: "The request timed out. Please try again.")
         case .rateLimit(let retryAfter):
             return Self.rateLimitMessage(retryAfter: retryAfter)
         case .quotaExceeded(let msg), .proRequired(let msg):
             return msg
         case .serverUnavailable:
-            return "Our AI is temporarily unavailable. Please try again in a moment."
+            return String(localized: "Our AI is temporarily unavailable. Please try again in a moment.")
         case .aiFailed(let msg):
             // Backend copy, shown verbatim — the same contract as .unusablePhoto.
             return msg
@@ -79,12 +79,12 @@ enum AppError: LocalizedError, Equatable {
             // refuses unattested scans, so this failure is certain here and
             // reinstalling cannot help. Say the real reason to the one person
             // who will ever see it in a Simulator: the developer.
-            return "Scanning needs a real iPhone — device verification (App Attest) isn't available in the Simulator."
+            return String(localized: "Scanning needs a real iPhone — device verification (App Attest) isn't available in the Simulator.")
             #else
-            return "We couldn't verify this device. Try again — if it keeps happening, reinstalling the app will reset it."
+            return String(localized: "We couldn't verify this device. Try again — if it keeps happening, reinstalling the app will reset it.")
             #endif
         case .imageEncodingFailed:
-            return "Could not process the photo. Please try a different image."
+            return String(localized: "Could not process the photo. Please try a different image.")
         case .unusablePhoto(let msg):
             // Backend copy, shown verbatim: it names the fix (a clearer photo,
             // one item in frame) rather than reporting a fault.
@@ -94,15 +94,15 @@ enum AppError: LocalizedError, Equatable {
         case .purchaseFailed(let msg):
             return msg
         case .persistence:
-            return "Could not save your scan. Please try again."
+            return String(localized: "Could not save your scan. Please try again.")
         case .storageUnavailable:
             // Deliberately not "try again": retrying cannot help. The store
             // failed to open at launch and the app is running on a throwaway
             // in-memory one, so a second attempt succeeds exactly as silently
             // as the first and is lost the same way.
-            return "SnapWorth couldn't open your library on this launch, so this find can't be saved to it. Reopening the app may fix it."
+            return String(localized: "SnapWorth couldn't open your library on this launch, so this find can't be saved to it. Reopening the app may fix it.")
         case .unknown:
-            return "Something went wrong. Please try again."
+            return String(localized: "Something went wrong. Please try again.")
         }
     }
 
@@ -122,24 +122,26 @@ enum AppError: LocalizedError, Equatable {
     /// Pure and `static` so the boundaries are testable without a server: the
     /// interesting cases are 59s versus 60s, and 59 minutes versus 60.
     static func rateLimitMessage(retryAfter: TimeInterval?) -> String {
-        let lead = "You've hit the scan limit."
+        let lead = String(localized: "You've hit the scan limit.")
         guard let seconds = retryAfter else {
-            return "\(lead) Try again in an hour."
+            return String(localized: "\(lead) Try again in an hour.")
         }
         if seconds < 10 {
-            return "\(lead) Try again in a few seconds."
+            return String(localized: "\(lead) Try again in a few seconds.")
         }
         if seconds < 60 {
-            return "\(lead) Try again in \(Int(seconds)) seconds."
+            let wait = String(localized: "\(Int(seconds)) seconds")
+            return String(localized: "\(lead) Try again in \(wait).")
         }
         let minutes = Int((seconds / 60).rounded(.up))
         if minutes >= 60 {
-            return "\(lead) Try again in an hour."
+            return String(localized: "\(lead) Try again in an hour.")
         }
         if minutes == 1 {
-            return "\(lead) Try again in a minute."
+            return String(localized: "\(lead) Try again in a minute.")
         }
-        return "\(lead) Try again in \(minutes) minutes."
+        let wait = String(localized: "\(minutes) minutes")
+        return String(localized: "\(lead) Try again in \(wait).")
     }
 
     static func from(_ error: Error) -> AppError {
@@ -219,7 +221,8 @@ enum AppError: LocalizedError, Equatable {
             switch purchaseErr {
             case .cancelled:          return .purchaseCancelled
             case .failed(let msg):    return .purchaseFailed(msg)
-            case .notConfigured:      return .purchaseFailed("In-app purchases are not available right now.")
+            case .notConfigured:
+                return .purchaseFailed(String(localized: "In-app purchases are not available right now."))
             }
         }
 

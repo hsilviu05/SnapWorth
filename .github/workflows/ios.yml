@@ -13,6 +13,8 @@ on:
       - 'ios/**'
       - '.github/workflows/ios.yml'
       - 'tools/swift_sanity.py'
+      - 'tools/check_localization.py'
+      - 'tools/build_xcstrings.py'
       - 'contract/**'
       - 'backend/main.py'
       - 'backend/valuation.py'
@@ -23,6 +25,8 @@ on:
       - 'ios/**'
       - '.github/workflows/ios.yml'
       - 'tools/swift_sanity.py'
+      - 'tools/check_localization.py'
+      - 'tools/build_xcstrings.py'
       - 'contract/**'
       - 'backend/main.py'
       - 'backend/valuation.py'
@@ -55,6 +59,18 @@ jobs:
 
       - name: Swift sanity (no toolchain needed)
         run: python3 tools/swift_sanity.py ios
+
+      # The catalogs are generated, because Xcode writes `.xcstrings` from a
+      # build and there is no toolchain here to run one. Both of these fail in
+      # under a second and catch what a build does not: a string the user sees
+      # that is missing from the Romanian table shows in English and says
+      # nothing about it, and a hand-edit of a generated catalog is silently
+      # thrown away the next time the source files are built.
+      - name: String catalogs match ios/Localization
+        run: python3 tools/build_xcstrings.py --check
+
+      - name: Every user-facing string is in a catalog
+        run: python3 tools/check_localization.py
 
       - name: Widget model is in sync
         run: |

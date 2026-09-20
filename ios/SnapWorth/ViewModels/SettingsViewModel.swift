@@ -32,16 +32,16 @@ final class SettingsViewModel {
         defer { isRestoring = false }
         do {
             try await service.restorePurchases()
-            report("Restore purchases", service.isSubscribed
-                ? "Your subscription has been restored."
-                : "No active subscription found.")
+            report(String(localized: "Restore purchases"), service.isSubscribed
+                ? String(localized: "Your subscription has been restored.")
+                : String(localized: "No active subscription found."))
         } catch {
             // Dismissing the sign-in sheet is not a failure to report. Its
             // `errorDescription` is nil, so alerting anyway would have shown an
             // empty alert once cancellation stopped being an error.
             let appError = AppError.from(error)
             guard appError != .purchaseCancelled else { return }
-            report("Restore purchases", appError.errorDescription ?? "")
+            report(String(localized: "Restore purchases"), appError.errorDescription ?? "")
         }
     }
 
@@ -53,8 +53,8 @@ final class SettingsViewModel {
     /// correctly 150 lines further down, so the standard was already set here.
     static func clearHistoryMessage(count: Int) -> String {
         count == 1
-            ? "This will permanently delete your saved scan."
-            : "This will permanently delete all \(count) saved scans."
+            ? String(localized: "This will permanently delete your saved scan.")
+            : String(localized: "This will permanently delete all \(count) saved scans.")
     }
 
     func openURL(_ urlString: String) {

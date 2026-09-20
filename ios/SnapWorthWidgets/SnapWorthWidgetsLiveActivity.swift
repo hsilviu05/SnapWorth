@@ -51,10 +51,10 @@ struct ThriftRunLiveActivity: Widget {
                     // ticking next to a money figure reads like a countdown to
                     // something, and nothing here expires.
                     Text(context.isStale
-                         ? "Last known — open SnapWorth to refresh"
+                         ? String(localized: "Last known — open SnapWorth to refresh")
                          : context.state.lastItemName.isEmpty
-                           ? "Scan something to start the run"
-                           : "Last: \(context.state.lastItemName)")
+                           ? String(localized: "Scan something to start the run")
+                           : String(localized: "Last: \(context.state.lastItemName)"))
                         .wFont(12)
                         .foregroundStyle(Color.wWarmGray)
                         .lineLimit(1)
@@ -72,12 +72,12 @@ struct ThriftRunLiveActivity: Widget {
                     .foregroundStyle(context.isStale ? Color.wWarmGray : Color.wSage)
                     // The icon beside it is hidden, so this one label carries
                     // the compact presentation on its own.
-                    .accessibilityLabel("Thrift run, \(context.state.findsLabel)")
+                    .accessibilityLabel(String(localized: "Thrift run, \(context.state.findsLabel)"))
             } minimal: {
                 Image(systemName: "camera.viewfinder")
                     .foregroundStyle(Color.wTerracotta)
-                    .accessibilityLabel("Thrift run in progress, "
-                                        + context.state.findsLabel)
+                    .accessibilityLabel(String(localized:
+                        "Thrift run in progress, \(context.state.findsLabel)"))
             }
             .widgetURL(URL(string: "snapworth://scan"))
             .keylineTint(Color.wTerracotta)
@@ -110,7 +110,9 @@ struct ThriftRunLockScreenView: View {
                         .foregroundStyle(Color.wBackground.opacity(0.7))
                 }
 
-                Text(state.itemCount > 0 ? state.formattedRange : "Nothing yet")
+                Text(state.itemCount > 0
+                     ? state.formattedRange
+                     : String(localized: "Nothing yet"))
                     .wFont(20, weight: .bold, design: .rounded)
                     .foregroundStyle(state.itemCount > 0 && !isStale
                                      ? Color.wSage : Color.wWarmGray)
@@ -158,15 +160,17 @@ struct ThriftRunLockScreenView: View {
     }
 
     private var subtitle: String {
-        if isStale { return "Last known — open SnapWorth to refresh" }
-        return state.itemCount > 0 ? "\(state.findsLabel) this trip"
-                                   : "Scan something to start"
+        if isStale { return String(localized: "Last known — open SnapWorth to refresh") }
+        return state.itemCount > 0
+            ? String(localized: "\(state.findsLabel) this trip")
+            : String(localized: "Scan something to start")
     }
 
     private var spokenLabel: String {
         guard state.itemCount > 0 else {
-            return isStale ? "Thrift run, last known, nothing scanned yet"
-                           : "Thrift run started, nothing scanned yet"
+            return isStale
+                ? String(localized: "Thrift run, last known, nothing scanned yet")
+                : String(localized: "Thrift run started, nothing scanned yet")
         }
         // `formattedRange` is display text; spoken, the en dash is either read
         // as "dash" or dropped, running the two figures together.
@@ -181,9 +185,9 @@ struct ThriftRunLockScreenView: View {
         // later. When the run began cannot go stale, and the stale branch
         // already shows exactly that.
         let started = startedAt.formatted(date: .omitted, time: .shortened)
-        let body = "Thrift run, \(state.findsLabel), "
-                 + "worth \(WidgetHaulData.spoken(state.formattedRange)), "
-                 + "started \(started)"
-        return isStale ? body + ". Last known — open SnapWorth to refresh." : body
+        let body = String(localized:
+            "Thrift run, \(state.findsLabel), worth \(WidgetHaulData.spoken(state.formattedRange)), started \(started)")
+        guard isStale else { return body }
+        return String(localized: "\(body). Last known — open SnapWorth to refresh.")
     }
 }

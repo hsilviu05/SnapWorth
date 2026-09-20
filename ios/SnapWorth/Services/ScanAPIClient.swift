@@ -232,13 +232,26 @@ struct ValuationDetail: Codable, Equatable {
     }
 
     /// The price points that exist, floor to ceiling, ready to render.
-    var ladder: [(label: String, value: Double)] {
-        var rows: [(String, Double)] = []
-        if let v = worstCase, v > 0 { rows.append(("Floor", v)) }
-        if let v = quickSale, v > 0 { rows.append(("Quick sale", v)) }
-        if let v = expected, v > 0 { rows.append(("Expected", v)) }
-        if let v = bestCase, v > 0 { rows.append(("Best case", v)) }
-        return rows.map { (label: $0.0, value: $0.1) }
+    ///
+    /// `isExpected` rather than a comparison against the label: the view used
+    /// to pick out the expected row with `row.label == "Expected"`, which is a
+    /// test against display copy and stops being true the moment the copy is
+    /// translated.
+    var ladder: [(label: String, value: Double, isExpected: Bool)] {
+        var rows: [(String, Double, Bool)] = []
+        if let v = worstCase, v > 0 {
+            rows.append((String(localized: "Floor", comment: "Price ladder row"), v, false))
+        }
+        if let v = quickSale, v > 0 {
+            rows.append((String(localized: "Quick sale", comment: "Price ladder row"), v, false))
+        }
+        if let v = expected, v > 0 {
+            rows.append((String(localized: "Expected", comment: "Price ladder row"), v, true))
+        }
+        if let v = bestCase, v > 0 {
+            rows.append((String(localized: "Best case", comment: "Price ladder row"), v, false))
+        }
+        return rows.map { (label: $0.0, value: $0.1, isExpected: $0.2) }
     }
 
     /// Identification facts worth a line: grade, size, era, material.

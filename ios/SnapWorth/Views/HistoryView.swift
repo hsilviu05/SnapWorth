@@ -165,7 +165,7 @@ struct HistoryView: View {
                                                 .snapHitTarget()
                                                 .offset(x: 8, y: -8)
                                                 .transition(.scale.combined(with: .opacity))
-                                                .accessibilityLabel("Delete \(result.itemName)")
+                                                .accessibilityLabel(String(localized: "Delete \(result.itemName)"))
                                             }
                                         }
                                         // The card already carries a combined
@@ -195,7 +195,7 @@ struct HistoryView: View {
             .toolbar {
                 if !results.isEmpty {
                     ToolbarItem(placement: .navigationBarLeading) {
-                        Button(isEditing ? "Done" : "Edit") {
+                        Button(isEditing ? String(localized: "Done") : String(localized: "Edit")) {
                             withAnimation(.spring(duration: 0.25)) {
                                 isEditing.toggle()
                             }
@@ -203,10 +203,12 @@ struct HistoryView: View {
                         .font(.dmSans(16, weight: isEditing ? .semibold : .regular,
                                       relativeTo: .body))
                         .foregroundStyle(Color.snapTerracottaText)
-                        .accessibilityLabel(isEditing ? "Done editing" : "Edit finds")
+                        .accessibilityLabel(isEditing
+                            ? String(localized: "Done editing")
+                            : String(localized: "Edit finds"))
                         .accessibilityHint(isEditing
-                            ? "Stops removing finds"
-                            : "Lets you remove finds from your closet")
+                            ? String(localized: "Stops removing finds")
+                            : String(localized: "Lets you remove finds from your closet"))
                     }
                     ToolbarItem(placement: .navigationBarTrailing) {
                         Menu {
@@ -215,7 +217,7 @@ struct HistoryView: View {
                                     vm.sortOrder = order
                                 } label: {
                                     HStack {
-                                        Text(order.rawValue)
+                                        Text(order.label)
                                         if vm.sortOrder == order {
                                             Image(systemName: "checkmark")
                                         }
@@ -236,7 +238,7 @@ struct HistoryView: View {
                         .opacity(isEditing ? 0.4 : 1)
                         .snapHitTarget()
                         .accessibilityLabel("Sort")
-                        .accessibilityValue(vm.sortOrder.rawValue)
+                        .accessibilityValue(vm.sortOrder.label)
                         .accessibilityHint("Changes the order of your finds")
                     }
                 }
@@ -288,7 +290,7 @@ struct HistoryView: View {
             }
             Button("Cancel", role: .cancel) { pendingDelete = nil }
         } message: { result in
-            Text("\(result.itemName) will be permanently removed from your finds.")
+            Text(String(localized: "\(result.itemName) will be permanently removed from your finds."))
         }
         .alert("Delete Failed", isPresented: Binding(
             get: { vm.deleteError != nil },
@@ -313,7 +315,7 @@ private struct RecapBanner: View {
                     .snapSymbol(20, weight: .medium)
                     .foregroundStyle(Color.snapTerracottaText)
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("Your \(month) recap is ready")
+                    Text(String(localized: "Your \(month) recap is ready"))
                         .font(.dmSans(15, weight: .semibold))
                         .foregroundStyle(Color.snapEspresso)
                     Text("See your flips for the month")
@@ -335,7 +337,7 @@ private struct RecapBanner: View {
         }
         .buttonStyle(.plain)
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("Your \(month) recap is ready")
+        .accessibilityLabel(String(localized: "Your \(month) recap is ready"))
         .accessibilityHint("Opens My Flips to see the month's results")
         .accessibilityAddTraits(.isButton)
         // Time-sensitive banner: surface it before the rest of the list.
@@ -357,6 +359,9 @@ private struct PortfolioBanner: View {
     var isPro: Bool = true
     var onUnlock: () -> Void = {}
 
+    /// "41 items scanned", inflected once, for both the card and VoiceOver.
+    private var scannedPhrase: String { String(localized: "\(count) items scanned") }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             Text("Your finds are worth")
@@ -367,7 +372,7 @@ private struct PortfolioBanner: View {
                 .font(.fraunces(36, weight: .bold))
                 .foregroundStyle(Color.snapSageText)
 
-            Text("\(count) item\(count == 1 ? "" : "s") scanned")
+            Text(scannedPhrase)
                 .font(.snapCaption)
                 .foregroundStyle(Color.snapWarmGray)
 
@@ -395,7 +400,7 @@ private struct PortfolioBanner: View {
         // The screen's headline figure: one stop, read before the grid.
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Your finds are worth")
-        .accessibilityValue("\(totalValue), from \(count) item\(count == 1 ? "" : "s") scanned")
+        .accessibilityValue(String(localized: "\(totalValue), from \(scannedPhrase)"))
         .accessibilityAddTraits(.isSummaryElement)
         .accessibilitySortPriority(90)
     }
@@ -412,7 +417,7 @@ private struct NoSearchResultsView: View {
                 .foregroundStyle(Color.snapBorder)
                 .accessibilityHidden(true)
 
-            Text("No results for \"\(query)\"")
+            Text(String(localized: "No results for “\(query)”"))
                 .font(.fraunces(20, weight: .bold, relativeTo: .title3))
                 .foregroundStyle(Color.snapEspresso)
 
@@ -563,7 +568,7 @@ struct TrendingCard: View {
                 Text("Trending at the thrift")
                     .snapSectionHeader()
                 Spacer()
-                Text("\(trends.scans) scans this week")
+                Text(String(localized: "\(trends.scans) scans this week"))
                     .font(.snapCaption)
                     .foregroundStyle(Color.snapWarmGray)
             }
@@ -650,7 +655,7 @@ struct TrendingCard: View {
                 .font(.snapBody)
                 .foregroundStyle(Color.snapEspresso)
             if let average = row.averageEstimate, isPro {
-                Text("avg \(Self.money(average))")
+                Text(String(localized: "avg \(Self.money(average))"))
                     .font(.snapCaption)
                     .foregroundStyle(Color.snapWarmGray)
             }
@@ -672,13 +677,18 @@ struct TrendingCard: View {
     /// One spoken sentence per row — "clothing, 54 scans, up 18 percent" —
     /// rather than five fragments VoiceOver reads out of context.
     static func rowLabel(_ row: TrendRow, isPro: Bool) -> String {
-        var parts = ["\(row.name.capitalized), \(row.count) scans"]
+        // The count is inflected on its own and then placed in the sentence: a
+        // plural key agrees with one number, and this sentence has a category
+        // name beside it.
+        let scans = String(localized: "\(row.count) scans")
+        var parts = [String(localized: "\(row.name.capitalized), \(scans)")]
         if let average = row.averageEstimate, isPro {
-            parts.append("average estimate \(money(average))")
+            parts.append(String(localized: "average estimate \(money(average))"))
         }
         if let change = row.changePct {
-            parts.append(change > 0 ? "up \(change) percent"
-                         : change < 0 ? "down \(-change) percent" : "unchanged")
+            parts.append(change > 0 ? String(localized: "up \(change) percent")
+                         : change < 0 ? String(localized: "down \(-change) percent")
+                         : String(localized: "unchanged"))
         }
         return parts.joined(separator: ", ")
     }

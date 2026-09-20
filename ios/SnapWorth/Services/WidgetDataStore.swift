@@ -267,7 +267,7 @@ extension WidgetHaulData {
     /// "8 finds" / "1 find". Spelled out because the accessory families have no
     /// room for a label beside the number.
     var findsLabel: String {
-        "\(itemCount) find\(itemCount == 1 ? "" : "s")"
+        String(localized: "\(itemCount) finds")
     }
 
     /// A display range, respelled for VoiceOver.
@@ -277,7 +277,10 @@ extension WidgetHaulData {
     /// runs the two figures together into a number that means nothing. Only
     /// the separator changes; the money is already formatted.
     static func spoken(_ range: String) -> String {
-        range.replacingOccurrences(of: "\u{2013}", with: " to ")
+        range.replacingOccurrences(
+            of: "\u{2013}",
+            with: String(localized: " to ",
+                         comment: "Spoken separator between the two ends of a range"))
     }
 
     /// The haul range as a sentence, for VoiceOver.
@@ -288,17 +291,17 @@ extension WidgetHaulData {
     /// the two figures run together into one number that is not the answer to
     /// anything. A range has to be spoken as a range.
     var spokenRange: String {
-        guard hasScans else { return "nothing scanned yet" }
-        return "\(Self.money(totalLow)) to \(Self.money(totalHigh))"
+        guard hasScans else { return String(localized: "nothing scanned yet") }
+        return String(localized: "\(Self.money(totalLow)) to \(Self.money(totalHigh))")
     }
 
     /// The whole haul as one sentence, for a widget that should be a single
     /// VoiceOver element rather than five unlabelled fragments and a symbol
     /// name.
     var spokenHaul: String {
-        guard hasScans else { return "SnapWorth. Nothing scanned yet." }
-        return "SnapWorth haul, \(Self.itemsLabel(itemCount)) scanned, "
-             + "worth \(spokenRange)."
+        guard hasScans else { return String(localized: "SnapWorth. Nothing scanned yet.") }
+        return String(localized:
+            "SnapWorth haul, \(Self.itemsLabel(itemCount)) scanned, worth \(spokenRange).")
     }
 
     /// "8 items" / "1 item".
@@ -309,7 +312,7 @@ extension WidgetHaulData {
     /// first impression the widget ever makes. Three widgets were spelling
     /// this out inline; one of them got it wrong.
     static func itemsLabel(_ count: Int) -> String {
-        "\(count) item\(count == 1 ? "" : "s")"
+        String(localized: "\(count) items")
     }
 }
 
@@ -434,10 +437,19 @@ extension WidgetHaulData.ScansLeft {
     var subtitle: String {
         switch self {
         case .pro(let streak):
-            return streak > 0 ? "Unlimited · \(streak)-day streak" : "Unlimited scans"
-        case .remaining(0):        return "Back tomorrow, or go Pro"
-        case .remaining(let left): return "free scan\(left == 1 ? "" : "s") left today"
-        case .unknown:             return "Open SnapWorth"
+            return streak > 0
+                ? String(localized: "Unlimited · \(streak)-day streak")
+                : String(localized: "Unlimited scans")
+        case .remaining(0):
+            return String(localized: "Back tomorrow, or go Pro")
+        case .remaining(let left):
+            // The number is the headline above this line, so the subtitle is
+            // the noun on its own and inflects without carrying the count.
+            return left == 1
+                ? String(localized: "free scan left today")
+                : String(localized: "free scans left today")
+        case .unknown:
+            return String(localized: "Open SnapWorth")
         }
     }
 
@@ -456,14 +468,14 @@ extension WidgetHaulData.ScansLeft {
         switch self {
         case .pro(let streak):
             return streak > 0
-                ? "Unlimited scans, \(streak) day scanning streak"
-                : "Unlimited scans"
+                ? String(localized: "Unlimited scans, \(streak) day scanning streak")
+                : String(localized: "Unlimited scans")
         case .remaining(0):
-            return "No free scans left today"
+            return String(localized: "No free scans left today")
         case .remaining(let left):
-            return "\(left) free scan\(left == 1 ? "" : "s") left today"
+            return String(localized: "\(left) free scans left today")
         case .unknown:
-            return "Scan count not available yet. Open SnapWorth."
+            return String(localized: "Scan count not available yet. Open SnapWorth.")
         }
     }
 
@@ -683,7 +695,7 @@ struct ThriftRunAttributes: ActivityAttributes {
         var compactTotal: String { WidgetHaulData.compactMoney(totalHigh) }
 
         var findsLabel: String {
-            "\(itemCount) find\(itemCount == 1 ? "" : "s")"
+            String(localized: "\(itemCount) finds")
         }
 
         static let empty = ContentState(itemCount: 0, totalLow: 0, totalHigh: 0,

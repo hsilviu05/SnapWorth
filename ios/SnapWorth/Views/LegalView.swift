@@ -126,7 +126,7 @@ private struct LegalDocumentView<Content: View>: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 24) {
-                Text("Last updated: \(updated)")
+                Text(String(localized: "Last updated: \(updated)"))
                     .font(.snapCaption)
                     .foregroundStyle(Color.snapWarmGray)
 

@@ -53,7 +53,10 @@ enum OnboardingHero {
 struct OnboardingSlide: Identifiable {
     let id = UUID()
     let hero: OnboardingHero
-    let headline: String
-    let body: String
+    /// Keys, not strings: the four slides are the only copy a first-time user
+    /// reads before deciding whether to keep the app, and `Text(String)` is
+    /// the initialiser that does not translate.
+    let headline: LocalizedStringKey
+    let body: LocalizedStringKey
     let accent: Color
 }

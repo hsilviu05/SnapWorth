@@ -89,7 +89,7 @@ final class StoreKitPurchaseService: PurchaseService, ObservableObject {
             return .pending
         @unknown default:
             Analytics.shared.track(.purchaseFailed(productID: productID, reason: "unknown"))
-            throw PurchaseError.failed("This purchase could not be completed.")
+            throw PurchaseError.failed(String(localized: "This purchase could not be completed."))
         }
     }
 
@@ -142,7 +142,7 @@ final class StoreKitPurchaseService: PurchaseService, ObservableObject {
         }
         await loadProducts()
         guard let product = products.first(where: { $0.id == productID }) else {
-            throw PurchaseError.failed("This subscription is currently unavailable. Please try again.")
+            throw PurchaseError.failed(String(localized: "This subscription is currently unavailable. Please try again."))
         }
         return product
     }
@@ -414,7 +414,7 @@ final class StoreKitPurchaseService: PurchaseService, ObservableObject {
     private nonisolated func checkVerified<T>(_ result: VerificationResult<T>) throws -> T {
         switch result {
         case .unverified:
-            throw PurchaseError.failed("Your purchase could not be verified.")
+            throw PurchaseError.failed(String(localized: "Your purchase could not be verified."))
         case .verified(let safe):
             return safe
         }

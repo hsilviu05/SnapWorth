@@ -13,8 +13,8 @@ enum PriceTagOCR {
 
         var errorDescription: String? {
             switch self {
-            case .noImage:      return "Couldn't read that image."
-            case .noPriceFound: return "No price found on the tag."
+            case .noImage:      return String(localized: "Couldn't read that image.")
+            case .noPriceFound: return String(localized: "No price found on the tag.")
             }
         }
     }

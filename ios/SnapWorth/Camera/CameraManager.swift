@@ -325,9 +325,12 @@ enum CameraError: LocalizedError, Equatable {
 
     var errorDescription: String? {
         switch self {
-        case .setupFailed:       return "Camera setup failed. Please restart the app."
-        case .captureFailed:     return "Could not capture photo. Try again."
-        case .permissionDenied:  return "Camera access denied. Enable it in Settings."
+        case .setupFailed:
+            return String(localized: "Camera setup failed. Please restart the app.")
+        case .captureFailed:
+            return String(localized: "Could not capture photo. Try again.")
+        case .permissionDenied:
+            return String(localized: "Camera access denied. Enable it in Settings.")
         }
     }
 }

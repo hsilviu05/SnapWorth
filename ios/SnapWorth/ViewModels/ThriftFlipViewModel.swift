@@ -180,9 +180,9 @@ final class ThriftFlipViewModel {
         switch outcome {
         case .success(let price):
             shelfPriceText = Self.moneyField(price)
-            ocrNote = "Read \(Self.money(price)) — tap to correct if it's off."
+            ocrNote = String(localized: "Read \(Self.money(price)) — tap to correct if it's off.")
         case .failure:
-            ocrNote = "Couldn't read the tag — enter the price manually."
+            ocrNote = String(localized: "Couldn't read the tag — enter the price manually.")
         }
         return true
     }
@@ -223,11 +223,11 @@ final class ThriftFlipViewModel {
         let hasShelf = Self.decimal(shelfPriceText) != nil
         switch (hasResale, hasShelf) {
         case (true, false):
-            return "Add the shop price to see your profit."
+            return String(localized: "Add the shop price to see your profit.")
         case (false, true):
-            return "Add the expected resale price to see your profit."
+            return String(localized: "Add the expected resale price to see your profit.")
         default:
-            return "Add both prices to see your profit."
+            return String(localized: "Add both prices to see your profit.")
         }
     }
 
@@ -270,12 +270,12 @@ final class ThriftFlipViewModel {
                 // screen is up. `.storeUnavailable` throws before the insert,
                 // so there is nothing to swap there.
                 scanResult = backup
-                libraryWarning = "Couldn't add this to My Finds. The verdict below still works."
+                libraryWarning = String(localized: "Couldn't add this to My Finds. The verdict below still works.")
             } else {
-                libraryWarning = "SnapWorth couldn't open your library on this launch, so this find won't be kept."
+                libraryWarning = String(localized: "SnapWorth couldn't open your library on this launch, so this find won't be kept.")
             }
         } catch {
-            libraryWarning = "Couldn't add this to My Finds. The verdict below still works."
+            libraryWarning = String(localized: "Couldn't add this to My Finds. The verdict below still works.")
         }
     }
 
@@ -310,13 +310,13 @@ final class ThriftFlipViewModel {
             // in-memory container, so a retry succeeds exactly as silently as
             // the first attempt and is discarded at quit just the same.
             if case .storeUnavailable = failure {
-                saveError = "SnapWorth couldn't open your library on this launch, so this flip can't be saved to it."
+                saveError = String(localized: "SnapWorth couldn't open your library on this launch, so this flip can't be saved to it.")
             } else {
-                saveError = "Couldn't save this flip. Try again."
+                saveError = String(localized: "Couldn't save this flip. Try again.")
             }
             return false
         } catch {
-            saveError = "Couldn't save this flip. Try again."
+            saveError = String(localized: "Couldn't save this flip. Try again.")
             return false
         }
         saveError = nil

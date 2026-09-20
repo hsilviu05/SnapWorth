@@ -232,7 +232,7 @@ struct SettingsView: View {
                     // heading "Restore purchases" — telling the user their
                     // purchases could not be restored when what failed was
                     // deleting their scans.
-                    vm.report("Couldn't clear history",
+                    vm.report(String(localized: "Couldn't clear history"),
                               AppError.from(error).errorDescription ?? "")
                 }
             }
@@ -251,8 +251,7 @@ private struct SubscriptionCard: View {
     /// against a compiled-in allowance of 1 — true only on the welcome day the
     /// server grants extra, wrong every day after it.
     static var freeAllowanceText: String {
-        let allowed = Config.freeScansAllowed
-        return "\(allowed) free scan\(allowed == 1 ? "" : "s") a day"
+        String(localized: "\(Config.freeScansAllowed) free scans a day")
     }
     let onUpgrade: () -> Void
 
@@ -264,12 +263,14 @@ private struct SubscriptionCard: View {
                 .accessibilityHidden(true)
 
             VStack(alignment: .leading, spacing: 2) {
-                Text(isSubscribed ? "SnapWorth Pro" : "Free Plan")
+                Text(isSubscribed
+                     ? String(localized: "SnapWorth Pro")
+                     : String(localized: "Free Plan"))
                     .font(.dmSans(16, weight: .semibold, relativeTo: .body))
                     .foregroundStyle(Color.snapEspresso)
                 Text(isSubscribed
-                     ? "Unlimited scans · Active"
-                     : "\(Self.freeAllowanceText) · Upgrade for unlimited"
+                     ? String(localized: "Unlimited scans · Active")
+                     : String(localized: "\(Self.freeAllowanceText) · Upgrade for unlimited")
                 )
                 .font(.snapCaption)
                 .foregroundStyle(Color.snapWarmGray)
@@ -277,9 +278,11 @@ private struct SubscriptionCard: View {
             }
             // Status is one stop; the Upgrade button stays separately focusable.
             .accessibilityElement(children: .combine)
-            .accessibilityLabel(isSubscribed ? "SnapWorth Pro" : "Free Plan")
+            .accessibilityLabel(isSubscribed
+                ? String(localized: "SnapWorth Pro")
+                : String(localized: "Free Plan"))
             .accessibilityValue(isSubscribed
-                ? "Unlimited scans, active"
+                ? String(localized: "Unlimited scans, active")
                 : Self.freeAllowanceText)
 
             Spacer()
@@ -312,7 +315,7 @@ private struct SubscriptionCard: View {
 // MARK: - Settings Row Label (used inside NavigationLink — no extra chevron)
 private struct SettingsRowLabel: View {
     let icon: String
-    let label: String
+    let label: LocalizedStringKey
 
     var body: some View {
         HStack(spacing: 14) {
@@ -334,7 +337,7 @@ private struct SettingsRowLabel: View {
 // MARK: - Settings Row
 private struct SettingsRow: View {
     let icon: String
-    let label: String
+    let label: LocalizedStringKey
     var destructive: Bool = false
     /// Work is running behind this row. Nothing here had a busy state, so
     /// "Restore purchases" — which can sit on `AppStore.sync()` for seconds
@@ -370,10 +373,10 @@ private struct SettingsRow: View {
         // hint, where it is spoken before the user activates the control.
         .accessibilityLabel(label)
         .accessibilityAddTraits(.isButton)
-        .accessibilityHint(destructive ? "This cannot be undone" : "")
+        .accessibilityHint(destructive ? String(localized: "This cannot be undone") : "")
         // The spinner is `accessibilityHidden` by default and the row is
         // disabled, which VoiceOver announces as "dimmed" — true but not
         // informative. This says which of the two it is.
-        .accessibilityValue(isBusy ? "In progress" : "")
+        .accessibilityValue(isBusy ? String(localized: "In progress") : "")
     }
 }

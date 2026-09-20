@@ -63,8 +63,8 @@ struct LockScreenInlineView: View {
         // The inline had no label at all, so VoiceOver read the symbol name
         // and then the abbreviation as one run-together number.
         .accessibilityLabel(haul.hasScans
-                            ? "SnapWorth haul, \(haul.spokenRange)"
-                            : "SnapWorth, no finds scanned yet")
+            ? String(localized: "SnapWorth haul, \(haul.spokenRange)")
+            : String(localized: "SnapWorth, no finds scanned yet"))
     }
 }
 
@@ -91,8 +91,8 @@ struct LockScreenCircularView: View {
         // fragments it announces an icon and a number with no relationship.
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(haul.hasScans
-                            ? "Haul value \(haul.spokenRange), \(haul.findsLabel)"
-                            : "No finds scanned yet")
+            ? String(localized: "Haul value \(haul.spokenRange), \(haul.findsLabel)")
+            : String(localized: "No finds scanned yet"))
     }
 }
 
@@ -125,7 +125,7 @@ struct LockScreenRectangularView: View {
                     .lineLimit(1)
 
                 Text(streak > 1
-                     ? "\(haul.findsLabel) · \(streak)-day streak"
+                     ? String(localized: "\(haul.findsLabel) · \(streak)-day streak")
                      : haul.findsLabel)
                     .wFont(12)
             } else {
@@ -145,10 +145,11 @@ struct LockScreenRectangularView: View {
 
     private var spokenLabel: String {
         guard haul.hasScans else {
-            return "SnapWorth, no finds yet. Scan something to start."
+            return String(localized: "SnapWorth, no finds yet. Scan something to start.")
         }
-        let body = "SnapWorth haul, \(haul.spokenRange), \(haul.findsLabel)"
-        return streak > 1 ? "\(body), \(streak) day streak" : body
+        let body = String(localized: "SnapWorth haul, \(haul.spokenRange), \(haul.findsLabel)")
+        guard streak > 1 else { return body }
+        return String(localized: "\(body), \(String(localized: "\(streak) day streak"))")
     }
 }
 

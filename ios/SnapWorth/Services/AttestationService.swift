@@ -384,11 +384,11 @@ enum AttestationError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .unsupportedDevice:
-            return "This device doesn't support secure attestation."
+            return String(localized: "This device doesn't support secure attestation.")
         case .challengeFailed:
-            return "Couldn't reach SnapWorth. Check your connection and try again."
+            return String(localized: "Couldn't reach SnapWorth. Check your connection and try again.")
         case .reattestationRequired:
-            return "Re-verification needed."
+            return String(localized: "Re-verification needed.")
         case let .serverRejected(detail):
             return detail
         }

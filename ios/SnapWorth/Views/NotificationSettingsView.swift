@@ -88,7 +88,7 @@ struct NotificationSettingsView: View {
     }
 
     private func toggle(
-        _ label: String,
+        _ label: LocalizedStringKey,
         _ icon: String,
         _ binding: Binding<Bool>,
         _ category: NotificationManager.Category
