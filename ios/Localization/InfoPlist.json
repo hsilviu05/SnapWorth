@@ -6,21 +6,24 @@
       "en": "SnapWorth uses your camera to photograph items so we can identify them and estimate their resale value.",
       "ro": "SnapWorth folosește camera ca să fotografiezi lucrurile găsite, să le recunoască și să estimeze cât valorează la revânzare.",
       "es": "SnapWorth usa la cámara para que fotografíes artículos, reconocerlos y estimar cuánto valen en reventa.",
-      "de": "SnapWorth nutzt deine Kamera, damit du Artikel fotografieren kannst – wir erkennen sie und schätzen, was sie im Wiederverkauf wert sind."
+      "de": "SnapWorth nutzt deine Kamera, damit du Artikel fotografieren kannst – wir erkennen sie und schätzen, was sie im Wiederverkauf wert sind.",
+      "zh-Hans": "SnapWorth 需要使用相机，让你拍下物品，我们来识别它并估算转卖价。"
     },
     "NSPhotoLibraryUsageDescription": {
       "comment": "Shown when the user picks an existing photo to scan.",
       "en": "SnapWorth lets you pick photos from your library to scan for resale value.",
       "ro": "SnapWorth îți lasă să alegi poze din galerie, ca să afli cât valorează la revânzare ce e în ele.",
       "es": "SnapWorth te deja elegir fotos de tu galería para saber cuánto vale en reventa lo que sale en ellas.",
-      "de": "Mit SnapWorth kannst du Fotos aus deiner Mediathek wählen, um ihren Wiederverkaufswert zu erfahren."
+      "de": "Mit SnapWorth kannst du Fotos aus deiner Mediathek wählen, um ihren Wiederverkaufswert zu erfahren.",
+      "zh-Hans": "SnapWorth 需要访问相册，让你挑选照片来查看照片里物品的转卖价。"
     },
     "NSPhotoLibraryAddUsageDescription": {
       "comment": "Shown when saving a share card to Photos.",
       "en": "Allow SnapWorth to save your valuation card to Photos.",
       "ro": "Permite-i lui SnapWorth să salveze în Poze cardul cu evaluarea.",
       "es": "Permite que SnapWorth guarde en Fotos la tarjeta con la valoración.",
-      "de": "Erlaube SnapWorth, deine Bewertungskarte in „Fotos“ zu sichern."
+      "de": "Erlaube SnapWorth, deine Bewertungskarte in „Fotos“ zu sichern.",
+      "zh-Hans": "允许 SnapWorth 把估价卡片存到“照片”。"
     }
   }
 }

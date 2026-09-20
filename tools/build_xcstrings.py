@@ -48,11 +48,13 @@ PLURAL_CATEGORIES = {"zero", "one", "two", "few", "many", "other"}
 
 # Every language the app ships in. `en` is the development language and comes
 # first; the rest are written in `ios/Localization/*.json` beside it.
-LANGUAGES = ("en", "ro", "es", "de")
+LANGUAGES = ("en", "ro", "es", "de", "zh-Hans")
 
 # The plural categories each language must define, from CLDR. English, Spanish
 # and German all inflect once, at 1. Romanian inflects twice: at 1, and again
 # from 20 upwards, where the noun takes "de" — "o zi", "3 zile", "20 de zile".
+# Chinese does not inflect at all: one form covers every number, so its entries
+# are written as plain strings and never reach this table.
 # A language listed here with too few forms prints the wrong one for most
 # numbers, silently, which is why this is checked rather than assumed.
 REQUIRED = {
@@ -60,6 +62,7 @@ REQUIRED = {
     "ro": {"one", "few", "other"},
     "es": {"one", "other"},
     "de": {"one", "other"},
+    "zh-Hans": {"other"},
 }
 
 

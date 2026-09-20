@@ -835,6 +835,23 @@ MARKETPLACE_GUIDANCE = {
                 "and casual, mention local pickup and whether the price is firm or OBO.",
     "olx": "OLX is a local classifieds marketplace. Title: clear and concise. Description: brief "
            "and practical, emphasise condition and local pickup/cash.",
+    # Xianyu (闲鱼) is China's dominant C2C secondhand marketplace, and the only
+    # entry here whose listing is not written in English. A listing nobody on
+    # the platform can read is not a listing, so the language is part of the
+    # guidance rather than left to the model to infer from the item name.
+    #
+    # The price stays in the request's currency, which the app sends as USD.
+    # That is wrong for Xianyu and the app knows it — converting would need an
+    # FX rate this service does not have, and a made-up yuan figure is worse
+    # than an honest dollar one.
+    "xianyu": "闲鱼 (Xianyu) is China's largest C2C secondhand marketplace, informal and "
+              "personal — listings read like a message from the seller, not an advert. "
+              "WRITE THE TITLE AND DESCRIPTION IN SIMPLIFIED CHINESE. Title: short and "
+              "plain, brand and item first, no marketing language. Description: a few "
+              "sentences in first person — condition stated honestly, what is included, "
+              "and that the buyer should look at the photos. Mentioning that the price is "
+              "negotiable (可小刀) is normal there. Do not translate the price or add a "
+              "currency symbol.",
 }
 SUPPORTED_MARKETPLACES = set(MARKETPLACE_GUIDANCE)
 

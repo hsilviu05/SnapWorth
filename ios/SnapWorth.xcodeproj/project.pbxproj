@@ -471,6 +471,7 @@
 				ro,
 				es,
 				de,
+				"zh-Hans",
 			);
 			mainGroup = AA00000000000000000000F0;
 			packageReferences = (

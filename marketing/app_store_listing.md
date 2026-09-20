@@ -1,8 +1,8 @@
 # App Store Listing
 
 English (`en-US`), the primary storefront. The app also ships in Romanian,
-Spanish and German, each with its own listing beside this one —
-`app_store_listing.ro.md`, `.es.md`, `.de.md`. Those three are metadata for an
+Spanish, German and Simplified Chinese, each with its own listing beside this
+one — `app_store_listing.ro.md`, `.es.md`, `.de.md`, `.zh-Hans.md`. Those three are metadata for an
 app that is translated; the listing and the interface ship together, because a
 localized store page that opens an English app is worse than neither.
 

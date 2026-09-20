@@ -28,6 +28,12 @@
             "state" : "translated",
             "value" : " la "
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : " 到 "
+          }
         }
       }
     },
@@ -56,6 +62,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%@ în colecție"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "收获里有 %@"
           }
         }
       }
@@ -87,6 +99,12 @@
             "state" : "translated",
             "value" : "%@ profit luna asta %@"
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "本月利润 %@，%@"
+          }
         }
       }
     },
@@ -115,6 +133,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%@ scanate"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已扫描 %@"
           }
         }
       }
@@ -145,6 +169,12 @@
             "state" : "translated",
             "value" : "%@ în tura asta"
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这趟 %@"
+          }
         }
       }
     },
@@ -173,6 +203,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%@ la %@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 到 %@"
           }
         }
       }
@@ -257,6 +293,12 @@
               }
             }
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ · 连续 %lld 天"
+          }
         }
       }
     },
@@ -286,6 +328,12 @@
             "state" : "translated",
             "value" : "%@, profitul rămâne necunoscut până adaugi cât ai dat"
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@，填上入手价才能算出利润"
+          }
         }
       }
     },
@@ -314,6 +362,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%@. Ultima valoare știută — deschide SnapWorth ca să se actualizeze."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@。这是最后一次的数据，打开 SnapWorth 可刷新。"
           }
         }
       }
@@ -397,6 +451,12 @@
                 }
               }
             }
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "连续 %lld 天"
           }
         }
       }
@@ -482,6 +542,12 @@
               }
             }
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld 件好物"
+          }
         }
       }
     },
@@ -564,6 +630,12 @@
                 }
               }
             }
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "本月售出 %lld 笔"
           }
         }
       }
@@ -649,6 +721,12 @@
               }
             }
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "今天还剩 %lld 次免费扫描"
+          }
         }
       }
     },
@@ -731,6 +809,12 @@
                 }
               }
             }
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld 件"
           }
         }
       }
@@ -815,6 +899,12 @@
               }
             }
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已售 %lld 件 · 填上入手价"
+          }
         }
       }
     },
@@ -843,6 +933,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Revii mâine sau treci pe Pro"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "明天再来，或升级 Pro"
           }
         }
       }
@@ -873,6 +969,12 @@
             "state" : "translated",
             "value" : "Află cât valorează"
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "看看它值多少"
+          }
         }
       }
     },
@@ -901,6 +1003,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Colecție"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "收获"
           }
         }
       }
@@ -932,6 +1040,12 @@
             "state" : "translated",
             "value" : "Valoarea colecției"
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "收获总值"
+          }
         }
       }
     },
@@ -960,6 +1074,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Colecția pe ecranul blocat"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "锁定屏幕上的收获"
           }
         }
       }
@@ -990,6 +1110,12 @@
             "state" : "translated",
             "value" : "Colecție de %@, %@"
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "收获总值 %@，%@"
+          }
         }
       }
     },
@@ -1018,6 +1144,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Colecție de %@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "收获价值 %@"
           }
         }
       }
@@ -1048,6 +1180,12 @@
             "state" : "translated",
             "value" : "Câte scanări gratuite mai ai azi."
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "今天还剩几次免费扫描。"
+          }
         }
       }
     },
@@ -1076,6 +1214,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Ultima valoare știută — deschide SnapWorth ca să se actualizeze"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这是最后一次的数据，打开 SnapWorth 可刷新"
           }
         }
       }
@@ -1106,6 +1250,12 @@
             "state" : "translated",
             "value" : "Ultima scanare"
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "最近扫描"
+          }
         }
       }
     },
@@ -1134,6 +1284,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Ultima scanare, %@, %@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "最近扫描，%@，%@"
           }
         }
       }
@@ -1164,6 +1320,12 @@
             "state" : "translated",
             "value" : "Ultimul: %@"
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "最近：%@"
+          }
         }
       }
     },
@@ -1192,6 +1354,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Nicio găselniță scanată"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "还没扫描过好物"
           }
         }
       }
@@ -1222,6 +1390,12 @@
             "state" : "translated",
             "value" : "Nicio găselniță"
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "还没有好物"
+          }
         }
       }
     },
@@ -1250,6 +1424,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Niciun flip vândut luna asta"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "本月还没卖出过"
           }
         }
       }
@@ -1280,6 +1460,12 @@
             "state" : "translated",
             "value" : "Nicio scanare gratuită rămasă azi"
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "今天的免费扫描用完了"
+          }
         }
       }
     },
@@ -1308,6 +1494,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Nicio scanare încă"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "还没有扫描"
           }
         }
       }
@@ -1338,6 +1530,12 @@
             "state" : "translated",
             "value" : "Încă nu ai scanat nimic"
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "还什么都没扫描"
+          }
         }
       }
     },
@@ -1366,6 +1564,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Încă nu ai scanat nimic. Apasă ca să scanezi prima găselniță."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "还什么都没扫描。点一下，扫描你的第一件好物。"
           }
         }
       }
@@ -1396,6 +1600,12 @@
             "state" : "translated",
             "value" : "Nimic încă"
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "还没有"
+          }
         }
       }
     },
@@ -1424,6 +1634,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "O apăsare și scanezi orice lucru second hand."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "点一下，就能扫描任何二手物品。"
           }
         }
       }
@@ -1454,6 +1670,12 @@
             "state" : "translated",
             "value" : "Deschide SnapWorth"
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "打开 SnapWorth"
+          }
         }
       }
     },
@@ -1482,6 +1704,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Deschide SnapWorth cu camera pregătită."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "打开 SnapWorth，相机已就绪。"
           }
         }
       }
@@ -1512,6 +1740,12 @@
             "state" : "translated",
             "value" : "Deschide SnapWorth cu camera pregătită."
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "打开 SnapWorth，相机已就绪。"
+          }
         }
       }
     },
@@ -1540,6 +1774,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Profitul lunii"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "本月利润"
           }
         }
       }
@@ -1570,6 +1810,12 @@
             "state" : "translated",
             "value" : "Scanare rapidă"
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "快速扫描"
+          }
         }
       }
     },
@@ -1598,6 +1844,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Găselnițe recente"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "最近的好物"
           }
         }
       }
@@ -1628,6 +1880,12 @@
             "state" : "translated",
             "value" : "Scanează"
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "扫描"
+          }
         }
       }
     },
@@ -1656,6 +1914,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Scanează un obiect"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "扫描一件物品"
           }
         }
       }
@@ -1686,6 +1950,12 @@
             "state" : "translated",
             "value" : "Numărul de scanări nu e disponibil încă. Deschide SnapWorth."
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "还拿不到扫描次数。打开 SnapWorth 看看。"
+          }
         }
       }
     },
@@ -1714,6 +1984,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Scanează acum"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "现在扫描"
           }
         }
       }
@@ -1744,6 +2020,12 @@
             "state" : "translated",
             "value" : "Scanează ceva ca să începi"
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "扫点什么开始吧"
+          }
         }
       }
     },
@@ -1772,6 +2054,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Scanează ceva ca să pornească tura"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "扫点什么，这趟就开始了"
           }
         }
       }
@@ -1802,6 +2090,12 @@
             "state" : "translated",
             "value" : "Scanează prima găselniță"
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "扫描你的第一件好物"
+          }
         }
       }
     },
@@ -1830,6 +2124,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Scanări rămase"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "剩余扫描"
           }
         }
       }
@@ -1860,6 +2160,12 @@
             "state" : "translated",
             "value" : "Vezi dintr-o privire cât valorează tot."
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "一眼看清全部转卖价值。"
+          }
         }
       }
     },
@@ -1888,6 +2194,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Colecția SnapWorth, %@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SnapWorth 收获，%@"
           }
         }
       }
@@ -1918,6 +2230,12 @@
             "state" : "translated",
             "value" : "Colecția SnapWorth, %@ scanate, în valoare de %@."
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SnapWorth 收获，已扫描 %@，价值 %@。"
+          }
         }
       }
     },
@@ -1946,6 +2264,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Colecția SnapWorth, %@, %@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SnapWorth 收获，%@，%@"
           }
         }
       }
@@ -1976,6 +2300,12 @@
             "state" : "translated",
             "value" : "SnapWorth, nicio găselniță scanată"
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SnapWorth，还没扫描过好物"
+          }
         }
       }
     },
@@ -2004,6 +2334,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "SnapWorth, nicio găselniță încă. Scanează ceva ca să începi."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SnapWorth，还没有好物。扫点什么开始吧。"
           }
         }
       }
@@ -2034,6 +2370,12 @@
             "state" : "translated",
             "value" : "SnapWorth. Încă nu ai scanat nimic."
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SnapWorth。还什么都没扫描。"
+          }
         }
       }
     },
@@ -2062,6 +2404,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Apasă ca să scanezi\nprima găselniță"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "点一下，扫描\n你的第一件好物"
           }
         }
       }
@@ -2092,6 +2440,12 @@
             "state" : "translated",
             "value" : "Ultimele lucruri scanate și cât valorează."
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "最近扫描的几件东西，以及它们值多少。"
+          }
         }
       }
     },
@@ -2120,6 +2474,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Luna asta"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "本月"
           }
         }
       }
@@ -2150,6 +2510,12 @@
             "state" : "translated",
             "value" : "Tură de second hand"
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "淘货行程"
+          }
         }
       }
     },
@@ -2178,6 +2544,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Tură de second hand în curs, %@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "淘货行程进行中，%@"
           }
         }
       }
@@ -2208,6 +2580,12 @@
             "state" : "translated",
             "value" : "Tură de second hand pornită, nimic scanat încă"
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "淘货行程已开始，还什么都没扫描"
+          }
         }
       }
     },
@@ -2236,6 +2614,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Tură de second hand, %@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "淘货行程，%@"
           }
         }
       }
@@ -2266,6 +2650,12 @@
             "state" : "translated",
             "value" : "Tură de second hand, %@, în valoare de %@, pornită la %@"
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "淘货行程，%@，价值 %@，开始于 %@"
+          }
         }
       }
     },
@@ -2295,6 +2685,12 @@
             "state" : "translated",
             "value" : "Tură de second hand, ultima valoare știută, nimic scanat încă"
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "淘货行程，这是最后一次的数据，还什么都没扫描"
+          }
         }
       }
     },
@@ -2323,6 +2719,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Scanări nelimitate"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无限扫描"
           }
         }
       }
@@ -2407,6 +2809,12 @@
               }
             }
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无限扫描，已连续扫描 %lld 天"
+          }
         }
       }
     },
@@ -2490,6 +2898,12 @@
               }
             }
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无限 · 连续 %lld 天"
+          }
         }
       }
     },
@@ -2518,6 +2932,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Cât ai făcut de fapt din flipurile vândute."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "卖出去的那些，到底赚了多少。"
           }
         }
       }
@@ -2548,6 +2968,12 @@
             "state" : "translated",
             "value" : "Colecția ta"
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "你的收获"
+          }
         }
       }
     },
@@ -2576,6 +3002,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Cât valorează tot, fără să deblochezi telefonul."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "不用解锁，就能看到全部转卖价值。"
           }
         }
       }
@@ -2607,6 +3039,12 @@
             "state" : "translated",
             "value" : "scanare gratuită rămasă azi"
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "次免费扫描（今天）"
+          }
         }
       }
     },
@@ -2635,6 +3073,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "scanări gratuite rămase azi"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "次免费扫描（今天）"
           }
         }
       }
@@ -2719,6 +3163,12 @@
               }
             }
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "来自 %lld 笔转卖"
+          }
         }
       }
     },
@@ -2747,6 +3197,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "nimic scanat încă"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "还什么都没扫描"
           }
         }
       }
