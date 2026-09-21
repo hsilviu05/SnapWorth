@@ -21,7 +21,7 @@ fastapi==0.141.1
 # parts only. File parts spool unbounded, which is why /scan does its own
 # chunked read with a hard ceiling rather than trusting this.
 starlette==1.6.0
-uvicorn[standard]==0.52.4
+uvicorn[standard]==0.53.0
 # Migrated off google-generativeai, which reached end-of-life at 0.8.6 and said
 # so on every import. That SDK is also where two silent production failures came
 # from: it exposed `seed` on a dataclass its own protobuf could not serialise
