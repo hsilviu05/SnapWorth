@@ -28,6 +28,32 @@ title = "SnapWorth secret scanning"
 # exceptions, it never removes a rule.
 useDefault = true
 
+# ── Apple .p8 signing keys ───────────────────────────────────────────────────
+#
+# The upstream `private-key` rule already catches a .p8 with its PEM armour
+# intact, which is how the file arrives from Apple. This adds the case that
+# rule cannot see: a key pasted *without* the BEGIN/END lines.
+#
+# That is not a hypothetical shape. `devicecheck.py:_key_problem` exists
+# precisely because people paste "just the base64 body" into a hosting panel
+# often enough to need a named error for it, and `.env.example` asks for the
+# key as a single \n-escaped line. Either form, saved next to the tool that
+# wants it, is a live P-256 key with no PEM header for the entropy rules to
+# grip.
+#
+# Matched on path rather than content, so it holds whatever state the body is
+# in — `regex` just anchors one match at the start, because the filename is
+# the finding and not anything in the body. `.gitignore` carries `*.p8` as the
+# first guard; this is the second, for the `git add -f` that defeats it.
+#
+# Verified by planting a headerless base64 body at `probe_key.p8` and
+# confirming this rule fires where `private-key` does not.
+[[rules]]
+id = "snapworth-apple-p8-key"
+description = "Apple .p8 signing key committed to the repository"
+path = '''(?i)\.p8$'''
+regex = '''\A\s*\S+'''
+
 [allowlist]
 description = "Known-fake credential fixtures in the redaction tests"
 

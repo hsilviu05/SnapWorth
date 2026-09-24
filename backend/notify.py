@@ -256,6 +256,7 @@ LAST_DEPLOY_KEY = "opsstate:lastdeploy"
 COMMANDS: tuple[tuple[str, str], ...] = (
     ("status", "Active users, scans today, provider health"),
     ("subs", "Every subscription seen: plan, how obtained, renews"),
+    ("sub", "/sub <id> — ask Apple for one subscriber's live status"),
     ("users", "Devices seen, 7-day and 30-day actives, most active"),
     ("costs", "Gemini spend: today, 7 and 30 days, per scan, vs MRR"),
     ("experiment", "Free-scan experiment: limit hits vs subscriptions, whole window"),
@@ -784,6 +785,26 @@ def _short_date(epoch: int) -> str:
     return datetime.fromtimestamp(epoch, timezone.utc).strftime("%d%b%y")
 
 
+def _renewal_phrase(expires_at: int, auto_renew: bool | None) -> str:
+    """The expiry line: `renews or expires 12 Mar 2027`, or just `expires`.
+
+    The hedge is not sloppiness — for most of this bot's life it was the honest
+    answer. A signed transaction carries `expiresDate` and nothing about
+    whether the period after it is coming, so the date genuinely meant one of
+    two things and the line said so.
+
+    Now that `signedRenewalInfo` is read (`appstorenotify._auto_renew_status`),
+    the hedge is only correct where the fact is still unknown. Kept for exactly
+    that case: rows written before this existed, and every `/auth/entitlement`
+    sync, which sees a transaction and no renewal info. Only a definite False
+    narrows the wording — an unknown auto-renew must not be reported as a
+    cancellation, which would turn "we did not ask" into "they are leaving".
+    """
+    if auto_renew is False:
+        return f"expires {_date(expires_at)}"
+    return f"renews or expires {_date(expires_at)}"
+
+
 def _sub_is_alive(entry: dict, now: float) -> bool:
     """Whether a subscription row is currently entitled.
 
@@ -959,7 +980,7 @@ async def subscription_event(note) -> None:
         if not otid or not note.is_indexed:
             return
 
-        before = await _index_subscription(None, ent)
+        before = await _index_subscription(None, ent, note.auto_renew)
         was = str(before.get("acq") or "") if before else ""
         now_acq = _acquisition(ent)
 
@@ -1003,7 +1024,14 @@ async def subscription_event(note) -> None:
         if lines is None:
             return
         if ent.expires_at and not note.is_loss:
-            lines.append(f"renews or expires {_date(ent.expires_at)}")
+            # `note.auto_renew` is what this notification's own renewal info
+            # says; `before` is what we last knew. Preferring the notification
+            # matters on exactly the alert where it changed — a
+            # DID_CHANGE_RENEWAL_STATUS whose headline is already "auto-renew
+            # turned off" must not be followed by a line saying it renews.
+            auto_renew = (note.auto_renew if note.auto_renew is not None
+                          else before.get("auto_renew"))
+            lines.append(_renewal_phrase(ent.expires_at, auto_renew))
         if not await _notifier.send("\n".join(lines), _SUBS_BUTTONS):
             log.warning("subscription notification alert failed to send")
     except Exception:
@@ -1059,7 +1087,9 @@ async def entitlement_recorded(subject: str, ent) -> None:
             otid = ent.original_transaction_id
             if not otid:
                 return
-            await _index_subscription(subject, ent)
+            # The previous row is the only source of auto-renew here: the
+            # client presents a signed transaction, which has no such field.
+            before = await _index_subscription(subject, ent)
             if not await _cache.add(f"opsseen:sub:{otid}", "1", SUB_SEEN_TTL):
                 return
             purchased = getattr(ent, "original_purchase_at", None)
@@ -1090,7 +1120,8 @@ async def entitlement_recorded(subject: str, ent) -> None:
             if purchased is not None:
                 lines.append(f"first purchased {_date(purchased)}")
             if ent.expires_at:
-                lines.append(f"renews or expires {_date(ent.expires_at)}")
+                lines.append(_renewal_phrase(
+                    ent.expires_at, before.get("auto_renew")))
             # The guard above was consumed *before* this send and its result
             # was discarded, so a Telegram failure burned a 400-day marker
             # and the alert for that sale was never seen. `_announce_deploy`
@@ -1677,6 +1708,8 @@ async def handle_command_with_buttons(text: str) -> tuple[str, Buttons] | None:
         return await _feed_command(argument), await _buttons()
     if command == "/subs":
         return await _subs_text(), await _buttons()
+    if command == "/sub":
+        return await _sub_text(rest), await _buttons()
     if command == "/users":
         return await _users_text(), await _buttons()
     if command == "/costs":
@@ -2318,7 +2351,8 @@ def _via(acq: str | None) -> str:
     return _VIA_SHORT.get(acq, acq[:5])
 
 
-async def _index_subscription(subject: str | None, ent) -> dict:
+async def _index_subscription(subject: str | None, ent,
+                              auto_renew: bool | None = None) -> dict:
     """Record what we now know about one subscription. Returns the previous row.
 
     `subject` is None when App Store Server Notifications told us rather than a
@@ -2326,6 +2360,14 @@ async def _index_subscription(subject: str | None, ent) -> dict:
     and — this is the point — the existing `who` must survive: the row may
     already name the device that first synced it, and overwriting that with
     nothing would lose the only link between a payment and a person.
+
+    `auto_renew` is the same shape of argument and for the same reason. It
+    lives in Apple's `signedRenewalInfo`, which only two of the three writers
+    ever see: a notification carries one, a live status lookup fetches one, and
+    `/auth/entitlement` — the highest-volume writer by far — does not, because
+    the client presents a signed *transaction* and nothing else. None means
+    "this writer cannot see it", so the stored value survives. Without that,
+    every app launch would erase a cancellation the moment Apple reported it.
 
     The previous row is returned because a notification alone cannot say
     whether a paid period is a *conversion*. Only the row it replaces can.
@@ -2344,6 +2386,8 @@ async def _index_subscription(subject: str | None, ent) -> dict:
     })
     if subject is not None:
         entry["who"] = auditlog.pseudonymise(subject)[:6]
+    if auto_renew is not None:
+        entry["auto_renew"] = auto_renew
     # The revocation is a tombstone on a *term*, not on the row.
     #
     # This only ever set `revoked` and never cleared it, and the row is keyed
@@ -2385,6 +2429,26 @@ async def _index_user(who: str, *, tier: str, scanned: bool = False) -> None:
         entry["scans"] = int(entry.get("scans", 0)) + 1
     doc[who] = entry
     await _write_index(USERS_INDEX_KEY, doc, USERS_INDEX_CAP, "last")
+
+
+#: The `/subs` auto-renew column, one character wide.
+#:
+#: Three states, and the third is the reason this is not a boolean: `?` means
+#: nobody has told us. Rows predating `signedRenewalInfo` being read are all
+#: `?`, and so is any subscription only ever seen via `/auth/entitlement`.
+#: Printing those as "off" would invent a cancellation; printing them as "on"
+#: would hide a real one.
+#:
+#: One character because the header line is already 42 columns and Telegram
+#: wraps a <pre> block on a phone at around 46. `↻` and `✕` are single
+#: code points and monospace in Telegram's block font.
+_AUTO_RENEW_MARKS = {True: "↻", False: "✕", None: "?"}
+
+
+def _renew_mark(entry: dict) -> str:
+    """The auto-renew cell for one row."""
+    return _AUTO_RENEW_MARKS[entry.get("auto_renew") if isinstance(
+        entry.get("auto_renew"), bool) else None]
 
 
 def _plan(product: str | None) -> str:
@@ -2449,7 +2513,7 @@ async def _subs_text() -> str:
     # reason `_experiment_text` documents for its own table: a value exactly as
     # wide as its field gets no padding and runs into its neighbour.
     header = (f"{'plan':<8} {'via':<5} {'since':<7} "
-              f"{'renews':<7} {'seen':<7} {'id':<6}")
+              f"{'renews':<7} {'↻':<2} {'seen':<7} {'id':<6}")
     body = [header]
     for e in rows[:TABLE_ROWS]:
         renews = _short_date(int(e["expires"])) if e.get("expires") else "never"
@@ -2460,7 +2524,7 @@ async def _subs_text() -> str:
         body.append(
             f"{_plan(e.get('product')):<8} {_via(e.get('acq')):<5} "
             f"{(_short_date(int(e['first'])) if e.get('first') else '?'):<7} "
-            f"{renews:<7} "
+            f"{renews:<7} {_renew_mark(e):<2} "
             f"{(_short_date(int(e['seen'])) if e.get('seen') else '?'):<7} "
             f"{str(e.get('who') or ''):<6}")
     if len(rows) > TABLE_ROWS:
@@ -2478,6 +2542,7 @@ async def _subs_text() -> str:
         worth = (" · " + " + ".join(_money(v, c) for c, v in sorted(value.items()))
                  if value else "")
         lines.append(f"Due in 7 days: {len(due)} renew or end ({len(paid_due)} paid{worth})")
+    lines.append("↻ renews · ✕ auto-renew off · ? not reported yet")
     lines.append("Apple reports renewals, expiries and refunds directly, so this no "
                  "longer waits for an app launch to notice.")
     return "\n".join(lines)
@@ -3237,6 +3302,186 @@ async def _experiment_text(now: datetime | None = None) -> str:
     return "\n".join([head, window, *rows, total, *notes])
 
 
+# ── One subscription, live from Apple ────────────────────────────────────────
+
+async def _resolve_transaction_id(wanted: str) -> tuple[str | None, str | None]:
+    """Turn what the operator typed into an originalTransactionId.
+
+    Returns `(transaction_id, error_message)` — exactly one is not None.
+
+    Two kinds of input, because the operator has two kinds of id to hand and
+    only one of them is Apple's:
+
+      * an originalTransactionId, as `/subs` keys its rows and as Apple's
+        own console shows it — all digits, and long;
+      * the six-character `id` column from `/subs` and `/users`.
+
+    The short one is **not** a truncated transaction id and cannot be turned
+    back into one by itself: it is `sha256(AUDIT_SALT + subject)[:16][:6]`, a
+    deliberately one-way pseudonym (`auditlog.pseudonymise`) so the audit log
+    is not a device registry. What makes the lookup possible is that the subs
+    index is keyed by the *full* transaction id with the short pseudonym stored
+    in the row, so this is a scan, not a decode — the same reverse lookup
+    `_user_text` already does.
+
+    Two consequences worth stating, because both look like bugs otherwise:
+    a device whose subscription only ever arrived by notification has no `who`
+    at all and is unreachable this way, and a six-character prefix of a
+    sixteen-character hash can collide.
+    """
+    wanted = wanted.strip().lower()
+    if not wanted:
+        return None, ("Usage: /sub &lt;id&gt; — an originalTransactionId, or the "
+                      "six-character id column from /subs.")
+
+    # Apple's transaction ids are long decimal strings. Anything of that shape
+    # is passed through untouched: the index may well not have it, which is
+    # the whole point of asking Apple directly.
+    if wanted.isdigit() and len(wanted) >= 10:
+        return wanted, None
+
+    doc = await _read_index(SUBS_INDEX_KEY)
+    matches = {otid: row for otid, row in doc.items()
+               if isinstance(row, dict)
+               and str(row.get("who") or "").lower().startswith(wanted)}
+    if not matches:
+        return None, (f"💳 Nothing in the index has an id starting "
+                      f"<code>{html.escape(wanted)}</code>. If you have Apple's "
+                      "originalTransactionId, pass that instead — it does not "
+                      "need to be in the index.")
+
+    # Several rows for one device is normal — a resubscribe, or a plan change —
+    # and harmless, because Apple returns every subscription belonging to the
+    # customer behind whichever id we send. Several *devices* is a genuine
+    # collision and the operator has to disambiguate.
+    whos = {str(row.get("who")) for row in matches.values()}
+    if len(whos) > 1:
+        return None, (f"💳 {len(whos)} devices start with "
+                      f"<code>{html.escape(wanted)}</code> — give more "
+                      "characters: " + ", ".join(
+                          html.escape(w) for w in sorted(whos)[:6]))
+    return next(iter(matches)), None
+
+
+def _status_lines(status) -> list[str]:
+    """One subscription, as the operator reads it."""
+    ent = status.entitlement
+    lines = [f"<b>{html.escape(_plan(ent.product_id))}</b> — "
+             f"{html.escape(status.state)}"]
+
+    detail = [html.escape(ent.environment), _acquisition(ent)]
+    if isinstance(ent.price, (int, float)) and ent.price > 0:
+        detail.append(_money(ent.price, ent.currency))
+    lines.append(" · ".join(detail))
+
+    if status.offer_identifier:
+        # Apple's offerIdentifier is the code the customer typed or the promo
+        # offer's id. `_acquisition` above already says which kind it was.
+        lines.append(f"Offer: <code>{html.escape(status.offer_identifier)}</code>")
+
+    if ent.expires_at:
+        # Not `.capitalize()`: it lowercases everything after the first
+        # character, which turns "12 Apr 2027" into "12 apr 2027".
+        phrase = _renewal_phrase(ent.expires_at, status.auto_renew)
+        lines.append(phrase[0].upper() + phrase[1:])
+    if status.auto_renew is False:
+        lines.append("Auto-renew is <b>off</b> — this one is leaving.")
+    elif status.auto_renew is None:
+        lines.append("Auto-renew: Apple sent no renewal info.")
+    if status.auto_renew_product_id:
+        lines.append("Next period switches to "
+                     f"<b>{html.escape(_plan(status.auto_renew_product_id))}</b>.")
+
+    if ent.revoked_at:
+        lines.append(f"Revoked {_date(ent.revoked_at)}.")
+    if ent.original_purchase_at:
+        lines.append(f"First purchased {_date(ent.original_purchase_at)}.")
+    if ent.original_transaction_id:
+        lines.append(f"<code>{html.escape(ent.original_transaction_id)}</code>")
+    return lines
+
+
+async def _sub_text(argument: str) -> str:
+    """Ask Apple what one subscription is doing, right now.
+
+    Everything else the bot knows about subscriptions is a cache of what it was
+    told — by a device at launch, or by a notification that may have arrived
+    while the endpoint was down. This is the one command that goes and asks,
+    which makes it the one worth trusting when a customer disagrees with the
+    index.
+
+    Every failure is reported in the operator's words rather than swallowed:
+    "no result" and "the key is wrong" are the two answers that must never look
+    alike, because one sends you to App Store Connect and the other to the
+    hosting panel.
+    """
+    # Imported here, not at module scope. `entitlements` imports *this* module
+    # (entitlements.py:38) to report what it verifies, and `appstorestatus`
+    # imports `entitlements` — so either at the top of this file closes an
+    # import cycle. The same reason `appstorenotify`'s header gives for
+    # duck-typing the notification it is handed.
+    import appstorestatus
+    import entitlements
+
+    transaction_id, problem = await _resolve_transaction_id(argument or "")
+    if problem is not None:
+        return problem
+    assert transaction_id is not None
+
+    try:
+        statuses = await appstorestatus.lookup(transaction_id)
+    except appstorestatus.SubscriberNotFound as exc:
+        return (f"💳 {html.escape(str(exc))}\n\nChecked Production and Sandbox. "
+                "An id Apple does not recognise is usually a transactionId from "
+                "a different app, or a typo.")
+    except appstorestatus.StatusNotConfigured as exc:
+        return (f"💳 {html.escape(str(exc))}\n\nThe rest of the bot is "
+                "unaffected — /subs still reports what notifications have said.")
+    except appstorestatus.StatusRateLimited as exc:
+        return f"💳 {html.escape(str(exc))}"
+    except appstorestatus.StatusCredentialsRejected as exc:
+        return f"💳 <b>Credentials refused</b>\n{html.escape(str(exc))}"
+    except appstorestatus.StatusError as exc:
+        # StatusUnavailable and anything added later. Still named, still not
+        # silent — this branch exists so a new subclass cannot become a
+        # mystery empty reply.
+        return f"💳 <b>Could not ask Apple</b>\n{html.escape(str(exc))}"
+
+    lines = [f"💳 <b>Live from Apple</b> — {len(statuses)} subscription"
+             f"{'s' if len(statuses) != 1 else ''}"]
+    for status in statuses:
+        lines.append("")
+        lines.extend(_status_lines(status))
+
+    # Fold what Apple just said back into the index. This is the only writer
+    # that can correct a row which drifted — a notification that never arrived
+    # leaves no trace to repair, and the device path cannot see auto-renew at
+    # all.
+    #
+    # Gated on the environment, exactly as the notification path is: a Sandbox
+    # subscription is signed identically to a production one, and writing a
+    # TestFlight tester into the index puts their free renewals into /subs's
+    # revenue figures.
+    indexed = 0
+    for status in statuses:
+        if status.entitlement.environment not in entitlements.ALLOWED_ENVIRONMENTS:
+            continue
+        if not status.entitlement.original_transaction_id:
+            continue
+        try:
+            await _index_subscription(None, status.entitlement, status.auto_renew)
+            indexed += 1
+        except Exception:
+            # The answer above is the point of the command; failing to cache it
+            # must not lose it.
+            log.warning("could not index a live status result", exc_info=True)
+    if indexed:
+        lines.append("")
+        lines.append(f"Index updated from this lookup ({indexed} row"
+                     f"{'s' if indexed != 1 else ''}).")
+    return "\n".join(lines)
+
+
 # ── One device, for a support email ──────────────────────────────────────────
 
 async def _user_text(argument: str) -> str:
@@ -3270,6 +3515,12 @@ async def _user_text(argument: str) -> str:
         renews = _date(int(s["expires"])) if s.get("expires") else "never"
         if s.get("revoked") is not None:
             state = f"refunded or revoked {_date(int(s['revoked']))}"
+        elif alive and s.get("auto_renew") is False:
+            # Same distinction the digest now draws, for the same reason: this
+            # subscription is paid up and leaving. Saying "renews" here is the
+            # single most misleading thing this command could print during the
+            # support mail it exists for.
+            state = f"ends {renews} (auto-renew off)"
         elif alive:
             state = f"renews {renews}"
         else:

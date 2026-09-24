@@ -658,7 +658,8 @@ class TestPolling:
             await drain()
             (menu,) = bot.command_menus
             assert [c["command"] for c in menu] == [
-                "status", "subs", "users", "costs", "experiment", "lever", "social", "finds",
+                "status", "subs", "sub", "users", "costs", "experiment", "lever",
+                "social", "finds",
                 "post", "calendar",
                 "caption", "hooks", "reply", "price", "trend", "user", "checkup", "clear",
                 "history", "feed", "digest", "week", "help"]
@@ -667,6 +668,7 @@ class TestPolling:
             # `BotCommandScopeDefault`, which is every private chat, group and
             # supergroup — so all 23 entries were what any Telegram user saw
             # behind the Menu button on opening the bot, descriptions and all.
+            # (24 now — /sub was added beside /subs.)
             # No access leaked, but the shape of the operation did.
             assert bot.command_scopes == [{"type": "chat", "chat_id": FAKE_CHAT}]
 
@@ -947,17 +949,23 @@ class TestSubscriptionsTable:
                  if ln.startswith(("yearly", "plan"))]
         assert len(table) >= 6, f"expected a header and five rows, got {table}"
 
-        # Six whitespace-separated fields, in the header and in every row.
+        # Seven whitespace-separated fields, in the header and in every row.
         #
         # That is the whole test, and it is enough: a value that fills its
         # field gets no padding, so it fuses with the next column and the two
         # become one token — `promo offer12 Sep` splits to
         # `['promo', 'offer12', 'Sep']` rather than `['promo', '12Sep26']`.
         # Counting is what catches that, in either direction.
-        assert table[0].split() == ["plan", "via", "since", "renews",
+        #
+        # `↻` is the auto-renew header. These rows all come from
+        # `entitlement_recorded`, which sees no renewal info, so every cell
+        # under it is `?` — one character, which is exactly the case a
+        # fixed-width column is most likely to get wrong in the other
+        # direction by padding to zero.
+        assert table[0].split() == ["plan", "via", "since", "renews", "↻",
                                     "seen", "id"], table[0]
         for row in table[1:]:
-            assert len(row.split()) == 6, f"columns ran together: {row!r}"
+            assert len(row.split()) == 7, f"columns ran together: {row!r}"
 
     @pytest.mark.asyncio
     async def test_a_table_date_keeps_its_year(self, enabled_notify):
@@ -2826,7 +2834,7 @@ class FakeNotification:
     def __init__(self, ent, *, notification_type="DID_RENEW", subtype=None,
                  uuid="uuid-1", indexed=True, paid_period=False, refund=False,
                  revoke=False, expiry=False, cancellation=False,
-                 billing_failure=False) -> None:
+                 billing_failure=False, auto_renew=None) -> None:
         self.entitlement = ent
         self.notification_type = notification_type
         self.subtype = subtype
@@ -2839,6 +2847,10 @@ class FakeNotification:
         self.is_cancellation = cancellation
         self.is_billing_failure = billing_failure
         self.is_loss = refund or revoke or expiry
+        # Defaults to None — "Apple sent no renewal info" — so every existing
+        # test keeps exercising the unknown case, which is what a notification
+        # looked like before `signedRenewalInfo` was read.
+        self.auto_renew = auto_renew
 
 
 def _trial(otid: str = "otid-trial", expires_in: int = -86_400) -> Entitlement:
@@ -3229,3 +3241,416 @@ class TestSaleCountingAndResubscribe:
 
         rows = subs_rows(await notify.handle_command("/subs"))
         assert rows and "refund" in rows[0], rows
+
+
+# ── Auto-renew: the wording, the column, and remembering it ──────────────────
+#
+# Every subscription line used to read "renews or expires <date>". That hedge
+# was honest while the bot only ever saw `signedTransactionInfo`, which carries
+# an expiry and nothing about whether another period is coming. It stopped
+# being honest once Apple's renewal info was read: for a subscription someone
+# has cancelled, "renews or expires" reports a 50/50 on a fact Apple has
+# already stated.
+
+class TestRenewalPhrase:
+
+    def test_a_known_cancellation_drops_the_hedge(self):
+        assert notify._renewal_phrase(1_800_000_000, False) == "expires 15 Jan 2027"
+
+    def test_an_unknown_auto_renew_keeps_the_hedge(self):
+        """The distinction that matters. An unknown must not be reported as a
+        cancellation — that turns "we did not ask" into "they are leaving"."""
+        assert notify._renewal_phrase(1_800_000_000, None).startswith("renews or expires")
+
+    def test_a_live_renewal_keeps_the_hedge_too(self):
+        """`renews or expires` is still right for auto-renew ON: the date is
+        when it renews, and a card can still fail. Only False narrows it."""
+        assert notify._renewal_phrase(1_800_000_000, True).startswith("renews or expires")
+
+
+class TestAutoRenewInTheDigest:
+
+    @pytest.mark.asyncio
+    async def test_a_cancellation_alert_does_not_also_say_it_renews(self, enabled_notify):
+        """The line this fix exists for.
+
+        The headline already said "Auto-renew turned off"; the line underneath
+        said "renews or expires 12 Mar 2027". One alert, contradicting itself.
+        """
+        ent = sub("cancel-1", expires_in_days=200)
+        await notify.subscription_event(FakeNotification(
+            ent, notification_type="DID_CHANGE_RENEWAL_STATUS",
+            subtype="AUTO_RENEW_DISABLED", cancellation=True, auto_renew=False))
+
+        text = enabled_notify.texts[0]
+        assert "Auto-renew turned off" in text
+        assert "renews or expires" not in text
+        assert "expires " in text
+
+    @pytest.mark.asyncio
+    async def test_an_ordinary_renewal_still_hedges(self, enabled_notify):
+        await notify.subscription_event(FakeNotification(
+            _paid("renew-1"), paid_period=True, auto_renew=True))
+        assert "renews or expires" in enabled_notify.texts[0]
+
+    @pytest.mark.asyncio
+    async def test_a_later_sync_does_not_forget_the_cancellation(
+            self, enabled_notify, cache):
+        """The bug the tri-state exists to prevent.
+
+        `/auth/entitlement` is by far the highest-volume writer and sees no
+        renewal info at all — the client presents a signed transaction. If an
+        absent value overwrote a stored one, the next app launch would erase a
+        cancellation Apple had just reported, and `/subs` would show the
+        subscriber as renewing right up until the day they vanished.
+        """
+        ent = sub("keep-1", expires_in_days=200)
+        await notify.subscription_event(FakeNotification(
+            ent, notification_type="DID_CHANGE_RENEWAL_STATUS",
+            subtype="AUTO_RENEW_DISABLED", cancellation=True, auto_renew=False))
+
+        # The same subscription checking in from the device, as it does at
+        # every cold launch.
+        await notify.entitlement_recorded(SUBJECT, sub("keep-1", expires_in_days=200))
+
+        doc = json.loads(await cache.get(notify.SUBS_INDEX_KEY))
+        assert doc["keep-1"]["auto_renew"] is False
+
+    @pytest.mark.asyncio
+    async def test_apple_turning_it_back_on_is_recorded(self, enabled_notify, cache):
+        ent = sub("back-1", expires_in_days=200)
+        await notify.subscription_event(FakeNotification(
+            ent, notification_type="DID_CHANGE_RENEWAL_STATUS",
+            subtype="AUTO_RENEW_DISABLED", cancellation=True, auto_renew=False))
+        await notify.subscription_event(FakeNotification(
+            ent, notification_type="DID_CHANGE_RENEWAL_STATUS",
+            subtype="AUTO_RENEW_ENABLED", uuid="uuid-2", auto_renew=True))
+
+        doc = json.loads(await cache.get(notify.SUBS_INDEX_KEY))
+        assert doc["back-1"]["auto_renew"] is True
+
+
+class TestAutoRenewColumn:
+
+    @pytest.mark.asyncio
+    async def test_the_three_states_are_distinguishable(self, enabled_notify):
+        await notify.entitlement_recorded("a" * 64, sub("mark-unknown"))
+        await notify.subscription_event(FakeNotification(
+            sub("mark-off"), paid_period=True, auto_renew=False))
+        await notify.subscription_event(FakeNotification(
+            sub("mark-on"), paid_period=True, uuid="uuid-2", auto_renew=True))
+
+        text = await notify.handle_command("/subs")
+
+        assert "↻" in text and "✕" in text and "?" in text
+        # The legend, so the column is not a rune nobody can read.
+        assert "auto-renew off" in text
+
+    @pytest.mark.asyncio
+    async def test_an_unknown_row_is_not_drawn_as_renewing(self, enabled_notify):
+        """A row nobody has reported on must not claim to renew — that is
+        exactly the invention the tri-state avoids."""
+        await notify.entitlement_recorded("a" * 64, sub("only-1"))
+        text = await notify.handle_command("/subs")
+
+        # The header and the legend both carry the runes, so this has to look
+        # at the data row itself.
+        (row,) = [ln for ln in text.splitlines() if ln.startswith("monthly")]
+        assert "↻" not in row and "✕" not in row, row
+        assert "?" in row
+
+
+class TestUserCommandWording:
+
+    @pytest.mark.asyncio
+    async def test_a_cancelled_subscription_does_not_read_as_renewing(
+            self, enabled_notify):
+        """`/user` is the support-mail command. "renews 12 Mar 2027" for
+        somebody who has cancelled is the single most misleading thing it
+        could print."""
+        # `/user` reads the *devices* index, which only a sighting writes.
+        notify.saw_user(SUBJECT, tier="pro")
+        await drain()
+        await notify.entitlement_recorded(SUBJECT, sub("user-1", expires_in_days=200))
+        await notify.subscription_event(FakeNotification(
+            sub("user-1", expires_in_days=200), paid_period=True, auto_renew=False))
+
+        who = notify.auditlog.pseudonymise(SUBJECT)[:6]
+        text = await notify.handle_command(f"/user {who}")
+
+        assert "auto-renew off" in text
+        assert "Subscription: monthly" in text
+
+
+# ── /sub: asking Apple directly ──────────────────────────────────────────────
+
+class _FakeStatus:
+    """What `appstorestatus.lookup` hands back, duck-typed.
+
+    Same reason `FakeNotification` above is duck-typed: `notify` cannot import
+    `appstorestatus` at module scope without closing an import cycle through
+    `entitlements`, so the contract is what is held to here.
+    """
+
+    def __init__(self, ent, *, state="active", auto_renew=None,
+                 offer_identifier=None, auto_renew_product_id=None):
+        self.entitlement = ent
+        self.state = state
+        self.auto_renew = auto_renew
+        self.offer_identifier = offer_identifier
+        self.auto_renew_product_id = auto_renew_product_id
+        self.environment = ent.environment
+        self.product_id = ent.product_id
+        self.expires_at = ent.expires_at
+
+
+def _patch_lookup(monkeypatch, result):
+    """Substitute `appstorestatus.lookup`, raising if `result` is an exception."""
+    import appstorestatus
+
+    async def _lookup(transaction_id):
+        _lookup.called_with.append(transaction_id)
+        if isinstance(result, Exception):
+            raise result
+        return result
+
+    _lookup.called_with = []
+    monkeypatch.setattr(appstorestatus, "lookup", _lookup)
+    return _lookup
+
+
+class TestSubCommandIdResolution:
+    """The short id in `/subs` is not a transaction id and cannot be turned
+    into one by arithmetic: it is `sha256(AUDIT_SALT + subject)[:16][:6]`, a
+    one-way pseudonym. What makes `/sub b0320d` work is that the index is
+    keyed by the full transaction id with the pseudonym stored beside it, so
+    this is a reverse scan of that index."""
+
+    @pytest.mark.asyncio
+    async def test_a_full_transaction_id_is_passed_straight_through(
+            self, enabled_notify, monkeypatch):
+        spy = _patch_lookup(monkeypatch, [_FakeStatus(sub("2000000000000001"))])
+
+        await notify.handle_command("/sub 2000000000000001")
+
+        assert spy.called_with == ["2000000000000001"]
+
+    @pytest.mark.asyncio
+    async def test_an_unknown_transaction_id_still_reaches_apple(
+            self, enabled_notify, monkeypatch):
+        """The index not having it is not a reason to refuse — a subscription
+        no device ever synced is exactly what this command is for."""
+        spy = _patch_lookup(monkeypatch, [_FakeStatus(sub("9000000000000009"))])
+
+        await notify.handle_command("/sub 9000000000000009")
+
+        assert spy.called_with == ["9000000000000009"]
+
+    @pytest.mark.asyncio
+    async def test_a_short_id_is_resolved_through_the_index(
+            self, enabled_notify, monkeypatch):
+        await notify.entitlement_recorded(SUBJECT, sub("otid-short"))
+        who = notify.auditlog.pseudonymise(SUBJECT)[:6]
+        spy = _patch_lookup(monkeypatch, [_FakeStatus(sub("otid-short"))])
+
+        await notify.handle_command(f"/sub {who}")
+
+        assert spy.called_with == ["otid-short"]
+
+    @pytest.mark.asyncio
+    async def test_a_short_id_nobody_has_seen_says_so_without_calling_apple(
+            self, enabled_notify, monkeypatch):
+        spy = _patch_lookup(monkeypatch, [])
+
+        text = await notify.handle_command("/sub zzzzzz")
+
+        assert "Nothing in the index" in text
+        # And it points at the way out, since an originalTransactionId works
+        # whether or not the index has ever heard of it.
+        assert "originalTransactionId" in text
+        assert spy.called_with == []
+
+    @pytest.mark.asyncio
+    async def test_a_colliding_prefix_asks_for_more_characters(
+            self, enabled_notify, cache, monkeypatch):
+        """Six characters of a sixteen-character hash can collide, and two
+        devices must never be silently resolved to one."""
+        await cache.set(notify.SUBS_INDEX_KEY, json.dumps({
+            "otid-a": {"who": "abc111", "product": "com.snapworth.monthly",
+                       "env": "Production", "seen": int(time.time())},
+            "otid-b": {"who": "abc222", "product": "com.snapworth.monthly",
+                       "env": "Production", "seen": int(time.time())}}), 600)
+        spy = _patch_lookup(monkeypatch, [])
+
+        text = await notify.handle_command("/sub abc")
+
+        assert "2 devices start with" in text
+        assert spy.called_with == []
+
+    @pytest.mark.asyncio
+    async def test_several_subscriptions_for_one_device_are_not_a_collision(
+            self, enabled_notify, cache, monkeypatch):
+        """A resubscribe leaves two rows under one pseudonym. Apple returns
+        every subscription for the customer behind whichever id we send, so
+        either one answers the question."""
+        await cache.set(notify.SUBS_INDEX_KEY, json.dumps({
+            "otid-old": {"who": "abc111", "product": "com.snapworth.monthly",
+                         "env": "Production", "seen": int(time.time())},
+            "otid-new": {"who": "abc111", "product": "com.snapworth.yearly",
+                         "env": "Production", "seen": int(time.time())}}), 600)
+        spy = _patch_lookup(monkeypatch, [_FakeStatus(sub("otid-new"))])
+
+        await notify.handle_command("/sub abc111")
+
+        assert spy.called_with in (["otid-old"], ["otid-new"])
+
+    @pytest.mark.asyncio
+    async def test_no_argument_explains_itself(self, enabled_notify):
+        assert "Usage: /sub" in await notify.handle_command("/sub")
+
+
+class TestSubCommandOutput:
+
+    @pytest.mark.asyncio
+    async def test_an_active_subscription_reports_the_facts(
+            self, enabled_notify, monkeypatch):
+        _patch_lookup(monkeypatch, [_FakeStatus(
+            sub("otid-1", "com.snapworth.yearly", price=39.99,
+                expires_in_days=200),
+            state="active", auto_renew=True)])
+
+        text = await notify.handle_command("/sub 2000000000000001")
+
+        assert "Live from Apple" in text
+        assert "yearly" in text
+        assert "active" in text
+        assert "Production" in text
+        assert "Renews or expires" in text
+        # The date keeps its capitalisation — `.capitalize()` would lowercase
+        # the month and render "12 apr 2027".
+        assert "Apr" in text
+
+    @pytest.mark.asyncio
+    async def test_auto_renew_off_is_stated_outright(
+            self, enabled_notify, monkeypatch):
+        _patch_lookup(monkeypatch, [_FakeStatus(
+            sub("otid-2", expires_in_days=90), state="active", auto_renew=False)])
+
+        text = await notify.handle_command("/sub 2000000000000002")
+
+        assert "Auto-renew is <b>off</b>" in text
+        assert "renews or expires" not in text
+
+    @pytest.mark.asyncio
+    async def test_an_offer_code_is_shown(self, enabled_notify, monkeypatch):
+        _patch_lookup(monkeypatch, [_FakeStatus(
+            sub("otid-3", offer_type=3), state="active",
+            offer_identifier="LAUNCH50")])
+
+        text = await notify.handle_command("/sub 2000000000000003")
+
+        assert "LAUNCH50" in text
+        assert "offer code" in text
+
+    @pytest.mark.asyncio
+    async def test_a_pending_plan_change_is_flagged(self, enabled_notify, monkeypatch):
+        _patch_lookup(monkeypatch, [_FakeStatus(
+            sub("otid-4", "com.snapworth.yearly"), state="active",
+            auto_renew=True, auto_renew_product_id="com.snapworth.monthly")])
+
+        text = await notify.handle_command("/sub 2000000000000004")
+
+        assert "Next period switches to" in text
+        assert "monthly" in text
+
+    @pytest.mark.asyncio
+    async def test_the_answer_is_folded_back_into_the_index(
+            self, enabled_notify, cache, monkeypatch):
+        """The only writer that can repair a row which drifted — a
+        notification that never arrived leaves nothing behind to fix."""
+        _patch_lookup(monkeypatch, [_FakeStatus(
+            sub("otid-5", expires_in_days=200), state="active", auto_renew=False)])
+
+        text = await notify.handle_command("/sub 2000000000000005")
+
+        doc = json.loads(await cache.get(notify.SUBS_INDEX_KEY))
+        assert doc["otid-5"]["auto_renew"] is False
+        assert "Index updated" in text
+
+    @pytest.mark.asyncio
+    async def test_a_sandbox_result_is_reported_but_never_indexed(
+            self, enabled_notify, cache, monkeypatch):
+        """A Sandbox subscription is signed identically to a production one.
+        Writing a TestFlight tester's free renewals into the index puts them
+        into /subs's revenue figures — the same bypass ALLOWED_ENVIRONMENTS
+        exists to prevent, arriving by a different door."""
+        ent = Entitlement("pro", "com.snapworth.yearly",
+                          int(time.time()) + 86_400, "otid-sandbox", "Sandbox",
+                          price=39.99, currency="USD")
+        _patch_lookup(monkeypatch, [_FakeStatus(ent, state="active")])
+
+        text = await notify.handle_command("/sub 2000000000000006")
+
+        assert "Sandbox" in text
+        assert "Index updated" not in text
+        assert await cache.get(notify.SUBS_INDEX_KEY) is None
+
+
+class TestSubCommandErrors:
+    """Every failure names itself. "No result" and "the key is wrong" send you
+    to two different places, and must never look alike."""
+
+    @pytest.mark.asyncio
+    async def test_unknown_subscriber_says_both_environments_were_checked(
+            self, enabled_notify, monkeypatch):
+        import appstorestatus
+        _patch_lookup(monkeypatch, appstorestatus.SubscriberNotFound("nope"))
+
+        text = await notify.handle_command("/sub 2000000000000001")
+
+        assert "Production and Sandbox" in text
+
+    @pytest.mark.asyncio
+    async def test_missing_credentials_say_the_rest_still_works(
+            self, enabled_notify, monkeypatch):
+        import appstorestatus
+        _patch_lookup(monkeypatch,
+                      appstorestatus.StatusNotConfigured("no credentials"))
+
+        text = await notify.handle_command("/sub 2000000000000001")
+
+        assert "no credentials" in text
+        assert "/subs still reports" in text
+
+    @pytest.mark.asyncio
+    async def test_rate_limiting_is_reported_as_such(
+            self, enabled_notify, monkeypatch):
+        import appstorestatus
+        _patch_lookup(monkeypatch,
+                      appstorestatus.StatusRateLimited("Apple is rate limiting"))
+
+        assert "rate limiting" in await notify.handle_command("/sub 2000000000000001")
+
+    @pytest.mark.asyncio
+    async def test_bad_credentials_are_not_reported_as_a_missing_subscriber(
+            self, enabled_notify, monkeypatch):
+        import appstorestatus
+        _patch_lookup(monkeypatch,
+                      appstorestatus.StatusCredentialsRejected("401 from Apple"))
+
+        text = await notify.handle_command("/sub 2000000000000001")
+
+        assert "Credentials refused" in text
+        assert "Production and Sandbox" not in text
+
+    @pytest.mark.asyncio
+    async def test_a_network_failure_is_not_swallowed(
+            self, enabled_notify, monkeypatch):
+        import appstorestatus
+        _patch_lookup(monkeypatch,
+                      appstorestatus.StatusUnavailable("Could not reach Apple"))
+
+        text = await notify.handle_command("/sub 2000000000000001")
+
+        assert "Could not ask Apple" in text
+        assert "Could not reach Apple" in text

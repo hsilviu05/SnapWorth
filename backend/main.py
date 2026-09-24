@@ -417,6 +417,14 @@ async def _close_dependencies() -> None:
     except Exception as exc:
         log.warning("devicecheck client close failed: %s", exc)
 
+    # Only ever opened if an operator ran /sub on this replica, and imported
+    # here rather than at module scope for the same cycle reason notify gives.
+    try:
+        import appstorestatus
+        await appstorestatus.aclose()
+    except Exception as exc:
+        log.warning("App Store status client close failed: %s", exc)
+
     client = getattr(getattr(_cache, "_primary", None), "_redis", None)
     if client is not None:
         try:

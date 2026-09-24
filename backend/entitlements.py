@@ -397,6 +397,62 @@ def verify_apple_jws(jws_value: str, *, max_length: int = 16_384) -> dict:
         raise EntitlementError("Signed payload could not be decoded.") from None
 
 
+def entitlement_from_payload(payload: dict, *, environment: str) -> Entitlement:
+    """Build an `Entitlement` from a decoded StoreKit transaction payload.
+
+    Separated from `verify_signed_transaction` because there are now two ways
+    to arrive at a verified payload: this module's own `verify_apple_jws`, and
+    Apple's `SignedDataVerifier` in `appstorestatus.py`, which the App Store
+    Server API path uses. Both end up holding the same JSON, and the fiddly
+    part is not the signature — it is that every timestamp is milliseconds and
+    `price` is milliunits, so a second transcription is a second chance to
+    divide by the wrong thousand and report someone's £39.99 yearly as £39,990.
+
+    Takes `environment` separately rather than reading `payload["environment"]`
+    because the caller has already had to decide whether that value is allowed.
+    Re-reading it here would let a payload disagree with the gate that admitted
+    it.
+
+    Says nothing about whether the entitlement is *live* — that is
+    `Entitlement.is_active`, and the tier is unconditionally "pro" because a
+    signed transaction exists. Collapsing an expired or revoked one to FREE is
+    the caller's decision, and only the access path makes it.
+    """
+    # StoreKit timestamps are milliseconds.
+    expires_ms = payload.get("expiresDate")
+    expires_at = int(expires_ms / 1000) if isinstance(expires_ms, (int, float)) else None
+    purchased_ms = payload.get("originalPurchaseDate")
+    original_purchase_at = (int(purchased_ms / 1000)
+                            if isinstance(purchased_ms, (int, float)) else None)
+
+    offer_type = payload.get("offerType")
+    offer_type = int(offer_type) if isinstance(offer_type, (int, float)) else None
+    offer_discount_type = payload.get("offerDiscountType")
+    if not isinstance(offer_discount_type, str):
+        offer_discount_type = None
+    price_milli = payload.get("price")
+    price = round(price_milli / 1000, 2) if isinstance(price_milli, (int, float)) else None
+    currency = payload.get("currency") if isinstance(payload.get("currency"), str) else None
+
+    revoked_ms = payload.get("revocationDate")
+    revoked_at = (int(revoked_ms / 1000)
+                  if isinstance(revoked_ms, (int, float)) else None)
+
+    return Entitlement(
+        tier="pro",
+        product_id=payload.get("productId"),
+        expires_at=expires_at,
+        original_transaction_id=payload.get("originalTransactionId"),
+        environment=environment,
+        original_purchase_at=original_purchase_at,
+        offer_type=offer_type,
+        offer_discount_type=offer_discount_type,
+        price=price,
+        currency=currency,
+        revoked_at=revoked_at,
+    )
+
+
 def verify_signed_transaction(
     jws_value: str,
     bundle_id: str,
@@ -435,39 +491,8 @@ def verify_signed_transaction(
     if allowed_product_ids and product_id not in allowed_product_ids:
         raise EntitlementError("Signed transaction is for an unrecognised product.")
 
-    # StoreKit timestamps are milliseconds.
-    expires_ms = payload.get("expiresDate")
-    expires_at = int(expires_ms / 1000) if isinstance(expires_ms, (int, float)) else None
-    purchased_ms = payload.get("originalPurchaseDate")
-    original_purchase_at = (int(purchased_ms / 1000)
-                            if isinstance(purchased_ms, (int, float)) else None)
-
-    offer_type = payload.get("offerType")
-    offer_type = int(offer_type) if isinstance(offer_type, (int, float)) else None
-    offer_discount_type = payload.get("offerDiscountType")
-    if not isinstance(offer_discount_type, str):
-        offer_discount_type = None
-    price_milli = payload.get("price")
-    price = round(price_milli / 1000, 2) if isinstance(price_milli, (int, float)) else None
-    currency = payload.get("currency") if isinstance(payload.get("currency"), str) else None
-
-    revoked_ms = payload.get("revocationDate")
-    revoked_at = (int(revoked_ms / 1000)
-                  if isinstance(revoked_ms, (int, float)) else None)
-
-    ent = Entitlement(
-        tier="pro",
-        product_id=product_id,
-        expires_at=expires_at,
-        original_transaction_id=payload.get("originalTransactionId"),
-        environment=environment,
-        original_purchase_at=original_purchase_at,
-        offer_type=offer_type,
-        offer_discount_type=offer_discount_type,
-        price=price,
-        currency=currency,
-        revoked_at=revoked_at,
-    )
+    ent = entitlement_from_payload(payload, environment=environment)
+    revoked_at = ent.revoked_at
     if allow_inactive:
         return ent
     if revoked_at is not None:

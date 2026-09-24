@@ -44,11 +44,23 @@ from test_entitlements import (  # noqa: E402
 def make_notification(leaf_key, chain, *, notification_type="DID_RENEW",
                       subtype=None, uuid="11111111-2222-3333-4444-555555555555",
                       bundle_id=BUNDLE_ID, environment="Production",
-                      transaction=None, **transaction_overrides) -> str:
-    """Build Apple's V2 envelope with a signed transaction nested inside."""
+                      transaction=None, renewal=None, auto_renew=None,
+                      **transaction_overrides) -> str:
+    """Build Apple's V2 envelope with a signed transaction nested inside.
+
+    `auto_renew` adds the second JWS Apple sends beside the transaction —
+    `signedRenewalInfo`, which is where autoRenewStatus lives. `renewal` takes
+    a prepared one instead, for the cases that need it malformed.
+    """
     if transaction is None:
         transaction = make_jws(
             valid_payload(environment=environment, **transaction_overrides),
+            leaf_key, chain)
+    if renewal is None and auto_renew is not None:
+        renewal = make_jws(
+            {"autoRenewStatus": 1 if auto_renew else 0,
+             "environment": environment,
+             "originalTransactionId": "2000000000000001"},
             leaf_key, chain)
     payload = {
         "notificationType": notification_type,
@@ -61,6 +73,8 @@ def make_notification(leaf_key, chain, *, notification_type="DID_RENEW",
             "signedTransactionInfo": transaction,
         },
     }
+    if renewal is not None:
+        payload["data"]["signedRenewalInfo"] = renewal
     if subtype:
         payload["subtype"] = subtype
     return make_jws(payload, leaf_key, chain)
@@ -411,3 +425,84 @@ class TestSemantics:
         }, leaf_key, chain)
         with pytest.raises(EntitlementError, match="SOMETHING_NEW carries no data"):
             appstorenotify.parse_notification(envelope, BUNDLE_ID, PRODUCTS)
+
+
+class TestAutoRenewStatus:
+    """`signedRenewalInfo` — the second JWS, and the only place Apple says
+    whether the subscription will happen again.
+
+    Nothing read it before. `signedTransactionInfo` has no such field, so the
+    bot could report "auto-renew turned off" the instant Apple said so and
+    then immediately forget it: the next renewal, or the next app launch,
+    rewrote the row from the transaction alone.
+    """
+
+    def test_auto_renew_on_is_read_from_the_renewal_info(self, pinned):
+        leaf_key, chain = pinned
+        note = appstorenotify.parse_notification(
+            make_notification(leaf_key, chain, auto_renew=True),
+            BUNDLE_ID, PRODUCTS)
+        assert note.auto_renew is True
+
+    def test_auto_renew_off_is_read_as_off_not_unknown(self, pinned):
+        """The case the whole tri-state exists for: 0 is a fact, not a gap."""
+        leaf_key, chain = pinned
+        note = appstorenotify.parse_notification(
+            make_notification(leaf_key, chain,
+                              notification_type="DID_CHANGE_RENEWAL_STATUS",
+                              subtype="AUTO_RENEW_DISABLED", auto_renew=False),
+            BUNDLE_ID, PRODUCTS)
+        assert note.auto_renew is False
+        assert note.is_cancellation
+
+    def test_absent_renewal_info_leaves_it_unknown(self, pinned):
+        leaf_key, chain = pinned
+        note = appstorenotify.parse_notification(
+            make_notification(leaf_key, chain), BUNDLE_ID, PRODUCTS)
+        assert note.auto_renew is None
+
+    def test_a_test_notification_has_no_renewal_info(self, pinned):
+        leaf_key, chain = pinned
+        note = appstorenotify.parse_notification(
+            make_notification(leaf_key, chain, notification_type="TEST"),
+            BUNDLE_ID, PRODUCTS)
+        assert note.is_test
+        assert note.auto_renew is None
+
+    def test_renewal_info_is_verified_not_merely_decoded(self, pinned):
+        """Signed by someone else, so it must not be believed.
+
+        The transaction beside it is genuine, so the notification itself is
+        still valid and still recorded — only the unverifiable half is
+        discarded. Failing the whole notification here would answer Apple
+        non-2xx and buy hours of redelivery over a supplementary field.
+        """
+        leaf_key, chain = pinned
+        other_key, other_chain = build_chain()
+        forged = make_jws({"autoRenewStatus": 1}, other_key, other_chain)
+
+        note = appstorenotify.parse_notification(
+            make_notification(leaf_key, chain, renewal=forged),
+            BUNDLE_ID, PRODUCTS)
+
+        assert note.auto_renew is None
+        assert note.entitlement is not None
+        assert note.is_indexed
+
+    def test_a_malformed_renewal_info_does_not_fail_the_notification(self, pinned):
+        leaf_key, chain = pinned
+        note = appstorenotify.parse_notification(
+            make_notification(leaf_key, chain, renewal="not-a-jws"),
+            BUNDLE_ID, PRODUCTS)
+        assert note.auto_renew is None
+        assert note.is_indexed
+
+    def test_a_non_integer_status_is_not_guessed_at(self, pinned):
+        """Apple sends 0 or 1. Anything else is unknown, not truthy."""
+        leaf_key, chain = pinned
+        for value in ("1", True, None, [1]):
+            renewal = make_jws({"autoRenewStatus": value}, leaf_key, chain)
+            note = appstorenotify.parse_notification(
+                make_notification(leaf_key, chain, renewal=renewal),
+                BUNDLE_ID, PRODUCTS)
+            assert note.auto_renew is None, value
