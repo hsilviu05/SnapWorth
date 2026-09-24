@@ -116,7 +116,7 @@ class Comp:
 
 | Provider | Sold data | API | Categories | Priority | Notes |
 |---|---|---|---|---|---|
-| **eBay** | ❌ Marketplace Insights declined | Official, approval required | All | **Not planned** | Access declined 2026-09-03; #36 and #42 closed as not planned. Browse API is active listings only |
+| **eBay** | ❌ Marketplace Insights not granted | Official, approval required | All | **Not planned** | eBay declined our application (2026-09-03), and we did not pursue it further; #36 and #42 closed as not planned. Browse API is active listings only |
 | **StockX** | ✅ Public bid/ask + last sale | Unofficial | Sneakers, streetwear | **P1** | Near-exact matching by SKU |
 | **GOAT** | ✅ | Unofficial | Sneakers | P2 | Overlaps StockX |
 | **Discogs** | ❌ No usable sold data | Official | Vinyl, music | **Blocked** | No endpoint returns sales; pricing is Restricted Data, no commercial use. See below |
@@ -129,8 +129,8 @@ class Comp:
 | **Etsy** | ❌ | Official but no sold | Handmade | ✗ | Same |
 
 Phase 1 was to ship eBay alone, as the one official API covering most thrift
-categories. That plan is void: eBay declined Marketplace Insights access
-(2026-09-03), and the two official APIs expected to follow it turned out to offer
+categories. That plan is void: eBay declined our application (2026-09-03), and
+we did not pursue it further. The two official APIs expected to follow it turned out to offer
 nothing usable. Checked against each provider's own documentation and terms on
 2026-09-24:
 
@@ -328,7 +328,8 @@ All fields optional; clients that do not read them are unaffected.
 ## Legal and compliance
 
 - **eBay:** Marketplace Insights requires application and has usage terms.
-  Applied for and declined (2026-09-03, #36); not planned.
+  eBay declined our application (2026-09-03), and we did not pursue it further
+  (#36); not planned.
 - **Discogs:** pricing, price suggestions and sales history are Restricted Data,
   barred from commercial use. Written permission required before any use.
 - **Reverb:** price guide not publicly available; the analytics clause needs
