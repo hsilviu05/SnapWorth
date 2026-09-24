@@ -349,8 +349,7 @@ private struct RecapBanner: View {
 //
 // Free users get the headline total and the item count — that is the hook, and
 // gating it would remove the reason to reopen the app at all. The trend over
-// time is Pro, shown blurred with an unlock prompt rather than hidden, matching
-// the soft paywall in ThriftFlipView.
+// time is Pro, shown blurred with an unlock prompt rather than hidden.
 private struct PortfolioBanner: View {
     let totalValue: String
     let count: Int

@@ -464,7 +464,6 @@ enum PaywallCopy {
         Benefit(icon: "chart.line.uptrend.xyaxis",
                 text: String(localized: "Why it's worth that — four price points and what drives them")),
         Benefit(icon: "cart.fill", text: String(localized: "Snap → Sell marketplace listings")),
-        Benefit(icon: "arrow.triangle.2.circlepath", text: String(localized: "Thrift Flip profit calculator")),
         Benefit(icon: "tag.fill", text: String(localized: "Read the care tag for a sharper estimate")),
         Benefit(icon: "chart.pie.fill", text: String(localized: "Portfolio value, trend and thrift trends")),
         Benefit(icon: "square.and.arrow.up", text: String(localized: "Unlimited sold flips, and CSV export")),

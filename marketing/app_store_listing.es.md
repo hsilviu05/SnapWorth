@@ -12,8 +12,7 @@ the paying subscribers.
 
 Mirrors `app_store_listing.md`, including its accuracy rules: no claim of sold
 listings, comps or market data; the one-scan-a-day limit in every plan mention;
-the Thrift Flip line keeping the free buy-or-skip verdict separate from the Pro
-numbers behind it.
+Thrift Flip left out of the Pro list, because it is free in full (#128).
 
 ## Read this before pasting
 
@@ -124,7 +123,6 @@ Pro añade:
 • Lectura de la etiqueta — fotografía la etiqueta de cuidado para afinar la estimación
 • Valor de tu colección, su evolución y las tendencias de segunda mano
 • Registro de ganancias — lo que pagaste, por cuánto vendiste y lo que te quedó tras comisiones, con exportación a CSV
-• Las cifras de «Thrift Flip» — el veredicto de llevártelo o dejarlo es gratis; Pro enseña la ganancia neta, el ROI y las comisiones que hay detrás
 
 • Suscripción mensual o anual; la anual incluye 3 días gratis. El precio aparece en la app, en la página de suscripción.
 

@@ -96,7 +96,6 @@ Pro adds:
 • Read the care tag — photograph the label for a sharper estimate
 • Portfolio value, trend and thrift trends
 • Your profit ledger — what you paid, what it sold for, and what you actually made after fees, with CSV export
-• Thrift Flip's profit numbers — the buy-or-skip verdict is free; Pro reveals the net profit, ROI and fee breakdown behind it
 
 • Monthly: $4.99/month
 • Yearly: $39.99/year (3-day free trial included)

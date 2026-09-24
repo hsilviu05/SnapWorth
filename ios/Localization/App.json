@@ -3015,13 +3015,6 @@
       "de": "Damit wird dein gespeicherter Scan endgültig gelöscht.",
       "zh-Hans": "这会永久删除你保存的这条扫描记录。"
     },
-    "Thrift Flip profit calculator": {
-      "en": "Thrift Flip profit calculator",
-      "ro": "Calculatorul de profit Thrift Flip",
-      "es": "Calculadora de ganancia de Thrift Flip",
-      "de": "Thrift-Flip-Gewinnrechner",
-      "zh-Hans": "Thrift Flip 利润计算器"
-    },
     "Trending at the thrift": {
       "en": "Trending at the thrift",
       "ro": "Ce se caută la second hand",
@@ -3167,26 +3160,12 @@
       "de": "Schalt %lld weitere Flips und die Gesamtsummen frei",
       "zh-Hans": "再解锁 %lld 笔转卖，以及全部累计数据"
     },
-    "Unlock Thrift Flip": {
-      "en": "Unlock Thrift Flip",
-      "ro": "Deblochează Thrift Flip",
-      "es": "Desbloquear Thrift Flip",
-      "de": "Thrift Flip freischalten",
-      "zh-Hans": "解锁 Thrift Flip"
-    },
     "Unlock marketplace listings": {
       "en": "Unlock marketplace listings",
       "ro": "Deblochează anunțurile pentru platforme",
       "es": "Desbloquear los anuncios por plataforma",
       "de": "Plattform-Inserate freischalten",
       "zh-Hans": "解锁各平台商品描述"
-    },
-    "Unlock to reveal your profit": {
-      "en": "Unlock to reveal your profit",
-      "ro": "Deblochează ca să-ți vezi profitul",
-      "es": "Desbloquea para ver tu ganancia",
-      "de": "Freischalten, um deinen Gewinn zu sehen",
-      "zh-Hans": "解锁后查看你的利润"
     },
     "Unlock value history": {
       "en": "Unlock value history",

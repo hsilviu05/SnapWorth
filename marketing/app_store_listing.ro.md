@@ -8,8 +8,7 @@ fresh 100-character keyword field, not a translation of the old one.
 
 Mirrors `app_store_listing.md`, including its accuracy rules: no claim of sold
 listings, comps or market data; the one-scan-a-day limit is stated wherever a
-plan is; the Thrift Flip line keeps the free buy-or-skip verdict separate from
-the Pro numbers behind it.
+plan is; Thrift Flip is free in full since #128, so it is not in the Pro list.
 
 ## Read this before pasting
 
@@ -131,7 +130,6 @@ Pro adaugă:
 • Citirea etichetei — fotografiază eticheta de întreținere pentru o estimare mai exactă
 • Valoarea portofoliului, evoluția lui și trendurile din second hand
 • Registrul de profit — cât ai dat, cu cât ai vândut și cât ți-a rămas după comisioane, cu export CSV
-• Cifrele din „Thrift Flip” — verdictul „iei sau lași” e gratuit; Pro arată profitul net, ROI-ul și comisioanele din spatele lui
 
 • Abonament lunar sau anual; cel anual include 3 zile gratuite. Prețul în lei apare în aplicație, pe pagina de abonament.
 
