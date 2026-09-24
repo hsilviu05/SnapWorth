@@ -1,7 +1,16 @@
 # Comparable sales pipeline — architecture
 
-**Status:** design. Not implemented. The seam is in place (`ScanResponse.valuation_source`).
+**Status:** design. The engine is built (`backend/comps/`, see `COMPS-ENGINE.md`)
+but not called from `/scan`, and the seam is in place (`ScanResponse.valuation_source`).
 **Purpose:** move SnapWorth from *AI estimates* to *evidence-backed valuations*.
+
+> **No approved data source (2026-09-24).** No marketplace currently gives SnapWorth
+> completed-sale prices it may use. eBay is not planned (#36, #42 closed), and
+> Discogs and Reverb turned out to have no usable sold data (see
+> [Provider assessment](#provider-assessment)). The engine therefore stays off,
+> with `COMPS_ENABLED=false`, and no comps work proceeds until a provider grants
+> sold-data access in writing. Everything below is the design that such a grant
+> would be built on, not a description of what runs.
 
 ---
 
@@ -107,22 +116,49 @@ class Comp:
 
 | Provider | Sold data | API | Categories | Priority | Notes |
 |---|---|---|---|---|---|
-| **eBay** | ✅ Marketplace Insights | Official, approval required | All | **P0** | Widest coverage; the anchor source |
+| **eBay** | ❌ Marketplace Insights declined | Official, approval required | All | **Not planned** | Access declined 2026-09-03; #36 and #42 closed as not planned. Browse API is active listings only |
 | **StockX** | ✅ Public bid/ask + last sale | Unofficial | Sneakers, streetwear | **P1** | Near-exact matching by SKU |
 | **GOAT** | ✅ | Unofficial | Sneakers | P2 | Overlaps StockX |
-| **Discogs** | ✅ Sales history | Official, generous | Vinyl, music | **P1** | Excellent structured data, exact release matching |
+| **Discogs** | ❌ No usable sold data | Official | Vinyl, music | **Blocked** | No endpoint returns sales; pricing is Restricted Data, no commercial use. See below |
 | **Chrono24** | ⚠️ Asking, some sold | Partner only | Watches | P2 | High value per item — worth the integration cost |
-| **Reverb** | ✅ Price guide | Official | Instruments | P2 | Clean taxonomy |
+| **Reverb** | ❌ No usable sold data | Official | Instruments | **Blocked** | Price guide endpoint withdrawn; public listings are asking prices. See below |
 | **Mercari** | ⚠️ Limited | Unofficial | General | P3 | US-centric |
 | **Grailed** | ⚠️ Sold shown, no API | None | Menswear | P3 | Scraping only — legal review first |
 | **Vinted** | ❌ | None | Fashion | P4 | No sold prices exposed |
 | **Facebook** | ❌ | None | General | ✗ | No sold data — excluded by principle 3 |
 | **Etsy** | ❌ | Official but no sold | Handmade | ✗ | Same |
 
-**Phase 1 ships eBay only.** It covers the majority of thrift categories, has an
-official API, and one well-integrated source beats five flaky ones. StockX and
-Discogs follow because they offer *exact* matching in categories where the vision
-model is weakest at pinning a variant.
+Phase 1 was to ship eBay alone, as the one official API covering most thrift
+categories. That plan is void: eBay declined Marketplace Insights access
+(2026-09-03), and the two official APIs expected to follow it turned out to offer
+nothing usable. Checked against each provider's own documentation and terms on
+2026-09-24:
+
+- **Discogs.** No API endpoint returns other users' completed sales.
+  `GET /marketplace/price_suggestions/{release_id}` returns a *suggested* price
+  per grade (authenticated, seller settings required), and
+  `GET /marketplace/stats/{release_id}` returns "the number of items currently
+  for sale, lowest listed price of any item for sale". Separately, the
+  [API Terms of Use](https://support.discogs.com/hc/en-us/articles/360009334593-API-Terms-of-Use)
+  (updated 2025-05-27) define "Marketplace Data such as … pricing suggestions,
+  including but not limited to: pricing … and sales history" as Restricted Data,
+  and "with respect to all Restricted Data, You may not … Use Restricted Data for
+  any commercial purposes." So even the suggestions are off limits to a paid
+  app. Release metadata (barcodes, catalogue numbers) is CC0 and could help
+  *identify* a record, not price it.
+- **Reverb.** `GET https://api.reverb.com/api/priceguide` answers 403
+  `"This endpoint is no longer publicly available."` The
+  [official docs](https://www.reverb-api.com/docs) cover selling (listings,
+  orders, refunds) and document no price-guide or sold-transaction endpoint.
+  `GET /api/listings` returns live asking prices only; a `state=sold` parameter
+  is ignored. The
+  [API Terms](https://reverb.com/legal/reverbcom-api-terms-of-use) (effective
+  2022-07-01) also bar using the API "to collect, scan, or otherwise request
+  Reverb content for analytics, machine learning … unless expressly authorized."
+
+Both would have to declare `supports_sold=False`, which the registry never
+selects for pricing, so neither is built. Written permission from either
+provider reopens this; nothing short of that does.
 
 ---
 
@@ -269,7 +305,7 @@ probe on recovery. A degraded provider is skipped, not retried into the budget.
     "median_usd": 62.00,
     "p25_usd": 48.00,
     "p75_usd": 79.00,
-    "providers": ["ebay"],
+    "providers": ["<marketplace>"],
     "newest_sale": "2026-07-21",
     "oldest_sale": "2026-04-24",
     "sample": [
@@ -292,7 +328,11 @@ All fields optional; clients that do not read them are unaffected.
 ## Legal and compliance
 
 - **eBay:** Marketplace Insights requires application and has usage terms.
-  Attribution and caching limits must be honoured.
+  Applied for and declined (2026-09-03, #36); not planned.
+- **Discogs:** pricing, price suggestions and sales history are Restricted Data,
+  barred from commercial use. Written permission required before any use.
+- **Reverb:** price guide not publicly available; the analytics clause needs
+  express authorisation. Written permission required before any use.
 - **Unofficial endpoints (StockX, GOAT, Mercari):** these are not authorised APIs.
   Get legal review before shipping, and treat ToS as a hard constraint, not a
   risk to price in.
@@ -309,10 +349,15 @@ Adding a provider is a **legal decision before an engineering one**.
 | Phase | Scope | Exit criterion |
 |---|---|---|
 | 0 | Seam only — `valuation_source` field | ✅ **Done** |
-| 1 | eBay, clothing + shoes, shadow mode (logged, not served) | Comps agree with model within 30% on ≥60% of scans |
+| 1 | First approved provider, its categories, shadow mode (logged, not served) | Comps agree with model within 30% on ≥60% of scans |
 | 2 | Serve comps-backed valuations, labelled, behind a flag | MdAPE improves ≥20% vs. model-only on the benchmark |
-| 3 | StockX + Discogs; expand categories | Coverage >40% of scans |
+| 3 | Further providers; expand categories | Coverage >40% of scans |
 | 4 | Update marketing claims — **only now** | Legal sign-off on the comps claim |
+
+**Phase 1 is blocked**: it has no provider to start with (see
+[Provider assessment](#provider-assessment)). It was written as "eBay, clothing +
+shoes"; it now begins with whichever provider first grants sold-data access in
+writing.
 
 Shadow mode in phase 1 is non-negotiable: it measures the pipeline against the
 benchmark without any user seeing a number derived from an untested source.

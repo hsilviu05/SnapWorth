@@ -133,7 +133,9 @@ def default_stubs() -> list[StubProvider]:
         ),
         StubProvider(
             name="discogs",
-            note="Official API with generous limits; exact release matching",
+            note="No usable sold data: API has no sales endpoint, and pricing is "
+                 "Restricted Data barred from commercial use (API ToU). Needs "
+                 "written permission.",
             capabilities=ProviderCapabilities(
                 marketplace=Marketplace.DISCOGS,
                 categories=frozenset({"books", "collectibles", "other"}),
@@ -143,7 +145,9 @@ def default_stubs() -> list[StubProvider]:
         ),
         StubProvider(
             name="reverb",
-            note="Official API; price guide for instruments",
+            note="No usable sold data: price guide endpoint is no longer public, "
+                 "listings are asking prices, and the API ToU bars analytics use "
+                 "without authorisation. Needs written permission.",
             capabilities=ProviderCapabilities(
                 marketplace=Marketplace.REVERB,
                 categories=frozenset({"other", "collectibles"}),

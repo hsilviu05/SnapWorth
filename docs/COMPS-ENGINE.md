@@ -8,6 +8,14 @@ for (RAG, and the ML roadmap).
 scraping, no credentials. The engine is off by default and shadow-mode by
 default when enabled.
 
+> **No approved data source (2026-09-24).** Keep `COMPS_ENABLED=false`. eBay is
+> not planned (#36, #42), and neither Discogs nor Reverb offers sold data we may
+> use: Discogs classes pricing and sales history as Restricted Data with no
+> commercial use, and Reverb's price guide endpoint is no longer public. The
+> details and citations are under "Provider assessment" in
+> `COMPS-ARCHITECTURE.md`. No provider is built until one grants sold-data access
+> in writing.
+
 ---
 
 ## Module map
@@ -74,6 +82,11 @@ Stage ordering is load-bearing:
    marketplace exposes one (it is load-bearing for dedupe — see below).
 4. Register it, and gate rollout with `COMPS_PROVIDERS`.
 
+Before step 1: have the provider's written permission to use its sold data
+commercially. See the note at the top of this file.
+
+The example below shows the shape only. eBay is not planned (#36, #42).
+
 ```python
 @dataclass
 class EbayProvider:
@@ -102,10 +115,10 @@ circuit breaker. Conflating them poisons the negative cache.
 
 | Variable | Default | Notes |
 |---|---|---|
-| `COMPS_ENABLED` | `false` | Master switch |
+| `COMPS_ENABLED` | `false` | Master switch. Stays `false`: no approved data source |
 | `COMPS_SHADOW_MODE` | `true` | Compute + measure, never influence output |
 | `COMPS_PROVIDERS` | *(all)* | Comma-separated allowlist |
-| `COMPS_CATEGORIES` | *(all)* | Phase 1 should be `clothing,shoes` |
+| `COMPS_CATEGORIES` | *(all)* | Set to the first approved provider's categories. The scan categories are `clothing, shoes, accessories, electronics, books, furniture, home, sports, toys, collectibles, other`; there is no music or instruments category |
 | `COMPS_FANOUT_BUDGET_MS` | `800` | Whole fan-out deadline |
 | `COMPS_PROVIDER_TIMEOUT_MS` | `700` | Per provider; must be below the budget |
 | `COMPS_WINDOW_DAYS` | `90` | Sale window |
