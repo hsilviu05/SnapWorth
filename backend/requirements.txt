@@ -113,3 +113,38 @@ PyJWT==2.14.0
 cryptography==50.0.1
 # DeviceCheck API calls.
 httpx==0.28.1
+# Apple's own App Store Server API client and JWS verifier. MIT, from
+# apple/app-store-server-library-python. Added for `appstorestatus.py`, which
+# asks Apple for a subscriber's live status instead of waiting to be told.
+#
+# Taken as a library rather than extending the hand-rolled token in
+# `tools/appstore_test_notification.py`, which is ~15 lines of `jwt.encode` and
+# would have been the cheaper diff. The token is the easy half. The hard half
+# is Apple's error vocabulary — `ORIGINAL_TRANSACTION_ID_NOT_FOUND` (4040005)
+# is what the Production→Sandbox fallback turns on, and it is one of nine
+# 404-shaped codes, four of which are separately marked retryable. Hand-rolling
+# that means transcribing a table Apple owns and re-checking it forever.
+#
+# The `[async]` extra is what makes it fit: it brings `AsyncAppStoreServerAPIClient`,
+# backed by httpx, which is already pinned above. The sync client would have
+# meant `requests` on the event loop.
+#
+# It does NOT introduce a second trust anchor. `SignedDataVerifier` takes the
+# root certificates as DER bytes, and `appstorestatus.py` hands it the same
+# `entitlements.APPLE_ROOT_CA_G3_PEM` that `verify_apple_jws` pins — whose
+# docstring is explicit that a second implementation is a second thing to get
+# wrong. This is a second *implementation* of the walk, which is unavoidable
+# when the library verifies internally, but not a second *root*.
+#
+# Five transitive dependencies come with it, which is the real cost in a file
+# where every line is a CVE argument: attrs and cattrs (its models are attrs
+# classes), pyOpenSSL and asn1 (its chain verifier and OCSP checks), and
+# requests — unused on our path, since we take the async client, but not
+# optional in the package metadata. `asn1==3.2.0` is an *exact* pin by Apple,
+# so Dependabot cannot move it; that is upstream's constraint, not ours, and
+# worth knowing before someone spends an afternoon on the failing PR.
+#
+# `enable_online_checks` is left False in `appstorestatus.py`: it makes the
+# verifier fetch OCSP, which puts a second network dependency inside what is
+# otherwise a signature check against a pinned root.
+app-store-server-library[async]==3.1.2

@@ -2,6 +2,13 @@
 .env
 *.env
 
+# Apple signing keys. The In-App Purchase key that `appstorestatus.py` uses and
+# the DeviceCheck key are both unencrypted P-256 .p8 files downloadable exactly
+# once, and both land in ~/Downloads with a name that invites `mv` into the
+# repo next to the tool that wants them. Ignored by extension so that reflex is
+# harmless; .gitleaks.toml carries the matching rule for one committed anyway.
+*.p8
+
 # Python
 __pycache__/
 *.pyc

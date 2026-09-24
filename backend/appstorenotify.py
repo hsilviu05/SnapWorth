@@ -80,6 +80,11 @@ class Notification:
     entitlement: Entitlement | None
     environment: str = "Production"
     signed_date: int | None = None
+    # Whether the subscription is set to renew, from the `signedRenewalInfo`
+    # JWS beside the transaction. None when Apple sent none — which is normal
+    # for a TEST notification and for the envelope shapes that carry no `data`
+    # at all, and must stay distinguishable from a definite "off".
+    auto_renew: bool | None = None
 
     @property
     def is_test(self) -> bool:
@@ -142,6 +147,44 @@ class Notification:
     @property
     def is_billing_failure(self) -> bool:
         return self.notification_type == DID_FAIL_TO_RENEW
+
+
+def _auto_renew_status(signed_renewal_info: object) -> bool | None:
+    """Read `autoRenewStatus` out of the renewal info beside the transaction.
+
+    Apple puts this in a *second* JWS, which is why nothing read it before:
+    `signedTransactionInfo` says what was bought and until when, and has no
+    field for whether it will happen again. So the bot could report "auto-renew
+    turned off" the moment Apple said so, and then had no way to remember it —
+    the next renewal or check-in rewrote the row from the transaction alone.
+
+    Verified through the same `verify_apple_jws` as everything else: it is the
+    same signing chain, and an unverified renewal info is worth no more than
+    an unverified transaction.
+
+    A renewal info that does not verify degrades to None rather than failing
+    the notification. The transaction is the load-bearing part — it is what
+    records the money — and answering Apple non-2xx over a supplementary field
+    buys hours of redelivery for a fact the next notification will carry again.
+    The warning is there for whoever has to notice that.
+    """
+    if not isinstance(signed_renewal_info, str):
+        return None
+    try:
+        payload = entitlements.verify_apple_jws(
+            signed_renewal_info, max_length=MAX_SIGNED_PAYLOAD)
+    except EntitlementError as exc:
+        log.warning("renewal info did not verify, auto-renew left unknown",
+                    extra={"reason": str(exc)})
+        return None
+
+    raw = payload.get("autoRenewStatus")
+    # Apple sends 0 or 1. Tested against None rather than truthiness because 0
+    # is the answer that matters most — a falsy check reads "cancelled" as
+    # "unknown", which is the one distinction this whole function exists for.
+    if raw is None or isinstance(raw, bool) or not isinstance(raw, int):
+        return None
+    return bool(raw)
 
 
 def parse_notification(
@@ -258,4 +301,5 @@ def parse_notification(
         entitlement=ent,
         environment=environment,
         signed_date=signed_date,
+        auto_renew=_auto_renew_status(data.get("signedRenewalInfo")),
     )
