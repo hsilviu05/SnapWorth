@@ -168,9 +168,21 @@ Dropped for space, in the order I would add them back: `anticariat`,
 
 ---
 
-## What's New (Version 1.4.2) — Română
+## What's New (Version 1.4.3) — Română
 
-This is the one to paste. 1.4.2 is the version Romanian ships with.
+This is the one to paste.
+
+```
+Fă cunoștință cu Tag.
+
+Tag, noua noastră mascotă, îți ține companie cât SnapWorth îți analizează obiectul și te așteaptă în Găselnițe și Flipuri până salvezi ceva.
+
+Thrift Flip arată acum totul gratuit: profitul net, ROI-ul și toate comisioanele platformei pe care o alegi. Poți salva un flip în Flipuri direct din verdict, cu sau fără Pro.
+```
+
+## What's New (Version 1.4.2) — Română — ARCHIVED, do not paste
+
+1.4.2 is approved and live; kept for the record.
 
 ```
 SnapWorth e acum în română.

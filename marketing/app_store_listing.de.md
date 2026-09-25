@@ -164,7 +164,19 @@ anything it displaced.
 
 ---
 
-## What's New — Deutsch
+## What's New (Version 1.4.3) — Deutsch
+
+```
+Das ist Tag.
+
+Tag, unser neues Maskottchen, leistet dir Gesellschaft, während SnapWorth deinen Artikel analysiert, und wartet in Meine Funde und Meine Flips, bis du etwas gespeichert hast.
+
+Thrift Flip zeigt jetzt alles gratis: Nettogewinn, ROI und alle Gebühren der Plattform, die du auswählst. Einen Flip speicherst du direkt aus dem Ergebnis in Meine Flips – mit oder ohne Pro.
+```
+
+## What's New (Version 1.4.2) — Deutsch — ARCHIVED, do not paste
+
+1.4.2 is approved and live; kept for the record.
 
 ```
 SnapWorth gibt es jetzt auf Deutsch.

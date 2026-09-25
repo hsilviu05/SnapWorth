@@ -162,7 +162,19 @@ the app has no fee table for either, and a keyword is a claim.
 
 ---
 
-## What's New — Español
+## What's New (Version 1.4.3) — Español
+
+```
+Te presentamos a Tag.
+
+Tag, nuestra nueva mascota, te acompaña mientras SnapWorth analiza tu artículo, y te espera en Mis hallazgos y Mis reventas hasta que guardes algo.
+
+Thrift Flip ahora lo enseña todo gratis: la ganancia neta, el ROI y el desglose completo de comisiones de la plataforma que elijas. Guarda una reventa en Mis reventas directamente desde el veredicto, con Pro o sin él.
+```
+
+## What's New (Version 1.4.2) — Español — ARCHIVED, do not paste
+
+1.4.2 is approved and live; kept for the record.
 
 ```
 SnapWorth ya está en español.
