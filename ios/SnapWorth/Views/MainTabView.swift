@@ -17,6 +17,10 @@ struct MainTabView: View {
     /// Settings uses it" would put the stale-Pro-chrome bug back on all four.
     let isPro: Bool
     @State private var selectedTab = 0
+    /// A week earned from a referral (#97) that this device has not been told
+    /// about yet. Shown once per code; the code stays under Invite a friend.
+    @State private var earnedReward: ReferralStatus.Reward?
+    @Environment(\.openURL) private var openURL
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.modelContext) private var modelContext
 
@@ -103,7 +107,31 @@ struct MainTabView: View {
                 await purchaseService.refreshEntitlements()
                 await NotificationManager.shared.syncEligible(
                     context: modelContext, purchaseService: purchaseService)
+                await checkForEarnedReward()
             }
         }
+        .alert("You earned a week of Pro",
+               isPresented: Binding(get: { earnedReward != nil }, set: { if !$0 { earnedReward = nil } }),
+               presenting: earnedReward) { reward in
+            Button("Redeem") {
+                Analytics.shared.track(.referralRewarded)
+                openURL(reward.redeemURL)
+            }
+            Button("Later", role: .cancel) {}
+        } message: { _ in
+            Text("A friend used your invite. Redeem your free week with Apple.")
+        }
+    }
+
+    /// Announces the newest unannounced referral reward, once. Only the newest,
+    /// so three friends at once is one alert, not three; the rest are listed
+    /// under Invite a friend.
+    private func checkForEarnedReward() async {
+        let status = await ReferralAPIClient.shared.status()
+        guard status.enabled else { return }
+        let fresh = ReferralRewardNotice.unannounced(status.rewards)
+        guard let newest = fresh.max(by: { $0.earnedAt < $1.earnedAt }) else { return }
+        ReferralRewardNotice.markAnnounced(fresh)
+        earnedReward = newest
     }
 }

@@ -171,6 +171,10 @@ class Entitlement:
     # what tells a comped user from a paying one in the operator's view.
     offer_type: int | None = None
     offer_discount_type: str | None = None
+    # Apple's offerIdentifier: for an offer code, the offer's *reference name*
+    # from App Store Connect, never the individual code redeemed. That is why
+    # referrals attribute by an in-app claim rather than by code (referral.py).
+    offer_identifier: str | None = None
     # What Apple charged for this transaction, in currency units (the JWS
     # carries milliunits). Absent on older transactions.
     price: float | None = None
@@ -199,6 +203,7 @@ class Entitlement:
             "original_purchase_at": self.original_purchase_at,
             "offer_type": self.offer_type,
             "offer_discount_type": self.offer_discount_type,
+            "offer_identifier": self.offer_identifier,
             "price": self.price, "currency": self.currency,
             "revoked_at": self.revoked_at,
         })
@@ -214,6 +219,7 @@ class Entitlement:
             original_purchase_at=d.get("original_purchase_at"),
             offer_type=d.get("offer_type"),
             offer_discount_type=d.get("offer_discount_type"),
+            offer_identifier=d.get("offer_identifier"),
             price=d.get("price"), currency=d.get("currency"),
             revoked_at=d.get("revoked_at"),
         )
@@ -430,6 +436,9 @@ def entitlement_from_payload(payload: dict, *, environment: str) -> Entitlement:
     offer_discount_type = payload.get("offerDiscountType")
     if not isinstance(offer_discount_type, str):
         offer_discount_type = None
+    offer_identifier = payload.get("offerIdentifier")
+    if not isinstance(offer_identifier, str):
+        offer_identifier = None
     price_milli = payload.get("price")
     price = round(price_milli / 1000, 2) if isinstance(price_milli, (int, float)) else None
     currency = payload.get("currency") if isinstance(payload.get("currency"), str) else None
@@ -447,6 +456,7 @@ def entitlement_from_payload(payload: dict, *, environment: str) -> Entitlement:
         original_purchase_at=original_purchase_at,
         offer_type=offer_type,
         offer_discount_type=offer_discount_type,
+        offer_identifier=offer_identifier,
         price=price,
         currency=currency,
         revoked_at=revoked_at,

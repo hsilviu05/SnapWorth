@@ -723,6 +723,13 @@
       "de": "/ 100 Sicherheit",
       "zh-Hans": "/ 100 置信度"
     },
+    "A friend used your invite. Redeem your free week with Apple.": {
+      "en": "A friend used your invite. Redeem your free week with Apple.",
+      "ro": "Un prieten ți-a folosit invitația. Ia-ți săptămâna gratuită de la Apple.",
+      "es": "Un amigo ha usado tu invitación. Canjea tu semana gratis con Apple.",
+      "de": "Jemand hat deine Einladung genutzt. Löse deine Gratiswoche bei Apple ein.",
+      "zh-Hans": "有朋友用了你的邀请。去 Apple 兑换你的免费一周吧。"
+    },
     "A marketplace-ready listing, tailored to where you sell.": {
       "en": "A marketplace-ready listing, tailored to where you sell.",
       "ro": "Un anunț gata de postat, pe măsura platformei pe care vinzi.",
@@ -850,6 +857,13 @@
       "es": "La respuesta, en la siguiente",
       "de": "Antwort auf der nächsten Folie",
       "zh-Hans": "答案在下一页"
+    },
+    "Apple shows the offer before you confirm. After the free week, the subscription renews unless you cancel.": {
+      "en": "Apple shows the offer before you confirm. After the free week, the subscription renews unless you cancel.",
+      "ro": "Apple îți arată oferta înainte să confirmi. După săptămâna gratuită, abonamentul se reînnoiește dacă nu îl anulezi.",
+      "es": "Apple te muestra la oferta antes de confirmar. Tras la semana gratis, la suscripción se renueva salvo que la canceles.",
+      "de": "Apple zeigt dir das Angebot, bevor du bestätigst. Nach der Gratiswoche verlängert sich das Abo, wenn du nicht kündigst.",
+      "zh-Hans": "确认前，Apple 会先显示这份优惠。免费一周结束后，订阅会自动续订，除非你取消。"
     },
     "Ask": {
       "comment": "The listing price you ask for.",
@@ -1006,6 +1020,13 @@
       "de": "Sieh den Gewinn nach Gebühren, bevor du kaufst",
       "zh-Hans": "买之前先看看扣掉手续费还剩多少"
     },
+    "Checking…": {
+      "en": "Checking…",
+      "ro": "Verific…",
+      "es": "Comprobando…",
+      "de": "Wird geprüft…",
+      "zh-Hans": "正在验证…"
+    },
     "Choose from library": {
       "en": "Choose from library",
       "ro": "Alege din galerie",
@@ -1160,6 +1181,13 @@
       "es": "No se pudo añadir a Mis hallazgos. El veredicto de abajo sigue siendo válido.",
       "de": "Konnte nicht zu Meine Funde hinzugefügt werden. Das Urteil unten gilt trotzdem.",
       "zh-Hans": "没能加入“我的好物”。下面的结论仍然有效。"
+    },
+    "Couldn't check that code. Try again.": {
+      "en": "Couldn't check that code. Try again.",
+      "ro": "N-am putut verifica codul. Încearcă din nou.",
+      "es": "No se pudo comprobar el código. Inténtalo de nuevo.",
+      "de": "Der Code konnte nicht geprüft werden. Versuch es noch einmal.",
+      "zh-Hans": "邀请码没能验证。请再试一次。"
     },
     "Couldn't clear history": {
       "en": "Couldn't clear history",
@@ -1401,6 +1429,13 @@
       "de": "Gib einen Betrag in Dollar ein",
       "zh-Hans": "输入一个金额（美元）"
     },
+    "Enter the invite code a friend sent you.": {
+      "en": "Enter the invite code a friend sent you.",
+      "ro": "Introdu codul de invitație primit de la un prieten.",
+      "es": "Introduce el código de invitación que te ha enviado un amigo.",
+      "de": "Gib den Einladungscode ein, den du bekommen hast.",
+      "zh-Hans": "输入朋友发给你的邀请码。"
+    },
     "Estimated Resale Value": {
       "en": "Estimated Resale Value",
       "ro": "Preț estimat la revânzare",
@@ -1600,6 +1635,27 @@
       "de": "Hol dir SnapWorth",
       "zh-Hans": "下载 SnapWorth"
     },
+    "Get a free week of SnapWorth Pro: enter my invite code %@ in the app. %@": {
+      "en": "Get a free week of SnapWorth Pro: enter my invite code %@ in the app. %@",
+      "ro": "Ia o săptămână gratuită de SnapWorth Pro: introdu codul meu de invitație %@ în aplicație. %@",
+      "es": "Consigue una semana gratis de SnapWorth Pro: introduce mi código de invitación %@ en la app. %@",
+      "de": "Hol dir eine Gratiswoche SnapWorth Pro: Gib meinen Einladungscode %@ in der App ein. %@",
+      "zh-Hans": "免费领一周 SnapWorth Pro：在 App 里输入我的邀请码 %@。%@"
+    },
+    "Get my free week": {
+      "en": "Get my free week",
+      "ro": "Vreau săptămâna gratuită",
+      "es": "Quiero mi semana gratis",
+      "de": "Gratiswoche holen",
+      "zh-Hans": "领取免费一周"
+    },
+    "Give a friend a week of Pro, get a week of Pro": {
+      "en": "Give a friend a week of Pro, get a week of Pro",
+      "ro": "Dă-i unui prieten o săptămână de Pro și primești și tu una",
+      "es": "Regala a un amigo una semana de Pro y consigue otra para ti",
+      "de": "Schenk jemandem eine Woche Pro und bekomm selbst eine",
+      "zh-Hans": "送朋友一周 Pro，你也得一周 Pro"
+    },
     "Good": {
       "comment": "Condition grade.",
       "en": "Good",
@@ -1642,6 +1698,13 @@
       "es": "Vibración",
       "de": "Haptisches Feedback",
       "zh-Hans": "触感反馈"
+    },
+    "Have an invite code?": {
+      "en": "Have an invite code?",
+      "ro": "Ai un cod de invitație?",
+      "es": "¿Tienes un código de invitación?",
+      "de": "Hast du einen Einladungscode?",
+      "zh-Hans": "有邀请码？"
     },
     "Held for %lld days": {
       "en": {
@@ -1720,6 +1783,27 @@
       "de": "Investiert (gesamt)",
       "zh-Hans": "累计投入"
     },
+    "Invite a friend": {
+      "en": "Invite a friend",
+      "ro": "Invită un prieten",
+      "es": "Invitar a un amigo",
+      "de": "Freunde einladen",
+      "zh-Hans": "邀请朋友"
+    },
+    "Invite code": {
+      "en": "Invite code",
+      "ro": "Cod de invitație",
+      "es": "Código de invitación",
+      "de": "Einladungscode",
+      "zh-Hans": "邀请码"
+    },
+    "Invites are paused for a moment. Try again later.": {
+      "en": "Invites are paused for a moment. Try again later.",
+      "ro": "Invitațiile sunt oprite pentru puțin timp. Încearcă mai târziu.",
+      "es": "Las invitaciones están en pausa un momento. Inténtalo más tarde.",
+      "de": "Einladungen sind kurz pausiert. Versuch es später noch einmal.",
+      "zh-Hans": "邀请暂时停用了。请稍后再试。"
+    },
     "Last 6 months": {
       "en": "Last 6 months",
       "ro": "Ultimele 6 luni",
@@ -1734,6 +1818,13 @@
       "es": "Última actualización: %@",
       "de": "Zuletzt aktualisiert: %@",
       "zh-Hans": "最后更新：%@"
+    },
+    "Later": {
+      "en": "Later",
+      "ro": "Mai târziu",
+      "es": "Más tarde",
+      "de": "Später",
+      "zh-Hans": "稍后"
     },
     "Leather Tote": {
       "en": "Leather Tote",
@@ -2375,6 +2466,13 @@
       "de": "Etikett wird gelesen…",
       "zh-Hans": "正在读标签…"
     },
+    "Redeem": {
+      "en": "Redeem",
+      "ro": "Folosește",
+      "es": "Canjear",
+      "de": "Einlösen",
+      "zh-Hans": "兑换"
+    },
     "Regenerate": {
       "en": "Regenerate",
       "ro": "Scrie din nou",
@@ -2674,6 +2772,13 @@
       "es": "La tarjeta aún se está preparando",
       "de": "Die Karte wird noch vorbereitet",
       "zh-Hans": "分享卡片还在生成"
+    },
+    "Share invite": {
+      "en": "Share invite",
+      "ro": "Trimite invitația",
+      "es": "Compartir invitación",
+      "de": "Einladung teilen",
+      "zh-Hans": "分享邀请"
     },
     "Share this find as a card, or as a guess-the-price story": {
       "en": "Share this find as a card, or as a guess-the-price story",
@@ -3009,12 +3114,26 @@
       "de": "Die Jacke für 4 $?\nVielleicht 90 $ wert.",
       "zh-Hans": "那件 4 美元的外套？\n可能值 90 美元。"
     },
+    "That code doesn't match an invite. Check it and try again.": {
+      "en": "That code doesn't match an invite. Check it and try again.",
+      "ro": "Codul nu corespunde niciunei invitații. Verifică-l și încearcă din nou.",
+      "es": "Ese código no corresponde a ninguna invitación. Revísalo e inténtalo de nuevo.",
+      "de": "Dieser Code passt zu keiner Einladung. Prüf ihn und versuch es noch einmal.",
+      "zh-Hans": "这个邀请码无效。请检查后再试一次。"
+    },
     "That didn't work. Your estimate is unchanged.": {
       "en": "That didn't work. Your estimate is unchanged.",
       "ro": "N-a mers. Estimarea a rămas neschimbată.",
       "es": "No funcionó. Tu estimación no ha cambiado.",
       "de": "Das hat nicht geklappt. Deine Schätzung bleibt unverändert.",
       "zh-Hans": "没成功，估价保持不变。"
+    },
+    "That's your own invite code. Share it with a friend instead.": {
+      "en": "That's your own invite code. Share it with a friend instead.",
+      "ro": "E propriul tău cod de invitație. Trimite-l unui prieten.",
+      "es": "Es tu propio código de invitación. Compártelo con un amigo.",
+      "de": "Das ist dein eigener Einladungscode. Teil ihn lieber mit jemandem.",
+      "zh-Hans": "这是你自己的邀请码。把它分享给朋友吧。"
     },
     "The original photo is no longer available for this find.": {
       "en": "The original photo is no longer available for this find.",
@@ -3058,6 +3177,13 @@
       "de": "Auf diesem iPhone ist kein E-Mail-Account eingerichtet. Kopier deine Nachricht und schick sie von dort an %@, wo du Mail hast.",
       "zh-Hans": "这台 iPhone 没有设置邮件账户。复制你写的内容，用别的地方的邮箱发到 %@。"
     },
+    "This phone has already used an invite.": {
+      "en": "This phone has already used an invite.",
+      "ro": "Telefonul ăsta a folosit deja o invitație.",
+      "es": "Este móvil ya ha usado una invitación.",
+      "de": "Dieses Handy hat schon eine Einladung genutzt.",
+      "zh-Hans": "这部手机已经用过一次邀请了。"
+    },
     "This purchase could not be completed.": {
       "en": "This purchase could not be completed.",
       "ro": "Cumpărătura nu a putut fi finalizată.",
@@ -3098,6 +3224,13 @@
       "es": "Esto eliminará definitivamente tu escaneo guardado.",
       "de": "Damit wird dein gespeicherter Scan endgültig gelöscht.",
       "zh-Hans": "这会永久删除你保存的这条扫描记录。"
+    },
+    "Too many tries today. Try again tomorrow.": {
+      "en": "Too many tries today. Try again tomorrow.",
+      "ro": "Prea multe încercări azi. Încearcă mâine.",
+      "es": "Demasiados intentos hoy. Inténtalo mañana.",
+      "de": "Zu viele Versuche heute. Versuch es morgen wieder.",
+      "zh-Hans": "今天尝试次数太多了。明天再试吧。"
     },
     "Trending at the thrift": {
       "en": "Trending at the thrift",
@@ -3345,6 +3478,20 @@
       "de": "Sammlung, wöchentlich",
       "zh-Hans": "每周收藏汇总"
     },
+    "Weeks left to earn this year: %lld": {
+      "en": "Weeks left to earn this year: %lld",
+      "ro": "Săptămâni pe care le mai poți câștiga anul ăsta: %lld",
+      "es": "Semanas que aún puedes ganar este año: %lld",
+      "de": "Wochen, die du dieses Jahr noch verdienen kannst: %lld",
+      "zh-Hans": "今年还能赚到的周数：%lld"
+    },
+    "Weeks you've earned": {
+      "en": "Weeks you've earned",
+      "ro": "Săptămâni câștigate",
+      "es": "Semanas que has ganado",
+      "de": "Deine verdienten Wochen",
+      "zh-Hans": "你赚到的周数"
+    },
     "What did you pay?": {
       "en": "What did you pay?",
       "ro": "Cât ai dat?",
@@ -3386,6 +3533,13 @@
       "es": "Qué incluye",
       "de": "Was dabei ist",
       "zh-Hans": "包含哪些功能"
+    },
+    "When a friend enters your code and starts their free week, you get a week of Pro too.": {
+      "en": "When a friend enters your code and starts their free week, you get a week of Pro too.",
+      "ro": "Când un prieten îți introduce codul și își începe săptămâna gratuită, primești și tu o săptămână de Pro.",
+      "es": "Cuando un amigo introduzca tu código y empiece su semana gratis, tú también recibirás una semana de Pro.",
+      "de": "Wenn jemand deinen Code eingibt und seine Gratiswoche startet, bekommst du auch eine Woche Pro.",
+      "zh-Hans": "朋友输入你的邀请码并开始免费一周后，你也会得到一周 Pro。"
     },
     "When on, each result opens with the price covered until you tap Reveal": {
       "en": "When on, each result opens with the price covered until you tap Reveal",
@@ -3483,6 +3637,13 @@
         "other": "Du hast diese Woche %lld Funde hinzugefügt."
       },
       "zh-Hans": "你这周添加了 %lld 件好物。"
+    },
+    "You earned a week of Pro": {
+      "en": "You earned a week of Pro",
+      "ro": "Ai câștigat o săptămână de Pro",
+      "es": "Has ganado una semana de Pro",
+      "de": "Du hast eine Woche Pro verdient",
+      "zh-Hans": "你赚到了一周 Pro"
     },
     "You have items to update in your ledger.": {
       "en": "You have items to update in your ledger.",
@@ -3591,6 +3752,13 @@
       "es": "Tu respuesta en dólares, opcional",
       "de": "Dein Tipp in Dollar, optional",
       "zh-Hans": "你猜的金额，美元，选填"
+    },
+    "Your invite code": {
+      "en": "Your invite code",
+      "ro": "Codul tău de invitație",
+      "es": "Tu código de invitación",
+      "de": "Dein Einladungscode",
+      "zh-Hans": "你的邀请码"
     },
     "Your message": {
       "en": "Your message",

@@ -3275,6 +3275,41 @@
         }
       }
     },
+    "A friend used your invite. Redeem your free week with Apple." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Jemand hat deine Einladung genutzt. Löse deine Gratiswoche bei Apple ein."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A friend used your invite. Redeem your free week with Apple."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Un amigo ha usado tu invitación. Canjea tu semana gratis con Apple."
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Un prieten ți-a folosit invitația. Ia-ți săptămâna gratuită de la Apple."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "有朋友用了你的邀请。去 Apple 兑换你的免费一周吧。"
+          }
+        }
+      }
+    },
     "A marketplace-ready listing, tailored to where you sell." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -3903,6 +3938,41 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "答案在下一页"
+          }
+        }
+      }
+    },
+    "Apple shows the offer before you confirm. After the free week, the subscription renews unless you cancel." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apple zeigt dir das Angebot, bevor du bestätigst. Nach der Gratiswoche verlängert sich das Abo, wenn du nicht kündigst."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apple shows the offer before you confirm. After the free week, the subscription renews unless you cancel."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apple te muestra la oferta antes de confirmar. Tras la semana gratis, la suscripción se renueva salvo que la canceles."
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apple îți arată oferta înainte să confirmi. După săptămâna gratuită, abonamentul se reînnoiește dacă nu îl anulezi."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "确认前，Apple 会先显示这份优惠。免费一周结束后，订阅会自动续订，除非你取消。"
           }
         }
       }
@@ -4678,6 +4748,41 @@
         }
       }
     },
+    "Checking…" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wird geprüft…"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Checking…"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Comprobando…"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Verific…"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在验证…"
+          }
+        }
+      }
+    },
     "Choose from library" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -5445,6 +5550,41 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "没能加入“我的好物”。下面的结论仍然有效。"
+          }
+        }
+      }
+    },
+    "Couldn't check that code. Try again." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Der Code konnte nicht geprüft werden. Versuch es noch einmal."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couldn't check that code. Try again."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No se pudo comprobar el código. Inténtalo de nuevo."
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "N-am putut verifica codul. Încearcă din nou."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "邀请码没能验证。请再试一次。"
           }
         }
       }
@@ -6641,6 +6781,41 @@
         }
       }
     },
+    "Enter the invite code a friend sent you." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gib den Einladungscode ein, den du bekommen hast."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Enter the invite code a friend sent you."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Introduce el código de invitación que te ha enviado un amigo."
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Introdu codul de invitație primit de la un prieten."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "输入朋友发给你的邀请码。"
+          }
+        }
+      }
+    },
     "Estimated Resale Value" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -7624,6 +7799,111 @@
         }
       }
     },
+    "Get a free week of SnapWorth Pro: enter my invite code %@ in the app. %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hol dir eine Gratiswoche SnapWorth Pro: Gib meinen Einladungscode %@ in der App ein. %@"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Get a free week of SnapWorth Pro: enter my invite code %@ in the app. %@"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Consigue una semana gratis de SnapWorth Pro: introduce mi código de invitación %@ en la app. %@"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ia o săptămână gratuită de SnapWorth Pro: introdu codul meu de invitație %@ în aplicație. %@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "免费领一周 SnapWorth Pro：在 App 里输入我的邀请码 %@。%@"
+          }
+        }
+      }
+    },
+    "Get my free week" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gratiswoche holen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Get my free week"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Quiero mi semana gratis"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vreau săptămâna gratuită"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "领取免费一周"
+          }
+        }
+      }
+    },
+    "Give a friend a week of Pro, get a week of Pro" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Schenk jemandem eine Woche Pro und bekomm selbst eine"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Give a friend a week of Pro, get a week of Pro"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Regala a un amigo una semana de Pro y consigue otra para ti"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dă-i unui prieten o săptămână de Pro și primești și tu una"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "送朋友一周 Pro，你也得一周 Pro"
+          }
+        }
+      }
+    },
     "Good" : {
       "comment" : "Condition grade.",
       "extractionState" : "manual",
@@ -7831,6 +8111,41 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "触感反馈"
+          }
+        }
+      }
+    },
+    "Have an invite code?" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hast du einen Einladungscode?"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Have an invite code?"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "¿Tienes un código de invitación?"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ai un cod de invitație?"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "有邀请码？"
           }
         }
       }
@@ -8205,6 +8520,111 @@
         }
       }
     },
+    "Invite a friend" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Freunde einladen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Invite a friend"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Invitar a un amigo"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Invită un prieten"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "邀请朋友"
+          }
+        }
+      }
+    },
+    "Invite code" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Einladungscode"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Invite code"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Código de invitación"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cod de invitație"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "邀请码"
+          }
+        }
+      }
+    },
+    "Invites are paused for a moment. Try again later." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Einladungen sind kurz pausiert. Versuch es später noch einmal."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Invites are paused for a moment. Try again later."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Las invitaciones están en pausa un momento. Inténtalo más tarde."
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Invitațiile sunt oprite pentru puțin timp. Încearcă mai târziu."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "邀请暂时停用了。请稍后再试。"
+          }
+        }
+      }
+    },
     "Last 6 months" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -8272,6 +8692,41 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "最后更新：%@"
+          }
+        }
+      }
+    },
+    "Later" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Später"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Later"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Más tarde"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mai târziu"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "稍后"
           }
         }
       }
@@ -11408,6 +11863,41 @@
         }
       }
     },
+    "Redeem" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Einlösen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Redeem"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Canjear"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Folosește"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "兑换"
+          }
+        }
+      }
+    },
     "Regenerate" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -12880,6 +13370,41 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "分享卡片还在生成"
+          }
+        }
+      }
+    },
+    "Share invite" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Einladung teilen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Share invite"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Compartir invitación"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Trimite invitația"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "分享邀请"
           }
         }
       }
@@ -14534,6 +15059,41 @@
         }
       }
     },
+    "That code doesn't match an invite. Check it and try again." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dieser Code passt zu keiner Einladung. Prüf ihn und versuch es noch einmal."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "That code doesn't match an invite. Check it and try again."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ese código no corresponde a ninguna invitación. Revísalo e inténtalo de nuevo."
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Codul nu corespunde niciunei invitații. Verifică-l și încearcă din nou."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这个邀请码无效。请检查后再试一次。"
+          }
+        }
+      }
+    },
     "That didn't work. Your estimate is unchanged." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -14565,6 +15125,41 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "没成功，估价保持不变。"
+          }
+        }
+      }
+    },
+    "That's your own invite code. Share it with a friend instead." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Das ist dein eigener Einladungscode. Teil ihn lieber mit jemandem."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "That's your own invite code. Share it with a friend instead."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Es tu propio código de invitación. Compártelo con un amigo."
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "E propriul tău cod de invitație. Trimite-l unui prieten."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这是你自己的邀请码。把它分享给朋友吧。"
           }
         }
       }
@@ -14779,6 +15374,41 @@
         }
       }
     },
+    "This phone has already used an invite." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dieses Handy hat schon eine Einladung genutzt."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This phone has already used an invite."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Este móvil ya ha usado una invitación."
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Telefonul ăsta a folosit deja o invitație."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这部手机已经用过一次邀请了。"
+          }
+        }
+      }
+    },
     "This purchase could not be completed." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -14969,6 +15599,41 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "这会永久删除你保存的这条扫描记录。"
+          }
+        }
+      }
+    },
+    "Too many tries today. Try again tomorrow." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zu viele Versuche heute. Versuch es morgen wieder."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Too many tries today. Try again tomorrow."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Demasiados intentos hoy. Inténtalo mañana."
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Prea multe încercări azi. Încearcă mâine."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "今天尝试次数太多了。明天再试吧。"
           }
         }
       }
@@ -16169,6 +16834,76 @@
         }
       }
     },
+    "Weeks left to earn this year: %lld" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wochen, die du dieses Jahr noch verdienen kannst: %lld"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Weeks left to earn this year: %lld"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Semanas que aún puedes ganar este año: %lld"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Săptămâni pe care le mai poți câștiga anul ăsta: %lld"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "今年还能赚到的周数：%lld"
+          }
+        }
+      }
+    },
+    "Weeks you've earned" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Deine verdienten Wochen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Weeks you've earned"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Semanas que has ganado"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Săptămâni câștigate"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "你赚到的周数"
+          }
+        }
+      }
+    },
     "What did you pay?" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -16375,6 +17110,41 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "包含哪些功能"
+          }
+        }
+      }
+    },
+    "When a friend enters your code and starts their free week, you get a week of Pro too." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wenn jemand deinen Code eingibt und seine Gratiswoche startet, bekommst du auch eine Woche Pro."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "When a friend enters your code and starts their free week, you get a week of Pro too."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cuando un amigo introduzca tu código y empiece su semana gratis, tú también recibirás una semana de Pro."
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Când un prieten îți introduce codul și își începe săptămâna gratuită, primești și tu o săptămână de Pro."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "朋友输入你的邀请码并开始免费一周后，你也会得到一周 Pro。"
           }
         }
       }
@@ -16849,6 +17619,41 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "你这周添加了 %lld 件好物。"
+          }
+        }
+      }
+    },
+    "You earned a week of Pro" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Du hast eine Woche Pro verdient"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You earned a week of Pro"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Has ganado una semana de Pro"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ai câștigat o săptămână de Pro"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "你赚到了一周 Pro"
           }
         }
       }
@@ -17362,6 +18167,41 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "你猜的金额，美元，选填"
+          }
+        }
+      }
+    },
+    "Your invite code" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dein Einladungscode"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Your invite code"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tu código de invitación"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Codul tău de invitație"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "你的邀请码"
           }
         }
       }

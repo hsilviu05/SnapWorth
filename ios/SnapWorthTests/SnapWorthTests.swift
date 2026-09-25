@@ -3197,3 +3197,62 @@ final class ListingPhotoCleanupTests: XCTestCase {
         XCTAssertEqual(vm.cleanedPhoto?.cgImage?.height, 1350)
     }
 }
+
+// MARK: - Referrals (#97)
+
+/// The client half of `backend/referral.py`: decoding its responses, wording
+/// its failures, and announcing each earned week once.
+final class ReferralTests: XCTestCase {
+
+    func test_decodesTheServersStatus() throws {
+        let json = """
+        {"enabled": true, "code": "K7Q2MX", "share_url": "https://www.snapworth.eu/i/K7Q2MX",
+         "rewards": [{"code": "APPLE1", "redeem_url": "https://apps.apple.com/redeem?ctx=offercodes&id=1&code=APPLE1",
+                      "earned_at": 1790000000}],
+         "rewards_left_this_year": 4}
+        """.data(using: .utf8)!
+        let status = try JSONDecoder().decode(ReferralStatus.self, from: json)
+        XCTAssertTrue(status.enabled)
+        XCTAssertEqual(status.code, "K7Q2MX")
+        XCTAssertEqual(status.rewards.first?.redeemURL.absoluteString.hasSuffix("code=APPLE1"), true)
+        XCTAssertEqual(status.rewardsLeftThisYear, 4)
+    }
+
+    /// What the server sends while the flag is off: every surface must hide.
+    func test_decodesTheDisabledStatus() throws {
+        let json = #"{"enabled": false, "code": null, "share_url": null, "rewards": [], "rewards_left_this_year": null}"#
+        XCTAssertEqual(try JSONDecoder().decode(ReferralStatus.self, from: Data(json.utf8)), .disabled)
+    }
+
+    func test_claimFailuresAreWordedByStatus_notByTheServersEnglish() {
+        XCTAssertEqual(ReferralClaimError.from(status: 404), .unknownCode)
+        XCTAssertEqual(ReferralClaimError.from(status: 400), .ownCode)
+        XCTAssertEqual(ReferralClaimError.from(status: 409), .alreadyUsed)
+        XCTAssertEqual(ReferralClaimError.from(status: 429), .tooManyTries)
+        XCTAssertEqual(ReferralClaimError.from(status: 503), .paused)
+        XCTAssertEqual(ReferralClaimError.from(status: 500), .other)
+        for error in [ReferralClaimError.unknownCode, .ownCode, .alreadyUsed, .tooManyTries, .paused, .other] {
+            XCTAssertFalse(error.errorDescription?.isEmpty ?? true)
+        }
+    }
+
+    func test_shareMessageCarriesTheCodeAndTheLink() throws {
+        let message = try XCTUnwrap(ReferralAPIClient.mockStatus.shareMessage)
+        XCTAssertTrue(message.contains("K7Q2MX"))
+        XCTAssertTrue(message.contains("https://www.snapworth.eu/i/K7Q2MX"))
+        XCTAssertNil(ReferralStatus.disabled.shareMessage)
+    }
+
+    func test_eachEarnedWeekIsAnnouncedOnce() throws {
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: "ReferralTests-\(UUID().uuidString)"))
+        let url = URL(string: "https://apps.apple.com/redeem")!
+        let first = ReferralStatus.Reward(code: "A1", redeemURL: url, earnedAt: 1)
+        let second = ReferralStatus.Reward(code: "B2", redeemURL: url, earnedAt: 2)
+
+        XCTAssertEqual(ReferralRewardNotice.unannounced([first], defaults: defaults), [first])
+        ReferralRewardNotice.markAnnounced([first], defaults: defaults)
+        XCTAssertEqual(ReferralRewardNotice.unannounced([first, second], defaults: defaults), [second])
+        ReferralRewardNotice.markAnnounced([second], defaults: defaults)
+        XCTAssertEqual(ReferralRewardNotice.unannounced([first, second], defaults: defaults), [])
+    }
+}
