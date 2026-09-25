@@ -660,7 +660,11 @@ struct TrendingCard: View {
                 .font(.dmSans(15, weight: .semibold))
                 .foregroundStyle(Color.snapEspresso)
             if let change = row.changePct {
-                Text(change > 0 ? "▲\(change)%" : change < 0 ? "▼\(-change)%" : "＝")
+                // An arrow and a number, so not localized text: verbatim, with the
+                // percentage from the system. Hand-built "\(change)%" drops the
+                // non-breaking space ro, es and de put before the sign ("12 %").
+                Text(verbatim: change > 0 ? "▲" + change.formatted(.percent)
+                     : change < 0 ? "▼" + (-change).formatted(.percent) : "＝")
                     .font(.snapCaption.bold())
                     .foregroundStyle(change > 0 ? Color.snapSageText
                                      : change < 0 ? Color.snapTerracottaText : Color.snapWarmGray)
