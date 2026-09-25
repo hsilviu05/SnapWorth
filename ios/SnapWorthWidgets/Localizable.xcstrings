@@ -302,6 +302,42 @@
         }
       }
     },
+    "%@, %@" : {
+      "comment" : "Punctuation or a format with no words: identical in every language. In the catalog only so Xcode stops re-extracting it.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@, %@"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@, %@"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@, %@"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@, %@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@, %@"
+          }
+        }
+      }
+    },
     "%@, profit unknown until you add what you paid" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -368,6 +404,42 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%@。这是最后一次的数据，打开 SnapWorth 可刷新。"
+          }
+        }
+      }
+    },
+    "%lld" : {
+      "comment" : "Punctuation or a format with no words: identical in every language. In the catalog only so Xcode stops re-extracting it.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld"
           }
         }
       }
@@ -2169,6 +2241,42 @@
         }
       }
     },
+    "SnapWorth" : {
+      "comment" : "Brand or feature name: the same in every language, deliberately (see DELIBERATELY_ENGLISH). In the catalog only so Xcode stops re-extracting it.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SnapWorth"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SnapWorth"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SnapWorth"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SnapWorth"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SnapWorth"
+          }
+        }
+      }
+    },
     "SnapWorth haul, %@" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -3012,6 +3120,42 @@
         }
       }
     },
+    "elapsed" : {
+      "comment" : "Thrift-run Live Activity: under a running timer (\"12:04 elapsed\"). Was shown in English in every language: a ternary of literals, which check_localization cannot see.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "vergangen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "elapsed"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "transcurrido"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "scurs"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已用时"
+          }
+        }
+      }
+    },
     "free scan left today" : {
       "comment" : "The number is the widget's headline; this is the noun under it.",
       "extractionState" : "manual",
@@ -3203,6 +3347,42 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "还什么都没扫描"
+          }
+        }
+      }
+    },
+    "started" : {
+      "comment" : "Thrift-run Live Activity: under a clock time once the run is stale (\"14:32 started\").",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "gestartet"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "started"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "inicio"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "început"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "开始于"
           }
         }
       }
