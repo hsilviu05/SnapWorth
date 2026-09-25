@@ -2482,6 +2482,13 @@
       "de": "Schätzung zeigen",
       "zh-Hans": "看估价"
     },
+    "SAVE %@": {
+      "en": "SAVE %@",
+      "ro": "ECONOMISEȘTI %@",
+      "es": "AHORRA %@",
+      "de": "SPARE %@",
+      "zh-Hans": "省 %@"
+    },
     "SAVE %lld%": {
       "comment": "The same badge as \"SAVE %lld%%\", under the other spelling of a literal percent sign — whichever key Foundation generates, one of the two matches.",
       "en": "SAVE %lld%",
@@ -2489,13 +2496,6 @@
       "es": "AHORRA %lld%",
       "de": "SPARE %lld%",
       "zh-Hans": "省 %lld%"
-    },
-    "SAVE %lld%%": {
-      "en": "SAVE %lld%%",
-      "ro": "ECONOMISEȘTI %lld%%",
-      "es": "AHORRA %lld%%",
-      "de": "SPARE %lld%%",
-      "zh-Hans": "省 %lld%%"
     },
     "Save to My Flips": {
       "en": "Save to My Flips",

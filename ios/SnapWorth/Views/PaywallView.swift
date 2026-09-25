@@ -56,7 +56,7 @@ struct PaywallView: View {
                             title: String(localized: "Yearly"),
                             price: yearly.displayPrice,
                             priceDetail: yearlyDetail(yearly),
-                            badge: yearly.savingsPercent.map { String(localized: "SAVE \($0)%") }
+                            badge: yearly.savingsPercent.map { String(localized: "SAVE \($0.formatted(.percent))") }
                                 ?? String(localized: "BEST VALUE"),
                             isSelected: vm.selectedProductID == Config.yearlyProductID
                         ) {

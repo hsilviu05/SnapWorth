@@ -11935,6 +11935,41 @@
         }
       }
     },
+    "SAVE %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SPARE %@"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SAVE %@"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AHORRA %@"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ECONOMISEȘTI %@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "省 %@"
+          }
+        }
+      }
+    },
     "SAVE %lld%" : {
       "comment" : "The same badge as \"SAVE %lld%%\", under the other spelling of a literal percent sign — whichever key Foundation generates, one of the two matches.",
       "extractionState" : "manual",
@@ -11967,41 +12002,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "省 %lld%"
-          }
-        }
-      }
-    },
-    "SAVE %lld%%" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "SPARE %lld%%"
-          }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "SAVE %lld%%"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "AHORRA %lld%%"
-          }
-        },
-        "ro" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "ECONOMISEȘTI %lld%%"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "省 %lld%%"
           }
         }
       }
