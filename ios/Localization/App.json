@@ -9,6 +9,38 @@
       "de": " bis ",
       "zh-Hans": " 到 "
     },
+    "$": {
+      "comment": "Money is US dollars in every language (see ios/Localization/README.md). In the catalog only so Xcode stops re-extracting it.",
+      "en": "$",
+      "ro": "$",
+      "es": "$",
+      "de": "$",
+      "zh-Hans": "$"
+    },
+    "$ ? ? ?": {
+      "comment": "Money is US dollars in every language (see ios/Localization/README.md). In the catalog only so Xcode stops re-extracting it.",
+      "en": "$ ? ? ?",
+      "ro": "$ ? ? ?",
+      "es": "$ ? ? ?",
+      "de": "$ ? ? ?",
+      "zh-Hans": "$ ? ? ?"
+    },
+    "$45–$90": {
+      "comment": "Money is US dollars in every language (see ios/Localization/README.md). In the catalog only so Xcode stops re-extracting it.",
+      "en": "$45–$90",
+      "ro": "$45–$90",
+      "es": "$45–$90",
+      "de": "$45–$90",
+      "zh-Hans": "$45–$90"
+    },
+    "%@ %@": {
+      "comment": "Punctuation or a format with no words: identical in every language. In the catalog only so Xcode stops re-extracting it.",
+      "en": "%@ %@",
+      "ro": "%@ %@",
+      "es": "%@ %@",
+      "de": "%@ %@",
+      "zh-Hans": "%@ %@"
+    },
     "%@ Photo captured — you can lower your phone.": {
       "comment": "VoiceOver label combining the rotating copy with the reassurance.",
       "en": "%@ Photo captured — you can lower your phone.",
@@ -147,6 +179,14 @@
       "de": "%@ wird endgültig aus deinen Funden gelöscht.",
       "zh-Hans": "%@ 将从你的好物中永久删除。"
     },
+    "%@ · %@": {
+      "comment": "Punctuation or a format with no words: identical in every language. In the catalog only so Xcode stops re-extracting it.",
+      "en": "%@ · %@",
+      "ro": "%@ · %@",
+      "es": "%@ · %@",
+      "de": "%@ · %@",
+      "zh-Hans": "%@ · %@"
+    },
     "%@ · Upgrade for unlimited": {
       "en": "%@ · Upgrade for unlimited",
       "ro": "%@ · Treci pe nelimitat",
@@ -161,6 +201,14 @@
       "es": "%@ — %@, listo para enviar",
       "de": "%@ – %@, versandfertig",
       "zh-Hans": "%@ — %@，可直接发货"
+    },
+    "%@, %@": {
+      "comment": "Punctuation or a format with no words: identical in every language. In the catalog only so Xcode stops re-extracting it.",
+      "en": "%@, %@",
+      "ro": "%@, %@",
+      "es": "%@, %@",
+      "de": "%@, %@",
+      "zh-Hans": "%@, %@"
     },
     "%@, estimated %@": {
       "comment": "VoiceOver label for a history card: item name, then its value range.",
@@ -185,6 +233,14 @@
       "es": "%@. Estimación con IA. %@.",
       "de": "%@. KI-Schätzung. %@.",
       "zh-Hans": "%@。AI 估价。%@。"
+    },
+    "%@. %@%@": {
+      "comment": "Punctuation or a format with no words: identical in every language. In the catalog only so Xcode stops re-extracting it.",
+      "en": "%@. %@%@",
+      "ro": "%@. %@%@",
+      "es": "%@. %@%@",
+      "de": "%@. %@%@",
+      "zh-Hans": "%@. %@%@"
     },
     "%@. Cancel anytime.": {
       "en": "%@. Cancel anytime.",
@@ -214,6 +270,22 @@
       "es": "%@/año",
       "de": "%@/Jahr",
       "zh-Hans": "%@/年"
+    },
+    "%@–%@": {
+      "comment": "Punctuation or a format with no words: identical in every language. In the catalog only so Xcode stops re-extracting it.",
+      "en": "%@–%@",
+      "ro": "%@–%@",
+      "es": "%@–%@",
+      "de": "%@–%@",
+      "zh-Hans": "%@–%@"
+    },
+    "%lld": {
+      "comment": "Punctuation or a format with no words: identical in every language. In the catalog only so Xcode stops re-extracting it.",
+      "en": "%lld",
+      "ro": "%lld",
+      "es": "%lld",
+      "de": "%lld",
+      "zh-Hans": "%lld"
     },
     "%lld characters remaining.": {
       "en": {
@@ -701,6 +773,14 @@
       },
       "zh-Hans": "免费试用 %lld 年"
     },
+    "%lld/%lld": {
+      "comment": "Punctuation or a format with no words: identical in every language. In the catalog only so Xcode stops re-extracting it.",
+      "en": "%lld/%lld",
+      "ro": "%lld/%lld",
+      "es": "%lld/%lld",
+      "de": "%lld/%lld",
+      "zh-Hans": "%lld/%lld"
+    },
     "%lldx find": {
       "comment": "Badge on a share card: how many times over the item is worth what was paid.",
       "en": "%lldx find",
@@ -722,6 +802,14 @@
       "es": "/ 100 de confianza",
       "de": "/ 100 Sicherheit",
       "zh-Hans": "/ 100 置信度"
+    },
+    "0": {
+      "comment": "Punctuation or a format with no words: identical in every language. In the catalog only so Xcode stops re-extracting it.",
+      "en": "0",
+      "ro": "0",
+      "es": "0",
+      "de": "0",
+      "zh-Hans": "0"
     },
     "A friend used your invite. Redeem your free week with Apple.": {
       "en": "A friend used your invite. Redeem your free week with Apple.",
@@ -1549,6 +1637,14 @@
       "de": "Flexibel, jederzeit kündbar",
       "zh-Hans": "灵活，可随时取消"
     },
+    "Flip": {
+      "comment": "Brand or feature name: the same in every language, deliberately (see DELIBERATELY_ENGLISH). In the catalog only so Xcode stops re-extracting it.",
+      "en": "Flip",
+      "ro": "Flip",
+      "es": "Flip",
+      "de": "Flip",
+      "zh-Hans": "Flip"
+    },
     "Flip options": {
       "en": "Flip options",
       "ro": "Opțiuni pentru flipuri",
@@ -2130,6 +2226,14 @@
       "de": "Mitteilungen sind aus",
       "zh-Hans": "通知已关闭"
     },
+    "OK": {
+      "comment": "Alert dismiss button. The wording iOS itself uses for OK in each language.",
+      "en": "OK",
+      "ro": "OK",
+      "es": "Aceptar",
+      "de": "OK",
+      "zh-Hans": "好"
+    },
     "Occasional, functional reminders only — a monthly recap, a nudge to update your ledger, and a heads-up before a free trial ends. We never send promotional notifications.": {
       "en": "Occasional, functional reminders only — a monthly recap, a nudge to update your ledger, and a heads-up before a free trial ends. We never send promotional notifications.",
       "ro": "Doar memento-uri rare și utile — recapitularea lunii, un îndemn să îți actualizezi registrul și un anunț înainte să se termine perioada de probă. Nu trimitem niciodată notificări promoționale.",
@@ -2250,6 +2354,14 @@
       "es": "En mi poder",
       "de": "Im Besitz",
       "zh-Hans": "在手"
+    },
+    "PRO": {
+      "comment": "Brand or feature name: the same in every language, deliberately (see DELIBERATELY_ENGLISH). In the catalog only so Xcode stops re-extracting it.",
+      "en": "PRO",
+      "ro": "PRO",
+      "es": "PRO",
+      "de": "PRO",
+      "zh-Hans": "PRO"
     },
     "Page %lld of %lld": {
       "comment": "VoiceOver label on the onboarding page dots.",
@@ -2865,12 +2977,36 @@
       "de": "Überspringt die Einführung",
       "zh-Hans": "跳过介绍"
     },
+    "Snap → Sell": {
+      "comment": "Brand or feature name: the same in every language, deliberately (see DELIBERATELY_ENGLISH). In the catalog only so Xcode stops re-extracting it.",
+      "en": "Snap → Sell",
+      "ro": "Snap → Sell",
+      "es": "Snap → Sell",
+      "de": "Snap → Sell",
+      "zh-Hans": "Snap → Sell"
+    },
     "Snap → Sell marketplace listings": {
       "en": "Snap → Sell marketplace listings",
       "ro": "Anunțuri Snap → Sell pentru platforme",
       "es": "Anuncios Snap → Sell para cada plataforma",
       "de": "Snap-→-Sell-Inserate für jede Plattform",
       "zh-Hans": "Snap → Sell 各平台商品描述"
+    },
+    "SnapWorth": {
+      "comment": "Brand or feature name: the same in every language, deliberately (see DELIBERATELY_ENGLISH). In the catalog only so Xcode stops re-extracting it.",
+      "en": "SnapWorth",
+      "ro": "SnapWorth",
+      "es": "SnapWorth",
+      "de": "SnapWorth",
+      "zh-Hans": "SnapWorth"
+    },
+    "SnapWorth Pro": {
+      "comment": "Brand or feature name: the same in every language, deliberately (see DELIBERATELY_ENGLISH). In the catalog only so Xcode stops re-extracting it.",
+      "en": "SnapWorth Pro",
+      "ro": "SnapWorth Pro",
+      "es": "SnapWorth Pro",
+      "de": "SnapWorth Pro",
+      "zh-Hans": "SnapWorth Pro"
     },
     "SnapWorth can't add to your photos. Allow it in Settings → SnapWorth → Photos.": {
       "en": "SnapWorth can't add to your photos. Allow it in Settings → SnapWorth → Photos.",
@@ -2927,6 +3063,14 @@
       "es": "SnapWorth escribe el título y la descripción para Vinted, Wallapop, eBay y más. Tú copias y publicas.",
       "de": "SnapWorth schreibt Titel und Beschreibung für Vinted, eBay, Kleinanzeigen und mehr. Du kopierst und stellst ein.",
       "zh-Hans": "SnapWorth 帮你写好闲鱼、eBay 等平台的标题和描述。你只管复制发布。"
+    },
+    "SnapWorth · v%@": {
+      "comment": "Punctuation or a format with no words: identical in every language. In the catalog only so Xcode stops re-extracting it.",
+      "en": "SnapWorth · v%@",
+      "ro": "SnapWorth · v%@",
+      "es": "SnapWorth · v%@",
+      "de": "SnapWorth · v%@",
+      "zh-Hans": "SnapWorth · v%@"
     },
     "SnapWorth. Nothing scanned yet.": {
       "en": "SnapWorth. Nothing scanned yet.",
@@ -3224,6 +3368,14 @@
       "es": "Esto eliminará definitivamente tu escaneo guardado.",
       "de": "Damit wird dein gespeicherter Scan endgültig gelöscht.",
       "zh-Hans": "这会永久删除你保存的这条扫描记录。"
+    },
+    "Thrift Flip": {
+      "comment": "Brand or feature name: the same in every language, deliberately (see DELIBERATELY_ENGLISH). In the catalog only so Xcode stops re-extracting it.",
+      "en": "Thrift Flip",
+      "ro": "Thrift Flip",
+      "es": "Thrift Flip",
+      "de": "Thrift Flip",
+      "zh-Hans": "Thrift Flip"
     },
     "Too many tries today. Try again tomorrow.": {
       "en": "Too many tries today. Try again tomorrow.",
@@ -3963,6 +4115,22 @@
       "es": "año",
       "de": "Jahr",
       "zh-Hans": "年"
+    },
+    "·": {
+      "comment": "Punctuation or a format with no words: identical in every language. In the catalog only so Xcode stops re-extracting it.",
+      "en": "·",
+      "ro": "·",
+      "es": "·",
+      "de": "·",
+      "zh-Hans": "·"
+    },
+    "—": {
+      "comment": "Punctuation or a format with no words: identical in every language. In the catalog only so Xcode stops re-extracting it.",
+      "en": "—",
+      "ro": "—",
+      "es": "—",
+      "de": "—",
+      "zh-Hans": "—"
     },
     "− Fees": {
       "en": "− Fees",

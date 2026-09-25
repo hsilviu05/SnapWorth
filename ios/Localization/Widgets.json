@@ -65,6 +65,14 @@
       },
       "zh-Hans": "%@ · 连续 %lld 天"
     },
+    "%@, %@": {
+      "comment": "Punctuation or a format with no words: identical in every language. In the catalog only so Xcode stops re-extracting it.",
+      "en": "%@, %@",
+      "ro": "%@, %@",
+      "es": "%@, %@",
+      "de": "%@, %@",
+      "zh-Hans": "%@, %@"
+    },
     "%@, profit unknown until you add what you paid": {
       "en": "%@, profit unknown until you add what you paid",
       "ro": "%@, profitul rămâne necunoscut până adaugi cât ai dat",
@@ -78,6 +86,14 @@
       "es": "%@. Último dato conocido: abre SnapWorth para actualizarlo.",
       "de": "%@. Letzter bekannter Stand – öffne SnapWorth zum Aktualisieren.",
       "zh-Hans": "%@。这是最后一次的数据，打开 SnapWorth 可刷新。"
+    },
+    "%lld": {
+      "comment": "Punctuation or a format with no words: identical in every language. In the catalog only so Xcode stops re-extracting it.",
+      "en": "%lld",
+      "ro": "%lld",
+      "es": "%lld",
+      "de": "%lld",
+      "zh-Hans": "%lld"
     },
     "%lld day streak": {
       "en": {
@@ -454,6 +470,14 @@
       "de": "Sieh auf einen Blick, was alles im Wiederverkauf wert ist.",
       "zh-Hans": "一眼看清全部转卖价值。"
     },
+    "SnapWorth": {
+      "comment": "Brand or feature name: the same in every language, deliberately (see DELIBERATELY_ENGLISH). In the catalog only so Xcode stops re-extracting it.",
+      "en": "SnapWorth",
+      "ro": "SnapWorth",
+      "es": "SnapWorth",
+      "de": "SnapWorth",
+      "zh-Hans": "SnapWorth"
+    },
     "SnapWorth haul, %@": {
       "en": "SnapWorth haul, %@",
       "ro": "Colecția SnapWorth, %@",
@@ -627,6 +651,14 @@
       "de": "Was alles im Wiederverkauf wert ist, ohne zu entsperren.",
       "zh-Hans": "不用解锁，就能看到全部转卖价值。"
     },
+    "elapsed": {
+      "comment": "Thrift-run Live Activity: under a running timer (\"12:04 elapsed\"). Was shown in English in every language: a ternary of literals, which check_localization cannot see.",
+      "en": "elapsed",
+      "ro": "scurs",
+      "es": "transcurrido",
+      "de": "vergangen",
+      "zh-Hans": "已用时"
+    },
     "free scan left today": {
       "comment": "The number is the widget's headline; this is the noun under it.",
       "en": "free scan left today",
@@ -668,6 +700,14 @@
       "es": "nada escaneado aún",
       "de": "noch nichts gescannt",
       "zh-Hans": "还什么都没扫描"
+    },
+    "started": {
+      "comment": "Thrift-run Live Activity: under a clock time once the run is stale (\"14:32 started\").",
+      "en": "started",
+      "ro": "început",
+      "es": "inicio",
+      "de": "gestartet",
+      "zh-Hans": "开始于"
     }
   }
 }
