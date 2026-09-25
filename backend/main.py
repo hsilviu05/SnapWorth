@@ -42,6 +42,7 @@ import promptsafety
 import prompts
 import ratelimit
 import appstorenotify
+import referral
 import social
 import tokens
 import valuation as valuation_module
@@ -459,6 +460,7 @@ app = FastAPI(title="SnapWorth API", version=API_VERSION, lifespan=_lifespan,
 app.add_middleware(RequestContextMiddleware)
 app.include_router(auth.router)
 app.include_router(social.router)
+app.include_router(referral.router)
 
 # The API serves a native app, which sends no Origin header and is unaffected by
 # CORS. A wildcard only widens the browser-reachable surface, so origins are

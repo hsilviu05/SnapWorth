@@ -470,6 +470,11 @@ async def record_entitlement(
     # Operator ping: first sighting of a subscription, or a proven downgrade.
     # Deduped and throttled inside; never raises, so it cannot fail the sync.
     await notify.entitlement_recorded(principal.subject, ent)
+    # A referred friend redeeming the friend offer earns their referrer a week.
+    # Imported here, not at the top: `referral` imports this module for
+    # `deps` and `require_auth`. Never raises.
+    import referral
+    await referral.on_entitlement(principal.subject, req.device_id, ent)
 
     access_token = None
     if deps.signer is not None and principal.authenticated:
