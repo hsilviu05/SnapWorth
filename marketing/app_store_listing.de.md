@@ -98,6 +98,7 @@ WAS DU BEKOMMST
 • Inserat von der KI – Titel und Beschreibung, fertig zum Einstellen, bei jedem Scan
 • Verlauf – jeder Fund wird automatisch gespeichert, mit seinem Wert
 • Summe – was alles, was du gescannt hast, zusammen wert ist
+• iMessage-Sticker – 20 Sticker mit Tag, unserem Maskottchen (vier animiert), um mit deinen Funden anzugeben
 
 --------------------------
 
@@ -164,7 +165,15 @@ anything it displaced.
 
 ---
 
-## What's New (Version 1.4.3) — Deutsch
+## What's New (Version 1.5.0) — Deutsch
+
+```
+Neu: iMessage-Sticker mit Tag, unserem Maskottchen – 20 Stück, vier davon animiert. Du findest sie bei deinen Stickern in der Emoji-Tastatur.
+```
+
+## What's New (Version 1.4.3) — Deutsch — ARCHIVED, do not paste
+
+1.4.3 is approved and live; kept for the record.
 
 ```
 Das ist Tag.

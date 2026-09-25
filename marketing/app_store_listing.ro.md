@@ -107,6 +107,7 @@ CE PRIMEȘTI
 • Anunț scris de AI — titlu și descriere gata de postat, la fiecare scanare
 • Istoricul scanărilor — fiecare găselniță salvată automat, cu valoarea ei
 • Total — cât valorează tot ce ai scanat, dintr-o privire
+• Stickere pentru iMessage — 20 de stickere cu Tag, mascota noastră (patru animate), ca să te lauzi cu ce ai găsit
 
 --------------------------
 
@@ -168,7 +169,15 @@ Dropped for space, in the order I would add them back: `anticariat`,
 
 ---
 
-## What's New (Version 1.4.3) — Română
+## What's New (Version 1.5.0) — Română
+
+```
+Nou: stickere cu Tag, mascota noastră, pentru iMessage — 20, dintre care patru animate. Le găsești la stickere, în tastatura emoji.
+```
+
+## What's New (Version 1.4.3) — Română — ARCHIVED, do not paste
+
+1.4.3 is approved and live; kept for the record.
 
 This is the one to paste.
 

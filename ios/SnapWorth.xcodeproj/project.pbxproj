@@ -10,6 +10,7 @@
 		1DF043BB3003EE710072D4A8 /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 1DF043BA3003EE700072D4A8 /* WidgetKit.framework */; };
 		1DF043BD3003EE710072D4A8 /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 1DF043BC3003EE710072D4A8 /* SwiftUI.framework */; };
 		1DF043CE3003EE710072D4A8 /* SnapWorthWidgetsExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 1DF043B83003EE700072D4A8 /* SnapWorthWidgetsExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		5C1C4E000000000000000002 /* SnapWorthStickers.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 5C1C4E000000000000000001 /* SnapWorthStickers.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		AA00000000000000000000C1 /* SnapWorthApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000000C0 /* SnapWorthApp.swift */; };
 		AA00000000000000000000C3 /* Config.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000000C2 /* Config.swift */; };
 		AA00000000000000000000C5 /* DesignSystem.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000000C4 /* DesignSystem.swift */; };
@@ -83,6 +84,13 @@
 			remoteGlobalIDString = 1DF043B73003EE700072D4A8;
 			remoteInfo = SnapWorthWidgetsExtension;
 		};
+		5C1C4E00000000000000000A /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = AA00000000000000000000AA /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 5C1C4E000000000000000005;
+			remoteInfo = SnapWorthStickers;
+		};
 		AA0000000000000000000108 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = AA00000000000000000000AA /* Project object */;
@@ -100,6 +108,7 @@
 			dstSubfolderSpec = 13;
 			files = (
 				1DF043CE3003EE710072D4A8 /* SnapWorthWidgetsExtension.appex in Embed Foundation Extensions */,
+				5C1C4E000000000000000002 /* SnapWorthStickers.appex in Embed Foundation Extensions */,
 			);
 			name = "Embed Foundation Extensions";
 			runOnlyForDeploymentPostprocessing = 0;
@@ -110,6 +119,7 @@
 		1DF043B83003EE700072D4A8 /* SnapWorthWidgetsExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = SnapWorthWidgetsExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		1DF043BA3003EE700072D4A8 /* WidgetKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WidgetKit.framework; path = System/Library/Frameworks/WidgetKit.framework; sourceTree = SDKROOT; };
 		1DF043BC3003EE710072D4A8 /* SwiftUI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SwiftUI.framework; path = System/Library/Frameworks/SwiftUI.framework; sourceTree = SDKROOT; };
+		5C1C4E000000000000000001 /* SnapWorthStickers.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = SnapWorthStickers.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		AA00000000000000000000AE /* SnapWorth.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = SnapWorth.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		AA00000000000000000000C0 /* SnapWorthApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SnapWorthApp.swift; sourceTree = "<group>"; };
 		AA00000000000000000000C2 /* Config.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Config.swift; sourceTree = "<group>"; };
@@ -187,10 +197,18 @@
 			);
 			target = 1DF043B73003EE700072D4A8 /* SnapWorthWidgetsExtension */;
 		};
+		5C1C4E000000000000000004 /* PBXFileSystemSynchronizedBuildFileExceptionSet */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = 5C1C4E000000000000000005 /* SnapWorthStickers */;
+		};
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		1DF043BE3003EE710072D4A8 /* SnapWorthWidgets */ = {isa = PBXFileSystemSynchronizedRootGroup; exceptions = (1DF043D23003EE710072D4A8 /* PBXFileSystemSynchronizedBuildFileExceptionSet */, ); explicitFileTypes = {}; explicitFolders = (); path = SnapWorthWidgets; sourceTree = "<group>"; };
+		5C1C4E000000000000000003 /* SnapWorthStickers */ = {isa = PBXFileSystemSynchronizedRootGroup; exceptions = (5C1C4E000000000000000004 /* PBXFileSystemSynchronizedBuildFileExceptionSet */, ); explicitFileTypes = {}; explicitFolders = (); path = SnapWorthStickers; sourceTree = "<group>"; };
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -259,6 +277,7 @@
 				AA00000000000000000000AE /* SnapWorth.app */,
 				AA0000000000000000000101 /* SnapWorthTests.xctest */,
 				1DF043B83003EE700072D4A8 /* SnapWorthWidgetsExtension.appex */,
+				5C1C4E000000000000000001 /* SnapWorthStickers.appex */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -361,6 +380,7 @@
 				AA00000000000000000000AB /* SnapWorth */,
 				AA0000000000000000000103 /* SnapWorthTests */,
 				1DF043BE3003EE710072D4A8 /* SnapWorthWidgets */,
+				5C1C4E000000000000000003 /* SnapWorthStickers */,
 				1DF043B93003EE700072D4A8 /* Frameworks */,
 				AA00000000000000000000AC /* Products */,
 			);
@@ -411,6 +431,26 @@
 			productReference = 1DF043B83003EE700072D4A8 /* SnapWorthWidgetsExtension.appex */;
 			productType = "com.apple.product-type.app-extension";
 		};
+		5C1C4E000000000000000005 /* SnapWorthStickers */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 5C1C4E000000000000000007 /* Build configuration list for PBXNativeTarget "SnapWorthStickers" */;
+			buildPhases = (
+				5C1C4E000000000000000006 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				5C1C4E000000000000000003 /* SnapWorthStickers */,
+			);
+			name = SnapWorthStickers;
+			packageProductDependencies = (
+			);
+			productName = SnapWorthStickers;
+			productReference = 5C1C4E000000000000000001 /* SnapWorthStickers.appex */;
+			productType = "com.apple.product-type.app-extension.messages-sticker-pack";
+		};
 		AA00000000000000000000AD /* SnapWorth */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = AA00000000000000000000B0 /* Build configuration list for PBXNativeTarget "SnapWorth" */;
@@ -424,6 +464,7 @@
 			);
 			dependencies = (
 				1DF043CD3003EE710072D4A8 /* PBXTargetDependency */,
+				5C1C4E00000000000000000B /* PBXTargetDependency */,
 			);
 			name = SnapWorth;
 			packageProductDependencies = (
@@ -464,6 +505,9 @@
 					1DF043B73003EE700072D4A8 = {
 						CreatedOnToolsVersion = 26.4.1;
 					};
+					5C1C4E000000000000000005 = {
+						CreatedOnToolsVersion = 27.0;
+					};
 					AA00000000000000000000AD = {
 						CreatedOnToolsVersion = 15.0;
 					};
@@ -496,12 +540,20 @@
 				AA00000000000000000000AD /* SnapWorth */,
 				AA0000000000000000000104 /* SnapWorthTests */,
 				1DF043B73003EE700072D4A8 /* SnapWorthWidgetsExtension */,
+				5C1C4E000000000000000005 /* SnapWorthStickers */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
 		1DF043B63003EE700072D4A8 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		5C1C4E000000000000000006 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -616,6 +668,11 @@
 			target = 1DF043B73003EE700072D4A8 /* SnapWorthWidgetsExtension */;
 			targetProxy = 1DF043CC3003EE710072D4A8 /* PBXContainerItemProxy */;
 		};
+		5C1C4E00000000000000000B /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 5C1C4E000000000000000005 /* SnapWorthStickers */;
+			targetProxy = 5C1C4E00000000000000000A /* PBXContainerItemProxy */;
+		};
 		AA0000000000000000000109 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			target = AA00000000000000000000AD /* SnapWorth */;
@@ -631,7 +688,7 @@
 				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
 				CODE_SIGN_ENTITLEMENTS = SnapWorthWidgets/SnapWorthWidgets.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 19;
+				CURRENT_PROJECT_VERSION = 20;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = SnapWorthWidgets/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = SnapWorthWidgets;
@@ -642,7 +699,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 1.4.3;
+				MARKETING_VERSION = 1.5.0;
 				PRODUCT_BUNDLE_IDENTIFIER = eu.snapworth.app.SnapWorthWidgets;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
@@ -663,7 +720,7 @@
 				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
 				CODE_SIGN_ENTITLEMENTS = SnapWorthWidgets/SnapWorthWidgets.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 19;
+				CURRENT_PROJECT_VERSION = 20;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = SnapWorthWidgets/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = SnapWorthWidgets;
@@ -674,7 +731,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 1.4.3;
+				MARKETING_VERSION = 1.5.0;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				PRODUCT_BUNDLE_IDENTIFIER = eu.snapworth.app.SnapWorthWidgets;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -685,6 +742,46 @@
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		5C1C4E000000000000000008 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = "iMessage App Icon";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 20;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = SnapWorthStickers/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = SnapWorth;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				INFOPLIST_KEY_NSStickerSharingLevel = OS;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MARKETING_VERSION = 1.5.0;
+				PRODUCT_BUNDLE_IDENTIFIER = eu.snapworth.app.SnapWorthStickers;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Debug;
+		};
+		5C1C4E000000000000000009 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = "iMessage App Icon";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 20;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = SnapWorthStickers/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = SnapWorth;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				INFOPLIST_KEY_NSStickerSharingLevel = OS;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MARKETING_VERSION = 1.5.0;
+				PRODUCT_BUNDLE_IDENTIFIER = eu.snapworth.app.SnapWorthStickers;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				TARGETED_DEVICE_FAMILY = 1;
 			};
 			name = Release;
 		};
@@ -819,7 +916,7 @@
 				CODE_SIGN_ENTITLEMENTS = SnapWorth/SnapWorth.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 19;
+				CURRENT_PROJECT_VERSION = 20;
 				DEVELOPMENT_ASSET_PATHS = "";
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = NO;
@@ -830,7 +927,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.4.3;
+				MARKETING_VERSION = 1.5.0;
 				PRODUCT_BUNDLE_IDENTIFIER = eu.snapworth.app;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
@@ -851,7 +948,7 @@
 				CODE_SIGN_ENTITLEMENTS = SnapWorth/SnapWorth.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 19;
+				CURRENT_PROJECT_VERSION = 20;
 				DEVELOPMENT_ASSET_PATHS = "";
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = NO;
@@ -862,7 +959,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.4.3;
+				MARKETING_VERSION = 1.5.0;
 				PRODUCT_BUNDLE_IDENTIFIER = eu.snapworth.app;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
@@ -923,6 +1020,15 @@
 			buildConfigurations = (
 				1DF043D03003EE710072D4A8 /* Debug */,
 				1DF043D13003EE710072D4A8 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		5C1C4E000000000000000007 /* Build configuration list for PBXNativeTarget "SnapWorthStickers" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				5C1C4E000000000000000008 /* Debug */,
+				5C1C4E000000000000000009 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

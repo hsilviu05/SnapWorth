@@ -101,6 +101,7 @@ you do in three characters.
 • AI 写好的商品描述——每次扫描都附带标题和正文
 • 扫描历史——每件好物自动保存，连同它的价值
 • 总值——扫过的全部东西加起来值多少，一眼看清
+• iMessage 贴纸——吉祥物 Tag 的 20 款贴纸（其中 4 款为动图），晒出你的好物
 
 --------------------------
 
@@ -173,7 +174,15 @@ Kleinanzeigen on the German one — a keyword is a claim.
 
 ---
 
-## What's New (Version 1.4.3) — 简体中文
+## What's New (Version 1.5.0) — 简体中文
+
+```
+新增：吉祥物 Tag 的 iMessage 贴纸，共 20 款，其中 4 款为动图。在表情符号键盘的贴纸里就能找到。
+```
+
+## What's New (Version 1.4.3) — 简体中文 — ARCHIVED, do not paste
+
+1.4.3 is approved and live; kept for the record.
 
 ```
 来认识一下 Tag。
