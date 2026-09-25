@@ -19,10 +19,12 @@ on:
     branches: [main]
     paths:
       - 'website/**'
+      - 'marketing/mascot/**'
       - '.github/workflows/website.yml'
   pull_request:
     paths:
       - 'website/**'
+      - 'marketing/mascot/**'
       - '.github/workflows/website.yml'
 
 concurrency:
@@ -49,6 +51,13 @@ jobs:
       # declared on all sixteen pages with its answer only inside the ld+json.
       - name: Every declared FAQ answer is on the page
         run: python3 website/seo/check_faq_visible.py
+
+      # Tag's inline SVG on index.html and 404.html is generated from
+      # marketing/mascot/mascots.py, the same source as the app's artwork.
+      # A drawing change that nobody rebuilt would leave the site showing the
+      # old Tag; hence the marketing/mascot path trigger above as well.
+      - name: Tag's SVG is freshly generated
+        run: python3 website/seo/build_tag.py --check
 
       # `website/worth` only, deliberately. sitemap.xml stamps each `lastmod`
       # from the served file's mtime — which is the right signal, and which git
