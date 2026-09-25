@@ -181,6 +181,8 @@ Kleinanzeigen on the German one — a keyword is a claim.
 Tag 是我们的新吉祥物：SnapWorth 分析物品时它会陪着你；“我的好物”和“我的转卖”还空着的时候，它也在那儿等你。
 
 Thrift Flip 现在全部免费：净利润、回报率，以及你所选平台的完整手续费明细。无论是否订阅 Pro，都可以直接从结论把一次转卖存进“我的转卖”。
+
+Pro：Snap → Sell 里的“去除照片背景”直接在手机上把物品从店里的背景中抠出来，放到白色或浅灰色背景上，并按平台调整尺寸：大多数为正方形，Depop 为 4:5。
 ```
 
 ## What's New (Version 1.4.2) — 简体中文 — ARCHIVED, do not paste

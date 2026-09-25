@@ -2,7 +2,7 @@
 
 ## Scope
 
-1.4.2 (18) is approved and live. Three iOS pull requests since, plus one that
+1.4.2 (18) is approved and live. Four iOS pull requests since, plus one that
 may or may not be in the live build:
 
 | PR | What | Visible? |
@@ -10,14 +10,20 @@ may or may not be in the live build:
 | #167 | Thrift Flip's net profit, ROI and fee breakdown free for everyone (#128) | **Yes** |
 | #168 | Tag, the mascot: analysing overlay and the two empty states | **Yes** |
 | #169 | Tag's Dark artwork: round die-cut edge (the sparkles were stepped) | **Yes**, on every scan |
+| #171 | Listing photo cleanup in Snap → Sell (#91), Pro | **Yes** |
 | #162 | `CFBundleDisplayName` / `CFBundleName` written into the catalog | No — both are still "SnapWorth" |
 
 #162 merged 2026-09-20 21:53, after the 1.4.2 bump (`e81d0ec`). Whether the
 1.4.2 archive contains it is in Organizer, not in git (see CLAUDE.md on bump
 commits). It changes nothing a user sees either way.
 
-Not in this build: listing photo cleanup (#91, in progress), and #166 (comps
-docs and stub notes), which is backend and was deployed on merge.
+Not in this build: #166 (comps docs and stub notes), which is backend and was
+deployed on merge.
+
+**#91 joined this build late** (merged 2026-09-25, `7e063d2`), after the rest
+of these notes were written. Its segmentation cannot run in the simulator, so
+nothing about the cut-out itself has been seen working yet: the device checks
+below are the only verification it gets before this upload.
 
 ---
 
@@ -29,12 +35,14 @@ Meet Tag.
 Tag, our new mascot, keeps you company while SnapWorth reads your item, and waits in My Finds and My Flips until you've saved something.
 
 Thrift Flip now shows everything for free: net profit, ROI and the full fee breakdown for the marketplace you pick. Save a flip to My Flips straight from the verdict, free or Pro.
+
+Pro: Clean up photo, in Snap → Sell, lifts your item off the shop background right on your phone and sets it on white or soft grey, sized for the marketplace — square for most, 4:5 for Depop.
 ```
 
 ### Shorter alternative
 
 ```
-Meet Tag, our new mascot — there while SnapWorth reads your item. And Thrift Flip's profit, ROI and fee breakdown are now free for everyone.
+Meet Tag, our new mascot — there while SnapWorth reads your item. Thrift Flip's profit, ROI and fee breakdown are now free for everyone. And Pro can clean up a listing photo in one tap.
 ```
 
 ### The other four locales
@@ -104,6 +112,23 @@ phone.
       opens the paywall**. This path lost its sheet once during #128 and only a
       code read caught it; it is the one to watch.
 
+### Listing photo cleanup (#91) — the cut-out has never run anywhere but here
+
+- [ ] Pro account → a scan → Snap → Sell → **Clean up photo**, on real thrift
+      photos: clothing on a rack, shoes on a shelf, an item held in a hand. The
+      item is cut out cleanly, with nothing half-cut.
+- [ ] A photo with no clear item (a wall, a crowded rail): the original stays
+      and the message says so.
+- [ ] Timing on the oldest phone to hand; the target is under 1.5 s on an
+      iPhone 12.
+- [ ] Switch to **Depop**: the photo becomes 4:5. Switch back: square. Toggle
+      **White / Soft grey**. All instant, with no second cut-out.
+- [ ] **Save to Photos**: the add-only permission prompt appears once; after
+      allowing, the photo is in the library. Deny it on a second phone (or
+      reset): the Settings message shows.
+- [ ] **Copy**, then paste into Poshmark or Depop's photo picker or Notes.
+- [ ] In one non-English language, the 13 new strings read naturally.
+
 ### Tag
 
 - [ ] A real scan: Tag on the analysing overlay over a real photo — a bright one
@@ -122,7 +147,9 @@ phone.
 
 ## Pre-submit checklist
 
-- [ ] **Archive from a checkout that contains #169 and the 1.4.3 bump.**
+- [ ] **Archive from `main` at `7e063d2` or later** (contains #169, #171 and
+      the 1.4.3 bump). A checkout left on an older feature branch shows
+      1.4.2 (18), which is what happened once already.
       `MARKETING_VERSION = 1.4.3`, `CURRENT_PROJECT_VERSION = 19`, all eight
       slots. An archive cut from an older checkout carries 1.4.2 (18), which
       App Store Connect rejects as a used build number.
@@ -141,6 +168,4 @@ phone.
 
 ## Not in this build
 
-* #91 listing photo cleanup — in progress. Vision's foreground mask cannot run
-  in the simulator, so it needs device verification before any release.
 * #166 — backend and docs; deployed on merge (commit `0f32ec1`).

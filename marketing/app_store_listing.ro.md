@@ -178,6 +178,8 @@ Fă cunoștință cu Tag.
 Tag, noua noastră mascotă, îți ține companie cât SnapWorth îți analizează obiectul și te așteaptă în Găselnițe și Flipuri până salvezi ceva.
 
 Thrift Flip arată acum totul gratuit: profitul net, ROI-ul și toate comisioanele platformei pe care o alegi. Poți salva un flip în Flipuri direct din verdict, cu sau fără Pro.
+
+Pro: „Curăță poza” din Snap → Sell scoate obiectul de pe fundalul din magazin, direct pe telefon, și îl pune pe alb sau gri deschis, la formatul platformei: pătrat pentru majoritatea, 4:5 pentru Depop.
 ```
 
 ## What's New (Version 1.4.2) — Română — ARCHIVED, do not paste

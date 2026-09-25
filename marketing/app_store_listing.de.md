@@ -172,6 +172,8 @@ Das ist Tag.
 Tag, unser neues Maskottchen, leistet dir Gesellschaft, während SnapWorth deinen Artikel analysiert, und wartet in Meine Funde und Meine Flips, bis du etwas gespeichert hast.
 
 Thrift Flip zeigt jetzt alles gratis: Nettogewinn, ROI und alle Gebühren der Plattform, die du auswählst. Einen Flip speicherst du direkt aus dem Ergebnis in Meine Flips – mit oder ohne Pro.
+
+Pro: „Foto freistellen“ in Snap → Sell löst deinen Artikel direkt auf dem Handy vom Hintergrund im Laden und setzt ihn auf Weiß oder Hellgrau, im Format der Plattform: quadratisch für die meisten, 4:5 für Depop.
 ```
 
 ## What's New (Version 1.4.2) — Deutsch — ARCHIVED, do not paste
