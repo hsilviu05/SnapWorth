@@ -6,6 +6,9 @@ struct PaywallView: View {
     @State private var showPrivacy = false
     @State private var showTerms = false
     @State private var isReloadingPricing = false
+    /// Referrals (#97): the entry is hidden unless the server has them on.
+    @State private var referralsEnabled = false
+    @State private var showRedeemInvite = false
     let purchaseService: any PurchaseService
     /// What surfaced this paywall — attributed to `paywall_viewed`.
     var trigger: PaywallTrigger = .upgradeButton
@@ -187,6 +190,11 @@ struct PaywallView: View {
                         }
                         .disabled(vm.isPurchasing || vm.isRestoring)
 
+                        if referralsEnabled {
+                            GhostButton(title: "Have an invite code?") { showRedeemInvite = true }
+                                .disabled(vm.isPurchasing || vm.isRestoring)
+                        }
+
                         VStack(spacing: 8) {
                             Text("Subscription automatically renews unless cancelled at least 24 hours before the end of the current period. Your Apple ID account will be charged for renewal within 24 hours prior to the end of the current period. Manage or cancel anytime in your Apple ID Account Settings. Any unused portion of a free trial will be forfeited upon purchase.")
                                 .font(.dmSans(10))
@@ -279,6 +287,10 @@ struct PaywallView: View {
                 .presentationDetents([.large])
                 .presentationDragIndicator(.visible)
         }
+        .sheet(isPresented: $showRedeemInvite) {
+            RedeemInviteView()
+        }
+        .task { referralsEnabled = await ReferralAPIClient.shared.status().enabled }
     }
 }
 

@@ -67,6 +67,11 @@ enum AnalyticsEvent {
     case listingGenerated(marketplace: String)
     case listingPhotoCleaned(marketplace: String)
 
+    // ── Referrals (#97) ──────────────────────────────────────────────
+    case referralShared
+    case referralRedeemed
+    case referralRewarded
+
     // ── Thrift Flip ──────────────────────────────────────────────────
     case thriftFlipCalculated(verdict: String)
 
@@ -136,6 +141,9 @@ enum AnalyticsEvent {
         case .tagPhotoAdded:        return "tag_photo_added"
         case .listingGenerated:     return "listing_generated"
         case .listingPhotoCleaned:  return "listing_photo_cleaned"
+        case .referralShared:       return "referral_shared"
+        case .referralRedeemed:     return "referral_redeemed"
+        case .referralRewarded:     return "referral_rewarded"
         case .thriftFlipCalculated: return "thrift_flip_calculated"
         case .ledgerItemMarkedSold: return "ledger_item_marked_sold"
         case .ledgerDashboardViewed:return "ledger_dashboard_viewed"

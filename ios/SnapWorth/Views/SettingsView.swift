@@ -16,6 +16,10 @@ struct SettingsView: View {
     @State private var vm = SettingsViewModel()
     @State private var showPaywall = false
     @State private var showDeleteAlert = false
+    /// Referrals (#97). `.disabled` until the server says otherwise, so the
+    /// row simply does not exist while the feature is off.
+    @State private var referral = ReferralStatus.disabled
+    @State private var showInvite = false
     @AppStorage(Analytics.enabledKey) private var analyticsEnabled = true
     @AppStorage(Haptics.preferenceKey) private var hapticsEnabled = true
     @AppStorage(GuessFirst.key) private var guessFirst = GuessFirst.defaultOn
@@ -48,6 +52,9 @@ struct SettingsView: View {
                     SettingsRow(icon: "arrow.clockwise", label: "Restore purchases",
                                 isBusy: vm.isRestoring) {
                         Task { await vm.restorePurchases(service: purchaseService) }
+                    }
+                    if referral.enabled {
+                        SettingsRow(icon: "gift", label: "Invite a friend") { showInvite = true }
                     }
                 }
 
@@ -217,6 +224,10 @@ struct SettingsView: View {
         .sheet(isPresented: $showPaywall) {
             PaywallView(purchaseService: purchaseService, trigger: .settings)
         }
+        .sheet(isPresented: $showInvite) {
+            InviteFriendView(status: referral)
+        }
+        .task { referral = await ReferralAPIClient.shared.status() }
         .alert(vm.noticeTitle, isPresented: $vm.showNotice) {
             Button("OK", role: .cancel) {}
         } message: {
