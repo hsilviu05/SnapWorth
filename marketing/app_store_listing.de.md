@@ -10,8 +10,7 @@ is generated in German.
 
 Mirrors `app_store_listing.md`, including its accuracy rules: no claim of sold
 listings, comps or market data; the one-scan-a-day limit in every plan mention;
-the Thrift Flip line keeping the free buy-or-skip verdict separate from the Pro
-numbers behind it.
+Thrift Flip left out of the Pro list, because it is free in full (#128).
 
 ## Read this before pasting
 
@@ -122,7 +121,6 @@ Pro bringt dazu:
 • Etikett lesen – fotografier das Pflegeetikett für eine genauere Schätzung
 • Wert deiner Sammlung, ihre Entwicklung und die Trends
 • Gewinnbuch – was du bezahlt hast, wofür du verkauft hast und was nach Gebühren übrig blieb, mit CSV-Export
-• Die Zahlen aus „Thrift Flip" – das Urteil „mitnehmen oder liegen lassen" ist gratis; Pro zeigt Nettogewinn, ROI und die Gebühren dahinter
 
 • Abo monatlich oder jährlich; das Jahresabo enthält 3 Gratis-Tage. Der Preis steht in der App, auf der Abo-Seite.
 

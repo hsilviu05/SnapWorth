@@ -281,7 +281,8 @@ enum PaywallTrigger: String {
     case ledgerHistory = "ledger_history"
     case ledgerExport  = "ledger_export"
     case snapSell      = "snap_sell"
-    case thriftFlip    = "thrift_flip"
+    // `thrift_flip` retired with #128: nothing in Thrift Flip is gated any
+    // more. Historic events carry it; nothing new will.
     case portfolioTrend = "portfolio_trend"
     case valuationDetail = "valuation_detail"
     case trends = "trends"

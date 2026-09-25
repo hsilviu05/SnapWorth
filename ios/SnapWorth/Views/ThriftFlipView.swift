@@ -6,9 +6,13 @@ import UIKit
 /// resold at a profit. Scan the item (reuses the valuation core), read its shelf
 /// price (OCR or manual), pick where you'd sell, and get a green/red verdict.
 ///
-/// Premium: the profit verdict is gated (soft paywall / blurred teaser). The base
-/// valuation (item + resale range) stays free so the user reaches the money-moment
-/// before any wall.
+/// Free in full, arithmetic included (#128). The net profit, ROI and fee
+/// breakdown used to be blurred for free users, but they come from the same
+/// formula as the public calculator on the marketing site, which anyone can use
+/// without installing the app. A gate over something given away elsewhere
+/// protects nothing. The Pro gate this feature leads to is the ledger: a saved
+/// flip lands in My Flips, whose sold-flip cap (`FlipsViewModel.freeTierItems`)
+/// is Pro-only.
 struct ThriftFlipView: View {
     let purchaseService: any PurchaseService
 
@@ -20,8 +24,6 @@ struct ThriftFlipView: View {
     @FocusState private var focusedField: Field?
 
     private enum Field { case purchase, resale, shipping }
-
-    private var isPro: Bool { purchaseService.isSubscribed }
 
     var body: some View {
         NavigationStack {
@@ -64,8 +66,11 @@ struct ThriftFlipView: View {
             }
             .ignoresSafeArea()
         }
+        // Only the shared daily scan cap opens this now (`scanItem`), so it
+        // is reported as that. It said `.thriftFlip` while the verdict was
+        // gated here too.
         .sheet(isPresented: $vm.showPaywall) {
-            PaywallView(purchaseService: purchaseService, trigger: .thriftFlip)
+            PaywallView(purchaseService: purchaseService, trigger: .scanLimit)
         }
     }
 
@@ -135,7 +140,9 @@ struct ThriftFlipView: View {
             marketplacePicker
             inputsCard
             verdictSection
-            if isPro, let calc = vm.calculation, calc.isProfitable, !vm.didSaveToLedger {
+            // Free as well as Pro: My Flips already takes free users' items
+            // from ResultView, and its sold-flip cap is the real gate.
+            if let calc = vm.calculation, calc.isProfitable, !vm.didSaveToLedger {
                 saveToLedgerButton
             }
             honestNote
@@ -287,45 +294,24 @@ struct ThriftFlipView: View {
             }
             .foregroundStyle(accent)
 
-            // The money line — blurred for free users (soft paywall).
-            ZStack {
-                VStack(spacing: 8) {
-                    Text(verdictLine(calc))
-                        .font(.dmSans(16, weight: .semibold))
-                        .foregroundStyle(Color.snapEspresso)
-                        .multilineTextAlignment(.center)
-                        .fixedSize(horizontal: false, vertical: true)
+            // The money line. Not gated: see the type's doc comment.
+            VStack(spacing: 8) {
+                Text(verdictLine(calc))
+                    .font(.dmSans(16, weight: .semibold))
+                    .foregroundStyle(Color.snapEspresso)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
 
-                    HStack(spacing: 20) {
-                        metric("Net profit", ThriftFlipViewModel.signedMoney(calc.netProfit), accent)
-                        if let roi = calc.roi {
-                            metric("ROI", ThriftFlipViewModel.percent(roi), Color.snapEspresso)
-                        } else if let margin = calc.margin {
-                            metric("Margin", ThriftFlipViewModel.percent(margin), Color.snapEspresso)
-                        }
-                    }
-
-                    feeBreakdown(calc)
-                }
-                .blur(radius: isPro ? 0 : 7)
-                .accessibilityHidden(!isPro)
-
-                if !isPro {
-                    VStack(spacing: 10) {
-                        Image(systemName: "lock.fill").foregroundStyle(Color.snapTerracottaText)
-                        Text("Unlock to reveal your profit")
-                            .font(.dmSans(14, weight: .semibold))
-                            .foregroundStyle(Color.snapEspresso)
-                        PrimaryButton(title: "Unlock Thrift Flip") {
-                            // No tracking call here: `PaywallView` fires
-                            // `paywallViewed` from its own `onAppear`, so this
-                            // was a second event for the same open. One entry
-                            // point, and the sheet already passes
-                            // `.thriftFlip`, so nothing else is needed.
-                            vm.showPaywall = true
-                        }
+                HStack(spacing: 20) {
+                    metric("Net profit", ThriftFlipViewModel.signedMoney(calc.netProfit), accent)
+                    if let roi = calc.roi {
+                        metric("ROI", ThriftFlipViewModel.percent(roi), Color.snapEspresso)
+                    } else if let margin = calc.margin {
+                        metric("Margin", ThriftFlipViewModel.percent(margin), Color.snapEspresso)
                     }
                 }
+
+                feeBreakdown(calc)
             }
 
             if calc.feesUnknown {
@@ -340,7 +326,10 @@ struct ThriftFlipView: View {
         .background(accent.opacity(0.08))
         .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
         .overlay(RoundedRectangle(cornerRadius: 20, style: .continuous).strokeBorder(accent.opacity(0.35), lineWidth: 1))
-        .onAppear { if isPro { vm.trackVerdict() } }
+        // Every user now sees the verdict, so every verdict is counted. Before
+        // #128 this fired for Pro only, so `thrift_flip_calculated` jumps when
+        // this ships: that's more people seeing it, not more use.
+        .onAppear { vm.trackVerdict() }
     }
 
     private func verdictLine(_ calc: FlipCalculation) -> String {

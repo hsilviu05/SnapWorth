@@ -14553,41 +14553,6 @@
         }
       }
     },
-    "Thrift Flip profit calculator" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Thrift-Flip-Gewinnrechner"
-          }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Thrift Flip profit calculator"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Calculadora de ganancia de Thrift Flip"
-          }
-        },
-        "ro" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Calculatorul de profit Thrift Flip"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Thrift Flip 利润计算器"
-          }
-        }
-      }
-    },
     "Trending at the thrift" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -15291,41 +15256,6 @@
         }
       }
     },
-    "Unlock Thrift Flip" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Thrift Flip freischalten"
-          }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Unlock Thrift Flip"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Desbloquear Thrift Flip"
-          }
-        },
-        "ro" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Deblochează Thrift Flip"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "解锁 Thrift Flip"
-          }
-        }
-      }
-    },
     "Unlock marketplace listings" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -15357,41 +15287,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "解锁各平台商品描述"
-          }
-        }
-      }
-    },
-    "Unlock to reveal your profit" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Freischalten, um deinen Gewinn zu sehen"
-          }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Unlock to reveal your profit"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Desbloquea para ver tu ganancia"
-          }
-        },
-        "ro" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Deblochează ca să-ți vezi profitul"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "解锁后查看你的利润"
           }
         }
       }

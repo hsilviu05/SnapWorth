@@ -1878,7 +1878,9 @@ final class PaywallBenefitsTests: XCTestCase {
         XCTAssertFalse(texts.contains { $0.localizedCaseInsensitiveContains("scan history") },
                        "scan history is not gated — HistoryView's grid has no isPro check")
         XCTAssertTrue(texts.contains { $0.localizedCaseInsensitiveContains("unlimited scans") })
-        XCTAssertTrue(texts.contains { $0.localizedCaseInsensitiveContains("thrift flip") })
+        // Free since #128; listing it would sell something the app gives away.
+        XCTAssertFalse(texts.contains { $0.localizedCaseInsensitiveContains("thrift flip") },
+                       "Thrift Flip is not gated — ThriftFlipView has no isPro check")
         XCTAssertTrue(texts.contains { $0.localizedCaseInsensitiveContains("tag") })
         XCTAssertTrue(texts.contains { $0.localizedCaseInsensitiveContains("export") })
     }
