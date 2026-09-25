@@ -1353,12 +1353,16 @@ a:focus-visible, button:focus-visible, summary:focus-visible, label:focus-within
    announces the find. */
 .hd-try-row { display: flex; align-items: center; justify-content: center; gap: 12px; }
 .hd-try-row .hd-try { flex: 0 1 auto; min-width: 0; }
-.tag-wrap { position: relative; flex: none; }
+/* Tag's size is set by his home: the hero's reserved box here, the dock
+   below. The box keeps its size when he leaves, so the hero never moves. */
+.tag-wrap { position: relative; flex: none; --tag-h: clamp(72px, 14vw, 110px);
+  width: calc(var(--tag-h) * 137.5 / 160); height: var(--tag-h); }
+.tag-unit { position: relative; }
 /* The width is stated, not only implied by aspect-ratio: sizing .tag-wrap to
    its content, WebKit counted the SVG's default 300px intrinsic width, which
    left the chips ~40px on phones (one per line, the label broken letter by
    letter). Chromium resolved it; a WebKit pass is what showed it. */
-.tag-mascot { --tag-h: clamp(72px, 14vw, 110px); display: block; height: var(--tag-h);
+.tag-mascot { display: block; height: var(--tag-h);
   width: calc(var(--tag-h) * 137.5 / 160); aspect-ratio: 137.5 / 160;
   padding: 0; border: 0; background: none; cursor: pointer; border-radius: 18px;
   -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
@@ -1381,6 +1385,58 @@ a:focus-visible, button:focus-visible, summary:focus-visible, label:focus-within
 @media (prefers-reduced-motion: no-preference) {
   .tag-bubble { transition: opacity .18s ease, transform .18s ease; }
 }
+
+/* ── Tag the guide (tag-guide.js) ─────────────────────────────────────────────
+   The dock is his second home, bottom-left, and moves by transform only: the
+   dock lifts (--lift, quick) to clear the sticky download bar, and the unit
+   inside it walks (--dx, slow) to a tour stop. Two elements, so the lift is
+   never stuck behind a walk's 0.9s transition.
+   .is-out takes him away (visibility too, so nothing hidden stays focusable)
+   when he is hidden, has said goodbye at the footer, or would cover a link. */
+.tag-dock { position: fixed; z-index: 80; --tag-h: 64px;
+  left: calc(16px + env(safe-area-inset-left)); bottom: calc(16px + env(safe-area-inset-bottom));
+  transform: translateY(calc(0px - var(--lift, 0px))); }
+.tag-dock .tag-unit { transform: translateX(var(--dx, 0px)); }
+.tag-dock.is-out { opacity: 0; visibility: hidden; transform: translateY(calc(28px - var(--lift, 0px))); }
+@media (max-width: 640px) { .tag-dock { --tag-h: 56px; } }
+@media (prefers-reduced-motion: no-preference) {
+  .tag-dock { transition: transform .3s ease, opacity .3s, visibility 0s; }
+  .tag-dock .tag-unit { transition: transform .9s cubic-bezier(.45,.05,.55,.95); }
+  .tag-dock.is-out { transition: transform .3s, opacity .3s, visibility 0s .3s; }
+}
+.tag-dock .tag-shadow { display: none; }
+.tag-dock .tag-bubble { left: 0; transform: translate(0, 4px); }
+.tag-dock .tag-bubble.is-on { transform: none; }
+.tag-dock .tag-bubble::after { left: 26px; }
+
+/* The panel: greeting, menu, or tour step. Not a popover over the page, just
+   a card beside Tag; it blocks nothing and dims nothing. */
+.tag-panel { position: absolute; bottom: calc(100% + 12px); right: 0; z-index: 3;
+  width: max-content; max-width: min(300px, calc(100vw - 32px)); text-align: left;
+  background: #FAF7F4; color: #1C1410; border-radius: 16px; padding: 14px 16px;
+  box-shadow: 0 10px 30px rgba(0,0,0,.28); font-size: 14px; line-height: 1.45; }
+.tag-dock .tag-panel { right: auto; left: 0; }
+@media (max-width: 980px) { .hd-try-row .tag-panel { bottom: auto; top: calc(100% + 12px); right: auto; left: 0; } }
+.tag-panel p { margin: 0 0 10px; }
+.tag-step { font-size: 11px; font-weight: 700; letter-spacing: 1.6px; text-transform: uppercase; color: #A94E29; }
+.tag-acts { display: flex; gap: 8px; flex-wrap: wrap; }
+.tag-panel button, .tag-panel a { font: inherit; font-size: 13.5px; font-weight: 600; cursor: pointer;
+  border-radius: 999px; padding: 8px 14px; border: 1.5px solid #1C1410; background: transparent;
+  color: #1C1410; text-decoration: none; }
+.tag-acts button:first-child, .tag-panel [data-act="next"], .tag-panel [data-act="done"] { background: #1C1410; color: #FAF7F4; }
+.tag-menu { display: grid; gap: 6px; }
+.tag-menu[hidden], .tag-p[hidden], .tag-panel [hidden] { display: none; }
+.tag-menu button, .tag-menu a { text-align: left; border-color: transparent; }
+.tag-menu button:hover, .tag-menu a:hover { background: rgba(28,20,16,.07); }
+.tag-panel :focus-visible { outline: 2px solid var(--terracotta); outline-offset: 2px; }
+/* A tour stop: a soft ring, drawn outside the box so nothing reflows. */
+.tag-spot { outline: 3px solid rgba(217,108,71,.55); outline-offset: 8px; border-radius: 22px; }
+/* Full-bleed sections: outside the box is off-screen, so draw it inside. */
+section.tag-spot { outline-offset: -6px; border-radius: 0; }
+.tag-show { background: none; border: 0; padding: 0; font: inherit; font-size: 13px; cursor: pointer;
+  color: rgba(255,255,255,0.55); }
+.tag-show:hover { color: rgba(255,255,255,0.7); }
+@media print { .tag-dock, .tag-unit, .tag-panel { display: none !important; } }
 
 /* ── Texture, type, ticker, tag — the handmade layer ────────────────────── */
 
@@ -1827,16 +1883,41 @@ details[open] .faq-x::after { transform: rotate(90deg); }
                region announces the result, so his bubble is aria-hidden. Copy
                lives here, not in tag.js. The SVG is generated: build_tag.py. -->
           <div class="tag-wrap">
+          <div class="tag-unit">
             <button type="button" class="tag-mascot" data-tag="hero"
                     data-lines="Hi! I&rsquo;m Tag.|Snap it&hellip; I&rsquo;ll tag it!|Tap me for another find!|Psst&hellip; check the bottom shelf."
-                    aria-label="Tag, the SnapWorth mascot: show another find">
+                    aria-label="Tag, the SnapWorth mascot: show another find"
+                    data-dock-label="Tag, your SnapWorth guide: open menu">
 <!-- BEGIN TAG SVG -->
 <svg class="tag-svg" viewBox="182 85 690 803" aria-hidden="true" focusable="false"><style>.tag-svg{overflow:visible}.tag-svg g{transform-box:view-box}.tag-fig{transform-origin:512px 797px;transform:translate(0,var(--hop,0px)) rotate(var(--lean,0deg)) scale(var(--sx,1),var(--sy,1))}.tag-arm-l{transform-origin:306px 614px;transform:rotate(var(--al,24deg))}.tag-arm-r{transform-origin:718px 614px;transform:rotate(var(--ar,-24deg))}.tag-leg-l{transform-origin:457px 770px;transform:rotate(var(--ll,0deg))}.tag-leg-r{transform-origin:567px 770px;transform:rotate(var(--lr,0deg))}.tag-look{transform:translate(var(--lx,0px),var(--ly,0px))}.tag-twinkle{transform-origin:660px 190px;transform:scale(var(--tw,1))}.tag-shadow{transform-box:view-box;transform-origin:512px 864px;transform:scale(var(--sh,1),1)}.tag-f{opacity:0}.tag-f.is-on{opacity:1}.tag-back{opacity:0}.tag-svg.is-back .tag-back{opacity:1}.tag-svg.is-back .tag-look{opacity:0}.tag-price{font:900 124px Fraunces,Georgia,serif;fill:#2B211C;letter-spacing:-3px}.tag-label{font:700 60px 'DM Sans',system-ui,sans-serif;fill:#6E625B;letter-spacing:3px}</style><ellipse class="tag-shadow" cx="512" cy="864" rx="190" ry="23" fill="#2B211C" opacity=".13"/><g class="tag-fig"><g class="tag-edge"><g class="tag-leg-l"><rect x="420" y="752" width="74" height="112" rx="37" fill="#FBF7F2" stroke="#FBF7F2" stroke-width="36" stroke-linejoin="round" stroke-linecap="round"/></g><g class="tag-leg-r"><rect x="530" y="752" width="74" height="112" rx="37" fill="#FBF7F2" stroke="#FBF7F2" stroke-width="36" stroke-linejoin="round" stroke-linecap="round"/></g><g class="tag-arm-l"><path d="M306 614 L306 704" fill="none" stroke="#FBF7F2" stroke-width="156" stroke-linejoin="round" stroke-linecap="round"/></g><g class="tag-arm-r"><path d="M718 614 L718 704" fill="none" stroke="#FBF7F2" stroke-width="156" stroke-linejoin="round" stroke-linecap="round"/></g><path d="M512 280 C 470 222, 446 150, 486 122 C 528 94, 572 158, 512 280" fill="none" stroke="#FBF7F2" stroke-width="47" stroke-linejoin="round" stroke-linecap="round"/><rect x="288" y="353" width="448" height="444" rx="60" fill="#FBF7F2" stroke="#FBF7F2" stroke-width="60" stroke-linejoin="round" stroke-linecap="round"/><polygon points="428,362 463,262.7 561,262.7 596,362" fill="#FBF7F2" stroke="#FBF7F2" stroke-width="60" stroke-linejoin="round" stroke-linecap="round"/><circle cx="512" cy="280" r="52" fill="#FBF7F2" stroke="#FBF7F2" stroke-width="60" stroke-linejoin="round" stroke-linecap="round"/><g class="tag-twinkle"><g transform="translate(642 214) rotate(8) scale(1.04) translate(-50 -50)"><path d="M50 0 L59 41 L100 50 L59 59 L50 100 L41 59 L0 50 L41 41 Z" fill="#FBF7F2" stroke="#FBF7F2" stroke-width="37.6154" stroke-linejoin="round" stroke-linecap="round"/></g><g transform="translate(700 150) rotate(-6) scale(0.44) translate(-50 -50)"><path d="M50 0 L59 41 L100 50 L59 59 L50 100 L41 59 L0 50 L41 41 Z" fill="#FBF7F2" stroke="#FBF7F2" stroke-width="84.8182" stroke-linejoin="round" stroke-linecap="round"/></g></g></g><g class="tag-ink"><g class="tag-leg-l"><rect x="420" y="752" width="74" height="112" rx="37" fill="#2B211C"/></g><g class="tag-leg-r"><rect x="530" y="752" width="74" height="112" rx="37" fill="#2B211C"/></g><g class="tag-arm-l"><path d="M306 614 L306 704" stroke="#2B211C" stroke-width="120" stroke-linecap="round" fill="none"/><path d="M306 614 L306 704" stroke="#FFFFFF" stroke-width="96" stroke-linecap="round" fill="none"/></g><g class="tag-arm-r"><path d="M718 614 L718 704" stroke="#2B211C" stroke-width="120" stroke-linecap="round" fill="none"/><path d="M718 614 L718 704" stroke="#FFFFFF" stroke-width="96" stroke-linecap="round" fill="none"/></g><g class="tag-loop"><path d="M512 280 C 470 222, 446 150, 486 122 C 528 94, 572 158, 512 280" fill="none" stroke="#2B211C" stroke-width="11" stroke-linecap="round" stroke-linejoin="round"/></g><g class="tag-body"><defs><mask id="tag-h1" maskUnits="userSpaceOnUse" x="0" y="0" width="1024" height="1024"><rect width="1024" height="1024" fill="#fff"/><circle cx="512" cy="280" r="25" fill="#000"/></mask></defs><g mask="url(#tag-h1)"><rect x="288" y="353" width="448" height="444" rx="60" fill="#2B211C" stroke="#2B211C" stroke-width="24" stroke-linejoin="round"/><polygon points="428,362 463,262.7 561,262.7 596,362" fill="#2B211C" stroke="#2B211C" stroke-width="24" stroke-linejoin="round"/><circle cx="512" cy="280" r="52" fill="#2B211C" stroke="#2B211C" stroke-width="24" stroke-linejoin="round"/><defs><clipPath id="tag-c2"><rect x="288" y="353" width="448" height="444" rx="60"/><polygon points="428,362 463,262.7 561,262.7 596,362"/><circle cx="512" cy="280" r="52"/></clipPath></defs><g clip-path="url(#tag-c2)"><rect x="288" y="353" width="448" height="444" rx="60" fill="#EFE6DC"/><polygon points="428,362 463,262.7 561,262.7 596,362" fill="#EFE6DC"/><circle cx="512" cy="280" r="52" fill="#EFE6DC"/><g transform="translate(-20 -22)"><rect x="288" y="353" width="448" height="444" rx="60" fill="#FFFFFF"/><polygon points="428,362 463,262.7 561,262.7 596,362" fill="#FFFFFF"/><circle cx="512" cy="280" r="52" fill="#FFFFFF"/></g></g></g><circle cx="512" cy="280" r="31" fill="none" stroke="#2B211C" stroke-width="12"/><defs><clipPath id="tag-n3"><polygon points="428,362 463,262.7 561,262.7 596,362"/><circle cx="512" cy="280" r="52"/></clipPath></defs><path d="M512 280 C 470 222, 446 150, 486 122" fill="none" stroke="#2B211C" stroke-width="11" stroke-linecap="round" stroke-linejoin="round" clip-path="url(#tag-n3)"/></g><g class="tag-look"><ellipse cx="354" cy="636" rx="30" ry="18" fill="#F08F6E" opacity="0.55"/><ellipse cx="670" cy="636" rx="30" ry="18" fill="#F08F6E" opacity="0.55"/><g class="tag-f tag-f-happy is-on"><ellipse cx="426" cy="566" rx="27" ry="35" fill="#2B211C"/><circle cx="417.9" cy="553.4" r="10.3" fill="#FFFFFF"/><circle cx="435.2" cy="578.6" r="4.3" fill="#FFFFFF" opacity=".85"/><ellipse cx="598" cy="566" rx="27" ry="35" fill="#2B211C"/><circle cx="589.9" cy="553.4" r="10.3" fill="#FFFFFF"/><circle cx="607.2" cy="578.6" r="4.3" fill="#FFFFFF" opacity=".85"/><path d="M472 632 Q512 670 552 632" fill="none" stroke="#2B211C" stroke-width="10.4" stroke-linecap="round"/></g><g class="tag-f tag-f-joy"><path d="M397.65 574 Q426 529.25 454.35 574" fill="none" stroke="#2B211C" stroke-width="12.4" stroke-linecap="round"/><path d="M569.65 574 Q598 529.25 626.35 574" fill="none" stroke="#2B211C" stroke-width="12.4" stroke-linecap="round"/><defs><clipPath id="tag-m4"><path d="M472 626 Q472 682 512 682 Q552 682 552 626 Z"/></clipPath></defs><path d="M472 626 Q472 682 512 682 Q552 682 552 626 Z" fill="#2B211C" stroke="#2B211C" stroke-width="6" stroke-linejoin="round"/><ellipse cx="512" cy="680" rx="24.8" ry="20" fill="#D96C47" clip-path="url(#tag-m4)"/></g><g class="tag-f tag-f-wow"><ellipse cx="426" cy="566" rx="30.8" ry="39.9" fill="#2B211C"/><g transform="translate(418.44 555.5) rotate(0) scale(0.3105) translate(-50 -50)"><path d="M50 0 L59 41 L100 50 L59 59 L50 100 L41 59 L0 50 L41 41 Z" fill="#FFFFFF" stroke="#FFFFFF" stroke-width="3" stroke-linejoin="round"/></g><circle cx="436.8" cy="580.7" r="4.3" fill="#FFFFFF" opacity=".85"/><ellipse cx="598" cy="566" rx="30.8" ry="39.9" fill="#2B211C"/><g transform="translate(590.44 555.5) rotate(0) scale(0.3105) translate(-50 -50)"><path d="M50 0 L59 41 L100 50 L59 59 L50 100 L41 59 L0 50 L41 41 Z" fill="#FFFFFF" stroke="#FFFFFF" stroke-width="3" stroke-linejoin="round"/></g><circle cx="608.8" cy="580.7" r="4.3" fill="#FFFFFF" opacity=".85"/><ellipse cx="512" cy="644" rx="19.2" ry="24" fill="#2B211C"/><ellipse cx="512" cy="656.8" rx="11.2" ry="7.2" fill="#D96C47"/></g><g class="tag-f tag-f-blink"><path d="M400.35 568 Q426 577.2 451.65 568" fill="none" stroke="#2B211C" stroke-width="11.3" stroke-linecap="round"/><path d="M572.35 568 Q598 577.2 623.65 568" fill="none" stroke="#2B211C" stroke-width="11.3" stroke-linecap="round"/><path d="M472 632 Q512 670 552 632" fill="none" stroke="#2B211C" stroke-width="10.4" stroke-linecap="round"/></g></g><g class="tag-back" transform="translate(1024 0) scale(-1 1)"><text class="tag-price" x="512" y="585" text-anchor="middle"></text><text class="tag-label" y="652" text-anchor="middle"><tspan x="512"></tspan><tspan x="512" dy="1.1em"></tspan></text></g><g class="tag-twinkle"><g transform="translate(642 214) rotate(8) scale(1.04) translate(-50 -50)"><path d="M50 0 L59 41 L100 50 L59 59 L50 100 L41 59 L0 50 L41 41 Z" fill="#EBB868" stroke="#EBB868" stroke-width="3" stroke-linejoin="round"/><path d="M50 0 L59 41 L100 50 L59 59 L50 100 L41 59 L0 50 L41 41 Z" fill="#F5D495" transform="translate(50 50) scale(.58) translate(-50 -50)"/><path d="M50 0 L59 41 L100 50 L59 59 L50 100 L41 59 L0 50 L41 41 Z" fill="#FFFFFF" transform="translate(50 50) scale(.22) translate(-50 -50)"/></g><g transform="translate(700 150) rotate(-6) scale(0.44) translate(-50 -50)"><path d="M50 0 L59 41 L100 50 L59 59 L50 100 L41 59 L0 50 L41 41 Z" fill="#EBB868" stroke="#EBB868" stroke-width="3" stroke-linejoin="round"/><path d="M50 0 L59 41 L100 50 L59 59 L50 100 L41 59 L0 50 L41 41 Z" fill="#F5D495" transform="translate(50 50) scale(.58) translate(-50 -50)"/><path d="M50 0 L59 41 L100 50 L59 59 L50 100 L41 59 L0 50 L41 41 Z" fill="#FFFFFF" transform="translate(50 50) scale(.22) translate(-50 -50)"/></g></g></g></g></svg>
 <!-- END TAG SVG -->
             </button>
             <span class="tag-bubble" aria-hidden="true"></span>
+            <!-- The guide's panel (tag-guide.js). It travels with Tag between the
+                 hero and the dock, so it stays beside him and after him in Tab
+                 order. All its words are here, none in the script. -->
+            <div class="tag-panel" id="tag-panel" hidden>
+              <div class="tag-p" data-mode="greet" role="group" aria-labelledby="tag-hi" hidden>
+                <p id="tag-hi">Hi! I&rsquo;m Tag. Want a quick tour?</p>
+                <div class="tag-acts"><button type="button" data-act="tour">Show me around</button><button type="button" data-act="nope">No thanks</button></div>
+              </div>
+              <div class="tag-p tag-menu" data-mode="menu" hidden>
+                <button type="button" data-act="tour">Take the tour</button>
+                <button type="button" data-act="find">Try a find</button>
+                <a href="https://apps.apple.com/us/app/snapworth-resale-scanner/id6788521307" data-act="dl">Download</a>
+                <button type="button" data-act="hide">Hide Tag</button>
+              </div>
+              <div class="tag-p" data-mode="tour" role="dialog" aria-labelledby="tag-step" aria-describedby="tag-tip"
+                   data-step="Step {n} of {total}" hidden>
+                <p class="tag-step" id="tag-step"></p>
+                <p id="tag-tip"></p>
+                <div class="tag-acts"><button type="button" data-act="back">Back</button><button type="button" data-act="next">Next</button><button type="button" data-act="done">Done</button></div>
+              </div>
+            </div>
           </div>
-          <div class="hd-try" role="group" aria-label="Try the demo with another find">
+          </div>
+          <div class="hd-try" role="group" aria-label="Try the demo with another find"
+               data-tag-tour="1" data-tag-tip="Tap a find and I&rsquo;ll tag it: an AI-estimated resale range and a verdict.">
             <span class="hd-try-label">Try a find</span>
             <div class="hd-try-chips">
               <button type="button" class="sd-chip" aria-pressed="true"
@@ -1936,7 +2017,8 @@ details[open] .faq-x::after { transform: rotate(90deg); }
 
        Rendered with real default values in the HTML, so with JavaScript off it
        still reads as a worked example rather than a set of empty boxes. -->
-  <section class="tf" id="thrift-flip">
+  <section class="tf" id="thrift-flip" data-tag-tour="2"
+           data-tag-tip="Type what the shop wants. Thrift Flip takes off the marketplace&rsquo;s cut and shipping and shows what&rsquo;s left.">
     <div class="tf-wrap">
       <div class="tf-rule">
         <span class="l">Thrift Flip</span>
@@ -2031,7 +2113,8 @@ details[open] .faq-x::after { transform: rotate(90deg); }
   <!-- The app itself. Real App Store screenshots, not mockups — the captions
        are baked into the artwork, so the alt text carries them for everyone
        who can't see the images. Lazy-loaded; ~174 KB for all four. -->
-  <section class="shots" id="app-shots">
+  <section class="shots" id="app-shots" data-tag-tour="3"
+           data-tag-tip="These are real screens from SnapWorth on the App&nbsp;Store.">
     <div class="shots-wrap">
       <div class="tf-rule">
         <span class="l">Straight from the app</span>
@@ -2047,7 +2130,8 @@ details[open] .faq-x::after { transform: rotate(90deg); }
     </div>
   </section>
 
-  <section id="how-it-works">
+  <section id="how-it-works" data-tag-tour="4"
+           data-tag-tip="From find to price in three steps, while you&rsquo;re still at the rack.">
     <div class="section-inner">
       <div class="section-header">
         <div class="eyebrow">How it works</div>
@@ -2111,7 +2195,8 @@ details[open] .faq-x::after { transform: rotate(90deg); }
   </section>
 
   <!-- Pricing -->
-  <section id="pricing" class="pricing-bg">
+  <section id="pricing" class="pricing-bg" data-tag-tour="5"
+           data-tag-tip="One free scan a day, no card. Pro removes the daily limit.">
     <div class="section-inner">
       <div class="section-header">
         <div class="eyebrow">Pricing</div>
@@ -2221,7 +2306,7 @@ details[open] .faq-x::after { transform: rotate(90deg); }
   </script>
 
   <!-- CTA -->
-  <div class="cta-dark">
+  <div class="cta-dark" data-tag-tour="6" data-tag-tip="That&rsquo;s the tour! Your next great find is waiting.">
     <h2>Your next great find<br>is waiting. <em>Know its worth.</em></h2>
     <p>Join thrift flippers who price smarter.</p>
     <a href="https://apps.apple.com/us/app/snapworth-resale-scanner/id6788521307" class="btn-primary-light">
@@ -2245,6 +2330,8 @@ details[open] .faq-x::after { transform: rotate(90deg); }
         <a href="https://x.com/snapworthapp" target="_blank">X</a>
         <a href="https://www.instagram.com/snapworth.app/" target="_blank">Instagram</a>
         <a href="https://www.tiktok.com/@snapworthapp" target="_blank">TikTok</a>
+        <!-- Brings the guide back after "Hide Tag"; shown only then. -->
+        <button type="button" class="tag-show" hidden>Show Tag</button>
       </div>
       <span class="footer-copy">© 2026 SnapWorth</span>
     </div>
@@ -2256,6 +2343,10 @@ details[open] .faq-x::after { transform: rotate(90deg); }
      with JavaScript off it simply never appears — the page already has four
      download buttons without it. Mobile-only: on desktop the nav CTA is
      always in view. -->
+<!-- Tag's second home: tag-guide.js moves the hero's Tag here when the hero
+     scrolls away, and back when it returns. Empty and hidden until then. -->
+<div class="tag-dock" id="tag-dock" data-bye="Bye for now!" hidden></div>
+
 <div class="mcta" id="mcta" hidden>
   <div class="mcta-txt">
     <strong>SnapWorth</strong>
@@ -2709,5 +2800,6 @@ details[open] .faq-x::after { transform: rotate(90deg); }
 })();
 </script>
 <script defer src="/tag.js"></script>
+<script defer src="/tag-guide.js"></script>
 </body>
 </html>
