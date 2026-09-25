@@ -18,8 +18,20 @@ OUT = HERE / "app_assets"
 BASE_PT = 160                       # design height in points; @2x 320 px, @3x 480 px
 EDGE = 18                           # sticker edge, 1024-space units
 MOODS = {"Happy": "happy", "Joy": "joy", "Wow": "wow", "Blink": "blink"}
+# The edge is a *round* dilation: blur the alpha, then keep everything above a
+# low threshold. `feMorphology dilate` was used first and grows shapes with a
+# square kernel, which is invisible on the rounded body but turns every sharp
+# point (the sparkles) into a stepped block. For a straight edge, blur σ and
+# threshold t push the boundary out by σ·Φ⁻¹(1 − t); t = 0.05 gives 1.645σ, so
+# σ = EDGE / 1.645 keeps the edge as wide as before. The slope only sets how
+# soft the new boundary is (about a pixel and a half at @3x).
+EDGE_T = 0.05
+EDGE_SIGMA = EDGE / 1.645
+EDGE_SLOPE = 40
 STICKER = (f'<defs><filter id="die" x="-20%" y="-20%" width="140%" height="140%" color-interpolation-filters="sRGB">'
-           f'<feMorphology in="SourceAlpha" operator="dilate" radius="{EDGE}" result="d"/>'
+           f'<feGaussianBlur in="SourceAlpha" stdDeviation="{EDGE_SIGMA:.3f}" result="b"/>'
+           f'<feComponentTransfer in="b" result="d"><feFuncA type="linear" slope="{EDGE_SLOPE}" '
+           f'intercept="{0.5 - EDGE_SLOPE * EDGE_T:.3f}"/></feComponentTransfer>'
            f'<feFlood flood-color="{M.CREAM}"/><feComposite in2="d" operator="in" result="edge"/>'
            f'<feMerge><feMergeNode in="edge"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>')
 
@@ -71,9 +83,15 @@ if __name__ == "__main__":
     with sync_playwright() as p:
         b = p.chromium.launch(args=["--force-color-profile=srgb"])
         pg = b.new_page(device_scale_factor=1)
-        boxes = [alpha_bbox(pg, v) for moods in d.values() for v in moods.values()]
-        x0, y0 = min(bx[0] for bx in boxes) - 6, min(bx[1] for bx in boxes) - 6
-        x1, y1 = max(bx[2] for bx in boxes) + 6, max(bx[3] for bx in boxes) + 6
+        # The canvas is the drawing plus the edge width plus a margin, measured
+        # on the light drawings. Measuring the rendered dark edge instead made
+        # the canvas depend on how the edge is drawn: the round edge reaches
+        # less far past the sparkle tips than the square one did, which moved
+        # the viewBox and would have changed TagMascot.aspectRatio.
+        boxes = [alpha_bbox(pg, moods["light"]) for moods in d.values()]
+        pad = EDGE + 6
+        x0, y0 = min(bx[0] for bx in boxes) - pad, min(bx[1] for bx in boxes) - pad
+        x1, y1 = max(bx[2] for bx in boxes) + pad, max(bx[3] for bx in boxes) + pad
         vb = [x0, y0, x1 - x0, y1 - y0]
         report = {"viewBox": vb, "points": [round(BASE_PT * vb[2] / vb[3], 1), BASE_PT], "images": {}}
         for name, variants in d.items():
