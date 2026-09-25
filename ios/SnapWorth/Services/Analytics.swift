@@ -65,6 +65,7 @@ enum AnalyticsEvent {
 
     // ── Snap → Sell ──────────────────────────────────────────────────
     case listingGenerated(marketplace: String)
+    case listingPhotoCleaned(marketplace: String)
 
     // ── Thrift Flip ──────────────────────────────────────────────────
     case thriftFlipCalculated(verdict: String)
@@ -134,6 +135,7 @@ enum AnalyticsEvent {
         case .guessCardShared:      return "guess_card_shared"
         case .tagPhotoAdded:        return "tag_photo_added"
         case .listingGenerated:     return "listing_generated"
+        case .listingPhotoCleaned:  return "listing_photo_cleaned"
         case .thriftFlipCalculated: return "thrift_flip_calculated"
         case .ledgerItemMarkedSold: return "ledger_item_marked_sold"
         case .ledgerDashboardViewed:return "ledger_dashboard_viewed"
@@ -185,7 +187,7 @@ enum AnalyticsEvent {
             return ["style": style]
         case let .notificationScheduled(category), let .notificationOpened(category):
             return ["category": category]
-        case let .listingGenerated(marketplace):
+        case let .listingGenerated(marketplace), let .listingPhotoCleaned(marketplace):
             return ["marketplace": marketplace]
         case let .thriftFlipCalculated(verdict):
             return ["verdict": verdict]

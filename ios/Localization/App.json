@@ -880,6 +880,13 @@
       "de": "Morgen wieder – oder hol dir Pro",
       "zh-Hans": "明天再来，或升级 Pro"
     },
+    "Background": {
+      "en": "Background",
+      "ro": "Fundal",
+      "es": "Fondo",
+      "de": "Hintergrund",
+      "zh-Hans": "背景"
+    },
     "Best case": {
       "en": "Best case",
       "ro": "Cel mai bun caz",
@@ -1013,6 +1020,27 @@
       "de": "Foto aus der Mediathek wählen",
       "zh-Hans": "从相册选一张照片"
     },
+    "Clean up photo": {
+      "en": "Clean up photo",
+      "ro": "Curăță poza",
+      "es": "Limpiar la foto",
+      "de": "Foto freistellen",
+      "zh-Hans": "去除照片背景"
+    },
+    "Cleaned-up listing photo": {
+      "en": "Cleaned-up listing photo",
+      "ro": "Poza curățată pentru anunț",
+      "es": "Foto del anuncio sin fondo",
+      "de": "Freigestelltes Foto fürs Inserat",
+      "zh-Hans": "已去除背景的商品照片"
+    },
+    "Cleaning up…": {
+      "en": "Cleaning up…",
+      "ro": "Curăț poza…",
+      "es": "Limpiando la foto…",
+      "de": "Wird freigestellt…",
+      "zh-Hans": "正在去除背景…"
+    },
     "Clear history?": {
       "en": "Clear history?",
       "ro": "Ștergi istoricul?",
@@ -1140,6 +1168,13 @@
       "de": "Der Verlauf konnte nicht gelöscht werden",
       "zh-Hans": "没能清空历史记录"
     },
+    "Couldn't find a clear item in this photo, so it's left as it was.": {
+      "en": "Couldn't find a clear item in this photo, so it's left as it was.",
+      "ro": "N-am găsit clar obiectul în poză, așa că a rămas cum era.",
+      "es": "No se distingue bien el artículo en esta foto, así que se queda como estaba.",
+      "de": "Auf diesem Foto ist kein Artikel klar zu erkennen, darum bleibt es, wie es war.",
+      "zh-Hans": "这张照片里找不到清晰的物品，所以保持原样。"
+    },
     "Couldn't load every plan. Try again, or continue with the one shown.": {
       "en": "Couldn't load every plan. Try again, or continue with the one shown.",
       "ro": "N-am putut încărca toate abonamentele. Încearcă din nou sau continuă cu cel afișat.",
@@ -1188,6 +1223,13 @@
       "es": "No se pudo leer la etiqueta: escribe el precio a mano.",
       "de": "Das Etikett war nicht lesbar – gib den Preis von Hand ein.",
       "zh-Hans": "标签没认出来，手动填一下价格吧。"
+    },
+    "Couldn't save the photo. Try again.": {
+      "en": "Couldn't save the photo. Try again.",
+      "ro": "N-am putut salva poza. Încearcă din nou.",
+      "es": "No se pudo guardar la foto. Inténtalo de nuevo.",
+      "de": "Das Foto konnte nicht gesichert werden. Versuch es noch einmal.",
+      "zh-Hans": "照片没能存储。请再试一次。"
     },
     "Couldn't save this flip. Try again.": {
       "en": "Couldn't save this flip. Try again.",
@@ -1743,6 +1785,13 @@
       "es": "Borrador del anuncio",
       "de": "Inserat-Entwurf",
       "zh-Hans": "商品描述草稿"
+    },
+    "Listing photo": {
+      "en": "Listing photo",
+      "ro": "Poza pentru anunț",
+      "es": "Foto del anuncio",
+      "de": "Foto fürs Inserat",
+      "zh-Hans": "商品照片"
     },
     "Loading plans…": {
       "en": "Loading plans…",
@@ -2455,12 +2504,26 @@
       "de": "In Meine Flips speichern",
       "zh-Hans": "存进“我的转卖”"
     },
+    "Save to Photos": {
+      "en": "Save to Photos",
+      "ro": "Salvează în Poze",
+      "es": "Guardar en Fotos",
+      "de": "In Fotos sichern",
+      "zh-Hans": "存储到“照片”"
+    },
     "Saved to My Finds": {
       "en": "Saved to My Finds",
       "ro": "Salvat în Găselnițe",
       "es": "Guardado en Mis hallazgos",
       "de": "In Meine Funde gespeichert",
       "zh-Hans": "已存进“我的好物”"
+    },
+    "Saved to Photos": {
+      "en": "Saved to Photos",
+      "ro": "Salvată în Poze",
+      "es": "Guardada en Fotos",
+      "de": "In Fotos gesichert",
+      "zh-Hans": "已存储到“照片”"
     },
     "Scan": {
       "comment": "Tab bar item for the scanner.",
@@ -2668,6 +2731,13 @@
       "de": "Zeigt, wie sich deine Sammlung über die Zeit verändert hat. Erfordert SnapWorth Pro.",
       "zh-Hans": "显示你的收藏这段时间的变化。需要 SnapWorth Pro。"
     },
+    "Sized for %@": {
+      "en": "Sized for %@",
+      "ro": "Format pentru %@",
+      "es": "Con el formato de %@",
+      "de": "Im Format für %@",
+      "zh-Hans": "已按 %@ 的尺寸调整"
+    },
     "Skip": {
       "comment": "Onboarding: skips the four intro slides.",
       "en": "Skip",
@@ -2696,6 +2766,13 @@
       "es": "Anuncios Snap → Sell para cada plataforma",
       "de": "Snap-→-Sell-Inserate für jede Plattform",
       "zh-Hans": "Snap → Sell 各平台商品描述"
+    },
+    "SnapWorth can't add to your photos. Allow it in Settings → SnapWorth → Photos.": {
+      "en": "SnapWorth can't add to your photos. Allow it in Settings → SnapWorth → Photos.",
+      "ro": "SnapWorth nu poate adăuga în Poze. Permite-i din Setări → SnapWorth → Poze.",
+      "es": "SnapWorth no puede añadir a tus fotos. Permítelo en Ajustes → SnapWorth → Fotos.",
+      "de": "SnapWorth kann nichts zu deinen Fotos hinzufügen. Erlaube es unter Einstellungen → SnapWorth → Fotos.",
+      "zh-Hans": "SnapWorth 无法添加到你的照片。请在“设置”→ SnapWorth →“照片”中允许。"
     },
     "SnapWorth couldn't open your library on this launch, so this find can't be saved to it. Reopening the app may fix it.": {
       "en": "SnapWorth couldn't open your library on this launch, so this find can't be saved to it. Reopening the app may fix it.",
@@ -2752,6 +2829,13 @@
       "es": "SnapWorth. Aún no has escaneado nada.",
       "de": "SnapWorth. Noch nichts gescannt.",
       "zh-Hans": "SnapWorth。还什么都没扫描。"
+    },
+    "Soft grey": {
+      "en": "Soft grey",
+      "ro": "Gri deschis",
+      "es": "Gris claro",
+      "de": "Hellgrau",
+      "zh-Hans": "浅灰色"
     },
     "Sold": {
       "comment": "Flip status.",
@@ -3316,6 +3400,13 @@
       "es": "Dónde venderías",
       "de": "Wo du verkaufen würdest",
       "zh-Hans": "你打算在哪卖"
+    },
+    "White": {
+      "en": "White",
+      "ro": "Alb",
+      "es": "Blanco",
+      "de": "Weiß",
+      "zh-Hans": "白色"
     },
     "Why it's worth that — four price points and what drives them": {
       "en": "Why it's worth that — four price points and what drives them",

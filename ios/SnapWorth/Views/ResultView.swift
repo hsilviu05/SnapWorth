@@ -1160,6 +1160,7 @@ struct ResultView: View {
 
             if isPro {
                 proListingContent
+                listingPhotoSection
             } else {
                 lockedListingTeaser
             }
@@ -1295,6 +1296,76 @@ struct ResultView: View {
             .frame(maxWidth: .infinity, minHeight: 44)
             .contentShape(Rectangle())
             .accessibilityHint("Writes a new listing for this item")
+        }
+    }
+
+    // MARK: - Listing photo (#91)
+
+    /// "Clean up photo": the item lifted off the shop background, on-device,
+    /// on a plain backdrop and shaped for the selected marketplace. An export
+    /// only; the scan's own photo is never replaced.
+    @ViewBuilder
+    private var listingPhotoSection: some View {
+        if let photo {
+            VStack(alignment: .leading, spacing: 10) {
+                Divider().padding(.vertical, 4)
+                Text("Listing photo")
+                    .snapSectionHeader()
+
+                if let cleaned = vm.cleanedPhoto {
+                    Image(uiImage: cleaned)
+                        .resizable()
+                        .scaledToFit()
+                        .frame(maxWidth: .infinity)
+                        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                        .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous)
+                            .strokeBorder(Color.snapBorder, lineWidth: 1))
+                        .accessibilityLabel(Text("Cleaned-up listing photo"))
+
+                    Text("Sized for \(vm.selectedMarketplace.displayName)")
+                        .font(.snapCaption)
+                        .foregroundStyle(Color.snapWarmGray)
+
+                    Picker("Background", selection: Binding(
+                        get: { vm.photoBackdrop },
+                        set: { vm.photoBackdrop = $0 })) {
+                        ForEach(ListingPhotoBackdrop.allCases) { backdrop in
+                            Text(backdrop.label).tag(backdrop)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+
+                    HStack(spacing: 8) {
+                        secondaryButton(vm.didCopyPhoto ? "Copied!" : "Copy", icon: "doc.on.doc") {
+                            vm.copyCleanedPhoto()
+                        }
+                        secondaryButton("Save to Photos", icon: "square.and.arrow.down") {
+                            Task { await vm.saveCleanedPhoto() }
+                        }
+                    }
+                    .snapAnimation(.spring(duration: 0.2), value: vm.didCopyPhoto)
+
+                    if let message = vm.photoSaveMessage {
+                        Text(message)
+                            .font(.snapCaption)
+                            .foregroundStyle(Color.snapWarmGray)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                } else {
+                    secondaryButton(vm.isCleaningPhoto ? "Cleaning up…" : "Clean up photo",
+                                    icon: "wand.and.stars") {
+                        Task { await vm.cleanUpPhoto(photo) }
+                    }
+                    .disabled(vm.isCleaningPhoto)
+
+                    if let note = vm.photoCleanupNote {
+                        Text(note)
+                            .font(.snapCaption)
+                            .foregroundStyle(Color.snapTerracottaText)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+            }
         }
     }
 

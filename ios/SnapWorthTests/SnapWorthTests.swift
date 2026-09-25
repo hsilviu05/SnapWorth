@@ -3007,3 +3007,193 @@ final class TagMascotAssetTests: XCTestCase {
         }
     }
 }
+
+// MARK: - Listing photo cleanup (#91)
+
+/// Vision's foreground mask cannot run in the simulator ("Could not create
+/// inference context"), so these tests feed the pipeline fixed masks and check
+/// everything around the model: orientation, cropping, canvas shape, backdrop
+/// and the fallback. The one test that calls Vision checks that it degrades,
+/// never that it segments. Segmentation quality and the 1.5 s target are
+/// device checks. Photos: tools/make_listing_test_photos.py.
+final class ListingPhotoCleanupTests: XCTestCase {
+
+    /// White ellipse over the middle half of the image.
+    struct EllipseMasker: ForegroundMasking {
+        func mask(for image: CGImage) throws -> CGImage? {
+            let w = image.width, h = image.height
+            let ctx = CGContext(data: nil, width: w, height: h, bitsPerComponent: 8, bytesPerRow: 0,
+                                space: CGColorSpaceCreateDeviceGray(),
+                                bitmapInfo: CGImageAlphaInfo.none.rawValue)!
+            ctx.setFillColor(gray: 0, alpha: 1)
+            ctx.fill(CGRect(x: 0, y: 0, width: w, height: h))
+            ctx.setFillColor(gray: 1, alpha: 1)
+            ctx.fillEllipse(in: CGRect(x: w / 4, y: h / 4, width: w / 2, height: h / 2))
+            return ctx.makeImage()
+        }
+    }
+
+    /// The whole mask at one grey level.
+    struct FlatMasker: ForegroundMasking {
+        let level: CGFloat
+        func mask(for image: CGImage) throws -> CGImage? {
+            let ctx = CGContext(data: nil, width: image.width, height: image.height, bitsPerComponent: 8,
+                                bytesPerRow: 0, space: CGColorSpaceCreateDeviceGray(),
+                                bitmapInfo: CGImageAlphaInfo.none.rawValue)!
+            ctx.setFillColor(gray: level, alpha: 1)
+            ctx.fill(CGRect(x: 0, y: 0, width: image.width, height: image.height))
+            return ctx.makeImage()
+        }
+    }
+
+    /// One white pixel: a speck, well under `minimumCoverage`.
+    struct SpeckMasker: ForegroundMasking {
+        func mask(for image: CGImage) throws -> CGImage? {
+            let ctx = CGContext(data: nil, width: image.width, height: image.height, bitsPerComponent: 8,
+                                bytesPerRow: 0, space: CGColorSpaceCreateDeviceGray(),
+                                bitmapInfo: CGImageAlphaInfo.none.rawValue)!
+            ctx.setFillColor(gray: 1, alpha: 1)
+            ctx.fill(CGRect(x: image.width / 2, y: image.height / 2, width: 1, height: 1))
+            return ctx.makeImage()
+        }
+    }
+
+    struct NoSubjectMasker: ForegroundMasking {
+        func mask(for image: CGImage) throws -> CGImage? { nil }
+    }
+
+    struct FailingMasker: ForegroundMasking {
+        struct Boom: Error {}
+        func mask(for image: CGImage) throws -> CGImage? { throw Boom() }
+    }
+
+    private func photos() throws -> [(name: String, image: UIImage)] {
+        let folder = try XCTUnwrap(Bundle(for: Self.self).url(forResource: "ListingPhotos", withExtension: nil),
+                                   "ListingPhotos folder missing from the test bundle")
+        let files = try FileManager.default.contentsOfDirectory(at: folder, includingPropertiesForKeys: nil)
+            .filter { $0.pathExtension == "jpg" }
+            .sorted { $0.lastPathComponent < $1.lastPathComponent }
+        return try files.map { url in
+            (url.lastPathComponent, try XCTUnwrap(UIImage(contentsOfFile: url.path), url.lastPathComponent))
+        }
+    }
+
+    /// The colour of the pixel at the top-left corner of `image`.
+    private func cornerRGB(_ image: UIImage) throws -> (Int, Int, Int) {
+        let cg = try XCTUnwrap(image.cgImage)
+        var px = [UInt8](repeating: 0, count: 4)
+        let ctx = try XCTUnwrap(CGContext(data: &px, width: 1, height: 1, bitsPerComponent: 8, bytesPerRow: 4,
+                                          space: CGColorSpaceCreateDeviceRGB(),
+                                          bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue))
+        // Draw so the image's top-left pixel lands on the 1×1 context.
+        ctx.draw(cg, in: CGRect(x: 0, y: -(cg.height - 1), width: cg.width, height: cg.height))
+        return (Int(px[0]), Int(px[1]), Int(px[2]))
+    }
+
+    func test_tenPhotos_areInTheBundle() throws {
+        XCTAssertEqual(try photos().count, 10)
+    }
+
+    func test_canvas_perMarketplace() {
+        XCTAssertEqual(ListingPhotoCanvas(marketplace: .depop), .portrait4x5)
+        XCTAssertEqual(ListingPhotoCanvas(marketplace: .poshmark), .square)
+        XCTAssertEqual(ListingPhotoCanvas(marketplace: .mercari), .square)
+        for marketplace in Marketplace.allCases where marketplace != .depop {
+            XCTAssertEqual(ListingPhotoCanvas(marketplace: marketplace), .square, marketplace.rawValue)
+        }
+        XCTAssertEqual(ListingPhotoCanvas.square.pixelSize, CGSize(width: 1080, height: 1080))
+        XCTAssertEqual(ListingPhotoCanvas.portrait4x5.pixelSize, CGSize(width: 1080, height: 1350))
+    }
+
+    /// Every photo × every marketplace × both backdrops: no crash, the exact
+    /// canvas size, and the backdrop showing at the corner.
+    func test_everyPhoto_composesAtTheMarketplacesShape_onTheChosenBackdrop() async throws {
+        for (name, photo) in try photos() {
+            let cut = try await ListingPhotoCleanup.cutOut(photo, masker: EllipseMasker()).get()
+            for marketplace in Marketplace.allCases {
+                let canvas = ListingPhotoCanvas(marketplace: marketplace)
+                for backdrop in ListingPhotoBackdrop.allCases {
+                    let out = ListingPhotoCleanup.compose(cut, canvas: canvas, backdrop: backdrop)
+                    let cg = try XCTUnwrap(out.cgImage, name)
+                    XCTAssertEqual(CGSize(width: cg.width, height: cg.height), canvas.pixelSize,
+                                   "\(name) for \(marketplace.rawValue)")
+                    var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
+                    backdrop.color.getRed(&r, green: &g, blue: &b, alpha: &a)
+                    let corner = try cornerRGB(out)
+                    XCTAssertEqual(corner.0, Int((r * 255).rounded()), accuracy: 2, "\(name) \(backdrop)")
+                    XCTAssertEqual(corner.1, Int((g * 255).rounded()), accuracy: 2, "\(name) \(backdrop)")
+                    XCTAssertEqual(corner.2, Int((b * 255).rounded()), accuracy: 2, "\(name) \(backdrop)")
+                }
+            }
+        }
+    }
+
+    /// `UIImage.cgImage` ignores orientation; the cut-out must not. The
+    /// EXIF-rotated photo is stored 1024×768 and displays 768×1024.
+    func test_exifRotatedPhoto_isMaskedUpright() throws {
+        let rotated = try XCTUnwrap(try photos().first { $0.name.contains("exif") }).image
+        XCTAssertEqual(rotated.imageOrientation, .right)
+        let upright = try XCTUnwrap(ListingPhotoCleanup.uprightCGImage(rotated))
+        XCTAssertEqual(upright.width, 768)
+        XCTAssertEqual(upright.height, 1024)
+    }
+
+    func test_cutOut_isCroppedToTheSubject() throws {
+        let image = try XCTUnwrap(ListingPhotoCleanup.uprightCGImage(try photos()[0].image))
+        let cut = try ListingPhotoCleanup.cutOut(image, mask: XCTUnwrap(EllipseMasker().mask(for: image))).get()
+        XCTAssertEqual(Double(cut.image.width), Double(image.width) / 2, accuracy: 3)
+        XCTAssertEqual(Double(cut.image.height), Double(image.height) / 2, accuracy: 3)
+    }
+
+    /// The fallback: every way a mask can be unusable leaves the original.
+    func test_unusableMasks_fallBack() async throws {
+        let photo = try photos()[0].image
+        func outcome(_ masker: any ForegroundMasking) async -> ListingPhotoCleanup.Fallback? {
+            if case .failure(let reason) = await ListingPhotoCleanup.cutOut(photo, masker: masker) { return reason }
+            return nil
+        }
+        let none = await outcome(NoSubjectMasker())
+        let failing = await outcome(FailingMasker())
+        let black = await outcome(FlatMasker(level: 0))
+        let white = await outcome(FlatMasker(level: 1))
+        let speck = await outcome(SpeckMasker())
+        XCTAssertEqual(none, .noSubject)
+        XCTAssertEqual(failing, .failed)
+        XCTAssertEqual(black, .noSubject)
+        XCTAssertEqual(white, .lowConfidence, "a mask of the whole frame separates nothing")
+        XCTAssertEqual(speck, .lowConfidence)
+    }
+
+    /// The real Vision path, on all ten photos: whatever it returns, it must
+    /// return rather than crash. In the simulator it is always `.failed`.
+    func test_visionMasker_neverCrashes() async throws {
+        for (name, photo) in try photos() {
+            switch await ListingPhotoCleanup.cutOut(photo) {
+            case .success(let cut):
+                XCTAssertGreaterThan(cut.image.width, 0, name)
+            case .failure(let reason):
+                XCTAssertTrue([.failed, .noSubject, .lowConfidence].contains(reason), name)
+            }
+        }
+    }
+
+    @MainActor
+    func test_viewModel_keepsTheOriginal_andReshapesForDepop() async throws {
+        let photo = try photos()[0].image
+        let vm = ResultViewModel()
+
+        await vm.cleanUpPhoto(photo, masker: NoSubjectMasker())
+        XCTAssertNil(vm.cleanedPhoto)
+        XCTAssertNotNil(vm.photoCleanupNote, "a fallback must say so")
+
+        await vm.cleanUpPhoto(photo, masker: EllipseMasker())
+        XCTAssertNil(vm.photoCleanupNote)
+        XCTAssertEqual(vm.cleanedPhoto?.cgImage?.height, 1080)
+
+        vm.selectMarketplace(.depop)
+        XCTAssertEqual(vm.cleanedPhoto?.cgImage?.height, 1350, "Depop re-shapes to 4:5 without re-running Vision")
+
+        vm.photoBackdrop = .softGrey
+        XCTAssertEqual(vm.cleanedPhoto?.cgImage?.height, 1350)
+    }
+}

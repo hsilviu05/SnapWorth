@@ -1,3 +1,4 @@
+import Photos
 import SwiftUI
 
 @MainActor
@@ -15,14 +16,91 @@ final class ResultViewModel {
     /// Text to hand the system share sheet, when a listing has been generated.
     var listingShareItems: [Any]?
 
+    // ── Listing photo cleanup (#91) ──────────────────────────────────────────
+    // The cut-out is kept, not just the export: changing marketplace or
+    // backdrop re-composes in a few milliseconds instead of re-running Vision.
+    var photoBackdrop: ListingPhotoBackdrop = .white {
+        didSet { recomposePhoto() }
+    }
+    var isCleaningPhoto = false
+    /// Set when the photo could not be cleaned; the original is untouched.
+    var photoCleanupNote: String?
+    var didCopyPhoto = false
+    var photoSaveMessage: String?
+    @ObservationIgnored private var photoCutOut: ListingPhotoCleanup.CutOut?
+    private(set) var cleanedPhoto: UIImage?
+
     @ObservationIgnored private var resetTask: Task<Void, Never>?
     @ObservationIgnored private var shareCardDebounce: Task<Void, Never>?
     @ObservationIgnored private var copyGeneratedResetTask: Task<Void, Never>?
+    @ObservationIgnored private var copyPhotoResetTask: Task<Void, Never>?
 
     deinit {
         resetTask?.cancel()
         shareCardDebounce?.cancel()
         copyGeneratedResetTask?.cancel()
+        copyPhotoResetTask?.cancel()
+    }
+
+    // MARK: Listing photo cleanup
+
+    var photoCanvas: ListingPhotoCanvas { ListingPhotoCanvas(marketplace: selectedMarketplace) }
+
+    func cleanUpPhoto(_ photo: UIImage, masker: any ForegroundMasking = VisionForegroundMasker()) async {
+        guard !isCleaningPhoto else { return }
+        isCleaningPhoto = true
+        defer { isCleaningPhoto = false }
+        photoCleanupNote = nil
+        photoSaveMessage = nil
+
+        switch await ListingPhotoCleanup.cutOut(photo, masker: masker) {
+        case .success(let cut):
+            photoCutOut = cut
+            recomposePhoto()
+            Analytics.shared.track(.listingPhotoCleaned(marketplace: selectedMarketplace.rawValue))
+        case .failure:
+            // Never a half-cut item: keep the original and say so.
+            photoCutOut = nil
+            cleanedPhoto = nil
+            photoCleanupNote = String(localized: "Couldn't find a clear item in this photo, so it's left as it was.")
+        }
+    }
+
+    /// Re-place the kept cut-out for the current marketplace and backdrop.
+    func recomposePhoto() {
+        guard let photoCutOut else { return }
+        cleanedPhoto = ListingPhotoCleanup.compose(photoCutOut, canvas: photoCanvas, backdrop: photoBackdrop)
+        photoSaveMessage = nil
+    }
+
+    func copyCleanedPhoto() {
+        guard let cleanedPhoto else { return }
+        UIPasteboard.general.image = cleanedPhoto
+        withAnimation { didCopyPhoto = true }
+        copyPhotoResetTask?.cancel()
+        copyPhotoResetTask = Task {
+            try? await Task.sleep(for: .seconds(2))
+            guard !Task.isCancelled else { return }
+            withAnimation { didCopyPhoto = false }
+        }
+    }
+
+    /// Add-only access: SnapWorth never needs to read the library to save.
+    func saveCleanedPhoto() async {
+        guard let cleanedPhoto else { return }
+        let status = await PHPhotoLibrary.requestAuthorization(for: .addOnly)
+        guard status == .authorized || status == .limited else {
+            photoSaveMessage = String(localized: "SnapWorth can't add to your photos. Allow it in Settings → SnapWorth → Photos.")
+            return
+        }
+        do {
+            try await PHPhotoLibrary.shared().performChanges {
+                PHAssetChangeRequest.creationRequestForAsset(from: cleanedPhoto)
+            }
+            photoSaveMessage = String(localized: "Saved to Photos")
+        } catch {
+            photoSaveMessage = String(localized: "Couldn't save the photo. Try again.")
+        }
     }
 
     /// Render scale for every share card.
@@ -72,6 +150,8 @@ final class ResultViewModel {
         selectedMarketplace = marketplace
         generatedListing = nil
         listingError = nil
+        // Depop is 4:5 and the rest square; the kept cut-out re-places in ms.
+        recomposePhoto()
     }
 
     /// Generates a marketplace listing for the current condition + marketplace.
