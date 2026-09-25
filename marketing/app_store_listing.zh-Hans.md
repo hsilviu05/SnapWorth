@@ -173,7 +173,19 @@ Kleinanzeigen on the German one — a keyword is a claim.
 
 ---
 
-## What's New — 简体中文
+## What's New (Version 1.4.3) — 简体中文
+
+```
+来认识一下 Tag。
+
+Tag 是我们的新吉祥物：SnapWorth 分析物品时它会陪着你；“我的好物”和“我的转卖”还空着的时候，它也在那儿等你。
+
+Thrift Flip 现在全部免费：净利润、回报率，以及你所选平台的完整手续费明细。无论是否订阅 Pro，都可以直接从结论把一次转卖存进“我的转卖”。
+```
+
+## What's New (Version 1.4.2) — 简体中文 — ARCHIVED, do not paste
+
+1.4.2 is approved and live; kept for the record.
 
 ```
 SnapWorth 现在支持中文，也支持闲鱼了。
