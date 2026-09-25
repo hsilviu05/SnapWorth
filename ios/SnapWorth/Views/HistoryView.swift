@@ -434,10 +434,7 @@ private struct NoSearchResultsView: View {
 private struct EmptyFindsView: View {
     var body: some View {
         VStack(spacing: 16) {
-            Image(systemName: "bag")
-                .snapSymbol(48, weight: .light)
-                .foregroundStyle(Color.snapBorder)
-                .accessibilityHidden(true)
+            TagMascot(mood: .happy, height: 112)
 
             Text("No finds yet")
                 .font(.fraunces(20, weight: .bold, relativeTo: .title3))

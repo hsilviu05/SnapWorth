@@ -401,10 +401,7 @@ struct FlipsView: View {
 
     private var emptyState: some View {
         VStack(spacing: 16) {
-            Image(systemName: "chart.line.uptrend.xyaxis")
-                .snapSymbol(48, weight: .light)
-                .foregroundStyle(Color.snapBorder)
-                .accessibilityHidden(true)
+            TagMascot(mood: .happy, height: 112)
             Text("No flips yet")
                 .font(.fraunces(20, weight: .bold, relativeTo: .title3))
                 .foregroundStyle(Color.snapEspresso)
