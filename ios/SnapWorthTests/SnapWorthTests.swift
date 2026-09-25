@@ -2986,3 +2986,24 @@ final class WidgetMonthLedgerTests: XCTestCase {
         XCTAssertEqual(decoded.monthFlips, 2)
     }
 }
+
+// MARK: - Tag mascot assets
+
+/// A missing or misnamed imageset fails silently — `Image("TagHappy")` just
+/// draws nothing — and a missing Dark slot falls back to the light artwork,
+/// whose espresso outline vanishes on the dark ground. Both are checked here.
+final class TagMascotAssetTests: XCTestCase {
+
+    func test_everyMascotImage_resolvesInLightAndDark_andTheyDiffer() {
+        let names = TagMascot.Mood.allCases.map(\.assetName) + [TagMascot.blinkAssetName]
+        let light = UITraitCollection(userInterfaceStyle: .light)
+        let dark = UITraitCollection(userInterfaceStyle: .dark)
+        for name in names {
+            let l = UIImage(named: name, in: .main, compatibleWith: light)
+            let d = UIImage(named: name, in: .main, compatibleWith: dark)
+            XCTAssertNotNil(l, "\(name): no light artwork")
+            XCTAssertNotNil(d, "\(name): no dark artwork")
+            XCTAssertNotEqual(l?.pngData(), d?.pngData(), "\(name): dark artwork is the light one")
+        }
+    }
+}
