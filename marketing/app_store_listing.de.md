@@ -98,6 +98,7 @@ WAS DU BEKOMMST
 • Inserat von der KI – Titel und Beschreibung, fertig zum Einstellen, bei jedem Scan
 • Verlauf – jeder Fund wird automatisch gespeichert, mit seinem Wert
 • Summe – was alles, was du gescannt hast, zusammen wert ist
+• iMessage-Sticker – 20 Sticker mit Tag, unserem Maskottchen (vier animiert), um mit deinen Funden anzugeben
 
 --------------------------
 
@@ -163,6 +164,14 @@ both dominant here. `trödel` came out to make room — it is a narrower word th
 anything it displaced.
 
 ---
+
+## What's New (Version 1.4.4) — Deutsch — DRAFT, stickers only so far
+
+Add the rest of 1.4.4 before pasting.
+
+```
+Neu: iMessage-Sticker mit Tag, unserem Maskottchen – 20 Stück, vier davon animiert. Du findest sie in Nachrichten unter „Sticker“.
+```
 
 ## What's New (Version 1.4.3) — Deutsch
 

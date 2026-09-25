@@ -107,6 +107,7 @@ CE PRIMEȘTI
 • Anunț scris de AI — titlu și descriere gata de postat, la fiecare scanare
 • Istoricul scanărilor — fiecare găselniță salvată automat, cu valoarea ei
 • Total — cât valorează tot ce ai scanat, dintr-o privire
+• Stickere pentru iMessage — 20 de stickere cu Tag, mascota noastră (patru animate), ca să te lauzi cu ce ai găsit
 
 --------------------------
 
@@ -167,6 +168,14 @@ Dropped for space, in the order I would add them back: `anticariat`,
 `bazar`, `sneakers`, `licitatie`.
 
 ---
+
+## What's New (Version 1.4.4) — Română — DRAFT, stickers only so far
+
+Add the rest of 1.4.4 before pasting.
+
+```
+Nou: stickere cu Tag, mascota noastră, pentru iMessage — 20, dintre care patru animate. Le găsești în Mesaje.
+```
 
 ## What's New (Version 1.4.3) — Română
 

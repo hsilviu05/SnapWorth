@@ -1,0 +1,71 @@
+{
+  "info": {
+    "author": "xcode",
+    "version": 1
+  },
+  "properties": {
+    "grid-size": "regular"
+  },
+  "stickers": [
+    {
+      "filename": "hi.sticker"
+    },
+    {
+      "filename": "yay.sticker"
+    },
+    {
+      "filename": "wow.sticker"
+    },
+    {
+      "filename": "love.sticker"
+    },
+    {
+      "filename": "wink.sticker"
+    },
+    {
+      "filename": "lol.sticker"
+    },
+    {
+      "filename": "sad.sticker"
+    },
+    {
+      "filename": "sleepy.sticker"
+    },
+    {
+      "filename": "hmm.sticker"
+    },
+    {
+      "filename": "oops.sticker"
+    },
+    {
+      "filename": "worth-it.sticker"
+    },
+    {
+      "filename": "steal.sticker"
+    },
+    {
+      "filename": "sold.sticker"
+    },
+    {
+      "filename": "priceless.sticker"
+    },
+    {
+      "filename": "tagged.sticker"
+    },
+    {
+      "filename": "found-it.sticker"
+    },
+    {
+      "filename": "hi-wave.sticker"
+    },
+    {
+      "filename": "worth-it-flip.sticker"
+    },
+    {
+      "filename": "yay-bounce.sticker"
+    },
+    {
+      "filename": "snooze.sticker"
+    }
+  ]
+}

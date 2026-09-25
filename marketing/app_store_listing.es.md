@@ -100,6 +100,7 @@ QUÉ INCLUYE
 • Anuncio escrito por la IA — título y descripción listos para publicar, en cada escaneo
 • Historial — cada hallazgo se guarda solo, con su valor
 • Total — cuánto vale todo lo que has escaneado, de un vistazo
+• Stickers para iMessage — 20 stickers de Tag, nuestra mascota (cuatro animados), para presumir de tus hallazgos
 
 --------------------------
 
@@ -161,6 +162,14 @@ deliberately absent** — they dominate Spanish resale and it is tempting, but
 the app has no fee table for either, and a keyword is a claim.
 
 ---
+
+## What's New (Version 1.4.4) — Español — DRAFT, stickers only so far
+
+Add the rest of 1.4.4 before pasting.
+
+```
+Novedad: stickers de Tag, nuestra mascota, para iMessage. Son 20 y cuatro están animados; los encontrarás en Mensajes, en Stickers.
+```
 
 ## What's New (Version 1.4.3) — Español
 

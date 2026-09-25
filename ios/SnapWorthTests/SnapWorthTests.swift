@@ -3256,3 +3256,41 @@ final class ReferralTests: XCTestCase {
         XCTAssertEqual(ReferralRewardNotice.unannounced([first, second], defaults: defaults), [])
     }
 }
+
+// MARK: - Embedded extensions
+
+/// A version bump now touches twelve build-setting slots: app, widgets and
+/// stickers, each in Debug and Release. App Store Connect flags an extension
+/// whose version or build differs from the app's, and no build notices, so a
+/// missed slot is caught here instead.
+final class ExtensionBundleTests: XCTestCase {
+
+    private func embedded(_ name: String) throws -> Bundle {
+        let plugIns = try XCTUnwrap(Bundle.main.builtInPlugInsURL)
+        return try XCTUnwrap(Bundle(url: plugIns.appendingPathComponent(name)), "\(name) is not embedded in the app")
+    }
+
+    private func info(_ bundle: Bundle, _ key: String) -> String? {
+        bundle.object(forInfoDictionaryKey: key) as? String
+    }
+
+    func test_everyExtension_carriesTheAppsVersionAndBuild() throws {
+        let version = try XCTUnwrap(info(.main, "CFBundleShortVersionString"))
+        let build = try XCTUnwrap(info(.main, "CFBundleVersion"))
+        for name in ["SnapWorthWidgetsExtension.appex", "SnapWorthStickers.appex"] {
+            let ext = try embedded(name)
+            XCTAssertEqual(info(ext, "CFBundleShortVersionString"), version, name)
+            XCTAssertEqual(info(ext, "CFBundleVersion"), build, name)
+        }
+    }
+
+    /// The media context is what puts the stickers in the system sticker
+    /// drawer (the emoji keyboard, the Messages camera, FaceTime) rather than
+    /// only in the list of apps inside Messages.
+    func test_stickerPack_offersTheSystemStickerDrawer() throws {
+        let contexts = try embedded("SnapWorthStickers.appex")
+            .object(forInfoDictionaryKey: "MSSupportedPresentationContexts") as? [String]
+        XCTAssertEqual(Set(contexts ?? []), ["MSMessagesAppPresentationContextMessages",
+                                             "MSMessagesAppPresentationContextMedia"])
+    }
+}

@@ -73,6 +73,7 @@ WHAT YOU GET
 • AI listing draft — a ready-to-post title and description with every scan
 • Scan history — every find saved automatically with its value
 • Total haul tracker — see what your collection is worth at a glance
+• iMessage stickers — 20 stickers of Tag, our mascot (four animated), for bragging about a find
 
 --------------------------
 
