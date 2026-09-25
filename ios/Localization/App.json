@@ -2699,14 +2699,6 @@
       "de": "SPARE %@",
       "zh-Hans": "省 %@"
     },
-    "SAVE %lld%": {
-      "comment": "The same badge as \"SAVE %lld%%\", under the other spelling of a literal percent sign — whichever key Foundation generates, one of the two matches.",
-      "en": "SAVE %lld%",
-      "ro": "ECONOMISEȘTI %lld%",
-      "es": "AHORRA %lld%",
-      "de": "SPARE %lld%",
-      "zh-Hans": "省 %lld%"
-    },
     "Save to My Flips": {
       "en": "Save to My Flips",
       "ro": "Salvează în Flipuri",
@@ -3988,7 +3980,7 @@
       "ro": "în scădere cu %lld la sută",
       "es": "un %lld por ciento menos",
       "de": "%lld Prozent weniger",
-      "zh-Hans": "下降 %lld%%"
+      "zh-Hans": "下降百分之%lld"
     },
     "free scan left today": {
       "comment": "The number is the widget's headline; this is the noun under it.",
@@ -4091,7 +4083,7 @@
       "ro": "în creștere cu %lld la sută",
       "es": "un %lld por ciento más",
       "de": "%lld Prozent mehr",
-      "zh-Hans": "上涨 %lld%%"
+      "zh-Hans": "上涨百分之%lld"
     },
     "used with visible wear": {
       "en": "used with visible wear",

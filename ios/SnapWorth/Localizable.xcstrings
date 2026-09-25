@@ -12964,42 +12964,6 @@
         }
       }
     },
-    "SAVE %lld%" : {
-      "comment" : "The same badge as \"SAVE %lld%%\", under the other spelling of a literal percent sign — whichever key Foundation generates, one of the two matches.",
-      "extractionState" : "manual",
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "SPARE %lld%"
-          }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "SAVE %lld%"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "AHORRA %lld%"
-          }
-        },
-        "ro" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "ECONOMISEȘTI %lld%"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "省 %lld%"
-          }
-        }
-      }
-    },
     "Save to My Flips" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -19271,7 +19235,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "下降 %lld%%"
+            "value" : "下降百分之%lld"
           }
         }
       }
@@ -19766,7 +19730,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "上涨 %lld%%"
+            "value" : "上涨百分之%lld"
           }
         }
       }
