@@ -163,15 +163,15 @@ the app has no fee table for either, and a keyword is a claim.
 
 ---
 
-## What's New (Version 1.4.4) — Español — DRAFT, stickers only so far
-
-Add the rest of 1.4.4 before pasting.
+## What's New (Version 1.5.0) — Español
 
 ```
-Novedad: stickers de Tag, nuestra mascota, para iMessage. Son 20 y cuatro están animados; los encontrarás en Mensajes, en Stickers.
+Novedad: stickers de Tag, nuestra mascota, para iMessage. Son 20 y cuatro están animados; los encontrarás con tus stickers, en el teclado de emojis.
 ```
 
-## What's New (Version 1.4.3) — Español
+## What's New (Version 1.4.3) — Español — ARCHIVED, do not paste
+
+1.4.3 is approved and live; kept for the record.
 
 ```
 Te presentamos a Tag.

@@ -165,15 +165,15 @@ anything it displaced.
 
 ---
 
-## What's New (Version 1.4.4) — Deutsch — DRAFT, stickers only so far
-
-Add the rest of 1.4.4 before pasting.
+## What's New (Version 1.5.0) — Deutsch
 
 ```
-Neu: iMessage-Sticker mit Tag, unserem Maskottchen – 20 Stück, vier davon animiert. Du findest sie in Nachrichten unter „Sticker“.
+Neu: iMessage-Sticker mit Tag, unserem Maskottchen – 20 Stück, vier davon animiert. Du findest sie bei deinen Stickern in der Emoji-Tastatur.
 ```
 
-## What's New (Version 1.4.3) — Deutsch
+## What's New (Version 1.4.3) — Deutsch — ARCHIVED, do not paste
+
+1.4.3 is approved and live; kept for the record.
 
 ```
 Das ist Tag.

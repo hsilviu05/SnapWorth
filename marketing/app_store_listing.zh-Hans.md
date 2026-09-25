@@ -174,15 +174,15 @@ Kleinanzeigen on the German one — a keyword is a claim.
 
 ---
 
-## What's New (Version 1.4.4) — 简体中文 — DRAFT, stickers only so far
-
-Add the rest of 1.4.4 before pasting.
+## What's New (Version 1.5.0) — 简体中文
 
 ```
-新增：吉祥物 Tag 的 iMessage 贴纸，共 20 款，其中 4 款为动图。可在“信息”App 的贴纸中找到。
+新增：吉祥物 Tag 的 iMessage 贴纸，共 20 款，其中 4 款为动图。在表情符号键盘的贴纸里就能找到。
 ```
 
-## What's New (Version 1.4.3) — 简体中文
+## What's New (Version 1.4.3) — 简体中文 — ARCHIVED, do not paste
+
+1.4.3 is approved and live; kept for the record.
 
 ```
 来认识一下 Tag。
