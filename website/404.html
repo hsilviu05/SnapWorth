@@ -71,6 +71,38 @@
       border-radius: 6px;
     }
     ::selection { background: #A94E29; color: #fff; }
+
+    /* Tag beside the headline, flipped to "$0" on a click (tag.js). His box
+       is reserved by aspect-ratio, so nothing moves when he paints. The
+       cream edge is for dark surfaces, so it shows only in dark mode, where
+       the ground shadow would not. The bubble is decoration: aria-hidden. */
+    .nf-head { display: flex; align-items: center; justify-content: center; gap: 22px;
+               flex-wrap: wrap; margin-bottom: 18px; }
+    .nf-head h1 { margin: 0; flex: 0 1 auto; }
+    .tag-wrap { position: relative; flex: none; }
+    /* Width stated as well as aspect-ratio: WebKit sized .tag-wrap by the
+       SVG's default 300px intrinsic width otherwise. */
+    .tag-mascot { --tag-h: clamp(88px, 16vw, 132px); display: block; height: var(--tag-h);
+                  width: calc(var(--tag-h) * 137.5 / 160); aspect-ratio: 137.5 / 160;
+                  padding: 0; border: 0; background: none; cursor: pointer; border-radius: 18px;
+                  -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
+    .tag-mascot svg { display: block; width: 100%; height: 100%; }
+    .tag-mascot:focus-visible { outline: 2px solid var(--terracotta); outline-offset: 4px; }
+    .tag-404 .tag-edge { display: none; }
+    @media (prefers-color-scheme: dark) {
+      .tag-404 .tag-edge { display: inline; }
+      .tag-404 .tag-shadow { display: none; }
+    }
+    .tag-bubble { position: absolute; bottom: calc(100% + 6px); left: 50%; z-index: 2;
+                  transform: translate(-50%, 4px); opacity: 0; pointer-events: none; white-space: nowrap;
+                  background: var(--ink); color: var(--bg); font-size: 13px; font-weight: 600;
+                  line-height: 1.3; padding: 7px 12px; border-radius: 12px; }
+    .tag-bubble::after { content: ""; position: absolute; top: 100%; left: 50%; margin-left: -6px;
+                         border: 6px solid transparent; border-top-color: var(--ink); }
+    .tag-bubble.is-on { opacity: 1; transform: translate(-50%, 0); }
+    @media (prefers-reduced-motion: no-preference) {
+      .tag-bubble { transition: opacity .18s ease, transform .18s ease; }
+    }
     h1, h2 { text-wrap: balance; }
     p { text-wrap: pretty; }
 </style>
@@ -80,7 +112,21 @@
   <main>
     <div>
       <div class="eyebrow">404</div>
-      <h1>This one isn't <em>worth</em> anything.</h1>
+      <div class="nf-head">
+        <!-- Tag, flipped to his price side: this page is worth $0. The joke's
+             words live here; tag.js only shows them. SVG: build_tag.py. -->
+        <div class="tag-wrap">
+          <button type="button" class="tag-mascot tag-404" data-tag="404"
+                  data-price="$0" data-label="this page" data-lines="Home&rsquo;s worth a look!"
+                  aria-label="Tag, the SnapWorth mascot: price this page">
+<!-- BEGIN TAG SVG -->
+<svg class="tag-svg" viewBox="182 85 690 803" aria-hidden="true" focusable="false"><style>.tag-svg{overflow:visible}.tag-svg g{transform-box:view-box}.tag-fig{transform-origin:512px 797px;transform:translate(0,var(--hop,0px)) rotate(var(--lean,0deg)) scale(var(--sx,1),var(--sy,1))}.tag-arm-l{transform-origin:306px 614px;transform:rotate(var(--al,24deg))}.tag-arm-r{transform-origin:718px 614px;transform:rotate(var(--ar,-24deg))}.tag-leg-l{transform-origin:457px 770px;transform:rotate(var(--ll,0deg))}.tag-leg-r{transform-origin:567px 770px;transform:rotate(var(--lr,0deg))}.tag-look{transform:translate(var(--lx,0px),var(--ly,0px))}.tag-twinkle{transform-origin:660px 190px;transform:scale(var(--tw,1))}.tag-shadow{transform-box:view-box;transform-origin:512px 864px;transform:scale(var(--sh,1),1)}.tag-f{opacity:0}.tag-f.is-on{opacity:1}.tag-back{opacity:0}.tag-svg.is-back .tag-back{opacity:1}.tag-svg.is-back .tag-look{opacity:0}.tag-price{font:900 124px Fraunces,Georgia,serif;fill:#2B211C;letter-spacing:-3px}.tag-label{font:700 60px 'DM Sans',system-ui,sans-serif;fill:#6E625B;letter-spacing:3px}</style><ellipse class="tag-shadow" cx="512" cy="864" rx="190" ry="23" fill="#2B211C" opacity=".13"/><g class="tag-fig"><g class="tag-edge"><g class="tag-leg-l"><rect x="420" y="752" width="74" height="112" rx="37" fill="#FBF7F2" stroke="#FBF7F2" stroke-width="36" stroke-linejoin="round" stroke-linecap="round"/></g><g class="tag-leg-r"><rect x="530" y="752" width="74" height="112" rx="37" fill="#FBF7F2" stroke="#FBF7F2" stroke-width="36" stroke-linejoin="round" stroke-linecap="round"/></g><g class="tag-arm-l"><path d="M306 614 L306 704" fill="none" stroke="#FBF7F2" stroke-width="156" stroke-linejoin="round" stroke-linecap="round"/></g><g class="tag-arm-r"><path d="M718 614 L718 704" fill="none" stroke="#FBF7F2" stroke-width="156" stroke-linejoin="round" stroke-linecap="round"/></g><path d="M512 280 C 470 222, 446 150, 486 122 C 528 94, 572 158, 512 280" fill="none" stroke="#FBF7F2" stroke-width="47" stroke-linejoin="round" stroke-linecap="round"/><rect x="288" y="353" width="448" height="444" rx="60" fill="#FBF7F2" stroke="#FBF7F2" stroke-width="60" stroke-linejoin="round" stroke-linecap="round"/><polygon points="428,362 463,262.7 561,262.7 596,362" fill="#FBF7F2" stroke="#FBF7F2" stroke-width="60" stroke-linejoin="round" stroke-linecap="round"/><circle cx="512" cy="280" r="52" fill="#FBF7F2" stroke="#FBF7F2" stroke-width="60" stroke-linejoin="round" stroke-linecap="round"/><g class="tag-twinkle"><g transform="translate(642 214) rotate(8) scale(1.04) translate(-50 -50)"><path d="M50 0 L59 41 L100 50 L59 59 L50 100 L41 59 L0 50 L41 41 Z" fill="#FBF7F2" stroke="#FBF7F2" stroke-width="37.6154" stroke-linejoin="round" stroke-linecap="round"/></g><g transform="translate(700 150) rotate(-6) scale(0.44) translate(-50 -50)"><path d="M50 0 L59 41 L100 50 L59 59 L50 100 L41 59 L0 50 L41 41 Z" fill="#FBF7F2" stroke="#FBF7F2" stroke-width="84.8182" stroke-linejoin="round" stroke-linecap="round"/></g></g></g><g class="tag-ink"><g class="tag-leg-l"><rect x="420" y="752" width="74" height="112" rx="37" fill="#2B211C"/></g><g class="tag-leg-r"><rect x="530" y="752" width="74" height="112" rx="37" fill="#2B211C"/></g><g class="tag-arm-l"><path d="M306 614 L306 704" stroke="#2B211C" stroke-width="120" stroke-linecap="round" fill="none"/><path d="M306 614 L306 704" stroke="#FFFFFF" stroke-width="96" stroke-linecap="round" fill="none"/></g><g class="tag-arm-r"><path d="M718 614 L718 704" stroke="#2B211C" stroke-width="120" stroke-linecap="round" fill="none"/><path d="M718 614 L718 704" stroke="#FFFFFF" stroke-width="96" stroke-linecap="round" fill="none"/></g><g class="tag-loop"><path d="M512 280 C 470 222, 446 150, 486 122 C 528 94, 572 158, 512 280" fill="none" stroke="#2B211C" stroke-width="11" stroke-linecap="round" stroke-linejoin="round"/></g><g class="tag-body"><defs><mask id="tag-h1" maskUnits="userSpaceOnUse" x="0" y="0" width="1024" height="1024"><rect width="1024" height="1024" fill="#fff"/><circle cx="512" cy="280" r="25" fill="#000"/></mask></defs><g mask="url(#tag-h1)"><rect x="288" y="353" width="448" height="444" rx="60" fill="#2B211C" stroke="#2B211C" stroke-width="24" stroke-linejoin="round"/><polygon points="428,362 463,262.7 561,262.7 596,362" fill="#2B211C" stroke="#2B211C" stroke-width="24" stroke-linejoin="round"/><circle cx="512" cy="280" r="52" fill="#2B211C" stroke="#2B211C" stroke-width="24" stroke-linejoin="round"/><defs><clipPath id="tag-c2"><rect x="288" y="353" width="448" height="444" rx="60"/><polygon points="428,362 463,262.7 561,262.7 596,362"/><circle cx="512" cy="280" r="52"/></clipPath></defs><g clip-path="url(#tag-c2)"><rect x="288" y="353" width="448" height="444" rx="60" fill="#EFE6DC"/><polygon points="428,362 463,262.7 561,262.7 596,362" fill="#EFE6DC"/><circle cx="512" cy="280" r="52" fill="#EFE6DC"/><g transform="translate(-20 -22)"><rect x="288" y="353" width="448" height="444" rx="60" fill="#FFFFFF"/><polygon points="428,362 463,262.7 561,262.7 596,362" fill="#FFFFFF"/><circle cx="512" cy="280" r="52" fill="#FFFFFF"/></g></g></g><circle cx="512" cy="280" r="31" fill="none" stroke="#2B211C" stroke-width="12"/><defs><clipPath id="tag-n3"><polygon points="428,362 463,262.7 561,262.7 596,362"/><circle cx="512" cy="280" r="52"/></clipPath></defs><path d="M512 280 C 470 222, 446 150, 486 122" fill="none" stroke="#2B211C" stroke-width="11" stroke-linecap="round" stroke-linejoin="round" clip-path="url(#tag-n3)"/></g><g class="tag-look"><ellipse cx="354" cy="636" rx="30" ry="18" fill="#F08F6E" opacity="0.55"/><ellipse cx="670" cy="636" rx="30" ry="18" fill="#F08F6E" opacity="0.55"/><g class="tag-f tag-f-happy"><ellipse cx="426" cy="566" rx="27" ry="35" fill="#2B211C"/><circle cx="417.9" cy="553.4" r="10.3" fill="#FFFFFF"/><circle cx="435.2" cy="578.6" r="4.3" fill="#FFFFFF" opacity=".85"/><ellipse cx="598" cy="566" rx="27" ry="35" fill="#2B211C"/><circle cx="589.9" cy="553.4" r="10.3" fill="#FFFFFF"/><circle cx="607.2" cy="578.6" r="4.3" fill="#FFFFFF" opacity=".85"/><path d="M472 632 Q512 670 552 632" fill="none" stroke="#2B211C" stroke-width="10.4" stroke-linecap="round"/></g><g class="tag-f tag-f-joy"><path d="M397.65 574 Q426 529.25 454.35 574" fill="none" stroke="#2B211C" stroke-width="12.4" stroke-linecap="round"/><path d="M569.65 574 Q598 529.25 626.35 574" fill="none" stroke="#2B211C" stroke-width="12.4" stroke-linecap="round"/><defs><clipPath id="tag-m4"><path d="M472 626 Q472 682 512 682 Q552 682 552 626 Z"/></clipPath></defs><path d="M472 626 Q472 682 512 682 Q552 682 552 626 Z" fill="#2B211C" stroke="#2B211C" stroke-width="6" stroke-linejoin="round"/><ellipse cx="512" cy="680" rx="24.8" ry="20" fill="#D96C47" clip-path="url(#tag-m4)"/></g><g class="tag-f tag-f-wow is-on"><ellipse cx="426" cy="566" rx="30.8" ry="39.9" fill="#2B211C"/><g transform="translate(418.44 555.5) rotate(0) scale(0.3105) translate(-50 -50)"><path d="M50 0 L59 41 L100 50 L59 59 L50 100 L41 59 L0 50 L41 41 Z" fill="#FFFFFF" stroke="#FFFFFF" stroke-width="3" stroke-linejoin="round"/></g><circle cx="436.8" cy="580.7" r="4.3" fill="#FFFFFF" opacity=".85"/><ellipse cx="598" cy="566" rx="30.8" ry="39.9" fill="#2B211C"/><g transform="translate(590.44 555.5) rotate(0) scale(0.3105) translate(-50 -50)"><path d="M50 0 L59 41 L100 50 L59 59 L50 100 L41 59 L0 50 L41 41 Z" fill="#FFFFFF" stroke="#FFFFFF" stroke-width="3" stroke-linejoin="round"/></g><circle cx="608.8" cy="580.7" r="4.3" fill="#FFFFFF" opacity=".85"/><ellipse cx="512" cy="644" rx="19.2" ry="24" fill="#2B211C"/><ellipse cx="512" cy="656.8" rx="11.2" ry="7.2" fill="#D96C47"/></g><g class="tag-f tag-f-blink"><path d="M400.35 568 Q426 577.2 451.65 568" fill="none" stroke="#2B211C" stroke-width="11.3" stroke-linecap="round"/><path d="M572.35 568 Q598 577.2 623.65 568" fill="none" stroke="#2B211C" stroke-width="11.3" stroke-linecap="round"/><path d="M472 632 Q512 670 552 632" fill="none" stroke="#2B211C" stroke-width="10.4" stroke-linecap="round"/></g></g><g class="tag-back" transform="translate(1024 0) scale(-1 1)"><text class="tag-price" x="512" y="585" text-anchor="middle"></text><text class="tag-label" y="652" text-anchor="middle"><tspan x="512"></tspan><tspan x="512" dy="1.1em"></tspan></text></g><g class="tag-twinkle"><g transform="translate(642 214) rotate(8) scale(1.04) translate(-50 -50)"><path d="M50 0 L59 41 L100 50 L59 59 L50 100 L41 59 L0 50 L41 41 Z" fill="#EBB868" stroke="#EBB868" stroke-width="3" stroke-linejoin="round"/><path d="M50 0 L59 41 L100 50 L59 59 L50 100 L41 59 L0 50 L41 41 Z" fill="#F5D495" transform="translate(50 50) scale(.58) translate(-50 -50)"/><path d="M50 0 L59 41 L100 50 L59 59 L50 100 L41 59 L0 50 L41 41 Z" fill="#FFFFFF" transform="translate(50 50) scale(.22) translate(-50 -50)"/></g><g transform="translate(700 150) rotate(-6) scale(0.44) translate(-50 -50)"><path d="M50 0 L59 41 L100 50 L59 59 L50 100 L41 59 L0 50 L41 41 Z" fill="#EBB868" stroke="#EBB868" stroke-width="3" stroke-linejoin="round"/><path d="M50 0 L59 41 L100 50 L59 59 L50 100 L41 59 L0 50 L41 41 Z" fill="#F5D495" transform="translate(50 50) scale(.58) translate(-50 -50)"/><path d="M50 0 L59 41 L100 50 L59 59 L50 100 L41 59 L0 50 L41 41 Z" fill="#FFFFFF" transform="translate(50 50) scale(.22) translate(-50 -50)"/></g></g></g></g></svg>
+<!-- END TAG SVG -->
+          </button>
+          <span class="tag-bubble" aria-hidden="true"></span>
+        </div>
+        <h1>This one isn't <em>worth</em> anything.</h1>
+      </div>
       <p>The page you were after has moved or never existed. The app, the resale value guides and support are all still where they were.</p>
       <div class="actions">
         <a href="/" class="btn primary">Back to SnapWorth</a>
@@ -95,5 +141,6 @@
     <a href="mailto:her.silviu.i@gmail.com">Contact</a>
     <span>© 2026 SnapWorth</span>
   </footer>
+  <script defer src="/tag.js"></script>
 </body>
 </html>
