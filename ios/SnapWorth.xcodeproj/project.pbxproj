@@ -23,6 +23,7 @@
 		FEED000000000000000000B4 /* ThriftFlipViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = FEED000000000000000000A4 /* ThriftFlipViewModel.swift */; };
 		FEED000000000000000000B3 /* MarketplaceFees.swift in Sources */ = {isa = PBXBuildFile; fileRef = FEED000000000000000000A3 /* MarketplaceFees.swift */; };
 		FEED000000000000000000B2 /* PriceTagOCR.swift in Sources */ = {isa = PBXBuildFile; fileRef = FEED000000000000000000A2 /* PriceTagOCR.swift */; };
+		FEED000000000000000091B1 /* ListingPhotoCleanup.swift in Sources */ = {isa = PBXBuildFile; fileRef = FEED000000000000000091A1 /* ListingPhotoCleanup.swift */; };
 		FEED000000000000000000B1 /* ListingService.swift in Sources */ = {isa = PBXBuildFile; fileRef = FEED000000000000000000A1 /* ListingService.swift */; };
 		FEED0000000000000000D30 /* CertificatePinning.swift in Sources */ = {isa = PBXBuildFile; fileRef = FEED0000000000000000C30 /* CertificatePinning.swift */; };
 		FEED0000000000000000D20 /* TokenStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = FEED0000000000000000C20 /* TokenStore.swift */; };
@@ -49,6 +50,7 @@
 		AA0000000000000000000100 /* SnapWorthTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000102 /* SnapWorthTests.swift */; };
 		BB0000000000000000000A01 /* ProductionHardeningTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0000000000000000000A02 /* ProductionHardeningTests.swift */; };
 		BB0000000000000000000F01 /* MigrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0000000000000000000F02 /* MigrationTests.swift */; };
+		FEED000000000000000091B2 /* ListingPhotos in Resources */ = {isa = PBXBuildFile; fileRef = FEED000000000000000091A2 /* ListingPhotos */; };
 		AA000000000000000000010E /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = AA000000000000000000010D /* PrivacyInfo.xcprivacy */; };
 		AA0000000000000000000203 /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000201 /* Localizable.xcstrings */; };
 		AA0000000000000000000204 /* InfoPlist.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000202 /* InfoPlist.xcstrings */; };
@@ -120,6 +122,7 @@
 		FEED000000000000000000A4 /* ThriftFlipViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThriftFlipViewModel.swift; sourceTree = "<group>"; };
 		FEED000000000000000000A3 /* MarketplaceFees.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarketplaceFees.swift; sourceTree = "<group>"; };
 		FEED000000000000000000A2 /* PriceTagOCR.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PriceTagOCR.swift; sourceTree = "<group>"; };
+		FEED000000000000000091A1 /* ListingPhotoCleanup.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ListingPhotoCleanup.swift; sourceTree = "<group>"; };
 		FEED000000000000000000A1 /* ListingService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ListingService.swift; sourceTree = "<group>"; };
 		FEED0000000000000000C30 /* CertificatePinning.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CertificatePinning.swift; sourceTree = "<group>"; };
 		FEED0000000000000000C20 /* TokenStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TokenStore.swift; sourceTree = "<group>"; };
@@ -148,6 +151,7 @@
 		AA0000000000000000000102 /* SnapWorthTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SnapWorthTests.swift; sourceTree = "<group>"; };
 		BB0000000000000000000A02 /* ProductionHardeningTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProductionHardeningTests.swift; sourceTree = "<group>"; };
 		BB0000000000000000000F02 /* MigrationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MigrationTests.swift; sourceTree = "<group>"; };
+		FEED000000000000000091A2 /* ListingPhotos */ = {isa = PBXFileReference; lastKnownFileType = folder; path = ListingPhotos; sourceTree = "<group>"; };
 		AA000000000000000000010D /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		AA0000000000000000000201 /* Localizable.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = Localizable.xcstrings; sourceTree = "<group>"; };
 		AA0000000000000000000202 /* InfoPlist.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = InfoPlist.xcstrings; sourceTree = "<group>"; };
@@ -283,6 +287,7 @@
 				AA00000000000000000000CE /* ScanAPIClient.swift */,
 				AA0000000000000000000112 /* ScanRepository.swift */,
 				FEED000000000000000000A2 /* PriceTagOCR.swift */,
+				FEED000000000000000091A1 /* ListingPhotoCleanup.swift */,
 				FEED000000000000000000A1 /* ListingService.swift */,
 				FEED0000000000000000C30 /* CertificatePinning.swift */,
 				FEED0000000000000000C20 /* TokenStore.swift */,
@@ -370,6 +375,7 @@
 				AA0000000000000000000102 /* SnapWorthTests.swift */,
 				BB0000000000000000000A02 /* ProductionHardeningTests.swift */,
 				BB0000000000000000000F02 /* MigrationTests.swift */,
+				FEED000000000000000091A2 /* ListingPhotos */,
 			);
 			path = SnapWorthTests;
 			sourceTree = "<group>";
@@ -513,6 +519,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				FEED000000000000000091B2 /* ListingPhotos in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -553,6 +560,7 @@
 				FEED000000000000000000B4 /* ThriftFlipViewModel.swift in Sources */,
 				FEED000000000000000000B3 /* MarketplaceFees.swift in Sources */,
 				FEED000000000000000000B2 /* PriceTagOCR.swift in Sources */,
+				FEED000000000000000091B1 /* ListingPhotoCleanup.swift in Sources */,
 				FEED000000000000000000B1 /* ListingService.swift in Sources */,
 				FEED0000000000000000D30 /* CertificatePinning.swift in Sources */,
 				FEED0000000000000000D20 /* TokenStore.swift in Sources */,
