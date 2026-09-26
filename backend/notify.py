@@ -954,7 +954,7 @@ async def appstore_test_notification(environment: str) -> str:
     return "sent" if ok else "send failed"
 
 
-async def subscription_event(note) -> None:
+async def subscription_event(note, *, lifted: bool | None = None) -> None:
     """Record one App Store Server Notification. Awaited, but never raises.
 
     This is the half of the picture the client cannot give us. `/auth/entitlement`
@@ -971,6 +971,10 @@ async def subscription_event(note) -> None:
     Nothing here grants access. The index and the alerts are an operator view;
     entitlement stays verified per request against the transaction the client
     presents.
+
+    `lifted` is what `EntitlementService.reinstate` answered for a
+    REFUND_REVERSED — whether the access path was holding a refund block on
+    this term — and None for every other type.
     """
     if _notifier is None or _cache is None:
         return
@@ -980,7 +984,8 @@ async def subscription_event(note) -> None:
         if not otid or not note.is_indexed:
             return
 
-        before = await _index_subscription(None, ent, note.auto_renew)
+        before = await _index_subscription(None, ent, note.auto_renew,
+                                           current=note.is_refund_reversal)
         # None: the index could not be read, so there is no previous row to
         # judge a paid period against. It is then neither a conversion nor a
         # new payer — an ordinary renewal would otherwise be announced, and
@@ -1016,6 +1021,16 @@ async def subscription_event(note) -> None:
             lines = ["↩️ <b>Refund</b>", detail]
         elif note.is_revoke:
             lines = ["🚫 <b>Subscription revoked</b>", detail]
+        elif note.is_refund_reversal:
+            # Apple took back a refund it had granted, so this term is paid
+            # for again. The handler has already acted on the access path;
+            # this says what it found there.
+            lines = ["↪️ <b>Refund reversed by Apple</b>", detail]
+            if lifted is True:
+                lines.append("Refund block lifted: Pro comes back at the "
+                             "app's next sync, if not sooner.")
+            elif lifted is False:
+                lines.append("The server held no refund block on this term.")
         elif note.is_expiry:
             lines = ["📉 <b>Subscription ended</b>", f"{detail} · was {was or now_acq}"]
         elif note.is_cancellation:
@@ -1715,7 +1730,7 @@ async def handle_command_with_buttons(text: str) -> tuple[str, Buttons] | None:
     if command == "/subs":
         return await _subs_text(), await _buttons()
     if command == "/sub":
-        return await _sub_text(rest), await _buttons()
+        return await _sub_command(rest)
     if command == "/users":
         return await _users_text(), await _buttons()
     if command == "/costs":
@@ -2384,7 +2399,8 @@ def _via(acq: str | None) -> str:
 
 
 async def _index_subscription(subject: str | None, ent,
-                              auto_renew: bool | None = None) -> dict | None:
+                              auto_renew: bool | None = None, *,
+                              current: bool = False) -> dict | None:
     """Record what we now know about one subscription. Returns the previous row,
     or None when the index could not be read and nothing was written.
 
@@ -2404,6 +2420,11 @@ async def _index_subscription(subject: str | None, ent,
 
     The previous row is returned because a notification alone cannot say
     whether a paid period is a *conversion*. Only the row it replaces can.
+
+    `current` says `ent` is Apple's word on this term as of now — a live
+    status lookup, or a REFUND_REVERSED — rather than a transaction that may
+    have been signed before a refund and delivered after it. See the refund
+    mark below.
     """
     doc = await _read_index_for_update(SUBS_INDEX_KEY)
     if doc is None:
@@ -2439,6 +2460,11 @@ async def _index_subscription(subject: str | None, ent,
     # survives the tombstone. The operator's index gets the same rule, rather
     # than clearing on any non-revoked transaction — Apple can redeliver a
     # pre-refund renewal after the REFUND, and that must not resurrect the row.
+    #
+    # That rule alone left no way to clear the mark on the *same* term, which
+    # is exactly what a reversed refund needs: the row said `refund` for a
+    # customer paying for that term again, and `/sub` asking Apple could not
+    # fix it. A `current` transaction is not a redelivery, so it may.
     revoked = getattr(ent, "revoked_at", None)
     if revoked is not None:
         entry["revoked"] = revoked
@@ -2448,7 +2474,8 @@ async def _index_subscription(subject: str | None, ent,
         if (entry.get("revoked") is not None
                 and ent.expires_at is not None
                 and tombstoned is not None
-                and float(ent.expires_at) > float(tombstoned)):
+                and (float(ent.expires_at) >= float(tombstoned) if current
+                     else float(ent.expires_at) > float(tombstoned))):
             entry.pop("revoked", None)
             entry.pop("revoked_expires", None)
     doc[otid] = entry
@@ -3440,7 +3467,153 @@ def _status_lines(status) -> list[str]:
     return lines
 
 
-async def _sub_text(argument: str) -> str:
+async def _sub_command(rest: str) -> tuple[str, Buttons]:
+    """`/sub <id>`, and `/sub <otid> lift [yes]` for a stale refund block."""
+    parts = (rest or "").split()
+    if len(parts) >= 2 and parts[1].lower() == "lift":
+        confirmed = any(token.lower() == "yes" for token in parts[2:])
+        return await _lift_refund_block(parts[0], confirmed)
+    text, offers = await _sub_text(rest)
+    return text, offers + await _buttons()
+
+
+async def _ask_apple(transaction_id: str) -> tuple[list | None, str | None]:
+    """`appstorestatus.lookup`, with each failure in the operator's words.
+
+    Returns `(statuses, error_message)` — exactly one is not None.
+    """
+    import appstorestatus
+
+    try:
+        return await appstorestatus.lookup(transaction_id), None
+    except appstorestatus.SubscriberNotFound as exc:
+        return None, (f"💳 {html.escape(str(exc))}\n\nChecked Production and Sandbox. "
+                      "An id Apple does not recognise is usually a transactionId from "
+                      "a different app, or a typo.")
+    except appstorestatus.StatusNotConfigured as exc:
+        return None, (f"💳 {html.escape(str(exc))}\n\nThe rest of the bot is "
+                      "unaffected — /subs still reports what notifications have said.")
+    except appstorestatus.StatusRateLimited as exc:
+        return None, f"💳 {html.escape(str(exc))}"
+    except appstorestatus.StatusCredentialsRejected as exc:
+        return None, f"💳 <b>Credentials refused</b>\n{html.escape(str(exc))}"
+    except appstorestatus.StatusError as exc:
+        # StatusUnavailable and anything added later. Still named, still not
+        # silent — this branch exists so a new subclass cannot become a
+        # mystery empty reply.
+        return None, f"💳 <b>Could not ask Apple</b>\n{html.escape(str(exc))}"
+
+
+def _block_denies(tombstone: dict, ent) -> bool:
+    """Whether a refund block denies `ent`'s term — `_is_revoked`'s rule."""
+    blocked_until = tombstone.get("expires_at")
+    if ent.expires_at is None or not isinstance(blocked_until, (int, float)):
+        return True
+    return ent.expires_at <= blocked_until
+
+
+async def _refund_block_lines(statuses) -> tuple[list[str], Buttons]:
+    """The access path's refund blocks for these subscriptions, if any.
+
+    A REFUND writes `entrevoked:{originalTransactionId}`, and the access path
+    denies the term it names for up to 400 days. Nothing showed it: a customer
+    whose refund Apple had reversed read as free on every sync, this command
+    said they were paying, `/subs` said `refund`, and finding the cause took
+    `redis-cli` against production. The block is shown next to what Apple
+    says now, and when Apple says the term is not refunded, lifting it is
+    offered — as two taps, see `_lift_refund_block`.
+    """
+    import entitlements
+
+    lines: list[str] = []
+    offers: Buttons = []
+    latest: dict[str, object] = {}
+    for status in statuses:
+        otid = status.entitlement.original_transaction_id
+        if otid:
+            latest.setdefault(otid, status.entitlement)
+    for otid, ent in latest.items():
+        code = f"<code>{html.escape(otid)}</code>"
+        try:
+            tombstone = await entitlements.read_revocation(_cache, otid)
+        except Exception as exc:
+            lines.append(f"Refund block for {code}: could not read the store "
+                         f"({html.escape(type(exc).__name__)}).")
+            continue
+        if tombstone is None:
+            continue
+        until = tombstone.get("expires_at")
+        what = (f"denies terms ending by {_date(int(until))}"
+                if isinstance(until, (int, float)) else "denies every term")
+        lines.append(f"🚫 <b>Refund block</b> on {code}: {what}.")
+        if getattr(ent, "revoked_at", None) is not None:
+            lines.append("Apple still shows this term refunded, so the block is right.")
+        elif _block_denies(tombstone, ent):
+            lines.append("Apple shows this term <b>not</b> refunded, so the block "
+                         "is denying Pro to someone paying for it.")
+            offers.append([("🔓 Lift refund block", f"sub {otid} lift")])
+        else:
+            lines.append("It does not cover the current term.")
+    return lines, offers
+
+
+async def _lift_refund_block(otid: str, confirmed: bool) -> tuple[str, Buttons]:
+    """Delete one refund block — only once Apple says the refund is gone.
+
+    Two taps, like `/lever`: the first names the block, the second lifts it.
+    And the second asks Apple again rather than trusting the first. Lifting a
+    block on a term Apple still shows refunded would let the server re-derive
+    Pro from the pre-refund proof it holds, which is the bug the block exists
+    to stop.
+    """
+    import entitlements
+
+    otid = otid.strip()
+    code = f"<code>{html.escape(otid)}</code>"
+    if not (otid.isdigit() and len(otid) >= 10):
+        return ("Usage: /sub &lt;originalTransactionId&gt; lift — the full id "
+                "from /sub, not the short one.", await _buttons())
+    try:
+        tombstone = await entitlements.read_revocation(_cache, otid)
+    except Exception as exc:
+        return (f"🚫 Could not read the refund block for {code} "
+                f"({html.escape(type(exc).__name__)}). Nothing was changed.",
+                await _buttons())
+    if tombstone is None:
+        return f"🚫 No refund block is held for {code}.", await _buttons()
+
+    if not confirmed:
+        until = tombstone.get("expires_at")
+        what = (f"denies terms ending by {_date(int(until))}"
+                if isinstance(until, (int, float)) else "denies every term")
+        return (f"🔓 <b>Lift the refund block on {code}?</b>\n"
+                f"It {what}. Apple is asked again first, and it is lifted only "
+                "if Apple no longer shows the term refunded.",
+                [[("✅ Yes, lift it", f"sub {otid} lift yes"),
+                  ("Cancel", f"sub {otid}")]])
+
+    statuses, problem = await _ask_apple(otid)
+    if problem is not None:
+        return problem + "\n\nThe refund block was left in place.", await _buttons()
+    assert statuses is not None
+    mine = [st for st in statuses if st.entitlement.original_transaction_id == otid]
+    if not mine:
+        return (f"🚫 Apple returned nothing under {code}, so the block was left "
+                "in place.", await _buttons())
+    if any(getattr(st.entitlement, "revoked_at", None) is not None for st in mine):
+        return (f"🚫 Apple still shows {code} refunded. The block was left in "
+                "place: lifting it would let the server re-derive Pro from the "
+                "proof it holds.", await _buttons())
+    try:
+        await entitlements.clear_revocation(_cache, otid)
+    except Exception as exc:
+        return (f"🚫 Could not lift the block on {code} "
+                f"({html.escape(type(exc).__name__)}). Try again.", await _buttons())
+    return (f"🔓 Refund block lifted on {code}. Pro comes back at the app's "
+            "next sync, if not sooner.", await _buttons())
+
+
+async def _sub_text(argument: str) -> tuple[str, Buttons]:
     """Ask Apple what one subscription is doing, right now.
 
     Everything else the bot knows about subscriptions is a cache of what it was
@@ -3459,38 +3632,28 @@ async def _sub_text(argument: str) -> str:
     # imports `entitlements` — so either at the top of this file closes an
     # import cycle. The same reason `appstorenotify`'s header gives for
     # duck-typing the notification it is handed.
-    import appstorestatus
     import entitlements
 
     transaction_id, problem = await _resolve_transaction_id(argument or "")
     if problem is not None:
-        return problem
+        return problem, []
     assert transaction_id is not None
 
-    try:
-        statuses = await appstorestatus.lookup(transaction_id)
-    except appstorestatus.SubscriberNotFound as exc:
-        return (f"💳 {html.escape(str(exc))}\n\nChecked Production and Sandbox. "
-                "An id Apple does not recognise is usually a transactionId from "
-                "a different app, or a typo.")
-    except appstorestatus.StatusNotConfigured as exc:
-        return (f"💳 {html.escape(str(exc))}\n\nThe rest of the bot is "
-                "unaffected — /subs still reports what notifications have said.")
-    except appstorestatus.StatusRateLimited as exc:
-        return f"💳 {html.escape(str(exc))}"
-    except appstorestatus.StatusCredentialsRejected as exc:
-        return f"💳 <b>Credentials refused</b>\n{html.escape(str(exc))}"
-    except appstorestatus.StatusError as exc:
-        # StatusUnavailable and anything added later. Still named, still not
-        # silent — this branch exists so a new subclass cannot become a
-        # mystery empty reply.
-        return f"💳 <b>Could not ask Apple</b>\n{html.escape(str(exc))}"
+    statuses, problem = await _ask_apple(transaction_id)
+    if problem is not None:
+        return problem, []
+    assert statuses is not None
 
     lines = [f"💳 <b>Live from Apple</b> — {len(statuses)} subscription"
              f"{'s' if len(statuses) != 1 else ''}"]
     for status in statuses:
         lines.append("")
         lines.extend(_status_lines(status))
+
+    block_lines, offers = await _refund_block_lines(statuses)
+    if block_lines:
+        lines.append("")
+        lines.extend(block_lines)
 
     # Fold what Apple just said back into the index. This is the only writer
     # that can correct a row which drifted — a notification that never arrived
@@ -3509,9 +3672,11 @@ async def _sub_text(argument: str) -> str:
             continue
         try:
             # None: the index could not be read, so nothing was written, and
-            # the line below must not say otherwise.
+            # the line below must not say otherwise. `current`: this is
+            # Apple's word now, so a refund it no longer shows is cleared.
             if await _index_subscription(
-                    None, status.entitlement, status.auto_renew) is not None:
+                    None, status.entitlement, status.auto_renew,
+                    current=True) is not None:
                 indexed += 1
         except Exception:
             # The answer above is the point of the command; failing to cache it
@@ -3521,7 +3686,7 @@ async def _sub_text(argument: str) -> str:
         lines.append("")
         lines.append(f"Index updated from this lookup ({indexed} row"
                      f"{'s' if indexed != 1 else ''}).")
-    return "\n".join(lines)
+    return "\n".join(lines), offers
 
 
 # ── One device, for a support email ──────────────────────────────────────────

@@ -1351,7 +1351,8 @@ async def apple_notifications(body: AppleNotification, request: Request) -> dict
     subscription index and the Telegram alerts; a caller who somehow produced a
     valid Apple signature for our bundle could tell us about a purchase, not
     create one. Entitlement remains verified per request against the
-    transaction the client presents.
+    transaction the client presents. The one entitlement change it makes is to
+    withdraw a refunded term, and to lift that again on a REFUND_REVERSED.
 
     Answers 200 for anything it understood, including a type it deliberately
     ignores — a non-2xx makes Apple redeliver the same notification for days.
@@ -1415,9 +1416,18 @@ async def apple_notifications(body: AppleNotification, request: Request) -> dict
     #
     # Before the index write, so an operator who sees the Telegram message
     # knows the access was already withdrawn rather than merely reported.
-    if (note.is_refund or note.is_revoke) and note.entitlement is not None:
+    #
+    # A REFUND_REVERSED undoes exactly that, and needs the same care: left
+    # unhandled, the tombstone went on denying a customer whose refund Apple
+    # had reversed for up to 400 days. See `EntitlementService.reinstate`.
+    lifted: bool | None = None
+    if ((note.is_refund or note.is_revoke or note.is_refund_reversal)
+            and note.entitlement is not None):
         try:
-            await auth.deps.entitlements.revoke(note.entitlement)
+            if note.is_refund_reversal:
+                lifted = await auth.deps.entitlements.reinstate(note.entitlement)
+            else:
+                await auth.deps.entitlements.revoke(note.entitlement)
         except Exception as exc:
             # Give the uuid back before failing. The idempotency claim above
             # is made before any work is done, so answering 5xx while holding
@@ -1425,21 +1435,22 @@ async def apple_notifications(body: AppleNotification, request: Request) -> dict
             # and return 200 without ever withdrawing the access — the same
             # outcome as never having handled the refund. Releasing it means
             # the retry gets a real second attempt.
-            log.error("could not revoke a refunded entitlement: %s", exc)
+            log.error("could not apply %s to the entitlement: %s",
+                      note.notification_type, exc)
             try:
                 await _cache.delete(f"apns2:{note.uuid}")
             except Exception:
                 log.error("could not release the notification idempotency key; "
-                          "this refund will not be retried")
+                          "this %s will not be retried", note.notification_type)
             raise HTTPException(
                 status_code=503,
-                detail="Could not withdraw the entitlement; please retry.",
+                detail="Could not update the entitlement; please retry.",
             ) from None
 
     if not note.is_indexed:
         return {"status": "ignored", "type": note.notification_type}
 
-    await notify.subscription_event(note)
+    await notify.subscription_event(note, lifted=lifted)
     return {"status": "ok", "type": note.notification_type}
 
 

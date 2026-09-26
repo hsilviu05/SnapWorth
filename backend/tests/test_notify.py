@@ -2834,7 +2834,8 @@ class FakeNotification:
     def __init__(self, ent, *, notification_type="DID_RENEW", subtype=None,
                  uuid="uuid-1", indexed=True, paid_period=False, refund=False,
                  revoke=False, expiry=False, cancellation=False,
-                 billing_failure=False, auto_renew=None) -> None:
+                 billing_failure=False, auto_renew=None,
+                 refund_reversal=False) -> None:
         self.entitlement = ent
         self.notification_type = notification_type
         self.subtype = subtype
@@ -2843,6 +2844,7 @@ class FakeNotification:
         self.is_paid_period = paid_period
         self.is_refund = refund
         self.is_revoke = revoke
+        self.is_refund_reversal = refund_reversal
         self.is_expiry = expiry
         self.is_cancellation = cancellation
         self.is_billing_failure = billing_failure
@@ -3775,3 +3777,130 @@ class TestAFailedReadDoesNotWipeTheDocument:
 
         assert not any("New paying subscriber" in t for t in recorder.texts)
         assert await redis.get(notify._stat_key(notify._day(), "new_subs")) is None
+
+
+# ── A refund Apple reverses ──────────────────────────────────────────────────
+#
+# REFUND_REVERSED used to be ignored. The access path's tombstone went on
+# denying the term, the index kept the row marked `refund` — its rule only
+# clears the mark for a *later* term — and `/sub` could see neither.
+
+def _refund_block_store(cache):
+    from entitlements import EntitlementService
+    return EntitlementService(cache, "eu.snapworth.app")
+
+
+def _flat(buttons) -> list[tuple[str, str]]:
+    return [button for row in buttons for button in row]
+
+
+class TestAReversedRefund:
+    @pytest.mark.asyncio
+    async def test_the_alert_says_so_and_the_row_is_no_longer_a_refund(
+            self, enabled_notify):
+        now = int(time.time())
+        common = dict(original_purchase_at=now - 86_400, price=39.99, currency="USD")
+        term = Entitlement("pro", "com.snapworth.yearly", now + 30 * 86_400,
+                           "otid-reversed", "Production", **common)
+        await notify.entitlement_recorded("a" * 64, term)
+        await notify.subscription_event(FakeNotification(
+            Entitlement("pro", "com.snapworth.yearly", now + 30 * 86_400,
+                        "otid-reversed", "Production", revoked_at=now, **common),
+            notification_type="REFUND", refund=True))
+        rows = subs_rows(await notify.handle_command("/subs"))
+        assert rows and "refund" in rows[0], rows
+
+        await notify.subscription_event(FakeNotification(
+            term, notification_type="REFUND_REVERSED", refund_reversal=True),
+            lifted=True)
+
+        alert = enabled_notify.texts[-1]
+        assert "Refund reversed" in alert
+        assert "Refund block lifted" in alert
+        rows = subs_rows(await notify.handle_command("/subs"))
+        assert rows and "refund" not in rows[0], (
+            "the same term, reinstated by Apple, still reads as refunded", rows)
+
+    @pytest.mark.asyncio
+    async def test_a_live_lookup_clears_a_refund_apple_no_longer_shows(
+            self, enabled_notify, monkeypatch):
+        now = int(time.time())
+        term = sub("otid-live", expires_in_days=30)
+        await notify._index_subscription(None, Entitlement(
+            "pro", term.product_id, term.expires_at, "otid-live", "Production",
+            revoked_at=now))
+        _patch_lookup(monkeypatch, [_FakeStatus(term, state="active")])
+
+        await notify.handle_command("/sub 2000000000000007")
+
+        rows = subs_rows(await notify.handle_command("/subs"))
+        assert rows and "refund" not in rows[0], rows
+
+    @pytest.mark.asyncio
+    async def test_sub_shows_a_stale_block_and_offers_to_lift_it(
+            self, enabled_notify, cache, monkeypatch):
+        term = sub("2000000000000008", expires_in_days=30)
+        await _refund_block_store(cache).revoke(term, revoked_at=int(time.time()))
+        _patch_lookup(monkeypatch, [_FakeStatus(term, state="active")])
+
+        text, buttons = await notify.handle_command_with_buttons(
+            "/sub 2000000000000008")
+
+        assert "Refund block" in text
+        assert "not</b> refunded" in text
+        assert ("🔓 Lift refund block", "sub 2000000000000008 lift") in _flat(buttons)
+
+    @pytest.mark.asyncio
+    async def test_a_block_apple_agrees_with_is_not_offered(
+            self, enabled_notify, cache, monkeypatch):
+        now = int(time.time())
+        term = sub("2000000000000009", expires_in_days=30)
+        await _refund_block_store(cache).revoke(term, revoked_at=now)
+        refunded = Entitlement("pro", term.product_id, term.expires_at,
+                               "2000000000000009", "Production", revoked_at=now)
+        _patch_lookup(monkeypatch, [_FakeStatus(refunded, state="revoked")])
+
+        text, buttons = await notify.handle_command_with_buttons(
+            "/sub 2000000000000009")
+
+        assert "Apple still shows this term refunded" in text
+        assert not any("lift" in data for _, data in _flat(buttons))
+
+    @pytest.mark.asyncio
+    async def test_lifting_takes_two_taps_and_asks_apple_again(
+            self, enabled_notify, cache, monkeypatch):
+        import entitlements
+        term = sub("2000000000000010", expires_in_days=30)
+        await _refund_block_store(cache).revoke(term, revoked_at=int(time.time()))
+        spy = _patch_lookup(monkeypatch, [_FakeStatus(term, state="active")])
+
+        text, buttons = await notify.handle_command_with_buttons(
+            "/sub 2000000000000010 lift")
+        assert "Lift the refund block" in text
+        assert ("✅ Yes, lift it", "sub 2000000000000010 lift yes") in _flat(buttons)
+        assert await entitlements.read_revocation(cache, "2000000000000010") is not None
+        assert spy.called_with == []
+
+        text = await notify.handle_command("/sub 2000000000000010 lift yes")
+
+        assert "Refund block lifted" in text
+        assert spy.called_with == ["2000000000000010"]
+        assert await entitlements.read_revocation(cache, "2000000000000010") is None
+
+    @pytest.mark.asyncio
+    async def test_a_block_apple_still_shows_refunded_is_not_lifted(
+            self, enabled_notify, cache, monkeypatch):
+        """Lifting it would let the server re-derive Pro from the pre-refund
+        proof it holds — the bug the block exists to stop."""
+        import entitlements
+        now = int(time.time())
+        term = sub("2000000000000011", expires_in_days=30)
+        await _refund_block_store(cache).revoke(term, revoked_at=now)
+        _patch_lookup(monkeypatch, [_FakeStatus(Entitlement(
+            "pro", term.product_id, term.expires_at, "2000000000000011",
+            "Production", revoked_at=now), state="revoked")])
+
+        text = await notify.handle_command("/sub 2000000000000011 lift yes")
+
+        assert "still shows" in text
+        assert await entitlements.read_revocation(cache, "2000000000000011") is not None

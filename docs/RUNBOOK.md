@@ -197,8 +197,9 @@ never a free scan.
    single-instance mode where memory is treated as authoritative, silently
    disabling the quota across every replica (see `cache.ResilientCache`).
 4. The client reconnects automatically once Redis returns; no deploy needed.
-   A refund or revoke notification that arrives during the outage is answered
-   503, and Apple redelivers it; there is nothing to replay by hand.
+   A refund, revoke or refund-reversal notification that arrives during the
+   outage is answered 503, and Apple redelivers it; there is nothing to replay
+   by hand.
 5. There is no variable that turns this 503 into something else. An earlier
    version of this step said `FREE_SCANS_PER_DAY=0` would show free users the
    paywall instead of an error. It did not: `ScanQuota.reserve` increments the
@@ -828,11 +829,32 @@ tombstone's.
 3. If it is missing, the webhook answered 503 and Apple should have retried.
    A 503 releases the `apns2:{uuid}` idempotency key on purpose, so the
    redelivery gets a real second attempt rather than landing on the duplicate
-   branch. Check the logs for `could not revoke a refunded entitlement`.
+   branch. Check the logs for `could not apply REFUND to the entitlement`.
 4. To revoke by hand, write the tombstone yourself:
    `redis-cli SET entrevoked:{otid} '{"revoked_at":<epoch>,"expires_at":<term expiry epoch>}' EX 34560000`
 5. Access goes away at the user's next request, or immediately if you also
    `DEL ent:{subject}` — which needs the subject, so usually it is the former.
+
+### If Apple reverses a refund
+
+Apple sends `REFUND_REVERSED` when it takes a refund back after a dispute the
+customer raised, and the term is paid for again. The webhook lifts the
+tombstone for that term (`EntitlementService.reinstate`) and clears the `refund`
+mark on the `/subs` row. The operator Telegram gets `↪️ Refund reversed by
+Apple`, saying whether a block was lifted. Pro comes back at the app's next
+sync. A store failure is a 503 here too, and Apple redelivers.
+
+A reversal lifts a tombstone only when the tombstone is for the same term,
+meaning the same expiry. Apple keeps the renewal date when it reverses a
+refund. A tombstone for any other term is a different refund, and it stays.
+
+**If a customer whose refund was reversed still reads as free**, run
+`/sub <originalTransactionId>`. It shows any refund block next to Apple's live
+answer, and the lookup clears a stale `refund` mark on the `/subs` row. When
+Apple shows the term not refunded, it offers **🔓 Lift refund block**. That
+takes two taps, and the second asks Apple again: it refuses while Apple still
+shows the refund, since lifting it then would let the stored pre-refund proof
+re-derive Pro. No `redis-cli` needed.
 
 ### What this does not do
 

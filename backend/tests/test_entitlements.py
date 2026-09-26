@@ -480,6 +480,69 @@ class TestEntitlementService:
                                    make_jws(valid_payload(), leaf_key, chain))
         assert ent.tier == "pro", "a tombstone leaked onto another subscription"
 
+    # ── A refund Apple reverses ─────────────────────────────────────────────
+    #
+    # REFUND_REVERSED used to be ignored, so the tombstone went on denying the
+    # term for its 400-day life: every sync cached FREE and deleted the proof
+    # of a customer who was paying for that term again.
+
+    @staticmethod
+    def _term(payload, **overrides):
+        fields = dict(
+            tier="pro", product_id=payload["productId"],
+            expires_at=payload["expiresDate"] // 1000,
+            original_transaction_id=payload["originalTransactionId"],
+            environment="Production")
+        fields.update(overrides)
+        return entitlements.Entitlement(**fields)
+
+    @pytest.mark.asyncio
+    async def test_a_reversed_refund_gives_the_term_back(self, service, pinned_root):
+        leaf_key, chain = pinned_root
+        payload = valid_payload()
+        jws = make_jws(payload, leaf_key, chain)
+        await service.revoke(self._term(payload, revoked_at=int(time.time())))
+        assert (await service.record("subject-rev", jws)).tier == "free"
+
+        assert await service.reinstate(self._term(payload)) is True
+
+        assert (await service.record("subject-rev", jws)).tier == "pro", (
+            "the refund was reversed and the tombstone still denies the term")
+
+    @pytest.mark.asyncio
+    async def test_a_reversal_for_another_term_leaves_that_refund_alone(
+            self, service, pinned_root):
+        leaf_key, chain = pinned_root
+        earlier = valid_payload()
+        later = valid_payload(expiresDate=int((time.time() + 400 * 86_400) * 1000))
+        await service.revoke(self._term(later, revoked_at=int(time.time())))
+
+        assert await service.reinstate(self._term(earlier)) is False
+
+        ent = await service.record("subject-later", make_jws(later, leaf_key, chain))
+        assert ent.tier == "free", "a reversal lifted a different term's refund"
+
+    @pytest.mark.asyncio
+    async def test_a_reversal_with_no_block_to_lift_says_so(self, service):
+        assert await service.reinstate(self._term(valid_payload())) is False
+
+    @pytest.mark.asyncio
+    async def test_a_reversal_that_cannot_reach_redis_raises(self):
+        """So the webhook answers 503 and Apple redelivers, as for a REFUND.
+        A plain read on a failing Redis would answer "no block" and the 200
+        would end Apple's retries with the block still in place."""
+        from cache import CacheUnavailable, InMemoryCache, ResilientCache
+
+        class _Down(InMemoryCache):
+            async def get(self, key):
+                raise ConnectionError("redis is down")
+
+        service = EntitlementService(
+            ResilientCache(_Down(), InMemoryCache(), configured=True),
+            BUNDLE_ID, PRODUCTS)
+        with pytest.raises(CacheUnavailable):
+            await service.reinstate(self._term(valid_payload()))
+
     @pytest.mark.asyncio
     async def test_expired_proof_reads_free(self, service, pinned_root):
         # Written straight to the cache: `record` refuses to store a proof it

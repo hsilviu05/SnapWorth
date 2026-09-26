@@ -1070,6 +1070,39 @@ class TestAppleNotifications:
         asyncio.run(durable.delete("ent:outage-subject"))
         assert asyncio.run(store.current("outage-subject")).tier == "free"
 
+    def test_a_reversed_refund_gives_the_access_back(
+            self, pinned, entitlement_store):
+        """REFUND_REVERSED used to be acknowledged and ignored, and the
+        REFUND's tombstone went on denying the term for up to 400 days: every
+        sync cached the customer as free and deleted their proof, while Apple
+        was collecting for that term again."""
+        from test_entitlements import make_jws, valid_payload
+        leaf_key, chain = pinned
+        payload = valid_payload()
+        jws = make_jws(payload, leaf_key, chain)
+        otid = payload["originalTransactionId"]
+
+        r = client.post("/apple/notifications", json={
+            "signedPayload": make_notification(
+                leaf_key, chain, notification_type="REFUND",
+                uuid="eeeeeeee-1111-2222-3333-444444444444",
+                revocationDate=int(time.time() * 1000),
+                originalTransactionId=otid)})
+        assert r.status_code == 200
+        # The device syncs while the refund stands.
+        assert asyncio.run(entitlement_store.record("reversed-subject", jws)).tier == "free"
+
+        r = client.post("/apple/notifications", json={
+            "signedPayload": make_notification(
+                leaf_key, chain, notification_type="REFUND_REVERSED",
+                uuid="ffffffff-1111-2222-3333-444444444444",
+                originalTransactionId=otid)})
+        assert r.status_code == 200
+        assert r.json() == {"status": "ok", "type": "REFUND_REVERSED"}
+
+        assert asyncio.run(entitlement_store.record("reversed-subject", jws)).tier == "pro", (
+            "Apple reversed the refund and the server still denies the term")
+
     def test_a_renewal_does_not_revoke_anything(self, pinned, entitlement_store):
         from test_entitlements import make_jws, valid_payload
         leaf_key, chain = pinned
