@@ -2218,8 +2218,10 @@ async def _tally_top(day: str, category: str, brand: str | None,
     cats = doc.get("cats") if isinstance(doc.get("cats"), dict) else {}
     brands = doc.get("brands") if isinstance(doc.get("brands"), dict) else {}
     finds = doc.get("finds") if isinstance(doc.get("finds"), list) else []
-    cat_devices = doc.get("cat_devices") if isinstance(doc.get("cat_devices"), dict) else {}
-    brand_devices = doc.get("brand_devices") if isinstance(doc.get("brand_devices"), dict) else {}
+    cat_devices = doc.get("cat_devices")
+    cat_devices = cat_devices if isinstance(cat_devices, dict) else {}
+    brand_devices = doc.get("brand_devices")
+    brand_devices = brand_devices if isinstance(brand_devices, dict) else {}
     cats[category] = int(cats.get(category, 0)) + 1
     cat_devices[category] = _add_device(cat_devices.get(category), device)
     if brand is not None and (brand in brands or len(brands) < TOP_BRANDS_CAP):

@@ -460,7 +460,7 @@ class AppStoreStatusClient:
         if code in not_found_yet:
             return StatusRetryLater(
                 f"{name} has nothing under this id yet — Apple answered "
-                f"{code.name}, its not-found that is worth retrying. "
+                f"{getattr(code, 'name', code)}, its not-found that is worth retrying. "
                 "Retry in a few minutes.")
         if http == 429 or code == APIError.RATE_LIMIT_EXCEEDED:
             # Apple's limit is per key, and the bot shares one with any other
