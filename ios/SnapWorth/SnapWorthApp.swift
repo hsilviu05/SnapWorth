@@ -181,19 +181,43 @@ struct SnapWorthApp: App {
     }
 
     private func handleWidgetURL(_ url: URL) {
-        guard url.scheme == "snapworth" else { return }
+        guard let name = Self.route(url, onboarded: hasCompletedOnboarding) else { return }
+        NotificationCenter.default.post(name: name, object: nil)
+    }
+
+    /// Where a `snapworth://` URL goes, and what has to happen on the way.
+    ///
+    /// Static, with the side effects here rather than in the handler, so a test
+    /// can drive it without an `App`.
+    static func route(_ url: URL, onboarded: Bool) -> Notification.Name? {
+        guard url.scheme == "snapworth" else { return nil }
+        let name: Notification.Name
         switch url.host {
         case "scan":
-            NotificationCenter.default.post(name: .snapWidgetOpenScan, object: nil)
+            // The Control Centre intent both leaves an App Group request and
+            // opens this URL, and says whichever arrives first consumes the
+            // request. This side never did: it posted and left the request
+            // lying there for its five-minute life, so the next inactive-to-
+            // active edge — locking and unlocking, pulling down Notification
+            // Centre, the StoreKit sheet closing — drained it and reset the
+            // Scan tab, closing a result sheet, a Thrift Flip with its typed
+            // prices, or the paywall mid-purchase.
+            //
+            // Not before onboarding: the drain holds the request back then,
+            // because nothing is listening yet, and taking it here would
+            // destroy it for the same reason.
+            if onboarded { _ = WidgetBridge.takePendingAction() }
+            name = .snapWidgetOpenScan
         case "history":
-            NotificationCenter.default.post(name: .snapWidgetOpenHistory, object: nil)
+            name = .snapWidgetOpenHistory
         case "flips":
             // Reuses the name the notification deep links already post, rather
             // than adding a second route to the same screen.
-            NotificationCenter.default.post(name: .snapOpenFlips, object: nil)
+            name = .snapOpenFlips
         default:
-            break
+            return nil
         }
+        return name
     }
 
     /// Seed widget data on every launch so the widget is never stale after reinstall.

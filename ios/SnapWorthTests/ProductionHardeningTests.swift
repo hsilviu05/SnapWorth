@@ -5963,3 +5963,52 @@ final class ReviewPromptTimingTests: XCTestCase {
         XCTAssertEqual(AnalyticsEvent.reviewPromptRequested.parameters, [:])
     }
 }
+
+// ── A URL-driven scan consumes the Control Centre request ────────────────────
+//
+// The intent writes an App Group request *and* opens `snapworth://scan`, and
+// says whichever arrives first consumes the request. The URL side never did,
+// so for five minutes the next inactive-to-active edge — a lock and unlock,
+// Notification Centre, the StoreKit sheet closing — drained it and reset the
+// Scan tab: a result sheet, a Thrift Flip with typed prices, or the paywall
+// mid-purchase, closed.
+
+@MainActor
+final class WidgetURLRoutingTests: XCTestCase {
+
+    private func url(_ s: String) -> URL { URL(string: s)! }
+
+    private func requireAppGroup() throws {
+        guard UserDefaults(suiteName: WidgetDataStore.appGroupID) != nil else {
+            throw XCTSkip("no App Group container in this host")
+        }
+    }
+
+    func test_aURLDrivenScanLeavesNothingPending() throws {
+        try requireAppGroup()
+        defer { _ = WidgetBridge.takePendingAction() }
+        WidgetBridge.request(.scan)
+        XCTAssertEqual(SnapWorthApp.route(url("snapworth://scan?src=control"), onboarded: true),
+                       .snapWidgetOpenScan)
+        XCTAssertNil(WidgetBridge.takePendingAction(),
+                     "left for the next foreground to drain — that is the defect")
+    }
+
+    func test_beforeOnboardingTheRequestIsKeptForTheDrain() throws {
+        // The drain holds it back until someone is listening; taking it here
+        // would destroy it for the same reason.
+        try requireAppGroup()
+        defer { _ = WidgetBridge.takePendingAction() }
+        WidgetBridge.request(.scan)
+        _ = SnapWorthApp.route(url("snapworth://scan?src=control"), onboarded: false)
+        XCTAssertEqual(WidgetBridge.takePendingAction(), .scan)
+    }
+
+    func test_otherRoutesAreUnchanged() {
+        XCTAssertEqual(SnapWorthApp.route(url("snapworth://history?src=haul"), onboarded: true),
+                       .snapWidgetOpenHistory)
+        XCTAssertEqual(SnapWorthApp.route(url("snapworth://flips"), onboarded: true), .snapOpenFlips)
+        XCTAssertNil(SnapWorthApp.route(url("snapworth://elsewhere"), onboarded: true))
+        XCTAssertNil(SnapWorthApp.route(url("https://snapworth.app/scan"), onboarded: true))
+    }
+}
