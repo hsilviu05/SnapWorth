@@ -101,6 +101,41 @@ class TestTierSplit:
         assert len((await notify.trends(is_pro=True))["categories"]) == notify.TRENDS_PRO_ROWS
 
 
+class TestNotableFindsAreDistinct:
+    """The top five were cut before any repeat was removed, so the client's
+    dedupe only ever saw what survived the cut."""
+
+    @pytest.mark.asyncio
+    async def test_one_item_scanned_four_times_takes_one_slot(self, cache):
+        # The same jacket on four days, at four readings, and on one day twice
+        # with different spacing and case — plus four genuinely different items.
+        await seed(cache, 1, {"clothing": 9}, {},
+                   [find("Carhartt Detroit Jacket", "clothing", 60, 100),
+                    find("carhartt  detroit JACKET", "clothing", 70, 140)])
+        await seed(cache, 2, {"clothing": 9}, {}, [find("Carhartt Detroit Jacket", "clothing", 50, 90)])
+        await seed(cache, 3, {"clothing": 9}, {}, [find("Carhartt Detroit Jacket", "clothing", 60, 120)])
+        await seed(cache, 4, {"home": 9}, {},
+                   [find("Le Creuset 5.5qt", "home", 120, 130),
+                    find("KitchenAid Mixer", "home", 100, 125),
+                    find("Pyrex set", "home", 40, 80),
+                    find("Dansk Kobenstyle pot", "home", 30, 60)])
+
+        notable = (await notify.trends(is_pro=True))["notable_finds"]
+
+        assert [f["name"] for f in notable] == [
+            "carhartt  detroit JACKET", "Le Creuset 5.5qt", "KitchenAid Mixer",
+            "Pyrex set", "Dansk Kobenstyle pot"]
+        # The most valuable reading of the repeated item is the one kept.
+        assert (notable[0]["low"], notable[0]["high"]) == (70, 140)
+
+    @pytest.mark.asyncio
+    async def test_an_average_is_over_items_not_rescans(self, cache):
+        """Three scans of one pot are one data point, not an average."""
+        await seed(cache, 1, {"home": 9}, {}, [find("Le Creuset", "home", 120, 220)] * 3)
+        (home,) = (await notify.trends(is_pro=True))["categories"]
+        assert "average_estimate" not in home
+
+
 class TestWrittenWithoutTelegram:
     """The tallies `trends()` reads have one writer, `scan_completed`. It used
     to return early whenever the Telegram variables were unset, so the card

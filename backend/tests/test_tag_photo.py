@@ -90,3 +90,13 @@ class TestQuotaAndCost:
     def test_one_model_call_for_two_photos(self):
         _, calls = scan_request(with_tag=True, device="tag-cost")
         assert len(calls) == 1, "a refinement, not a second scan"
+
+    def test_a_tag_reread_is_counted_but_not_tallied_again(self):
+        """The item was tallied into /trends when it was first scanned; the
+        tag photo is a second look at the same item, and tallying it again
+        put it into "Notable finds" twice."""
+        seen: list[dict] = []
+        with patch("notify.scan_completed", lambda **kw: seen.append(kw)):
+            scan_request(with_tag=True, device="tag-reread")
+            scan_request(with_tag=False, device="tag-first-look")
+        assert [kw["reread"] for kw in seen] == [True, False]

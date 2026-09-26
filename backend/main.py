@@ -1617,11 +1617,15 @@ async def scan(
         response = _strip_pro_detail(response)
 
     record_quota_consumed(principal)
+    # A tag photo only ever arrives as the result screen's re-read of an item
+    # already scanned (ResultView `rescan(withTag:)`), so it is counted as the
+    # model call it is but not tallied into /trends a second time.
     notify.scan_completed(
         tier=principal.tier, item_name=response.item_name, brand=response.brand,
         category=response.category, low=response.est_value_low_usd,
         high=response.est_value_high_usd, confidence=response.confidence,
-        subject=principal.subject, elapsed_ms=int(elapsed * 1000))
+        subject=principal.subject, elapsed_ms=int(elapsed * 1000),
+        reread=tag_bytes is not None)
     # Optional and omitted for Pro or when the quota store is unreachable: the
     # client must fall back to its own count rather than be handed a number.
     response.free_scans_remaining = (

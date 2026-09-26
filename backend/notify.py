@@ -2175,9 +2175,37 @@ async def _tally_top(day: str, category: str, brand: str | None,
     if brand is not None and (brand in brands or len(brands) < TOP_BRANDS_CAP):
         brands[brand] = int(brands.get(brand, 0)) + 1
     if find is not None:
-        finds = sorted([*finds, find], key=lambda f: -float(f.get("hi") or 0))[:TOP_FINDS_CAP]
+        finds = _merge_finds([*finds, find])[:TOP_FINDS_CAP]
     await _cache.set(key, json.dumps({"cats": cats, "brands": brands, "finds": finds}),
                      STATS_TTL)
+
+
+def _find_key(find: dict) -> tuple[str, str]:
+    """What makes two finds the same item: the name, case and spacing
+    ignored, within one category."""
+    return (" ".join(str(find.get("n") or "").lower().split()),
+            str(find.get("c") or "other"))
+
+
+def _merge_finds(finds: list) -> list[dict]:
+    """One entry per item, the most valuable reading kept, best first.
+
+    A find is recorded per scan, so one jacket scanned four times was four of
+    the day's eight slots, and the week's list — seven days appended — could
+    carry it once per day as well. `/trends` then cut to five *before* anything
+    removed the repeats, and the client's dedupe could only work on what was
+    left: two or three notable finds instead of five, or the same item twice at
+    two prices. Deduped here, on write and again across days, so the cut is
+    taken over distinct items."""
+    best: dict[tuple[str, str], dict] = {}
+    for find in finds:
+        if not isinstance(find, dict):
+            continue
+        key = _find_key(find)
+        kept = best.get(key)
+        if kept is None or float(find.get("hi") or 0) > float(kept.get("hi") or 0):
+            best[key] = find
+    return sorted(best.values(), key=lambda f: -float(f.get("hi") or 0))
 
 
 def _find_record(*, item_name: str, brand: str | None, category: str,
@@ -2206,15 +2234,17 @@ async def _top_text(day: str, limit: int = 3) -> str:
 
 async def _note_scan(*, tier: str, item_name: str, brand: str | None,
                      category: str, low: float, high: float, confidence: str,
-                     subject: str | None = None, elapsed_ms: int | None = None) -> None:
+                     subject: str | None = None, elapsed_ms: int | None = None,
+                     reread: bool = False) -> None:
     try:
         # The count and the tallies feed `/trends` as well as the bot, so they
         # run with or without Telegram. Everything after them is the
         # operator's alone.
         await _bump("scans_pro" if tier == "pro" else "scans_free")
-        await _tally_top(_day(), _normalise_category(category), _clean_brand(brand),
-                         _find_record(item_name=item_name, brand=brand, category=category,
-                                      low=low, high=high, tier=tier))
+        if not reread:
+            await _tally_top(_day(), _normalise_category(category), _clean_brand(brand),
+                             _find_record(item_name=item_name, brand=brand, category=category,
+                                          low=low, high=high, tier=tier))
         if _notifier is None:
             return
         await _cache.set(LAST_SCAN_KEY, str(int(time.time())), STATS_TTL)
@@ -2232,7 +2262,8 @@ async def _note_scan(*, tier: str, item_name: str, brand: str | None,
 
 def scan_completed(*, tier: str, item_name: str, brand: str | None, category: str,
                    low: float, high: float, confidence: str,
-                   subject: str | None = None, elapsed_ms: int | None = None) -> None:
+                   subject: str | None = None, elapsed_ms: int | None = None,
+                   reread: bool = False) -> None:
     """A scan produced a valuation. Counts it, tallies what it was, and — when
     the feed is on — tells the operator. Fire-and-forget; item and price only,
     never who scanned it and never the photo.
@@ -2241,12 +2272,16 @@ def scan_completed(*, tier: str, item_name: str, brand: str | None, category: st
     app, and this was their only writer: gated on Telegram as well, unsetting
     the bot's variables would have emptied "Trending at the thrift" for every
     user over the following week, with no error anywhere — the card hides
-    itself when it has nothing to show."""
+    itself when it has nothing to show.
+
+    `reread` is a second look at an item already scanned — the result
+    screen's "add a tag photo". It is a model call, so it is counted, but the
+    item was tallied the first time and is not tallied again."""
     if _cache is None:
         return
     _spawn(_note_scan(tier=tier, item_name=item_name, brand=brand, category=category,
                       low=low, high=high, confidence=confidence, subject=subject,
-                      elapsed_ms=elapsed_ms))
+                      elapsed_ms=elapsed_ms, reread=reread))
 
 
 # ── Weekly report ────────────────────────────────────────────────────────────
@@ -2981,6 +3016,9 @@ async def trends(*, is_pro: bool, now: datetime | None = None) -> dict:
         "brands": _trend_rows(sorted(brands.items(), key=lambda kv: -kv[1]), prev_brands, limit),
     }
     if is_pro:
+        # One entry per item across the week, before anything is averaged or
+        # cut to five — see `_merge_finds`.
+        finds = _merge_finds(finds)
         # Average estimate per category, from the day's best finds only —
         # which is what the tallies keep. Labelled as such by the client.
         by_category: dict[str, list[float]] = {}
@@ -3000,8 +3038,7 @@ async def trends(*, is_pro: bool, now: datetime | None = None) -> dict:
             {"name": str(f.get("n") or "Unidentified item")[:60],
              "category": str(f.get("c") or "other"),
              "low": round(float(f.get("lo") or 0)), "high": round(float(f.get("hi") or 0))}
-            for f in sorted(finds, key=lambda f: -float(f.get("hi") or 0))[:TRENDS_FINDS]
-            if float(f.get("hi") or 0) > 0
+            for f in [f for f in finds if float(f.get("hi") or 0) > 0][:TRENDS_FINDS]
         ]
 
     try:

@@ -780,6 +780,29 @@ class TestTopCategoriesAndBrands:
         del timedelta
 
     @pytest.mark.asyncio
+    async def test_a_rescanned_item_keeps_one_slot_at_its_best_reading(
+            self, enabled_notify, cache):
+        for high in (60, 90, 75):
+            scan(item_name="Patagonia  Better Sweater", high=float(high))
+        scan(item_name="Barbour Bedale", high=50.0)
+        await drain()
+        doc = json.loads(await cache.get(notify._stat_key(notify._day(), "top")))
+        assert [(f["n"], f["hi"]) for f in doc["finds"]] == [
+            ("Patagonia Better Sweater", 90), ("Barbour Bedale", 50)]
+        # Every scan is still a scan in the counts.
+        assert doc["cats"]["clothing"] == 4
+
+    @pytest.mark.asyncio
+    async def test_a_tag_reread_is_counted_but_not_tallied(self, enabled_notify, cache):
+        scan()
+        scan(reread=True)
+        await drain()
+        assert await cache.get(notify._stat_key(notify._day(), "scans_pro")) == "2"
+        doc = json.loads(await cache.get(notify._stat_key(notify._day(), "top")))
+        assert doc["cats"] == {"clothing": 1}
+        assert doc["brands"] == {"Patagonia": 1}
+
+    @pytest.mark.asyncio
     async def test_brand_table_is_capped(self, enabled_notify, cache):
         for i in range(notify.TOP_BRANDS_CAP + 5):
             scan(brand=f"Brand{i}")
