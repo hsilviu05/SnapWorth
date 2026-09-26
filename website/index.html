@@ -1858,9 +1858,9 @@ details[open] .faq-x::after { transform: rotate(90deg); }
                   </div>
                   <div class="app-card">
                     <div class="app-card-label">Sell it on</div>
-                    <!-- Three, not all seven: .pf-chip is flex:1 in a 184px row, so a
+                    <!-- Three, not all nine: .pf-chip is flex:1 in a 184px row, so a
                          fourth label squeezes every pill to min-content and the text
-                         touches the border. The strip below the hero names all seven. -->
+                         touches the border. The strip below the hero names all nine. -->
                     <div class="pf-chips">
                       <span class="pf-chip is-on">Poshmark</span>
                       <span class="pf-chip">Mercari</span>
@@ -1940,7 +1940,7 @@ details[open] .faq-x::after { transform: rotate(90deg); }
       <div class="hd-strip">
         <span class="hd-strip-label">Listing drafts written for</span>
         <div class="hd-strip-list">
-          <span>Poshmark</span><span>Mercari</span><span>Depop</span><span>eBay</span><span>Vinted</span><span>Facebook Marketplace</span><span>OLX</span>
+          <span>Poshmark</span><span>Mercari</span><span>Depop</span><span>eBay</span><span>Vinted</span><span>Facebook Marketplace</span><span>OLX</span><span>Kleinanzeigen</span><span><span lang="zh-Hans">闲鱼</span> (Xianyu)</span>
         </div>
       </div>
     </div>
@@ -2011,9 +2011,9 @@ details[open] .faq-x::after { transform: rotate(90deg); }
        A live calculator, not a screenshot of one. Fee rates are the ones the
        app actually uses (MarketplaceFees.swift): Poshmark 20% (a flat $2.95
        under $15), Mercari 10%, Depop 3.3% + $0.45, eBay 13.25% + $0.40;
-       Vinted, Facebook Marketplace and OLX take no seller fee. A calculator on
-       the marketing site that disagreed with the product would be worse than
-       none.
+       Vinted, Facebook Marketplace, OLX, Kleinanzeigen and Xianyu take no
+       seller fee. A calculator on the marketing site that disagreed with the
+       product would be worse than none.
 
        Rendered with real default values in the HTML, so with JavaScript off it
        still reads as a worked example rather than a set of empty boxes. -->
@@ -2043,6 +2043,8 @@ details[open] .faq-x::after { transform: rotate(90deg); }
               <button type="button" class="tf-chip" data-mp="vinted" aria-pressed="false">Vinted</button>
               <button type="button" class="tf-chip" data-mp="facebook" aria-pressed="false">Facebook Marketplace</button>
               <button type="button" class="tf-chip" data-mp="olx" aria-pressed="false">OLX</button>
+              <button type="button" class="tf-chip" data-mp="kleinanzeigen" aria-pressed="false">Kleinanzeigen</button>
+              <button type="button" class="tf-chip" data-mp="xianyu" aria-pressed="false"><span lang="zh-Hans">闲鱼</span> (Xianyu)</button>
             </div>
           </div>
           <div class="tf-inputs">
@@ -2106,7 +2108,7 @@ details[open] .faq-x::after { transform: rotate(90deg); }
           <a href="#pricing" class="tf-foot-cta">See pricing</a>
         </div>
         <div class="tf-foot-note">
-          Poshmark takes <strong>20%</strong>, or a flat <strong>$2.95</strong> on sales under $15. Mercari takes <strong>10%</strong>, Depop <strong>3.3% + $0.45</strong> and eBay <strong>13.25% + $0.40</strong>. Vinted, Facebook Marketplace and OLX take no seller fee, so the only costs are the shop price and shipping. Rates are approximate and reviewed against each marketplace&rsquo;s published schedule.
+          Poshmark takes <strong>20%</strong>, or a flat <strong>$2.95</strong> on sales under $15. Mercari takes <strong>10%</strong>, Depop <strong>3.3% + $0.45</strong> and eBay <strong>13.25% + $0.40</strong>. Vinted, Facebook Marketplace, OLX, Kleinanzeigen and <span lang="zh-Hans">闲鱼</span> (Xianyu) take no seller fee, so the only costs are the shop price and shipping. Rates are approximate and reviewed against each marketplace&rsquo;s published schedule.
         </div>
       </div>
     </div>
@@ -2181,7 +2183,7 @@ details[open] .faq-x::after { transform: rotate(90deg); }
         <div class="feature">
           <div class="feature-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m13.2 5.8 5 5L8 21H3v-5z"/><path d="m16 3 5 5"/><path d="m8.5 15.5 5-5"/></svg></div>
           <h3>AI listing writer</h3>
-          <p>Tap once on any scan and Pro writes a compelling, SEO-optimized title and description in the voice of the marketplace you pick &mdash; Poshmark, Mercari, Depop, eBay, Vinted, Facebook Marketplace or OLX.</p>
+          <p>Tap once on any scan and Pro writes a compelling, SEO-optimized title and description in the voice of the marketplace you pick &mdash; Poshmark, Mercari, Depop, eBay, Vinted, Facebook Marketplace, OLX, Kleinanzeigen or <span lang="zh-Hans">闲鱼</span> (Xianyu).</p>
         </div>
         <div class="feature">
           <div class="feature-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8h16v11.2c0 .7-.6 1.3-1.3 1.3H5.3c-.7 0-1.3-.6-1.3-1.3z"/><path d="M3 4.5h18V8H3z"/><path d="M9.8 12h4.4"/></svg></div>
@@ -2291,7 +2293,7 @@ details[open] .faq-x::after { transform: rotate(90deg); }
           </details>
           <details>
             <summary>Which marketplaces does it cover?<span class="faq-x" aria-hidden="true"></span></summary>
-            <p>Listing drafts are written for Poshmark, Mercari, Depop, eBay, Vinted, Facebook Marketplace and OLX &mdash; seven, each in that marketplace&rsquo;s own voice. Thrift Flip runs the profit math with each one&rsquo;s real seller fees &mdash; the same rates the app uses, so the number you see here is the number you&rsquo;d see there.</p>
+            <p>Listing drafts are written for Poshmark, Mercari, Depop, eBay, Vinted, Facebook Marketplace, OLX, Kleinanzeigen and <span lang="zh-Hans">闲鱼</span> (Xianyu) &mdash; nine, each in that marketplace&rsquo;s own voice. Thrift Flip runs the profit math with each one&rsquo;s real seller fees &mdash; the same rates the app uses, so the number you see here is the number you&rsquo;d see there.</p>
           </details>
           <details>
             <summary>Where does my scan history live?<span class="faq-x" aria-hidden="true"></span></summary>
@@ -2310,7 +2312,7 @@ details[open] .faq-x::after { transform: rotate(90deg); }
     {"@type":"Question","name":"How accurate are the estimates?","acceptedAnswer":{"@type":"Answer","text":"Each scan returns a price range and a confidence level, drawn from the AI's broad knowledge of what things typically resell for — not live marketplace comps, and not an appraisal. Clear photos of tags and logos get the best results."}},
     {"@type":"Question","name":"Is it really free?","acceptedAnswer":{"@type":"Answer","text":"Yes — one free scan a day, forever, with no account and no card. Pro removes the daily limit and adds the AI listing writer: $4.99 a month, or $39.99 a year with a 3-day free trial."}},
     {"@type":"Question","name":"What can I scan?","acceptedAnswer":{"@type":"Answer","text":"Anything secondhand: clothing, shoes, bags, kitchenware, electronics, furniture and collectibles."}},
-    {"@type":"Question","name":"Which marketplaces does it cover?","acceptedAnswer":{"@type":"Answer","text":"Listing drafts are written for Poshmark, Mercari, Depop, eBay, Vinted, Facebook Marketplace and OLX, each in that marketplace's own voice, and Thrift Flip runs the profit math with each one's real seller fees."}},
+    {"@type":"Question","name":"Which marketplaces does it cover?","acceptedAnswer":{"@type":"Answer","text":"Listing drafts are written for Poshmark, Mercari, Depop, eBay, Vinted, Facebook Marketplace, OLX, Kleinanzeigen and 闲鱼 (Xianyu), each in that marketplace's own voice, and Thrift Flip runs the profit math with each one's real seller fees."}},
     {"@type":"Question","name":"Where does my scan history live?","acceptedAnswer":{"@type":"Answer","text":"On your device. Your finds are saved locally — searchable, sortable by value, with a running portfolio total."}},
     {"@type":"Question","name":"Is there an Android version?","acceptedAnswer":{"@type":"Answer","text":"SnapWorth is iPhone-only today."}}
   ]}
@@ -2666,7 +2668,7 @@ details[open] .faq-x::after { transform: rotate(90deg); }
  *   Mercari  10%
  *   Depop    3.3% + $0.45
  *   eBay     13.25% + $0.40
- *   Vinted / Facebook Marketplace / OLX — no seller fee
+ *   Vinted / Facebook Marketplace / OLX / Kleinanzeigen / Xianyu — no seller fee
  * If those change in the app, change them here too. A marketing calculator
  * that disagrees with the product is worse than no calculator.
  *

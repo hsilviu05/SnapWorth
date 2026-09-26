@@ -288,13 +288,17 @@ def cta(name):
     #
     # This previously read "Know your exact value in seconds". The app does not
     # produce an exact value and never claims to: it returns a price range with
-    # a confidence score, and support.html states plainly that estimates are "a
+    # a confidence level, and support.html states plainly that estimates are "a
     # useful reference range, not a guaranteed sale price". The old headline
     # contradicted our own support page and promised more than the product
     # delivers — the same class of unsupported claim the App Store screenshot
     # review removed ("real sold listings").
+    #
+    # "Level", not "score": the app shows a band (High / Medium / Low), not a
+    # number. cb92610 made that change on index.html and support.html and
+    # missed this generator, so every /worth page kept saying "score".
     return (f'<div class="cta"><h3>Check your own item in seconds</h3>'
-            f'<p>Typical ranges only go so far. Snap a photo of your {html.escape(name)} and SnapWorth\'s AI estimates a resale range for your item and its condition, with a confidence score.</p>'
+            f'<p>Typical ranges only go so far. Snap a photo of your {html.escape(name)} and SnapWorth\'s AI estimates a resale range for your item and its condition, with a confidence level.</p>'
             f'<a href="{APP_STORE}">Download SnapWorth — free</a></div>')
 
 def page_html(item, related):
