@@ -523,6 +523,50 @@ final class PortfolioTrendTests: XCTestCase {
         XCTAssertEqual(HistoryViewModel.trend(from: pairs, maxPoints: 40).count, 10)
     }
 
+    // ── A sale leaves the line ─────────────────────────────────────────────
+
+    private func find(day: Int, soldOn: Int? = nil, soldWithoutDate: Bool = false) -> ScanResult {
+        let r = ScanResult(timestamp: pair(day, 0).date, itemName: "I", brand: "B",
+                           category: "c", conditionNotes: "Good", valueLow: 40, valueHigh: 60,
+                           confidence: "High", soldListingsCount: 0,
+                           listingTitle: "T", listingDescription: "D")
+        if let soldOn {
+            r.status = .sold
+            r.soldDate = pair(soldOn, 0).date
+        } else if soldWithoutDate {
+            r.status = .sold
+        }
+        return r
+    }
+
+    @MainActor
+    func test_theLineEndsAtTheHeadlineAfterASale() {
+        // The line summed every row ever scanned while the headline became the
+        // held value, so after a sale it ended above "Your finds are worth"
+        // and could never fall.
+        let library = [find(day: 1), find(day: 2, soldOn: 5), find(day: 3)]
+        let points = HistoryViewModel().trendPoints(from: library)
+        XCTAssertEqual(points.last?.total, HistoryViewModel.portfolioTotal(of: library))
+        XCTAssertEqual(points.map(\.date).last, pair(5, 0).date, "the sale is the latest event")
+    }
+
+    @MainActor
+    func test_theLineRoseWhenTheSoldFindCameInAndFallsWhenItLeaves() {
+        let sold = find(day: 2, soldOn: 5)
+        let points = HistoryViewModel().trendPoints(from: [find(day: 1), sold])
+        let value = sold.portfolioValue
+        XCTAssertEqual(points.map(\.total), [value, value * 2, value])
+    }
+
+    func test_aSoldFindWithNoUsableSaleDateIsLeftOut() {
+        // Entering and leaving at one instant would draw a spike that is not
+        // there; leaving it out still lands the line on the headline.
+        let undated = find(day: 2, soldWithoutDate: true)
+        let backdated = find(day: 4, soldOn: 3)
+        let pairs = HistoryViewModel.trendPairs(for: [find(day: 1), undated, backdated])
+        XCTAssertEqual(pairs.count, 1)
+    }
+
     // ── Entitlement gating ─────────────────────────────────────────────────
 
     @MainActor

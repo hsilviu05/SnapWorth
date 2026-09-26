@@ -196,7 +196,8 @@ final class HistoryViewModel {
     /// does not try to reconstruct what the portfolio was historically worth —
     /// that would need a value snapshot for every item at every past date, and
     /// inventing one would produce a confident-looking line built on data we
-    /// never recorded.
+    /// never recorded. A sale is a dated event the ledger did record, so a
+    /// sold item leaves the line on its sold date — see `trendPairs`.
     ///
     /// Downsampled so the sparkline stays cheap and legible: a 500-item library
     /// renders the same number of points as a 20-item one.
@@ -220,7 +221,36 @@ final class HistoryViewModel {
     }
 
     func trendPoints(from results: [ScanResult]) -> [TrendPoint] {
-        Self.trend(from: results.map { (date: $0.timestamp, value: $0.portfolioValue) })
+        Self.trend(from: Self.trendPairs(for: results))
+    }
+
+    /// What the trend line is built from: each find entering at its scan
+    /// date, and a sold one leaving again at its sale.
+    ///
+    /// Sold rows used to stay in for good. The headline became the held value
+    /// alone (`portfolioTotal`), while the line summed every row ever scanned,
+    /// so after a sale it ended above "Your finds are worth" — against the rule
+    /// the line was built to, that its last point is the headline figure — and
+    /// it could never fall. Leaving on the sold date keeps the history (it did
+    /// rise when the item came in) and lands the line on the headline.
+    ///
+    /// A sold row with no sold date, or one dated before its own scan, is left
+    /// out rather than entering and leaving at the same instant, which would
+    /// draw a spike that is not there.
+    nonisolated static func trendPairs(for results: [ScanResult]) -> [(date: Date, value: Decimal)] {
+        var pairs: [(date: Date, value: Decimal)] = []
+        pairs.reserveCapacity(results.count)
+        for item in results {
+            let value = item.portfolioValue
+            guard item.status == .sold else {
+                pairs.append((date: item.timestamp, value: value))
+                continue
+            }
+            guard let sold = item.soldDate, sold > item.timestamp else { continue }
+            pairs.append((date: item.timestamp, value: value))
+            pairs.append((date: sold, value: -value))
+        }
+        return pairs
     }
 
     /// Signed change for a single item since it entered the portfolio, or nil
