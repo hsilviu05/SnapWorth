@@ -792,6 +792,40 @@ class TestTopCategoriesAndBrands:
         # Every scan is still a scan in the counts.
         assert doc["cats"]["clothing"] == 4
 
+    def test_links_and_handles_are_not_brands_or_item_names(self):
+        """Brands and item names are text read off a user's photo, and
+        `/trends` shows them to every install."""
+        assert notify._clean_brand("https://spam.example/x") is None
+        assert notify._clean_brand("@somehandle") is None
+        assert notify._clean_brand("Nike www.cheap-nikes.example") == "Nike"
+        assert notify._clean_brand("Shop at deals.shop now") == "Shop at now"
+        assert notify._clean_brand("mail me: a@b.example") == "mail me:"
+        # Dotted brand names are brands.
+        for brand in ("J.Crew", "A.P.C.", "Mr. Coffee", "Dr. Martens", "Levi's", "H&M"):
+            assert notify._clean_brand(brand) == brand
+        record = notify._find_record(item_name="Vintage tee — follow @seller, x.com/deals",
+                                     brand="x.com", category="clothing", low=5, high=10,
+                                     tier="free")
+        assert record["n"] == "Vintage tee — follow ,"
+        assert record["b"] is None
+        assert notify._find_record(item_name="https://x.example", brand=None,
+                                   category="clothing", low=5, high=10,
+                                   tier="free")["n"] == "Unidentified item"
+
+    @pytest.mark.asyncio
+    async def test_devices_are_tagged_not_named(self, enabled_notify, cache):
+        """The tallies record *that* different devices scanned something, by a
+        tag that is not the audit pseudonym /users and the logs show."""
+        scan(subject=SUBJECT)
+        await drain()
+        doc = json.loads(await cache.get(notify._stat_key(notify._day(), "top")))
+        tag = notify._trend_device(SUBJECT)
+        assert tag and doc["cat_devices"] == {"clothing": [tag]}
+        assert doc["brand_devices"] == {"Patagonia": [tag]}
+        assert doc["finds"][0]["d"] == [tag]
+        pseudonym = notify.auditlog.pseudonymise(SUBJECT)
+        assert pseudonym[:6] not in json.dumps(doc)
+
     @pytest.mark.asyncio
     async def test_a_tag_reread_is_counted_but_not_tallied(self, enabled_notify, cache):
         scan()
@@ -1439,7 +1473,9 @@ class TestFindsAndPostIdeas:
         doc = json.loads(await notify._cache.get(notify._stat_key(notify._day(), "top")))
         assert len(doc["finds"]) == notify.TOP_FINDS_CAP
         assert doc["finds"][0]["n"] == f"Item {notify.TOP_FINDS_CAP + 4}"
-        assert set(doc["finds"][0]) == {"n", "b", "c", "lo", "hi", "t"}, "item and price only"
+        # Item and price only — plus `d`, the trends tags of the devices that
+        # scanned it, which is how /trends tells three people from one.
+        assert set(doc["finds"][0]) == {"n", "b", "c", "lo", "hi", "t", "d"}, "item and price only"
 
     @pytest.mark.asyncio
     async def test_finds_with_nothing_scanned(self, enabled_notify):
@@ -2637,8 +2673,11 @@ class TestTrendsWindow:
     """
 
     async def _seed(self, cache, day: str, cat: str, n: int) -> None:
+        # Three devices behind the row, so the device floor is not what these
+        # tests are measuring (test_trends.py covers it).
         await cache.set(notify._stat_key(day, "top"),
-                        json.dumps({"cats": {cat: n}, "brands": {}, "finds": []}))
+                        json.dumps({"cats": {cat: n}, "brands": {}, "finds": [],
+                                    "cat_devices": {cat: ["d1", "d2", "d3"]}}))
         await cache.set(notify._stat_key(day, "scans_free"), str(n))
 
     @pytest.mark.asyncio

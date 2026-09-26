@@ -60,6 +60,7 @@ pattern as a backstop.
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import html
 import json
 import logging
@@ -1951,9 +1952,30 @@ def _normalise_category(category: str | None) -> str:
     return key if key in CATEGORY_EMOJI else "other"
 
 
+# Web addresses, e-mail addresses and @handles. Brands and item names are text
+# the model read off a user's photo, and `/trends` shows them to every install:
+# a label printed with "shop at x.com" or "follow @x" is an advert, not a brand.
+# The domain branch names its endings rather than matching any "a.b", so
+# "J.Crew", "A.P.C." and "Mr. Coffee" survive.
+_LINKISH = re.compile(
+    r"(?:https?://|www\.)\S*"
+    r"|\S+@\S+"
+    r"|(?<![\w.])@\w+"
+    r"|\b[\w-]+(?:\.[\w-]+)*\.(?:com|net|org|info|biz|io|co|me|ly|gg|tv|xyz|app|"
+    r"shop|store|link|site|online|club|live|top|tk|ru|cn|us|uk|de|eu|ro)\b(?:/\S*)?",
+    re.IGNORECASE)
+
+
+def _without_links(text: str | None) -> str:
+    """`text` with anything shaped like a URL or a handle removed, and its
+    whitespace collapsed."""
+    return " ".join(_LINKISH.sub(" ", text or "").split())
+
+
 def _clean_brand(brand: str | None) -> str | None:
-    """A brand worth tallying, or None. Model output: trimmed and bounded."""
-    value = " ".join((brand or "").split())[:40]
+    """A brand worth tallying, or None. Model output: trimmed, bounded, and
+    stripped of links and handles."""
+    value = _without_links(brand)[:40]
     if value.lower() in {"", "unknown", "n/a", "none", "generic", "unbranded"}:
         return None
     return value
@@ -2154,7 +2176,7 @@ def _feed_text(*, item_name: str, category: str, low: float, high: float,
 
 
 async def _tally_top(day: str, category: str, brand: str | None,
-                     find: dict | None = None) -> None:
+                     find: dict | None = None, device: str | None = None) -> None:
     """Read-modify-write of the day's category and brand counts, and its
     handful of most valuable finds.
 
@@ -2162,6 +2184,10 @@ async def _tally_top(day: str, category: str, brand: str | None,
     interface cannot enumerate keys and the report needs the whole table.
     A lost update between two replicas costs one count, which is fine for a
     tally that exists to say "clothing 5 · Nike ×3".
+
+    `device` is `_trend_device`'s tag for whoever scanned it, recorded beside
+    each category, brand and find so `/trends` can count devices rather than
+    scans — see `TRENDS_MIN_DEVICES`.
     """
     key = _stat_key(day, "top")
     try:
@@ -2171,13 +2197,47 @@ async def _tally_top(day: str, category: str, brand: str | None,
     cats = doc.get("cats") if isinstance(doc.get("cats"), dict) else {}
     brands = doc.get("brands") if isinstance(doc.get("brands"), dict) else {}
     finds = doc.get("finds") if isinstance(doc.get("finds"), list) else []
+    cat_devices = doc.get("cat_devices") if isinstance(doc.get("cat_devices"), dict) else {}
+    brand_devices = doc.get("brand_devices") if isinstance(doc.get("brand_devices"), dict) else {}
     cats[category] = int(cats.get(category, 0)) + 1
+    cat_devices[category] = _add_device(cat_devices.get(category), device)
     if brand is not None and (brand in brands or len(brands) < TOP_BRANDS_CAP):
         brands[brand] = int(brands.get(brand, 0)) + 1
+        brand_devices[brand] = _add_device(brand_devices.get(brand), device)
     if find is not None:
+        find = {**find, "d": _add_device(None, device)}
         finds = _merge_finds([*finds, find])[:TOP_FINDS_CAP]
-    await _cache.set(key, json.dumps({"cats": cats, "brands": brands, "finds": finds}),
+    await _cache.set(key, json.dumps({"cats": cats, "brands": brands, "finds": finds,
+                                      "cat_devices": cat_devices,
+                                      "brand_devices": brand_devices}),
                      STATS_TTL)
+
+
+def _trend_device(subject: str | None) -> str | None:
+    """A short tag meaning "a different device", for the `/trends` floor.
+
+    Derived from the audit pseudonym rather than being it, so the day's
+    tallies cannot be matched against `/users` or the audit log by eye. It is
+    no more anonymous than the pseudonym it comes from — anyone holding the
+    audit salt could recompute both — and it lives exactly as long as the day
+    document it sits in (STATS_TTL). None when the scan has no subject, which
+    counts toward nothing."""
+    if not subject:
+        return None
+    return hashlib.sha256(f"trends:{auditlog.pseudonymise(subject)}".encode()).hexdigest()[:8]
+
+
+def _add_device(devices, device: str | None) -> list[str]:
+    """`devices` with `device` added, holding at most TRENDS_MIN_DEVICES.
+
+    The cap is exact for the only question ever asked of the list — "did at
+    least N different devices do this, this week?" If any one day reached N,
+    its list is full and the week's union is at least N; if no day did, every
+    list is complete and the union is the true count."""
+    kept = [d for d in (devices or []) if isinstance(d, str)][:TRENDS_MIN_DEVICES]
+    if device and device not in kept and len(kept) < TRENDS_MIN_DEVICES:
+        kept.append(device)
+    return kept
 
 
 def _find_key(find: dict) -> tuple[str, str]:
@@ -2203,15 +2263,23 @@ def _merge_finds(finds: list) -> list[dict]:
             continue
         key = _find_key(find)
         kept = best.get(key)
-        if kept is None or float(find.get("hi") or 0) > float(kept.get("hi") or 0):
+        if kept is None:
             best[key] = find
+            continue
+        # Whichever reading wins, the devices behind the item are all of them.
+        devices = list(kept.get("d") or [])
+        for device in find.get("d") or []:
+            devices = _add_device(devices, device)
+        winner = find if float(find.get("hi") or 0) > float(kept.get("hi") or 0) else kept
+        best[key] = {**winner, "d": devices}
     return sorted(best.values(), key=lambda f: -float(f.get("hi") or 0))
 
 
 def _find_record(*, item_name: str, brand: str | None, category: str,
                  low: float, high: float, tier: str) -> dict:
-    """What /finds keeps about a scan: the item and its price, nothing else."""
-    return {"n": " ".join((item_name or "").split())[:60] or "Unidentified item",
+    """What /finds keeps about a scan: the item and its price, nothing else.
+    The name is stripped of links and handles, as `_clean_brand` does."""
+    return {"n": _without_links(item_name)[:60] or "Unidentified item",
             "b": _clean_brand(brand), "c": _normalise_category(category),
             "lo": round(float(low)), "hi": round(float(high)),
             "t": "pro" if tier == "pro" else "free"}
@@ -2244,7 +2312,8 @@ async def _note_scan(*, tier: str, item_name: str, brand: str | None,
         if not reread:
             await _tally_top(_day(), _normalise_category(category), _clean_brand(brand),
                              _find_record(item_name=item_name, brand=brand, category=category,
-                                          low=low, high=high, tier=tier))
+                                          low=low, high=high, tier=tier),
+                             _trend_device(subject))
         if _notifier is None:
             return
         await _cache.set(LAST_SCAN_KEY, str(int(time.time())), STATS_TTL)
@@ -2926,12 +2995,23 @@ async def _week_top(now: datetime | None = None) -> dict:
 # ── Trends, for the app (#96) ────────────────────────────────────────────────
 #
 # The same tallies the bot reads, shaped for users. Aggregates only, with a
-# floor: a category or brand appears only once enough different scans back it,
-# so nothing here can be traced to one person's afternoon. Notable finds carry
-# an item name and a range and nothing else — no device, no photo, no time of
-# day. Pro sees the averages and the finds; free sees the counts.
+# floor: a category or brand appears only once enough scans *and* enough
+# different devices back it, and a notable find only once enough different
+# devices have scanned that item. Notable finds carry an item name and a range
+# and nothing else — no device, no photo, no time of day. Pro sees the averages
+# and the finds; free sees the counts.
+#
+# The floor used to count scans alone, and at one to four real scans a day,
+# five scans of one label — a spam URL, a slur — was that week's "Trending at
+# the thrift" row on every install, and notable finds had no floor at all: one
+# scan was enough. The text is read off a user's photo; nothing upstream of
+# here promises it is fit to show anyone else.
 
 TRENDS_MIN_COUNT = 5          # below this a row says more about one user than a trend
+# Different devices behind a row or a find, whatever the scan count. Day
+# documents written before devices were recorded carry none, so their rows are
+# withheld until a week of new tallies has built up — the safe direction.
+TRENDS_MIN_DEVICES = 3
 TRENDS_FREE_ROWS = 3
 TRENDS_PRO_ROWS = 6
 TRENDS_FINDS = 5
@@ -2957,8 +3037,15 @@ def _trend_rows(counts: list[tuple[str, int]], previous: dict[str, int],
 
 
 async def _tallies(days: list[str]) -> tuple[dict[str, int], dict[str, int], list[dict], int]:
+    """The days' category and brand counts, finds and scan total.
+
+    Counts come back only for names at least TRENDS_MIN_DEVICES different
+    devices stand behind across these days; everything else is left out here,
+    so no caller can forget the floor."""
     cats: dict[str, int] = {}
     brands: dict[str, int] = {}
+    cat_devices: dict[str, list[str]] = {}
+    brand_devices: dict[str, list[str]] = {}
     finds: list[dict] = []
     scans = 0
     for day in days:
@@ -2970,11 +3057,20 @@ async def _tallies(days: list[str]) -> tuple[dict[str, int], dict[str, int], lis
             cats[c] = cats.get(c, 0) + int(n)
         for b, n in (doc.get("brands") or {}).items():
             brands[b] = brands.get(b, 0) + int(n)
+        for table, seen in ((doc.get("cat_devices"), cat_devices),
+                            (doc.get("brand_devices"), brand_devices)):
+            for name, devices in (table if isinstance(table, dict) else {}).items():
+                for device in devices if isinstance(devices, list) else []:
+                    seen[name] = _add_device(seen.get(name), device)
         for f in doc.get("finds") or []:
             if isinstance(f, dict):
                 finds.append(f)
         scans += await _read_stat(day, "scans_free") + await _read_stat(day, "scans_pro")
-    return cats, brands, finds, scans
+
+    def backed(counts: dict[str, int], devices: dict[str, list[str]]) -> dict[str, int]:
+        return {name: n for name, n in counts.items()
+                if len(devices.get(name) or []) >= TRENDS_MIN_DEVICES}
+    return backed(cats, cat_devices), backed(brands, brand_devices), finds, scans
 
 
 async def trends(*, is_pro: bool, now: datetime | None = None) -> dict:
@@ -3017,7 +3113,8 @@ async def trends(*, is_pro: bool, now: datetime | None = None) -> dict:
     }
     if is_pro:
         # One entry per item across the week, before anything is averaged or
-        # cut to five — see `_merge_finds`.
+        # cut to five — see `_merge_finds`, which also pools the devices
+        # behind each item.
         finds = _merge_finds(finds)
         # Average estimate per category, from the day's best finds only —
         # which is what the tallies keep. Labelled as such by the client.
@@ -3038,7 +3135,9 @@ async def trends(*, is_pro: bool, now: datetime | None = None) -> dict:
             {"name": str(f.get("n") or "Unidentified item")[:60],
              "category": str(f.get("c") or "other"),
              "low": round(float(f.get("lo") or 0)), "high": round(float(f.get("hi") or 0))}
-            for f in [f for f in finds if float(f.get("hi") or 0) > 0][:TRENDS_FINDS]
+            for f in [f for f in finds
+                      if float(f.get("hi") or 0) > 0
+                      and len(f.get("d") or []) >= TRENDS_MIN_DEVICES][:TRENDS_FINDS]
         ]
 
     try:

@@ -905,7 +905,11 @@ class TestTrendsEndpoint:
             notify._stat_key(day, "top"),
             _json.dumps({"cats": {"clothing": 9}, "brands": {"Nike": 6},
                          "finds": [{"n": "Carhartt Detroit Jacket", "c": "clothing",
-                                    "lo": 60, "hi": 100}] * 3}), 600))
+                                    "lo": 60, "hi": 100, "d": ["d1", "d2", "d3"]}] * 3,
+                         # Three devices behind each row: the floor counts
+                         # devices as well as scans.
+                         "cat_devices": {"clothing": ["d1", "d2", "d3"]},
+                         "brand_devices": {"Nike": ["d1", "d2", "d3"]}}), 600))
         return cache
 
     def test_free_caller_gets_counts_without_finds(self):

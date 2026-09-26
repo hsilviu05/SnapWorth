@@ -23,15 +23,27 @@ def cache():
     yield c
 
 
+# Enough different devices behind everything a fixture seeds, unless a test
+# says otherwise — so the tests about the scan floor, the tiers and the window
+# stay about those, and the device floor is tested on its own below.
+DEVICES = ("dev-a", "dev-b", "dev-c")
+
+
 # `trends()` windows both end YESTERDAY — today is excluded from the counts and
 # from the ratio. It used to compare a partial today-plus-six against seven
 # whole days, which leaned every category ▼ all day and recovered at midnight
 # UTC. So fixtures start at days_ago=1; seeding day 0 puts data outside the
 # window on purpose, not by accident.
-async def seed(cache, days_ago: int, cats: dict, brands: dict, finds=(), scans: int = 0):
+async def seed(cache, days_ago: int, cats: dict, brands: dict, finds=(), scans: int = 0,
+               devices=DEVICES):
     day = notify._day(datetime.now(timezone.utc) - timedelta(days=days_ago))
-    await cache.set(notify._stat_key(day, "top"),
-                    json.dumps({"cats": cats, "brands": brands, "finds": list(finds)}), 600)
+    doc: dict = {"cats": cats, "brands": brands,
+                 "finds": [f if devices is None else {**f, "d": list(devices)}
+                           for f in finds]}
+    if devices is not None:
+        doc["cat_devices"] = {c: list(devices) for c in cats}
+        doc["brand_devices"] = {b: list(devices) for b in brands}
+    await cache.set(notify._stat_key(day, "top"), json.dumps(doc), 600)
     if scans:
         await cache.set(notify._stat_key(day, "scans_free"), str(scans), 600)
 
@@ -59,6 +71,88 @@ class TestFloor:
         rows = {r["name"]: r for r in (await notify.trends(is_pro=False))["categories"]}
         assert rows["clothing"]["change_pct"] == 100
         assert "change_pct" not in rows["home"]
+
+
+class TestDeviceFloor:
+    """Five scans used to be the whole floor, and at one to four real scans a
+    day five scans of one label was a week's trend on every install. A row
+    now also needs TRENDS_MIN_DEVICES different devices, and so does a
+    notable find."""
+
+    @pytest.mark.asyncio
+    async def test_many_scans_from_one_device_are_not_a_trend(self, cache):
+        await seed(cache, 1, {"clothing": 9}, {"spam.example free money": 9},
+                   [find("Visit my shop", "clothing", 900, 1000)], devices=["dev-a"])
+        payload = await notify.trends(is_pro=True)
+        assert payload["categories"] == [] and payload["brands"] == []
+        assert payload["notable_finds"] == []
+
+    @pytest.mark.asyncio
+    async def test_devices_add_up_across_the_week(self, cache):
+        # One device a day for three days is three devices; the same device on
+        # three days is still one.
+        for days_ago, device in ((1, "dev-a"), (2, "dev-b"), (3, "dev-c")):
+            await seed(cache, days_ago, {"clothing": 3}, {"Nike": 2}, devices=[device])
+        for days_ago in (4, 5, 6):
+            await seed(cache, days_ago, {"shoes": 3}, {}, devices=["dev-z"])
+        payload = await notify.trends(is_pro=False)
+        assert [(r["name"], r["count"]) for r in payload["categories"]] == [("clothing", 9)]
+        assert [r["name"] for r in payload["brands"]] == ["Nike"]
+
+    @pytest.mark.asyncio
+    async def test_a_notable_find_needs_as_many_devices_as_a_row(self, cache):
+        # The jacket: three devices across the week. The watch: one device,
+        # three days running, and the most valuable thing scanned.
+        for days_ago, device in ((1, "dev-a"), (2, "dev-b"), (3, "dev-c")):
+            await seed(cache, days_ago, {"clothing": 3}, {},
+                       [find("Carhartt Detroit Jacket", "clothing", 60, 100)], devices=[device])
+        for days_ago in (4, 5, 6):
+            await seed(cache, days_ago, {"accessories": 1}, {},
+                       [find("Rolex Submariner", "accessories", 5000, 9000)], devices=["dev-z"])
+        notable = (await notify.trends(is_pro=True))["notable_finds"]
+        assert [f["name"] for f in notable] == ["Carhartt Detroit Jacket"]
+
+    @pytest.mark.asyncio
+    async def test_last_weeks_direction_needs_last_weeks_devices(self, cache):
+        await seed(cache, 1, {"clothing": 12}, {})
+        await seed(cache, 8, {"clothing": 6}, {}, devices=["dev-a"])
+        (row,) = (await notify.trends(is_pro=False))["categories"]
+        assert "change_pct" not in row
+
+    @pytest.mark.asyncio
+    async def test_days_recorded_before_devices_were_are_withheld(self, cache):
+        await seed(cache, 1, {"clothing": 40}, {"Nike": 30},
+                   [find("Le Creuset", "home", 100, 200)], devices=None)
+        payload = await notify.trends(is_pro=True)
+        assert payload["categories"] == [] and payload["brands"] == []
+        assert payload["notable_finds"] == []
+
+    @pytest.mark.asyncio
+    async def test_scan_completed_counts_devices_not_scans(self, monkeypatch):
+        monkeypatch.delenv("TELEGRAM_BOT_TOKEN", raising=False)
+        monkeypatch.delenv("TELEGRAM_CHAT_ID", raising=False)
+        c = ResilientCache(None, InMemoryCache())
+        notify.configure(c)
+        tomorrow = datetime.now(timezone.utc) + timedelta(days=1)
+
+        async def scans(subjects):
+            for subject in subjects:
+                notify.scan_completed(
+                    tier="free", item_name="Carhartt Detroit Jacket", brand="Carhartt",
+                    category="clothing", low=60, high=100, confidence="High",
+                    subject=subject)
+            await asyncio.gather(*list(notify._tasks), return_exceptions=True)
+            await c.delete(f"{notify.TRENDS_CACHE_KEY}:pro")
+            return await notify.trends(is_pro=True, now=tomorrow)
+
+        try:
+            one = await scans(["one-device"] * 6)
+            assert one["categories"] == [] and one["notable_finds"] == []
+            both = await scans(["second-device", "third-device"])
+            assert [(r["name"], r["count"]) for r in both["categories"]] == [("clothing", 8)]
+            assert [f["name"] for f in both["notable_finds"]] == ["Carhartt Detroit Jacket"]
+        finally:
+            await notify.aclose()
 
 
 class TestTierSplit:
