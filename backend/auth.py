@@ -463,6 +463,8 @@ async def record_entitlement(
     except EntitlementError as exc:
         auditlog.record(AuditEvent.ENTITLEMENT_REJECTED, principal.subject,
                         outcome="failure", reason=str(exc))
+        # So `/user` can say the purchase reached us and why it was refused.
+        notify.entitlement_rejected(principal.subject, str(exc))
         raise HTTPException(status_code=400, detail=str(exc)) from None
 
     auditlog.record(AuditEvent.ENTITLEMENT_RECORDED, principal.subject,

@@ -1695,6 +1695,42 @@ class TestOneDevice:
         assert "Subscription: yearly · paid · renews" in text
 
     @pytest.mark.asyncio
+    async def test_every_device_on_a_subscription_sees_it(self, enabled_notify, cache):
+        """The row named one device, overwritten on every sync, so /user told
+        every other device on the subscription that nothing had synced."""
+        other = "b" * 64
+        for subject in (SUBJECT, other):
+            notify.saw_user(subject, tier="pro")
+        await drain()
+        await notify.entitlement_recorded(SUBJECT, sub("2000000000000077"))
+        await notify.entitlement_recorded(other, sub("2000000000000077"))
+        await drain()
+        first = notify.auditlog.pseudonymise(SUBJECT)
+
+        text = await notify.handle_command(f"/user Device {first}")
+
+        assert "No subscription has synced" not in text
+        # With the id Apple, App Store Connect and /sub all take.
+        assert "Subscription: monthly · paid · renews" in text
+        assert "<code>2000000000000077</code>" in text
+        assert "Last purchase sync:" in text and "verified as Pro" in text
+
+    @pytest.mark.asyncio
+    async def test_a_refused_purchase_is_on_the_device(self, enabled_notify, cache):
+        """Nothing is indexed for a transaction that did not verify, so the
+        customer who paid and was told free looked as if they never tried."""
+        notify.saw_user(SUBJECT, tier="free")
+        notify.entitlement_rejected(SUBJECT, "Transaction environment 'Sandbox' is not accepted.")
+        await drain()
+        who = notify.auditlog.pseudonymise(SUBJECT)
+
+        text = await notify.handle_command(f"/user {who}")
+
+        assert "Last purchase sync:" in text
+        assert "REJECTED — Transaction environment &#x27;Sandbox&#x27; is not accepted." in text
+        assert "No subscription has synced from this device." in text
+
+    @pytest.mark.asyncio
     async def test_unknown_and_ambiguous_ids(self, enabled_notify, cache):
         assert "No device seen" in await notify.handle_command("/user zzzz")
         await cache.set(notify.USERS_INDEX_KEY, json.dumps({
@@ -3569,6 +3605,109 @@ class TestSubCommandIdResolution:
         await notify.handle_command("/sub abc111")
 
         assert spy.called_with in (["otid-old"], ["otid-new"])
+
+    @pytest.mark.asyncio
+    async def test_the_id_a_support_mail_carries_resolves(
+            self, enabled_notify, monkeypatch):
+        """The in-app support form writes "Device <all sixteen>". The index
+        kept six, and a prefix match of sixteen against six never matched —
+        so /sub said "Nothing in the index" for the one id the customer
+        actually sends, and for the eight /user prints."""
+        await notify.entitlement_recorded(SUBJECT, sub("otid-mail"))
+        who = notify.auditlog.pseudonymise(SUBJECT)
+        assert len(who) == 16
+        spy = _patch_lookup(monkeypatch, [_FakeStatus(sub("otid-mail"))])
+
+        for typed in (who, f"Device {who}", who.upper(), who[:8], who[:6]):
+            text = await notify.handle_command(f"/sub {typed}")
+            assert "Nothing in the index" not in text, typed
+
+        assert spy.called_with == ["otid-mail"] * 5
+
+    @pytest.mark.asyncio
+    async def test_a_row_written_with_six_characters_answers_all_sixteen(
+            self, enabled_notify, cache, monkeypatch):
+        """Rows indexed before the full pseudonym was stored hold six."""
+        await cache.set(notify.SUBS_INDEX_KEY, json.dumps({
+            "otid-legacy": {"who": "3f2a9b", "product": "com.snapworth.monthly",
+                            "env": "Production", "seen": int(time.time())}}), 600)
+        spy = _patch_lookup(monkeypatch, [_FakeStatus(sub("otid-legacy"))])
+
+        await notify.handle_command("/sub Device 3f2a9b1c0d4e5f60")
+
+        assert spy.called_with == ["otid-legacy"]
+
+    @pytest.mark.asyncio
+    async def test_every_device_that_synced_stays_on_the_row(
+            self, enabled_notify, cache, monkeypatch):
+        """`who` was overwritten on every sync, so a family's first phone
+        vanished from the row the moment the second one launched."""
+        other = "b" * 64
+        await notify.entitlement_recorded(SUBJECT, sub("otid-family"))
+        await notify.entitlement_recorded(other, sub("otid-family"))
+        await notify.entitlement_recorded(SUBJECT, sub("otid-family"))
+        first = notify.auditlog.pseudonymise(SUBJECT)
+        second = notify.auditlog.pseudonymise(other)
+
+        row = (await notify._read_index(notify.SUBS_INDEX_KEY))["otid-family"]
+        assert row["devices"] == [second, first], "most recent last, no repeats"
+        spy = _patch_lookup(monkeypatch, [_FakeStatus(sub("otid-family"))])
+        await notify.handle_command(f"/sub {second}")
+        assert spy.called_with == ["otid-family"]
+
+    @pytest.mark.asyncio
+    async def test_a_legacy_six_is_folded_into_the_full_id(self, enabled_notify, cache):
+        who = notify.auditlog.pseudonymise(SUBJECT)
+        await cache.set(notify.SUBS_INDEX_KEY, json.dumps({
+            "otid-old": {"who": who[:6], "product": "com.snapworth.monthly",
+                         "env": "Production", "seen": 1}}), 600)
+        await notify.entitlement_recorded(SUBJECT, sub("otid-old"))
+        row = (await notify._read_index(notify.SUBS_INDEX_KEY))["otid-old"]
+        assert row["who"] == who and row["devices"] == [who]
+
+    @pytest.mark.asyncio
+    async def test_an_apple_order_id_is_resolved_through_apple(
+            self, enabled_notify, monkeypatch):
+        """The Order ID on the customer's Apple receipt: the one id they can
+        always find, and one no index of ours holds."""
+        import appstorestatus
+        orders: list[str] = []
+
+        async def _lookup_order(order_id):
+            orders.append(order_id)
+            return ["2000000000000042"]
+
+        monkeypatch.setattr(appstorestatus, "lookup_order", _lookup_order)
+        spy = _patch_lookup(monkeypatch, [_FakeStatus(sub("2000000000000042"))])
+
+        text = await notify.handle_command("/sub mk5tttv8jh")
+
+        assert orders == ["MK5TTTV8JH"]
+        assert spy.called_with == ["2000000000000042"]
+        assert "Order <code>MK5TTTV8JH</code>" in text
+
+    @pytest.mark.asyncio
+    async def test_an_unknown_order_id_is_named_as_one(self, enabled_notify, monkeypatch):
+        import appstorestatus
+
+        async def _lookup_order(order_id):
+            raise appstorestatus.OrderNotFound(f"Apple has no order {order_id} for this app.")
+
+        monkeypatch.setattr(appstorestatus, "lookup_order", _lookup_order)
+        spy = _patch_lookup(monkeypatch, [])
+
+        text = await notify.handle_command("/sub MK5TTTV8JH")
+
+        assert "Apple has no order MK5TTTV8JH" in text
+        assert "Read as an Apple order ID" in text
+        assert spy.called_with == []
+
+    def test_what_is_read_as_an_order_id(self):
+        assert notify._apple_order_id("MK5TTTV8JH") == "MK5TTTV8JH"
+        # Not a transaction id, not a device id, not a short typo.
+        for other in ("2000000000000001", "3f2a9b1c0d4e5f60", "3F2A9B1C",
+                      "zzzzzz", "Device 3f2a9b1c0d4e5f60", ""):
+            assert notify._apple_order_id(other) is None, other
 
     @pytest.mark.asyncio
     async def test_no_argument_explains_itself(self, enabled_notify):

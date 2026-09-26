@@ -94,6 +94,10 @@ class StatusRetryLater(StatusError):
     subscription"."""
 
 
+class OrderNotFound(StatusError):
+    """Apple does not recognise that order ID for this app."""
+
+
 class StatusRateLimited(StatusError):
     """Apple is rate limiting us (429)."""
 
@@ -334,6 +338,71 @@ class AppStoreStatusClient:
             f"Apple has no subscription under {transaction_id} in Production "
             "or Sandbox.")
 
+    async def order_transaction_ids(self, order_id: str) -> list[str]:
+        """The originalTransactionIds in one App Store order.
+
+        The order ID is the one id a customer always has: it is printed on
+        the receipt Apple emails for every purchase. Apple's Look Up Order ID
+        answers with the order's signed transactions, verified here exactly
+        as a status lookup's are, and any one of their ids is enough for
+        `statuses` to return everything the customer holds.
+
+        Production only. An order ID comes from a real App Store receipt;
+        Sandbox and TestFlight purchases do not produce one.
+        """
+        from appstoreserverlibrary.api_client import APIException
+        from appstoreserverlibrary.signed_data_verifier import VerificationException
+
+        order_id = (order_id or "").strip()
+        # It goes into the request path as it is, so nothing but the letters
+        # and digits an order ID is made of.
+        if not order_id or not (order_id.isascii() and order_id.isalnum()):
+            raise OrderNotFound("An order ID is letters and digits only.")
+        name, environment = self._environments()[0]
+        client = self._client_for(name, environment)
+        async with self._lock:
+            try:
+                response = await asyncio.wait_for(
+                    client.look_up_order_id(order_id),  # type: ignore[attr-defined]
+                    timeout=TIMEOUT_SECONDS)
+            except TimeoutError:
+                raise StatusUnavailable(
+                    f"Apple did not answer within {TIMEOUT_SECONDS:.0f}s ({name}).") from None
+            except APIException as exc:
+                translated = self._translate(exc, name)
+                if isinstance(translated, SubscriberNotFound):
+                    # `_translate` words a 404 for a subscription lookup,
+                    # which asks both environments; this one asked only
+                    # Production, and about an order.
+                    raise OrderNotFound(
+                        f"Apple has no order {order_id} for this app.") from None
+                raise translated from None
+            except Exception as exc:
+                raise StatusUnavailable(
+                    f"Could not reach Apple ({type(exc).__name__}).") from None
+
+        # 0 is VALID; anything else — 1 is INVALID — is Apple saying this is
+        # not an order for this app.
+        if getattr(response, "rawStatus", None) != 0:
+            raise OrderNotFound(f"Apple has no order {order_id} for this app.")
+
+        verifier = self._verifier_for(name, environment)
+        found: list[str] = []
+        for signed in response.signedTransactions or []:
+            try:
+                transaction = verifier.verify_and_decode_signed_transaction(  # type: ignore[attr-defined]
+                    signed)
+            except VerificationException as exc:
+                raise StatusUnavailable(
+                    f"A transaction from Apple failed verification ({exc}).") from None
+            otid = transaction.originalTransactionId
+            if otid and otid not in found:
+                found.append(str(otid))
+        if not found:
+            raise OrderNotFound(
+                f"Order {order_id} is valid but holds no transaction for this app.")
+        return found
+
     async def _statuses_in(self, name: str, environment,
                            transaction_id: str) -> list[SubscriptionStatus]:
         from appstoreserverlibrary.api_client import APIException
@@ -526,6 +595,12 @@ async def aclose() -> None:
 
 
 async def lookup(transaction_id: str) -> list[SubscriptionStatus]:
-    """Every subscription Apple holds for this id. The module's whole surface."""
+    """Every subscription Apple holds for this id."""
     client = await get_client()
     return await client.statuses(transaction_id)
+
+
+async def lookup_order(order_id: str) -> list[str]:
+    """The originalTransactionIds in an App Store order, for `lookup`."""
+    client = await get_client()
+    return await client.order_transaction_ids(order_id)

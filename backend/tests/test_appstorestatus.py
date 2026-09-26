@@ -353,6 +353,83 @@ class TestNotFoundAndFallback:
         assert client._apis["Production"].calls == []
 
 
+# ── An order ID from the customer's receipt ─────────────────────────────────
+
+class _OrderResponse:
+    def __init__(self, raw_status, signed):
+        self.rawStatus = raw_status
+        self.signedTransactions = signed
+
+
+def _order_client(outcome, transactions=()):
+    """A client whose Production API answers Look Up Order ID with `outcome`
+    (a response or an exception), and whose verifier decodes each signed
+    string to the matching `_Transaction`."""
+    client = appstorestatus.AppStoreStatusClient(fake_credentials())
+    calls: list[tuple[str, str]] = []
+    decoded = {f"signed-{i}": t for i, t in enumerate(transactions)}
+
+    class _API:
+        def __init__(self, name):
+            self.name = name
+
+        async def look_up_order_id(self, order_id):
+            calls.append((self.name, order_id))
+            if isinstance(outcome, Exception):
+                raise outcome
+            return outcome
+
+    class _Verifier:
+        def verify_and_decode_signed_transaction(self, signed):
+            return decoded[signed]
+
+    client._client_for = lambda name, env: _API(name)          # type: ignore[assignment]
+    client._verifier_for = lambda name, env: _Verifier()       # type: ignore[assignment]
+    return client, calls, list(decoded)
+
+
+class TestOrderLookup:
+
+    @pytest.mark.asyncio
+    async def test_an_order_resolves_to_its_original_transaction_ids(self):
+        # Two purchases in one order, one of them renewed: three signed
+        # transactions, two subscriptions.
+        transactions = [_Transaction(originalTransactionId=OTID),
+                        _Transaction(originalTransactionId=OTID),
+                        _Transaction(originalTransactionId="2000000000000002")]
+        signed = [f"signed-{i}" for i in range(len(transactions))]
+        client, calls, _ = _order_client(_OrderResponse(0, signed), transactions)
+
+        assert await client.order_transaction_ids("MK5TTTV8JH") == [OTID, "2000000000000002"]
+        # Production only: an order ID is printed on a real App Store receipt.
+        assert calls == [("Production", "MK5TTTV8JH")]
+
+    @pytest.mark.asyncio
+    async def test_an_invalid_order_is_order_not_found(self):
+        for outcome in (_OrderResponse(1, None),
+                        APIException(404, APIError.ORIGINAL_TRANSACTION_ID_NOT_FOUND.value)):
+            client, _, _ = _order_client(outcome)
+            with pytest.raises(appstorestatus.OrderNotFound) as caught:
+                await client.order_transaction_ids("MK5TTTV8JH")
+            # Not the subscription lookup's "in Production or Sandbox".
+            assert "order MK5TTTV8JH" in str(caught.value)
+
+    @pytest.mark.asyncio
+    async def test_anything_but_letters_and_digits_never_reaches_apple(self):
+        """It is interpolated into the request path."""
+        client, calls, _ = _order_client(_OrderResponse(0, []))
+        for bad in ("", "  ", "MK5/../x", "MK5?a=b", "MK5 TTT"):
+            with pytest.raises(appstorestatus.OrderNotFound):
+                await client.order_transaction_ids(bad)
+        assert calls == []
+
+    @pytest.mark.asyncio
+    async def test_other_failures_keep_their_own_error(self):
+        client, _, _ = _order_client(APIException(429, APIError.RATE_LIMIT_EXCEEDED.value))
+        with pytest.raises(appstorestatus.StatusRateLimited):
+            await client.order_transaction_ids("MK5TTTV8JH")
+
+
 # ── Errors, each one distinguishable ─────────────────────────────────────────
 
 class TestErrorTranslation:

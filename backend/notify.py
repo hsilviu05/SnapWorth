@@ -293,6 +293,14 @@ SUBS_INDEX_CAP = 500
 USERS_INDEX_CAP = 500
 INDEX_TTL = 60 * 60 * 24 * 400
 TABLE_ROWS = 20
+# How long /user can say what the last purchase sync from a device came to.
+# A subscriber's app re-syncs at every cold launch, so this is the horizon
+# for a device that stopped opening the app.
+SYNC_TTL = 60 * 60 * 24 * 90
+# Devices remembered per subscription row, most recent last. Above the
+# entitlement device cap (MAX_DEVICES_PER_SUBSCRIPTION, 6 by default) so a
+# household's phones and the ones they replaced all still resolve.
+SUB_DEVICES_CAP = 10
 
 # Apple's offerType values.
 OFFER_INTRODUCTORY, OFFER_PROMOTIONAL, OFFER_CODE = 1, 2, 3
@@ -1090,6 +1098,7 @@ async def entitlement_recorded(subject: str, ent) -> None:
     """
     if _notifier is None or _cache is None:
         return
+    _spawn(_note_sync(subject, "pro" if ent.tier == "pro" else "free"))
     try:
         if ent.tier == "pro":
             otid = ent.original_transaction_id
@@ -1156,6 +1165,18 @@ async def entitlement_recorded(subject: str, ent) -> None:
                 "verified as not-Pro — refunded, revoked or expired.")
     except Exception as exc:
         log.warning("subscription alert failed: %s", type(exc).__name__)
+
+
+def entitlement_rejected(subject: str, reason: str) -> None:
+    """/auth/entitlement refused a signed transaction. Fire-and-forget.
+
+    Not an alert — a malformed or Sandbox transaction is routine noise — but
+    recorded on the device, so that when a customer writes "I paid and the
+    app says free", `/user` can say the purchase reached the server and why
+    it was turned away."""
+    if _notifier is None or _cache is None or not subject:
+        return
+    _spawn(_note_sync(subject, "rejected", reason))
 
 
 # ── Subscription sharing signal ──────────────────────────────────────────────
@@ -2438,6 +2459,46 @@ async def _write_index(key: str, doc: dict, cap: int, recency: str) -> None:
     await _cache.set(key, json.dumps(doc, separators=(",", ":")), INDEX_TTL)
 
 
+def _same_device(recorded: str, wanted: str) -> bool:
+    """Whether an id someone typed names this recorded device.
+
+    Both are prefixes of one sixteen-character pseudonym, so either may be
+    the longer: the operator types six characters from /subs, or pastes all
+    sixteen from a support mail — and rows written before the full pseudonym
+    was stored hold only six."""
+    recorded, wanted = recorded.lower(), wanted.lower()
+    return bool(recorded and wanted) and (recorded.startswith(wanted)
+                                          or wanted.startswith(recorded))
+
+
+def _with_device(devices: list, who: str) -> list[str]:
+    """`devices` with `who` moved to the end (most recent), capped.
+
+    A six-character id kept from an older row is the same device as the full
+    pseudonym it begins, and is dropped in its favour."""
+    kept = [d for d in devices
+            if isinstance(d, str) and d and d != who and not who.startswith(d)]
+    return [*kept, who][-SUB_DEVICES_CAP:]
+
+
+def _row_devices(row: dict) -> list[str]:
+    """Every device id a subscription row knows, legacy `who` included."""
+    found = [d for d in (row.get("devices") or []) if isinstance(d, str) and d]
+    who = row.get("who")
+    if isinstance(who, str) and who and who not in found:
+        found.append(who)
+    return found
+
+
+def _device_argument(argument: str | None) -> str:
+    """What the operator typed, as an id: trimmed, lower-cased, and without
+    the "Device" the in-app support form writes in front of it."""
+    parts = (argument or "").strip().lower().split()
+    if len(parts) == 2 and parts[0] == "device":
+        parts = parts[1:]
+    return " ".join(parts)
+
+
 def _acquisition(ent) -> str:
     """How a subscription was obtained, in the operator's words."""
     offer = getattr(ent, "offer_type", None)
@@ -2497,7 +2558,7 @@ async def _index_subscription(subject: str | None, ent,
     doc = await _read_index(SUBS_INDEX_KEY)
     otid = str(ent.original_transaction_id)
     before = doc.get(otid) if isinstance(doc.get(otid), dict) else {}
-    entry = dict(before)
+    entry: dict = dict(before)
     entry.update({
         "product": ent.product_id, "env": ent.environment,
         "first": getattr(ent, "original_purchase_at", None),
@@ -2507,7 +2568,17 @@ async def _index_subscription(subject: str | None, ent,
         "seen": int(time.time()),
     })
     if subject is not None:
-        entry["who"] = auditlog.pseudonymise(subject)[:6]
+        # The full pseudonym, and every device that has synced this
+        # subscription, not just the last. `who` used to be the first six
+        # characters of whichever device synced most recently: a support mail
+        # carries all sixteen ("Device 3f2a…" from the in-app form, the
+        # `support_id` /auth/token hands the app), and a family's second phone
+        # was overwritten by the first on every launch — so /sub refused the
+        # id the customer sent and /user told every other device that nothing
+        # had ever synced from it.
+        who = auditlog.pseudonymise(subject)
+        entry["devices"] = _with_device(_row_devices(entry), who)
+        entry["who"] = who
     if auto_renew is not None:
         entry["auto_renew"] = auto_renew
     # The revocation is a tombstone on a *term*, not on the row.
@@ -2551,6 +2622,30 @@ async def _index_user(who: str, *, tier: str, scanned: bool = False) -> None:
         entry["scans"] = int(entry.get("scans", 0)) + 1
     doc[who] = entry
     await _write_index(USERS_INDEX_KEY, doc, USERS_INDEX_CAP, "last")
+
+
+def _sync_key(who: str) -> str:
+    return f"opsstate:sync:{who}"
+
+
+async def _note_sync(subject: str, outcome: str, detail: str | None = None) -> None:
+    """Record what `/auth/entitlement` made of this device's last signed
+    transaction: "pro", "free" (verified, not entitled) or "rejected" with
+    the reason. Never raises.
+
+    The subscription index only ever hears about a transaction that
+    verified, so a refused one left no trace the operator could find: the
+    customer who paid and was told free had, as far as the bot knew, never
+    tried. `/user` shows this line. A key per device rather than a field in
+    the devices index, so it is one plain write that cannot lose, or be
+    lost to, the index's read-modify-write."""
+    if _cache is None:
+        return
+    try:
+        record = [int(time.time()), outcome] + ([detail[:160]] if detail else [])
+        await _cache.set(_sync_key(auditlog.pseudonymise(subject)), json.dumps(record), SYNC_TTL)
+    except Exception as exc:
+        log.debug("entitlement sync note failed: %s", type(exc).__name__)
 
 
 #: The `/subs` auto-renew column, one character wide.
@@ -2648,7 +2743,7 @@ async def _subs_text() -> str:
             f"{(_short_date(int(e['first'])) if e.get('first') else '?'):<7} "
             f"{renews:<7} {_renew_mark(e):<2} "
             f"{(_short_date(int(e['seen'])) if e.get('seen') else '?'):<7} "
-            f"{str(e.get('who') or ''):<6}")
+            f"{str(e.get('who') or '')[:6]:<6}")
     if len(rows) > TABLE_ROWS:
         body.append(f"… and {len(rows) - TABLE_ROWS} more")
     lines.append("<pre>" + html.escape("\n".join(body)) + "</pre>")
@@ -3463,30 +3558,35 @@ async def _resolve_transaction_id(wanted: str) -> tuple[str | None, str | None]:
 
     Returns `(transaction_id, error_message)` — exactly one is not None.
 
-    Two kinds of input, because the operator has two kinds of id to hand and
-    only one of them is Apple's:
+    Two kinds of input here, because the operator has two kinds of id to hand
+    and only one of them is Apple's (the third, an order id off the customer's
+    receipt, is `_apple_order_id`'s):
 
       * an originalTransactionId, as `/subs` keys its rows and as Apple's
         own console shows it — all digits, and long;
-      * the six-character `id` column from `/subs` and `/users`.
+      * a device id: the six-character `id` column from `/subs` and `/users`,
+        the eight `/user` prints, or all sixteen from a support mail's
+        "Device …" line — any prefix of the pseudonym.
 
-    The short one is **not** a truncated transaction id and cannot be turned
-    back into one by itself: it is `sha256(AUDIT_SALT + subject)[:16][:6]`, a
+    The device id is **not** a truncated transaction id and cannot be turned
+    back into one by itself: it is `sha256(AUDIT_SALT + subject)[:16]`, a
     deliberately one-way pseudonym (`auditlog.pseudonymise`) so the audit log
     is not a device registry. What makes the lookup possible is that the subs
-    index is keyed by the *full* transaction id with the short pseudonym stored
-    in the row, so this is a scan, not a decode — the same reverse lookup
-    `_user_text` already does.
+    index is keyed by the *full* transaction id with the devices that synced
+    it stored in the row, so this is a scan, not a decode — the same reverse
+    lookup `_user_text` does.
 
     Two consequences worth stating, because both look like bugs otherwise:
-    a device whose subscription only ever arrived by notification has no `who`
-    at all and is unreachable this way, and a six-character prefix of a
+    a device whose subscription only ever arrived by notification is not on
+    the row at all and is unreachable this way, and a short prefix of a
     sixteen-character hash can collide.
     """
-    wanted = wanted.strip().lower()
+    wanted = _device_argument(wanted)
     if not wanted:
-        return None, ("Usage: /sub &lt;id&gt; — an originalTransactionId, or the "
-                      "six-character id column from /subs.")
+        return None, ("Usage: /sub &lt;id&gt; — an originalTransactionId, the "
+                      "order ID from the customer's Apple receipt, or a device "
+                      "id: the id column from /subs, or the 16 characters after "
+                      "\"Device\" in a support mail.")
 
     # Apple's transaction ids are long decimal strings. Anything of that shape
     # is passed through untouched: the index may well not have it, which is
@@ -3495,26 +3595,56 @@ async def _resolve_transaction_id(wanted: str) -> tuple[str | None, str | None]:
         return wanted, None
 
     doc = await _read_index(SUBS_INDEX_KEY)
-    matches = {otid: row for otid, row in doc.items()
-               if isinstance(row, dict)
-               and str(row.get("who") or "").lower().startswith(wanted)}
+    matches: dict[str, dict] = {}
+    devices: set[str] = set()
+    for otid, row in doc.items():
+        if not isinstance(row, dict):
+            continue
+        hits = [d for d in _row_devices(row) if _same_device(d, wanted)]
+        if hits:
+            matches[otid] = row
+            devices.update(d.lower() for d in hits)
     if not matches:
-        return None, (f"💳 Nothing in the index has an id starting "
+        return None, (f"💳 Nothing in the index has a device id starting "
                       f"<code>{html.escape(wanted)}</code>. If you have Apple's "
-                      "originalTransactionId, pass that instead — it does not "
-                      "need to be in the index.")
+                      "originalTransactionId, or the order ID from the "
+                      "customer's receipt, pass that instead — neither needs "
+                      "to be in the index. /user shows whether this device "
+                      "ever tried to sync a purchase, and what happened.")
 
     # Several rows for one device is normal — a resubscribe, or a plan change —
     # and harmless, because Apple returns every subscription belonging to the
     # customer behind whichever id we send. Several *devices* is a genuine
-    # collision and the operator has to disambiguate.
-    whos = {str(row.get("who")) for row in matches.values()}
-    if len(whos) > 1:
-        return None, (f"💳 {len(whos)} devices start with "
+    # collision and the operator has to disambiguate. A six-character id kept
+    # from an older row is the same device as the full one it begins.
+    distinct = {d for d in devices
+                if not any(o != d and o.startswith(d) for o in devices)}
+    if len(distinct) > 1:
+        return None, (f"💳 {len(distinct)} devices start with "
                       f"<code>{html.escape(wanted)}</code> — give more "
                       "characters: " + ", ".join(
-                          html.escape(w) for w in sorted(whos)[:6]))
-    return next(iter(matches)), None
+                          html.escape(d[:8]) for d in sorted(distinct)[:6]))
+    return max(matches, key=lambda otid: float(matches[otid].get("seen") or 0)), None
+
+
+# An App Store order ID, as printed on the customer's receipt email ("Order
+# ID: MK5TTTV8JH"): upper-case letters and digits. Checked after the other
+# shapes, so an all-digit transaction id or an all-hex device id never lands
+# here.
+_ORDER_ID = re.compile(r"[A-Z0-9]{8,20}")
+
+
+def _apple_order_id(argument: str | None) -> str | None:
+    """The argument as an Apple order ID, or None if it is not shaped like one.
+
+    The one id a customer can always find: it is on the receipt Apple emails
+    for every purchase, and it is what they paste when they have nothing
+    else. Apple's Look Up Order ID resolves it to their transactions."""
+    value = (argument or "").strip().upper()
+    if (not _ORDER_ID.fullmatch(value) or value.isdigit()
+            or re.fullmatch(r"[0-9A-F]+", value)):
+        return None
+    return value
 
 
 def _status_lines(status) -> list[str]:
@@ -3577,13 +3707,27 @@ async def _sub_text(argument: str) -> str:
     import appstorestatus
     import entitlements
 
-    transaction_id, problem = await _resolve_transaction_id(argument or "")
-    if problem is not None:
-        return problem
-    assert transaction_id is not None
+    order_id = _apple_order_id(argument)
+    transaction_id: str | None = None
+    if order_id is None:
+        transaction_id, problem = await _resolve_transaction_id(argument or "")
+        if problem is not None:
+            return problem
+        assert transaction_id is not None
 
+    via: list[str] = []
     try:
+        if order_id is not None:
+            found = await appstorestatus.lookup_order(order_id)
+            transaction_id = found[0]
+            via = [f"Order <code>{html.escape(order_id)}</code> → "
+                   f"<code>{html.escape(transaction_id)}</code>"]
+        assert transaction_id is not None
         statuses = await appstorestatus.lookup(transaction_id)
+    except appstorestatus.OrderNotFound as exc:
+        return (f"💳 {html.escape(str(exc))}\n\nRead as an Apple order ID — the "
+                "\"Order ID\" on the customer's App Store receipt email. A "
+                "transaction id is all digits; a device id is hex.")
     except appstorestatus.SubscriberNotFound as exc:
         return (f"💳 {html.escape(str(exc))}\n\nChecked Production and Sandbox. "
                 "An id Apple does not recognise is usually a transactionId from "
@@ -3610,7 +3754,7 @@ async def _sub_text(argument: str) -> str:
         return f"💳 <b>Could not ask Apple</b>\n{html.escape(str(exc))}"
 
     lines = [f"💳 <b>Live from Apple</b> — {len(statuses)} subscription"
-             f"{'s' if len(statuses) != 1 else ''}"]
+             f"{'s' if len(statuses) != 1 else ''}", *via]
     # The lookup asks Production first and moves on to Sandbox only when
     # Production definitely has nothing, so a Sandbox answer means both were
     # asked. Said outright: it used to be one word on the detail line.
@@ -3663,10 +3807,19 @@ async def _sub_text(argument: str) -> str:
 
 # ── One device, for a support email ──────────────────────────────────────────
 
+#: How /user words the last `/auth/entitlement` result it recorded.
+_SYNC_WORDS = {
+    "pro": "verified as Pro",
+    "free": "verified, but not Pro — refunded, revoked or expired",
+    "rejected": "REJECTED",
+}
+
+
 async def _user_text(argument: str) -> str:
-    wanted = (argument or "").strip().lower()
+    wanted = _device_argument(argument)
     if not wanted:
-        return "Usage: /user &lt;id&gt; — the id column from /users or /subs."
+        return ("Usage: /user &lt;id&gt; — the id column from /users or /subs, or "
+                "the 16 characters after \"Device\" in a support mail.")
     users = await _read_index(USERS_INDEX_KEY)
     matches = [(who, e) for who, e in users.items() if who.lower().startswith(wanted)]
     if not matches:
@@ -3684,8 +3837,24 @@ async def _user_text(argument: str) -> str:
         when = (f"{ago // 3600}h ago" if ago < 86400 else f"{ago // 86400}d ago")
         lines.append(f"Last seen {_date(int(e['last']))} ({when})")
     lines.append(f"Scans since the bot started watching: {int(e.get('scans', 0))}")
-    subs = [s for s in (await _read_index(SUBS_INDEX_KEY)).values() if s.get("who") == who[:6]]
-    for s in subs:
+    try:
+        sync = (json.loads(await _cache.get(_sync_key(who)) or "null")
+                if _cache is not None else None)
+    except Exception:
+        sync = None
+    if isinstance(sync, list) and len(sync) >= 2:
+        # What the server made of the last signed transaction this device
+        # sent. When it was refused, this is the only place that says so —
+        # nothing is indexed for a transaction that did not verify.
+        ago = int(now - float(sync[0]))
+        when = (f"{ago // 3600}h ago" if ago < 86400 else f"{ago // 86400}d ago")
+        what = _SYNC_WORDS.get(str(sync[1]), html.escape(str(sync[1])))
+        if len(sync) > 2 and sync[2]:
+            what += f" — {html.escape(str(sync[2]))}"
+        lines.append(f"Last purchase sync: {_date(int(sync[0]))} ({when}) — {what}")
+    subs = [(otid, s) for otid, s in (await _read_index(SUBS_INDEX_KEY)).items()
+            if isinstance(s, dict) and any(_same_device(d, who) for d in _row_devices(s))]
+    for otid, s in subs:
         # `_sub_is_alive`, like the two readers of this same index in `/subs`.
         # This one tested expiry alone, so a refunded subscription — which
         # keeps its expiry — read "renews 12 Mar 2027" here while `/subs`
@@ -3704,8 +3873,10 @@ async def _user_text(argument: str) -> str:
             state = f"renews {renews}"
         else:
             state = f"ended {renews}"
+        # The transaction id is what Apple, App Store Connect and /sub all
+        # take, so it is printed where it can be tapped and copied.
         lines.append(f"Subscription: {_plan(s.get('product'))} · "
-                     f"{s.get('acq') or '?'} · {state}")
+                     f"{s.get('acq') or '?'} · {state} · <code>{html.escape(str(otid))}</code>")
     if not subs:
         lines.append("No subscription has synced from this device.")
     lines.append("Devices, not people — this is the audit log's pseudonym.")
