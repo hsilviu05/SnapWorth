@@ -2834,6 +2834,70 @@ final class ValuationDetailTests: XCTestCase {
     func test_paywallTriggerExists() {
         XCTAssertEqual(PaywallTrigger.valuationDetail.rawValue, "valuation_detail")
     }
+
+    // ── What a purchase from this panel unlocks ─────────────────────────────
+    //
+    // The blob is written once, at scan time, and a free scan's is stripped by
+    // the server. Buying from "Unlock why this price" then showed a subscriber
+    // a score, one sentence and "good": the panel they had just paid for.
+
+    /// What `_strip_pro_detail` in main.py leaves on a free response.
+    private var freeTier: String {
+        v1.replacingOccurrences(of: #""confidence":"High","#, with: #"""
+        "confidence":"High","confidence_score":72,"confidence_summary":"Brand and model are legible.",
+        "confidence_reasons":[],"quick_sale_price_usd":null,"expected_price_usd":null,
+        "best_case_price_usd":null,"worst_case_price_usd":null,"value_drivers":[],"assumptions":[],
+        "uncertainty_factors":[],"improve_estimate":[],"authenticity_assessment":null,
+        "authenticity_reasoning":null,"demand":null,"supply":null,"condition_grade":"good",
+        "size":null,"era":null,"material":null,
+        """#)
+    }
+
+    func test_aFreeResponseIsRecognisedAsMissingTheProPanel() throws {
+        let free = try JSONDecoder().decode(ScanAPIResponse.self, from: Data(freeTier.utf8))
+        let thin = try XCTUnwrap(ValuationDetail(response: free), "the teaser still needs its card")
+        XCTAssertTrue(thin.lacksProDetail)
+
+        let pro = try JSONDecoder().decode(ScanAPIResponse.self, from: Data(v2.utf8))
+        XCTAssertFalse(try XCTUnwrap(ValuationDetail(response: pro)).lacksProDetail)
+    }
+
+    func test_anyProSectionIsEnoughToShowThePanel() {
+        var detail = ValuationDetail()
+        detail.confidenceScore = 60
+        detail.confidenceSummary = "Clear photo."
+        detail.conditionGrade = "good"
+        XCTAssertTrue(detail.lacksProDetail)
+
+        var ladder = detail; ladder.worstCase = 10
+        var drivers = detail; drivers.valueDrivers = ["Colourway"]
+        var authenticity = detail; authenticity.authenticityAssessment = "Consistent"
+        var facts = detail; facts.material = "wool"
+        for full in [ladder, drivers, authenticity, facts] {
+            XCTAssertFalse(full.lacksProDetail)
+        }
+    }
+
+    /// Source-level: the re-read goes through `ScanAPIClient.shared`, which a
+    /// unit test cannot drive.
+    func test_buyingFromThePanelReReadsTheFind() throws {
+        let file = try String(
+            contentsOf: URL(fileURLWithPath: #filePath)
+                .deletingLastPathComponent().deletingLastPathComponent()
+                .appendingPathComponent("SnapWorth/Views/ResultView.swift"),
+            encoding: .utf8)
+        XCTAssertTrue(file.contains("if paywallTrigger == .valuationDetail, isPro,"),
+                      "a purchase from this panel must hand back what it sold")
+        XCTAssertTrue(file.contains("if detail.lacksProDetail { fullDetailPrompt }"),
+                      "an older thin find must offer the re-read too")
+        // The server is asked first: a device it still reads as free is not
+        // refused, it is answered — off the free allowance, stripped again.
+        let body = try XCTUnwrap(file.range(of: "private func rereadForFullDetail()"))
+        let rest = file[body.upperBound...]
+        let resync = try XCTUnwrap(rest.range(of: "await purchaseService.resyncEntitlement()"))
+        let scan = try XCTUnwrap(rest.range(of: "ScanAPIClient.shared.scan("))
+        XCTAssertLessThan(resync.lowerBound, scan.lowerBound)
+    }
 }
 
 // MARK: - Where the number came from (#40)

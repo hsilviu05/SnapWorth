@@ -37,6 +37,8 @@ struct ResultView: View {
     @State private var tagError: String?
     /// Success counterpart to `tagError` — see `rescan(withTag:)`.
     @State private var tagSuccess: String?
+    /// Why the full-breakdown re-read failed — see `rereadForFullDetail()`.
+    @State private var fullDetailError: String?
     /// What the share sheet carries: the result card, or the guess story pair.
     @State private var shareItems: [Any] = []
     @State private var showPaywall = false
@@ -303,7 +305,14 @@ struct ResultView: View {
                 ActivityShareSheet(items: items) { _ in }
             }
         }
-        .sheet(isPresented: $showPaywall) {
+        .sheet(isPresented: $showPaywall, onDismiss: {
+            // Bought from "Unlock why this price": that is what they paid to
+            // see, and this find was saved without it.
+            if paywallTrigger == .valuationDetail, isPro,
+               result.valuationDetail?.lacksProDetail == true {
+                rereadForFullDetail()
+            }
+        }) {
             PaywallView(purchaseService: purchaseService, trigger: paywallTrigger)
         }
         .subscriptionUnconfirmedAlert(isPresented: $vm.showSubscriptionUnconfirmed,
@@ -1047,6 +1056,7 @@ struct ResultView: View {
                     ValuationDetailView(detail: detail,
                                         priceFactor: result.conditionPriceFactor,
                                         gradeWasOverridden: result.conditionWasOverridden)
+                    if detail.lacksProDetail { fullDetailPrompt }
                 } else {
                     lockedDetailTeaser(detail)
                 }
@@ -1056,6 +1066,93 @@ struct ResultView: View {
             .background(Color.snapCard)
             .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
             .shadow(color: Color.snapCardShadow.opacity(0.08), radius: 24, x: 0, y: 8)
+        }
+    }
+
+    /// For a subscriber looking at a find that was saved with only the free
+    /// part of the panel. Worded without claiming *why* it is thin, because
+    /// the blob cannot say; in practice it is a find scanned before Pro.
+    private var fullDetailPrompt: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("This find was saved without its full breakdown. Re-read it to see the price points and what drives the value — the estimate may change.")
+                .font(.snapCaption)
+                .foregroundStyle(Color.snapWarmGray)
+                .fixedSize(horizontal: false, vertical: true)
+            if let fullDetailError {
+                Text(fullDetailError)
+                    .font(.snapCaption)
+                    .foregroundStyle(Color.snapTerracottaText)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            PrimaryButton(title: isRescanning ? "Re-reading…" : "Show the full breakdown") {
+                rereadForFullDetail()
+            }
+            .disabled(isRescanning)
+        }
+    }
+
+    /// Re-reads the stored photo so a subscriber gets the panel a free scan
+    /// was never sent — see `ValuationDetail.lacksProDetail`.
+    ///
+    /// The same machinery as the tag re-read, and like it this replaces the
+    /// estimate: the ladder has to explain the number beside it, so taking the
+    /// new detail and keeping the old range would show a breakdown of a price
+    /// the app no longer states.
+    private func rereadForFullDetail() {
+        guard !isRescanning else { return }
+        guard let photo else {
+            fullDetailError = String(localized: "The original photo is no longer available for this find.")
+            return
+        }
+        isRescanning = true
+        fullDetailError = nil
+        Task {
+            defer { isRescanning = false }
+            let background = BackgroundScanActivity.begin("Full breakdown")
+            defer { background.end() }
+            // A server that still reads this device as free does not refuse
+            // the scan — it answers it, off the free allowance, stripped of
+            // exactly what this is for. Right after a purchase it usually
+            // does: the purchase tells the server in a detached task. So wait
+            // for the server to agree first, and do not scan if it will not.
+            if !Config.mockScans {
+                switch await purchaseService.resyncEntitlement() {
+                case .confirmed:
+                    break
+                case .notSubscribed:
+                    return                  // the panel is back to the teaser
+                case .failed(let reason):
+                    Analytics.shared.track(.entitlementSyncFailed(reason: reason))
+                    vm.showSubscriptionUnconfirmed = true
+                    return
+                }
+            }
+            do {
+                let response = try await purchaseService.confirmingSubscription {
+                    try await ScanAPIClient.shared.scan(image: photo)
+                }
+                // Still stripped: applying it would move the estimate and
+                // leave the panel as thin as before.
+                guard let detail = ValuationDetail(response: response), !detail.lacksProDetail else {
+                    Haptics.failure()
+                    fullDetailError = String(localized: "We couldn't load the full breakdown. Your estimate is unchanged.")
+                    return
+                }
+                result.applySharpened(response)
+                valuationDidChange()
+                priceRevealed = true
+                Haptics.success()
+                UIAccessibility.post(notification: .announcement,
+                                     argument: String(localized: "Full breakdown loaded."))
+            } catch {
+                Haptics.failure()
+                if AppError.from(error) == .subscriptionUnconfirmed {
+                    vm.showSubscriptionUnconfirmed = true
+                    return
+                }
+                fullDetailError = AppError.from(error).errorDescription
+                    ?? String(localized: "We couldn't load the full breakdown. Your estimate is unchanged.")
+            }
         }
     }
 

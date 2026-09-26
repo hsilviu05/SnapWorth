@@ -8305,6 +8305,42 @@
         }
       }
     },
+    "Full breakdown loaded." : {
+      "comment" : "VoiceOver announcement after the full \"Why this price\" panel arrives.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vollständige Aufschlüsselung geladen."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Full breakdown loaded."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Desglose completo cargado."
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Analiza completă s-a încărcat."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "完整分析已加载。"
+          }
+        }
+      }
+    },
     "General Feedback" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -14267,6 +14303,42 @@
         }
       }
     },
+    "Show the full breakdown" : {
+      "comment" : "Button under \"Why this price\": re-reads the find's photo to get the full panel.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vollständige Aufschlüsselung zeigen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Show the full breakdown"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ver el desglose completo"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Arată analiza completă"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "查看完整分析"
+          }
+        }
+      }
+    },
     "Shows a running total of this trip on your Lock Screen" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -16131,6 +16203,42 @@
         }
       }
     },
+    "This find was saved without its full breakdown. Re-read it to see the price points and what drives the value — the estimate may change." : {
+      "comment" : "Shown to a subscriber under \"Why this price\" when the find was saved with only the free part of the panel (usually scanned before they subscribed).",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dieser Fund wurde ohne die vollständige Aufschlüsselung gespeichert. Lies ihn neu, um die Preispunkte zu sehen und was den Wert treibt – die Schätzung kann sich ändern."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This find was saved without its full breakdown. Re-read it to see the price points and what drives the value — the estimate may change."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Este hallazgo se guardó sin el desglose completo. Vuelve a leerlo para ver los niveles de precio y qué sube el valor; la estimación puede cambiar."
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Găselnița asta a fost salvată fără analiza completă. Recitește-o ca să vezi pragurile de preț și ce ridică valoarea — estimarea se poate schimba."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这件好物保存时没有完整分析。重新识别一次，就能看到价格档位和什么在抬高价值——估价可能会变。"
+          }
+        }
+      }
+    },
     "This iPhone has no email account set up. Copy your message and send it to %@ from wherever you do have mail." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -17589,6 +17697,41 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "暂时无法确认你的订阅"
+          }
+        }
+      }
+    },
+    "We couldn't load the full breakdown. Your estimate is unchanged." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wir konnten die vollständige Aufschlüsselung nicht laden. Deine Schätzung bleibt unverändert."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "We couldn't load the full breakdown. Your estimate is unchanged."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No pudimos cargar el desglose completo. Tu estimación no ha cambiado."
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "N-am putut încărca analiza completă. Estimarea a rămas neschimbată."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "没能加载完整分析，估价保持不变。"
           }
         }
       }

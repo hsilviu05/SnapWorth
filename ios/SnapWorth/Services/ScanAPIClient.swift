@@ -290,6 +290,25 @@ struct ValuationDetail: Codable, Equatable {
             && size == nil && era == nil && material == nil
     }
 
+    /// True when this holds only what a free scan is sent: the confidence
+    /// score, its one-line summary and the condition grade.
+    ///
+    /// The server blanks everything else on a free response
+    /// (`_PRO_ONLY_DETAIL_FIELDS` in main.py) and the blob is written once, at
+    /// scan time. So a find scanned before its owner subscribed stays this
+    /// thin forever, and the Pro panel — which shows only the sections that
+    /// have content — rendered a score, a sentence and "good" to someone who
+    /// had just paid to see the rest. The result sheet offers a re-read when
+    /// this is true.
+    var lacksProDetail: Bool {
+        confidenceReasons.isEmpty && quickSale == nil && expected == nil
+            && bestCase == nil && worstCase == nil
+            && valueDrivers.isEmpty && assumptions.isEmpty && uncertaintyFactors.isEmpty
+            && improveEstimate.isEmpty && authenticityAssessment == nil
+            && authenticityReasoning == nil && demand == nil && supply == nil
+            && size == nil && era == nil && material == nil
+    }
+
     /// The price points that exist, floor to ceiling, ready to render.
     ///
     /// `isExpected` rather than a comparison against the label: the view used

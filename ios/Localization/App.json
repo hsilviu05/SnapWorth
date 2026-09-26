@@ -1749,6 +1749,14 @@
       "de": "Nur aus diesem Foto – keine Echtheitsprüfung.",
       "zh-Hans": "仅凭这张照片判断，不是鉴定结论。"
     },
+    "Full breakdown loaded.": {
+      "comment": "VoiceOver announcement after the full \"Why this price\" panel arrives.",
+      "en": "Full breakdown loaded.",
+      "ro": "Analiza completă s-a încărcat.",
+      "es": "Desglose completo cargado.",
+      "de": "Vollständige Aufschlüsselung geladen.",
+      "zh-Hans": "完整分析已加载。"
+    },
     "General Feedback": {
       "en": "General Feedback",
       "ro": "Păreri generale",
@@ -2966,6 +2974,14 @@
       "de": "Mitnehmen oder liegen lassen?",
       "zh-Hans": "这件值不值得拿下？"
     },
+    "Show the full breakdown": {
+      "comment": "Button under \"Why this price\": re-reads the find's photo to get the full panel.",
+      "en": "Show the full breakdown",
+      "ro": "Arată analiza completă",
+      "es": "Ver el desglose completo",
+      "de": "Vollständige Aufschlüsselung zeigen",
+      "zh-Hans": "查看完整分析"
+    },
     "Shows a running total of this trip on your Lock Screen": {
       "en": "Shows a running total of this trip on your Lock Screen",
       "ro": "Arată pe ecranul blocat cât ai strâns în tura asta",
@@ -3346,6 +3362,14 @@
       "de": "Dieses Gerät unterstützt die sichere Überprüfung nicht.",
       "zh-Hans": "这台设备不支持安全验证。"
     },
+    "This find was saved without its full breakdown. Re-read it to see the price points and what drives the value — the estimate may change.": {
+      "comment": "Shown to a subscriber under \"Why this price\" when the find was saved with only the free part of the panel (usually scanned before they subscribed).",
+      "en": "This find was saved without its full breakdown. Re-read it to see the price points and what drives the value — the estimate may change.",
+      "ro": "Găselnița asta a fost salvată fără analiza completă. Recitește-o ca să vezi pragurile de preț și ce ridică valoarea — estimarea se poate schimba.",
+      "es": "Este hallazgo se guardó sin el desglose completo. Vuelve a leerlo para ver los niveles de precio y qué sube el valor; la estimación puede cambiar.",
+      "de": "Dieser Fund wurde ohne die vollständige Aufschlüsselung gespeichert. Lies ihn neu, um die Preispunkte zu sehen und was den Wert treibt – die Schätzung kann sich ändern.",
+      "zh-Hans": "这件好物保存时没有完整分析。重新识别一次，就能看到价格档位和什么在抬高价值——估价可能会变。"
+    },
     "This iPhone has no email account set up. Copy your message and send it to %@ from wherever you do have mail.": {
       "en": "This iPhone has no email account set up. Copy your message and send it to %@ from wherever you do have mail.",
       "ro": "Pe iPhone-ul ăsta nu e configurat niciun cont de e-mail. Copiază mesajul și trimite-l la %@ de unde ai e-mail.",
@@ -3648,6 +3672,13 @@
       "es": "No pudimos confirmar tu suscripción",
       "de": "Wir konnten dein Abo nicht bestätigen",
       "zh-Hans": "暂时无法确认你的订阅"
+    },
+    "We couldn't load the full breakdown. Your estimate is unchanged.": {
+      "en": "We couldn't load the full breakdown. Your estimate is unchanged.",
+      "ro": "N-am putut încărca analiza completă. Estimarea a rămas neschimbată.",
+      "es": "No pudimos cargar el desglose completo. Tu estimación no ha cambiado.",
+      "de": "Wir konnten die vollständige Aufschlüsselung nicht laden. Deine Schätzung bleibt unverändert.",
+      "zh-Hans": "没能加载完整分析，估价保持不变。"
     },
     "We couldn't verify this device just now. Please try again in a moment.": {
       "comment": "Device verification (App Attest) hit an outage — ours or Apple's. Not a reason to reinstall.",
