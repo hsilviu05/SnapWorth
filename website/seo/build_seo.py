@@ -8,7 +8,7 @@ with FAQ schema for rich results.
 
 Run:  python3 website/seo/build_seo.py
 """
-import html, pathlib, datetime, re
+import html, pathlib, datetime, re, subprocess, sys
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]          # website/
 OUT = ROOT / "worth"
@@ -495,7 +495,50 @@ def hub_html():
 {footer()}
 </body></html>"""
 
+def _git(*args: str) -> str:
+    return subprocess.run(["git", *args], cwd=ROOT.parent, capture_output=True,
+                          text=True, check=True).stdout.strip()
+
+
+def lastmod(path: pathlib.Path) -> str:
+    """The date the file behind a URL last changed, from git.
+
+    A file with uncommitted changes is stamped today: it is about to be
+    committed, and this is the run that sees it. A clean file carries its last
+    commit's author date. Author, not committer, date, because a rebase or an
+    amend rewrites the committer date without changing the page.
+
+    That makes the sitemap a function of the committed tree, so CI can
+    regenerate it and fail when it is stale, the same as the pages.
+    Committing on a later day than the run that stamped "today" leaves one
+    URL a day behind; CI says so, and running this again fixes it.
+
+    The previous stamp was the file's mtime, which is not in git. A checkout
+    sets every mtime to the checkout time, so the committed sitemap kept
+    whatever day someone last ran this, 2026-09-12 for all 20 URLs while
+    index.html changed on the 20th and the 25th.
+    """
+    rel = str(path.relative_to(ROOT.parent))
+    try:
+        if _git("status", "--porcelain", "--", rel):
+            return TODAY
+        return _git("log", "-1", "--format=%as", "--", rel) or TODAY
+    except (OSError, subprocess.CalledProcessError):
+        # No git at all: an mtime is still better than one date for every URL.
+        return datetime.date.fromtimestamp(path.stat().st_mtime).isoformat()
+
+
 def build():
+    # A shallow clone knows one commit, so every file's "last change" would be
+    # that commit and every URL would get its date. Refuse rather than write it.
+    try:
+        shallow = _git("rev-parse", "--is-shallow-repository") == "true"
+    except (OSError, subprocess.CalledProcessError):
+        shallow = False
+    if shallow:
+        sys.exit("sitemap lastmod needs the full git history; this clone is "
+                 "shallow (in Actions: actions/checkout with fetch-depth: 0)")
+
     # individual pages
     for i, item in enumerate(ITEMS):
         related = [ITEMS[(i + k) % len(ITEMS)] for k in (1, 2, 3, 4)]
@@ -503,7 +546,7 @@ def build():
     # hub
     (OUT / "index.html").write_text(hub_html(), encoding="utf-8")
     # sitemap
-    # `lastmod` per URL, from the mtime of the file each one serves.
+    # `lastmod` per URL, from git: see `lastmod`.
     #
     # Every entry used to carry `date.today()` from whenever the generator last
     # ran — so all 19 URLs claimed 2026-08-22 while index.html had changed on
@@ -518,11 +561,7 @@ def build():
     sm = ['<?xml version="1.0" encoding="UTF-8"?>',
           '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">']
     for u, path in pages:
-        try:
-            stamp = datetime.date.fromtimestamp(path.stat().st_mtime).isoformat()
-        except OSError:
-            stamp = TODAY
-        sm.append(f"  <url><loc>{u}</loc><lastmod>{stamp}</lastmod></url>")
+        sm.append(f"  <url><loc>{u}</loc><lastmod>{lastmod(path)}</lastmod></url>")
     sm.append("</urlset>")
     (ROOT / "sitemap.xml").write_text("\n".join(sm) + "\n", encoding="utf-8")
     # robots
