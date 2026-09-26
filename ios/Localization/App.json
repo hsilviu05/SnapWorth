@@ -912,6 +912,14 @@
       "de": "Gewinn insgesamt",
       "zh-Hans": "总利润"
     },
+    "Allow notifications": {
+      "comment": "Banner title in Notification settings when iOS has never been asked for permission. Tapping it shows the system permission alert.",
+      "en": "Allow notifications",
+      "ro": "Permite notificările",
+      "es": "Permitir notificaciones",
+      "de": "Mitteilungen erlauben",
+      "zh-Hans": "允许通知"
+    },
     "Almost there…": {
       "en": "Almost there…",
       "ro": "Aproape gata…",
@@ -2206,6 +2214,14 @@
       "es": "Sin resultados para «%@»",
       "de": "Keine Treffer für „%@“",
       "zh-Hans": "没有找到“%@”"
+    },
+    "None of these reminders can arrive until you do.": {
+      "comment": "Under 'Allow notifications': until permission is given, none of the reminders listed below can be delivered.",
+      "en": "None of these reminders can arrive until you do.",
+      "ro": "Până atunci, niciunul dintre aceste memento-uri nu poate ajunge la tine.",
+      "es": "Hasta entonces, ninguno de estos avisos puede llegarte.",
+      "de": "Bis dahin kann keine dieser Erinnerungen ankommen.",
+      "zh-Hans": "在此之前，这些提醒都无法送达。"
     },
     "Not now": {
       "en": "Not now",

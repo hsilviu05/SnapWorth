@@ -1,5 +1,6 @@
 import XCTest
 import SwiftData
+import UserNotifications
 @testable import SnapWorth
 
 // MARK: - SwiftData 1.1.x -> 1.2.x migration
@@ -1048,10 +1049,26 @@ final class PortfolioDigestTests: XCTestCase {
             encoding: .utf8)) ?? ""
         XCTAssertTrue(view.contains("requestAuthorizationIfNeeded"),
                       "the toggle is the moment to ask")
-        XCTAssertTrue(view.contains(".notDetermined"),
-                      "the \"notifications are off\" banner must cover the " +
-                      "status a declined priming alert leaves behind, not only " +
-                      ".denied — which is never that user's status")
+    }
+
+    // ── The banner offers the fix that exists for the status ─────────────────
+
+    func test_aNeverAskedUserIsOfferedTheSystemAlertNotSettings() {
+        // "Not now" on the priming alert leaves `.notDetermined` for good, and
+        // iOS lists no Notifications switch for an app that has never asked.
+        // The banner sent exactly this user to Settings, to nothing.
+        XCTAssertEqual(NotificationSettingsView.PermissionBanner(status: .notDetermined), .ask)
+    }
+
+    func test_onlyADeclinedSystemAlertSendsTheUserToSettings() {
+        XCTAssertEqual(NotificationSettingsView.PermissionBanner(status: .denied), .openSettings)
+    }
+
+    func test_deliverableStatusesShowNoBanner() {
+        for status: UNAuthorizationStatus in [.authorized, .provisional, .ephemeral] {
+            XCTAssertEqual(NotificationSettingsView.PermissionBanner(status: status), .none,
+                           "status \(status.rawValue)")
+        }
     }
 }
 

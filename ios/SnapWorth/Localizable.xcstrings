@@ -4164,6 +4164,42 @@
         }
       }
     },
+    "Allow notifications" : {
+      "comment" : "Banner title in Notification settings when iOS has never been asked for permission. Tapping it shows the system permission alert.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mitteilungen erlauben"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Allow notifications"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Permitir notificaciones"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Permite notificările"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "允许通知"
+          }
+        }
+      }
+    },
     "Almost there…" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -10536,6 +10572,42 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "没有找到“%@”"
+          }
+        }
+      }
+    },
+    "None of these reminders can arrive until you do." : {
+      "comment" : "Under 'Allow notifications': until permission is given, none of the reminders listed below can be delivered.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bis dahin kann keine dieser Erinnerungen ankommen."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "None of these reminders can arrive until you do."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hasta entonces, ninguno de estos avisos puede llegarte."
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Până atunci, niciunul dintre aceste memento-uri nu poate ajunge la tine."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在此之前，这些提醒都无法送达。"
           }
         }
       }
