@@ -20,11 +20,17 @@ on:
     paths:
       - 'website/**'
       - 'marketing/mascot/**'
+      # The app's MoneyInput and its test cases, which the site's two money
+      # parsers are checked against below.
+      - 'ios/SnapWorth/Models/MarketplaceFees.swift'
+      - 'ios/SnapWorthTests/ProductionHardeningTests.swift'
       - '.github/workflows/website.yml'
   pull_request:
     paths:
       - 'website/**'
       - 'marketing/mascot/**'
+      - 'ios/SnapWorth/Models/MarketplaceFees.swift'
+      - 'ios/SnapWorthTests/ProductionHardeningTests.swift'
       - '.github/workflows/website.yml'
 
 concurrency:
@@ -51,6 +57,14 @@ jobs:
       # declared on all sixteen pages with its answer only inside the ld+json.
       - name: Every declared FAQ answer is on the page
         run: python3 website/seo/check_faq_visible.py
+
+      # The calculator's num() and /guess's parse() are copies of the app's
+      # MoneyInput rule, and drifted from it: both still read "1.250" as 1.25
+      # after the app fixed that in da0b242. This runs the app's own MoneyInput
+      # test cases through both with node (preinstalled on ubuntu-latest), so
+      # a case added to the Swift suite is enforced here as well.
+      - name: The site's money parsers agree with the app
+        run: python3 website/seo/check_money_parsers.py
 
       # Tag's inline SVG on index.html and 404.html is generated from
       # marketing/mascot/mascots.py, the same source as the app's artwork.

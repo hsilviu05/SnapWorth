@@ -205,15 +205,19 @@ PAGE = """<!doctype html><html lang="en"><head>
   }}
 
   // Accepts 12.50 and 12,50 — the same rule the app uses, because a comma is
-  // a decimal separator for most of the people who will play this.
+  // a decimal separator for most of the people who will play this. A lone
+  // separator followed by exactly three digits is grouping, whichever mark it
+  // is: 1,250 and 1.250 are both 1250. The point used to skip that test, so
+  // 1.250 scored as 1.25 (the app fixed the same asymmetry in da0b242).
+  // website/seo/check_money_parsers.py holds this to the app's test cases.
   function parse(text) {{
     var kept = (text || '').replace(/[^0-9.,]/g, '');
     if (!/[0-9]/.test(kept)) return null;
     var lc = kept.lastIndexOf(','), ld = kept.lastIndexOf('.');
+    var last = Math.max(lc, ld);
     var dec = -1;
-    if (lc > -1 && ld > -1) dec = Math.max(lc, ld);
-    else if (ld > -1) dec = ld;
-    else if (lc > -1) dec = (kept.length - lc - 1) === 3 ? -1 : lc;
+    if (lc > -1 && ld > -1) dec = last;
+    else if (last > -1) dec = (kept.length - last - 1) === 3 ? -1 : last;
     var out = '';
     for (var n = 0; n < kept.length; n++) {{
       if (kept[n] >= '0' && kept[n] <= '9') out += kept[n];
