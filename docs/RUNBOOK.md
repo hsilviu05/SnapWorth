@@ -28,8 +28,8 @@ flowchart LR
 |---|---|
 | API container | `backend/Dockerfile`, python 3.13-slim, unprivileged uid 10001 |
 | Process model | 1 uvicorn worker per container; scale horizontally |
-| Durable state | Redis — quota, entitlements, rate limits, attestation |
-| System of record | **None.** Redis is a cache; scan history lives on-device |
+| Durable state | Redis — quota, entitlements and the signed proofs behind them, refund tombstones, App Attest keys, referral codes, the operator's indexes, TikTok tokens, the free-scan lever, rate limits |
+| System of record | Scan history: none, it lives on-device. **Several Redis key families have no other copy** (§9), so Redis is their system of record and has to be persisted like one |
 | Metrics | `/metrics`, Prometheus text format `[DESIGNED]` |
 | Collector | `[NOT IMPLEMENTED]` — and **not planned**; see below |
 | Monitoring surface | **The Telegram ops bot.** This is the real one |
@@ -364,7 +364,7 @@ after tests pass (`.github/workflows/backend.yml`).
 | Blue/green | `[NOT IMPLEMENTED]` |
 | Canary | `[NOT IMPLEMENTED]` |
 | Instant rollback | Railway redeploy of a previous build |
-| Migrations | **None exist.** No relational database; Redis is a cache |
+| Migrations | **None exist.** No relational database; Redis holds durable state (§9) but has no schema to migrate |
 | Feature flags | Env-var based: `SCAN_PROMPT_VERSION`, `COMPS_ENABLED`, `COMPS_SHADOW_MODE`, `ALLOWED_STOREKIT_ENVIRONMENTS` |
 
 ### Shutdown sequence (implemented in `main._lifespan`)
@@ -394,7 +394,8 @@ still-starting instances, and the graceful shutdown achieves nothing.
 - [ ] Otherwise redeploy the previous Railway build
 - [ ] Verify `/health/ready` returns 200
 - [ ] Verify a real scan end-to-end
-- [ ] No data migration to reverse — Redis is a cache and the client holds history
+- [ ] No data migration to reverse. A rollback never touches Redis — do not
+      flush it as part of one; much of what it holds has no other copy (§9)
 
 ---
 
@@ -516,23 +517,84 @@ housekeeping, not an incident, and step 3 matters more than speed.
 
 ## 9. Disaster recovery
 
-**RPO/RTO are shaped by an unusual property: there is no system of record.**
-Scan history lives on-device, and StoreKit transactions are re-verifiable
-offline. Redis holds only derived state.
+**Redis is not a cache.** This section used to say it was: "Redis holds only
+derived state", an acceptable RPO of "effectively total loss", and "document
+this rather than engineering Redis persistence". That was true when written
+(b189302, July). Since then state with no other copy has moved in — refund
+tombstones (90b16f5), stored entitlement proofs (541e552), the free-scan lever
+and its change log (20abdb1), TikTok tokens (567f695), the referral pools and
+their ledger (f772c5c) — while App Attest keys were there all along. A fresh
+Redis is no longer a recovery. It is a different service that re-grants free
+scans, forgets refunds and forgets who is signed in.
+
+Scan history still lives on-device, and nothing here can lose it.
+
+### What Redis holds, and what losing it costs
+
+| Keys | Holds | TTL | Other copy? | Losing it |
+|---|---|---|---|---|
+| `attest:{keyId}` | each device's App Attest public key and counter | 400 d | **None** | Every device's next token refresh answers 401 "unknown key"; the app discards its key, attests again and comes back as a **new subject** — a re-attestation wave, and a fresh free allowance for every device DeviceCheck does not recognise (its bits live at Apple and survive) |
+| `quota:{subject}:{day}` | today's free scans used | 30 h | None | Everyone's allowance resets for today |
+| `quota:seen:*`, `quota:welcome:*` | first sighting; welcome granted or refused | 400 d | None | Every subject looks new: DeviceCheck is re-queried for the whole base, and with the first-day lever armed, devices it does not recognise get the welcome allowance again |
+| `entproof:{subject}` | Apple's signed transaction behind a Pro tier | to the term's end | On the device | Pro users read as free until the app re-syncs (`/auth/entitlement`, on the next status refresh) |
+| `ent:{subject}` | derived entitlement | 15 min / 24 h | Derived | Nothing lasting |
+| `entrevoked:{otid}` | refund and revoke tombstones | 400 d | Apple's notification history | A refunded purchase's transaction grants Pro again until that term expires (§16) |
+| `txn:{otid}` | devices bound to one subscription | 400 d | None | The six-device sharing cap starts counting from zero |
+| `apns2:{uuid}` | App Store notifications already handled | 5 d | None | A redelivered notification is processed twice (a conversion counted twice) |
+| `opsstate:levers` | the free-scan lever and its change log | none | **None** | The lever silently reverts to `FREE_SCANS_FIRST_DAY`, switching the experiment's arm mid-window, and `/experiment` loses the footnotes saying when it moved |
+| `opsidx:subs`, `opsidx:users` | the operator's subscriber and device tables | 400 d | Rebuilt slowly | `/subs` and `/users` start empty and refill as each subscriber syncs or Apple notifies — up to a year for yearly plans |
+| `opssocial:tiktok:tokens` | TikTok OAuth tokens | 400 d | **None** | `/social` loses TikTok until re-authorised |
+| `refpool:*`, `refpool:seen:*` | offer-code pools, cursor, and the loader's ledger of every code ever loaded | none | **None** | Unissued codes are gone; and without the ledger, reloading an old CSV hands out codes that were already given away |
+| `ref:*` | referral links, claims, earned and parked reward codes | 400 d | **None** | Referrers lose rewards they earned and have not redeemed |
+| `dct:{keyId}` | DeviceCheck token from attestation | 400 d | Next attest | Reinstall marking waits for the device's next attestation |
+| `opsstats:*`, `opsstate:*` (other), `chal:*`, rate limits, `comps:*`, `safety:*` | counters, digests, challenges, limits, caches | ≤ 400 d | — | Digest history and today's limits; disposable |
+
+**RPO for Redis is therefore not "total loss is fine".** Target: no more than
+one second of writes (`appendonly yes`, `appendfsync everysec`) on a volume
+that survives a restart and a redeploy of the Redis service.
+`[NOT VERIFIED]` — nobody has checked what Railway's Redis does today. To
+check, against the production instance:
+
+```
+redis-cli CONFIG GET appendonly     # want: yes
+redis-cli CONFIG GET appendfsync    # want: everysec
+redis-cli CONFIG GET save           # RDB snapshots as well are fine
+redis-cli INFO persistence          # aof_last_write_status:ok, rdb_last_bgsave_status:ok
+```
+
+and confirm in Railway that the Redis service has a volume attached.
+`🩺 Checkup`'s Redis line shows AOF and the last snapshot, and warns when a
+restart would lose everything.
 
 | Failure | Impact | Recovery | RTO |
 |---|---|---|---|
-| Container loss | None — stateless | Platform restarts | seconds |
-| Total Redis loss | Quota resets; Pro users re-sync on next status refresh | Provision new instance, set `REDIS_URL` | ~15 min `[ESTIMATED]` |
+| Container loss | None — the API container is stateless | Platform restarts | seconds |
+| Redis restart, persistence on | ≤ 1 s of writes | Automatic replay of the AOF | ~1 min `[ESTIMATED]` |
+| Redis data lost | Every row of the table above | Restore the volume or a snapshot first; only then the rebuild checklist below | Restore: ~15 min `[ESTIMATED]`; rebuild: weeks for `/subs` |
 | Gemini outage | Scans fail; everything else works | Wait, or add a fallback provider | Provider-dependent |
-| Region failure | Full outage | Redeploy to another region | ~1 hour `[ESTIMATED]` |
+| Region failure | Full outage | Redeploy to another region, **with Redis's data** | ~1 hour `[ESTIMATED]` |
 | Certificate expiry | Full outage | Platform auto-renews; pinning is report-only so a mismatch cannot brick clients | — |
 | Key compromise | Sessions invalid | Rotate `TOKEN_KEYS`, drop old immediately | ~10 min |
 
-**Acceptable RPO for Redis is effectively total loss.** Quota resets to today's
-allowance (a small revenue leak, not a correctness failure) and entitlements
-re-derive from the client's signed transaction. Document this rather than
-engineering Redis persistence for it.
+### If Redis's data is gone
+
+Restoring the volume, or any snapshot, comes first — a day-old snapshot loses
+a day; a fresh instance loses everything. Only if there is nothing to restore:
+
+- [ ] **Refund tombstones.** Pull REFUND and REVOKE notifications from the App
+      Store Server API's *Get Notification History* for as far back as Apple
+      keeps them, and write each tombstone by hand (§16 step 4).
+- [ ] **Referral codes.** Do **not** reload an old code CSV: the ledger that
+      stopped a code being loaded twice is gone, so already-issued codes would
+      be issued again. Load only a newly generated batch.
+- [ ] **Free-scan lever.** Re-arm it with `/lever` if it was armed, and note
+      the date — `/experiment` no longer knows when it moved.
+- [ ] **TikTok.** Re-authorise from `/social`.
+- [ ] **Expect, and do not chase:** a wave of re-attestations as every
+      device's next refresh answers 401; free allowances re-granted to devices
+      DeviceCheck does not recognise; Pro users shown as free until their app
+      re-syncs; `/subs` refilling over a renewal cycle.
+- [ ] Nothing on-device is lost, and nothing needs announcing to users.
 
 ---
 
@@ -624,6 +686,10 @@ work on does not.
 **Blocking**
 
 - [ ] `REDIS_URL` set and reachable
+- [ ] Redis persists to disk and survives a restart: `appendonly yes`,
+      `appendfsync everysec`, a volume attached (§9)
+- [ ] Redis `maxmemory-policy noeviction` with `maxmemory` set (§11); `🩺
+      Checkup` shows no ⚠️ on its Redis line
 - [ ] `TOKEN_KEYS` + `TOKEN_CURRENT_KID` set
 - [ ] `ENVIRONMENT=production` — two effects, both wanted: strict startup
       checks (refuses to boot without `TOKEN_KEYS`), and **no `/openapi.json`,
