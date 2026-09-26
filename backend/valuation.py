@@ -25,6 +25,7 @@ Three jobs
 
 from __future__ import annotations
 
+import dataclasses
 import logging
 import math
 from dataclasses import dataclass, field
@@ -76,9 +77,39 @@ class PricePoints:
     #: the disorder is gone.
     order_repaired: bool = False
 
+    #: How many *distinct* non-zero prices the model actually wrote. Every
+    #: other point on the ladder is derived from these.
+    #:
+    #: With one, `reconcile_prices` sets all four points to it, the clamp opens
+    #: the zero-width range by ×1.5, and confidence scored that invented span
+    #: as a tight range: a reply truncated after its first price field was
+    #: served as "$60–$90, High confidence". Carried across the clamp's
+    #: rebuild, which sees only the server's numbers.
+    supplied: int = 0
+    #: The model wrote both ends of the range itself — worst and best, or the
+    #: v1 low and high.
+    ends_supplied: bool = False
+
     @property
     def coherent(self) -> bool:
         return self.worst <= self.quick <= self.expected <= self.best
+
+    @property
+    def servable(self) -> bool:
+        """Enough of the model's own numbers to stand behind a range.
+
+        Both ends, or any two different prices. A model that writes the same
+        figure for worst and best has committed to a point estimate, which the
+        clamp opens into a range (see `promptsafety.clamp_valuation`); a reply
+        carrying one price and nothing else has committed to nothing, and is a
+        failed scan, the same as one carrying none.
+        """
+        return self.ends_supplied or self.supplied >= 2
+
+    @property
+    def single_price(self) -> bool:
+        """The served range was synthesised from one number, not given."""
+        return self.supplied < 2
 
 
 @dataclass
@@ -192,6 +223,8 @@ def reconcile_prices(
             return PricePoints(
                 worst=low, quick=low + (high - low) * 0.25,
                 expected=low + (high - low) * 0.5, best=high,
+                supplied=len({v for v in (legacy_low, legacy_high) if v > 0}),
+                ends_supplied=legacy_low > 0 and legacy_high > 0,
             )
         return PricePoints()
 
@@ -221,6 +254,8 @@ def reconcile_prices(
         # struggle — the same premise the completeness signal rests on. Repair
         # it, keep the user's scan, and let confidence know.
         order_repaired=ordered != resolved,
+        supplied=len(set(values)),
+        ends_supplied=worst > 0 and best > 0,
     )
 
 
@@ -393,9 +428,15 @@ def apply_price_bounds(valuation: Valuation) -> tuple[float, float, bool]:
         def _pin(value: float) -> float:
             return min(max(value, low), high) if value > 0 else 0.0
 
-        valuation.prices = reconcile_prices(
-            worst=low, quick=_pin(valuation.prices.quick),
-            expected=_pin(valuation.prices.expected), best=high)
+        # What the model supplied is carried over: the rebuild is handed the
+        # clamped span, so on its own it would count two prices for a reply
+        # that sent one.
+        valuation.prices = dataclasses.replace(
+            reconcile_prices(
+                worst=low, quick=_pin(valuation.prices.quick),
+                expected=_pin(valuation.prices.expected), best=high),
+            supplied=valuation.prices.supplied,
+            ends_supplied=valuation.prices.ends_supplied)
 
     # Only a real model error lowers confidence. A cheap item touching its
     # category floor, or a point estimate being opened into a range, is not one.

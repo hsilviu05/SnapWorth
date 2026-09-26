@@ -189,6 +189,7 @@ async def _predict_one(model, item, prompt_text: str, version: str, root: Path) 
         value_low=low, value_high=high, image_quality=quality, was_clamped=clamped,
         model_field_count=valuation_module.count_present_fields(val),
         expected_field_count=len(valuation_module.EXPECTED_OPTIONAL_FIELDS),
+        range_synthesised=val.prices.single_price,
     )
 
     prediction.predicted_expected = val.prices.expected

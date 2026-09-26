@@ -1152,6 +1152,83 @@ class TestClampPreservesTheModelsPointEstimate:
         assert body["est_value_high_usd"] == 5_000.0
 
 
+class TestAPartialPriceReplyIsNotServed:
+    """One price is not a valuation.
+
+    With a single non-zero price, `reconcile_prices` set all four points to
+    it, the clamp widened the zero-width range by ×1.5, and confidence scored
+    that invented span as tight. Reproduced: a reply carrying only
+    `expected_price_usd: 60` was served as $60–$90 with a score of 82-92 —
+    "High confidence … the analysis came back partial". The same class as the
+    fixed "$1-5" bug: an incomplete reply presented as a considered answer.
+    """
+
+    _PRICE_KEYS = ("worst_case_price_usd", "quick_sale_price_usd",
+                   "expected_price_usd", "best_case_price_usd",
+                   "est_value_low_usd", "est_value_high_usd")
+
+    def _only(self, **prices):
+        payload = {k: v for k, v in V2_PAYLOAD.items() if k not in self._PRICE_KEYS}
+        payload.update(prices)
+        return payload
+
+    @pytest.mark.parametrize("key", ["expected_price_usd", "quick_sale_price_usd",
+                                     "worst_case_price_usd", "best_case_price_usd",
+                                     "est_value_high_usd"])
+    def test_a_reply_with_one_price_is_a_failed_scan(self, key):
+        r = _scan_with(self._only(**{key: 60}), pro=True)
+        assert r.status_code == 502
+        assert r.json()["detail"] == "The AI couldn't price this item. Please try again."
+
+    def test_two_different_prices_are_enough(self):
+        body = _scan_with(self._only(worst_case_price_usd=40,
+                                     expected_price_usd=60), pro=True).json()
+        assert (body["est_value_low_usd"], body["est_value_high_usd"]) == (40, 60)
+
+    def test_a_deliberate_point_estimate_is_still_served(self):
+        """Worst and best both written, and equal: the model committed to one
+        figure. That is still opened into a range (`clamp_valuation`), as it
+        always was — but the range is ours, so it earns no tightness credit."""
+        point = self._only(worst_case_price_usd=50, quick_sale_price_usd=50,
+                           expected_price_usd=50, best_case_price_usd=50)
+        body = _scan_with(point, pro=True).json()
+        assert body["est_value_low_usd"] == 50 and body["est_value_high_usd"] == 75
+        assert "the range was estimated from a single price" in body["confidence_reasons"]
+        # The score itself is compared in the unit test below: the fixture
+        # photo is soft enough that the image ceiling caps both of these.
+        given = _scan_with(self._only(worst_case_price_usd=50, quick_sale_price_usd=55,
+                                      expected_price_usd=60, best_case_price_usd=75),
+                           pro=True).json()
+        assert "the range was estimated from a single price" not in given["confidence_reasons"]
+
+    def test_what_the_model_supplied_is_counted_before_any_repair(self):
+        assert not reconcile_prices(worst=0, quick=0, expected=60, best=0).servable
+        assert reconcile_prices(worst=0, quick=0, expected=60, best=0).single_price
+        assert reconcile_prices(worst=50, quick=0, expected=0, best=50).servable
+        assert reconcile_prices(worst=50, quick=0, expected=0, best=50).single_price
+        assert reconcile_prices(worst=40, quick=0, expected=60, best=0).servable
+        assert not reconcile_prices(worst=0, quick=0, expected=0, best=0,
+                                    legacy_high=50).servable
+        assert reconcile_prices(worst=0, quick=0, expected=0, best=0,
+                                legacy_low=20, legacy_high=50).servable
+
+    def test_the_clamp_rebuild_does_not_launder_a_single_price(self):
+        """The rebuild is handed the clamped span — two numbers — and would
+        count them as the model's if the provenance were not carried over."""
+        val = normalise({"category": "clothing", "worst_case_price_usd": 50,
+                         "best_case_price_usd": 50})
+        low, high, _ = valuation_module.apply_price_bounds(val)
+        assert high > low, "opened into a range"
+        assert val.prices.single_price and val.prices.servable
+
+    def test_confidence_gives_a_synthesised_range_no_credit(self):
+        given = _compute(value_low=50, value_high=75)
+        made = _compute(value_low=50, value_high=75, range_synthesised=True)
+        assert made.score < given.score
+        range_signal = next(s for s in made.signals if s.name == "range")
+        assert range_signal.value == 0.0
+
+
 class TestProDetailGate:
     """The "Why this price" payload is Pro-only. Until now the gate was a
     `.blur()` in ResultView over data that had already left the server."""

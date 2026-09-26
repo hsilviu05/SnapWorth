@@ -165,11 +165,15 @@ def compute(
     was_clamped: bool = False,
     model_field_count: int = 0,
     expected_field_count: int = 0,
+    range_synthesised: bool = False,
 ) -> ConfidenceResult:
     """Compute confidence from observable signals.
 
     Every argument is something we can check independently of the model's
     opinion, except `identification_certainty`, which is included at low weight.
+
+    `range_synthesised` means the model gave one price and the server opened
+    it into `value_low`–`value_high` (`valuation.PricePoints.single_price`).
     """
     signals: list[ConfidenceSignal] = []
 
@@ -183,7 +187,14 @@ def compute(
     ))
 
     # ── Price-range tightness ───────────────────────────────────────────────
-    tightness, tightness_reason = _range_tightness(value_low, value_high)
+    # A range the server opened from a single price is ×1.5 by construction,
+    # so it always measured "tight" — the one channel the model cannot fake
+    # was being faked on its behalf. No credit: it says nothing about how
+    # well the item is priced.
+    if range_synthesised:
+        tightness, tightness_reason = 0.0, "the range was estimated from a single price"
+    else:
+        tightness, tightness_reason = _range_tightness(value_low, value_high)
     signals.append(ConfidenceSignal("range", tightness, 0.20, tightness_reason))
 
     # ── Image quality ───────────────────────────────────────────────────────

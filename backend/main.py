@@ -1732,7 +1732,12 @@ async def _analyse(image_bytes: bytes, content_type: str, *, subject: str,
     # missing prices to 0, `or` treats 0 as absent, and the constants were
     # presented as the estimate. Honest valuation is the product; inventing a
     # number when the model gave none is the one failure mode worth 502-ing for.
-    if not val.prices.worst or not val.prices.best:
+    #
+    # One price is the same failure. `reconcile_prices` copies it to all four
+    # points and the clamp opens it by ×1.5, so a reply cut off after its first
+    # price field was served as "$60–$90, High confidence". `servable` asks for
+    # both ends, or two different prices, from the model itself.
+    if not val.prices.servable:
         # ...unless the model priced it at zero on purpose. The prompt's last
         # honesty rule tells it to, for "a person, a pet, a room, a screenshot,
         # food" — so the documented correct answer was being served as a
@@ -1792,6 +1797,7 @@ async def _analyse(image_bytes: bytes, content_type: str, *, subject: str,
         was_clamped=was_clamped,
         model_field_count=valuation_module.count_present_fields(val),
         expected_field_count=len(valuation_module.EXPECTED_OPTIONAL_FIELDS),
+        range_synthesised=val.prices.single_price,
     )
     val.confidence = conf
     metrics.confidence_score.observe(conf.score)
