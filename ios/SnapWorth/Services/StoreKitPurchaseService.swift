@@ -77,7 +77,8 @@ final class StoreKitPurchaseService: PurchaseService, ObservableObject {
             await transaction.finish()
             await refreshSubscriptionStatus()
             // Fires on the confirmed StoreKit transaction — never on the tap.
-            Analytics.shared.track(.purchaseCompleted(productID: transaction.productID))
+            Analytics.shared.track(.purchaseCompleted(productID: transaction.productID,
+                                                      isFirst: ScanTally.isFirstRun()))
             return .completed
         case .userCancelled:
             Analytics.shared.track(.purchaseFailed(productID: productID, reason: "cancelled"))

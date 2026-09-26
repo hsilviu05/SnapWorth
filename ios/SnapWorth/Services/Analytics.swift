@@ -13,10 +13,12 @@ import Foundation
 ///   scan_started → scan_result_shown → free_scan_limit_hit →
 ///   paywall_viewed → purchase_completed / paywall_dismissed
 ///
-/// **Day-0 is a parameter, not a second set of events.** Four events carry
+/// **Day-0 is a parameter, not a second set of events.** Six events carry
 /// `is_first`, so a first-run funnel is the same query with one filter rather
 /// than a parallel family of `first_*` names that a future call site could
-/// forget to emit. `ScanTally` decides what "first" means, in one place.
+/// forget to emit. `ScanTally` decides what "first" means, in one place:
+/// `isFirstScan()` for an event read before the scan is recorded,
+/// `isFirstRun()` for one that can only fire after it.
 ///
 /// Rules: no PII ever. Categories come from the fixed `ItemCategory` enum;
 /// amounts and item names are never included.
@@ -47,9 +49,9 @@ enum AnalyticsEvent {
     /// give a look-to-buy rate; a purchase closes it through
     /// `purchase_completed` instead and does not emit this.
     case paywallDismissed(trigger: PaywallTrigger)
-    case purchaseStarted(productID: String)
+    case purchaseStarted(productID: String, isFirst: Bool)
     /// Fires on the confirmed StoreKit transaction — never on a button tap.
-    case purchaseCompleted(productID: String)
+    case purchaseCompleted(productID: String, isFirst: Bool)
     case purchaseFailed(productID: String, reason: String)
     case restoreCompleted
     case shareCardOpened
@@ -180,8 +182,8 @@ enum AnalyticsEvent {
             return ["trigger": trigger.rawValue, "is_first": String(isFirst)]
         case let .ledgerPaywallHit(trigger), let .paywallDismissed(trigger):
             return ["trigger": trigger.rawValue]
-        case let .purchaseStarted(productID), let .purchaseCompleted(productID):
-            return ["product_id": productID]
+        case let .purchaseStarted(productID, isFirst), let .purchaseCompleted(productID, isFirst):
+            return ["product_id": productID, "is_first": String(isFirst)]
         case let .purchaseFailed(productID, reason):
             return ["product_id": productID, "reason": reason]
         case let .shareCardShared(activityType):

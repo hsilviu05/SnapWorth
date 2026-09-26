@@ -252,11 +252,11 @@ struct ResultView: View {
             // lands; persistence, image encoding and sheet presentation all sit
             // between that and the user actually seeing a number.
             //
-            // `completedCount() <= 1` rather than `isFirstScan()`: the tally has
+            // `isFirstRun()` rather than `isFirstScan()`: the tally has
             // already been recorded by the time this view appears, so the first
             // valuation reads 1, not 0. Correct under either ordering.
             if isFreshScan {
-                Analytics.shared.track(.scanResultShown(isFirst: ScanTally.completedCount() <= 1))
+                Analytics.shared.track(.scanResultShown(isFirst: ScanTally.isFirstRun()))
             }
             if let data = result.imageData {
                 photo = await Task.detached(priority: .userInitiated) {

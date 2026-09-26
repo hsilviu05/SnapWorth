@@ -262,8 +262,10 @@ struct PaywallView: View {
         }
         .onAppear {
             vm.startCloseButtonTimer()
+            // `isFirstRun`, not `isFirstScan`: both first-run paywalls open
+            // after the first result has been recorded.
             Analytics.shared.track(.paywallViewed(trigger: trigger,
-                                                  isFirst: ScanTally.isFirstScan()))
+                                                  isFirst: ScanTally.isFirstRun()))
         }
         .onDisappear {
             vm.cancelTimer()

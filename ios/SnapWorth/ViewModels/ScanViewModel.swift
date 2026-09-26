@@ -257,6 +257,20 @@ enum ScanTally {
         completedCount(defaults: defaults) == 0
     }
 
+    /// True through the user's first valuation: before it, and while it is
+    /// still the only one.
+    ///
+    /// For events that can only fire *after* `record()`. The paywall a new
+    /// user actually sees opens once their first result is in — the intro
+    /// paywall when the result sheet closes, or the scan-limit one after the
+    /// allowance is spent — and `isFirstScan()` is false by then, so
+    /// `paywall_viewed{is_first}` was false for almost every first-run
+    /// paywall and a Day-0 funnel lost its bottom half. `scan_result_shown`
+    /// already read `<= 1` for the same reason.
+    static func isFirstRun(defaults: UserDefaults = .standard) -> Bool {
+        completedCount(defaults: defaults) <= 1
+    }
+
     /// Record a scan that produced a result. Returns the milestone this scan
     /// just crossed, or nil.
     @discardableResult

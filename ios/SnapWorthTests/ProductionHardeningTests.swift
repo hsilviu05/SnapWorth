@@ -5467,6 +5467,20 @@ final class RetentionFunnelTests: XCTestCase {
                       "a failed scan must not spend the user's first-scan status")
     }
 
+    /// The paywall a new user sees opens after `record()`: the intro paywall
+    /// when the first result closes, the scan-limit one once the allowance is
+    /// spent. `isFirstScan()` is already false by then, so every first-run
+    /// paywall reported `is_first=false`.
+    func test_theFirstRunLastsThroughTheFirstValuation() {
+        XCTAssertTrue(ScanTally.isFirstRun(defaults: defaults), "before any scan")
+        ScanTally.record(defaults: defaults)
+        XCTAssertFalse(ScanTally.isFirstScan(defaults: defaults))
+        XCTAssertTrue(ScanTally.isFirstRun(defaults: defaults),
+                      "the paywall after the first result is still the first run")
+        ScanTally.record(defaults: defaults)
+        XCTAssertFalse(ScanTally.isFirstRun(defaults: defaults))
+    }
+
     func test_milestonesFireAtOneThreeAndFiveAndNowhereElse() {
         var fired: [Int] = []
         for _ in 1...8 {
@@ -5495,14 +5509,17 @@ final class RetentionFunnelTests: XCTestCase {
         XCTAssertEqual(AnalyticsEvent.paywallDismissed(trigger: .scanLimit).name, "paywall_dismissed")
     }
 
-    func test_isFirstRidesOnAllFourFunnelEvents() {
+    func test_isFirstRidesOnEveryFunnelEvent() {
         // One filter has to work across the whole first run, so the parameter
-        // name must be identical on every event that carries it.
+        // name must be identical on every event that carries it — down to the
+        // purchase, or a Day-0 funnel stops at the paywall.
         let events: [AnalyticsEvent] = [
             .scanStarted(isFirst: true),
             .scanResultShown(isFirst: true),
             .scanFailed(reason: .network, isFirst: true),
             .paywallViewed(trigger: .scanLimit, isFirst: true),
+            .purchaseStarted(productID: Config.yearlyProductID, isFirst: true),
+            .purchaseCompleted(productID: Config.yearlyProductID, isFirst: true),
         ]
         for event in events {
             XCTAssertEqual(event.parameters["is_first"], "true",
@@ -5541,6 +5558,20 @@ final class RetentionFunnelTests: XCTestCase {
     }
 
     // ── Where they fire ─────────────────────────────────────────────────────
+
+    /// Source-inspected: the paywall's `onAppear` is where `paywall_viewed`
+    /// is built, and the fix is which `ScanTally` question it asks.
+    func test_thePaywallAsksWhetherThisIsTheFirstRunNotTheFirstScan() throws {
+        let source = try String(
+            contentsOf: URL(fileURLWithPath: #filePath)
+                .deletingLastPathComponent()
+                .deletingLastPathComponent()
+                .appendingPathComponent("SnapWorth/Views/PaywallView.swift"),
+            encoding: .utf8)
+        XCTAssertTrue(source.contains("isFirst: ScanTally.isFirstRun()"))
+        XCTAssertFalse(source.contains("ScanTally.isFirstScan()"),
+                       "both first-run paywalls open after the first scan is recorded")
+    }
 
     /// Source-inspected, like the repo's other "a modifier that must be there"
     /// tests: a purchase also dismisses the sheet, and counting that as a
