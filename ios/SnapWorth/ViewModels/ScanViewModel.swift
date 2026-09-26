@@ -143,11 +143,9 @@ final class ScanViewModel {
                 }
             }
 
-            // Ask for a rating on a high point — after the result is on screen.
-            Task {
-                try? await Task.sleep(for: .seconds(1.2))
-                ReviewPrompt.recordSuccessfulScan()
-            }
+            // Counted here; the rating request itself waits for the price to
+            // be revealed on the result sheet — see `ReviewPrompt`.
+            ReviewPrompt.recordSuccessfulScan()
 
             // Only scans schedule the monthly recap — never app launch — so a
             // quiet month fires nothing. Fires once this month reaches 3 scans.

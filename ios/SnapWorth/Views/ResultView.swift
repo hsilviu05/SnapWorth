@@ -265,6 +265,17 @@ struct ResultView: View {
             }
             vm.prepareShareCard(result: result, photo: photo)
         }
+        // The rating request waits for the number. Keyed on the cover, so it
+        // runs when a fresh sheet opens uncovered (guess-first off) and again
+        // at the reveal; a sheet dismissed inside the pause cancels it rather
+        // than prompting over the camera.
+        .task(id: priceCovered) {
+            guard isFreshScan, !priceCovered,
+                  ReviewPrompt.isWorthAskingAbout(confidence: result.confidence) else { return }
+            try? await Task.sleep(for: .seconds(2))
+            guard !Task.isCancelled else { return }
+            ReviewPrompt.requestIfDue()
+        }
         // `Double(newValue)` here discarded every comma-decimal amount — see
         // `MoneyInput`. Clearing the field still clears the stored value; a
         // half-typed or unparseable one now leaves the last good value alone

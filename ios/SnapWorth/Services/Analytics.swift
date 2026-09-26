@@ -86,6 +86,12 @@ enum AnalyticsEvent {
     case notificationScheduled(category: String)
     case notificationOpened(category: String)
 
+    // ── Ratings ──────────────────────────────────────────────────────
+    /// `ReviewPrompt` asked iOS for a rating prompt. Whether iOS showed one is
+    /// not knowable — it answers nothing — so this counts requests, which is
+    /// what the 60-day gap and the three-a-year budget are spent in.
+    case reviewPromptRequested
+
     // ── Stability (MetricKit) ────────────────────────────────────────
     /// A crash reported by MetricKit on a later launch. Signal and termination
     /// are both bucketed — never raw call stacks or termination text.
@@ -152,6 +158,7 @@ enum AnalyticsEvent {
         case .ledgerMonthShared:    return "ledger_month_shared"
         case .notificationScheduled:return "notification_scheduled"
         case .notificationOpened:   return "notification_opened"
+        case .reviewPromptRequested: return "review_prompt_requested"
         case .persistentStoreFallback: return "persistent_store_fallback"
         case .certificatePinMismatch: return "certificate_pin_mismatch"
         case .crashReported:        return "crash_reported"

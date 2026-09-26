@@ -4808,9 +4808,10 @@ final class SettingsEntitlementObservationTests: XCTestCase {
     func test_theRateRowDoesNotSpendASystemPrompt() throws {
         // `requestReview()` asks the system to *maybe* show a prompt — roughly
         // three per year per app, ignored otherwise with no error and no
-        // callback — and `ReviewPrompt` already spends that quota on the third
-        // successful scan of each version. So for every engaged user, the only
-        // kind who goes looking for the row, tapping it did nothing.
+        // callback — and `ReviewPrompt` already spends that quota on its own,
+        // after a revealed estimate once three scans are in. So for every
+        // engaged user, the only kind who goes looking for the row, tapping it
+        // did nothing.
         let settings = try source("Views/SettingsView.swift")
         XCTAssertTrue(settings.contains("action=write-review"),
                       "the row must open the review composer")
@@ -5513,7 +5514,7 @@ final class ThriftFlipLibraryPersistenceTests: XCTestCase {
 // ── The retention funnel: is_first, the tally, and the events ────────────────
 //
 // The funnel had no way to answer "did this person ever get a valuation out of
-// us". `ScanStreak` counts days, `ReviewPrompt` counts per version and
+// us". `ScanStreak` counts days, `ReviewPrompt` counts towards a request and
 // `FreeScanCounter` counts today — none of them counts ever. `ScanTally` does,
 // and `is_first` on four events is what makes a Day-0 funnel one filter rather
 // than a parallel family of `first_*` names a later call site could forget.
@@ -5871,5 +5872,94 @@ final class TrialReminderTimingTests: XCTestCase {
                               "\(zone) end \(minute / 60):\(minute % 60) fires at \(c.hour ?? -1):\(c.minute ?? -1)")
             }
         }
+    }
+}
+
+// ── The rating request waits for the number ──────────────────────────────────
+//
+// It fired 1.2 seconds after a fresh result opened — under the guess-first
+// cover, before the user had seen the price they scanned for — and "once per
+// version" re-armed it on every update. iOS allows three prompts a year.
+
+@MainActor
+final class ReviewPromptTimingTests: XCTestCase {
+
+    private var defaults: UserDefaults!
+    private let now = Date(timeIntervalSince1970: 1_790_000_000)
+
+    override func setUp() {
+        super.setUp()
+        defaults = UserDefaults(suiteName: "ReviewPromptTests-\(UUID().uuidString)")
+    }
+
+    func test_notBeforeTheThirdScan() {
+        XCTAssertFalse(ReviewPrompt.isDue(scanCount: 2, lastRequest: nil, now: now))
+        XCTAssertTrue(ReviewPrompt.isDue(scanCount: 3, lastRequest: nil, now: now))
+    }
+
+    func test_notAgainInsideTheGap_whateverTheVersion() {
+        XCTAssertGreaterThanOrEqual(ReviewPrompt.minimumGap, 60 * 86_400)
+        let gap = ReviewPrompt.minimumGap
+        XCTAssertFalse(ReviewPrompt.isDue(scanCount: 50, lastRequest: now.addingTimeInterval(-gap + 60),
+                                          now: now))
+        XCTAssertTrue(ReviewPrompt.isDue(scanCount: 50, lastRequest: now.addingTimeInterval(-gap),
+                                         now: now))
+    }
+
+    func test_aClockThatMovedBackwardsIsNotDue() {
+        XCTAssertFalse(ReviewPrompt.isDue(scanCount: 50, lastRequest: now.addingTimeInterval(3600),
+                                          now: now))
+    }
+
+    func test_onlyAConfidentEstimateIsAMomentToAsk() {
+        for c in ["High", "high", "Medium", "medium"] {
+            XCTAssertTrue(ReviewPrompt.isWorthAskingAbout(confidence: c), c)
+        }
+        for c in ["Low", "low", "", "unknown"] {
+            XCTAssertFalse(ReviewPrompt.isWorthAskingAbout(confidence: c), c)
+        }
+    }
+
+    func test_countingAScanNeverRequests() {
+        for _ in 0..<5 { ReviewPrompt.recordSuccessfulScan(defaults: defaults) }
+        XCTAssertEqual(defaults.integer(forKey: "snapworth_successful_scans"), 5)
+        XCTAssertNil(defaults.object(forKey: "snapworth_review_last_requested"),
+                     "the scan path must only count")
+    }
+
+    func test_anUpgradeFromThePerVersionRuleStartsTheGapRatherThanAsking() {
+        // An earlier build asked at some unknown moment — most likely during
+        // the run of updates just gone. Treating that as long ago would spend
+        // another of the three a year straight away.
+        defaults.set(5, forKey: "snapworth_successful_scans")
+        defaults.set("1.4.1", forKey: "snapworth_review_prompted_version")
+        ReviewPrompt.requestIfDue(defaults: defaults, now: now)
+        XCTAssertEqual(defaults.object(forKey: "snapworth_review_last_requested") as? Date, now)
+    }
+
+    func test_theRequestIsMadeFromTheRevealedResult() throws {
+        func source(_ path: String) throws -> String {
+            try String(contentsOf: URL(fileURLWithPath: #filePath)
+                .deletingLastPathComponent()
+                .deletingLastPathComponent()
+                .appendingPathComponent("SnapWorth/\(path)"), encoding: .utf8)
+        }
+        let scan = try source("ViewModels/ScanViewModel.swift")
+        XCTAssertFalse(scan.contains("requestIfDue"), "the scan path asks before the price is seen")
+        XCTAssertFalse(scan.contains(".seconds(1.2)"), "the timer that raced the reveal is back")
+
+        let result = try source("Views/ResultView.swift")
+        guard let task = result.range(of: ".task(id: priceCovered)") else {
+            return XCTFail("the request is no longer keyed on the cover")
+        }
+        let body = String(result[task.upperBound...].prefix(500))
+        XCTAssertTrue(body.contains("!priceCovered"), "must wait for the reveal")
+        XCTAssertTrue(body.contains("isWorthAskingAbout"), "must skip a Low estimate")
+        XCTAssertTrue(body.contains("ReviewPrompt.requestIfDue()"))
+    }
+
+    func test_theRequestIsCounted() {
+        XCTAssertEqual(AnalyticsEvent.reviewPromptRequested.name, "review_prompt_requested")
+        XCTAssertEqual(AnalyticsEvent.reviewPromptRequested.parameters, [:])
     }
 }
