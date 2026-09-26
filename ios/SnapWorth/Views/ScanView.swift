@@ -373,8 +373,20 @@ struct ScanView: View {
             // itself. It did not: the cap lived only inside
             // `ThriftRunController.update`, reachable only when a scan is
             // written — so the abandoned run it exists for never met it.
+            //
+            // And a run still inside the cap is re-published. Ninety minutes
+            // without a scan turns the Activity stale, and the stale banner's
+            // one instruction is "open SnapWorth to refresh" — but its stale
+            // date moves only in `update(results:)`, reached from a scan
+            // mutation, so opening the app changed nothing and the banner
+            // stayed grey until the next scan. `refreshWidget` is the same
+            // debounced path a scan takes, run with nothing changed.
             Task {
-                if await ThriftRunController.endIfExpired() { isRunOn = false }
+                if await ThriftRunController.endIfExpired() {
+                    isRunOn = false
+                } else if ThriftRunController.isRunning {
+                    ScanRepository(context: modelContext).refreshWidget()
+                }
             }
         }
         .onChange(of: cameraManager.authStatus) { _, status in

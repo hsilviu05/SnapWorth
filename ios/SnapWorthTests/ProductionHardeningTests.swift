@@ -6012,3 +6012,55 @@ final class WidgetURLRoutingTests: XCTestCase {
         XCTAssertNil(SnapWorthApp.route(url("https://snapworth.app/scan"), onboarded: true))
     }
 }
+
+// ── "Open SnapWorth to refresh" has to refresh ───────────────────────────────
+//
+// The stale Live Activity's one instruction. Its stale date moved only in
+// `ThriftRunController.update(results:)`, reached from a scan mutation, so
+// opening the app changed nothing. ActivityKit cannot hand a test a live
+// Activity, so the two call sites are held by their source, as the other
+// ActivityKit paths are.
+
+final class StaleRunRefreshTests: XCTestCase {
+
+    private func source(_ path: String) throws -> String {
+        try String(contentsOf: URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("SnapWorth/\(path)"), encoding: .utf8)
+    }
+
+    func test_comingForwardRepublishesALiveRun() throws {
+        let view = try source("Views/ScanView.swift")
+        guard let handler = view.range(of: ".onChange(of: scenePhase)") else {
+            return XCTFail("the foreground handler moved")
+        }
+        let body = String(view[handler.upperBound...].prefix(2_500))
+        XCTAssertTrue(body.contains("ThriftRunController.isRunning"))
+        XCTAssertTrue(body.contains(".refreshWidget()"),
+                      "a warm open leaves a stale run grey until the next scan")
+    }
+
+    func test_aColdLaunchRepublishesALiveRun() throws {
+        let app = try source("SnapWorthApp.swift")
+        guard let seed = app.range(of: "private func seedWidgetData(") else {
+            return XCTFail("the launch seed moved")
+        }
+        let body = String(app[seed.upperBound...].prefix(2_000))
+        XCTAssertTrue(body.contains("ThriftRunController.update(results:"),
+                      "a launch from the stale Activity itself changes nothing")
+        XCTAssertTrue(body.contains("isRunningOnFallbackStore"),
+                      "a fallback launch's empty library would zero a real run")
+    }
+
+    @MainActor
+    func test_theRefreshIsTheSameDebouncedPathAScanTakes() throws {
+        // `refreshWidget` must go through the coalesced sync, which is what
+        // updates the run, rather than a second route to keep in step.
+        let config = ModelConfiguration(isStoredInMemoryOnly: true)
+        let container = try ModelContainer(for: ScanResult.self, configurations: config)
+        defer { ScanRepository.widgetSync?.cancel() }
+        ScanRepository(context: ModelContext(container)).refreshWidget()
+        XCTAssertNotNil(ScanRepository.widgetSync)
+    }
+}

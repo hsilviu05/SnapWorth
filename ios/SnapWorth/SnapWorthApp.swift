@@ -234,6 +234,13 @@ struct SnapWorthApp: App {
         let ctx = sharedModelContainer.mainContext
         guard let results = try? ctx.fetch(FetchDescriptor<ScanResult>()) else { return }
         WidgetDataStore.writeHaul(results: results, isPro: isPro)
+        // The run too, for the launch the Activity itself asked for: a stale
+        // one says "open SnapWorth to refresh", and a cold launch from it
+        // reaches here, not `ScanView`'s foreground handler. A no-op without
+        // a live run, and skipped on a fallback launch for the reason
+        // `writeHaul` gives: its empty library would zero a real run.
+        guard !AppLaunchState.isRunningOnFallbackStore else { return }
+        Task { await ThriftRunController.update(results: results) }
     }
 }
 
