@@ -21,6 +21,13 @@ APP_ID = "6788521307"
 # "download it from the App Store", so on iOS Safari this is the shortest path
 # from a search result to an install — and it was on none of the 19 pages.
 SMART_BANNER = f'<meta name="apple-itunes-app" content="app-id={APP_ID}">\n'
+# Vercel Web Analytics: the same two tags index.html and support.html carry,
+# cookieless, so no consent banner. 940d471 added them by hand to the two
+# pages that existed then, and every page built since was generated without
+# them, so the /worth guides and /guess could not be measured against each
+# other or against the homepage. build_guess.py imports this.
+ANALYTICS = ('<script>window.va=window.va||function(){(window.vaq=window.vaq||[]).push(arguments);};</script>\n'
+             '<script defer src="/_vercel/insights/script.js"></script>\n')
 TODAY = datetime.date.today().isoformat()
 YEAR = datetime.date.today().year
 
@@ -424,7 +431,7 @@ def page_html(item, related):
 <a href="/worth" style="color:var(--terra-text);font-weight:700;margin-top:8px">See all resale values →</a></div>
 </div></main>
 {footer()}
-</body></html>"""
+{ANALYTICS}</body></html>"""
 
 def hub_html():
     e = html.escape
@@ -493,7 +500,7 @@ def hub_html():
 {cta('thrift find')}
 </div></main>
 {footer()}
-</body></html>"""
+{ANALYTICS}</body></html>"""
 
 def _git(*args: str) -> str:
     return subprocess.run(["git", *args], cwd=ROOT.parent, capture_output=True,

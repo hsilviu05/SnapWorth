@@ -33,7 +33,7 @@ import json
 import pathlib
 import re
 
-from build_seo import APP_STORE, ITEMS, SITE, STYLE
+from build_seo import ANALYTICS, APP_STORE, ITEMS, SITE, STYLE
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 APP_ID = "6788521307"
@@ -384,7 +384,7 @@ PAGE = """<!doctype html><html lang="en"><head>
   start();
 }})();
 </script>
-</body></html>
+{analytics}</body></html>
 """
 
 
@@ -396,6 +396,7 @@ def build() -> None:
         app_store=APP_STORE,
         app_id=APP_ID,
         style=STYLE,
+        analytics=ANALYTICS,
         data=html.escape(json.dumps(data, ensure_ascii=False), quote=False),
     )
     (ROOT / "guess.html").write_text(page, encoding="utf-8")
