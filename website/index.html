@@ -2097,8 +2097,11 @@ details[open] .faq-x::after { transform: rotate(90deg); }
             <!-- h3, not h4: the nearest heading above this is the section's
                  `.tf-h2`, so an h4 skips a level and leaves a gap in the
                  document outline a screen reader reads out. -->
-            <h3>Scanning and the resale estimate are free.</h3>
-            <p>The Thrift Flip profit verdict is part of the paid subscription &mdash; one free scan a day either way.</p>
+            <!-- Thrift Flip has been free in full since 1.4.3 (#128): the app
+                 stopped gating what this calculator gives away. Its Pro gate
+                 is the ledger a saved flip lands in, listed under Pricing. -->
+            <h3>Scanning, the estimate and Thrift Flip are free.</h3>
+            <p>The verdict, the profit and the fee breakdown are free for everyone &mdash; one free scan a day, and Pro removes the limit.</p>
           </div>
           <a href="#pricing" class="tf-foot-cta">See pricing</a>
         </div>
@@ -2203,6 +2206,11 @@ details[open] .faq-x::after { transform: rotate(90deg); }
         <h2 class="section-title">Start free.<br>Upgrade when you're ready.</h2>
         <p class="section-sub">One free scan a day with no card required. Pro unlocks unlimited.</p>
       </div>
+      <!-- The Pro lists are the app's real gates (the `PaywallTrigger` cases
+           in Analytics.swift), not a wish list: Thrift Flip went free in 1.4.3,
+           and the portfolio total was always free (the FAQ below says so) —
+           only its history is Pro. When a gate moves, change this list in the
+           same change as the paywall and the App Store listings. -->
       <div class="pricing-grid">
 
         <div class="plan">
@@ -2213,6 +2221,7 @@ details[open] .faq-x::after { transform: rotate(90deg); }
           <ul class="plan-features">
             <li>1 free scan a day</li>
             <li>Full value estimates</li>
+            <li>Thrift Flip profit verdict</li>
             <li>Your whole scan history</li>
           </ul>
           <a href="https://apps.apple.com/us/app/snapworth-resale-scanner/id6788521307" class="plan-cta plan-cta-outline">Download Free</a>
@@ -2226,10 +2235,11 @@ details[open] .faq-x::after { transform: rotate(90deg); }
           <div class="plan-divider"></div>
           <ul class="plan-features">
             <li>Unlimited scans</li>
-            <li>Thrift Flip profit verdict</li>
             <li>AI listing generator</li>
             <li>Why it&rsquo;s worth that &mdash; four price points</li>
-            <li>Portfolio value and thrift trends</li>
+            <li>Read the care tag for a sharper estimate</li>
+            <li>Portfolio value history and thrift trends</li>
+            <li>Unlimited profit ledger and CSV export</li>
             <li>3-day free trial</li>
           </ul>
           <a href="https://apps.apple.com/us/app/snapworth-resale-scanner/id6788521307" class="plan-cta plan-cta-main">Start Free Trial</a>
@@ -2242,10 +2252,11 @@ details[open] .faq-x::after { transform: rotate(90deg); }
           <div class="plan-divider"></div>
           <ul class="plan-features">
             <li>Unlimited scans</li>
-            <li>Thrift Flip profit verdict</li>
             <li>AI listing generator</li>
             <li>Why it&rsquo;s worth that &mdash; four price points</li>
-            <li>Portfolio value and thrift trends</li>
+            <li>Read the care tag for a sharper estimate</li>
+            <li>Portfolio value history and thrift trends</li>
+            <li>Unlimited profit ledger and CSV export</li>
           </ul>
           <a href="https://apps.apple.com/us/app/snapworth-resale-scanner/id6788521307" class="plan-cta plan-cta-outline">Subscribe Monthly</a>
         </div>
