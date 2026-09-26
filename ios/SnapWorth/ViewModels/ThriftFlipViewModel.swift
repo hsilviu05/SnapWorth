@@ -124,6 +124,10 @@ final class ThriftFlipViewModel {
             // path shares the daily cap, so it shares the local-vs-UTC day skew
             // that lets a spent allowance past the pre-flight gate.
             if appError.isPaywall {
+                // And the same reconciliation. The server has said there is
+                // nothing left today; without this the Scan tab and the widget
+                // went on advertising a free scan it had already refused.
+                FreeScanCounter.serverRemaining = 0
                 Analytics.shared.track(.freeScanLimitHit)
                 showPaywall = true
                 return

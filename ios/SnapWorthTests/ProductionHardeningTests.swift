@@ -334,6 +334,25 @@ final class PaymentRequiredMappingTests: XCTestCase {
             XCTAssertFalse(error.isPaywall, "\(error) must not open the paywall")
         }
     }
+
+    /// Source-level, because both scans go through `ScanAPIClient.shared`,
+    /// which a unit test cannot make answer 402. Thrift Flip opened the
+    /// paywall on a 402 and left the counter alone, so the Scan tab and the
+    /// widget kept advertising a free scan the server had just refused.
+    func test_bothScanEntryPointsZeroTheCounterWhenTheServerRefuses() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("SnapWorth/ViewModels")
+        for name in ["ScanViewModel.swift", "ThriftFlipViewModel.swift"] {
+            let file = try String(contentsOf: root.appendingPathComponent(name), encoding: .utf8)
+            let start = try XCTUnwrap(file.range(of: "if appError.isPaywall {"), name)
+            let end = try XCTUnwrap(file.range(of: "showPaywall = true",
+                                               range: start.upperBound..<file.endIndex), name)
+            XCTAssertTrue(file[start.upperBound..<end.lowerBound]
+                            .contains("FreeScanCounter.serverRemaining = 0"),
+                          "\(name) opens the paywall on a 402 without zeroing the count")
+        }
+    }
 }
 
 // MARK: - App Attest key recovery (I-1)

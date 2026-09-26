@@ -177,9 +177,11 @@ final class ScanViewModel {
                 // this path, the one where the two demonstrably disagree, did
                 // not write anything at all. So the counter went on
                 // advertising a scan the server had already refused: the top
-                // bar said "1 left", the next tap spent a paid model call to
-                // arrive at the same paywall, and `hasFreeScanRemaining` let
-                // Thrift Flip through on the same false premise.
+                // bar said "1 left", the next tap uploaded the photo only to
+                // arrive at the same paywall (the server refuses in
+                // `reserve_quota`, before any model call), and
+                // `hasFreeScanRemaining` let Thrift Flip through on the same
+                // false premise. Thrift Flip's own 402 does the same.
                 FreeScanCounter.serverRemaining = 0
                 Analytics.shared.track(.freeScanLimitHit)
                 paywallTrigger = .scanLimit
