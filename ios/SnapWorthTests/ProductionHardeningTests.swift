@@ -5793,3 +5793,83 @@ final class PriceReadTests: XCTestCase {
         XCTAssertEqual(vm.filtered(library).map(\.itemName), ["Nike jacket", "Nike tee"])
     }
 }
+
+// ── The trial warning arrives in waking hours ────────────────────────────────
+//
+// It fired exactly 24 hours before the trial ended, to the second, and a trial
+// ends at the minute it began — so one started at 01:40 woke its owner at
+// 01:40 two nights later, with a sound, as the one category that also evicts
+// anything else due that day.
+
+final class TrialReminderTimingTests: XCTestCase {
+
+    private func calendar(_ zone: String) -> Calendar {
+        var c = Calendar(identifier: .gregorian)
+        c.timeZone = TimeZone(identifier: zone)!
+        return c
+    }
+
+    private func at(_ cal: Calendar, _ day: Int, _ hour: Int, _ minute: Int = 0) -> Date {
+        cal.date(from: DateComponents(year: 2026, month: 9, day: day, hour: hour, minute: minute))!
+    }
+
+    func test_aTrialStartedInTheSmallHoursIsWarnedTheEveningBefore() {
+        let cal = calendar("Europe/Bucharest")
+        let end = at(cal, 22, 1, 40)
+        let fire = NotificationManager.trialReminderDate(endDate: end, calendar: cal)
+        XCTAssertEqual(fire, at(cal, 20, 21), "not 01:40 on the 21st")
+
+        // Two calendar days out, so "tomorrow" would be wrong.
+        let body = NotificationManager.trialBody(fireDate: fire!, endDate: end, calendar: cal)
+        XCTAssertTrue(body.contains("day after tomorrow"), body)
+        XCTAssertTrue(body.contains("1:40"), "the time it ends: \(body)")
+    }
+
+    func test_aDaytimeDeadlineKeepsItsFullDay() {
+        let cal = calendar("America/New_York")
+        let end = at(cal, 22, 15)
+        let fire = NotificationManager.trialReminderDate(endDate: end, calendar: cal)
+        XCTAssertEqual(fire, at(cal, 21, 15))
+        XCTAssertEqual(NotificationManager.trialBody(fireDate: fire!, endDate: end, calendar: cal),
+                       "Your SnapWorth trial ends tomorrow.")
+    }
+
+    func test_aLateEveningDeadlineMovesToNineOClock() {
+        let cal = calendar("America/New_York")
+        let end = at(cal, 22, 23, 30)
+        let fire = NotificationManager.trialReminderDate(endDate: end, calendar: cal)
+        XCTAssertEqual(fire, at(cal, 21, 21))
+        XCTAssertEqual(NotificationManager.trialBody(fireDate: fire!, endDate: end, calendar: cal),
+                       "Your SnapWorth trial ends tomorrow.")
+    }
+
+    func test_theWindowEdgesAreKept() {
+        let cal = calendar("Europe/Bucharest")
+        XCTAssertEqual(NotificationManager.trialReminderDate(endDate: at(cal, 22, 9), calendar: cal),
+                       at(cal, 21, 9))
+        XCTAssertEqual(NotificationManager.trialReminderDate(endDate: at(cal, 22, 21), calendar: cal),
+                       at(cal, 21, 21))
+        XCTAssertEqual(NotificationManager.trialReminderDate(endDate: at(cal, 22, 8, 59), calendar: cal),
+                       at(cal, 20, 21))
+    }
+
+    func test_alwaysADayAheadAndNeverAtNight_atEveryMinuteOfTheDay() {
+        for zone in ["Europe/Bucharest", "America/Los_Angeles", "Asia/Tokyo", "Asia/Kolkata"] {
+            let cal = calendar(zone)
+            for minute in stride(from: 0, to: 24 * 60, by: 10) {
+                let end = at(cal, 22, minute / 60, minute % 60)
+                guard let fire = NotificationManager.trialReminderDate(endDate: end, calendar: cal) else {
+                    return XCTFail("\(zone) \(minute)")
+                }
+                XCTAssertGreaterThanOrEqual(end.timeIntervalSince(fire), 24 * 3600,
+                                            "\(zone) end \(minute / 60):\(minute % 60) — inside the last day")
+                XCTAssertLessThan(end.timeIntervalSince(fire), 36 * 3600,
+                                  "\(zone) end \(minute / 60):\(minute % 60) — needlessly early")
+                let c = cal.dateComponents([.hour, .minute], from: fire)
+                let minuteOfDay = (c.hour ?? 0) * 60 + (c.minute ?? 0)
+                XCTAssertTrue((9 * 60)...(21 * 60) ~= minuteOfDay,
+                              "\(zone) end \(minute / 60):\(minute % 60) fires at \(c.hour ?? -1):\(c.minute ?? -1)")
+            }
+        }
+    }
+}

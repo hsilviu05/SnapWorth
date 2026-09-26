@@ -23,7 +23,7 @@ extension Notification.Name {
 /// | recap    | ≥3 scans this month → 1st of next mo 10:00 | `recap.monthly`       |
 /// | ledger   | item marked *listed* → +14 days 10:00      | `ledger.day.<yyyymmdd>` (coalesced per fire-day) |
 /// | portfolio | next 4 Sundays 11:00                      | `portfolio.weekly.<n>` (a ladder) |
-/// | trial    | ~24h before trial end                      | `trial.ending`        |
+/// | trial    | ≥24h before trial end, 09:00–21:00 local   | `trial.ending`        |
 /// | freeScan | opt-in; the user's hour, once the UTC allowance is back | `freeScan.daily.<yyyymmdd>` (a ladder) |
 ///
 /// Recap/trial use fixed identifiers so re-scheduling replaces rather than
@@ -419,14 +419,52 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
         let id = Self.trialID
         guard isEnabled(.trial),
               let endDate,
-              let fireDate = Calendar.current.date(byAdding: .hour, value: -24, to: endDate),
+              let fireDate = Self.trialReminderDate(endDate: endDate),
               fireDate > Date()
         else {
             center.removePendingNotificationRequests(withIdentifiers: [id])
             return
         }
         await add(id: id, category: .trial, fireDate: fireDate,
-                  body: String(localized: "Your SnapWorth trial ends tomorrow."))
+                  body: Self.trialBody(fireDate: fireDate, endDate: endDate))
+    }
+
+    /// The latest moment between 09:00 and 21:00 local that is still at least
+    /// 24 hours before the trial ends.
+    ///
+    /// It was exactly 24 hours before, to the second — and since a trial ends
+    /// at the minute it was started, a trial begun at 01:40 woke its owner
+    /// with a sound at 01:40 two nights later, as the one category that also
+    /// evicts anything else due that day. Later than the 24-hour mark is no
+    /// use (a renewal can be charged inside it), so the move is always
+    /// earlier: to 21:00 the same evening when the mark falls late at night,
+    /// and to 21:00 the evening before when it falls in the small hours.
+    ///
+    /// Pure, and takes its calendar, for the tests.
+    nonisolated static func trialReminderDate(endDate: Date,
+                                              calendar: Calendar = .current) -> Date? {
+        guard let deadline = calendar.date(byAdding: .hour, value: -24, to: endDate),
+              let morning = calendar.date(bySettingHour: 9, minute: 0, second: 0, of: deadline),
+              let evening = calendar.date(bySettingHour: 21, minute: 0, second: 0, of: deadline)
+        else { return nil }
+        if deadline < morning { return calendar.date(byAdding: .day, value: -1, to: evening) }
+        return min(deadline, evening)
+    }
+
+    /// "Ends tomorrow" is only true when it is. Moved to the evening before a
+    /// small-hours deadline, the trial ends the day after the next one — so
+    /// that case names the day and the time rather than saying "tomorrow".
+    nonisolated static func trialBody(fireDate: Date, endDate: Date,
+                                      calendar: Calendar = .current) -> String {
+        let days = calendar.dateComponents([.day], from: calendar.startOfDay(for: fireDate),
+                                           to: calendar.startOfDay(for: endDate)).day
+        if days == 1 {
+            return String(localized: "Your SnapWorth trial ends tomorrow.")
+        }
+        var style = Date.FormatStyle(date: .omitted, time: .shortened)
+        style.timeZone = calendar.timeZone
+        let time = endDate.formatted(style)
+        return String(localized: "Your SnapWorth trial ends the day after tomorrow, at \(time).")
     }
 
     // MARK: - 4) Daily free-scan reminder (opt-in)

@@ -3879,6 +3879,14 @@
       },
       "zh-Hans": "你的 %lld 件好物价值"
     },
+    "Your SnapWorth trial ends the day after tomorrow, at %@.": {
+      "comment": "Notification. %@ is a time of day (e.g. 1:40 AM). Sent at 21:00 two calendar days before a trial that ends in the small hours.",
+      "en": "Your SnapWorth trial ends the day after tomorrow, at %@.",
+      "ro": "Perioada gratuită SnapWorth se termină poimâine, la %@.",
+      "es": "Tu prueba de SnapWorth acaba pasado mañana (%@).",
+      "de": "Deine SnapWorth-Testphase endet übermorgen um %@.",
+      "zh-Hans": "你的 SnapWorth 试用将于后天 %@ 到期。"
+    },
     "Your SnapWorth trial ends tomorrow.": {
       "en": "Your SnapWorth trial ends tomorrow.",
       "ro": "Perioada gratuită SnapWorth se termină mâine.",

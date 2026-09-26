@@ -18717,6 +18717,42 @@
         }
       }
     },
+    "Your SnapWorth trial ends the day after tomorrow, at %@." : {
+      "comment" : "Notification. %@ is a time of day (e.g. 1:40 AM). Sent at 21:00 two calendar days before a trial that ends in the small hours.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Deine SnapWorth-Testphase endet übermorgen um %@."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Your SnapWorth trial ends the day after tomorrow, at %@."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tu prueba de SnapWorth acaba pasado mañana (%@)."
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Perioada gratuită SnapWorth se termină poimâine, la %@."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "你的 SnapWorth 试用将于后天 %@ 到期。"
+          }
+        }
+      }
+    },
     "Your SnapWorth trial ends tomorrow." : {
       "extractionState" : "manual",
       "localizations" : {
