@@ -72,6 +72,10 @@ final class ScanResult {
     /// sheet asks for it.
     var valuationDetail: ValuationDetail? { ValuationDetail.decode(valuationDetailData) }
 
+    /// Whether real sales backed this estimate (#40). `.model` for every row
+    /// without a detail blob — older scans, and any server that sent none.
+    var valuationSource: ValuationSource { valuationDetail?.source ?? .model }
+
     /// Replace this find's valuation with a re-read that had the label photo
     /// too (#88).
     ///

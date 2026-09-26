@@ -1,6 +1,50 @@
 import Foundation
 import UIKit
 
+// ── Where the number came from (#40) ─────────────────────────────────────────
+
+/// The backend's `valuation_source`: whether real sales backed the estimate.
+///
+/// Anything but an exact "comps" is `.model` — a missing field (every server
+/// before #41), an unknown future value, a typo. The two mistakes are not
+/// symmetric: calling a comps-backed number an AI estimate undersells it,
+/// while calling a model guess sales-backed is the unsupported claim #35 was
+/// about. So the wording that claims sales is reachable only from "comps".
+enum ValuationSource: String, Codable, Equatable {
+    case model
+    case comps
+
+    init(serverValue: String?) {
+        self = serverValue == ValuationSource.comps.rawValue ? .comps : .model
+    }
+
+    /// The caption beside the confidence badge.
+    var caption: String {
+        switch self {
+        case .model: return String(localized: "AI estimate")
+        case .comps: return String(localized: "Based on recent sales")
+        }
+    }
+
+    /// The result card's VoiceOver value, and what is announced on reveal.
+    func spokenSummary(range: String, confidence: String) -> String {
+        switch self {
+        case .model: return String(localized: "\(range). \(confidence) AI estimate.")
+        case .comps: return String(localized: "\(range). \(confidence) Based on recent sales.")
+        }
+    }
+
+    func revealAnnouncement(range: String, confidence: String) -> String {
+        switch self {
+        case .model:
+            return String(localized: "Estimated resale value \(range). \(confidence) AI estimate.")
+        case .comps:
+            return String(localized:
+                "Estimated resale value \(range). \(confidence) Based on recent sales.")
+        }
+    }
+}
+
 // ── API response model ────────────────────────────────────────────────────────
 struct ScanAPIResponse: Decodable {
     let itemName: String
@@ -51,6 +95,8 @@ struct ScanAPIResponse: Decodable {
     let size: String?
     let era: String?
     let material: String?
+    /// `.model` unless the server said, exactly, "comps". See `ValuationSource`.
+    let valuationSource: ValuationSource
 
     enum CodingKeys: String, CodingKey {
         case itemName            = "item_name"
@@ -80,6 +126,7 @@ struct ScanAPIResponse: Decodable {
         case demand, supply
         case conditionGrade      = "condition_grade"
         case size, era, material
+        case valuationSource     = "valuation_source"
     }
 
     init(from decoder: Decoder) throws {
@@ -115,6 +162,10 @@ struct ScanAPIResponse: Decodable {
         size                = try c.decodeIfPresent(String.self, forKey: .size)
         era                 = try c.decodeIfPresent(String.self, forKey: .era)
         material            = try c.decodeIfPresent(String.self, forKey: .material)
+        // Decoded as a string and mapped, so an unknown value degrades to
+        // `.model` instead of failing the whole scan.
+        valuationSource     = ValuationSource(serverValue:
+            try? c.decodeIfPresent(String.self, forKey: .valuationSource))
     }
 
     /// Memberwise init retained for mocks and previews.
@@ -130,7 +181,7 @@ struct ScanAPIResponse: Decodable {
          improveEstimate: [String] = [], authenticityAssessment: String? = nil,
          authenticityReasoning: String? = nil, demand: String? = nil, supply: String? = nil,
          conditionGrade: String? = nil, size: String? = nil, era: String? = nil,
-         material: String? = nil) {
+         material: String? = nil, valuationSource: ValuationSource = .model) {
         self.itemName = itemName
         self.brand = brand
         self.category = category
@@ -161,6 +212,7 @@ struct ScanAPIResponse: Decodable {
         self.size = size
         self.era = era
         self.material = material
+        self.valuationSource = valuationSource
     }
 }
 
@@ -194,6 +246,12 @@ struct ValuationDetail: Codable, Equatable {
     var size: String?
     var era: String?
     var material: String?
+    /// Set only when comps backed the estimate; nil means the model, which is
+    /// every blob written before #40. Kept out of `isEmpty` for that reason —
+    /// it is provenance, not panel content. Read it through `source`.
+    var valuationSource: ValuationSource?
+
+    var source: ValuationSource { valuationSource ?? .model }
 
     /// Nil when the response carried nothing beyond the v1 fields, so an old
     /// server never produces an empty panel.
@@ -217,6 +275,7 @@ struct ValuationDetail: Codable, Equatable {
         size = r.size
         era = r.era
         material = r.material
+        valuationSource = r.valuationSource == .comps ? .comps : nil
         guard !isEmpty else { return nil }
     }
 

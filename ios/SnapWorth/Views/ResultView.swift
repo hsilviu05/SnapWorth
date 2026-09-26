@@ -799,7 +799,8 @@ struct ResultView: View {
             HStack(spacing: 10) {
                 ConfidenceBadge(confidence: result.confidence)
 
-                Text("AI estimate")
+                // "AI estimate" unless real sales backed the number (#40).
+                Text(result.valuationSource.caption)
                     .font(.snapCaption)
                     .foregroundStyle(Color.snapWarmGray)
                     .lineLimit(1)
@@ -817,7 +818,8 @@ struct ResultView: View {
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Estimated resale value")
         .accessibilityValue(
-            String(localized: "\(result.formattedRange). \(confidencePhrase) AI estimate.")
+            result.valuationSource.spokenSummary(
+                range: result.formattedRange, confidence: confidencePhrase)
             + (quickVerdict.map { " \($0)" } ?? "")
         )
         // Read first when the sheet opens — it is why the user is here.
@@ -860,8 +862,8 @@ struct ResultView: View {
         // `accessibilityValue`, so the announcement and the element agree.
         UIAccessibility.post(
             notification: .announcement,
-            argument: String(localized:
-                "Estimated resale value \(result.formattedRange). \(confidencePhrase) AI estimate.")
+            argument: result.valuationSource.revealAnnouncement(
+                range: result.formattedRange, confidence: confidencePhrase)
                 + (quickVerdict.map { " \($0)" } ?? "")
         )
         Analytics.shared.track(.guessRevealed(withGuess: quickGuess != nil))

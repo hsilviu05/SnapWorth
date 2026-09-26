@@ -2786,6 +2786,107 @@ final class ValuationDetailTests: XCTestCase {
     }
 }
 
+// MARK: - Where the number came from (#40)
+
+final class ValuationSourceTests: XCTestCase {
+    private let v1 = """
+    {"item_name":"Patagonia Better Sweater","brand":"Patagonia","category":"clothing",
+     "condition_notes":"Good","est_value_low_usd":45.0,"est_value_high_usd":90.0,
+     "confidence":"High","confidence_score":72,"listing_title":"T","listing_description":"D"}
+    """
+
+    private func decode(source: String?) throws -> ScanAPIResponse {
+        let json = source.map {
+            v1.replacingOccurrences(of: #""confidence":"High","#,
+                                    with: #""confidence":"High","valuation_source":\#($0),"#)
+        } ?? v1
+        return try JSONDecoder().decode(ScanAPIResponse.self, from: Data(json.utf8))
+    }
+
+    private func result(_ response: ScanAPIResponse) -> ScanResult {
+        ScanResult(itemName: "x", brand: "x", category: "x", conditionNotes: "x",
+                   valueLow: 1, valueHigh: 2, confidence: "High", soldListingsCount: 0,
+                   listingTitle: "", listingDescription: "",
+                   valuationDetailData: ValuationDetail(response: response)?.encoded())
+    }
+
+    func test_aMissingFieldIsTheModel() throws {
+        // Every server before #41, and an older client's view of a newer one.
+        XCTAssertEqual(try decode(source: nil).valuationSource, .model)
+    }
+
+    func test_onlyAnExactCompsIsComps() throws {
+        XCTAssertEqual(try decode(source: #""comps""#).valuationSource, .comps)
+        XCTAssertEqual(try decode(source: #""model""#).valuationSource, .model)
+        // Unknown, differently cased, or the wrong type: never a sales claim,
+        // and never a failed scan either.
+        XCTAssertEqual(try decode(source: #""hybrid""#).valuationSource, .model)
+        XCTAssertEqual(try decode(source: #""Comps""#).valuationSource, .model)
+        XCTAssertEqual(try decode(source: "1").valuationSource, .model)
+        XCTAssertEqual(try decode(source: "null").valuationSource, .model)
+    }
+
+    func test_theModelPathClaimsNoSales() throws {
+        let scan = result(try decode(source: #""model""#))
+        XCTAssertEqual(scan.valuationSource, .model)
+        XCTAssertEqual(scan.valuationSource.caption, "AI estimate")
+        let spoken = scan.valuationSource.spokenSummary(range: "$45–$90", confidence: "High confidence.")
+        let announced = scan.valuationSource.revealAnnouncement(range: "$45–$90",
+                                                                confidence: "High confidence.")
+        for text in [scan.valuationSource.caption, spoken, announced] {
+            XCTAssertFalse(text.localizedCaseInsensitiveContains("sales"), text)
+            XCTAssertFalse(text.localizedCaseInsensitiveContains("sold"), text)
+        }
+    }
+
+    func test_theCompsPathSaysSo() throws {
+        let scan = result(try decode(source: #""comps""#))
+        XCTAssertEqual(scan.valuationSource, .comps)
+        XCTAssertEqual(scan.valuationSource.caption, "Based on recent sales")
+        XCTAssertEqual(scan.valuationSource.spokenSummary(range: "$45–$90", confidence: "High confidence."),
+                       "$45–$90. High confidence. Based on recent sales.")
+        XCTAssertFalse(scan.valuationSource.caption.contains("AI"))
+    }
+
+    func test_theStoredBlobIsUnchangedOnTheModelPath() throws {
+        // Provenance is only written when it says something: a model scan's
+        // blob is exactly what it was before #40, and a blob written before
+        // #40 reads back as the model.
+        let detail = try XCTUnwrap(ValuationDetail(response: try decode(source: #""model""#)))
+        XCTAssertNil(detail.valuationSource)
+        let json = String(decoding: try XCTUnwrap(detail.encoded()), as: UTF8.self)
+        XCTAssertFalse(json.contains("valuationSource"))
+        XCTAssertEqual(detail.source, .model)
+
+        let comps = try XCTUnwrap(ValuationDetail(response: try decode(source: #""comps""#)))
+        XCTAssertEqual(ValuationDetail.decode(comps.encoded())?.source, .comps)
+    }
+
+    func test_provenanceAloneDoesNotMakeAPanel() {
+        // A v1 response that somehow said "comps" still has nothing to show.
+        let bare = ScanAPIResponse(itemName: "x", brand: "x", category: "x", conditionNotes: "x",
+                                   estValueLowUsd: 1, estValueHighUsd: 2, confidence: "High",
+                                   listingTitle: "x", listingDescription: "x",
+                                   valuationSource: .comps)
+        XCTAssertNil(ValuationDetail(response: bare))
+    }
+
+    func test_aScanWithNoDetailIsTheModel() {
+        let legacy = ScanResult(itemName: "x", brand: "x", category: "x", conditionNotes: "x",
+                                valueLow: 1, valueHigh: 2, confidence: "High", soldListingsCount: 0,
+                                listingTitle: "", listingDescription: "")
+        XCTAssertEqual(legacy.valuationSource, .model)
+    }
+
+    func test_mockScansNeverClaimSales() {
+        // Screenshots are captured in mock mode; see #35.
+        let mock = ScanAPIResponse(itemName: "x", brand: "x", category: "x", conditionNotes: "x",
+                                   estValueLowUsd: 1, estValueHighUsd: 2, confidence: "High",
+                                   listingTitle: "x", listingDescription: "x")
+        XCTAssertEqual(mock.valuationSource, .model)
+    }
+}
+
 final class GuessFirstPreferenceTests: XCTestCase {
     func test_defaultsOnAndHasAStableKey() {
         XCTAssertTrue(GuessFirst.defaultOn)

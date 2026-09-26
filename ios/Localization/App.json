@@ -234,6 +234,14 @@
       "de": "%@. KI-Schätzung. %@.",
       "zh-Hans": "%@。AI 估价。%@。"
     },
+    "%@. %@ Based on recent sales.": {
+      "comment": "VoiceOver value of the result card when real sales backed the estimate: the range, then the confidence phrase.",
+      "en": "%@. %@ Based on recent sales.",
+      "ro": "%@. Din vânzări recente. %@.",
+      "es": "%@. Según ventas recientes. %@.",
+      "de": "%@. Aus echten Verkäufen. %@.",
+      "zh-Hans": "%@。依据近期成交。%@。"
+    },
     "%@. %@%@": {
       "comment": "Punctuation or a format with no words: identical in every language. In the catalog only so Xcode stops re-extracting it.",
       "en": "%@. %@%@",
@@ -989,6 +997,14 @@
       "de": "Hintergrund",
       "zh-Hans": "背景"
     },
+    "Based on recent sales": {
+      "comment": "Caption beside the confidence badge when real sales backed the estimate (valuation_source = comps). Never shown for a model estimate.",
+      "en": "Based on recent sales",
+      "ro": "din vânzări recente",
+      "es": "según ventas recientes",
+      "de": "aus echten Verkäufen",
+      "zh-Hans": "依据近期成交"
+    },
     "Best case": {
       "en": "Best case",
       "ro": "Cel mai bun caz",
@@ -1544,6 +1560,14 @@
       "es": "Valor de reventa estimado %@. Estimación con IA. %@.",
       "de": "Geschätzter Wiederverkaufswert %@. KI-Schätzung. %@.",
       "zh-Hans": "预计转卖价 %@。AI 估价。%@。"
+    },
+    "Estimated resale value %@. %@ Based on recent sales.": {
+      "comment": "Announced when the price is revealed and real sales backed the estimate: the range, then the confidence phrase.",
+      "en": "Estimated resale value %@. %@ Based on recent sales.",
+      "ro": "Preț estimat la revânzare %@. Din vânzări recente. %@.",
+      "es": "Valor de reventa estimado %@. Según ventas recientes. %@.",
+      "de": "Geschätzter Wiederverkaufswert %@. Aus echten Verkäufen. %@.",
+      "zh-Hans": "预计转卖价 %@。依据近期成交。%@。"
     },
     "Estimating resale value…": {
       "en": "Estimating resale value…",
