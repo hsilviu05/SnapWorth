@@ -1,9 +1,11 @@
 """The middleware stack, driven at the ASGI level.
 
-`TestClient` cannot show the property tested here: its `receive`, once the
-body is sent, waits rather than reporting a disconnect, so a scan the client
-abandoned looks exactly like one it is still waiting for. These tests call
-`main.app` with a `receive` they control.
+`TestClient` cannot show either property tested here. It reads a streamed
+request body into memory and hands the app one message, so it cannot tell
+"refused after 64 KB" from "refused after the whole body"; and its `receive`,
+once the body is sent, waits rather than reporting a disconnect, so a scan the
+client abandoned looks exactly like one it is still waiting for. These tests
+call `main.app` with a `receive` they control and count what it was asked for.
 """
 
 from __future__ import annotations
@@ -18,15 +20,19 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import httpx
 import pytest
+from annotated_types import MaxLen
 from fastapi.testclient import TestClient
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.types import Message
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+import auth  # noqa: E402
 import main  # noqa: E402
+import metrics  # noqa: E402
 import notify  # noqa: E402
 import observability  # noqa: E402
+from tests.conftest import build_deps  # noqa: E402
 from tests.images import padded_image_bytes  # noqa: E402
 
 client = TestClient(main.app)
@@ -102,6 +108,140 @@ def drive(method: str, path: str, *, headers: dict[str, str] | None = None,
     }
     asyncio.run(main.app(scope, receive, send))
     return result
+
+
+def repeated(chunk: bytes, times: int) -> Iterator[bytes]:
+    for _ in range(times):
+        yield chunk
+
+
+# ── A chunked body is bounded as it arrives ──────────────────────────────────
+
+# Every route that reads a JSON body. Each was reachable with an unbounded
+# chunked body: the old guard read only the declared `content-length`.
+JSON_ROUTES = [
+    "/apple/notifications",
+    "/auth/attest",
+    "/auth/refresh",
+    "/auth/entitlement",
+    "/listing",
+    "/referral/status",
+    "/referral/claim",
+]
+
+_CHUNK = 16 * 1024
+
+
+class TestChunkedBodiesAreCapped:
+    @pytest.mark.parametrize("path", JSON_ROUTES)
+    def test_an_oversize_chunked_json_body_gets_413_and_is_not_read(self, path):
+        """The finding: a chunked body carried no length, so nothing bounded it.
+
+        A 200 MB chunked JSON body peaked at about 1.2 GB before the schema
+        answered 422, on a single worker. Offered 64 MB here, the server must
+        stop within one chunk of the route's cap.
+        """
+        limit = main._body_limit(path)
+        r = drive("POST", path,
+                  headers={"content-type": "application/json",
+                           "transfer-encoding": "chunked"},
+                  chunks=repeated(b" " * _CHUNK, 4096))
+        assert r.status == 413, (path, r.status, r.body[:200])
+        assert "too large" in r.json()["detail"]
+        assert r.chunks_read * _CHUNK <= limit + _CHUNK, (
+            f"{path} read {r.chunks_read * _CHUNK} bytes against a {limit} cap")
+
+    def test_a_chunked_upload_is_refused_before_auth_runs(self):
+        """The same body on /scan was received in full and *then* answered 401.
+
+        FastAPI resolves the multipart form before the auth dependency, so the
+        cap has to act inside the read or it never acts before auth.
+        """
+        build_deps(enforce=True)
+        chunk = 1024 * 1024
+        prefix = (b"--b\r\nContent-Disposition: form-data; name=\"file\"; "
+                  b"filename=\"a.jpg\"\r\nContent-Type: image/jpeg\r\n\r\n")
+
+        def body() -> Iterator[bytes]:
+            yield prefix
+            yield from repeated(b"\x00" * chunk, 64)
+
+        r = drive("POST", "/scan",
+                  headers={"content-type": "multipart/form-data; boundary=b",
+                           "transfer-encoding": "chunked"},
+                  chunks=body())
+        assert r.status == 413, (r.status, r.body[:200])
+        assert (r.chunks_read - 1) * chunk <= main.MAX_REQUEST_BYTES + chunk
+
+    def test_a_route_that_takes_no_body_never_reads_one(self):
+        """/auth/challenge has no body parameter, so FastAPI never asks for
+        the body at all — there is nothing for the cap to stop."""
+        r = drive("POST", "/auth/challenge",
+                  headers={"transfer-encoding": "chunked"},
+                  chunks=repeated(b" " * _CHUNK, 4096))
+        assert r.status == 200, (r.status, r.body[:200])
+        assert r.chunks_read <= 1
+
+    def test_a_declared_oversize_length_is_refused_without_reading(self):
+        r = drive("POST", "/auth/refresh",
+                  headers={"content-type": "application/json",
+                           "content-length": str(main.MAX_JSON_BODY_BYTES + 1)},
+                  chunks=repeated(b" " * _CHUNK, 8))
+        assert r.status == 413
+        assert r.receive_calls == 0, "the body was read before being refused"
+
+    def test_a_chunked_body_under_the_cap_is_served_normally(self):
+        """The cap must not break chunked uploads that are allowed."""
+        payload = json.dumps({"device_id": "chunked-ok"}).encode()
+        r = drive("POST", "/referral/status",
+                  headers={"content-type": "application/json",
+                           "transfer-encoding": "chunked"},
+                  chunks=iter([payload[:5], payload[5:]]))
+        assert r.status != 413
+        assert r.status is not None and r.status < 500, (r.status, r.body[:200])
+
+    def test_scan_keeps_the_request_ceiling(self):
+        """The per-route caps are small; /scan's is still the one above the
+        route's own 10 MB, so an oversized photo gets the route's 400."""
+        assert main._body_limit("/scan") == main.MAX_REQUEST_BYTES
+        assert main._body_limit("/scan") > main.MAX_UPLOAD_BYTES
+
+    def test_every_route_gets_a_cap(self):
+        """An unknown or future route falls to the small cap, not to none."""
+        assert main._body_limit("/something-new") == main.MAX_JSON_BODY_BYTES
+
+    @pytest.mark.parametrize("path, model", [
+        ("/auth/attest", auth.AttestRequest),
+        ("/auth/refresh", auth.AssertRequest),
+        ("/auth/entitlement", auth.EntitlementRequest),
+        ("/apple/notifications", main.AppleNotification),
+    ])
+    def test_the_caps_sit_above_what_the_schemas_allow(self, path, model):
+        """A cap below the largest body a schema accepts refuses a real client.
+
+        Summed from the models' own bounds, so a field that grows fails here
+        rather than in production. The margin covers keys and quoting, and
+        Swift's `JSONEncoder` writing "/" as "\\/", which base64 contains about
+        once in 64 characters.
+        """
+        largest = sum(bound.max_length for field in model.model_fields.values()
+                      for bound in field.metadata if isinstance(bound, MaxLen))
+        assert main._body_limit(path) >= largest * 1.1, (path, largest)
+
+    def test_the_refusal_is_counted_and_headed(self):
+        """Still inside `SecurityHeaders` and `RecordMetrics`."""
+        def count() -> float:
+            return metrics.http_requests.value(
+                endpoint="/auth/attest", method="POST", status_class="4xx")
+
+        before = count()
+        r = drive("POST", "/auth/attest",
+                  headers={"content-type": "application/json",
+                           "transfer-encoding": "chunked"},
+                  chunks=repeated(b" " * _CHUNK, 64))
+        assert r.status == 413
+        assert r.headers.get("x-content-type-options") == "nosniff"
+        assert count() == before + 1
 
 
 # ── The disconnect check sees a real disconnect ──────────────────────────────

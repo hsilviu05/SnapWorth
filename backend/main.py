@@ -493,11 +493,50 @@ if _allowed_origins:
 
 # Deliberately well above the 10 MB `MAX_UPLOAD_BYTES` the /scan route
 # enforces itself. This is not a second copy of that limit — it is a ceiling
-# on what any request may be, so an ordinary oversized photo still reaches the
-# route and gets its own friendly "Image exceeds 10 MB limit." rather than a
-# bare 413 the client has no case for (`AppError.from` maps 400 and 422; it
-# has no 413, which is exactly why `_read_capped` answers 400).
+# on what a /scan request may be (every other route has a far smaller one,
+# below), so an ordinary oversized photo still reaches the route and gets its
+# own friendly "Image exceeds 10 MB limit." rather than a bare 413 the client
+# has no case for (`AppError.from` maps 400 and 422; it has no 413, which is
+# exactly why `_read_capped` answers 400).
 MAX_REQUEST_BYTES = int(os.environ.get("MAX_REQUEST_BYTES", str(20 * 1024 * 1024)))
+
+#: Every route but /scan takes a small JSON body, and none needs 20 MB of
+#: headroom. The largest genuine one is `/auth/attest`, whose schema bounds its
+#: fields at about 37 KB together (`auth.AttestRequest`); `/auth/entitlement`
+#: is under 17 KB and the rest are a few hundred bytes. A route added later
+#: gets this too, which is the safe default: a new upload route fails loudly
+#: in its first test rather than shipping uncapped.
+MAX_JSON_BODY_BYTES = 64 * 1024
+
+#: A V2 notification is one `signedPayload`, which the model bounds at 64 KiB.
+#: The rest is headroom for a Version 1 body — it carries the whole receipt —
+#: so that misconfiguration still reaches the handler's error naming it,
+#: rather than stopping here as a bare 413 (see `AppleNotification`).
+MAX_NOTIFICATION_BODY_BYTES = 256 * 1024
+
+
+def _body_limit(path: str) -> int:
+    """The most a request to `path` may carry. Read per request, so tests and
+    the `MAX_REQUEST_BYTES` override see the current values."""
+    if path == "/scan":
+        return MAX_REQUEST_BYTES
+    if path == "/apple/notifications":
+        return MAX_NOTIFICATION_BODY_BYTES
+    return MAX_JSON_BODY_BYTES
+
+
+class RequestBodyTooLarge(HTTPException):
+    """Raised from inside `receive`, the moment a body passes its route's cap.
+
+    An `HTTPException` because of where it surfaces: FastAPI reads the body in
+    its request handler, which re-raises an `HTTPException` from that read and
+    turns anything else into a 400 "error parsing the body". So this reaches
+    the exception middleware and goes out as an ordinary 413 through every
+    layer above it, headers and metrics included.
+    """
+
+    def __init__(self) -> None:
+        super().__init__(status_code=413, detail="Request body is too large.")
 
 
 # Every layer below is pure ASGI, and must stay so. `@app.middleware("http")`
@@ -510,7 +549,7 @@ MAX_REQUEST_BYTES = int(os.environ.get("MAX_REQUEST_BYTES", str(20 * 1024 * 1024
 
 
 class LimitRequestBody:
-    """Refuse an implausibly large body before anything reads it.
+    """Refuse a body past its route's cap, counting it as it arrives.
 
     `_read_capped` bounds what the process will *hold* — it reads the file part
     in chunks and stops one byte past 10 MB — but by then Starlette has already
@@ -521,34 +560,81 @@ class LimitRequestBody:
     megabytes per request, with `--workers 1` (see Dockerfile) and no proxy
     body cap in front of it.
 
-    Checked against the request-level `content-length`, which every client that
-    posts a multipart body sends, so this covers every real caller. A chunked
-    body with no declared length is NOT bounded here — buffering it to measure
-    it would reintroduce the memory problem this is meant to avoid — and stays
-    covered only by `_read_capped`'s 10 MB on the file part.
+    The guard this replaces read only the declared `content-length`, and let a
+    chunked body — which declares none — through unbounded, on the reasoning
+    that measuring it would mean buffering it. It does not: wrapping `receive`
+    counts each message as the app asks for it and stops the read at the
+    message that crosses the cap, holding nothing. The gap was real — a chunked
+    60 MB multipart was received in full and *then* answered 401, and a chunked
+    200 MB JSON body peaked at about 1.2 GB before its 422 — with no rate limit
+    in the way, because the limiters run inside the handlers, after the body.
+    The per-route caps matter as much as the counting: under a flat 20 MB, one
+    declared-length request to a JSON route could still cost about 120 MB.
+
+    A declared length over the cap is still refused before anything is read.
+    Pure ASGI rather than `@app.middleware("http")`, which is
+    `BaseHTTPMiddleware` and has no way to wrap `receive`.
     """
 
     def __init__(self, app: ASGIApp) -> None:
         self.app = app
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
-        if scope["type"] == "http" and scope["method"] in {"POST", "PUT", "PATCH"}:
-            declared = Headers(scope=scope).get("content-length")
-            if declared is not None:
-                try:
-                    length = int(declared)
-                except ValueError:
-                    await JSONResponse(status_code=400, content={
-                        "detail": "Malformed content-length."})(scope, receive, send)
-                    return
-                if length > MAX_REQUEST_BYTES:
-                    log.warning("request body refused before reading",
-                                extra={"declared_bytes": length,
-                                       "max_bytes": MAX_REQUEST_BYTES})
-                    await JSONResponse(status_code=413, content={
-                        "detail": "Request body is too large."})(scope, receive, send)
-                    return
-        await self.app(scope, receive, send)
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+
+        path = scope["path"]
+        limit = _body_limit(path)
+        declared = Headers(scope=scope).get("content-length")
+        if declared is not None:
+            try:
+                length = int(declared)
+            except ValueError:
+                await JSONResponse(status_code=400, content={
+                    "detail": "Malformed content-length."})(scope, receive, send)
+                return
+            if length > limit:
+                log.warning("request body refused before reading",
+                            extra={"path": path, "declared_bytes": length,
+                                   "max_bytes": limit})
+                await JSONResponse(status_code=413, content={
+                    "detail": "Request body is too large."})(scope, receive, send)
+                return
+
+        received = 0
+        response_started = False
+
+        async def receive_capped() -> Message:
+            nonlocal received
+            # No await of its own beyond `receive`: `Request.is_disconnected`
+            # asks with an already-cancelled scope, and an extra checkpoint
+            # here would cancel the ask before it reached the server.
+            message = await receive()
+            if message["type"] == "http.request":
+                received += len(message.get("body", b""))
+                if received > limit:
+                    log.warning("request body refused while reading",
+                                extra={"path": path, "received_bytes": received,
+                                       "max_bytes": limit})
+                    raise RequestBodyTooLarge()
+            return message
+
+        async def send_tracked(message: Message) -> None:
+            nonlocal response_started
+            if message["type"] == "http.response.start":
+                response_started = True
+            await send(message)
+
+        try:
+            await self.app(scope, receive_capped, send_tracked)
+        except RequestBodyTooLarge:
+            # Only when the body was read outside a route handler, where no
+            # exception middleware stands between the read and this layer.
+            if response_started:
+                raise
+            await JSONResponse(status_code=413, content={
+                "detail": "Request body is too large."})(scope, receive, send)
 
 
 class RecordMetrics:
