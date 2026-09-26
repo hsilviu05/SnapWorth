@@ -1,0 +1,7 @@
+{
+  "status": 422,
+  "headers": {},
+  "body": {
+    "detail": "This photo couldn't be analysed. Try a clear photo of a single item."
+  }
+}

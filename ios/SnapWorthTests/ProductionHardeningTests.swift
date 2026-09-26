@@ -496,12 +496,13 @@ final class ScanContractTests: XCTestCase {
     /// The repo-root fixture, located from this file rather than from a
     /// bundle: the test target has no resources phase, and adding one to
     /// carry a single JSON file would be more machinery than the file.
-    static func contractData() throws -> Data {
+    static func contractData(_ name: String = "scan-response.json") throws -> Data {
         let url = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()   // SnapWorthTests
             .deletingLastPathComponent()   // ios
             .deletingLastPathComponent()   // repo root
-            .appendingPathComponent("contract/scan-response.json")
+            .appendingPathComponent("contract")
+            .appendingPathComponent(name)
         return try Data(contentsOf: url)
     }
 
@@ -528,12 +529,16 @@ final class ScanContractTests: XCTestCase {
     }
 
     func test_freeScansRemainingDecodesAsOptional() throws {
-        // Nil when the server omits it (Pro, or the quota store is down) —
-        // see I-3. The fixture carries a value, so this checks the present
-        // case; the absent case is covered below by `base`.
-        let decoded = try JSONDecoder().decode(
+        // Nil when the server sends null (Pro, or the quota store is down) —
+        // see I-3. Both fixtures are real server output now: the free body
+        // carries what is left after the day's scan, the Pro body null. The
+        // absent case is covered below by `base`.
+        let free = try JSONDecoder().decode(
+            ScanAPIResponse.self, from: Self.contractData("scan-response-free.json"))
+        XCTAssertEqual(free.freeScansRemaining, 0)
+        let pro = try JSONDecoder().decode(
             ScanAPIResponse.self, from: Self.contractData())
-        XCTAssertEqual(decoded.freeScansRemaining, 2)
+        XCTAssertNil(pro.freeScansRemaining)
     }
 }
 

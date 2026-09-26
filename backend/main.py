@@ -729,7 +729,14 @@ class ScanResponse(BaseModel):
     nullable.
 
     Everything below is additive and defaulted. Swift's `Decodable` ignores keys
-    it does not declare, so an old client is unaffected by their presence.
+    it does not declare, so adding one is safe. Changing one is not: since "Why
+    this price" (#87, 697d0c3) the client decodes most of them with
+    `decodeIfPresent`, which accepts null or absent but throws on a value of
+    the wrong type — and one throw fails the whole scan, after the allowance
+    was charged. So a v2 field's type is as fixed as a v1 field's: new
+    structure goes in a new field. `contract/` holds the real bodies and
+    `tests/test_contract.py` compares every key and type with what this
+    serves.
     """
 
     # ── v1 contract — do not change ─────────────────────────────────────────
