@@ -994,6 +994,9 @@ struct ResultView: View {
         tagSuccess = nil
         Task {
             defer { isRescanning = false }
+            // A paid model call, like any scan — see `BackgroundScanActivity`.
+            let background = BackgroundScanActivity.begin("Tag re-read")
+            defer { background.end() }
             do {
                 let response = try await ScanAPIClient.shared.scan(image: photo, tagImage: tagImage)
                 result.applySharpened(response)

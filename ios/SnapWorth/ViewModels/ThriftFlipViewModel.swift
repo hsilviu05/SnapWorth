@@ -69,6 +69,9 @@ final class ThriftFlipViewModel {
         scanError = nil
         itemImage = image
         defer { isScanningItem = false }
+        // See `BackgroundScanActivity`: a locked phone must not strand a paid scan.
+        let background = BackgroundScanActivity.begin("Thrift Flip scan")
+        defer { background.end() }
 
         do {
             let response = try await ScanAPIClient.shared.scan(image: image)

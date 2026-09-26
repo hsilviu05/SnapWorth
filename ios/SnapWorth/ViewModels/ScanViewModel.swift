@@ -60,6 +60,9 @@ final class ScanViewModel {
         errorMessage = nil
         saveFailed = false
         defer { isAnalyzing = false }
+        // The request and the save, if the phone locks mid-scan.
+        let background = BackgroundScanActivity.begin("Scan")
+        defer { background.end() }
 
         do {
             let response = try await ScanAPIClient.shared.scan(image: image)
@@ -344,6 +347,46 @@ enum ScanStreak {
     private static func isYesterday(_ date: Date, relativeTo now: Date, calendar: Calendar) -> Bool {
         guard let yesterday = calendar.date(byAdding: .day, value: -1, to: now) else { return false }
         return calendar.isDate(date, inSameDayAs: yesterday)
+    }
+}
+
+// ── Finishing a scan the phone locked on ──────────────────────────────────────
+
+/// Asks iOS for time to finish a scan when the app leaves the foreground
+/// mid-request.
+///
+/// Nothing did, and every scan runs on the default session: lock the phone
+/// during "Analyzing…" and the process is suspended with the upload or the
+/// response in flight. The server charges a scan unless it sees the client
+/// disconnect first, so a free user could come back to "No internet
+/// connection" after the day's only scan had been spent — and a retry is a
+/// 402. A background task keeps the request and the save running for the
+/// few seconds they need; it does nothing at all while the app stays in
+/// front.
+///
+/// Begun before the request, ended in a `defer`, and ended by the expiration
+/// handler if iOS runs out of patience first. `end()` is idempotent, so the
+/// two cannot both end it.
+@MainActor
+final class BackgroundScanActivity {
+    private var identifier: UIBackgroundTaskIdentifier = .invalid
+
+    private init() {}
+
+    static func begin(_ name: String) -> BackgroundScanActivity {
+        let activity = BackgroundScanActivity()
+        activity.identifier = UIApplication.shared.beginBackgroundTask(withName: name) {
+            activity.end()
+        }
+        return activity
+    }
+
+    var isActive: Bool { identifier != .invalid }
+
+    func end() {
+        guard identifier != .invalid else { return }
+        UIApplication.shared.endBackgroundTask(identifier)
+        identifier = .invalid
     }
 }
 

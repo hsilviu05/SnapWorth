@@ -4603,6 +4603,54 @@ final class BearerRetryStructureTests: XCTestCase {
     }
 }
 
+// ── A locked phone does not strand a paid scan ───────────────────────────────
+//
+// Nothing asked iOS for background time, so locking the phone during
+// "Analyzing…" suspended the request the server was about to charge for.
+
+@MainActor
+final class BackgroundScanActivityTests: XCTestCase {
+
+    func test_endingTwiceIsHarmless() {
+        // The expiration handler and the caller's `defer` can both reach
+        // `end()`; ending an identifier UIKit has already released is an error.
+        let activity = BackgroundScanActivity.begin("test")
+        activity.end()
+        XCTAssertFalse(activity.isActive)
+        activity.end()
+        XCTAssertFalse(activity.isActive)
+    }
+
+    /// Source-level: all three paths go through `ScanAPIClient.shared`, which
+    /// a unit test cannot drive. What matters is that each one begins the
+    /// activity and ends it in a `defer`.
+    func test_everyPaidScanPathKeepsItselfAlive() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("SnapWorth")
+        for path in ["ViewModels/ScanViewModel.swift",
+                     "ViewModels/ThriftFlipViewModel.swift",
+                     "Views/ResultView.swift"] {
+            let file = try String(contentsOf: root.appendingPathComponent(path), encoding: .utf8)
+            var searchFrom = file.startIndex
+            var found = 0
+            while let call = file.range(of: "ScanAPIClient.shared.scan(",
+                                        range: searchFrom..<file.endIndex) {
+                let before = file[file.startIndex..<call.lowerBound]
+                let begin = try XCTUnwrap(before.range(of: "BackgroundScanActivity.begin(",
+                                                       options: .backwards),
+                                          "\(path): a scan with no background activity")
+                XCTAssertTrue(file[begin.upperBound..<call.lowerBound]
+                                .contains("defer { background.end() }"),
+                              "\(path): the activity is never ended")
+                found += 1
+                searchFrom = call.upperBound
+            }
+            XCTAssertGreaterThan(found, 0, path)
+        }
+    }
+}
+
 // ── A failed mint says what failed ───────────────────────────────────────────
 //
 // Now that a mint failure is thrown rather than swallowed, it is what the user
