@@ -351,6 +351,9 @@ struct TrendRow: Decodable, Identifiable, Equatable {
     }
 }
 
+/// One of the week's highest-value scans. `name` is the brand, never the item
+/// name: each find is a single person's scan with no floor under it, so the
+/// server sends only brand, category and range (`notify.trends`).
 struct NotableFind: Decodable, Identifiable, Equatable {
     let name: String
     let category: String
@@ -360,8 +363,9 @@ struct NotableFind: Decodable, Identifiable, Equatable {
     var id: String { "\(name)-\(low)-\(high)" }
 }
 
-/// What the app shows on My Finds. Aggregates about everyone, never about a
-/// person: the server applies a floor before any of this is sent.
+/// What the app shows on My Finds. The category and brand rows are aggregates
+/// the server floors before sending. `notableFinds` are not aggregates — each
+/// is one scan — which is why they arrive as brand, category and range only.
 struct Trends: Decodable, Equatable {
     let days: Int
     let scans: Int
@@ -486,6 +490,6 @@ actor TrendsAPIClient {
         brands: [TrendRow(name: "Carhartt", count: 14, changePct: 40, averageEstimate: nil),
                  TrendRow(name: "Nike", count: 11, changePct: 5, averageEstimate: nil),
                  TrendRow(name: "Le Creuset", count: 7, changePct: nil, averageEstimate: nil)],
-        notableFinds: [NotableFind(name: "Le Creuset Dutch Oven 5.5qt", category: "home", low: 120, high: 220),
-                       NotableFind(name: "The North Face Nuptse 700", category: "clothing", low: 110, high: 200)])
+        notableFinds: [NotableFind(name: "Le Creuset", category: "home", low: 120, high: 220),
+                       NotableFind(name: "The North Face", category: "clothing", low: 110, high: 200)])
 }

@@ -35,8 +35,8 @@ async def seed(cache, days_ago: int, cats: dict, brands: dict, finds=(), scans: 
         await cache.set(notify._stat_key(day, "scans_free"), str(scans), 600)
 
 
-def find(name, category, lo, hi):
-    return {"n": name, "c": category, "lo": lo, "hi": hi, "t": "free"}
+def find(name, category, lo, hi, brand=None):
+    return {"n": name, "b": brand, "c": category, "lo": lo, "hi": hi, "t": "free"}
 
 
 class TestFloor:
@@ -71,17 +71,17 @@ class TestTierSplit:
 
     @pytest.mark.asyncio
     async def test_pro_gets_averages_and_notable_finds(self, cache):
-        finds = [find("Le Creuset 5.5qt", "home", 120, 220),
-                 find("KitchenAid Mixer", "home", 100, 180),
-                 find("Pyrex set", "home", 40, 80)]
+        finds = [find("Le Creuset 5.5qt", "home", 120, 220, "Le Creuset"),
+                 find("KitchenAid Mixer", "home", 100, 180, "KitchenAid"),
+                 find("Pyrex set", "home", 40, 80, "Pyrex")]
         await seed(cache, 1, {"home": 9}, {"Le Creuset": 6}, finds)
         payload = await notify.trends(is_pro=True)
         (home,) = payload["categories"]
         assert home["average_estimate"] == 123        # (170 + 140 + 60) / 3
         assert [f["name"] for f in payload["notable_finds"]] == \
-            ["Le Creuset 5.5qt", "KitchenAid Mixer", "Pyrex set"]
+            ["Le Creuset", "KitchenAid", "Pyrex"]
         assert set(payload["notable_finds"][0]) == {"name", "category", "low", "high"}, \
-            "a find is an item and a price — never a device, never a time"
+            "a find is a brand and a price — never a device, never a time"
 
     @pytest.mark.asyncio
     async def test_an_average_needs_three_finds(self, cache):
@@ -98,6 +98,40 @@ class TestTierSplit:
         assert len((await notify.trends(is_pro=False))["categories"]) == notify.TRENDS_FREE_ROWS
         await cache.delete(f"{notify.TRENDS_CACHE_KEY}:pro")
         assert len((await notify.trends(is_pro=True))["categories"]) == notify.TRENDS_PRO_ROWS
+
+
+class TestNotableFindsAreNotSomeonesScan:
+    """A notable find is one person's scan with no floor under it, shown to
+    other people. The privacy policy said scan results were not kept at all;
+    what it can truthfully say is that others see a brand, a category and a
+    range — so that is all that may leave the server."""
+
+    @pytest.mark.asyncio
+    async def test_the_item_name_never_leaves_the_server(self, cache):
+        await seed(cache, 1, {"collectibles": 9}, {},
+                   [find("Signed 1998 Jordan card, to Maria from Dad",
+                         "collectibles", 900, 1500, "Upper Deck")])
+        payload = await notify.trends(is_pro=True)
+        assert payload["notable_finds"] == [
+            {"name": "Upper Deck", "category": "collectibles", "low": 900, "high": 1500}]
+        assert "Maria" not in json.dumps(payload)
+
+    @pytest.mark.asyncio
+    async def test_a_find_without_a_brand_is_left_out(self, cache):
+        await seed(cache, 1, {"home": 9}, {},
+                   [find("Hand-painted portrait of our house", "home", 300, 600),
+                    find("Unbranded lamp", "home", 200, 400, "Unbranded"),
+                    find("Pyrex set", "home", 40, 80, "Pyrex")])
+        payload = await notify.trends(is_pro=True)
+        assert [f["name"] for f in payload["notable_finds"]] == ["Pyrex"]
+
+    @pytest.mark.asyncio
+    async def test_skipped_finds_do_not_cost_a_slot(self, cache):
+        finds = [find(f"Mystery {i}", "home", 900 - i, 1000 - i) for i in range(10)]
+        finds += [find(f"Branded {i}", "home", 100 - i, 200 - i, f"Brand{i}") for i in range(10)]
+        await seed(cache, 1, {"home": 9}, {}, finds)
+        payload = await notify.trends(is_pro=True)
+        assert len(payload["notable_finds"]) == notify.TRENDS_FINDS
 
 
 class TestCaching:

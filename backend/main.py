@@ -2199,9 +2199,11 @@ async def trends(
     The backend has kept these tallies since the operator bot shipped: counts
     per category and per brand, and the day's most valuable finds as an item
     name and a price range. Nothing in them identifies a device, and nothing
-    here changes that — a row appears only once at least five scans back it,
-    so a single user's afternoon cannot become a "trend", and an average is
-    withheld until three finds support it.
+    here changes that — a category or brand row appears only once at least
+    five scans back it, so a single user's afternoon cannot become a "trend",
+    and an average is withheld until three finds support it. Notable finds
+    have no such floor: each is one scan, so it is sent as brand, category and
+    range, never the item name (see `notify.trends`).
 
     The free/Pro split is decided **here**, from the verified principal, never
     by the client asking nicely: free gets the top three categories and brands

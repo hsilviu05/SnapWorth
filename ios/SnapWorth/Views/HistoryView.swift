@@ -541,8 +541,10 @@ private struct Sparkline: Shape {
 // MARK: - Trending at the thrift (#96)
 // ═══════════════════════════════════════════════════════════════════
 
-/// What everyone scanned this week. Aggregates only — the server applies a
-/// floor before sending, so nothing here is about one person.
+/// What everyone scanned this week. The category and brand rows are
+/// aggregates the server floors before sending; the notable finds are single
+/// scans with no floor, which is why the server sends only their brand,
+/// category and range.
 ///
 /// Free sees the counts and which way each moved; Pro also sees the average
 /// estimate per category and the week's notable finds. Absent entirely when
