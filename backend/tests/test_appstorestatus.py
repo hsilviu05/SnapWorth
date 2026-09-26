@@ -430,6 +430,58 @@ class TestOrderLookup:
             await client.order_transaction_ids("MK5TTTV8JH")
 
 
+# ── What Apple could not deliver, for /checkup ──────────────────────────────
+
+class _HistoryResponse:
+    def __init__(self, items, has_more=False):
+        self.notificationHistory = items
+        self.hasMore = has_more
+
+
+def _history_client(outcome):
+    client = appstorestatus.AppStoreStatusClient(fake_credentials())
+    requests: list[tuple[str, object]] = []
+
+    class _API:
+        def __init__(self, name):
+            self.name = name
+
+        async def get_notification_history(self, pagination_token, request):
+            requests.append((self.name, request))
+            if isinstance(outcome, Exception):
+                raise outcome
+            return outcome
+
+    client._client_for = lambda name, env: _API(name)          # type: ignore[assignment]
+    return client, requests
+
+
+class TestUndeliveredNotifications:
+
+    @pytest.mark.asyncio
+    async def test_counts_failures_in_production_over_the_last_day(self):
+        client, requests = _history_client(_HistoryResponse([object(), object()], has_more=True))
+
+        assert await client.undelivered_notifications() == (2, True)
+
+        ((name, request),) = requests
+        assert name == "Production"
+        assert request.onlyFailures is True
+        assert request.endDate - request.startDate == 24 * 3600 * 1000
+
+    @pytest.mark.asyncio
+    async def test_nothing_undelivered(self):
+        client, _ = _history_client(_HistoryResponse(None))
+        assert await client.undelivered_notifications() == (0, False)
+
+    @pytest.mark.asyncio
+    async def test_a_refused_key_says_so(self):
+        """The answer /checkup exists to give before a support mail does."""
+        client, _ = _history_client(APIException(401))
+        with pytest.raises(appstorestatus.StatusCredentialsRejected):
+            await client.undelivered_notifications()
+
+
 # ── Errors, each one distinguishable ─────────────────────────────────────────
 
 class TestErrorTranslation:

@@ -1388,6 +1388,10 @@ async def apple_notifications(body: AppleNotification, request: Request) -> dict
         log.warning("rejected App Store notification: %s", exc)
         raise HTTPException(status_code=400, detail=str(exc)) from None
 
+    # Before the idempotency check: a redelivery is Apple reaching us too, and
+    # /checkup's "last verified notification" line is about arrival.
+    notify.appstore_notification_verified(note.environment, note.notification_type)
+
     # Idempotency. Apple redelivers until it gets a 2xx, and a retry that
     # re-ran the handler would push the operator a second "trial converted"
     # for one conversion. Fail *open* if the cache is unreachable: a duplicate

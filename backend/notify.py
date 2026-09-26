@@ -258,6 +258,11 @@ FORWARD_MAX_CALLS = 60
 # out?" without anyone reading Railway logs.
 LAST_DEPLOY_KEY = "opsstate:lastdeploy"
 
+# When a signed App Store Server Notification last verified, for /checkup.
+# `/apple/notifications` is the only route that withdraws a refund, and
+# nothing else says when Apple last reached it.
+LAST_APPSTORE_NOTIFICATION_KEY = "opsstate:lastasn"
+
 COMMANDS: tuple[tuple[str, str], ...] = (
     ("status", "Active users, scans today, provider health"),
     ("subs", "Every subscription seen: plan, how obtained, renews"),
@@ -276,7 +281,7 @@ COMMANDS: tuple[tuple[str, str], ...] = (
     ("price", "/price <item> — a text-only estimate, no photo"),
     ("trend", "/trend <brand or category> — 30 days of scans"),
     ("user", "/user <id> — one device's story, for support"),
-    ("checkup", "Redis, Gemini, DeviceCheck, TLS expiry — one screen"),
+    ("checkup", "Redis, Gemini, DeviceCheck, App Store, TLS expiry — one screen"),
     ("clear", "Delete the last two days of this chat — asks first; /history keeps the bot's side"),
     ("history", "/history [n] — what the bot said before the last clears"),
     ("feed", "Live scan feed: on, off, or show"),
@@ -970,6 +975,30 @@ async def appstore_test_notification(environment: str) -> str:
         "anyone to open the app.",
         _SUBS_BUTTONS)
     return "sent" if ok else "send failed"
+
+
+async def _note_appstore_notification(environment: str, notification_type: str | None) -> None:
+    if _cache is None:
+        return
+    try:
+        await _cache.set(LAST_APPSTORE_NOTIFICATION_KEY,
+                         json.dumps([int(time.time()), str(environment)[:20],
+                                     str(notification_type or "?")[:40]]),
+                         INDEX_TTL)
+    except Exception as exc:
+        log.debug("notification arrival note failed: %s", type(exc).__name__)
+
+
+def appstore_notification_verified(environment: str, notification_type: str | None) -> None:
+    """A signed App Store Server Notification verified. Fire-and-forget.
+
+    Recorded for `/checkup`, whatever the notification turns out to be — a
+    redelivery and a test are Apple reaching us too. If Apple's notifications
+    stop, refunded subscribers keep Pro until their term ends, and without this
+    no line on /checkup would change."""
+    if _notifier is None or _cache is None:
+        return
+    _spawn(_note_appstore_notification(environment, notification_type))
 
 
 async def subscription_event(note) -> None:
@@ -4005,6 +4034,48 @@ async def _archive_chat_line(chat_id: str) -> str:
     return f"Archive chat: {title} ({kind}) ✅ — /clear forwards here first"
 
 
+async def _appstore_api_line() -> str:
+    """Whether /sub can ask Apple, and whether Apple is failing to reach us.
+
+    The App Store Server API key is optional — a deployment without it boots,
+    and only /sub says so — so the operator used to learn it was missing in
+    the middle of a support mail. One call to Apple's notification history,
+    failures only, answers both: it is refused when the key is wrong, and it
+    lists what Apple tried to deliver here and could not. A refund among those
+    is a refund whose Pro has not been withdrawn."""
+    import appstorestatus
+    try:
+        failed, more = await asyncio.wait_for(appstorestatus.undelivered_notifications(), 10)
+    except appstorestatus.StatusNotConfigured as exc:
+        return f"App Store API: NOT configured — /sub cannot ask Apple. {html.escape(str(exc))}"
+    except appstorestatus.StatusCredentialsRejected as exc:
+        return f"App Store API: key REJECTED — {html.escape(str(exc))}"
+    except Exception as exc:
+        detail = str(exc) if isinstance(exc, appstorestatus.StatusError) else type(exc).__name__
+        return f"App Store API: probe failed — {html.escape(detail)}"
+    if not failed:
+        return "App Store API: key accepted ✅ · no undelivered notifications in 24h"
+    count = f"{failed}{'+' if more else ''}"
+    return (f"App Store API: key accepted · ⚠️ Apple could not deliver {count} "
+            f"notification{'s' if failed != 1 or more else ''} here in 24h — any refund "
+            "among them has not been applied yet")
+
+
+async def _last_appstore_notification_line() -> str:
+    """When `/apple/notifications` last received something that verified."""
+    try:
+        record = json.loads(await _cache.get(LAST_APPSTORE_NOTIFICATION_KEY) or "null")
+    except Exception:
+        record = None
+    if not (isinstance(record, list) and len(record) >= 3):
+        return "Last verified App Store notification: none on record"
+    ago = max(0, int(time.time() - float(record[0])))
+    when = (f"{ago // 60} min ago" if ago < 7200 else
+            f"{ago // 3600}h ago" if ago < 2 * 86400 else f"{ago // 86400}d ago")
+    return (f"Last verified App Store notification: {when} "
+            f"({html.escape(str(record[1]))}, {html.escape(str(record[2]))})")
+
+
 async def _checkup_text() -> str:
     lines = ["🩺 <b>Checkup</b>"]
 
@@ -4065,6 +4136,11 @@ async def _checkup_text() -> str:
                          "(Let's Encrypt renews at 30; pinned intermediate to 2028-09-02)")
     except Exception as exc:
         lines.append(f"TLS {html.escape(host)}: unreachable ({html.escape(type(exc).__name__)})")
+
+    # App Store: can /sub ask Apple, and is Apple reaching the route that
+    # withdraws refunds? Probed live, for the reason DeviceCheck is.
+    lines.append(await _appstore_api_line())
+    lines.append(await _last_appstore_notification_line())
 
     # The archive chat, if configured: does the id resolve, and to what?
     archive_chat = os.environ.get(ARCHIVE_CHAT_ENV, "").strip()

@@ -30,6 +30,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+import time
 from dataclasses import dataclass
 
 import entitlements
@@ -403,6 +404,42 @@ class AppStoreStatusClient:
                 f"Order {order_id} is valid but holds no transaction for this app.")
         return found
 
+    async def undelivered_notifications(self, hours: int = 24) -> tuple[int, bool]:
+        """App Store Server Notifications Apple could not deliver to us in the
+        last `hours`, as `(count on the first page, more pages exist)`.
+
+        Apple's Get Notification History with `onlyFailures`, which also lists
+        what it is still retrying. It answers two questions `/checkup` could
+        not: whether this deployment's key is accepted — the key is optional,
+        so its absence used to surface in the middle of a support mail — and
+        whether Apple is failing to reach `/apple/notifications`, the only
+        route that withdraws a refund. Production only: that is the
+        environment whose refunds matter.
+        """
+        from appstoreserverlibrary.api_client import APIException
+        from appstoreserverlibrary.models.NotificationHistoryRequest import (
+            NotificationHistoryRequest)
+
+        name, environment = self._environments()[0]
+        client = self._client_for(name, environment)
+        end = int(time.time() * 1000)
+        request = NotificationHistoryRequest(
+            startDate=end - hours * 3600 * 1000, endDate=end, onlyFailures=True)
+        async with self._lock:
+            try:
+                response = await asyncio.wait_for(
+                    client.get_notification_history(None, request),  # type: ignore[attr-defined]
+                    timeout=TIMEOUT_SECONDS)
+            except TimeoutError:
+                raise StatusUnavailable(
+                    f"Apple did not answer within {TIMEOUT_SECONDS:.0f}s ({name}).") from None
+            except APIException as exc:
+                raise self._translate(exc, name) from None
+            except Exception as exc:
+                raise StatusUnavailable(
+                    f"Could not reach Apple ({type(exc).__name__}).") from None
+        return len(response.notificationHistory or []), bool(response.hasMore)
+
     async def _statuses_in(self, name: str, environment,
                            transaction_id: str) -> list[SubscriptionStatus]:
         from appstoreserverlibrary.api_client import APIException
@@ -604,3 +641,9 @@ async def lookup_order(order_id: str) -> list[str]:
     """The originalTransactionIds in an App Store order, for `lookup`."""
     client = await get_client()
     return await client.order_transaction_ids(order_id)
+
+
+async def undelivered_notifications(hours: int = 24) -> tuple[int, bool]:
+    """What Apple could not deliver to us lately, for `/checkup`."""
+    client = await get_client()
+    return await client.undelivered_notifications(hours)

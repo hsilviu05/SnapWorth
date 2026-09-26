@@ -1796,6 +1796,62 @@ class TestCheckup:
             await notify.aclose()
 
 
+class TestCheckupAppStore:
+    """/checkup probed DeviceCheck live and said nothing about the App Store
+    Server API key — optional since e2a5af4, so its absence first showed up
+    in the middle of a support mail — or about whether Apple's notifications,
+    the only thing that withdraws a refund, were arriving at all."""
+
+    @staticmethod
+    def _probe(monkeypatch, result):
+        import appstorestatus
+
+        async def probe(hours: int = 24):
+            if isinstance(result, Exception):
+                raise result
+            return result
+        monkeypatch.setattr(appstorestatus, "undelivered_notifications", probe)
+
+    @pytest.mark.asyncio
+    async def test_the_key_and_the_webhook_each_get_a_line(
+            self, enabled_notify, monkeypatch):
+        monkeypatch.setattr(notify, "_tls_days_left", lambda host, timeout=5.0: 60)
+        self._probe(monkeypatch, (0, False))
+
+        text = await notify.handle_command("/checkup")
+        assert "App Store API: key accepted ✅ · no undelivered notifications in 24h" in text
+        assert "Last verified App Store notification: none on record" in text
+
+        notify.appstore_notification_verified("Production", "DID_RENEW")
+        await drain()
+        text = await notify.handle_command("/checkup")
+        assert "Last verified App Store notification: 0 min ago (Production, DID_RENEW)" in text
+
+    @pytest.mark.asyncio
+    async def test_undelivered_notifications_are_flagged(self, enabled_notify, monkeypatch):
+        self._probe(monkeypatch, (3, True))
+        line = await notify._appstore_api_line()
+        assert "⚠️ Apple could not deliver 3+ notifications here in 24h" in line
+        assert "refund" in line
+
+    @pytest.mark.asyncio
+    async def test_a_missing_or_refused_key_is_named(self, enabled_notify, monkeypatch):
+        import appstorestatus
+        self._probe(monkeypatch, appstorestatus.StatusNotConfigured("No credentials."))
+        assert (await notify._appstore_api_line()).startswith(
+            "App Store API: NOT configured — /sub cannot ask Apple.")
+        self._probe(monkeypatch, appstorestatus.StatusCredentialsRejected("401 from Apple"))
+        assert "key REJECTED — 401 from Apple" in await notify._appstore_api_line()
+        self._probe(monkeypatch, TimeoutError())
+        assert "probe failed — TimeoutError" in await notify._appstore_api_line()
+
+    @pytest.mark.asyncio
+    async def test_age_reads_in_days_once_it_is_old(self, enabled_notify, cache):
+        await cache.set(notify.LAST_APPSTORE_NOTIFICATION_KEY,
+                        json.dumps([int(time.time()) - 5 * 86400, "Production", "REFUND"]))
+        assert "5d ago (Production, REFUND)" in await notify._last_appstore_notification_line()
+
+
 class TestQuietAndSpike:
     @pytest.mark.asyncio
     async def test_quiet_note_once_per_day_in_us_hours_only(self, enabled_notify, cache):

@@ -1026,6 +1026,28 @@ class TestAppleNotifications:
         assert r.status_code == 200
         assert r.json()["type"] == "DID_RENEW"
 
+    def test_arrival_is_recorded_for_checkup_and_only_once_verified(
+            self, pinned, monkeypatch):
+        """/checkup's "last verified App Store notification" line. A forged
+        body must not be able to make a silent webhook look alive."""
+        import notify
+        seen: list[tuple[str, str]] = []
+        monkeypatch.setattr(notify, "appstore_notification_verified",
+                            lambda env, kind: seen.append((env, kind)))
+        leaf_key, chain = pinned
+
+        client.post("/apple/notifications", json={"signedPayload": "not-a-jws"})
+        other_key, other_chain = build_chain()
+        client.post("/apple/notifications", json={
+            "signedPayload": make_notification(other_key, other_chain)})
+        assert seen == []
+
+        payload = make_notification(leaf_key, chain, uuid="arrival-1")
+        client.post("/apple/notifications", json={"signedPayload": payload})
+        client.post("/apple/notifications", json={"signedPayload": payload})
+        # A redelivery is Apple reaching us too.
+        assert seen == [("Production", "DID_RENEW")] * 2
+
     def test_the_endpoint_is_rate_limited_like_every_other_open_route(self, pinned):
         """Unauthenticated, and every accepted body runs a full JWS verify.
 
