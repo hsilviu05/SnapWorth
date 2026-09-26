@@ -1730,12 +1730,30 @@ final class PrivacyManifestTests: XCTestCase {
                        "it is attached to analytics signals, and nothing else")
     }
 
-    func test_nothingIsLinkedToIdentityOrUsedForTracking() throws {
+    func test_purchaseHistoryIsDeclared() throws {
+        // The app uploads the signed StoreKit transaction with the device ID on
+        // every status refresh, and the server keeps it for up to 400 days.
+        // The manifest had no Purchase History entry at all.
+        let collected = try manifest()["NSPrivacyCollectedDataTypes"] as? [[String: Any]] ?? []
+        let entry = collected.first { $0["NSPrivacyCollectedDataType"] as? String
+                                      == "NSPrivacyCollectedDataTypePurchaseHistory" }
+        XCTAssertNotNil(entry, "the signed transaction is collected and undeclared")
+        XCTAssertEqual(entry?["NSPrivacyCollectedDataTypePurposes"] as? [String],
+                       ["NSPrivacyCollectedDataTypePurposeAppFunctionality"])
+    }
+
+    func test_onlyPurchaseHistoryIsLinked_andNothingIsUsedForTracking() throws {
+        // Purchase History is linked: its originalTransactionId is the same on
+        // every device under one Apple ID, and the server stores it against the
+        // device ID to join them. Everything else stays unlinked; widening this
+        // set changes the App Store label and needs the same argument made.
         let collected = try manifest()["NSPrivacyCollectedDataTypes"] as? [[String: Any]] ?? []
         for entry in collected {
             let name = entry["NSPrivacyCollectedDataType"] as? String ?? "?"
-            XCTAssertEqual(entry["NSPrivacyCollectedDataTypeLinked"] as? Bool, false,
-                           "\(name) must not be linked to identity")
+            let linked = name == "NSPrivacyCollectedDataTypePurchaseHistory"
+            XCTAssertEqual(entry["NSPrivacyCollectedDataTypeLinked"] as? Bool, linked,
+                           linked ? "\(name) is joined to the Apple account; declare it linked"
+                                  : "\(name) must not be linked to identity")
             XCTAssertEqual(entry["NSPrivacyCollectedDataTypeTracking"] as? Bool, false,
                            "\(name) must not be used for tracking")
         }
