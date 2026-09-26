@@ -130,6 +130,7 @@ actor AttestationService {
     func reset() {
         TokenStore.shared.clear()
         UserDefaults.standard.removeObject(forKey: Keys.keyID)
+        EntitlementSyncMemory.forget()
         // The id is derived from the attestation subject, so it describes a
         // device identity this call is discarding. Keeping it would have a
         // support email quote an id the indexes no longer point at.
@@ -227,6 +228,9 @@ actor AttestationService {
         )
         let token = try await post(path: "auth/attest", body: body)
         UserDefaults.standard.set(keyID, forKey: Keys.keyID)
+        // A new key is a new subject, which the server has never been told is
+        // subscribed — whatever these defaults remember from the old one.
+        EntitlementSyncMemory.forget()
         log.info("attestation complete")
         return token
     }

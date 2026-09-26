@@ -1,3 +1,4 @@
+import CryptoKit
 import Foundation
 import os.log
 import StoreKit
@@ -44,7 +45,7 @@ final class StoreKitPurchaseService: PurchaseService, ObservableObject {
 
         Task {
             await loadProducts()
-            await refreshSubscriptionStatus()
+            await refreshSubscriptionStatus(serverSync: .ifStale)
         }
     }
 
@@ -349,7 +350,10 @@ final class StoreKitPurchaseService: PurchaseService, ObservableObject {
     /// `PurchaseService` conformance — see the protocol for why an expiry needs
     /// a poll rather than an update stream.
     func refreshEntitlements() async {
-        await refreshSubscriptionStatus()
+        // Every return to the foreground lands here. Re-reading StoreKit is
+        // the point; re-sending an unchanged transaction the server already
+        // holds is not — see `EntitlementSyncMemory`.
+        await refreshSubscriptionStatus(serverSync: .ifStale)
     }
 
     /// `PurchaseService` conformance. Awaited end to end, unlike the routine
@@ -357,7 +361,7 @@ final class StoreKitPurchaseService: PurchaseService, ObservableObject {
     func resyncEntitlement() async -> EntitlementResync {
         // StoreKit first: the local state may itself be stale, and a lapse it
         // now reports means the 402 was right.
-        guard let jws = await refreshSubscriptionStatus(serverSync: false) else {
+        guard let jws = await refreshSubscriptionStatus(serverSync: .never) else {
             return .notSubscribed
         }
         guard Config.useAttestation else { return .failed(reason: "attestation_off") }
@@ -367,20 +371,32 @@ final class StoreKitPurchaseService: PurchaseService, ObservableObject {
             // and finding it expired — StoreKit and the server disagreeing
             // about the date, as they do during an App Store billing grace
             // period the server does not honour.
-            return tier == "pro" ? .confirmed : .failed(reason: "server_says_free")
+            guard tier == "pro" else { return .failed(reason: "server_says_free") }
+            EntitlementSyncMemory.record(jws)
+            return .confirmed
         } catch {
             return .failed(reason: EntitlementSyncFailure.reason(for: error))
         }
     }
 
+    /// When a status refresh also pushes the active transaction to the server.
+    private enum ServerSync {
+        /// Purchase, restore and `Transaction.updates`: something changed.
+        case always
+        /// Cold launch and every return to the foreground: only when the
+        /// server has not had this transaction recently.
+        case ifStale
+        /// `resyncEntitlement`, which sends it itself and waits for the answer.
+        case never
+    }
+
     /// Re-reads `Transaction.currentEntitlements` and publishes the result.
     ///
     /// - Parameter serverSync: whether to also push the active transaction to
-    ///   the server in the background. `resyncEntitlement` passes false
-    ///   because it sends it itself and waits for the answer.
+    ///   the server in the background — see `ServerSync`.
     /// - Returns: the active subscription's signed transaction, or nil.
     @discardableResult
-    private func refreshSubscriptionStatus(serverSync: Bool = true) async -> String? {
+    private func refreshSubscriptionStatus(serverSync: ServerSync = .always) async -> String? {
         var active = false
         var trialEnd: Date?
         var activeJWS: String?
@@ -418,7 +434,13 @@ final class StoreKitPurchaseService: PurchaseService, ObservableObject {
         // quota. Runs on every status refresh — purchase, restore, and the
         // transaction listener all funnel through here — which also makes it
         // self-healing if an earlier attempt failed offline.
-        if let activeJWS, serverSync {
+        let shouldSync: Bool
+        switch serverSync {
+        case .always:  shouldSync = true
+        case .ifStale: shouldSync = activeJWS.map { !EntitlementSyncMemory.isFresh($0) } ?? false
+        case .never:   shouldSync = false
+        }
+        if let activeJWS, shouldSync {
             // Detached, not awaited: this sits inside the `purchase()` await
             // chain on the main actor, and attestation plus the POST can take
             // seconds (or block on a bad network). The local entitlement is
@@ -458,7 +480,9 @@ final class StoreKitPurchaseService: PurchaseService, ObservableObject {
         guard Config.useAttestation else { return }
         do {
             let tier = try await AttestationService.shared.submitEntitlement(signedTransaction: jws)
-            if tier != "pro" {
+            if tier == "pro" {
+                EntitlementSyncMemory.record(jws)
+            } else {
                 Analytics.shared.track(.entitlementSyncFailed(reason: "server_says_free"))
             }
         } catch {
@@ -512,5 +536,50 @@ enum EntitlementSyncFailure {
         case .verificationUnavailable, .serverUnavailable: return "unavailable"
         default:                                        return "unknown"
         }
+    }
+}
+
+/// Which transaction this device last got the server to honour, and when.
+///
+/// Every return to the foreground re-read StoreKit — right, because an expiry
+/// produces no update — and re-sent the signed transaction with it, so each
+/// visit to the app cost the server a certificate-chain verification of a
+/// transaction it already held, out of an IP bucket it shares with /scan. Now
+/// a routine refresh sends only what the server has not had from this device
+/// within `interval`: a renewal is a new transaction, so it goes at once.
+///
+/// Safe to skip because the server keeps a Pro entitlement for 24 hours and
+/// the proof behind it far longer, and because a 402 that reaches a subscriber
+/// forces a send (`confirmingSubscription`). Purchase, restore and
+/// `Transaction.updates` always send. Forgotten when a fresh attestation makes
+/// this device a new subject the server has never been told about — an
+/// iCloud restore onto a new iPhone carries these defaults but not the key.
+enum EntitlementSyncMemory {
+    static let interval: TimeInterval = 12 * 60 * 60
+
+    private static let fingerprintKey = "entitlementSync.fingerprint"
+    private static let dateKey = "entitlementSync.date"
+
+    /// A digest, not the transaction: nothing here needs to read it back.
+    private static func fingerprint(_ jws: String) -> String {
+        SHA256.hash(data: Data(jws.utf8)).map { String(format: "%02x", $0) }.joined()
+    }
+
+    static func isFresh(_ jws: String, now: Date = Date(),
+                        defaults: UserDefaults = .standard) -> Bool {
+        guard defaults.string(forKey: fingerprintKey) == fingerprint(jws),
+              let last = defaults.object(forKey: dateKey) as? Date else { return false }
+        let age = now.timeIntervalSince(last)
+        return age >= 0 && age < interval
+    }
+
+    static func record(_ jws: String, now: Date = Date(), defaults: UserDefaults = .standard) {
+        defaults.set(fingerprint(jws), forKey: fingerprintKey)
+        defaults.set(now, forKey: dateKey)
+    }
+
+    static func forget(defaults: UserDefaults = .standard) {
+        defaults.removeObject(forKey: fingerprintKey)
+        defaults.removeObject(forKey: dateKey)
     }
 }

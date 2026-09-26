@@ -653,14 +653,20 @@ async def _enforce_ip_limit(ip: str | None) -> None:
 #: Per-subject ceiling for `/auth/entitlement`, which had none at all.
 #:
 #: Deliberately *not* `RATE_MAX_REQUESTS` (20/h, the scan bucket). The
-#: legitimate client posts here at cold launch, on purchase, on restore and on
-#: every `Transaction.updates` event, so a user force-quitting and relaunching
-#: could reach 20 in an hour without doing anything unusual — and a 429 here
-#: means the server never records the subscription, so `require_auth` reads
-#: `free`, `/scan` strips the Pro panel and the day's scans come off the free
-#: allowance. A limit that downgrades a paying subscriber is worse than the
-#: unbounded work it was added to bound. 60/h is roughly ten times real usage
-#: and still caps the x.509 chain verification behind this route.
+#: legitimate client posts here on purchase, on restore, on every
+#: `Transaction.updates` event and after a subscriber's 402, and also at cold
+#: launch and on every return to the foreground. Builds before
+#: `EntitlementSyncMemory` re-send an unchanged transaction on each of those
+#: last two, so switching in and out of the app reaches 20 in an hour without
+#: doing anything unusual; later builds skip a transaction this device sent
+#: within twelve hours. The IP backstop below is the scan route's own `ip:`
+#: bucket, so these posts also count against `IP_RATE_MAX_REQUESTS` alongside
+#: /scan. A 429 here means the server never records the subscription, so
+#: `require_auth` reads `free`, `/scan` strips the Pro panel and the day's scans
+#: come off the free allowance. A limit that downgrades a paying subscriber is
+#: worse than the unbounded work it was added to bound. 60/h is roughly ten
+#: times real usage and still caps the x.509 chain verification behind this
+#: route.
 ENTITLEMENT_RATE_MAX_REQUESTS = int(
     os.environ.get("ENTITLEMENT_RATE_MAX_REQUESTS", "60"))
 

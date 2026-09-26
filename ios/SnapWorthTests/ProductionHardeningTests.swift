@@ -4874,6 +4874,97 @@ final class SubscriberPaywallTests: XCTestCase {
     }
 }
 
+// ── Telling the server once, not on every visit ──────────────────────────────
+//
+// Every return to the foreground re-sent the same signed transaction to
+// /auth/entitlement: a certificate-chain verification per visit, out of the IP
+// bucket the scan route uses.
+
+final class EntitlementSyncMemoryTests: XCTestCase {
+
+    private var defaults: UserDefaults!
+    private let suite = "EntitlementSyncMemoryTests"
+    private let now = Date(timeIntervalSince1970: 1_790_000_000)
+
+    override func setUp() {
+        super.setUp()
+        defaults = UserDefaults(suiteName: suite)
+        defaults.removePersistentDomain(forName: suite)
+    }
+
+    override func tearDown() {
+        defaults.removePersistentDomain(forName: suite)
+        super.tearDown()
+    }
+
+    func test_nothingIsFreshUntilTheServerHasHonouredIt() {
+        XCTAssertFalse(EntitlementSyncMemory.isFresh("jws-a", now: now, defaults: defaults))
+    }
+
+    func test_theSameTransactionIsNotResentWithinTheInterval() {
+        EntitlementSyncMemory.record("jws-a", now: now, defaults: defaults)
+        XCTAssertTrue(EntitlementSyncMemory.isFresh(
+            "jws-a", now: now.addingTimeInterval(EntitlementSyncMemory.interval - 60), defaults: defaults))
+        XCTAssertFalse(EntitlementSyncMemory.isFresh(
+            "jws-a", now: now.addingTimeInterval(EntitlementSyncMemory.interval), defaults: defaults),
+            "the server is told again before its own 24-hour entry can lapse")
+    }
+
+    func test_aRenewalIsSentAtOnce() {
+        // A renewal is a new transaction, so a new signature.
+        EntitlementSyncMemory.record("jws-a", now: now, defaults: defaults)
+        XCTAssertFalse(EntitlementSyncMemory.isFresh("jws-b", now: now, defaults: defaults))
+    }
+
+    func test_aClockMovedBackIsNotFresh() {
+        EntitlementSyncMemory.record("jws-a", now: now, defaults: defaults)
+        XCTAssertFalse(EntitlementSyncMemory.isFresh(
+            "jws-a", now: now.addingTimeInterval(-60), defaults: defaults))
+    }
+
+    func test_aNewAttestationSubjectIsToldAgain() {
+        // An iCloud restore carries these defaults to a phone whose App Attest
+        // key — and so whose server subject — is new.
+        EntitlementSyncMemory.record("jws-a", now: now, defaults: defaults)
+        EntitlementSyncMemory.forget(defaults: defaults)
+        XCTAssertFalse(EntitlementSyncMemory.isFresh("jws-a", now: now, defaults: defaults))
+    }
+
+    func test_theIntervalStaysInsideTheServersProCacheLifetime() {
+        // backend/entitlements.py: PRO_ENTITLEMENT_CACHE_TTL = 86_400.
+        XCTAssertLessThan(EntitlementSyncMemory.interval, 86_400)
+    }
+
+    /// Source-level: which refreshes may skip is the whole fix, and StoreKit
+    /// cannot be driven from a unit test.
+    func test_onlyTheRoutineRefreshesMaySkip() throws {
+        let file = try String(
+            contentsOf: URL(fileURLWithPath: #filePath)
+                .deletingLastPathComponent().deletingLastPathComponent()
+                .appendingPathComponent("SnapWorth/Services/StoreKitPurchaseService.swift"),
+            encoding: .utf8)
+        // Cold launch and the foreground refresh.
+        XCTAssertEqual(file.components(separatedBy: "refreshSubscriptionStatus(serverSync: .ifStale)").count - 1, 2)
+        // Purchase, restore and `Transaction.updates` keep the default.
+        XCTAssertEqual(file.components(separatedBy: "await refreshSubscriptionStatus()").count - 1, 2)
+        XCTAssertEqual(file.components(separatedBy: "await self.refreshSubscriptionStatus()").count - 1, 1)
+        XCTAssertTrue(file.contains("private func refreshSubscriptionStatus(serverSync: ServerSync = .always)"))
+    }
+
+    /// The first scan paid for the whole App Attest handshake inside
+    /// "Analyzing…", because nothing asked for a token before it did.
+    func test_theTokenIsMintedBeforeTheFirstScanAsksForIt() throws {
+        let app = try String(
+            contentsOf: URL(fileURLWithPath: #filePath)
+                .deletingLastPathComponent().deletingLastPathComponent()
+                .appendingPathComponent("SnapWorth/SnapWorthApp.swift"),
+            encoding: .utf8)
+        let root = try XCTUnwrap(app.range(of: "struct RootView: View {"))
+        XCTAssertTrue(app[root.upperBound...].contains(".task { await AttestationService.prewarm() }"),
+                      "RootView hosts onboarding too, so the token is ready by the first scan")
+    }
+}
+
 // ── Copy that describes the wrong thing ──────────────────────────────────────
 
 // `@MainActor` because `SettingsViewModel` is: a static on a main-actor
