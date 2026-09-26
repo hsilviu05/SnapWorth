@@ -3237,6 +3237,14 @@
       "de": "Los scannen",
       "zh-Hans": "开始扫描"
     },
+    "Status %@": {
+      "comment": "VoiceOver announcement after a flip-status chip is tapped. The argument is the status (Scanned, Owned, Listed, Sold).",
+      "en": "Status %@",
+      "ro": "Stadiu %@",
+      "es": "Estado %@",
+      "de": "Status %@",
+      "zh-Hans": "状态 %@"
+    },
     "Stay on top of your flips": {
       "comment": "Title of the notification permission priming alert.",
       "en": "Stay on top of your flips",
@@ -3589,17 +3597,45 @@
       "zh-Hans": "解锁\nSnapWorth Pro"
     },
     "Unlock %lld more + all-time totals": {
-      "en": "Unlock %lld more + all-time totals",
-      "ro": "Deblochează încă %lld + totalurile pe tot istoricul",
-      "es": "Desbloquea %lld más y los totales de siempre",
-      "de": "Schalt %lld weitere und die Gesamtsummen frei",
+      "comment": "My Flips, free tier: the button under the visible flips. The number is how many more flips Pro shows.",
+      "en": {
+        "one": "Unlock %lld more + all-time totals",
+        "other": "Unlock %lld more + all-time totals"
+      },
+      "ro": {
+        "one": "Deblochează încă unul + totalurile pe tot istoricul",
+        "few": "Deblochează încă %lld + totalurile pe tot istoricul",
+        "other": "Deblochează încă %lld + totalurile pe tot istoricul"
+      },
+      "es": {
+        "one": "Desbloquea %lld más y los totales de siempre",
+        "other": "Desbloquea %lld más y los totales de siempre"
+      },
+      "de": {
+        "one": "Schalt einen weiteren und die Gesamtsummen frei",
+        "other": "Schalt %lld weitere und die Gesamtsummen frei"
+      },
       "zh-Hans": "再解锁 %lld 条，以及全部累计数据"
     },
     "Unlock %lld more flips and all-time totals": {
-      "en": "Unlock %lld more flips and all-time totals",
-      "ro": "Deblochează încă %lld flipuri și totalurile pe tot istoricul",
-      "es": "Desbloquea %lld reventas más y los totales de siempre",
-      "de": "Schalt %lld weitere Flips und die Gesamtsummen frei",
+      "comment": "VoiceOver label for the same button: how many more flips Pro shows.",
+      "en": {
+        "one": "Unlock %lld more flip and all-time totals",
+        "other": "Unlock %lld more flips and all-time totals"
+      },
+      "ro": {
+        "one": "Deblochează încă un flip și totalurile pe tot istoricul",
+        "few": "Deblochează încă %lld flipuri și totalurile pe tot istoricul",
+        "other": "Deblochează încă %lld de flipuri și totalurile pe tot istoricul"
+      },
+      "es": {
+        "one": "Desbloquea %lld reventa más y los totales de siempre",
+        "other": "Desbloquea %lld reventas más y los totales de siempre"
+      },
+      "de": {
+        "one": "Schalt einen weiteren Flip und die Gesamtsummen frei",
+        "other": "Schalt %lld weitere Flips und die Gesamtsummen frei"
+      },
       "zh-Hans": "再解锁 %lld 笔转卖，以及全部累计数据"
     },
     "Unlock marketplace listings": {

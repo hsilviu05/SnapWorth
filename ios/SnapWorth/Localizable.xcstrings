@@ -15574,6 +15574,42 @@
         }
       }
     },
+    "Status %@" : {
+      "comment" : "VoiceOver announcement after a flip-status chip is tapped. The argument is the status (Scanned, Owned, Listed, Sold).",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Status %@"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Status %@"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Estado %@"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Stadiu %@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "状态 %@"
+          }
+        }
+      }
+    },
     "Stay on top of your flips" : {
       "comment" : "Title of the notification permission priming alert.",
       "extractionState" : "manual",
@@ -17281,30 +17317,85 @@
       }
     },
     "Unlock %lld more + all-time totals" : {
+      "comment" : "My Flips, free tier: the button under the visible flips. The number is how many more flips Pro shows.",
       "extractionState" : "manual",
       "localizations" : {
         "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Schalt %lld weitere und die Gesamtsummen frei"
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Schalt einen weiteren und die Gesamtsummen frei"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Schalt %lld weitere und die Gesamtsummen frei"
+                }
+              }
+            }
           }
         },
         "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Unlock %lld more + all-time totals"
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Unlock %lld more + all-time totals"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Unlock %lld more + all-time totals"
+                }
+              }
+            }
           }
         },
         "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Desbloquea %lld más y los totales de siempre"
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Desbloquea %lld más y los totales de siempre"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Desbloquea %lld más y los totales de siempre"
+                }
+              }
+            }
           }
         },
         "ro" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Deblochează încă %lld + totalurile pe tot istoricul"
+          "variations" : {
+            "plural" : {
+              "few" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Deblochează încă %lld + totalurile pe tot istoricul"
+                }
+              },
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Deblochează încă unul + totalurile pe tot istoricul"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Deblochează încă %lld + totalurile pe tot istoricul"
+                }
+              }
+            }
           }
         },
         "zh-Hans" : {
@@ -17316,30 +17407,85 @@
       }
     },
     "Unlock %lld more flips and all-time totals" : {
+      "comment" : "VoiceOver label for the same button: how many more flips Pro shows.",
       "extractionState" : "manual",
       "localizations" : {
         "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Schalt %lld weitere Flips und die Gesamtsummen frei"
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Schalt einen weiteren Flip und die Gesamtsummen frei"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Schalt %lld weitere Flips und die Gesamtsummen frei"
+                }
+              }
+            }
           }
         },
         "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Unlock %lld more flips and all-time totals"
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Unlock %lld more flip and all-time totals"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Unlock %lld more flips and all-time totals"
+                }
+              }
+            }
           }
         },
         "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Desbloquea %lld reventas más y los totales de siempre"
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Desbloquea %lld reventa más y los totales de siempre"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Desbloquea %lld reventas más y los totales de siempre"
+                }
+              }
+            }
           }
         },
         "ro" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Deblochează încă %lld flipuri și totalurile pe tot istoricul"
+          "variations" : {
+            "plural" : {
+              "few" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Deblochează încă %lld flipuri și totalurile pe tot istoricul"
+                }
+              },
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Deblochează încă un flip și totalurile pe tot istoricul"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Deblochează încă %lld de flipuri și totalurile pe tot istoricul"
+                }
+              }
+            }
           }
         },
         "zh-Hans" : {

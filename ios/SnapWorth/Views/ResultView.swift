@@ -440,8 +440,11 @@ struct ResultView: View {
         let selected = result.status == status
         return Button {
             setStatus(status)
+            // `String(localized:)`: `argument` is `Any?`, so a bare literal
+            // here is announced verbatim — "Status" in English inside every
+            // translated label.
             UIAccessibility.post(notification: .announcement,
-                                 argument: "Status \(status.label)")
+                                 argument: String(localized: "Status \(status.label)"))
         } label: {
             Text(status.label)
                 .font(.dmSans(13, weight: .semibold))

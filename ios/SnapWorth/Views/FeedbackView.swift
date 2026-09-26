@@ -106,7 +106,9 @@ struct FeedbackView: View {
                                 // 9pt of vertical padding left a ~31pt target,
                                 // and selection was carried by colour alone.
                                 .snapHitTarget()
-                                .accessibilityLabel(type.rawValue)
+                                // `label`, not `rawValue`: the raw value is
+                                // the English mail subject.
+                                .accessibilityLabel(type.label)
                                 .accessibilityAddTraits(
                                     feedbackType == type ? [.isButton, .isSelected] : .isButton)
                             }
