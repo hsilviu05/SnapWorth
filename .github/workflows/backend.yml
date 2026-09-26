@@ -183,6 +183,17 @@ jobs:
     needs: [test, container, audit]
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    # One deploy at a time, newest wins. Without this, pushes that land close
+    # together deploy concurrently: Railway serves the newest upload, and every
+    # older job's "Verify the deploy is live" waits five minutes for a commit
+    # that has already been replaced, then fails. On 2026-09-26 four merges in
+    # 20 seconds produced two red deploys while production was healthy on a
+    # commit containing all four. Cancelling the older job is correct because
+    # the newer push contains it. Scoped to this job, not the workflow, so a
+    # newer push never cancels the tests of an older one.
+    concurrency:
+      group: deploy-railway-production
+      cancel-in-progress: true
 
     steps:
       - uses: actions/checkout@v7
