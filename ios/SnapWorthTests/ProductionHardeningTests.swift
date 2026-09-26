@@ -1883,6 +1883,12 @@ final class PaywallBenefitsTests: XCTestCase {
                        "Thrift Flip is not gated — ThriftFlipView has no isPro check")
         XCTAssertTrue(texts.contains { $0.localizedCaseInsensitiveContains("tag") })
         XCTAssertTrue(texts.contains { $0.localizedCaseInsensitiveContains("export") })
+        // The portfolio total is on every user's History tab; only its history
+        // is gated. A row selling "portfolio value" sells something free.
+        let portfolio = texts.filter { $0.localizedCaseInsensitiveContains("portfolio") }
+        XCTAssertEqual(portfolio.count, 1)
+        XCTAssertTrue(portfolio.allSatisfy { $0.localizedCaseInsensitiveContains("value history") },
+                      "the portfolio total is free — PortfolioBanner shows it without an isPro check")
     }
 
     func test_rowsAreDistinctAndNonEmpty() {
