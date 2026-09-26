@@ -77,6 +77,32 @@ _AUTHENTICITY_SCORE = {
     "likely_replica": 0.10,
 }
 
+# Two reads that cap the score rather than only feeding the average, for the
+# same reason a bad photo does: in a weighted sum they were worth 8 and 10
+# points of ~105, so a strong brand read and a tight range outvoted them. A
+# Louis Vuitton the model marked `likely_replica` scored 88 — "High confidence"
+# on the price of a genuine bag, for an item the model itself thinks is fake.
+#
+# A likely replica caps where a clamped valuation does: the price is for an
+# item the photo probably is not. An uncertain identification caps just below
+# High: the range may be fine, but "we are not sure what this is" cannot sit
+# under a High badge.
+REPLICA_CEILING = 30
+UNCERTAIN_ID_CEILING = HIGH_THRESHOLD - 1
+
+#: Brand values that mean "no brand was identified". One list, shared with the
+#: operator's brand tallies (`notify._clean_brand`) and the eval's
+#: hallucination check (`eval.metrics`). The three copies had drifted: notify
+#: dropped "Generic", this module scored it as an identified brand, so one
+#: wording choice by the model moved the score by about 25 points — "Generic"
+#: read 84 High where "Unknown" read 60.
+UNKNOWN_BRANDS = frozenset({"", "unknown", "unbranded", "generic", "n/a", "none", "null"})
+
+
+def brand_is_known(brand: str | None) -> bool:
+    """True when `brand` names an actual brand, not a way of saying none."""
+    return (brand or "").strip().lower() not in UNKNOWN_BRANDS
+
 
 @dataclass(frozen=True)
 class ConfidenceSignal:
@@ -150,8 +176,7 @@ def compute(
     # ── Brand identification ────────────────────────────────────────────────
     # The single strongest predictor. Secondhand pricing is brand-anchored: an
     # identified brand collapses the plausible range enormously.
-    brand_clean = (brand or "").strip().lower()
-    brand_known = bool(brand_clean) and brand_clean not in {"unknown", "unbranded", "n/a", "none", "null"}
+    brand_known = brand_is_known(brand)
     signals.append(ConfidenceSignal(
         "brand", 1.0 if brand_known else 0.0, 0.26,
         "the brand is identified" if brand_known else "the brand could not be identified",
@@ -184,22 +209,32 @@ def compute(
     # Included, but at low weight: it is self-reported and therefore the least
     # trustworthy input here. It is not zero-information — the model does know
     # whether it recognised something — it just must not dominate.
-    certainty = _CERTAINTY_SCORE.get((identification_certainty or "").strip().lower())
+    certainty_key = (identification_certainty or "").strip().lower()
+    certainty = _CERTAINTY_SCORE.get(certainty_key)
     if certainty is not None:
-        signals.append(ConfidenceSignal(
-            "identification", certainty, 0.10,
-            "the item was recognised confidently" if certainty >= 0.9
-            else "the exact model could not be pinned down",
-        ))
+        # "uncertain" is about what the item is, not which model it is, and it
+        # now caps the score (UNCERTAIN_ID_CEILING) — so it names that.
+        if certainty >= 0.9:
+            id_reason = "the item was recognised confidently"
+        elif certainty_key == "uncertain":
+            id_reason = "the item could not be identified with certainty"
+        else:
+            id_reason = "the exact model could not be pinned down"
+        signals.append(ConfidenceSignal("identification", certainty, 0.10, id_reason))
 
     # ── Authenticity ────────────────────────────────────────────────────────
-    auth = _AUTHENTICITY_SCORE.get((authenticity or "").strip().lower())
+    auth_key = (authenticity or "").strip().lower()
+    auth = _AUTHENTICITY_SCORE.get(auth_key)
     if auth is not None:
-        signals.append(ConfidenceSignal(
-            "authenticity", auth, 0.08,
-            "no authenticity concerns" if auth >= 0.9
-            else "authenticity could not be verified from the photo",
-        ))
+        # A likely replica is a finding, not a gap in the evidence, and read
+        # the same as "cannot verify" until it had its own words.
+        if auth >= 0.9:
+            auth_reason = "no authenticity concerns"
+        elif auth_key == "likely_replica":
+            auth_reason = "the item may not be authentic"
+        else:
+            auth_reason = "authenticity could not be verified from the photo"
+        signals.append(ConfidenceSignal("authenticity", auth, 0.08, auth_reason))
 
     # ── Market signal completeness ──────────────────────────────────────────
     # Whether the model produced usable demand/supply reads at all. Missing them
@@ -250,6 +285,15 @@ def compute(
                     "image_ceiling", overall, 0.0,
                     "the photo quality limits how confident this estimate can be",
                 ))
+
+    # ── Identification and authenticity ceilings ────────────────────────────
+    # See REPLICA_CEILING. No extra signal is appended: the authenticity or
+    # identification signal above already carries the explanation, and at 0.10
+    # and 0.15 it is among the weakest, so it is what the summary names.
+    if certainty_key == "uncertain":
+        score = min(score, UNCERTAIN_ID_CEILING)
+    if auth_key == "likely_replica":
+        score = min(score, REPLICA_CEILING)
 
     # ── Hard override ───────────────────────────────────────────────────────
     # Clamping means the model produced a number outside the plausible band for

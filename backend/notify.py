@@ -71,6 +71,7 @@ from datetime import datetime, timedelta, timezone
 import auditlog
 import categories
 import ideas
+from confidence import brand_is_known
 
 log = logging.getLogger("snapworth.notify")
 
@@ -1945,7 +1946,7 @@ def _normalise_category(category: str | None) -> str:
 def _clean_brand(brand: str | None) -> str | None:
     """A brand worth tallying, or None. Model output: trimmed and bounded."""
     value = " ".join((brand or "").split())[:40]
-    if value.lower() in {"", "unknown", "n/a", "none", "generic", "unbranded"}:
+    if not brand_is_known(value):
         return None
     return value
 

@@ -539,6 +539,54 @@ class TestConfidence:
         assert "brand" in sentence.lower()
         assert sentence.endswith(".")
 
+    # ── Reads that cap rather than only contribute ─────────────────────────
+
+    def test_a_likely_replica_is_never_better_than_low(self):
+        """A Louis Vuitton the model marked `likely_replica` scored 88 High:
+        at 8% weight the authenticity read was outvoted by the brand and the
+        range. The price is for an item the photo probably is not."""
+        result = _compute(brand="Louis Vuitton", category="accessories",
+                          authenticity="likely_replica")
+        assert result.score <= confidence_module.REPLICA_CEILING
+        assert result.band == "Low"
+
+    def test_a_likely_replica_says_so_rather_than_cannot_verify(self):
+        result = _compute(authenticity="likely_replica")
+        assert "the item may not be authentic" in result.reasons
+        assert not any("could not be verified" in r for r in result.reasons)
+        cannot = _compute(authenticity="cannot_verify").signals
+        assert any(s.explanation == "authenticity could not be verified from the photo"
+                   for s in cannot)
+
+    def test_an_uncertain_identification_is_never_high(self):
+        result = _compute(identification_certainty="uncertain")
+        assert result.score <= confidence_module.UNCERTAIN_ID_CEILING
+        assert result.band != "High"
+        assert "the item could not be identified with certainty" in result.reasons
+        # Probable is the model hedging on the exact model, not on what the
+        # item is, and is left to the weighted sum.
+        assert _compute(identification_certainty="probable").band == "High"
+
+    @pytest.mark.parametrize("spelling", ["Generic", "generic", " Unbranded ",
+                                          "N/A", "none", "null", ""])
+    def test_every_way_of_saying_no_brand_scores_as_no_brand(self, spelling):
+        """'Generic' scored 84 High where 'Unknown' scored 60 — one word of
+        model phrasing was worth about 25 points."""
+        assert _compute(brand=spelling).score == _compute(brand="Unknown").score
+
+    def test_one_unknown_brand_list_everywhere(self):
+        """notify tallied "Generic" as no brand and the eval's hallucination
+        check counted it as an asserted brand; both now read this list."""
+        import notify
+        from eval import metrics as eval_metrics
+
+        for spelling in confidence_module.UNKNOWN_BRANDS:
+            assert notify._clean_brand(spelling) is None
+            assert eval_metrics.hallucination_rate([
+                {"brand": spelling, "expected_brand": "Patagonia",
+                 "visual_evidence": ["tag"]}])["rate"] == 0.0
+        assert notify._clean_brand("Patagonia") == "Patagonia"
+
 
 # ── Image quality ────────────────────────────────────────────────────────────
 
