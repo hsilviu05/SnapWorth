@@ -56,6 +56,23 @@ actor AttestationService {
         return try await task.value
     }
 
+    /// Mints the device's token before the first request that needs one.
+    ///
+    /// Nothing asked for a token until the first scan did, so a new user's
+    /// first valuation also paid for the whole App Attest handshake — key
+    /// generation, attestation, and the server's DeviceCheck query on a new
+    /// subject — inside "Analyzing…", and any attestation problem surfaced at
+    /// exactly that moment. The referral check on a return to the foreground
+    /// mints one too, but `onChange(of: scenePhase)` does not fire for the
+    /// first appearance, so a first session never reached it.
+    ///
+    /// Best effort: a failure here is retried, and reported, by the request
+    /// that actually needs the token.
+    static func prewarm() async {
+        guard Config.useAttestation, !Config.mockScans else { return }
+        _ = try? await shared.accessToken()
+    }
+
     /// Exchanges a StoreKit signed transaction for a Pro entitlement server-side.
     /// The server is the authority on subscription state from here on.
     /// - Returns: the tier the server recorded — "free" for a transaction it
