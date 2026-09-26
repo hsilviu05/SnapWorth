@@ -27,6 +27,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi import Response
 from fastapi.responses import HTMLResponse, JSONResponse
 from pydantic import BaseModel, Field
+from starlette.datastructures import Headers, MutableHeaders
+from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 import aiconfig
 import auditlog
@@ -498,8 +500,16 @@ if _allowed_origins:
 MAX_REQUEST_BYTES = int(os.environ.get("MAX_REQUEST_BYTES", str(20 * 1024 * 1024)))
 
 
-@app.middleware("http")
-async def limit_request_body(request: Request, call_next):
+# Every layer below is pure ASGI, and must stay so. `@app.middleware("http")`
+# is `BaseHTTPMiddleware`, which relays `receive` through a task group; with
+# one of those anywhere in the stack, `Request.is_disconnected` — which asks
+# with an already-cancelled scope — is cancelled before it reaches the server
+# and always answers "still connected". /scan relies on it to hand back the
+# allowance for a result the phone gave up waiting for, and with four such
+# layers it never once fired. See `RequestContextMiddleware` for the rest.
+
+
+class LimitRequestBody:
     """Refuse an implausibly large body before anything reads it.
 
     `_read_capped` bounds what the process will *hold* — it reads the file part
@@ -517,68 +527,115 @@ async def limit_request_body(request: Request, call_next):
     it would reintroduce the memory problem this is meant to avoid — and stays
     covered only by `_read_capped`'s 10 MB on the file part.
     """
-    if request.method in {"POST", "PUT", "PATCH"}:
-        declared = request.headers.get("content-length")
-        if declared is not None:
-            try:
-                length = int(declared)
-            except ValueError:
-                return JSONResponse(status_code=400,
-                                    content={"detail": "Malformed content-length."})
-            if length > MAX_REQUEST_BYTES:
-                log.warning("request body refused before reading",
-                            extra={"declared_bytes": length,
-                                   "max_bytes": MAX_REQUEST_BYTES})
-                return JSONResponse(
-                    status_code=413,
-                    content={"detail": "Request body is too large."})
-    return await call_next(request)
+
+    def __init__(self, app: ASGIApp) -> None:
+        self.app = app
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] == "http" and scope["method"] in {"POST", "PUT", "PATCH"}:
+            declared = Headers(scope=scope).get("content-length")
+            if declared is not None:
+                try:
+                    length = int(declared)
+                except ValueError:
+                    await JSONResponse(status_code=400, content={
+                        "detail": "Malformed content-length."})(scope, receive, send)
+                    return
+                if length > MAX_REQUEST_BYTES:
+                    log.warning("request body refused before reading",
+                                extra={"declared_bytes": length,
+                                       "max_bytes": MAX_REQUEST_BYTES})
+                    await JSONResponse(status_code=413, content={
+                        "detail": "Request body is too large."})(scope, receive, send)
+                    return
+        await self.app(scope, receive, send)
 
 
-@app.middleware("http")
-async def record_metrics(request: Request, call_next):
+class RecordMetrics:
     """Instrument every request.
 
-    Sits outside `security_headers` so it observes the response that is actually
-    sent, including error responses raised inside handlers.
+    Sits outside the body limit, so a refusal there is counted too, and
+    observes the status actually sent — including an error response raised
+    inside a handler. An exception that escapes the stack is counted as the
+    500 that `ServerErrorMiddleware`, outside every layer here, turns it into.
 
     `endpoint_label` maps to a closed set of route templates — using the raw
     path would create one time series per URL a scanner probes, which is the
     classic way a metrics layer takes down the monitoring system.
     """
-    endpoint = metrics.endpoint_label(request.url.path)
-    metrics.http_in_flight.inc()
-    start = time.monotonic()
-    status = 500
-    try:
-        response = await call_next(request)
-        status = response.status_code
-        return response
-    finally:
-        metrics.http_in_flight.dec()
-        metrics.http_duration.observe(
-            time.monotonic() - start, endpoint=endpoint, method=request.method)
-        metrics.http_requests.inc(
-            endpoint=endpoint, method=request.method,
-            status_class=metrics.status_class(status))
-        if status == 429:
-            metrics.rate_limited.inc(scope="http")
+
+    def __init__(self, app: ASGIApp) -> None:
+        self.app = app
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+
+        endpoint = metrics.endpoint_label(scope["path"])
+        method = scope["method"]
+        status = 500
+
+        async def send_observed(message: Message) -> None:
+            nonlocal status
+            if message["type"] == "http.response.start":
+                status = message["status"]
+            await send(message)
+
+        metrics.http_in_flight.inc()
+        start = time.monotonic()
+        try:
+            await self.app(scope, receive, send_observed)
+        finally:
+            metrics.http_in_flight.dec()
+            metrics.http_duration.observe(
+                time.monotonic() - start, endpoint=endpoint, method=method)
+            metrics.http_requests.inc(
+                endpoint=endpoint, method=method,
+                status_class=metrics.status_class(status))
+            if status == 429:
+                metrics.rate_limited.inc(scope="http")
 
 
-@app.middleware("http")
-async def security_headers(request: Request, call_next):
-    response = await call_next(request)
-    response.headers["X-Content-Type-Options"] = "nosniff"
-    response.headers["X-Frame-Options"] = "DENY"
-    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
-    response.headers["X-XSS-Protection"] = "1; mode=block"
+_SECURITY_HEADERS = (
+    ("X-Content-Type-Options", "nosniff"),
+    ("X-Frame-Options", "DENY"),
+    ("Referrer-Policy", "strict-origin-when-cross-origin"),
+    ("X-XSS-Protection", "1; mode=block"),
     # The API serves /privacy and /terms to real browsers (they are the URLs on
     # the App Store listing), so downgrade protection is not academic here.
-    response.headers["Strict-Transport-Security"] = (
-        "max-age=63072000; includeSubDomains")
-    response.headers["Permissions-Policy"] = (
-        "camera=(), microphone=(), geolocation=(), interest-cohort=()")
-    return response
+    ("Strict-Transport-Security", "max-age=63072000; includeSubDomains"),
+    ("Permissions-Policy", "camera=(), microphone=(), geolocation=(), interest-cohort=()"),
+)
+
+
+class SecurityHeaders:
+    def __init__(self, app: ASGIApp) -> None:
+        self.app = app
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+
+        async def send_headed(message: Message) -> None:
+            if message["type"] == "http.response.start":
+                message.setdefault("headers", [])
+                headers = MutableHeaders(scope=message)
+                for name, value in _SECURITY_HEADERS:
+                    headers[name] = value
+            await send(message)
+
+        await self.app(scope, receive, send_headed)
+
+
+# Added in the order the decorators they replace were defined, which keeps the
+# stack as it was: `SecurityHeaders` outermost, then `RecordMetrics`, then
+# `LimitRequestBody`, with CORS and `RequestContextMiddleware` inside them.
+app.add_middleware(LimitRequestBody)
+app.add_middleware(RecordMetrics)
+app.add_middleware(SecurityHeaders)
+
 
 # ── Rate limiting ────────────────────────────────────────────────────────────
 # Backed by Redis when REDIS_URL is set, degrading to per-process counters when

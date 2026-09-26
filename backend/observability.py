@@ -19,7 +19,8 @@ import time
 import uuid
 from enum import Enum
 
-from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.datastructures import Headers, MutableHeaders
+from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 # Bound per request; read by the log filter below.
 request_id_var: contextvars.ContextVar[str] = contextvars.ContextVar("request_id", default="-")
@@ -88,15 +89,30 @@ def configure_logging(level: str = "INFO", json_output: bool = False) -> None:
     root.setLevel(level.upper())
 
 
-class RequestContextMiddleware(BaseHTTPMiddleware):
-    """Assigns a request id, times the request, and logs its completion."""
+class RequestContextMiddleware:
+    """Assigns a request id, times the request, and logs its completion.
 
-    def __init__(self, app, logger_name: str = "snapworth.access") -> None:
-        super().__init__(app)
+    Pure ASGI, not `BaseHTTPMiddleware`, and every layer in `main`'s stack has
+    to be the same. `BaseHTTPMiddleware` relays `receive` through a task group,
+    and `Request.is_disconnected` asks with an already-cancelled scope — so a
+    single such layer anywhere cancels the ask before it reaches the server,
+    and the answer is always "still connected". That is the check /scan uses
+    to hand back the allowance for a result the phone gave up waiting for; it
+    never fired, and abandoned scans were charged.
+    """
+
+    def __init__(self, app: ASGIApp, logger_name: str = "snapworth.access") -> None:
+        self.app = app
         self._log = logging.getLogger(logger_name)
 
-    async def dispatch(self, request, call_next):
-        incoming = request.headers.get(REQUEST_ID_HEADER, "").strip()
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+
+        headers = Headers(scope=scope)
+        method, path = scope["method"], scope["path"]
+        incoming = headers.get(REQUEST_ID_HEADER, "").strip()
         # Only trust an inbound id that looks like one — it lands in logs, so an
         # unbounded or newline-bearing value would be a log-injection vector.
         rid = incoming if (incoming and len(incoming) <= 64 and incoming.isprintable()
@@ -119,32 +135,40 @@ class RequestContextMiddleware(BaseHTTPMiddleware):
         # value, so nothing caller-supplied reaches a log line unchecked — the
         # same property the request-id guard above provides.
         trace_tokens = []
-        parsed = parse_traceparent(request.headers.get(TRACEPARENT_HEADER, ""))
+        parsed = parse_traceparent(headers.get(TRACEPARENT_HEADER, ""))
         if parsed:
             trace_tokens = [trace_id_var.set(parsed[0]), span_id_var.set(parsed[1])]
+
+        status: int | None = None
+
+        async def send_with_id(message: Message) -> None:
+            nonlocal status
+            if message["type"] == "http.response.start":
+                status = message["status"]
+                message.setdefault("headers", [])
+                MutableHeaders(scope=message)[REQUEST_ID_HEADER] = rid
+            await send(message)
 
         start = time.monotonic()
         try:
             try:
-                response = await call_next(request)
+                await self.app(scope, receive, send_with_id)
             except Exception:
                 self._log.exception(
                     "request failed",
-                    extra={"method": request.method, "path": request.url.path,
+                    extra={"method": method, "path": path,
                            "duration_ms": round((time.monotonic() - start) * 1000, 1)},
                 )
                 raise
 
             duration_ms = round((time.monotonic() - start) * 1000, 1)
-            response.headers[REQUEST_ID_HEADER] = rid
             # Health checks are high-frequency and uninteresting; keep them at DEBUG.
-            level = logging.DEBUG if request.url.path == "/health" else logging.INFO
+            level = logging.DEBUG if path == "/health" else logging.INFO
             self._log.log(
                 level, "request",
-                extra={"method": request.method, "path": request.url.path,
-                       "status": response.status_code, "duration_ms": duration_ms},
+                extra={"method": method, "path": path,
+                       "status": status, "duration_ms": duration_ms},
             )
-            return response
         finally:
             # One `finally` for all three, rather than the three reset sites the
             # two-variable version would have needed. The context vars have to
