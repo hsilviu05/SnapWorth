@@ -1945,11 +1945,17 @@ _RETRY_BASE_DELAY = float(os.environ.get("GEMINI_RETRY_BASE_DELAY", "0.5"))
 
 # Substrings identifying failures that will not succeed on retry. Retrying these
 # wastes the user's time and doubles the bill for a guaranteed second failure.
+#
+# The fallback for an exception with no status code (a transport error, a test
+# double). A google-genai `APIError` carries `code`, and is classified on that:
+# its message embeds the whole error body, so a quota value of "4000" read as a
+# 400 here.
 _NON_RETRYABLE = (
     "invalid_argument", "invalid argument", "400",
     "permission_denied", "api key", "unauthenticated", "401", "403",
     "not_found", "404",
 )
+_NON_RETRYABLE_CODES = frozenset({400, 401, 403, 404})
 
 
 # A *hard* quota/billing stop, as distinct from an ordinary rate-limit 429.
@@ -1961,18 +1967,61 @@ _NON_RETRYABLE = (
 #
 # Matched on the billing wording specifically, NOT on "quota" or "429" — those
 # would also swallow the retryable rate-limit case, which is the common one.
+#
+# "exceeded your current quota" used to be here, filed as OpenAI's wording. It
+# is also the first sentence of Gemini's own *per-minute* 429 ("You exceeded
+# your current quota, please check your plan and billing details"), so an
+# ordinary burst was treated as a billing stop: no retry, the model marked
+# unhealthy on the first failure, and the operator paged to top up billing.
+# Gemini says which quota ran out in the error's structured details, so that is
+# what decides it now — see `_quota_ids`.
 _QUOTA_EXHAUSTED = (
     "prepayment credits",
     "credits are depleted",
-    "exceeded your current quota",
     "insufficient_quota",
     "billing account",
 )
 
 
+def _error_details(exc: Exception) -> list[dict]:
+    """The `details` array of a google-genai `APIError`, or [].
+
+    `APIError.details` is the whole response body, `{"error": {"code",
+    "message", "status", "details": [...]}}`; the list holds typed entries
+    (`google.rpc.QuotaFailure`, `google.rpc.RetryInfo`, …) keyed by "@type".
+    Anything else — a plain exception, a test double, a changed SDK — is [].
+    """
+    body = getattr(exc, "details", None)
+    if isinstance(body, dict) and isinstance(body.get("error"), dict):
+        body = body["error"]
+    details = body.get("details") if isinstance(body, dict) else None
+    if not isinstance(details, list):
+        return []
+    return [d for d in details if isinstance(d, dict)]
+
+
+def _detail_of_type(exc: Exception, suffix: str) -> list[dict]:
+    return [d for d in _error_details(exc) if str(d.get("@type", "")).endswith(suffix)]
+
+
+def _quota_ids(exc: Exception) -> list[str]:
+    """Which quotas a 429 says were exceeded, e.g.
+    `GenerateRequestsPerMinutePerProjectPerModel`."""
+    ids: list[str] = []
+    for failure in _detail_of_type(exc, "QuotaFailure"):
+        for violation in failure.get("violations") or []:
+            if isinstance(violation, dict) and isinstance(violation.get("quotaId"), str):
+                ids.append(violation["quotaId"])
+    return ids
+
+
 def _is_quota_exhausted(exc: Exception) -> bool:
     text = str(exc).lower()
-    return any(marker in text for marker in _QUOTA_EXHAUSTED)
+    if any(marker in text for marker in _QUOTA_EXHAUSTED):
+        return True
+    # A per-day quota does not clear until the day turns over, so it is a stop
+    # for today — the per-minute one beside it clears in seconds.
+    return any("perday" in quota_id.lower() for quota_id in _quota_ids(exc))
 
 
 def _is_retryable(exc: Exception) -> bool:
@@ -1980,6 +2029,9 @@ def _is_retryable(exc: Exception) -> bool:
     # those markers, so without this it falls through to "retryable".
     if _is_quota_exhausted(exc):
         return False
+    code = getattr(exc, "code", None)
+    if isinstance(code, int) and not isinstance(code, bool):
+        return code not in _NON_RETRYABLE_CODES
     text = str(exc).lower()
     return not any(marker in text for marker in _NON_RETRYABLE)
 

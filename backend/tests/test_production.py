@@ -724,18 +724,99 @@ class TestQuotaExhaustion:
     def test_ordinary_rate_limit_is_still_retryable(self):
         # The regression this guards: matching on "429" or "quota" would make
         # every transient per-minute rate limit permanent, turning a blip that
-        # clears in seconds into a failed scan.
+        # clears in seconds into a failed scan. This is the old SDK's wording;
+        # the current API's is below.
         transient = Exception(
             "429 Resource has been exhausted (e.g. check quota).")
         assert not main._is_quota_exhausted(transient)
         assert main._is_retryable(transient)
 
-    def test_openai_style_wording_also_matches(self):
-        assert main._is_quota_exhausted(
-            Exception("You exceeded your current quota, please check your plan"))
+    # What google-genai raises for a Gemini 429: an `APIError` whose `details`
+    # is the whole response body. The message is the same for every quota; the
+    # QuotaFailure entry says which one ran out.
+    _QUOTA_MESSAGE = (
+        "You exceeded your current quota, please check your plan and billing "
+        "details. For more information on this error, head to: "
+        "https://ai.google.dev/gemini-api/docs/rate-limits.")
+
+    @classmethod
+    def _gemini_429(cls, quota_id: str, retry_delay: str = "23s"):
+        from google.genai import errors
+
+        return errors.ClientError(429, {"error": {
+            "code": 429, "message": cls._QUOTA_MESSAGE, "status": "RESOURCE_EXHAUSTED",
+            "details": [
+                {"@type": "type.googleapis.com/google.rpc.QuotaFailure",
+                 "violations": [{
+                     "quotaMetric": "generativelanguage.googleapis.com/"
+                                    "generate_content_paid_tier_requests",
+                     "quotaId": quota_id,
+                     "quotaDimensions": {"location": "global",
+                                         "model": "gemini-2.5-flash"},
+                     "quotaValue": "4000"}]},
+                {"@type": "type.googleapis.com/google.rpc.Help",
+                 "links": [{"description": "Learn more about Gemini API quotas",
+                            "url": "https://ai.google.dev/gemini-api/docs/rate-limits"}]},
+                {"@type": "type.googleapis.com/google.rpc.RetryInfo",
+                 "retryDelay": retry_delay},
+            ]}})
+
+    def test_geminis_per_minute_429_is_a_rate_limit_not_a_billing_stop(self):
+        """Its message opens "You exceeded your current quota", which was on
+        the billing list filed as OpenAI's wording — so a burst got no retry,
+        marked the model unhealthy on the first failure and paged the
+        operator to top up billing."""
+        per_minute = self._gemini_429("GenerateRequestsPerMinutePerProjectPerModel")
+        assert not main._is_quota_exhausted(per_minute)
+        assert main._is_retryable(per_minute)
+        # Its body quotes a quota value of 4000, which the text markers read
+        # as a 400; the status code is what counts when there is one.
+        assert "400" in str(per_minute)
+
+    def test_the_same_message_bare_is_not_a_billing_stop(self):
+        assert not main._is_quota_exhausted(Exception(self._QUOTA_MESSAGE))
+        assert main._is_retryable(Exception(self._QUOTA_MESSAGE))
+
+    def test_a_per_day_quota_is_a_stop_for_today(self):
+        per_day = self._gemini_429("GenerateRequestsPerDayPerProjectPerModel-FreeTier",
+                                   retry_delay="41380s")
+        assert main._is_quota_exhausted(per_day)
+        assert not main._is_retryable(per_day)
 
     def test_auth_failures_remain_non_retryable(self):
+        from google.genai import errors
+
         assert not main._is_retryable(Exception("401 API key not valid"))
+        assert not main._is_retryable(errors.ClientError(400, {"error": {
+            "code": 400, "message": "API key not valid. Please pass a valid API key.",
+            "status": "INVALID_ARGUMENT"}}))
+
+    def test_a_server_error_is_retryable(self):
+        from google.genai import errors
+
+        assert main._is_retryable(errors.ServerError(503, {"error": {
+            "code": 503, "message": "The model is overloaded.", "status": "UNAVAILABLE"}}))
+
+    def test_a_per_minute_429_is_retried_and_does_not_page_about_billing(self):
+        """End to end through the retry loop: a burst clears on the retry."""
+        import asyncio
+        from unittest.mock import AsyncMock, MagicMock, patch
+
+        ok = MagicMock()
+        ok.text = "{}"
+        health = main._ModelHealth()
+        with patch("main._model") as model, \
+                patch("main._RETRY_BASE_DELAY", 0), \
+                patch.object(main, "_model_health", health), \
+                patch("main.notify.model_unhealthy") as paged:
+            model.generate_content_async = AsyncMock(side_effect=[
+                self._gemini_429("GenerateRequestsPerMinutePerProjectPerModel",
+                                 retry_delay="0s"), ok])
+            text, _ = asyncio.run(main._generate_with_retry("prompt", label="scan"))
+        assert text == "{}"
+        assert model.generate_content_async.await_count == 2
+        assert health.healthy
+        paged.assert_not_called()
 
 
 class TestModelHealth:
