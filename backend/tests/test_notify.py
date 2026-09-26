@@ -1752,6 +1752,64 @@ class TestCheckup:
             await notify.aclose()
 
 
+class TestRedisCheckupLine:
+    """What a full Redis does, and whether a restart keeps it, were reported
+    nowhere: the only probe was a PING."""
+
+    NOW = 1_790_000_000.0
+    SAFE = {"used_memory": 50 * 1024 * 1024, "maxmemory": 384 * 1024 * 1024,
+            "maxmemory_policy": "noeviction", "evicted_keys": 0, "aof_enabled": 1,
+            "rdb_last_save_time": int(NOW) - 3600, "rdb_last_bgsave_status": "ok"}
+
+    def test_a_safe_configuration_reads_clean(self):
+        line = notify._redis_line(self.SAFE, self.NOW)
+        assert line.startswith("Redis: 50.0 MB of 384 MB (13%) · policy noeviction · evicted 0")
+        assert "AOF on" in line and "last snapshot 1h ago" in line
+        assert "⚠️" not in line
+
+    @pytest.mark.parametrize("override, warning", [
+        ({"maxmemory_policy": "allkeys-lru"}, "evicts state nothing can rebuild"),
+        ({"maxmemory_policy": "volatile-ttl"}, "evicts state nothing can rebuild"),
+        ({"maxmemory": 0}, "no maxmemory"),
+        ({"used_memory": 330 * 1024 * 1024}, "above 80% of maxmemory"),
+        ({"evicted_keys": 12}, "12 keys evicted"),
+        ({"rdb_last_bgsave_status": "err"}, "last snapshot failed"),
+        ({"aof_enabled": 0, "rdb_last_save_time": int(NOW) - 3 * 86400},
+         "a restart loses everything"),
+    ])
+    def test_each_unsafe_setting_is_flagged(self, override, warning):
+        line = notify._redis_line(self.SAFE | override, self.NOW)
+        assert "⚠️" in line and warning in line
+
+    def test_snapshots_without_aof_are_enough(self):
+        line = notify._redis_line(self.SAFE | {"aof_enabled": 0}, self.NOW)
+        assert "⚠️" not in line
+
+    @pytest.mark.asyncio
+    async def test_checkup_carries_it_when_redis_answers_info(self, recorder, monkeypatch):
+        monkeypatch.setattr(notify, "_tls_days_left", lambda host, timeout=5.0: 61)
+        safe = self.SAFE
+
+        class Primary(InMemoryCache):
+            async def info(self) -> dict:
+                return dict(safe) | {"rdb_last_save_time": int(time.time())}
+
+        cache = ResilientCache(Primary(), InMemoryCache())
+        notifier = notify.TelegramNotifier(
+            FAKE_TOKEN, FAKE_CHAT,
+            client=httpx.AsyncClient(transport=httpx.MockTransport(recorder.handler)))
+        notify.configure(cache, notifier=notifier)
+        try:
+            text = await notify.handle_command("/checkup")
+            assert "Redis: 50.0 MB of 384 MB" in text
+        finally:
+            await notify.aclose()
+
+    @pytest.mark.asyncio
+    async def test_no_redis_no_line(self, cache):
+        assert await cache.redis_info() is None
+
+
 class TestQuietAndSpike:
     @pytest.mark.asyncio
     async def test_quiet_note_once_per_day_in_us_hours_only(self, enabled_notify, cache):

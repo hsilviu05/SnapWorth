@@ -1133,9 +1133,10 @@ async def readiness() -> dict | JSONResponse:
     """Readiness probe: should this instance receive traffic?
 
     Returns 503 while starting up, while draining on shutdown, or when a
-    configured-but-unreachable cache means quota and entitlement checks would
-    fail closed. In each case the instance is alive but cannot serve correctly,
-    and the load balancer should route elsewhere.
+    configured cache cannot take a write — unreachable, or full and refusing
+    writes — so quota and entitlement checks would fail closed. In each case
+    the instance is alive but cannot serve correctly, and the load balancer
+    should route elsewhere.
     """
     payload: dict = {"status": "ready", "ready": _ready}
 
@@ -1150,7 +1151,9 @@ async def readiness() -> dict | JSONResponse:
         metrics.cache_degraded.set(0.0 if cache_health.get("healthy", True) else 1.0)
         if not cache_health.get("healthy", True):
             payload["status"] = "not_ready"
-            payload["reason"] = "durable cache configured but unreachable"
+            # `cache.health()` probes with a write, so this covers a Redis at
+            # maxmemory that still answers PING as well as one that is gone.
+            payload["reason"] = "durable cache configured but not accepting writes"
             return JSONResponse(status_code=503, content=payload)
 
     # Set alongside `cache_degraded` so both gauges refresh on the same probe.

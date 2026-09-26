@@ -80,7 +80,7 @@ monitoring today, and this table is what is.
 | Path | Purpose | Failure semantics |
 |---|---|---|
 | `/health/live` | Liveness | Checks nothing external — see below |
-| `/health/ready` | Readiness | 503 while starting, draining, or cache-unreachable |
+| `/health/ready` | Readiness | 503 while starting, draining, or when the cache cannot take a write (unreachable, or full) |
 | `/health` | Legacy | Retained for compatibility |
 | `/metrics` | Prometheus scrape | Requires `Authorization: Bearer $METRICS_TOKEN`; 404 without it |
 
@@ -112,9 +112,11 @@ failed every free scan with a 503 and the next digest read like a quiet day.
 
 **Why two layers.** The Telegram alerts run *inside* the backend, so they
 cannot report the backend being gone: a crash-looping or unscheduled container
-sends nothing. The uptime workflow runs on GitHub and covers that.
-Conversely the in-process Redis alert is minutes faster than a 10-minute
-schedule.
+sends nothing. The uptime workflow runs on GitHub and covers that, and it
+also catches a Redis that is full and refusing writes while still answering
+`PING` and `GET`, because `/health/ready` probes with a write. The in-process
+Redis alert is deliberately silent on that flapping state (§5.4c) and is
+minutes faster than a 10-minute schedule on a plain outage.
 
 **What the uptime check cannot promise.** GitHub starts scheduled runs late
 under load, and disables a public repository's schedules after 60 days without
@@ -178,8 +180,9 @@ Cache hit ratio · rate-limit rejections · quota exhaustion · dependency error
    `TOKEN_KEYS must be set in production` — both are deliberate startup refusals
    (`main._lifespan`, `tokens.signer_from_env`). Fix the variable; do not remove
    the guard.
-3. Check `/health/ready`. A 503 with `"durable cache configured but unreachable"`
-   means Redis, not the API → §5.4.
+3. Check `/health/ready`. A 503 with `"durable cache configured but not
+   accepting writes"` means Redis, not the API → §5.4, or §5.4c if Redis
+   still answers.
 4. If the container is crash-looping with no startup error, roll back (§7).
 
 ### 5.2 Elevated 5xx
@@ -262,6 +265,25 @@ The process deliberately **starts** in all three cases rather than crash-looping
 because a degraded replica still serves `/scan` (quota goes per-process) while a
 crash-looping one serves nothing. `configured` stays true throughout, so nobody
 gets free Pro out of it.
+
+### 5.4c Redis full (answers, but refuses writes)
+
+*Signature:* `/health/ready` 503 with `"not accepting writes"` while
+`redis-cli PING` still answers; logs carry `OOM command not allowed when used
+memory > 'maxmemory'`; `🩺 Checkup`'s Redis line shows usage at or near
+`maxmemory`. Under `noeviction` — the policy this service needs (§11) — that
+is the designed failure: writes stop, nothing is silently dropped, free scans
+503 and new sign-ins fail.
+
+1. Raise `maxmemory` if the service has headroom (`CONFIG SET maxmemory …`
+   takes effect at once — then make it stick wherever the Redis service's
+   configuration lives, or a restart reverts it), or raise the service's
+   memory and `maxmemory` with it. No backend deploy is needed.
+2. Look for what grew. `redis-cli --bigkeys` and `INFO keyspace`; the
+   400-day families in §9 are the expected bulk.
+3. Do **not** switch to an evicting policy to get writes flowing. Every key
+   family here is either a paid-resource gate or state nothing can rebuild
+   (§9), and eviction drops them silently.
 
 ### 5.5 Latency collapse
 
@@ -586,6 +608,7 @@ work on does not.
 |---|---|---|
 | Async correctness | ✅ | No blocking I/O on the event loop |
 | Redis pooling | ✅ | `max_connections=50`, bounded timeouts |
+| Redis memory | ⚠️ Unverified | Needs `maxmemory` at ~75% of the Redis service's memory and `maxmemory-policy noeviction`. Neither value is recorded anywhere or known to be set on Railway — check with `CONFIG GET maxmemory*`. `🩺 Checkup` prints usage, policy, evictions and persistence, and warns on each unsafe value. Growth ~50 MB per 10k users `[ESTIMATED]` |
 | DeviceCheck pooling | ✅ Fixed | Was a new TLS handshake per call |
 | Worker count | 1/container | Correct for I/O-bound work; scale by containers |
 | Rate limiting | ✅ | Redis-backed, Lua-atomic; degrades to per-process |

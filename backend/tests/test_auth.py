@@ -773,6 +773,75 @@ class TestCacheFailurePolicy:
         assert asyncio.run(cache.get("k")) is None
 
 
+class _Full(InMemoryCache):
+    """`noeviction` at maxmemory: GET and PING answer, SET and INCR are OOM."""
+
+    async def set(self, *a, **k):
+        raise ConnectionError("OOM command not allowed when used memory > 'maxmemory'")
+    incr = add = set
+
+
+class _Down(InMemoryCache):
+    async def get(self, *a, **k):
+        raise ConnectionError("down")
+    set = delete = add = incr = get
+
+
+def _anonymous_request():
+    from starlette.requests import Request
+    return Request({"type": "http", "method": "POST", "path": "/auth",
+                    "headers": [], "client": ("203.0.113.9", 1)})
+
+
+class TestRedisRefusingWrites:
+    """The audit's simulated full Redis: scans 503'd, the attest write was
+    silently lost to process memory, and health still said healthy."""
+
+    def test_readiness_sees_it(self):
+        health = asyncio.run(ResilientCache(_Full(), InMemoryCache()).health())
+        assert health["healthy"] is False
+
+    def test_a_healthy_primary_is_still_healthy(self):
+        cache = ResilientCache(InMemoryCache(), InMemoryCache())
+        assert asyncio.run(cache.health())["healthy"] is True
+
+    def test_attest_fails_closed_instead_of_losing_the_key(self, monkeypatch):
+        primary = _Full()
+        asyncio.run(InMemoryCache.set(primary, auth._challenge_key("c"), "1", 60))
+        build_deps(enforce=True)
+        try:
+            auth.deps.cache = ResilientCache(primary, InMemoryCache())
+            monkeypatch.setattr(auth.deps, "ip_limiter", None)
+            monkeypatch.setattr(auth.appattest, "verify_attestation",
+                                lambda **kw: type("R", (), {
+                                    "public_key_pem": b"pem", "counter": 0,
+                                    "environment": "production"})())
+            with pytest.raises(auth.HTTPException) as exc:
+                asyncio.run(auth.attest(auth.AttestRequest(
+                    challenge="c", key_id="AAAA", attestation="AAAA"),
+                    _anonymous_request()))
+            assert exc.value.status_code == 503
+        finally:
+            build_deps()
+
+    def test_refresh_during_an_outage_is_503_not_unknown_key(self, monkeypatch):
+        """A 401 here tells the client to discard its key and come back as a
+        new subject with a fresh allowance (AttestationService.post)."""
+        fallback = InMemoryCache()
+        asyncio.run(fallback.set(auth._challenge_key("c"), "1", 60))
+        build_deps(enforce=True)
+        try:
+            auth.deps.cache = ResilientCache(_Down(), fallback)
+            monkeypatch.setattr(auth.deps, "ip_limiter", None)
+            with pytest.raises(auth.HTTPException) as exc:
+                asyncio.run(auth.refresh(auth.AssertRequest(
+                    challenge="c", key_id="AAAA", assertion="AAAA"),
+                    _anonymous_request()))
+            assert exc.value.status_code == 503
+        finally:
+            build_deps()
+
+
 class _Switchable(InMemoryCache):
     """A primary that can be taken down and brought back."""
 

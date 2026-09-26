@@ -3684,6 +3684,56 @@ async def _archive_chat_line(chat_id: str) -> str:
     return f"Archive chat: {title} ({kind}) ✅ — /clear forwards here first"
 
 
+# Redis holds state nothing can rebuild (RUNBOOK §9), so how it behaves when
+# full and whether it survives a restart are operational facts, not tuning.
+# Nothing reported either until this line: the only probe was a PING.
+REDIS_MEMORY_WARN_FRACTION = 0.8
+REDIS_SNAPSHOT_STALE_SECONDS = 24 * 3600
+
+
+def _redis_line(info: dict, now: float) -> str:
+    """One checkup line from Redis INFO, with a ⚠️ for each unsafe setting."""
+    def num(key: str) -> int:
+        try:
+            return int(info.get(key) or 0)
+        except (TypeError, ValueError):
+            return 0
+
+    used, limit = num("used_memory"), num("maxmemory")
+    policy = str(info.get("maxmemory_policy") or "unknown")
+    evicted = num("evicted_keys")
+    aof = num("aof_enabled") == 1
+    last_save, save_ok = num("rdb_last_save_time"), info.get("rdb_last_bgsave_status")
+
+    mb = 1024 * 1024
+    memory = (f"{used / mb:.1f} MB of {limit / mb:.0f} MB ({used / limit:.0%})" if limit
+              else f"{used / mb:.1f} MB, no limit")
+    snapshot = (f"last snapshot {int((now - last_save) // 3600)}h ago" if last_save
+                else "no snapshot")
+    line = (f"Redis: {memory} · policy {html.escape(policy)} · evicted {evicted} · "
+            f"AOF {'on' if aof else 'off'} · {snapshot}")
+
+    warnings: list[str] = []
+    if policy != "noeviction":
+        # Any evicting policy drops keys to make room, and the keys here are
+        # quota counters, entitlement proofs, refund tombstones and attest
+        # state — a silent re-grant or a forced re-attestation.
+        warnings.append(f"policy {html.escape(policy)} evicts state nothing can "
+                        "rebuild — set noeviction")
+    if not limit:
+        warnings.append("no maxmemory — Redis grows until the container is killed")
+    elif used >= limit * REDIS_MEMORY_WARN_FRACTION:
+        warnings.append(f"above {REDIS_MEMORY_WARN_FRACTION:.0%} of maxmemory — "
+                        "under noeviction, writes fail and free scans 503 at 100%")
+    if evicted:
+        warnings.append(f"{evicted} keys evicted since restart")
+    if save_ok not in (None, "ok"):
+        warnings.append(f"last snapshot failed ({html.escape(str(save_ok))})")
+    if not aof and (not last_save or now - last_save > REDIS_SNAPSHOT_STALE_SECONDS):
+        warnings.append("no AOF and no snapshot in 24h — a restart loses everything")
+    return line + "".join(f"\n⚠️ {w}" for w in warnings)
+
+
 async def _checkup_text() -> str:
     lines = ["🩺 <b>Checkup</b>"]
 
@@ -3701,6 +3751,15 @@ async def _checkup_text() -> str:
         lines.append(f"Cache ({backend}): {state} · {ms:.0f} ms")
     except Exception as exc:
         lines.append(f"Cache: error ({html.escape(type(exc).__name__)})")
+
+    # Redis itself: what it does when full, and whether a restart loses it.
+    redis_info = getattr(_cache, "redis_info", None)
+    try:
+        info = await redis_info() if redis_info is not None else None
+        if info:
+            lines.append(_redis_line(info, time.time()))
+    except Exception as exc:
+        lines.append(f"Redis INFO: error ({html.escape(type(exc).__name__)})")
 
     # Model: a one-token round trip, billed like everything else.
     if _generator is None:

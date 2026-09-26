@@ -139,6 +139,16 @@ class RedisCache:
     async def ping(self) -> bool:
         return bool(await self._redis.ping())
 
+    async def info(self) -> dict:
+        """Redis's own INFO: memory, eviction policy, persistence, evictions."""
+        return dict(await self._redis.info())
+
+
+# Written by `ResilientCache.health`. Short-lived: it proves a write works and
+# should not outlast the probe that wrote it.
+HEALTH_PROBE_KEY = "health:probe"
+HEALTH_PROBE_TTL = 60
+
 
 class ResilientCache:
     """Prefers Redis; degrades to process memory, and reports health.
@@ -254,7 +264,14 @@ class ResilientCache:
         ok = False
         if self._primary is not None:
             try:
-                ok = await self._primary.ping()
+                # A write, not PING. A Redis at `maxmemory` under `noeviction`
+                # still answers PING and GET while refusing every SET and INCR
+                # with OOM — so every free scan 503s, attestation state cannot
+                # be stored, and a PING probe called the cache healthy through
+                # all of it. Readiness exists to catch exactly that.
+                await self._primary.set(HEALTH_PROBE_KEY, str(int(time.time())),
+                                        HEALTH_PROBE_TTL)
+                ok = True
                 self._mark_up()
             except Exception as exc:
                 self._mark_down(exc)
@@ -264,6 +281,21 @@ class ResilientCache:
         return {"backend": self.backend, "healthy": healthy,
                 "configured": self._configured,
                 "degraded": self.is_degraded, "failures": self._failures}
+
+    async def redis_info(self) -> dict | None:
+        """The primary's INFO, for the operator's checkup; None without Redis.
+
+        Diagnostic only — a failure here says nothing health() has not, so it
+        neither raises nor moves the degraded state.
+        """
+        info = getattr(self._primary, "info", None)
+        if info is None:
+            return None
+        try:
+            return await info()
+        except Exception as exc:
+            log.warning("redis INFO failed: %s", type(exc).__name__)
+            return None
 
 
 #: Default pool ceiling. Overridable, but never at the cost of booting.
