@@ -44,6 +44,15 @@ def client_ip(request: Any) -> str:
     only hop a caller cannot forge by sending their own header. Truncated
     because the value reaches a cache key and is attacker-influenced.
 
+    That proxy is Railway's edge, and the address it appends is the client's
+    own: there is no CDN in front of it (checked 2026-09: the domain is a
+    plain CNAME to `*.up.railway.app`, and responses carry Railway's `server`
+    and `x-railway-edge` headers and nobody else's). So an ordinary request
+    carries exactly one hop, and it is the caller. Put a CDN or any other
+    proxy in front and the rightmost hop becomes *that proxy's* address — one
+    60/h bucket for every user. Before doing so, take the hop a configured
+    number of places from the right instead; RUNBOOK §5.8 says the same.
+
     It lives here, rather than in `main`, because `auth`'s unauthenticated
     routes need the same answer and cannot import `main`. They were keyed on
     `request.client.host` — the forgeable value — so `/challenge`, `/attest`
@@ -53,8 +62,29 @@ def client_ip(request: Any) -> str:
     """
     xff = request.headers.get("x-forwarded-for", "")
     if xff:
-        return xff.split(",")[-1].strip()[:64] or "unknown"
+        hops = xff.split(",")
+        _note_hop_count(len(hops))
+        return hops[-1].strip()[:64] or "unknown"
     return request.client.host if request.client else "unknown"
+
+
+_HOP_COUNTS_SEEN: set[int] = set()
+
+
+def _note_hop_count(hops: int) -> None:
+    """Log how many forwarded hops a request carried, once per count.
+
+    The evidence for the paragraph above, from production rather than from a
+    header check: ordinary app traffic should read 1. Once per distinct count
+    rather than once, so a caller forging its own header on the first request
+    cannot be the only sample; bucketed at 4 so that is at most four lines per
+    process. The count only — never an address.
+    """
+    bucket = min(hops, 4)
+    if bucket not in _HOP_COUNTS_SEEN:
+        _HOP_COUNTS_SEEN.add(bucket)
+        log.info("x-forwarded-for carried %s hop(s); the rightmost is the "
+                 "per-IP rate-limit key", f"{bucket}+" if bucket == 4 else bucket)
 
 log = logging.getLogger("snapworth.ratelimit")
 
@@ -172,9 +202,10 @@ class RedisRateLimiter:
         # this was the one shared-state detail that did not. Latent at one
         # replica; live the moment there are two.
         #
-        # The most exposed key is `rl:ip:<addr>`: behind Railway's edge the
-        # rightmost forwarded hop is the proxy's own address, so every request
-        # from every user shares one hot key at the 60/h cap.
+        # The most exposed key is the busiest `rl:ip:<addr>`, a carrier NAT's
+        # shared egress. (This used to say every user shared one IP key
+        # because the rightmost forwarded hop was Railway's proxy. It is the
+        # client's own address — see `client_ip`.)
         self._nonce = secrets.token_hex(4)
 
     async def check(self, key: str, limit: int, window: int = RATE_WINDOW_SECS) -> None:

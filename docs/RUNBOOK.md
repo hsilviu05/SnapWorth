@@ -270,6 +270,14 @@ availability one.
 1. Check `rate_limited_total` and `quota_exhausted_total`.
 2. Device id is client-supplied and trivially rotated — the real backstop is the
    per-IP limit (`IP_RATE_MAX_REQUESTS`, default 60/hr).
+   It keys on the rightmost `X-Forwarded-For` hop (`ratelimit.client_ip`),
+   which is the caller's own address only while Railway's edge is the one proxy
+   in front of the container. Each process logs `x-forwarded-for carried N
+   hop(s)` the first time it sees each count; app traffic should read 1.
+   **Before putting a CDN or any other proxy in front of Railway** (a proxied
+   DNS record, Railway's CDN), change `client_ip` to take the hop a configured
+   number of places from the right. Otherwise the rightmost hop is the CDN's
+   address and one 60/hr bucket serves every user.
 3. Tighten via env; no deploy needed if the platform supports variable updates
    with a restart.
 4. Sustained abuse from one IP range needs a platform-level block; there is no
