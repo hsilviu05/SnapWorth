@@ -69,6 +69,7 @@ from collections.abc import Awaitable, Callable
 from datetime import datetime, timedelta, timezone
 
 import auditlog
+import categories
 import ideas
 
 log = logging.getLogger("snapworth.notify")
@@ -99,11 +100,7 @@ FEED_KEY = "opsfeed:enabled"
 # capped; categories are a closed set and need no cap.
 TOP_BRANDS_CAP = 200
 
-CATEGORY_EMOJI = {
-    "clothing": "🧥", "shoes": "👟", "accessories": "👜", "electronics": "📱",
-    "books": "📚", "furniture": "🪑", "home": "🏠", "sports": "⚽",
-    "toys": "🧸", "collectibles": "🏺", "other": "📦",
-}
+CATEGORY_EMOJI = {c.name: c.emoji for c in categories.CATEGORIES}
 
 # The weekly report goes out with Monday's digest, covering the seven days
 # that just ended against the seven before.
@@ -1940,8 +1937,9 @@ def _start_command_loop() -> None:
 # ── Live scan feed and what people scan ──────────────────────────────────────
 
 def _normalise_category(category: str | None) -> str:
-    key = (category or "").strip().lower()
-    return key if key in CATEGORY_EMOJI else "other"
+    # `/scan` already hands over a normalised category. Normalised again here
+    # because the day's tallies key on it and must not grow a row per spelling.
+    return categories.normalise(category)
 
 
 def _clean_brand(brand: str | None) -> str | None:

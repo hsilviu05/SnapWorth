@@ -29,6 +29,7 @@ import logging
 import math
 from dataclasses import dataclass, field
 
+import categories
 import promptsafety
 from confidence import ConfidenceResult
 from imagequality import ImageQuality
@@ -243,8 +244,12 @@ def normalise(data: dict, *, image_quality: ImageQuality | None = None) -> Valua
             promptsafety.MAX_ITEM_NAME, "item_name") or "Unknown Item",
         brand=promptsafety.sanitize_text(
             data.get("brand", "Unknown"), promptsafety.MAX_BRAND, "brand") or "Unknown",
-        category=promptsafety.sanitize_text(
-            data.get("category", "other"), promptsafety.MAX_CATEGORY, "category") or "other",
+        # Resolved to one of the eleven names the prompt offers, as
+        # `condition_grade` is to its four. Passed through verbatim, an
+        # off-list answer was read three different ways downstream — see
+        # `categories`.
+        category=categories.normalise(promptsafety.sanitize_text(
+            data.get("category", categories.OTHER), promptsafety.MAX_CATEGORY, "category")),
         condition_notes=promptsafety.sanitize_text(
             data.get("condition_notes", "Condition unknown"),
             promptsafety.MAX_NOTES, "condition_notes") or "Condition unknown",

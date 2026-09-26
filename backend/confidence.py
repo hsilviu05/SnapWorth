@@ -45,6 +45,7 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass, field
 
+import categories
 from imagequality import ImageQuality
 
 log = logging.getLogger("snapworth.confidence")
@@ -64,21 +65,10 @@ _DEMAND_KNOWN = {"high", "medium", "low"}
 _SUPPLY_KNOWN = {"scarce", "moderate", "abundant"}
 
 # Categories whose secondhand markets are dense, well-documented and stable, so
-# a model-knowledge estimate is more likely to be close. Fine art or antiques
-# vary enormously by individual piece; a Nike sneaker does not.
-_CATEGORY_FAMILIARITY = {
-    "clothing": 0.90,
-    "shoes": 0.90,
-    "electronics": 0.80,
-    "accessories": 0.70,
-    "sports": 0.70,
-    "home": 0.65,
-    "books": 0.65,
-    "toys": 0.60,
-    "furniture": 0.50,
-    "collectibles": 0.35,   # value is dominated by rarity we cannot see
-    "other": 0.30,
-}
+# a model-knowledge estimate is more likely to be close. The weights live in
+# `categories`, the one table of categories; this is a view of it.
+_CATEGORY_FAMILIARITY = {c.name: c.familiarity for c in categories.CATEGORIES}
+_UNFAMILIAR = categories.BY_NAME[categories.OTHER].familiarity
 
 _AUTHENTICITY_SCORE = {
     "no_concerns": 1.0,
@@ -183,7 +173,7 @@ def compute(
 
     # ── Category familiarity ────────────────────────────────────────────────
     cat = (category or "other").strip().lower()
-    familiarity = _CATEGORY_FAMILIARITY.get(cat, 0.30)
+    familiarity = _CATEGORY_FAMILIARITY.get(cat, _UNFAMILIAR)
     signals.append(ConfidenceSignal(
         "category", familiarity, 0.12,
         f"{cat} has a well-established resale market" if familiarity >= 0.65

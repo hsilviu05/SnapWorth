@@ -24,6 +24,8 @@ import logging
 import re
 import unicodedata
 
+import categories
+
 log = logging.getLogger("snapworth.promptsafety")
 
 # Field length caps. Generous enough for legitimate content, tight enough that
@@ -86,24 +88,13 @@ def fence(value: str) -> str:
 
 
 # ── Valuation sanity bands ───────────────────────────────────────────────────
-# (floor, ceiling) in USD for a *single secondhand item*. Ceilings are set well
-# above the realistic top of each category so genuine finds are never clipped —
-# these catch order-of-magnitude errors and injected numbers, not good guesses.
+# (floor, ceiling) in USD for a *single secondhand item*, per category. The
+# values and the reasoning behind them live in `categories`, the one table of
+# categories; this is a view of it.
 _CATEGORY_BANDS: dict[str, tuple[float, float]] = {
-    "clothing":     (1.0, 5_000.0),
-    "shoes":        (1.0, 5_000.0),
-    "accessories":  (1.0, 20_000.0),   # designer bags and watches run high
-    "electronics":  (1.0, 10_000.0),
-    "books":        (1.0, 5_000.0),    # first editions
-    "furniture":    (1.0, 15_000.0),
-    "home":         (1.0, 5_000.0),
-    "sports":       (1.0, 5_000.0),
-    "toys":         (1.0, 10_000.0),
-    "collectibles": (1.0, 50_000.0),   # deliberately loose
-    "other":        (1.0, 10_000.0),
-}
+    c.name: c.band for c in categories.CATEGORIES}
 
-DEFAULT_BAND = (1.0, 10_000.0)
+DEFAULT_BAND = categories.BY_NAME[categories.OTHER].band
 
 
 def clamp_valuation(low: float, high: float, category: str) -> tuple[float, float, str]:

@@ -706,31 +706,6 @@ async def _enforce_limits(device_id: str, ip: str | None) -> None:
                             headers={"Retry-After": str(exc.retry_after)}) from None
 
 
-SCAN_PROMPT = """You are an expert at identifying secondhand and thrift items from photos and estimating their typical resale value from your broad market knowledge.
-
-Analyze the provided image of a secondhand or thrift item and return ONLY a valid JSON object — no markdown, no explanation, no extra text.
-
-Required JSON schema:
-{
-  "item_name": "Specific item name including brand, model, size if visible (e.g. 'Patagonia Better Sweater 1/4-Zip, Size M')",
-  "brand": "Brand name, or 'Unknown' if not identifiable",
-  "category": "One of: clothing, shoes, accessories, electronics, books, furniture, home, sports, toys, collectibles, other",
-  "condition_notes": "Brief honest condition summary (e.g. 'Good — light pilling on cuffs, no stains')",
-  "est_value_low_usd": 12.00,
-  "est_value_high_usd": 45.00,
-  "confidence": "High, Medium, or Low based on how clearly you can identify the item",
-  "listing_title": "Compelling, SEO-friendly resale title under 80 chars",
-  "listing_description": "2-3 sentences highlighting key selling points, condition, and why it's a good buy"
-}
-
-Rules:
-- Estimate the typical secondhand resale range from your general market knowledge — reflect what these items usually resell for, not inflated retail or asking prices
-- If the brand is clearly visible, weight the estimate to that brand's typical secondhand market
-- est_value_low_usd must always be less than est_value_high_usd
-- confidence reflects how clearly you can identify the item from the image, nothing more
-- If the image is blurry, shows multiple items, or is not a resalable item, set confidence to "Low" and provide your best estimate anyway
-- Never return values outside the JSON object"""
-
 # Constructed with explicit generation parameters — see aiconfig.py. The bare
 # `genai.GenerativeModel(name)` this replaces ran at the API default temperature
 # of 1.0, i.e. full sampling randomness on a pricing task.
