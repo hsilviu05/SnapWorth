@@ -31,6 +31,16 @@ final class ScanViewModel {
     /// `PurchaseService.confirmingSubscription`.
     var showSubscriptionUnconfirmed = false
 
+    /// The photo a scan-limit paywall interrupted, so a purchase can finish
+    /// the scan the user started — see `takePhotoForResume`.
+    ///
+    /// Nothing kept it: the paywall opened, the capture was released, and a
+    /// new subscriber's first Pro moment was an empty viewfinder and a second
+    /// shot of the same item. Held downscaled to the upload size, which is all
+    /// a scan uses, rather than as a full-resolution capture for as long as
+    /// the paywall is up.
+    @ObservationIgnored private var photoAwaitingPurchase: UIImage?
+
     // ── Free scan tracking ────────────────────────────────────────────
     // Backed by the shared `FreeScanCounter` (below) so the daily cap is enforced
     // consistently across the camera scan and Thrift Flip. Public API unchanged.
@@ -48,12 +58,19 @@ final class ScanViewModel {
     var streak: Int { ScanStreak.current() }
 
     // ── Scan trigger ─────────────────────────────────────────────────
-    func startScan(image: UIImage, purchaseService: any PurchaseService, repository: ScanRepository) async {
+    /// - Parameter afterPurchase: the scan a purchase has just unblocked.
+    ///   The purchase tells the server in a detached task, so this one waits
+    ///   for the server to have heard first — otherwise the new subscriber's
+    ///   first scan could be read as a free one, off the free allowance and
+    ///   without the Pro detail.
+    func startScan(image: UIImage, purchaseService: any PurchaseService, repository: ScanRepository,
+                   afterPurchase: Bool = false) async {
         guard !isAnalyzing else { return }
         guard purchaseService.isSubscribed || hasFreeScanRemaining else {
             Analytics.shared.track(.freeScanLimitHit)
             paywallTrigger = .scanLimit
             showPaywall = true
+            await holdForPurchase(image)
             return
         }
 
@@ -68,6 +85,11 @@ final class ScanViewModel {
         // The request and the save, if the phone locks mid-scan.
         let background = BackgroundScanActivity.begin("Scan")
         defer { background.end() }
+        if afterPurchase {
+            // Its outcome is not needed here: a server that still refuses
+            // answers 402, which `confirmingSubscription` below handles.
+            _ = await purchaseService.resyncEntitlement()
+        }
 
         do {
             let response = try await purchaseService.confirmingSubscription {
@@ -196,6 +218,7 @@ final class ScanViewModel {
                 Analytics.shared.track(.freeScanLimitHit)
                 paywallTrigger = .scanLimit
                 showPaywall = true
+                await holdForPurchase(image)
                 return
             }
 
@@ -222,7 +245,31 @@ final class ScanViewModel {
         selectedPhotoItem = nil
     }
 
+    /// Keeps the interrupted photo for `takePhotoForResume`. Downscaled off
+    /// the main actor, after the paywall has been asked for, so the sheet is
+    /// not held up by it.
+    private func holdForPurchase(_ image: UIImage) async {
+        let photo = await Task.detached(priority: .utility) {
+            ScanAPIClient.downscale(image, maxEdge: ScanAPIClient.maxUploadEdge)
+        }.value
+        // Closed already: nothing is waiting for it, and a later paywall must
+        // not resume a scan nobody asked for.
+        guard showPaywall else { return }
+        photoAwaitingPurchase = photo
+    }
+
+    /// The photo the scan-limit paywall interrupted, if the paywall has just
+    /// closed on a subscriber; otherwise nil. Either way the photo is let go:
+    /// a plain dismiss means the user chose not to buy, and the viewfinder is
+    /// where they expect to be.
+    func takePhotoForResume(purchaseService: any PurchaseService) -> UIImage? {
+        defer { photoAwaitingPurchase = nil }
+        guard purchaseService.isSubscribed else { return nil }
+        return photoAwaitingPurchase
+    }
+
     func reset() {
+        photoAwaitingPurchase = nil
         capturedImage = nil
         scanResult = nil
         errorMessage = nil

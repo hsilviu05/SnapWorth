@@ -4874,6 +4874,83 @@ final class SubscriberPaywallTests: XCTestCase {
     }
 }
 
+// ── A purchase finishes the scan the paywall interrupted ─────────────────────
+//
+// The scan-limit paywall dropped the photo, so a new subscriber's first Pro
+// moment was an empty viewfinder and a second shot of the same item.
+
+@MainActor
+final class ScanLimitResumeTests: XCTestCase {
+
+    private func capture() -> UIImage {
+        let format = UIGraphicsImageRendererFormat.default()
+        format.scale = 1
+        return UIGraphicsImageRenderer(size: CGSize(width: 4000, height: 3000), format: format)
+            .image { ctx in
+                UIColor.brown.setFill()
+                ctx.fill(CGRect(x: 0, y: 0, width: 4000, height: 3000))
+            }
+    }
+
+    private func repository() throws -> ScanRepository {
+        let config = ModelConfiguration(isStoredInMemoryOnly: true)
+        let container = try ModelContainer(for: ScanResult.self, configurations: config)
+        return ScanRepository(context: ModelContext(container))
+    }
+
+    /// The day's allowance is spent, so `startScan` stops at the paywall.
+    private func hitTheLimit(_ vm: ScanViewModel, _ service: any PurchaseService) async throws {
+        FreeScanCounter.serverRemaining = 0
+        await vm.startScan(image: capture(), purchaseService: service, repository: try repository())
+        XCTAssertTrue(vm.showPaywall)
+        XCTAssertEqual(vm.paywallTrigger, .scanLimit)
+    }
+
+    private func clearCounter() {
+        for key in ["snapworth_free_scans_server_remaining",
+                    "snapworth_free_scans_used", "snapworth_free_scans_date"] {
+            UserDefaults.standard.removeObject(forKey: key)
+        }
+    }
+
+    func test_aPurchaseResumesTheScanThePaywallInterrupted() async throws {
+        defer { clearCounter() }
+        let vm = ScanViewModel()
+        let stub = ResyncStub(subscribed: false, resync: .confirmed)
+        try await hitTheLimit(vm, stub)
+
+        stub.isSubscribed = true               // bought from the paywall
+        let photo = try XCTUnwrap(vm.takePhotoForResume(purchaseService: stub))
+        XCTAssertLessThanOrEqual(max(photo.size.width, photo.size.height),
+                                 ScanAPIClient.maxUploadEdge,
+                                 "held at upload size, not as a full-resolution capture")
+        XCTAssertNil(vm.takePhotoForResume(purchaseService: stub), "resumed once")
+    }
+
+    func test_aPlainDismissLetsThePhotoGo() async throws {
+        defer { clearCounter() }
+        let vm = ScanViewModel()
+        let stub = ResyncStub(subscribed: false, resync: .confirmed)
+        try await hitTheLimit(vm, stub)
+
+        XCTAssertNil(vm.takePhotoForResume(purchaseService: stub))
+        // Not kept for a later paywall to resume behind the user's back.
+        stub.isSubscribed = true
+        XCTAssertNil(vm.takePhotoForResume(purchaseService: stub))
+    }
+
+    func test_resetLetsThePhotoGo() async throws {
+        defer { clearCounter() }
+        let vm = ScanViewModel()
+        let stub = ResyncStub(subscribed: false, resync: .confirmed)
+        try await hitTheLimit(vm, stub)
+
+        vm.reset()
+        stub.isSubscribed = true
+        XCTAssertNil(vm.takePhotoForResume(purchaseService: stub))
+    }
+}
+
 // ── Telling the server once, not on every visit ──────────────────────────────
 //
 // Every return to the foreground re-sent the same signed transaction to

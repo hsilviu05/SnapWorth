@@ -445,7 +445,16 @@ struct ScanView: View {
         }) {
             resultSheet
         }
-        .sheet(isPresented: $vm.showPaywall) {
+        .sheet(isPresented: $vm.showPaywall, onDismiss: {
+            // A purchase from the scan-limit paywall finishes the scan it
+            // interrupted, rather than leaving a new subscriber in front of an
+            // empty viewfinder to shoot the same item again.
+            guard let photo = vm.takePhotoForResume(purchaseService: purchaseService),
+                  !captureInFlight else { return }
+            captureInFlight = true
+            vm.capturedImage = photo
+            Task { await triggerScan(image: photo, afterPurchase: true) }
+        }) {
             PaywallView(purchaseService: purchaseService, trigger: vm.paywallTrigger)
         }
         .subscriptionUnconfirmedAlert(isPresented: $vm.showSubscriptionUnconfirmed,
@@ -539,12 +548,13 @@ struct ScanView: View {
         }
     }
 
-    private func triggerScan(image: UIImage) async {
+    private func triggerScan(image: UIImage, afterPurchase: Bool = false) async {
         // Released on every exit, success or failure, so the shutter comes
         // back exactly once per capture.
         defer { captureInFlight = false }
         let repository = ScanRepository(context: modelContext)
-        await vm.startScan(image: image, purchaseService: purchaseService, repository: repository)
+        await vm.startScan(image: image, purchaseService: purchaseService, repository: repository,
+                           afterPurchase: afterPurchase)
         // Release the full-resolution capture the moment it stops being
         // needed. Both the upload (1568px) and the stored copy (1024px) are
         // already encoded by now, and the only view that reads this image is
