@@ -319,10 +319,29 @@ final class StoreKitPurchaseService: PurchaseService, ObservableObject {
     /// Percentage the yearly plan saves against 12× monthly.
     private static func savings(yearly: Product, monthly: Product?) -> Int? {
         guard let monthly else { return nil }
-        let twelveMonths = monthly.price * 12
-        guard twelveMonths > 0, yearly.price < twelveMonths else { return nil }
-        let ratio = (twelveMonths - yearly.price) / twelveMonths * 100
-        let percent = NSDecimalNumber(decimal: ratio).intValue
+        return savingsPercent(yearly: yearly.price, monthly: monthly.price)
+    }
+
+    /// The whole percentage `yearly` saves against twelve `monthly`s, or nil
+    /// when it saves nothing.
+    ///
+    /// Rounded before it becomes an `Int`. The quotient carries every digit
+    /// `Decimal` can hold — 39.99 against 12 × 4.99 is 33.2164328657… — and
+    /// `NSDecimalNumber.intValue` returns 0 for a value that long rather than
+    /// truncating it. So this was nil in every storefront, the yearly card
+    /// fell back to "BEST VALUE", and the saving the website quotes never
+    /// appeared on the plan the paywall preselects. Rounded *down*, so the
+    /// badge never claims a point the plan does not save.
+    ///
+    /// `nonisolated` and on plain `Decimal`s so a test can check the maths
+    /// without a StoreKit `Product`.
+    nonisolated static func savingsPercent(yearly: Decimal, monthly: Decimal) -> Int? {
+        let twelveMonths = monthly * 12
+        guard twelveMonths > 0, yearly < twelveMonths else { return nil }
+        var ratio = (twelveMonths - yearly) / twelveMonths * 100
+        var whole = Decimal()
+        NSDecimalRound(&whole, &ratio, 0, .down)
+        let percent = NSDecimalNumber(decimal: whole).intValue
         return percent > 0 ? percent : nil
     }
 

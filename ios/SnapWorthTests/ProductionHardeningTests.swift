@@ -946,6 +946,37 @@ final class PlanPricingTests: XCTestCase {
         let pricing = await service.pricing
         XCTAssertFalse(pricing.isEmpty)
     }
+
+    // ── The yearly saving ───────────────────────────────────────────────────
+    //
+    // `NSDecimalNumber.intValue` returned 0 for the unrounded quotient, so the
+    // badge was nil at the shipped prices and the yearly card said "BEST
+    // VALUE" in every storefront. The mock hardcoded 33, so nothing noticed.
+
+    private func percent(_ yearly: String, _ monthly: String) -> Int? {
+        StoreKitPurchaseService.savingsPercent(yearly: Decimal(string: yearly)!,
+                                               monthly: Decimal(string: monthly)!)
+    }
+
+    func test_theShippedPricesSaveThirtyThreePercent() {
+        // SnapWorth.storekit: 39.99 a year against 4.99 a month.
+        XCTAssertEqual(percent("39.99", "4.99"), 33)
+    }
+
+    func test_theSavingIsRoundedDownNotUp() {
+        // 37.41%: the badge must not claim 38.
+        XCTAssertEqual(percent("44.99", "5.99"), 37)
+        // 16.42%.
+        XCTAssertEqual(percent("29.99", "2.99"), 16)
+    }
+
+    func test_noSavingMeansNoBadge() {
+        XCTAssertNil(percent("59.88", "4.99"), "twelve months exactly saves nothing")
+        XCTAssertNil(percent("69.99", "4.99"), "a dearer yearly plan saves nothing")
+        XCTAssertNil(percent("0.50", "0"), "no monthly price to compare against")
+        // Under one percent rounds down to nothing, rather than "SAVE 0%".
+        XCTAssertNil(percent("59.50", "4.99"))
+    }
 }
 
 // MARK: - Polish
