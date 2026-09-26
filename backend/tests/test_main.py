@@ -996,6 +996,80 @@ class TestAppleNotifications:
             "refunded-subject"))).tier == "free", (
             "the refunded subscriber is still being re-derived as Pro")
 
+    def test_a_refund_during_a_redis_outage_is_refused_so_apple_retries(
+            self, pinned, monkeypatch):
+        """The tombstone write is `required`, so an outage is a 503, not a 200.
+
+        Every other test here runs on a cache where memory is authoritative,
+        which is exactly the one configuration where writing the tombstone to
+        memory is right. Production has `REDIS_URL` set: there, the unflagged
+        write degraded to this replica's memory, the handler answered 200, and
+        Apple — which does not redeliver a 2xx — never sent it again. The
+        tombstone was invisible to `_is_revoked` after recovery and gone at the
+        next deploy.
+        """
+        import auth as _auth
+        from test_entitlements import make_jws, valid_payload
+
+        class _Flaky(InMemoryCache):
+            """Redis that can be unplugged: every call raises while `down`."""
+            down = False
+
+            async def _guard(self):
+                if self.down:
+                    raise ConnectionError("redis is down")
+
+            async def get(self, *a, **k):
+                await self._guard()
+                return await super().get(*a, **k)
+
+            async def set(self, *a, **k):
+                await self._guard()
+                return await super().set(*a, **k)
+
+            async def add(self, *a, **k):
+                await self._guard()
+                return await super().add(*a, **k)
+
+            async def delete(self, *a, **k):
+                await self._guard()
+                return await super().delete(*a, **k)
+
+        redis = _Flaky()
+        durable = ResilientCache(redis, InMemoryCache(), configured=True)
+        store = _entitlements.EntitlementService(
+            durable, "eu.snapworth.app",
+            {"com.snapworth.yearly", "com.snapworth.monthly"})
+        monkeypatch.setattr(_auth.deps, "entitlements", store)
+        monkeypatch.setattr(main, "_cache", durable)
+
+        leaf_key, chain = pinned
+        payload = valid_payload()
+        assert asyncio.run(store.record(
+            "outage-subject", make_jws(payload, leaf_key, chain))).tier == "pro"
+
+        refund = make_notification(
+            leaf_key, chain, notification_type="REFUND",
+            uuid="dddddddd-1111-2222-3333-444444444444",
+            revocationDate=int(time.time() * 1000),
+            originalTransactionId=payload["originalTransactionId"])
+
+        redis.down = True
+        r = client.post("/apple/notifications", json={"signedPayload": refund})
+        assert r.status_code == 503, (
+            "a refund whose tombstone was not stored durably must not be "
+            "acknowledged — Apple does not redeliver a 200")
+
+        # Redis comes back and Apple redelivers. The retry must do the work,
+        # not land on the idempotency marker the failed attempt claimed.
+        redis.down = False
+        r = client.post("/apple/notifications", json={"signedPayload": refund})
+        assert r.status_code == 200
+        assert r.json()["status"] != "duplicate"
+
+        asyncio.run(durable.delete("ent:outage-subject"))
+        assert asyncio.run(store.current("outage-subject")).tier == "free"
+
     def test_a_renewal_does_not_revoke_anything(self, pinned, entitlement_store):
         from test_entitlements import make_jws, valid_payload
         leaf_key, chain = pinned

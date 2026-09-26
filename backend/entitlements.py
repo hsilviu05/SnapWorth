@@ -589,10 +589,18 @@ class EntitlementService:
         # caller has to know — this is the one write in the entitlement path
         # that must not be best-effort.
         #
+        # `required=True` is what makes that sentence true. Without it a
+        # failing Redis did not raise at all: `ResilientCache` wrote the
+        # tombstone to this replica's memory and returned, the webhook
+        # answered Apple 200, and Apple does not redeliver a 2xx. `_is_revoked`
+        # reads Redis, so the tombstone was invisible from the first request
+        # after recovery and gone for good at the next deploy — and the
+        # pre-refund proof went on re-deriving Pro for the rest of the term.
+        #
         # At least as long as any proof it has to outlive: a proof's TTL is
         # capped at its own expiry plus grace, so this covers every one.
         await self._cache.set(self._revoked_key(otid), payload,
-                              ENTITLEMENT_PROOF_TTL)
+                              ENTITLEMENT_PROOF_TTL, required=True)
         log.info("subscription revoked by Apple",
                  extra={"product_id": ent.product_id})
         return True
