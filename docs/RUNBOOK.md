@@ -208,7 +208,8 @@ never a free scan.
    since those users have not used their scan and a paywall would say they had.
    **If you set `FREE_SCANS_PER_DAY=0` during an earlier outage, set it back**
    (the default is `1`). It is read at startup and nothing reverts it, and at
-   `0` there is no daily free scan: every free scan gets the paywall.
+   `0` there is no daily free scan: every free user gets the paywall on their
+   first scan of the day, unless an armed first-day welcome covers them.
 
 ### 5.4b Redis *misconfigured* (not unreachable)
 
