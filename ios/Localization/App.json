@@ -1042,6 +1042,14 @@
       "de": "Bestes Angebot",
       "zh-Hans": "最划算"
     },
+    "Brand %@": {
+      "comment": "VoiceOver, on the result photo: the item's brand as read by the AI.",
+      "en": "Brand %@",
+      "ro": "Marca %@",
+      "es": "Marca %@",
+      "de": "Marke %@",
+      "zh-Hans": "品牌 %@"
+    },
     "Bug Report": {
       "en": "Bug Report",
       "ro": "Raportare de problemă",
@@ -1232,6 +1240,14 @@
       "es": "Estado",
       "de": "Zustand",
       "zh-Hans": "成色"
+    },
+    "Condition %@": {
+      "comment": "VoiceOver, on the result photo: the condition grade shown on its chip (New, Like New, Good, Used).",
+      "en": "Condition %@",
+      "ro": "Stare %@",
+      "es": "Estado %@",
+      "de": "Zustand %@",
+      "zh-Hans": "成色 %@"
     },
     "Confidence": {
       "en": "Confidence",

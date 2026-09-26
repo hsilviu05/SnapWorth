@@ -4798,6 +4798,42 @@
         }
       }
     },
+    "Brand %@" : {
+      "comment" : "VoiceOver, on the result photo: the item's brand as read by the AI.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Marke %@"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Brand %@"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Marca %@"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Marca %@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "品牌 %@"
+          }
+        }
+      }
+    },
     "Bug Report" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -5741,6 +5777,42 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "成色"
+          }
+        }
+      }
+    },
+    "Condition %@" : {
+      "comment" : "VoiceOver, on the result photo: the condition grade shown on its chip (New, Like New, Good, Used).",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zustand %@"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Condition %@"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Estado %@"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Stare %@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "成色 %@"
           }
         }
       }

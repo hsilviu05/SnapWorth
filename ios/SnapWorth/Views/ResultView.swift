@@ -639,16 +639,15 @@ struct ResultView: View {
                     if !result.brand.isEmpty && result.brand != "Unknown" {
                         photoChip(result.brand)
                     }
-                    let condition = String(
-                        (result.conditionNotes
-                            .components(separatedBy: CharacterSet(charactersIn: "—–-."))
-                            .first?
-                            .trimmingCharacters(in: .whitespaces) ?? "")
-                            .prefix(22)
-                    )
-                    if !condition.isEmpty {
-                        photoChip(condition)
-                    }
+                    // The grade itself, as the Condition chips below word it.
+                    // This used to be cut out of `conditionNotes` — split on
+                    // dashes and full stops, first 22 characters — which fit
+                    // v1's "Good — light pilling" notes. v2 writes prose, so
+                    // the chip read "Well", "Pre" or "Moderate fading throug",
+                    // in English in every language, and could contradict the
+                    // grade the user had picked. The notes stay whole in the
+                    // Condition card further down.
+                    photoChip(result.condition.label)
                 }
             }
             .padding(.horizontal, 20)
@@ -666,14 +665,14 @@ struct ResultView: View {
         .accessibilitySortPriority(90)
     }
 
+    /// What the hero's chips say, spoken — so the grade, as on the chip. The
+    /// full notes are read in the Condition card below.
     private var heroAccessibilityLabel: String {
         var parts = [result.itemName]
         if !result.brand.isEmpty, result.brand != "Unknown" {
-            parts.append("Brand \(result.brand)")
+            parts.append(String(localized: "Brand \(result.brand)"))
         }
-        if !result.conditionNotes.isEmpty {
-            parts.append(result.conditionNotes)
-        }
+        parts.append(String(localized: "Condition \(result.condition.label)"))
         return parts.joined(separator: ". ")
     }
 
