@@ -186,6 +186,73 @@ class TestAppAttest:
         with pytest.raises(appattest.AttestationError, match="not signed by Apple"):
             appattest.verify_attestation(blob, b"chal", b"k", TEST_APP_ID)
 
+    # CBOR decodes to any type the sender chose. Each of these used to escape
+    # as an AttributeError or TypeError — a 500 and a traceback — because
+    # `/auth/attest` catches only AttestationError.
+    @pytest.mark.parametrize("obj", [
+        [1, 2],
+        7,
+        "apple-appattest",
+        {"fmt": "apple-appattest", "attStmt": [1], "authData": b"\x00" * 60},
+        {"fmt": "apple-appattest", "attStmt": "x", "authData": b"\x00" * 60},
+        {"fmt": "apple-appattest", "attStmt": {"x5c": 5}, "authData": b"\x00" * 60},
+        {"fmt": "apple-appattest", "attStmt": {"x5c": ["not-der"]}, "authData": b"\x00" * 60},
+    ], ids=["list", "int", "string", "attStmt-list", "attStmt-string", "x5c-int",
+            "x5c-text"])
+    def test_a_malformed_body_is_an_attestation_error(self, obj):
+        with pytest.raises(appattest.AttestationError, match="malformed"):
+            appattest.verify_attestation(cbor2.dumps(obj), b"chal", b"k", TEST_APP_ID)
+
+    @staticmethod
+    def _chain_signed_by_a_test_root():
+        """A leaf and intermediate under a root this test controls, patched in
+        for Apple's: what an attacker replaying a genuine chain would send."""
+        from cryptography import x509
+        from cryptography.hazmat.primitives import hashes, serialization
+        from cryptography.hazmat.primitives.asymmetric import ec
+        from cryptography.x509.oid import NameOID
+        import datetime as dt
+
+        now = dt.datetime.now(dt.timezone.utc)
+
+        def issue(subject, issuer, issuer_key, public_key):
+            return (x509.CertificateBuilder()
+                    .subject_name(x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, subject)]))
+                    .issuer_name(x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, issuer)]))
+                    .public_key(public_key).serial_number(x509.random_serial_number())
+                    .not_valid_before(now - dt.timedelta(days=1))
+                    .not_valid_after(now + dt.timedelta(days=30))
+                    .sign(issuer_key, hashes.SHA256()))
+
+        root_key, inter_key, leaf_key = (ec.generate_private_key(ec.SECP256R1())
+                                         for _ in range(3))
+        root = issue("root", "root", root_key, root_key.public_key())
+        inter = issue("inter", "root", root_key, inter_key.public_key())
+        leaf = issue("leaf", "inter", inter_key, leaf_key.public_key())
+        der = [c.public_bytes(serialization.Encoding.DER) for c in (leaf, inter)]
+        return root, der
+
+    @pytest.mark.parametrize("field, value", [
+        ("authData", "abc"), ("authData", 12345), ("receipt", 5)])
+    def test_a_malformed_field_behind_a_valid_chain_is_an_attestation_error(
+            self, monkeypatch, field, value):
+        root, x5c = self._chain_signed_by_a_test_root()
+        monkeypatch.setattr(appattest, "_load_root", lambda: root)
+        stmt = {"x5c": x5c}
+        obj = {"fmt": "apple-appattest", "attStmt": stmt, "authData": b"\x00" * 60}
+        (stmt if field == "receipt" else obj)[field] = value
+        with pytest.raises(appattest.AttestationError, match="malformed"):
+            appattest.verify_attestation(cbor2.dumps(obj), b"chal", b"k", TEST_APP_ID)
+
+    def test_the_endpoint_answers_a_malformed_body_with_401_not_500(self):
+        challenge = client.post("/auth/challenge").json()["challenge"]
+        r = client.post("/auth/attest", json={
+            "key_id": base64.b64encode(b"k").decode(),
+            "attestation": base64.b64encode(cbor2.dumps([1, 2])).decode(),
+            "challenge": challenge})
+        assert r.status_code == 401
+        assert r.json()["detail"] == "Attestation object is malformed."
+
     def test_assertion_replay_rejected(self):
         """Counter must strictly advance — this is the anti-replay control."""
         from cryptography.hazmat.primitives import serialization
