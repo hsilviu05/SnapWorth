@@ -19,12 +19,26 @@ enum ReviewPrompt {
 
     /// Call after every successful scan. Increments the lifetime counter and,
     /// once the threshold is crossed, requests a review at most once per version.
-    static func recordSuccessfulScan() {
+    ///
+    /// - Parameter promptingIfDue: false counts the scan and asks for nothing.
+    ///   Haul mode (#93) scans item after item with the camera live; a rating
+    ///   sheet dropped over the viewfinder on the third one interrupts the
+    ///   exact thing that just went well. It counts each scan here and asks
+    ///   once, from the haul summary, through `promptIfDue`.
+    static func recordSuccessfulScan(promptingIfDue: Bool = true) {
         let defaults = UserDefaults.standard
         let count = defaults.integer(forKey: scanCountKey) + 1
         defaults.set(count, forKey: scanCountKey)
 
-        guard count >= promptAtScan else { return }
+        guard promptingIfDue else { return }
+        promptIfDue()
+    }
+
+    /// Requests a review if enough scans have succeeded and this version has
+    /// not asked yet. Counts nothing itself.
+    static func promptIfDue() {
+        let defaults = UserDefaults.standard
+        guard defaults.integer(forKey: scanCountKey) >= promptAtScan else { return }
 
         // Only ever ask once per app version.
         let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? ""

@@ -9,6 +9,25 @@ final class CameraManager: NSObject, ObservableObject {
     @Published var authStatus: AVAuthorizationStatus = .notDetermined
     @Published var error: CameraError?
 
+    /// When set, every photo is handed here instead of `capturedImage`.
+    ///
+    /// `capturedImage` is one slot, observed with `onChange`. That is right
+    /// for a screen that takes one photo and waits for its scan, and wrong for
+    /// Haul mode (#93), where the shutter stays live: two photos delivered in
+    /// the same render pass overwrite each other in a `@Published` value and
+    /// `onChange` sees only the second. A callback cannot collapse, so every
+    /// capture is delivered exactly once, in the order the delegate produced
+    /// it. Not published — it is wiring, not state.
+    var onPhoto: (@MainActor (UIImage) -> Void)?
+
+    /// Captures asked for and not yet delivered or failed.
+    ///
+    /// Haul stops its camera when the summary opens, and stopping the session
+    /// under a capture that is still being processed loses that photo without
+    /// a trace. It waits for this to reach zero instead. Incremented on the
+    /// main actor in `capturePhoto`, decremented on each of its three exits.
+    @Published private(set) var pendingCaptures = 0
+
     nonisolated(unsafe) let session = AVCaptureSession()
     nonisolated(unsafe) private let photoOutput = AVCapturePhotoOutput()
     private var sessionQueue = DispatchQueue(label: "com.snapworth.camera")
@@ -237,6 +256,22 @@ final class CameraManager: NSObject, ObservableObject {
     }
 
     func capturePhoto() {
+        pendingCaptures += 1
+        #if DEBUG && targetEnvironment(simulator)
+        // The Simulator has no camera, so without this the haul flow could
+        // not be exercised there at all. Only with `-mock-scans`, where the
+        // scan behind the photo is canned too, and only for a callback
+        // consumer: the single-shot scan screen keeps its real, failing path.
+        if Config.mockScans, onPhoto != nil {
+            Task { @MainActor [weak self] in
+                try? await Task.sleep(for: .milliseconds(150))
+                guard let self else { return }
+                Self.syntheticCaptures += 1
+                self.deliver(Self.syntheticPhoto(number: Self.syntheticCaptures))
+            }
+            return
+        }
+        #endif
         sessionQueue.async { [weak self] in
             guard let self else { return }
             // A tap that arrives while the session is stopped used to return
@@ -252,7 +287,7 @@ final class CameraManager: NSObject, ObservableObject {
             // for the life of the screen, and publishing the failure is what
             // turns silence into the alert ScanView already presents.
             guard self.session.isRunning else {
-                Task { @MainActor [weak self] in self?.error = .captureFailed }
+                Task { @MainActor [weak self] in self?.deliverFailure() }
                 return
             }
             let settings = AVCapturePhotoSettings()
@@ -263,6 +298,51 @@ final class CameraManager: NSObject, ObservableObject {
             self.photoOutput.capturePhoto(with: settings, delegate: self)
         }
     }
+
+    /// A photo arrived. Hands it to `onPhoto` when one is set, else to the
+    /// `capturedImage` slot the single-shot screens observe.
+    func deliver(_ image: UIImage) {
+        pendingCaptures = max(0, pendingCaptures - 1)
+        if let onPhoto {
+            onPhoto(image)
+        } else {
+            capturedImage = image
+        }
+    }
+
+    /// A capture that will never arrive: the session was not running, or the
+    /// delegate could not produce an image.
+    func deliverFailure() {
+        pendingCaptures = max(0, pendingCaptures - 1)
+        error = .captureFailed
+    }
+
+    #if DEBUG && targetEnvironment(simulator)
+    private static var syntheticCaptures = 0
+
+    /// A numbered 1200×1600 card standing in for a photo, so a strip of
+    /// twelve reads as twelve different captures.
+    private static func syntheticPhoto(number: Int) -> UIImage {
+        let size = CGSize(width: 1200, height: 1600)
+        let format = UIGraphicsImageRendererFormat.default()
+        format.scale = 1
+        format.opaque = true
+        let hue = CGFloat(number % 12) / 12
+        return UIGraphicsImageRenderer(size: size, format: format).image { context in
+            UIColor(hue: hue, saturation: 0.35, brightness: 0.85, alpha: 1).setFill()
+            context.fill(CGRect(origin: .zero, size: size))
+            let label = "#\(number)" as NSString
+            let attributes: [NSAttributedString.Key: Any] = [
+                .font: UIFont.systemFont(ofSize: 360, weight: .bold),
+                .foregroundColor: UIColor.white,
+            ]
+            let textSize = label.size(withAttributes: attributes)
+            label.draw(at: CGPoint(x: (size.width - textSize.width) / 2,
+                                   y: (size.height - textSize.height) / 2),
+                       withAttributes: attributes)
+        }
+    }
+    #endif
 }
 
 // MARK: - AVCapturePhotoCaptureDelegate
@@ -277,10 +357,10 @@ extension CameraManager: AVCapturePhotoCaptureDelegate {
             let data = photo.fileDataRepresentation(),
             let image = UIImage(data: data)
         else {
-            Task { @MainActor [weak self] in self?.error = .captureFailed }
+            Task { @MainActor [weak self] in self?.deliverFailure() }
             return
         }
-        Task { @MainActor [weak self] in self?.capturedImage = image }
+        Task { @MainActor [weak self] in self?.deliver(image) }
     }
 }
 

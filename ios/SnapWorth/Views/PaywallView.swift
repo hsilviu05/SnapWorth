@@ -473,6 +473,11 @@ enum PaywallCopy {
     /// against the gates rather than drifting from them.
     static let benefits: [Benefit] = [
         Benefit(icon: "infinity", text: String(localized: "Unlimited scans")),
+        // Not "a whole pile in one go": scans share a 20-an-hour limit, and a
+        // pile of thirty pauses partway. What Haul does promise is that the
+        // camera never waits for a valuation, and that it keeps every photo.
+        Benefit(icon: "square.stack.3d.up.fill",
+                text: String(localized: "Haul mode — snap item after item while each is valued, with a running total")),
         Benefit(icon: "chart.line.uptrend.xyaxis",
                 text: String(localized: "Why it's worth that — four price points and what drives them")),
         Benefit(icon: "cart.fill", text: String(localized: "Snap → Sell marketplace listings")),

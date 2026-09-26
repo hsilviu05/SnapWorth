@@ -362,9 +362,31 @@ actor ScanAPIClient {
     }
 
     // ── Mock ──────────────────────────────────────────────────────────────────
+
+    #if DEBUG
+    /// Add beside `-mock-scans` to make every fifth canned scan a 429 with a
+    /// 20-second `Retry-After`.
+    ///
+    /// Haul mode (#93) pauses on a 429 with a countdown and then probes with
+    /// one request before resuming two at a time. Seeing that for real costs
+    /// twenty model calls and an hour's lockout on the test device; this shows
+    /// it in the Simulator in a minute. DEBUG only, and a launch argument, so
+    /// an App Store build can never receive it.
+    static let mockRateLimitLaunchArgument = "-mock-scan-429"
+    private var mockScanCount = 0
+    #endif
+
     private func mockScan(sharpened: Bool = false) async throws -> ScanAPIResponse {
         // Simulate ~2 second network + AI latency
         try await Task.sleep(for: .seconds(2.2))
+
+        #if DEBUG
+        mockScanCount += 1
+        if CommandLine.arguments.contains(Self.mockRateLimitLaunchArgument),
+           mockScanCount % 5 == 0 {
+            throw ScanAPIError.rateLimited(detail: "Rate limit: 20 requests/hour.", retryAfter: 20)
+        }
+        #endif
 
         let mocks: [ScanAPIResponse] = [
             ScanAPIResponse(

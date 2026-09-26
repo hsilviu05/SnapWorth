@@ -5517,10 +5517,12 @@ final class RetentionFunnelTests: XCTestCase {
 
     /// Thrift Flip emitted `scan_completed` and `scan_failed` but never
     /// `scan_started`, so every started-to-completed rate was computed against a
-    /// denominator missing that tab's scans.
-    func test_bothScanEntryPointsEmitScanStarted() throws {
+    /// denominator missing that tab's scans. Haul mode (#93) is the third way
+    /// in, and the same denominator.
+    func test_everyScanEntryPointEmitsScanStarted() throws {
         for file in ["SnapWorth/ViewModels/ScanViewModel.swift",
-                     "SnapWorth/ViewModels/ThriftFlipViewModel.swift"] {
+                     "SnapWorth/ViewModels/ThriftFlipViewModel.swift",
+                     "SnapWorth/ViewModels/HaulSession.swift"] {
             let source = try String(
                 contentsOf: URL(fileURLWithPath: #filePath)
                     .deletingLastPathComponent()
@@ -5563,5 +5565,102 @@ final class RetentionFunnelTests: XCTestCase {
         XCTAssertEqual(spy.events.map(\.name), ["scan_result_shown", "onboarding_completed"])
         XCTAssertEqual(spy.params(for: "scan_result_shown")?["is_first"], "true")
         XCTAssertEqual(spy.params(for: "onboarding_completed")?["via"], "skipped")
+    }
+}
+
+// ── Haul mode's analytics (#93) ──────────────────────────────────────────────
+//
+// Two new events and one new trigger, and the rules that keep the existing
+// funnel honest when photos are sent two at a time: one `scan_started` per
+// photo, `is_first` on at most one of them, and `haul_completed` once per
+// haul with a bucketed size.
+
+@MainActor
+final class HaulAnalyticsTests: XCTestCase {
+
+    func test_theNewEventsCarryTheNamesAndParametersTheDashboardQueries() {
+        XCTAssertEqual(AnalyticsEvent.haulCompleted(itemsBucket: "10-14").name, "haul_completed")
+        XCTAssertEqual(AnalyticsEvent.haulCompleted(itemsBucket: "10-14").parameters, ["items": "10-14"])
+        XCTAssertEqual(AnalyticsEvent.haulShared.name, "haul_shared")
+        XCTAssertEqual(AnalyticsEvent.haulShared.parameters, [:])
+        XCTAssertEqual(PaywallTrigger.haul.rawValue, "haul")
+    }
+
+    func test_theSizeIsABucketNeverTheCount() {
+        let edges = [1: "1", 2: "2-4", 4: "2-4", 5: "5-9", 9: "5-9",
+                     10: "10-14", 14: "10-14", 15: "15+", 100: "15+"]
+        for (count, bucket) in edges {
+            XCTAssertEqual(AnalyticsEvent.haulSizeBucket(count), bucket, "\(count)")
+        }
+    }
+
+    func test_haulCompletedFiresOncePerOpenAndNeverEmpty() async {
+        let h = HaulHarness()
+        defer { h.tearDown() }
+        let spy = FunnelSpy()
+        Analytics.shared.configure(spy)
+        let session = h.makeSession()
+
+        session.didReachSummary()
+        XCTAssertTrue(spy.events.isEmpty, "a haul of nothing is not a haul")
+
+        session.add(HaulFixtures.photo())   // pending: counts
+        session.didReachSummary()
+        session.didReachSummary()
+        XCTAssertEqual(spy.events.filter { $0.name == "haul_completed" }.count, 1)
+        XCTAssertEqual(spy.params(for: "haul_completed"), ["items": "1"])
+        XCTAssertEqual(h.summaryCount, 1, "the recap and the review prompt ride on the same moment")
+
+        session.finishHaul()
+        session.open()
+        session.didReachSummary()
+        XCTAssertEqual(spy.events.filter { $0.name == "haul_completed" }.count, 2,
+                       "a new open is a new haul")
+    }
+
+    func test_isFirstIsClaimedByAtMostOneScanInFlight() async {
+        let previous = UserDefaults.standard.object(forKey: ScanTally.countKey)
+        defer { UserDefaults.standard.set(previous, forKey: ScanTally.countKey) }
+        UserDefaults.standard.removeObject(forKey: ScanTally.countKey)
+
+        let h = HaulHarness()
+        defer { h.tearDown() }
+        let spy = FunnelSpy()
+        Analytics.shared.configure(spy)
+        let session = h.makeSession()
+        session.open()
+        session.add(HaulFixtures.photo())
+        session.add(HaulFixtures.photo())
+        await haulWait("two in flight") { h.scans.waiting == 2 }
+
+        let started = spy.events.filter { $0.name == "scan_started" }
+        XCTAssertEqual(started.count, 2, "one scan_started per photo")
+        XCTAssertEqual(started.filter { $0.params["is_first"] == "true" }.count, 1,
+                       "two scans in flight on a new install are one first scan, not two")
+        h.scans.succeedOldest(HaulFixtures.response())
+        h.scans.succeedOldest(HaulFixtures.response())
+        await haulWait("valued") { session.valuedCount == 2 }
+    }
+
+    /// Source-inspected: a share sheet's completion cannot be driven from a
+    /// unit test. `haul_shared` means the card left the app — not that the
+    /// sheet opened, and not that drafts were shared.
+    func test_haulSharedIsTrackedOnlyFromTheCardsCompletedShare() throws {
+        let source = try String(
+            contentsOf: URL(fileURLWithPath: #filePath)
+                .deletingLastPathComponent()
+                .deletingLastPathComponent()
+                .appendingPathComponent("SnapWorth/Views/HaulView.swift"),
+            encoding: .utf8)
+        XCTAssertEqual(source.components(separatedBy: ".haulShared").count - 1, 1)
+
+        guard let card = source.range(of: "case .shareCard(let card):"),
+              let track = source.range(of: ".haulShared"),
+              let drafts = source.range(of: "case .shareDrafts(let text):") else {
+            return XCTFail("could not locate the share sheets")
+        }
+        let between = String(source[card.upperBound..<track.lowerBound])
+        XCTAssertTrue(between.contains("onComplete:"), "tracked on completion, not on presentation")
+        XCTAssertLessThan(track.lowerBound, drafts.lowerBound, "the drafts share does not count")
     }
 }
