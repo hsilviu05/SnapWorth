@@ -3746,3 +3746,32 @@ class TestAFailedReadDoesNotWipeTheDocument:
         assert [e[0] for e in messages] == [1, 2]
         archive = json.loads(await redis.get(notify.ARCHIVE_KEY))
         assert [a[1] for a in archive] == ["kept one", "kept two"]
+
+    @pytest.mark.asyncio
+    async def test_sub_does_not_claim_an_index_write_it_skipped(
+            self, flaky_notify, monkeypatch):
+        redis = flaky_notify
+        _patch_lookup(monkeypatch, [_FakeStatus(sub("2000000000000001"))])
+
+        redis.failing = True
+        text = await notify.handle_command("/sub 2000000000000001")
+        redis.failing = False
+
+        assert "Live from Apple" in text, "the answer itself is still shown"
+        assert "Index updated" not in text
+
+    @pytest.mark.asyncio
+    async def test_a_renewal_it_could_not_look_up_is_not_a_new_payer(
+            self, flaky_notify, recorder):
+        """With no previous row to compare against, a paid period is neither
+        a conversion nor a new subscriber — and must not be counted as one."""
+        redis = flaky_notify
+        await notify._index_subscription(None, _paid("otid-renewing"), True)
+
+        redis.failing = True
+        await notify.subscription_event(FakeNotification(
+            _paid("otid-renewing"), paid_period=True))
+        redis.failing = False
+
+        assert not any("New paying subscriber" in t for t in recorder.texts)
+        assert await redis.get(notify._stat_key(notify._day(), "new_subs")) is None

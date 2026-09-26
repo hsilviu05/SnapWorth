@@ -981,6 +981,12 @@ async def subscription_event(note) -> None:
             return
 
         before = await _index_subscription(None, ent, note.auto_renew)
+        # None: the index could not be read, so there is no previous row to
+        # judge a paid period against. It is then neither a conversion nor a
+        # new payer — an ordinary renewal would otherwise be announced, and
+        # counted, as "New paying subscriber".
+        known = before is not None
+        before = before or {}
         was = str(before.get("acq") or "") if before else ""
         now_acq = _acquisition(ent)
 
@@ -1001,7 +1007,7 @@ async def subscription_event(note) -> None:
             label = "Trial converted" if was == "trial" else f"{was.capitalize()} converted"
             lines = [f"🎉 <b>{label} — this is real money</b>", detail]
             await _count_new_subscription(otid)
-        elif note.is_paid_period and not before:
+        elif note.is_paid_period and known and not before:
             # A payer no device ever synced. Before Apple told us directly,
             # this subscription did not exist as far as the bot was concerned.
             lines = ["🎉 <b>New paying subscriber</b> (Apple reported it first)", detail]
@@ -1089,7 +1095,7 @@ async def entitlement_recorded(subject: str, ent) -> None:
                 return
             # The previous row is the only source of auto-renew here: the
             # client presents a signed transaction, which has no such field.
-            before = await _index_subscription(subject, ent)
+            before = await _index_subscription(subject, ent) or {}
             if not await _cache.add(f"opsseen:sub:{otid}", "1", SUB_SEEN_TTL):
                 return
             purchased = getattr(ent, "original_purchase_at", None)
@@ -2378,8 +2384,9 @@ def _via(acq: str | None) -> str:
 
 
 async def _index_subscription(subject: str | None, ent,
-                              auto_renew: bool | None = None) -> dict:
-    """Record what we now know about one subscription. Returns the previous row.
+                              auto_renew: bool | None = None) -> dict | None:
+    """Record what we now know about one subscription. Returns the previous row,
+    or None when the index could not be read and nothing was written.
 
     `subject` is None when App Store Server Notifications told us rather than a
     device checking in. There is no pseudonymised device to attribute it to,
@@ -2400,9 +2407,9 @@ async def _index_subscription(subject: str | None, ent,
     """
     doc = await _read_index_for_update(SUBS_INDEX_KEY)
     if doc is None:
-        # Nothing written, and nothing known about the row. The caller's
-        # alert still goes out; `/sub` can repair the row once Redis is back.
-        return {}
+        # Nothing written, and nothing known about the row. `/sub` can repair
+        # it once Redis is back.
+        return None
     otid = str(ent.original_transaction_id)
     before = doc.get(otid) if isinstance(doc.get(otid), dict) else {}
     entry = dict(before)
@@ -3501,8 +3508,11 @@ async def _sub_text(argument: str) -> str:
         if not status.entitlement.original_transaction_id:
             continue
         try:
-            await _index_subscription(None, status.entitlement, status.auto_renew)
-            indexed += 1
+            # None: the index could not be read, so nothing was written, and
+            # the line below must not say otherwise.
+            if await _index_subscription(
+                    None, status.entitlement, status.auto_renew) is not None:
+                indexed += 1
         except Exception:
             # The answer above is the point of the command; failing to cache it
             # must not lose it.
