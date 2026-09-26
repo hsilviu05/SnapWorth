@@ -24,7 +24,7 @@ struct PrivacyPolicyView: View {
 /// Change this and `backend/main.py`'s `/privacy` together.
 /// `PrivacyPolicyDisclosureTests` fails if a processor goes missing.
 enum PrivacyPolicy {
-    static let updated = "September 9, 2026"
+    static let updated = "September 26, 2026"
 
     /// Every third party that receives user data, by the name a reader would
     /// recognise. The test asserts each appears in `sections`.
@@ -42,6 +42,10 @@ enum PrivacyPolicy {
 
             To tell a reinstall from a genuinely new device — so a free allowance cannot be reset by deleting and reinstalling — we send Apple's DeviceCheck token when your device first verifies itself. Apple stores two bits against the hardware on our behalf; we store the token to read them. It contains no personal information and cannot identify you.
 
+            If you subscribe, the app sends our server Apple's signed record of your subscription purchase, and sends it again each time it checks your subscription. We verify Apple's signature and keep the record, together with the device identifier above, for up to 400 days after the app last sends it: so that Pro keeps working between app launches, and so that one subscription can be used on only a limited number of devices. It contains the subscription you bought, its price and currency, its purchase and expiry dates, the App Store country, and Apple's identifiers for the purchase. It does not contain your name, email address, Apple ID or payment details. Apple may also tell our server when a subscription renews, lapses or is refunded, and we may ask Apple for a subscription's current status to answer a support request.
+
+            If you use Invite a friend, our server keeps the invite code made for your device and, when someone claims an invite, a record linking the two devices: their identifiers, the code, when it was claimed, and the Apple offer codes handed out. It is kept for up to 400 days, so that each invite is rewarded once and rewards stay within the yearly limit.
+
             We collect anonymous usage analytics to understand how the app is used and improve it. Using TelemetryDeck, we record in-app events — such as opening the app, starting a scan, viewing the paywall, and completing a purchase — along with your device model, operating system version, app version, locale, time zone, screen size, and device orientation. The analytics SDK also reports how your accessibility settings are configured — such as Reduce Motion, Bold Text, Increase Contrast and your preferred text size — and counts of how often and on how many separate days you have opened the app. A one-way salted hash is used as an anonymous identifier. This data contains no photos, item names, prices, or advertising identifiers (IDFA), is not linked to your identity, and is never used to track you across other apps or websites. You can turn analytics off at any time in Settings.
             """),
         (heading: "How We Use Your Information", text: """
@@ -57,7 +61,13 @@ enum PrivacyPolicy {
             Telegram. To monitor the service, operational information may be relayed to the operator through Telegram: the name of an item the AI identified and its estimated price range; and, so that a support request can be answered, a one-way salted hash of your device's attestation key together with that device's scan count, first and last activity dates, and subscription state. The hash is not the device identifier itself and cannot be reversed to it, and it is not an advertising identifier. This operational record is kept for up to 400 days. Never the photo, and never your name, email address or location.
             """),
         (heading: "Data Retention", text: """
-            Photos and scan results are processed in real time and are not retained on our servers. Scan history is stored locally on your device and can be deleted at any time from Settings.
+            Photos are not stored after the response is returned. Your scan history is stored on your device and can be deleted at any time from Settings.
+
+            From each scan our server keeps only what running the service needs, without the photo and without your device identifier: daily counts of scans, categories and brands, and a short list of each day's highest-value scans — the item name the AI gave, its brand, category and estimated price range, and whether it was made on the free or Pro plan. These are kept for 35 days after the day of the scan, and the operator can see them.
+
+            In the app, everyone can see this week's most-scanned categories and brands, each shown only once at least five scans back it. Pro subscribers also see the week's highest-value finds, shown as brand, category and estimated price range only — never the item name, the photo, or who scanned it. A find is a single scan, so one of yours may appear there.
+
+            The operational record described under Telegram, the subscription record and referral records are kept for up to 400 days, as described above. Messages relayed through Telegram stay in the operator's chat until the operator deletes them.
             """),
         (heading: "Children's Privacy", text: """
             SnapWorth is not directed to children under 13. We do not knowingly collect personal information from children under 13.

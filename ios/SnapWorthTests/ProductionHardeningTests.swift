@@ -476,6 +476,30 @@ final class PrivacyPolicyDisclosureTests: XCTestCase {
         // unchanged to anyone checking whether they need to re-consent.
         XCTAssertNotEqual(PrivacyPolicy.updated, "September 2, 2026",
                           "the date must move when the policy does")
+        // Nor older than the retention rewrite. backend/tests/test_main.py
+        // holds the web copy's date to this one.
+        XCTAssertNotEqual(PrivacyPolicy.updated, "September 9, 2026")
+    }
+
+    func test_retentionSaysWhatAScanLeavesOnTheServer() {
+        // It said "Photos and scan results are processed in real time and are
+        // not retained on our servers" while every scan was tallied for 35 days
+        // and each day's best finds, item name included, were shown to Pro
+        // subscribers. The photo half was true; the rest was not.
+        XCTAssertFalse(policy.contains("scan results are processed in real time"),
+                       "the claim the tallies contradict is back")
+        XCTAssertTrue(policy.contains("35 days after the day of the scan"))
+        XCTAssertTrue(policy.contains("never the item name, the photo, or who scanned it"),
+                      "must match what /trends sends — see notify.trends")
+    }
+
+    func test_purchasesAndReferralsAreDisclosed() {
+        // The signed transaction goes up with the device ID on every status
+        // refresh and is kept; a claimed invite links two devices. Neither was
+        // in either copy of the policy.
+        XCTAssertTrue(policy.contains("Apple's signed record of your subscription purchase"))
+        XCTAssertTrue(policy.contains("for up to 400 days after the app last sends it"))
+        XCTAssertTrue(policy.contains("If you use Invite a friend"))
     }
 }
 

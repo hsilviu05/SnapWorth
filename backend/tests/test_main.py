@@ -266,6 +266,50 @@ class TestLegalEndpoints:
             f"the operator index keeps rows for {days} days; the policy says "
             f"something else")
 
+    def test_privacy_states_what_a_scan_leaves_on_the_server(self):
+        """It said "Photos and scan results are processed in real time and are
+        not retained on our servers" while every scan was tallied for 35 days
+        and each day's best finds, item name included, were shown to Pro
+        subscribers as notable finds. The photo claim was true; the rest was
+        not."""
+        import notify
+        body = _prose(client.get("/privacy").text)
+        assert "scan results are processed in real time" not in body
+        assert f"{notify.STATS_TTL // 86_400} days after the day of the scan" in body
+        assert "never the item name, the photo, or who scanned it" in body
+
+    def test_privacy_discloses_the_purchase_record_and_its_retention(self):
+        """The app uploads Apple's signed transaction with the device id on
+        every status refresh, and the server keeps it; neither policy said so."""
+        import entitlements
+        body = _prose(client.get("/privacy").text)
+        assert "Apple's signed record of your subscription purchase" in body
+        days = entitlements.ENTITLEMENT_PROOF_TTL // 86_400
+        assert days == entitlements.DEVICE_BINDING_TTL // 86_400
+        assert f"for up to {days} days after the app last sends it" in body
+
+    def test_privacy_discloses_referral_records(self):
+        """A claimed invite links two devices for a year and more."""
+        import referral
+        body = _prose(client.get("/privacy").text)
+        assert "If you use Invite a friend" in body
+        assert f"up to {referral.RECORD_TTL // 86_400} days, so that each invite" in body
+
+    def test_web_and_in_app_policies_carry_the_same_date(self):
+        """Two copies of one document. When the text changes, both dates move,
+        or a reader of either copy cannot tell it changed.
+
+        backend.yml runs this suite when LegalView.swift changes, so an edit to
+        either copy alone is caught.
+        """
+        import pathlib
+        import re
+        swift = (pathlib.Path(__file__).resolve().parents[2]
+                 / "ios" / "SnapWorth" / "Views" / "LegalView.swift").read_text()
+        match = re.search(r'enum PrivacyPolicy \{\s*static let updated = "([^"]+)"', swift)
+        assert match, "PrivacyPolicy.updated moved; update this test"
+        assert f"Last updated: {match.group(1)}" in client.get("/privacy").text
+
     def test_privacy_names_the_analytics_sdks_own_payload(self):
         """The enumeration stopped short of what the SDK actually attaches.
 
