@@ -3660,6 +3660,21 @@ class TestSubCommandOutput:
         assert "Sandbox" in text
         assert "Index updated" not in text
         assert await cache.get(notify.SUBS_INDEX_KEY) is None
+        # And it says why, and what the app sees: Apple's "active" beside a
+        # server that treats this purchase as free is otherwise a mystery.
+        assert "This server refuses Sandbox purchases" in text
+        assert "told free" in text
+        assert "Production: nothing under this id" in text
+
+    @pytest.mark.asyncio
+    async def test_a_production_result_carries_no_refusal(
+            self, enabled_notify, monkeypatch):
+        _patch_lookup(monkeypatch, [_FakeStatus(sub("otid-7"), state="active")])
+
+        text = await notify.handle_command("/sub 2000000000000007")
+
+        assert "refuses" not in text
+        assert "Production: nothing" not in text
 
 
 class TestSubCommandErrors:
@@ -3675,6 +3690,18 @@ class TestSubCommandErrors:
         text = await notify.handle_command("/sub 2000000000000001")
 
         assert "Production and Sandbox" in text
+
+    @pytest.mark.asyncio
+    async def test_not_found_yet_says_retry_rather_than_typo(
+            self, enabled_notify, monkeypatch):
+        import appstorestatus
+        _patch_lookup(monkeypatch, appstorestatus.StatusRetryLater(
+            "Production does not have this purchase yet. Retry in a few minutes."))
+
+        text = await notify.handle_command("/sub 2000000000000001")
+
+        assert "retry in a few minutes" in text
+        assert "Checked Production and Sandbox" not in text
 
     @pytest.mark.asyncio
     async def test_missing_credentials_say_the_rest_still_works(

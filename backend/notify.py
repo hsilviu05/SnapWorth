@@ -3588,6 +3588,14 @@ async def _sub_text(argument: str) -> str:
         return (f"💳 {html.escape(str(exc))}\n\nChecked Production and Sandbox. "
                 "An id Apple does not recognise is usually a transactionId from "
                 "a different app, or a typo.")
+    except appstorestatus.StatusRetryLater as exc:
+        # Right after a purchase — when the support mail is written — Apple
+        # answers "not found, retry". Reported as that, not as a typo, and
+        # without Sandbox's "never heard of it" standing in for it.
+        return (f"💳 <b>Not yet — retry in a few minutes</b>\n{html.escape(str(exc))}\n\n"
+                "Not necessarily a typo: Apple marks this not-found as "
+                "retryable, which is what a purchase from the last few minutes "
+                "looks like. Sandbox was not asked.")
     except appstorestatus.StatusNotConfigured as exc:
         return (f"💳 {html.escape(str(exc))}\n\nThe rest of the bot is "
                 "unaffected — /subs still reports what notifications have said.")
@@ -3603,9 +3611,26 @@ async def _sub_text(argument: str) -> str:
 
     lines = [f"💳 <b>Live from Apple</b> — {len(statuses)} subscription"
              f"{'s' if len(statuses) != 1 else ''}"]
+    # The lookup asks Production first and moves on to Sandbox only when
+    # Production definitely has nothing, so a Sandbox answer means both were
+    # asked. Said outright: it used to be one word on the detail line.
+    if statuses and all(status.environment == "Sandbox" for status in statuses):
+        lines.append("Production: nothing under this id. The answer below is Sandbox's.")
     for status in statuses:
         lines.append("")
         lines.extend(_status_lines(status))
+        environment = status.entitlement.environment
+        if environment not in entitlements.ALLOWED_ENVIRONMENTS:
+            # Apple says "active"; this server says free. `verify_signed_
+            # transaction` refuses any environment outside the allowed set —
+            # which is what keeps a free Sandbox tester from being production
+            # Pro — so a TestFlight or App Review purchase never unlocks Pro
+            # here, and "active" alone would send the operator looking for a
+            # bug that is a policy.
+            lines.append(
+                f"⚠️ <b>This server refuses {html.escape(environment)} purchases</b> "
+                "(ALLOWED_STOREKIT_ENVIRONMENTS): the app is told free for this "
+                "one, and it is not indexed. TestFlight and App Review buy in Sandbox.")
 
     # Fold what Apple just said back into the index. This is the only writer
     # that can correct a row which drifted — a notification that never arrived

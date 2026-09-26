@@ -327,6 +327,25 @@ class TestNotFoundAndFallback:
             await client.statuses(OTID)
 
     @pytest.mark.asyncio
+    async def test_a_retryable_not_found_says_retry_and_does_not_fall_back(self):
+        """Apple's "not found yet" while a purchase propagates. It used to be
+        folded into not-found, so Sandbox was asked, Sandbox's plain "not
+        found" was the answer kept, and /sub blamed a typo — in the first
+        minutes after a purchase, which is when the support mail arrives."""
+        for code in (APIError.ORIGINAL_TRANSACTION_ID_NOT_FOUND_RETRYABLE,
+                     APIError.ACCOUNT_NOT_FOUND_RETRYABLE):
+            response, items = _active_response()
+            client = _client(production=APIException(404, code.value),
+                             sandbox=response, items=items)
+
+            with pytest.raises(appstorestatus.StatusRetryLater) as caught:
+                await client.statuses(OTID)
+
+            assert "Retry in a few minutes" in str(caught.value)
+            assert not isinstance(caught.value, appstorestatus.SubscriberNotFound)
+            assert client._apis["Sandbox"].calls == []
+
+    @pytest.mark.asyncio
     async def test_blank_id_is_refused_before_apple_is_called(self):
         client = _client(production=None)
         with pytest.raises(appstorestatus.SubscriberNotFound):

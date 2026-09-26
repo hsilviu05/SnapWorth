@@ -81,6 +81,19 @@ class SubscriberNotFound(StatusError):
     """Apple has no subscription under that id, in either environment."""
 
 
+class StatusRetryLater(StatusError):
+    """Apple does not have the id *yet*, and said so with a retryable code.
+
+    ORIGINAL_TRANSACTION_ID_NOT_FOUND_RETRYABLE and ACCOUNT_NOT_FOUND_RETRYABLE
+    are Apple's "not found, but try again" — the answer to expect in the
+    first minutes after someone pays, which is exactly when "I paid but the
+    app says free" is written. These were folded into `SubscriberNotFound`,
+    so the lookup fell through to Sandbox, kept Sandbox's plain "not found",
+    and `/sub` blamed a typo. Deliberately not a `SubscriberNotFound`: it
+    must not trigger the Sandbox fallback, and it must not read as "no such
+    subscription"."""
+
+
 class StatusRateLimited(StatusError):
     """Apple is rate limiting us (429)."""
 
@@ -295,7 +308,9 @@ class AppStoreStatusClient:
         which is why the caller does not have to know which one it has.
 
         Tries Production, then Sandbox. Raises `SubscriberNotFound` only when
-        *both* have nothing.
+        *both* have nothing. Falls back only on a definite not-found: a
+        retryable one (`StatusRetryLater`) is Production saying "not yet",
+        and Sandbox's "never heard of it" must not replace that answer.
         """
         if not transaction_id or not transaction_id.strip():
             raise SubscriberNotFound("No transaction id given.")
@@ -364,13 +379,20 @@ class AppStoreStatusClient:
 
         not_found = {
             APIError.ORIGINAL_TRANSACTION_ID_NOT_FOUND,
-            APIError.ORIGINAL_TRANSACTION_ID_NOT_FOUND_RETRYABLE,
             APIError.TRANSACTION_ID_NOT_FOUND,
             APIError.ACCOUNT_NOT_FOUND,
+        }
+        not_found_yet = {
+            APIError.ORIGINAL_TRANSACTION_ID_NOT_FOUND_RETRYABLE,
             APIError.ACCOUNT_NOT_FOUND_RETRYABLE,
         }
         if code in not_found:
             return SubscriberNotFound(f"No such subscription in {name}.")
+        if code in not_found_yet:
+            return StatusRetryLater(
+                f"{name} has nothing under this id yet — Apple answered "
+                f"{code.name}, its not-found that is worth retrying. "
+                "Retry in a few minutes.")
         if http == 429 or code == APIError.RATE_LIMIT_EXCEEDED:
             # Apple's limit is per key, and the bot shares one with any other
             # caller. Worth saying so — the fix is to wait, not to re-run.
