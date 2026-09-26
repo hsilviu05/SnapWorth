@@ -226,6 +226,14 @@
       "de": "%@, aus %@",
       "zh-Hans": "%@，来自 %@"
     },
+    "%@. %@": {
+      "comment": "VoiceOver: one sentence, then another after it (the portfolio total, then the insight line under it). Only the full stop changes between languages.",
+      "en": "%@. %@",
+      "ro": "%@. %@",
+      "es": "%@. %@",
+      "de": "%@. %@",
+      "zh-Hans": "%@。%@"
+    },
     "%@. %@ AI estimate.": {
       "comment": "VoiceOver value of the result card: the range, then the confidence phrase.",
       "en": "%@. %@ AI estimate.",
@@ -3681,6 +3689,14 @@
       "es": "Usado",
       "de": "Gebraucht",
       "zh-Hans": "有使用痕迹"
+    },
+    "Value history": {
+      "comment": "VoiceOver label for the portfolio sparkline on My Finds (Pro). Its value is the first and last total, e.g. '$45 to $1,240'.",
+      "en": "Value history",
+      "ro": "Istoricul valorii",
+      "es": "Historial de valor",
+      "de": "Wertverlauf",
+      "zh-Hans": "价值走势"
     },
     "Values an item from a photo you already have": {
       "en": "Values an item from a photo you already have",

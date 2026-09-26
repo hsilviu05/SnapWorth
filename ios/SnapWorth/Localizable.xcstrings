@@ -1066,6 +1066,42 @@
         }
       }
     },
+    "%@. %@" : {
+      "comment" : "VoiceOver: one sentence, then another after it (the portfolio total, then the insight line under it). Only the full stop changes between languages.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@. %@"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@. %@"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@. %@"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@. %@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@。%@"
+          }
+        }
+      }
+    },
     "%@. %@ AI estimate." : {
       "comment" : "VoiceOver value of the result card: the range, then the confidence phrase.",
       "extractionState" : "manual",
@@ -17704,6 +17740,42 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "有使用痕迹"
+          }
+        }
+      }
+    },
+    "Value history" : {
+      "comment" : "VoiceOver label for the portfolio sparkline on My Finds (Pro). Its value is the first and last total, e.g. '$45 to $1,240'.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wertverlauf"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Value history"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Historial de valor"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Istoricul valorii"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "价值走势"
           }
         }
       }
