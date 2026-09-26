@@ -2309,6 +2309,16 @@ async def _read_index(key: str) -> dict:
 
 
 async def _write_index(key: str, doc: dict, cap: int, recency: str) -> None:
+    # A row goes once it has been untouched for INDEX_TTL, which is the "up to
+    # 400 days" the privacy policy states. The document's own TTL cannot do
+    # that: every write renews it, so on a service that is used daily a row
+    # written once would otherwise stay until the cap pushed it out.
+    cutoff = time.time() - INDEX_TTL
+    for stale in [k for k, v in doc.items()
+                  if not isinstance(v, dict)
+                  or not isinstance(v.get(recency), (int, float))
+                  or v[recency] < cutoff]:
+        doc.pop(stale, None)
     if len(doc) > cap:
         # Drop the least recently seen until it fits.
         for stale in sorted(doc, key=lambda k: doc[k].get(recency, 0))[:len(doc) - cap]:
