@@ -167,7 +167,10 @@ class RequestContextMiddleware:
             self._log.log(
                 level, "request",
                 extra={"method": method, "path": path,
-                       "status": status, "duration_ms": duration_ms},
+                       "status": status, "duration_ms": duration_ms,
+                       # None for anything that is not the app, or does not
+                       # say which build it is. See `parse_client_build`.
+                       "build": parse_client_build(headers.get("user-agent", ""))},
             )
         finally:
             # One `finally` for all three, rather than the three reset sites the
@@ -339,6 +342,32 @@ class RedactionFilter(logging.Filter):
         except Exception:      # pragma: no cover
             pass
         return True
+
+
+# ── Which build is calling ───────────────────────────────────────────────────
+#
+# The app sends no version header of its own, and nothing read one, so the
+# server could not say which build a request came from: not to find a bad
+# release, not to tell an old one to update, not to check a claim like "those
+# installs have aged out". The build was on every request all along. URLSession
+# sends `<CFBundleName>/<CFBundleVersion> CFNetwork/… Darwin/…` by default, the
+# app sets no User-Agent of its own, and CFBundleVersion is the build number
+# (Info.plist: `$(CURRENT_PROJECT_VERSION)`). That number has only gone up
+# since 1.1.0 restarted it at 1 — 1.0 had reached 4 — so ordering by it holds
+# for every build a minimum would sensibly be set against.
+
+_CLIENT_BUILD = re.compile(r"SnapWorth/(\d{1,6})(?:\s|$)")
+
+
+def parse_client_build(user_agent: str) -> int | None:
+    """The app build number from a User-Agent, or None if it does not say.
+
+    None for anything else — a browser, a script, a malformed or unfamiliar
+    header — and callers must treat None as "unknown", never as "old": the
+    gate built on this refuses only a build it could actually read.
+    """
+    match = _CLIENT_BUILD.match(user_agent or "")
+    return int(match.group(1)) if match else None
 
 
 # ── Trace context (W3C traceparent) ──────────────────────────────────────────

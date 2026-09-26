@@ -32,6 +32,7 @@ import main  # noqa: E402
 import metrics  # noqa: E402
 import notify  # noqa: E402
 import observability  # noqa: E402
+from cache import InMemoryCache, ResilientCache  # noqa: E402
 from tests.conftest import build_deps  # noqa: E402
 from tests.images import padded_image_bytes  # noqa: E402
 
@@ -376,3 +377,130 @@ class TestTheRewrittenLayersStillWork:
             rid, trace = asyncio.run(scenario())
         assert any(r.getMessage() == "request failed" for r in caplog.records)
         assert (rid, trace) == ("-", "")
+
+
+# ── Which build is calling, and telling an old one to update ────────────────
+
+# What URLSession sends when the app sets no User-Agent of its own, which it
+# does not: `<CFBundleName>/<CFBundleVersion> CFNetwork/… Darwin/…`.
+def _app_agent(build: int) -> str:
+    return f"SnapWorth/{build} CFNetwork/3826.500.131 Darwin/25.0.0"
+
+
+class TestWhichBuildIsCalling:
+    """The server could not say which build a request came from, so a bad
+    release could not be found, and "those installs have aged out" was a guess.
+    """
+
+    def test_the_build_is_read_from_the_default_user_agent(self):
+        assert observability.parse_client_build(_app_agent(20)) == 20
+
+    @pytest.mark.parametrize("agent", [
+        "",
+        "Mozilla/5.0 (iPhone; CPU iPhone OS 26_0 like Mac OS X) AppleWebKit/605.1.15",
+        # The widget extension's own bundle name. It is not the app, and a
+        # prefix match must not read it as one.
+        "SnapWorthWidgets/20 CFNetwork/3826.500.131 Darwin/25.0.0",
+        "xSnapWorth/20 CFNetwork/3826.500.131 Darwin/25.0.0",
+        "SnapWorth/ CFNetwork/3826.500.131 Darwin/25.0.0",
+        "SnapWorth/20a CFNetwork/3826.500.131 Darwin/25.0.0",
+        "SnapWorth/1234567 CFNetwork/3826.500.131 Darwin/25.0.0",
+        "python-httpx/0.28.1",
+    ])
+    def test_anything_else_is_unknown_rather_than_old(self, agent):
+        assert observability.parse_client_build(agent) is None
+
+    def test_the_access_line_says_which_build(self, caplog):
+        with caplog.at_level(logging.INFO, logger="snapworth.access"):
+            client.get("/health/live", headers={"User-Agent": _app_agent(17)})
+            client.get("/health/live", headers={"User-Agent": "curl/8.7.1"})
+        builds = [getattr(r, "build") for r in caplog.records
+                  if r.name == "snapworth.access"]
+        assert builds[-2:] == [17, None]
+
+
+class TestOutdatedBuildsAreToldToUpdate:
+    """A bad release could not be told to update: nothing read the build, and
+    there was no switch to act on it. `/minbuild` is that switch."""
+
+    @pytest.fixture(autouse=True)
+    def _switch(self, monkeypatch):
+        # `main` reads the minimum through `notify`, whose store the lifespan
+        # wires; `TestClient` without a `with` never runs it.
+        self.store = ResilientCache(None, InMemoryCache())
+        monkeypatch.setattr(notify, "_cache", self.store)
+        main._rate_store.clear()
+        main._ip_rate_store.clear()
+
+    def _require(self, build: int) -> None:
+        asyncio.run(self.store.set(notify.MIN_BUILD_KEY, str(build)))
+
+    def _trends(self, agent: str):
+        return client.get("/trends", headers={"User-Agent": agent,
+                                              "x-device-id": "minbuild-test"})
+
+    def test_nothing_is_refused_until_a_minimum_is_set(self):
+        assert self._trends(_app_agent(1)).status_code == 200
+
+    def test_a_scan_from_an_older_build_is_told_to_update_and_costs_nothing(
+            self, monkeypatch):
+        counted: list[str] = []
+        completed: list[dict] = []
+        monkeypatch.setattr(notify, "count_scan", lambda tier: counted.append(tier))
+        monkeypatch.setattr(notify, "scan_completed", lambda **kw: completed.append(kw))
+        self._require(18)
+        headers, body = _scan_body()
+        with patch("main._model") as model:
+            model.generate_content_async = AsyncMock()
+            r = client.post("/scan", content=body,
+                            headers=headers | {"User-Agent": _app_agent(17)})
+            assert not model.generate_content_async.called, "the model was billed"
+        # 502 is the one status whose `detail` every build from 11 shows as
+        # written; a 426 would be shown as "Something went wrong".
+        assert r.status_code == 502, r.text
+        assert r.json()["detail"] == notify.UPDATE_REQUIRED_DETAIL
+        assert "App Store" in r.json()["detail"]
+        assert counted == [] and completed == []
+
+    @pytest.mark.parametrize("method, path", [("GET", "/trends"), ("POST", "/listing")])
+    def test_listing_and_trends_are_gated_too(self, method, path):
+        self._require(18)
+        r = client.request(method, path, json={} if method == "POST" else None,
+                           headers={"User-Agent": _app_agent(12)})
+        assert r.status_code == 502, r.text
+        assert r.json()["detail"] == notify.UPDATE_REQUIRED_DETAIL
+
+    def test_the_minimum_itself_and_newer_are_served(self):
+        self._require(18)
+        assert self._trends(_app_agent(18)).status_code == 200
+        assert self._trends(_app_agent(19)).status_code == 200
+
+    def test_a_request_that_does_not_say_its_build_is_served(self):
+        """Unknown is not old. The widget, a script, a future client that
+        changes its User-Agent — none of them is refused on a guess."""
+        self._require(18)
+        for agent in ("", "curl/8.7.1", "SnapWorthWidgets/5 CFNetwork/1 Darwin/1"):
+            assert self._trends(agent).status_code == 200, agent
+
+    def test_sign_in_is_never_gated(self):
+        """An old build must still be able to sign in and record a purchase."""
+        self._require(18)
+        r = client.post("/auth/challenge", headers={"User-Agent": _app_agent(12)})
+        assert r.status_code == 200, r.text
+
+    def test_an_unreadable_switch_serves_everyone(self, monkeypatch):
+        """Fails open: a store that blinks must not lock every user out."""
+        async def broken(*_a, **_k):
+            raise ConnectionError("redis is down")
+
+        monkeypatch.setattr(self.store, "get", broken)
+        assert self._trends(_app_agent(1)).status_code == 200
+
+    def test_the_refusal_is_counted(self):
+        def count() -> float:
+            return metrics.outdated_build_refused.value(endpoint="/trends")
+
+        self._require(18)
+        before = count()
+        self._trends(_app_agent(12))
+        assert count() == before + 1

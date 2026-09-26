@@ -363,6 +363,34 @@ async def _refuse_if_paused(subject: str) -> None:
                    "photos that could not be analysed.")
 
 
+async def _refuse_outdated_build(request: Request) -> None:
+    """Tell a build below the operator's minimum (`/minbuild`) to update.
+
+    On /scan, /listing and /trends only, and on the route rather than the app,
+    so /auth is never gated: an old build can still sign in and record a
+    purchase. Route-level, so it runs before `require_auth` — a refused build
+    is told to update rather than sent round a token refresh first.
+
+    502 because it is the one status whose `detail` every build from 1.3.4
+    (build 11) shows word for word (`AppError.from` → `.aiFailed`); 426 would
+    be the honest code, and every installed build shows it as "Something went
+    wrong". Builds 10 and older show fixed copy whatever the status, so to them
+    this reads as an outage — which `/minbuild` says before it is set.
+
+    A request whose build cannot be read is served: unknown is not old.
+    """
+    build = observability.parse_client_build(request.headers.get("user-agent", ""))
+    if build is None:
+        return
+    minimum = await notify.minimum_build()
+    if minimum is None or build >= minimum:
+        return
+    metrics.outdated_build_refused.inc(endpoint=metrics.endpoint_label(request.url.path))
+    log.info("outdated build told to update",
+             extra={"build": build, "minimum": minimum})
+    raise HTTPException(status_code=502, detail=notify.UPDATE_REQUIRED_DETAIL)
+
+
 async def _bot_scan(image_bytes: bytes, declared_type: str) -> dict:
     """A photo the operator sent the Telegram bot, through the real pipeline.
 
@@ -902,8 +930,11 @@ class ScanResponse(BaseModel):
     # One field is gone from it: `sold_listings_count`. The model never produced
     # it, the app has no sold-listings source, and it was pinned to a literal 0
     # so that clients below 1.2 — which decoded it as a non-optional Int —
-    # would not fail the whole response. 1.2 shipped 2026-07-28; those installs
-    # have aged out (#49). Clients from 1.2 on decode it as optional.
+    # would not fail the whole response. 1.2 shipped 2026-07-28, and those
+    # installs were taken to have aged out (#49) — assumed, not measured:
+    # nothing then recorded which build was calling. The access log's `build`
+    # field does now, and a build below 5 is one of them. Clients from 1.2 on
+    # decode it as optional.
     #
     # The name is retired, not parked. It is the field behind the "38 sold
     # listings" claim the July screenshots made and could not support; when
@@ -1659,7 +1690,8 @@ async def _read_capped(upload: UploadFile, limit: int = MAX_UPLOAD_BYTES) -> byt
     return b"".join(chunks)
 
 
-@app.post("/scan", response_model=ScanResponse)
+@app.post("/scan", response_model=ScanResponse,
+          dependencies=[Depends(_refuse_outdated_build)])
 async def scan(
     request: Request,
     file: UploadFile = File(...),
@@ -2332,7 +2364,8 @@ class TrendsResponse(BaseModel):
     notable_finds: list[NotableFind] = Field(default_factory=list)   # Pro only
 
 
-@app.get("/trends", response_model=TrendsResponse)
+@app.get("/trends", response_model=TrendsResponse,
+         dependencies=[Depends(_refuse_outdated_build)])
 async def trends(
     request: Request,
     principal: Principal = Depends(require_auth),
@@ -2355,7 +2388,8 @@ async def trends(
     return TrendsResponse(**await notify.trends(is_pro=principal.is_pro))
 
 
-@app.post("/listing", response_model=ListingResponse)
+@app.post("/listing", response_model=ListingResponse,
+          dependencies=[Depends(_refuse_outdated_build)])
 async def listing(
     request: Request,
     req: ListingRequest,

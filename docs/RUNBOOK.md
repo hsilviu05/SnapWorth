@@ -56,6 +56,7 @@ actually arrives:
 | Subscribers | `/subs` | Active, paid, comped, and MRR |
 | Is the free-scan experiment working | `/experiment` | The whole window at once: limit hits against new subscriptions, day by day, with a running total |
 | Start or stop the free-scan experiment | `/lever` | Arms or disarms the first-day allowance without a Railway change or a redeploy. Two taps, clamped, and `/experiment` footnotes any day it moved |
+| Make a bad or stranded build update | `/minbuild <n>` | /scan, /listing and /trends answer builds below `n` with a 502 telling them to update from the App Store; `/minbuild off` serves all again. Two taps. Set it only once build `n` is live. /auth is never gated, a request whose build is unreadable is served, and builds 10 and older show fixed copy, so to them it reads as an outage. The access log's `build` field (from the User-Agent) shows who is still on what |
 | Yesterday | The daily digest | Sent automatically at `TELEGRAM_DIGEST_UTC_HOUR` (default 06:00 UTC); a weekly report on Mondays |
 
 Unprompted alerts arrive the same way: a new subscription, a deploy ping per
