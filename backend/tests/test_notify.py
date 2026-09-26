@@ -1920,13 +1920,15 @@ class TestClearChat:
             assert {len(e) for e in entries if e[0] < 1000} == {2}
             assert all(e[2].startswith(("📡", "💸")) for e in entries if e[0] >= 1000)
 
-            bot.updates = [TestPolling.update(802, FAKE_CHAT, "/clear")]
+            bot.updates = [TestPolling.update(802, FAKE_CHAT, "/clear yes")]
             bot.updates[0]["message"]["message_id"] = 502
             _, handled = await notify.poll_once(803)
             assert handled == 1
-            # The known ids, plus a sweep of the ids below the newest known one.
+            # The known ids, plus a sweep of the gaps *between* them — never
+            # below the oldest tracked id, where the bot has no copy of
+            # anything and was never asked to clear.
             assert {500, 501, 502, 1001, 1002} <= set(bot.deleted)
-            assert min(bot.deleted) == max(1, 1002 - notify.CLEAR_SWEEP_IDS)
+            assert min(bot.deleted) == 500 and max(bot.deleted) == 1002
             assert len(set(bot.deleted)) == len(bot.deleted), "no id deleted twice"
             assert bot.replies[-1].startswith("🧹 Cleared ")
             assert "2 of the bot's kept — 🗂 History shows them." in bot.replies[-1]
@@ -1937,6 +1939,49 @@ class TestClearChat:
             assert [e[0] for e in json.loads(await cache.get(notify.MESSAGES_KEY))] == [1003]
         finally:
             await notify.aclose()
+
+    @pytest.mark.asyncio
+    async def test_clear_asks_before_it_deletes(self, cache):
+        """One tap next to 🗂 History used to take two days of alerts with
+        it, and "kept in /history" promised more than it kept."""
+        bot = TestPolling.Bot([TestPolling.update(870, FAKE_CHAT, "/status")])
+        bot.updates[0]["message"]["message_id"] = 700
+        notifier = notify.TelegramNotifier(
+            FAKE_TOKEN, FAKE_CHAT,
+            client=httpx.AsyncClient(transport=httpx.MockTransport(bot.handler)))
+        notify.configure(cache, notifier=notifier)
+        try:
+            await notify.poll_once(None)
+            # The keyboard button, and the command typed with the bot's name.
+            for update in (TestAskButtons.callback(871, "clear"),
+                           TestPolling.update(872, FAKE_CHAT, "/clear@SnapWorthBot")):
+                bot.updates = [update]
+                _, handled = await notify.poll_once(None)
+                assert handled == 1
+                assert bot.deleted == [], "nothing goes on the first tap"
+                prompt = bot.replies[-1]
+                assert prompt.startswith("🧹 <b>Clear the chat?</b>")
+                assert "Your messages and photos are not kept" in prompt
+                buttons = [b["callback_data"] for row in bot.markups[-1]["inline_keyboard"]
+                           for b in row]
+                assert buttons == ["clear yes", "status"]
+
+            bot.updates = [TestAskButtons.callback(873, "clear yes")]
+            await notify.poll_once(None)
+            assert 700 in bot.deleted
+            assert bot.replies[-1].startswith("🧹 Cleared ")
+        finally:
+            await notify.aclose()
+
+    @pytest.mark.asyncio
+    async def test_the_prompt_says_what_an_archive_chat_keeps(
+            self, cache, enabled_notify, monkeypatch):
+        await notify._remember_message(700)
+        text, _ = await notify._clear_prompt()
+        assert "Deletes the 1 message " in text and "not kept" in text
+        monkeypatch.setenv(notify.ARCHIVE_CHAT_ENV, "-1001234567890")
+        text, _ = await notify._clear_prompt()
+        assert "forwarded to the archive chat first" in text and "not kept" not in text
 
     @pytest.mark.asyncio
     async def test_clear_with_nothing_remembered(self, cache):
@@ -2078,7 +2123,7 @@ class TestHistoryAndArchive:
         try:
             assert "Nothing archived yet" in await notify.handle_command("/history")
             await notify.poll_once(None)
-            bot.updates = [TestPolling.update(822, FAKE_CHAT, "/clear")]
+            bot.updates = [TestPolling.update(822, FAKE_CHAT, "/clear yes")]
             await notify.poll_once(823)
             text = await notify.handle_command("/history")
             assert text.startswith("🗂 <b>History</b> — last 2 of 2 kept messages")
@@ -2117,7 +2162,7 @@ class TestHistoryAndArchive:
         bot.updates[0]["message"]["message_id"] = 600
         try:
             await notify.poll_once(None)
-            bot.updates = [TestPolling.update(831, FAKE_CHAT, "/clear")]
+            bot.updates = [TestPolling.update(831, FAKE_CHAT, "/clear yes")]
             await notify.poll_once(832)
             assert bot.forwarded == [("-1001234567890", [600, 1001])], "only known messages can be forwarded"
             assert {600, 1001} <= set(bot.deleted)
@@ -2157,7 +2202,7 @@ class TestHistoryAndArchive:
         bot.updates[0]["message"]["message_id"] = 600
         try:
             await notify.poll_once(None)
-            bot.updates = [TestPolling.update(841, FAKE_CHAT, "/clear")]
+            bot.updates = [TestPolling.update(841, FAKE_CHAT, "/clear yes")]
             await notify.poll_once(842)
 
             forwarded_ids = [i for _, ids in bot.forwarded for i in ids]
@@ -2197,7 +2242,7 @@ class TestHistoryAndArchive:
         bot.updates[0]["message"]["message_id"] = 600
         try:
             await notify.poll_once(None)
-            bot.updates = [TestPolling.update(861, FAKE_CHAT, "/clear")]
+            bot.updates = [TestPolling.update(861, FAKE_CHAT, "/clear yes")]
             await notify.poll_once(862)
             reply = bot.replies[-1]
             assert [c for c, _ in bot.forwarded] == ["-1005401463470"], \
@@ -2228,7 +2273,7 @@ class TestHistoryAndArchive:
         bot.updates[0]["message"]["message_id"] = 600
         try:
             await notify.poll_once(None)
-            bot.updates = [TestPolling.update(851, FAKE_CHAT, "/clear")]
+            bot.updates = [TestPolling.update(851, FAKE_CHAT, "/clear yes")]
             await notify.poll_once(852)
             reply = bot.replies[-1]
             assert "0 forwarded to the archive chat." in reply

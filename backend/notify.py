@@ -242,11 +242,13 @@ HISTORY_SNIPPET_LINES = 4
 # /clear forwards everything to before deleting, so the copy is a real
 # Telegram copy, photos included. Off when unset.
 ARCHIVE_CHAT_ENV = "TELEGRAM_ARCHIVE_CHAT_ID"
-# Message ids in a private chat are sequential, so /clear also sweeps this
-# many ids below the newest one it knows. Telegram skips ids it cannot delete
-# (older than 48 hours, never existed, not ours), so the sweep costs a handful
-# of calls and catches everything in the window the bot never recorded —
-# messages from before the feature existed, or from a replica that died.
+# Message ids in a private chat are sequential, so /clear also sweeps the gaps
+# between the oldest and newest ids it knows — at most this many ids. Those are
+# messages inside the span being cleared that the bot lost track of (the
+# tracked list is an unlocked read-modify-write, so two sends at once can drop
+# one). Telegram skips ids it cannot delete. It used to sweep 600 ids below the
+# newest whatever the tracked span, reaching past it into messages the bot had
+# no copy of and had never been asked to clear.
 CLEAR_SWEEP_IDS = 600
 # Upper bound on deleteMessages calls per /clear, however the batches split.
 DELETE_MAX_CALLS = 60
@@ -275,7 +277,7 @@ COMMANDS: tuple[tuple[str, str], ...] = (
     ("trend", "/trend <brand or category> — 30 days of scans"),
     ("user", "/user <id> — one device's story, for support"),
     ("checkup", "Redis, Gemini, DeviceCheck, TLS expiry — one screen"),
-    ("clear", "Delete the last two days of this chat and start fresh (kept in /history)"),
+    ("clear", "Delete the last two days of this chat — asks first; /history keeps the bot's side"),
     ("history", "/history [n] — what the bot said before the last clears"),
     ("feed", "Live scan feed: on, off, or show"),
     ("digest", "Yesterday's digest, now"),
@@ -1906,8 +1908,14 @@ async def _handle_update(update: dict) -> int:
             await _notifier.send(question, ask=placeholder)
             return 1
         return 0
-    if text.split("@", 1)[0].lower() == "/clear":
-        await _clear_chat()
+    words = text.split()
+    if words and words[0].split("@", 1)[0].lower() == "/clear":
+        # Two taps, as /lever does: the button sits one away from 🗂 History
+        # on every keyboard, and what it deletes cannot be brought back.
+        if len(words) > 1 and words[1].lower() == "yes":
+            await _clear_chat()
+        else:
+            await _notifier.send(*await _clear_prompt())
         return 1
     reply = await handle_command_with_buttons(text)
     if reply:
@@ -4185,30 +4193,65 @@ async def _archive(entries: list[list]) -> int:
     return len(texts)
 
 
+async def _tracked_messages() -> list[list]:
+    """The chat's tracked messages: `[id, when]`, plus the text for the bot's."""
+    try:
+        raw = await _cache.get(MESSAGES_KEY) if _cache is not None else None
+        return [e for e in (json.loads(raw) if raw else []) if isinstance(e, list) and e]
+    except Exception:
+        return []
+
+
+async def _clear_prompt() -> tuple[str, Buttons]:
+    """What 🧹 Clear is about to delete and what survives it, before it does.
+
+    The button runs on one tap no longer. It sits beside 🗂 History on every
+    keyboard, and it takes up to two days of alerts and /sub answers with it —
+    and what it keeps is less than "everything": the text of the bot's own
+    messages, of which /history shows the first lines, and nothing of the
+    operator's or of any photo unless an archive chat is configured."""
+    known = {int(e[0]) for e in await _tracked_messages()}
+    if not known:
+        return ("🧹 Nothing to clear yet — the bot has not sent or seen a message "
+                "since this process started.", await _buttons())
+    if os.environ.get(ARCHIVE_CHAT_ENV, "").strip():
+        kept = ("Kept: everything tracked is forwarded to the archive chat first, "
+                "photos included, and the text of the bot's own messages stays in "
+                "/history for 30 days.")
+    else:
+        kept = ("Kept: the text of the bot's own messages, for 30 days; /history "
+                "shows the first lines of each. Your messages and photos are not kept.")
+    return ("🧹 <b>Clear the chat?</b>\n"
+            f"Deletes the {len(known)} message{'s' if len(known) != 1 else ''} the bot "
+            "tracked here in the last 48 hours — yours and its own — and any it "
+            "lost track of between them.\n" + kept,
+            [[("🧹 Yes, clear it", "clear yes"), ("Cancel", "status")]])
+
+
 async def _clear_chat() -> None:
     """Delete every message the bot remembers in this chat, then post a fresh
     status so the keyboard is still there. Only the last 48 hours can go —
-    Telegram's limit for bots, not ours — and only what was sent since this
-    feature deployed, because ids before that were never recorded.
+    Telegram's limit for bots, not ours — and only what was tracked.
 
-    Nothing is lost: the bot's own messages are archived for /history first,
-    and, when TELEGRAM_ARCHIVE_CHAT_ID names a second chat, everything is
-    forwarded there — a real Telegram copy, photos included."""
-    try:
-        raw = await _cache.get(MESSAGES_KEY)
-        entries = [e for e in (json.loads(raw) if raw else []) if isinstance(e, list) and e]
-    except Exception:
-        entries = []
+    What survives is the text of the bot's own messages, archived for /history
+    first, and, when TELEGRAM_ARCHIVE_CHAT_ID names a second chat, everything
+    tracked, forwarded there — a real Telegram copy, photos included. The
+    operator's own messages and photos are not otherwise kept; `_clear_prompt`
+    says so before this runs."""
+    entries = await _tracked_messages()
     known = sorted({int(e[0]) for e in entries})
     archived = await _archive(entries)
     archive_chat = os.environ.get(ARCHIVE_CHAT_ENV, "").strip()
     forwarded = await _notifier.forward_messages(archive_chat, known) if archive_chat and known else 0
-    # Known ids first, then the sweep below the newest of them: private-chat
-    # ids are sequential, and Telegram silently skips what it cannot delete.
+    # Known ids first, then the gaps between them: private-chat ids are
+    # sequential, and Telegram silently skips what it cannot delete. Only
+    # *between* the oldest and newest known — see CLEAR_SWEEP_IDS.
     sweep: list[int] = []
     if known:
-        newest = known[-1]
-        sweep = [i for i in range(max(1, newest - CLEAR_SWEEP_IDS), newest + 1) if i not in set(known)]
+        oldest, newest = known[0], known[-1]
+        tracked = set(known)
+        sweep = [i for i in range(max(oldest, newest - CLEAR_SWEEP_IDS), newest + 1)
+                 if i not in tracked]
     deleted = await _notifier.delete_messages(known) if known else 0
     try:
         await _cache.delete(MESSAGES_KEY)
@@ -4226,7 +4269,7 @@ async def _clear_chat() -> None:
         note = f"🧹 Cleared {deleted} tracked message{'s' if deleted != 1 else ''}."
         if swept:
             note += (f" Also swept {swept} untracked id"
-                     f"{'s' if swept != 1 else ''} below the newest — Telegram "
+                     f"{'s' if swept != 1 else ''} between them — Telegram "
                      "does not say how many of those existed.")
         if archived:
             note += f" {archived} of the bot's kept — 🗂 History shows them."
