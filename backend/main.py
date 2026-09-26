@@ -958,6 +958,12 @@ def _fallback_listing(req: ListingRequest) -> ListingResponse:
     )
 
 
+#: How far above the valuation's high end an ask may sit, and how far below its
+#: low end a walk-away floor may. Room to negotiate, not room to invent.
+_LISTING_ASK_HEADROOM = 1.25
+_LISTING_FLOOR_GIVE = 0.8
+
+
 def _validate_listing(data: dict, req: ListingRequest) -> ListingResponse:
     """Coerce the model's JSON into a safe listing, repairing prices and falling
     back field-by-field so a partial/garbled response never blanks the listing."""
@@ -974,6 +980,24 @@ def _validate_listing(data: dict, req: ListingRequest) -> ListingResponse:
     floor = _safe_float(data.get("negotiation_floor", 0)) or fb.negotiation_floor
     if floor <= 0:
         floor = fb.negotiation_floor
+
+    # The ask is bounded by the valuation it was written from, as /scan's
+    # prices are by their category band. Only `floor <= ask` was enforced, so
+    # an ask of $450 over a $300 floor went through on a $4–$14 item — a
+    # hallucinated or tag-steered number that a Pro user copies straight into
+    # a public listing. The prompt pre-fills the valuation and a model that
+    # follows it lands well inside these bounds: a touch over the typical
+    # price for the ask, the low end for the floor. Outside them the number is
+    # not a judgement worth keeping, so the deterministic listing's price is
+    # used rather than the nearest edge.
+    points = [p for p in (req.price_low_usd, req.price_likely_usd, req.price_high_usd)
+              if p > 0]
+    if points:
+        low, high = min(points), max(points)
+        if not low <= price <= high * _LISTING_ASK_HEADROOM:
+            price = fb.listing_price
+        if not low * _LISTING_FLOOR_GIVE <= floor <= price:
+            floor = fb.negotiation_floor
     if floor > price:          # never let the walk-away floor exceed the ask
         floor = price
 

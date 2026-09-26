@@ -638,6 +638,40 @@ class TestListingEndpoint:
         data = r.json()
         assert data["negotiation_floor"] <= data["listing_price"]
 
+    def _listed(self, reply: dict, **req):
+        with patch("main._model") as mm:
+            mm.generate_content_async = AsyncMock(return_value=self._mock(json.dumps(reply)))
+            r = _post_listing(**req)
+        assert r.status_code == 200
+        return r.json()
+
+    def test_an_ask_far_above_the_valuation_is_not_served(self):
+        """Reproduced: an ask of 450 over a floor of 300 on a $4–$14 item went
+        through, because only floor <= ask was checked. The deterministic
+        listing's prices are used instead of the model's."""
+        data = self._listed({**MOCK_LISTING_JSON, "listing_price": 450.0,
+                             "negotiation_floor": 300.0},
+                            price_low_usd=4.0, price_likely_usd=9.0, price_high_usd=14.0)
+        assert data["listing_price"] == 9.0
+        assert data["negotiation_floor"] == 4.0
+
+    def test_an_ask_below_the_valuation_is_not_served(self):
+        data = self._listed({**MOCK_LISTING_JSON, "listing_price": 20.0,
+                             "negotiation_floor": 15.0})
+        assert data["listing_price"] == 68.0      # the request's typical price
+        assert data["negotiation_floor"] == 45.0  # the request's low end
+
+    def test_negotiating_room_inside_the_bounds_is_kept(self):
+        # Ask up to 1.25× the high end, floor down to 0.8× the low end.
+        data = self._listed({**MOCK_LISTING_JSON, "listing_price": 110.0,
+                             "negotiation_floor": 37.0})
+        assert (data["listing_price"], data["negotiation_floor"]) == (110.0, 37.0)
+
+    def test_a_floor_far_below_the_valuation_is_not_served(self):
+        data = self._listed({**MOCK_LISTING_JSON, "negotiation_floor": 5.0})
+        assert data["listing_price"] == 75.0
+        assert data["negotiation_floor"] == 45.0
+
     def test_missing_prices_repaired_from_request(self):
         partial = {"title": "Nice item", "description": "Good stuff", "category": "x",
                    "listing_price": 0, "negotiation_floor": 0}
