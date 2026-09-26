@@ -57,6 +57,10 @@ struct ScanView: View {
     /// the same run-loop turn and there is no window at all.
     @State private var captureInFlight = false
 
+    /// A restricted camera has been counted for this screen — see the
+    /// `authStatus` handler.
+    @State private var restrictedCounted = false
+
     /// Anything presented on top of the camera. See the `onChange` below.
     private var isCameraObscured: Bool {
         showResult || showThriftFlip || showNotifPriming || vm.showPaywall
@@ -377,9 +381,20 @@ struct ScanView: View {
                 if await ThriftRunController.endIfExpired() { isRunOn = false }
             }
         }
-        .onChange(of: cameraManager.authStatus) { _, status in
-            if status == .denied {
+        // A refusal is counted when it happens. `.restricted` never happens
+        // on screen — it is already the status when the manager is built, so
+        // there is no change to observe — and it used to be counted only
+        // because `CameraManager` rewrote it to `.denied`. `initial: true`
+        // sees it at first appearance instead, once per screen.
+        .onChange(of: cameraManager.authStatus, initial: true) { old, status in
+            switch status {
+            case .denied where old != .denied:
                 Analytics.shared.track(.scanFailed(reason: .permission, isFirst: ScanTally.isFirstScan()))
+            case .restricted where !restrictedCounted:
+                restrictedCounted = true
+                Analytics.shared.track(.scanFailed(reason: .permission, isFirst: ScanTally.isFirstScan()))
+            default:
+                break
             }
         }
         .onDisappear { cameraManager.stopSession() }
