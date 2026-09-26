@@ -549,6 +549,9 @@ async def record_metrics(request: Request, call_next):
     endpoint = metrics.endpoint_label(request.url.path)
     metrics.http_in_flight.inc()
     start = time.monotonic()
+    # Before the body is read: a slow upload spends the client's budget too.
+    # See `_client_deadline`.
+    request.state.arrived = start
     status = 500
     try:
         response = await call_next(request)
@@ -1584,7 +1587,8 @@ async def scan(
     try:
         response, elapsed = await _analyse(image_bytes, content_type,
                                            subject=principal.subject, device_short=device_short,
-                                           tag_bytes=tag_bytes, tag_type=tag_type)
+                                           tag_bytes=tag_bytes, tag_type=tag_type,
+                                           deadline=_client_deadline(request))
     except BaseException:
         # `quota_status` carries the UTC day the reservation was counted
         # against. Recomputing the day here refunded the wrong counter for a
@@ -1660,7 +1664,8 @@ def _not_resalable_message(val: valuation_module.Valuation) -> str:
 
 async def _analyse(image_bytes: bytes, content_type: str, *, subject: str,
                    device_short: str, tag_bytes: bytes | None = None,
-                   tag_type: str = "", count: bool = True) -> tuple[ScanResponse, float]:
+                   tag_type: str = "", count: bool = True,
+                   deadline: float | None = None) -> tuple[ScanResponse, float]:
     """The scan itself: model call, parse, normalise, clamp, score.
 
     Everything between "the upload is valid and allowed" and "charge for it":
@@ -1668,7 +1673,8 @@ async def _analyse(image_bytes: bytes, content_type: str, *, subject: str,
     the Telegram bot's photo test — which must exercise exactly this code and
     nothing else, or a green test scan would prove nothing about /scan.
     Returns the response (with `free_scans_remaining` unset) and the elapsed
-    seconds. Raises HTTPException exactly as the endpoint would.
+    seconds. Raises HTTPException exactly as the endpoint would. `deadline` is
+    `_generate_with_retry`'s, for both model calls a scan can make.
     """
 
     t0 = time.monotonic()
@@ -1704,7 +1710,7 @@ async def _analyse(image_bytes: bytes, content_type: str, *, subject: str,
             label = "scan_with_tag" if tag_bytes else "scan"
         else:
             label = "bot_scan_with_tag" if tag_bytes else "bot_scan"
-        raw, usage = await _generate_with_retry(contents, label=label)
+        raw, usage = await _generate_with_retry(contents, label=label, deadline=deadline)
     except aiconfig.ModelBlocked as exc:
         # A safety block is not an outage. Thrift inventory includes penknives,
         # lighters and vintage militaria; telling the user the service is down
@@ -1734,7 +1740,7 @@ async def _analyse(image_bytes: bytes, content_type: str, *, subject: str,
         # an explicit reformat instruction before giving up — mirrors /listing,
         # which already degrades gracefully rather than 500-ing.
         log.warning("json parse error, attempting reformat", extra={"error": str(exc)})
-        data = await _retry_as_json(raw)
+        data = await _retry_as_json(raw, deadline=deadline)
         if data is None:
             log.error("scan unparseable after reformat", extra={"raw_prefix": raw[:200]})
             if count:
@@ -1943,6 +1949,33 @@ def _strip_pro_detail(response: "ScanResponse") -> "ScanResponse":
 _RETRY_ATTEMPTS = int(os.environ.get("GEMINI_RETRY_ATTEMPTS", "2"))
 _RETRY_BASE_DELAY = float(os.environ.get("GEMINI_RETRY_BASE_DELAY", "0.5"))
 
+# How long after a request arrives the app is still waiting for the answer.
+# The iOS client gives up 35s after it starts a request, upload included
+# (`timeoutIntervalForResource` in CertificatePinning.swift); 33s from arrival
+# leaves the response time to travel back.
+#
+# The SDK's timeout (aiconfig.REQUEST_TIMEOUT_MS, 25s) is per attempt, and
+# there are two attempts, each with the full timeout and a backoff between
+# them — so a first attempt that timed out was followed by a second that ran
+# to about 50s, billed for a result the phone had stopped waiting for 15s
+# earlier. `_generate_with_retry` now bounds each attempt by what is left.
+CLIENT_DEADLINE_SECONDS = float(os.environ.get("CLIENT_DEADLINE_SECONDS", "33"))
+
+# A retry is not started with less than this left. A judgement, not a
+# measurement: a vision call that has to think and write ~1k tokens of JSON
+# rarely finishes faster, and the attempt is billed whether or not it does.
+_MIN_RETRY_SECONDS = 8.0
+
+
+def _client_deadline(request: Request) -> float:
+    """When the app stops waiting for this request, as a `time.monotonic()`
+    instant: CLIENT_DEADLINE_SECONDS after it arrived, which the metrics
+    middleware records before the upload is read."""
+    arrived = getattr(request.state, "arrived", None)
+    start = arrived if isinstance(arrived, float) else time.monotonic()
+    return start + CLIENT_DEADLINE_SECONDS
+
+
 # Substrings identifying failures that will not succeed on retry. Retrying these
 # wastes the user's time and doubles the bill for a guaranteed second failure.
 #
@@ -2118,7 +2151,8 @@ def _record_usage(label: str, usage: dict) -> None:
 
 
 async def _generate_with_retry(
-    contents, *, label: str, max_tokens: int | None = None, record_health: bool = True
+    contents, *, label: str, max_tokens: int | None = None, record_health: bool = True,
+    deadline: float | None = None,
 ) -> tuple[str, dict]:
     """Call the model with classified retries and jittered backoff.
 
@@ -2133,12 +2167,23 @@ async def _generate_with_retry(
     * **It treated a safety block as an outage.** `extract_text` separates the
       two so the caller can answer the user accurately.
 
+    `deadline`, a `time.monotonic()` instant, is when the caller stops
+    listening (see CLIENT_DEADLINE_SECONDS). Each attempt gets at most the time
+    left before it, and a retry is skipped when too little is left for it to
+    finish. None means no deadline beyond the SDK's per-attempt timeout.
+
     Returns `(text, usage_dict)`.
     """
     last_exc: Exception | None = None
     config = aiconfig.generation_config(max_output_tokens=max_tokens) if max_tokens else None
 
     for attempt in range(_RETRY_ATTEMPTS):
+        remaining = None if deadline is None else deadline - time.monotonic()
+        if remaining is not None and remaining <= 0:
+            # Only reachable on a first attempt (a retry needs
+            # _MIN_RETRY_SECONDS): the upload alone outlasted the caller.
+            last_exc = TimeoutError("the caller's deadline passed before the model was called")
+            break
         try:
             # Annotated: the conditional infers dict[str, GenerationConfig],
             # and splatting that matches it against every other keyword
@@ -2146,7 +2191,10 @@ async def _generate_with_retry(
             kwargs: dict[str, Any] = (
                 {"generation_config": config} if config else {})
             with metrics.Timer(metrics.model_duration, operation=label):
-                response = await _model.generate_content_async(contents, **kwargs)
+                call = _model.generate_content_async(contents, **kwargs)
+                # A TimeoutError here is retryable, like the SDK's own.
+                response = await (call if remaining is None
+                                  else asyncio.wait_for(call, remaining))
             # Recorded before the text is read, because a reply is billed
             # whether or not it carries any. This used to run only after
             # `extract_text` succeeded, so a reply that was safety-blocked or
@@ -2189,8 +2237,13 @@ async def _generate_with_retry(
             log.warning("%s: attempt %d/%d failed: %s",
                         label, attempt + 1, _RETRY_ATTEMPTS, exc)
             if attempt < _RETRY_ATTEMPTS - 1:
-                delay = _RETRY_BASE_DELAY * (2 ** attempt)
-                await asyncio.sleep(delay * random.uniform(0.75, 1.25))
+                delay = _RETRY_BASE_DELAY * (2 ** attempt) * random.uniform(0.75, 1.25)
+                if (deadline is not None
+                        and deadline - time.monotonic() - delay < _MIN_RETRY_SECONDS):
+                    log.warning("%s: not retrying — too little time left before "
+                                "the caller gives up", label)
+                    break
+                await asyncio.sleep(delay)
 
     metrics.model_calls.inc(operation=label, outcome="exhausted")
     metrics.dependency_errors.inc(dependency="gemini", kind="exhausted")
@@ -2199,7 +2252,7 @@ async def _generate_with_retry(
     raise aiconfig.ModelUnavailable(str(last_exc))
 
 
-async def _retry_as_json(raw: str) -> dict | None:
+async def _retry_as_json(raw: str, *, deadline: float | None = None) -> dict | None:
     """Ask the model to restate an unparseable reply as bare JSON.
 
     Cheap (text-only, no image) and recovers the common failure where the model
@@ -2224,7 +2277,7 @@ async def _retry_as_json(raw: str) -> dict | None:
     # call. Recording it twice would make one bad scan look like two.
     try:
         text, _usage = await _generate_with_retry(
-            prompt, label="reformat", record_health=False)
+            prompt, label="reformat", record_health=False, deadline=deadline)
     except aiconfig.ModelUnavailable:
         # A real outage, correctly classified. The caller's own 502 already
         # says "try again", which is the right advice for this.
@@ -2330,7 +2383,8 @@ async def listing(
     prompt = _listing_prompt(req)
     try:
         raw, _usage = await _generate_with_retry(
-            prompt, label="listing", max_tokens=aiconfig.LISTING_MAX_OUTPUT_TOKENS)
+            prompt, label="listing", max_tokens=aiconfig.LISTING_MAX_OUTPUT_TOKENS,
+            deadline=_client_deadline(request))
     except aiconfig.ModelBlocked:
         # Listing copy is derived from the user's own valuation, so a block here
         # is recoverable — the deterministic fallback still produces a usable

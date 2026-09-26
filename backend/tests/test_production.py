@@ -819,6 +819,112 @@ class TestQuotaExhaustion:
         paged.assert_not_called()
 
 
+class TestModelCallDeadline:
+    """The SDK's 25s timeout is per attempt, and there are two attempts, so a
+    first attempt that timed out was followed by a second that ran to about
+    50s — billed, for a phone that gives up at 35s."""
+
+    @staticmethod
+    def _run(side_effect, deadline_in: float | None):
+        import time
+        from unittest.mock import AsyncMock, patch
+
+        with patch("main._model") as model, \
+                patch("main._RETRY_BASE_DELAY", 0), \
+                patch.object(main, "_model_health", main._ModelHealth()):
+            model.generate_content_async = AsyncMock(side_effect=side_effect)
+            deadline = None if deadline_in is None else time.monotonic() + deadline_in
+            start = time.monotonic()
+            with pytest.raises(main.aiconfig.ModelUnavailable):
+                asyncio.run(main._generate_with_retry(
+                    "prompt", label="scan", deadline=deadline))
+        return model.generate_content_async.await_count, time.monotonic() - start
+
+    @staticmethod
+    async def _hang(*_args, **_kwargs):
+        await asyncio.sleep(30)
+
+    def test_no_retry_when_too_little_time_is_left(self):
+        calls, _ = self._run([Exception("503 overloaded")] * 2,
+                             deadline_in=main._MIN_RETRY_SECONDS - 1)
+        assert calls == 1
+
+    def test_a_retry_with_time_left_still_happens(self):
+        calls, _ = self._run([Exception("503 overloaded")] * 2,
+                             deadline_in=main._MIN_RETRY_SECONDS + 5)
+        assert calls == 2
+
+    def test_an_attempt_is_cut_off_at_the_deadline(self):
+        """The first attempt is bounded by the time left, not the SDK's 25s,
+        and the retry after it is skipped."""
+        calls, elapsed = self._run(self._hang, deadline_in=0.3)
+        assert calls == 1
+        assert elapsed < 5
+
+    def test_a_retry_gets_only_the_time_that_is_left(self):
+        from unittest.mock import patch
+
+        attempts: list[int] = []
+
+        async def fail_then_hang(*_args, **_kwargs):
+            attempts.append(1)
+            if len(attempts) == 1:
+                raise Exception("503 overloaded")
+            await asyncio.sleep(30)
+
+        with patch("main._MIN_RETRY_SECONDS", 0.1):
+            calls, elapsed = self._run(fail_then_hang, deadline_in=0.5)
+        assert calls == 2
+        assert elapsed < 5
+
+    def test_nothing_is_called_once_the_deadline_has_passed(self):
+        calls, _ = self._run([Exception("never reached")], deadline_in=-1)
+        assert calls == 0
+
+    def test_without_a_deadline_both_attempts_run(self):
+        """The Telegram bot, the eval and /checkup pass none."""
+        calls, _ = self._run([Exception("503 overloaded")] * 2, deadline_in=None)
+        assert calls == 2
+
+    def test_the_deadline_counts_from_arrival(self):
+        from types import SimpleNamespace
+
+        request = SimpleNamespace(state=SimpleNamespace(arrived=100.0))
+        assert main._client_deadline(request) == 100.0 + main.CLIENT_DEADLINE_SECONDS  # type: ignore[arg-type]
+
+    def test_scan_and_listing_pass_a_deadline_from_arrival(self):
+        """Arrival is recorded by the metrics middleware, before the upload is
+        read, so a slow upload spends the budget too."""
+        import time
+        from unittest.mock import AsyncMock, patch
+
+        from tests.test_ai_pipeline import V2_PAYLOAD, _scan_with
+        from tests.test_main import _post_listing
+
+        seen: list[float] = []
+        arrivals: list[object] = []
+        real = main._client_deadline
+
+        def recording(request):
+            arrivals.append(getattr(request.state, "arrived", None))
+            return real(request)
+
+        async def fake(contents, *, label, max_tokens=None, record_health=True,
+                       deadline=None):
+            assert deadline is not None
+            seen.append(deadline - time.monotonic())
+            return json.dumps(V2_PAYLOAD), {}
+
+        with patch.object(main, "_generate_with_retry", AsyncMock(side_effect=fake)), \
+                patch.object(main, "_client_deadline", recording):
+            assert _scan_with(V2_PAYLOAD, pro=True).status_code == 200
+            assert _post_listing().status_code == 200
+        assert len(seen) == 2
+        assert all(isinstance(a, float) for a in arrivals), "middleware did not record arrival"
+        for left in seen:
+            assert main.CLIENT_DEADLINE_SECONDS - 5 < left <= main.CLIENT_DEADLINE_SECONDS
+
+
 class TestModelHealth:
     def _fresh(self):
         return main._ModelHealth()
