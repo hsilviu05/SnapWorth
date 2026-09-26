@@ -795,6 +795,33 @@ class TestScanAccounting:
                 assert no_price[0]["operation"] == ("scan" if count else "bot_scan"), \
                     "the bot's own test photo must not be labelled a user scan"
 
+    def test_a_bot_test_photo_of_a_non_item_is_labelled_as_the_bot(self, monkeypatch):
+        """The same hardcoded "scan", on the not-resalable path beside it."""
+        import asyncio
+
+        import main
+        from fastapi import HTTPException
+        calls: list[dict] = []
+        monkeypatch.setattr(main.metrics.model_calls, "inc",
+                            lambda **kw: calls.append(kw))
+        declined = MagicMock()
+        declined.text = json.dumps({
+            **MOCK_RESPONSE_JSON, "category": "other",
+            "est_value_low_usd": 0, "est_value_high_usd": 0,
+            "worst_case_price_usd": 0, "quick_sale_price_usd": 0,
+            "expected_price_usd": 0, "best_case_price_usd": 0,
+            "uncertainty_factors": ["This is a photograph of food"]})
+
+        with patch("main._model") as model:
+            model.generate_content_async = AsyncMock(return_value=declined)
+            with pytest.raises(HTTPException) as refused:
+                asyncio.run(main._analyse(
+                    padded_image_bytes("JPEG", 1024), "image/jpeg",
+                    subject="op", device_short="op", count=False))
+        assert refused.value.status_code == 422
+        outcome = [c for c in calls if c.get("outcome") == "not_resalable"]
+        assert [c["operation"] for c in outcome] == ["bot_scan"]
+
     def test_a_scan_the_client_abandoned_still_counts_as_a_scan(self, monkeypatch):
         """It is billed, so it belongs in the denominator of $/scan.
 

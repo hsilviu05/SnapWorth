@@ -264,6 +264,51 @@ class TestRequestInstrumentation:
         assert metrics.http_requests.value(
             endpoint="other", method="GET", status_class="4xx") >= 1
 
+    def test_every_route_has_its_own_endpoint_label(self):
+        """Four routes were missing from KNOWN_ENDPOINTS — Apple's server
+        notifications among them — and were counted as "other", alongside
+        every scanner probe."""
+        from fastapi.routing import APIRoute
+
+        routes = {r.path for r in app.routes if isinstance(r, APIRoute)}
+        assert routes - metrics.KNOWN_ENDPOINTS == set()
+
+
+class TestDeclaredMetricsAreIncremented:
+    """A declared metric nothing increments reads as a flat zero on any
+    dashboard built on it — "no problem" rather than "no data"."""
+
+    def test_entitlement_outcomes_are_counted(self, monkeypatch):
+        import auth
+        import notify
+        import referral
+        from entitlements import Entitlement, EntitlementError
+
+        ent = Entitlement("pro", "com.snapworth.yearly", None, "otid-1", "Production")
+
+        async def record(subject, jws, device_id=None):
+            if jws == "bad":
+                raise EntitlementError("signature did not verify")
+            return ent
+
+        async def quiet(*_args, **_kwargs):
+            return False
+
+        monkeypatch.setattr(auth.deps.entitlements, "record", record)
+        monkeypatch.setattr(notify, "entitlement_recorded", quiet)
+        monkeypatch.setattr(referral, "on_entitlement", quiet)
+        headers = {"x-device-id": "entitlement-metric"}
+        assert client.post("/auth/entitlement", json={"signed_transaction": "ok"},
+                           headers=headers).status_code == 200
+        assert client.post("/auth/entitlement", json={"signed_transaction": "bad"},
+                           headers=headers).status_code == 400
+        assert metrics.entitlement_operations.value(outcome="recorded") == 1
+        assert metrics.entitlement_operations.value(outcome="rejected") == 1
+
+    def test_the_never_incremented_cache_counter_is_gone(self):
+        assert not hasattr(metrics, "cache_operations")
+        assert "snapworth_cache_operations_total" not in metrics.render()
+
 
 # ═══ Log redaction ════════════════════════════════════════════════════════════
 

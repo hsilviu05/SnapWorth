@@ -1778,7 +1778,9 @@ async def _analyse(image_bytes: bytes, content_type: str, *, subject: str,
         if valuation_module.priced_as_unsellable(data):
             log.info("scan declined: not a resalable object",
                      extra={"item": val.item_name, "category": val.category})
-            metrics.model_calls.inc(operation="scan", outcome="not_resalable")
+            # `label`, as for `no_price` below: hardcoded, a bot or tag-photo
+            # scan was filed as a plain user scan.
+            metrics.model_calls.inc(operation=label, outcome="not_resalable")
             # 422, not 502: nothing failed. The model read the photo and
             # answered. The client renders `detail` verbatim for any non-2xx
             # and retries nothing automatically, so this reaches the user as

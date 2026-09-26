@@ -489,11 +489,15 @@ class TestQuota:
         assert auth.deps.signer is not None   # set by the build_deps/conftest fixture
         token, _ = auth.deps.signer.mint("quota-subject")
         h = {"Authorization": f"Bearer {token}"}
+        import metrics
+        refused_before = metrics.quota_exhausted.value()
         assert _scan(headers=h).status_code == 200
         assert _scan(headers=h).status_code == 200
         third = _scan(headers=h)
         assert third.status_code == 402
         assert "X-Quota-Resets-At" in third.headers
+        # RUNBOOK §5.8 reads this counter; nothing used to increment it.
+        assert metrics.quota_exhausted.value() == refused_before + 1
         build_deps()
 
     def test_failed_scan_does_not_consume_quota(self):
