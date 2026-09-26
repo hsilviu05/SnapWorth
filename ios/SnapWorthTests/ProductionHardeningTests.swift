@@ -4539,7 +4539,7 @@ final class BearerRetryStructureTests: XCTestCase {
     func test_submitEntitlementRetriesOnAnExpiredToken() throws {
         let file = try source("Services/AttestationService.swift")
         let method = try body(
-            of: "func submitEntitlement(signedTransaction: String) async throws {",
+            of: "func submitEntitlement(signedTransaction: String) async throws -> String {",
             in: file)
 
         XCTAssertTrue(method.contains("sendRetryingAuth(on: session)"),
@@ -4692,6 +4692,185 @@ final class TokenMintFailureMappingTests: XCTestCase {
 
     func test_noneOfThemOpensThePaywall() {
         XCTAssertFalse(AppError.verificationUnavailable.isPaywall)
+    }
+}
+
+// ── A subscriber is never sold their own plan ────────────────────────────────
+//
+// Every 402 opened the paywall, including for a user StoreKit shows as
+// subscribed — whose server-side tier comes from a fire-and-forget sync that
+// can fail, lag a purchase, or disagree during a billing grace period. So a
+// paying user could be shown "Subscribe Yearly", and nothing was counted.
+
+@MainActor
+private final class ResyncStub: PurchaseService {
+    var isSubscribed: Bool
+    var resyncResult: EntitlementResync
+    private(set) var resyncCalls = 0
+
+    init(subscribed: Bool, resync: EntitlementResync) {
+        isSubscribed = subscribed
+        resyncResult = resync
+    }
+
+    func purchase(productID: String) async throws -> PurchaseOutcome { .completed }
+    func restorePurchases() async throws {}
+    func resyncEntitlement() async -> EntitlementResync {
+        resyncCalls += 1
+        if resyncResult == .notSubscribed { isSubscribed = false }
+        return resyncResult
+    }
+}
+
+private final class EventSpy: AnalyticsService {
+    var events: [AnalyticsEvent] = []
+    func track(_ event: AnalyticsEvent) { events.append(event) }
+}
+
+@MainActor
+final class SubscriberPaywallTests: XCTestCase {
+
+    private let refused = ScanAPIError.serverError(402, "You've used today's free scan.")
+    private var spy = EventSpy()
+
+    override func setUp() {
+        super.setUp()
+        spy = EventSpy()
+        Analytics.shared.configure(spy)
+    }
+
+    private var syncFailures: [String] {
+        spy.events.compactMap {
+            guard $0.name == "entitlement_sync_failed" else { return nil }
+            return $0.parameters["reason"]
+        }
+    }
+
+    /// A request that answers from `answers` in turn, throwing an `Error`.
+    private func scripted(_ answers: [Result<Int, Error>]) -> () async throws -> Int {
+        var remaining = answers
+        return { try remaining.removeFirst().get() }
+    }
+
+    func test_aFreeUsersRefusalIsThePaywallAndNothingElse() async {
+        let stub = ResyncStub(subscribed: false, resync: .confirmed)
+        do {
+            _ = try await stub.confirmingSubscription(scripted([.failure(refused)]))
+            XCTFail("the 402 must reach the caller")
+        } catch {
+            XCTAssertTrue(AppError.from(error).isPaywall)
+        }
+        XCTAssertEqual(stub.resyncCalls, 0, "a free user's 402 is simply right")
+    }
+
+    func test_aConfirmedResyncRetriesOnceAndSucceeds() async throws {
+        let stub = ResyncStub(subscribed: true, resync: .confirmed)
+        let value = try await stub.confirmingSubscription(scripted([.failure(refused), .success(7)]))
+        XCTAssertEqual(value, 7)
+        XCTAssertEqual(stub.resyncCalls, 1)
+        XCTAssertTrue(syncFailures.isEmpty)
+    }
+
+    func test_aLapsedSubscriptionStillReachesThePaywall() async {
+        // StoreKit, re-read, no longer shows one: the server was right.
+        let stub = ResyncStub(subscribed: true, resync: .notSubscribed)
+        do {
+            _ = try await stub.confirmingSubscription(scripted([.failure(refused)]))
+            XCTFail("the 402 must reach the caller")
+        } catch {
+            XCTAssertTrue(AppError.from(error).isPaywall)
+        }
+        XCTAssertTrue(syncFailures.isEmpty)
+    }
+
+    func test_aFailedResyncIsItsOwnStateNotThePaywall() async {
+        let stub = ResyncStub(subscribed: true, resync: .failed(reason: "network"))
+        do {
+            _ = try await stub.confirmingSubscription(scripted([.failure(refused)]))
+            XCTFail("expected subscriptionUnconfirmed")
+        } catch {
+            XCTAssertEqual(AppError.from(error), .subscriptionUnconfirmed)
+            XCTAssertFalse(AppError.from(error).isPaywall,
+                           "offering a subscriber their own plan is the one wrong answer")
+        }
+        XCTAssertEqual(syncFailures, ["network"])
+    }
+
+    func test_aServerThatStillRefusesIsCountedAndNotSold() async {
+        let stub = ResyncStub(subscribed: true, resync: .confirmed)
+        do {
+            _ = try await stub.confirmingSubscription(scripted([.failure(refused), .failure(refused)]))
+            XCTFail("expected subscriptionUnconfirmed")
+        } catch {
+            XCTAssertEqual(AppError.from(error), .subscriptionUnconfirmed)
+        }
+        XCTAssertEqual(stub.resyncCalls, 1, "one retry, not a loop")
+        XCTAssertEqual(syncFailures, ["still_refused"])
+    }
+
+    func test_otherFailuresPassStraightThrough() async {
+        let stub = ResyncStub(subscribed: true, resync: .confirmed)
+        do {
+            _ = try await stub.confirmingSubscription(scripted([.failure(URLError(.notConnectedToInternet))]))
+            XCTFail("expected the network error")
+        } catch {
+            XCTAssertEqual(AppError.from(error), .network)
+        }
+        XCTAssertEqual(stub.resyncCalls, 0, "only a 402 is a question about the tier")
+    }
+
+    func test_theUnconfirmedCopyOffersNoPriceAndNoReinstall() {
+        let message = AppError.subscriptionUnconfirmed.errorDescription ?? ""
+        XCTAssertFalse(message.isEmpty)
+        XCTAssertFalse(message.lowercased().contains("reinstall"), message)
+        XCTAssertFalse(message.contains("$"), message)
+    }
+
+    func test_syncFailuresAreFixedBucketsNeverErrorText() {
+        XCTAssertEqual(AnalyticsEvent.entitlementSyncFailed(reason: "network").name,
+                       "entitlement_sync_failed")
+        XCTAssertEqual(EntitlementSyncFailure.reason(for: URLError(.notConnectedToInternet)), "network")
+        XCTAssertEqual(EntitlementSyncFailure.reason(for: URLError(.timedOut)), "timeout")
+        XCTAssertEqual(EntitlementSyncFailure.reason(for: AttestationError.unavailable), "unavailable")
+        XCTAssertEqual(EntitlementSyncFailure.reason(for: AttestationError.unsupportedDevice), "attestation")
+        // On /auth/entitlement a rejection is the server refusing the
+        // transaction, not the device.
+        XCTAssertEqual(EntitlementSyncFailure.reason(for: AttestationError.serverRejected("Expired.")),
+                       "rejected")
+        let limited = ScanAPIError.from(
+            HTTPURLResponse(url: URL(string: "https://api.snapworth.eu/auth/entitlement")!,
+                            statusCode: 429, httpVersion: nil, headerFields: nil)!,
+            data: Data())
+        XCTAssertEqual(EntitlementSyncFailure.reason(for: limited), "rate_limited")
+        XCTAssertEqual(EntitlementSyncFailure.reason(for: CocoaError(.fileNoSuchFile)), "unknown")
+    }
+
+    /// Source-level: these go through `ScanAPIClient.shared` and
+    /// `ListingAPIClient.shared`, which a unit test cannot make answer 402.
+    /// Every request a subscriber can be refused on has to ask first.
+    func test_everyPaidRequestAsksBeforeSellingAPlan() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("SnapWorth")
+        let calls = [("ViewModels/ScanViewModel.swift", "ScanAPIClient.shared.scan("),
+                     ("ViewModels/ThriftFlipViewModel.swift", "ScanAPIClient.shared.scan("),
+                     ("Views/ResultView.swift", "ScanAPIClient.shared.scan("),
+                     ("ViewModels/ResultViewModel.swift", "ListingAPIClient.shared.generate(")]
+        for (path, call) in calls {
+            let file = try String(contentsOf: root.appendingPathComponent(path), encoding: .utf8)
+            var searchFrom = file.startIndex
+            var found = 0
+            while let site = file.range(of: call, range: searchFrom..<file.endIndex) {
+                let leadStart: String.Index = file.index(site.lowerBound, offsetBy: -160,
+                                                         limitedBy: file.startIndex) ?? file.startIndex
+                let lead: Substring = file[leadStart..<site.lowerBound]
+                XCTAssertTrue(lead.contains("purchaseService.confirmingSubscription {"),
+                              "\(path): \(call) can sell a subscriber their own plan")
+                found += 1
+                searchFrom = site.upperBound
+            }
+            XCTAssertGreaterThan(found, 0, path)
+        }
     }
 }
 

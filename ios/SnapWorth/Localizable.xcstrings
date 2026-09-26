@@ -4374,6 +4374,42 @@
         }
       }
     },
+    "Apple shows an active subscription on this Apple ID, but SnapWorth couldn't confirm it just now. Restore your purchase to try again, or contact support if it keeps happening." : {
+      "comment" : "Alert message under \"We couldn't confirm your subscription\". The buttons are \"Restore purchase\" and \"Contact support\".",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apple zeigt ein aktives Abo für diese Apple-ID, aber SnapWorth konnte es gerade nicht bestätigen. Stell den Kauf wieder her, um es erneut zu versuchen, oder kontaktiere den Support, falls es wieder passiert."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apple shows an active subscription on this Apple ID, but SnapWorth couldn't confirm it just now. Restore your purchase to try again, or contact support if it keeps happening."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apple muestra una suscripción activa en este ID de Apple, pero SnapWorth no ha podido confirmarla ahora mismo. Restaura la compra para volver a intentarlo o contacta con soporte si sigue pasando."
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apple arată un abonament activ pe contul Apple ăsta, dar SnapWorth nu l-a putut confirma chiar acum. Restaurează cumpărătura ca să încerci din nou sau contactează asistența dacă se repetă."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apple 显示这个 Apple 账户有有效订阅，但 SnapWorth 暂时无法确认。请恢复购买后重试；如果一直这样，请联系客服。"
+          }
+        }
+      }
+    },
     "Apple shows the offer before you confirm. After the free week, the subscription renews unless you cancel." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -5703,6 +5739,42 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "置信度 %lld 分（满分 100）"
+          }
+        }
+      }
+    },
+    "Contact support" : {
+      "comment" : "Button. Opens an email to SnapWorth support.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Support kontaktieren"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Contact support"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Contactar con soporte"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Contactează asistența"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "联系客服"
           }
         }
       }
@@ -17481,6 +17553,42 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "等待批准中。批准后订阅会立即生效，你不用再买一次。"
+          }
+        }
+      }
+    },
+    "We couldn't confirm your subscription" : {
+      "comment" : "Alert title. StoreKit shows an active subscription but the server refused the request even after it was re-sent.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wir konnten dein Abo nicht bestätigen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "We couldn't confirm your subscription"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No pudimos confirmar tu suscripción"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nu ți-am putut confirma abonamentul"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "暂时无法确认你的订阅"
           }
         }
       }

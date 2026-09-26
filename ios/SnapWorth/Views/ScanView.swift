@@ -448,6 +448,8 @@ struct ScanView: View {
         .sheet(isPresented: $vm.showPaywall) {
             PaywallView(purchaseService: purchaseService, trigger: vm.paywallTrigger)
         }
+        .subscriptionUnconfirmedAlert(isPresented: $vm.showSubscriptionUnconfirmed,
+                                      purchaseService: purchaseService)
         .fullScreenCover(isPresented: $showThriftFlip) {
             ThriftFlipView(purchaseService: purchaseService)
         }

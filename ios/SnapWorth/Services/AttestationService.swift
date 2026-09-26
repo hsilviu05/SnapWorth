@@ -58,7 +58,10 @@ actor AttestationService {
 
     /// Exchanges a StoreKit signed transaction for a Pro entitlement server-side.
     /// The server is the authority on subscription state from here on.
-    func submitEntitlement(signedTransaction: String) async throws {
+    /// - Returns: the tier the server recorded — "free" for a transaction it
+    ///   verified and found expired or revoked.
+    @discardableResult
+    func submitEntitlement(signedTransaction: String) async throws -> String {
         let token = try await accessToken()
         var request = URLRequest(url: baseURL.appendingPathComponent("auth/entitlement"))
         request.httpMethod = "POST"
@@ -88,16 +91,21 @@ actor AttestationService {
         // offline" — true for offline, false for 401, because the retry
         // re-sent the same token. A paying user stayed on the free tier.
         let (data, http) = try await request.sendRetryingAuth(on: session)
+        // Kept apart from a rejection so `entitlement_sync_failed` can tell
+        // the operator which of the three it was.
+        if http.statusCode == 429 { throw ScanAPIError.from(http, data: data) }
+        if http.statusCode >= 500 { throw AttestationError.unavailable }
         guard http.statusCode == 200 else {
             throw AttestationError.serverRejected(Self.detail(from: data))
         }
+        let decoded = try JSONDecoder().decode(EntitlementResponse.self, from: data)
         // The server returns a re-issued token carrying the new tier; adopting
         // it immediately avoids a window where the client still looks free.
-        if let decoded = try? JSONDecoder().decode(EntitlementResponse.self, from: data),
-           let refreshed = decoded.accessToken {
+        if let refreshed = decoded.accessToken {
             TokenStore.shared.store(AccessToken(value: refreshed,
                                                 expiresAt: Date().addingTimeInterval(3600)))
         }
+        return decoded.tier
     }
 
     /// Discards local credentials. Used on sign-out or when the server reports

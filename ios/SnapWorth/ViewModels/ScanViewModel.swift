@@ -26,6 +26,11 @@ final class ScanViewModel {
     /// `paywall_viewed` is attributed correctly (scan wall vs. upgrade tap).
     var paywallTrigger: PaywallTrigger = .scanLimit
 
+    /// StoreKit shows a subscription and the server refused this scan even
+    /// after it was re-sent. Shown instead of the paywall — see
+    /// `PurchaseService.confirmingSubscription`.
+    var showSubscriptionUnconfirmed = false
+
     // ── Free scan tracking ────────────────────────────────────────────
     // Backed by the shared `FreeScanCounter` (below) so the daily cap is enforced
     // consistently across the camera scan and Thrift Flip. Public API unchanged.
@@ -65,7 +70,9 @@ final class ScanViewModel {
         defer { background.end() }
 
         do {
-            let response = try await ScanAPIClient.shared.scan(image: image)
+            let response = try await purchaseService.confirmingSubscription {
+                try await ScanAPIClient.shared.scan(image: image)
+            }
 
             // Downscaled and encoded off the main actor — see
             // ScanAPIClient.encodeForStorage. Doing this inline on the
@@ -193,8 +200,14 @@ final class ScanViewModel {
             }
 
             Haptics.failure()
-            errorMessage = appError.errorDescription
             Analytics.shared.track(.scanFailed(reason: ScanFailureReason(appError), isFirst: isFirst))
+            // A subscriber the server would not recognise gets a state of its
+            // own, with Restore and support — never the plan they pay for.
+            if appError == .subscriptionUnconfirmed {
+                showSubscriptionUnconfirmed = true
+                return
+            }
+            errorMessage = appError.errorDescription
         }
     }
 

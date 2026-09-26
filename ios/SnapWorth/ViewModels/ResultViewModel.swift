@@ -15,6 +15,9 @@ final class ResultViewModel {
     var didCopyGenerated: Bool = false
     /// Text to hand the system share sheet, when a listing has been generated.
     var listingShareItems: [Any]?
+    /// A subscriber's listing was refused 402 even after their subscription
+    /// was re-sent — see `PurchaseService.confirmingSubscription`.
+    var showSubscriptionUnconfirmed = false
 
     // ── Listing photo cleanup (#91) ──────────────────────────────────────────
     // The cut-out is kept, not just the export: changing marketplace or
@@ -156,7 +159,7 @@ final class ResultViewModel {
 
     /// Generates a marketplace listing for the current condition + marketplace.
     /// On failure sets `listingError` (the UI shows a retry) — never a blank listing.
-    func generateListing(result: ScanResult) async {
+    func generateListing(result: ScanResult, purchaseService: any PurchaseService) async {
         guard !isGeneratingListing else { return }
         isGeneratingListing = true
         listingError = nil
@@ -181,9 +184,12 @@ final class ResultViewModel {
         let requested = selectedMarketplace
 
         do {
-            let listing = try await ListingAPIClient.shared.generate(
-                input, marketplace: requested
-            )
+            // /listing is Pro-only, and a subscriber the server has not heard
+            // about gets its 402 — which read, in red under the Pro badge,
+            // "This is a Pro feature" to someone paying for Pro.
+            let listing = try await purchaseService.confirmingSubscription {
+                try await ListingAPIClient.shared.generate(input, marketplace: requested)
+            }
             // Stale: the user moved on and has already seen this cleared, so
             // drop it rather than put it back. The `defer` above still resets
             // `isGeneratingListing`, which brings the Generate button back for
@@ -204,6 +210,12 @@ final class ResultViewModel {
             guard requested == selectedMarketplace,
                   input.condition == result.condition else { return }
             generatedListing = nil
+            if AppError.from(error) == .subscriptionUnconfirmed {
+                // Its own alert, with Restore and support; the Generate
+                // button stays for a retry.
+                showSubscriptionUnconfirmed = true
+                return
+            }
             listingError = AppError.from(error).errorDescription
         }
     }

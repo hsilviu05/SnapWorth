@@ -484,6 +484,38 @@ enum PaywallCopy {
     ]
 }
 
+// MARK: - Subscription not recognised
+
+extension View {
+    /// What a subscriber sees when the server will not honour their
+    /// subscription even after it was re-sent: not the paywall, whose
+    /// "Subscribe Yearly" would sell them the plan they pay for and could
+    /// start a crossgrade. See `PurchaseService.confirmingSubscription`.
+    ///
+    /// Restore runs `AppStore.sync()` and, through the status refresh, sends
+    /// the subscription to the server again. Support opens a mail carrying the
+    /// device's support id, which is what lets the operator look it up.
+    func subscriptionUnconfirmedAlert(isPresented: Binding<Bool>,
+                                      purchaseService: any PurchaseService) -> some View {
+        alert("We couldn't confirm your subscription", isPresented: isPresented) {
+            Button("Restore purchase") {
+                Task { try? await purchaseService.restorePurchases() }
+            }
+            Button("Contact support") {
+                // English on purpose, like the feedback form's: support sorts
+                // mail on the subject line.
+                if let url = SupportMail.composeURL(subject: "SnapWorth Subscription not recognised",
+                                                    body: "\n\n\(SupportMail.diagnostics)") {
+                    UIApplication.shared.open(url)
+                }
+            }
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(AppError.subscriptionUnconfirmed.errorDescription ?? "")
+        }
+    }
+}
+
 // MARK: - Benefit Row
 private struct BenefitRow: View {
     let icon: String

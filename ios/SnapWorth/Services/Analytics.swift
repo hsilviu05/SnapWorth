@@ -54,6 +54,11 @@ enum AnalyticsEvent {
     case purchaseCompleted(productID: String, isFirst: Bool)
     case purchaseFailed(productID: String, reason: String)
     case restoreCompleted
+    /// StoreKit shows a subscription the server would not honour, or the
+    /// routine sync that tells the server failed. `reason` is a fixed bucket
+    /// (`EntitlementSyncFailure`). Until this existed a subscriber sent to the
+    /// paywall by a failed sync left no trace anywhere the operator looks.
+    case entitlementSyncFailed(reason: String)
     case shareCardOpened
     case shareCardShared(activityType: String?)
     /// "Guess the price": the estimate was revealed in the game, with or
@@ -136,6 +141,7 @@ enum AnalyticsEvent {
         case .purchaseCompleted:    return "purchase_completed"
         case .purchaseFailed:       return "purchase_failed"
         case .restoreCompleted:     return "restore_completed"
+        case .entitlementSyncFailed: return "entitlement_sync_failed"
         case .shareCardOpened:      return "share_card_opened"
         case .shareCardShared:      return "share_card_shared"
         case .guessRevealed:        return "guess_revealed"
@@ -186,6 +192,8 @@ enum AnalyticsEvent {
             return ["product_id": productID, "is_first": String(isFirst)]
         case let .purchaseFailed(productID, reason):
             return ["product_id": productID, "reason": reason]
+        case let .entitlementSyncFailed(reason):
+            return ["reason": reason]
         case let .shareCardShared(activityType):
             if let activityType { return ["activity_type": activityType] }
             return [:]

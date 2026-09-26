@@ -954,6 +954,14 @@
       "de": "Antwort auf der nächsten Folie",
       "zh-Hans": "答案在下一页"
     },
+    "Apple shows an active subscription on this Apple ID, but SnapWorth couldn't confirm it just now. Restore your purchase to try again, or contact support if it keeps happening.": {
+      "comment": "Alert message under \"We couldn't confirm your subscription\". The buttons are \"Restore purchase\" and \"Contact support\".",
+      "en": "Apple shows an active subscription on this Apple ID, but SnapWorth couldn't confirm it just now. Restore your purchase to try again, or contact support if it keeps happening.",
+      "ro": "Apple arată un abonament activ pe contul Apple ăsta, dar SnapWorth nu l-a putut confirma chiar acum. Restaurează cumpărătura ca să încerci din nou sau contactează asistența dacă se repetă.",
+      "es": "Apple muestra una suscripción activa en este ID de Apple, pero SnapWorth no ha podido confirmarla ahora mismo. Restaura la compra para volver a intentarlo o contacta con soporte si sigue pasando.",
+      "de": "Apple zeigt ein aktives Abo für diese Apple-ID, aber SnapWorth konnte es gerade nicht bestätigen. Stell den Kauf wieder her, um es erneut zu versuchen, oder kontaktiere den Support, falls es wieder passiert.",
+      "zh-Hans": "Apple 显示这个 Apple 账户有有效订阅，但 SnapWorth 暂时无法确认。请恢复购买后重试；如果一直这样，请联系客服。"
+    },
     "Apple shows the offer before you confirm. After the free week, the subscription renews unless you cancel.": {
       "en": "Apple shows the offer before you confirm. After the free week, the subscription renews unless you cancel.",
       "ro": "Apple îți arată oferta înainte să confirmi. După săptămâna gratuită, abonamentul se reînnoiește dacă nu îl anulezi.",
@@ -1222,6 +1230,14 @@
       "es": "Confianza %lld sobre 100",
       "de": "Sicherheit %lld von 100",
       "zh-Hans": "置信度 %lld 分（满分 100）"
+    },
+    "Contact support": {
+      "comment": "Button. Opens an email to SnapWorth support.",
+      "en": "Contact support",
+      "ro": "Contactează asistența",
+      "es": "Contactar con soporte",
+      "de": "Support kontaktieren",
+      "zh-Hans": "联系客服"
     },
     "Copied": {
       "en": "Copied",
@@ -3624,6 +3640,14 @@
       "es": "Esperando aprobación. Tu suscripción empieza en cuanto se apruebe: no hace falta que compres otra vez.",
       "de": "Warte auf die Freigabe. Dein Abo startet, sobald sie da ist – du musst nicht noch einmal kaufen.",
       "zh-Hans": "等待批准中。批准后订阅会立即生效，你不用再买一次。"
+    },
+    "We couldn't confirm your subscription": {
+      "comment": "Alert title. StoreKit shows an active subscription but the server refused the request even after it was re-sent.",
+      "en": "We couldn't confirm your subscription",
+      "ro": "Nu ți-am putut confirma abonamentul",
+      "es": "No pudimos confirmar tu suscripción",
+      "de": "Wir konnten dein Abo nicht bestätigen",
+      "zh-Hans": "暂时无法确认你的订阅"
     },
     "We couldn't verify this device just now. Please try again in a moment.": {
       "comment": "Device verification (App Attest) hit an outage — ours or Apple's. Not a reason to reinstall.",

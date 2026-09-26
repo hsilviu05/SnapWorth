@@ -352,7 +352,35 @@ final class StoreKitPurchaseService: PurchaseService, ObservableObject {
         await refreshSubscriptionStatus()
     }
 
-    private func refreshSubscriptionStatus() async {
+    /// `PurchaseService` conformance. Awaited end to end, unlike the routine
+    /// sync — see the protocol, and `confirmingSubscription` for the caller.
+    func resyncEntitlement() async -> EntitlementResync {
+        // StoreKit first: the local state may itself be stale, and a lapse it
+        // now reports means the 402 was right.
+        guard let jws = await refreshSubscriptionStatus(serverSync: false) else {
+            return .notSubscribed
+        }
+        guard Config.useAttestation else { return .failed(reason: "attestation_off") }
+        do {
+            let tier = try await AttestationService.shared.submitEntitlement(signedTransaction: jws)
+            // A 200 that says "free" is the server verifying the transaction
+            // and finding it expired — StoreKit and the server disagreeing
+            // about the date, as they do during an App Store billing grace
+            // period the server does not honour.
+            return tier == "pro" ? .confirmed : .failed(reason: "server_says_free")
+        } catch {
+            return .failed(reason: EntitlementSyncFailure.reason(for: error))
+        }
+    }
+
+    /// Re-reads `Transaction.currentEntitlements` and publishes the result.
+    ///
+    /// - Parameter serverSync: whether to also push the active transaction to
+    ///   the server in the background. `resyncEntitlement` passes false
+    ///   because it sends it itself and waits for the answer.
+    /// - Returns: the active subscription's signed transaction, or nil.
+    @discardableResult
+    private func refreshSubscriptionStatus(serverSync: Bool = true) async -> String? {
         var active = false
         var trialEnd: Date?
         var activeJWS: String?
@@ -390,7 +418,7 @@ final class StoreKitPurchaseService: PurchaseService, ObservableObject {
         // quota. Runs on every status refresh — purchase, restore, and the
         // transaction listener all funnel through here — which also makes it
         // self-healing if an earlier attempt failed offline.
-        if let activeJWS {
+        if let activeJWS, serverSync {
             // Detached, not awaited: this sits inside the `purchase()` await
             // chain on the main actor, and attestation plus the POST can take
             // seconds (or block on a bad network). The local entitlement is
@@ -403,6 +431,7 @@ final class StoreKitPurchaseService: PurchaseService, ObservableObject {
         // Keep the courtesy "trial ends tomorrow" reminder in sync — schedules
         // when in a trial, cancels the moment the state changes.
         await NotificationManager.shared.syncTrialReminder(endDate: trialEnd)
+        return activeJWS
     }
 
     private func listenForTransactions() -> Task<Void, Never> {
@@ -421,13 +450,22 @@ final class StoreKitPurchaseService: PurchaseService, ObservableObject {
     /// Deliberately non-throwing: a network failure here must not make a
     /// successful purchase look failed to the user. The local entitlement is
     /// already active, and the next status refresh retries.
+    ///
+    /// Counted as well as logged. The system log was the only record, so a
+    /// subscriber the server never heard about was invisible to the operator
+    /// until they wrote in — if they did.
     private func syncEntitlementToServer(_ jws: String) async {
         guard Config.useAttestation else { return }
         do {
-            try await AttestationService.shared.submitEntitlement(signedTransaction: jws)
+            let tier = try await AttestationService.shared.submitEntitlement(signedTransaction: jws)
+            if tier != "pro" {
+                Analytics.shared.track(.entitlementSyncFailed(reason: "server_says_free"))
+            }
         } catch {
             Logger(subsystem: "eu.snapworth.app", category: "purchases")
                 .error("entitlement sync failed: \(error.localizedDescription, privacy: .public)")
+            Analytics.shared.track(.entitlementSyncFailed(
+                reason: EntitlementSyncFailure.reason(for: error)))
         }
     }
 
@@ -454,5 +492,25 @@ final class StoreKitPurchaseService: PurchaseService, ObservableObject {
         // other transition — a restore, an expiry, a server-side revoke —
         // without waiting the TTL out.
         Task { await TrendsAPIClient.shared.invalidate() }
+    }
+}
+
+/// The fixed buckets `entitlement_sync_failed` reports, so the event carries
+/// no error text — only which of a handful of things went wrong.
+enum EntitlementSyncFailure {
+    static func reason(for error: Error) -> String {
+        // Before `AppError.from`, which reads a rejection as `sessionExpired`:
+        // on this route it is the server refusing the *transaction*.
+        if let attestation = error as? AttestationError, case .serverRejected = attestation {
+            return "rejected"
+        }
+        switch AppError.from(error) {
+        case .network:                                  return "network"
+        case .timeout:                                  return "timeout"
+        case .rateLimit:                                return "rate_limited"
+        case .sessionExpired:                           return "attestation"
+        case .verificationUnavailable, .serverUnavailable: return "unavailable"
+        default:                                        return "unknown"
+        }
     }
 }

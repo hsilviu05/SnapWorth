@@ -11,6 +11,11 @@ enum AppError: LocalizedError, Equatable {
     case quotaExceeded(String)
     /// A Pro-only endpoint refused a free-tier caller.
     case proRequired(String)
+    /// StoreKit shows a subscription and the server still refused, even after
+    /// it was re-sent. Deliberately not `isPaywall`: offering a subscriber the
+    /// plan they already pay for is the one wrong answer. See
+    /// `PurchaseService.confirmingSubscription`.
+    case subscriptionUnconfirmed
     case serverUnavailable
     /// The scan pipeline reported why it failed — a real outage, an unreadable
     /// model response, or an item the AI could not price. The message is
@@ -62,6 +67,8 @@ enum AppError: LocalizedError, Equatable {
             return Self.rateLimitMessage(retryAfter: retryAfter)
         case .quotaExceeded(let msg), .proRequired(let msg):
             return msg
+        case .subscriptionUnconfirmed:
+            return String(localized: "Apple shows an active subscription on this Apple ID, but SnapWorth couldn't confirm it just now. Restore your purchase to try again, or contact support if it keeps happening.")
         case .serverUnavailable:
             return String(localized: "Our AI is temporarily unavailable. Please try again in a moment.")
         case .aiFailed(let msg):

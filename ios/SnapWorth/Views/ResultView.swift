@@ -306,6 +306,8 @@ struct ResultView: View {
         .sheet(isPresented: $showPaywall) {
             PaywallView(purchaseService: purchaseService, trigger: paywallTrigger)
         }
+        .subscriptionUnconfirmedAlert(isPresented: $vm.showSubscriptionUnconfirmed,
+                                      purchaseService: purchaseService)
     }
 
     // MARK: - Condition Card
@@ -998,7 +1000,9 @@ struct ResultView: View {
             let background = BackgroundScanActivity.begin("Tag re-read")
             defer { background.end() }
             do {
-                let response = try await ScanAPIClient.shared.scan(image: photo, tagImage: tagImage)
+                let response = try await purchaseService.confirmingSubscription {
+                    try await ScanAPIClient.shared.scan(image: photo, tagImage: tagImage)
+                }
                 result.applySharpened(response)
                 valuationDidChange()
                 priceRevealed = true          // the user has seen the first number already
@@ -1011,10 +1015,16 @@ struct ResultView: View {
                 UIAccessibility.post(notification: .announcement, argument: tagSuccess ?? "")
                 Analytics.shared.track(.tagPhotoAdded(succeeded: true))
             } catch {
-                tagError = AppError.from(error).errorDescription
-                    ?? String(localized: "That didn't work. Your estimate is unchanged.")
                 Haptics.failure()
                 Analytics.shared.track(.tagPhotoAdded(succeeded: false))
+                // A subscriber the server would not recognise: the alert, with
+                // Restore and support, rather than a line under a Pro card.
+                if AppError.from(error) == .subscriptionUnconfirmed {
+                    vm.showSubscriptionUnconfirmed = true
+                    return
+                }
+                tagError = AppError.from(error).errorDescription
+                    ?? String(localized: "That didn't work. Your estimate is unchanged.")
             }
         }
     }
@@ -1242,7 +1252,7 @@ struct ResultView: View {
                     .multilineTextAlignment(.center)
                     .frame(maxWidth: .infinity, alignment: .center)
                 PrimaryButton(title: "Try again") {
-                    Task { await vm.generateListing(result: result) }
+                    Task { await vm.generateListing(result: result, purchaseService: purchaseService) }
                 }
             }
         } else {
@@ -1251,7 +1261,7 @@ struct ResultView: View {
                     ? LocalizedStringKey("Writing your listing…")
                     : LocalizedStringKey("Generate \(vm.selectedMarketplace.displayName) listing")
             ) {
-                Task { await vm.generateListing(result: result) }
+                Task { await vm.generateListing(result: result, purchaseService: purchaseService) }
             }
             .disabled(vm.isGeneratingListing)
         }
@@ -1294,7 +1304,7 @@ struct ResultView: View {
 
             Button("Regenerate") {
                 vm.generatedListing = nil
-                Task { await vm.generateListing(result: result) }
+                Task { await vm.generateListing(result: result, purchaseService: purchaseService) }
             }
             .font(.dmSans(13, weight: .semibold))
             .foregroundStyle(Color.snapTerracottaText)

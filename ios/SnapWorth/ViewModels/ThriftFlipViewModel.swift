@@ -13,6 +13,8 @@ final class ThriftFlipViewModel {
     var isScanningItem = false
     var scanError: String?
     var showPaywall = false
+    /// See `ScanViewModel.showSubscriptionUnconfirmed`.
+    var showSubscriptionUnconfirmed = false
 
     // ── Inputs ───────────────────────────────────────────────────────────────
     // Each of the four inputs re-syncs an already-saved ledger row — see
@@ -74,7 +76,9 @@ final class ThriftFlipViewModel {
         defer { background.end() }
 
         do {
-            let response = try await ScanAPIClient.shared.scan(image: image)
+            let response = try await purchaseService.confirmingSubscription {
+                try await ScanAPIClient.shared.scan(image: image)
+            }
             // Encoded off the main actor — see ScanAPIClient.encodeForStorage.
             let storedImage = await ScanAPIClient.encodeForStorage(image)
             // Drop the original now the encodes are done: the only surface that
@@ -136,8 +140,12 @@ final class ThriftFlipViewModel {
                 return
             }
 
-            scanError = appError.errorDescription
             Analytics.shared.track(.scanFailed(reason: ScanFailureReason(appError), isFirst: isFirst))
+            if appError == .subscriptionUnconfirmed {
+                showSubscriptionUnconfirmed = true
+                return
+            }
+            scanError = appError.errorDescription
         }
     }
 
