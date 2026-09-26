@@ -34,6 +34,23 @@ def not_none(value: _T | None) -> _T:
     assert value is not None
     return value
 
+# The tests run in the environment CI gives them, never a developer's `.env`.
+#
+# `main` calls `load_dotenv()` at import, and `backend/.env` is kept as a copy
+# of the production config: `ENVIRONMENT=production`, the real Gemini key, the
+# token signing keys. Loaded into a test run, that turned every local `pytest`
+# into a production-mode process (the OpenAPI exposure test failed on a clean
+# `main` for exactly that reason) holding live credentials that one unmocked
+# call away from a billed model request. CI has no `.env`, so it never saw it.
+#
+# Neutralised here, before anything imports `main`: `from dotenv import
+# load_dotenv` binds whatever the module holds at that moment.
+import dotenv  # noqa: E402
+
+dotenv.load_dotenv = lambda *args, **kwargs: False
+# What CI passes; `main` warns at import without one.
+os.environ.setdefault("GEMINI_API_KEY", "ci-placeholder-not-real")
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import auth  # noqa: E402
