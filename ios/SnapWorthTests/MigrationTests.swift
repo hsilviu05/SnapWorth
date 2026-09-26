@@ -693,6 +693,18 @@ final class PortfolioInsightsTests: XCTestCase {
                        HistoryViewModel.portfolioTotal(of: mixed))
         XCTAssertEqual(NotificationManager.digest(for: mixed).body?.contains(expected), true,
                        "the figure in the notification must be the one in the app")
+        // And the count in front of it is the same rows. It counted every one,
+        // so this said "Your 2 finds are worth" about the value of one.
+        XCTAssertEqual(NotificationManager.digest(for: mixed).itemCount, 1)
+        XCTAssertEqual(NotificationManager.digest(for: mixed).body?.contains("Your 1 find is worth"), true,
+                       "got: \(NotificationManager.digest(for: mixed).body ?? "nil")")
+    }
+
+    func test_aLibraryWhoseEveryFindIsSoldSendsNoDigest() {
+        // "Your 2 finds are worth $0.00" — true of nothing the user holds.
+        let all = [item(.sold, paid: 10, sold: 50), item(.sold, paid: 20, sold: 90)]
+        XCTAssertEqual(NotificationManager.digest(for: all).itemCount, 0)
+        XCTAssertNil(NotificationManager.digest(for: all).body)
     }
 
     func test_aLibraryOfOnlySoldItemsReportsZeroHeld() {
@@ -844,6 +856,64 @@ final class PortfolioDigestTests: XCTestCase {
         let comps = cal.dateComponents([.weekday, .hour], from: next)
         XCTAssertEqual(comps.weekday, 1, "Sunday")
         XCTAssertEqual(comps.hour, 11)
+    }
+
+    // ── The weekly digest has to recur without the app ───────────────────────
+
+    func test_theDigestIsScheduledForMoreThanOneSunday() {
+        // One dated request, re-armed only by a foreground: the person who has
+        // stopped opening the app — the one this is for — got it once.
+        XCTAssertGreaterThan(NotificationManager.portfolioLadderWeeks, 1,
+                             "one Sunday is a one-shot, which is the bug")
+    }
+
+    func test_theLadderIsConsecutiveSundaysAtEleven() throws {
+        var cal = Calendar(identifier: .gregorian)
+        cal.timeZone = TimeZone(identifier: "Europe/Bucharest")!
+        let now = try XCTUnwrap(cal.date(from: DateComponents(year: 2026, month: 9, day: 23, hour: 15)))
+        let dates = NotificationManager.digestDates(after: now, calendar: cal)
+        XCTAssertEqual(dates.count, NotificationManager.portfolioLadderWeeks)
+        XCTAssertEqual(dates.first, NotificationManager.nextDigestDate(after: now, calendar: cal))
+        for (i, date) in dates.enumerated() {
+            let comps = cal.dateComponents([.weekday, .hour, .minute], from: date)
+            XCTAssertEqual(comps.weekday, 1, "rung \(i) is not a Sunday")
+            XCTAssertEqual(comps.hour, 11, "rung \(i)")
+            XCTAssertEqual(comps.minute, 0, "rung \(i)")
+            if i > 0 {
+                XCTAssertEqual(cal.dateComponents([.day], from: dates[i - 1], to: date).day, 7)
+            }
+        }
+    }
+
+    func test_everyDigestIdentifierResolvesToThePortfolioCategoryAndIsCancellable() {
+        // `category(fromID:)` takes the first dot-separated component; the cap
+        // and the deep link both rely on it. And `cancel(.portfolio)` clears
+        // by this list, so it must hold every rung plus the id a pre-ladder
+        // build left pending.
+        let ids = NotificationManager.portfolioIDs
+        XCTAssertTrue(ids.contains("portfolio.weekly"), "the legacy id must stay cancellable")
+        for rung in 0..<NotificationManager.portfolioLadderWeeks {
+            XCTAssertTrue(ids.contains(NotificationManager.portfolioID(rung: rung)), "rung \(rung)")
+        }
+        for id in ids {
+            XCTAssertEqual(NotificationManager.Category(
+                rawValue: id.components(separatedBy: ".")[0]), .portfolio, id)
+        }
+        XCTAssertEqual(Set(ids).count, ids.count, "no duplicate identifiers")
+    }
+
+    func test_laterRungsClaimOnlyWhatIsHeld() throws {
+        // A rung is read on its own Sunday. Nothing can be added while the app
+        // is shut, so the later ones find nothing new and must not repeat
+        // "You added 2 finds this week" a fortnight later.
+        let items = [scan(1), scan(2), scan(40)]
+        let dates = NotificationManager.digestDates(after: Date())
+        let first = try XCTUnwrap(NotificationManager.digest(for: items, now: dates[0]).body)
+        XCTAssertTrue(first.hasPrefix("You added 2 finds this week"), first)
+        for date in dates.dropFirst() {
+            let body = try XCTUnwrap(NotificationManager.digest(for: items, now: date).body)
+            XCTAssertTrue(body.hasPrefix("Your 3 finds are worth"), body)
+        }
     }
 
     func test_portfolioSitsBelowTimeCriticalCategoriesInTheCap() {

@@ -22,6 +22,7 @@ extension Notification.Name {
 /// |----------|-------------------------------------------|-----------------------|
 /// | recap    | ≥3 scans this month → 1st of next mo 10:00 | `recap.monthly`       |
 /// | ledger   | item marked *listed* → +14 days 10:00      | `ledger.day.<yyyymmdd>` (coalesced per fire-day) |
+/// | portfolio | next 4 Sundays 11:00                      | `portfolio.weekly.<n>` (a ladder) |
 /// | trial    | ~24h before trial end                      | `trial.ending`        |
 /// | freeScan | opt-in; next day without a scan, at the user's hour | `freeScan.daily` |
 ///
@@ -71,7 +72,7 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
     // MARK: - Identifiers
 
     private static let recapID = "recap.monthly"
-    private static let portfolioID = "portfolio.weekly"
+    // The weekly digest is a ladder too — see `portfolioIDs`.
     private static let trialID = "trial.ending"
     // Prefix == Category.freeScan.rawValue: `category(fromID:)` relies on it.
     //
@@ -603,11 +604,20 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
 
     /// Builds the digest from the library. Pure, so the copy rules are testable
     /// without a notification centre or a ModelContainer.
+    ///
+    /// `now` is the moment the sentence is read — the scheduler passes each
+    /// rung's fire date, so "this week" means the week before the Sunday it
+    /// lands on.
     nonisolated static func digest(for results: [ScanResult],
                                    now: Date = Date()) -> WeeklyDigest {
         let weekAgo = now.addingTimeInterval(-7 * 86_400)
         return WeeklyDigest(
-            itemCount: results.count,
+            // Held items only, the same rows the total below is made of. This
+            // counted every row while the total covered only what is still
+            // held, so a user who had sold 4 of 10 was told "Your 10 finds are
+            // worth $120" when the $120 was six of them — and one who had sold
+            // everything, "Your 10 finds are worth $0.00".
+            itemCount: results.filter { $0.status != .sold }.count,
             // `portfolioTotal`, the same "still held" figure the History
             // header shows. This summed every row including sold ones, so the
             // weekly push repeated the inflated total the header used to show
@@ -618,22 +628,67 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
         )
     }
 
-    /// Schedules the next weekly nudge.
+    /// How many Sundays of the digest are scheduled at a time.
+    ///
+    /// It was one dated request with `repeats: false`, and the only thing that
+    /// re-armed it was `syncEligible` — which runs when the app comes forward.
+    /// So the reminder meant for someone who has stopped opening the app
+    /// reached them once and then never again, the same defect the free-scan
+    /// ladder was built to fix. Four, not forever: a month of ignored Sundays
+    /// is an answer, and anyone still using the app refills the ladder on
+    /// every foreground and never reaches the end of it.
+    nonisolated static var portfolioLadderWeeks: Int { 4 }
+
+    /// Every identifier the digest can occupy: the rungs, plus the single id a
+    /// build before the ladder used, which an upgrading install can still have
+    /// pending and nothing else would clear.
+    nonisolated static var portfolioIDs: [String] {
+        ["portfolio.weekly"] + (0..<portfolioLadderWeeks).map(portfolioID(rung:))
+    }
+
+    /// Prefix == Category.portfolio.rawValue: `category(fromID:)` relies on it.
+    nonisolated static func portfolioID(rung: Int) -> String { "portfolio.weekly.\(rung)" }
+
+    /// The Sundays the ladder fires on, soonest first. Pure, for the tests.
+    nonisolated static func digestDates(after now: Date,
+                                        calendar: Calendar = .current) -> [Date] {
+        guard let first = nextDigestDate(after: now, calendar: calendar) else { return [] }
+        return (0..<portfolioLadderWeeks).compactMap {
+            calendar.date(byAdding: .weekOfYear, value: $0, to: first)
+        }
+    }
+
+    /// Schedules the next few weekly nudges.
     ///
     /// Re-scheduled on every eligible sync rather than repeating: the body has
     /// to be recomputed from the current library, and a `repeats: true` trigger
     /// would keep firing last month's numbers forever.
+    ///
+    /// Each rung's body is computed as of its own Sunday. Nothing can be added
+    /// without the app open, and opening it rebuilds the ladder, so the first
+    /// rung can say what was added in the week before it lands and the later
+    /// ones find nothing added and say only what is held — which stays true
+    /// for exactly as long as the user leaves the app shut. Nothing re-values a
+    /// saved item on its own (see `WeeklyDigest`).
     func schedulePortfolioDigest(results: [ScanResult], now: Date = Date()) async {
-        let digest = Self.digest(for: results, now: now)
-        guard let body = digest.body else {
-            // An empty portfolio has nothing to report. Clear any stale request
-            // so a user who deleted everything is not reminded about it.
-            cancel(.portfolio)
-            return
+        // Always clear the whole ladder first. Every path below either rebuilds
+        // it or wants it gone, and a rung left behind fires with its old body.
+        cancel(.portfolio)
+        guard isEnabled(.portfolio) else { return }
+
+        var scheduledAny = false
+        for (rung, fireDate) in Self.digestDates(after: now).enumerated() {
+            // An empty portfolio has nothing to report — nor does one whose
+            // every find has been sold — so nothing is scheduled at all.
+            guard let body = Self.digest(for: results, now: fireDate).body else { return }
+            let added = await add(id: Self.portfolioID(rung: rung), category: .portfolio,
+                                  fireDate: fireDate, body: body, track: false)
+            scheduledAny = scheduledAny || added
         }
-        guard let fireDate = Self.nextDigestDate(after: now) else { return }
-        await add(id: Self.portfolioID, category: .portfolio,
-                  fireDate: fireDate, body: body)
+        // One event for one logical reminder, as the free-scan ladder does.
+        if scheduledAny {
+            Analytics.shared.track(.notificationScheduled(category: Category.portfolio.rawValue))
+        }
     }
 
     /// Sunday at 11:00 local — a time people browse, not a weekday morning
@@ -653,7 +708,7 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
     private func cancel(_ category: Category) {
         switch category {
         case .recap: center.removePendingNotificationRequests(withIdentifiers: [Self.recapID])
-        case .portfolio: center.removePendingNotificationRequests(withIdentifiers: [Self.portfolioID])
+        case .portfolio: center.removePendingNotificationRequests(withIdentifiers: Self.portfolioIDs)
         case .trial: center.removePendingNotificationRequests(withIdentifiers: [Self.trialID])
         case .freeScan:
             center.removePendingNotificationRequests(
