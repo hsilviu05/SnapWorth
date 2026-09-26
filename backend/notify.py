@@ -2154,13 +2154,14 @@ async def _tally_top(day: str, category: str, brand: str | None,
     One small JSON document rather than a key per brand, because the cache
     interface cannot enumerate keys and the report needs the whole table.
     A lost update between two replicas costs one count, which is fine for a
-    tally that exists to say "clothing 5 · Nike ×3".
+    tally that exists to say "clothing 5 · Nike ×3". A lost *read* is not:
+    see `_read_index_for_update`, which this shares a document shape with.
+    Losing this scan's count is the price of not resetting the day's.
     """
     key = _stat_key(day, "top")
-    try:
-        doc = json.loads(await _cache.get(key) or "{}")
-    except Exception:
-        doc = {}
+    doc = await _read_index_for_update(key)
+    if doc is None:
+        return
     cats = doc.get("cats") if isinstance(doc.get("cats"), dict) else {}
     brands = doc.get("brands") if isinstance(doc.get("brands"), dict) else {}
     finds = doc.get("finds") if isinstance(doc.get("finds"), list) else []
@@ -2308,6 +2309,31 @@ async def _read_index(key: str) -> dict:
     return doc if isinstance(doc, dict) else {}
 
 
+async def _read_index_for_update(key: str) -> dict | None:
+    """`_read_index` for a caller about to write the whole document back.
+
+    None means the store could not be read, and the caller must not write.
+    `_read_index` answers {} for that, which is right for a report and wrong
+    here: a plain `get` on a failing Redis falls back to memory and returns
+    None rather than raising, so the writer took the document as empty and,
+    once Redis answered again, overwrote it with the one row it had just
+    added. A 300-row subscription index became 1, and the auto-renew state
+    and history in those rows came back from nowhere. `required=True` makes
+    that read raise instead. A document that is present but unreadable is
+    still replaced, as before.
+    """
+    try:
+        raw = await _cache.get(key, required=True)
+    except Exception as exc:
+        log.warning("index %s unreadable, not rewriting it: %s", key, type(exc).__name__)
+        return None
+    try:
+        doc = json.loads(raw or "{}")
+    except Exception:
+        return {}
+    return doc if isinstance(doc, dict) else {}
+
+
 async def _write_index(key: str, doc: dict, cap: int, recency: str) -> None:
     if len(doc) > cap:
         # Drop the least recently seen until it fits.
@@ -2372,7 +2398,11 @@ async def _index_subscription(subject: str | None, ent,
     The previous row is returned because a notification alone cannot say
     whether a paid period is a *conversion*. Only the row it replaces can.
     """
-    doc = await _read_index(SUBS_INDEX_KEY)
+    doc = await _read_index_for_update(SUBS_INDEX_KEY)
+    if doc is None:
+        # Nothing written, and nothing known about the row. The caller's
+        # alert still goes out; `/sub` can repair the row once Redis is back.
+        return {}
     otid = str(ent.original_transaction_id)
     before = doc.get(otid) if isinstance(doc.get(otid), dict) else {}
     entry = dict(before)
@@ -2420,7 +2450,9 @@ async def _index_subscription(subject: str | None, ent,
 
 
 async def _index_user(who: str, *, tier: str, scanned: bool = False) -> None:
-    doc = await _read_index(USERS_INDEX_KEY)
+    doc = await _read_index_for_update(USERS_INDEX_KEY)
+    if doc is None:
+        return
     now = int(time.time())
     entry = doc.get(who) if isinstance(doc.get(who), dict) else {"first": now, "scans": 0}
     entry["last"] = now
@@ -3805,7 +3837,10 @@ async def _remember_message(message_id: int, text: str | None = None) -> None:
     the bot's own messages, its text (so /clear can keep a copy)."""
     try:
         now = int(time.time())
-        raw = await _cache.get(MESSAGES_KEY)
+        # `required`, so an unreadable list raises into the `except` below and
+        # is left alone — read as empty, it was overwritten with one entry
+        # and /clear lost every id and archived text before it.
+        raw = await _cache.get(MESSAGES_KEY, required=True)
         entries = [e for e in (json.loads(raw) if raw else [])
                    if isinstance(e, list) and len(e) >= 2 and now - int(e[1]) < MESSAGES_TTL]
         entry = [int(message_id), now]
@@ -3823,7 +3858,9 @@ async def _archive(entries: list[list]) -> int:
     if not texts:
         return 0
     try:
-        raw = await _cache.get(ARCHIVE_KEY)
+        # `required` for the reason `_remember_message` gives: an archive read
+        # as empty is an archive about to be replaced by this one batch.
+        raw = await _cache.get(ARCHIVE_KEY, required=True)
         kept = [a for a in (json.loads(raw) if raw else []) if isinstance(a, list) and len(a) == 2]
         kept += texts
         await _cache.set(ARCHIVE_KEY, json.dumps(kept[-ARCHIVE_CAP:]), ARCHIVE_TTL)

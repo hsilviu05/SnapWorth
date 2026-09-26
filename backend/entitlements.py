@@ -789,7 +789,12 @@ class EntitlementService:
             identity = f"dev:{device_id}"
         key = self._device_key(ent.original_transaction_id or "")
         try:
-            bindings = self._decode_bindings(await self._cache.get(key))
+            # `required`, or this branch cannot run: a plain `get` on a failing
+            # Redis falls back to memory and returns None instead of raising,
+            # and the write below then replaced every other device's binding
+            # with this one — resetting the cap and the sharing signal.
+            bindings = self._decode_bindings(
+                await self._cache.get(key, required=True))
         except Exception as exc:
             log.warning("device binding read failed, allowing: %s", exc)
             return

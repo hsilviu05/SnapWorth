@@ -788,6 +788,41 @@ class TestDeviceCap:
         assert set(bindings) == {"device-middle", "device-newest", "device-new"}
 
     @pytest.mark.asyncio
+    async def test_a_failed_read_leaves_the_bindings_alone(self, pinned_root):
+        """The "allowing" branch has to be reachable, and has to not write.
+
+        A plain `get` on a configured Redis that fails falls back to memory
+        and returns None, so the record read as empty and the write replaced
+        every other device's binding with this one.
+        """
+        from cache import InMemoryCache, ResilientCache
+
+        class _SlowGetRedis(InMemoryCache):
+            failing = False
+
+            async def get(self, key):
+                if self.failing:
+                    raise TimeoutError("redis GET timed out")
+                return await super().get(key)
+
+        redis = _SlowGetRedis()
+        service = EntitlementService(
+            ResilientCache(redis, InMemoryCache(), configured=True),
+            BUNDLE_ID, PRODUCTS, max_devices=3)
+        leaf_key, chain = pinned_root
+        jws = make_jws(valid_payload(), leaf_key, chain)
+        for name in ("device-a", "device-b"):
+            await service.record(name, jws)
+
+        redis.failing = True
+        assert (await service.record("device-c", jws)).tier == "pro", (
+            "the cap is anti-abuse; a Redis blip must not refuse a payer")
+        redis.failing = False
+
+        bindings = json.loads(await redis.get("txn:2000000000000001"))
+        assert set(bindings) == {"device-a", "device-b"}
+
+    @pytest.mark.asyncio
     async def test_active_install_keeps_its_slot(self, service, pinned_root):
         """Re-recording refreshes last-seen, so use protects a binding."""
         leaf_key, chain = pinned_root

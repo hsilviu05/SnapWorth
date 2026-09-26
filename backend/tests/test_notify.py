@@ -3654,3 +3654,95 @@ class TestSubCommandErrors:
 
         assert "Could not ask Apple" in text
         assert "Could not reach Apple" in text
+
+
+# ── A failed read must not become an empty document ──────────────────────────
+#
+# These documents are read, changed and written back whole. On a configured
+# Redis a plain `get` that fails falls back to memory and returns None rather
+# than raising, so the writer took the document as empty and — once Redis
+# answered the `set` — replaced it with the one entry it had just added.
+
+class _SlowGetRedis(InMemoryCache):
+    """A Redis whose GETs time out while `failing`; writes still land."""
+
+    failing = False
+
+    async def get(self, key):
+        if self.failing:
+            raise TimeoutError("redis GET timed out")
+        return await super().get(key)
+
+
+@pytest_asyncio.fixture
+async def flaky_notify(recorder):
+    redis = _SlowGetRedis()
+    cache = ResilientCache(redis, InMemoryCache(), configured=True)
+    notifier = notify.TelegramNotifier(
+        FAKE_TOKEN, FAKE_CHAT,
+        client=httpx.AsyncClient(transport=httpx.MockTransport(recorder.handler)))
+    notify.configure(cache, notifier=notifier)
+    yield redis
+    await notify.aclose()
+
+
+class TestAFailedReadDoesNotWipeTheDocument:
+    @pytest.mark.asyncio
+    async def test_the_subscription_index_keeps_its_rows(self, flaky_notify):
+        redis = flaky_notify
+        for n in range(3):
+            await notify._index_subscription(None, pro_entitlement(f"otid-{n}"), True)
+
+        redis.failing = True
+        await notify._index_subscription(None, pro_entitlement("otid-new"))
+        redis.failing = False
+
+        doc = json.loads(await redis.get(notify.SUBS_INDEX_KEY))
+        assert set(doc) == {"otid-0", "otid-1", "otid-2"}, (
+            "one failed GET replaced the index with a single row")
+        assert all(row.get("auto_renew") is True for row in doc.values())
+
+    @pytest.mark.asyncio
+    async def test_the_device_index_keeps_its_rows(self, flaky_notify):
+        redis = flaky_notify
+        for who in ("dev-a", "dev-b"):
+            await notify._index_user(who, tier="free", scanned=True)
+
+        redis.failing = True
+        await notify._index_user("dev-c", tier="free")
+        redis.failing = False
+
+        doc = json.loads(await redis.get(notify.USERS_INDEX_KEY))
+        assert set(doc) == {"dev-a", "dev-b"}
+
+    @pytest.mark.asyncio
+    async def test_the_days_tally_is_not_reset(self, flaky_notify):
+        redis = flaky_notify
+        day = notify._day()
+        for _ in range(4):
+            await notify._tally_top(day, "clothing", "Nike")
+
+        redis.failing = True
+        await notify._tally_top(day, "shoes", "Adidas")
+        redis.failing = False
+
+        doc = json.loads(await redis.get(notify._stat_key(day, "top")))
+        assert doc["cats"] == {"clothing": 4}
+        assert doc["brands"] == {"Nike": 4}
+
+    @pytest.mark.asyncio
+    async def test_the_message_list_and_archive_survive(self, flaky_notify):
+        redis = flaky_notify
+        await notify._remember_message(1, "first")
+        await notify._remember_message(2, "second")
+        await notify._archive([[1, 1, "kept one"], [2, 2, "kept two"]])
+
+        redis.failing = True
+        await notify._remember_message(3, "third")
+        assert await notify._archive([[3, 3, "kept three"]]) == 0
+        redis.failing = False
+
+        messages = json.loads(await redis.get(notify.MESSAGES_KEY))
+        assert [e[0] for e in messages] == [1, 2]
+        archive = json.loads(await redis.get(notify.ARCHIVE_KEY))
+        assert [a[1] for a in archive] == ["kept one", "kept two"]
