@@ -2002,13 +2002,20 @@ def _daily_free_scans() -> int:
         return 1
 
 
-async def _levers() -> dict:
+async def _levers(*, required: bool = False) -> dict:
+    """The levers document. {} when unreadable, unless `required`, which
+    raises instead: see `_set_free_scan_lever`."""
     try:
-        raw = await _cache.get(LEVERS_KEY)
+        raw = await _cache.get(LEVERS_KEY, required=required)
+    except Exception:
+        if required:
+            raise
+        return {}
+    try:
         doc = json.loads(raw) if raw else {}
-        return doc if isinstance(doc, dict) else {}
     except Exception:
         return {}
+    return doc if isinstance(doc, dict) else {}
 
 
 async def free_scan_lever() -> int | None:
@@ -2021,14 +2028,22 @@ async def free_scan_lever() -> int | None:
     return int(value) if isinstance(value, (int, float)) else None
 
 
-async def _set_free_scan_lever(value: int | None) -> dict:
+async def _set_free_scan_lever(value: int | None) -> dict | None:
     """Set or clear the lever, and record the day it changed.
 
     The record is the point. A measurement window whose lever moved mid-flight
     and does not say so is worse than no window at all — the numbers look
     continuous and are not.
+
+    None, with nothing written, when the document could not be read. Read as
+    {} it was written back as just this change, and the record of every
+    earlier one was gone.
     """
-    doc = await _levers()
+    try:
+        doc = await _levers(required=True)
+    except Exception as exc:
+        log.warning("levers unreadable, not changing them: %s", type(exc).__name__)
+        return None
     before = doc.get("free_scans_first_day")
     if value is None:
         doc.pop("free_scans_first_day", None)
@@ -2045,6 +2060,11 @@ def _lever_label(value: int | None) -> str:
     if value is None:
         return "environment default"
     return f"{value} first-day scan{'s' if value != 1 else ''}"
+
+
+_LEVER_UNREADABLE = ("🎚 Nothing changed: the lever's stored state could not be "
+                     "read, and writing over it would lose its change history. "
+                     "Try again in a minute.")
 
 
 async def _lever_command(argument: str, rest: str) -> tuple[str, Buttons]:
@@ -2094,7 +2114,8 @@ async def _lever_command(argument: str, rest: str) -> tuple[str, Buttons]:
                     f"This spends money: every extra scan is a model call.",
                     [[("✅ Yes, arm it", f"lever arm {wanted} yes"),
                       ("Cancel", "experiment")]])
-        await _set_free_scan_lever(wanted)
+        if await _set_free_scan_lever(wanted) is None:
+            return _LEVER_UNREADABLE, _lever_buttons(current)
         return (f"🧪 Lever armed — <b>{_lever_label(wanted)}</b>.",
                 [[("🧪 Experiment", "experiment")]])
 
@@ -2106,7 +2127,8 @@ async def _lever_command(argument: str, rest: str) -> tuple[str, Buttons]:
                     "The window in /experiment keeps running; only the allowance stops.",
                     [[("✅ Yes, disarm it", "lever disarm yes"),
                       ("Cancel", "experiment")]])
-        await _set_free_scan_lever(0)
+        if await _set_free_scan_lever(0) is None:
+            return _LEVER_UNREADABLE, _lever_buttons(current)
         return ("🔕 Lever disarmed — new users get the daily limit.",
                 [[("🧪 Experiment", "experiment")]])
 
@@ -2116,7 +2138,8 @@ async def _lever_command(argument: str, rest: str) -> tuple[str, Buttons]:
                     f"FREE_SCANS_FIRST_DAY would decide again. Currently "
                     f"<b>{_lever_label(current)}</b>.",
                     [[("✅ Yes", "lever default yes"), ("Cancel", "experiment")]])
-        await _set_free_scan_lever(None)
+        if await _set_free_scan_lever(None) is None:
+            return _LEVER_UNREADABLE, _lever_buttons(current)
         return ("↩️ Lever cleared — the environment decides again.",
                 [[("🧪 Experiment", "experiment")]])
 
@@ -4027,8 +4050,11 @@ async def _remember_message(message_id: int, text: str | None = None) -> None:
         log.debug("message id note failed: %s", type(exc).__name__)
 
 
-async def _archive(entries: list[list]) -> int:
-    """Keep the text of the bot's messages that are about to be deleted."""
+async def _archive(entries: list[list]) -> int | None:
+    """Keep the text of the bot's messages that are about to be deleted.
+
+    The number kept, or None when they could not be kept — which `/clear`
+    must not take as "nothing to keep" and delete them anyway."""
     texts = [[int(e[1]), e[2]] for e in entries if len(e) >= 3 and e[2]]
     if not texts:
         return 0
@@ -4041,8 +4067,13 @@ async def _archive(entries: list[list]) -> int:
         await _cache.set(ARCHIVE_KEY, json.dumps(kept[-ARCHIVE_CAP:]), ARCHIVE_TTL)
     except Exception as exc:
         log.debug("archive write failed: %s", type(exc).__name__)
-        return 0
+        return None
     return len(texts)
+
+
+_CLEAR_REFUSED = ("🧹 Nothing was cleared: the bot's messages could not be copied "
+                  "to 🗂 History first, and deleting them uncopied would lose them. "
+                  "Try again in a minute.")
 
 
 async def _clear_chat() -> None:
@@ -4054,13 +4085,26 @@ async def _clear_chat() -> None:
     Nothing is lost: the bot's own messages are archived for /history first,
     and, when TELEGRAM_ARCHIVE_CHAT_ID names a second chat, everything is
     forwarded there — a real Telegram copy, photos included."""
+    if _notifier is None or _cache is None:
+        return
     try:
-        raw = await _cache.get(MESSAGES_KEY)
+        # `required`: read as empty, an unreadable list was deleted below
+        # without anything in it being archived.
+        raw = await _cache.get(MESSAGES_KEY, required=True)
+    except Exception as exc:
+        log.warning("message list unreadable, not clearing: %s", type(exc).__name__)
+        await _notifier.send(_CLEAR_REFUSED, await _buttons())
+        return
+    try:
         entries = [e for e in (json.loads(raw) if raw else []) if isinstance(e, list) and e]
     except Exception:
         entries = []
     known = sorted({int(e[0]) for e in entries})
     archived = await _archive(entries)
+    if archived is None:
+        # Deleting now would lose exactly the texts the archive exists to keep.
+        await _notifier.send(_CLEAR_REFUSED, await _buttons())
+        return
     archive_chat = os.environ.get(ARCHIVE_CHAT_ENV, "").strip()
     forwarded = await _notifier.forward_messages(archive_chat, known) if archive_chat and known else 0
     # Known ids first, then the sweep below the newest of them: private-chat

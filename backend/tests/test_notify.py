@@ -3741,13 +3741,55 @@ class TestAFailedReadDoesNotWipeTheDocument:
 
         redis.failing = True
         await notify._remember_message(3, "third")
-        assert await notify._archive([[3, 3, "kept three"]]) == 0
+        assert await notify._archive([[3, 3, "kept three"]]) is None
         redis.failing = False
 
         messages = json.loads(await redis.get(notify.MESSAGES_KEY))
         assert [e[0] for e in messages] == [1, 2]
         archive = json.loads(await redis.get(notify.ARCHIVE_KEY))
         assert [a[1] for a in archive] == ["kept one", "kept two"]
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("unreadable", ["list", "archive"])
+    async def test_clear_deletes_nothing_it_could_not_archive(
+            self, flaky_notify, recorder, unreadable):
+        """"Nothing is lost" is /clear's promise. With the list unreadable it
+        deleted the list; with the archive unreadable it deleted the messages
+        whose texts the archive had just failed to keep."""
+        redis = flaky_notify
+        entries = [[11, int(time.time()), "said one"], [12, int(time.time()), "said two"]]
+        await redis.set(notify.MESSAGES_KEY, json.dumps(entries))
+        await redis.set(notify.ARCHIVE_KEY, json.dumps([[1, "older"]]))
+
+        key = notify.MESSAGES_KEY if unreadable == "list" else notify.ARCHIVE_KEY
+        real_get = redis.get
+
+        async def get(k):
+            if k == key:
+                raise TimeoutError("redis GET timed out")
+            return await real_get(k)
+        redis.get = get
+        await notify._clear_chat()
+        redis.get = real_get
+
+        assert not any(r["path"].endswith("/deleteMessages") for r in recorder.requests)
+        assert "Nothing was cleared" in recorder.texts[-1]
+        assert json.loads(await redis.get(notify.MESSAGES_KEY)) == entries
+        assert json.loads(await redis.get(notify.ARCHIVE_KEY)) == [[1, "older"]]
+
+    @pytest.mark.asyncio
+    async def test_the_lever_keeps_its_change_history(self, flaky_notify, monkeypatch):
+        redis = flaky_notify
+        monkeypatch.setenv("FREE_SCANS_PER_DAY", "1")
+        await notify.handle_command("/lever arm 3 yes")
+        before = json.loads(await redis.get(notify.LEVERS_KEY))
+
+        redis.failing = True
+        reply = await notify.handle_command("/lever disarm yes")
+        redis.failing = False
+
+        assert "Nothing changed" in reply
+        assert json.loads(await redis.get(notify.LEVERS_KEY)) == before
 
     @pytest.mark.asyncio
     async def test_sub_does_not_claim_an_index_write_it_skipped(
