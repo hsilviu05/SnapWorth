@@ -20,8 +20,9 @@ on:
     paths:
       - 'website/**'
       - 'marketing/mascot/**'
-      # The app's MoneyInput and its test cases, which the site's two money
-      # parsers are checked against below.
+      # The app's fee table and MoneyInput, and MoneyInput's test cases: the
+      # calculator's rates and the site's two money parsers are checked
+      # against them below, so a change on the app side must run this too.
       - 'ios/SnapWorth/Models/MarketplaceFees.swift'
       - 'ios/SnapWorthTests/ProductionHardeningTests.swift'
       - '.github/workflows/website.yml'
@@ -57,6 +58,12 @@ jobs:
       # declared on all sixteen pages with its answer only inside the ld+json.
       - name: Every declared FAQ answer is on the page
         run: python3 website/seo/check_faq_visible.py
+
+      # FEES on index.html is a hand copy of MarketplaceFees.defaults, and the
+      # calculator says its rates are the app's. Rates, flat charges, the
+      # chips, and the figures the notes and footnote print, all compared.
+      - name: The calculator's fees are the app's fees
+        run: python3 website/seo/check_fees.py
 
       # The calculator's num() and /guess's parse() are copies of the app's
       # MoneyInput rule, and drifted from it: both still read "1.250" as 1.25
