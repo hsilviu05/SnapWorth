@@ -237,7 +237,9 @@ class CompsEngine:
         prices = aggregate_module.to_prices(evidence)
         return CompsResult(
             status=CompsStatus.OK, identity=identity, comps=tuple(surviving),
-            evidence=evidence, prices=prices, providers_queried=queried,
+            evidence=evidence, prices=prices,
+            sell_through=aggregate_module.sell_through(surviving, window_days=window),
+            providers_queried=queried,
             providers_failed=failed, cache_hit=cache_hit, window_days=window,
             notes=tuple(notes))
 

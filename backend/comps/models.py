@@ -203,15 +203,33 @@ class Comp:
     seller_id: str | None = None
     seller_rating: float | None = None  # 0–1
     seller_sales_count: int | None = None
+    # When the listing went up, where the provider exposes it. Only this makes
+    # days-to-sale knowable; a provider without it still prices, and simply
+    # contributes nothing to `SellThrough.median_days_to_sale`.
+    listed_at: datetime | None = None
     # Populated by the matcher; 0.0 until then.
     match_score: float = 0.0
     match_reasons: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
+        # Naive datetimes silently compare wrong against aware ones and would
+        # corrupt every freshness weight and every days-to-sale.
         if self.sold_at.tzinfo is None:
-            # Naive datetimes silently compare wrong against aware ones and
-            # would corrupt every freshness weight.
             object.__setattr__(self, "sold_at", self.sold_at.replace(tzinfo=timezone.utc))
+        if self.listed_at is not None and self.listed_at.tzinfo is None:
+            object.__setattr__(self, "listed_at", self.listed_at.replace(tzinfo=timezone.utc))
+
+    @property
+    def days_to_sale(self) -> float | None:
+        """Days from listing to sale; None when unknown or impossible.
+
+        A listing date after the sale date is a provider data error, not a
+        negative wait, and is treated as unknown rather than clamped to zero —
+        zero would read as "sold instantly" and drag the median down.
+        """
+        if self.listed_at is None or self.listed_at > self.sold_at:
+            return None
+        return (self.sold_at - self.listed_at).total_seconds() / 86400
 
     @property
     def total_price(self) -> Decimal:
@@ -284,6 +302,26 @@ class PriceEvidence:
 
 
 @dataclass(frozen=True)
+class SellThrough:
+    """How fast an item moves (#43): the question a price range cannot answer.
+
+    Only ever constructed above `aggregate.SELL_THROUGH_MIN_COMPS`. Below that
+    the result carries no `SellThrough` at all — absent, not zero and not
+    "unknown" — because a liquidity claim from a handful of sales is noise.
+    """
+
+    sales_in_window: int
+    window_days: int
+    # None unless enough comps carry a listing date to support a median.
+    median_days_to_sale: float | None = None
+    timed_count: int = 0                # comps with a usable days-to-sale
+
+    @property
+    def sales_per_week(self) -> float:
+        return self.sales_in_window / (self.window_days / 7) if self.window_days else 0.0
+
+
+@dataclass(frozen=True)
 class ValuationPrices:
     """The four user-facing figures, derived from `PriceEvidence`."""
 
@@ -322,6 +360,7 @@ class CompsResult:
     comps: tuple[Comp, ...] = ()
     evidence: PriceEvidence | None = None
     prices: ValuationPrices | None = None
+    sell_through: SellThrough | None = None
     providers_queried: tuple[str, ...] = ()
     providers_failed: tuple[str, ...] = ()
     cache_hit: bool = False

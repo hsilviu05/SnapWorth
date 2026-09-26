@@ -51,6 +51,7 @@ from comps.models import (
     Condition,
     MARKETPLACE_RELIABILITY,
     PriceEvidence,
+    SellThrough,
     ValuationPrices,
 )
 
@@ -64,6 +65,12 @@ MIN_COMPS = 5
 FULL_WEIGHT_COUNT = 12.0
 
 FRESHNESS_HALF_LIFE_DAYS = 45.0
+
+# Minimum sales before we will say anything about how fast an item moves, and,
+# separately, the minimum with a known listing date before we give a median
+# days-to-sale. Higher than MIN_COMPS on purpose: a price from five sales is a
+# rough centre, but "usually sells in 9 days" from five is an anecdote.
+SELL_THROUGH_MIN_COMPS = 8
 
 # Modified z-score threshold for outlier rejection. 3.5 is the conventional
 # cutoff for the MAD-based statistic (Iglewicz & Hoaglin).
@@ -308,6 +315,39 @@ def aggregate(
         oldest_sale=min(sold_dates) if sold_dates else None,
         newest_sale=max(sold_dates) if sold_dates else None,
         providers=providers,
+    )
+
+
+def sell_through(
+    comps: list[Comp],
+    *,
+    window_days: int,
+    now: datetime | None = None,
+) -> SellThrough | None:
+    """How many matching items sold in the window, and how long they took.
+
+    Takes the comps that survived matching and dedupe — the same set the price
+    is built from — so a relist is not counted as a second sale. Outlier
+    rejection is not applied: an unusual *price* is still a sale that happened.
+
+    None below `SELL_THROUGH_MIN_COMPS` sales in the window. The median
+    days-to-sale is None, inside a present result, when fewer than that many
+    comps carry a listing date: the sales count is then still worth stating,
+    the speed is not.
+    """
+    now = now or datetime.now(timezone.utc)
+    in_window = [c for c in comps if c.age_days(now) <= window_days]
+    if len(in_window) < SELL_THROUGH_MIN_COMPS:
+        return None
+
+    waits = [d for d in (c.days_to_sale for c in in_window) if d is not None]
+    median_wait = (round(statistics.median(waits), 1)
+                   if len(waits) >= SELL_THROUGH_MIN_COMPS else None)
+    return SellThrough(
+        sales_in_window=len(in_window),
+        window_days=window_days,
+        median_days_to_sale=median_wait,
+        timed_count=len(waits),
     )
 
 

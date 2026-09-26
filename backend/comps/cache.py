@@ -65,8 +65,10 @@ def _comp_to_dict(comp: Comp) -> dict:
         "condition": comp.condition.value if comp.condition else None,
         "shipping": str(comp.shipping) if comp.shipping is not None else None,
         "url": comp.url,
+        "seller_id": comp.seller_id,
         "seller_rating": comp.seller_rating,
         "seller_sales_count": comp.seller_sales_count,
+        "listed_at": comp.listed_at.isoformat() if comp.listed_at else None,
     }
 
 
@@ -90,8 +92,11 @@ def _comp_from_dict(raw: dict) -> Comp | None:
             condition=Condition(raw["condition"]) if raw.get("condition") else None,
             shipping=Decimal(raw["shipping"]) if raw.get("shipping") else None,
             url=raw.get("url"),
+            seller_id=raw.get("seller_id"),
             seller_rating=raw.get("seller_rating"),
             seller_sales_count=raw.get("seller_sales_count"),
+            listed_at=(
+                datetime.fromisoformat(raw["listed_at"]) if raw.get("listed_at") else None),
         )
     except Exception as exc:
         log.debug("dropping malformed cached comp: %s", exc)

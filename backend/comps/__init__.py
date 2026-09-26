@@ -19,11 +19,12 @@ from comps.models import (  # noqa: F401
     PriceEvidence,
     ProviderHealth,
     ProviderQuery,
+    SellThrough,
     ValuationPrices,
 )
 
 __all__ = [
     "Comp", "CompsResult", "CompsStatus", "Condition", "ItemIdentity",
     "Marketplace", "PriceEvidence", "ProviderHealth", "ProviderQuery",
-    "ValuationPrices",
+    "SellThrough", "ValuationPrices",
 ]
