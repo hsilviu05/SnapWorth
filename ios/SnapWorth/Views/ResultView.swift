@@ -1,3 +1,4 @@
+import PhotosUI
 import SwiftData
 import SwiftUI
 
@@ -1662,19 +1663,43 @@ struct ValuationDetailView: View {
 /// Its own `CameraManager` rather than the scan tab's: this is presented over
 /// a result sheet, and reusing the tab's session would leave the scan camera
 /// running behind two layers of presentation.
+///
+/// The scan screen's states, not just its happy path. This used to show the
+/// preview only when access was authorized and otherwise a disabled shutter
+/// over black, with nothing to say why — so a user who had denied the camera
+/// and scanned from Photos reached a screen that looked broken. It also had
+/// no way to use a label photo already in the camera roll, and a failed
+/// capture only vibrated.
 struct TagCameraSheet: View {
     /// Nil when the user backed out.
     let onCapture: (UIImage?) -> Void
 
     @StateObject private var camera = CameraManager()
+    @State private var pickedItem: PhotosPickerItem?
+    @State private var pickFailed = false
+
+    /// The guide and shutter only mean something while there is, or may soon
+    /// be, a viewfinder behind them.
+    private var cameraUsable: Bool {
+        camera.authStatus == .authorized || camera.authStatus == .notDetermined
+    }
 
     var body: some View {
         ZStack {
             Color.snapCharcoal.ignoresSafeArea()
 
-            if camera.authStatus == .authorized {
+            // The same three states as ScanView.
+            switch camera.authStatus {
+            case .authorized:
                 CameraPreview(session: camera.session)
                     .ignoresSafeArea()
+            case .notDetermined:
+                // The system prompt is on screen, over this.
+                EmptyView()
+            case .restricted:
+                CameraPermissionPlaceholder(restricted: true)
+            default:
+                CameraPermissionPlaceholder(restricted: false)
             }
 
             VStack(spacing: 0) {
@@ -1690,38 +1715,68 @@ struct TagCameraSheet: View {
 
                 Spacer()
 
-                // A tag is wider than it is tall and sits close to the lens;
-                // the guide says "fill this" without a paragraph of copy.
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .strokeBorder(Color.snapOnCharcoal.opacity(0.6), lineWidth: 2)
-                    .frame(width: 300, height: 190)
-                    .accessibilityHidden(true)
+                if cameraUsable {
+                    // A tag is wider than it is tall and sits close to the lens;
+                    // the guide says "fill this" without a paragraph of copy.
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .strokeBorder(Color.snapOnCharcoal.opacity(0.6), lineWidth: 2)
+                        .frame(width: 300, height: 190)
+                        .accessibilityHidden(true)
 
-                Text("Fill the frame with the label")
-                    .font(.snapBody)
-                    .foregroundStyle(Color.snapOnCharcoal)
-                    .padding(.top, 16)
-                Text("Care tag, size label, sole stamp or serial plate. Hold steady — the small print is the point.")
-                    .font(.snapCaption)
-                    .foregroundStyle(Color.snapOnCharcoal.opacity(0.7))
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal, 40)
-                    .padding(.top, 4)
+                    Text("Fill the frame with the label")
+                        .font(.snapBody)
+                        .foregroundStyle(Color.snapOnCharcoal)
+                        .padding(.top, 16)
+                    Text("Care tag, size label, sole stamp or serial plate. Hold steady — the small print is the point.")
+                        .font(.snapCaption)
+                        .foregroundStyle(Color.snapOnCharcoal.opacity(0.7))
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, 40)
+                        .padding(.top, 4)
+                }
 
                 Spacer()
 
-                Button {
-                    Haptics.capture()
-                    camera.capturePhoto()
-                } label: {
-                    ZStack {
-                        Circle().fill(Color.snapOnCharcoal).frame(width: 80, height: 80)
-                        Circle().strokeBorder(Color.snapOnCharcoal.opacity(0.4), lineWidth: 3)
-                            .frame(width: 94, height: 94)
+                HStack(alignment: .center) {
+                    // The label may already be in the camera roll, and with the
+                    // camera refused this is the only way in at all.
+                    PhotosPicker(selection: $pickedItem, matching: .images) {
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            .fill(Color.snapOnCharcoal.opacity(0.2))
+                            .frame(width: 52, height: 52)
+                            .overlay(
+                                Image(systemName: "photo.on.rectangle")
+                                    .snapSymbol(22, weight: .light)
+                                    .foregroundStyle(Color.snapOnCharcoal)
+                            )
                     }
+                    .snapHitTarget()
+                    .accessibilityLabel("Choose the label photo from your library")
+
+                    Spacer()
+
+                    Button {
+                        Haptics.capture()
+                        camera.capturePhoto()
+                    } label: {
+                        ZStack {
+                            Circle().fill(Color.snapOnCharcoal).frame(width: 80, height: 80)
+                            Circle().strokeBorder(Color.snapOnCharcoal.opacity(0.4), lineWidth: 3)
+                                .frame(width: 94, height: 94)
+                        }
+                    }
+                    .disabled(camera.authStatus != .authorized)
+                    .opacity(camera.authStatus == .authorized ? 1 : 0.35)
+                    .accessibilityLabel("Take the label photo")
+
+                    Spacer()
+
+                    // Balances the library tile, so the shutter stays centred.
+                    Color.clear
+                        .frame(width: 52, height: 52)
+                        .accessibilityHidden(true)
                 }
-                .disabled(camera.authStatus != .authorized)
-                .accessibilityLabel("Take the label photo")
+                .padding(.horizontal, 36)
                 .padding(.bottom, 44)
             }
         }
@@ -1733,6 +1788,32 @@ struct TagCameraSheet: View {
         .onChange(of: camera.capturedImage) { _, image in
             guard let image else { return }
             onCapture(image)
+        }
+        .onChange(of: pickedItem) { _, item in
+            guard let item else { return }
+            Task {
+                if let data = try? await item.loadTransferable(type: Data.self),
+                   let image = UIImage(data: data) {
+                    onCapture(image)
+                } else {
+                    pickFailed = true
+                }
+                pickedItem = nil
+            }
+        }
+        // The capture did not arrive: the session was not running, or the
+        // photo could not be decoded. ScanView says so in the same words; here
+        // it only vibrated.
+        .alert("Camera Error", isPresented: Binding(
+            get: { camera.error != nil },
+            set: { if !$0 { camera.error = nil } }
+        )) {
+            Button("OK", role: .cancel) { camera.error = nil }
+        } message: {
+            Text(camera.error?.errorDescription ?? "")
+        }
+        .alert("Couldn't load the selected photo. Please try another.", isPresented: $pickFailed) {
+            Button("OK", role: .cancel) {}
         }
     }
 }

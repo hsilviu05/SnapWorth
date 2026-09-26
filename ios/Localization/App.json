@@ -1185,6 +1185,14 @@
       "de": "Foto aus der Mediathek wählen",
       "zh-Hans": "从相册选一张照片"
     },
+    "Choose the label photo from your library": {
+      "comment": "VoiceOver label for the library button on the tag camera ('Add the tag'): use a photo of the label that is already in Photos.",
+      "en": "Choose the label photo from your library",
+      "ro": "Alege poza etichetei din galerie",
+      "es": "Elegir la foto de la etiqueta de la galería",
+      "de": "Etikettfoto aus der Mediathek wählen",
+      "zh-Hans": "从相册选择标签照片"
+    },
     "Clean up photo": {
       "en": "Clean up photo",
       "ro": "Curăță poza",
