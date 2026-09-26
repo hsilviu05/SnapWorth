@@ -1381,6 +1381,45 @@ def model_recovered() -> None:
                _HEALTH_BUTTONS)
 
 
+# How long Redis must stay down (or back up) before it is announced. The cache
+# reports every transition, and one timeout under load is a transition; so is
+# every request against a Redis that answers reads but refuses writes, which
+# flips down and up per call. A state that does not hold for this long says
+# nothing, rather than a siren of down/up pairs. The write-refusing case is
+# left to /health/ready and the outside uptime check that reads it
+# (RUNBOOK §3).
+CACHE_ALERT_SETTLE_SECONDS = 60.0
+_cache_state_generation = 0
+
+
+def cache_state_changed(degraded: bool) -> None:
+    """`ResilientCache.on_change`, wired by main: Redis stopped or started
+    answering. Schedules the announcement; never sends from inside the call."""
+    global _cache_state_generation
+    if _notifier is None:
+        return
+    _cache_state_generation += 1
+    _spawn(_settle_cache_state(_cache_state_generation, degraded))
+
+
+async def _settle_cache_state(generation: int, degraded: bool) -> None:
+    await asyncio.sleep(CACHE_ALERT_SETTLE_SECONDS)
+    if generation != _cache_state_generation:
+        return                            # it changed again inside the window
+    if degraded:
+        # Before this, a Redis outage announced nothing: the cache logged and
+        # fell back, free scans and token mints failed closed with a 503, no
+        # model call was made so the model alert never fired, and the quiet
+        # check read its timestamp from the empty fallback and stayed silent.
+        _alert("cache",
+               "🔴 <b>Redis unreachable</b>\nQuota and entitlement checks fail "
+               "closed: free scans and token mints return 503 until it answers. "
+               "RUNBOOK §5.4.", _HEALTH_BUTTONS)
+    else:
+        _recovered("cache", "🟢 <b>Redis recovered</b> — cache calls are succeeding again.",
+                   _HEALTH_BUTTONS)
+
+
 # ── Daily digest ─────────────────────────────────────────────────────────────
 
 def _digest_hour() -> int:

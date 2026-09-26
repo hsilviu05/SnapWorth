@@ -204,6 +204,9 @@ async def _lifespan(_app: FastAPI):
     await _init_rate_limiters()
 
     _cache = await cache_module.build_cache()
+    # Redis going away or coming back reaches the ops bot. Safe before
+    # `notify.configure` below: the hook does nothing until a notifier exists.
+    _cache.on_change = notify.cache_state_changed
     _comps_shadow.engine = build_comps_engine(_cache)
     dc = devicecheck.client_from_env()
     auth.deps.cache = _cache

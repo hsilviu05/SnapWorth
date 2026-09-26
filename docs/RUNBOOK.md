@@ -59,8 +59,12 @@ actually arrives:
 | Yesterday | The daily digest | Sent automatically at `TELEGRAM_DIGEST_UTC_HOUR` (default 06:00 UTC); a weekly report on Mondays |
 
 Unprompted alerts arrive the same way: a new subscription, a deploy ping per
-commit, a quiet-hours note when nothing has scanned during US daytime, a
-budget warning, and a device-paused alert after repeated unanalysable photos.
+commit, the AI provider or Redis going down and coming back, a quiet-hours
+note when nothing has scanned during US daytime, a budget warning (off unless
+`GEMINI_DAILY_BUDGET_USD` is set), and a device-paused alert after repeated
+unanalysable photos. One alert comes from outside the backend, because the bot
+cannot report its own container being gone: the Uptime workflow probes
+`/health/ready` every 10 minutes (§3).
 
 **The decision on `/metrics` (previously tracked as A-7, open and unrecorded
 for five days): accept it as designed-but-unscraped.** One replica and a
@@ -89,36 +93,61 @@ readiness, where the consequence is "route elsewhere" rather than "kill it".
 
 ## 3. Alerts
 
-`[DESIGNED]` — thresholds below are starting points to be tuned against real
-baselines. Alerting on an unmeasured system produces noise, so treat the first
-fortnight as calibration.
+What actually reaches the operator. Until 2026-09-26 this section listed
+Prometheus rules — `up == 0`, `cache_degraded == 1` — as the pages for "API
+down" and "Cache unreachable". Nothing evaluates Prometheus rules here (§1: no
+collector, by decision), so neither condition reached anyone: a Redis outage
+failed every free scan with a 503 and the next digest read like a quiet day.
 
-### Page (wake someone)
+### What alerts today
+
+| Alert | Raised by | Fires when | Reaches you as | First action |
+|---|---|---|---|---|
+| **API not ready** | `.github/workflows/uptime.yml`, outside the backend | `/health/ready` is not 200 on three tries over a minute; checked every 10 min `[DESIGNED]` | Telegram, if `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID` are set as **GitHub repository secrets** (not only in Railway); always GitHub's failed-run email | §5.1 — or §5.4 when the message says *cache* |
+| **Redis unreachable** / recovered | `notify.cache_state_changed`, fed by `ResilientCache`'s own down/up transitions | cache calls have failed for 60 s straight (`CACHE_ALERT_SETTLE_SECONDS`); the all-clear after 60 s of success | Telegram, at most once per 30 min | §5.4 |
+| **AI provider degraded** / recovered | `notify.model_unhealthy`, from `main._ModelHealth` | `MODEL_UNHEALTHY_AFTER` (2) consecutive terminal model failures; a quota stop on the first | Telegram, at most once per 30 min | §5.3 |
+| **Quiet** | `notify._quiet_check`, every 15 min | no successful scan for 6 h during 13:00–03:59 UTC | Telegram, once per window | `🩺 Checkup` |
+| **Over budget** | `notify._note_usage` | day's Gemini spend passes `GEMINI_DAILY_BUDGET_USD` — **off by default (0)** | Telegram, once per day | `/costs` |
+| **Device paused** | `notify._announce_safety_pause` | repeated blocked photos from one device | Telegram, once per device per day | none needed |
+
+**Why two layers.** The Telegram alerts run *inside* the backend, so they
+cannot report the backend being gone: a crash-looping or unscheduled container
+sends nothing. The uptime workflow runs on GitHub and covers that.
+Conversely the in-process Redis alert is minutes faster than a 10-minute
+schedule.
+
+**What the uptime check cannot promise.** GitHub starts scheduled runs late
+under load, and disables a public repository's schedules after 60 days without
+a commit. A free external monitor pointed at the same URL — UptimeRobot or
+Better Stack, 5-minute interval, alerting on anything but 200 — removes both
+gaps and is the cheapest upgrade here. It is an account only the owner can
+create.
+
+**Not alerted** `[NOT IMPLEMENTED]`: 5xx rate, latency, readiness flapping,
+429 or quota spikes, confidence collapse, clamp rate. Each needs a collector
+reading `/metrics`. The rules below are the design for if one ever exists;
+until then they are **not** monitoring, and `🩺 Checkup` plus the daily digest
+are how those questions get answered.
+
+### If a collector is ever added `[DESIGNED]`
 
 | Alert | Condition | First action |
 |---|---|---|
-| **API down** | `up == 0` for 2 min | §5.1 |
-| **5xx surge** | 5xx rate > 5% over 5 min | §5.2 |
-| **Model unavailable** | `model_calls_total{outcome="exhausted"}` > 10/min | §5.3 |
-| **Cache unreachable** | `cache_degraded == 1` for 3 min | §5.4 |
-| **Latency collapse** | p95 `/scan` > 20s for 5 min | §5.5 |
-| **Readiness flapping** | readiness toggles > 3× in 10 min | §5.1 |
-
-### Ticket (do not page)
-
-| Alert | Condition | Why not a page |
-|---|---|---|
-| 429 rate elevated | > 2% of requests | Rate limiting working as designed |
-| Quota exhaustion spike | 3× 7-day baseline | Expected under growth |
-| Entitlement failures | > 1% of `/auth/entitlement` | Often Apple-side, self-heals |
-| Confidence collapse | median `confidence_score` drops > 20 pts day-on-day | Signals a model or prompt regression |
-| Upload size drift | p50 `upload_bytes` > 1 MB | Client-side downscale regressed |
-| Clamp rate rising | `valuation_clamped_total` > 5% of scans | Model producing implausible numbers |
+| 5xx surge | 5xx rate > 5% over 5 min | §5.2 |
+| Latency collapse | p95 `/scan` > 20s for 5 min | §5.5 |
+| Readiness flapping | readiness toggles > 3× in 10 min | §5.1 |
+| 429 rate elevated | > 2% of requests | ticket — rate limiting working as designed |
+| Quota exhaustion spike | 3× 7-day baseline | ticket — expected under growth |
+| Entitlement failures | > 1% of `/auth/entitlement` | ticket — often Apple-side, self-heals |
+| Confidence collapse | median `confidence_score` drops > 20 pts day-on-day | ticket — model or prompt regression |
+| Upload size drift | p50 `upload_bytes` > 1 MB | ticket — client downscale regressed |
+| Clamp rate rising | `valuation_clamped_total` > 5% of scans | ticket — implausible model numbers |
 
 **4xx never pages.** `observability.classify_status` marks `CLIENT`,
 `CAPACITY` and `SECURITY` as non-paging: a scraper generating 404s, or rate
 limiting doing its job, is the system working correctly. Only `DEPENDENCY` and
-`INTERNAL` page.
+`INTERNAL` would page. That classifier has no production caller today — it is
+part of the collector design above.
 
 ---
 
@@ -334,8 +363,10 @@ still-starting instances, and the graceful shutdown achieves nothing.
 
 ## 7. Rollback checklist
 
-- [ ] Confirm the regression is deploy-correlated (compare against the previous
-      release in `snapworth_build_info`)
+- [ ] Confirm the regression is deploy-correlated: the Telegram deploy ping
+      names each commit as it goes live, `/status` shows the last one, and
+      `GET /health` reports the running `commit`. (`snapworth_build_info` has
+      the same fact, but nothing scrapes `/metrics` — §3.)
 - [ ] **Prompt-only regression?** Set `SCAN_PROMPT_VERSION=v1` — no redeploy
 - [ ] **Comps-related?** Set `COMPS_ENABLED=false` — no redeploy
 - [ ] Otherwise redeploy the previous Railway build
@@ -603,7 +634,10 @@ work on does not.
       that ships the guard, or observability goes dark
 - [ ] Metrics collector scraping `/metrics` — must send
       `Authorization: Bearer $METRICS_TOKEN`
-- [ ] Alerts configured from §3
+- [ ] `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID` added as GitHub repository
+      secrets, so the Uptime workflow's alert reaches Telegram and not only
+      email (§3)
+- [ ] An external uptime monitor on `/health/ready` (§3)
 - [ ] On-call rota and escalation path
 - [ ] Load test at 10× expected peak
 - [ ] Gold dataset + recorded baseline (`docs/EVALUATION.md`)
@@ -614,7 +648,7 @@ work on does not.
 
 **Start of shift**
 - [ ] `/health/ready` returns 200
-- [ ] No firing alerts
+- [ ] No unresolved 🔴 in the ops chat, and the last Uptime run is green
 - [ ] Last deploy is green
 
 **During an incident**

@@ -258,6 +258,61 @@ class TestModelHealthAlerts:
         assert len(enabled_notify.texts) == 3
 
 
+class TestCacheAlerts:
+    """A Redis outage fails every free scan closed and used to announce
+    nothing. The cache reports transitions; notify announces the ones that
+    hold for CACHE_ALERT_SETTLE_SECONDS."""
+
+    @pytest.fixture(autouse=True)
+    def _fast_settle(self, monkeypatch):
+        monkeypatch.setattr(notify, "CACHE_ALERT_SETTLE_SECONDS", 0.01)
+
+    @pytest.mark.asyncio
+    async def test_an_outage_that_holds_is_announced_and_so_is_the_recovery(
+            self, enabled_notify):
+        notify.cache_state_changed(True)
+        await drain()
+        assert len(enabled_notify.texts) == 1
+        assert "Redis unreachable" in enabled_notify.texts[0]
+        assert "503" in enabled_notify.texts[0]
+
+        notify.cache_state_changed(False)
+        await drain()
+        assert len(enabled_notify.texts) == 2
+        assert "Redis recovered" in enabled_notify.texts[1]
+
+    @pytest.mark.asyncio
+    async def test_a_blip_that_recovers_inside_the_window_says_nothing(self, enabled_notify):
+        notify.cache_state_changed(True)
+        notify.cache_state_changed(False)
+        await drain()
+        assert enabled_notify.texts == []
+
+    @pytest.mark.asyncio
+    async def test_flapping_is_not_a_siren(self, enabled_notify):
+        """A Redis that answers reads and refuses writes flips per request."""
+        for _ in range(20):
+            notify.cache_state_changed(True)
+            notify.cache_state_changed(False)
+        notify.cache_state_changed(True)
+        await drain()
+        assert len(enabled_notify.texts) == 1
+
+    @pytest.mark.asyncio
+    async def test_wired_to_a_real_cache_end_to_end(self, enabled_notify):
+        class Down:
+            async def get(self, *a, **k): raise ConnectionError("down")
+
+        cache = ResilientCache(Down(), InMemoryCache())    # type: ignore[arg-type]
+        cache.on_change = notify.cache_state_changed
+        await cache.get("anything")
+        await drain()
+        assert any("Redis unreachable" in t for t in enabled_notify.texts)
+
+    def test_silent_when_the_bot_is_not_configured(self):
+        notify.cache_state_changed(True)           # no notifier, no loop: no-op
+
+
 # ── Deploy ping ──────────────────────────────────────────────────────────────
 
 class TestDeployPing:

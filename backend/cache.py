@@ -20,7 +20,7 @@ import asyncio
 import logging
 import os
 import time
-from typing import Any, Protocol
+from typing import Any, Callable, Protocol
 
 log = logging.getLogger("snapworth.cache")
 
@@ -161,6 +161,12 @@ class ResilientCache:
         self._configured = configured or primary is not None
         self._degraded_since: float | None = None
         self._failures = 0
+        # Told `True` when the primary starts failing and `False` when it
+        # answers again — transitions only, never per call. Wired by main to
+        # the ops bot, because a Redis outage fails every free scan closed and
+        # this object is the only thing that sees it happen. Injected rather
+        # than imported: the cache must not depend on the notifier.
+        self.on_change: Callable[[bool], None] | None = None
 
     @property
     def is_degraded(self) -> bool:
@@ -182,12 +188,24 @@ class ResilientCache:
         if self._degraded_since is None:
             self._degraded_since = time.time()
             log.error("cache unavailable, degrading to in-process: %s", exc)
+            self._announce(True)
 
     def _mark_up(self) -> None:
         if self._degraded_since is not None:
             log.info("cache recovered after %.0fs", time.time() - self._degraded_since)
             self._degraded_since = None
             self._failures = 0
+            self._announce(False)
+
+    def _announce(self, degraded: bool) -> None:
+        if self.on_change is None:
+            return
+        try:
+            self.on_change(degraded)
+        except Exception as exc:
+            # Runs inside a cache call; a broken listener must never turn into
+            # a failed quota check.
+            log.warning("cache state listener failed: %s", type(exc).__name__)
 
     async def _call(self, method: str, *args, required: bool = False, **kwargs) -> Any:
         if self._primary is not None:
