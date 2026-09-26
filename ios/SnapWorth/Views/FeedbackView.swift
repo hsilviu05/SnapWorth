@@ -91,7 +91,10 @@ struct FeedbackView: View {
                                     .padding(.horizontal, 14)
                                     .padding(.vertical, 9)
                                     .background(feedbackType == type ? Color.snapTerracottaFill : Color.snapCard)
-                                    .foregroundStyle(feedbackType == type ? Color.snapBackground : Color.snapEspresso)
+                                    // `snapOnAccent`, as on every other selected
+                                    // chip: `snapBackground` on the fill was
+                                    // 3.21:1 in dark mode, under AA.
+                                    .foregroundStyle(feedbackType == type ? Color.snapOnAccent : Color.snapEspresso)
                                     .clipShape(Capsule())
                                     .overlay(
                                         Capsule()
