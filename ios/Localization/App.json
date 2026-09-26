@@ -3625,6 +3625,14 @@
       "de": "Warte auf die Freigabe. Dein Abo startet, sobald sie da ist – du musst nicht noch einmal kaufen.",
       "zh-Hans": "等待批准中。批准后订阅会立即生效，你不用再买一次。"
     },
+    "We couldn't verify this device just now. Please try again in a moment.": {
+      "comment": "Device verification (App Attest) hit an outage — ours or Apple's. Not a reason to reinstall.",
+      "en": "We couldn't verify this device just now. Please try again in a moment.",
+      "ro": "N-am putut verifica dispozitivul chiar acum. Încearcă din nou peste puțin timp.",
+      "es": "No pudimos verificar este dispositivo ahora mismo. Inténtalo de nuevo en un momento.",
+      "de": "Wir konnten dieses Gerät gerade nicht überprüfen. Versuch es gleich noch einmal.",
+      "zh-Hans": "暂时没能验证这台设备，请稍后再试。"
+    },
     "We couldn't verify this device. Try again — if it keeps happening, reinstalling the app will reset it.": {
       "en": "We couldn't verify this device. Try again — if it keeps happening, reinstalling the app will reset it.",
       "ro": "N-am putut verifica dispozitivul. Încearcă din nou — dacă se repetă, reinstalarea aplicației rezolvă.",

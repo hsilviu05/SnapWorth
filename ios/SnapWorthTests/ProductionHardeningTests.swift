@@ -4572,14 +4572,78 @@ final class BearerRetryStructureTests: XCTestCase {
         // site added inside a file that already uses the wrapper elsewhere.
         for path in ["Services/AttestationService.swift",
                      "Services/ScanAPIClient.swift",
-                     "Services/ListingService.swift"] {
+                     "Services/ListingService.swift",
+                     "Services/ReferralService.swift"] {
             let file = try source(path)
-            let attaches = file.contains("attachBearerToken")
+            let attaches = file.contains("requireBearerToken")
                 || file.contains(#"forHTTPHeaderField: "Authorization""#)
             guard attaches else { continue }
             XCTAssertTrue(file.contains("sendRetryingAuth"),
                           "\(path) attaches a bearer token and never retries one")
         }
+    }
+
+    /// The rollout fallback is gone. `attachBearerToken` swallowed a failed
+    /// mint and sent the request unauthenticated, which production answers
+    /// 401 every time: the photo went up, and the user was told to reinstall
+    /// whatever the real cause was — offline, a rate limit, an outage.
+    func test_aRequestWithoutATokenIsNeverSent() throws {
+        let tokenStore = try source("Services/TokenStore.swift")
+        XCTAssertTrue(tokenStore.contains("mutating func requireBearerToken() async throws {"))
+        XCTAssertFalse(tokenStore.contains("continuing unauthenticated"))
+        for path in ["Services/ScanAPIClient.swift",
+                     "Services/ListingService.swift",
+                     "Services/ReferralService.swift"] {
+            let file = try source(path)
+            XCTAssertFalse(file.contains("attachBearerToken"), path)
+            // Read only by the server's pre-enforcement path, which a request
+            // that always carries a token never reaches.
+            XCTAssertFalse(file.contains(#""x-device-id""#), path)
+        }
+    }
+}
+
+// ── A failed mint says what failed ───────────────────────────────────────────
+//
+// Now that a mint failure is thrown rather than swallowed, it is what the user
+// reads. Only a real verdict on the device may suggest a reinstall.
+
+final class TokenMintFailureMappingTests: XCTestCase {
+
+    func test_aChallengeRateLimitKeepsItsWait() {
+        let http = HTTPURLResponse(url: URL(string: "https://api.snapworth.eu/auth/challenge")!,
+                                   statusCode: 429, httpVersion: nil,
+                                   headerFields: ["Retry-After": "90"])!
+        XCTAssertEqual(AppError.from(ScanAPIError.from(http, data: Data())),
+                       .rateLimit(retryAfter: 90))
+    }
+
+    func test_anOutageIsNotAReasonToReinstall() {
+        for error: Error in [AttestationError.challengeFailed,
+                             AttestationError.unavailable,
+                             DCError(.serverUnavailable)] {
+            XCTAssertEqual(AppError.from(error), .verificationUnavailable, "\(error)")
+        }
+        let message = AppError.verificationUnavailable.errorDescription ?? ""
+        XCTAssertFalse(message.isEmpty)
+        XCTAssertFalse(message.lowercased().contains("reinstall"), message)
+    }
+
+    func test_aRealRejectionStillOffersTheReset() {
+        for error: Error in [AttestationError.serverRejected("Attestation invalid."),
+                             AttestationError.unsupportedDevice,
+                             DCError(.invalidKey)] {
+            XCTAssertEqual(AppError.from(error), .sessionExpired, "\(error)")
+        }
+    }
+
+    func test_offlineMintReadsAsOffline() {
+        XCTAssertEqual(AppError.from(URLError(.notConnectedToInternet)), .network)
+        XCTAssertEqual(AppError.from(URLError(.timedOut)), .timeout)
+    }
+
+    func test_noneOfThemOpensThePaywall() {
+        XCTAssertFalse(AppError.verificationUnavailable.isPaywall)
     }
 }
 
@@ -4907,6 +4971,7 @@ final class FallbackStoreSaveTests: XCTestCase {
             .serverUnavailable,
             .aiFailed("no price"),
             .sessionExpired,
+            .verificationUnavailable,
             .imageEncodingFailed,
             .unusablePhoto("too dark"),
             .purchaseCancelled,

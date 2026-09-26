@@ -17485,6 +17485,42 @@
         }
       }
     },
+    "We couldn't verify this device just now. Please try again in a moment." : {
+      "comment" : "Device verification (App Attest) hit an outage — ours or Apple's. Not a reason to reinstall.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wir konnten dieses Gerät gerade nicht überprüfen. Versuch es gleich noch einmal."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "We couldn't verify this device just now. Please try again in a moment."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No pudimos verificar este dispositivo ahora mismo. Inténtalo de nuevo en un momento."
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "N-am putut verifica dispozitivul chiar acum. Încearcă din nou peste puțin timp."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "暂时没能验证这台设备，请稍后再试。"
+          }
+        }
+      }
+    },
     "We couldn't verify this device. Try again — if it keeps happening, reinstalling the app will reset it." : {
       "extractionState" : "manual",
       "localizations" : {

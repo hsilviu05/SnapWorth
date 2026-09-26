@@ -346,9 +346,6 @@ actor ScanAPIClient {
     /// pinning delegate; a locally-built session would silently bypass it.
     private let session: URLSession = .snapWorthAPI
 
-    // Keychain-backed, so it survives reinstall — see `DeviceIdentity`.
-    private var deviceID: String { DeviceIdentity.shared.id }
-
     /// Uploads `image` to the backend and returns the AI analysis.
     /// When `Config.mockScans` is true, returns realistic canned data instantly.
     /// `tagImage` is an optional close-up of the item's label (#88). When
@@ -477,10 +474,7 @@ actor ScanAPIClient {
         let endpoint = Config.baseURL.appendingPathComponent("scan")
         var request = URLRequest(url: endpoint)
         request.httpMethod = "POST"
-        // Retained during rollout: the server falls back to this when
-        // attestation isn't enforced yet.
-        request.setValue(deviceID, forHTTPHeaderField: "x-device-id")
-        await request.attachBearerToken()
+        try await request.requireBearerToken()
 
         let boundary = "Boundary-\(UUID().uuidString)"
         request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")

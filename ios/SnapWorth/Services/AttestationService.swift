@@ -87,11 +87,6 @@ actor AttestationService {
         // status refresh makes this "self-healing if an earlier attempt failed
         // offline" — true for offline, false for 401, because the retry
         // re-sent the same token. A paying user stayed on the free tier.
-        //
-        // `accessToken()` above stays as it is rather than becoming
-        // `attachBearerToken()`: that helper swallows an attestation failure so
-        // a *scan* can degrade to the unauthenticated path, and there is no
-        // such path for submitting an entitlement.
         let (data, http) = try await request.sendRetryingAuth(on: session)
         guard http.statusCode == 200 else {
             throw AttestationError.serverRejected(Self.detail(from: data))
@@ -238,6 +233,11 @@ actor AttestationService {
         request.httpMethod = "POST"
         let (data, response) = try await session.data(for: request)
         guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
+            // A 429 keeps its `Retry-After`, so the user is told how long to
+            // wait instead of to check a connection that is fine.
+            if let http = response as? HTTPURLResponse, http.statusCode == 429 {
+                throw ScanAPIError.from(http, data: data)
+            }
             throw AttestationError.challengeFailed
         }
         return try JSONDecoder().decode(ChallengeResponse.self, from: data).challenge
@@ -257,6 +257,15 @@ actor AttestationService {
         // eviction, key rotation) — the caller regenerates rather than failing.
         if http.statusCode == 401, path.hasSuffix("refresh") {
             throw AttestationError.reattestationRequired
+        }
+        // Neither of these is the server rejecting this device, and both used
+        // to be reported as if it were — "reinstall the app", which cannot
+        // help. A rate limit carries its wait; an outage says so.
+        if http.statusCode == 429 {
+            throw ScanAPIError.from(http, data: data)
+        }
+        if http.statusCode >= 500 {
+            throw AttestationError.unavailable
         }
         guard http.statusCode == 200 else {
             throw AttestationError.serverRejected(Self.detail(from: data))
@@ -379,6 +388,8 @@ enum AttestationError: LocalizedError {
     case unsupportedDevice
     case challengeFailed
     case reattestationRequired
+    /// The token service answered 5xx: an outage, not a verdict on the device.
+    case unavailable
     case serverRejected(String)
 
     var errorDescription: String? {
@@ -389,6 +400,8 @@ enum AttestationError: LocalizedError {
             return String(localized: "Couldn't reach SnapWorth. Check your connection and try again.")
         case .reattestationRequired:
             return String(localized: "Re-verification needed.")
+        case .unavailable:
+            return AppError.verificationUnavailable.errorDescription
         case let .serverRejected(detail):
             return detail
         }

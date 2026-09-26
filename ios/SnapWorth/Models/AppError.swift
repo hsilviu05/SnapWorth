@@ -1,3 +1,4 @@
+import DeviceCheck
 import Foundation
 
 enum AppError: LocalizedError, Equatable {
@@ -21,6 +22,10 @@ enum AppError: LocalizedError, Equatable {
     /// The device's credential expired or attestation failed. Recoverable by
     /// retrying — the client re-attests automatically on the next request.
     case sessionExpired
+    /// The device could not be verified *right now*: our token service or
+    /// Apple's App Attest answered with an outage. Not `sessionExpired`,
+    /// whose copy suggests a reinstall — which cannot fix an outage.
+    case verificationUnavailable
     case imageEncodingFailed
     case unusablePhoto(String)
     case purchaseCancelled
@@ -83,6 +88,8 @@ enum AppError: LocalizedError, Equatable {
             #else
             return String(localized: "We couldn't verify this device. Try again — if it keeps happening, reinstalling the app will reset it.")
             #endif
+        case .verificationUnavailable:
+            return String(localized: "We couldn't verify this device just now. Please try again in a moment.")
         case .imageEncodingFailed:
             return String(localized: "Could not process the photo. Please try a different image.")
         case .unusablePhoto(let msg):
@@ -215,6 +222,22 @@ enum AppError: LocalizedError, Equatable {
             case .saveFailed:      return .persistence
             case .storeUnavailable: return .storageUnavailable
             }
+        }
+
+        // Minting the token failed, so nothing was uploaded. Only a real
+        // verdict on the device reads as `sessionExpired`; an outage — ours
+        // or App Attest's — reads as one. Network failures and a 429 arrive
+        // as `URLError` and `ScanAPIError` and are mapped with the rest.
+        if let attestation = error as? AttestationError {
+            switch attestation {
+            case .challengeFailed, .unavailable:
+                return .verificationUnavailable
+            case .unsupportedDevice, .reattestationRequired, .serverRejected:
+                return .sessionExpired
+            }
+        }
+        if let deviceCheck = error as? DCError {
+            return deviceCheck.code == .serverUnavailable ? .verificationUnavailable : .sessionExpired
         }
 
         if let purchaseErr = error as? PurchaseError {
