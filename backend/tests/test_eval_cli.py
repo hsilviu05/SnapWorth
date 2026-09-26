@@ -22,6 +22,8 @@ from pathlib import Path
 
 import pytest
 
+from tests.conftest import not_none
+
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from eval import cli                                             # noqa: E402
@@ -254,3 +256,80 @@ class TestCLI:
     def test_calibrate_rejects_an_unknown_method(self):
         with pytest.raises(SystemExit):
             _run(["calibrate", "--examples", "x.json", "--method", "astrology"])
+
+
+# ── The runner's output, read by the gate ────────────────────────────────────
+# The gate had tests and the runner had tests, and the two never met. The
+# runner wrote `{version: report}`; the gate reads a top-level `metrics` map.
+# So every real run reached the gate as zero metrics, every threshold skipped,
+# and a run of any quality exited 0. These pipe a runner-produced file into the
+# gate exactly as CI does, and a bad run must come out FAILED.
+
+def _runner_file(path: Path, *, predicted: float, label: str) -> Path:
+    from eval.runner import Prediction, evaluate, metric_set
+
+    predictions = [
+        Prediction(item_id=f"i{n}", category="clothing", expected_price=100.0,
+                   predicted_expected=predicted, predicted_low=predicted * 0.8,
+                   predicted_high=predicted * 1.2, confidence_score=70,
+                   brand="Patagonia", expected_brand="Patagonia",
+                   visual_evidence=["wordmark"], latency_ms=1000.0 + n)
+        for n in range(20)
+    ]
+    report = evaluate(predictions)
+    path.write_text(json.dumps(metric_set(report, label).to_dict() | {"report": report}))
+    return path
+
+
+class TestRunnerFeedsTheGate:
+    def test_a_regressed_run_fails_the_gate(self, tmp_path):
+        baseline = _runner_file(tmp_path / "baseline.json", predicted=105.0, label="base")
+        current = _runner_file(tmp_path / "run.json", predicted=160.0, label="cur")
+        out = tmp_path / "gates.json"
+
+        code, stdout, _ = _run(["gate", "--current", str(current), "--baseline",
+                                str(baseline), "--json-out", str(out),
+                                "--require-measurement"])
+
+        assert code == 1
+        gates = json.loads(out.read_text())
+        assert gates["status"] == "failed"
+        by_metric = {r["metric"]: r["status"] for r in gates["results"]}
+        assert by_metric["mdape"] == "failed"
+        assert by_metric["bias"] == "failed"
+        assert "FAILED" in stdout
+
+    def test_an_unchanged_run_passes_and_is_actually_compared(self, tmp_path):
+        baseline = _runner_file(tmp_path / "baseline.json", predicted=105.0, label="base")
+        current = _runner_file(tmp_path / "run.json", predicted=105.0, label="cur")
+        out = tmp_path / "gates.json"
+
+        code, _, _ = _run(["gate", "--current", str(current), "--baseline",
+                           str(baseline), "--json-out", str(out),
+                           "--require-measurement"])
+
+        assert code == 0
+        gates = json.loads(out.read_text())
+        assert gates["status"] == "passed"
+        compared = {r["metric"] for r in gates["results"] if r["status"] == "passed"}
+        assert {"mdape", "within_25pct", "latency_p95", "hallucination_rate"} <= compared
+
+    def test_a_first_run_with_no_baseline_fails_and_says_how_to_arm_it(self, tmp_path):
+        """Measured, but nothing to compare with: every threshold skips, and
+        under --require-measurement that must not read as a pass."""
+        current = _runner_file(tmp_path / "run.json", predicted=105.0, label="cur")
+
+        code, _, err = _run(["gate", "--current", str(current),
+                             "--baseline", str(tmp_path / "absent.json"),
+                             "--require-measurement"])
+
+        assert code == 1
+        assert "no baseline" in err and "baseline.json" in err
+
+    def test_a_runner_file_is_itself_a_valid_baseline(self, tmp_path):
+        from eval import gates
+
+        path = _runner_file(tmp_path / "run.json", predicted=105.0, label="cur")
+        loaded = not_none(gates.load_baseline(path))
+        assert not_none(loaded.get("mdape")).value == pytest.approx(5.0)
+        assert not_none(loaded.get("within_25pct")).value == pytest.approx(100.0)

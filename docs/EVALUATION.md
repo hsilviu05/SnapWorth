@@ -48,7 +48,8 @@ Zero is never used for "unmeasured": for an error metric, `0.0` reads as
 | `eval/gates.py` | CI thresholds, baselines, schema compliance |
 | `eval/dashboard.py` | Dashboard data models |
 | `eval/cli.py` | Unified CLI |
-| `eval/dataset.py`, `eval/runner.py` | v1 loader and live runner (unchanged) |
+| `eval/dataset.py` | v1 benchmark loader |
+| `eval/runner.py` | Live runner: reads gold-v2 (and v1) sets, writes the metric file `eval.cli gate` reads, and runs unlabelled photo folders |
 
 Pure Python throughout — no numpy, scipy or sklearn. A quality gate that needs a
 60 MB scientific stack to start is a gate people disable.
@@ -188,6 +189,27 @@ hallucination is `BLOCKED_BY_GUARDRAIL`, not a win.
 `INCONCLUSIVE` does **not** fail CI — that would push people toward
 under-powered runs. Only `REJECT` and `BLOCKED_BY_GUARDRAIL` do.
 
+### Without labels
+
+Some questions need no sale price at all: does the same photo get the same
+price, how long does a scan take, how many tokens does it spend — and how far
+does a change move the price a user sees. That last one is the first thing to
+know about a cost cut, and the thinking budget (`GEMINI_THINKING_BUDGET`,
+~61% of model spend per RUNBOOK §10) is exactly that:
+
+```bash
+python -m eval.runner --photos ~/scans --repeats 3 \
+  --compare v2 v2@512 --json-out runs/thinking-512.json
+```
+
+`--photos` takes a folder of JPEGs. An arm is a prompt version with an
+optional `@N` thinking cap, applied per call so the other arm is untouched.
+The report gives consistency and repeatability per arm, latency, median output
+and thinking tokens, and the per-item price shift between the arms. It never
+reports accuracy, bias, calibration or hallucination: with no truth to measure
+against those metrics are absent, not zero. A shift says the cap *changes*
+prices, never that it makes them better or worse — that needs the gold set.
+
 ---
 
 ## Phase 4 — error analysis
@@ -260,14 +282,29 @@ unavailable one reads as "we track it and have not measured it yet".
 
 ## Phase 7 — CI gates
 
-`.github/workflows/eval.yml`, four jobs:
+`.github/workflows/eval.yml`, five jobs:
 
 | Job | Runs | Fails on |
 |---|---|---|
 | `platform-tests` | Always | Platform bugs |
 | `data-integrity` | Always | Scoreable records in template/sample files; gold label drift |
-| `accuracy-gate` | When `gold.jsonl` exists | Accuracy, bias, calibration, latency regression |
+| `gold-check` | Always | Nothing — decides whether `accuracy-gate` runs |
+| `accuracy-gate` | Only when `gold.jsonl` has a headline-eligible record **and** the run has `GEMINI_API_KEY`; otherwise shown as *skipped* | Accuracy, bias, calibration, hallucination, latency regression; or no baseline to compare with |
 | `schema-contract` | Always | v1 client contract break |
+
+**Recording the baseline.** The runner's `--json-out` file is in the shape the
+gate reads, so a run is its own baseline:
+
+```bash
+python -m eval.runner --dataset eval/data/gold.jsonl \
+  --json-out eval/data/baseline.json
+```
+
+Commit it with the gold set. Until one exists the gate runs, measures, and
+**fails** with a message saying to record one: a run compared against nothing
+is not a pass. After a deliberate improvement, re-record it in the same PR —
+and review the diff, because a baseline edited to make a build pass is how
+gates die.
 
 Three rules keep the gate trustworthy:
 
@@ -323,6 +360,17 @@ if any shipped sample record ever becomes scoreable again.
 | Dashboard models | ✅ Implemented, no frontend |
 | **Gold dataset** | ❌ **Does not exist** |
 | **Any measured result** | ❌ **None** |
+
+"Skip until a gold set exists" was also true of the logic and not of what
+anyone saw, until 2026-09-26. The gate skipped by `exit 0` from inside a
+step, which GitHub renders as a green pass, so every backend PR showed a
+passing accuracy check that measured nothing. And had a gold set been added,
+the gate still could not have failed: the runner read only the v1 schema (so
+gold records were rejected as malformed), it wrote its report in a shape the
+gate did not read (so every metric came back skipped), and a zero baseline
+skipped rather than compared (so 0% → 4% hallucination passed). All three are
+fixed, and `tests/test_eval_cli.py::TestRunnerFeedsTheGate` pipes a
+runner-written regression through the gate and requires `FAILED`.
 
 The two rows above the calibration line were true of the logic and not of the
 wrapper around it: until 2026-09-09 `eval/cli.py` — which CI invokes — and

@@ -566,6 +566,24 @@ class TestGates:
                              self._set(hallucination_rate=0.5))
         assert report.status is gates.GateStatus.FAILED
 
+    def test_a_zero_baseline_does_not_switch_the_gate_off(self):
+        """0% → 4% hallucination is under the 5% absolute limit, so only the
+        baseline comparison can catch it — and a zero baseline used to be
+        skipped as 'relative change undefined'."""
+        report = gates.check(self._set(hallucination_rate=4.0),
+                             self._set(hallucination_rate=0.0))
+        assert report.status is gates.GateStatus.FAILED
+
+    def test_a_zero_baseline_held_at_zero_passes(self):
+        report = gates.check(self._set(hallucination_rate=0.0),
+                             self._set(hallucination_rate=0.0))
+        assert report.status is gates.GateStatus.PASSED
+
+    def test_a_zero_baseline_respects_direction(self):
+        report = gates.check(self._set(within_25pct=10.0),
+                             self._set(within_25pct=0.0))
+        assert report.status is gates.GateStatus.PASSED
+
     def test_baseline_roundtrip(self, tmp_path):
         path = tmp_path / "baseline.json"
         gates.save_baseline(self._set(mdape=18.0), path, ref="abc123")

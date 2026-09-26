@@ -93,8 +93,23 @@ class Threshold:
                               message="no baseline recorded — first run")
 
         if baseline.value == 0:
-            return GateResult(self.metric, GateStatus.SKIPPED, current.value,
-                              baseline.value, message="baseline is zero")
+            # Relative change is undefined here, and this used to return
+            # SKIPPED — which switched off "fabrication must never increase" at
+            # a baseline of zero hallucinations, the value it most exists to
+            # protect: 0% → 4% passed, caught only by the 5% absolute limit.
+            # experiment.Guardrail had the same bug and the same fix: judge the
+            # direction alone, so any move the wrong way from zero regresses.
+            worse = (current.value > 0 if self.direction is Direction.LOWER_IS_BETTER
+                     else current.value < 0)
+            if worse:
+                return GateResult(
+                    self.metric,
+                    GateStatus.WARNED if self.warn_only else GateStatus.FAILED,
+                    current.value, baseline.value,
+                    message=(f"regressed from 0 to {current.value:.3f} — any move "
+                             "the wrong way from a zero baseline is a regression"))
+            return GateResult(self.metric, GateStatus.PASSED, current.value,
+                              baseline.value, message="held against a zero baseline")
 
         delta = (current.value - baseline.value) / abs(baseline.value)
         regression = delta if self.direction is Direction.LOWER_IS_BETTER else -delta
