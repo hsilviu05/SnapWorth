@@ -47,6 +47,8 @@ import social
 import tokens
 import valuation as valuation_module
 from auditlog import AuditEvent
+from comps.engine import build_engine as build_comps_engine
+from comps.shadow import ShadowRunner
 from auth import (Principal, record_quota_consumed, refund_quota,
                   require_auth, reserve_quota)
 from entitlements import EntitlementError, EntitlementService
@@ -189,6 +191,12 @@ _PRODUCT_IDS = {"com.snapworth.monthly", "com.snapworth.yearly"}
 # Shared cache: entitlements, quota, challenges and attestation state.
 _cache: cache_module.ResilientCache | None = None
 
+# Comps in shadow mode (#39). Built here with no cache so an import (the tests,
+# the bot) has a working runner; the lifespan rebuilds it on the shared cache.
+# With COMPS_ENABLED=false — production, until a provider grants sold data in
+# writing — `schedule` does nothing at all.
+_comps_shadow = ShadowRunner(build_comps_engine())
+
 
 @contextlib.asynccontextmanager
 async def _lifespan(_app: FastAPI):
@@ -196,6 +204,7 @@ async def _lifespan(_app: FastAPI):
     await _init_rate_limiters()
 
     _cache = await cache_module.build_cache()
+    _comps_shadow.engine = build_comps_engine(_cache)
     dc = devicecheck.client_from_env()
     auth.deps.cache = _cache
     # The three unauthenticated /auth routes run before there is a principal,
@@ -270,6 +279,8 @@ async def _lifespan(_app: FastAPI):
         log.warning("shutdown: %g request(s) still in flight after %ss drain",
                     remaining, _DRAIN_TIMEOUT_SECONDS)
 
+    # Before the cache closes: a shadow lookup still running would write to it.
+    await _comps_shadow.drain()
     await _close_dependencies()
     log.info("shutdown complete")
 
@@ -811,7 +822,8 @@ class ScanResponse(BaseModel):
     # Provenance. `valuation_source` is the seam for the comparable-sales
     # pipeline (see docs/COMPS-ARCHITECTURE.md): "model" today, "comps" once
     # evidence-backed pricing lands. Clients should key their UI copy off this
-    # rather than assuming a source.
+    # rather than assuming a source. Shadow comps (comps/shadow.py) never set
+    # it; only #41 may, and only when a lookup has evidence.
     valuation_source: str = "model"
     prompt_version: str = ""
 
@@ -1860,6 +1872,14 @@ async def _analyse(image_bytes: bytes, content_type: str, *, subject: str,
         valuation_source="model",
         prompt_version=prompt_version,
     )
+
+    # Comps beside the model, measured and never served (#39): a detached task,
+    # so it adds nothing to this scan's latency and cannot change `response`.
+    # Operator test scans are left out — they would skew the agreement numbers
+    # this exists to collect.
+    if count:
+        _comps_shadow.schedule(val, model_low=low, model_high=high,
+                               model_expected=val.prices.expected or None)
     return response, elapsed
 
 

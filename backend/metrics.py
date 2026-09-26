@@ -364,6 +364,21 @@ confidence_score = _histogram(
 valuation_clamped = _counter(
     "snapworth_valuation_clamped_total", "Valuations clamped to a category band")
 
+# Comps shadow mode (#39). Measured, never served: these are the numbers that
+# decide whether comps are worth surfacing at all. `status` is a closed enum
+# (`comps.models.CompsStatus`), so the label set stays small.
+comps_shadow_lookups = _counter(
+    "snapworth_comps_shadow_lookups_total", "Shadow comps lookups by outcome",
+    ("status",))
+comps_shadow_duration = _histogram(
+    "snapworth_comps_shadow_duration_seconds", "Shadow comps lookup duration",
+    (0.005, 0.01, 0.05, 0.1, 0.25, 0.5, 0.8, 1.0, 2.0))
+#: Comps expected price divided by the model's, on lookups that found evidence.
+#: 1.0 is agreement; the tails are where the model is weakest.
+comps_shadow_price_ratio = _histogram(
+    "snapworth_comps_shadow_price_ratio", "Comps expected / model expected",
+    (0.25, 0.5, 0.67, 0.8, 0.9, 1.1, 1.25, 1.5, 2.0, 4.0))
+
 # Entitlements
 entitlement_operations = _counter(
     "snapworth_entitlement_operations_total", "Entitlement verifications",
