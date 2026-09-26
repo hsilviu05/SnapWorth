@@ -371,7 +371,13 @@ rotation needs no flag day:
 2. Update `GEMINI_API_KEY`, restart
 3. Verify `model_calls_total{outcome="success"}` recovers
 4. Revoke the old key
-5. CI already blocks committed keys (`.github/workflows/backend.yml`)
+5. CI does **not** block a committed key — it finds one after the push, when
+   the repository is public and the key is already published.
+   `.github/workflows/secrets.yml` scans the tree and every commit in history
+   with gitleaks; only GitHub push protection (Settings → Code security)
+   refuses the push itself. A key that reached a commit is compromised
+   whether or not a later commit deleted it: rotate it, then excuse the old
+   hit by fingerprint in `.gitleaksignore`
 
 ### 8.3 Provisioning DeviceCheck
 
