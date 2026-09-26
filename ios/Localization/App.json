@@ -878,6 +878,14 @@
       "de": "KI-Schätzung für den Wiederverkauf",
       "zh-Hans": "AI 转卖估价"
     },
+    "Accessories": {
+      "comment": "An item category (ScanCategory), as a label on its own: a row of 'Trending at the thrift', and the start of that row's VoiceOver sentence.",
+      "en": "Accessories",
+      "ro": "Accesorii",
+      "es": "Accesorios",
+      "de": "Accessoires",
+      "zh-Hans": "配饰"
+    },
     "Account": {
       "en": "Account",
       "ro": "Cont",
@@ -1049,6 +1057,14 @@
       "es": "Mejor precio",
       "de": "Bestes Angebot",
       "zh-Hans": "最划算"
+    },
+    "Books": {
+      "comment": "An item category (ScanCategory), as a label on its own: a row of 'Trending at the thrift', and the start of that row's VoiceOver sentence.",
+      "en": "Books",
+      "ro": "Cărți",
+      "es": "Libros",
+      "de": "Bücher",
+      "zh-Hans": "图书"
     },
     "Brand %@": {
       "comment": "VoiceOver, on the result photo: the item's brand as read by the AI.",
@@ -1248,6 +1264,22 @@
       "es": "Cierra el resultado y vuelve a la cámara",
       "de": "Schließt das Ergebnis und geht zurück zur Kamera",
       "zh-Hans": "关闭结果并回到相机"
+    },
+    "Clothing": {
+      "comment": "An item category (ScanCategory), as a label on its own: a row of 'Trending at the thrift', and the start of that row's VoiceOver sentence.",
+      "en": "Clothing",
+      "ro": "Îmbrăcăminte",
+      "es": "Ropa",
+      "de": "Kleidung",
+      "zh-Hans": "服装"
+    },
+    "Collectibles": {
+      "comment": "An item category (ScanCategory), as a label on its own: a row of 'Trending at the thrift', and the start of that row's VoiceOver sentence.",
+      "en": "Collectibles",
+      "ro": "Obiecte de colecție",
+      "es": "Coleccionables",
+      "de": "Sammlerstücke",
+      "zh-Hans": "收藏品"
     },
     "Condition": {
       "comment": "Section header above the condition chips.",
@@ -1554,6 +1586,14 @@
       "de": "Funde bearbeiten",
       "zh-Hans": "编辑好物"
     },
+    "Electronics": {
+      "comment": "An item category (ScanCategory), as a label on its own: a row of 'Trending at the thrift', and the start of that row's VoiceOver sentence.",
+      "en": "Electronics",
+      "ro": "Electronice",
+      "es": "Electrónica",
+      "de": "Elektronik",
+      "zh-Hans": "电子产品"
+    },
     "Enable notifications": {
       "en": "Enable notifications",
       "ro": "Activează notificările",
@@ -1782,6 +1822,14 @@
       "de": "Nur aus diesem Foto – keine Echtheitsprüfung.",
       "zh-Hans": "仅凭这张照片判断，不是鉴定结论。"
     },
+    "Furniture": {
+      "comment": "An item category (ScanCategory), as a label on its own: a row of 'Trending at the thrift', and the start of that row's VoiceOver sentence.",
+      "en": "Furniture",
+      "ro": "Mobilă",
+      "es": "Muebles",
+      "de": "Möbel",
+      "zh-Hans": "家具"
+    },
     "General Feedback": {
       "en": "General Feedback",
       "ro": "Păreri generale",
@@ -1909,6 +1957,14 @@
       "es": "Confianza alta",
       "de": "Hohe Sicherheit",
       "zh-Hans": "置信度高"
+    },
+    "Home": {
+      "comment": "An item category (ScanCategory), as a label on its own: a row of 'Trending at the thrift', and the start of that row's VoiceOver sentence.",
+      "en": "Home",
+      "ro": "Casă",
+      "es": "Hogar",
+      "de": "Wohnen",
+      "zh-Hans": "家居"
     },
     "I want to…": {
       "en": "I want to…",
@@ -2436,6 +2492,14 @@
       "es": "Abre esta reventa",
       "de": "Öffnet diesen Flip",
       "zh-Hans": "打开这笔转卖"
+    },
+    "Other": {
+      "comment": "An item category (ScanCategory), as a label on its own: a row of 'Trending at the thrift', and the start of that row's VoiceOver sentence.",
+      "en": "Other",
+      "ro": "Altele",
+      "es": "Otros",
+      "de": "Sonstiges",
+      "zh-Hans": "其他"
     },
     "Our AI is temporarily unavailable. Please try again in a moment.": {
       "en": "Our AI is temporarily unavailable. Please try again in a moment.",
@@ -3010,6 +3074,14 @@
       "de": "Versand (optional)",
       "zh-Hans": "运费（选填）"
     },
+    "Shoes": {
+      "comment": "An item category (ScanCategory), as a label on its own: a row of 'Trending at the thrift', and the start of that row's VoiceOver sentence.",
+      "en": "Shoes",
+      "ro": "Încălțăminte",
+      "es": "Calzado",
+      "de": "Schuhe",
+      "zh-Hans": "鞋靴"
+    },
     "Shop price": {
       "en": "Shop price",
       "ro": "Prețul din magazin",
@@ -3218,6 +3290,14 @@
       "es": "Ordena, comparte el mes o exporta un CSV",
       "de": "Sortieren, den Monat teilen oder als CSV exportieren",
       "zh-Hans": "排序、分享本月，或导出 CSV"
+    },
+    "Sports": {
+      "comment": "An item category (ScanCategory), as a label on its own: a row of 'Trending at the thrift', and the start of that row's VoiceOver sentence.",
+      "en": "Sports",
+      "ro": "Sport",
+      "es": "Deportes",
+      "de": "Sport",
+      "zh-Hans": "运动"
     },
     "Spot on — your guess is inside the estimate.": {
       "en": "Spot on — your guess is inside the estimate.",
@@ -3481,6 +3561,14 @@
       "es": "Demasiados intentos hoy. Inténtalo mañana.",
       "de": "Zu viele Versuche heute. Versuch es morgen wieder.",
       "zh-Hans": "今天尝试次数太多了。明天再试吧。"
+    },
+    "Toys": {
+      "comment": "An item category (ScanCategory), as a label on its own: a row of 'Trending at the thrift', and the start of that row's VoiceOver sentence.",
+      "en": "Toys",
+      "ro": "Jucării",
+      "es": "Juguetes",
+      "de": "Spielzeug",
+      "zh-Hans": "玩具"
     },
     "Trending at the thrift": {
       "en": "Trending at the thrift",

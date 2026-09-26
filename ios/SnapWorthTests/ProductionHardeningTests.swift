@@ -3025,6 +3025,44 @@ final class TrendsDecodingTests: XCTestCase {
                        "Clothing, 54 scans, up 18 percent", "free never hears the average")
         let down = TrendRow(name: "shoes", count: 9, changePct: -7, averageEstimate: nil)
         XCTAssertEqual(TrendingCard.rowLabel(down, isPro: true), "Shoes, 9 scans, down 7 percent")
+        let offList = TrendRow(name: "gadgets", count: 5, changePct: nil, averageEstimate: nil)
+        XCTAssertEqual(TrendingCard.rowLabel(offList, isPro: false), "Other, 5 scans",
+                       "a word the model made up is not printed as if it were a category")
+    }
+
+    // The eleven the scan prompt offers (`prompts.py`), in its order.
+    private let promptCategories = ["clothing", "shoes", "accessories", "electronics", "books",
+                                    "furniture", "home", "sports", "toys", "collectibles", "other"]
+
+    func test_theAppsCategoriesAreThePromptsCategories() {
+        XCTAssertEqual(ScanCategory.allCases.map(\.rawValue), promptCategories)
+        for token in promptCategories {
+            XCTAssertEqual(ScanCategory(normalizing: token).rawValue, token)
+        }
+        let labels = ScanCategory.allCases.map(\.label)
+        XCTAssertEqual(Set(labels).count, labels.count, "two categories share a label")
+        XCTAssertFalse(labels.contains { promptCategories.contains($0) },
+                       "a label is the wire token, not a word")
+    }
+
+    func test_anOffListCategoryIsOtherTheWayTheServerCountsIt() {
+        XCTAssertEqual(ScanCategory(normalizing: "  Shoes\n"), .shoes)
+        // `notify._normalise_category`: exact match or "other". The old
+        // analytics table mapped these to buckets of its own the server does
+        // not have, so the two disagreed on the same scan.
+        for word in ["sneakers", "bags", "media", "beauty", "", "Clothing & shoes"] {
+            XCTAssertEqual(ScanCategory(normalizing: word), .other, word)
+        }
+    }
+
+    func test_analyticsCountsASportsScanAsSports() {
+        // Filed as "other" before: the analytics set had no sports, books or
+        // furniture.
+        for token in ["sports", "books", "furniture"] {
+            let event = AnalyticsEvent.scanCompleted(success: true,
+                                                     category: ScanCategory(normalizing: token))
+            XCTAssertEqual(event.parameters["item_category"], token)
+        }
     }
 
     func test_paywallTriggerExists() {

@@ -430,6 +430,63 @@ enum MarketSupply: String, CaseIterable {
     }
 }
 
+/// `category` — the eleven the scan prompt offers the model (`prompts.py`).
+///
+/// The app's one copy of that list. There were two, and they had drifted: the
+/// trend card kept an emoji table and printed the server's token capitalised,
+/// in English under a translated heading; analytics kept `ItemCategory`, whose
+/// set had grown bags, media and beauty (which the prompt never offers) and
+/// lost books, furniture and sports — so a sports scan was counted as "other"
+/// here and as "sports" in the server's own tally.
+///
+/// The server does not hold the model to the list (`valuation.py` passes the
+/// word through), so anything else is `.other`. That is the rule the server's
+/// tallies apply (`notify._normalise_category`), which keeps the two counting
+/// a scan in the same bucket. The raw value is the wire token — analytics and
+/// the server; `label` is for the screen.
+enum ScanCategory: String, CaseIterable {
+    case clothing, shoes, accessories, electronics, books, furniture
+    case home, sports, toys, collectibles, other
+
+    init(normalizing raw: String) {
+        self = ScanCategory(rawValue: raw.trimmingCharacters(in: .whitespacesAndNewlines).lowercased())
+            ?? .other
+    }
+
+    var label: String {
+        switch self {
+        case .clothing:     return String(localized: "Clothing")
+        case .shoes:        return String(localized: "Shoes")
+        case .accessories:  return String(localized: "Accessories")
+        case .electronics:  return String(localized: "Electronics")
+        case .books:        return String(localized: "Books")
+        case .furniture:    return String(localized: "Furniture")
+        case .home:         return String(localized: "Home")
+        case .sports:       return String(localized: "Sports")
+        case .toys:         return String(localized: "Toys")
+        case .collectibles: return String(localized: "Collectibles")
+        case .other:        return String(localized: "Other")
+        }
+    }
+
+    /// The same marks the server's scan feed uses (`notify.CATEGORY_EMOJI`).
+    var emoji: String {
+        switch self {
+        case .clothing:     return "🧥"
+        case .shoes:        return "👟"
+        case .accessories:  return "👜"
+        case .electronics:  return "📱"
+        case .books:        return "📚"
+        case .furniture:    return "🪑"
+        case .home:         return "🏠"
+        case .sports:       return "⚽"
+        case .toys:         return "🧸"
+        case .collectibles: return "🏺"
+        case .other:        return "📦"
+        }
+    }
+}
+
 // ── Client ────────────────────────────────────────────────────────────────────
 actor ScanAPIClient {
     static let shared = ScanAPIClient()

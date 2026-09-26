@@ -577,12 +577,6 @@ struct TrendingCard: View {
     let isPro: Bool
     var onUnlock: () -> Void = {}
 
-    private static let emoji = [
-        "clothing": "🧥", "shoes": "👟", "accessories": "👜", "electronics": "📱",
-        "books": "📚", "furniture": "🪑", "home": "🏠", "sports": "⚽",
-        "toys": "🧸", "collectibles": "🏺", "other": "📦",
-    ]
-
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack(alignment: .firstTextBaseline) {
@@ -626,7 +620,7 @@ struct TrendingCard: View {
                             .foregroundStyle(Color.snapWarmGray)
                         ForEach(notable.prefix(3)) { find in
                             HStack(spacing: 8) {
-                                Text(Self.emoji[find.category] ?? "📦")
+                                Text(ScanCategory(normalizing: find.category).emoji)
                                     .accessibilityHidden(true)
                                 Text(find.name)
                                     .font(.snapBody)
@@ -670,9 +664,12 @@ struct TrendingCard: View {
 
     private func categoryRow(_ row: TrendRow) -> some View {
         HStack(spacing: 10) {
-            Text(Self.emoji[row.name] ?? "📦")
+            // The server's token, worded — it used to be printed capitalised,
+            // so "Clothing" sat in English under a translated heading.
+            let category = ScanCategory(normalizing: row.name)
+            Text(category.emoji)
                 .accessibilityHidden(true)
-            Text(row.name.capitalized)
+            Text(category.label)
                 .font(.snapBody)
                 .foregroundStyle(Color.snapEspresso)
             if let average = row.averageEstimate, isPro {
@@ -706,7 +703,8 @@ struct TrendingCard: View {
         // plural key agrees with one number, and this sentence has a category
         // name beside it.
         let scans = String(localized: "\(row.count) scans")
-        var parts = [String(localized: "\(row.name.capitalized), \(scans)")]
+        let category = ScanCategory(normalizing: row.name).label
+        var parts = [String(localized: "\(category), \(scans)")]
         if let average = row.averageEstimate, isPro {
             parts.append(String(localized: "average estimate \(money(average))"))
         }
