@@ -7,12 +7,14 @@ on:
       - 'backend/**'
       - '.github/workflows/backend.yml'
       - 'contract/**'
+      - 'pyrightconfig.json'
   pull_request:
     branches: [main]
     paths:
       - 'backend/**'
       - '.github/workflows/backend.yml'
       - 'contract/**'
+      - 'pyrightconfig.json'
 
 jobs:
   # ── Tests ───────────────────────────────────────────────────────────────────
@@ -46,6 +48,23 @@ jobs:
         env:
           GEMINI_API_KEY: ci-placeholder-not-real
         run: pytest tests/ -v --tb=short --color=yes
+
+      # Production modules at zero type errors, held there. 0208fce took them
+      # from 84 to 0 — two were real 500s on attacker-supplied input — but
+      # added no step, and 128 had come back by 2026-09-26, eight of them in
+      # the referral code that hands out Apple offer codes. Tests are not
+      # included: most of their errors are tests passing deliberately wrong
+      # types to prove a guard holds, as 0208fce recorded.
+      #
+      # From the repo root, where pyrightconfig.json supplies `backend` as an
+      # import root; --pythonpath points it at this job's interpreter rather
+      # than the local .venv the config names. git ls-files, so a new module
+      # is checked without editing this list.
+      - name: Type-check production code
+        working-directory: .
+        run: |
+          pyright --pythonpath "$(command -v python)" \
+            $(git ls-files 'backend/*.py' ':!:backend/tests/*')
 
   # ── Known-vulnerable dependencies ───────────────────────────────────────────
   # Added after an audit found five pinned packages had aged into known CVEs

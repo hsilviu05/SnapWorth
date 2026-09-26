@@ -31,6 +31,7 @@ import argparse
 import os
 import re
 import sys
+from typing import Any
 
 import redis
 
@@ -50,16 +51,22 @@ def read_codes(path: str) -> list[str]:
     return codes
 
 
+def _count(value: Any) -> int:
+    """A counter read back from Redis. redis-py types a sync `get` as its
+    generic response type, which pyright will not pass to `int()`."""
+    return int(value or 0)
+
+
 def status(r: redis.Redis) -> None:
     for pool in POOLS:
-        size = int(r.get(pool_size_key(pool)) or 0)
-        used = min(size, int(r.get(pool_cursor_key(pool)) or 0))
+        size = _count(r.get(pool_size_key(pool)))
+        used = min(size, _count(r.get(pool_cursor_key(pool))))
         print(f"{pool:7s} loaded {size:6d}  handed out {used:6d}  remaining {size - used:6d}")
 
 
 def load(r: redis.Redis, pool: str, codes: list[str]) -> int:
     added = 0
-    size = int(r.get(pool_size_key(pool)) or 0)
+    size = _count(r.get(pool_size_key(pool)))
     for code in codes:
         # One ledger across both pools: a code must never be both a friend's
         # week and a referrer's reward.

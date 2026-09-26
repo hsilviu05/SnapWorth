@@ -1801,7 +1801,7 @@ class TestRedisCheckupLine:
         notify.configure(cache, notifier=notifier)
         try:
             text = await notify.handle_command("/checkup")
-            assert "Redis: 50.0 MB of 384 MB" in text
+            assert text is not None and "Redis: 50.0 MB of 384 MB" in text
         finally:
             await notify.aclose()
 

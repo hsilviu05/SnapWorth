@@ -55,6 +55,15 @@ logged by exception class name only, and observability.py redacts the token
 pattern as a backstop.
 """
 
+# `_cache` and `_notifier` are module state set once by `configure`. Every
+# public entry point returns early while either is None, and the ~40 private
+# helpers below them run only past that guard — which pyright cannot see
+# across a call, so each `_cache.get` read as a possible None access: 78 of
+# this file's errors, none of them reachable. Scoped to this file and this one
+# rule; every other check, including Optional subscripts and arguments, stays
+# on here and everywhere else.
+# pyright: reportOptionalMemberAccess=false
+
 from __future__ import annotations
 
 import asyncio
@@ -361,8 +370,9 @@ class TelegramNotifier:
                 return False
             if self.on_sent is not None:
                 try:
-                    message_id = int(((resp.json() or {}).get("result") or {}).get("message_id"))
-                    await self.on_sent(message_id, text)
+                    message_id = ((resp.json() or {}).get("result") or {}).get("message_id")
+                    if isinstance(message_id, int):
+                        await self.on_sent(message_id, text)
                 except Exception:
                     pass
             return True
@@ -2200,9 +2210,9 @@ async def _tally_top(day: str, category: str, brand: str | None,
         doc = json.loads(await _cache.get(key) or "{}")
     except Exception:
         doc = {}
-    cats = doc.get("cats") if isinstance(doc.get("cats"), dict) else {}
-    brands = doc.get("brands") if isinstance(doc.get("brands"), dict) else {}
-    finds = doc.get("finds") if isinstance(doc.get("finds"), list) else []
+    cats = c if isinstance(c := doc.get("cats"), dict) else {}
+    brands = b if isinstance(b := doc.get("brands"), dict) else {}
+    finds = f if isinstance(f := doc.get("finds"), list) else []
     cats[category] = int(cats.get(category, 0)) + 1
     if brand is not None and (brand in brands or len(brands) < TOP_BRANDS_CAP):
         brands[brand] = int(brands.get(brand, 0)) + 1
@@ -2413,8 +2423,8 @@ async def _index_subscription(subject: str | None, ent,
     """
     doc = await _read_index(SUBS_INDEX_KEY)
     otid = str(ent.original_transaction_id)
-    before = doc.get(otid) if isinstance(doc.get(otid), dict) else {}
-    entry = dict(before)
+    before: dict = row if isinstance(row := doc.get(otid), dict) else {}
+    entry: dict = dict(before)
     entry.update({
         "product": ent.product_id, "env": ent.environment,
         "first": getattr(ent, "original_purchase_at", None),
@@ -2461,7 +2471,7 @@ async def _index_subscription(subject: str | None, ent,
 async def _index_user(who: str, *, tier: str, scanned: bool = False) -> None:
     doc = await _read_index(USERS_INDEX_KEY)
     now = int(time.time())
-    entry = doc.get(who) if isinstance(doc.get(who), dict) else {"first": now, "scans": 0}
+    entry: dict = row if isinstance(row := doc.get(who), dict) else {"first": now, "scans": 0}
     entry["last"] = now
     entry["tier"] = "pro" if tier == "pro" else "free"
     if scanned:
@@ -3583,7 +3593,7 @@ def _tls_days_left(host: str, timeout: float = 5.0) -> int | None:
         with ctx.wrap_socket(sock, server_hostname=host) as tls:
             cert = tls.getpeercert()
     not_after = cert.get("notAfter") if cert else None
-    if not not_after:
+    if not isinstance(not_after, str) or not not_after:
         return None
     expires = datetime.strptime(not_after, "%b %d %H:%M:%S %Y %Z").replace(tzinfo=timezone.utc)
     return (expires - datetime.now(timezone.utc)).days
@@ -3755,9 +3765,9 @@ async def _checkup_text() -> str:
     # Redis itself: what it does when full, and whether a restart loses it.
     redis_info = getattr(_cache, "redis_info", None)
     try:
-        info = await redis_info() if redis_info is not None else None
-        if info:
-            lines.append(_redis_line(info, time.time()))
+        redis_stats = await redis_info() if redis_info is not None else None
+        if redis_stats:
+            lines.append(_redis_line(redis_stats, time.time()))
     except Exception as exc:
         lines.append(f"Redis INFO: error ({html.escape(type(exc).__name__)})")
 
@@ -3906,7 +3916,7 @@ async def _remember_message(message_id: int, text: str | None = None) -> None:
         raw = await _cache.get(MESSAGES_KEY)
         entries = [e for e in (json.loads(raw) if raw else [])
                    if isinstance(e, list) and len(e) >= 2 and now - int(e[1]) < MESSAGES_TTL]
-        entry = [int(message_id), now]
+        entry: list[int | str] = [int(message_id), now]
         if text:
             entry.append(text[:4096])
         entries.append(entry)

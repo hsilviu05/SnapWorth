@@ -1400,7 +1400,8 @@ async def apple_notifications(body: AppleNotification, request: Request) -> dict
     # alert is a smaller problem than dropping a real notification, and the
     # index write is itself idempotent.
     try:
-        first = await _cache.add(f"apns2:{note.uuid}", "1", _NOTIFICATION_SEEN_TTL)
+        first = (await _cache.add(f"apns2:{note.uuid}", "1", _NOTIFICATION_SEEN_TTL)
+                 if _cache is not None else True)
     except Exception:
         first = True
     if not first:
@@ -1433,6 +1434,8 @@ async def apple_notifications(body: AppleNotification, request: Request) -> dict
             # the retry gets a real second attempt.
             log.error("could not revoke a refunded entitlement: %s", exc)
             try:
+                if _cache is None:
+                    raise RuntimeError("cache not initialised")
                 await _cache.delete(f"apns2:{note.uuid}")
             except Exception:
                 log.error("could not release the notification idempotency key; "

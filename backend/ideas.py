@@ -360,7 +360,7 @@ where they fit; do not invent finds."""
 
 
 def render_calendar(data: dict, context: dict) -> str:
-    days = data.get("days") if isinstance(data.get("days"), list) else []
+    days = d if isinstance(d := data.get("days"), list) else []
     lines = ["🗓 <b>This week's posts</b>",
              f"From {int(context.get('scans') or 0)} scans in the last "
              f"{int(context.get('days') or 7)} days."]
