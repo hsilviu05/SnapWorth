@@ -330,10 +330,36 @@ final class PortfolioValueTests: XCTestCase {
         XCTAssertNotEqual(r.portfolioValue, 0, "nil must not read as zero")
     }
 
-    func test_storedValueIsPreferredOverRecomputing() {
+    func test_aStoredValueNeverOverridesTheLiveEstimate() {
+        // It used to be preferred. The column is written only when a value is
+        // re-priced by hand, so it kept the pricing rules of the day of that
+        // edit — and those rules have moved since, leaving the headline and
+        // the Sunday digest on one figure while the card and the widget, which
+        // read `priceRange`, showed another.
         let r = make(low: 40, high: 60)
         r.portfolioValueRaw = 123
-        XCTAssertEqual(r.portfolioValue, Decimal(123))
+        XCTAssertEqual(r.portfolioValue, r.priceRange(for: r.condition).likely)
+    }
+
+    func test_aValueStoredUnderOlderRulesAgreesWithTheCardAfterTheRulesMove() {
+        // The finding's case, rebuilt: a find whose chip was touched while the
+        // baseline was read from the notes. Its grade has since come from the
+        // model's own `condition_grade`, which re-bases the scale — the card
+        // follows, and the portfolio figure has to follow with it.
+        let r = make(low: 50, high: 100, notes: "Like new, tags attached")
+        r.condition = .good
+        r.refreshPortfolioValue()
+        let stored = r.portfolioValueRaw
+
+        var detail = ValuationDetail()
+        detail.conditionGrade = "used"
+        r.valuationDetailData = detail.encoded()
+        XCTAssertNotEqual(stored.map { Decimal($0) }, r.priceRange(for: r.condition).likely,
+                          "precondition: the rules moved under the stored figure")
+        XCTAssertEqual(r.portfolioValue, r.priceRange(for: r.condition).likely)
+        XCTAssertEqual(HistoryViewModel.portfolioTotal(of: [r]),
+                       r.priceRange(for: r.condition).likely,
+                       "the headline and the card are one number")
     }
 
     func test_nonFiniteStoredValueFallsBack() {

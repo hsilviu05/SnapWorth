@@ -47,12 +47,12 @@ final class ScanResult {
     // rules apply here.
 
     /// The condition-adjusted "likely" value at the time this row was last
-    /// priced, denormalised so the portfolio total can be aggregated without
-    /// materialising every object and its externalStorage image.
+    /// priced. Written with every value-history snapshot; no longer read for
+    /// pricing — see `portfolioValue` for why a stored price went stale.
     ///
-    /// Nil on every row written before 1.2.2, and nil is *not* zero: the reader
-    /// falls back to computing from `valueLow`/`valueHigh`, so an old library
-    /// prices correctly with no backfill pass and no migration write.
+    /// Nil on every row written before 1.2.2, which is harmless for the same
+    /// reason: `portfolioValue` computes from `valueLow`/`valueHigh` for every
+    /// row, so an old library prices correctly with no backfill pass.
     var portfolioValueRaw: Double?
 
     /// Append-only `[(date, value)]` history, JSON-encoded.
@@ -337,19 +337,23 @@ final class ScanResult {
         let value: Double
     }
 
-    /// The condition-adjusted "likely" value, in Decimal.
+    /// The condition-adjusted "likely" value, in Decimal — always the live
+    /// estimate, the same number the card, the widget and the sort read.
     ///
-    /// Reads the denormalised column when present and falls back to computing
-    /// it otherwise. The fallback is what makes the migration free: rows
-    /// written before 1.2.2 have no stored value, and rather than rewriting the
-    /// whole store on first launch — a slow, failure-prone operation on exactly
-    /// the users with the most to lose — they simply price the way they always
-    /// did until something touches them.
+    /// It used to prefer the denormalised `portfolioValueRaw`, which is written
+    /// only when a value is re-priced by hand (`refreshPortfolioValue`), and so
+    /// kept whatever the pricing rules said on the day of that edit. The rules
+    /// for `baselineCondition` have changed since, so a find whose condition
+    /// chip was touched on 1.2.2–1.3.6 counted one figure in "Your finds are
+    /// worth" and in the Sunday digest while its own card and the widget —
+    /// which read `priceRange` — said another. The column cannot know the
+    /// rules moved; reading `priceRange` can, and with the grade memoised it
+    /// costs about what the column did.
+    ///
+    /// `portfolioValueRaw` is still written, as the point the value history
+    /// is appended from; nothing prices from it.
     var portfolioValue: Decimal {
-        if let raw = portfolioValueRaw, raw.isFinite {
-            return Decimal(raw)
-        }
-        return priceRange(for: condition).likely
+        currentPriceRange.likely
     }
 
     /// Recomputes and stores the denormalised value, and appends a snapshot when

@@ -569,8 +569,9 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
     /// worth $40 more this week" — and it would be false here. An item's value
     /// only ever moves when the *user* acts — changing its condition
     /// (`ResultView`) or re-reading the care tag (`applySharpened`), both of
-    /// which call `refreshPortfolioValue`. Nothing re-values a saved item on
-    /// its own; `ScanAPIClient.scan` runs only for a photo the user supplied. Reporting
+    /// which call `refreshPortfolioValue` — or when an update corrects how the
+    /// app prices a grade. Nothing re-values a saved item from the market;
+    /// `ScanAPIClient.scan` runs only for a photo the user supplied. Reporting
     /// the user's own edit back to them as market movement would be inventing a
     /// signal, and detecting real movement needs background re-valuation — a
     /// larger feature with a per-user model cost.
