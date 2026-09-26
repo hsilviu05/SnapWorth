@@ -65,7 +65,10 @@ struct NotificationSettingsView: View {
                 } header: {
                     Text("Free scan")
                 } footer: {
-                    Text("Off by default. When on, one reminder at the time you pick — only on days you haven't scanned yet, and never once you're on Pro.")
+                    // Not "on days you haven't scanned": the allowance comes
+                    // back at UTC midnight, so east of UTC it can be back the
+                    // same evening as a morning scan, and the reminder says so.
+                    Text("Off by default. When on, one reminder at the time you pick — only once your free scan is back, and never once you're on Pro.")
                 }
             }
 
@@ -140,7 +143,7 @@ struct NotificationSettingsView: View {
     private func resyncFreeScan() {
         Task {
             await NotificationManager.shared.syncFreeScanReminder(
-                isPro: isPro, scannedToday: ScanStreak.scannedToday(), streak: ScanStreak.current())
+                isPro: isPro, lastScan: ScanStreak.lastScan, streak: ScanStreak.current())
         }
     }
 }

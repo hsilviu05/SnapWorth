@@ -24,7 +24,7 @@ extension Notification.Name {
 /// | ledger   | item marked *listed* → +14 days 10:00      | `ledger.day.<yyyymmdd>` (coalesced per fire-day) |
 /// | portfolio | next 4 Sundays 11:00                      | `portfolio.weekly.<n>` (a ladder) |
 /// | trial    | ~24h before trial end                      | `trial.ending`        |
-/// | freeScan | opt-in; next day without a scan, at the user's hour | `freeScan.daily` |
+/// | freeScan | opt-in; the user's hour, once the UTC allowance is back | `freeScan.daily.<yyyymmdd>` (a ladder) |
 ///
 /// Recap/trial use fixed identifiers so re-scheduling replaces rather than
 /// duplicates. Ledger coalesces every follow-up landing on the same day into a
@@ -452,12 +452,18 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
 
     /// Schedule the next "your free scan is back" — or cancel it.
     ///
-    /// Never for Pro (there is no free scan to come back), never for today if
-    /// the user has already scanned (the allowance is spent), and only when the
-    /// user opted in. Idempotent via the fixed identifier, so calling it after
-    /// every scan and every foreground is the intended use: the previous
-    /// request is simply replaced by the next correct one.
-    func syncFreeScanReminder(isPro: Bool, scannedToday: Bool, streak: Int = 0,
+    /// Never for Pro (there is no free scan to come back), never before the
+    /// allowance has actually come back, and only when the user opted in.
+    /// Idempotent via the fixed identifiers, so calling it after every scan
+    /// and every foreground is the intended use: the previous request is
+    /// simply replaced by the next correct one.
+    ///
+    /// `lastScan` is `ScanStreak.lastScan`, the instant of the most recent
+    /// scan on any tier. It answers two different questions on two different
+    /// clocks: whether today's streak day is already made (the local day, as
+    /// the streak is kept) and when the allowance comes back (the UTC day, as
+    /// the server counts it).
+    func syncFreeScanReminder(isPro: Bool, lastScan: Date?, streak: Int = 0,
                               now: Date = Date()) async {
         // Always clear the whole ladder first, including the legacy single id.
         // Every path below either rebuilds it or wants it gone, and a stale rung
@@ -467,9 +473,16 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
         guard isEnabled(.freeScan), !isPro else { return }
 
         let time = freeScanReminderTime
+        // `hasRemaining` as well as the last scan: the server can have refused
+        // today's scan without one being recorded here — a 402, or a reinstall
+        // whose allowance was withheld at mint.
+        let returns = Self.freeScanReturns(lastScan: lastScan,
+                                           spentNow: !FreeScanCounter.hasRemaining,
+                                           now: now)
         guard let first = Self.nextFreeScanDate(after: now, hour: time.hour, minute: time.minute,
-                                                scannedToday: scannedToday) else { return }
+                                                notBefore: returns) else { return }
         let calendar = Calendar.current
+        let scannedToday = lastScan.map { calendar.isDate($0, inSameDayAs: now) } ?? false
         // Only the first rung can even try to name the streak: beyond that the
         // user may have scanned, or lapsed, and either claim would be
         // invented. And it may only try — `streakOutlives` decides whether the
@@ -493,19 +506,51 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
         }
     }
 
-    /// Today at the chosen time if that is still ahead and no scan has happened
-    /// today; otherwise tomorrow at that time. Pure, for the tests.
-    nonisolated static func nextFreeScanDate(after now: Date, hour: Int, minute: Int,
-                                             scannedToday: Bool,
-                                             calendar: Calendar = .current) -> Date? {
-        var comps = calendar.dateComponents([.year, .month, .day], from: now)
-        comps.hour = hour; comps.minute = minute
-        guard let today = calendar.date(from: comps) else { return nil }
-        if !scannedToday && today > now { return today }
-        return calendar.date(byAdding: .day, value: 1, to: today)
+    /// When the free scan comes back, or nil when it is available now.
+    ///
+    /// The allowance is counted per UTC day — `quota.py`, and on this side
+    /// `FreeScanCounter.isServerToday` and the Scans-left widget — so it comes
+    /// back at the first UTC midnight after the last scan. The reminder asked
+    /// the local calendar instead, which is a different question everywhere
+    /// but UTC+0: a user in New York who scanned at 21:00 was told at 18:00
+    /// the next day that the scan was back, and the tap opened the paywall,
+    /// because it came back at 20:00. East of UTC it ran the other way — a
+    /// scan at 08:00 in Sydney is yesterday's allowance, back by 10:00, and
+    /// that evening's reminder was skipped.
+    ///
+    /// Pure, and takes its UTC calendar, for the tests.
+    nonisolated static func freeScanReturns(
+        lastScan: Date?, spentNow: Bool, now: Date,
+        serverCalendar: Calendar = WidgetHaulData.serverCalendar
+    ) -> Date? {
+        func nextReset(after date: Date) -> Date? {
+            serverCalendar.date(byAdding: .day, value: 1,
+                                to: serverCalendar.startOfDay(for: date))
+        }
+        var returns = lastScan.flatMap(nextReset(after:))
+        if spentNow, let reset = nextReset(after: now) {
+            returns = max(returns ?? reset, reset)
+        }
+        guard let returns, returns > now else { return nil }
+        return returns
     }
 
-    /// Whether the streak that is alive at `now` is still alive at `fireDate`.
+    /// The first time at the chosen hour and minute that is after `now` and
+    /// not before `notBefore` — the moment the allowance comes back. Today if
+    /// both allow it, otherwise the first day that does. Pure, for the tests.
+    nonisolated static func nextFreeScanDate(after now: Date, hour: Int, minute: Int,
+                                             notBefore: Date?,
+                                             calendar: Calendar = .current) -> Date? {
+        let earliest = max(now, notBefore ?? now)
+        var comps = calendar.dateComponents([.year, .month, .day], from: earliest)
+        comps.hour = hour; comps.minute = minute
+        guard let sameDay = calendar.date(from: comps) else { return nil }
+        if sameDay > now && sameDay >= earliest { return sameDay }
+        return calendar.date(byAdding: .day, value: 1, to: sameDay)
+    }
+
+    /// Whether the streak's next day is the day `fireDate` lands on — the only
+    /// day "Day N of your streak is waiting" is true.
     ///
     /// The body is frozen into the request when it is scheduled, and
     /// `ScanStreak.current()` counts a streak as alive while the last scan was
@@ -517,13 +562,19 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
     /// `freeScanBody` states for itself, that there is no guilt when the
     /// streak broke, it simply isn't mentioned.
     ///
-    /// Two cases survive. The rung fires today, so nothing has moved; or the
-    /// user scanned today, which makes today the streak's last day and the
-    /// fire date tomorrow, still inside the window.
+    /// Two cases survive. The user has not scanned today and the rung fires
+    /// today, so nothing has moved; or the user scanned today, which makes
+    /// today the streak's last day, and the rung fires tomorrow. Since the
+    /// reminder waits for the UTC reset, two more cases now arise and both
+    /// fail: a rung the same local day as today's scan (a scan now cannot
+    /// make a new streak day), and one the day after tomorrow (west of UTC,
+    /// an evening scan's allowance returns only on the following evening).
     nonisolated static func streakOutlives(fireDate: Date, now: Date,
                                            scannedToday: Bool,
                                            calendar: Calendar = .current) -> Bool {
-        scannedToday || calendar.isDate(fireDate, inSameDayAs: now)
+        guard scannedToday else { return calendar.isDate(fireDate, inSameDayAs: now) }
+        guard let tomorrow = calendar.date(byAdding: .day, value: 1, to: now) else { return false }
+        return calendar.isDate(fireDate, inSameDayAs: tomorrow)
     }
 
     /// The copy. A streak of two or more is worth naming — "day 5" is a reason
@@ -557,8 +608,8 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
 
         await syncTrialReminder(endDate: purchaseService.trialEndDate)
 
-        let scannedToday = all.contains { Calendar.current.isDateInToday($0.timestamp) }
-        await syncFreeScanReminder(isPro: purchaseService.isSubscribed, scannedToday: scannedToday,
+        await syncFreeScanReminder(isPro: purchaseService.isSubscribed,
+                                   lastScan: ScanStreak.lastScan,
                                    streak: ScanStreak.current())
     }
 

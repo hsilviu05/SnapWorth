@@ -2439,6 +2439,18 @@ final class ScanStreakTests: XCTestCase {
         XCTAssertEqual(ScanStreak.record(now: day(4), defaults: defaults, calendar: cal), 1)
     }
 
+    func test_aLaterScanTheSameDayMovesTheLastScanForward() {
+        // The free-scan reminder dates the UTC reset from this. Across local
+        // midnight-to-evening the first scan and the last can fall in
+        // different UTC days, and the later one is the one that spent today's
+        // allowance.
+        ScanStreak.record(now: day(1, hour: 8), defaults: defaults, calendar: cal)
+        XCTAssertEqual(ScanStreak.record(now: day(1, hour: 21), defaults: defaults, calendar: cal), 1)
+        XCTAssertEqual(defaults.object(forKey: ScanStreak.lastKey) as? Date, day(1, hour: 21))
+        XCTAssertEqual(ScanStreak.record(now: day(2), defaults: defaults, calendar: cal), 2,
+                       "moving it within the day must not change what the next day counts as")
+    }
+
     func test_scannedTodayIsTierAgnostic() {
         XCTAssertFalse(ScanStreak.scannedToday(now: day(1), defaults: defaults, calendar: cal))
         ScanStreak.record(now: day(1), defaults: defaults, calendar: cal)
@@ -2463,23 +2475,30 @@ final class FreeScanReminderTests: XCTestCase {
         cal.date(from: DateComponents(year: 2026, month: 9, day: day, hour: hour, minute: minute))!
     }
 
-    func test_todayAtTheChosenTimeWhenStillAheadAndUnscanned() {
+    func test_todayAtTheChosenTimeWhenStillAheadAndAvailable() {
         let fire = NotificationManager.nextFreeScanDate(after: at(3, 9), hour: 18, minute: 30,
-                                                        scannedToday: false, calendar: cal)
+                                                        notBefore: nil, calendar: cal)
         XCTAssertEqual(fire, at(3, 18, 30))
     }
 
     func test_tomorrowWhenTheTimeHasPassed() {
         let fire = NotificationManager.nextFreeScanDate(after: at(3, 19), hour: 18, minute: 0,
-                                                        scannedToday: false, calendar: cal)
+                                                        notBefore: nil, calendar: cal)
         XCTAssertEqual(fire, at(4, 18))
     }
 
-    func test_tomorrowWhenTodayIsAlreadyScanned() {
-        // 09:00, reminder at 18:00, but the free scan is spent: no nudge today.
+    func test_tomorrowWhenTheAllowanceIsBackOnlyAfterTodaysSlot() {
+        // 09:00, reminder at 18:00, but the free scan is spent until 20:00: no
+        // nudge today.
         let fire = NotificationManager.nextFreeScanDate(after: at(3, 9), hour: 18, minute: 0,
-                                                        scannedToday: true, calendar: cal)
+                                                        notBefore: at(3, 20), calendar: cal)
         XCTAssertEqual(fire, at(4, 18))
+    }
+
+    func test_todayWhenTheAllowanceIsBackBeforeTodaysSlot() {
+        let fire = NotificationManager.nextFreeScanDate(after: at(3, 9), hour: 18, minute: 0,
+                                                        notBefore: at(3, 10), calendar: cal)
+        XCTAssertEqual(fire, at(3, 18))
     }
 
     func test_copyNamesTheStreakOnlyWhenThereIsOne() {
@@ -2514,7 +2533,7 @@ final class FreeScanReminderTests: XCTestCase {
         // 09:00, unscanned, reminder at 18:00 — same day, nothing moves.
         let now = at(3, 9)
         let fire = NotificationManager.nextFreeScanDate(after: now, hour: 18, minute: 0,
-                                                        scannedToday: false, calendar: cal)!
+                                                        notBefore: nil, calendar: cal)!
         XCTAssertTrue(NotificationManager.streakOutlives(
             fireDate: fire, now: now, scannedToday: false, calendar: cal))
     }
@@ -2527,7 +2546,7 @@ final class FreeScanReminderTests: XCTestCase {
         // produce day 1.
         let now = at(3, 20)
         let fire = NotificationManager.nextFreeScanDate(after: now, hour: 18, minute: 0,
-                                                        scannedToday: false, calendar: cal)!
+                                                        notBefore: nil, calendar: cal)!
         XCTAssertEqual(fire, at(4, 18))
         XCTAssertFalse(NotificationManager.streakOutlives(
             fireDate: fire, now: now, scannedToday: false, calendar: cal))
@@ -2538,27 +2557,156 @@ final class FreeScanReminderTests: XCTestCase {
         // 18:00 it is still inside the window `ScanStreak.current()` allows.
         let now = at(3, 9)
         let fire = NotificationManager.nextFreeScanDate(after: now, hour: 18, minute: 0,
-                                                        scannedToday: true, calendar: cal)!
+                                                        notBefore: at(4, 0), calendar: cal)!
         XCTAssertEqual(fire, at(4, 18))
         XCTAssertTrue(NotificationManager.streakOutlives(
             fireDate: fire, now: now, scannedToday: true, calendar: cal))
     }
 
+    func test_aScanTodayNamesNoStreakOnAnyOtherDay() {
+        // Waiting for the UTC reset puts the first rung somewhere the local
+        // day never did. The same evening, east of UTC: today's streak day is
+        // already made, so "Day N is waiting" would be false. The day after
+        // tomorrow, west of UTC: the streak lapses tomorrow unless they scan.
+        let now = at(3, 9)
+        XCTAssertFalse(NotificationManager.streakOutlives(
+            fireDate: at(3, 18), now: now, scannedToday: true, calendar: cal))
+        XCTAssertFalse(NotificationManager.streakOutlives(
+            fireDate: at(5, 18), now: now, scannedToday: true, calendar: cal))
+    }
+
     func test_theFurtherOutTheRungTheLessThereIsToClaim() {
         // `syncFreeScanReminder` only ever asks about the first rung, and the
         // question is how far that rung is from now. With nothing scanned
-        // today there is nothing to carry, however far out it lands.
-        //
-        // Note the scanned-today case is deliberately *not* asserted here: the
-        // function's answer for it is yes at any distance, which is only ever
-        // correct because the caller asks solely about the first rung. The
-        // ladder's later rungs get `streak: 0` by construction, not by asking.
+        // today there is nothing to carry, however far out it lands; with a
+        // scan today, only tomorrow carries it.
         for day in 4...9 {
             XCTAssertFalse(
                 NotificationManager.streakOutlives(
                     fireDate: at(day, 18), now: at(3, 20),
                     scannedToday: false, calendar: cal),
                 "day \(day)")
+        }
+        for day in 5...9 {
+            XCTAssertFalse(
+                NotificationManager.streakOutlives(
+                    fireDate: at(day, 18), now: at(3, 20),
+                    scannedToday: true, calendar: cal),
+                "day \(day)")
+        }
+    }
+}
+
+// ── The free scan comes back at UTC midnight, not local midnight ─────────────
+//
+// `quota.py` counts UTC days, and so do `FreeScanCounter` and the Scans-left
+// widget. The reminder asked the local calendar: in New York an evening scan
+// was followed by "your free scan is back" at 18:00 the next day, two hours
+// before it was, and the tap opened the paywall. East of UTC it ran the other
+// way and skipped evenings on which the scan really was back.
+
+final class FreeScanReminderUTCTests: XCTestCase {
+
+    private func calendar(_ zone: String) -> Calendar {
+        var c = Calendar(identifier: .gregorian)
+        c.timeZone = TimeZone(identifier: zone)!
+        return c
+    }
+
+    private let utc: Calendar = {
+        var c = Calendar(identifier: .gregorian)
+        c.timeZone = TimeZone(secondsFromGMT: 0)!
+        return c
+    }()
+
+    private func at(_ cal: Calendar, _ day: Int, _ hour: Int, _ minute: Int = 0) -> Date {
+        cal.date(from: DateComponents(year: 2026, month: 9, day: day, hour: hour, minute: minute))!
+    }
+
+    /// The whole path `syncFreeScanReminder` takes to its first rung.
+    private func firstRung(lastScan: Date?, spentNow: Bool = false, now: Date,
+                           in cal: Calendar) -> Date? {
+        let returns = NotificationManager.freeScanReturns(
+            lastScan: lastScan, spentNow: spentNow, now: now, serverCalendar: utc)
+        return NotificationManager.nextFreeScanDate(after: now, hour: 18, minute: 0,
+                                                    notBefore: returns, calendar: cal)
+    }
+
+    func test_newYork_anEveningScanIsNotBackAtSixTheNextDay() {
+        // The defect. 21:00 EDT on the 3rd is 01:00 UTC on the 4th: that UTC
+        // day's scan is spent until 00:00 UTC on the 5th, which is 20:00 EDT
+        // on the 4th. 18:00 on the 4th would be a lie; 18:00 on the 5th is not.
+        let ny = calendar("America/New_York")
+        let scan = at(ny, 3, 21)
+        XCTAssertEqual(NotificationManager.freeScanReturns(
+            lastScan: scan, spentNow: true, now: scan, serverCalendar: utc), at(ny, 4, 20))
+        XCTAssertEqual(firstRung(lastScan: scan, spentNow: true, now: scan, in: ny), at(ny, 5, 18))
+    }
+
+    func test_newYork_aMorningScanIsBackOnlyAfterTheSixOClockSlot() {
+        // 09:00 EDT is 13:00 UTC; the reset is 20:00 EDT, after the 18:00
+        // slot, so the first honest reminder is tomorrow at 18:00.
+        let ny = calendar("America/New_York")
+        let scan = at(ny, 3, 9)
+        XCTAssertEqual(firstRung(lastScan: scan, spentNow: true, now: scan, in: ny), at(ny, 4, 18))
+    }
+
+    func test_utcPlusTen_aMorningScanIsBackBeforeTheEvening() {
+        // 08:00 in Brisbane (UTC+10, no daylight saving) is 22:00 UTC the day
+        // before, so the allowance it spent comes back at 10:00 local — and
+        // the 18:00 reminder the local calendar skipped is true.
+        let bne = calendar("Australia/Brisbane")
+        let scan = at(bne, 3, 8)
+        XCTAssertEqual(NotificationManager.freeScanReturns(
+            lastScan: scan, spentNow: true, now: scan, serverCalendar: utc), at(bne, 3, 10))
+        XCTAssertEqual(firstRung(lastScan: scan, spentNow: true, now: scan, in: bne), at(bne, 3, 18))
+    }
+
+    func test_utcPlusTen_anAfternoonScanWaitsForTomorrow() {
+        // 14:00 in Brisbane is 04:00 UTC, the same UTC day as the evening:
+        // the scan comes back at 10:00 tomorrow.
+        let bne = calendar("Australia/Brisbane")
+        let scan = at(bne, 3, 14)
+        XCTAssertEqual(firstRung(lastScan: scan, spentNow: true, now: scan, in: bne), at(bne, 4, 18))
+    }
+
+    func test_aResetThatHasPassedIsNoLongerAWait() {
+        let ny = calendar("America/New_York")
+        let now = at(ny, 5, 9)
+        XCTAssertNil(NotificationManager.freeScanReturns(
+            lastScan: at(ny, 3, 21), spentNow: false, now: now, serverCalendar: utc))
+        XCTAssertEqual(firstRung(lastScan: at(ny, 3, 21), now: now, in: ny), at(ny, 5, 18))
+    }
+
+    func test_aSpentAllowanceWithNoRecordedScanStillWaits() {
+        // A 402, or a reinstall whose allowance was withheld: the server says
+        // none are left and there is no scan here to date it by.
+        let ny = calendar("America/New_York")
+        let now = at(ny, 3, 9)
+        XCTAssertEqual(NotificationManager.freeScanReturns(
+            lastScan: nil, spentNow: true, now: now, serverCalendar: utc), at(ny, 3, 20))
+        XCTAssertNil(NotificationManager.freeScanReturns(
+            lastScan: nil, spentNow: false, now: now, serverCalendar: utc))
+    }
+
+    func test_neverBeforeTheReset_atAnyHourInEitherZone() {
+        // The property the reminder promises, swept across a day of scan
+        // times and every reminder hour.
+        for zone in ["America/New_York", "Australia/Brisbane", "Europe/Bucharest",
+                     "Pacific/Honolulu", "Asia/Kolkata"] {
+            let cal = calendar(zone)
+            for scanHour in 0..<24 {
+                let scan = at(cal, 10, scanHour, 30)
+                let returns = NotificationManager.freeScanReturns(
+                    lastScan: scan, spentNow: true, now: scan, serverCalendar: utc)!
+                for hour in 0..<24 {
+                    let fire = NotificationManager.nextFreeScanDate(
+                        after: scan, hour: hour, minute: 0, notBefore: returns, calendar: cal)!
+                    XCTAssertGreaterThanOrEqual(fire, returns, "\(zone) scan \(scanHour):30, slot \(hour):00")
+                    XCTAssertLessThan(fire.timeIntervalSince(returns), 86_400,
+                                      "\(zone) scan \(scanHour):30, slot \(hour):00 skipped a day")
+                }
+            }
         }
     }
 }
