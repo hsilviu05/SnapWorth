@@ -3847,6 +3847,78 @@
         }
       }
     },
+    "AI read: %@" : {
+      "comment" : "Why this price: something the AI read from the photo or guessed, attributed to it rather than stated as fact. The argument is a condition grade, or the AI's read of demand or supply.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Laut KI: %@"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AI read: %@"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Según la IA: %@"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "După AI: %@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AI 判断：%@"
+          }
+        }
+      }
+    },
+    "AI read: %@, %@" : {
+      "comment" : "Why this price: the AI's guess at demand, then at supply. SnapWorth has no market data, so this must always read as the AI's opinion.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Laut KI: %@, %@"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AI read: %@, %@"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Según la IA: %@, %@"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "După AI: %@, %@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AI 判断：%@，%@"
+          }
+        }
+      }
+    },
     "AI resale estimate" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -5002,6 +5074,42 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "相机启动失败。请重新打开 App。"
+          }
+        }
+      }
+    },
+    "Can't tell from this photo" : {
+      "comment" : "Authenticity read, under 'What the photo suggests about authenticity'.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Auf diesem Foto nicht zu erkennen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Can't tell from this photo"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No se puede saber por esta foto"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nu se vede din poza asta"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这张照片看不出来"
           }
         }
       }
@@ -6860,41 +6968,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "删除这件好物？"
-          }
-        }
-      }
-    },
-    "Demand %@" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Nachfrage %@"
-          }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Demand %@"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Demanda %@"
-          }
-        },
-        "ro" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Cerere %@"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "需求 %@"
           }
         }
       }
@@ -9447,6 +9520,42 @@
         }
       }
     },
+    "Likely a replica" : {
+      "comment" : "Authenticity read, under 'What the photo suggests about authenticity'. Followed by 'From this photo only — not a certification.'",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wahrscheinlich eine Nachahmung"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Likely a replica"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Probablemente una réplica"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Probabil o imitație"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "很可能是仿品"
+          }
+        }
+      }
+    },
     "Listed" : {
       "comment" : "Flip status.",
       "extractionState" : "manual",
@@ -9865,6 +9974,42 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "置信度中等"
+          }
+        }
+      }
+    },
+    "Minor concerns" : {
+      "comment" : "Authenticity read, under 'What the photo suggests about authenticity'.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kleinere Zweifel"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Minor concerns"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Algunas dudas menores"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mici semne de întrebare"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "有少许疑点"
           }
         }
       }
@@ -10326,6 +10471,42 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "没有找到有效订阅。"
+          }
+        }
+      }
+    },
+    "No concerns" : {
+      "comment" : "Authenticity read, under 'What the photo suggests about authenticity'. An observation about one photo, never a verdict.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nichts Auffälliges"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No concerns"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nada sospechoso"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nimic suspect"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未见可疑之处"
           }
         }
       }
@@ -19102,6 +19283,42 @@
         }
       }
     },
+    "abundant supply" : {
+      "comment" : "The AI's guess at how many comparable items are for sale. Placed inside 'AI read: %@, %@'.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "reichliches Angebot"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "abundant supply"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "oferta abundante"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ofertă abundentă"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "货源充足"
+          }
+        }
+      }
+    },
     "after marketplace fees" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -19454,6 +19671,42 @@
         }
       }
     },
+    "high demand" : {
+      "comment" : "The AI's guess at demand. Lower-case: it is placed inside 'AI read: %@, %@'.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "hohe Nachfrage"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "high demand"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "demanda alta"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "cerere mare"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "需求高"
+          }
+        }
+      }
+    },
     "item sold" : {
       "comment" : "Share card label under a count of 1.",
       "extractionState" : "manual",
@@ -19557,6 +19810,114 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "几乎全新，仅试用过"
+          }
+        }
+      }
+    },
+    "low demand" : {
+      "comment" : "The AI's guess at demand. Lower-case: it is placed inside 'AI read: %@, %@'.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "geringe Nachfrage"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "low demand"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "demanda baja"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "cerere mică"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "需求低"
+          }
+        }
+      }
+    },
+    "medium demand" : {
+      "comment" : "The AI's guess at demand. Lower-case: it is placed inside 'AI read: %@, %@'.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "mittlere Nachfrage"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "medium demand"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "demanda media"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "cerere medie"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "需求一般"
+          }
+        }
+      }
+    },
+    "moderate supply" : {
+      "comment" : "The AI's guess at how many comparable items are for sale. Placed inside 'AI read: %@, %@'.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "mittleres Angebot"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "moderate supply"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "oferta moderada"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ofertă moderată"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "货源适中"
           }
         }
       }
@@ -19738,37 +20099,38 @@
         }
       }
     },
-    "supply %@" : {
+    "scarce supply" : {
+      "comment" : "The AI's guess at how many comparable items are for sale. Placed inside 'AI read: %@, %@'.",
       "extractionState" : "manual",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Angebot %@"
+            "value" : "knappes Angebot"
           }
         },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "supply %@"
+            "value" : "scarce supply"
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "oferta %@"
+            "value" : "oferta escasa"
           }
         },
         "ro" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "ofertă %@"
+            "value" : "ofertă redusă"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "供给 %@"
+            "value" : "货源稀少"
           }
         }
       }

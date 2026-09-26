@@ -847,6 +847,22 @@
       "de": "KI-Schätzung",
       "zh-Hans": "AI 估价"
     },
+    "AI read: %@": {
+      "comment": "Why this price: something the AI read from the photo or guessed, attributed to it rather than stated as fact. The argument is a condition grade, or the AI's read of demand or supply.",
+      "en": "AI read: %@",
+      "ro": "După AI: %@",
+      "es": "Según la IA: %@",
+      "de": "Laut KI: %@",
+      "zh-Hans": "AI 判断：%@"
+    },
+    "AI read: %@, %@": {
+      "comment": "Why this price: the AI's guess at demand, then at supply. SnapWorth has no market data, so this must always read as the AI's opinion.",
+      "en": "AI read: %@, %@",
+      "ro": "După AI: %@, %@",
+      "es": "Según la IA: %@, %@",
+      "de": "Laut KI: %@, %@",
+      "zh-Hans": "AI 判断：%@，%@"
+    },
     "AI resale estimate": {
       "en": "AI resale estimate",
       "ro": "Estimare AI de revânzare",
@@ -1081,6 +1097,14 @@
       "es": "No se pudo iniciar la cámara. Reinicia la app.",
       "de": "Die Kamera konnte nicht gestartet werden. Starte die App neu.",
       "zh-Hans": "相机启动失败。请重新打开 App。"
+    },
+    "Can't tell from this photo": {
+      "comment": "Authenticity read, under 'What the photo suggests about authenticity'.",
+      "en": "Can't tell from this photo",
+      "ro": "Nu se vede din poza asta",
+      "es": "No se puede saber por esta foto",
+      "de": "Auf diesem Foto nicht zu erkennen",
+      "zh-Hans": "这张照片看不出来"
     },
     "Cancel": {
       "en": "Cancel",
@@ -1455,13 +1479,6 @@
       "es": "¿Eliminar este hallazgo?",
       "de": "Diesen Fund löschen?",
       "zh-Hans": "删除这件好物？"
-    },
-    "Demand %@": {
-      "en": "Demand %@",
-      "ro": "Cerere %@",
-      "es": "Demanda %@",
-      "de": "Nachfrage %@",
-      "zh-Hans": "需求 %@"
     },
     "Did %@ sell? Update your ledger to keep your profit accurate.": {
       "en": "Did %@ sell? Update your ledger to keep your profit accurate.",
@@ -1982,6 +1999,14 @@
       "de": "Wie neu",
       "zh-Hans": "几乎全新"
     },
+    "Likely a replica": {
+      "comment": "Authenticity read, under 'What the photo suggests about authenticity'. Followed by 'From this photo only — not a certification.'",
+      "en": "Likely a replica",
+      "ro": "Probabil o imitație",
+      "es": "Probablemente una réplica",
+      "de": "Wahrscheinlich eine Nachahmung",
+      "zh-Hans": "很可能是仿品"
+    },
     "Listed": {
       "comment": "Flip status.",
       "en": "Listed",
@@ -2067,6 +2092,14 @@
       "es": "Confianza media",
       "de": "Mittlere Sicherheit",
       "zh-Hans": "置信度中等"
+    },
+    "Minor concerns": {
+      "comment": "Authenticity read, under 'What the photo suggests about authenticity'.",
+      "en": "Minor concerns",
+      "ro": "Mici semne de întrebare",
+      "es": "Algunas dudas menores",
+      "de": "Kleinere Zweifel",
+      "zh-Hans": "有少许疑点"
     },
     "Monthly": {
       "en": "Monthly",
@@ -2164,6 +2197,14 @@
       "es": "No se encontró ninguna suscripción activa.",
       "de": "Kein aktives Abo gefunden.",
       "zh-Hans": "没有找到有效订阅。"
+    },
+    "No concerns": {
+      "comment": "Authenticity read, under 'What the photo suggests about authenticity'. An observation about one photo, never a verdict.",
+      "en": "No concerns",
+      "ro": "Nimic suspect",
+      "es": "Nada sospechoso",
+      "de": "Nichts Auffälliges",
+      "zh-Hans": "未见可疑之处"
     },
     "No finds yet": {
       "en": "No finds yet",
@@ -3956,6 +3997,14 @@
       "de": "Dein Abo wurde wiederhergestellt.",
       "zh-Hans": "你的订阅已恢复。"
     },
+    "abundant supply": {
+      "comment": "The AI's guess at how many comparable items are for sale. Placed inside 'AI read: %@, %@'.",
+      "en": "abundant supply",
+      "ro": "ofertă abundentă",
+      "es": "oferta abundante",
+      "de": "reichliches Angebot",
+      "zh-Hans": "货源充足"
+    },
     "after marketplace fees": {
       "en": "after marketplace fees",
       "ro": "după comisioanele platformei",
@@ -4028,6 +4077,14 @@
       "de": "guter gebrauchter Zustand",
       "zh-Hans": "二手，成色良好"
     },
+    "high demand": {
+      "comment": "The AI's guess at demand. Lower-case: it is placed inside 'AI read: %@, %@'.",
+      "en": "high demand",
+      "ro": "cerere mare",
+      "es": "demanda alta",
+      "de": "hohe Nachfrage",
+      "zh-Hans": "需求高"
+    },
     "item sold": {
       "comment": "Share card label under a count of 1.",
       "en": "item sold",
@@ -4050,6 +4107,30 @@
       "es": "como nuevo, apenas usado",
       "de": "wie neu, kaum getragen",
       "zh-Hans": "几乎全新，仅试用过"
+    },
+    "low demand": {
+      "comment": "The AI's guess at demand. Lower-case: it is placed inside 'AI read: %@, %@'.",
+      "en": "low demand",
+      "ro": "cerere mică",
+      "es": "demanda baja",
+      "de": "geringe Nachfrage",
+      "zh-Hans": "需求低"
+    },
+    "medium demand": {
+      "comment": "The AI's guess at demand. Lower-case: it is placed inside 'AI read: %@, %@'.",
+      "en": "medium demand",
+      "ro": "cerere medie",
+      "es": "demanda media",
+      "de": "mittlere Nachfrage",
+      "zh-Hans": "需求一般"
+    },
+    "moderate supply": {
+      "comment": "The AI's guess at how many comparable items are for sale. Placed inside 'AI read: %@, %@'.",
+      "en": "moderate supply",
+      "ro": "ofertă moderată",
+      "es": "oferta moderada",
+      "de": "mittleres Angebot",
+      "zh-Hans": "货源适中"
     },
     "month": {
       "comment": "One subscription period, no number.",
@@ -4088,12 +4169,13 @@
       "de": "Gewinn diesen Monat",
       "zh-Hans": "本月利润"
     },
-    "supply %@": {
-      "en": "supply %@",
-      "ro": "ofertă %@",
-      "es": "oferta %@",
-      "de": "Angebot %@",
-      "zh-Hans": "供给 %@"
+    "scarce supply": {
+      "comment": "The AI's guess at how many comparable items are for sale. Placed inside 'AI read: %@, %@'.",
+      "en": "scarce supply",
+      "ro": "ofertă redusă",
+      "es": "oferta escasa",
+      "de": "knappes Angebot",
+      "zh-Hans": "货源稀少"
     },
     "unchanged": {
       "en": "unchanged",

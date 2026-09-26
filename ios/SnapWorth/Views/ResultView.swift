@@ -1471,6 +1471,9 @@ struct ResultView: View {
 /// Renders a `ValuationDetail`. Every section is conditional on its data, so a
 /// thin response shows a thin panel rather than empty headings. Copy rule:
 /// "estimate", never "worth" or "sells for" — the same line marketing holds.
+/// And never a server token as text: an enum field is shown through its
+/// client label (`ValuationDetail.facts`, `authenticityRead`, `marketRead`),
+/// and demand and supply only as the AI's read, never as market fact.
 struct ValuationDetailView: View {
     let detail: ValuationDetail
 
@@ -1490,7 +1493,7 @@ struct ValuationDetailView: View {
             bullets("What drives the value", detail.valueDrivers, icon: "arrow.up.right")
             bullets("What we assumed", detail.assumptions, icon: "questionmark.circle")
             bullets("Sharpen this estimate", detail.improveEstimate, icon: "camera.viewfinder")
-            if let read = detail.authenticityAssessment, !read.isEmpty { authenticity(read) }
+            if let read = detail.authenticityRead { authenticity(read) }
             factsRow
         }
     }
@@ -1545,8 +1548,11 @@ struct ValuationDetailView: View {
                     .foregroundStyle(Color.snapEspresso)
                     .fixedSize(horizontal: false, vertical: true)
             }
+            // A neutral mark, not a checkmark: the server sends the *weakest*
+            // signals here (`confidence.py`), so a tick beside "the brand
+            // could not be identified" endorsed the problem it names.
             ForEach(Array(detail.confidenceReasons.prefix(3).enumerated()), id: \.offset) { _, reason in
-                bullet(reason, icon: "checkmark.circle")
+                bullet(reason, icon: "info.circle")
             }
         }
     }
@@ -1581,11 +1587,11 @@ struct ValuationDetailView: View {
 
     // ── Authenticity: an observation about the photo, never a verdict ──
 
-    private func authenticity(_ read: String) -> some View {
+    private func authenticity(_ read: AuthenticityRead) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             Text("What the photo suggests about authenticity")
                 .snapSectionHeader()
-            Text(read)
+            Text(read.label)
                 .font(.dmSans(15, weight: .semibold))
                 .foregroundStyle(Color.snapEspresso)
             if let why = detail.authenticityReasoning, !why.isEmpty {
@@ -1622,18 +1628,16 @@ struct ValuationDetailView: View {
         // thought it was looking at is the most useful fact in the row, and it
         // is why the estimate started where it did.
         let facts = gradeWasOverridden ? detail.factsWithReadGrade : detail.facts
-        let market = [detail.demand.map { String(localized: "Demand \($0)") },
-                      detail.supply.map { String(localized: "supply \($0)") }]
-            .compactMap { $0 }
-        if !facts.isEmpty || !market.isEmpty {
+        let market = detail.marketRead
+        if !facts.isEmpty || market != nil {
             VStack(alignment: .leading, spacing: 4) {
                 if !facts.isEmpty {
                     Text(facts.joined(separator: " · "))
                         .font(.snapCaption)
                         .foregroundStyle(Color.snapWarmGray)
                 }
-                if !market.isEmpty {
-                    Text(market.joined(separator: " · "))
+                if let market {
+                    Text(market)
                         .font(.snapCaption)
                         .foregroundStyle(Color.snapWarmGray)
                 }

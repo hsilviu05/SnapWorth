@@ -527,6 +527,26 @@ final class ScanContractTests: XCTestCase {
         XCTAssertNotNil(detail, "the v2 payload in the shared fixture no longer decodes")
     }
 
+    /// Everything the panel prints from the shared fixture, which carries the
+    /// backend's real tokens (`likeNew`-style grades, `no_concerns`, `high`).
+    /// None of it may be a token: no underscore, and no bare adjective.
+    func test_theSharedFixtureRendersNoServerTokens() throws {
+        let decoded = try JSONDecoder().decode(
+            ScanAPIResponse.self, from: Self.contractData())
+        let detail = try XCTUnwrap(ValuationDetail(response: decoded))
+        let shown = detail.facts + detail.factsWithReadGrade
+            + [detail.marketRead, detail.authenticityRead?.label].compactMap { $0 }
+        XCTAssertNotNil(detail.authenticityRead, "the fixture's authenticity token has no label")
+        XCTAssertNotNil(detail.marketRead, "the fixture's demand and supply tokens have no label")
+        for text in shown {
+            XCTAssertFalse(text.contains("_"), "raw token on the panel: \(text)")
+            for token in [decoded.authenticityAssessment, decoded.demand, decoded.supply,
+                          decoded.conditionGrade].compactMap({ $0 }) {
+                XCTAssertNotEqual(text, token, "raw token on the panel: \(text)")
+            }
+        }
+    }
+
     func test_freeScansRemainingDecodesAsOptional() throws {
         // Nil when the server omits it (Pro, or the quota store is down) —
         // see I-3. The fixture carries a value, so this checks the present
@@ -2728,9 +2748,9 @@ final class ValuationDetailTests: XCTestCase {
         "confidence_reasons":["Logo visible","Common item","Clear photo","Fourth reason"],
         "quick_sale_price_usd":45,"expected_price_usd":58,"best_case_price_usd":90,"worst_case_price_usd":40,
         "value_drivers":["Classic colourway"],"assumptions":["Size M"],"uncertainty_factors":["Pilling not visible"],
-        "improve_estimate":["Photograph the tag"],"authenticity_assessment":"Consistent with genuine",
-        "authenticity_reasoning":"Stitching and label match","demand":"steady","supply":"plentiful",
-        "condition_grade":"Good","size":"M","era":"2019","material":"fleece",
+        "improve_estimate":["Photograph the tag"],"authenticity_assessment":"no_concerns",
+        "authenticity_reasoning":"Stitching and label match","demand":"high","supply":"moderate",
+        "condition_grade":"good","size":"M","era":"2019","material":"fleece",
         """#)
     }
 
@@ -2783,6 +2803,64 @@ final class ValuationDetailTests: XCTestCase {
 
     func test_paywallTriggerExists() {
         XCTAssertEqual(PaywallTrigger.valuationDetail.rawValue, "valuation_detail")
+    }
+
+    // MARK: Server tokens are never display text
+
+    /// The backend's closed vocabularies (`valuation.py` `_CONDITION_GRADES`,
+    /// `_AUTHENTICITY`, `_DEMAND`, `_SUPPLY`). The server validates each field
+    /// against its set and sends the token, and the panel printed the token.
+    private let grades = ["new", "likeNew", "good", "used"]
+    private let authenticity = ["no_concerns", "minor_concerns", "cannot_verify", "likely_replica"]
+    private let demand = ["high", "medium", "low"]
+    private let supply = ["scarce", "moderate", "abundant"]
+
+    func test_everyServerTokenHasALabelThatIsNotTheToken() throws {
+        for token in grades {
+            let label = try XCTUnwrap(Condition(serverGrade: token)?.label, token)
+            XCTAssertFalse(label.contains("_"), token)
+        }
+        XCTAssertEqual(Set(authenticity), Set(AuthenticityRead.allCases.map(\.rawValue)))
+        for token in authenticity {
+            let label = try XCTUnwrap(AuthenticityRead(serverValue: token)?.label, token)
+            XCTAssertFalse(label.contains("_"), "\(token) printed as \(label)")
+            XCTAssertNotEqual(label, token)
+        }
+        for token in demand {
+            let label = try XCTUnwrap(MarketDemand(serverValue: token)?.label, token)
+            XCTAssertNotEqual(label, token, "a bare adjective reads as market fact")
+        }
+        for token in supply {
+            let label = try XCTUnwrap(MarketSupply(serverValue: token)?.label, token)
+            XCTAssertNotEqual(label, token, "a bare adjective reads as market fact")
+        }
+    }
+
+    func test_thePanelShowsLabelsAndAttributesTheMarketToTheAI() throws {
+        let response = try JSONDecoder().decode(ScanAPIResponse.self, from: v2.data(using: .utf8)!)
+        let detail = try XCTUnwrap(ValuationDetail(response: response))
+        XCTAssertEqual(detail.authenticityRead, .noConcerns)
+        XCTAssertEqual(detail.authenticityRead?.label, "No concerns")
+        XCTAssertEqual(detail.marketRead, "AI read: high demand, moderate supply")
+        XCTAssertEqual(detail.factsWithReadGrade, ["AI read: Good", "M", "2019", "fleece"])
+
+        var one = ValuationDetail()
+        one.supply = "scarce"
+        XCTAssertEqual(one.marketRead, "AI read: scarce supply",
+                       "one read alone is still the AI's, never stated bare")
+    }
+
+    func test_anUnknownTokenIsDroppedRatherThanPrinted() {
+        var detail = ValuationDetail()
+        detail.conditionGrade = "pristine"
+        detail.authenticityAssessment = "definitely_real"
+        detail.demand = "enormous"
+        detail.supply = "none_at_all"
+        detail.size = "M"
+        XCTAssertNil(detail.authenticityRead)
+        XCTAssertNil(detail.marketRead)
+        XCTAssertEqual(detail.facts, ["M"])
+        XCTAssertEqual(detail.factsWithReadGrade, ["M"])
     }
 }
 

@@ -539,6 +539,20 @@ class TestConfidence:
         assert "brand" in sentence.lower()
         assert sentence.endswith(".")
 
+    def test_market_reason_attributes_the_read_to_the_ai(self):
+        """Demand and supply are the model's guess; the reason must say so.
+
+        The signal only measures whether the model filled both fields, and it
+        reaches the user as a confidence reason. It used to read "demand and
+        supply are well understood" — a claim about market knowledge SnapWorth
+        does not have.
+        """
+        for demand, supply in (("high", "moderate"), ("high", None), (None, None)):
+            signal = next(s for s in _compute(demand=demand, supply=supply).signals
+                          if s.name == "market")
+            assert "AI" in signal.explanation
+            assert "understood" not in signal.explanation
+
 
 # ── Image quality ────────────────────────────────────────────────────────────
 
