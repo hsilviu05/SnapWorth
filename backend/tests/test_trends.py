@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import os
 import sys
@@ -98,6 +99,39 @@ class TestTierSplit:
         assert len((await notify.trends(is_pro=False))["categories"]) == notify.TRENDS_FREE_ROWS
         await cache.delete(f"{notify.TRENDS_CACHE_KEY}:pro")
         assert len((await notify.trends(is_pro=True))["categories"]) == notify.TRENDS_PRO_ROWS
+
+
+class TestWrittenWithoutTelegram:
+    """The tallies `trends()` reads have one writer, `scan_completed`. It used
+    to return early whenever the Telegram variables were unset, so the card
+    in the app depended on the operator's bot — and emptied itself, silently,
+    a week after the bot was switched off. The other tests here seed the day
+    documents directly, which is why none of them could notice."""
+
+    @pytest.mark.asyncio
+    async def test_scans_reach_trends_with_the_bot_unconfigured(self, monkeypatch):
+        monkeypatch.delenv("TELEGRAM_BOT_TOKEN", raising=False)
+        monkeypatch.delenv("TELEGRAM_CHAT_ID", raising=False)
+        c = ResilientCache(None, InMemoryCache())
+        notify.configure(c)
+        try:
+            assert not notify.enabled()
+            for i in range(6):
+                notify.scan_completed(
+                    tier="free", item_name="Carhartt Detroit Jacket", brand="Carhartt",
+                    category="clothing", low=60, high=100, confidence="High",
+                    subject=f"device-{i}")
+            await asyncio.gather(*list(notify._tasks), return_exceptions=True)
+
+            # Today is outside the window, so read it from tomorrow.
+            tomorrow = datetime.now(timezone.utc) + timedelta(days=1)
+            payload = await notify.trends(is_pro=False, now=tomorrow)
+
+            assert payload["scans"] == 6
+            assert [(r["name"], r["count"]) for r in payload["categories"]] == [("clothing", 6)]
+            assert [r["name"] for r in payload["brands"]] == ["Carhartt"]
+        finally:
+            await notify.aclose()
 
 
 class TestCaching:

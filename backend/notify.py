@@ -6,7 +6,9 @@ cheapest reliable way to do that — the Bot API is free, needs no SDK, and a
 message to a private chat is push-delivered.
 
 Everything here is OFF unless both ``TELEGRAM_BOT_TOKEN`` and
-``TELEGRAM_CHAT_ID`` are set, and every path is best-effort by construction:
+``TELEGRAM_CHAT_ID`` are set — except the scan count and the category, brand
+and finds tallies, which `/trends` serves to the app and which therefore run
+whenever there is a cache — and every path is best-effort by construction:
 an alert *about* production must never be able to degrade production. No user
 request ever waits on Telegram — sends run as background tasks — and the one
 awaited entry point (`entitlement_recorded`) swallows its own failures.
@@ -689,7 +691,8 @@ def configure(cache, notifier: TelegramNotifier | None = None,
     """Wire the notifier from the environment. Called once at startup.
 
     With the env vars unset this leaves everything disabled and every public
-    function a no-op — the feature costs nothing until it is turned on.
+    function a no-op — the feature costs nothing until it is turned on — apart
+    from `count_scan` and `scan_completed`'s tallies, which `/trends` reads.
     """
     global _notifier, _cache, _status_provider, _social, _generator, _scanner
     global _device_check_probe
@@ -838,8 +841,12 @@ async def _bump(name: str) -> None:
 
 
 def count_scan(tier: str) -> None:
-    """Tally one successful scan. Fire-and-forget; free when alerts are off."""
-    if _notifier is None:
+    """Tally one successful scan. Fire-and-forget.
+
+    Runs whenever there is a cache, Telegram or not: `/trends` reports this
+    count to users ("N scans this week"), and a feature in the app must not
+    depend on whether the operator's bot is configured."""
+    if _cache is None:
         return
     _spawn(_bump("scans_pro" if tier == "pro" else "scans_free"))
 
@@ -2201,13 +2208,18 @@ async def _note_scan(*, tier: str, item_name: str, brand: str | None,
                      category: str, low: float, high: float, confidence: str,
                      subject: str | None = None, elapsed_ms: int | None = None) -> None:
     try:
+        # The count and the tallies feed `/trends` as well as the bot, so they
+        # run with or without Telegram. Everything after them is the
+        # operator's alone.
         await _bump("scans_pro" if tier == "pro" else "scans_free")
-        await _cache.set(LAST_SCAN_KEY, str(int(time.time())), STATS_TTL)
-        if elapsed_ms:
-            await _cache.incr(_stat_key(_day(), "scan_ms"), STATS_TTL, int(elapsed_ms))
         await _tally_top(_day(), _normalise_category(category), _clean_brand(brand),
                          _find_record(item_name=item_name, brand=brand, category=category,
                                       low=low, high=high, tier=tier))
+        if _notifier is None:
+            return
+        await _cache.set(LAST_SCAN_KEY, str(int(time.time())), STATS_TTL)
+        if elapsed_ms:
+            await _cache.incr(_stat_key(_day(), "scan_ms"), STATS_TTL, int(elapsed_ms))
         if subject:
             await _index_user(auditlog.pseudonymise(subject), tier=tier, scanned=True)
         if await _feed_enabled():
@@ -2223,8 +2235,14 @@ def scan_completed(*, tier: str, item_name: str, brand: str | None, category: st
                    subject: str | None = None, elapsed_ms: int | None = None) -> None:
     """A scan produced a valuation. Counts it, tallies what it was, and — when
     the feed is on — tells the operator. Fire-and-forget; item and price only,
-    never who scanned it and never the photo."""
-    if _notifier is None or _cache is None:
+    never who scanned it and never the photo.
+
+    Gated on the cache alone. The tallies are what `/trends` serves to the
+    app, and this was their only writer: gated on Telegram as well, unsetting
+    the bot's variables would have emptied "Trending at the thrift" for every
+    user over the following week, with no error anywhere — the card hides
+    itself when it has nothing to show."""
+    if _cache is None:
         return
     _spawn(_note_scan(tier=tier, item_name=item_name, brand=brand, category=category,
                       low=low, high=high, confidence=confidence, subject=subject,

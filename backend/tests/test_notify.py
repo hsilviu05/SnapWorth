@@ -101,14 +101,18 @@ class TestDisabled:
         notify.configure(cache)
         try:
             assert not notify.enabled()
-            # Every public entry point must be a harmless no-op.
-            notify.count_scan("pro")
+            # Every operator entry point must be a harmless no-op.
             notify.count_scan_failure()
             notify.model_unhealthy("exhausted")
             notify.model_recovered()
             await notify.entitlement_recorded(SUBJECT, pro_entitlement())
             assert await notify.send_digest() is False
             assert notify._tasks == set()
+            # Except the scan count, which `/trends` shows to users and so
+            # must not depend on the bot being configured.
+            notify.count_scan("pro")
+            await drain()
+            assert await cache.get(notify._stat_key(notify._day(), "scans_pro")) == "1"
         finally:
             await notify.aclose()
 
