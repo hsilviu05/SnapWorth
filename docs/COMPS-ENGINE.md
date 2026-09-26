@@ -100,7 +100,9 @@ would show today; the agreement numbers #40 and #41 wait on need a provider.
    will then never select it for pricing.
 3. Normalise at the boundary: convert to USD via `normalize.to_usd`, fold the
    condition string via `normalize.condition`, and populate `seller_id` if the
-   marketplace exposes one (it is load-bearing for dedupe — see below).
+   marketplace exposes one (it is load-bearing for dedupe — see below), and
+   `listed_at` if it exposes when the listing went up (the only source of
+   days-to-sale; without it the provider still prices).
 4. Register it, and gate rollout with `COMPS_PROVIDERS`.
 
 Before step 1: have the provider's written permission to use its sold data
@@ -304,7 +306,7 @@ Ranked by value ÷ effort, with an explicit build/skip call.
 | **Damage detection + localisation** | Medium | High | **Defer.** Good demo, moderate real value, and false positives ("we found a stain") are actively harmful to trust. |
 | **Counterfeit detection** | High value, **very high risk** | High | **Do not build.** A false "authentic" on a replica is legal exposure that cannot be insured, and a false "counterfeit" is defamatory toward a seller. `authenticity_assessment` deliberately tops out at "no obvious concerns" and should stay there. |
 | **Fine-tuned valuation model** | Medium | Very high | **Do not build yet.** Fine-tuning needs the 500-item benchmark plus far more labelled outcome data than exists. Comps make the model less important, not more — spend the effort on evidence, not on a better guess. |
-| **Demand/velocity forecasting** | Medium | Medium | **Free once comps ship.** Sales-per-week falls straight out of the comp set; no new model needed. |
+| **Demand/velocity forecasting** | Medium | Medium | **Built (#43), waiting on data.** `aggregate.sell_through` gives sales in the window and median days-to-sale from the comp set, suppressed below `SELL_THROUGH_MIN_COMPS` (8). No new model needed. |
 
 **The through-line:** OCR and logo detection improve *identification*, which is
 the input to comps. Everything downstream of a correct identity is already
