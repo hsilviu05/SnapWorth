@@ -1290,3 +1290,61 @@ class TestProDetailGate:
         body = _scan_with(V2_PAYLOAD).json()
         for field in TestScanResponseContract.V1_REQUIRED:
             assert body[field] is not None, f"{field} missing from a free scan"
+
+
+class TestTokensOnATextlessReplyAreCounted:
+    """A reply is billed whether or not it carries text.
+
+    Usage was recorded only after `extract_text` succeeded, so a safety block
+    or an empty reply — which is retried — left its tokens out of /costs,
+    $/scan and the budget alert. Up to MAX_OUTPUT_TOKENS per attempt.
+    """
+
+    class _Usage:
+        prompt_token_count = 1_300
+        candidates_token_count = 0
+        total_token_count = 9_492
+        thoughts_token_count = 8_192
+
+    def _reply(self, **kw):
+        resp = _Resp(**kw)
+        resp.usage_metadata = self._Usage()  # type: ignore[attr-defined]
+        return resp
+
+    def _run(self, *replies):
+        import asyncio
+        from unittest.mock import patch
+
+        import main
+
+        with patch("main._model") as model, \
+                patch("main._RETRY_BASE_DELAY", 0), \
+                patch.object(main, "_model_health", main._ModelHealth()), \
+                patch("main.notify.model_usage") as usage, \
+                patch("main.metrics.model_calls.inc") as calls:
+            model.generate_content_async = AsyncMock(side_effect=list(replies))
+            try:
+                asyncio.run(main._generate_with_retry("prompt", label="scan"))
+            except (aiconfig.ModelBlocked, aiconfig.ModelUnavailable):
+                pass
+        return usage, [c.kwargs.get("outcome") for c in calls.call_args_list]
+
+    def test_an_empty_reply_is_counted_on_every_attempt(self):
+        usage, outcomes = self._run(self._reply(text="", finish="STOP"),
+                                    self._reply(text="", finish="STOP"))
+        assert usage.call_count == 2
+        assert usage.call_args.args == ("scan", {
+            "prompt_tokens": 1_300, "output_tokens": 0,
+            "total_tokens": 9_492, "thoughts_tokens": 8_192})
+        assert outcomes.count("empty") == 2
+
+    def test_a_blocked_reply_is_counted(self):
+        usage, outcomes = self._run(self._reply(finish="SAFETY", raises=True))
+        assert usage.call_count == 1
+        assert usage.call_args.args[1]["thoughts_tokens"] == 8_192
+        assert "blocked" in outcomes
+
+    def test_a_good_reply_is_counted_once(self):
+        usage, outcomes = self._run(self._reply(text="{}", finish="STOP"))
+        assert usage.call_count == 1
+        assert outcomes == ["success"]

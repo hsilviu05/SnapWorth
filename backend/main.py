@@ -2108,6 +2108,15 @@ class _ModelHealth:
 _model_health = _ModelHealth()
 
 
+def _record_usage(label: str, usage: dict) -> None:
+    """Count one reply's tokens toward spend (`notify`) and the token metric."""
+    notify.model_usage(label, usage)
+    for kind, key in (("prompt", "prompt_tokens"), ("output", "output_tokens"),
+                      ("thoughts", "thoughts_tokens")):
+        if key in usage:
+            metrics.model_tokens.inc(usage[key], operation=label, kind=kind)
+
+
 async def _generate_with_retry(
     contents, *, label: str, max_tokens: int | None = None, record_health: bool = True
 ) -> tuple[str, dict]:
@@ -2138,15 +2147,22 @@ async def _generate_with_retry(
                 {"generation_config": config} if config else {})
             with metrics.Timer(metrics.model_duration, operation=label):
                 response = await _model.generate_content_async(contents, **kwargs)
-            text, usage = aiconfig.extract_text(response), aiconfig.usage_of(response)
+            # Recorded before the text is read, because a reply is billed
+            # whether or not it carries any. This used to run only after
+            # `extract_text` succeeded, so a reply that was safety-blocked or
+            # came back empty — and an empty one is retried — could bill up to
+            # MAX_OUTPUT_TOKENS that /costs, $/scan and the budget alert never
+            # saw. Its outcome is labelled `blocked` or `empty` below.
+            usage = aiconfig.usage_of(response)
+            _record_usage(label, usage)
+            try:
+                text = aiconfig.extract_text(response)
+            except aiconfig.ModelUnavailable:
+                metrics.model_calls.inc(operation=label, outcome="empty")
+                raise
             metrics.model_calls.inc(operation=label, outcome="success")
             if record_health:
                 _model_health.record_success()
-            notify.model_usage(label, usage)
-            for kind, key in (("prompt", "prompt_tokens"), ("output", "output_tokens"),
-                              ("thoughts", "thoughts_tokens")):
-                if key in usage:
-                    metrics.model_tokens.inc(usage[key], operation=label, kind=kind)
             return text, usage
         except aiconfig.ModelBlocked:
             metrics.model_calls.inc(operation=label, outcome="blocked")
