@@ -2901,12 +2901,13 @@
       "de": "Sieh die Durchschnittspreise und die besten Funde der Woche",
       "zh-Hans": "看看均价和本周最好的几件"
     },
-    "See your exact profit after marketplace fees, right there in the aisle.": {
-      "en": "See your exact profit after marketplace fees, right there in the aisle.",
-      "ro": "Vezi exact ce profit îți rămâne după comisioane, chiar acolo, în magazin.",
-      "es": "Mira exactamente cuánto ganas tras las comisiones, allí mismo, en la tienda.",
-      "de": "Sieh deinen genauen Gewinn nach Plattformgebühren – direkt im Laden.",
-      "zh-Hans": "就站在货架前，看清扣掉平台手续费后到底赚多少。"
+    "See your estimated profit after marketplace fees, right there in the aisle.": {
+      "comment": "Onboarding, Thrift Flip slide. 'Estimated', never 'exact': the resale side is an AI estimate and the fees are approximate, which Thrift Flip itself says.",
+      "en": "See your estimated profit after marketplace fees, right there in the aisle.",
+      "ro": "Vezi profitul estimat după comisioane, chiar acolo, în magazin.",
+      "es": "Mira una estimación de tu ganancia tras las comisiones, allí mismo, en la tienda.",
+      "de": "Sieh deinen geschätzten Gewinn nach Plattformgebühren – direkt im Laden.",
+      "zh-Hans": "就站在货架前，估算扣掉平台手续费后能赚多少。"
     },
     "See your flips for the month": {
       "en": "See your flips for the month",

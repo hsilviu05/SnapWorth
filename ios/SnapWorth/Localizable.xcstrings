@@ -13922,37 +13922,38 @@
         }
       }
     },
-    "See your exact profit after marketplace fees, right there in the aisle." : {
+    "See your estimated profit after marketplace fees, right there in the aisle." : {
+      "comment" : "Onboarding, Thrift Flip slide. 'Estimated', never 'exact': the resale side is an AI estimate and the fees are approximate, which Thrift Flip itself says.",
       "extractionState" : "manual",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Sieh deinen genauen Gewinn nach Plattformgebühren – direkt im Laden."
+            "value" : "Sieh deinen geschätzten Gewinn nach Plattformgebühren – direkt im Laden."
           }
         },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "See your exact profit after marketplace fees, right there in the aisle."
+            "value" : "See your estimated profit after marketplace fees, right there in the aisle."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Mira exactamente cuánto ganas tras las comisiones, allí mismo, en la tienda."
+            "value" : "Mira una estimación de tu ganancia tras las comisiones, allí mismo, en la tienda."
           }
         },
         "ro" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Vezi exact ce profit îți rămâne după comisioane, chiar acolo, în magazin."
+            "value" : "Vezi profitul estimat după comisioane, chiar acolo, în magazin."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "就站在货架前，看清扣掉平台手续费后到底赚多少。"
+            "value" : "就站在货架前，估算扣掉平台手续费后能赚多少。"
           }
         }
       }
