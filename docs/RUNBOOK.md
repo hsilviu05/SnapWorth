@@ -197,9 +197,17 @@ never a free scan.
    single-instance mode where memory is treated as authoritative, silently
    disabling the quota across every replica (see `cache.ResilientCache`).
 4. The client reconnects automatically once Redis returns; no deploy needed.
-5. If the outage is prolonged and free-tier revenue leakage is preferable to a
-   full outage, that is a **deliberate, logged decision** — set
-   `FREE_SCANS_PER_DAY=0` to make everyone Pro-gated rather than erroring.
+   A refund or revoke notification that arrives during the outage is answered
+   503, and Apple redelivers it; there is nothing to replay by hand.
+5. There is no variable that turns this 503 into something else. An earlier
+   version of this step said `FREE_SCANS_PER_DAY=0` would show free users the
+   paywall instead of an error. It did not: `ScanQuota.reserve` increments the
+   Redis counter (`required=True`) *before* comparing it with the limit, so an
+   unreachable Redis is a 503 at any limit. The 503 is also the honest answer,
+   since those users have not used their scan and a paywall would say they had.
+   **If you set `FREE_SCANS_PER_DAY=0` during an earlier outage, set it back**
+   (the default is `1`). It is read at startup and nothing reverts it, and at
+   `0` there is no daily free scan: every free scan gets the paywall.
 
 ### 5.4b Redis *misconfigured* (not unreachable)
 
