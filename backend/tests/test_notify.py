@@ -2167,9 +2167,9 @@ class TestSafetyBlocks:
 
 
 class TestDeviceCheckLine:
-    """`is_configured` only proves three variables are non-empty. Because every
-    DeviceCheck failure degrades open, a typo'd key looks exactly like a healthy
-    one while every reinstall gets a fresh allowance."""
+    """`is_configured` only proves three variables are non-empty. A typo'd key
+    cannot recognise a reinstall, so it looks exactly like a healthy one while
+    every reinstall gets a fresh allowance."""
 
     async def line(self, cache, monkeypatch, configured, probe):
         monkeypatch.setattr(notify, "_tls_days_left", lambda host, timeout=5.0: 60)

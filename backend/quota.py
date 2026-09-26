@@ -30,6 +30,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 
 from cache import CacheUnavailable
+from devicecheck import DeviceCheckError
 
 log = logging.getLogger("snapworth.quota")
 
@@ -340,12 +341,24 @@ class ScanQuota:
         "This month" is Apple's `last_update_time`, which is the only period
         DeviceCheck can express. It used to say "until the next reset" while no
         reset existed anywhere: `note_exhausted` is the only writer of bit0 in
-        the repo and nothing ever cleared it. With `FREE_SCANS_PER_DAY = 1`
-        that bit is set on the second scan attempt of any day — i.e. for
-        essentially every engaged free user, within their first day — so it did
-        not distinguish abusers from users at all. It flagged almost the whole
-        free base, permanently, and then denied each of them the first-day
-        welcome on any future install of the app on that hardware.
+        the repo and nothing ever cleared it. A bit that is never cleared, set
+        for every free user who spends their scan, flags the whole free base
+        permanently and denies each of them the first-day welcome on any
+        future install of the app on that hardware.
+
+        That reading, and this docstring, used to assume the bit was set on the
+        second scan attempt of a day, i.e. on the server's refusal. It almost
+        never was. The client stops at zero using the server's own count, so
+        the refused request is never sent, and this check read a bit that
+        nothing set: delete-and-reinstall handed back a fresh allowance, and
+        the welcome with it. `auth.reserve_quota` now marks the device when a
+        reservation takes the *last* scan. That does flag nearly every engaged
+        free user, so the month scope above is what makes it tolerable. The
+        cost for a real reinstall is today's scan and the welcome, not
+        every scan after.
+
+        Missing tokens, and tokens Apple refuses, get the daily limit and no
+        welcome. Only Apple being unreachable gets the benefit of the doubt.
         """
         try:
             # `_SEEN_TTL`, not `_COUNTER_TTL`. "Have I ever seen this subject"
@@ -369,17 +382,40 @@ class ScanQuota:
         if not first_time:
             return await self._limit_for(subject)   # already known, normal path
 
-        if not device_token or self._device_check is None:
+        if self._device_check is None or not self._device_check.is_configured:
             return await self._welcome(subject)
-        if not self._device_check.is_configured:
-            return await self._welcome(subject)
+        if not device_token:
+            # With DeviceCheck configured, a missing token is not "a device we
+            # know nothing about" but a check that did not happen. The token is
+            # optional on the wire and not covered by the attestation, so
+            # leaving it out used to be a way to skip the check and take the
+            # welcome on every reinstall. Without it the daily limit is still
+            # granted. The genuine app always sends one unless `DCDevice`
+            # fails, and in that rare case the user misses only the welcome.
+            log.info("no devicecheck token on a new subject — no welcome")
+            return await self._refuse_welcome(subject)
 
         try:
             bits = await self._device_check.query_bits(device_token)
+        except DeviceCheckError as exc:
+            if not exc.is_refusal:
+                # Unreachable, or a 5xx. Apple's availability must not gate
+                # our own service.
+                log.warning("devicecheck query failed, granting default: %s", exc)
+                return await self._welcome(subject)
+            # Apple answered and refused: a malformed or forged token (400),
+            # or credentials it will not accept (401). That is not an outage,
+            # and treating it as one handed the welcome to anyone who sent
+            # junk. No welcome, but the daily limit is still granted. A 401
+            # means our key is wrong, which `/checkup` reports.
+            log.warning("devicecheck refused the query — no welcome: %s", exc)
+            return await self._refuse_welcome(subject)
         except Exception as exc:
-            # Availability of Apple's API must not gate our own service.
-            log.warning("devicecheck query failed, granting default: %s", exc)
-            return await self._welcome(subject)
+            # Not Apple's availability. A key that cannot sign lands here,
+            # and `/checkup` names it. So could a bug. Neither is a reason to
+            # hand out the welcome.
+            log.error("devicecheck query could not be made — no welcome: %s", exc)
+            return await self._refuse_welcome(subject)
 
         if bits and bits.get("bit0"):
             # The mark is only about the month it was written in. Apple returns
@@ -448,16 +484,7 @@ class ScanQuota:
             # claiming the welcome — was closed by writing `_DENIED` on the
             # refusal path in `starting_balance`. This is the same fix for the
             # other way in.
-            try:
-                await self._cache.add(
-                    self._welcome_key(subject), _DENIED, _WELCOME_TTL, required=True)
-            except CacheUnavailable:
-                # Best-effort, like the reinstall refusal: failing a scan over a
-                # marker would be worse than the allowance it guards. `add` is a
-                # no-op when a marker already exists, so a genuinely new subject
-                # arriving after the lever is armed still reaches the grant.
-                pass
-            return self._limit
+            return await self._refuse_welcome(subject)
         try:
             granted = await self._cache.add(
                 self._welcome_key(subject), _utc_day(), _WELCOME_TTL, required=True)
@@ -467,3 +494,16 @@ class ScanQuota:
             log.info("welcome allowance granted", extra={"scans": first_day})
             return first_day
         return await self._limit_for(subject)
+
+    async def _refuse_welcome(self, subject: str) -> int:
+        """The daily limit, with the refusal recorded so it sticks."""
+        try:
+            await self._cache.add(
+                self._welcome_key(subject), _DENIED, _WELCOME_TTL, required=True)
+        except CacheUnavailable:
+            # Best-effort, like the reinstall refusal: failing a scan over a
+            # marker would be worse than the allowance it guards. `add` is a
+            # no-op when a marker already exists, so a genuinely new subject
+            # arriving after the lever is armed still reaches the grant.
+            pass
+        return self._limit

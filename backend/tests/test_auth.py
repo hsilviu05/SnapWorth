@@ -782,6 +782,39 @@ class TestReinstallDefenceWiring:
         asyncio.run(run())
         assert dc.updated and dc.bits["bit0"] is True
 
+    def test_taking_the_last_scan_marks_the_device(self):
+        """The client stops at zero using the server's own count, so the
+        refused request that used to be the only thing setting the bit is
+        never sent. The reservation that spends the last scan has to set it."""
+        dc = _FakeDeviceCheck()
+        cache = ResilientCache(None, InMemoryCache())
+        build_deps()
+        auth.deps.cache = cache
+        auth.deps.quota = ScanQuota(cache, dc, limit=1)
+        principal = auth.Principal(subject="subj", tier="free", authenticated=True,
+                                   device_token="device-token")
+
+        async def run():
+            await auth.reserve_quota(principal)          # the one and only scan
+            await asyncio.gather(*auth._background)
+        asyncio.run(run())
+        assert dc.updated and dc.bits["bit0"] is True
+
+    def test_a_scan_with_allowance_left_does_not_mark(self):
+        dc = _FakeDeviceCheck()
+        cache = ResilientCache(None, InMemoryCache())
+        build_deps()
+        auth.deps.cache = cache
+        auth.deps.quota = ScanQuota(cache, dc, limit=3)
+        principal = auth.Principal(subject="subj", tier="free", authenticated=True,
+                                   device_token="device-token")
+
+        async def run():
+            await auth.reserve_quota(principal)
+            await asyncio.gather(*auth._background)
+        asyncio.run(run())
+        assert not dc.updated
+
     def test_pro_users_never_touch_devicecheck(self):
         dc = _FakeDeviceCheck()
         build_deps()

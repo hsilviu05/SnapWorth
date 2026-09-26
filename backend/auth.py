@@ -22,6 +22,7 @@ from __future__ import annotations
 
 from collections.abc import Awaitable, Callable
 
+import asyncio
 import base64
 import json
 import logging
@@ -493,6 +494,17 @@ async def _device_token_for(subject: str) -> str | None:
         return None
 
 
+async def _mark_device_exhausted(principal: Principal) -> None:
+    """Set the device's DeviceCheck bit. Swallows its own failures."""
+    token = principal.device_token or await _device_token_for(principal.subject)
+    await deps.quota.note_exhausted(token)
+
+
+# Holds a reference to each background mark until it finishes: an un-awaited
+# task is otherwise collectable mid-flight.
+_background: set[asyncio.Task] = set()
+
+
 async def reserve_quota(principal: Principal) -> QuotaStatus | None:
     """Claim one free scan, or raise 402. Fails closed.
 
@@ -509,7 +521,7 @@ async def reserve_quota(principal: Principal) -> QuotaStatus | None:
     if principal.is_pro:
         return None
     try:
-        return await deps.quota.reserve(principal.subject, principal.is_pro)
+        status = await deps.quota.reserve(principal.subject, principal.is_pro)
     except QuotaExceeded as exc:
         auditlog.record(AuditEvent.QUOTA_EXCEEDED, principal.subject, outcome="denied")
         # Countable, not just audited. The audit log is per-event and nothing
@@ -517,12 +529,9 @@ async def reserve_quota(principal: Principal) -> QuotaStatus | None:
         # exist — the FREE_SCANS_FIRST_DAY experiment was being measured by
         # the client alone, with no way to cross-check it.
         notify.count_limit_hit()
-        # Mark the physical device as having spent its allowance. Without this
-        # the reinstall defence in `ScanQuota.starting_balance` reads a bit that
-        # nothing ever sets, so delete-and-reinstall mints a fresh allowance
-        # indefinitely. Swallows its own failures by design.
-        token = principal.device_token or await _device_token_for(principal.subject)
-        await deps.quota.note_exhausted(token)
+        # Re-marked here too: a refusal also means the allowance is spent,
+        # and a mark from last month is refreshed to this one.
+        await _mark_device_exhausted(principal)
         raise HTTPException(
             status_code=402,
             detail=exc.message,
@@ -534,6 +543,27 @@ async def reserve_quota(principal: Principal) -> QuotaStatus | None:
             status_code=503,
             detail="Scan quota is temporarily unavailable. Please try again shortly.",
         ) from None
+
+    if status.used >= status.limit:
+        # This reservation took the last scan, so mark the physical device as
+        # having spent its allowance. Without the mark, the reinstall defence
+        # in `ScanQuota.starting_balance` reads a bit nothing sets, and
+        # delete-and-reinstall mints a fresh allowance, plus the welcome.
+        #
+        # Marking only on refusal, as this used to, almost never fired. The
+        # client stops at zero using the server's own count, so the request
+        # that would be refused is never sent. A scan that fails after this
+        # and is refunded leaves the mark in place. The only cost is to a
+        # reinstall on this device in the same month, which loses that day's
+        # scan and the welcome.
+        #
+        # In the background: this is a round trip to Apple on the scan path,
+        # and the scan must not wait for it or fail because of it.
+        task = asyncio.get_running_loop().create_task(
+            _mark_device_exhausted(principal))
+        _background.add(task)
+        task.add_done_callback(_background.discard)
+    return status
 
 
 async def refund_quota(principal: Principal,

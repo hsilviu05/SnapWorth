@@ -107,6 +107,100 @@ class TestDeviceCheckMonth:
         assert await q.starting_balance("fresh-subject", "device-token") == 3
 
 
+class _Answers:
+    """A configured DeviceCheck whose query fails the way it is told to."""
+    is_configured = True
+
+    def __init__(self, exc):
+        self._exc = exc
+
+    async def query_bits(self, token):
+        raise self._exc
+
+    async def update_bits(self, token, bit0, bit1):
+        pass
+
+
+class TestWhatDeviceCheckFailuresAreWorth:
+    """Only an unreachable Apple gets the benefit of the doubt.
+
+    Every failure used to be read as an outage and granted the welcome — a
+    400 for a junk token included — and a token left out altogether skipped
+    the check. The token is optional on the wire and not covered by the
+    attestation, so both were ways to take the welcome on every reinstall.
+    """
+
+    @pytest.mark.asyncio
+    async def test_a_token_apple_refuses_gets_the_daily_limit_not_the_welcome(self):
+        from devicecheck import DeviceCheckError
+        q = make(3, dc=_Answers(DeviceCheckError("bad device token", 400)))
+        assert await q.starting_balance("s", "junk-token") == 1
+        assert (await q.status("s", False)).limit == 1
+        assert await q._cache.get(q._welcome_key("s")) == quota_module._DENIED
+
+    @pytest.mark.asyncio
+    async def test_rejected_credentials_are_not_an_outage_either(self):
+        from devicecheck import DeviceCheckError
+        q = make(3, dc=_Answers(DeviceCheckError("auth rejected", 401)))
+        assert await q.starting_balance("s", "device-token") == 1
+
+    @pytest.mark.asyncio
+    async def test_apple_erroring_still_welcomes(self):
+        from devicecheck import DeviceCheckError
+        q = make(3, dc=_Answers(DeviceCheckError("query failed (503)", 503)))
+        assert await q.starting_balance("s", "device-token") == 3
+
+    @pytest.mark.asyncio
+    async def test_apple_unreachable_still_welcomes(self):
+        from devicecheck import DeviceCheckError
+        q = make(3, dc=_Answers(DeviceCheckError("DeviceCheck unreachable")))
+        assert await q.starting_balance("s", "device-token") == 3
+
+    @pytest.mark.asyncio
+    async def test_a_key_that_cannot_sign_is_not_an_outage(self):
+        q = make(3, dc=_Answers(ValueError("Could not deserialize key data")))
+        assert await q.starting_balance("s", "device-token") == 1
+
+    @pytest.mark.asyncio
+    async def test_no_token_when_devicecheck_is_configured_gets_no_welcome(self):
+        q = make(3, dc=_Reinstalled(month="2025-01"))
+        assert await q.starting_balance("s", None) == 1, (
+            "leaving the token out must not be a way around the check")
+        assert await q._cache.get(q._welcome_key("s")) == quota_module._DENIED
+
+    @pytest.mark.asyncio
+    async def test_the_real_client_says_which_answer_it_got(self, monkeypatch):
+        import devicecheck
+        client = devicecheck.DeviceCheckClient("TEAM", "KEY", "not-used")
+        answer = {"status": 400}
+
+        async def post(path, payload):
+            return answer["status"], "Missing or incorrectly formatted device token payload"
+        monkeypatch.setattr(client, "_post", post)
+
+        with pytest.raises(devicecheck.DeviceCheckError) as refused:
+            await client.query_bits("junk")
+        assert refused.value.is_refusal
+
+        answer["status"] = 503
+        with pytest.raises(devicecheck.DeviceCheckError) as down:
+            await client.query_bits("junk")
+        assert not down.value.is_refusal
+
+        async def unreachable(path, payload):
+            import httpx
+            raise httpx.ConnectTimeout("timed out")
+        monkeypatch.setattr(client, "_post", unreachable)
+        with pytest.raises(devicecheck.DeviceCheckError) as gone:
+            await client.query_bits("junk")
+        assert gone.value.status is None and not gone.value.is_refusal
+
+    @pytest.mark.asyncio
+    async def test_no_token_without_devicecheck_is_unchanged(self):
+        q = make(3)
+        assert await q.starting_balance("s", None) == 3
+
+
 class TestOff:
     @pytest.mark.asyncio
     async def test_default_is_exactly_the_old_behaviour(self):

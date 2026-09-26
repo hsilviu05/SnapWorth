@@ -257,7 +257,9 @@ gets free Pro out of it.
 
 - **DeviceCheck down** → reinstall protection degrades open. `quota.note_exhausted`
   and `starting_balance` both swallow failures deliberately: Apple's availability
-  must not gate our service. No action needed.
+  must not gate our service. No action needed. "Down" means unreachable or a
+  5xx. A 4xx is Apple refusing the token or our key, which is not an outage:
+  that install gets the daily limit and no first-day welcome.
 - **App Store server down** → `/auth/entitlement` verification is *offline* (the
   JWS is verified against a pinned Apple root CA locally), so existing Pro users
   are unaffected. Only brand-new purchases are impacted, and the client retries
@@ -418,8 +420,10 @@ body-only key, so the checkup names the shape instead:
 | `could not reach Apple (…)` | network, not credentials — nothing to change |
 
 **Then verify — do not trust "configured".** `is_configured` only means the
-three variables are non-empty, and *every* DeviceCheck failure degrades open
-(§5.6), so a typo'd key silently hands every reinstall a fresh allowance.
+three variables are non-empty, and a wrong key cannot recognise a reinstall, so
+a typo'd key silently hands every reinstall a fresh daily allowance. It also
+withholds the first-day welcome from every new install, since Apple refusing
+the key is not an outage (§5.6).
 Run `🩺 Checkup`:
 
 - `DeviceCheck: configured ✅ — credentials accepted by Apple` — Apple signed off.
@@ -432,15 +436,17 @@ while a `401` proves it does not. No device is involved.
 
 **`DEVICECHECK_SANDBOX`**: leave unset. Device tokens from an Xcode-run debug
 build belong to Apple's development environment and will be refused by the
-production host — expected, and harmless because the path degrades open. Set it
+production host. That is expected and harmless: the install still gets the daily
+limit, and only misses the first-day welcome. Set it
 only if you ever point a build at the sandbox deliberately; a stale `true` would
 break DeviceCheck for real App Store users, silently.
 
 ### 8.4 DeviceCheck key rotation
 
 **Add, verify, revoke — in that order.** Revoking first leaves DeviceCheck
-failing for as long as it takes to paste the replacement, and it fails *open*
-(§5.6): every reinstall in that window gets a fresh free allowance, silently.
+failing for as long as it takes to paste the replacement, and while it fails no
+reinstall is recognised: every reinstall in that window gets a fresh daily
+allowance, silently, and no new install gets the first-day welcome.
 
 1. Portal → Keys → **+**, tick **DeviceCheck**, Register, download the `.p8`.
 2. Railway: set `DEVICECHECK_KEY_ID` and `DEVICECHECK_PRIVATE_KEY` to the new

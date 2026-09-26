@@ -3620,9 +3620,9 @@ async def _device_check_line(configured: bool) -> str:
     """Whether reinstall protection is actually working, not merely switched on.
 
     Three non-empty environment variables is what `is_configured` knows, and a
-    typo'd key looks identical to a healthy one from here: every DeviceCheck
-    failure degrades open by design, so a wrong key silently hands every
-    reinstall a fresh allowance. The probe asks Apple."""
+    typo'd key looks identical to a healthy one from here: a wrong key cannot
+    recognise a reinstall, so it silently hands every reinstall a fresh
+    allowance. The probe asks Apple."""
     if not configured:
         return "DeviceCheck: NOT configured — reinstalls get a fresh allowance"
     if _device_check_probe is None:
