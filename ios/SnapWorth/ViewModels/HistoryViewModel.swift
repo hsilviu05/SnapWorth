@@ -39,17 +39,24 @@ final class HistoryViewModel {
         case .newest:
             return results.sorted { $0.timestamp > $1.timestamp }
         case .mostValuable:
-            return results.sorted { $0.midpointValue > $1.midpointValue }
+            // Each key once, then sort. A comparator reading `midpointValue`
+            // re-prices both sides of every comparison — n log n price reads
+            // where n will do.
+            return results
+                .map { (result: $0, value: $0.midpointValue) }
+                .sorted { $0.value > $1.value }
+                .map(\.result)
         }
     }
 
+    /// Filtered first, then sorted: a search narrows the list, and there is
+    /// no reason to order the rows it is about to throw away.
     func filtered(_ results: [ScanResult]) -> [ScanResult] {
-        let sorted = sorted(results)
-        guard !searchText.isEmpty else { return sorted }
-        return sorted.filter {
+        guard !searchText.isEmpty else { return sorted(results) }
+        return sorted(results.filter {
             $0.itemName.localizedCaseInsensitiveContains(searchText) ||
             $0.brand.localizedCaseInsensitiveContains(searchText)
-        }
+        })
     }
 
     /// Sum of the condition-adjusted "likely" value across the passed scans.

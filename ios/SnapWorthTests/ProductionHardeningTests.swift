@@ -5565,3 +5565,83 @@ final class RetentionFunnelTests: XCTestCase {
         XCTAssertEqual(spy.params(for: "onboarding_completed")?["via"], "skipped")
     }
 }
+
+// ── One price read per row ───────────────────────────────────────────────────
+//
+// `baselineCondition` decoded the whole valuation blob to find one field, and
+// every price read went through it — a Most Valuable comparison read it eight
+// times, and 500 finds took 1.6 s to sort, again on every search keystroke.
+
+final class PriceReadTests: XCTestCase {
+
+    private func item(_ name: String = "Item", low: Double = 45, high: Double = 90,
+                      grade: String? = "good", notes: String = "Some wear") -> ScanResult {
+        var detail = ValuationDetail()
+        detail.conditionGrade = grade
+        return ScanResult(itemName: name, brand: "B", category: "clothing", conditionNotes: notes,
+                          valueLow: low, valueHigh: high, confidence: "High", soldListingsCount: 0,
+                          listingTitle: "T", listingDescription: "D",
+                          valuationDetailData: grade == nil ? nil : detail.encoded())
+    }
+
+    func test_theOneReadAgreesWithTheTwoItReplaces() {
+        let untouched = item()
+        let regraded = item(); regraded.condition = .used
+        let prose = item(grade: nil, notes: "Heavy staining at the hem")
+        let proseRegraded = item(grade: nil, notes: "Like new"); proseRegraded.condition = .good
+        for r in [untouched, regraded, prose, proseRegraded] {
+            let current = r.currentPriceRange
+            let reference = r.priceRange(for: r.condition)
+            XCTAssertEqual(current.low, reference.low)
+            XCTAssertEqual(current.likely, reference.likely)
+            XCTAssertEqual(current.high, reference.high)
+            XCTAssertEqual(r.midpointValue, NSDecimalNumber(decimal: reference.likely).doubleValue)
+        }
+    }
+
+    func test_theMemoisedGradeFollowsNewBytes() {
+        // `applySharpened` re-reads the tag and writes a new blob. The memo is
+        // keyed by content, so the new grade has to take at once.
+        let r = item(grade: "good")
+        XCTAssertEqual(r.baselineCondition, .good)
+        var detail = ValuationDetail()
+        detail.conditionGrade = "used"
+        r.valuationDetailData = detail.encoded()
+        XCTAssertEqual(r.baselineCondition, .used)
+        r.valuationDetailData = nil
+        XCTAssertEqual(r.baselineCondition, Condition.inferred(from: r.conditionNotes))
+    }
+
+    func test_twoRowsWithTheSameBlobShareAGradeButNotAPrice() {
+        let a = item("A", low: 10, high: 20)
+        let b = item("B", low: 100, high: 200)
+        XCTAssertEqual(a.baselineCondition, b.baselineCondition)
+        XCTAssertNotEqual(a.portfolioValue, b.portfolioValue)
+    }
+
+    @MainActor
+    func test_mostValuableOrdersExactlyAsBefore() {
+        let grades: [String?] = ["good", "used", "likeNew", nil]
+        var library: [ScanResult] = []
+        for i in 1...30 {
+            let low = Double((i * 37) % 101)
+            library.append(item("Item \(i)", low: low, high: low + 20, grade: grades[i % 4]))
+        }
+        let vm = HistoryViewModel()
+        vm.sortOrder = .mostValuable
+        let expected: [Double] = library
+            .sorted { $0.midpointValue > $1.midpointValue }
+            .map { $0.midpointValue }
+        XCTAssertEqual(vm.sorted(library).map { $0.midpointValue }, expected)
+    }
+
+    @MainActor
+    func test_searchNarrowsThenSortsToTheSameList() {
+        let library = [item("Nike tee", low: 10, high: 20), item("Adidas", low: 90, high: 100),
+                       item("Nike jacket", low: 50, high: 60)]
+        let vm = HistoryViewModel()
+        vm.sortOrder = .mostValuable
+        vm.searchText = "nike"
+        XCTAssertEqual(vm.filtered(library).map(\.itemName), ["Nike jacket", "Nike tee"])
+    }
+}

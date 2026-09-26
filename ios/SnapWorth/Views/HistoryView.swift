@@ -52,6 +52,10 @@ struct HistoryView: View {
                     repeating: GridItem(.fixed(cardWidth), spacing: gridSpacing),
                     count: perRow
                 )
+                // Once per render. It was read twice below — the empty check
+                // and the grid — and each read filtered and sorted the whole
+                // library again.
+                let shown = filteredResults
 
                 ScrollView {
                     VStack(spacing: 20) {
@@ -133,13 +137,13 @@ struct HistoryView: View {
                             EmptyFindsView()
                                 .frame(maxWidth: .infinity)
                                 .padding(.top, 60)
-                        } else if filteredResults.isEmpty {
+                        } else if shown.isEmpty {
                             NoSearchResultsView(query: vm.searchText)
                                 .frame(maxWidth: .infinity)
                                 .padding(.top, 60)
                         } else {
                             LazyVGrid(columns: fixedColumns, spacing: gridSpacing) {
-                                ForEach(filteredResults) { result in
+                                ForEach(shown) { result in
                                     ScanHistoryCard(result: result, width: cardWidth)
                                         .onTapGesture {
                                             guard !isEditing else { return }

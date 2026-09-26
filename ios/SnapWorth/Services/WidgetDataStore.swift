@@ -795,11 +795,16 @@ enum WidgetDataStore {
         // Summed as `Decimal` and converted once, matching the portfolio
         // path's precision rule rather than accumulating `Double` error across
         // a long history.
-        let lo = NSDecimalNumber(decimal: results.reduce(Decimal.zero) {
-            $0 + $1.priceRange(for: $1.condition).low
+        //
+        // One price read per row for all three sums. This runs on the main
+        // actor at launch and after every save, and read each row's range
+        // three times over.
+        let ranges = results.map(\.currentPriceRange)
+        let lo = NSDecimalNumber(decimal: ranges.reduce(Decimal.zero) {
+            $0 + $1.low
         }).doubleValue
-        let hi = NSDecimalNumber(decimal: results.reduce(Decimal.zero) {
-            $0 + $1.priceRange(for: $1.condition).high
+        let hi = NSDecimalNumber(decimal: ranges.reduce(Decimal.zero) {
+            $0 + $1.high
         }).doubleValue
         // The midpoint of the very range above — same items, same condition
         // adjustment, `likely` instead of `low` and `high`. So the circular
@@ -813,8 +818,8 @@ enum WidgetDataStore {
         // different questions, and so are `totalLow`/`totalHigh` already. A
         // widget whose own three figures disagree with each other would be the
         // worse trade.
-        let likely = NSDecimalNumber(decimal: results.reduce(Decimal.zero) {
-            $0 + $1.priceRange(for: $1.condition).likely
+        let likely = NSDecimalNumber(decimal: ranges.reduce(Decimal.zero) {
+            $0 + $1.likely
         }).doubleValue
         let last = results.max(by: { $0.timestamp < $1.timestamp })
 

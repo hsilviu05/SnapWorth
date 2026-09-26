@@ -68,9 +68,48 @@ final class ScanResult {
     /// reads it is simply absent for those.
     var valuationDetailData: Data?
 
-    /// Decoded on read. Cheap — a few hundred bytes — and only the result
-    /// sheet asks for it.
+    /// Decoded on every read — a `JSONDecoder` pass over the blob, each time.
+    ///
+    /// This said "cheap, and only the result sheet asks for it". The second
+    /// half stopped being true when `baselineCondition` began reading the
+    /// grade out of it, which put a decode under every price read in the app —
+    /// see `storedGrade`, which is what the price path uses instead.
     var valuationDetail: ValuationDetail? { ValuationDetail.decode(valuationDetailData) }
+
+    /// The grade the model returned, memoised by the bytes it came from.
+    ///
+    /// `baselineCondition` is under every price read — the range on a card,
+    /// the portfolio total, a Most Valuable comparison, the widget sums — and
+    /// it decoded the whole `valuationDetailData` blob to find one field. A
+    /// Most Valuable comparison read it eight times, and sorting 500 finds
+    /// took 1.6 seconds on the main thread, again on every search keystroke.
+    ///
+    /// Keyed by content rather than by row, so there is nothing to invalidate:
+    /// the same bytes always hold the same grade, and a re-read
+    /// (`applySharpened`) writes new bytes, which simply miss. Held outside
+    /// the model on purpose — a memo stored on the `@Model` would be observed
+    /// state written from inside a getter that SwiftUI calls while rendering.
+    private var storedGrade: Condition? {
+        guard let data = valuationDetailData else { return nil }
+        let key = data as NSData
+        if let hit = Self.gradeCache.object(forKey: key) { return hit.grade }
+        let grade = valuationDetail?.conditionGrade.flatMap(Condition.init(serverGrade:))
+        Self.gradeCache.setObject(GradeBox(grade), forKey: key)
+        return grade
+    }
+
+    private final class GradeBox {
+        let grade: Condition?
+        init(_ grade: Condition?) { self.grade = grade }
+    }
+
+    /// `NSCache` is thread-safe and evicts under memory pressure; the bound
+    /// is a few thousand small entries, more rows than a library holds.
+    private static let gradeCache: NSCache<NSData, GradeBox> = {
+        let cache = NSCache<NSData, GradeBox>()
+        cache.countLimit = 5_000
+        return cache
+    }()
 
     /// Whether real sales backed this estimate (#40). `.model` for every row
     /// without a detail blob — older scans, and any server that sent none.
@@ -221,11 +260,7 @@ final class ScanResult {
     /// They must agree: if the getter defaults to one baseline and the re-scale
     /// divides by another, an untouched record is silently mispriced.
     var baselineCondition: Condition {
-        if let grade = valuationDetail?.conditionGrade,
-           let graded = Condition(serverGrade: grade) {
-            return graded
-        }
-        return Condition.inferred(from: conditionNotes)
+        storedGrade ?? Condition.inferred(from: conditionNotes)
     }
 
     /// The resale condition driving the estimate. Reads the user's explicit
@@ -241,8 +276,21 @@ final class ScanResult {
     /// repeated selector changes never compound. Exact `Decimal` money; both
     /// features (listing price, flip resale) read from here.
     func priceRange(for condition: Condition) -> (low: Decimal, likely: Decimal, high: Decimal) {
-        guard valueLow.isFinite, valueHigh.isFinite else { return (0, 0, 0) }
+        priceRange(for: condition, baseline: baselineCondition)
+    }
+
+    /// `priceRange(for: condition)` with the baseline read once, not twice —
+    /// `condition` falls back to `baselineCondition` itself. What every
+    /// surface showing *this* find's current estimate should call.
+    var currentPriceRange: (low: Decimal, likely: Decimal, high: Decimal) {
         let baseline = baselineCondition
+        return priceRange(for: conditionRaw.flatMap(Condition.init(rawValue:)) ?? baseline,
+                          baseline: baseline)
+    }
+
+    private func priceRange(for condition: Condition,
+                            baseline: Condition) -> (low: Decimal, likely: Decimal, high: Decimal) {
+        guard valueLow.isFinite, valueHigh.isFinite else { return (0, 0, 0) }
         let factor = condition.priceMultiplier / baseline.priceMultiplier
         let low = Decimal(valueLow) * factor
         let high = Decimal(valueHigh) * factor
@@ -267,14 +315,14 @@ final class ScanResult {
     var conditionWasOverridden: Bool { condition != baselineCondition }
 
     /// Condition-adjusted low/high as `Double`, for the existing range views.
-    var displayValueLow: Double { NSDecimalNumber(decimal: priceRange(for: condition).low).doubleValue }
-    var displayValueHigh: Double { NSDecimalNumber(decimal: priceRange(for: condition).high).doubleValue }
+    var displayValueLow: Double { NSDecimalNumber(decimal: currentPriceRange.low).doubleValue }
+    var displayValueHigh: Double { NSDecimalNumber(decimal: currentPriceRange.high).doubleValue }
 
     var formattedRange: String {
         guard valueLow.isFinite && valueHigh.isFinite else {
             return String(localized: "Price unavailable")
         }
-        let range = priceRange(for: condition)
+        let range = currentPriceRange
         let fmt = NumberFormatter.snapCurrency
         let lo = fmt.string(from: NSDecimalNumber(decimal: range.low)) ?? "$\(Int(displayValueLow))"
         let hi = fmt.string(from: NSDecimalNumber(decimal: range.high)) ?? "$\(Int(displayValueHigh))"
@@ -312,7 +360,7 @@ final class ScanResult {
     /// series is capped — an item edited hundreds of times still costs a
     /// bounded amount of storage, and a sparkline cannot usefully render more.
     func refreshPortfolioValue(on date: Date = Date(), limit: Int = 60) {
-        let likely = priceRange(for: condition).likely
+        let likely = currentPriceRange.likely
         let asDouble = NSDecimalNumber(decimal: likely).doubleValue
         guard asDouble.isFinite else { return }
 
@@ -354,8 +402,11 @@ final class ScanResult {
         return portfolioValue - Decimal(first.value)
     }
 
+    /// The middle of the displayed range — which is `likely`, by definition.
+    /// It went through `displayValueLow` and `displayValueHigh`, two full
+    /// price reads for one number, twice per Most Valuable comparison.
     var midpointValue: Double {
-        (displayValueLow + displayValueHigh) / 2
+        NSDecimalNumber(decimal: currentPriceRange.likely).doubleValue
     }
 
     // ── Ledger computed values ────────────────────────────────────────────────

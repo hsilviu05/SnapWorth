@@ -146,11 +146,12 @@ enum ThriftRunController {
         }
 
         let thisRun = results.filter { $0.timestamp >= startedAt }
-        let low = NSDecimalNumber(decimal: thisRun.reduce(Decimal.zero) {
-            $0 + $1.priceRange(for: $1.condition).low
+        let ranges = thisRun.map(\.currentPriceRange)
+        let low = NSDecimalNumber(decimal: ranges.reduce(Decimal.zero) {
+            $0 + $1.low
         }).doubleValue
-        let high = NSDecimalNumber(decimal: thisRun.reduce(Decimal.zero) {
-            $0 + $1.priceRange(for: $1.condition).high
+        let high = NSDecimalNumber(decimal: ranges.reduce(Decimal.zero) {
+            $0 + $1.high
         }).doubleValue
 
         let state = ThriftRunAttributes.ContentState(
