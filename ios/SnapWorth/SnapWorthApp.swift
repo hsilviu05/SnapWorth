@@ -117,11 +117,16 @@ struct SnapWorthApp: App {
                 .onOpenURL(perform: handleWidgetURL)
                 .task { seedWidgetData() }
                 .task { drainPendingWidgetAction() }
+                .task { await WidgetInstallReport.sendIfDue() }
                 .onChange(of: scenePhase) { _, phase in
                     // Also on resume: a Control Centre press while the app is
                     // already running never triggers `.task`, and the App
                     // Intent that wrote the request cannot reach a view.
-                    if phase == .active { drainPendingWidgetAction() }
+                    guard phase == .active else { return }
+                    drainPendingWidgetAction()
+                    // "Once a day" has to include the days a resident app is
+                    // only ever resumed, never launched.
+                    Task { await WidgetInstallReport.sendIfDue() }
                 }
                 .onChange(of: hasCompletedOnboarding) { _, done in
                     // The press that arrived mid-onboarding, once there is
@@ -154,6 +159,8 @@ struct SnapWorthApp: App {
     // snapworth://scan    → navigates to the camera tab
     // snapworth://history → navigates to the history tab
     // snapworth://flips   → navigates to the profit ledger
+    // Each may carry `?src=<surface>`, naming what was tapped — see
+    // `WidgetSource`.
 
     /// Act on a Control Centre press.
     ///
@@ -217,6 +224,9 @@ struct SnapWorthApp: App {
         default:
             return nil
         }
+        if let source = WidgetSource(url: url) {
+            Analytics.shared.track(.widgetOpened(source: source.rawValue))
+        }
         return name
     }
 
@@ -241,6 +251,36 @@ struct SnapWorthApp: App {
         // `writeHaul` gives: its empty library would zero a real run.
         guard !AppLaunchState.isRunningOnFallbackStore else { return }
         Task { await ThriftRunController.update(results: results) }
+    }
+}
+
+// ── Widget sources ────────────────────────────────────────────────────────────
+
+/// The `src` a widget, Live Activity or control puts on its `snapworth://` URL.
+///
+/// Nothing recorded a widget opening the app, so whether the 1.4.0 widgets
+/// were used at all was unknowable. A closed set rather than whatever the
+/// query says: any app or web page can open this scheme, and an arbitrary
+/// string has no business reaching the analytics payload. The widget files
+/// spell these out by hand — the extension cannot import this type — and
+/// `WidgetSourceTests` holds the two sides to each other.
+enum WidgetSource: String, CaseIterable {
+    case quickScan     = "quick_scan"
+    case haul
+    case haulScan      = "haul_scan"
+    case lockHaul      = "lock_haul"
+    case recentFinds   = "recent_finds"
+    case scansLeft     = "scans_left"
+    case monthProfit   = "month_profit"
+    case liveActivity  = "live_activity"
+    case dynamicIsland = "dynamic_island"
+    case control
+
+    init?(url: URL) {
+        guard let raw = URLComponents(url: url, resolvingAgainstBaseURL: false)?
+            .queryItems?.first(where: { $0.name == "src" })?.value
+        else { return nil }
+        self.init(rawValue: raw)
     }
 }
 

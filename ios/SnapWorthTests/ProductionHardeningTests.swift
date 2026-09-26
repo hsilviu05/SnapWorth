@@ -6064,3 +6064,87 @@ final class StaleRunRefreshTests: XCTestCase {
         XCTAssertNotNil(ScanRepository.widgetSync)
     }
 }
+
+// ── Where the app was opened from ────────────────────────────────────────────
+//
+// Nothing recorded a widget opening the app, so whether the 1.4.0 widgets were
+// used at all was unknowable. The widgets now say where a tap came from, and
+// the app counts it — from a closed set, never the raw query.
+
+@MainActor
+final class WidgetSourceTests: XCTestCase {
+
+    private func url(_ s: String) -> URL { URL(string: s)! }
+
+    func test_aWidgetOpenIsCountedOnlyFromAKnownSource() {
+        // Any app or page can open this scheme; an arbitrary `src` has no
+        // business in the analytics payload.
+        let spy = FunnelSpy()
+        Analytics.shared.configure(spy)
+        UserDefaults.standard.removeObject(forKey: Analytics.enabledKey)
+
+        _ = SnapWorthApp.route(url("snapworth://history?src=recent_finds"), onboarded: true)
+        _ = SnapWorthApp.route(url("snapworth://history?src=%3Cscript%3E"), onboarded: true)
+        _ = SnapWorthApp.route(url("snapworth://history"), onboarded: true)
+
+        XCTAssertEqual(spy.events.map(\.name), ["widget_opened"])
+        XCTAssertEqual(spy.params(for: "widget_opened"), ["source": "recent_finds"])
+    }
+
+    func test_everySourceTheWidgetsSendIsOneTheAppKnows() throws {
+        // The extension cannot import `WidgetSource`, so its URLs spell the
+        // values by hand. This holds the two sides to each other.
+        let dir = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("SnapWorthWidgets")
+        let files = try FileManager.default.contentsOfDirectory(at: dir, includingPropertiesForKeys: nil)
+            .filter { $0.pathExtension == "swift" }
+        XCTAssertFalse(files.isEmpty)
+
+        let tagged = try NSRegularExpression(pattern: #""snapworth://[a-z]+\?src=([a-z_]+)""#)
+        let untagged = try NSRegularExpression(pattern: #""snapworth://[a-z]+""#)
+        var sent: Set<String> = []
+        for file in files {
+            let text = try String(contentsOf: file, encoding: .utf8)
+            let range = NSRange(text.startIndex..., in: text)
+            for m in tagged.matches(in: text, range: range) {
+                sent.insert(String(text[Range(m.range(at: 1), in: text)!]))
+            }
+            XCTAssertEqual(untagged.numberOfMatches(in: text, range: range), 0,
+                           "\(file.lastPathComponent) opens the app without saying from where")
+        }
+        XCTAssertEqual(sent, Set(WidgetSource.allCases.map(\.rawValue)))
+    }
+}
+
+// ── Whether the widgets and Snap → Sell are used at all ──────────────────────
+
+final class UsageAnalyticsTests: XCTestCase {
+
+    func test_theNewEventsHaveStableNamesAndBoundedParameters() {
+        let cases: [(AnalyticsEvent, String, [String: String])] = [
+            (.listingCopied(marketplace: "ebay"), "listing_copied", ["marketplace": "ebay"]),
+            (.listingCopied(marketplace: "draft"), "listing_copied", ["marketplace": "draft"]),
+            (.listingShared(marketplace: "vinted"), "listing_shared", ["marketplace": "vinted"]),
+            (.marketplaceOpened(marketplace: "depop"), "marketplace_opened", ["marketplace": "depop"]),
+            (.widgetOpened(source: "haul"), "widget_opened", ["source": "haul"]),
+            (.widgetsInstalled(count: "2-3", kinds: "A,B"), "widgets_installed",
+             ["count": "2-3", "kinds": "A,B"]),
+            (.ledgerItemMarkedListed, "ledger_item_marked_listed", [:]),
+        ]
+        for (event, name, params) in cases {
+            XCTAssertEqual(event.name, name)
+            XCTAssertEqual(event.parameters, params, name)
+        }
+    }
+
+    func test_theInstalledCountIsBucketed() {
+        XCTAssertEqual(WidgetInstallReport.bucket(0), "0")
+        XCTAssertEqual(WidgetInstallReport.bucket(1), "1")
+        XCTAssertEqual(WidgetInstallReport.bucket(2), "2-3")
+        XCTAssertEqual(WidgetInstallReport.bucket(3), "2-3")
+        XCTAssertEqual(WidgetInstallReport.bucket(4), "4+")
+        XCTAssertEqual(WidgetInstallReport.bucket(40), "4+")
+    }
+}

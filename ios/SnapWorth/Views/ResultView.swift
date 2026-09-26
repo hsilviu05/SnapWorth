@@ -311,7 +311,11 @@ struct ResultView: View {
         }
         .sheet(isPresented: $showListingShare) {
             if let items = vm.listingShareItems {
-                ActivityShareSheet(items: items) { _ in }
+                ActivityShareSheet(items: items) { _ in
+                    if let marketplace = vm.generatedListing?.marketplace {
+                        Analytics.shared.track(.listingShared(marketplace: marketplace.rawValue))
+                    }
+                }
             }
         }
         .sheet(isPresented: $showPaywall) {
@@ -575,6 +579,7 @@ struct ResultView: View {
             let id = result.id
             Task { await NotificationManager.shared.cancelLedgerFollowUp(itemID: id) }
         case .listed:
+            if previous != .listed { Analytics.shared.track(.ledgerItemMarkedListed) }
             // Coming back to Listed restarts the clock. Keeping the original
             // date puts the fire date 14 days after the *first* listing —
             // already in the past for anything listed over two weeks ago — and

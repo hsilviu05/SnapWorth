@@ -895,3 +895,45 @@ enum WidgetDataStore {
         return data
     }
 }
+
+// ── Which widgets are placed ─────────────────────────────────────────────────
+
+/// Reports, once a day, how many of this app's widgets are on the device and
+/// of which kinds.
+///
+/// `widget_opened` counts taps, and a widget that is glanced at and never
+/// tapped — which is most of what a Home Screen widget is for — would read as
+/// unused. This is the other half: whether the widgets are there at all.
+/// The count is bucketed like every other count in the payload; the kinds are
+/// this extension's own identifiers, a closed set.
+@MainActor
+enum WidgetInstallReport {
+    private static let lastDayKey = "snapworth_widget_report_day"
+
+    static func sendIfDue(now: Date = Date(), defaults: UserDefaults = .standard) async {
+        let parts = Calendar.current.dateComponents([.year, .month, .day], from: now)
+        let day = String(format: "%04d-%02d-%02d", parts.year ?? 0, parts.month ?? 0, parts.day ?? 0)
+        guard defaults.string(forKey: lastDayKey) != day else { return }
+        // Stamped before the await, so a launch and a foreground arriving
+        // together cannot both get past the check and report twice.
+        defaults.set(day, forKey: lastDayKey)
+        // The completion form: the async one is iOS 18, and this app runs on 17.
+        let placed: [String]? = await withCheckedContinuation { done in
+            WidgetCenter.shared.getCurrentConfigurations { result in
+                done.resume(returning: (try? result.get())?.map(\.kind))
+            }
+        }
+        guard let placed else { return }
+        let kinds = Set(placed).sorted().joined(separator: ",")
+        Analytics.shared.track(.widgetsInstalled(count: bucket(placed.count), kinds: kinds))
+    }
+
+    nonisolated static func bucket(_ count: Int) -> String {
+        switch count {
+        case ..<1:  return "0"
+        case 1:     return "1"
+        case 2...3: return "2-3"
+        default:    return "4+"
+        }
+    }
+}

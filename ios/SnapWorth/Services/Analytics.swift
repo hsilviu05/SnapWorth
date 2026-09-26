@@ -66,6 +66,22 @@ enum AnalyticsEvent {
     // ── Snap → Sell ──────────────────────────────────────────────────
     case listingGenerated(marketplace: String)
     case listingPhotoCleaned(marketplace: String)
+    /// A listing reached the clipboard. `marketplace` is the generated
+    /// listing's, or "draft" for the plain draft on every result.
+    case listingCopied(marketplace: String)
+    /// A generated listing left through the share sheet (completed, not
+    /// merely opened).
+    case listingShared(marketplace: String)
+    /// "Open <marketplace>" under a generated listing.
+    case marketplaceOpened(marketplace: String)
+
+    // ── Widgets ──────────────────────────────────────────────────────
+    /// The app was opened from a widget, Live Activity or control. `source`
+    /// is a `WidgetSource` — a closed set, never the raw query.
+    case widgetOpened(source: String)
+    /// Once a day: how many of this app's widgets are placed, bucketed, and
+    /// which kinds.
+    case widgetsInstalled(count: String, kinds: String)
 
     // ── Referrals (#97) ──────────────────────────────────────────────
     case referralShared
@@ -77,6 +93,9 @@ enum AnalyticsEvent {
 
     // ── My Flips ledger ──────────────────────────────────────────────
     case ledgerItemMarkedSold
+    /// The step before a sale, which the funnel could not see: only `sold`
+    /// was recorded. Named to pair with `ledger_item_marked_sold`.
+    case ledgerItemMarkedListed
     case ledgerDashboardViewed
     case ledgerExportTapped
     case ledgerPaywallHit(trigger: PaywallTrigger)
@@ -147,11 +166,17 @@ enum AnalyticsEvent {
         case .tagPhotoAdded:        return "tag_photo_added"
         case .listingGenerated:     return "listing_generated"
         case .listingPhotoCleaned:  return "listing_photo_cleaned"
+        case .listingCopied:        return "listing_copied"
+        case .listingShared:        return "listing_shared"
+        case .marketplaceOpened:    return "marketplace_opened"
+        case .widgetOpened:         return "widget_opened"
+        case .widgetsInstalled:     return "widgets_installed"
         case .referralShared:       return "referral_shared"
         case .referralRedeemed:     return "referral_redeemed"
         case .referralRewarded:     return "referral_rewarded"
         case .thriftFlipCalculated: return "thrift_flip_calculated"
         case .ledgerItemMarkedSold: return "ledger_item_marked_sold"
+        case .ledgerItemMarkedListed: return "ledger_item_marked_listed"
         case .ledgerDashboardViewed:return "ledger_dashboard_viewed"
         case .ledgerExportTapped:   return "ledger_export_tapped"
         case .ledgerPaywallHit:     return "ledger_paywall_hit"
@@ -202,8 +227,14 @@ enum AnalyticsEvent {
             return ["style": style]
         case let .notificationScheduled(category), let .notificationOpened(category):
             return ["category": category]
-        case let .listingGenerated(marketplace), let .listingPhotoCleaned(marketplace):
+        case let .listingGenerated(marketplace), let .listingPhotoCleaned(marketplace),
+             let .listingCopied(marketplace), let .listingShared(marketplace),
+             let .marketplaceOpened(marketplace):
             return ["marketplace": marketplace]
+        case let .widgetOpened(source):
+            return ["source": source]
+        case let .widgetsInstalled(count, kinds):
+            return ["count": count, "kinds": kinds]
         case let .thriftFlipCalculated(verdict):
             return ["verdict": verdict]
         case let .crashReported(signal, termination):
