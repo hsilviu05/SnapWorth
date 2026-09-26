@@ -326,6 +326,10 @@ class CompsResult:
     providers_failed: tuple[str, ...] = ()
     cache_hit: bool = False
     latency_ms: float = 0.0
+    # (provider, milliseconds) for every provider that answered within the
+    # budget, failures included. Stragglers cancelled at the budget are absent:
+    # they are in `providers_failed`, and their true latency is unknown.
+    provider_latency_ms: tuple[tuple[str, float], ...] = ()
     window_days: int = 90
     notes: tuple[str, ...] = ()
 

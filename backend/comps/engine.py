@@ -27,7 +27,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 
 from comps import aggregate as aggregate_module
 from comps import dedupe as dedupe_module
@@ -66,7 +66,6 @@ class CompsEngine:
         started = time.monotonic()
 
         def finish(result: CompsResult) -> CompsResult:
-            from dataclasses import replace
             return replace(result, latency_ms=(time.monotonic() - started) * 1000)
 
         if not self.flags.enabled:
@@ -112,7 +111,7 @@ class CompsEngine:
                 window_days=window,
                 notes=("no provider is configured for this category",)))
 
-        raw, queried, failed = await self._fan_out(eligible, query)
+        raw, queried, failed, latencies = await self._fan_out(eligible, query)
 
         # Cache raw provider output — including the empty case, which is what
         # stops unidentifiable items re-querying every provider forever.
@@ -121,8 +120,10 @@ class CompsEngine:
         except Exception as exc:
             log.warning("comps cache write failed: %s", exc)
 
-        return finish(self._build(identity, raw, window,
-                                  queried=queried, failed=failed, cache_hit=False))
+        return finish(replace(
+            self._build(identity, raw, window,
+                        queried=queried, failed=failed, cache_hit=False),
+            provider_latency_ms=latencies))
 
     async def health(self):
         return await self.registry.health()
@@ -131,27 +132,33 @@ class CompsEngine:
 
     async def _fan_out(
         self, eligible: list[RegisteredProvider], query: ProviderQuery
-    ) -> tuple[list[Comp], tuple[str, ...], tuple[str, ...]]:
+    ) -> tuple[list[Comp], tuple[str, ...], tuple[str, ...],
+               tuple[tuple[str, float], ...]]:
         """Query providers in parallel under one wall-clock budget."""
         budget = self.flags.fanout_budget_ms / 1000
         per_provider = self.flags.provider_timeout_ms / 1000
 
-        async def call(entry: RegisteredProvider) -> tuple[str, list[Comp] | None]:
+        async def call(entry: RegisteredProvider) -> tuple[str, list[Comp] | None, float]:
             name = entry.provider.name
+            started = time.monotonic()
+
+            def elapsed_ms() -> float:
+                return (time.monotonic() - started) * 1000
+
             try:
                 comps = await asyncio.wait_for(
                     entry.provider.search(query), timeout=per_provider)
                 entry.breaker.record_success()
-                return name, list(comps or [])
+                return name, list(comps or []), elapsed_ms()
             except asyncio.TimeoutError:
                 entry.breaker.record_failure()
                 log.info("comps provider timed out", extra={"provider": name})
-                return name, None
+                return name, None, elapsed_ms()
             except Exception as exc:
                 entry.breaker.record_failure()
                 log.warning("comps provider failed", extra={
                     "provider": name, "error": str(exc)[:200]})
-                return name, None
+                return name, None, elapsed_ms()
 
         tasks = {asyncio.create_task(call(entry)): entry for entry in eligible}
         done, pending = await asyncio.wait(tasks, timeout=budget)
@@ -168,19 +175,22 @@ class CompsEngine:
         collected: list[Comp] = []
         queried: list[str] = []
         failed: list[str] = [tasks[t].provider.name for t in pending]
+        latencies: list[tuple[str, float]] = []
 
         for task in done:
             try:
-                name, comps = task.result()
+                name, comps, took_ms = task.result()
             except Exception:
                 continue
             queried.append(name)
+            latencies.append((name, took_ms))
             if comps is None:
                 failed.append(name)
             else:
                 collected.extend(comps)
 
-        return collected, tuple(sorted(queried)), tuple(sorted(set(failed)))
+        return (collected, tuple(sorted(queried)), tuple(sorted(set(failed))),
+                tuple(sorted(latencies)))
 
     def _build(
         self,

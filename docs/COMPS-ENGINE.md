@@ -32,6 +32,7 @@ backend/comps/
 ├── search.py            SQLite FTS5 index over the catalog
 ├── flags.py             feature flags (off / shadow / live)
 ├── engine.py            orchestration + async fan-out
+├── shadow.py            runs the engine beside each scan; logs, never serves
 └── providers/
     ├── base.py          CompsProvider protocol, registry, circuit breaker
     └── stubs.py         credential-free stubs + FixtureProvider
@@ -68,6 +69,26 @@ Stage ordering is load-bearing:
   duplicate to keep.
 - **dedupe before aggregate** — relists cluster at the price that *failed* to
   sell, so aggregating first biases the median upward.
+
+---
+
+## Shadow mode in the scan path (#39)
+
+`main._analyse` hands every user scan to `comps.shadow.ShadowRunner` after the
+response is built. The lookup runs as a detached task, so it adds nothing to
+scan latency and cannot change the response: `valuation_source` stays
+`"model"`. Operator test scans from the bot are left out.
+
+Each lookup logs one `comps shadow` line — status, model and comps ranges (the
+comps range is the evidence IQR), comp count, median match score, per-provider
+latency, `price_ratio` (comps expected / model expected) and `ranges_overlap` —
+and feeds three metrics: `snapworth_comps_shadow_lookups_total{status}`,
+`snapworth_comps_shadow_duration_seconds` and
+`snapworth_comps_shadow_price_ratio`.
+
+With `COMPS_ENABLED=false` nothing is scheduled at all. Enabled with no
+provider registered, every lookup ends `no_providers`, which is what production
+would show today; the agreement numbers #40 and #41 wait on need a provider.
 
 ---
 
