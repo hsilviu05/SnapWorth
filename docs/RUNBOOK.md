@@ -1122,33 +1122,33 @@ to search for after they drift.
   (`notify.py:163-168`), taken and renewed by `_hold_poll_lock`
   (`notify.py:2077`) before each poll (`notify.py:2227`), and released at
   shutdown (`_release_poll_lock`, `notify.py:2091`). Checkup says whether this
-  replica holds it (`notify.py:5362`).
+  replica holds it (`notify.py:5379`).
 - **Once-a-day messages go once.** Digest, weekly report, budget alert and
   quiet note each claim a cache key with `add` before sending
-  (`notify.py:1727`, `:2978`, `:3482`, `:5402`). Every replica runs the digest
-  and watch loops (`notify.py:1841`, `:5432`); the claim is what stops the
+  (`notify.py:1727`, `:2978`, `:3482`, `:5419`). Every replica runs the digest
+  and watch loops (`notify.py:1841`, `:5449`); the claim is what stops the
   second.
 - **Counters add up.** The daily tallies behind `/status`, `/costs` and the
   digest are Redis `incr`s (`_bump`, `notify.py:891`), as is the safety-block
-  count (`_safety_key`, `main.py:370`).
+  count (`_safety_key`, `main.py:371`).
 
 **Per-process, and what to do about each:**
 
 | Item | Code | With two | Decision |
 |---|---|---|---|
-| Model health | `_ModelHealth`, `main.py:2679-2741`; read by `/health` (`main.py:1429`) and `/status`/Checkup via `_status_snapshot` (`main.py:504`) | Each replica knows only the scans it served. `/health` depends on which replica answers, and `/status` shows the poller's | **Accept.** Both call the same provider, so both go degraded within `MODEL_UNHEALTHY_AFTER` (2) failures of a real outage, and Checkup probes Gemini live. `/status` and Checkup name the replica (`REPLICA_ID`, `main.py:185`) |
+| Model health | `_ModelHealth`, `main.py:2704-2766`; read by `/health` (`main.py:1454`) and `/status`/Checkup via `_status_snapshot` (`main.py:505`) | Each replica knows only the scans it served. `/health` depends on which replica answers, and `/status` shows the poller's | **Accept.** Both call the same provider, so both go degraded within `MODEL_UNHEALTHY_AFTER` (2) failures of a real outage, and Checkup probes Gemini live. `/status` and Checkup name the replica (`REPLICA_ID`, `main.py:185`) |
 | Alert throttle | `_alert_last_sent`, `_alert_awaiting_recovery`, `notify.py:724-728` | Each replica alerts once: one message per replica | **Accept.** Chosen there, to keep a cache round trip off the failure path |
 | Redis down/up announcements | `_cache_state_generation`, `cache_state_changed`, `notify.py:1650-1667` | Each replica announces its own view | **Accept**, for the same reason |
-| Rate-limit fallback | `_device_memory`, `_ip_memory`, `main.py:837-838`, wired in `_init_rate_limiters` (`main.py:854`); `ResilientRateLimiter` degrades at `ratelimit.py:271-306` | While Redis is down each replica keeps its own window: N× the limit | **Accept.** Bounded, logged at ERROR, and `/health` reads degraded. New buckets must be Redis-backed like these, or a second replica silently doubles them |
+| Rate-limit fallback | `_device_memory`, `_ip_memory`, `main.py:862-863`, wired in `_init_rate_limiters` (`main.py:879`); `ResilientRateLimiter` degrades at `ratelimit.py:271-306` | While Redis is down each replica keeps its own window: N× the limit | **Accept.** Bounded, logged at ERROR, and `/health` reads degraded. New buckets must be Redis-backed like these, or a second replica silently doubles them |
 | Cache fallback for non-`required` calls | `ResilientCache._call` falls through to the in-process store, `cache.py:247` | While Redis is down, dedupe claims and counters split per replica: a digest can go twice | **Accept.** Only during an outage, which is announced |
 | Poll lock under cache errors | `_hold_poll_lock` returns True on an exception, `notify.py:2087-2088` | While Redis is down both replicas poll; Telegram answers each with a share of the updates | **Accept.** Chosen there: a duplicated reply beats a bot that never answers |
 | Metrics | `metrics.registry`, `metrics.py:283`, including `http_in_flight` (`metrics.py:312`) | Each scrape reads one replica | **Accept.** Nothing scrapes it (§1b). Read the in-flight trigger on each replica |
 | Background tasks | `notify._tasks` (`notify.py:690`: alert sends, counter bumps), `auth._background` (`auth.py:605`, the DeviceCheck exhausted mark), `quota._background` (`quota.py:40`, the welcome mark) | Per-process by nature. None is in `http_in_flight`, so the shutdown drain does not wait for them, and `notify.aclose` cancels its own (`notify.py:781`). The comps shadow, off in production, gets its own 1 s drain (`comps/shadow.py:188`) | **Accept.** A per-deploy loss, not a per-replica one: a deploy landing inside one loses that write, each a round trip of under a second |
-| Redis connections | `DEFAULT_REDIS_MAX_CONNECTIONS = 50` for the cache (`cache.py:306`), plus a client per rate limiter with redis-py's default pool (`ratelimit.py:331`; two limiters, `main.py:854`) | Three pools per process | **Accept.** Check Redis's `maxclients` against processes × pools when the count changes |
+| Redis connections | `DEFAULT_REDIS_MAX_CONNECTIONS = 50` for the cache (`cache.py:306`), plus a client per rate limiter with redis-py's default pool (`ratelimit.py:331`; two limiters, `main.py:879`) | Three pools per process | **Accept.** Check Redis's `maxclients` against processes × pools when the count changes |
 | Outbound HTTP clients | DeviceCheck (`devicecheck.py:307`), App Store status (`appstorestatus.py:617`), Gemini (`aiconfig.py:258`) | A pool each per process | **Accept** |
-| Request bodies | `MAX_REQUEST_BYTES`, 20 MB, `main.py:602` | Held in the process serving the request | **Accept.** Size memory per process; it is the memory trigger above |
+| Request bodies | `MAX_REQUEST_BYTES`, 20 MB, `main.py:619` | Held in the process serving the request | **Accept.** Size memory per process; it is the memory trigger above |
 | Log-once set | `_HOP_COUNTS_SEEN`, `ratelimit.py:71` | Each replica logs its own first sighting | **Accept** |
-| Readiness | `_ready`, `main.py:344` | Per process by nature | Nothing to do |
+| Readiness | `_ready`, `main.py:345` | Per process by nature | Nothing to do |
 
 Nothing in the list has to move to a cache key first. Each per-process item
 either duplicates a message or is bounded while Redis is down, and none of
