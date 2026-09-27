@@ -55,12 +55,13 @@ HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
 #
 # On a deploy, in the order it happens (RUNBOOK §6):
 #   1. SIGTERM. uvicorn stops accepting and gives requests in flight up to
-#      --timeout-graceful-shutdown 40, then cancels the rest. 40s outlasts any
-#      request someone still waits for: the app gives up on the model 33s after
-#      arrival and the phone at 35s. /scan measured over 7 days: p95 18.9s,
-#      max 21.6s.
-#   2. Then the lifespan shutdown in main.py: up to DRAIN_TIMEOUT_SECONDS (5s)
-#      for cancelled requests to hand back their free scan before Redis closes.
+#      --timeout-graceful-shutdown (below), then cancels the rest. The window
+#      outlasts any request someone still waits for: the app gives up on the
+#      model CLIENT_DEADLINE_SECONDS after arrival, and the phone at 35s.
+#      /scan measured over 7 days: p95 18.9s, max 21.6s.
+#   2. Then the lifespan shutdown in main.py: up to DRAIN_TIMEOUT_SECONDS for
+#      cancelled requests to hand back their free scan before Redis closes.
 #   3. SIGKILL, RAILWAY_DEPLOYMENT_DRAINING_SECONDS after SIGTERM. That has to
-#      be 50 (40 + 5 + the close); Railway's default is 0.
+#      cover 1 and 2 together plus the close; Railway's default is 0.
+#      tests/test_graceful_shutdown.py holds the three to one budget.
 CMD ["sh", "-c", "exec uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000} --workers 1 --timeout-graceful-shutdown 40 --no-server-header --proxy-headers --forwarded-allow-ips='*'"]

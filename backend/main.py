@@ -328,16 +328,23 @@ async def _lifespan(_app: FastAPI):
 
 # How long the lifespan waits, after uvicorn's graceful window, for requests
 # uvicorn cancelled to finish their cleanup before connections close. Not the
-# window a scan gets: that is `--timeout-graceful-shutdown` (40s), which
-# covers the longest request anyone still waits for — the model is abandoned
-# 33s after arrival (CLIENT_DEADLINE_SECONDS) and the phone gives up at 35s.
-# /scan in production over 2026-09-20 → 09-27: p50 13.5s, p95 18.9s, max
-# 21.6s (RUNBOOK §6).
+# window a scan gets: that is `--timeout-graceful-shutdown` (Dockerfile), which
+# outlasts the longest request anyone still waits for, CLIENT_DEADLINE_SECONDS
+# on the model and the phone's own timeout (RUNBOOK §6 has the measurements).
 #
-# 5s covers a refund against a Redis that has stopped answering: 2s to
-# connect, 2s to read (`cache.build_redis_client`). Railway's SIGKILL must come
-# after 40 + 5 and the close, so RAILWAY_DEPLOYMENT_DRAINING_SECONDS=50.
-# Railway's default is 0: SIGKILL straight after SIGTERM.
+# The default assumes a healthy Redis, where the refund and the close after it
+# each take well under a second. Against a Redis that has stopped answering,
+# one call takes 4-8s (`cache.build_redis_client`: a 2s connect and a 2s read,
+# retried on timeout, behind a health-check PING), so the refund fails however
+# long this waits, and the close — `notify.aclose` hands back the Telegram poll
+# lock through the same Redis — can still be running when SIGKILL lands. That
+# is harmless: the refund was lost either way, and the poll lock expires on its
+# TTL. So this is not sized for a hung Redis.
+#
+# Railway's SIGKILL has to come after the graceful window and this wait
+# together, plus the close: RAILWAY_DEPLOYMENT_DRAINING_SECONDS, whose value is
+# in RUNBOOK §6 and held to these by tests/test_graceful_shutdown.py. Railway's
+# default is 0: SIGKILL straight after SIGTERM.
 _DRAIN_TIMEOUT_SECONDS = float(os.environ.get("DRAIN_TIMEOUT_SECONDS", "5"))
 
 # Readiness is separate from liveness: the process can be alive and healthy
@@ -1512,11 +1519,16 @@ async def liveness() -> dict:
 async def readiness() -> dict | JSONResponse:
     """Readiness probe: should this instance receive traffic?
 
-    Returns 503 while starting up, while draining on shutdown, or when a
-    configured cache cannot take a write — unreachable, or full and refusing
-    writes — so quota and entitlement checks would fail closed. In each case
-    the instance is alive but cannot serve correctly, and the load balancer
-    should route elsewhere.
+    Returns 503 when a configured cache cannot take a write — unreachable, or
+    full and refusing writes — so quota and entitlement checks would fail
+    closed. The instance is alive but cannot serve correctly, and the load
+    balancer should route elsewhere.
+
+    It also answers 503 while `_ready` is false, before the lifespan's startup
+    completes and once its shutdown begins, but under uvicorn nobody can ask
+    then: uvicorn opens its listener only after the startup, and closes it at
+    SIGTERM, before the shutdown (RUNBOOK §6). A deploy serves no 503 on the
+    way out; the old container stops answering.
     """
     payload: dict = {"status": "ready", "ready": _ready}
 

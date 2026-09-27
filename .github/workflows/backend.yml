@@ -189,12 +189,12 @@ jobs:
           # signal. Without that the shell swallows it and in-flight scans are
           # killed on every deploy.
           #
-          # 50s before SIGKILL: the value RAILWAY_DEPLOYMENT_DRAINING_SECONDS
-          # has to have (RUNBOOK §6) — uvicorn's 40s graceful window plus the
-          # lifespan's 5s drain, which run one after the other, plus the close.
-          # An idle container stops in well under a second either way; that a
-          # request in flight at SIGTERM completes is
-          # tests/test_graceful_shutdown.py.
+          # The same time to SIGKILL as RAILWAY_DEPLOYMENT_DRAINING_SECONDS
+          # (RUNBOOK §6): uvicorn's --timeout-graceful-shutdown plus the
+          # lifespan's DRAIN_TIMEOUT_SECONDS, which run one after the other,
+          # plus the close. tests/test_graceful_shutdown.py holds the two
+          # equal. An idle container stops in well under a second either way;
+          # that a request in flight at SIGTERM completes is that test's too.
           docker stop --timeout 50 snapworth-ci
           if docker logs snapworth-ci 2>&1 | grep -q "shutdown complete"; then
             echo "graceful shutdown confirmed"
