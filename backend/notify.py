@@ -69,6 +69,7 @@ pattern as a backstop.
 from __future__ import annotations
 
 import asyncio
+import dataclasses
 import html
 import json
 import logging
@@ -2284,14 +2285,19 @@ async def _levers(*, required: bool = False) -> dict:
     return doc if isinstance(doc, dict) else {}
 
 
+def _lever_value(doc: dict) -> int | None:
+    """The welcome allowance a levers document holds, or None for none."""
+    value = doc.get("free_scans_first_day")
+    return int(value) if isinstance(value, (int, float)) else None
+
+
 async def free_scan_lever() -> int | None:
     """The operator's welcome allowance, or None to use the environment.
 
     Injected into `ScanQuota` from main.py — quota must not import this module.
     Raises nothing: `_levers` swallows, and a missing key reads as None.
     """
-    value = (await _levers()).get("free_scans_first_day")
-    return int(value) if isinstance(value, (int, float)) else None
+    return _lever_value(await _levers())
 
 
 async def _set_free_scan_lever(value: int | None) -> dict | None:
@@ -4039,9 +4045,14 @@ def _stat_expires_on(day: str) -> datetime:
             + timedelta(days=STATS_TTL // 86400))
 
 
-async def _lever_changes_in(days: list[str]) -> list[list]:
-    """The lever's recorded changes that fall on one of `days`, oldest first."""
-    return [c for c in ((await _levers()).get("changes") or [])
+def _lever_changes_in(days: list[str], doc: dict) -> list[list]:
+    """The changes recorded in levers document `doc` that fall on one of
+    `days`, oldest first.
+
+    Handed the document rather than reading it, because the two callers read
+    it differently: the table best-effort, the export `required`.
+    """
+    return [c for c in (doc.get("changes") or [])
             if isinstance(c, list) and len(c) == 3 and c[0] in days]
 
 
@@ -4153,7 +4164,7 @@ async def _experiment_text(now: datetime | None = None) -> str:
     notes = []
     # A window whose lever moved mid-flight and does not say so is worse than
     # no window: the numbers look continuous and are not.
-    for day_changed, before, after in (await _lever_changes_in(shown))[-4:]:
+    for day_changed, before, after in _lever_changes_in(shown, await _levers())[-4:]:
         notes.append(f"⚠️ lever changed on {day_changed[4:6]}-{day_changed[6:]}: "
                      f"{_lever_label(before)} → {_lever_label(after)}")
     if partial:
@@ -4184,10 +4195,11 @@ async def _experiment_export(now: datetime | None = None) -> str:
     and the daily digests that reported it are one day each. This is the one
     form of it that outlives the cache: a block to copy into `docs/`.
 
-    Read `required`, unlike the table. A zero in a kept copy is a claim that
-    nothing happened, so an unreadable cache refuses the export rather than
-    writing zeros into it. An expired day has empty cells, not zeros, for the
-    reason the table prints "—".
+    Read `required`, unlike the table: the counters and the lever's record
+    both. A zero in a kept copy is a claim that nothing happened, and so is a
+    copy with no lever move in it, so an unreadable cache refuses the export
+    rather than writing either. An expired day has empty cells, not zeros, for
+    the reason the table prints "—".
     """
     now = now or datetime.now(timezone.utc)
     start, end = _parse_day(EXPERIMENT_START_DAY), _parse_day(EXPERIMENT_END_DAY)
@@ -4200,33 +4212,50 @@ async def _experiment_export(now: datetime | None = None) -> str:
     if not shown:
         return f"💾 Nothing to export — the window opens {start:%d %b}."
 
-    _, head, why = _welcome_summary(await _welcome_setting())
     ttl_days = STATS_TTL // 86400
-    lines = [f"# SnapWorth free-scan experiment, {start:%Y-%m-%d} to {end:%Y-%m-%d}; "
-             f"exported {now:%Y-%m-%d %H:%M} UTC"
-             + ("" if today > EXPERIMENT_END_DAY else " while the window was open"),
-             f"# welcome at export: {head} — {why}"]
-    for day_changed, before, after in await _lever_changes_in(shown):
-        lines.append(f"# lever changed {day_changed[:4]}-{day_changed[4:6]}-"
-                     f"{day_changed[6:]}: {_lever_label(before)} -> {_lever_label(after)}")
-    lines.append(",".join(["day", *EXPERIMENT_COUNTERS, "note"]))
+    rows = [",".join(["day", *EXPERIMENT_COUNTERS, "note"])]
     try:
+        # The lever's record as well as the counters. `_levers()` on its own
+        # turns a failed read into {}, and a kept copy built from that shows no
+        # lever move: the window that `_set_free_scan_lever` records changes
+        # so as never to produce.
+        levers = await _levers(required=True)
         for d in shown:
             iso = f"{d[:4]}-{d[4:6]}-{d[6:]}"
             if _stat_expired(d, now):
-                lines.append(iso + "," * len(EXPERIMENT_COUNTERS)
-                             + f",expired: past the {ttl_days}-day counter TTL")
+                rows.append(iso + "," * len(EXPERIMENT_COUNTERS)
+                            + f",expired: past the {ttl_days}-day counter TTL")
                 continue
             values = []
             for name in EXPERIMENT_COUNTERS:
                 raw = await _cache.get(_stat_key(d, name), required=True)
                 values.append(str(int(raw or 0)))
             note = EXPERIMENT_PARTIAL_NOTE if d == EXPERIMENT_PARTIAL_DAY else ""
-            lines.append(",".join([iso, *values, note]))
+            rows.append(",".join([iso, *values, note]))
     except Exception as exc:
-        return ("💾 <b>Nothing exported</b> — the counters could not be read "
-                f"({html.escape(type(exc).__name__)}), and a copy with zeros in "
-                "their place would say nothing happened. Try again in a minute.")
+        return ("💾 <b>Nothing exported</b> — the counters or the lever's record "
+                f"could not be read ({html.escape(type(exc).__name__)}), and a "
+                "copy without them would say nothing happened. Try again in a "
+                "minute.")
+
+    setting = await _welcome_setting()
+    if setting is not None:
+        # The quota reads the lever best-effort, as a scan must, and an
+        # unreadable one reads as the environment's value. In a kept copy that
+        # would be the environment's welcome while the lever said otherwise.
+        # So the override is the one just read `required`, through the parse
+        # `free_scan_lever` hands the quota; what it grants is still the
+        # quota's `allowance`.
+        setting = dataclasses.replace(setting, override=_lever_value(levers))
+    _, head, why = _welcome_summary(setting)
+    lines = [f"# SnapWorth free-scan experiment, {start:%Y-%m-%d} to {end:%Y-%m-%d}; "
+             f"exported {now:%Y-%m-%d %H:%M} UTC"
+             + ("" if today > EXPERIMENT_END_DAY else " while the window was open"),
+             f"# welcome at export: {head} — {why}"]
+    for day_changed, before, after in _lever_changes_in(shown, levers):
+        lines.append(f"# lever changed {day_changed[:4]}-{day_changed[4:6]}-"
+                     f"{day_changed[6:]}: {_lever_label(before)} -> {_lever_label(after)}")
+    lines.extend(rows)
 
     kept = [d for d in shown if not _stat_expired(d, now)]
     expiry = (f"The {kept[0][4:6]}-{kept[0][6:]} counters expire on "

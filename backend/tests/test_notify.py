@@ -3897,6 +3897,55 @@ class TestExperimentExport:
         assert "<pre>" not in text
 
     @pytest.mark.asyncio
+    async def test_an_unreadable_lever_record_alone_exports_nothing(
+            self, cache, monkeypatch):
+        """The test above passes because every read fails. This is the case it
+        does not cover: the counters read, and only the lever's record does
+        not. Read best-effort, that record was {} — a kept copy with no lever
+        move in it, and nothing refused it."""
+        from cache import CacheUnavailable
+
+        monkeypatch.setattr(notify, "EXPERIMENT_START_DAY", notify._day())
+        monkeypatch.setattr(notify, "EXPERIMENT_END_DAY", notify._day())
+        await notify.handle_command("/lever arm 4 yes")
+        real_get = cache.get
+
+        async def levers_down(key, *, required=False):
+            if key == notify.LEVERS_KEY and required:
+                raise CacheUnavailable("redis down")
+            return await real_get(key, required=required)
+        monkeypatch.setattr(notify._cache, "get", levers_down)
+        text = await notify._experiment_export()
+        assert "Nothing exported" in text and "CacheUnavailable" in text, text
+        assert "<pre>" not in text
+
+    @pytest.mark.asyncio
+    async def test_the_export_does_not_trust_a_best_effort_lever_read(
+            self, cache, monkeypatch):
+        """A failed best-effort read of the lever falls back to memory, which
+        has nothing, so both the change lines and the welcome line (the quota
+        reads the lever that way too) came out as though it had never
+        moved. Here only that best-effort read misses; the export must still
+        carry what the stored record says."""
+        monkeypatch.setattr(notify, "EXPERIMENT_START_DAY", notify._day())
+        monkeypatch.setattr(notify, "EXPERIMENT_END_DAY", notify._day())
+        await notify.handle_command("/lever arm 4 yes")
+        real_get = cache.get
+
+        async def best_effort_misses(key, *, required=False):
+            if key == notify.LEVERS_KEY and not required:
+                return None
+            return await real_get(key, required=required)
+        monkeypatch.setattr(notify._cache, "get", best_effort_misses)
+        lines = self._csv(await notify._experiment_export())
+        day = notify._day()
+        assert (f"# lever changed {day[:4]}-{day[4:6]}-{day[6:]}: "
+                "environment default -> 4 first-day scans") in lines, lines
+        welcome = next(ln for ln in lines if ln.startswith("# welcome at export"))
+        assert "lever armed — 4 first-day scans" in welcome, welcome
+        assert "set from chat" in welcome, welcome
+
+    @pytest.mark.asyncio
     async def test_a_lever_move_inside_the_window_travels_with_the_rows(
             self, monkeypatch):
         monkeypatch.setattr(notify, "EXPERIMENT_START_DAY", notify._day())
