@@ -628,7 +628,7 @@ class TestDeviceCheckVerify:
         import httpx
         ok, detail = self.run(lambda r: httpx.Response(
             401, text="Unable to verify authorization token"))
-        assert not ok
+        assert ok is False, "a refusal is a verdict, not an outage"
         assert "Apple said: Unable to verify authorization token" in detail, \
             "quote Apple rather than paraphrasing it"
         # The commonest cause is a KEY_ID left over from another key, which is
@@ -650,8 +650,16 @@ class TestDeviceCheckVerify:
 
     def test_an_unexpected_status_is_reported_verbatim_not_swallowed(self):
         import httpx
+        ok, detail = self.run(lambda r: httpx.Response(403, text="forbidden"))
+        assert ok is False and detail == "unexpected HTTP 403: forbidden"
+
+    def test_a_5xx_is_apple_unavailable_not_a_verdict_on_the_key(self):
+        """Apple answering 503 says nothing about the key. The quota treats a
+        5xx as an outage (`DeviceCheckError.is_refusal`), so the probe does."""
+        import httpx
         ok, detail = self.run(lambda r: httpx.Response(503, text="try later"))
-        assert not ok and "503" in detail
+        assert ok is None
+        assert detail == "HTTP 503: try later"
 
     def test_the_probe_token_is_never_a_real_one(self):
         """It must be valid base64 so it reaches Apple's token check rather
@@ -704,16 +712,27 @@ class TestDeviceCheckVerify:
         assert not ok and "no BEGIN/END lines" in detail
 
     def test_a_key_that_signs_but_cannot_reach_apple_says_which_failed(self):
-        """A network problem must never read as Apple refusing the key."""
+        """A network problem must never read as Apple refusing the key.
+
+        It used to be `(False, "could not reach Apple (ConnectError)")`, and
+        /checkup renders every False as "REJECTED … until this is fixed". None
+        is the answer that says nothing was learned about the key."""
         import httpx
 
         def dead(request):
             raise httpx.ConnectError("no route to host")
 
         ok, detail = self.run(dead)
-        assert not ok
-        assert "could not reach Apple" in detail
-        assert "rejected" not in detail
+        assert ok is None
+        assert detail == "ConnectError"
+
+    def test_a_timeout_is_unreachable_too(self):
+        import httpx
+
+        def slow(request):
+            raise httpx.ConnectTimeout("timed out")
+
+        assert self.run(slow) == (None, "ConnectTimeout")
 
 
 # ═══ Container configuration ══════════════════════════════════════════════════

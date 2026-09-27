@@ -698,8 +698,10 @@ _generator: Callable[..., Awaitable[str]] | None = None
 _scanner: Callable[..., Awaitable[dict]] | None = None
 
 # Asks Apple whether the DeviceCheck credentials actually sign, injected by
-# main. `async () -> (ok, detail)`; None when the app did not wire one.
-_device_check_probe: Callable[[], Awaitable[tuple[bool, str]]] | None = None
+# main. `async () -> (ok, detail)`, where `ok` is None when Apple could not be
+# asked (see `devicecheck.DeviceCheckClient.verify`); None when the app did
+# not wire one.
+_device_check_probe: Callable[[], Awaitable[tuple[bool | None, str]]] | None = None
 
 # Identifies this replica as the poll-lock holder.
 _poll_token = secrets.token_hex(8)
@@ -719,7 +721,7 @@ def configure(cache, notifier: TelegramNotifier | None = None,
               status_provider: Callable[[], dict] | None = None,
               social=None, generator: Callable[..., Awaitable[str]] | None = None,
               scanner: Callable[..., Awaitable[dict]] | None = None,
-              device_check_probe: Callable[[], Awaitable[tuple[bool, str]]] | None = None) -> None:
+              device_check_probe: Callable[[], Awaitable[tuple[bool | None, str]]] | None = None) -> None:
     """Wire the notifier from the environment. Called once at startup.
 
     With the env vars unset this leaves everything disabled and every public
@@ -4655,6 +4657,15 @@ async def _device_check_line(configured: bool) -> str:
         return f"DeviceCheck: configured · probe failed ({type(exc).__name__})"
     if ok:
         return f"DeviceCheck: configured ✅ — {html.escape(detail)}"
+    if ok is None:
+        # Apple did not answer, so nothing is known about the key. This used
+        # to fall through to REJECTED, which is an instruction to go and fix
+        # the key. The quota treats the same failure as an outage and grants
+        # (`quota.starting_balance`), so the allowance claim holds for as long
+        # as the outage does, not until someone changes something.
+        return (f"DeviceCheck: configured · Apple unreachable just now "
+                f"({html.escape(detail)}) — reinstalls get a fresh allowance "
+                "while this lasts; run /checkup again")
     return (f"DeviceCheck: configured but REJECTED — {html.escape(detail)}. "
             "Reinstalls get a fresh allowance until this is fixed.")
 

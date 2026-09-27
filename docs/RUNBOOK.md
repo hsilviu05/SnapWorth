@@ -497,7 +497,7 @@ body-only key, so the checkup names the shape instead:
 | `…is on a single line — its newlines were lost` | re-paste with real line breaks, or with a literal `\n` between them |
 | `…has no BEGIN/END lines` | paste the whole file, not just the base64 body |
 | `private key unreadable — …` | the envelope is right but the contents are not a P-256 key; check it is the unencrypted `.p8` Apple issued |
-| `could not reach Apple (…)` | network, not credentials — nothing to change |
+| `Apple unreachable just now (…)` | a timeout, a connection failure or a 5xx — not credentials. Nothing to change; run the checkup again |
 
 **Then verify — do not trust "configured".** `is_configured` only means the
 three variables are non-empty, and a wrong key cannot recognise a reinstall, so
@@ -509,6 +509,9 @@ Run `🩺 Checkup`:
 - `DeviceCheck: configured ✅ — credentials accepted by Apple` — Apple signed off.
 - `DeviceCheck: configured but REJECTED — key rejected …` — one of the three
   variables is wrong, or the key lacks the DeviceCheck capability.
+- `DeviceCheck: configured · Apple unreachable just now (…)` — Apple did not
+  answer, so nothing is known about the key yet. Run it again. While it lasts,
+  reinstalls get a fresh allowance, as in any Apple outage (§5.6).
 
 The probe sends a deliberately fake device token: Apple reads the
 Authorization header first, so a `400` about the token proves the key signs

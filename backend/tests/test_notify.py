@@ -2597,6 +2597,66 @@ class TestDeviceCheckLine:
         assert "Reinstalls get a fresh allowance until this is fixed." in line
 
     @pytest.mark.asyncio
+    async def test_apple_unreachable_is_not_reported_as_rejected(self, cache, monkeypatch):
+        """A timeout said "REJECTED … until this is fixed", which sends someone
+        to the developer portal to fix a key that works. Nothing needs fixing;
+        the check needs repeating."""
+        async def probe():
+            return None, "ConnectTimeout"
+        line = await self.line(cache, monkeypatch, True, probe)
+        assert line == ("DeviceCheck: configured · Apple unreachable just now "
+                        "(ConnectTimeout) — reinstalls get a fresh allowance while "
+                        "this lasts; run /checkup again")
+        assert "REJECTED" not in line and "until this is fixed" not in line
+
+    @staticmethod
+    def _real_probe(apple):
+        """`DeviceCheckClient.verify` against a stand-in for Apple, so the two
+        halves are tested together: what the probe returns for each failure,
+        and what the checkup line makes of it."""
+        import devicecheck
+        from cryptography.hazmat.primitives import serialization
+        from cryptography.hazmat.primitives.asymmetric import ec
+        # Generated, never written down: see test_production's `_key`.
+        key = ec.generate_private_key(ec.SECP256R1()).private_bytes(
+            encoding=serialization.Encoding.PEM,
+            format=serialization.PrivateFormat.PKCS8,
+            encryption_algorithm=serialization.NoEncryption()).decode()
+        dc = devicecheck.DeviceCheckClient(
+            team_id="TEAM123456", key_id="KEY1234567", private_key_pem=key)
+
+        async def probe():
+            devicecheck._client = httpx.AsyncClient(transport=httpx.MockTransport(apple))
+            try:
+                return await dc.verify()
+            finally:
+                await devicecheck.aclose()
+        return probe
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("outage, kind", [("timeout", "ConnectTimeout"),
+                                              ("503", "HTTP 503: try later")])
+    async def test_the_real_probe_reads_an_outage_as_unreachable(
+            self, cache, monkeypatch, outage, kind):
+        def apple(request):
+            if outage == "timeout":
+                raise httpx.ConnectTimeout("timed out")
+            return httpx.Response(503, text="try later")
+        line = await self.line(cache, monkeypatch, True, self._real_probe(apple))
+        assert line.startswith(
+            f"DeviceCheck: configured · Apple unreachable just now ({kind})"), line
+        assert "REJECTED" not in line
+
+    @pytest.mark.asyncio
+    async def test_the_real_probe_still_reads_a_refused_key_as_rejected(
+            self, cache, monkeypatch):
+        def apple(request):
+            return httpx.Response(401, text="Unable to verify authorization token")
+        line = await self.line(cache, monkeypatch, True, self._real_probe(apple))
+        assert line.startswith("DeviceCheck: configured but REJECTED — key rejected"), line
+        assert line.endswith("Reinstalls get a fresh allowance until this is fixed.")
+
+    @pytest.mark.asyncio
     async def test_a_probe_that_blows_up_does_not_take_the_checkup_with_it(
             self, cache, monkeypatch):
         async def probe():
