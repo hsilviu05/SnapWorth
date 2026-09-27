@@ -335,7 +335,8 @@ model change degraded identification. It is a **quality** incident, not an
 availability one.
 
 1. Compare `confidence_score` and `valuation_clamped_total` before and after.
-2. Roll back the prompt without a redeploy: `SCAN_PROMPT_VERSION=v1`.
+2. Roll back the prompt without a code deploy: `SCAN_PROMPT_VERSION=v2` if
+   v2.1 is serving, `v1` if v2 is (§6, *Changing the scan prompt*).
 3. Run the benchmark before shipping a fix (`docs/EVALUATION.md`).
 
 ### 5.8 Quota abuse
@@ -374,7 +375,7 @@ confident wrong number is the product being wrong, and users act on it.
    is the known cause: gemini-2.5-flash spends **reasoning** tokens out of
    `max_output_tokens`, measured at 1138–1777 per scan against a ~700-token
    payload. If the ceiling is squeezed, JSON truncates before the price fields,
-   which sit two-thirds down the v2 schema.
+   which sit two-thirds down the v2 schema and lower still in v2.1's.
 3. Do not lower `GEMINI_MAX_OUTPUT_TOKENS` below **4096** — 2048 shipped and
    produced exactly this bug. It is a cap, not a spend: unused headroom is not
    billed, while truncated answers are billed in full and thrown away.
@@ -396,6 +397,30 @@ after tests pass (`.github/workflows/backend.yml`).
 | Instant rollback | Railway redeploy of a previous build |
 | Migrations | **None exist.** No relational database; Redis holds durable state (§9) but has no schema to migrate |
 | Feature flags | Env-var based: `SCAN_PROMPT_VERSION`, `COMPS_ENABLED`, `COMPS_SHADOW_MODE`, `ALLOWED_STOREKIT_ENVIRONMENTS`, `SANDBOX_ENTITLEMENTS` |
+
+### Changing the scan prompt
+
+`SCAN_PROMPT_VERSION` picks the valuation prompt: `v1`, `v2` (the default) or
+`v2.1`. v2.1 is v2 with the multiple-items rule restored, the evidence asked
+for before the prices, the market named (US resale value, in USD), and the v1
+low/high pair left to the server; `backend/prompts.py` gives the reasons. The
+response has the same fields and types under all three.
+
+1. Compare on real photos first. It needs `GEMINI_API_KEY`, and costs one
+   vision call per photo, per arm, per repeat:
+   ```bash
+   cd backend && python -m eval.runner --photos <folder of real scans> \
+     --repeats 3 --compare v2 v2.1 --json-out runs/v2.1.json
+   ```
+   Without sale prices this says how far v2.1 moves prices, and its
+   consistency, latency and tokens, not whether it is more accurate
+   (`docs/EVALUATION.md`, *Without labels*).
+2. Set `SCAN_PROMPT_VERSION=v2.1` on the Railway service. It is read at
+   startup, so it applies once the service restarts with it.
+3. Send the Telegram bot a photo. The last line of its reply starts
+   `Prompt v2.1`. An unrecognised value serves the default without
+   complaint, so this is the check that the change took.
+4. To go back, set `v2` or remove the variable.
 
 ### Shutdown sequence (implemented in `main._lifespan`)
 
@@ -419,7 +444,8 @@ still-starting instances, and the graceful shutdown achieves nothing.
       names each commit as it goes live, `/status` shows the last one, and
       `GET /health` reports the running `commit`. (`snapworth_build_info` has
       the same fact, but nothing scrapes `/metrics` — §3.)
-- [ ] **Prompt-only regression?** Set `SCAN_PROMPT_VERSION=v1` — no redeploy
+- [ ] **Prompt-only regression?** Set `SCAN_PROMPT_VERSION` back one version
+      (`v2.1` → `v2`, `v2` → `v1`) — no code deploy
 - [ ] **Comps-related?** Set `COMPS_ENABLED=false` — no redeploy
 - [ ] Otherwise redeploy the previous Railway build
 - [ ] Verify `/health/ready` returns 200
@@ -694,6 +720,9 @@ work on does not.
    quality decision and belongs to `backend/eval/runner.py`, run at a candidate
    budget and compared, not to a number picked here. This is the highest-value
    *cost* lever in the list and the one most able to damage the product.
+   Measure it on prompt v2.1 and set it only while v2.1 serves: the cap applies
+   to every scan whatever the prompt, and v2 asks for the prices before the
+   evidence (`docs/EVALUATION.md`, *Without labels*).
 4. **Prompt length** — v2 is ~700 tokens of the ~960 input. Input is ~5% of
    per-scan cost, so trimming saves ~$85/mo at 1M users; not worth degrading
    output for. (The old model put this at ~$40/mo on prices 4× too low.)

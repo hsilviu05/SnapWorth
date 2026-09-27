@@ -41,6 +41,39 @@ answers read as competent. Three counters are built in:
   attached to something in the frame;
 * `assumptions`, which gives the model a legitimate place to put its guesses
   instead of smuggling them into the identification fields.
+
+Design of v2.1
+--------------
+Four changes to v2, all from the 2026-09-26 audit. Everything else is v2's
+wording, so a comparison between the two measures these and nothing else.
+
+* **One item per valuation.** v1 said what to do with several items in frame;
+  v2 dropped the rule (783aad3). A rack or a bin then came back as one
+  valuation of an item nobody named, or a lot price shown as one item's value.
+  v2.1 prices the most central item, names it, adds `MULTIPLE_ITEMS_FACTOR` to
+  `uncertainty_factors` and caps `identification_certainty` at "probable".
+  It is for resalable items only and gives way to the not-resalable rule,
+  whose explanation shares that list and is what the decline banner shows.
+
+* **Evidence before prices.** "Design of v2" says the model commits to its
+  evidence before it prices, but v2's output schema put the four prices ahead
+  of `identification_certainty`, `visual_evidence`, `assumptions` and
+  `uncertainty_factors`. Latent while the model thinks before it answers; with
+  the thinking budget lowered, the main cost lever (`aiconfig.THINKING_BUDGET`),
+  the evidence would be written after the number it is meant to constrain.
+  v2.1 asks for every piece of evidence first and the prices after it.
+
+* **The range once.** v2 asked for `est_value_low_usd`/`est_value_high_usd` as
+  copies of worst and best, and `valuation.reconcile_prices` ignores them
+  whenever the four points are there. The server builds that v1 pair itself
+  (`valuation.apply_price_bounds`), so v2.1 does not ask for it.
+
+* **One market.** v2's reseller bought at car boot sales and sold on Vinted as
+  well as eBay and Poshmark, and "prices are in USD" named a currency, not a
+  market. v2.1 prices `VALUATION_MARKET` and names only US venues. Showing
+  dollars in every language is deliberate; what was missing is which market
+  they describe. Pricing for the user's own region would need the region sent
+  with /scan, and it is not.
 """
 
 from __future__ import annotations
@@ -50,11 +83,32 @@ import categories
 # Bump on any change to SCAN_PROMPT_V2. The eval harness groups results by this.
 PROMPT_VERSION = "scan-v2.0.0"
 
-# The category line both prompts carry, from the one table in `categories`.
+# The category line every prompt carries, from the one table in `categories`.
 # Interpolated rather than typed out so the list cannot drift from the bands,
 # weights and normaliser that read the model's answer; the resulting text is
 # byte-identical to the literal it replaced, so PROMPT_VERSION is unchanged.
 _CATEGORY_FIELD = f'"category": "One of: {categories.PROMPT_LIST}"'
+
+#: The market every v2.1 price is for, named to the model.
+VALUATION_MARKET = "US resale value, in USD"
+
+#: What v2.1 tells the model to put in `uncertainty_factors` when several items
+#: are prominent. Written once, here, so anything that later reads the flag
+#: back out of a response matches what the prompt asked for.
+#:
+#: Nothing shows it to anyone yet. `uncertainty_factors` is withheld from free
+#: responses (`main._PRO_ONLY_DETAIL_FIELDS`), the app decodes it for Pro and
+#: renders none of it, and "probable" is too strong a signal for `confidence`
+#: to name as a reason. Until that changes, `item_name` is the only thing that
+#: tells the person which item on the rack was priced.
+#:
+#: The cap on `identification_certainty` is the prompt's alone: a reply that
+#: carries this flag and says "certain" is served as "certain". That is a
+#: choice. Clamped to "probable" on the server it would move the score four or
+#: five points (the signal weighs 0.10) and still name no reason, as above.
+#: Whether a crowded frame should keep a scan out of High is the question that
+#: matters, and it is the owner's.
+MULTIPLE_ITEMS_FACTOR = "multiple items in frame"
 
 # Retained verbatim: still served when SCAN_PROMPT_VERSION=v1, and used by the
 # eval harness as the baseline to measure v2 against.
@@ -158,13 +212,139 @@ Rules for the numeric fields:
 - Arrays must contain 1-5 short entries. Never leave `visual_evidence` empty; if you truly can see nothing useful, say so as its single entry."""
 
 
+# One line, built apart from the prompt so the flag's spelling comes from
+# `MULTIPLE_ITEMS_FACTOR` rather than being typed twice.
+#
+# Its last sentence settles which rule wins. Both sit in the block that
+# overrides everything, and the not-resalable rule's own examples (a room,
+# food) are often several prominent things at once. That rule's explanation is
+# the one piece of a decline the person is shown, so it is the one that wins.
+#
+# Open, and the owner's to decide: a lot or bundle photographed as one thing
+# to sell. A flat-lay is how resellers shoot one, and this wording prices its
+# most central piece. Valuing a lot as a unit would take a sentence saying that
+# a matched set, or a lot clearly photographed for sale as one, counts as one
+# item and is named as the lot.
+_MULTIPLE_ITEMS_RULE = (
+    "- **One item per valuation.** If several items are prominent in the photo "
+    "(a rack, a shelf, a bin, a pile, a flat-lay), do not price the group and do "
+    "not add their values together. Price the most central or prominent item, "
+    "and name it in `item_name` clearly enough that the person can tell which "
+    f'one you priced. Add "{MULTIPLE_ITEMS_FACTOR}" to `uncertainty_factors`, and '
+    'set `identification_certainty` to "probable" at most, or "uncertain" if no '
+    "single item stands out. One item photographed against a cluttered "
+    "background is not this case. This rule is for resalable items only: if "
+    "the photo is not of a resalable object, follow the rule for that below "
+    "instead of this one."
+)
+
+# v2 with the four changes in the module docstring. The steps, the price
+# definitions and the other honesty rules are v2's words; the output schema is
+# v2's fields less the `est_value_*` pair, reordered evidence first.
+SCAN_PROMPT_V2_1 = """You are a professional secondhand reseller with 15 years of experience buying at thrift stores, estate sales and garage sales in the United States, and reselling on eBay, Poshmark, Mercari, Depop and Facebook Marketplace. You price items for a living. Your reputation depends on being right, and on being honest when you are not sure.
+
+Analyse the photograph and price the item. Every price you give is its """ + VALUATION_MARKET + """: what it sells for to buyers in the United States.
+
+## How to reason, in order
+
+Work through these steps in order. Each step constrains the next — do not jump ahead to a price. The output below follows the same order: what you observed and inferred comes first, and the prices come after it.
+
+**Step 1 — Observe.** List only what is literally visible: garment or object type, construction, closures, hardware, stitching, logos, wordmarks, tags, labels, serial or model numbers, materials, colourway, wear patterns, damage. Read any legible text exactly as printed.
+
+**Step 2 — Identify.** From those observations alone, determine brand, model, variant, size, material and approximate era. If something is not legible in the photo, it is unknown. Do not infer a model number from a logo. Do not infer a size from proportions.
+
+**Step 3 — Assess condition.** Grade what you can see, and say what you cannot see. A photo of one side tells you nothing about the other.
+
+**Step 4 — Judge the market.** Consider how sought-after this item is with US buyers right now, how many comparable units are typically listed at once, and how quickly this category moves. Brand alone does not set price: a common item from a desirable brand often resells for less than a rare item from an unknown one.
+
+**Step 5 — Price.** Produce four separate figures, defined precisely:
+- `quick_sale_price_usd` — priced to sell within roughly 72 hours. What you would ask if you needed the cash and the space.
+- `expected_price_usd` — the single most likely actual sale price with patient, competent listing. This is the headline number and must be your best point estimate, not the midpoint of a range you invented.
+- `best_case_price_usd` — achievable with the right buyer, good photos and time. Optimistic but genuinely attainable, not a fantasy.
+- `worst_case_price_usd` — what it fetches if the condition is worse than it looks, or the market is soft.
+
+These must satisfy: worst_case ≤ quick_sale ≤ expected ≤ best_case.
+
+## Honesty rules — these override everything above
+
+- **Unreadable means null.** If you cannot read a model name, size, year or material in the photo, return `null` for it. Never invent a plausible-sounding specific. A confident wrong model number is far more damaging than an honest `null`.
+""" + _MULTIPLE_ITEMS_RULE + """
+- **Price the item you can actually see**, not the best-case version of it. If you cannot tell an authentic item from a replica, say so in `authenticity_assessment` and price toward the cautious end.
+- **Every identification claim needs evidence.** Anything you assert about brand, model or material must trace to an entry in `visual_evidence`. If you inferred rather than observed it, it belongs in `assumptions` instead.
+- **Prices are the """ + VALUATION_MARKET + """**, for a *used* item in the stated condition, reflecting real completed sales in the US — not asking prices, not retail, not collector peaks, and not another country's prices converted into dollars.
+- **If this is not a resalable object** (a person, a pet, a room, a screenshot, food), set `category` to "other", set all four prices to 0, and explain in `uncertainty_factors`.
+
+## Output
+
+Return ONLY a JSON object, with its keys in the order shown. No markdown fences, no commentary.
+
+{
+  "visual_evidence": ["Concrete things visible in the photo that the identification rests on, e.g. 'Patagonia wordmark on left chest', 'interior tag reads Size M'"],
+  "item_name": "Most specific accurate name, e.g. 'Patagonia Better Sweater 1/4-Zip Fleece, Size M' — omit any detail you could not read",
+  "brand": "Brand name, or 'Unknown'",
+  "model": "Model or product line if legible, else null",
+  "variant": "Colourway, edition or configuration if determinable, else null",
+  "size": "Size as printed on the label, else null",
+  "material": "Primary material if stated on a label or clearly identifiable, else null",
+  "era": "Approximate production period if determinable from tag design, logo era or construction, e.g. '1990s' or '2015-2020', else null",
+  """ + _CATEGORY_FIELD + """,
+  "assumptions": ["Anything you inferred rather than observed, e.g. 'assumed full-zip based on visible collar'"],
+  "identification_certainty": "One of: certain, probable, uncertain — how sure you are of the identification specifically",
+  "condition_grade": "One of: new, likeNew, good, used",
+  "condition_notes": "Specific and honest, citing what you can see, e.g. 'Light pilling at cuffs and collar; no stains or holes visible; reverse not shown'",
+  "authenticity_assessment": "One of: no_concerns, minor_concerns, cannot_verify, likely_replica",
+  "authenticity_reasoning": "One sentence on what informed that assessment",
+  "demand": "One of: high, medium, low — how sought-after this is right now",
+  "supply": "One of: scarce, moderate, abundant — how many comparable units are typically available",
+  "value_drivers": ["What would move this price up or down, e.g. 'original box adds 15-20%', 'this colourway is less sought-after than black'"],
+  "uncertainty_factors": ["What makes this estimate less reliable, e.g. 'reverse side not shown', 'cannot assess pilling at this resolution'"],
+  "quick_sale_price_usd": 0.00,
+  "expected_price_usd": 0.00,
+  "best_case_price_usd": 0.00,
+  "worst_case_price_usd": 0.00,
+  "improve_estimate": ["Specific extra photos or details that would narrow the range, e.g. 'photo of the interior brand tag', 'close-up of the sole'"],
+  "listing_title": "SEO-friendly resale title under 80 characters",
+  "listing_description": "2-3 factual sentences: what it is, its condition, why it is worth buying"
+}
+
+Rules for the numeric fields:
+- Give only these four prices. The range shown to the person is taken from `worst_case_price_usd` and `best_case_price_usd`.
+- All prices are plain numbers, no currency symbols, no thousands separators.
+- `identification_certainty` describes how sure you are of *what the item is*. It is one input to a confidence score computed elsewhere — do not attempt to rate the overall estimate.
+- Arrays must contain 1-5 short entries. Never leave `visual_evidence` empty; if you truly can see nothing useful, say so as its single entry."""
+
+
 # Prompt registry. Selected at request time so a rollback is an env var, not a
-# redeploy, and so the eval harness can run both against the same dataset.
+# code deploy, and so the eval harness can run any two against the same dataset.
 PROMPTS: dict[str, str] = {
     "v1": SCAN_PROMPT_V1,
     "v2": SCAN_PROMPT_V2,
+    "v2.1": SCAN_PROMPT_V2_1,
 }
 
+# Still v2. The owner's condition for changing it, verbatim: "make v2.1 the
+# default only if the eval CLI's unlabelled --repeats/--compare mode (added in
+# the CI batch) can run a sanity comparison with the test fixtures — otherwise
+# leave the default at v2 and document how to switch."
+#
+# It reads two ways. Literally, it is met: `TestTheEvalCanCompareIt` in
+# tests/test_prompt_v21.py runs `eval.runner --photos <fixture JPEGs>
+# --repeats 2 --compare v2 v2.1` end to end and gets a price shift. That
+# proves the harness and nothing about the prompts, because the fixtures are
+# generated single-colour squares with nothing on them to price
+# (`tests/images.py`) and the model is a stand-in. A comparison that says
+# anything about v2.1 needs real photos and GEMINI_API_KEY, and none has been
+# run. The default stays at v2, the cautious reading, until the owner decides
+# to flip on the literal one or a real-photo run exists:
+#
+#     python -m eval.runner --photos <folder of real scans> --repeats 3 \
+#         --compare v2 v2.1 --json-out runs/v2.1.json
+#
+# To switch without changing this line, set SCAN_PROMPT_VERSION=v2.1 on the
+# service. That needs no code deploy, but it is read at startup, so it takes
+# effect when the service restarts with it (RUNBOOK §6). Unset it, or set v2,
+# to go back. Once v2.1 has served and held, change this line so a deploy
+# without the variable agrees with production.
 DEFAULT_PROMPT_VERSION = "v2"
 
 # Appended when the client sent a close-up of the label as well (#88). Kept

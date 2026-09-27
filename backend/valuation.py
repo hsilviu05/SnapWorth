@@ -269,6 +269,10 @@ def normalise(data: dict, *, image_quality: ImageQuality | None = None) -> Valua
         quick=data.get("quick_sale_price_usd", 0),
         expected=data.get("expected_price_usd", 0),
         best=data.get("best_case_price_usd", 0),
+        # The v1 pair: v1's only prices, a copy of worst/best under v2 (unread
+        # while the four points are there), and not asked for by v2.1. The
+        # pair the response serves is built from worst/best either way, in
+        # `apply_price_bounds`.
         legacy_low=data.get("est_value_low_usd", 0),
         legacy_high=data.get("est_value_high_usd", 0),
     )
@@ -313,7 +317,7 @@ def normalise(data: dict, *, image_quality: ImageQuality | None = None) -> Valua
     )
 
 
-#: The price keys the v2 and v1 prompts ask for, respectively.
+#: The price keys the v2 (and v2.1) and v1 prompts ask for, respectively.
 V2_PRICE_FIELDS = ("worst_case_price_usd", "quick_sale_price_usd",
                    "expected_price_usd", "best_case_price_usd")
 V1_PRICE_FIELDS = ("est_value_low_usd", "est_value_high_usd")
