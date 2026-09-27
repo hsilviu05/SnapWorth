@@ -1,10 +1,11 @@
 # App Store Listing — Română (storefront `ro`)
 
-Romanian **metadata** for the App Store. Nothing here touches the binary: the
-app has no `.lproj` anywhere and its interface stays English. This is the
-localization that costs nothing to ship and adds a second search surface —
-name, subtitle and keywords are indexed per locale, so a Romanian listing is a
-fresh 100-character keyword field, not a translation of the old one.
+Romanian metadata for the App Store, pasted onto **1.5.1**. The app itself
+has been in Romanian since 1.4.2; its store page never has been — the `ro`
+storefront still shows the English listing (checked 2026-09-26). This file is
+what closes that gap. Name, subtitle and keywords are indexed per locale, so a
+Romanian listing is also a fresh 100-character keyword field, not a
+translation of the old one.
 
 Mirrors `app_store_listing.md`, including its accuracy rules: no claim of sold
 listings, comps or market data; the one-scan-a-day limit is stated wherever a
@@ -15,35 +16,69 @@ file, under *Claims this listing does not make*.
 ## Read this before pasting
 
 **Not live yet (checked 2026-09-26).** The live 1.5.0 carries no Romanian
-metadata: the `ro` storefront shows the English page. Add this locale to
-1.5.1 and paste everything below — see *Paste with 1.5.1* in
+metadata: the `ro` storefront shows the English page. Add Romanian to the
+1.5.1 version page and paste everything below — see *Paste with 1.5.1* in
 `app_store_listing.md`.
 
 **Adding a language is version-scoped.** Name, subtitle, keywords, description
 and What's New belong to a *version*, so Romanian can only be added to a
-version you can still edit. That version is **1.4.2** — 1.4.1 went to review
-English-only and was left there rather than pulled and resubmitted. 1.4.2 is
-the build that carries the Romanian app, and this page ships with it.
+version you can still edit. That version is **1.5.1**, before it is
+submitted; once it is in review, the next chance is 1.5.2. The Romanian app
+shipped in 1.4.2, but no Romanian metadata reached the store with it or with
+any version since (`app_store_listing.md`, *The live store is not this file*).
 **Promotional text is the exception**: it can be changed on a live version at
 any time, but only for locales the version already has, so it cannot be used to
 sneak Romanian in early.
 
-**Screenshots are optional per locale.** With none uploaded for `ro`, Apple
-falls back to the English set. Leave them — English screenshots of an English
-app are honest, and the v2 set is still 3 of 8 built.
+**Who sees this page.** In Apple's table of App Store localizations, the
+Romania storefront's *default* language is English (U.K.), and Romanian is an
+*additional* one; no other storefront lists Romanian. So on `ro` this page
+reaches people whose device is set to Romanian. Everyone else there gets what
+Apple calls "the next most relevant localization" — for an English device,
+the en-US page, since this account has no English (U.K.) one. It is also why
+the storefront lookup needs `&lang=ro_ro`. Romanian keywords are searched on
+`ro` only: Apple indexes a localization's keywords "in all countries or
+regions where the App Store supports" its language. Source:
+[App Store localizations](https://developer.apple.com/help/app-store-connect/reference/app-store-localizations/)
+and [Localize app information](https://developer.apple.com/help/app-store-connect/manage-app-information/localize-app-information)
+(read 2026-09-27).
 
-**Feature names match the Romanian app.** The interface is Romanian as of the
-version this listing ships with, so the description uses the names the buttons
-actually carry: *Găselnițe*, *Flipuri*, *Scanări rămase*. The two that stayed
-English in the app — "Thrift Flip" and "Why this price" — stay English here for
-the same reason, which is that a reader looking for them will be looking for
-those words.
+**Screenshots are optional per locale.** With none uploaded for `ro`, Apple
+falls back to the English set, and 1.5.1's new set (#203) is English. That is
+this page's weak spot — English screenshots of an app that opens in Romanian —
+and a set captured from the Romanian interface is for a later version.
+
+**Feature names match the Romanian app,** so the description uses the words
+the screens carry: a find is a *găselniță*, Haul mode is *Modul Lot*, and
+„De ce prețul ăsta” is *Why this price* (App.json has translated it since
+the app went Romanian, 028d90f). "Thrift Flip" and "Snap → Sell" are brand
+names, English in the app, and English here.
 
 **Prices.** The text does not name a figure. Romanian tiers are Apple's RON
 tiers, not a conversion of $4.99 and $39.99, and this environment cannot read
 App Store Connect. If you want the numbers in the text, take them from the
 Romania row of each subscription's price schedule and substitute them into the
 `GRATUIT ȘI PRO` block — don't convert the dollar prices.
+
+## Native reader
+
+**TODO(owner):** record who read these once before pasting, or "no native
+reader".
+
+New or changed for 1.5.1:
+
+* *Nivel de încredere* (was *Scor de încredere*).
+* The Pro list's Haul line (*Modul Lot — …*) and portfolio line (*Istoricul
+  valorii colecției și trendurile*). Both are the paywall's own words from
+  `App.json`, so they were translated with the app; read them here as
+  listing copy.
+* „De ce prețul ăsta” in the Pro list, where the listing had the English
+  „Why this price”.
+* The trial line: *cel anual include o perioadă gratuită, iar durata ei o
+  vezi înainte să te abonezi*.
+
+The confidence, Thrift Flip and widgets lines from #196 have not been read
+either (`app_store_listing.md`, end).
 
 ---
 
@@ -88,7 +123,7 @@ Află cât valorează înainte să-l cumperi. O poză, o estimare de preț, cât
 
 ---
 
-## Description
+## Description (4000 chars max; 3,254 with line breaks)
 
 Ai luat vreodată ceva dintr-un second hand și te-ai întrebat dacă valorează ceva? SnapWorth îți spune pe loc.
 
@@ -110,7 +145,7 @@ CUM FUNCȚIONEAZĂ
 CE PRIMEȘTI
 
 • Preț de revânzare pe loc — un interval estimat, de la minim la maxim
-• Scor de încredere — cât de bine e susținută estimarea de poză și de identificare
+• Nivel de încredere — cât de bine e susținută estimarea de poză și de identificare
 • Anunț scris de AI — titlu și descriere gata de postat, la fiecare scanare
 • Thrift Flip — scanezi obiectul, adaugi prețul din magazin și vezi cât îți rămâne după comisioanele platformei, înainte să-l cumperi
 • Istoricul scanărilor — fiecare găselniță salvată automat, cu valoarea ei
@@ -135,13 +170,14 @@ SnapWorth se folosește gratuit, fără cont. Primești o scanare gratuită în 
 
 Pro adaugă:
 • Scanări nelimitate (în limita utilizării rezonabile)
+• Modul Lot — fotografiezi obiect după obiect și fiecare e evaluat pe loc, cu totalul la vedere
 • Anunțuri rescrise pentru platforma pe care o alegi — OLX, Vinted, eBay, Poshmark, Mercari, Depop sau Facebook Marketplace
-• „Why this price” — explicația completă din spatele estimării, inclusiv scara de prețuri și ce a cântărit
+• „De ce prețul ăsta” — explicația completă din spatele estimării, inclusiv scara de prețuri și ce a cântărit
 • Citirea etichetei — fotografiază eticheta de întreținere pentru o estimare mai exactă
-• Valoarea portofoliului, evoluția lui și trendurile din second hand
+• Istoricul valorii colecției și trendurile
 • Registrul de profit — cât ai dat, cu cât ai vândut și cât ți-a rămas după comisioane, cu export CSV
 
-• Abonament lunar sau anual; cel anual include 3 zile gratuite. Prețul în lei apare în aplicație, pe pagina de abonament.
+• Abonament lunar sau anual; cel anual include o perioadă gratuită, iar durata ei o vezi înainte să te abonezi. Prețul în lei apare în aplicație, pe pagina de abonament.
 
 Poți anula oricând din setările iPhone-ului.
 
