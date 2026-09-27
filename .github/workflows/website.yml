@@ -72,8 +72,10 @@ jobs:
       # The calculator's num() and /guess's parse() are copies of the app's
       # MoneyInput rule, and drifted from it: both still read "1.250" as 1.25
       # after the app fixed that in da0b242. This runs the app's own MoneyInput
-      # test cases through both with node (preinstalled on ubuntu-latest), so
-      # a case added to the Swift suite is enforced here as well.
+      # test cases through both with node (preinstalled on ubuntu-latest):
+      # every XCTAssertEqual/XCTAssertNil on a string literal, with or without
+      # a message, and the symmetry pairs. It fails if it finds fewer than a
+      # fixed minimum, which would mean the suite moved rather than shrank.
       - name: The site's money parsers agree with the app
         run: python3 website/seo/check_money_parsers.py
 

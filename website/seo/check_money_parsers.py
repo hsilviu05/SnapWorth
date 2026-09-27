@@ -14,13 +14,19 @@ dot-grouped price got a value a thousand times off, and "Skip it" on a flip
 worth making.
 
 This runs the app's own MoneyInput test cases through both web functions with
-node, so a case added to the Swift suite is checked here too. The cases are
-read from `MoneyInputTests` in ProductionHardeningTests.swift:
+node. The cases are read from `MoneyInputTests` in
+ProductionHardeningTests.swift, and are the ones written with a string literal,
+with or without an assertion message after it:
 
 - `XCTAssertEqual(MoneyInput.parse("…"), n)`  → both must return n
 - `XCTAssertNil(MoneyInput.parse("…"))`        → num() returns 0 (render()
   needs a number), parse() returns null
 - `("…", "…")` pairs, the symmetry invariant   → both inputs read the same
+
+A case added to the suite in one of those shapes is checked here too; one that
+computes its input some other way is not. There is no count of the suite to
+compare against, so the check is a floor: finding fewer than MIN_CASES cases or
+MIN_PAIRS pairs fails, because that means the extractor lost the suite.
 
 Run: python3 website/seo/check_money_parsers.py   (needs node on PATH)
 """
@@ -45,7 +51,9 @@ WEB_COPIES = [
 ]
 
 EQUAL = re.compile(r'XCTAssertEqual\(MoneyInput\.parse\("((?:[^"\\]|\\.)*)"\),\s*([0-9.]+)')
-NIL = re.compile(r'XCTAssertNil\(MoneyInput\.parse\("((?:[^"\\]|\\.)*)"\)\)')
+# `\)\s*[,)]`: the call closes, then either the assertion does or a message
+# follows, as in `XCTAssertNil(MoneyInput.parse("."), "a separator alone…")`.
+NIL = re.compile(r'XCTAssertNil\(MoneyInput\.parse\("((?:[^"\\]|\\.)*)"\)\s*[,)]')
 PAIR = re.compile(r'\("((?:[^"\\]|\\.)*)",\s*"((?:[^"\\]|\\.)*)"\)')
 
 # Fewer than this means the extractor stopped finding the suite, not that the
