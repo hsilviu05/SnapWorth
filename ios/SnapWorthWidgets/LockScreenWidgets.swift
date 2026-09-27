@@ -81,8 +81,7 @@ struct LockScreenCircularView: View {
                 Image(systemName: "camera.viewfinder")
                     .wFont(11, weight: .semibold)
                 Text(haul.hasScans ? haul.compactTotal : "—")
-                    .wFont(15, weight: .bold, design: .rounded)
-                    .minimumScaleFactor(0.5)
+                    .wFont(15, weight: .bold, design: .rounded, minScale: 0.5)
                     .lineLimit(1)
             }
             .padding(.horizontal, 2)
@@ -112,16 +111,17 @@ struct LockScreenRectangularView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 1) {
+            // No `.widgetAccentable()`. There was one here, described as the
+            // element the tint applies to — but the accessory families render
+            // `.vibrant` on the Lock Screen, where there is no accent group,
+            // so it did nothing. Accent grouping matters on the Home Screen's
+            // Tinted and Clear styles, and the Home Screen widgets carry it.
             Label("SnapWorth", systemImage: "camera.viewfinder")
                 .wFont(12, weight: .semibold)
-                // The one element the tint applies to, so the value below stays
-                // readable in every wallpaper's accent colour.
-                .widgetAccentable()
 
             if haul.hasScans {
                 Text(haul.formattedRange)
-                    .wFont(15, weight: .bold, design: .rounded)
-                    .minimumScaleFactor(0.6)
+                    .wFont(15, weight: .bold, design: .rounded, minScale: 0.6)
                     .lineLimit(1)
 
                 Text(streak > 1

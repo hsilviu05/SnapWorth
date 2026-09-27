@@ -599,10 +599,10 @@ struct ScanView: View {
         let repository = ScanRepository(context: modelContext)
         await vm.startScan(image: image, purchaseService: purchaseService, repository: repository,
                            afterPurchase: afterPurchase)
-        // Release the full-resolution capture the moment it stops being
-        // needed. Both the upload (1568px) and the stored copy (1024px) are
-        // already encoded by now, and the only view that reads this image is
-        // the freeze-frame behind the analysing overlay, which has just gone.
+        // Release the capture the moment it stops being needed. Both the
+        // upload (1568px) and the stored copy (1024px) are already encoded by
+        // now, and the only view that reads this image is the freeze-frame
+        // behind the analysing overlay, which has just gone.
         // These references used to be cleared in `sheet(onDismiss:)`, so a
         // 12MP capture — 48.8MB decoded, and up to 195MB on a 48MP HEIF —
         // stayed resident for the whole time the result sheet was open.

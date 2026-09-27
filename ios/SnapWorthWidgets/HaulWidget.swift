@@ -76,9 +76,9 @@ struct HaulWidgetSmallView: View {
                      ? haul.formattedRange
                      : String(localized: "No scans yet"))
                     .wFont(haul.itemCount > 0 ? 20 : 14,
-                           weight: .bold, design: .serif)
+                           weight: .bold, design: .serif, minScale: 0.6)
                     .foregroundStyle(haul.itemCount > 0 ? Color.wSage : Color.wWarmGray)
-                    .minimumScaleFactor(0.6)
+                    .widgetAccentable()
                     .lineLimit(1)
                     .padding(.bottom, 2)
 
@@ -89,7 +89,12 @@ struct HaulWidgetSmallView: View {
                     .wFont(11, weight: .medium)
                     .foregroundStyle(Color.wWarmGray)
             }
-            .padding(14)
+            // No `.padding` here. iOS 17 gives every widget a content margin
+            // of its own, and this added 14pt inside it: a 158pt tile left
+            // 98pt for the figure, so "$8,400–$15,600" needed 103pt at the
+            // smallest scale it was allowed and truncated, and the tile sat
+            // visibly further in than the widgets beside it. The system
+            // margin is the one the neighbours use.
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         }
         // One element, one sentence. Without this VoiceOver reads the tile as
@@ -104,6 +109,7 @@ struct HaulWidgetSmallView: View {
 
 struct HaulWidgetMediumView: View {
     let haul: WidgetHaulData
+    @Environment(\.widgetRenderingMode) private var renderingMode
 
     var body: some View {
         // See the small view: the ground belongs to `containerBackground`.
@@ -127,9 +133,9 @@ struct HaulWidgetMediumView: View {
                         .foregroundStyle(Color.wWarmGray)
 
                     Text(haul.itemCount > 0 ? haul.formattedRange : "$0")
-                        .wFont(22, weight: .bold, design: .serif)
+                        .wFont(22, weight: .bold, design: .serif, minScale: 0.6)
                         .foregroundStyle(Color.wSage)
-                        .minimumScaleFactor(0.6)
+                        .widgetAccentable()
                         .lineLimit(1)
 
                     Text(WidgetHaulData.itemsLabel(haul.itemCount))
@@ -137,6 +143,10 @@ struct HaulWidgetMediumView: View {
                         .foregroundStyle(Color.wWarmGray)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
+                // The gap the right column has on its leading side. Without
+                // it a range that fills the column — five figures do, now the
+                // tile is not padded twice — runs into the divider.
+                .padding(.trailing, 14)
                 // Grouped so the column is one swipe, and so the range is
                 // spoken as a range rather than read off the screen.
                 .accessibilityElement(children: .ignore)
@@ -162,7 +172,6 @@ struct HaulWidgetMediumView: View {
                                 .wFont(13, weight: .semibold)
                                 .foregroundStyle(Color.wBackground)
                                 .lineLimit(2)
-                                .minimumScaleFactor(0.8)
 
                             Text(haul.lastItemRange)
                                 .wFont(16, weight: .bold, design: .serif)
@@ -194,15 +203,31 @@ struct HaulWidgetMediumView: View {
                             .foregroundStyle(Color.wBackground)
                             .padding(.horizontal, 10)
                             .padding(.vertical, 5)
-                            .background(Color.wTerracottaFill)
-                            .clipShape(Capsule())
+                            .background { scanChipGround }
                     }
                     .accessibilityLabel("Scan an item")
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.leading, 14)
             }
-            .padding(14)
+            // The system's content margin, not one of our own on top of it —
+            // see the small view.
+        }
+    }
+
+    /// Filled in full colour; an outline on a Tinted or Clear Home Screen.
+    ///
+    /// In `.accented` mode the system paints every view in a group in one
+    /// tint and keeps only its opacity, so an opaque capsule under an opaque
+    /// label came out as a single shape: a blank pill, "Scan" printed in the
+    /// same ink as its ground. 6a21b87 moved the tile's ground into
+    /// `containerBackground` for this reason and left the chip filled. An
+    /// outline leaves the inside of the pill clear for the label.
+    @ViewBuilder private var scanChipGround: some View {
+        if renderingMode == .accented {
+            Capsule().strokeBorder(Color.wBackground, lineWidth: 1)
+        } else {
+            Capsule().fill(Color.wTerracottaFill)
         }
     }
 

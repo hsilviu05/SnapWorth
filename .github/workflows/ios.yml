@@ -12,6 +12,7 @@ on:
     paths:
       - 'ios/**'
       - '.github/workflows/ios.yml'
+      - '.xcode-version'
       - 'tools/swift_sanity.py'
       - 'tools/check_localization.py'
       - 'tools/build_xcstrings.py'
@@ -24,6 +25,7 @@ on:
     paths:
       - 'ios/**'
       - '.github/workflows/ios.yml'
+      - '.xcode-version'
       - 'tools/swift_sanity.py'
       - 'tools/check_localization.py'
       - 'tools/build_xcstrings.py'
@@ -35,7 +37,15 @@ on:
 jobs:
   build-test:
     name: Build & Test
-    runs-on: macos-15
+    # The image that carries the Xcode App Store builds are archived with —
+    # see `.xcode-version` and the selection step below. `macos-15` topped out
+    # at Xcode 26.3 while builds 18-20 were archived with Xcode 27 against the
+    # iOS 27 SDK, so CI checked every change with a toolchain a generation
+    # behind the binary that shipped: two Xcode 27-only warnings (#173, #176)
+    # were fixed by hand because CI never produced them. `xcode-27` is a
+    # preview label as of 2026-09 (actions/runner-images#14404) — expect
+    # longer queues until it is GA, and move to its GA name when there is one.
+    runs-on: xcode-27
 
     steps:
       - uses: actions/checkout@v7
@@ -91,23 +101,79 @@ jobs:
           fi
           echo "shared widget model identical in both targets ($(extract "$app" | wc -l) lines)"
 
-      - name: Select the newest installed Xcode
+      - name: Select the newest released Xcode, no older than .xcode-version
         run: |
           # Was pinned to Xcode_16.*, which validated the app against a
           # different toolchain generation from the one that builds the
-          # binary: project.pbxproj's LastUpgradeCheck is 2640 (Xcode 26.4),
-          # so App Store builds compile against the iOS 26 SDK while CI
-          # compiled against 16.4 and ran the tests on iOS 18.5, the oldest
-          # runtime on the image. A compiler or SDK behaviour change between
-          # those generations would ship without CI ever seeing it.
+          # binary. Newest installed rather than a hardcoded version: the
+          # runner image moves, and a pin to a version that is later removed
+          # fails the whole job for a reason unrelated to the change under
+          # test.
           #
-          # Newest installed, not a hardcoded version: the runner image moves,
-          # and a pin to a version that is later removed fails the whole job
-          # for a reason unrelated to the change under test.
-          XCODE=$(ls /Applications/ | grep -E "^Xcode_[0-9]" | sort -V | tail -1)
+          # "Newest installed" alone is not enough, for two reasons.
+          #
+          # Betas. The Xcode 27 image carries a prerelease, 27.2, plus
+          # version-alias symlinks that point at it (Xcode_27.2.app ->
+          # Xcode_27.2_beta.app), so sorting the directory names, as this step
+          # used to, would pick a beta: an SDK nobody can submit with, and its
+          # bugs reported as ours. Every name is resolved to the app it really
+          # is, and a beta is told by `licenseType` in the bundle's
+          # Contents/Resources/LicenseInfo.plist ("GM" on a release) — the
+          # field runner-images itself labels betas by
+          # (Test-XcodeStableRelease). Not by folder name: that image installs
+          # the released 27.1 at Xcode_27.1_beta.app, so a path test skipped a
+          # release, and on an image left with only _beta folders it would
+          # find no Xcode at all. Not by build number either: the released
+          # Xcode 16.2 is 16C5032a. The path test is kept only for a bundle
+          # whose plist cannot be read. On the 2026-09-21 image this selects
+          # 27.1 rather than the default 27.0, which the minor-version
+          # allowance below is for.
+          #
+          # A silently old image. This step used to pick the newest of what
+          # macos-15 had, which was Xcode 26.3, while the App Store archives
+          # were built with Xcode 27 — and nothing said so. `.xcode-version`
+          # records the Xcode releases are archived with; a selected major
+          # below it fails here, before a build that would pass green against
+          # the wrong SDK. Minor versions are allowed to differ: the image
+          # moves on its own schedule and a point release is not a new SDK
+          # generation. Bump `.xcode-version` when the release toolchain
+          # changes.
+          REQUIRED=$(tr -d '[:space:]' < .xcode-version)
+          REQUIRED_MAJOR=${REQUIRED%%.*}
+          XCODE=$(for app in /Applications/Xcode_*.app; do
+                    real=$(realpath "$app" 2>/dev/null) || continue
+                    license=$(/usr/libexec/PlistBuddy -c "Print :licenseType" \
+                      "$real/Contents/Resources/LicenseInfo.plist" 2>/dev/null) || license=""
+                    # `[[ ]]`, not `case`: bash 3.2, the image's bash, ends
+                    # the `$(` at a case pattern's `)` — a syntax error.
+                    if [ -n "$license" ]; then
+                      if [[ "$license" == *[Bb][Ee][Tt][Aa]* ]]; then
+                        echo "skipping $app: licenseType $license" >&2
+                        continue
+                      fi
+                    elif [[ "$real" == *[Bb]eta* ]]; then
+                      echo "skipping $app: no readable licenseType, path says beta" >&2
+                      continue
+                    fi
+                    version=$(/usr/libexec/PlistBuddy \
+                      -c "Print :CFBundleShortVersionString" "$real/Contents/Info.plist" \
+                      2>/dev/null) || continue
+                    echo "$version $real"
+                  done | sort -V -u | tail -1 | cut -d' ' -f2-)
+          if [ -z "$XCODE" ]; then
+            echo "::error::no released Xcode found under /Applications"
+            ls -la /Applications | grep -i xcode || true
+            exit 1
+          fi
           echo "Selecting $XCODE"
-          sudo xcode-select -s "/Applications/$XCODE"
+          sudo xcode-select -s "$XCODE"
           xcodebuild -version
+          SELECTED=$(xcodebuild -version | awk 'NR==1 {print $2}')
+          if [ "${SELECTED%%.*}" -lt "$REQUIRED_MAJOR" ]; then
+            echo "::error file=.xcode-version::CI selected Xcode $SELECTED, but App Store builds are archived with Xcode $REQUIRED. Checking with an older SDK generation than the one that ships is what this step exists to stop — move runs-on to an image that has Xcode $REQUIRED_MAJOR."
+            exit 1
+          fi
+          echo "Xcode $SELECTED satisfies .xcode-version ($REQUIRED)"
 
       - name: Resolve Swift package dependencies
         run: |
@@ -126,10 +192,10 @@ jobs:
 
           # The NEWEST iOS runtime's iPhone, not the first row `simctl` prints.
           #
-          # `head -1` took the oldest — iOS 18.5 on this image, with runtimes
-          # through 26.2 installed and unused. The shipped binary targets the
-          # iOS 26 SDK, so the tests were running on a generation the App
-          # Store build never sees.
+          # `head -1` took the oldest — iOS 18.5 on the macos-15 image, with
+          # runtimes through 26.2 installed and unused. The shipped binary
+          # targets the SDK of the Xcode in `.xcode-version`, so the tests
+          # were running on a generation the App Store build never sees.
           #
           # `simctl list devices available` groups by runtime in ascending
           # order, so the last iPhone line belongs to the newest runtime.
@@ -224,7 +290,10 @@ jobs:
   # step and remove `continue-on-error`.
   lint:
     name: SwiftLint (report only)
-    runs-on: macos-15
+    # Same image as the build, so the SourceKit that SwiftLint loads from the
+    # default Xcode for its SourceKit-backed rules is the release toolchain's
+    # rather than one a generation older than the code it is reading.
+    runs-on: xcode-27
     continue-on-error: true
     env:
       # Pinned rather than `brew install swiftlint`, so the version is identical

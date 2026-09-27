@@ -1,15 +1,15 @@
 import CryptoKit
 import Foundation
-import os.log
+import os
 
 /// TLS certificate pinning for the SnapWorth API.
 ///
 /// ## Status: **active in report-only mode**
 ///
-/// `Config.pinnedSPKIHashes` is populated (LE YR2 intermediate + three ISRG
-/// roots), so every request to `api.snapworth.eu` is evaluated against the pin
-/// set and a mismatch is logged. `Config.pinningEnforced` is still `false`, so a
-/// mismatch does not yet fail the request.
+/// `Config.pinnedSPKIHashes` is populated (the four ISRG root keys), so every
+/// request to `api.snapworth.eu` is evaluated against the pin set and a
+/// mismatch is logged. `Config.pinningEnforced` is still `false`, so a mismatch
+/// does not yet fail the request.
 ///
 /// That two-stage rollout is the whole point: a wrong or stale pin bricks the
 /// app for every user until they ship an update, which is a worse outage than
@@ -27,19 +27,27 @@ import os.log
 ///    Note what silence does *not* prove: a pin for a certificate the host
 ///    never serves is never exercised, so zero mismatches means "every chain
 ///    actually served matched", not "every pin is right". The ISRG Root X2 pin
-///    was inert for exactly that reason and this gate passed anyway.
-/// 3. Set `Config.pinningEnforced = true`.
+///    was inert for exactly that reason and this gate passed anyway — while
+///    the ECDSA chain's own root, Root YE, was missing from the set entirely.
+///    `/checkup` in the ops bot hashes the chain the host serves against the
+///    same set, so a server-side change that no pin covers shows up there
+///    without waiting for a phone to report it.
+/// 3. Set `Config.pinningEnforced = true`. A refusal then ends the request as
+///    `URLError.cancelled`, which `TLSRefusal` lets `AppError` tell apart from
+///    a cancelled task.
 ///
 /// ### Rotation
 ///
-/// Re-extract before any pinned certificate expires (earliest: YR2, 2028-09-02)
-/// and ship the new pin *alongside* the old one for one release, never as a
-/// replacement — overlapping pins are what make rotation non-disruptive.
+/// The pins are root keys, so they change only when Let's Encrypt introduces a
+/// new root generation, which it announces well ahead. Add the new
+/// root's pin *alongside* the old ones for at least one release, never as a
+/// replacement: overlapping pins are what make rotation non-disruptive. The
+/// earliest of the four certificates to expire is ISRG Root X1, 2035-06-04.
 ///
-/// Pinning the intermediate and roots rather than the leaf is deliberate: the
-/// leaf rotates every 90 days on Let's Encrypt and a renewal would lock everyone
-/// out, while an intermediate/root pin still prevents an arbitrary CA from
-/// impersonating the host.
+/// Pinning roots rather than the leaf is deliberate: the leaf rotates every 90
+/// days on Let's Encrypt and a renewal would lock everyone out, while a root
+/// pin still prevents an arbitrary CA from impersonating the host. See
+/// `Config.pinnedSPKIHashes` for why no intermediate is pinned.
 final class CertificatePinningDelegate: NSObject, URLSessionDelegate {
     private let log = Logger(subsystem: "eu.snapworth.app", category: "tls")
     private let pinnedHashes: Set<String>
@@ -78,6 +86,7 @@ final class CertificatePinningDelegate: NSObject, URLSessionDelegate {
         var error: CFError?
         guard SecTrustEvaluateWithError(trust, &error) else {
             log.error("TLS chain validation failed for \(self.host, privacy: .public)")
+            TLSRefusal.record()
             completionHandler(.cancelAuthenticationChallenge, nil)
             return
         }
@@ -94,6 +103,7 @@ final class CertificatePinningDelegate: NSObject, URLSessionDelegate {
 
         if enforced {
             log.fault("certificate pin mismatch for \(self.host, privacy: .public) — refusing")
+            TLSRefusal.record()
             completionHandler(.cancelAuthenticationChallenge, nil)
         } else {
             // Report-only mode: surfaces a misconfigured pin before it can lock
@@ -109,10 +119,7 @@ final class CertificatePinningDelegate: NSObject, URLSessionDelegate {
             return false
         }
         for certificate in chain {
-            guard let publicKey = SecCertificateCopyKey(certificate),
-                  let data = SecKeyCopyExternalRepresentation(publicKey, nil) as Data?
-            else { continue }
-            guard let spki = subjectPublicKeyInfo(for: data, key: publicKey) else {
+            guard let hash = Self.spkiHash(of: certificate) else {
                 // Not "no match" — "could not ask". Hashing the raw key here
                 // instead, which is what this used to do, produced a digest
                 // unrelated to any pin and reported it as a mismatch: a key
@@ -122,16 +129,30 @@ final class CertificatePinningDelegate: NSObject, URLSessionDelegate {
                 log.error("unpinnable key shape in chain for \(self.host, privacy: .public)")
                 continue
             }
-            let digest = Data(SHA256.hash(data: spki))
-            if pinnedHashes.contains(digest.base64EncodedString()) { return true }
+            if pinnedHashes.contains(hash) { return true }
         }
         return false
+    }
+
+    /// One certificate's key in the form `Config.pinnedSPKIHashes` holds —
+    /// the base64 SHA-256 that `openssl x509 -pubkey | openssl pkey -pubin
+    /// -outform der | openssl dgst -sha256 -binary | base64` prints — or nil
+    /// when the key cannot be read or its shape has no header here.
+    ///
+    /// Static so a test can put a real published certificate through the
+    /// exact path a handshake takes, rather than through a copy of it.
+    static func spkiHash(of certificate: SecCertificate) -> String? {
+        guard let publicKey = SecCertificateCopyKey(certificate),
+              let keyData = SecKeyCopyExternalRepresentation(publicKey, nil) as Data?,
+              let spki = subjectPublicKeyInfo(for: keyData, key: publicKey)
+        else { return nil }
+        return Data(SHA256.hash(data: spki)).base64EncodedString()
     }
 
     /// Prefixes the raw key with its ASN.1 SPKI header so the digest matches
     /// what `openssl pkey -pubin -outform der` produces. Nil when the key's
     /// shape has no header here — see `spkiHeader`.
-    private func subjectPublicKeyInfo(for keyData: Data, key: SecKey) -> Data? {
+    private static func subjectPublicKeyInfo(for keyData: Data, key: SecKey) -> Data? {
         guard let attributes = SecKeyCopyAttributes(key) as? [CFString: Any],
               let type = attributes[kSecAttrKeyType] as? String,
               let size = attributes[kSecAttrKeySizeInBits] as? Int,
@@ -196,6 +217,37 @@ final class CertificatePinningDelegate: NSObject, URLSessionDelegate {
                     0x00]
         }
         return nil
+    }
+}
+
+/// When this process last refused the API's TLS challenge.
+///
+/// `cancelAuthenticationChallenge` ends the request with `URLError.cancelled`
+/// — the code a cancelled task produces too — so the error alone cannot say
+/// "the certificate was refused". `AppError.from` had a carve-out waiting for
+/// `.secureConnectionFailed`, which is not what a refusal here produces, so
+/// with enforcement on a pin failure would have read "Something went wrong.
+/// Please try again." This is the other half of the sentence: a `.cancelled`
+/// that arrives within `window` of a recorded refusal is reported as one.
+///
+/// A timestamp, not a flag, because the refusal and the error reach the app
+/// on different paths — the delegate queue and the awaiting caller — with
+/// nothing to join them on. Both sites in the delegate that refuse record it.
+enum TLSRefusal {
+    /// The refusal and the failed task are the same handshake, milliseconds
+    /// apart; ten seconds is generous rather than tight on purpose.
+    static let window: TimeInterval = 10
+
+    private static let lastRefusal = OSAllocatedUnfairLock<Date?>(initialState: nil)
+
+    static func record(at date: Date = .now) {
+        lastRefusal.withLock { $0 = date }
+    }
+
+    static func isRecent(now: Date = .now) -> Bool {
+        guard let date = lastRefusal.withLock({ $0 }) else { return false }
+        let age = now.timeIntervalSince(date)
+        return age >= 0 && age < window
     }
 }
 

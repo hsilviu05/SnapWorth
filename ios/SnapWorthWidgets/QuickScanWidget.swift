@@ -34,7 +34,8 @@ struct QuickScanWidgetView: View {
 
     var body: some View {
         // The gradient is the widget's `containerBackground` rather than a
-        // rectangle drawn as content — see `HaulWidgetSmallView` for why.
+        // rectangle drawn as content — see `HaulWidgetSmallView` for why. No
+        // padding of its own, for the reason given there.
         ZStack {
             VStack(spacing: 0) {
                 // Header wordmark
@@ -77,7 +78,6 @@ struct QuickScanWidgetView: View {
                     }
                 }
             }
-            .padding(14)
         }
     }
 }

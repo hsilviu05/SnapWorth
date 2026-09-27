@@ -121,7 +121,8 @@ which carry the What's New to paste plus the device checks that release needs.
 `-destination 'platform=iOS Simulator,name=iPhone 16'` is ambiguous (one name,
 two arches) and makes `xcodebuild` print the device list instead of running
 anything. Pass a UDID, chosen as CI chooses it — the newest installed runtime's
-iPhone, because the shipped binary targets the iOS 26 SDK:
+iPhone, because the shipped binary targets the SDK of the Xcode that
+`.xcode-version` names:
 
 ```sh
 UDID=$(xcrun simctl list devices available \
