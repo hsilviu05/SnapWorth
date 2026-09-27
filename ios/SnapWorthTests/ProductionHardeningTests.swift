@@ -5427,6 +5427,7 @@ final class FallbackStoreSaveTests: XCTestCase {
             .rateLimit(retryAfter: 90),
             .quotaExceeded("spent"),
             .proRequired("pro"),
+            .subscriptionUnconfirmed,
             .serverUnavailable,
             .aiFailed("no price"),
             .sessionExpired,
@@ -5451,6 +5452,7 @@ final class FallbackStoreSaveTests: XCTestCase {
     func test_noTwoDifferentErrorsAreEqual() {
         let distinct: [AppError] = [
             .network, .timeout, .serverUnavailable, .sessionExpired,
+            .verificationUnavailable, .subscriptionUnconfirmed,
             .imageEncodingFailed, .purchaseCancelled, .persistence,
             .storageUnavailable,
             .rateLimit(retryAfter: nil), .rateLimit(retryAfter: 90),
