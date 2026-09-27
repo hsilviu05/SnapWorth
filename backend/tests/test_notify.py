@@ -11,7 +11,9 @@ from __future__ import annotations
 import asyncio
 import html
 import json
+import logging
 import os
+import secrets
 import sys
 import time
 
@@ -21,6 +23,7 @@ import pytest_asyncio
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+import auditlog  # noqa: E402
 import notify  # noqa: E402
 import observability  # noqa: E402
 from cache import InMemoryCache, ResilientCache  # noqa: E402
@@ -1896,9 +1899,11 @@ class TestCheckup:
     @pytest.mark.asyncio
     async def test_one_screen_of_dependencies(self, cache, recorder, monkeypatch):
         monkeypatch.setattr(notify, "_tls_days_left", lambda host, timeout=5.0: 61)
-        # A healthy production configuration has the spend alert on; without
-        # it the checkup carries a ⚠️ (TestCheckupSpendAlert).
+        # A healthy production configuration has the spend alert on and a
+        # secret audit salt; without either the checkup carries a ⚠️
+        # (TestCheckupSpendAlert, TestCheckupAuditSalt).
         monkeypatch.setattr(notify, "GEMINI_DAILY_BUDGET_USD", 2.0)
+        monkeypatch.setattr(auditlog, "_SALT", secrets.token_urlsafe(32).encode())
         notifier = notify.TelegramNotifier(
             FAKE_TOKEN, FAKE_CHAT,
             client=httpx.AsyncClient(transport=httpx.MockTransport(recorder.handler)))
@@ -1924,6 +1929,7 @@ class TestCheckup:
                               "probe": True}]
             assert "DeviceCheck: NOT configured" in text
             assert "Spend alert: above $2.00/day · today ≈ $0.00" in text
+            assert "Audit salt: set ✅" in text
             assert "TLS api.snapworth.eu: leaf expires in 61 days" in text and "⚠️" not in text
             assert "Telegram poller: this replica" in text
             assert "build <code>abc123</code> · replica <code>feedbeef</code>" in text
@@ -2206,6 +2212,62 @@ class TestCheckupSpendAlert:
         monkeypatch.setattr(notify, "_spend", broken)
         assert await notify._budget_line() == (
             "Spend alert: above $1.50/day · today's spend unreadable (ConnectionError)")
+
+
+class TestCheckupAuditSalt:
+    """AUDIT_SALT falls back to a literal in this public repository, and
+    `.env.example` suggests another. Either lets anyone with a device's key id
+    recompute its pseudonym and its /trends tag, and nothing said which one
+    production runs on. The value itself must never reach the chat or a log."""
+
+    WARNING = ("Audit salt: ⚠️ placeholder — pseudonyms and trends tags can be "
+               "recomputed (RUNBOOK §8)")
+
+    @staticmethod
+    async def checkup_salt_line(monkeypatch, salt: str, caplog) -> tuple[str, str]:
+        """The Checkup's salt line, and everything the checkup produced: its
+        whole text and every log record it wrote."""
+        monkeypatch.setenv("ENVIRONMENT", "production")
+        monkeypatch.setattr(auditlog, "_SALT", salt.encode())
+        monkeypatch.setattr(notify, "_tls_days_left", lambda host, timeout=5.0: 61)
+        with caplog.at_level(logging.DEBUG):
+            text = await notify.handle_command("/checkup") or ""
+        [line] = [ln for ln in text.split("\n") if ln.startswith("Audit salt")]
+        return line, text + "\n" + "\n".join(r.getMessage() for r in caplog.records)
+
+    # Each line is compared whole, so nothing derived from the salt (a hash,
+    # a prefix, a length) can ride along in it; the value itself is looked
+    # for in all of the output.
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("salt", [
+        pytest.param(auditlog._DEFAULT_SALT, id="the default, AUDIT_SALT unset"),
+        pytest.param("change-me-in-production", id="the .env.example placeholder"),
+    ])
+    async def test_a_published_salt_warns(self, enabled_notify, monkeypatch, caplog, salt):
+        line, output = await self.checkup_salt_line(monkeypatch, salt, caplog)
+        assert line == self.WARNING
+        assert salt not in output
+
+    @pytest.mark.asyncio
+    async def test_a_random_salt_reads_set(self, enabled_notify, monkeypatch, caplog):
+        salt = secrets.token_urlsafe(32)
+        line, output = await self.checkup_salt_line(monkeypatch, salt, caplog)
+        assert line == "Audit salt: set ✅"
+        assert salt not in output
+
+    @pytest.mark.parametrize("salt, public", [
+        (auditlog._DEFAULT_SALT, True),
+        ("change-me-in-production", True),
+        ("  change-me-in-production\n", True),
+        ("", True),
+        ("   ", True),
+        ("snapworth-audit-v2", False),
+        ("a-long-random-value-nobody-has-published", False),
+    ])
+    def test_what_counts_as_published(self, monkeypatch, salt, public):
+        monkeypatch.setattr(auditlog, "_SALT", salt.encode())
+        assert auditlog.salt_is_placeholder() is public
 
 
 class TestQuietAndSpike:

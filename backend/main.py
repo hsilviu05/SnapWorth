@@ -266,6 +266,7 @@ async def _lifespan(_app: FastAPI):
         raise RuntimeError(
             "REQUIRE_APP_ATTEST is on but APPLE_TEAM_ID/APPLE_BUNDLE_ID are unset"
         )
+    _warn_if_audit_salt_is_public()
     log.info("auth initialised", extra={
         "enforcing": cfg.enforce,
         "app_id": cfg.app_id if cfg.is_configured else "unconfigured",
@@ -547,6 +548,22 @@ def _is_production() -> bool:
     return os.environ.get("ENVIRONMENT", "").lower() in {"production", "prod"}
 
 
+def _warn_if_audit_salt_is_public() -> None:
+    """One ERROR at startup, in production, when AUDIT_SALT is no secret.
+
+    Unlike TOKEN_KEYS this does not refuse to boot. If production runs on the
+    default today, a refusal would take the API down at the next deploy, and
+    changing the salt has costs of its own (RUNBOOK §8.5): it is a decision
+    for a quiet hour, not something a deploy should force. Checkup says the
+    same for as long as it is true. The message is a fixed string: neither it
+    nor Checkup prints the salt or anything derived from it."""
+    if _is_production() and auditlog.salt_is_placeholder():
+        log.error("AUDIT_SALT is unset or a placeholder this repository publishes, "
+                  "so audit pseudonyms and /trends device tags can be recomputed "
+                  "from a device's key id. Set a long random AUDIT_SALT on Railway; "
+                  "RUNBOOK §8.5 says what changing it costs.")
+
+
 #: `None` also disables `/docs` and `/redoc`, which FastAPI derives from it.
 #:
 #: The schema was anonymous and complete in production, which specifically
@@ -609,11 +626,19 @@ MAX_REQUEST_BYTES = int(os.environ.get("MAX_REQUEST_BYTES", str(20 * 1024 * 1024
 #: in its first test rather than shipping uncapped.
 MAX_JSON_BODY_BYTES = 64 * 1024
 
+#: The cap on both routes Apple posts notifications to, `/apple/notifications`
+#: and `/apple/notifications/sandbox`, which take the same `AppleNotification`.
 #: A V2 notification is one `signedPayload`, which the model bounds at 64 KiB.
 #: The rest is headroom for a Version 1 body — it carries the whole receipt —
-#: so that misconfiguration still reaches the handler's error naming it,
+#: so that misconfiguration still reaches either handler's error naming it,
 #: rather than stopping here as a bare 413 (see `AppleNotification`).
 MAX_NOTIFICATION_BODY_BYTES = 256 * 1024
+
+#: Every route that takes an `AppleNotification`. The Sandbox route (#198)
+#: came after the per-route caps (#188) and was left out, which capped it at
+#: 64 KiB, below its own schema's bound. `test_request_pipeline` finds the
+#: routes that take the model and fails when one is missing here.
+_NOTIFICATION_PATHS = frozenset({"/apple/notifications", "/apple/notifications/sandbox"})
 
 
 def _body_limit(path: str) -> int:
@@ -621,7 +646,7 @@ def _body_limit(path: str) -> int:
     the `MAX_REQUEST_BYTES` override see the current values."""
     if path == "/scan":
         return MAX_REQUEST_BYTES
-    if path == "/apple/notifications":
+    if path in _NOTIFICATION_PATHS:
         return MAX_NOTIFICATION_BODY_BYTES
     return MAX_JSON_BODY_BYTES
 
