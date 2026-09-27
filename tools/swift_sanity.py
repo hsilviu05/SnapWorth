@@ -126,7 +126,13 @@ def check(path: Path) -> list[str]:
                 f"pattern, not an expression — compare in an `if` instead"
             )
 
-    joined = "\n".join(lines)
+    # String contents are blanked first, one line at a time so a stray quote
+    # can never swallow a newline and shift the reported line numbers. Copy is
+    # English prose, and English sentences start with "None": the settings
+    # banner "None of these reminders can arrive until you do." failed CI as a
+    # Python literal. The isolation rule below already skips string literals
+    # for the same reason.
+    joined = "\n".join(STRING_LITERAL.sub('""', line) for line in lines)
     for pattern, message in [
         (r'\bf"', 'f-string — Swift uses "\\(value)" interpolation'),
         (r"^\s*elif\b", "`elif` — Swift uses `else if`"),
