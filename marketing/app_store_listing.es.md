@@ -127,7 +127,7 @@ GRATIS Y PRO
 SnapWorth se usa gratis y sin cuenta. Tienes un escaneo gratis cada día, para siempre. Cada hallazgo se guarda en tu móvil con su valor, y el historial es tuyo pagues o no.
 
 Pro añade:
-• Escaneos ilimitados
+• Escaneos ilimitados (sujetos a un uso razonable)
 • Anuncios reescritos para la plataforma que elijas — Vinted, eBay, Poshmark, Mercari, Depop o Facebook Marketplace
 • «Why this price» — la explicación completa detrás de la estimación, con los niveles de precio y qué ha pesado
 • Lectura de la etiqueta — fotografía la etiqueta de cuidado para afinar la estimación
