@@ -169,8 +169,8 @@ class RequestContextMiddleware:
                 extra={"method": method, "path": path,
                        "status": status, "duration_ms": duration_ms,
                        # None for anything that is not the app, or does not
-                       # say which build it is. See `parse_client_build`.
-                       "build": parse_client_build(headers.get("user-agent", ""))},
+                       # say which build it is. See `client_build`.
+                       "build": client_build(headers)[0]},
             )
         finally:
             # One `finally` for all three, rather than the three reset sites the
@@ -346,7 +346,7 @@ class RedactionFilter(logging.Filter):
 
 # ── Which build is calling ───────────────────────────────────────────────────
 #
-# The app sends no version header of its own, and nothing read one, so the
+# The app sent no version header of its own, and nothing read one, so the
 # server could not say which build a request came from: not to find a bad
 # release, not to tell an old one to update, not to check a claim like "those
 # installs have aged out". The build was on every request all along. URLSession
@@ -357,6 +357,10 @@ class RedactionFilter(logging.Filter):
 # the count at 1, and 1.2.1 was build 6. It has only gone up from build 8
 # (1.3.1), so a minimum of 8 or more is safe; one below 8 can still serve a
 # 1.0.0 install while refusing a newer release.
+#
+# Builds from the one that handles a 426 also send `X-SnapWorth-Build`
+# (`BUILD_HEADER`, below), and `client_build` prefers it. Every build already
+# installed only ever has the User-Agent, so this parser stays.
 
 _CLIENT_BUILD = re.compile(r"SnapWorth/(\d{1,6})(?:\s|$)")
 
@@ -370,6 +374,35 @@ def parse_client_build(user_agent: str) -> int | None:
     """
     match = _CLIENT_BUILD.match(user_agent or "")
     return int(match.group(1)) if match else None
+
+
+#: What the app sends on every request from the release that handles a 426,
+#: so the build no longer has to be read out of URLSession's default
+#: User-Agent — which the app does not control, and which a future change to
+#: the bundle name or to CFNetwork's format would silently stop matching.
+BUILD_HEADER = "X-SnapWorth-Build"
+# ASCII digits: Python's `\d` also matches, say, full-width ones.
+_BUILD_NUMBER = re.compile(r"[0-9]{1,6}")
+
+
+def parse_build_header(value: str) -> int | None:
+    """`X-SnapWorth-Build` as a number, or None. Digits only, as
+    `parse_client_build` reads them: anything else is unknown, never old."""
+    match = _BUILD_NUMBER.fullmatch((value or "").strip())
+    return int(match.group(0)) if match else None
+
+
+def client_build(headers: Headers) -> tuple[int | None, bool]:
+    """The calling build, and whether the app said so itself.
+
+    The explicit header first: it is sent on purpose, and it is what tells
+    the minimum-build gate that this build can show a 426. Then the
+    User-Agent, which every build sends. `(None, False)` when neither reads.
+    """
+    explicit = parse_build_header(headers.get(BUILD_HEADER, ""))
+    if explicit is not None:
+        return explicit, True
+    return parse_client_build(headers.get("user-agent", "")), False
 
 
 # ── Trace context (W3C traceparent) ──────────────────────────────────────────

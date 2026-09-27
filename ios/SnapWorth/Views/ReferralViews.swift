@@ -49,7 +49,7 @@ struct InviteFriendView: View {
                                 .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
                         }
                         .simultaneousGesture(TapGesture().onEnded {
-                            Analytics.shared.track(.referralShared)
+                            Analytics.shared.track(.referralShareOpened)
                         })
                     }
 
@@ -117,7 +117,7 @@ struct InviteFriendView: View {
                         .foregroundStyle(Color.snapEspresso)
                     Spacer()
                     Button("Redeem") {
-                        Analytics.shared.track(.referralRewarded)
+                        Analytics.shared.track(.referralRewardOpened(source: "invite_screen"))
                         openURL(reward.redeemURL)
                     }
                     .font(.dmSans(14, weight: .semibold))
@@ -125,6 +125,11 @@ struct InviteFriendView: View {
                     .snapHitTarget()
                 }
             }
+            // See `ReferralRewardNotice.renewalNote`.
+            Text("After the free week, the subscription renews unless you cancel.")
+                .font(.snapCaption)
+                .foregroundStyle(Color.snapWarmGray)
+                .fixedSize(horizontal: false, vertical: true)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(16)
@@ -207,7 +212,7 @@ struct RedeemInviteView: View {
         error = nil
         do {
             let claim = try await ReferralAPIClient.shared.claim(code: code)
-            Analytics.shared.track(.referralRedeemed)
+            Analytics.shared.track(.referralCodeAccepted)
             openURL(claim.redeemURL)
             dismiss()
         } catch let failure as ReferralClaimError {

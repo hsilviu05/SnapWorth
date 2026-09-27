@@ -2,6 +2,7 @@
   "status": 402,
   "headers": {},
   "body": {
-    "detail": "Listing drafts are a SnapWorth Pro feature."
+    "detail": "Listing drafts are a SnapWorth Pro feature.",
+    "code": "pro_required"
   }
 }

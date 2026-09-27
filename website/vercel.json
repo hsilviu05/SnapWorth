@@ -1,5 +1,5 @@
 {
-  "outputDirectory": "website",
+  "outputDirectory": ".",
   "buildCommand": "",
   "framework": null,
   "cleanUrls": true,

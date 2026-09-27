@@ -985,15 +985,12 @@ struct ResultView: View {
     ///
     /// One function rather than a second copy of the list: the next path that
     /// moves a value will have the same four obligations, and the way this went
-    /// wrong was a list that had to be remembered.
+    /// wrong was a list that had to be remembered. The model-layer half — the
+    /// value history, the widgets, the Live Activity — is
+    /// `ScanRepository.valuationDidChange`, so a path outside this screen
+    /// makes the same call; what is left here is what only this screen holds.
     private func valuationDidChange() {
-        // Record the new point so the portfolio trend reflects it. A no-op when
-        // the number did not actually change.
-        result.refreshPortfolioValue()
-        // The widget aggregates every item's condition-adjusted value, and the
-        // Live Activity totals the run. Both listen for inserts and deletes,
-        // which this is neither.
-        ScanRepository(context: modelContext).refreshWidget()
+        ScanRepository(context: modelContext).valuationDidChange(result)
         // The share card is an eagerly rendered bitmap, so it holds the old
         // item name and the old range until something re-renders it.
         vm.scheduleShareCardUpdate(result: result, photo: photo)
@@ -1864,7 +1861,7 @@ struct ValuationDetailView: View {
             // A neutral mark, not a checkmark: the server sends the *weakest*
             // signals here (`confidence.py`), so a tick beside "the brand
             // could not be identified" endorsed the problem it names.
-            ForEach(Array(detail.confidenceReasons.prefix(3).enumerated()), id: \.offset) { _, reason in
+            ForEach(Array(detail.shownConfidenceReasons().prefix(3).enumerated()), id: \.offset) { _, reason in
                 bullet(reason, icon: "info.circle")
             }
         }

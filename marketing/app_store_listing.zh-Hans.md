@@ -126,7 +126,7 @@ you do in three characters.
 SnapWorth 免费使用，不用注册。每天一次免费扫描，长期有效。每件好物都带着它的价值存在你自己的手机里，历史记录是你的，付不付费都一样。
 
 Pro 增加：
-• 无限扫描
+• 无限扫描（适用合理使用原则）
 • 按你选的平台重写商品描述——闲鱼、eBay、Vinted、Poshmark、Mercari、Depop 或 Facebook Marketplace。闲鱼的描述用中文写。
 • “为什么是这个价”——估价背后的完整说明，包括四个价格档位和影响因素
 • 读洗标——拍一下护理标签，估价更准

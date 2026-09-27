@@ -414,9 +414,29 @@ class TestWhichBuildIsCalling:
         with caplog.at_level(logging.INFO, logger="snapworth.access"):
             client.get("/health/live", headers={"User-Agent": _app_agent(17)})
             client.get("/health/live", headers={"User-Agent": "curl/8.7.1"})
+            client.get("/health/live", headers={"User-Agent": _app_agent(17),
+                                                "X-SnapWorth-Build": "21"})
         builds = [getattr(r, "build") for r in caplog.records
                   if r.name == "snapworth.access"]
-        assert builds[-2:] == [17, None]
+        assert builds[-3:] == [17, None, 21]
+
+    @pytest.mark.parametrize("value, build", [
+        ("21", 21), (" 21 ", 21), ("", None), ("21a", None), ("-1", None),
+        ("1.5.0", None), ("1234567", None), ("２１", None),
+    ])
+    def test_the_explicit_header_is_digits_or_nothing(self, value, build):
+        assert observability.parse_build_header(value) == build
+
+    def test_the_header_wins_and_says_it_was_explicit(self):
+        from starlette.datastructures import Headers
+        both = Headers({"user-agent": _app_agent(17), "x-snapworth-build": "21"})
+        assert observability.client_build(both) == (21, True)
+        agent_only = Headers({"user-agent": _app_agent(17)})
+        assert observability.client_build(agent_only) == (17, False)
+        # A header that does not read is not a build of 0: the agent decides.
+        garbled = Headers({"user-agent": _app_agent(17), "x-snapworth-build": "x"})
+        assert observability.client_build(garbled) == (17, False)
+        assert observability.client_build(Headers({})) == (None, False)
 
 
 class TestOutdatedBuildsAreToldToUpdate:
@@ -514,3 +534,65 @@ class TestOutdatedBuildsAreToldToUpdate:
         before = count()
         self._trends(_app_agent(12))
         assert count() == before + 1
+
+    def test_the_refusal_says_update_required_in_a_code(self):
+        """Every build that reads codes routes on this rather than on
+        whichever status reached it."""
+        self._require(18)
+        r = self._trends(_app_agent(12))
+        assert r.status_code == 422
+        assert r.json()["code"] == "update_required"
+
+
+class TestABuildThatSaysItsBuildGetsA426:
+    """The client half of "require an update". A build that sends
+    `X-SnapWorth-Build` was written to show a 426 — its own update message,
+    with a button to the App Store on the Scan tab — so it gets the honest
+    status, where a build known only from its User-Agent keeps the 422 it can
+    show."""
+
+    @pytest.fixture(autouse=True)
+    def _switch(self, monkeypatch):
+        self.store = ResilientCache(None, InMemoryCache())
+        monkeypatch.setattr(notify, "_cache", self.store)
+        main._rate_store.clear()
+        main._ip_rate_store.clear()
+        asyncio.run(self.store.set(notify.MIN_BUILD_KEY, "30"))
+
+    def _headers(self, build: str, agent_build: int = 29) -> dict[str, str]:
+        return {"User-Agent": _app_agent(agent_build), "X-SnapWorth-Build": build,
+                "x-device-id": "minbuild-426"}
+
+    @pytest.mark.parametrize("method, path", [
+        ("GET", "/trends"), ("POST", "/listing"), ("POST", "/scan")])
+    def test_below_the_minimum_is_a_426_with_the_code(self, method, path):
+        # Patched so a gate that let this through could not reach the model.
+        with patch("main._generate_with_retry", AsyncMock()) as model:
+            r = client.request(method, path, json={} if path == "/listing" else None,
+                               headers=self._headers("29"))
+        assert not model.called
+        assert r.status_code == 426, r.text
+        assert r.json() == {"detail": notify.UPDATE_REQUIRED_DETAIL,
+                            "code": "update_required"}
+
+    def test_the_minimum_and_newer_are_served(self):
+        for build in ("30", "31"):
+            r = client.get("/trends", headers=self._headers(build))
+            assert r.status_code == 200, (build, r.text)
+
+    def test_the_header_is_believed_over_the_user_agent(self):
+        """The User-Agent is URLSession's; the header is the app's own."""
+        r = client.get("/trends", headers=self._headers("31", agent_build=12))
+        assert r.status_code == 200, r.text
+
+    def test_an_unreadable_header_falls_back_to_the_user_agent(self):
+        r = client.get("/trends", headers=self._headers("soon", agent_build=12))
+        assert r.status_code == 422, "the agent says 12: refused as before"
+        assert r.json()["code"] == "update_required"
+
+    def test_sign_in_is_never_gated(self):
+        r = client.post("/auth/challenge", headers=self._headers("1"))
+        assert r.status_code == 200, r.text
+
+    def test_a_426_does_not_page(self):
+        assert not observability.classify_status(426).pages

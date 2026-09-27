@@ -149,6 +149,10 @@ struct PaywallView: View {
                         ForEach(PaywallCopy.benefits(pitch: pitch), id: \.text) { benefit in
                             BenefitRow(icon: benefit.icon, text: benefit.text)
                         }
+                        Text(PaywallCopy.fairUse)
+                            .font(.snapCaption)
+                            .foregroundStyle(Color.snapWarmGray)
+                            .fixedSize(horizontal: false, vertical: true)
                     }
                     .padding(20)
                     .snapCard()
@@ -514,9 +518,10 @@ enum PaywallCopy {
     /// against the gates rather than drifting from them.
     static let benefits: [Benefit] = [
         Benefit(icon: "infinity", text: String(localized: "Unlimited scans")),
-        // Not "a whole pile in one go": scans share a 20-an-hour limit, and a
-        // pile of thirty pauses partway. What Haul does promise is that the
-        // camera never waits for a valuation, and that it keeps every photo.
+        // Not "a whole pile in one go": Pro scans are capped at 60 an hour,
+        // and one address at 60 requests across scans and drafts, so a big
+        // pile pauses partway. What Haul does promise is that the camera
+        // never waits for a valuation, and that it keeps every photo.
         Benefit(icon: "square.stack.3d.up.fill",
                 text: String(localized: "Haul mode — snap item after item while each is valued, with a running total")),
         Benefit(icon: "chart.line.uptrend.xyaxis",
@@ -633,6 +638,13 @@ enum PaywallCopy {
         guard streak >= 2 else { return reset }
         return [String(localized: "🔥 \(streak)-day streak"), reset].joined(separator: " · ")
     }
+
+    /// What "Unlimited scans" means, said where it is sold. The server caps
+    /// each Pro device per hour (`ratelimit.PRO_SCAN_RATE_MAX_REQUESTS`) and
+    /// a 429's wait is what is left of that hour, so "up to an hour" is the
+    /// most it can be. No number: the cap is server configuration, and the
+    /// per-address cap drafts share can stop scanning sooner.
+    static let fairUse = String(localized: "Unlimited scans are subject to fair use: very heavy use can pause scanning for up to an hour.")
 }
 
 // MARK: - Subscription not recognised

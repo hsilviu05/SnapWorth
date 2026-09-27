@@ -26,6 +26,7 @@
 		FEED000000000000000093B1 /* HaulSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = FEED000000000000000093A1 /* HaulSession.swift */; };
 		FEED000000000000000093B2 /* HaulView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FEED000000000000000093A2 /* HaulView.swift */; };
 		FEED000000000000000000B3 /* MarketplaceFees.swift in Sources */ = {isa = PBXBuildFile; fileRef = FEED000000000000000000A3 /* MarketplaceFees.swift */; };
+		1ED6E4000000000000000001 /* LedgerMath.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1ED6E4000000000000000002 /* LedgerMath.swift */; };
 		FEED000000000000000000B2 /* PriceTagOCR.swift in Sources */ = {isa = PBXBuildFile; fileRef = FEED000000000000000000A2 /* PriceTagOCR.swift */; };
 		FEED000000000000000097B1 /* ReferralService.swift in Sources */ = {isa = PBXBuildFile; fileRef = FEED000000000000000097A1 /* ReferralService.swift */; };
 		FEED000000000000000091B1 /* ListingPhotoCleanup.swift in Sources */ = {isa = PBXBuildFile; fileRef = FEED000000000000000091A1 /* ListingPhotoCleanup.swift */; };
@@ -138,6 +139,7 @@
 		FEED000000000000000093A1 /* HaulSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HaulSession.swift; sourceTree = "<group>"; };
 		FEED000000000000000093A2 /* HaulView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HaulView.swift; sourceTree = "<group>"; };
 		FEED000000000000000000A3 /* MarketplaceFees.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarketplaceFees.swift; sourceTree = "<group>"; };
+		1ED6E4000000000000000002 /* LedgerMath.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LedgerMath.swift; sourceTree = "<group>"; };
 		FEED000000000000000000A2 /* PriceTagOCR.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PriceTagOCR.swift; sourceTree = "<group>"; };
 		FEED000000000000000097A1 /* ReferralService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReferralService.swift; sourceTree = "<group>"; };
 		FEED000000000000000091A1 /* ListingPhotoCleanup.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ListingPhotoCleanup.swift; sourceTree = "<group>"; };
@@ -301,6 +303,7 @@
 				AA00000000000000000000C6 /* ScanResult.swift */,
 				AA0000000000000000000110 /* AppError.swift */,
 				FEED000000000000000000A3 /* MarketplaceFees.swift */,
+				1ED6E4000000000000000002 /* LedgerMath.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -626,6 +629,7 @@
 				FEED000000000000000093B1 /* HaulSession.swift in Sources */,
 				FEED000000000000000093B2 /* HaulView.swift in Sources */,
 				FEED000000000000000000B3 /* MarketplaceFees.swift in Sources */,
+				1ED6E4000000000000000001 /* LedgerMath.swift in Sources */,
 				FEED000000000000000000B2 /* PriceTagOCR.swift in Sources */,
 				FEED000000000000000097B1 /* ReferralService.swift in Sources */,
 				FEED000000000000000091B1 /* ListingPhotoCleanup.swift in Sources */,
