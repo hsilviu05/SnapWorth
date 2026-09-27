@@ -176,6 +176,14 @@ def resolve_git_commit(
 API_VERSION = resolve_api_version(os.environ)
 GIT_COMMIT = resolve_git_commit(os.environ)
 
+# Which replica this process is, from the variable Railway documents for it
+# (`RAILWAY_REPLICA_ID`, docs.railway.com/variables/reference). Empty outside
+# Railway. There is one replica today (RUNBOOK §11); this is what tells two
+# apart in `/status` and `🩺 Checkup` if a second is ever added, since each
+# replica answers only for its own memory. Railway's log viewer already tags
+# every log line with its instance.
+REPLICA_ID = os.environ.get("RAILWAY_REPLICA_ID", "").strip()
+
 BUILD_INFO_FILE = Path(__file__).resolve().parent / "BUILD_INFO"
 
 
@@ -272,7 +280,11 @@ async def _lifespan(_app: FastAPI):
 
     global _ready
     _ready = True
-    log.info("startup complete — accepting traffic")
+    # The drain is in the message, not `extra`, because production logs as
+    # text, which prints no extras: after a deploy this line is where the
+    # owner reads the value actually in force (RUNBOOK §6).
+    log.info("startup complete — accepting traffic (replica %s, shutdown drain %gs)",
+             REPLICA_ID[:8] or "-", _DRAIN_TIMEOUT_SECONDS)
     notify.deployed(GIT_COMMIT, cache_backend=_cache.backend,
                     auth_enforcing=cfg.enforce, info=BUILD_INFO)
 
@@ -283,9 +295,18 @@ async def _lifespan(_app: FastAPI):
     # Redis connections open and in-flight scans killed mid-request. During a
     # rolling deploy that is a burst of user-visible 502s on every release.
     #
-    # Order matters. Readiness flips first so the load balancer stops sending
-    # new work, *then* we wait for in-flight requests to finish, and only then
-    # close connections. Closing first would fail the requests we are draining.
+    # uvicorn runs this *after* its own drain, not alongside it. On SIGTERM it
+    # stops accepting, waits up to `--timeout-graceful-shutdown` (Dockerfile)
+    # for the requests in flight, cancels any still running, and only then
+    # sends the lifespan its shutdown (`uvicorn.Server.shutdown`). So the
+    # graceful timeout is the window a request in flight gets, and the wait
+    # below is what comes after it: time for a cancelled request to run its
+    # cleanup — a scan hands its free scan back through Redis — before the
+    # connections close. Closing first would fail that refund. The two add up,
+    # and Railway's SIGKILL has to come after both (RUNBOOK §6).
+    #
+    # Readiness flips for completeness. By now the listener is closed, and
+    # Railway only asks the health path while a new deployment starts.
     _ready = False
     log.info("shutdown: readiness withdrawn, draining in-flight requests")
 
@@ -304,10 +325,19 @@ async def _lifespan(_app: FastAPI):
     log.info("shutdown complete")
 
 
-# Time allowed for in-flight requests to finish before connections are closed.
-# A scan can legitimately take ~6s, so a shorter drain would kill real work.
-# Must be below the platform's SIGKILL grace period — Railway's default is 30s.
-_DRAIN_TIMEOUT_SECONDS = float(os.environ.get("DRAIN_TIMEOUT_SECONDS", "15"))
+# How long the lifespan waits, after uvicorn's graceful window, for requests
+# uvicorn cancelled to finish their cleanup before connections close. Not the
+# window a scan gets: that is `--timeout-graceful-shutdown` (40s), which
+# covers the longest request anyone still waits for — the model is abandoned
+# 33s after arrival (CLIENT_DEADLINE_SECONDS) and the phone gives up at 35s.
+# /scan in production over 2026-09-20 → 09-27: p50 13.5s, p95 18.9s, max
+# 21.6s (RUNBOOK §6).
+#
+# 5s covers a refund against a Redis that has stopped answering: 2s to
+# connect, 2s to read (`cache.build_redis_client`). Railway's SIGKILL must come
+# after 40 + 5 and the close, so RAILWAY_DEPLOYMENT_DRAINING_SECONDS=50.
+# Railway's default is 0: SIGKILL straight after SIGTERM.
+_DRAIN_TIMEOUT_SECONDS = float(os.environ.get("DRAIN_TIMEOUT_SECONDS", "5"))
 
 # Readiness is separate from liveness: the process can be alive and healthy
 # while deliberately refusing new traffic (starting up, or draining).
@@ -475,6 +505,7 @@ def _status_snapshot() -> dict:
     """What the Telegram /status command reports about this process."""
     return {
         "commit": GIT_COMMIT,
+        "replica": REPLICA_ID,
         "cache": _cache.backend if _cache is not None else "unknown",
         "auth_enforcing": auth.deps.config.enforce,
         "model_healthy": _model_health.healthy,

@@ -648,6 +648,28 @@ class TestCommands:
         assert "Build" not in text
 
     @pytest.mark.asyncio
+    async def test_status_names_the_replica_railway_gives(self, cache, recorder):
+        """With one replica this says nothing new. With two, /status describes
+        only the one that answered (RUNBOOK §11), so it says which."""
+        notifier = notify.TelegramNotifier(
+            FAKE_TOKEN, FAKE_CHAT,
+            client=httpx.AsyncClient(transport=httpx.MockTransport(recorder.handler)))
+        notify.configure(cache, notifier=notifier, status_provider=lambda: {
+            "commit": "abc123def456", "replica": "0123abcd-4567-89ef", "cache": "redis",
+            "auth_enforcing": True, "model_healthy": True})
+        try:
+            text = await notify.handle_command("/status")
+            assert ("Build <code>abc123def456</code> · replica <code>0123abcd</code> · "
+                    "cache redis · auth enforcing") in text
+        finally:
+            await notify.aclose()
+
+    def test_no_replica_outside_railway(self):
+        assert notify._replica_label({}) == ""
+        assert notify._replica_label({"replica": "  "}) == ""
+        assert notify._replica_label({"replica": "<b>x"}) == " · replica <code>&lt;b&gt;x</code>"
+
+    @pytest.mark.asyncio
     async def test_digest_on_demand_and_help(self, enabled_notify):
         assert (await notify.handle_command("/digest")).startswith("📊")
         assert "/status" in await notify.handle_command("/help")
@@ -1889,7 +1911,7 @@ class TestCheckup:
         notify.configure(cache, notifier=notifier, generator=model,
                          status_provider=lambda: {"commit": "abc123", "cache": "redis",
                                                   "auth_enforcing": True, "model_healthy": True,
-                                                  "devicecheck": False})
+                                                  "devicecheck": False, "replica": "feedbeef"})
         try:
             assert await notify._hold_poll_lock()
             text = await notify.handle_command("/checkup")
@@ -1904,6 +1926,7 @@ class TestCheckup:
             assert "Spend alert: above $2.00/day · today ≈ $0.00" in text
             assert "TLS api.snapworth.eu: leaf expires in 61 days" in text and "⚠️" not in text
             assert "Telegram poller: this replica" in text
+            assert "build <code>abc123</code> · replica <code>feedbeef</code>" in text
         finally:
             await notify.aclose()
 

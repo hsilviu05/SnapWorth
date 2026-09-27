@@ -6,8 +6,8 @@ region, Docker).
 **Every number in this document is labelled.** `[MEASURED]` comes from this
 repository or a benchmark; `[ESTIMATED]` is modelled from public pricing and
 stated assumptions; `[DESIGNED]` is implemented but never exercised in
-production; `[NOT IMPLEMENTED]` is absent. Nothing here is drawn from
-observed production traffic, because none has been observed.
+production; `[NOT IMPLEMENTED]` is absent. A figure drawn from production
+traffic says so and names its source and dates.
 
 ---
 
@@ -27,7 +27,7 @@ flowchart LR
 | Component | State |
 |---|---|
 | API container | `backend/Dockerfile`, python 3.13-slim, unprivileged uid 10001 |
-| Process model | 1 uvicorn worker per container; scale horizontally |
+| Process model | 1 uvicorn worker × 1 replica, by decision (§11) |
 | Durable state | Redis — quota, entitlements and the signed proofs behind them, refund tombstones, App Attest keys, referral codes, the operator's indexes, TikTok tokens, the free-scan lever, rate limits |
 | System of record | Scan history: none, it lives on-device. **Several Redis key families have no other copy** (§9), so Redis is their system of record and has to be persisted like one |
 | Metrics | `/metrics`, Prometheus text format `[DESIGNED]` |
@@ -432,7 +432,7 @@ after tests pass (`.github/workflows/backend.yml`).
 | Capability | State |
 |---|---|
 | Rolling deploy | Platform-provided |
-| Graceful shutdown | `[DESIGNED]` — implemented, never exercised in production |
+| Graceful shutdown | `[DESIGNED]` — idle shutdowns complete in production; none has yet caught a request in flight, and Railway still SIGKILLs at once (below) |
 | Readiness gating | `[DESIGNED]` — `/health/ready` exists; must be configured as the platform's health path |
 | Blue/green | `[NOT IMPLEMENTED]` |
 | Canary | `[NOT IMPLEMENTED]` |
@@ -464,19 +464,84 @@ response has the same fields and types under all three.
    complaint, so this is the check that the change took.
 4. To go back, set `v2` or remove the variable.
 
-### Shutdown sequence (implemented in `main._lifespan`)
+### Shutdown sequence (uvicorn, then `main._lifespan`)
 
-1. SIGTERM reaches uvicorn as PID 1 — this only works because the Dockerfile
-   uses `exec`; without it the shell swallows the signal.
-2. Readiness flips to false → the load balancer stops sending new requests.
-3. In-flight requests drain, up to `DRAIN_TIMEOUT_SECONDS` (default 15s).
-4. DeviceCheck and Redis connections close.
-5. `--timeout-graceful-shutdown 20` gives uvicorn room beyond the drain, and
-   stays under Railway's 30s SIGKILL.
+What a deploy does to the old container, in order.
+`tests/test_graceful_shutdown.py` runs it against the Dockerfile's own
+command line.
+
+1. **SIGTERM** reaches uvicorn as PID 1. This only works because the
+   Dockerfile uses `exec`; without it the shell swallows the signal.
+2. **uvicorn drains the requests in flight.** It closes the listener and idle
+   keep-alive connections, waits up to `--timeout-graceful-shutdown 40` for
+   requests in flight to finish, then cancels any still running.
+3. **Then the lifespan shutdown** (`main._lifespan`). Readiness flips, which
+   nothing reads by now: the listener is closed, and Railway asks the health
+   path only while a new deployment starts. It waits up to
+   `DRAIN_TIMEOUT_SECONDS=5` for the requests uvicorn cancelled to run their
+   cleanup (a cancelled scan hands its free scan back through Redis), then
+   closes the ops bot, DeviceCheck, App Store and Redis clients.
+4. **SIGKILL**, `RAILWAY_DEPLOYMENT_DRAINING_SECONDS` after SIGTERM.
+
+Steps 2 and 3 run one after the other, not side by side (`uvicorn.Server.shutdown`
+sends the lifespan its shutdown only after its own wait), so SIGKILL has to
+come after their sum: 40 + 5, plus under a second to close, so
+**`RAILWAY_DEPLOYMENT_DRAINING_SECONDS=50`**. Until 2026-09-27 this section and
+the Dockerfile described the drain as running inside uvicorn's window, and
+assumed a 30 s Railway grace that is really 0.
+
+**Why 40 s.** It outlasts every request someone is still waiting for. The app
+stops waiting on the model 33 s after a request arrives
+(`CLIENT_DEADLINE_SECONDS`), and the phone gives up at 35 s. Measured
+`[MEASURED — production, Railway HTTP logs, 2026-09-20 19:01 → 09-27 18:58 UTC,
+30 deployments]`, edge to edge (`totalDuration`, upload included):
+
+| Route | Requests | p50 | p95 | max | Over 20 s |
+|---|---|---|---|---|---|
+| `POST /scan`, all statuses | 48 | 13.5 s | 18.9 s | 21.6 s | 2 |
+| `POST /scan`, 200 only | 37 | 14.5 s | 19.8 s | 21.6 s | 2 |
+| `POST /listing` | 6 | 4.6 s | 5.5 s | 5.7 s | 0 |
+
+The old window, 20 s, was already shorter than 2 of the 48 scans. At most 2
+scans were in flight at once. The sample is small: five days of the seven had
+fewer than five scans, and 09-26 alone had 25. Re-measure when §11's triggers
+are reviewed.
+
+**Railway settings — owner, dashboard (#207)**
+
+| Setting | Now | Needed |
+|---|---|---|
+| Draining (SIGTERM → SIGKILL) | unset, so Railway's default: **0 s** | **TODO(owner):** `RAILWAY_DEPLOYMENT_DRAINING_SECONDS=50`, as a service variable or the service's Teardown setting |
+| Overlap | unset, so the default: 0 s | Leave at 0. Railway makes the old deployment inactive when the new one goes Active, so overlap protects nothing that draining does not |
+| Health-check path | unset | **TODO(owner):** `/health/ready` (#207) |
+| Replicas | 1, region `sfo` | 1 (§11) |
+| `DRAIN_TIMEOUT_SECONDS` | not read here | **TODO(owner):** unset, so the default 5 applies. The startup line prints the value in force: `startup complete — accepting traffic (replica …, shutdown drain 5s)` |
+
+"Now" is from the current deployment's service manifest (`railway deployment
+list --json`, 2026-09-27: `drainingSeconds`, `overlapSeconds` and
+`healthcheckPath` null, `numReplicas` 1). The defaults are Railway's
+documented ones (docs.railway.com/variables/reference: "its default value is
+0" for both; /deployments/reference: "By default, it is given 0 seconds to
+gracefully shutdown before being forcefully stopped with a SIGKILL"). There is
+no `railway.toml` or `railway.json`, and none should be added for this:
+Railway has deprecated config-as-code, which works for existing services
+until 2026-12-01.
+
+**Until draining is set, a deploy is no worse than before.** At 0 s SIGKILL
+follows SIGTERM whatever the app's windows are, so a request in flight is cut
+off now exactly as it was under 15/20. In the 7 days above, 28 of 29 replaced
+deployments logged a complete shutdown, each in under half a second, and none
+logged `Waiting for connections to close`: no deploy caught a request in
+flight, so what 0 s does to one has not been observed. After the owner sets
+it, the next deploy that does catch one logs `Waiting for connections to
+close`, then `shutdown complete` with no `still in flight` warning.
 
 **Required platform configuration:** set the health-check path to
-`/health/ready`. Without it the platform routes traffic to draining and
-still-starting instances, and the graceful shutdown achieves nothing.
+`/health/ready` (#207). Railway calls it only while a new deployment starts,
+and makes that deployment Active, and the old one inactive, once it answers
+2xx. Without it the new container is Active as soon as it starts, before
+uvicorn listens. It is not polled afterwards, so it does not take a draining
+or degraded instance out of rotation.
 
 ---
 
@@ -836,18 +901,97 @@ measured per subscriber; `/costs` has no per-subscriber view.
 
 ## 11. Scaling audit
 
+### Decision: one worker, one replica (2026-09-27, #211)
+
+One uvicorn worker (`backend/Dockerfile`, `--workers 1`) in one Railway
+replica (`numReplicas: 1`, from the deployment manifest, §6). Traffic is
+nowhere near needing more: 48 scans in 7 days, at most 2 at once
+`[MEASURED]` (§6). A scan spends its time waiting on the model, and one event
+loop waits on any number at once. A second replica would add nothing, and
+would bring the per-process state listed below into play.
+
+Revisit on one of these, not before. The thresholds are judgements
+`[ESTIMATED]`, not measurements:
+
+| Trigger | Where to read it | Threshold |
+|---|---|---|
+| Requests queue | `duration_ms` on `/scan` in the access log (printed with `LOG_FORMAT=json`), or `totalDuration` in Railway's HTTP logs (`railway logs --http`) | p95 above 25 s over a day. Rule out the model first: a slow provider makes every scan slow, and a replica does not help with that |
+| CPU or memory | Railway's service metrics | CPU at the replica's limit, or memory above 75% of it, for 15 minutes |
+| Requests in flight | `snapworth_http_in_flight` on `/metrics` (needs `METRICS_TOKEN`; nothing scrapes it, §1b) | Above 20 whenever it is sampled during busy hours. Each in-flight `/scan` can hold a 20 MB body |
+
+Do not add a replica to absorb Haul bursts: the rate-limit bucket, not
+concurrency, is what limits a haul (#187, *Known limits*).
+
+A second **worker** (`--workers 2`) is a second process in the same
+container. Everything in the checklist below applies to it exactly as to a
+second replica, and Railway cannot see it.
+
 | Area | State | Note |
 |---|---|---|
 | Async correctness | ✅ | No blocking I/O on the event loop |
-| Redis pooling | ✅ | `max_connections=50`, bounded timeouts |
+| Redis pooling | ✅ | `max_connections=50` per process, bounded timeouts |
 | Redis memory | ⚠️ Unverified | Needs `maxmemory` at ~75% of the Redis service's memory and `maxmemory-policy noeviction`. Neither value is recorded anywhere or known to be set on Railway — check with `CONFIG GET maxmemory*`. `🩺 Checkup` prints usage, policy, evictions and persistence, and warns on each unsafe value. Growth ~50 MB per 10k users `[ESTIMATED]` |
 | DeviceCheck pooling | ✅ Fixed | Was a new TLS handshake per call |
-| Worker count | 1/container | Correct for I/O-bound work; scale by containers |
+| Worker count | 1 worker × 1 replica | By decision, above |
 | Rate limiting | ✅ | Redis-backed, Lua-atomic; degrades to per-process |
 | Cold start | ~2-3s `[ESTIMATED]` | Dominated by imports |
 | Backpressure | ⚠️ Partial | Rate limits only; no queue-depth shedding |
-| Autoscaling | Platform | Scale on **p95 latency, not CPU** — the service is I/O-bound, so CPU stays flat while requests queue |
-| Thread safety | ✅ | Metrics under lock; no shared mutable state elsewhere |
+| Autoscaling | None, by decision | Railway runs the replica count it is given; nothing scales it. A second replica is a manual change, made after a trigger above and the checklist below. When it is made, watch **p95 latency, not CPU**: the service is I/O-bound, so CPU stays flat while requests queue |
+| Thread safety | ✅ | Metrics under lock. Other module state is touched only from the one event loop. It is per-process, which is the checklist below |
+
+### Before a second replica or worker
+
+Line numbers are at the commit that wrote this list; the symbol names are what
+to search for after they drift.
+
+**Already safe with two:**
+
+- **Durable state fails closed.** A `required` cache call on a configured
+  Redis that is failing raises rather than trust this process's memory
+  (`ResilientCache._call`, `cache.py:230-242`), so no replica grants quota or
+  entitlements from its own copy.
+- **Tokens verify anywhere.** Production refuses to start without
+  `TOKEN_KEYS` (`tokens.py:170-178`), so a token one replica signs, another
+  accepts.
+- **Rate limits are shared.** A Redis sliding window whose members carry a
+  per-instance nonce (`RedisRateLimiter`, `ratelimit.py:248`, `:257`), so two
+  replicas cannot overwrite each other's entries. `/health` reports
+  `rate_limiter.distributed`.
+- **One Telegram poller.** An NX lock, `opslock:tgpoll`, TTL 90 s
+  (`notify.py:163-168`), taken and renewed by `_hold_poll_lock`
+  (`notify.py:2077`) before each poll (`notify.py:2227`), and released at
+  shutdown (`_release_poll_lock`, `notify.py:2091`). Checkup says whether this
+  replica holds it (`notify.py:5362`).
+- **Once-a-day messages go once.** Digest, weekly report, budget alert and
+  quiet note each claim a cache key with `add` before sending
+  (`notify.py:1727`, `:2978`, `:3482`, `:5402`). Every replica runs the digest
+  and watch loops (`notify.py:1841`, `:5432`); the claim is what stops the
+  second.
+- **Counters add up.** The daily tallies behind `/status`, `/costs` and the
+  digest are Redis `incr`s (`_bump`, `notify.py:891`), as is the safety-block
+  count (`_safety_key`, `main.py:370`).
+
+**Per-process, and what to do about each:**
+
+| Item | Code | With two | Decision |
+|---|---|---|---|
+| Model health | `_ModelHealth`, `main.py:2679-2741`; read by `/health` (`main.py:1429`) and `/status`/Checkup via `_status_snapshot` (`main.py:504`) | Each replica knows only the scans it served. `/health` depends on which replica answers, and `/status` shows the poller's | **Accept.** Both call the same provider, so both go degraded within `MODEL_UNHEALTHY_AFTER` (2) failures of a real outage, and Checkup probes Gemini live. `/status` and Checkup name the replica (`REPLICA_ID`, `main.py:185`) |
+| Alert throttle | `_alert_last_sent`, `_alert_awaiting_recovery`, `notify.py:724-728` | Each replica alerts once: one message per replica | **Accept.** Chosen there, to keep a cache round trip off the failure path |
+| Redis down/up announcements | `_cache_state_generation`, `cache_state_changed`, `notify.py:1650-1667` | Each replica announces its own view | **Accept**, for the same reason |
+| Rate-limit fallback | `_device_memory`, `_ip_memory`, `main.py:837-838`, wired in `_init_rate_limiters` (`main.py:854`); `ResilientRateLimiter` degrades at `ratelimit.py:271-306` | While Redis is down each replica keeps its own window: N× the limit | **Accept.** Bounded, logged at ERROR, and `/health` reads degraded. New buckets must be Redis-backed like these, or a second replica silently doubles them |
+| Cache fallback for non-`required` calls | `ResilientCache._call` falls through to the in-process store, `cache.py:247` | While Redis is down, dedupe claims and counters split per replica: a digest can go twice | **Accept.** Only during an outage, which is announced |
+| Poll lock under cache errors | `_hold_poll_lock` returns True on an exception, `notify.py:2087-2088` | While Redis is down both replicas poll; Telegram answers each with a share of the updates | **Accept.** Chosen there: a duplicated reply beats a bot that never answers |
+| Metrics | `metrics.registry`, `metrics.py:283`, including `http_in_flight` (`metrics.py:312`) | Each scrape reads one replica | **Accept.** Nothing scrapes it (§1b). Read the in-flight trigger on each replica |
+| Background tasks | `notify._tasks` (`notify.py:690`: alert sends, counter bumps), `auth._background` (`auth.py:605`, the DeviceCheck exhausted mark), `quota._background` (`quota.py:40`, the welcome mark) | Per-process by nature. None is in `http_in_flight`, so the shutdown drain does not wait for them, and `notify.aclose` cancels its own (`notify.py:781`). The comps shadow, off in production, gets its own 1 s drain (`comps/shadow.py:188`) | **Accept.** A per-deploy loss, not a per-replica one: a deploy landing inside one loses that write, each a round trip of under a second |
+| Redis connections | `DEFAULT_REDIS_MAX_CONNECTIONS = 50` for the cache (`cache.py:306`), plus a client per rate limiter with redis-py's default pool (`ratelimit.py:331`; two limiters, `main.py:854`) | Three pools per process | **Accept.** Check Redis's `maxclients` against processes × pools when the count changes |
+| Outbound HTTP clients | DeviceCheck (`devicecheck.py:307`), App Store status (`appstorestatus.py:617`), Gemini (`aiconfig.py:258`) | A pool each per process | **Accept** |
+| Request bodies | `MAX_REQUEST_BYTES`, 20 MB, `main.py:602` | Held in the process serving the request | **Accept.** Size memory per process; it is the memory trigger above |
+| Log-once set | `_HOP_COUNTS_SEEN`, `ratelimit.py:71` | Each replica logs its own first sighting | **Accept** |
+| Readiness | `_ready`, `main.py:344` | Per process by nature | Nothing to do |
+
+Nothing in the list has to move to a cache key first. Each per-process item
+either duplicates a message or is bounded while Redis is down, and none of
+them grants anything.
 
 ---
 
