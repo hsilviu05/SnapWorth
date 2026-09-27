@@ -16,13 +16,19 @@ import os
 // scan never needed: a queue that respects the server's hourly limits, and
 // that never loses a photo to them.
 //
-// Scans and drafts each have a per-device bucket of their own (60 and 20 an
-// hour for Pro, `ratelimit.py`), but one per-address bucket (60) covers both
-// and trends too, and a 429 does not say which bucket refused. So any 429
-// pauses both queues: pausing only the lane that heard it could send the
-// other into a full address bucket for a second 429. Before the server
-// split them, scans, drafts and trends shared one device bucket of 20, which
-// is what this was written against; the policy holds for both.
+// This was written when scans, drafts and trends shared one device bucket of
+// 20 an hour, so any 429 meant scanning was full too. That is why any 429
+// pauses both queues, and why the banner says "You've hit the scan limit." A
+// 429 does not say which bucket refused, so this still depends on that being
+// true. Scans and drafts now have a device bucket each (`ratelimit.py`). For
+// Pro, both are sized at the per-address bucket (60 an hour), which counts
+// scans, drafts and trends together. So from one address the address bucket
+// fills first, and it refuses both lanes. The server keeps it that way for
+// this code. A draft bucket smaller than the address bucket would refuse a
+// draft with scans to spare. This would then pause scanning that could go
+// on, under a banner blaming the scan limit (RUNBOOK §5.8). One case is left:
+// a device that changes address within the hour can fill its own draft
+// bucket first.
 
 // MARK: - Scheduling
 

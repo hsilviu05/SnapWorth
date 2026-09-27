@@ -817,10 +817,12 @@ class TestListingEndpoint:
         r = client.post("/listing", json=body, headers={"x-device-id": "listing-422"})
         assert r.status_code == 422
 
-    def test_rate_limited_after_20_requests(self):
+    def test_rate_limited_after_its_cap(self):
+        # 60 since /listing got a bucket of its own, the size of the address
+        # cap (test_rate_buckets.TestADraftIsRefusedOnlyWithScanning).
         with patch("main._model") as mm:
             mm.generate_content_async = AsyncMock(return_value=self._mock(json.dumps(MOCK_LISTING_JSON)))
-            for _ in range(20):
+            for _ in range(main.LISTING_RATE_MAX_REQUESTS):
                 _post_listing(device_id="listing-rate")
             r = _post_listing(device_id="listing-rate")
         assert r.status_code == 429

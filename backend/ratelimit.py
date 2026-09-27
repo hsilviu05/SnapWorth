@@ -113,9 +113,18 @@ RATE_MAX_REQUESTS = int(os.environ.get("RATE_MAX_REQUESTS", "20"))
 # together stop at the IP cap first.
 PRO_SCAN_RATE_MAX_REQUESTS = int(os.environ.get("PRO_SCAN_RATE_MAX_REQUESTS", "60"))
 
-# /listing, which is Pro-only. A full model call like a scan, so it keeps the
-# 20 it always had; it just no longer spends the scans'.
-LISTING_RATE_MAX_REQUESTS = int(os.environ.get("LISTING_RATE_MAX_REQUESTS", "20"))
+# /listing, which is Pro-only. Sized at the per-IP cap below, not under it,
+# so that from one address the IP bucket refuses first, and it refuses scans
+# and drafts together. Every build of the app assumes that. It says "You've hit
+# the scan limit." for a draft's 429 as for a scan's, and Haul pauses both of
+# its queues on either one's (HaulSession.swift). At 20, the size /listing had
+# while it shared the scan bucket, a Pro user's 21st draft of the hour was
+# refused with scans to spare. The app then said "scan limit" and stopped
+# Haul's scanning. So keep this at or above IP_RATE_MAX_REQUESTS. It adds
+# nothing to what one address can spend: the IP cap bounds that at 60
+# requests an hour, whatever the mix of scans and drafts. A device that moves
+# between addresses can reach 60 scans and 60 drafts in an hour.
+LISTING_RATE_MAX_REQUESTS = int(os.environ.get("LISTING_RATE_MAX_REQUESTS", "60"))
 
 # /trends costs no model call: it reads tallies the server caches for 15
 # minutes, and the app caches the answer for 30. So the per-device cap here is

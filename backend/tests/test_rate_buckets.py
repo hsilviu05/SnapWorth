@@ -129,12 +129,36 @@ class TestTheScanCapFollowsTheTier:
         assert r.json()["detail"] == (
             f"Rate limit: {ratelimit.PRO_SCAN_RATE_MAX_REQUESTS} requests/hour.")
 
-    def test_the_sizes_the_owner_chose(self):
-        # Free unchanged; Pro's fair-use ceiling; listings as they were.
+    def test_the_sizes(self):
+        # Free unchanged, and Pro's fair-use ceiling, as the owner chose.
+        # Listings at the address cap rather than the 20 they had: see
+        # TestADraftIsRefusedOnlyWithScanning.
         assert ratelimit.RATE_MAX_REQUESTS == 20
         assert ratelimit.PRO_SCAN_RATE_MAX_REQUESTS == 60
-        assert ratelimit.LISTING_RATE_MAX_REQUESTS == 20
+        assert ratelimit.LISTING_RATE_MAX_REQUESTS == 60
         assert ratelimit.TRENDS_RATE_MAX_REQUESTS > ratelimit.RATE_MAX_REQUESTS
+
+
+class TestADraftIsRefusedOnlyWithScanning:
+    """Every build of the app says "You've hit the scan limit." for any 429,
+    a draft's included, and Haul pauses both of its queues on either one's.
+    That holds only if a Pro user's draft is never refused while scanning
+    still has room. So /listing's own bucket is not smaller than the address
+    bucket, which counts scans and drafts together and so fills first."""
+
+    def test_a_reseller_who_drafts_every_item_is_stopped_on_both_at_once(self):
+        ip = {"x-forwarded-for": "203.0.113.90"}
+        headers = _pro("scan-and-draft")
+        # A scan and a draft per item, from one address, until it is full.
+        for n in range(ratelimit.IP_RATE_MAX_REQUESTS // 2):
+            assert _scan(headers, ip).status_code == 200, f"scan {n + 1} refused"
+            assert _listing(headers, ip).status_code == 200, f"draft {n + 1} refused"
+        # Past the old 20 drafts, and now refused together, as the app says.
+        assert _listing(headers, ip).status_code == 429
+        assert _scan(headers, ip).status_code == 429
+
+    def test_the_draft_bucket_is_not_below_the_address_bucket(self):
+        assert ratelimit.LISTING_RATE_MAX_REQUESTS >= ratelimit.IP_RATE_MAX_REQUESTS
 
 
 class TestTheIpBackstopIsStillShared:

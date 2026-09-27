@@ -360,16 +360,37 @@ availability one.
    |---|---|---|---|
    | `/scan`, free | `rl:dev:<subject>` | 20 | `RATE_MAX_REQUESTS` |
    | `/scan`, Pro | `rl:dev:<subject>` | 60 — the fair-use ceiling on "Unlimited scans" | `PRO_SCAN_RATE_MAX_REQUESTS` |
-   | `/listing` (Pro only) | `rl:listing:<subject>` | 20 | `LISTING_RATE_MAX_REQUESTS` |
+   | `/listing` (Pro only) | `rl:listing:<subject>` | 60, the IP cap; never below it (below) | `LISTING_RATE_MAX_REQUESTS` |
    | `/trends` | `rl:trends:<subject>` | 60 — no model call; a loop-breaker | `TRENDS_RATE_MAX_REQUESTS` |
    | `/auth/entitlement` | `rl:ent:<subject>` | 60 | `ENTITLEMENT_RATE_MAX_REQUESTS` |
 
    `/scan`, `/listing` and `/trends` used to share `rl:dev:` at 20: a Pro
    reseller who scanned and drafted each item stopped after about ten, and
-   each Trending card fetch spent a scan. The Pro scan cap equals the IP cap,
-   by default, so a Pro user who also drafts or opens My Finds from the same
-   address meets the IP cap first. Raising `IP_RATE_MAX_REQUESTS` lifts that, and
-   loosens the unauthenticated routes with it.
+   each Trending card fetch spent a scan. By default the Pro scan cap and the
+   listing cap both equal the IP cap. So a Pro user who also drafts or opens
+   My Finds from the same address meets the IP cap first, and it refuses scans
+   and drafts together. A reseller who drafts every item gets about thirty an
+   hour. Raising `IP_RATE_MAX_REQUESTS` lifts that and loosens the
+   unauthenticated routes with it; raise `LISTING_RATE_MAX_REQUESTS` with it.
+
+   **Keep the listing cap at or above the IP cap.** Every build of the app
+   says "You've hit the scan limit." for any 429, a draft's included
+   (`AppError.rateLimitMessage`), and Haul pauses both of its queues on
+   either one's 429 (`HaulSession`). That is true only when the address
+   bucket refused. At 20, the size `/listing` had while it shared `rl:dev:`,
+   a Pro user's 21st draft of the hour was refused with scans to spare. The
+   Result screen said "scan limit", Haul stopped scanning for up to the rest
+   of the hour, and Haul's confirm still said "Drafts use the same hourly
+   limit as scans." Lowering `LISTING_RATE_MAX_REQUESTS`, or raising
+   `IP_RATE_MAX_REQUESTS` past it, brings all of that back for every
+   installed build, and the server cannot fix it there. Either fix needs a
+   new binary. One is app copy for a draft's 429 (new App.json keys). The
+   other is a response header naming the bucket that refused (additive;
+   nothing sends one yet), so Haul could pause only the full queue. One case
+   remains at 60: a device that changes address within the hour can fill its
+   own draft bucket first. The cost is unchanged per address, since the IP
+   cap bounds that at 60 requests an hour, whatever the mix. A device moving
+   between addresses can reach 60 scans and 60 drafts.
 4. Tighten via env; no deploy needed if the platform supports variable updates
    with a restart.
 5. Sustained abuse from one IP range needs a platform-level block; there is no
@@ -708,11 +729,12 @@ lowers both break-evens):
 A reseller scanning 40 items a day costs ~$0.24 against ~$0.09 — a loss, not
 an outage. Drafts add to it: a listing is a text-only call and now runs
 without thinking (below), so it should cost well under a scan — unmeasured.
-The per-hour fair-use cap (§5.8, 60
-scans) bounds a burst, not a day: a full hour costs ~$0.35. What watches a
-heavy *day* is the over-budget alert, which is why `GEMINI_DAILY_BUDGET_USD`
-is on the launch checklist (§12). None of this is measured per subscriber;
-`/costs` has no per-subscriber view.
+The per-hour fair-use cap (§5.8, 60 scans) bounds a burst, not a day: a full
+hour costs ~$0.35. From one address, scans and drafts share 60 requests an
+hour, so drafts take the place of scans under that ceiling rather than adding
+to it. What watches a heavy *day* is the over-budget alert, which is why
+`GEMINI_DAILY_BUDGET_USD` is on the launch checklist (§12). None of this is
+measured per subscriber; `/costs` has no per-subscriber view.
 
 ### Optimisations, ranked by value
 
