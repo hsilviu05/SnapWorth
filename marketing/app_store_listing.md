@@ -69,13 +69,15 @@ in `ios/Localization/App.json` first if it changes.
 ## App name (30 chars max)
 SnapWorth: Resale Value
 
-**Live is "SnapWorth: Resell & Flip" (24 chars).** Decide which one 1.5.1
-carries, delete the other line, and pick the keyword line below that matches:
-`resale` and `value` are only safe to leave out of the keywords while they are
-in the name.
+23 characters. **Live is "SnapWorth: Resell & Flip" (24 chars).** Decide which
+one 1.5.1 carries, delete the other line, and pick the keyword line below that
+matches: `resale` and `value` are only safe to leave out of the keywords while
+they are in the name.
 
 ## Subtitle (30 chars max)
 Thrift Store Flip Scanner
+
+25 characters.
 
 The previous subtitle, "Resale Value in Seconds", repeated the two words
 already in the app name — the one field Apple both indexes for search *and*
@@ -112,7 +114,7 @@ or market data — SnapWorth has no such source.
 
 ---
 
-## Description
+## Description (4000 chars max; 2,894 with line breaks)
 
 Ever picked up something at a thrift store and wondered if it's actually worth something? SnapWorth tells you instantly.
 
@@ -264,29 +266,66 @@ Happy hunting! Got a feature request? Email her.silviu.i@gmail.com
 Metadata is per version and a version in review cannot be edited, so all of
 this goes onto 1.5.1 before it is submitted.
 
-- [ ] **Add the four localizations** — Romanian, Spanish, German, Simplified
-      Chinese — and paste each from its own file: name, subtitle, keywords,
-      description, promotional text. The 1.5.1 What's New per locale comes
-      from `RELEASE-NOTES-1.5.1.md` once it exists.
+- [ ] **TODO(owner): before overwriting anything, record the live subtitle
+      and keywords** — on #202 and in *The live store is not this file*
+      above. The 2026-09-26 check read only the name and the description;
+      once 1.5.1 is pasted, the old values are gone.
+- [ ] **Add five localizations** and paste each from its own file: name,
+      subtitle, keywords, description, promotional text.
+      * Romanian — `app_store_listing.ro.md`
+      * German — `app_store_listing.de.md`
+      * Simplified Chinese — `app_store_listing.zh-Hans.md`
+      * Spanish (Spain) — `app_store_listing.es.md`
+      * **Spanish (Mexico)** — `app_store_listing.es.md` again, with the
+        *offer-led* promotional text instead of the primary (which names
+        euros). Spanish (Spain) reaches the Spain storefront only. Spanish
+        (Mexico) is the default language of Mexico and fifteen other Latin
+        American storefronts, and a supported one in Belize, Uruguay and the
+        US; without it, none of them searches the Spanish keywords. Reasons
+        and Apple's sources are in the Spanish file, *Spanish (Spain) and
+        Spanish (Mexico)*.
+
+      The 1.5.1 What's New per locale comes from `RELEASE-NOTES-1.5.1.md`;
+      Spanish (Mexico) takes the Spanish one.
+- [ ] **Keywords are pasted as written**: ASCII commas with no spaces.
+      Apple's reference gives the keyword limit as 100 *bytes*, not
+      characters; every Latin-script line fits either way, and the Chinese
+      one does not — see *Keywords* in `app_store_listing.zh-Hans.md` for
+      what to paste if App Store Connect refuses it.
 - [ ] **App name**: decide (see *App name* above) and record the answer here.
 - [ ] **Keywords** (`en-US`): the line that matches the name.
 - [ ] **Description** (`en-US`): re-paste in full. Against the live
       copy it names nine marketplaces rather than seven, and adds the
       stickers, Thrift Flip and widgets lines, the new confidence wording,
       and drops "accurate".
-- [ ] **Description** (other four locales): paste in full; each gained the
+- [ ] **Description** (other locales): paste in full; each gained the
       same Thrift Flip, widgets and confidence lines.
-- [ ] **"Unlimited scans (fair use applies)"** is new in all five
-      descriptions. The cap it qualifies is the server's (RUNBOOK §5.8), not
-      the binary's, so the line is true whichever build is live.
+- [ ] **The Pro list changed in all five for 1.5.1**, each line in the
+      locale's own paywall wording (`ios/Localization/App.json`):
+      * *Haul mode* is new. **If #93's device checks hold Haul back, delete
+        the Haul line from every locale before pasting** (and the Haul frame
+        from the screenshots).
+      * The portfolio line is now *Portfolio value history and thrift
+        trends*: the total is free on everyone's History tab; only its
+        history and the trends are Pro.
+      * "Unlimited scans (fair use applies)" mirrors the paywall's fair-use
+        footnote. The cap it qualifies is the server's (RUNBOOK §5.8), not
+        the binary's, so the line is true whichever build is live.
+- [ ] **The trial line names no length**, in any locale. The paywall shows
+      the trial StoreKit returns, so its length is purely an App Store
+      Connect setting now: changing it no longer leaves the store page
+      wrong until the next version.
+- [ ] **"Confidence level"**, not "score", in English; each translation uses
+      a band word (see *Claims this listing does not make*).
 - [ ] **App Privacy** (app-level, not per version, but it must match the
       manifest in the 1.5.1 binary): add Purchases → Purchase History, used
       for App Functionality, linked to the user, not used for tracking. The
       reasoning is in `ios/SnapWorth/PrivacyInfo.xcprivacy`.
 - [ ] After release, open apps.apple.com/de/app/id6788521307 (and `/es`,
-      `/ro`, `/cn`) and confirm the page is in that language — or re-run the
-      iTunes lookup above per storefront.
+      `/mx`, `/ro`, `/cn`) and confirm the page is in that language — or
+      re-run the iTunes lookup above per storefront, adding `mx`.
 
 The new translated lines — confidence, Thrift Flip and widgets in each of the
-four files — were written without a native reader; have each read once
-before pasting.
+four files, and the 1.5.1 lines each file lists under *Native reader* — were
+written without a native reader; have each read once before pasting.
+**TODO(owner):** record the reader, or "no native reader", in each file.

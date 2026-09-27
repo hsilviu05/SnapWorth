@@ -1,14 +1,22 @@
-# App Store Listing — Español (storefront `es` and Latin America)
+# App Store Listing — Español (Spanish (Spain) and Spanish (Mexico))
 
-Spanish metadata for the App Store, shipping alongside the Spanish app.
+Spanish metadata for the App Store, pasted onto **1.5.1**. The app has been
+in Spanish since 1.4.2; its store page never has been (checked 2026-09-26).
 
-One `es` listing covers Spain and about twenty Latin American storefronts,
-which is the most search surface per unit of work available anywhere in this
-account. The copy is Peninsular but avoids what reads oddly across the
-Atlantic: *tú* rather than *vos*, no *vosotros*, and no regionalism where a
-neutral word exists. Where one had to be chosen — *móvil* over *celular*,
-*ordenador* avoided entirely — Spain won, because that is the storefront with
-the paying subscribers.
+**One text, two localizations.** App Store Connect has two Spanish
+localizations and they reach different storefronts: Spanish (Spain) reaches
+Spain only; Spanish (Mexico) is the default language of Mexico and fifteen
+other Latin American storefronts, and a supported one in Belize, Uruguay and
+the US. This file is pasted into both — the reasons, with Apple's sources,
+are under *Spanish (Spain) and Spanish (Mexico)* below. That is the most
+search surface per unit of work anywhere in this account.
+
+The copy is Peninsular but avoids what reads oddly across the Atlantic: *tú*
+rather than *vos*, no *vosotros*, and no regionalism where a neutral word
+exists. Where one had to be chosen — *móvil* over *celular*, *ordenador*
+avoided entirely — Spain won; *móvil* is understood in Latin America. What
+reads as vulgar or as something else in Latin America is out, even where
+Spain would not notice (see *Three words were changed* below).
 
 Mirrors `app_store_listing.md`, including its accuracy rules: no claim of sold
 listings, comps or market data; the one-scan-a-day limit in every plan mention;
@@ -19,15 +27,15 @@ under *Claims this listing does not make*.
 ## Read this before pasting
 
 **Not live yet (checked 2026-09-26).** The live 1.5.0 carries no Spanish
-metadata: the `es` storefront shows the English page. Add this locale to
-1.5.1 and paste everything below — see *Paste with 1.5.1* in
-`app_store_listing.md`.
+metadata: the `es` storefront shows the English page. Add **Spanish (Spain)
+and Spanish (Mexico)** to the 1.5.1 version page and paste everything below
+into each — see *Paste with 1.5.1* in `app_store_listing.md`. The one field
+that differs is the promotional text (below).
 
 **Adding a language is version-scoped.** Name, subtitle, keywords, description
-and What's New belong to a *version*, so `es` can only be added to a version
-you can still edit. It ships with the version that carries the Spanish app —
-they go together, because a Spanish listing that opens an English app is worse
-than neither.
+and What's New belong to a *version*, so Spanish can only be added to a
+version you can still edit: 1.5.1, before it is submitted. Once it is in
+review, the next chance is 1.5.2.
 
 **Feature names match the Spanish app.** The description uses the words the
 screens carry: a find is a *hallazgo*, Haul mode is the *modo Lote*, and «Por
@@ -35,57 +43,157 @@ qué este precio» is *Why this price* (App.json has translated it since the app
 went Spanish, 52d2e74). "Thrift Flip" and "Snap → Sell" are brand names,
 English in the app, and English here.
 
-**Prices.** No figure appears. Spanish and Latin American tiers are Apple's own
-per-storefront tiers, not a conversion of $4.99, and one listing covers twenty
-currencies. If you want a number, it has to be the euro one and the listing
-then reads wrong in Mexico.
+**Prices.** No figure appears. Each storefront's price is Apple's own tier in
+its own currency, not a conversion of $4.99, and this one text is shown in
+Spain, Latin America and the US. A euro figure would be wrong in Mexico, and a
+peso figure wrong in Spain.
 
 **Values are in dollars.** The valuation is in USD whatever the phone's region,
 so a Spanish user sees "$45–$90". That is what the estimate is. It is also the
-first thing a reviewer will ask about.
+first thing a reviewer will ask about — and in Mexico, Argentina, Chile and
+Colombia "$" is also the peso sign, so the description's line "Los valores se
+muestran en dólares." carries more weight there. Keep it in both.
+
+## Spanish (Spain) and Spanish (Mexico) — decided 2026-09-27
+
+**Paste this file into both Spanish (Spain) and Spanish (Mexico).**
+
+Apple's table of App Store localizations (read 2026-09-27) lists, per
+storefront, a default language and any additional ones:
+
+* **Spanish (Spain)** appears for one storefront only: Spain, as its default
+  (with Catalan and English (U.K.) as additional languages).
+* **Spanish (Mexico)** is the default language of Mexico, Argentina, Bolivia,
+  Chile, Colombia, Costa Rica, the Dominican Republic, Ecuador, El Salvador,
+  Guatemala, Honduras, Nicaragua, Panama, Paraguay, Peru and Venezuela —
+  sixteen storefronts — and an additional language in Belize, Uruguay and the
+  United States.
+
+What a Latin American storefront shows when only Spanish (Spain) exists is not
+a rule Apple writes down. *Localize app information*, using French as its
+example, says a localization "displays to users whose language setting is in
+French", and "also displays to users in countries or regions where the App
+Store supports French but not English" — which no Latin American storefront
+is, since every one of them lists English (U.K.). Then: "If no localization
+matches a user's language setting, the next most relevant localization is
+used. In other countries or regions, your metadata displays in the primary
+language" — English, here. On search it is exact: "Users can search for your
+app using localized keywords in all countries or regions where the App Store
+supports French." So with Spanish (Spain) alone:
+
+* the Spanish name, subtitle and keywords are searchable in Spain and in no
+  Latin American storefront, nor on the US one; and
+* whether a Spanish-speaking visitor in Mexico or Argentina gets the Spanish
+  page or the English one is left to "the next most relevant localization",
+  which Apple does not define.
+
+Adding Spanish (Mexico) with the same text gives the sixteen storefronts whose
+default it is — and Spanish-language devices in Belize, Uruguay and the US —
+a localization that matches, rather than leaving them to "the next most
+relevant". By the search sentence it also makes the Spanish name, subtitle
+and keywords searchable on all nineteen, the US included. It costs one more
+locale to paste and nothing else. Once 1.5.1 is live, the `mx` lookup
+(`app_store_listing.md`, *Paste with 1.5.1*) confirms it.
+
+Sources (both read 2026-09-27; the storefront table was parsed from the page's
+own HTML):
+[App Store localizations](https://developer.apple.com/help/app-store-connect/reference/app-store-localizations/) ·
+[Localize app information](https://developer.apple.com/help/app-store-connect/manage-app-information/localize-app-information)
+
+**What differs in Spanish (Mexico): the promotional text only.** Paste the
+*offer-led* alternative there, not the primary: the primary names a price in
+euros ("4 €"), and says *chaqueta* (below), which is wrong on every storefront
+Spanish (Mexico) reaches. Spain keeps the primary.
+
+**Three words were changed so that one text reads right in both.** Each is
+neutral in Spain.
+
+* «¿Alguna vez has *cogido* algo en un mercadillo…?» now says *encontrado*:
+  *coger* is vulgar in Mexico and Argentina.
+* «una *chaqueta*» in the description's second paragraph now says *un
+  abrigo*: in Mexico *chaqueta* is slang for masturbation, and a jacket there
+  is a *chamarra*.
+* «Para quien va a *rastros*…» now says *mercados de pulgas*: in Mexico a
+  *rastro* is a slaughterhouse. *Ventas de garaje* joins it, the English
+  line's yard sales, which reads naturally in Latin America.
+
+*Mercadillo*, *zapatillas* (heeled shoes, in Mexico) and *vaciados de casas*
+stay: Spain's words, understood or harmless elsewhere. A Mexican reader may
+still want them changed; that is the native-reader check below.
+
+**TODO(owner), not for 1.5.1:** a keyword line of Spanish (Mexico)'s own.
+The Spain line carries Spain-only words (`chollo`, `mercadillo`) where Mexico
+searches others; which ones is a native reader's call, and a keyword is a
+claim. For 1.5.1 the same line goes into both.
+
+## Native reader
+
+**TODO(owner):** record who read these once before pasting, or "no native
+reader". Spanish (Mexico) wants a second reader from Mexico or elsewhere in
+Latin America, for the description as a whole: it is Peninsular copy, and the
+words changed below are the ones found, not a guarantee there are no others.
+
+New or changed for 1.5.1:
+
+* The Pro list's Haul line (*Modo Lote — …*) and portfolio line (*Historial
+  del valor de tu colección y las tendencias*). Both are the paywall's own
+  words from `App.json`, so they were translated with the app; read them
+  here as listing copy.
+* «Por qué este precio» in the Pro list, where the listing had the English
+  «Why this price».
+* The trial line: *la anual incluye una prueba gratis, y verás cuánto dura
+  antes de suscribirte*.
+* *encontrado*, *un abrigo*, and *mercados de pulgas, ventas de garaje* in
+  the description (see *Three words were changed* above).
+
+The confidence, Thrift Flip and widgets lines from #196 have not been read
+either (`app_store_listing.md`, end).
 
 ---
 
 ## App name (30 chars max)
 SnapWorth: Precio Reventa
 
-Indexes `precio` and `reventa`, the two words a Spanish-speaking reseller
-types, and keeps the brand in front.
+25 characters. Indexes `precio` and `reventa`, the two words a
+Spanish-speaking reseller types, and keeps the brand in front.
 
 ## Subtitle (30 chars max)
 Escanea y revende segunda mano
 
-`segunda mano` is the phrase this market searches with, and it is two words
-that no single term replaces. `escanea` and `revende` are the verbs.
+30 characters, the limit exactly. `segunda mano` is the phrase this market
+searches with, and it is two words that no single term replaces. `escanea` and
+`revende` are the verbs.
 
 **Alternatives**, if the search-terms report argues otherwise:
 
-* `Cuánto vale tu segunda mano` — the question a shopper asks, indexes `vale`.
-* `Escáner de ropa de segunda` — narrower, clothes-first, indexes `ropa`.
+* `Cuánto vale tu segunda mano` (27) — the question a shopper asks, indexes `vale`.
+* `Escáner de ropa de segunda` (26) — narrower, clothes-first, indexes `ropa`.
 
 ---
 
 ## Promotional Text (170 chars — update anytime without resubmitting)
 
-**Primary — pain-led.**
+**Primary — pain-led (163 chars).** Spanish (Spain) only: see *What differs in
+Spanish (Mexico)* above.
 
 Esa chaqueta de 4 € puede valer 90. Escanea cualquier cosa de segunda mano y descubre en segundos cuánto vale en reventa, antes de pagar. Un escaneo gratis al día.
 
-**Alternative — offer-led.**
+**Alternative — offer-led (143 chars).** The one to paste into Spanish
+(Mexico).
 
 Un escaneo gratis cada día. Apunta con la cámara a cualquier cosa de segunda mano y descubre al instante cuánto vale. Sin cuenta y sin tarjeta.
 
-**Alternative — short.**
+**Alternative — short (119 chars).**
 
 Descubre cuánto vale antes de comprarlo. Una foto, una estimación, unos segundos. Un escaneo gratis al día, sin cuenta.
 
 ---
 
-## Description
+## Description (4000 chars max; 3,336 with line breaks)
 
-¿Alguna vez has cogido algo en un mercadillo y te has preguntado si vale algo? SnapWorth te lo dice al instante.
+¿Alguna vez has encontrado algo en un mercadillo y te has preguntado si vale algo? SnapWorth te lo dice al instante.
 
-Apunta con la cámara a cualquier cosa de segunda mano — una chaqueta, unas zapatillas, una cámara vintage, un bolso de firma — y la IA la reconoce y estima en segundos un intervalo de precio de reventa.
+Apunta con la cámara a cualquier cosa de segunda mano — un abrigo, unas zapatillas, una cámara vintage, un bolso de firma — y la IA la reconoce y estima en segundos un intervalo de precio de reventa.
 
 Se acabó adivinar. Se acabó dejar en la estantería cosas que dan dinero.
 
@@ -117,7 +225,7 @@ PARA QUIÉN
 
 • Para quien recorre mercadillos y tiendas de segunda mano buscando reventa
 • Para quien vende en Vinted, eBay, Poshmark, Mercari, Depop y Facebook Marketplace
-• Para quien va a rastros, subastas y vaciados de casas
+• Para quien va a mercados de pulgas, ventas de garaje, subastas y vaciados de casas
 • Para cualquiera que se haya preguntado alguna vez «¿merece la pena?»
 
 --------------------------
@@ -161,10 +269,10 @@ snapworth.eu
 ## Keywords (100 chars max)
 vinted,ebay,ropa,vintage,tasar,valor,ganancia,mercadillo,usado,chollo,revender,segundamano
 
-Words already in the name or subtitle (precio, reventa, escanea, revende,
-segunda, mano) are indexed from there and are not repeated. `segundamano` as
-one word is a real search and a different token from the two-word phrase in the
-subtitle.
+90 characters. Words already in the name or subtitle (precio, reventa,
+escanea, revende, segunda, mano) are indexed from there and are not repeated.
+`segundamano` as one word is a real search and a different token from the
+two-word phrase in the subtitle.
 
 Vinted and eBay are here because they are the two Spanish-market platforms the
 app actually supports, with real fee tables. **Wallapop and Milanuncios are

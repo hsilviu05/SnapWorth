@@ -42,45 +42,64 @@ worse.
 unaffected by adding a localization. The app is already distributed there, so
 this changes nothing — but it is not something a translation can grant.
 
+## Native reader
+
+**TODO(owner):** record who read these once before pasting, or "no native
+reader".
+
+New or changed for 1.5.1:
+
+* *置信度（高、中等、低）*: the band, in the app's own words (*置信度高 /
+  中等 / 低*), where the line said only *置信度*.
+* The Pro list's Haul line (*批量模式——…*) and portfolio line
+  (*收藏的价值走势，以及二手市场的风向*). Both are the paywall's own words from
+  `App.json`, so they were translated with the app; read them here as
+  listing copy.
+* The trial line: *年费包含免费试用，试用多久在订阅前就能看到*.
+* The keyword fallback under *Keywords*, if it is the one pasted.
+
+The confidence, Thrift Flip and widgets lines from #196 have not been read
+either (`app_store_listing.md`, end).
+
 ---
 
 ## App name (30 chars max)
 SnapWorth 二手估价
 
-Chinese counts as one character per character, so 30 is generous here. The
-brand stays Latin — it is what the icon says and what the 12 existing users
-already have installed.
+14 characters. Chinese counts as one character per character, so 30 is
+generous here. The brand stays Latin — it is what the icon says and what the
+12 existing users already have installed.
 
 ## Subtitle (30 chars max)
 拍一张，秒知二手转卖价
 
-`二手` and `转卖` are the two terms this market searches with; `拍一张` says what
-you do in three characters.
+11 characters. `二手` and `转卖` are the two terms this market searches with;
+`拍一张` says what you do in three characters.
 
 **Alternatives:**
 
-* `闲鱼卖家的估价助手` — names the platform, narrower and much more specific.
-* `淘二手前先看值多少` — the shopper's moment rather than the seller's.
+* `闲鱼卖家的估价助手` (9) — names the platform, narrower and much more specific.
+* `淘二手前先看值多少` (9) — the shopper's moment rather than the seller's.
 
 ---
 
 ## Promotional Text (170 chars — update anytime without resubmitting)
 
-**Primary — pain-led.**
+**Primary — pain-led (59 chars).**
 
 那件 30 块的外套，可能值 600。看到二手好物先拍一张，几秒就知道转手能卖多少，再决定掏不掏钱。每天一次免费扫描。
 
-**Alternative — offer-led.**
+**Alternative — offer-led (40 chars).**
 
 每天一次免费扫描。把相机对准任何二手物品，立刻知道它值多少。不用注册，不用绑卡。
 
-**Alternative — 闲鱼-led.**
+**Alternative — 闲鱼-led (49 chars).**
 
 准备在闲鱼出二手？先拍一张，看清转卖价和扣掉手续费后到底剩多少，描述也帮你写好。每天一次免费扫描。
 
 ---
 
-## Description
+## Description (4000 chars max; 1,322 with line breaks)
 
 在二手店、市集或者闲鱼上看到一件东西，拿在手里不知道到底值不值？SnapWorth 立刻告诉你。
 
@@ -165,9 +184,29 @@ further than in any Latin language — nineteen terms fit where the Spanish page
 managed twelve. Commas are ASCII: App Store Connect splits on those, not on
 `、`.
 
-Not repeated from the name and subtitle, which are indexed from there: 二手,
-估价, 转卖 appear once each above and are kept here only where they form a
-different compound (出二手, 二手交易).
+**It is 153 bytes, and Apple's reference gives the limit in bytes.**
+*Platform version information* (read 2026-09-27) says of Keywords: "You can
+provide up to 100 bytes of content", and "each greater than two characters"
+— fourteen of the nineteen terms here are two. Every other locale's line is
+ASCII or nearly, so this is the one line where bytes and characters give
+different answers. What App Store Connect enforces could not be checked from
+here: a 2013 report has iTunes Connect moving to "100 characters … for any
+language", and the page still says bytes. Paste the line above first. **If
+App Store Connect refuses it, paste this instead** (40 characters, 96 bytes):
+
+闲鱼,中古,古着,球鞋,名牌,包包,潮牌,闲置,旧货,捡漏,回收,奢侈品,值多少
+
+It drops 二手, 估价 and 转卖, which are in the name and subtitle, then cuts
+the rest in this file's own order, losing 卖闲置, 二手交易 and 拍照识物. It is
+a mechanical cut, not a choice; a native reader may keep different ones.
+Sources:
+[Platform version information](https://developer.apple.com/help/app-store-connect/reference/platform-version-information) ·
+[the 2013 report](https://www.ibabbleon.com/copywriter-translator/2013/06/apple-finally-allows-100-characters-of-keywords-in-all-languages-of-the-app-store/)
+
+二手, 估价 and 转卖 do repeat the name (*二手估价*) and subtitle (*转卖价*),
+unlike every other locale's line. That may be right for Chinese, where the
+name is not split on spaces, or it may be three wasted terms; nothing here
+measures which. 二手交易 carries 二手 in a different compound.
 
 闲鱼 is here because the app genuinely supports it now, with a fee entry and a
 Chinese listing generator. It would have been the single highest-value keyword

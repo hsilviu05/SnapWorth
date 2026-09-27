@@ -43,45 +43,68 @@ one listing covers three currencies.
 so a German user sees "$45–$90". That is what the estimate is, and it is the
 first thing a reviewer will ask about.
 
+## Native reader
+
+**TODO(owner):** record who read these once before pasting, or "no native
+reader".
+
+New or changed for 1.5.1:
+
+* *Sicherheit (hoch, mittel oder gering)*: the band, in the app's own words
+  (*Hohe / Mittlere / Geringe Sicherheit*), where the line said only
+  *Sicherheit*.
+* The Pro list's Haul line (*Stapel-Modus – …*) and portfolio line
+  (*Wertverlauf deiner Sammlung und die Trends*). Both are the paywall's own
+  words from `App.json`, so they were translated with the app; read them
+  here as listing copy.
+* „Warum dieser Preis“ in the Pro list, where the listing had the English
+  „Why this price“.
+* The trial line: *das Jahresabo enthält eine Gratis-Testphase, und wie lange
+  sie läuft, siehst du vor dem Abschluss*.
+
+The confidence, Thrift Flip and widgets lines from #196 have not been read
+either (`app_store_listing.md`, end).
+
 ---
 
 ## App name (30 chars max)
 SnapWorth: Wiederverkaufswert
 
-One compound that carries both halves of the search — `wiederverkauf` and
-`wert` — which is what German compounding buys you in a 30-character field.
+29 characters. One compound that carries both halves of the search —
+`wiederverkauf` and `wert` — which is what German compounding buys you in a
+30-character field.
 
 ## Subtitle (30 chars max)
 Second Hand Wert scannen
 
-`Second Hand` is written as two words in German usage and is the phrase this
-market searches with. `Wert` and `scannen` are the other two terms worth
-having.
+24 characters. `Second Hand` is written as two words in German usage and is
+the phrase this market searches with. `Wert` and `scannen` are the other two
+terms worth having.
 
 **Alternatives**, if the search-terms report argues otherwise:
 
-* `Second Hand: Wert & Gewinn` — profit-led, indexes `gewinn`, drops `scannen`.
-* `Kleidung verkaufen & schätzen` — clothes-first, indexes `kleidung`.
+* `Second Hand: Wert & Gewinn` (26) — profit-led, indexes `gewinn`, drops `scannen`.
+* `Kleidung verkaufen & schätzen` (29) — clothes-first, indexes `kleidung`.
 
 ---
 
 ## Promotional Text (170 chars — update anytime without resubmitting)
 
-**Primary — pain-led.**
+**Primary — pain-led (162 chars).**
 
 Die Jacke für 4 € kann 90 wert sein. Scann jeden Second-Hand-Fund und sieh in Sekunden, was er im Wiederverkauf bringt – bevor du zahlst. Ein Gratis-Scan pro Tag.
 
-**Alternative — offer-led.**
+**Alternative — offer-led (133 chars).**
 
 Jeden Tag ein Gratis-Scan. Halt die Kamera auf irgendeinen Second-Hand-Fund und sieh sofort, was er wert ist. Ohne Konto, ohne Karte.
 
-**Alternative — short.**
+**Alternative — short (116 chars).**
 
 Wissen, was es wert ist, bevor du es kaufst. Ein Foto, eine Schätzung, ein paar Sekunden. Jeden Tag ein Gratis-Scan.
 
 ---
 
-## Description
+## Description (4000 chars max; 3,451 with line breaks)
 
 Schon mal etwas im Second-Hand-Laden in der Hand gehabt und dich gefragt, ob es etwas wert ist? SnapWorth sagt es dir sofort.
 
@@ -161,8 +184,9 @@ snapworth.eu
 ## Keywords (100 chars max)
 kleinanzeigen,vinted,ebay,kleidung,vintage,flohmarkt,verkaufen,gewinn,gebraucht,schätzen,marke
 
-Words already in the name or subtitle (wiederverkauf, wert, second, hand,
-scannen) are indexed from there and are not repeated.
+94 characters, 95 bytes (the *ä* in `schätzen` is two). Words already in the
+name or subtitle (wiederverkauf, wert, second, hand, scannen) are indexed from
+there and are not repeated.
 
 **Kleinanzeigen leads**, and it earned the position: it is the biggest
 secondhand platform in Germany, and the app supports it properly now — its own
