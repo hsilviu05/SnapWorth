@@ -314,14 +314,6 @@ enum ScanStreak {
         UserDefaults.standard.object(forKey: lastKey) as? Date
     }
 
-    /// Whether a scan has been recorded today — any tier, so the reminder
-    /// logic does not depend on the free counter.
-    static func scannedToday(now: Date = Date(), defaults: UserDefaults = .standard,
-                             calendar: Calendar = .current) -> Bool {
-        guard let last = defaults.object(forKey: lastKey) as? Date else { return false }
-        return calendar.isDate(last, inSameDayAs: now)
-    }
-
     /// Coarse buckets for analytics — never the exact count.
     static func bucket(_ streak: Int) -> String {
         switch streak {

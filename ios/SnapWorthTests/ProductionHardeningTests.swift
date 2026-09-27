@@ -2451,13 +2451,6 @@ final class ScanStreakTests: XCTestCase {
                        "moving it within the day must not change what the next day counts as")
     }
 
-    func test_scannedTodayIsTierAgnostic() {
-        XCTAssertFalse(ScanStreak.scannedToday(now: day(1), defaults: defaults, calendar: cal))
-        ScanStreak.record(now: day(1), defaults: defaults, calendar: cal)
-        XCTAssertTrue(ScanStreak.scannedToday(now: day(1, hour: 23), defaults: defaults, calendar: cal))
-        XCTAssertFalse(ScanStreak.scannedToday(now: day(2), defaults: defaults, calendar: cal))
-    }
-
     func test_bucketsNeverLeakTheExactCount() {
         XCTAssertEqual(ScanStreak.bucket(0), "1")
         XCTAssertEqual(ScanStreak.bucket(1), "1")
