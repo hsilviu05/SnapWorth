@@ -201,6 +201,92 @@ class TestWhatDeviceCheckFailuresAreWorth:
         assert await q.starting_balance("s", None) == 3
 
 
+class _Hardware:
+    """One device's two bits, as Apple keeps them: both written at once, and
+    re-stamped with the month on every write."""
+    is_configured = True
+
+    def __init__(self, bits=None):
+        self.bits = bits or {}
+        self.writes = 0
+
+    async def query_bits(self, token):
+        return dict(self.bits) or None
+
+    async def update_bits(self, token, bit0, bit1):
+        self.writes += 1
+        self.bits = {"bit0": bit0, "bit1": bit1, "last_update_time": _this_month()}
+
+
+async def _settle():
+    import asyncio
+    await asyncio.gather(*quota_module._background)
+
+
+class TestTheWelcomeMarksTheDevice:
+    """Marking on the last scan left the welcome open. With it armed the last
+    scan is the first-day allowance's, so a user who stopped one short and
+    reinstalled was never marked, and each reinstall was welcomed again: three
+    installs took 27 scans with the bits still empty."""
+
+    @staticmethod
+    def _quota(dc):
+        return ScanQuota(ResilientCache(None, InMemoryCache()), dc,
+                         limit=1, first_day_limit=10)
+
+    @pytest.mark.asyncio
+    async def test_reinstalling_one_scan_short_gets_no_second_welcome(self):
+        dc = _Hardware()
+        q = self._quota(dc)
+        assert await q.starting_balance("install-1", "same-hardware") == 10
+        await _settle()
+        for _ in range(9):
+            await q.reserve("install-1", False)
+
+        assert await q.starting_balance("install-2", "same-hardware") == 1, (
+            "a reinstall one scan short of the welcome was welcomed again")
+        assert (await q.status("install-2", False)).limit == 1
+        assert await q._cache.get(q._welcome_key("install-2")) == quota_module._DENIED
+
+    @pytest.mark.asyncio
+    async def test_spending_the_last_scan_keeps_the_welcome_mark(self):
+        """Apple writes both bits at once, and `note_exhausted` wrote bit1
+        False — which would wipe the mark from a device that took the welcome
+        and then ran out."""
+        dc = _Hardware()
+        q = self._quota(dc)
+        await q.starting_balance("install-1", "same-hardware")
+        await _settle()
+        await q.note_exhausted("same-hardware")
+        assert dc.bits["bit0"] is True and dc.bits["bit1"] is True
+
+    @pytest.mark.asyncio
+    async def test_a_welcome_mark_from_an_earlier_month_welcomes_again(self):
+        """The mark means "this month", like bit0."""
+        dc = _Hardware({"bit0": False, "bit1": True, "last_update_time": "2025-01"})
+        q = self._quota(dc)
+        assert await q.starting_balance("new-month", "same-hardware") == 10
+        await _settle()
+        assert dc.bits == {"bit0": False, "bit1": True,
+                           "last_update_time": _this_month()}
+
+    @pytest.mark.asyncio
+    async def test_apple_unreachable_welcomes_without_marking(self):
+        """The bits were not read, so a write could clear a bit0 set this
+        month."""
+        from devicecheck import DeviceCheckError
+
+        class _Gone(_Hardware):
+            async def query_bits(self, token):
+                raise DeviceCheckError("DeviceCheck unreachable")
+
+        dc = _Gone()
+        q = self._quota(dc)
+        assert await q.starting_balance("s", "same-hardware") == 10
+        await _settle()
+        assert dc.writes == 0
+
+
 class TestOff:
     @pytest.mark.asyncio
     async def test_default_is_exactly_the_old_behaviour(self):

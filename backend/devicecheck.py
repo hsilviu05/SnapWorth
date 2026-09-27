@@ -13,6 +13,9 @@ express "3 scans used today". So the split is:
   * **bit 0** marks "this device has exhausted its free allowance", and is
     consulted when a *fresh* subject appears, which is exactly the reinstall
     case.
+  * **bit 1** marks "this device has had the first-day welcome", so a
+    reinstall is not welcomed twice. Like bit 0 it counts only for the month
+    Apple stamps on the last write.
 
 A determined user can still get a new device. That is an acceptable floor.
 """
