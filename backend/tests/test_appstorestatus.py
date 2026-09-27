@@ -327,11 +327,178 @@ class TestNotFoundAndFallback:
             await client.statuses(OTID)
 
     @pytest.mark.asyncio
+    async def test_a_retryable_not_found_says_retry_and_does_not_fall_back(self):
+        """Apple's "not found yet" while a purchase propagates. It used to be
+        folded into not-found, so Sandbox was asked, Sandbox's plain "not
+        found" was the answer kept, and /sub blamed a typo — in the first
+        minutes after a purchase, which is when the support mail arrives."""
+        for code in (APIError.ORIGINAL_TRANSACTION_ID_NOT_FOUND_RETRYABLE,
+                     APIError.ACCOUNT_NOT_FOUND_RETRYABLE):
+            response, items = _active_response()
+            client = _client(production=APIException(404, code.value),
+                             sandbox=response, items=items)
+
+            with pytest.raises(appstorestatus.StatusRetryLater) as caught:
+                await client.statuses(OTID)
+
+            assert "Retry in a few minutes" in str(caught.value)
+            assert not isinstance(caught.value, appstorestatus.SubscriberNotFound)
+            assert client._apis["Sandbox"].calls == []
+            assert caught.value.environment == "Production"
+
+    @pytest.mark.asyncio
+    async def test_sandboxs_not_yet_after_a_definite_production_miss_says_sandbox(self):
+        """Production has nothing, definitely, so Sandbox is asked — and
+        answers "not yet". The exception has to say it was Sandbox: /sub
+        otherwise reports "Sandbox was not asked" under Sandbox's own words."""
+        client = _client(
+            production=None,
+            sandbox=APIException(
+                404, APIError.ORIGINAL_TRANSACTION_ID_NOT_FOUND_RETRYABLE.value))
+
+        with pytest.raises(appstorestatus.StatusRetryLater) as caught:
+            await client.statuses(OTID)
+
+        assert caught.value.environment == "Sandbox"
+        assert str(caught.value).startswith("Sandbox has nothing under this id yet")
+        assert client._apis["Production"].calls == [OTID]
+        assert client._apis["Sandbox"].calls == [OTID]
+
+    @pytest.mark.asyncio
     async def test_blank_id_is_refused_before_apple_is_called(self):
         client = _client(production=None)
         with pytest.raises(appstorestatus.SubscriberNotFound):
             await client.statuses("   ")
         assert client._apis["Production"].calls == []
+
+
+# ── An order ID from the customer's receipt ─────────────────────────────────
+
+class _OrderResponse:
+    def __init__(self, raw_status, signed):
+        self.rawStatus = raw_status
+        self.signedTransactions = signed
+
+
+def _order_client(outcome, transactions=()):
+    """A client whose Production API answers Look Up Order ID with `outcome`
+    (a response or an exception), and whose verifier decodes each signed
+    string to the matching `_Transaction`."""
+    client = appstorestatus.AppStoreStatusClient(fake_credentials())
+    calls: list[tuple[str, str]] = []
+    decoded = {f"signed-{i}": t for i, t in enumerate(transactions)}
+
+    class _API:
+        def __init__(self, name):
+            self.name = name
+
+        async def look_up_order_id(self, order_id):
+            calls.append((self.name, order_id))
+            if isinstance(outcome, Exception):
+                raise outcome
+            return outcome
+
+    class _Verifier:
+        def verify_and_decode_signed_transaction(self, signed):
+            return decoded[signed]
+
+    client._client_for = lambda name, env: _API(name)          # type: ignore[assignment]
+    client._verifier_for = lambda name, env: _Verifier()       # type: ignore[assignment]
+    return client, calls, list(decoded)
+
+
+class TestOrderLookup:
+
+    @pytest.mark.asyncio
+    async def test_an_order_resolves_to_its_original_transaction_ids(self):
+        # Two purchases in one order, one of them renewed: three signed
+        # transactions, two subscriptions.
+        transactions = [_Transaction(originalTransactionId=OTID),
+                        _Transaction(originalTransactionId=OTID),
+                        _Transaction(originalTransactionId="2000000000000002")]
+        signed = [f"signed-{i}" for i in range(len(transactions))]
+        client, calls, _ = _order_client(_OrderResponse(0, signed), transactions)
+
+        assert await client.order_transaction_ids("MK5TTTV8JH") == [OTID, "2000000000000002"]
+        # Production only: an order ID is printed on a real App Store receipt.
+        assert calls == [("Production", "MK5TTTV8JH")]
+
+    @pytest.mark.asyncio
+    async def test_an_invalid_order_is_order_not_found(self):
+        for outcome in (_OrderResponse(1, None),
+                        APIException(404, APIError.ORIGINAL_TRANSACTION_ID_NOT_FOUND.value)):
+            client, _, _ = _order_client(outcome)
+            with pytest.raises(appstorestatus.OrderNotFound) as caught:
+                await client.order_transaction_ids("MK5TTTV8JH")
+            # Not the subscription lookup's "in Production or Sandbox".
+            assert "order MK5TTTV8JH" in str(caught.value)
+
+    @pytest.mark.asyncio
+    async def test_anything_but_letters_and_digits_never_reaches_apple(self):
+        """It is interpolated into the request path."""
+        client, calls, _ = _order_client(_OrderResponse(0, []))
+        for bad in ("", "  ", "MK5/../x", "MK5?a=b", "MK5 TTT"):
+            with pytest.raises(appstorestatus.OrderNotFound):
+                await client.order_transaction_ids(bad)
+        assert calls == []
+
+    @pytest.mark.asyncio
+    async def test_other_failures_keep_their_own_error(self):
+        client, _, _ = _order_client(APIException(429, APIError.RATE_LIMIT_EXCEEDED.value))
+        with pytest.raises(appstorestatus.StatusRateLimited):
+            await client.order_transaction_ids("MK5TTTV8JH")
+
+
+# ── What Apple could not deliver, for /checkup ──────────────────────────────
+
+class _HistoryResponse:
+    def __init__(self, items, has_more=False):
+        self.notificationHistory = items
+        self.hasMore = has_more
+
+
+def _history_client(outcome):
+    client = appstorestatus.AppStoreStatusClient(fake_credentials())
+    requests: list[tuple[str, object]] = []
+
+    class _API:
+        def __init__(self, name):
+            self.name = name
+
+        async def get_notification_history(self, pagination_token, request):
+            requests.append((self.name, request))
+            if isinstance(outcome, Exception):
+                raise outcome
+            return outcome
+
+    client._client_for = lambda name, env: _API(name)          # type: ignore[assignment]
+    return client, requests
+
+
+class TestUndeliveredNotifications:
+
+    @pytest.mark.asyncio
+    async def test_counts_failures_in_production_over_the_last_day(self):
+        client, requests = _history_client(_HistoryResponse([object(), object()], has_more=True))
+
+        assert await client.undelivered_notifications() == (2, True)
+
+        ((name, request),) = requests
+        assert name == "Production"
+        assert request.onlyFailures is True
+        assert request.endDate - request.startDate == 24 * 3600 * 1000
+
+    @pytest.mark.asyncio
+    async def test_nothing_undelivered(self):
+        client, _ = _history_client(_HistoryResponse(None))
+        assert await client.undelivered_notifications() == (0, False)
+
+    @pytest.mark.asyncio
+    async def test_a_refused_key_says_so(self):
+        """The answer /checkup exists to give before a support mail does."""
+        client, _ = _history_client(APIException(401))
+        with pytest.raises(appstorestatus.StatusCredentialsRejected):
+            await client.undelivered_notifications()
 
 
 # ── Errors, each one distinguishable ─────────────────────────────────────────

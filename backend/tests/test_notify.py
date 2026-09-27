@@ -102,14 +102,18 @@ class TestDisabled:
         notify.configure(cache)
         try:
             assert not notify.enabled()
-            # Every public entry point must be a harmless no-op.
-            notify.count_scan("pro")
+            # Every operator entry point must be a harmless no-op.
             notify.count_scan_failure()
             notify.model_unhealthy("exhausted")
             notify.model_recovered()
             await notify.entitlement_recorded(SUBJECT, pro_entitlement())
             assert await notify.send_digest() is False
             assert notify._tasks == set()
+            # Except the scan count, which `/trends` shows to users and so
+            # must not depend on the bot being configured.
+            notify.count_scan("pro")
+            await drain()
+            assert await cache.get(notify._stat_key(notify._day(), "scans_pro")) == "1"
         finally:
             await notify.aclose()
 
@@ -847,6 +851,78 @@ class TestTopCategoriesAndBrands:
         del timedelta
 
     @pytest.mark.asyncio
+    async def test_a_rescanned_item_keeps_one_slot_at_its_best_reading(
+            self, enabled_notify, cache):
+        for high in (60, 90, 75):
+            scan(item_name="Patagonia  Better Sweater", high=float(high))
+        scan(item_name="Barbour Bedale", high=50.0)
+        await drain()
+        doc = json.loads(await cache.get(notify._stat_key(notify._day(), "top")))
+        assert [(f["n"], f["hi"]) for f in doc["finds"]] == [
+            ("Patagonia Better Sweater", 90), ("Barbour Bedale", 50)]
+        # Every scan is still a scan in the counts.
+        assert doc["cats"]["clothing"] == 4
+
+    def test_links_and_handles_are_not_brands_or_item_names(self):
+        """Brands and item names are text read off a user's photo, and
+        `/trends` shows them to every install."""
+        assert notify._clean_brand("https://spam.example/x") is None
+        assert notify._clean_brand("@somehandle") is None
+        assert notify._clean_brand("Nike www.cheap-nikes.example") == "Nike"
+        assert notify._clean_brand("Shop at deals.shop now") == "Shop at now"
+        assert notify._clean_brand("mail me: a@b.example") == "mail me:"
+        # Dotted brand names are brands.
+        for brand in ("J.Crew", "A.P.C.", "Mr. Coffee", "Dr. Martens", "Levi's", "H&M"):
+            assert notify._clean_brand(brand) == brand
+        record = notify._find_record(item_name="Vintage tee — follow @seller, x.com/deals",
+                                     brand="x.com", category="clothing", low=5, high=10,
+                                     tier="free")
+        assert record["n"] == "Vintage tee — follow ,"
+        assert record["b"] is None
+        assert notify._find_record(item_name="https://x.example", brand=None,
+                                   category="clothing", low=5, high=10,
+                                   tier="free")["n"] == "Unidentified item"
+
+    @pytest.mark.asyncio
+    async def test_devices_are_tagged_not_named(self, enabled_notify, cache):
+        """The tallies record *that* different devices scanned something, by a
+        tag that is not the audit pseudonym /users and the logs show."""
+        scan(subject=SUBJECT)
+        await drain()
+        doc = json.loads(await cache.get(notify._stat_key(notify._day(), "top")))
+        tag = notify._trend_device(SUBJECT)
+        assert tag and doc["cat_devices"] == {"clothing": [tag]}
+        assert doc["brand_devices"] == {"Patagonia": [tag]}
+        assert doc["finds"][0]["d"] == [tag]
+        pseudonym = notify.auditlog.pseudonymise(SUBJECT)
+        assert pseudonym[:6] not in json.dumps(doc)
+
+    def test_the_tag_cannot_be_recomputed_from_what_the_cache_holds(self, monkeypatch):
+        """The same cache holds every pseudonym in full (/users, each /subs
+        row) and raw key ids (quota, entitlement keys). A tag that was a plain
+        hash of either could be recomputed from them, joining a device — and
+        its subscription — to what it scanned. It has to need the salt."""
+        import hashlib
+        pseudonym = notify.auditlog.pseudonymise(SUBJECT)
+        tag = notify._trend_device(SUBJECT)
+        unsalted = {hashlib.sha256(text.encode()).hexdigest()[:8]
+                    for text in (SUBJECT, pseudonym, f"trends:{SUBJECT}", f"trends:{pseudonym}")}
+        assert tag not in unsalted
+        assert notify._trend_device(SUBJECT) == tag      # stable, so it can count
+        monkeypatch.setattr(notify.auditlog, "_SALT", b"a-different-secret")
+        assert notify._trend_device(SUBJECT) != tag
+
+    @pytest.mark.asyncio
+    async def test_a_tag_reread_is_counted_but_not_tallied(self, enabled_notify, cache):
+        scan()
+        scan(reread=True)
+        await drain()
+        assert await cache.get(notify._stat_key(notify._day(), "scans_pro")) == "2"
+        doc = json.loads(await cache.get(notify._stat_key(notify._day(), "top")))
+        assert doc["cats"] == {"clothing": 1}
+        assert doc["brands"] == {"Patagonia": 1}
+
+    @pytest.mark.asyncio
     async def test_brand_table_is_capped(self, enabled_notify, cache):
         for i in range(notify.TOP_BRANDS_CAP + 5):
             scan(brand=f"Brand{i}")
@@ -1497,7 +1573,9 @@ class TestFindsAndPostIdeas:
         doc = json.loads(await notify._cache.get(notify._stat_key(notify._day(), "top")))
         assert len(doc["finds"]) == notify.TOP_FINDS_CAP
         assert doc["finds"][0]["n"] == f"Item {notify.TOP_FINDS_CAP + 4}"
-        assert set(doc["finds"][0]) == {"n", "b", "c", "lo", "hi", "t"}, "item and price only"
+        # Item and price only — plus `d`, the trends tags of the devices that
+        # scanned it, which is how /trends tells three people from one.
+        assert set(doc["finds"][0]) == {"n", "b", "c", "lo", "hi", "t", "d"}, "item and price only"
 
     @pytest.mark.asyncio
     async def test_finds_with_nothing_scanned(self, enabled_notify):
@@ -1717,6 +1795,42 @@ class TestOneDevice:
         assert "Subscription: yearly · paid · renews" in text
 
     @pytest.mark.asyncio
+    async def test_every_device_on_a_subscription_sees_it(self, enabled_notify, cache):
+        """The row named one device, overwritten on every sync, so /user told
+        every other device on the subscription that nothing had synced."""
+        other = "b" * 64
+        for subject in (SUBJECT, other):
+            notify.saw_user(subject, tier="pro")
+        await drain()
+        await notify.entitlement_recorded(SUBJECT, sub("2000000000000077"))
+        await notify.entitlement_recorded(other, sub("2000000000000077"))
+        await drain()
+        first = notify.auditlog.pseudonymise(SUBJECT)
+
+        text = await notify.handle_command(f"/user Device {first}")
+
+        assert "No subscription has synced" not in text
+        # With the id Apple, App Store Connect and /sub all take.
+        assert "Subscription: monthly · paid · renews" in text
+        assert "<code>2000000000000077</code>" in text
+        assert "Last purchase sync:" in text and "verified as Pro" in text
+
+    @pytest.mark.asyncio
+    async def test_a_refused_purchase_is_on_the_device(self, enabled_notify, cache):
+        """Nothing is indexed for a transaction that did not verify, so the
+        customer who paid and was told free looked as if they never tried."""
+        notify.saw_user(SUBJECT, tier="free")
+        notify.entitlement_rejected(SUBJECT, "Transaction environment 'Sandbox' is not accepted.")
+        await drain()
+        who = notify.auditlog.pseudonymise(SUBJECT)
+
+        text = await notify.handle_command(f"/user {who}")
+
+        assert "Last purchase sync:" in text
+        assert "REJECTED — Transaction environment &#x27;Sandbox&#x27; is not accepted." in text
+        assert "No subscription has synced from this device." in text
+
+    @pytest.mark.asyncio
     async def test_unknown_and_ambiguous_ids(self, enabled_notify, cache):
         assert "No device seen" in await notify.handle_command("/user zzzz")
         await cache.set(notify.USERS_INDEX_KEY, json.dumps({
@@ -1780,6 +1894,62 @@ class TestCheckup:
             assert "TLS api.snapworth.eu: unreachable (OSError)" in text
         finally:
             await notify.aclose()
+
+
+class TestCheckupAppStore:
+    """/checkup probed DeviceCheck live and said nothing about the App Store
+    Server API key — optional since e2a5af4, so its absence first showed up
+    in the middle of a support mail — or about whether Apple's notifications,
+    the only thing that withdraws a refund, were arriving at all."""
+
+    @staticmethod
+    def _probe(monkeypatch, result):
+        import appstorestatus
+
+        async def probe(hours: int = 24):
+            if isinstance(result, Exception):
+                raise result
+            return result
+        monkeypatch.setattr(appstorestatus, "undelivered_notifications", probe)
+
+    @pytest.mark.asyncio
+    async def test_the_key_and_the_webhook_each_get_a_line(
+            self, enabled_notify, monkeypatch):
+        monkeypatch.setattr(notify, "_tls_days_left", lambda host, timeout=5.0: 60)
+        self._probe(monkeypatch, (0, False))
+
+        text = await notify.handle_command("/checkup")
+        assert "App Store API: key accepted ✅ · no undelivered notifications in 24h" in text
+        assert "Last verified App Store notification: none on record" in text
+
+        notify.appstore_notification_verified("Production", "DID_RENEW")
+        await drain()
+        text = await notify.handle_command("/checkup")
+        assert "Last verified App Store notification: 0 min ago (Production, DID_RENEW)" in text
+
+    @pytest.mark.asyncio
+    async def test_undelivered_notifications_are_flagged(self, enabled_notify, monkeypatch):
+        self._probe(monkeypatch, (3, True))
+        line = await notify._appstore_api_line()
+        assert "⚠️ Apple could not deliver 3+ notifications here in 24h" in line
+        assert "refund" in line
+
+    @pytest.mark.asyncio
+    async def test_a_missing_or_refused_key_is_named(self, enabled_notify, monkeypatch):
+        import appstorestatus
+        self._probe(monkeypatch, appstorestatus.StatusNotConfigured("No credentials."))
+        assert (await notify._appstore_api_line()).startswith(
+            "App Store API: NOT configured — /sub cannot ask Apple.")
+        self._probe(monkeypatch, appstorestatus.StatusCredentialsRejected("401 from Apple"))
+        assert "key REJECTED — 401 from Apple" in await notify._appstore_api_line()
+        self._probe(monkeypatch, TimeoutError())
+        assert "probe failed — TimeoutError" in await notify._appstore_api_line()
+
+    @pytest.mark.asyncio
+    async def test_age_reads_in_days_once_it_is_old(self, enabled_notify, cache):
+        await cache.set(notify.LAST_APPSTORE_NOTIFICATION_KEY,
+                        json.dumps([int(time.time()) - 5 * 86400, "Production", "REFUND"]))
+        assert "5d ago (Production, REFUND)" in await notify._last_appstore_notification_line()
 
 
 class TestRedisCheckupLine:
@@ -1991,13 +2161,15 @@ class TestClearChat:
             assert {len(e) for e in entries if e[0] < 1000} == {2}
             assert all(e[2].startswith(("📡", "💸")) for e in entries if e[0] >= 1000)
 
-            bot.updates = [TestPolling.update(802, FAKE_CHAT, "/clear")]
+            bot.updates = [TestPolling.update(802, FAKE_CHAT, "/clear yes")]
             bot.updates[0]["message"]["message_id"] = 502
             _, handled = await notify.poll_once(803)
             assert handled == 1
-            # The known ids, plus a sweep of the ids below the newest known one.
+            # The known ids, plus a sweep of the gaps *between* them — never
+            # below the oldest tracked id, where the bot has no copy of
+            # anything and was never asked to clear.
             assert {500, 501, 502, 1001, 1002} <= set(bot.deleted)
-            assert min(bot.deleted) == max(1, 1002 - notify.CLEAR_SWEEP_IDS)
+            assert min(bot.deleted) == 500 and max(bot.deleted) == 1002
             assert len(set(bot.deleted)) == len(bot.deleted), "no id deleted twice"
             assert bot.replies[-1].startswith("🧹 Cleared ")
             assert "2 of the bot's kept — 🗂 History shows them." in bot.replies[-1]
@@ -2008,6 +2180,49 @@ class TestClearChat:
             assert [e[0] for e in json.loads(await cache.get(notify.MESSAGES_KEY))] == [1003]
         finally:
             await notify.aclose()
+
+    @pytest.mark.asyncio
+    async def test_clear_asks_before_it_deletes(self, cache):
+        """One tap next to 🗂 History used to take two days of alerts with
+        it, and "kept in /history" promised more than it kept."""
+        bot = TestPolling.Bot([TestPolling.update(870, FAKE_CHAT, "/status")])
+        bot.updates[0]["message"]["message_id"] = 700
+        notifier = notify.TelegramNotifier(
+            FAKE_TOKEN, FAKE_CHAT,
+            client=httpx.AsyncClient(transport=httpx.MockTransport(bot.handler)))
+        notify.configure(cache, notifier=notifier)
+        try:
+            await notify.poll_once(None)
+            # The keyboard button, and the command typed with the bot's name.
+            for update in (TestAskButtons.callback(871, "clear"),
+                           TestPolling.update(872, FAKE_CHAT, "/clear@SnapWorthBot")):
+                bot.updates = [update]
+                _, handled = await notify.poll_once(None)
+                assert handled == 1
+                assert bot.deleted == [], "nothing goes on the first tap"
+                prompt = bot.replies[-1]
+                assert prompt.startswith("🧹 <b>Clear the chat?</b>")
+                assert "Your messages and photos are not kept" in prompt
+                buttons = [b["callback_data"] for row in bot.markups[-1]["inline_keyboard"]
+                           for b in row]
+                assert buttons == ["clear yes", "status"]
+
+            bot.updates = [TestAskButtons.callback(873, "clear yes")]
+            await notify.poll_once(None)
+            assert 700 in bot.deleted
+            assert bot.replies[-1].startswith("🧹 Cleared ")
+        finally:
+            await notify.aclose()
+
+    @pytest.mark.asyncio
+    async def test_the_prompt_says_what_an_archive_chat_keeps(
+            self, cache, enabled_notify, monkeypatch):
+        await notify._remember_message(700)
+        text, _ = await notify._clear_prompt()
+        assert "Deletes the 1 message " in text and "not kept" in text
+        monkeypatch.setenv(notify.ARCHIVE_CHAT_ENV, "-1001234567890")
+        text, _ = await notify._clear_prompt()
+        assert "forwarded to the archive chat first" in text and "not kept" not in text
 
     @pytest.mark.asyncio
     async def test_clear_with_nothing_remembered(self, cache):
@@ -2021,9 +2236,18 @@ class TestClearChat:
             # The /clear message itself carried no id in this fixture, so
             # nothing is known and nothing is swept.
             assert bot.deleted == []
-            assert "Nothing to clear yet" in bot.replies[-1]
+            assert notify.CLEAR_NOTHING_TRACKED in bot.replies[-1]
         finally:
             await notify.aclose()
+
+    @pytest.mark.asyncio
+    async def test_nothing_to_clear_names_the_48_hours_not_the_process(
+            self, cache, enabled_notify):
+        """The list lives in the cache and survives a restart, so "since this
+        process started" was not what an empty list meant."""
+        text, _ = await notify._clear_prompt()
+        assert text == notify.CLEAR_NOTHING_TRACKED
+        assert "48 hours" in text and "process" not in text
 
     @pytest.mark.asyncio
     async def test_old_ids_are_forgotten(self, cache, enabled_notify):
@@ -2149,7 +2373,7 @@ class TestHistoryAndArchive:
         try:
             assert "Nothing archived yet" in await notify.handle_command("/history")
             await notify.poll_once(None)
-            bot.updates = [TestPolling.update(822, FAKE_CHAT, "/clear")]
+            bot.updates = [TestPolling.update(822, FAKE_CHAT, "/clear yes")]
             await notify.poll_once(823)
             text = await notify.handle_command("/history")
             assert text.startswith("🗂 <b>History</b> — last 2 of 2 kept messages")
@@ -2188,7 +2412,7 @@ class TestHistoryAndArchive:
         bot.updates[0]["message"]["message_id"] = 600
         try:
             await notify.poll_once(None)
-            bot.updates = [TestPolling.update(831, FAKE_CHAT, "/clear")]
+            bot.updates = [TestPolling.update(831, FAKE_CHAT, "/clear yes")]
             await notify.poll_once(832)
             assert bot.forwarded == [("-1001234567890", [600, 1001])], "only known messages can be forwarded"
             assert {600, 1001} <= set(bot.deleted)
@@ -2228,7 +2452,7 @@ class TestHistoryAndArchive:
         bot.updates[0]["message"]["message_id"] = 600
         try:
             await notify.poll_once(None)
-            bot.updates = [TestPolling.update(841, FAKE_CHAT, "/clear")]
+            bot.updates = [TestPolling.update(841, FAKE_CHAT, "/clear yes")]
             await notify.poll_once(842)
 
             forwarded_ids = [i for _, ids in bot.forwarded for i in ids]
@@ -2268,7 +2492,7 @@ class TestHistoryAndArchive:
         bot.updates[0]["message"]["message_id"] = 600
         try:
             await notify.poll_once(None)
-            bot.updates = [TestPolling.update(861, FAKE_CHAT, "/clear")]
+            bot.updates = [TestPolling.update(861, FAKE_CHAT, "/clear yes")]
             await notify.poll_once(862)
             reply = bot.replies[-1]
             assert [c for c, _ in bot.forwarded] == ["-1005401463470"], \
@@ -2299,7 +2523,7 @@ class TestHistoryAndArchive:
         bot.updates[0]["message"]["message_id"] = 600
         try:
             await notify.poll_once(None)
-            bot.updates = [TestPolling.update(851, FAKE_CHAT, "/clear")]
+            bot.updates = [TestPolling.update(851, FAKE_CHAT, "/clear yes")]
             await notify.poll_once(852)
             reply = bot.replies[-1]
             assert "0 forwarded to the archive chat." in reply
@@ -2787,8 +3011,11 @@ class TestTrendsWindow:
     """
 
     async def _seed(self, cache, day: str, cat: str, n: int) -> None:
+        # Three devices behind the row, so the device floor is not what these
+        # tests are measuring (test_trends.py covers it).
         await cache.set(notify._stat_key(day, "top"),
-                        json.dumps({"cats": {cat: n}, "brands": {}, "finds": []}))
+                        json.dumps({"cats": {cat: n}, "brands": {}, "finds": [],
+                                    "cat_devices": {cat: ["d1", "d2", "d3"]}}))
         await cache.set(notify._stat_key(day, "scans_free"), str(n))
 
     @pytest.mark.asyncio
@@ -3766,6 +3993,143 @@ class TestSubCommandIdResolution:
         assert spy.called_with in (["otid-old"], ["otid-new"])
 
     @pytest.mark.asyncio
+    async def test_the_id_a_support_mail_carries_resolves(
+            self, enabled_notify, monkeypatch):
+        """The in-app support form writes "Device <all sixteen>". The index
+        kept six, and a prefix match of sixteen against six never matched —
+        so /sub said "Nothing in the index" for the one id the customer
+        actually sends, and for the eight /user prints."""
+        await notify.entitlement_recorded(SUBJECT, sub("otid-mail"))
+        who = notify.auditlog.pseudonymise(SUBJECT)
+        assert len(who) == 16
+        spy = _patch_lookup(monkeypatch, [_FakeStatus(sub("otid-mail"))])
+
+        for typed in (who, f"Device {who}", who.upper(), who[:8], who[:6]):
+            text = await notify.handle_command(f"/sub {typed}")
+            assert "Nothing in the index" not in text, typed
+
+        assert spy.called_with == ["otid-mail"] * 5
+
+    @pytest.mark.asyncio
+    async def test_a_row_written_with_six_characters_answers_all_sixteen(
+            self, enabled_notify, cache, monkeypatch):
+        """Rows indexed before the full pseudonym was stored hold six."""
+        await cache.set(notify.SUBS_INDEX_KEY, json.dumps({
+            "otid-legacy": {"who": "3f2a9b", "product": "com.snapworth.monthly",
+                            "env": "Production", "seen": int(time.time())}}), 600)
+        spy = _patch_lookup(monkeypatch, [_FakeStatus(sub("otid-legacy"))])
+
+        await notify.handle_command("/sub Device 3f2a9b1c0d4e5f60")
+
+        assert spy.called_with == ["otid-legacy"]
+
+    @pytest.mark.asyncio
+    async def test_an_all_digit_device_id_is_a_device_first(
+            self, enabled_notify, cache, monkeypatch):
+        """A pseudonym is hex, so about one in 1,845 is all digits — the shape
+        of a transaction id. It went to Apple as one, came back "a typo", and
+        the index that holds it was never asked."""
+        digits = "4815162342108000"
+        await cache.set(notify.SUBS_INDEX_KEY, json.dumps({
+            "otid-digits": {"who": digits, "devices": [digits],
+                            "product": "com.snapworth.monthly",
+                            "env": "Production", "seen": int(time.time())}}), 600)
+        spy = _patch_lookup(monkeypatch, [_FakeStatus(sub("otid-digits"))])
+
+        await notify.handle_command(f"/sub {digits}")
+        await notify.handle_command(f"/sub Device {digits}")
+
+        assert spy.called_with == ["otid-digits", "otid-digits"]
+
+    @pytest.mark.asyncio
+    async def test_a_sixteen_digit_transaction_id_still_goes_to_apple(
+            self, enabled_notify, cache, monkeypatch):
+        """Only a whole device id wins. Real transaction ids nearly all begin
+        200000, so an older row holding six characters of that shape must not
+        catch every unindexed one pasted here."""
+        await cache.set(notify.SUBS_INDEX_KEY, json.dumps({
+            "2000000000000042": {"who": "200000", "product": "com.snapworth.monthly",
+                                 "env": "Production", "seen": int(time.time())}}), 600)
+        spy = _patch_lookup(monkeypatch, [_FakeStatus(sub("2000000000000099"))])
+
+        await notify.handle_command("/sub 2000000000000099")
+        await notify.handle_command("/sub 2000000000000042")
+
+        assert spy.called_with == ["2000000000000099", "2000000000000042"]
+
+    @pytest.mark.asyncio
+    async def test_every_device_that_synced_stays_on_the_row(
+            self, enabled_notify, cache, monkeypatch):
+        """`who` was overwritten on every sync, so a family's first phone
+        vanished from the row the moment the second one launched."""
+        other = "b" * 64
+        await notify.entitlement_recorded(SUBJECT, sub("otid-family"))
+        await notify.entitlement_recorded(other, sub("otid-family"))
+        await notify.entitlement_recorded(SUBJECT, sub("otid-family"))
+        first = notify.auditlog.pseudonymise(SUBJECT)
+        second = notify.auditlog.pseudonymise(other)
+
+        row = (await notify._read_index(notify.SUBS_INDEX_KEY))["otid-family"]
+        assert row["devices"] == [second, first], "most recent last, no repeats"
+        spy = _patch_lookup(monkeypatch, [_FakeStatus(sub("otid-family"))])
+        await notify.handle_command(f"/sub {second}")
+        assert spy.called_with == ["otid-family"]
+
+    @pytest.mark.asyncio
+    async def test_a_legacy_six_is_folded_into_the_full_id(self, enabled_notify, cache):
+        who = notify.auditlog.pseudonymise(SUBJECT)
+        await cache.set(notify.SUBS_INDEX_KEY, json.dumps({
+            "otid-old": {"who": who[:6], "product": "com.snapworth.monthly",
+                         "env": "Production", "seen": 1}}), 600)
+        await notify.entitlement_recorded(SUBJECT, sub("otid-old"))
+        row = (await notify._read_index(notify.SUBS_INDEX_KEY))["otid-old"]
+        assert row["who"] == who and row["devices"] == [who]
+
+    @pytest.mark.asyncio
+    async def test_an_apple_order_id_is_resolved_through_apple(
+            self, enabled_notify, monkeypatch):
+        """The Order ID on the customer's Apple receipt: the one id they can
+        always find, and one no index of ours holds."""
+        import appstorestatus
+        orders: list[str] = []
+
+        async def _lookup_order(order_id):
+            orders.append(order_id)
+            return ["2000000000000042"]
+
+        monkeypatch.setattr(appstorestatus, "lookup_order", _lookup_order)
+        spy = _patch_lookup(monkeypatch, [_FakeStatus(sub("2000000000000042"))])
+
+        text = await notify.handle_command("/sub mk5tttv8jh")
+
+        assert orders == ["MK5TTTV8JH"]
+        assert spy.called_with == ["2000000000000042"]
+        assert "Order <code>MK5TTTV8JH</code>" in text
+
+    @pytest.mark.asyncio
+    async def test_an_unknown_order_id_is_named_as_one(self, enabled_notify, monkeypatch):
+        import appstorestatus
+
+        async def _lookup_order(order_id):
+            raise appstorestatus.OrderNotFound(f"Apple has no order {order_id} for this app.")
+
+        monkeypatch.setattr(appstorestatus, "lookup_order", _lookup_order)
+        spy = _patch_lookup(monkeypatch, [])
+
+        text = await notify.handle_command("/sub MK5TTTV8JH")
+
+        assert "Apple has no order MK5TTTV8JH" in text
+        assert "Read as an Apple order ID" in text
+        assert spy.called_with == []
+
+    def test_what_is_read_as_an_order_id(self):
+        assert notify._apple_order_id("MK5TTTV8JH") == "MK5TTTV8JH"
+        # Not a transaction id, not a device id, not a short typo.
+        for other in ("2000000000000001", "3f2a9b1c0d4e5f60", "3F2A9B1C",
+                      "zzzzzz", "Device 3f2a9b1c0d4e5f60", ""):
+            assert notify._apple_order_id(other) is None, other
+
+    @pytest.mark.asyncio
     async def test_no_argument_explains_itself(self, enabled_notify):
         assert "Usage: /sub" in await notify.handle_command("/sub")
 
@@ -3855,6 +4219,21 @@ class TestSubCommandOutput:
         assert "Sandbox" in text
         assert "Index updated" not in text
         assert await cache.get(notify.SUBS_INDEX_KEY) is None
+        # And it says why, and what the app sees: Apple's "active" beside a
+        # server that treats this purchase as free is otherwise a mystery.
+        assert "This server refuses Sandbox purchases" in text
+        assert "told free" in text
+        assert "Production: nothing under this id" in text
+
+    @pytest.mark.asyncio
+    async def test_a_production_result_carries_no_refusal(
+            self, enabled_notify, monkeypatch):
+        _patch_lookup(monkeypatch, [_FakeStatus(sub("otid-7"), state="active")])
+
+        text = await notify.handle_command("/sub 2000000000000007")
+
+        assert "refuses" not in text
+        assert "Production: nothing" not in text
 
 
 class TestSubCommandErrors:
@@ -3870,6 +4249,55 @@ class TestSubCommandErrors:
         text = await notify.handle_command("/sub 2000000000000001")
 
         assert "Production and Sandbox" in text
+
+    @pytest.mark.asyncio
+    async def test_not_found_yet_says_retry_rather_than_typo(
+            self, enabled_notify, monkeypatch):
+        import appstorestatus
+        _patch_lookup(monkeypatch, appstorestatus.StatusRetryLater(
+            "Production does not have this purchase yet. Retry in a few minutes.",
+            environment="Production"))
+
+        text = await notify.handle_command("/sub 2000000000000001")
+
+        assert "retry in a few minutes" in text
+        assert "Checked Production and Sandbox" not in text
+        assert "Sandbox was not asked" in text
+
+    @pytest.mark.asyncio
+    async def test_sandboxs_not_yet_says_production_has_nothing(
+            self, enabled_notify, monkeypatch):
+        """Production's definite not-found sends the lookup on to Sandbox, and
+        Sandbox can answer "not yet" too. The reply used to print Sandbox's
+        words and then "Sandbox was not asked", and hid the useful half: that
+        Production has nothing, so this is a TestFlight or App Review purchase
+        — which this server refuses."""
+        import appstorestatus
+        _patch_lookup(monkeypatch, appstorestatus.StatusRetryLater(
+            "Sandbox has nothing under this id yet. Retry in a few minutes.",
+            environment="Sandbox"))
+
+        text = await notify.handle_command("/sub 2000000000000001")
+
+        assert "retry in a few minutes" in text
+        assert "Sandbox was not asked" not in text
+        assert "Production has nothing under this id" in text
+        assert "This server refuses Sandbox purchases" in text
+
+    @pytest.mark.asyncio
+    async def test_sandboxs_not_yet_carries_no_refusal_where_sandbox_is_allowed(
+            self, enabled_notify, monkeypatch):
+        import appstorestatus
+        import entitlements
+        monkeypatch.setattr(entitlements, "ALLOWED_ENVIRONMENTS",
+                            frozenset({"Production", "Sandbox"}))
+        _patch_lookup(monkeypatch, appstorestatus.StatusRetryLater(
+            "Sandbox has nothing under this id yet.", environment="Sandbox"))
+
+        text = await notify.handle_command("/sub 2000000000000001")
+
+        assert "Production has nothing under this id" in text
+        assert "refuses" not in text
 
     @pytest.mark.asyncio
     async def test_missing_credentials_say_the_rest_still_works(
