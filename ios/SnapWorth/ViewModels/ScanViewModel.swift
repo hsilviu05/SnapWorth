@@ -85,6 +85,11 @@ final class ScanViewModel {
         // The request and the save, if the phone locks mid-scan.
         let background = BackgroundScanActivity.begin("Scan")
         defer { background.end() }
+        // Encoded off the main actor — see ScanAPIClient.encodeForStorage —
+        // and started now rather than after the response, so it runs while
+        // the request is in flight instead of between the response and the
+        // result sheet. On a failed scan it is simply not used.
+        async let storedJPEG = ScanAPIClient.encodeForStorage(image)
         if afterPurchase {
             // Its outcome is not needed here: a server that still refuses
             // answers 402, which `confirmingSubscription` below handles.
@@ -96,11 +101,7 @@ final class ScanViewModel {
                 try await ScanAPIClient.shared.scan(image: image)
             }
 
-            // Downscaled and encoded off the main actor — see
-            // ScanAPIClient.encodeForStorage. Doing this inline on the
-            // MainActor cost 80-150ms of hitch exactly as the analysing
-            // overlay animated out and the result sheet presented.
-            let jpegData = await ScanAPIClient.encodeForStorage(image)
+            let jpegData = await storedJPEG
             let result = ScanResult(
                 itemName: response.itemName,
                 brand: response.brand,
@@ -234,8 +235,11 @@ final class ScanViewModel {
 
     func loadSelectedPhoto() async {
         guard let item = selectedPhotoItem else { return }
+        // Decoded off the main actor and at upload size, as the camera's are:
+        // a 48 MP pick handed over as a lazy `UIImage(data:)` was decoded in
+        // full on the main thread by the freeze-frame that draws it.
         if let data = try? await item.loadTransferable(type: Data.self),
-           let image = UIImage(data: data) {
+           let image = await ScanAPIClient.decodedForScan(data) {
             capturedImage = image
         } else {
             errorMessage = String(localized: "Couldn't load the selected photo. Please try another.")

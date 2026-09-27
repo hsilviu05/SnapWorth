@@ -1,4 +1,5 @@
 import Foundation
+import ImageIO
 import UIKit
 
 // ── Where the number came from (#40) ─────────────────────────────────────────
@@ -698,6 +699,68 @@ actor ScanAPIClient {
     /// 1568 px preserves label and tag legibility, which is what identification
     /// actually depends on.
     static let maxUploadEdge: CGFloat = 1568
+
+    /// A capture or a library pick, decoded once and straight to upload size.
+    ///
+    /// `UIImage(data:)` is lazy: it holds the file and decodes on first draw.
+    /// For a scan the first draw is the freeze-frame behind the analysing
+    /// overlay, full-screen, in `body` — so the whole photo was decoded on the
+    /// main thread just as the overlay animated in (29 ms for 12 MP, 113 ms
+    /// for a 48 MP library pick, in the Simulator on an M4; not measured on a
+    /// phone), and the full-size bitmap — 49 MB at 12 MP, 195 MB at 48 MP —
+    /// stayed resident until the scan finished. The same warning is on
+    /// `decodedThumbnail` below; the scan path was the one place that had
+    /// not heeded it.
+    ///
+    /// Here the decode happens once, off the main thread, at upload size:
+    /// `ShouldCacheImmediately` makes ImageIO decode now rather than at first
+    /// draw, the thumbnailer decodes toward the target size instead of
+    /// producing the full bitmap first, and `WithTransform` applies the EXIF
+    /// orientation so a portrait capture stays upright. A 4:3 photo at 1568 px
+    /// is 7 MB decoded.
+    /// Every consumer of a capture needs at most `maxUploadEdge`: the upload,
+    /// the stored copy, Haul's strip and the tag photo all downscale to it or
+    /// below, and the freeze-frame sits under a 72% scrim.
+    ///
+    /// Nothing from the file's metadata survives — the result is a bare
+    /// `CGImage` — so GPS is gone before the image exists; see
+    /// `UploadEXIFStrippingTests`. Nil when ImageIO cannot read the data.
+    ///
+    /// Synchronous and `nonisolated` so the camera can run it on the queue
+    /// AVFoundation calls back on; `decodedForScan` is the async form.
+    nonisolated static func decodeForScan(_ data: Data,
+                                          maxEdge: CGFloat = maxUploadEdge) -> UIImage? {
+        let sourceOptions = [kCGImageSourceShouldCache: false] as CFDictionary
+        guard let source = CGImageSourceCreateWithData(data as CFData, sourceOptions) else {
+            return nil
+        }
+        let options: [CFString: Any] = [
+            // Never the embedded EXIF thumbnail, which is 160 px.
+            kCGImageSourceCreateThumbnailFromImageAlways: true,
+            kCGImageSourceCreateThumbnailWithTransform: true,
+            kCGImageSourceShouldCacheImmediately: true,
+            kCGImageSourceThumbnailMaxPixelSize: Int(maxEdge),
+        ]
+        guard let image = CGImageSourceCreateThumbnailAtIndex(source, 0, options as CFDictionary)
+        else { return nil }
+        return UIImage(cgImage: image)
+    }
+
+    /// `decodeForScan` off the main actor, for a library pick.
+    static func decodedForScan(_ data: Data) async -> UIImage? {
+        await Task.detached(priority: .userInitiated) {
+            decodeForScan(data)
+        }.value
+    }
+
+    /// `downscale` to upload size off the main actor, for an image that
+    /// arrives already decoded — Thrift Flip's `UIImagePickerController`
+    /// hands over a `UIImage`, not data, so there is nothing to thumbnail.
+    static func preparedForScan(_ image: UIImage) async -> UIImage {
+        await Task.detached(priority: .userInitiated) {
+            downscale(image, maxEdge: maxUploadEdge)
+        }.value
+    }
 
     /// Downscale and JPEG-encode off the main actor.
     ///

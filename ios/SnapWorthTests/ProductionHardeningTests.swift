@@ -80,6 +80,82 @@ final class UploadImageEncodingTests: XCTestCase {
         XCTAssertNotNil(encoded)
         XCTAssertLessThan(encoded!.count, 10 * 1024 * 1024)
     }
+
+    // MARK: Decoding a capture or a pick
+
+    /// A JPEG as the camera writes one: pixels stored landscape, with an
+    /// EXIF orientation saying how to turn them.
+    private func jpeg(width: Int, height: Int, orientation: Int = 1) -> Data {
+        let pixels = image(width: CGFloat(width), height: CGFloat(height))
+        let out = NSMutableData()
+        let dest = CGImageDestinationCreateWithData(out, "public.jpeg" as CFString, 1, nil)!
+        CGImageDestinationAddImage(dest, pixels.cgImage!, [
+            kCGImagePropertyOrientation: orientation,
+        ] as CFDictionary)
+        CGImageDestinationFinalize(dest)
+        return out as Data
+    }
+
+    func test_decodeForScan_landsAtUploadSize() throws {
+        // What the camera and a library pick hand over now: the upload edge
+        // already, so `encodeForUpload` has nothing left to resample.
+        let decoded = try XCTUnwrap(ScanAPIClient.decodeForScan(jpeg(width: 4032, height: 3024)))
+        XCTAssertEqual(max(decoded.size.width, decoded.size.height), ScanAPIClient.maxUploadEdge,
+                       accuracy: 1)
+        XCTAssertEqual(decoded.size.width / decoded.size.height, 4.0 / 3.0, accuracy: 0.01)
+        XCTAssertEqual(decoded.scale, 1, "points must be pixels, as `downscale` assumes")
+        XCTAssertTrue(ScanAPIClient.downscale(decoded, maxEdge: ScanAPIClient.maxUploadEdge)
+                      === decoded, "the upload should not redraw a decoded capture")
+    }
+
+    func test_decodeForScan_neverUpscalesASmallPick() throws {
+        let decoded = try XCTUnwrap(ScanAPIClient.decodeForScan(jpeg(width: 800, height: 600)))
+        XCTAssertEqual(decoded.size.width, 800, accuracy: 1)
+        XCTAssertEqual(decoded.size.height, 600, accuracy: 1)
+    }
+
+    func test_decodeForScan_keepsAPortraitCaptureUpright() throws {
+        // Orientation 6 is how an iPhone held upright stores its photo:
+        // landscape pixels, "rotate 90° clockwise to display". `UIImage(data:)`
+        // honoured that through `imageOrientation`; a bare thumbnail would
+        // not, so the transform has to be baked in or every portrait scan
+        // reaches the model lying on its side.
+        let data = jpeg(width: 4032, height: 3024, orientation: 6)
+        let lazy = try XCTUnwrap(UIImage(data: data))
+        XCTAssertGreaterThan(lazy.size.height, lazy.size.width, "fixture is not portrait on display")
+
+        let decoded = try XCTUnwrap(ScanAPIClient.decodeForScan(data))
+        XCTAssertEqual(decoded.imageOrientation, .up)
+        XCTAssertEqual(decoded.size.height, ScanAPIClient.maxUploadEdge, accuracy: 1)
+        XCTAssertGreaterThan(decoded.size.height, decoded.size.width)
+    }
+
+    func test_decodeForScan_holdsOnlyUploadSizePixels() throws {
+        // The image behind the freeze-frame is 1568 px wide, not 4032: there
+        // is no full-size bitmap for a first draw on the main thread to make.
+        let decoded = try XCTUnwrap(ScanAPIClient.decodeForScan(jpeg(width: 4032, height: 3024)))
+        XCTAssertNotNil(decoded.cgImage)
+        XCTAssertEqual(decoded.cgImage?.width, Int(ScanAPIClient.maxUploadEdge))
+    }
+
+    func test_decodeForScan_rejectsDataThatIsNotAnImage() {
+        XCTAssertNil(ScanAPIClient.decodeForScan(Data("not a photo".utf8)))
+        XCTAssertNil(ScanAPIClient.decodeForScan(Data()))
+    }
+
+    func test_decodedForScan_isTheSameDecodeOffTheMainActor() async throws {
+        let decoded = await ScanAPIClient.decodedForScan(jpeg(width: 4032, height: 3024))
+        let image = try XCTUnwrap(decoded)
+        XCTAssertEqual(max(image.size.width, image.size.height), ScanAPIClient.maxUploadEdge,
+                       accuracy: 1)
+    }
+
+    func test_preparedForScan_resamplesAnAlreadyDecodedImageOnce() async {
+        // Thrift Flip's picker hands over a `UIImage`, not data.
+        let prepared = await ScanAPIClient.preparedForScan(image(width: 4032, height: 3024))
+        XCTAssertEqual(max(prepared.size.width, prepared.size.height), ScanAPIClient.maxUploadEdge,
+                       accuracy: 1)
+    }
 }
 
 // MARK: - API error detail parsing
@@ -2221,6 +2297,34 @@ final class UploadEXIFStrippingTests: XCTestCase {
         XCTAssertNotNil(encoded)
         XCTAssertNil(gpsDictionary(of: encoded!),
                      "GPS survived into the on-disk copy")
+    }
+
+    // MARK: The decode the camera and the library picker now go through
+    //
+    // `decodeForScan` replaced `UIImage(data:)` at both entry points, so it is
+    // now the first thing to touch a geotagged file. It builds a bare
+    // `CGImage` from ImageIO's thumbnailer, which carries no metadata — but
+    // that is exactly the kind of claim this class exists to check rather
+    // than trust.
+
+    func test_decodedCapture_carriesNoGPS_largePath() throws {
+        let decoded = try XCTUnwrap(
+            ScanAPIClient.decodeForScan(geotaggedJPEG(width: 3000, height: 2000)))
+        let upload = try XCTUnwrap(decoded.jpegData(compressionQuality: 0.8))
+        XCTAssertNil(gpsDictionary(of: upload), "GPS survived decodeForScan")
+    }
+
+    func test_decodedCapture_carriesNoGPS_smallPath() async throws {
+        // Under the upload edge, so the thumbnailer is asked for no reduction
+        // and `encodeForUpload` does not redraw either.
+        let decoded = try XCTUnwrap(
+            ScanAPIClient.decodeForScan(geotaggedJPEG(width: 800, height: 600)))
+        let upload = await ScanAPIClient.encodeForUpload(decoded)
+        XCTAssertNil(gpsDictionary(of: try XCTUnwrap(upload)),
+                     "GPS survived decodeForScan on the no-downscale path")
+        let stored = await ScanAPIClient.encodeForStorage(decoded)
+        XCTAssertNil(gpsDictionary(of: try XCTUnwrap(stored)),
+                     "GPS survived into the stored copy of a decoded capture")
     }
 
     // MARK: Nothing else rides along either
