@@ -313,6 +313,12 @@ def metric_set(report: dict, label: str) -> MetricSet:
         if value is not None and n > 0:
             result.add(Metric.measured(name, value, n, unit=unit))
 
+    # Every figure below is over the scans that produced a price. Without this
+    # a change that broke half the responses would pass on its survivors.
+    n_total = report.get("n_total", 0)
+    add("scored_fraction",
+        report.get("n_scored", 0) / n_total * 100 if n_total else None, n_total, "%")
+
     n_labelled = report.get("n_labelled", 0)
     acc = report.get("accuracy", {})
     add("mdape", acc.get("mdape"), n_labelled, "%")

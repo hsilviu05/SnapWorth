@@ -289,7 +289,7 @@ unavailable one reads as "we track it and have not measured it yet".
 | `platform-tests` | Always | Platform bugs |
 | `data-integrity` | Always | Scoreable records in template/sample files; gold label drift |
 | `gold-check` | Always | Nothing — decides whether `accuracy-gate` runs |
-| `accuracy-gate` | Only when `gold.jsonl` has a headline-eligible record **and** the run has `GEMINI_API_KEY`; otherwise shown as *skipped* | Accuracy, bias, calibration, hallucination, latency regression; or no baseline to compare with |
+| `accuracy-gate` | Only when `gold.jsonl` has a headline-eligible record **and** the run has `GEMINI_API_KEY`; otherwise shown as *skipped* | Accuracy, bias, calibration, hallucination, latency regression; fewer scans producing a price; or no baseline to compare with |
 | `schema-contract` | Always | v1 client contract break |
 
 **Recording the baseline.** The runner's `--json-out` file is in the shape the

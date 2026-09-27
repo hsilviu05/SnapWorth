@@ -265,7 +265,10 @@ class TestCLI:
 # and a run of any quality exited 0. These pipe a runner-produced file into the
 # gate exactly as CI does, and a bad run must come out FAILED.
 
-def _runner_file(path: Path, *, predicted: float, label: str) -> Path:
+def _runner_file(path: Path, *, predicted: float, label: str,
+                 items: int = 20, failed: int = 0) -> Path:
+    """`failed` of the `items` carry an error, as a response the runner could
+    not parse does."""
     from eval.runner import Prediction, evaluate, metric_set
 
     predictions = [
@@ -273,8 +276,9 @@ def _runner_file(path: Path, *, predicted: float, label: str) -> Path:
                    predicted_expected=predicted, predicted_low=predicted * 0.8,
                    predicted_high=predicted * 1.2, confidence_score=70,
                    brand="Patagonia", expected_brand="Patagonia",
-                   visual_evidence=["wordmark"], latency_ms=1000.0 + n)
-        for n in range(20)
+                   visual_evidence=["wordmark"], latency_ms=1000.0 + n,
+                   error="unparseable: truncated JSON" if n < failed else None)
+        for n in range(items)
     ]
     report = evaluate(predictions)
     path.write_text(json.dumps(metric_set(report, label).to_dict() | {"report": report}))
@@ -313,6 +317,37 @@ class TestRunnerFeedsTheGate:
         assert gates["status"] == "passed"
         compared = {r["metric"] for r in gates["results"] if r["status"] == "passed"}
         assert {"mdape", "within_25pct", "latency_p95", "hallucination_rate"} <= compared
+
+    def test_a_run_where_half_the_scans_fail_fails_the_gate(self, tmp_path):
+        """Accuracy is scored over the scans that produced a price, so the
+        survivors of a broken parser are as accurate as before. Only the share
+        that survived can show it."""
+        baseline = _runner_file(tmp_path / "baseline.json", predicted=105.0,
+                                label="base", items=40)
+        current = _runner_file(tmp_path / "run.json", predicted=105.0,
+                               label="cur", items=40, failed=20)
+        out = tmp_path / "gates.json"
+
+        code, _, _ = _run(["gate", "--current", str(current), "--baseline",
+                           str(baseline), "--json-out", str(out),
+                           "--require-measurement"])
+
+        assert code == 1
+        by_metric = {r["metric"]: r["status"]
+                     for r in json.loads(out.read_text())["results"]}
+        assert by_metric["scored_fraction"] == "failed"
+        assert by_metric["mdape"] == "passed"
+
+    def test_two_transient_failures_in_a_hundred_do_not_fail_the_gate(self, tmp_path):
+        baseline = _runner_file(tmp_path / "baseline.json", predicted=105.0,
+                                label="base", items=100)
+        current = _runner_file(tmp_path / "run.json", predicted=105.0,
+                               label="cur", items=100, failed=2)
+
+        code, _, _ = _run(["gate", "--current", str(current), "--baseline",
+                           str(baseline), "--require-measurement"])
+
+        assert code == 0
 
     def test_a_first_run_with_no_baseline_fails_and_says_how_to_arm_it(self, tmp_path):
         """Measured, but nothing to compare with: every threshold skips, and

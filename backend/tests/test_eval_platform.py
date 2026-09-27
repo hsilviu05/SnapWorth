@@ -626,6 +626,11 @@ class TestGates:
         report = gates.check(self._set(bias=-40.0), self._set(bias=2.0))
         assert report.status is gates.GateStatus.PASSED
 
+    def test_a_falling_scored_fraction_fails(self):
+        report = gates.check(self._set(scored_fraction=50.0),
+                             self._set(scored_fraction=100.0))
+        assert report.status is gates.GateStatus.FAILED
+
     def test_baseline_roundtrip(self, tmp_path):
         path = tmp_path / "baseline.json"
         gates.save_baseline(self._set(mdape=18.0), path, ref="abc123")

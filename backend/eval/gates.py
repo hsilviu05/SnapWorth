@@ -192,6 +192,13 @@ DEFAULT_THRESHOLDS = (
               description="fabrication must never increase"),
     Threshold("latency_p95", Direction.LOWER_IS_BETTER, max_regression=0.20,
               description="scans must not get visibly slower"),
+    # Every accuracy metric is computed over the scans that produced a price,
+    # so a change that breaks half the responses would pass on its survivors.
+    # Not `schema_compliance`: a failure here includes a 429 or a timeout,
+    # and a zero-tolerance gate would fail CI on two of those in a hundred.
+    Threshold("scored_fraction", Direction.HIGHER_IS_BETTER, max_regression=0.05,
+              absolute_limit=90.0,
+              description="scans that produced a price, of all attempted"),
     Threshold("schema_compliance", Direction.HIGHER_IS_BETTER, max_regression=0.0,
               absolute_limit=99.0,
               description="responses must satisfy the API contract"),
