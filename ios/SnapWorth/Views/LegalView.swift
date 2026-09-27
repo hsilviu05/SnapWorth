@@ -24,7 +24,7 @@ struct PrivacyPolicyView: View {
 /// Change this and `backend/main.py`'s `/privacy` together.
 /// `PrivacyPolicyDisclosureTests` fails if a processor goes missing.
 enum PrivacyPolicy {
-    static let updated = "September 26, 2026"
+    static let updated = "September 27, 2026"
 
     /// Every third party that receives user data, by the name a reader would
     /// recognise. The test asserts each appears in `sections`.
@@ -38,7 +38,7 @@ enum PrivacyPolicy {
         (heading: "Information We Collect", text: """
             We collect photos you submit for valuation. Photos are sent to our server, processed by an AI model to identify the item and estimate resale value, and are not stored after the response is returned.
 
-            We collect an anonymous device identifier (UUID) for rate limiting and to limit how many devices can use one subscription. This ID is not linked to your identity.
+            We collect an anonymous device identifier (UUID) for rate limiting and to limit how many devices can use one subscription. This ID is not linked to your identity, except that if you subscribe it is kept with Apple's record of your purchase, described below.
 
             To tell a reinstall from a genuinely new device — so a free allowance cannot be reset by deleting and reinstalling — we send Apple's DeviceCheck token when your device first verifies itself. Apple stores two bits against the hardware on our behalf; we store the token to read them. It contains no personal information and cannot identify you.
 
@@ -58,16 +58,16 @@ enum PrivacyPolicy {
 
             TelemetryDeck. Receives the anonymous usage events described above. It never receives photos, item names, prices, or identifiers.
 
-            Telegram. To monitor the service, operational information may be relayed to the operator through Telegram: the name of an item the AI identified and its estimated price range; and, so that a support request can be answered, a one-way salted hash of your device's attestation key together with that device's scan count, first and last activity dates, and subscription state. The hash is not the device identifier itself and cannot be reversed to it, and it is not an advertising identifier. This operational record is kept for up to 400 days. Never the photo, and never your name, email address or location.
+            Telegram. To monitor the service, operational information may be relayed to the operator through Telegram: the name of an item the AI identified and its estimated price range; and, so that a support request can be answered, a one-way salted hash of your device's attestation key together with that device's scan count, first and last activity dates, and subscription state. The hash is not the device identifier itself and cannot be reversed to it, and it is not an advertising identifier. This operational record is kept for up to 400 days after the device last uses the service or, for a subscription, after the app or Apple last tells us about it. Never the photo, and never your name, email address or location.
             """),
         (heading: "Data Retention", text: """
             Photos are not stored after the response is returned. Your scan history is stored on your device and can be deleted at any time from Settings.
 
-            From each scan our server keeps only what running the service needs, without the photo and without your device identifier: daily counts of scans, categories and brands, and a short list of each day's highest-value scans — the item name the AI gave, its brand, category and estimated price range, and whether it was made on the free or Pro plan. These are kept for 35 days after the day of the scan, and the operator can see them.
+            From each scan our server keeps the following, without the photo and without your device identifier: daily counts of scans, categories and brands, and a short list of each day's highest-value scans — the item name the AI gave, its brand, category and estimated price range, and whether it was made on the free or Pro plan. These are kept for 35 days after the day of the scan. The operator can see them, and uses the week's highest-value scans, through Google's Gemini API, to draft ideas for SnapWorth's social-media posts — so a post may mention an item someone scanned, never who scanned it.
 
             In the app, everyone can see this week's most-scanned categories and brands, each shown only once at least five scans back it. Pro subscribers also see the week's highest-value finds, shown as brand, category and estimated price range only — never the item name, the photo, or who scanned it. A find is a single scan, so one of yours may appear there.
 
-            The operational record described under Telegram, the subscription record and referral records are kept for up to 400 days, as described above. Messages relayed through Telegram stay in the operator's chat until the operator deletes them.
+            The operational record described under Telegram, the subscription record and referral records are kept for up to 400 days after they were last updated, as described above. Messages relayed through Telegram stay in the operator's chat until the operator deletes them.
             """),
         (heading: "Children's Privacy", text: """
             SnapWorth is not directed to children under 13. We do not knowingly collect personal information from children under 13.

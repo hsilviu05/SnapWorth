@@ -277,6 +277,34 @@ class TestLegalEndpoints:
         assert "scan results are processed in real time" not in body
         assert f"{notify.STATS_TTL // 86_400} days after the day of the scan" in body
         assert "never the item name, the photo, or who scanned it" in body
+        # "Keeps only what running the service needs" was not the whole story:
+        # /post and /calendar hand the week's top finds, item names included,
+        # to the model as grounding for social-media drafts (notify._post_text,
+        # ideas.build_prompt).
+        assert "only what running the service needs" not in body
+        assert ("uses the week's highest-value scans, through Google's Gemini "
+                "API, to draft ideas for SnapWorth's social-media posts") in body
+
+    def test_privacy_does_not_call_a_subscribers_device_id_unlinked(self):
+        """The device id is stored with the signed purchase record, whose
+        originalTransactionId follows the Apple ID; PrivacyInfo.xcprivacy
+        declares that record linked. "Not linked to your identity", flat, sat
+        four paragraphs above saying so."""
+        body = _prose(client.get("/privacy").text)
+        assert ("not linked to your identity, except that if you subscribe it "
+                "is kept with Apple's record of your purchase") in body
+
+    def test_the_operator_record_retention_counts_from_apples_last_word(self):
+        """App Store notifications and status lookups rewrite the /subs row with
+        a fresh `seen` and keep its device pseudonym (notify._index_subscription),
+        and `_write_index` prunes on `seen`. So a subscriber who deleted the app
+        but keeps renewing keeps that row: 400 days from the app's last visit is
+        not what the code does."""
+        import notify
+        body = _prose(client.get("/privacy").text)
+        assert (f"for up to {notify.INDEX_TTL // 86_400} days after the device "
+                "last uses the service or, for a subscription, after the app or "
+                "Apple last tells us about it") in body
 
     def test_privacy_discloses_the_purchase_record_and_its_retention(self):
         """The app uploads Apple's signed transaction with the device id on

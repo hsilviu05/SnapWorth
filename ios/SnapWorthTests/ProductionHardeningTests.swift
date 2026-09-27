@@ -491,6 +491,10 @@ final class PrivacyPolicyDisclosureTests: XCTestCase {
         XCTAssertTrue(policy.contains("35 days after the day of the scan"))
         XCTAssertTrue(policy.contains("never the item name, the photo, or who scanned it"),
                       "must match what /trends sends — see notify.trends")
+        // Not "only what running the service needs": the bot's /post and
+        // /calendar give the week's top finds to Gemini to draft social posts.
+        XCTAssertFalse(policy.contains("only what running the service needs"))
+        XCTAssertTrue(policy.contains("uses the week's highest-value scans, through Google's Gemini API, to draft ideas for SnapWorth's social-media posts"))
     }
 
     func test_purchasesAndReferralsAreDisclosed() {
@@ -500,6 +504,19 @@ final class PrivacyPolicyDisclosureTests: XCTestCase {
         XCTAssertTrue(policy.contains("Apple's signed record of your subscription purchase"))
         XCTAssertTrue(policy.contains("for up to 400 days after the app last sends it"))
         XCTAssertTrue(policy.contains("If you use Invite a friend"))
+    }
+
+    func test_aSubscribersDeviceIdIsNotCalledUnlinked() {
+        // It is stored with the purchase record, which PrivacyInfo.xcprivacy
+        // declares linked. "Not linked to your identity", flat, contradicted
+        // the paragraph below it.
+        XCTAssertTrue(policy.contains("This ID is not linked to your identity, except that if you subscribe it is kept with Apple's record of your purchase"))
+    }
+
+    func test_theOperatorRecordRetentionCountsFromApplesLastWord() {
+        // Apple's renewal notices refresh the operator's subscription row,
+        // device pseudonym included, so it outlives the app's last visit.
+        XCTAssertTrue(policy.contains("for up to 400 days after the device last uses the service or, for a subscription, after the app or Apple last tells us about it"))
     }
 }
 
