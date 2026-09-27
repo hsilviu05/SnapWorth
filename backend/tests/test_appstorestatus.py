@@ -344,6 +344,25 @@ class TestNotFoundAndFallback:
             assert "Retry in a few minutes" in str(caught.value)
             assert not isinstance(caught.value, appstorestatus.SubscriberNotFound)
             assert client._apis["Sandbox"].calls == []
+            assert caught.value.environment == "Production"
+
+    @pytest.mark.asyncio
+    async def test_sandboxs_not_yet_after_a_definite_production_miss_says_sandbox(self):
+        """Production has nothing, definitely, so Sandbox is asked — and
+        answers "not yet". The exception has to say it was Sandbox: /sub
+        otherwise reports "Sandbox was not asked" under Sandbox's own words."""
+        client = _client(
+            production=None,
+            sandbox=APIException(
+                404, APIError.ORIGINAL_TRANSACTION_ID_NOT_FOUND_RETRYABLE.value))
+
+        with pytest.raises(appstorestatus.StatusRetryLater) as caught:
+            await client.statuses(OTID)
+
+        assert caught.value.environment == "Sandbox"
+        assert str(caught.value).startswith("Sandbox has nothing under this id yet")
+        assert client._apis["Production"].calls == [OTID]
+        assert client._apis["Sandbox"].calls == [OTID]
 
     @pytest.mark.asyncio
     async def test_blank_id_is_refused_before_apple_is_called(self):

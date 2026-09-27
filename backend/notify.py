@@ -3789,10 +3789,24 @@ async def _sub_text(argument: str) -> str:
         # Right after a purchase — when the support mail is written — Apple
         # answers "not found, retry". Reported as that, not as a typo, and
         # without Sandbox's "never heard of it" standing in for it.
-        return (f"💳 <b>Not yet — retry in a few minutes</b>\n{html.escape(str(exc))}\n\n"
+        text = (f"💳 <b>Not yet — retry in a few minutes</b>\n{html.escape(str(exc))}\n\n"
                 "Not necessarily a typo: Apple marks this not-found as "
                 "retryable, which is what a purchase from the last few minutes "
-                "looks like. Sandbox was not asked.")
+                "looks like. ")
+        if exc.environment == "Production":
+            return text + "Sandbox was not asked."
+        # Production's not-found was definite, so the lookup went on to
+        # Sandbox, and it is Sandbox saying "not yet". That Production has
+        # nothing is the useful half: this is a TestFlight or App Review
+        # purchase, which this server may refuse whatever Sandbox says next.
+        text += (f"Production has nothing under this id; it is "
+                 f"{html.escape(exc.environment)} that says not yet.")
+        if exc.environment not in entitlements.ALLOWED_ENVIRONMENTS:
+            text += (f"\n⚠️ <b>This server refuses {html.escape(exc.environment)} "
+                     "purchases</b> (ALLOWED_STOREKIT_ENVIRONMENTS): even once Apple "
+                     "has it, the app is told free for this one. TestFlight and "
+                     "App Review buy in Sandbox.")
+        return text
     except appstorestatus.StatusNotConfigured as exc:
         return (f"💳 {html.escape(str(exc))}\n\nThe rest of the bot is "
                 "unaffected — /subs still reports what notifications have said.")

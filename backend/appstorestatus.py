@@ -92,7 +92,16 @@ class StatusRetryLater(StatusError):
     so the lookup fell through to Sandbox, kept Sandbox's plain "not found",
     and `/sub` blamed a typo. Deliberately not a `SubscriberNotFound`: it
     must not trigger the Sandbox fallback, and it must not read as "no such
-    subscription"."""
+    subscription".
+
+    `environment` is which one said it. Usually Production, which stops the
+    lookup there; but when Production's not-found is definite, Sandbox is
+    asked and can answer "not yet" too — and then Sandbox was asked, and
+    Production has nothing, which is the more useful half of the answer."""
+
+    def __init__(self, message: str, *, environment: str) -> None:
+        super().__init__(message)
+        self.environment = environment
 
 
 class OrderNotFound(StatusError):
@@ -316,6 +325,8 @@ class AppStoreStatusClient:
         *both* have nothing. Falls back only on a definite not-found: a
         retryable one (`StatusRetryLater`) is Production saying "not yet",
         and Sandbox's "never heard of it" must not replace that answer.
+        Sandbox can say "not yet" as well, after Production's definite
+        not-found; its `environment` says which one it was.
         """
         if not transaction_id or not transaction_id.strip():
             raise SubscriberNotFound("No transaction id given.")
@@ -498,7 +509,7 @@ class AppStoreStatusClient:
             return StatusRetryLater(
                 f"{name} has nothing under this id yet — Apple answered "
                 f"{getattr(code, 'name', code)}, its not-found that is worth retrying. "
-                "Retry in a few minutes.")
+                "Retry in a few minutes.", environment=name)
         if http == 429 or code == APIError.RATE_LIMIT_EXCEEDED:
             # Apple's limit is per key, and the bot shares one with any other
             # caller. Worth saying so — the fix is to wait, not to re-run.

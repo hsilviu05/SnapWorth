@@ -3951,12 +3951,49 @@ class TestSubCommandErrors:
             self, enabled_notify, monkeypatch):
         import appstorestatus
         _patch_lookup(monkeypatch, appstorestatus.StatusRetryLater(
-            "Production does not have this purchase yet. Retry in a few minutes."))
+            "Production does not have this purchase yet. Retry in a few minutes.",
+            environment="Production"))
 
         text = await notify.handle_command("/sub 2000000000000001")
 
         assert "retry in a few minutes" in text
         assert "Checked Production and Sandbox" not in text
+        assert "Sandbox was not asked" in text
+
+    @pytest.mark.asyncio
+    async def test_sandboxs_not_yet_says_production_has_nothing(
+            self, enabled_notify, monkeypatch):
+        """Production's definite not-found sends the lookup on to Sandbox, and
+        Sandbox can answer "not yet" too. The reply used to print Sandbox's
+        words and then "Sandbox was not asked", and hid the useful half: that
+        Production has nothing, so this is a TestFlight or App Review purchase
+        — which this server refuses."""
+        import appstorestatus
+        _patch_lookup(monkeypatch, appstorestatus.StatusRetryLater(
+            "Sandbox has nothing under this id yet. Retry in a few minutes.",
+            environment="Sandbox"))
+
+        text = await notify.handle_command("/sub 2000000000000001")
+
+        assert "retry in a few minutes" in text
+        assert "Sandbox was not asked" not in text
+        assert "Production has nothing under this id" in text
+        assert "This server refuses Sandbox purchases" in text
+
+    @pytest.mark.asyncio
+    async def test_sandboxs_not_yet_carries_no_refusal_where_sandbox_is_allowed(
+            self, enabled_notify, monkeypatch):
+        import appstorestatus
+        import entitlements
+        monkeypatch.setattr(entitlements, "ALLOWED_ENVIRONMENTS",
+                            frozenset({"Production", "Sandbox"}))
+        _patch_lookup(monkeypatch, appstorestatus.StatusRetryLater(
+            "Sandbox has nothing under this id yet.", environment="Sandbox"))
+
+        text = await notify.handle_command("/sub 2000000000000001")
+
+        assert "Production has nothing under this id" in text
+        assert "refuses" not in text
 
     @pytest.mark.asyncio
     async def test_missing_credentials_say_the_rest_still_works(
