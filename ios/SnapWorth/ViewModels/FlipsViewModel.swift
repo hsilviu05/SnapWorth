@@ -154,11 +154,12 @@ final class FlipsViewModel {
         var unrealizedInvested: Decimal = 0
     }
 
-    func summary(_ all: [ScanResult], scope: Scope) -> Summary {
+    func summary(_ all: [ScanResult], scope: Scope, now: Date = Date()) -> Summary {
         var s = Summary()
 
-        let sold = all.filter { $0.status == .sold }
-        let scopedSold = scope == .month ? sold.filter { isInCurrentMonth($0.soldDate) } : sold
+        let scopedSold = scope == .month
+            ? LedgerMath.soldInMonth(all, containing: now)
+            : LedgerMath.sold(all)
 
         // Two counts, because they are two different facts.
         //
@@ -173,10 +174,10 @@ final class FlipsViewModel {
         // In the list the gap is already visible (the row shows "—" and says
         // "Profit unknown — add what you paid"). The header and the share card
         // show only totals, so they need the count to carry it.
-        s.itemsSold = scopedSold.count
-        let priced = scopedSold.compactMap(\.realizedProfit)
-        s.itemsPriced = priced.count
-        s.realizedProfit = priced.reduce(0, +)
+        let sales = LedgerMath.sales(scopedSold)
+        s.itemsSold = sales.count
+        s.itemsPriced = sales.priced
+        s.realizedProfit = sales.profit
 
         let rois = scopedSold.compactMap(\.roi)
         s.averageROI = rois.isEmpty ? nil : rois.reduce(0, +) / Decimal(rois.count)
@@ -207,18 +208,21 @@ final class FlipsViewModel {
         let label: String       // "Jul"
     }
 
-    func monthlyBuckets(_ all: [ScanResult], count: Int = 6) -> [MonthBucket] {
-        let cal = Calendar.current
-        let sold = all.filter { $0.status == .sold }
-        guard let thisMonthStart = cal.dateInterval(of: .month, for: Date())?.start else { return [] }
+    /// The same month rule as the header and the widget — `LedgerMath`'s —
+    /// so this month's bar is the header's "Profit this month". Each bar used
+    /// `DateInterval.contains`, which counts a month's closing instant in the
+    /// month after it too; see `LedgerMath.contains`.
+    func monthlyBuckets(_ all: [ScanResult], count: Int = 6,
+                        now: Date = Date(), calendar: Calendar = .current) -> [MonthBucket] {
+        let sold = LedgerMath.sold(all)
+        guard let thisMonthStart = LedgerMath.month(containing: now, calendar: calendar)?.start
+        else { return [] }
 
         return (0..<count).reversed().compactMap { offset -> MonthBucket? in
-            guard let monthStart = cal.date(byAdding: .month, value: -offset, to: thisMonthStart),
-                  let interval = cal.dateInterval(of: .month, for: monthStart) else { return nil }
-            let profit = sold
-                .filter { r in r.soldDate.map { interval.contains($0) } ?? false }
-                .compactMap(\.realizedProfit)
-                .reduce(Decimal(0), +)
+            guard let monthStart = calendar.date(byAdding: .month, value: -offset, to: thisMonthStart),
+                  let interval = LedgerMath.month(containing: monthStart, calendar: calendar)
+            else { return nil }
+            let profit = LedgerMath.sales(LedgerMath.sold(sold, in: interval)).profit
             return MonthBucket(monthStart: monthStart, profit: profit, label: Self.monthLabel(monthStart))
         }
     }
@@ -227,8 +231,8 @@ final class FlipsViewModel {
 
     /// True when the current month has at least one sold item — the only case a
     /// month card should render (never a sad/empty card).
-    func hasSalesThisMonth(_ all: [ScanResult]) -> Bool {
-        all.contains { $0.status == .sold && isInCurrentMonth($0.soldDate) }
+    func hasSalesThisMonth(_ all: [ScanResult], now: Date = Date()) -> Bool {
+        !LedgerMath.soldInMonth(all, containing: now).isEmpty
     }
 
     func renderMonthCard(_ all: [ScanResult]) -> UIImage? {
@@ -268,8 +272,8 @@ final class FlipsViewModel {
         //
         // This was an `ISO8601DateFormatter` with only `.withFullDate`, and
         // that formatter's `timeZone` defaults to **GMT** — so the exported day
-        // was the UTC day while `isInCurrentMonth` and `monthlyBuckets` both
-        // use `Calendar.current`, and the export's own filename via
+        // was the UTC day while `LedgerMath`'s month rule and `monthlyBuckets`
+        // both use `Calendar.current`, and the export's own filename via
         // `fileStamp()` uses the local zone. `soldDate` carries a real
         // time-of-day (wall-clock `Date()` or a local DatePicker), not a
         // normalised midnight, so the two disagreed for every sale logged after
@@ -344,11 +348,6 @@ final class FlipsViewModel {
     }
 
     // ── Helpers ──────────────────────────────────────────────────────────────────
-
-    private func isInCurrentMonth(_ date: Date?) -> Bool {
-        guard let date else { return false }
-        return Calendar.current.isDate(date, equalTo: Date(), toGranularity: .month)
-    }
 
     /// Every numeric column at the same scale, in a spreadsheet's own notation.
     ///

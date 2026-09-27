@@ -7789,6 +7789,103 @@ final class OneLikelyFigureTests: XCTestCase {
     }
 }
 
+// ── LedgerMath: one owner for "sold this month", profit and totals ───────────
+
+final class LedgerMathTests: XCTestCase {
+
+    private let cal: Calendar = {
+        var c = Calendar(identifier: .gregorian)
+        c.timeZone = TimeZone(identifier: "America/New_York")!
+        return c
+    }()
+
+    private func date(_ month: Int, _ day: Int, hour: Int = 12) -> Date {
+        cal.date(from: DateComponents(year: 2026, month: month, day: day, hour: hour))!
+    }
+
+    private func item(_ status: FlipStatus, soldOn: Date? = nil, paid: Double? = 10,
+                      price: Double? = 40) -> ScanResult {
+        ScanResult(itemName: "Item", brand: "B", category: "clothing",
+                   conditionNotes: "Good", valueLow: 40, valueHigh: 60,
+                   confidence: "High", soldListingsCount: 0,
+                   listingTitle: "T", listingDescription: "D",
+                   paidPrice: paid, statusRaw: status.rawValue,
+                   soldPrice: status == .sold ? price : nil, soldDate: soldOn)
+    }
+
+    func test_aSaleAtMidnightOnTheFirstIsInOneMonthOnly() {
+        // `DateInterval.contains` includes the interval's end, which for a
+        // month is the first instant of the next: the widget counted this
+        // sale in September *and* October.
+        let rows = [item(.sold, soldOn: date(10, 1, hour: 0))]
+        XCTAssertTrue(LedgerMath.soldInMonth(rows, containing: date(9, 20), calendar: cal).isEmpty)
+        XCTAssertEqual(LedgerMath.soldInMonth(rows, containing: date(10, 20), calendar: cal).count, 1)
+        XCTAssertEqual(WidgetDataStore.monthLedger(results: rows, now: date(9, 20), calendar: cal).sold, 0,
+                       "September's widget counted October's sale")
+        XCTAssertEqual(WidgetDataStore.monthLedger(results: rows, now: date(10, 20), calendar: cal).sold, 1)
+    }
+
+    @MainActor
+    func test_theBarsCountEverySaleOnce() {
+        let rows = [item(.sold, soldOn: date(10, 1, hour: 0), paid: 10, price: 40)]
+        let buckets = FlipsViewModel().monthlyBuckets(rows, now: date(10, 20), calendar: cal)
+        XCTAssertEqual(buckets.map(\.profit).reduce(0, +), 30,
+                       "one $30 sale drawn as two bars")
+        XCTAssertEqual(buckets.last?.profit, 30)
+    }
+
+    @MainActor
+    func test_theHeaderTheWidgetAndTheShareCardCountTheSameMonth() {
+        let now = Date()
+        let thisMonth = Calendar.current.dateInterval(of: .month, for: now)!
+        let inMonth = thisMonth.start.addingTimeInterval(3_600)
+        let lastMonth = thisMonth.start.addingTimeInterval(-3_600)
+        let rows = [item(.sold, soldOn: inMonth, paid: 8, price: 65),
+                    item(.sold, soldOn: inMonth, paid: nil, price: 25),
+                    item(.sold, soldOn: lastMonth, paid: 5, price: 40),
+                    item(.owned)]
+        let vm = FlipsViewModel()
+        let header = vm.summary(rows, scope: .month, now: now)
+        let widget = WidgetDataStore.monthLedger(results: rows, now: now)
+        XCTAssertEqual(header.itemsSold, widget.sold)
+        XCTAssertEqual(header.itemsPriced, widget.flips)
+        XCTAssertEqual(NSDecimalNumber(decimal: header.realizedProfit).doubleValue,
+                       widget.profit, accuracy: 0.001)
+        XCTAssertEqual(header.itemsSold, 2)
+        XCTAssertTrue(vm.hasSalesThisMonth(rows, now: now))
+        XCTAssertEqual(vm.monthlyBuckets(rows, now: now).last?.profit, header.realizedProfit,
+                       "this month's bar is the header's figure")
+    }
+
+    func test_salesCountEverySaleAndPriceOnlyThoseWithABasis() {
+        let sales = LedgerMath.sales([item(.sold, soldOn: date(9, 3), paid: 8, price: 65),
+                                      item(.sold, soldOn: date(9, 4), paid: nil, price: 25),
+                                      item(.owned), item(.listed)])
+        XCTAssertEqual(sales, LedgerMath.Sales(profit: 57, priced: 1, count: 2))
+    }
+
+    func test_aSaleWithNoDateIsInNoMonthButStillSold() {
+        let rows = [item(.sold, soldOn: nil)]
+        XCTAssertTrue(LedgerMath.soldInMonth(rows, containing: date(9, 20), calendar: cal).isEmpty)
+        XCTAssertEqual(LedgerMath.sales(rows).count, 1)
+    }
+
+    func test_heldValueLeavesSoldFindsOut() {
+        let held = item(.owned)
+        let scanned = item(.scanned)
+        let sold = item(.sold, soldOn: date(9, 3))
+        let all = [held, scanned, sold]
+        XCTAssertEqual(LedgerMath.heldValue(all), held.portfolioValue + scanned.portfolioValue)
+        XCTAssertEqual(LedgerMath.held(all).count, 2)
+        // The banner and the Sunday digest are that one sum.
+        XCTAssertEqual(HistoryViewModel.portfolioTotal(of: all), LedgerMath.heldValue(all))
+        XCTAssertEqual(NotificationManager.digest(for: all).total, LedgerMath.heldValue(all))
+        XCTAssertEqual(NotificationManager.digest(for: all).itemCount, 2)
+        XCTAssertEqual(HistoryViewModel.insights(for: all).unrealized, LedgerMath.heldValue(all))
+        XCTAssertEqual(HistoryViewModel.insights(for: all).realized, LedgerMath.sales(all).profit)
+    }
+}
+
 // ── Re-expressing stored values when the pricing rules change ───────────────
 
 @MainActor
@@ -7865,5 +7962,33 @@ final class PricingRulesTests: XCTestCase {
         XCTAssertFalse(ScanRepository(context: ModelContext(container))
             .applyPricingRulesIfNeeded(defaults: defaults))
         XCTAssertEqual(defaults.integer(forKey: PricingRules.defaultsKey), 0)
+    }
+}
+
+// ── What follows a change to a find's valuation ──────────────────────────────
+
+@MainActor
+final class ValuationDidChangeTests: XCTestCase {
+
+    func test_itRecordsTheMoveAndSyncsTheWidgetsAndTheRun() throws {
+        defer { ScanRepository.widgetSync?.cancel() }
+        let container = try ModelContainer(for: ScanResult.self,
+                                           configurations: ModelConfiguration(isStoredInMemoryOnly: true))
+        let repo = ScanRepository(context: ModelContext(container))
+        let r = LikelyPriceTests.find(likely: 90)
+        r.refreshPortfolioValue()
+        let before = ScanRepository.widgetSync
+
+        r.condition = .used
+        repo.valuationDidChange(r)
+
+        XCTAssertEqual(r.valueHistory.count, 2, "the move was not recorded")
+        XCTAssertEqual(try XCTUnwrap(r.portfolioValueRaw),
+                       NSDecimalNumber(decimal: r.currentPriceRange.likely).doubleValue,
+                       accuracy: 0.001)
+        let sync = try XCTUnwrap(ScanRepository.widgetSync,
+                                 "nothing scheduled the widget and Live Activity sync")
+        XCTAssertNotEqual(sync, before)
+        XCTAssertFalse(sync.isCancelled)
     }
 }

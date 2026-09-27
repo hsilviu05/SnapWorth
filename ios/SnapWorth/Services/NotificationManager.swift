@@ -736,13 +736,13 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
             // held, so a user who had sold 4 of 10 was told "Your 10 finds are
             // worth $120" when the $120 was six of them — and one who had sold
             // everything, "Your 10 finds are worth $0.00".
-            itemCount: results.filter { $0.status != .sold }.count,
-            // `portfolioTotal`, the same "still held" figure the History
+            itemCount: LedgerMath.held(results).count,
+            // `LedgerMath.heldValue`, the same "still held" figure the History
             // header shows. This summed every row including sold ones, so the
             // weekly push repeated the inflated total the header used to show
             // — two surfaces stating a number that matched neither the realised
             // profit nor the held value.
-            total: HistoryViewModel.portfolioTotal(of: results),
+            total: LedgerMath.heldValue(results),
             addedThisWeek: results.filter { $0.timestamp >= weekAgo }.count
         )
     }

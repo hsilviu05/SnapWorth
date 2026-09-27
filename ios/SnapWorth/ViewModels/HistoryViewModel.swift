@@ -70,16 +70,17 @@ final class HistoryViewModel {
     /// with the size of the library this feature is meant to celebrate.
     ///
     /// Free of SwiftData and of the view, so the arithmetic is directly
-    /// testable without a ModelContainer.
+    /// testable without a ModelContainer. `LedgerMath.total`, which every
+    /// money sum in the app now shares.
     nonisolated static func total(of values: [Decimal]) -> Decimal {
-        values.reduce(Decimal.zero, +)
+        LedgerMath.total(values)
     }
 
     /// What the user still holds — the number under "Your finds are worth".
     ///
-    /// `insights().unrealized`, not a second sum of its own. It used to total
-    /// *every* row with no status filter, while `insights` routes `.sold` into
-    /// `realized` and deliberately leaves it out of `unrealized` — so the
+    /// The same sum as `insights().unrealized`, not a second of its own. It
+    /// used to total *every* row with no status filter, while `insights`
+    /// routes `.sold` into `realized` and leaves it out of `unrealized` — so the
     /// headline counted a sold item's estimate while the line three rows below
     /// it said that same item was not held, and the estimate is not the sale
     /// price either, so the figure it contributed corresponded to no money
@@ -89,10 +90,11 @@ final class HistoryViewModel {
     /// one card: "Your finds are worth $50.00" / "1 item scanned" / "$70.00
     /// realised · $0.00 still held". $50 reconciles with neither $70 nor $0.
     ///
-    /// Deriving it from `insights` rather than adding a matching filter here is
-    /// the point: two sums that must agree will not stay agreed.
+    /// Both are `LedgerMath.heldValue` now, as is the weekly digest's total,
+    /// rather than a filter here matching one there: two sums that must agree
+    /// will not stay agreed.
     nonisolated static func portfolioTotal(of results: [ScanResult]) -> Decimal {
-        insights(for: results).unrealized
+        LedgerMath.heldValue(results)
     }
 
     func portfolioTotal(from results: [ScanResult]) -> Decimal {
@@ -131,33 +133,18 @@ final class HistoryViewModel {
 
     nonisolated static func insights(for results: [ScanResult],
                                      now: Date = Date()) -> Insights {
-        var unlisted = 0
-        var realized = Decimal.zero
-        var unrealized = Decimal.zero
-        var oldest: Int?
-
-        for item in results {
-            switch item.status {
-            case .sold:
-                // Nil when the buy price was never recorded — a sale with no
-                // cost basis has no knowable profit, and counting it as zero
-                // would quietly understate the real figure.
-                realized += item.realizedProfit ?? 0
-            case .scanned:
-                unlisted += 1
-                unrealized += item.portfolioValue
-            case .owned, .listed:
-                unrealized += item.portfolioValue
-            }
-
-            if item.status != .sold {
-                let days = Calendar.current.dateComponents(
-                    [.day], from: item.timestamp, to: now).day ?? 0
-                if days > (oldest ?? -1) { oldest = days }
-            }
-        }
-        return Insights(unlisted: unlisted, realized: realized,
-                        unrealized: unrealized, oldestHoldDays: oldest)
+        let held = LedgerMath.held(results)
+        return Insights(
+            unlisted: results.filter { $0.status == .scanned }.count,
+            // Only the sales with a paid price — see `LedgerMath.Sales.profit`
+            // for why a missing cost basis is not a zero one.
+            realized: LedgerMath.sales(results).profit,
+            unrealized: LedgerMath.heldValue(held),
+            oldestHoldDays: held
+                .map { Calendar.current.dateComponents([.day], from: $0.timestamp, to: now).day ?? 0 }
+                // A scan dated ahead of `now` — a clock set back — is no hold.
+                .filter { $0 >= 0 }
+                .max())
     }
 
     func insights(from results: [ScanResult]) -> Insights {

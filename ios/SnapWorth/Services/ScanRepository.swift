@@ -184,12 +184,32 @@ final class ScanRepository {
     }
 
     /// Re-sync the widget after something other than an insert or a delete
-    /// changed a value.
-    ///
-    /// Changing an item's condition re-prices it — the only way a value moves
-    /// without a row being added or removed — and nothing told the widget, so
-    /// it kept showing the pre-correction total until the next scan.
+    /// changed what it shows — a ledger edit, or a run that needs repainting.
+    /// A change to a find's *valuation* goes through `valuationDidChange`,
+    /// which does this and more.
     func refreshWidget() {
+        scheduleWidgetSync()
+    }
+
+    /// Everything the model layer owes a change to one find's valuation.
+    ///
+    /// Three paths move a saved find's value without inserting or deleting a
+    /// row — the condition chips, the tag re-read and the full-breakdown
+    /// re-read — and each owes the same things: a new point in the find's
+    /// value history, the Home Screen widgets' totals and the thrift run's
+    /// Live Activity. That list lived in `ResultView`, where the chip once
+    /// did four of them and the tag re-read one, and the next feature that
+    /// re-prices a find (#89, #93) would have had to find it there. Here it
+    /// is one call a caller cannot half-make.
+    ///
+    /// What stays with the caller is what only the screen holds: a rendered
+    /// share card and a generated listing, both written for the old number.
+    func valuationDidChange(_ result: ScanResult) {
+        // A no-op when the number did not actually move.
+        result.refreshPortfolioValue()
+        // The widgets aggregate every find's condition-adjusted value and the
+        // Live Activity totals the run; both listen for inserts and deletes,
+        // which this is neither.
         scheduleWidgetSync()
     }
 

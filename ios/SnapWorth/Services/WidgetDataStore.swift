@@ -721,8 +721,9 @@ enum WidgetDataStore {
     ///
     /// Split out because this is the rule the widget's three captions turn on
     /// and `writeHaul` itself cannot be tested — it writes to the App Group
-    /// and reloads timelines. Same rule `FlipsViewModel.monthlyBuckets` uses:
-    /// sold, with a sold date inside the month `now` falls in.
+    /// and reloads timelines. The rule itself is `LedgerMath`'s — the one My
+    /// Flips' header, its bars and its share card use — so the widget cannot
+    /// count a month the app does not.
     ///
     /// `flips` counts only the sales that could be priced — `realizedProfit`
     /// is nil without a paid price — because "$214 from 6 flips" has to be
@@ -733,18 +734,9 @@ enum WidgetDataStore {
     static func monthLedger(results: [ScanResult], now: Date = Date(),
                             calendar: Calendar = .current)
     -> (profit: Double, flips: Int, sold: Int) {
-        guard let month = calendar.dateInterval(of: .month, for: now) else {
-            return (0, 0, 0)
-        }
-        let soldThisMonth = results.filter { result in
-            guard result.status == .sold, let soldDate = result.soldDate
-            else { return false }
-            return month.contains(soldDate)
-        }
-        let profits: [Decimal] = soldThisMonth.compactMap(\.realizedProfit)
-        return (NSDecimalNumber(decimal: profits.reduce(Decimal.zero, +)).doubleValue,
-                profits.count,
-                soldThisMonth.count)
+        let sales = LedgerMath.sales(
+            LedgerMath.soldInMonth(results, containing: now, calendar: calendar))
+        return (NSDecimalNumber(decimal: sales.profit).doubleValue, sales.priced, sales.count)
     }
 
     /// Call this after any insert/delete of ScanResults in the main app.
@@ -805,12 +797,8 @@ enum WidgetDataStore {
         // actor at launch and after every save, and read each row's range
         // three times over.
         let ranges = results.map(\.currentPriceRange)
-        let lo = NSDecimalNumber(decimal: ranges.reduce(Decimal.zero) {
-            $0 + $1.low
-        }).doubleValue
-        let hi = NSDecimalNumber(decimal: ranges.reduce(Decimal.zero) {
-            $0 + $1.high
-        }).doubleValue
+        let lo = NSDecimalNumber(decimal: LedgerMath.total(ranges.map { $0.low })).doubleValue
+        let hi = NSDecimalNumber(decimal: LedgerMath.total(ranges.map { $0.high })).doubleValue
         // The likely value of the very items above — same items, same
         // condition adjustment, `likely` instead of `low` and `high`: the
         // model's expected price where a find has one, the midpoint where it
@@ -825,9 +813,7 @@ enum WidgetDataStore {
         // different questions, and so are `totalLow`/`totalHigh` already. A
         // widget whose own three figures disagree with each other would be the
         // worse trade.
-        let likely = NSDecimalNumber(decimal: ranges.reduce(Decimal.zero) {
-            $0 + $1.likely
-        }).doubleValue
+        let likely = NSDecimalNumber(decimal: LedgerMath.total(ranges.map { $0.likely })).doubleValue
         let last = results.max(by: { $0.timestamp < $1.timestamp })
 
         let pro = isPro ?? StoreKitPurchaseService.cachedIsSubscribed
