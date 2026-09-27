@@ -2030,6 +2030,128 @@ final class PrivacyManifestTests: XCTestCase {
     }
 }
 
+/// The widget extension is a bundle of its own, and the app's manifest does
+/// not speak for code that runs in it. It had no manifest while it read the
+/// App Group through `UserDefaults(suiteName:)`, a required-reason API.
+///
+/// Source-scanned, like the app's "what the code actually sends" tests: every
+/// required-reason API the extension's Swift names must be declared, and
+/// nothing it does not name may be, so the manifest can neither fall behind
+/// the code nor claim more than it does. That the file reaches the built
+/// `.appex` is `ExtensionBundleTests`'.
+final class WidgetPrivacyManifestTests: XCTestCase {
+
+    private let ios = URL(fileURLWithPath: #filePath)
+        .deletingLastPathComponent()
+        .deletingLastPathComponent()
+
+    private func manifest() throws -> [String: Any] {
+        let data = try Data(contentsOf: ios.appendingPathComponent(
+            "SnapWorthWidgets/PrivacyInfo.xcprivacy"))
+        return try XCTUnwrap(PropertyListSerialization.propertyList(
+            from: data, format: nil) as? [String: Any])
+    }
+
+    private func declaredReasons() throws -> [String: [String]] {
+        let accessed = try manifest()["NSPrivacyAccessedAPITypes"] as? [[String: Any]] ?? []
+        var reasons: [String: [String]] = [:]
+        for entry in accessed {
+            guard let type = entry["NSPrivacyAccessedAPIType"] as? String else { continue }
+            reasons[type] = entry["NSPrivacyAccessedAPITypeReasons"] as? [String] ?? []
+        }
+        return reasons
+    }
+
+    /// Every Swift file the extension compiles, with comments removed: the
+    /// shared model has a comment naming `UserDefaults.standard` to explain why
+    /// the extension does *not* read it, and that is not a call.
+    private func extensionCode() throws -> String {
+        let files = try FileManager.default
+            .contentsOfDirectory(at: ios.appendingPathComponent("SnapWorthWidgets"),
+                                 includingPropertiesForKeys: nil)
+            .filter { $0.pathExtension == "swift" }
+        XCTAssertFalse(files.isEmpty, "the extension's sources moved")
+        return try files
+            .map { try String(contentsOf: $0, encoding: .utf8) }
+            .joined(separator: "\n")
+            .split(separator: "\n", omittingEmptySubsequences: false)
+            .map { line -> Substring in
+                if line.drop(while: { $0 == " " || $0 == "\t" }).hasPrefix("//") { return "" }
+                if let comment = line.range(of: " //") { return line[..<comment.lowerBound] }
+                return line
+            }
+            .joined(separator: "\n")
+    }
+
+    /// Apple's required-reason APIs, by category, as a Swift call would spell
+    /// them (developer.apple.com, "Describing use of required reason API").
+    private static let requiredReasonAPIs: [String: [String]] = [
+        "NSPrivacyAccessedAPICategoryUserDefaults": [
+            #"\bUserDefaults\b"#, #"\bNSUserDefaults\b"#, #"@AppStorage\b"#],
+        "NSPrivacyAccessedAPICategoryFileTimestamp": [
+            #"\bcreationDate(Key)?\b"#, #"\b(file|content)?[mM]odificationDate(Key)?\b"#,
+            #"\battributesOfItem\b"#, #"\bf?getattrlist(bulk|at)?\s*\("#, #"\b[fl]?stat(at)?\s*\("#],
+        "NSPrivacyAccessedAPICategorySystemBootTime": [
+            #"\bsystemUptime\b"#, #"\bmach_absolute_time\b"#],
+        "NSPrivacyAccessedAPICategoryDiskSpace": [
+            #"\bvolume(Available|Total)Capacity"#, #"\bsystem(Free)?Size\b"#,
+            #"\bf?statv?fs\s*\("#, #"\battributesOfFileSystem\b"#],
+        "NSPrivacyAccessedAPICategoryActiveKeyboards": [#"\bactiveInputModes\b"#],
+    ]
+
+    func test_theManifestDeclaresExactlyTheCategoriesTheExtensionUses() throws {
+        let code = try extensionCode()
+        let used = Set(Self.requiredReasonAPIs.compactMap { category, patterns in
+            patterns.contains { code.range(of: $0, options: .regularExpression) != nil }
+                ? category : nil
+        })
+        XCTAssertEqual(used, ["NSPrivacyAccessedAPICategoryUserDefaults"],
+                       "the extension's required-reason APIs changed; declare the new ones")
+        XCTAssertEqual(Set(try declaredReasons().keys), used,
+                       "declared and used must be the same set")
+    }
+
+    /// 1C8F.1 alone: the extension reads and writes the App Group suite and
+    /// never `UserDefaults.standard`, which is what CA92.1 (the app's other
+    /// reason) is for.
+    func test_userDefaultsIsDeclaredForTheAppGroupOnly() throws {
+        let code = try extensionCode()
+        XCTAssertTrue(code.contains("UserDefaults(suiteName: appGroupID)"),
+                      "the extension no longer reads the App Group; revisit 1C8F.1")
+        let appPrivate = code.range(of: #"UserDefaults\.standard|UserDefaults\(\)|@AppStorage\b"#,
+                                    options: .regularExpression) != nil
+        XCTAssertEqual(try declaredReasons()["NSPrivacyAccessedAPICategoryUserDefaults"]?.sorted(),
+                       appPrivate ? ["1C8F.1", "CA92.1"] : ["1C8F.1"],
+                       appPrivate ? "the extension now reads its own defaults; add CA92.1"
+                                  : "CA92.1 claims defaults the extension never reads")
+    }
+
+    /// Nothing leaves the device from the extension, so it declares no
+    /// collected data. A network call or an analytics SDK in it would change
+    /// that, and this is where that would be noticed.
+    func test_theExtensionCollectsNothingAndDoesNotTrack() throws {
+        let plist = try manifest()
+        XCTAssertEqual(plist["NSPrivacyTracking"] as? Bool, false)
+        XCTAssertEqual((plist["NSPrivacyTrackingDomains"] as? [Any])?.count, 0)
+        XCTAssertEqual((plist["NSPrivacyCollectedDataTypes"] as? [Any])?.count, 0)
+        XCTAssertNil(try extensionCode().range(of: #"\bURLSession\b|\bimport\s+TelemetryDeck\b"#,
+                                               options: .regularExpression),
+                     "the extension now sends something; declare what it collects")
+    }
+
+    /// The sticker pack is images and an Info.plist. With no code it calls no
+    /// required-reason API and collects nothing, so it needs no manifest. Code
+    /// added to it needs this question asked again.
+    func test_theStickerPackHasNoCodeAndSoNeedsNoManifest() throws {
+        let root = ios.appendingPathComponent("SnapWorthStickers")
+        let entries = try XCTUnwrap(FileManager.default.enumerator(atPath: root.path))
+        let code = entries.compactMap { $0 as? String }.filter {
+            ["swift", "m", "mm", "c", "cpp"].contains(URL(fileURLWithPath: $0).pathExtension)
+        }
+        XCTAssertEqual(code, [], "the sticker pack has code now; does it need a PrivacyInfo.xcprivacy?")
+    }
+}
+
 // MARK: - Money typed on a comma-decimal keypad
 
 /// `Double("12,50")` is nil, and every money field wrote `Double(newValue)`
