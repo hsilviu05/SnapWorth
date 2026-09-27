@@ -45,13 +45,23 @@ HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
 #
 # Without it the shell is PID 1 and swallows the signal, so there is no graceful
 # shutdown: in-flight scans are killed and Redis connections leaked on every
-# deploy. The lifespan handler in main.py drains in-flight work on SIGTERM, and
-# that only runs if the signal actually reaches the process.
+# deploy. uvicorn's drain and the lifespan shutdown in main.py (below) only run
+# if the signal actually reaches the process.
 #
-# One worker per container is deliberate. The workload is I/O-bound on the model
-# call, so a single event loop saturates it; scale by adding containers, which
-# keeps per-container memory predictable for the autoscaler.
+# One worker per container, and one container, by decision: the workload is
+# I/O-bound on the model call, so a single event loop carries it. RUNBOOK §11
+# records the triggers for a second, and what is per-process today and has to
+# be settled before one. There is no autoscaler.
 #
-# --timeout-graceful-shutdown must exceed DRAIN_TIMEOUT_SECONDS (default 15s)
-# and stay below the platform's SIGKILL grace period (Railway: 30s).
-CMD ["sh", "-c", "exec uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000} --workers 1 --timeout-graceful-shutdown 20 --no-server-header --proxy-headers --forwarded-allow-ips='*'"]
+# On a deploy, in the order it happens (RUNBOOK §6):
+#   1. SIGTERM. uvicorn stops accepting and gives requests in flight up to
+#      --timeout-graceful-shutdown (below), then cancels the rest. The window
+#      outlasts any request someone still waits for: the app gives up on the
+#      model CLIENT_DEADLINE_SECONDS after arrival, and the phone at 35s.
+#      /scan measured over 7 days: p95 18.9s, max 21.6s.
+#   2. Then the lifespan shutdown in main.py: up to DRAIN_TIMEOUT_SECONDS for
+#      cancelled requests to hand back their free scan before Redis closes.
+#   3. SIGKILL, RAILWAY_DEPLOYMENT_DRAINING_SECONDS after SIGTERM. That has to
+#      cover 1 and 2 together plus the close; Railway's default is 0.
+#      tests/test_graceful_shutdown.py holds the three to one budget.
+CMD ["sh", "-c", "exec uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000} --workers 1 --timeout-graceful-shutdown 40 --no-server-header --proxy-headers --forwarded-allow-ips='*'"]
