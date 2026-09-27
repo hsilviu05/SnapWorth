@@ -21,6 +21,13 @@ struct ResultView: View {
     /// moment — and the day someone decides a fresh scan should show its number
     /// straight away, the funnel would go quiet with nothing to say it had.
     /// One is what the screen does; this is what happened.
+    ///
+    /// It also decides whether this sheet may rewrite the valuation. Both
+    /// re-reads, "Add the tag" and "Show the full breakdown", replace the
+    /// estimate, the name and the listing draft, so both are offered on a
+    /// fresh result only (`addTagCard`, `FullDetailOffer`). The tag re-read
+    /// was gated on `coverPrice`, and would have gone from fresh results the
+    /// day the cover did, for the same reason as the funnel.
     var isFreshScan: Bool = false
 
 
@@ -306,10 +313,11 @@ struct ResultView: View {
             }
         }
         .sheet(isPresented: $showPaywall, onDismiss: {
-            // Bought from "Unlock why this price": that is what they paid to
-            // see, and this find was saved without it.
-            if paywallTrigger == .valuationDetail, isPro,
-               result.valuationDetail?.lacksProDetail == true {
+            // Bought from "Unlock why this price" on a fresh result: that is
+            // what they paid to see, and this find was saved without it. A
+            // find reopened from My Finds or My Flips is not re-read after a
+            // purchase either; its panel says why (`FullDetailOffer`).
+            if paywallTrigger == .valuationDetail, fullDetailOffer == .reread {
                 rereadForFullDetail()
             }
         }) {
@@ -887,12 +895,15 @@ struct ResultView: View {
     /// estimate" above so often says "photograph the tag" and, until now, gave
     /// the user nowhere to put it.
     ///
-    /// Offered on a fresh result only (`coverPrice` marks one): re-pricing a
+    /// Offered on a fresh result only (`isFreshScan` marks one): re-pricing a
     /// find from My Finds weeks later would rewrite a number the user has
-    /// already acted on.
+    /// already acted on. The full-breakdown re-read keeps the same rule
+    /// (`FullDetailOffer`). This was gated on `coverPrice`, which is true in
+    /// the same cases today but says whether to play the guess moment, not
+    /// whether the valuation is new — see `isFreshScan`.
     @ViewBuilder
     private var addTagCard: some View {
-        if coverPrice {
+        if isFreshScan {
             VStack(alignment: .leading, spacing: 10) {
                 HStack {
                     Text("Sharpen this estimate")
@@ -1057,7 +1068,11 @@ struct ResultView: View {
                     ValuationDetailView(detail: detail,
                                         priceFactor: result.conditionPriceFactor,
                                         gradeWasOverridden: result.conditionWasOverridden)
-                    if detail.lacksProDetail { fullDetailPrompt }
+                    switch fullDetailOffer {
+                    case .reread:           fullDetailPrompt
+                    case .scannedBeforePro: scannedBeforeProNote
+                    case .none:             EmptyView()
+                    }
                 } else {
                     lockedDetailTeaser(detail)
                 }
@@ -1070,9 +1085,17 @@ struct ResultView: View {
         }
     }
 
-    /// For a subscriber looking at a find that was saved with only the free
-    /// part of the panel. Worded without claiming *why* it is thin, because
-    /// the blob cannot say; in practice it is a find scanned before Pro.
+    /// What "Why this price" adds under a thin panel — see `FullDetailOffer`.
+    /// Internal rather than private so a test can build this sheet the way
+    /// each call site does and read the answer.
+    var fullDetailOffer: FullDetailOffer {
+        FullDetailOffer(isPro: isPro, isFreshScan: isFreshScan,
+                        detail: result.valuationDetail)
+    }
+
+    /// For a subscriber looking at a fresh result that was saved with only
+    /// the free part of the panel. Worded without claiming *why* it is thin,
+    /// because the blob cannot say; in practice it is a scan made before Pro.
     ///
     /// It names everything a re-read replaces (`applySharpened`). It said only
     /// that "the estimate may change", and a tap also renames the item and
@@ -1096,15 +1119,42 @@ struct ResultView: View {
         }
     }
 
+    /// For a subscriber reopening a thin find from My Finds or My Flips,
+    /// which is not re-read (`FullDetailOffer`). Without it the panel is a
+    /// score, a sentence and a grade, and nothing says that is not all Pro
+    /// has to show.
+    ///
+    /// "Scanned before Pro" names the usual cause. The blob cannot prove it:
+    /// a scan the server answered as free while the device was already Pro is
+    /// thin too. That is a scan in the moments after a purchase, before the
+    /// server has been told, and "before Pro" is how the server saw it.
+    private var scannedBeforeProNote: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Label("Scanned before Pro", systemImage: "clock")
+                .font(.dmSans(13, weight: .semibold))
+                .foregroundStyle(Color.snapEspresso)
+            Text("The full breakdown is only available for new scans. This find keeps the summary it was saved with.")
+                .font(.snapCaption)
+                .foregroundStyle(Color.snapWarmGray)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .accessibilityElement(children: .combine)
+    }
+
     /// Re-reads the stored photo so a subscriber gets the panel a free scan
     /// was never sent — see `ValuationDetail.lacksProDetail`.
+    ///
+    /// A fresh result only, like the tag re-read. `FullDetailOffer` decides,
+    /// and it is checked here as well as at the button and the paywall's
+    /// dismissal, so no path re-prices a find reopened from My Finds or My
+    /// Flips.
     ///
     /// The same machinery as the tag re-read, and like it this replaces the
     /// estimate: the ladder has to explain the number beside it, so taking the
     /// new detail and keeping the old range would show a breakdown of a price
     /// the app no longer states.
     private func rereadForFullDetail() {
-        guard !isRescanning else { return }
+        guard !isRescanning, fullDetailOffer == .reread else { return }
         guard let photo else {
             fullDetailError = String(localized: "The original photo is no longer available for this find.")
             return
@@ -1587,6 +1637,44 @@ struct ResultView: View {
                 .foregroundStyle(Color.snapWarmGray)
                 .kerning(0.5)
         }
+    }
+}
+
+
+// MARK: - A thin panel, fresh or reopened
+
+/// What "Why this price" adds for a subscriber whose find was saved with only
+/// the free part of the panel (`ValuationDetail.lacksProDetail`).
+///
+/// A re-read of the stored photo returns the full panel, and replaces the
+/// estimate, the name, the details and the listing draft with it
+/// (`applySharpened`). So it keeps the tag re-read's rule: a fresh result
+/// only. A find reopened from My Finds or My Flips may have been priced,
+/// listed or sold on the number it has, and re-pricing it weeks later would
+/// rewrite a number the user has already acted on. It is told why its panel
+/// is thin instead, and nothing re-reads it, including a purchase made from
+/// its own teaser. That is the owner's decision.
+///
+/// A value rather than three conditions in the view, so the one rule that
+/// matters, that only a fresh result is ever re-read, is tested directly.
+enum FullDetailOffer: Equatable {
+    /// Nothing to add: the free teaser is showing, there is no panel, or the
+    /// panel is already full.
+    case none
+    /// A fresh result: "Show the full breakdown", and the automatic re-read
+    /// when the paywall opened from this panel closes on a purchase.
+    case reread
+    /// Reopened from My Finds or My Flips: a label saying why, never a re-read.
+    case scannedBeforePro
+
+    /// Takes `isFreshScan`, not `coverPrice`: the cover is a presentation
+    /// choice, and this is about what happened — see `ResultView.isFreshScan`.
+    init(isPro: Bool, isFreshScan: Bool, detail: ValuationDetail?) {
+        guard isPro, detail?.lacksProDetail == true else {
+            self = .none
+            return
+        }
+        self = isFreshScan ? .reread : .scannedBeforePro
     }
 }
 

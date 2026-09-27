@@ -13637,6 +13637,42 @@
         }
       }
     },
+    "Scanned before Pro" : {
+      "comment" : "Label under \"Why this price\" when a subscriber reopens a find from My Finds or My Flips that was saved with only the free part of the panel. Such a find is not re-read, so this says why the panel is short.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vor Pro gescannt"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Scanned before Pro"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Escaneado antes de Pro"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Scanată înainte de Pro"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "开通 Pro 前扫描"
+          }
+        }
+      }
+    },
     "Scanning needs a real iPhone — device verification (App Attest) isn't available in the Simulator." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -16096,6 +16132,42 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "这是你自己的邀请码。把它分享给朋友吧。"
+          }
+        }
+      }
+    },
+    "The full breakdown is only available for new scans. This find keeps the summary it was saved with." : {
+      "comment" : "Under \"Scanned before Pro\": a find reopened from My Finds or My Flips keeps the free part of \"Why this price\"; only a fresh scan offers the full panel.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die vollständige Aufschlüsselung gibt es nur für neue Scans. Dieser Fund behält die Zusammenfassung, mit der er gespeichert wurde."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The full breakdown is only available for new scans. This find keeps the summary it was saved with."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "El desglose completo solo está disponible para escaneos nuevos. Este hallazgo conserva el resumen con el que se guardó."
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Analiza completă e disponibilă doar pentru scanările noi. Găselnița asta păstrează rezumatul cu care a fost salvată."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "完整分析仅适用于新扫描。这件好物保留的是保存时的摘要。"
           }
         }
       }

@@ -2840,6 +2840,14 @@
       "de": "Gescannt",
       "zh-Hans": "已扫描"
     },
+    "Scanned before Pro": {
+      "comment": "Label under \"Why this price\" when a subscriber reopens a find from My Finds or My Flips that was saved with only the free part of the panel. Such a find is not re-read, so this says why the panel is short.",
+      "en": "Scanned before Pro",
+      "ro": "Scanată înainte de Pro",
+      "es": "Escaneado antes de Pro",
+      "de": "Vor Pro gescannt",
+      "zh-Hans": "开通 Pro 前扫描"
+    },
     "Scanning needs a real iPhone — device verification (App Attest) isn't available in the Simulator.": {
       "en": "Scanning needs a real iPhone — device verification (App Attest) isn't available in the Simulator.",
       "ro": "Scanarea are nevoie de un iPhone real — verificarea dispozitivului (App Attest) nu există în Simulator.",
@@ -3342,6 +3350,14 @@
       "es": "Es tu propio código de invitación. Compártelo con un amigo.",
       "de": "Das ist dein eigener Einladungscode. Teil ihn lieber mit jemandem.",
       "zh-Hans": "这是你自己的邀请码。把它分享给朋友吧。"
+    },
+    "The full breakdown is only available for new scans. This find keeps the summary it was saved with.": {
+      "comment": "Under \"Scanned before Pro\": a find reopened from My Finds or My Flips keeps the free part of \"Why this price\"; only a fresh scan offers the full panel.",
+      "en": "The full breakdown is only available for new scans. This find keeps the summary it was saved with.",
+      "ro": "Analiza completă e disponibilă doar pentru scanările noi. Găselnița asta păstrează rezumatul cu care a fost salvată.",
+      "es": "El desglose completo solo está disponible para escaneos nuevos. Este hallazgo conserva el resumen con el que se guardó.",
+      "de": "Die vollständige Aufschlüsselung gibt es nur für neue Scans. Dieser Fund behält die Zusammenfassung, mit der er gespeichert wurde.",
+      "zh-Hans": "完整分析仅适用于新扫描。这件好物保留的是保存时的摘要。"
     },
     "The original photo is no longer available for this find.": {
       "en": "The original photo is no longer available for this find.",

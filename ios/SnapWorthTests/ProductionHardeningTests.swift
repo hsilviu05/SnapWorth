@@ -2879,21 +2879,30 @@ final class ValuationDetailTests: XCTestCase {
     }
 
     /// Source-level: the re-read goes through `ScanAPIClient.shared`, which a
-    /// unit test cannot drive.
+    /// unit test cannot drive. Whether it is offered at all is
+    /// `FullDetailOffer`, tested in `FullDetailOfferTests`; this pins that
+    /// every way into the re-read asks it.
     func test_buyingFromThePanelReReadsTheFind() throws {
         let file = try String(
             contentsOf: URL(fileURLWithPath: #filePath)
                 .deletingLastPathComponent().deletingLastPathComponent()
                 .appendingPathComponent("SnapWorth/Views/ResultView.swift"),
             encoding: .utf8)
-        XCTAssertTrue(file.contains("if paywallTrigger == .valuationDetail, isPro,"),
-                      "a purchase from this panel must hand back what it sold")
-        XCTAssertTrue(file.contains("if detail.lacksProDetail { fullDetailPrompt }"),
-                      "an older thin find must offer the re-read too")
-        // The server is asked first: a device it still reads as free is not
-        // refused, it is answered — off the free allowance, stripped again.
+        XCTAssertTrue(file.contains("if paywallTrigger == .valuationDetail, fullDetailOffer == .reread {"),
+                      "a purchase from this panel must hand back what it sold, on a fresh result only")
+        XCTAssertTrue(file.contains("case .reread:           fullDetailPrompt"),
+                      "the button is shown where the re-read is offered")
+        XCTAssertTrue(file.contains("case .scannedBeforePro: scannedBeforeProNote"),
+                      "a reopened thin find says why, rather than offering a re-read")
         let body = try XCTUnwrap(file.range(of: "private func rereadForFullDetail()"))
         let rest = file[body.upperBound...]
+        // It checks for itself, before any work starts, so no future caller
+        // can re-price a find reopened from My Finds or My Flips.
+        let own = try XCTUnwrap(rest.range(of: "guard !isRescanning, fullDetailOffer == .reread else { return }"))
+        let work = try XCTUnwrap(rest.range(of: "Task {"))
+        XCTAssertLessThan(own.lowerBound, work.lowerBound)
+        // The server is asked first: a device it still reads as free is not
+        // refused, it is answered — off the free allowance, stripped again.
         let resync = try XCTUnwrap(rest.range(of: "await purchaseService.resyncEntitlement()"))
         let scan = try XCTUnwrap(rest.range(of: "ScanAPIClient.shared.scan("))
         XCTAssertLessThan(resync.lowerBound, scan.lowerBound)
@@ -2915,6 +2924,128 @@ final class ValuationDetailTests: XCTestCase {
         for part in ["estimate", "name", "details", "listing draft"] {
             XCTAssertTrue(prompt.contains(part), "\(part): \(prompt)")
         }
+    }
+}
+
+// MARK: - A thin panel is re-read on a fresh result only
+
+/// The owner's rule for the full-breakdown re-read: the button and the
+/// automatic re-read after a purchase from the panel run on a fresh result
+/// only. A re-read replaces the estimate, the name and the listing draft, and
+/// a find reopened from My Finds or My Flips may already have been listed or
+/// sold on the number it has. It gets a label saying why its panel is thin,
+/// and is never re-read, whatever its status.
+@MainActor
+final class FullDetailOfferTests: XCTestCase {
+
+    /// What a free scan's panel keeps: score, summary, grade.
+    private var thin: ValuationDetail {
+        var detail = ValuationDetail()
+        detail.confidenceScore = 72
+        detail.confidenceSummary = "Brand and model are legible."
+        detail.conditionGrade = "good"
+        return detail
+    }
+
+    private var full: ValuationDetail {
+        var detail = thin
+        detail.expected = 58
+        detail.valueDrivers = ["Classic colourway"]
+        return detail
+    }
+
+    private func find(_ detail: ValuationDetail?, status: FlipStatus = .scanned) -> ScanResult {
+        let item = ScanResult(itemName: "Patagonia Better Sweater", brand: "Patagonia",
+                              category: "clothing", conditionNotes: "Good",
+                              valueLow: 45, valueHigh: 90, confidence: "High",
+                              soldListingsCount: 0, listingTitle: "T", listingDescription: "D",
+                              valuationDetailData: detail?.encoded())
+        item.status = status
+        return item
+    }
+
+    private var pro: MockPurchaseService { MockPurchaseService(forcedSubscribed: true) }
+
+    func test_aFreshThinResultIsOfferedTheReRead() {
+        XCTAssertTrue(thin.lacksProDetail)
+        XCTAssertEqual(FullDetailOffer(isPro: true, isFreshScan: true, detail: thin), .reread)
+        // Built the way the scan sheet builds it (`ScanView.resultSheet`).
+        let sheet = ResultView(result: find(thin), purchaseService: pro, onDismiss: {},
+                               didSave: true, coverPrice: true, isFreshScan: true)
+        XCTAssertEqual(sheet.fullDetailOffer, .reread)
+    }
+
+    func test_aReopenedThinFindGetsTheLabelAndNeverTheReRead() {
+        XCTAssertEqual(FullDetailOffer(isPro: true, isFreshScan: false, detail: thin),
+                       .scannedBeforePro)
+        // Built the way My Finds builds it (`HistoryView`).
+        let sheet = ResultView(result: find(thin), purchaseService: pro, onDismiss: {})
+        XCTAssertEqual(sheet.fullDetailOffer, .scannedBeforePro)
+    }
+
+    /// My Flips builds its sheet exactly as My Finds does. Listed and sold are
+    /// the statuses where the number has certainly been acted on, and no
+    /// status turns a reopened find back into a fresh one.
+    func test_soldAndListedLedgerItemsAreNeverReRead() {
+        for status in FlipStatus.allCases {
+            let sheet = ResultView(result: find(thin, status: status), purchaseService: pro,
+                                   onDismiss: {})
+            XCTAssertEqual(sheet.fullDetailOffer, .scannedBeforePro, status.rawValue)
+        }
+    }
+
+    /// Whether the value starts covered is a presentation choice; whether the
+    /// valuation is new is what decides.
+    func test_theFreshResultDecidesNotThePriceCover() {
+        let coveredOnly = ResultView(result: find(thin), purchaseService: pro, onDismiss: {},
+                                     coverPrice: true)
+        XCTAssertEqual(coveredOnly.fullDetailOffer, .scannedBeforePro)
+        let freshUncovered = ResultView(result: find(thin), purchaseService: pro, onDismiss: {},
+                                        isFreshScan: true)
+        XCTAssertEqual(freshUncovered.fullDetailOffer, .reread)
+    }
+
+    func test_nothingIsAddedForAFreeUserOrAFullPanel() {
+        for fresh in [true, false] {
+            XCTAssertEqual(FullDetailOffer(isPro: false, isFreshScan: fresh, detail: thin), .none,
+                           "a free user sees the teaser")
+            XCTAssertEqual(FullDetailOffer(isPro: true, isFreshScan: fresh, detail: full), .none)
+            XCTAssertEqual(FullDetailOffer(isPro: true, isFreshScan: fresh, detail: nil), .none)
+        }
+        let free = ResultView(result: find(thin), purchaseService: MockPurchaseService(),
+                              onDismiss: {}, isFreshScan: true)
+        XCTAssertEqual(free.fullDetailOffer, .none)
+    }
+
+    /// Source-level: which sheet is fresh is decided at its call site. Only the
+    /// scan sheet may say so. My Finds and My Flips, whose items include
+    /// everything listed and sold, must not.
+    func test_onlyTheScanSheetIsFresh() throws {
+        let views = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("SnapWorth/Views")
+        func source(_ name: String) throws -> String {
+            try String(contentsOf: views.appendingPathComponent(name), encoding: .utf8)
+        }
+        XCTAssertTrue(try source("ScanView.swift").contains("isFreshScan: true"))
+        for reopened in ["HistoryView.swift", "FlipsView.swift"] {
+            let file = try source(reopened)
+            XCTAssertTrue(file.contains("ResultView("), reopened)
+            XCTAssertFalse(file.contains("isFreshScan"), "\(reopened) reopens saved finds")
+        }
+    }
+
+    /// Source-level: the tag re-read keeps the same rule on the same signal, so
+    /// the two cannot come apart the day the cover changes.
+    func test_theTagReReadIsGatedOnTheSameSignal() throws {
+        let file = try String(
+            contentsOf: URL(fileURLWithPath: #filePath)
+                .deletingLastPathComponent().deletingLastPathComponent()
+                .appendingPathComponent("SnapWorth/Views/ResultView.swift"),
+            encoding: .utf8)
+        let card = try XCTUnwrap(file.range(of: "private var addTagCard: some View {"))
+        let gate = try XCTUnwrap(file.range(of: "if ", range: card.upperBound..<file.endIndex))
+        XCTAssertTrue(file[gate.lowerBound...].hasPrefix("if isFreshScan {"))
     }
 }
 
