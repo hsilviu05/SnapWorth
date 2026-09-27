@@ -54,8 +54,9 @@ actually arrives:
 | Current state | `/status` | Build, cache backend, auth enforcement, last deploy ping, today's counters |
 | What it costs | `/costs` | Gemini spend by window, `$/scan`, free-tier giveaway, and the operator's own bot usage listed separately |
 | Subscribers | `/subs` | Active, paid, comped, and MRR |
-| Is the free-scan experiment working | `/experiment` | The whole window at once: limit hits against new subscriptions, day by day, with a running total |
-| Start or stop the free-scan experiment | `/lever` | Arms or disarms the first-day allowance without a Railway change or a redeploy. Two taps, clamped, and `/experiment` footnotes any day it moved |
+| Is the free-scan experiment working | `/experiment` | The whole window at once: limit hits against new subscriptions, day by day, with a running total, and whether a new user gets a first-day welcome right now — as the quota resolves it, so `FREE_SCANS_FIRST_DAY=1` at a daily limit of 1 reads "lever not armed" |
+| Keep the experiment's numbers | `/experiment export` (💾 under `/experiment`) | The same rows as CSV in a block to copy into `docs/`. The counters expire 35 days after each day, so the 2026-09-10 → 09-24 window starts disappearing on 2026-10-15. An expired day is exported empty, not as zeros, and an unreadable Redis exports nothing. The `#` lines above the header (the window, the welcome, any lever move) have no commas, so each parses as one CSV field, and a reader that skips `#` lines gets only the table |
+| Start or stop the free-scan experiment | `/lever` | Arms or disarms the first-day allowance without a Railway change or a redeploy. Two taps, clamped, and `/experiment` footnotes any day it moved. It checks a value against the running quota's own daily limit and cap, and refuses to arm when it cannot ask |
 | Make a bad or stranded build update | `/minbuild <n>` | /scan, /listing and /trends answer builds below `n` with a 422 telling them to update from the App Store; `/minbuild off` serves all again. Two taps. Set it only once build `n` is live. /scan and /listing show the message to builds 8 and up; builds 7 and older show fixed copy ("Something went wrong"). /trends is refused too, but the app drops that error silently and the Trending card disappears. /auth is never gated, and a request whose build is unreadable is served. A 422 is a non-paging 4xx: refusals are counted in `snapworth_outdated_build_refused_total`, by endpoint. The access log's `build` field (from the User-Agent) shows who is still on what |
 | Yesterday | The daily digest | Sent automatically at `TELEGRAM_DIGEST_UTC_HOUR` (default 06:00 UTC); a weekly report on Mondays |
 
@@ -497,7 +498,8 @@ body-only key, so the checkup names the shape instead:
 | `…is on a single line — its newlines were lost` | re-paste with real line breaks, or with a literal `\n` between them |
 | `…has no BEGIN/END lines` | paste the whole file, not just the base64 body |
 | `private key unreadable — …` | the envelope is right but the contents are not a P-256 key; check it is the unencrypted `.p8` Apple issued |
-| `could not reach Apple (…)` | network, not credentials — nothing to change |
+| `Apple unreachable just now (…)` | a timeout, a connection failure or a 5xx — not credentials. Nothing to change; run the checkup again |
+| `probe could not be sent (…)` | the request failed before any answer from Apple was read, for a reason that is not the network: a client or code fault, not the key. Look in the server log for `devicecheck probe could not be sent` and its traceback, not in the developer portal |
 
 **Then verify — do not trust "configured".** `is_configured` only means the
 three variables are non-empty, and a wrong key cannot recognise a reinstall, so
@@ -509,6 +511,13 @@ Run `🩺 Checkup`:
 - `DeviceCheck: configured ✅ — credentials accepted by Apple` — Apple signed off.
 - `DeviceCheck: configured but REJECTED — key rejected …` — one of the three
   variables is wrong, or the key lacks the DeviceCheck capability.
+- `DeviceCheck: configured · Apple unreachable just now (…)` — Apple did not
+  answer, so nothing is known about the key yet. Run it again. While it lasts,
+  reinstalls get a fresh allowance, as in any Apple outage (§5.6).
+- `DeviceCheck: configured · probe could not be sent (…)` — not a verdict on
+  the key either, but not transient: see the table above. Scans send the same
+  request, so until it is fixed reinstalls get a fresh allowance and new
+  installs no welcome, as with a rejected key.
 
 The probe sends a deliberately fake device token: Apple reads the
 Authorization header first, so a `400` about the token proves the key signs
