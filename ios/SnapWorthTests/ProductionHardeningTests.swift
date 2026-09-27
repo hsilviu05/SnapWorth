@@ -5873,6 +5873,51 @@ final class TrialReminderTimingTests: XCTestCase {
             }
         }
     }
+
+    // ── A sync that arrives after the slot but before the mark ───────────────
+    //
+    // The slot moved the warning up to twelve hours earlier than the mark, and
+    // the scheduler still required the slot to be ahead — so a first sync in
+    // between (notifications allowed mid-trial, a restore, the first
+    // foreground after an update) scheduled nothing, and removed what an
+    // older build had pending.
+
+    func test_aSyncBetweenTheSlotAndTheMarkStillWarns() throws {
+        let cal = calendar("Europe/Bucharest")
+        let end = at(cal, 22, 1, 40)            // slot 21:00 on the 20th, mark 01:40 on the 21st
+        let now = at(cal, 20, 22)
+        let fire = try XCTUnwrap(
+            NotificationManager.trialReminderFireDate(endDate: end, now: now, calendar: cal),
+            "the slot has passed but a full day's notice can still be given")
+        XCTAssertGreaterThan(fire, now)
+        XCTAssertEqual(fire, at(cal, 21, 1, 40), "the mark itself, the same instant on every sync")
+        XCTAssertGreaterThanOrEqual(end.timeIntervalSince(fire), 24 * 3600)
+        XCTAssertEqual(NotificationManager.trialBody(fireDate: fire, endDate: end, calendar: cal),
+                       "Your SnapWorth trial ends tomorrow.")
+    }
+
+    func test_theSlotIsKeptWhileItIsAhead_andNothingOnceTheMarkHasPassed() {
+        let cal = calendar("Europe/Bucharest")
+        let end = at(cal, 22, 1, 40)
+        XCTAssertEqual(NotificationManager.trialReminderFireDate(endDate: end, now: at(cal, 20, 12),
+                                                                 calendar: cal),
+                       at(cal, 20, 21))
+        XCTAssertNil(NotificationManager.trialReminderFireDate(endDate: end, now: at(cal, 21, 1, 40),
+                                                               calendar: cal),
+                     "inside the last day a warning can no longer keep its promise")
+    }
+
+    func test_aDaytimeMarkLeavesNoGap() {
+        // The slot is the mark when the mark is in waking hours, so once it
+        // has passed there is nothing left to fall back to.
+        let cal = calendar("America/New_York")
+        let end = at(cal, 22, 15)
+        XCTAssertEqual(NotificationManager.trialReminderFireDate(endDate: end, now: at(cal, 21, 14, 59),
+                                                                 calendar: cal),
+                       at(cal, 21, 15))
+        XCTAssertNil(NotificationManager.trialReminderFireDate(endDate: end, now: at(cal, 21, 15),
+                                                               calendar: cal))
+    }
 }
 
 // ── The rating request waits for the number ──────────────────────────────────

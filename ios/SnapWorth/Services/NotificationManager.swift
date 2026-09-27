@@ -419,8 +419,7 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
         let id = Self.trialID
         guard isEnabled(.trial),
               let endDate,
-              let fireDate = Self.trialReminderDate(endDate: endDate),
-              fireDate > Date()
+              let fireDate = Self.trialReminderFireDate(endDate: endDate, now: Date())
         else {
             center.removePendingNotificationRequests(withIdentifiers: [id])
             return
@@ -449,6 +448,31 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
         else { return nil }
         if deadline < morning { return calendar.date(byAdding: .day, value: -1, to: evening) }
         return min(deadline, evening)
+    }
+
+    /// What to schedule as of `now`: the waking-hours slot while it is still
+    /// ahead, else the 24-hour mark while that is, else nothing.
+    ///
+    /// The slot is earlier than the mark by up to twelve hours, and the first
+    /// sync can land in between — notifications allowed mid-trial, a restore
+    /// on a new device, the first foreground after an update from a build that
+    /// had the warning pending at the mark. Requiring the slot alone dropped
+    /// the warning there, and the update case removed one that was already
+    /// pending, while a full day's notice could still be given. The fallback
+    /// is the mark, which can be at night: a night warning beats none. It is
+    /// the same instant on every sync, so a foreground in the gap replaces the
+    /// request rather than firing it again — which "a minute from now" would
+    /// not, and inside the gap that is never in waking hours either.
+    ///
+    /// Pure, and takes its calendar, for the tests.
+    nonisolated static func trialReminderFireDate(endDate: Date, now: Date,
+                                                  calendar: Calendar = .current) -> Date? {
+        if let slot = trialReminderDate(endDate: endDate, calendar: calendar), slot > now {
+            return slot
+        }
+        guard let mark = calendar.date(byAdding: .hour, value: -24, to: endDate), mark > now
+        else { return nil }
+        return mark
     }
 
     /// "Ends tomorrow" is only true when it is. Moved to the evening before a
