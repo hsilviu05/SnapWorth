@@ -1073,9 +1073,13 @@ struct ResultView: View {
     /// For a subscriber looking at a find that was saved with only the free
     /// part of the panel. Worded without claiming *why* it is thin, because
     /// the blob cannot say; in practice it is a find scanned before Pro.
+    ///
+    /// It names everything a re-read replaces (`applySharpened`). It said only
+    /// that "the estimate may change", and a tap also renames the item and
+    /// rewrites its details and listing draft.
     private var fullDetailPrompt: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("This find was saved without its full breakdown. Re-read it to see the price points and what drives the value — the estimate may change.")
+            Text("This find was saved without its full breakdown. Re-read its photo to see the price points and what drives the value. The estimate, the item's name and details, and the listing draft may change.")
                 .font(.snapCaption)
                 .foregroundStyle(Color.snapWarmGray)
                 .fixedSize(horizontal: false, vertical: true)

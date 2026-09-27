@@ -2898,6 +2898,24 @@ final class ValuationDetailTests: XCTestCase {
         let scan = try XCTUnwrap(rest.range(of: "ScanAPIClient.shared.scan("))
         XCTAssertLessThan(resync.lowerBound, scan.lowerBound)
     }
+
+    /// Source-level, for the same reason. `applySharpened` replaces the name,
+    /// the details and the listing draft as well as the estimate, and the
+    /// prompt said only that "the estimate may change".
+    func test_theReReadPromptSaysEverythingItMayChange() throws {
+        let file = try String(
+            contentsOf: URL(fileURLWithPath: #filePath)
+                .deletingLastPathComponent().deletingLastPathComponent()
+                .appendingPathComponent("SnapWorth/Views/ResultView.swift"),
+            encoding: .utf8)
+        let view = try XCTUnwrap(file.range(of: "private var fullDetailPrompt: some View {"))
+        let open = try XCTUnwrap(file.range(of: "Text(\"", range: view.upperBound..<file.endIndex))
+        let close = try XCTUnwrap(file.range(of: "\")", range: open.upperBound..<file.endIndex))
+        let prompt = file[open.upperBound..<close.lowerBound]
+        for part in ["estimate", "name", "details", "listing draft"] {
+            XCTAssertTrue(prompt.contains(part), "\(part): \(prompt)")
+        }
+    }
 }
 
 // MARK: - Where the number came from (#40)
