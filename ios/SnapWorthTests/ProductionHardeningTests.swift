@@ -5230,6 +5230,49 @@ final class EntitlementSyncMemoryTests: XCTestCase {
         XCTAssertLessThan(EntitlementSyncMemory.interval, 86_400)
     }
 
+    // The skip was decided before the launch mint had finished, and a
+    // re-attestation forgets the memory only at its end — so a device whose
+    // /auth/refresh was answered 401 within twelve hours of its last sync
+    // never told its new subject it was subscribed.
+
+    func test_aReattestationDuringTheMintIsSeen() async throws {
+        let defaults = try XCTUnwrap(self.defaults)
+        EntitlementSyncMemory.record("jws-a", now: now, defaults: defaults)
+        let due = try await EntitlementSyncMemory.needsSending("jws-a", now: now, defaults: defaults) {
+            EntitlementSyncMemory.forget(defaults: defaults)      // what `attestFresh` does
+        }
+        XCTAssertTrue(due)
+    }
+
+    func test_anUnchangedSubjectStillSkipsAFreshTransaction() async throws {
+        let defaults = try XCTUnwrap(self.defaults)
+        EntitlementSyncMemory.record("jws-a", now: now, defaults: defaults)
+        let due = try await EntitlementSyncMemory.needsSending("jws-a", now: now, defaults: defaults) {}
+        XCTAssertFalse(due)
+    }
+
+    func test_aFailedMintSkipsAFreshTransactionQuietly() async throws {
+        // No new subject was made, so the memory still holds.
+        let defaults = try XCTUnwrap(self.defaults)
+        EntitlementSyncMemory.record("jws-a", now: now, defaults: defaults)
+        let due = try await EntitlementSyncMemory.needsSending("jws-a", now: now, defaults: defaults) {
+            throw URLError(.notConnectedToInternet)
+        }
+        XCTAssertFalse(due)
+    }
+
+    func test_aFailedMintIsReportedWhenTheSendWasDue() async throws {
+        let defaults = try XCTUnwrap(self.defaults)
+        do {
+            _ = try await EntitlementSyncMemory.needsSending("jws-a", now: now, defaults: defaults) {
+                throw URLError(.notConnectedToInternet)
+            }
+            XCTFail("a send that was due and could not happen is a sync failure")
+        } catch {
+            XCTAssertEqual(EntitlementSyncFailure.reason(for: error), "network")
+        }
+    }
+
     /// Source-level: which refreshes may skip is the whole fix, and StoreKit
     /// cannot be driven from a unit test.
     func test_onlyTheRoutineRefreshesMaySkip() throws {
@@ -5244,6 +5287,11 @@ final class EntitlementSyncMemoryTests: XCTestCase {
         XCTAssertEqual(file.components(separatedBy: "await refreshSubscriptionStatus()").count - 1, 2)
         XCTAssertEqual(file.components(separatedBy: "await self.refreshSubscriptionStatus()").count - 1, 1)
         XCTAssertTrue(file.contains("private func refreshSubscriptionStatus(serverSync: ServerSync = .always)"))
+        // And the skip is decided after the token, not when the refresh ran.
+        XCTAssertFalse(file.contains("!EntitlementSyncMemory.isFresh("))
+        let check = try XCTUnwrap(file.range(of: "try await EntitlementSyncMemory.needsSending(jws) {"))
+        let settle = file[check.upperBound...].prefix(120)
+        XCTAssertTrue(settle.contains("AttestationService.shared.accessToken()"), String(settle))
     }
 
     /// The first scan paid for the whole App Attest handshake inside

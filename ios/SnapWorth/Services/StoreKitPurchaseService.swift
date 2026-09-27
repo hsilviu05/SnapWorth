@@ -388,7 +388,8 @@ final class StoreKitPurchaseService: PurchaseService, ObservableObject {
         /// Purchase, restore and `Transaction.updates`: something changed.
         case always
         /// Cold launch and every return to the foreground: only when the
-        /// server has not had this transaction recently.
+        /// server has not had this transaction recently, which is decided
+        /// once the token has settled — see `EntitlementSyncMemory`.
         case ifStale
         /// `resyncEntitlement`, which sends it itself and waits for the answer.
         case never
@@ -438,20 +439,15 @@ final class StoreKitPurchaseService: PurchaseService, ObservableObject {
         // quota. Runs on every status refresh — purchase, restore, and the
         // transaction listener all funnel through here — which also makes it
         // self-healing if an earlier attempt failed offline.
-        let shouldSync: Bool
-        switch serverSync {
-        case .always:  shouldSync = true
-        case .ifStale: shouldSync = activeJWS.map { !EntitlementSyncMemory.isFresh($0) } ?? false
-        case .never:   shouldSync = false
-        }
-        if let activeJWS, shouldSync {
+        if let activeJWS, serverSync != .never {
             // Detached, not awaited: this sits inside the `purchase()` await
             // chain on the main actor, and attestation plus the POST can take
             // seconds (or block on a bad network). The local entitlement is
             // already active, and every later status refresh retries, so the
             // user must never wait on it to see their purchase complete.
+            let onlyIfStale = serverSync == .ifStale
             Task.detached { [weak self] in
-                await self?.syncEntitlementToServer(activeJWS)
+                await self?.syncEntitlementToServer(activeJWS, onlyIfStale: onlyIfStale)
             }
         }
         // Keep the courtesy "trial ends tomorrow" reminder in sync — schedules
@@ -480,9 +476,19 @@ final class StoreKitPurchaseService: PurchaseService, ObservableObject {
     /// Counted as well as logged. The system log was the only record, so a
     /// subscriber the server never heard about was invisible to the operator
     /// until they wrote in — if they did.
-    private func syncEntitlementToServer(_ jws: String) async {
+    ///
+    /// - Parameter onlyIfStale: a routine refresh, which skips a transaction
+    ///   the server has had recently — decided here, after the token, and
+    ///   not when the refresh ran. See `EntitlementSyncMemory.needsSending`.
+    private func syncEntitlementToServer(_ jws: String, onlyIfStale: Bool = false) async {
         guard Config.useAttestation else { return }
         do {
+            if onlyIfStale {
+                let due = try await EntitlementSyncMemory.needsSending(jws) {
+                    _ = try await AttestationService.shared.accessToken()
+                }
+                guard due else { return }
+            }
             let tier = try await AttestationService.shared.submitEntitlement(signedTransaction: jws)
             if tier == "pro" {
                 EntitlementSyncMemory.record(jws)
@@ -567,11 +573,18 @@ enum EntitlementSyncFailure {
 /// within `interval`: a renewal is a new transaction, so it goes at once.
 ///
 /// Safe to skip because the server keeps a Pro entitlement for 24 hours and
-/// the proof behind it far longer, and because a 402 that reaches a subscriber
-/// forces a send (`confirmingSubscription`). Purchase, restore and
-/// `Transaction.updates` always send. Forgotten when a fresh attestation makes
-/// this device a new subject the server has never been told about — an
-/// iCloud restore onto a new iPhone carries these defaults but not the key.
+/// the proof behind it far longer. Purchase, restore and `Transaction.updates`
+/// always send. Forgotten when a fresh attestation makes this device a new
+/// subject the server has never been told about — after /auth/refresh is
+/// answered 401, or on a new iPhone restored from iCloud, which carries these
+/// defaults but not the key — and a skip is decided only once the token has
+/// settled, so a re-attestation still in flight is seen (`needsSending`).
+///
+/// A wrong skip leaves a subscriber the server reads as free, and not much
+/// forces a send. A 402 does (`confirmingSubscription`), as does "Show the
+/// full breakdown"; but while the free allowance lasts nothing is refused,
+/// so those scans come back stripped of the Pro detail and counted against
+/// it until a refresh finds the memory stale.
 enum EntitlementSyncMemory {
     static let interval: TimeInterval = 12 * 60 * 60
 
@@ -599,5 +612,28 @@ enum EntitlementSyncMemory {
     static func forget(defaults: UserDefaults = .standard) {
         defaults.removeObject(forKey: fingerprintKey)
         defaults.removeObject(forKey: dateKey)
+    }
+
+    /// Whether a routine refresh should send `jws`, read only after
+    /// `settleToken` — the device's token, minted if need be — has run.
+    ///
+    /// It was read when the refresh started. At cold launch that is before
+    /// `AttestationService.prewarm` has finished, and a re-attestation calls
+    /// `forget()` only at its very end, so a device whose /auth/refresh was
+    /// answered 401 within twelve hours of its last sync skipped the send and
+    /// its new subject stayed free. Waiting on the token joins the mint in
+    /// flight rather than starting another.
+    ///
+    /// A mint that fails made no new subject, so the memory still holds: a
+    /// fresh transaction is skipped quietly, and a stale one throws the
+    /// mint's error, which is what its send would have met.
+    static func needsSending(_ jws: String, now: Date = Date(),
+                             defaults: UserDefaults = .standard,
+                             afterSettling settleToken: () async throws -> Void) async throws -> Bool {
+        var mintError: Error?
+        do { try await settleToken() } catch { mintError = error }
+        if isFresh(jws, now: now, defaults: defaults) { return false }
+        if let mintError { throw mintError }
+        return true
     }
 }
