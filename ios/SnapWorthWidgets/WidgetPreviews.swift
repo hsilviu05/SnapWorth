@@ -81,6 +81,19 @@ extension WidgetHaulData {
         return haul
     }
 
+    /// A library whose best case passes $9,999: `$8,400–$15,600`. The small
+    /// Haul tile showed "$8,400–$15,…" while it padded itself inside the
+    /// system margin and its 0.6 scale floor was silently 0.7; on an iPhone
+    /// SE the cut began at four figures.
+    static var previewFiveFigures: WidgetHaulData {
+        var haul = previewFree
+        haul.totalLow = 8_400
+        haul.totalHigh = 15_600
+        haul.totalLikely = 11_900
+        haul.itemCount = 212
+        return haul
+    }
+
     /// Nothing scanned. Every widget has an empty state and they are easy to
     /// forget about.
     static let previewEmpty = WidgetHaulData.empty
@@ -108,6 +121,7 @@ private let previewNow = Date(timeIntervalSince1970: 1_789_000_000)
     HaulWidget()
 } timeline: {
     HaulEntry(date: previewNow, haul: .previewFree)
+    HaulEntry(date: previewNow, haul: .previewFiveFigures)
     HaulEntry(date: previewNow, haul: .previewEmpty)
 }
 
@@ -115,6 +129,7 @@ private let previewNow = Date(timeIntervalSince1970: 1_789_000_000)
     HaulWidget()
 } timeline: {
     HaulEntry(date: previewNow, haul: .previewFree)
+    HaulEntry(date: previewNow, haul: .previewFiveFigures)
     HaulEntry(date: previewNow, haul: .previewEmpty)
 }
 
@@ -179,6 +194,7 @@ private let previewNow = Date(timeIntervalSince1970: 1_789_000_000)
     LockScreenHaulWidget()
 } timeline: {
     LockScreenEntry(date: previewNow, haul: .previewFree)
+    LockScreenEntry(date: previewNow, haul: .previewFiveFigures)
     LockScreenEntry(date: previewNow, haul: .previewEmpty)
 }
 
@@ -257,8 +273,13 @@ private struct TypeSizeRow<Content: View>: View {
 }
 
 #Preview("Dynamic Type · Haul") {
+    // `.padding(16)` stands in for the system content margin, as in the rows
+    // above. This one had none because the view padded itself, on top of the
+    // margin a real widget gets — which is why it looked right here and was
+    // cut off on a phone.
     TypeSizeRow(label: "Haul — small", width: 155, height: 155) {
-        HaulWidgetSmallView(haul: .previewFree)
+        HaulWidgetSmallView(haul: .previewFiveFigures)
+            .padding(16)
     }
 }
 
@@ -266,6 +287,67 @@ private struct TypeSizeRow<Content: View>: View {
     TypeSizeRow(label: "Lock Screen — rectangular", width: 160, height: 72) {
         LockScreenRectangularView(haul: .previewFree, now: previewNow)
             .padding(8)
+    }
+}
+
+// ── German ───────────────────────────────────────────────────────────────────
+//
+// German runs longest of the five languages, and the Quick Scan captions in
+// German, Romanian and Spanish overflowed their tile while it was padded twice.
+// Each row is an iPhone SE's tile beside an iPhone 16's, with 16pt standing
+// in for the system margin a real widget gets, as in the rows above.
+//
+// What `\.locale` does and does not reach: it translates the `Text("…")`
+// literals ("Jetzt scannen", "Finde heraus, was es wert ist", "Deine
+// Sammlung", "Scannen"). Captions built with `String(localized:)` resolve
+// against the process's language, which this cannot change, so "… in your
+// haul" and "… scanned" stay English here.
+
+private struct GermanRow<Content: View>: View {
+    /// Tile sizes in points: iPhone SE, then iPhone 16.
+    let sizes: [CGSize]
+    let background: AnyShapeStyle
+    @ViewBuilder let content: () -> Content
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 16) {
+            ForEach(sizes, id: \.width) { size in
+                VStack(spacing: 4) {
+                    content()
+                        .padding(16)
+                        .frame(width: size.width, height: size.height)
+                        .background(background)
+                        .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+                        .environment(\.locale, Locale(identifier: "de"))
+                    Text(verbatim: "\(Int(size.width))×\(Int(size.height))")
+                        .font(.system(size: 9))
+                        .foregroundStyle(.secondary)
+                }
+            }
+        }
+        .padding()
+    }
+}
+
+private let smallTiles = [CGSize(width: 148, height: 148), CGSize(width: 158, height: 158)]
+private let mediumTiles = [CGSize(width: 321, height: 148), CGSize(width: 338, height: 158)]
+
+#Preview("German · Quick Scan") {
+    GermanRow(sizes: smallTiles, background: AnyShapeStyle(LinearGradient(
+        colors: [Color.wTerracottaFill, Color.wTerracottaFillDeep],
+        startPoint: .topLeading, endPoint: .bottomTrailing))) {
+        QuickScanWidgetView(entry: QuickScanEntry(date: previewNow, itemCount: 0))
+    }
+}
+
+#Preview("German · Haul, five figures") {
+    VStack(alignment: .leading) {
+        GermanRow(sizes: smallTiles, background: AnyShapeStyle(Color.wCharcoal)) {
+            HaulWidgetSmallView(haul: .previewFiveFigures)
+        }
+        GermanRow(sizes: mediumTiles, background: AnyShapeStyle(Color.wCharcoal)) {
+            HaulWidgetMediumView(haul: .previewFiveFigures)
+        }
     }
 }
 #endif

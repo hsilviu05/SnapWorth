@@ -3862,6 +3862,13 @@ final class HaulDispositionTests: XCTestCase {
 
         let outage = AppError.aiFailed("Our AI is having trouble right now.")
         XCTAssertEqual(disposition(outage, last: HaulSession.signature(for: outage)), .failAndHalt)
+
+        // A refused certificate refuses every photo after it. It tripped the
+        // breaker as `.unknown` before it had a case of its own, and giving it
+        // one must not turn the whole strip red instead.
+        let refused = AppError.connectionNotTrusted
+        XCTAssertEqual(disposition(refused), .fail)
+        XCTAssertEqual(disposition(refused, last: HaulSession.signature(for: refused)), .failAndHalt)
     }
 
     func test_thePausedDevice422TwiceHalts() {

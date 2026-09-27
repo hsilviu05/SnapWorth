@@ -792,10 +792,14 @@ final class HaulSession {
     /// A photo from the camera. Synchronous, so capture order is the order
     /// photos were delivered.
     ///
-    /// Preparation is chained: each photo waits for the one before it, so
-    /// only one full-size decode — 48.8 MB for 12 MP — is alive at a time.
-    /// The full image is dropped as soon as its 1568 px JPEG is on disk; the
-    /// JPEG itself is read back when its scan starts.
+    /// The photo arrives already decoded at the 1568 px upload edge — the
+    /// camera's photo delegate runs `ScanAPIClient.decodeForScan` — so there
+    /// is no full-size decode here, and the downscale to `maxUploadEdge` in
+    /// `prepare` passes it through untouched. Preparation is chained: each
+    /// photo waits for the one before it, so one JPEG encode and disk write
+    /// runs at a time, and a photo still waiting holds its decoded bitmap,
+    /// about 7 MB at 4:3, until its turn. The JPEG itself is read back when
+    /// its scan starts.
     func add(_ photo: UIImage) {
         let id = UUID()
         let capturedAt = HaulPhotoStore.captureDate(deps.now())
@@ -1750,6 +1754,9 @@ extension HaulSession {
     nonisolated static func signature(for error: AppError) -> HaulFailureSignature? {
         switch error {
         case .timeout:                return HaulFailureSignature(kind: "timeout", message: "")
+        // A refused connection refuses the next photo too; it tripped the
+        // breaker as `.unknown` before it had a case of its own, and should.
+        case .connectionNotTrusted:   return HaulFailureSignature(kind: "connectionNotTrusted", message: "")
         case .unusablePhoto(let msg): return HaulFailureSignature(kind: "unusablePhoto", message: msg)
         case .aiFailed(let msg):      return HaulFailureSignature(kind: "aiFailed", message: msg)
         case .unknown(let msg):       return HaulFailureSignature(kind: "unknown", message: msg)

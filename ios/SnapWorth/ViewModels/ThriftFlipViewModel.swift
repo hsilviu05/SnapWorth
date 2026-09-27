@@ -69,23 +69,30 @@ final class ThriftFlipViewModel {
 
         isScanningItem = true
         scanError = nil
-        itemImage = image
         defer { isScanningItem = false }
         // See `BackgroundScanActivity`: a locked phone must not strand a paid scan.
         let background = BackgroundScanActivity.begin("Thrift Flip scan")
         defer { background.end() }
 
+        // One resample of the picker's full-size image, off the main actor,
+        // and everything after works from that: the upload (already at its
+        // size, so it is not redrawn), the stored copy and the header
+        // thumbnail. The last two used to resample the full-size original
+        // each, one after the other, after the response had arrived; now they
+        // start here and finish while the request is in flight. `itemImage`
+        // no longer holds the untouched original during the request either —
+        // it was the largest allocation in this flow, kept for a 64pt header.
+        let prepared = await ScanAPIClient.preparedForScan(image)
+        async let storedImageData = ScanAPIClient.encodeForStorage(prepared)
+        async let headerThumbnail = ScanAPIClient.thumbnail(prepared, side: 64)
+
         do {
             let response = try await purchaseService.confirmingSubscription {
-                try await ScanAPIClient.shared.scan(image: image)
+                try await ScanAPIClient.shared.scan(image: prepared)
             }
-            // Encoded off the main actor — see ScanAPIClient.encodeForStorage.
-            let storedImage = await ScanAPIClient.encodeForStorage(image)
-            // Drop the original now the encodes are done: the only surface that
-            // shows it is a 64pt header thumbnail, and holding the picker's
-            // untouched image for the rest of the session was the largest
-            // allocation in this flow.
-            itemImage = await ScanAPIClient.thumbnail(image, side: 64)
+            let storedImage = await storedImageData
+            // The only surface that shows the photo is a 64pt header.
+            itemImage = await headerThumbnail
             let result = ScanResult(
                 itemName: response.itemName,
                 brand: response.brand,

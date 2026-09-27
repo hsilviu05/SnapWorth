@@ -26,30 +26,47 @@ enum Config {
 
     // ── Transport security ───────────────────────────────────────────────────
     /// Base64 SHA-256 hashes of pinned SubjectPublicKeyInfo blobs for
-    /// `api.snapworth.eu`, extracted 2026-07-28 from the live chain.
+    /// `api.snapworth.eu`: the four root keys every Let's Encrypt chain ends
+    /// in. Hashed 2026-09-27 from the PEMs Let's Encrypt publishes at
+    /// letsencrypt.org/certificates, and checked against the live chain.
     ///
-    /// **What is pinned, and why these four.** The served chain is
-    /// `leaf → YR2 → Root YR → ISRG Root X1`. The leaf is deliberately *not*
-    /// here: Let's Encrypt rotates it every 90 days and pinning it would brick
-    /// the app on every renewal. Pinning the issuing intermediate plus the ISRG
-    /// roots survives all leaf and intermediate rotation while still preventing
-    /// an unrelated CA from impersonating the host.
+    /// **What is served.** The RSA chain is `leaf → YR1 → Root YR`, with Root
+    /// YR cross-signed by ISRG Root X1; a phone completes it to X1, or stops
+    /// at Root YR when its trust store already carries that root. When the
+    /// leaf key is ECDSA it is `leaf → YE1-3 → Root YE`, cross-signed by
+    /// ISRG Root X2 — so a phone that trusts Root YE directly evaluates a
+    /// chain with no X2 in it, which is why Root YE is here and why X2 alone
+    /// was never enough. Let's Encrypt's older R10-R14 and E5-E9
+    /// intermediates chain to X1 and X2, also pinned.
     ///
-    /// `matchesPin` accepts a match on *any* certificate in the evaluated chain,
-    /// so these are alternatives, not a required set — which is what makes the
-    /// redundancy load-bearing.
+    /// **Roots, not intermediates.** `matchesPin` accepts a match on *any*
+    /// certificate in the evaluated chain, and that chain always includes its
+    /// anchor, so a root pin already covers every intermediate beneath it —
+    /// an intermediate pin can only ever be a redundant alternative. This set
+    /// used to lead with YR2, described as the issuing intermediate, while
+    /// the host was being served YR1: nothing noticed, because a root
+    /// matched. Let's Encrypt picks among YR1-YR3 (and YE1-YE3) on its own,
+    /// so pinning the one seen on a given day records that day, not the
+    /// chain. The leaf is never pinned: it rotates every 90 days.
     ///
-    /// Regenerate with:
+    /// A pin is a key, not a certificate: the self-signed and cross-signed
+    /// Root YR share one key and so one hash. The dates below are the
+    /// self-signed roots' expiry, the later of the two.
+    ///
+    /// Regenerate from a published certificate with:
     /// ```
-    /// openssl s_client -connect api.snapworth.eu:443 -showcerts </dev/null 2>/dev/null \
+    /// curl -s https://letsencrypt.org/certs/gen-y/root-ye.pem \
     ///   | openssl x509 -noout -pubkey | openssl pkey -pubin -outform der \
     ///   | openssl dgst -sha256 -binary | base64
     /// ```
+    /// and compare what the host serves with `/checkup` in the ops bot, which
+    /// hashes the live chain against this same set (`backend/notify.py`,
+    /// `PINNED_SPKI_HASHES` — a backend test fails when the two differ).
     static let pinnedSPKIHashes: Set<String> = [
-        "nWN7PSep5XDQdge5zK24CnCRXHr3KvzhKEGxsdqCX9E=",  // LE YR2 intermediate  (exp 2028-09-02)
-        "fk6IOKit1ild5647BH06ujSIq5XbCgqlbYl6ANhhi88=",  // ISRG Root YR         (exp 2032-09-02)
-        "C5+lpZ7tcVwmwQIMcRtPbsQtWLABXhQzejna0wHFr8M=",  // ISRG Root X1         (exp 2035-06-04)
-        "diGVwiVYbubAI3RW4hB9xU8e/CH2GnkuvVFZE8zmgzI=",  // ISRG Root X2, backup (exp 2040-09-17)
+        "fk6IOKit1ild5647BH06ujSIq5XbCgqlbYl6ANhhi88=",  // ISRG Root YR, RSA-4096   (exp 2045-09-02)
+        "sCkq5UWXjg+7mKu9lMhhYF5bGLsy7VI/UNW3tccdR7w=",  // ISRG Root YE, P-384      (exp 2045-09-02)
+        "C5+lpZ7tcVwmwQIMcRtPbsQtWLABXhQzejna0wHFr8M=",  // ISRG Root X1, RSA-4096   (exp 2035-06-04)
+        "diGVwiVYbubAI3RW4hB9xU8e/CH2GnkuvVFZE8zmgzI=",  // ISRG Root X2, P-384      (exp 2040-09-17)
     ]
 
     /// When false, a pin mismatch is logged but the request proceeds.

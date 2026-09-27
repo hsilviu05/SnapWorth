@@ -358,10 +358,16 @@ extension CameraManager: AVCapturePhotoCaptureDelegate {
         didFinishProcessingPhoto photo: AVCapturePhoto,
         error: Error?
     ) {
+        // Decoded here, on the queue AVFoundation calls back on, and straight
+        // to upload size — see `ScanAPIClient.decodeForScan`. `UIImage(data:)`
+        // deferred the decode of the full 12 MP capture to its first draw,
+        // which is the scan screen's full-screen freeze-frame, on the main
+        // thread. Here rather than in a detached task so captures keep the
+        // order the delegate produced them in, which Haul relies on.
         guard
             error == nil,
             let data = photo.fileDataRepresentation(),
-            let image = UIImage(data: data)
+            let image = ScanAPIClient.decodeForScan(data)
         else {
             Task { @MainActor [weak self] in self?.deliverFailure() }
             return

@@ -70,6 +70,23 @@ def cache() -> ResilientCache:
     return ResilientCache(None, InMemoryCache())
 
 
+# What api.snapworth.eu served on 2026-09-27, as `_tls_chain_keys` returns it.
+SERVED_CHAIN = [
+    ("api.snapworth.eu", "WZZfY6twA74KlhzS2606esJWy3y1qHe+THHW8PJcrE4="),
+    ("YR1", "LoMHBotttiDko50Gi13uXW71eIy7LAttI+rYT8wXF4w="),
+    ("Root YR", "fk6IOKit1ild5647BH06ujSIq5XbCgqlbYl6ANhhi88="),
+    ("ISRG Root X1", "C5+lpZ7tcVwmwQIMcRtPbsQtWLABXhQzejna0wHFr8M="),
+]
+
+
+@pytest.fixture(autouse=True)
+def _no_live_tls_chain(monkeypatch):
+    """Every /checkup opens a second handshake for the pin check; no test
+    should reach production for it. The checkup tests that stub
+    `_tls_days_left` predate that handshake and say nothing about it."""
+    monkeypatch.setattr(notify, "_tls_chain_keys", lambda host, timeout=5.0: SERVED_CHAIN)
+
+
 @pytest.fixture
 def recorder() -> Recorder:
     return Recorder()
@@ -1912,6 +1929,79 @@ class TestCheckup:
             assert "TLS api.snapworth.eu: unreachable (OSError)" in text
         finally:
             await notify.aclose()
+
+
+class TestCheckupPins:
+    """The app pinned an intermediate the host was no longer served and not
+    the ECDSA chain's root, and its report-only telemetry could see neither:
+    it only ever hears about chains that are actually served. /checkup hashes
+    the live chain against the same pins."""
+
+    # ISRG Root YE, DER, from https://letsencrypt.org/certs/gen-y/root-ye.pem.
+    ROOT_YE_DER = (
+    "MIIB2TCCAWCgAwIBAgIRAKQCa6LvbHwg1AR+XmWmk4AwCgYIKoZIzj0EAwMwLjELMAkGA1UE"
+    "BhMCVVMxDTALBgNVBAoTBElTUkcxEDAOBgNVBAMTB1Jvb3QgWUUwHhcNMjUwOTAzMDAwMDAw"
+    "WhcNNDUwOTAyMjM1OTU5WjAuMQswCQYDVQQGEwJVUzENMAsGA1UEChMESVNSRzEQMA4GA1UE"
+    "AxMHUm9vdCBZRTB2MBAGByqGSM49AgEGBSuBBAAiA2IABDwS/6vhrcVqcbBo+wgdI3fwn9x7"
+    "DNJJOY/lTOti0vkwuRN87RhEhTH17E7XyFjWsPYhIPt/wzOqxTd2b+4ZJNy9ID04YywF9U5z"
+    "asDVyGSNErVNtz8uSGh5izW87j77GaNCMEAwDgYDVR0PAQH/BAQDAgEGMA8GA1UdEwEB/wQF"
+    "MAMBAf8wHQYDVR0OBBYEFKPIJlqOoUzQNWP8myPIOq5W809WMAoGCCqGSM49BAMDA2cAMGQC"
+    "MHhMr8N9LdL1VQKs9BdV81r76eXRB6mtjuNjzk6/lBsPNToWLTDzGYgtQKO1jl63uAIwGV7m"
+    "onyF377c+MM1oqVNs17sgu7F9YKZwgLmVbeOMDbKAXHtKMDLbiGllCcs8f47"
+    )
+
+    def test_the_backend_holds_the_same_pins_as_the_app(self):
+        """Two copies of one set, in two languages. backend.yml runs this on a
+        pull request that changes Config.swift."""
+        import pathlib
+        import re
+        swift = (pathlib.Path(__file__).resolve().parents[2]
+                 / "ios" / "SnapWorth" / "Config.swift").read_text()
+        block = re.search(r"static let pinnedSPKIHashes: Set<String> = \[(.*?)\]", swift, re.S)
+        assert block, "Config.pinnedSPKIHashes moved; update this test"
+        app = set(re.findall(r'"([A-Za-z0-9+/]{43}=)"', block.group(1)))
+        assert len(app) == 4
+        assert set(notify.PINNED_SPKI_HASHES) == app
+
+    def test_a_certificate_hashes_to_the_value_openssl_and_the_app_produce(self):
+        import base64
+        name, pin = notify._spki_pin(base64.b64decode(self.ROOT_YE_DER))
+        assert name == "Root YE"
+        assert pin == "sCkq5UWXjg+7mKu9lMhhYF5bGLsy7VI/UNW3tccdR7w="
+        assert pin in notify.PINNED_SPKI_HASHES
+
+    def test_a_served_chain_that_reaches_a_pinned_root_passes(self):
+        line = notify._pin_line("api.snapworth.eu", SERVED_CHAIN)
+        assert line.endswith("✅") and "Root YR, ISRG Root X1" in line
+        assert "⚠️" not in line
+
+    def test_a_chain_with_no_pinned_key_is_a_warning_naming_the_chain(self):
+        other_ca = [("api.snapworth.eu", "A" * 43 + "="), ("Some Other CA", "B" * 43 + "=")]
+        line = notify._pin_line("api.snapworth.eu", other_ca)
+        assert line.startswith("⚠️ TLS pins: nothing in the api.snapworth.eu chain is pinned")
+        assert "api.snapworth.eu → Some Other CA" in line
+
+    @pytest.mark.asyncio
+    async def test_checkup_carries_the_pin_line(self, enabled_notify, monkeypatch):
+        monkeypatch.setattr(notify, "_tls_days_left", lambda host, timeout=5.0: 60)
+        text = await notify.handle_command("/checkup")
+        assert "TLS pins: the app's pins match Root YR, ISRG Root X1" in text
+
+        monkeypatch.setattr(notify, "_tls_chain_keys",
+                            lambda host, timeout=5.0: [("api.snapworth.eu", "A" * 43 + "=")])
+        text = await notify.handle_command("/checkup")
+        assert "⚠️ TLS pins: nothing in the api.snapworth.eu chain is pinned" in text
+
+    @pytest.mark.asyncio
+    async def test_an_unreadable_chain_is_not_reported_as_unpinned(self, enabled_notify, monkeypatch):
+        monkeypatch.setattr(notify, "_tls_days_left", lambda host, timeout=5.0: 60)
+
+        def unreachable(host, timeout=5.0):
+            raise OSError("no route")
+        monkeypatch.setattr(notify, "_tls_chain_keys", unreachable)
+        text = await notify.handle_command("/checkup")
+        assert "TLS pins: chain unreadable (OSError)" in text
+        assert "nothing in the" not in text
 
 
 class TestCheckupAppStore:
