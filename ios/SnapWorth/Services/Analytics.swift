@@ -130,6 +130,10 @@ enum AnalyticsEvent {
     // ── Local notifications ──────────────────────────────────────────
     case notificationScheduled(category: String)
     case notificationOpened(category: String)
+    /// The user switched the daily free-scan reminder on, and where. Counts
+    /// the choice, not the outcome: whether iOS then allowed notifications
+    /// shows up as `notification_scheduled{category:freeScan}`.
+    case reminderOptIn(source: ReminderOptInSource)
 
     // ── Ratings ──────────────────────────────────────────────────────
     /// `ReviewPrompt` asked iOS for a rating prompt. Whether iOS showed one is
@@ -212,6 +216,7 @@ enum AnalyticsEvent {
         case .ledgerMonthShared:    return "ledger_month_shared"
         case .notificationScheduled:return "notification_scheduled"
         case .notificationOpened:   return "notification_opened"
+        case .reminderOptIn:        return "reminder_opt_in"
         case .reviewPromptRequested: return "review_prompt_requested"
         case .persistentStoreFallback: return "persistent_store_fallback"
         case .certificatePinMismatch: return "certificate_pin_mismatch"
@@ -258,6 +263,8 @@ enum AnalyticsEvent {
             return ["style": style]
         case let .notificationScheduled(category), let .notificationOpened(category):
             return ["category": category]
+        case let .reminderOptIn(source):
+            return ["source": source.rawValue]
         case let .listingGenerated(marketplace), let .listingPhotoCleaned(marketplace),
              let .listingCopied(marketplace), let .listingShared(marketplace),
              let .marketplaceOpened(marketplace):
@@ -337,6 +344,15 @@ enum ScanFailureReason: String {
             self = .noResult
         }
     }
+}
+
+/// Where the daily free-scan reminder was switched on.
+enum ReminderOptInSource: String {
+    /// "Remind me" beside the next free scan's time, on the Scan tab once
+    /// the allowance is spent.
+    case scanSpent = "scan_spent"
+    /// The toggle in Settings → Notifications.
+    case settings
 }
 
 /// Every place a paywall can be shown. Single source so triggers can't drift.

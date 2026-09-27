@@ -136,6 +136,11 @@ struct NotificationSettingsView: View {
         .onChange(of: binding.wrappedValue) { _, isOn in
             NotificationManager.shared.setEnabled(category, isOn)
             guard isOn else { return }
+            // The other way in is the Scan tab's "Remind me"; without this
+            // one the event would count only that, and read as the whole.
+            if category == .freeScan {
+                Analytics.shared.track(.reminderOptIn(source: .settings))
+            }
             // Switching a reminder on is a request for notifications, so it is
             // the right moment to ask iOS if we never have. Without this, a
             // user who tapped "Not now" on the priming alert could never be

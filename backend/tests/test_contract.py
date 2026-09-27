@@ -106,7 +106,7 @@ def _check(name: str, served: dict) -> dict:
 def _error(response, *headers: str) -> dict:
     """An error response as its fixture records it: status, the headers the
     server sends that a client may rely on, and the body. (The app reads
-    `Retry-After`; it does not read `X-Quota-Resets-At` yet.)"""
+    `Retry-After` and `X-Quota-Resets-At`.)"""
     return {
         "status": response.status_code,
         "headers": {h: response.headers[h] for h in headers},

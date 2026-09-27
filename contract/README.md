@@ -6,15 +6,16 @@ Responses the server really sends, read by both test suites.
 |---|---|
 | `scan-response.json` | A `/scan` 200 for a Pro user: every v1 field plus the full v2 valuation payload |
 | `scan-response-free.json` | The same scan for a free user — the common case. The Pro-only detail is blanked (`null` or `[]`), never removed, and `free_scans_remaining` is what is left after the day's scan |
-| `errors/scan-402-quota.json` | The free allowance is spent. Carries `X-Quota-Resets-At`, which the app does not read yet |
+| `errors/scan-402-quota.json` | The free allowance is spent. Carries `X-Quota-Resets-At`, which the app reads for the spent state's "Next free scan at …" |
 | `errors/listing-402-pro.json` | `/listing` refusing a free caller |
 | `errors/scan-422-unusable-photo.json` | A safety block: the server looked at the photo and could not use it |
 | `errors/scan-429-rate-limited.json` | The per-device limit. Carries `Retry-After` in seconds |
 
 An error fixture records the status, the headers the server sends that a
-client may rely on, and the body. Of those headers the app reads only
-`Retry-After` today. Header values are whatever the server sent when the file
-was generated; what is fixed is that they are plain integers.
+client may rely on, and the body. Of those headers the app reads
+`Retry-After` and `X-Quota-Resets-At`. Header values are whatever the server
+sent when the file was generated; what is fixed is that they are plain
+integers.
 
 ## Why it exists
 
@@ -73,7 +74,8 @@ JSON type of every value on each run.
    `.github/workflows/contract.yml`, which has never existed — the path
    filters are and always were the mechanism.)
 
-The Swift suite decodes the two 200 bodies (`ScanContractTests`). It does not
-read the error fixtures yet, and nothing on the client tests the free body
-against the check that shows the "Why this price" teaser; both are the next
-iOS change to make here.
+The Swift suite decodes the two 200 bodies (`ScanContractTests`) and reads the
+quota 402's reset header (`QuotaResetTests`). It does not read the other error
+fixtures yet, and nothing on the client tests the free body against the check
+that shows the "Why this price" teaser; both are the next iOS change to make
+here.

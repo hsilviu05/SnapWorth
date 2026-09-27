@@ -882,8 +882,26 @@ enum ScanAPIError: LocalizedError {
         return seconds
     }
 
+    /// `X-Quota-Resets-At` as an instant, or nil when absent or not a plain
+    /// number. `auth.reserve_quota` sends it on every quota 402, as Unix
+    /// seconds — `contract/errors/scan-402-quota.json` pins the shape.
+    static func quotaResetsAt(from response: HTTPURLResponse) -> Date? {
+        guard let raw = response.value(forHTTPHeaderField: "X-Quota-Resets-At")?
+            .trimmingCharacters(in: .whitespaces),
+              let seconds = Double(raw), seconds.isFinite, seconds > 0 else { return nil }
+        return Date(timeIntervalSince1970: seconds)
+    }
+
     /// The error for a non-2xx response, reading whatever that status carries.
+    ///
+    /// A quota 402's reset time is kept here rather than carried on the error:
+    /// every request that can be refused for quota comes through this one
+    /// function, and the spent state reads the time long after the error that
+    /// brought it has been handled. See `FreeScanCounter.nextReset`.
     static func from(_ response: HTTPURLResponse, data: Data) -> ScanAPIError {
+        if response.statusCode == 402, let resetsAt = quotaResetsAt(from: response) {
+            FreeScanCounter.serverResetsAt = resetsAt
+        }
         let detail = APIErrorDetail.parse(data)
         guard response.statusCode == 429 else {
             return .serverError(response.statusCode, detail)

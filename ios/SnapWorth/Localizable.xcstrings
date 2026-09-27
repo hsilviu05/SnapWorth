@@ -4865,6 +4865,42 @@
         }
       }
     },
+    "Allow notifications in Settings" : {
+      "comment" : "Scan tab, when the free-scan reminder is on but iOS refuses notifications. Opens iOS Settings.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mitteilungen in den Einstellungen erlauben"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Allow notifications in Settings"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Permite las notificaciones en Ajustes"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Permite notificările în Setări"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在“设置”中允许通知"
+          }
+        }
+      }
+    },
     "Almost there…" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -12036,6 +12072,42 @@
         }
       }
     },
+    "Next free scan at %@" : {
+      "comment" : "Scan tab, once the day's free scans are spent. %@ is a time of day on the phone's clock, e.g. 8:00 PM — the allowance resets at UTC midnight, which is a different hour in every zone.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nächster Gratis-Scan um %@"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Next free scan at %@"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Próximo escaneo gratis: %@"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Următoarea scanare gratuită la %@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "下次免费扫描：%@"
+          }
+        }
+      }
+    },
     "No active subscription found on this Apple ID." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -12983,6 +13055,41 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "打开 iOS“设置”，屏幕使用时间的限制在那里修改"
+          }
+        }
+      }
+    },
+    "Opens iOS Settings, where notifications are allowed" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Öffnet die iOS-Einstellungen, wo Mitteilungen erlaubt werden"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Opens iOS Settings, where notifications are allowed"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Abre los Ajustes de iOS, donde se permiten las notificaciones"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Deschide Setările iOS, de unde se permit notificările"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "打开 iOS“设置”，通知在那里允许"
           }
         }
       }
@@ -14502,6 +14609,42 @@
         }
       }
     },
+    "Remind me" : {
+      "comment" : "Button beside the next free scan's time. Turns on the daily free-scan reminder.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Erinnere mich"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Remind me"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Avísame"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Amintește-mi"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "提醒我"
+          }
+        }
+      }
+    },
     "Remind me at" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -14533,6 +14676,78 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "提醒时间"
+          }
+        }
+      }
+    },
+    "Reminder on" : {
+      "comment" : "After 'Remind me', when no fire time can be named.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Erinnerung an"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reminder on"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aviso activado"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Memento pornit"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "提醒已开启"
+          }
+        }
+      }
+    },
+    "Reminder set for %@" : {
+      "comment" : "After 'Remind me'. %@ is a short weekday and a time, e.g. Tue 6:00 PM: when the first reminder will fire.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Erinnerung gestellt: %@"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reminder set for %@"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aviso programado: %@"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Memento setat: %@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已设提醒：%@"
           }
         }
       }
@@ -19449,6 +19664,42 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "关掉扫描和选择时的震动反馈"
+          }
+        }
+      }
+    },
+    "Turns on a reminder for when your free scan is back" : {
+      "comment" : "VoiceOver hint for 'Remind me'.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Schaltet eine Erinnerung ein, sobald dein Gratis-Scan wieder da ist"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Turns on a reminder for when your free scan is back"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Activa un aviso para cuando vuelvas a tener tu escaneo gratis"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pornește un memento pentru când ai iar scanarea gratuită"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "开启提醒，免费扫描恢复后通知你"
           }
         }
       }

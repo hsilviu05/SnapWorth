@@ -645,6 +645,38 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
         return calendar.isDate(fireDate, inSameDayAs: tomorrow)
     }
 
+    /// "Remind me", from wherever the user asked.
+    ///
+    /// The reminder stays opt-in; this is the opt-in. It was reachable only
+    /// from Settings → Notifications, and the moment it is wanted — the free
+    /// scan just spent — is on the Scan tab, where the only thing on offer was
+    /// "Upgrade to Pro". Accepting the post-scan priming alert does not turn
+    /// it on either, and should not: that alert promises a recap and ledger
+    /// nudges, not a daily notification.
+    ///
+    /// Asks iOS if it has never been asked, which is what makes one tap
+    /// enough. Returns whether notifications can be delivered, so the caller
+    /// can send a user who refused them at the system level to Settings
+    /// rather than claim a reminder that cannot arrive.
+    func optInToFreeScanReminder(source: ReminderOptInSource, isPro: Bool) async -> Bool {
+        setEnabled(.freeScan, true)
+        Analytics.shared.track(.reminderOptIn(source: source))
+        guard await requestAuthorizationIfNeeded() else { return false }
+        await syncFreeScanReminder(isPro: isPro, lastScan: ScanStreak.lastScan,
+                                   streak: ScanStreak.current())
+        return true
+    }
+
+    /// When the free-scan reminder will next fire, read back from what is
+    /// actually pending rather than recomputed: the daily cap can move or
+    /// drop a rung, and the screen should name the one iOS holds.
+    func pendingFreeScanReminder() async -> Date? {
+        await center.pendingNotificationRequests()
+            .filter { Self.category(fromID: $0.identifier) == .freeScan }
+            .compactMap { ($0.trigger as? UNCalendarNotificationTrigger)?.nextTriggerDate() }
+            .min()
+    }
+
     /// The copy. A streak of two or more is worth naming — "day 5" is a reason
     /// to open the app that "your scan is back" is not. No guilt when it broke:
     /// the streak simply isn't mentioned.

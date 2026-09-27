@@ -1072,6 +1072,14 @@
       "de": "Mitteilungen erlauben",
       "zh-Hans": "允许通知"
     },
+    "Allow notifications in Settings": {
+      "comment": "Scan tab, when the free-scan reminder is on but iOS refuses notifications. Opens iOS Settings.",
+      "en": "Allow notifications in Settings",
+      "ro": "Permite notificările în Setări",
+      "es": "Permite las notificaciones en Ajustes",
+      "de": "Mitteilungen in den Einstellungen erlauben",
+      "zh-Hans": "在“设置”中允许通知"
+    },
     "Almost there…": {
       "en": "Almost there…",
       "ro": "Aproape gata…",
@@ -2546,6 +2554,14 @@
       "de": "Weiter",
       "zh-Hans": "下一步"
     },
+    "Next free scan at %@": {
+      "comment": "Scan tab, once the day's free scans are spent. %@ is a time of day on the phone's clock, e.g. 8:00 PM — the allowance resets at UTC midnight, which is a different hour in every zone.",
+      "en": "Next free scan at %@",
+      "ro": "Următoarea scanare gratuită la %@",
+      "es": "Próximo escaneo gratis: %@",
+      "de": "Nächster Gratis-Scan um %@",
+      "zh-Hans": "下次免费扫描：%@"
+    },
     "No active subscription found on this Apple ID.": {
       "en": "No active subscription found on this Apple ID.",
       "ro": "Nu am găsit niciun abonament activ pe contul Apple ăsta.",
@@ -2740,6 +2756,13 @@
       "es": "Abre los Ajustes de iOS, donde se cambian las restricciones de Tiempo de uso",
       "de": "Öffnet die iOS-Einstellungen, wo die Bildschirmzeit-Beschränkungen geändert werden",
       "zh-Hans": "打开 iOS“设置”，屏幕使用时间的限制在那里修改"
+    },
+    "Opens iOS Settings, where notifications are allowed": {
+      "en": "Opens iOS Settings, where notifications are allowed",
+      "ro": "Deschide Setările iOS, de unde se permit notificările",
+      "es": "Abre los Ajustes de iOS, donde se permiten las notificaciones",
+      "de": "Öffnet die iOS-Einstellungen, wo Mitteilungen erlaubt werden",
+      "zh-Hans": "打开 iOS“设置”，通知在那里允许"
     },
     "Opens subscription options": {
       "en": "Opens subscription options",
@@ -3052,12 +3075,36 @@
       "de": "Neu schreiben",
       "zh-Hans": "重新生成"
     },
+    "Remind me": {
+      "comment": "Button beside the next free scan's time. Turns on the daily free-scan reminder.",
+      "en": "Remind me",
+      "ro": "Amintește-mi",
+      "es": "Avísame",
+      "de": "Erinnere mich",
+      "zh-Hans": "提醒我"
+    },
     "Remind me at": {
       "en": "Remind me at",
       "ro": "Amintește-mi la",
       "es": "Avísame a las",
       "de": "Erinnere mich um",
       "zh-Hans": "提醒时间"
+    },
+    "Reminder on": {
+      "comment": "After 'Remind me', when no fire time can be named.",
+      "en": "Reminder on",
+      "ro": "Memento pornit",
+      "es": "Aviso activado",
+      "de": "Erinnerung an",
+      "zh-Hans": "提醒已开启"
+    },
+    "Reminder set for %@": {
+      "comment": "After 'Remind me'. %@ is a short weekday and a time, e.g. Tue 6:00 PM: when the first reminder will fire.",
+      "en": "Reminder set for %@",
+      "ro": "Memento setat: %@",
+      "es": "Aviso programado: %@",
+      "de": "Erinnerung gestellt: %@",
+      "zh-Hans": "已设提醒：%@"
     },
     "Remove photo": {
       "en": "Remove photo",
@@ -4069,6 +4116,14 @@
       "es": "Desactiva la vibración al escanear y al elegir",
       "de": "Schaltet das Vibrieren beim Scannen und Auswählen aus",
       "zh-Hans": "关掉扫描和选择时的震动反馈"
+    },
+    "Turns on a reminder for when your free scan is back": {
+      "comment": "VoiceOver hint for 'Remind me'.",
+      "en": "Turns on a reminder for when your free scan is back",
+      "ro": "Pornește un memento pentru când ai iar scanarea gratuită",
+      "es": "Activa un aviso para cuando vuelvas a tener tu escaneo gratis",
+      "de": "Schaltet eine Erinnerung ein, sobald dein Gratis-Scan wieder da ist",
+      "zh-Hans": "开启提醒，免费扫描恢复后通知你"
     },
     "Unknown — add what you paid to calculate it": {
       "en": "Unknown — add what you paid to calculate it",

@@ -2613,6 +2613,176 @@ final class ScanStreakTests: XCTestCase {
     }
 }
 
+// ── When the free scan comes back ────────────────────────────────────────────
+//
+// The spent state said "Upgrade to Pro" and nothing else. The server has sent
+// the reset time on every quota 402 all along (`X-Quota-Resets-At`), and no
+// client code read it. The Scan tab now says "Next free scan at 8:00 PM" —
+// from the server's figure when it has one, else the next UTC midnight — and
+// offers the reminder beside it.
+
+final class QuotaResetTests: XCTestCase {
+    private var utc: Calendar {
+        var c = Calendar(identifier: .gregorian)
+        c.timeZone = TimeZone(identifier: "UTC")!
+        return c
+    }
+
+    /// 2026-09-26 12:00 UTC, and the midnight after it.
+    private var noon: Date { utc.date(from: DateComponents(year: 2026, month: 9, day: 26, hour: 12))! }
+    private var midnight: Date { utc.date(from: DateComponents(year: 2026, month: 9, day: 27))! }
+
+    private var savedReset: Date?
+
+    override func setUp() {
+        super.setUp()
+        savedReset = FreeScanCounter.serverResetsAt
+    }
+
+    override func tearDown() {
+        FreeScanCounter.serverResetsAt = savedReset
+        super.tearDown()
+    }
+
+    /// Newer ICU data puts a narrow no-break space before "PM"; the
+    /// assertions are about the time, not the typography.
+    private func plain(_ s: String) -> String {
+        s.replacingOccurrences(of: "\u{202F}", with: " ")
+         .replacingOccurrences(of: "\u{00A0}", with: " ")
+    }
+
+    func test_withNoWordFromTheServerTheResetIsTheNextUTCMidnight() {
+        XCTAssertEqual(FreeScanCounter.nextReset(after: noon, serverSaid: nil, serverCalendar: utc),
+                       midnight)
+        // A minute before midnight is still that midnight; a minute after is
+        // the next one. Never the local calendar's midnight.
+        let late = midnight.addingTimeInterval(-60)
+        XCTAssertEqual(FreeScanCounter.nextReset(after: late, serverSaid: nil, serverCalendar: utc),
+                       midnight)
+        XCTAssertEqual(FreeScanCounter.nextReset(after: midnight.addingTimeInterval(60),
+                                                 serverSaid: nil, serverCalendar: utc),
+                       midnight.addingTimeInterval(86_400))
+    }
+
+    func test_theServersFigureWinsAndIsRoundedToTheMinute() {
+        // What `quota.py` actually sends: a second before midnight, from two
+        // truncations. Shown unrounded, New York would read "7:59 PM".
+        XCTAssertEqual(FreeScanCounter.nextReset(after: noon, serverSaid: midnight.addingTimeInterval(-1),
+                                                 serverCalendar: utc),
+                       midnight)
+        // A server that resets somewhere else is believed.
+        let elsewhere = noon.addingTimeInterval(5 * 3600)
+        XCTAssertEqual(FreeScanCounter.nextReset(after: noon, serverSaid: elsewhere, serverCalendar: utc),
+                       elsewhere)
+    }
+
+    func test_aStaleOrImplausibleFigureFallsBackToTheCalendar() {
+        // Yesterday's 402: its reset has passed.
+        XCTAssertEqual(FreeScanCounter.nextReset(after: noon, serverSaid: noon.addingTimeInterval(-3600),
+                                                 serverCalendar: utc),
+                       midnight)
+        // Three days out is not a daily reset.
+        XCTAssertEqual(FreeScanCounter.nextReset(after: noon, serverSaid: noon.addingTimeInterval(3 * 86_400),
+                                                 serverCalendar: utc),
+                       midnight)
+    }
+
+    func test_oneResetReadsAsEachZonesOwnTimeOfDay() {
+        func time(_ zone: String, _ locale: Locale = Locale(identifier: "en_US")) -> String {
+            plain(FreeScanCounter.resetClockTime(midnight, timeZone: TimeZone(identifier: zone)!,
+                                                 locale: locale))
+        }
+        // One UTC midnight, in late September: New York, Los Angeles and
+        // Bucharest are on summer time.
+        XCTAssertEqual(time("America/New_York"), "8:00 PM")
+        XCTAssertEqual(time("America/Los_Angeles"), "5:00 PM")
+        XCTAssertEqual(time("Europe/Bucharest"), "3:00 AM")
+        XCTAssertEqual(time("Asia/Tokyo"), "9:00 AM")
+        XCTAssertEqual(time("Asia/Kolkata"), "5:30 AM", "a half-hour zone keeps its half hour")
+        XCTAssertEqual(time("UTC"), "12:00 AM")
+        // And in the phone's own conventions, not the English ones.
+        XCTAssertEqual(time("Europe/Bucharest", Locale(identifier: "ro_RO")), "3:00")
+        XCTAssertEqual(time("America/New_York", Locale(identifier: "de_DE")), "20:00")
+    }
+
+    // ── The header ──────────────────────────────────────────────────────────
+
+    private func response(_ status: Int, _ headers: [String: String]) -> HTTPURLResponse {
+        HTTPURLResponse(url: URL(string: "https://api.snapworth.eu/scan")!, statusCode: status,
+                        httpVersion: nil, headerFields: headers)!
+    }
+
+    /// Read from the fixture the server generates, so a renamed header or a
+    /// value that stops being plain seconds fails here and not on a phone.
+    func test_theContractsQuota402CarriesAResetThisClientCanRead() throws {
+        let data = try ScanContractTests.contractData("errors/scan-402-quota.json")
+        let fixture = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        let headers = try XCTUnwrap(fixture["headers"] as? [String: String])
+        let status = try XCTUnwrap(fixture["status"] as? Int)
+        let resetsAt = try XCTUnwrap(ScanAPIError.quotaResetsAt(from: response(status, headers)),
+                                     "X-Quota-Resets-At is missing or not plain seconds")
+        // Whatever day the fixture was generated on, it names a moment a
+        // second or so before a UTC midnight, and reads as that midnight.
+        let shown = FreeScanCounter.nextReset(after: resetsAt.addingTimeInterval(-3600),
+                                              serverSaid: resetsAt, serverCalendar: utc)
+        XCTAssertEqual(shown, utc.startOfDay(for: shown), "not a UTC midnight: \(shown)")
+    }
+
+    func test_aQuota402IsRememberedForTheSpentState() {
+        FreeScanCounter.serverResetsAt = nil
+        _ = ScanAPIError.from(response(402, ["X-Quota-Resets-At": "1790467199"]),
+                              data: Data(#"{"detail":"You've used your free scan for today."}"#.utf8))
+        XCTAssertEqual(FreeScanCounter.serverResetsAt, Date(timeIntervalSince1970: 1_790_467_199))
+    }
+
+    func test_otherResponsesLeaveTheResetAlone() {
+        let kept = Date(timeIntervalSince1970: 1_790_467_199)
+        FreeScanCounter.serverResetsAt = kept
+        // A 402 without the header is `/listing`'s "Pro feature": no reset.
+        _ = ScanAPIError.from(response(402, [:]), data: Data(#"{"detail":"This is a Pro feature."}"#.utf8))
+        _ = ScanAPIError.from(response(429, ["Retry-After": "60", "X-Quota-Resets-At": "5"]), data: Data())
+        _ = ScanAPIError.from(response(402, ["X-Quota-Resets-At": "soon"]), data: Data())
+        XCTAssertEqual(FreeScanCounter.serverResetsAt, kept)
+    }
+
+    // ── The reminder, and who asked for it ──────────────────────────────────
+
+    func test_theOptInIsCountedWithWhereItCameFrom() {
+        XCTAssertEqual(AnalyticsEvent.reminderOptIn(source: .scanSpent).name, "reminder_opt_in")
+        XCTAssertEqual(AnalyticsEvent.reminderOptIn(source: .scanSpent).parameters,
+                       ["source": "scan_spent"])
+        XCTAssertEqual(AnalyticsEvent.reminderOptIn(source: .settings).parameters,
+                       ["source": "settings"])
+    }
+
+    /// Source-inspected, like the repo's other "this call must be here"
+    /// tests: both ways of switching the reminder on report it, and the Scan
+    /// tab's goes through the one function that also asks iOS — a tap that
+    /// wrote the toggle and never asked would be the silent Settings bug over
+    /// again (see `needsAuthorizationRequest`).
+    func test_bothWaysInReportTheOptIn() throws {
+        func source(_ path: String) throws -> String {
+            try String(contentsOf: URL(fileURLWithPath: #filePath)
+                .deletingLastPathComponent()
+                .deletingLastPathComponent()
+                .appendingPathComponent(path), encoding: .utf8)
+        }
+        let scan = try source("SnapWorth/Views/ScanView.swift")
+        XCTAssertTrue(scan.contains("optInToFreeScanReminder(source: .scanSpent"))
+        XCTAssertTrue(scan.contains("vm.freeScansRemaining == 0"),
+                      "the row is for the spent state")
+        let settings = try source("SnapWorth/Views/NotificationSettingsView.swift")
+        XCTAssertTrue(settings.contains(".reminderOptIn(source: .settings)"))
+        let manager = try source("SnapWorth/Services/NotificationManager.swift")
+        guard let start = manager.range(of: "func optInToFreeScanReminder"),
+              let end = manager.range(of: "\n    }\n", range: start.upperBound..<manager.endIndex)
+        else { return XCTFail("could not locate optInToFreeScanReminder") }
+        let body = manager[start.upperBound..<end.lowerBound]
+        XCTAssertTrue(body.contains("setEnabled(.freeScan, true)"))
+        XCTAssertTrue(body.contains("requestAuthorizationIfNeeded()"))
+    }
+}
+
 final class FreeScanReminderTests: XCTestCase {
     private let cal = Calendar(identifier: .gregorian)
     private func at(_ day: Int, _ hour: Int, _ minute: Int = 0) -> Date {
