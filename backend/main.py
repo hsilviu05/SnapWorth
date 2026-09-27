@@ -815,10 +815,6 @@ _ip_rate_store = _ip_memory.store
 _device_limiter: ratelimit.ResilientRateLimiter | None = None
 _ip_limiter: ratelimit.ResilientRateLimiter | None = None
 
-# X-Forwarded-For is client-spoofable, so we only consult it when explicitly told
-# we sit behind a trusted proxy/CDN — and then take the RIGHTMOST entry, which is
-# the hop our own proxy appended and a client cannot forge.
-
 
 async def _init_rate_limiters() -> None:
     global _device_limiter, _ip_limiter

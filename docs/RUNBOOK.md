@@ -346,14 +346,45 @@ availability one.
 1. Check `rate_limited_total` and `quota_exhausted_total`.
 2. Device id is client-supplied and trivially rotated — the real backstop is the
    per-IP limit (`IP_RATE_MAX_REQUESTS`, default 60/hr).
-   It keys on the rightmost `X-Forwarded-For` hop (`ratelimit.client_ip`),
-   which is the caller's own address only while Railway's edge is the one proxy
-   in front of the container. Each process logs `x-forwarded-for carried N
-   hop(s)` the first time it sees each count; app traffic should read 1.
-   **Before putting a CDN or any other proxy in front of Railway** (a proxied
-   DNS record, Railway's CDN), change `client_ip` to take the hop a configured
-   number of places from the right. Otherwise the rightmost hop is the CDN's
-   address and one 60/hr bucket serves every user.
+   It keys on the nearest `X-Forwarded-For` hop that is not a known proxy
+   (`ratelimit.client_ip`): it walks the header from the right, skips Fastly's
+   published edge ranges and internal addresses (RFC 1918, CGNAT
+   `100.64.0.0/10`, loopback, link-local), and keys on the first hop left.
+   Railway's edge sends two shapes, and both resolve to the caller. A request
+   it routes through its Fastly CDN (rolled out ~Feb 2026) arrives as
+   `client, fastly-edge`, and one it does not arrives as `client`
+   ([Railway staff](https://station.railway.com/questions/which-header-should-i-rely-on-for-real-c-d78a6f96)).
+
+   Until 2026-09-27 it took the rightmost hop, on the reading that there was
+   one hop and it was the caller. Production said otherwise: the hop-count
+   line read `carried 2 hop(s)` for app traffic on `/auth`, `/scan` and
+   `/trends`, for Apple's notifications and for a scanner, and never 1. Two
+   probes of `POST /auth/challenge` that day both arrived with two hops and
+   the prober's own address on the left. One had sent `X-Forwarded-For:
+   203.0.113.7`, and Railway's edge dropped it. So the key was a Fastly edge
+   address, and everyone routed through one Fastly POP shared one 60/hr
+   bucket.
+
+   **After a deploy, read the log.** Each process logs one line per distinct
+   (hop count, skipped count), counts only, at most six. CDN traffic should
+   read
+
+   `x-forwarded-for carried 2 hop(s), skipped 1 known proxy hop(s) (Fastly edge or internal); the per-IP key is the nearest hop that is not one`
+
+   and the non-CDN path `carried 1 hop(s), skipped 0`. **`carried 2 hop(s),
+   skipped 0` means a hop on the right was not recognised**, most likely a
+   new Fastly range: refresh `_FASTLY_EDGE_RANGES` in `ratelimit.py` from
+   `https://api.fastly.com/public-ip-list` (`addresses` and
+   `ipv6_addresses`) and update the date beside it. Until then the users
+   behind that edge share one bucket: too strict, never too loose.
+
+   Don't switch to `X-Real-IP` (on the CDN path it holds Fastly's address),
+   or to the leftmost hop alone. The leftmost is the caller only while
+   Railway strips a client-supplied header, which was seen on the one path
+   probed, and if it ever stops, the key is the caller's choice again: a
+   fresh bucket per request. **Before putting any other proxy in front of
+   Railway** (a proxied DNS record, another CDN), add its published ranges
+   beside Fastly's.
 3. The IP bucket is one for every route with a limit — `/scan`, `/listing`,
    `/trends`, `/auth/entitlement`, and the unauthenticated `/auth` routes and
    `/apple/notifications` — so from one address they stop together. The
@@ -850,8 +881,8 @@ measured per subscriber; `/costs` has no per-subscriber view.
       at a few times a normal day's spend on `/costs`; crossing it sends one
       💸 message and changes nothing else. `🩺 Checkup` reads *Spend alert:
       OFF ⚠️* until it is set
-- [x] ~~`TRUSTED_PROXY=true`~~ — **no longer read.** `_client_ip` now always takes the
-      rightmost `X-Forwarded-For` hop, so the per-IP limit no longer depends on this
+- [x] ~~`TRUSTED_PROXY=true`~~ — **no longer read.** `_client_ip` always reads
+      `X-Forwarded-For` the same way (§5.8), so the per-IP limit no longer depends on this
       variable being remembered. The old note here was also wrong about the failure:
       unset did not collapse everyone into one bucket, it gave each caller a bucket of
       their own choosing (uvicorn runs with `--forwarded-allow-ips='*'`, which makes
