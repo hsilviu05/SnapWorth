@@ -546,9 +546,10 @@ class TestOutdatedBuildsAreToldToUpdate:
 
 class TestABuildThatSaysItsBuildGetsA426:
     """The client half of "require an update". A build that sends
-    `X-SnapWorth-Build` was written to show a 426 — its own translation and a
-    button to the App Store — so it gets the honest status, where a build
-    known only from its User-Agent keeps the 422 it can show."""
+    `X-SnapWorth-Build` was written to show a 426 — its own update message,
+    with a button to the App Store on the Scan tab — so it gets the honest
+    status, where a build known only from its User-Agent keeps the 422 it can
+    show."""
 
     @pytest.fixture(autouse=True)
     def _switch(self, monkeypatch):

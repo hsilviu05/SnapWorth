@@ -396,8 +396,10 @@ async def _refuse_outdated_build(request: Request) -> None:
     down. A 422 is a non-paging 4xx; `outdated_build_refused` counts it.
 
     A build that names itself in `X-SnapWorth-Build` gets the honest 426
-    instead: it was written for this refusal, and shows it with a button to
-    the App Store rather than as a failed scan. Both carry the code
+    instead: it was written for this refusal, and shows the app's own update
+    message in the app's language rather than this `detail`. On the Scan tab
+    that is the "Scan Failed" alert with an App Store button beside OK;
+    everywhere else it is the message alone. Both statuses carry the code
     `update_required`. The header wins over the User-Agent when both are
     readable, because it is the one the app sends on purpose.
 
@@ -2196,9 +2198,12 @@ async def _analyse(image_bytes: bytes, content_type: str, *, subject: str,
             # scan was filed as a plain user scan.
             metrics.model_calls.inc(operation=label, outcome="not_resalable")
             # 422, not 502: nothing failed. The model read the photo and
-            # answered. The client renders `detail` verbatim for any non-2xx
-            # and retries nothing automatically, so this reaches the user as
-            # written on every shipped version.
+            # answered, and no client retries it automatically. Every build
+            # from 1.3.1 shows a 422's `detail` as written, except that one
+            # which reads `code` does so only in English. In any other
+            # language it shows its own general sentence for `not_resalable`,
+            # without the model's reason (`ServerCopy.text`; the open question
+            # is in ios/Localization/README.md).
             raise APIError(
                 422, apierrors.NOT_RESALABLE, _not_resalable_message(val),
             ) from None

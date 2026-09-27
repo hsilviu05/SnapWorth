@@ -21,12 +21,20 @@ client may rely on, and the body. Of those headers the app reads only
 `Retry-After` today. Header values are whatever the server sent when the file
 was generated; what is fixed is that they are plain integers.
 
-Every error body is `{"detail": …, "code": …}`. `detail` is what it always
-was — a sentence, or FastAPI's validation list — and every installed build
-shows it. `code` is a stable token beside it (`backend/apierrors.py` lists
+An error body is `{"detail": …, "code": …}` for every `HTTPException` (the
+routes' own, and the router's 404 and 405), every request that fails
+validation, and the body-size limit's 400 and 413. `detail` is what it always
+was — a sentence, or FastAPI's validation list — and it is the text installed
+builds show. `code` is a stable token beside it (`backend/apierrors.py` lists
 them all) that a client can route on and translate. An error raised without a
-specific code gets a generic one from its status (`not_found`,
-`bad_request`…), which no client routes on.
+specific code gets one from its status: generic for most (`not_found`,
+`bad_request`…), which no client routes on, and the specific
+`payload_too_large`, `update_required` and `rate_limited` for 413, 426 and
+429.
+
+An exception nothing handles is not one of those. Starlette answers it with a
+plain-text `Internal Server Error` 500 and no body code, and a client must
+treat it as unknown.
 
 `/scan` bodies also carry `confidence_reason_codes`: one token per entry of
 `confidence_reasons`, same order (`backend/confidence.py`). Pro detail, like

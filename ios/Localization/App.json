@@ -3946,7 +3946,7 @@
       "zh-Hans": "这台设备不支持安全验证。"
     },
     "This doesn't look like something with a resale value. Try a photo of a single item you'd actually sell.": {
-      "comment": "An error the server sent with a code this build words itself (backend/apierrors.py). In English the server's own sentence is shown instead. The server's English also gives the AI's reason; that reason is model text and stays English.",
+      "comment": "An error the server sent with a code this build words itself (backend/apierrors.py). In English the server's own sentence is shown instead. The server's English also gives the AI's reason, which is model text in English; this sentence is shown without it.",
       "en": "This doesn't look like something with a resale value. Try a photo of a single item you'd actually sell.",
       "ro": "Nu pare să fie ceva ce se poate revinde. Încearcă o poză cu un singur obiect pe care chiar l-ai vinde.",
       "es": "Esto no parece algo con valor de reventa. Prueba con una foto de un solo artículo que de verdad venderías.",
@@ -4014,7 +4014,7 @@
       "zh-Hans": "这个订阅目前不可用。请再试一次。"
     },
     "This version of SnapWorth is no longer supported. Update SnapWorth from the App Store to keep using it.": {
-      "comment": "The server no longer serves this build. Shown with an Open App Store button.",
+      "comment": "The server no longer serves this build. On the Scan tab it is shown with an Open App Store button; elsewhere it is shown alone.",
       "en": "This version of SnapWorth is no longer supported. Update SnapWorth from the App Store to keep using it.",
       "ro": "Această versiune de SnapWorth nu mai este acceptată. Actualizează SnapWorth din App Store ca să-l poți folosi în continuare.",
       "es": "Esta versión de SnapWorth ya no es compatible. Actualiza SnapWorth desde el App Store para seguir usándolo.",
@@ -4604,7 +4604,7 @@
       "zh-Hans": "你已经达到扫描上限。"
     },
     "You've used today's free scans.": {
-      "comment": "An error the server sent with a code this build words itself (backend/apierrors.py). In English the server's own sentence is shown instead. Count-neutral on purpose: the allowance is one scan on most days and more on the first.",
+      "comment": "An error the server sent with a code this build words itself (backend/apierrors.py). In English the server's own sentence is shown instead. Count-neutral on purpose: the allowance is one scan a day by default, and more on the first day when the first-day allowance is switched on.",
       "en": "You've used today's free scans.",
       "ro": "Ai consumat scanările gratuite de azi.",
       "es": "Has gastado los escaneos gratis de hoy.",

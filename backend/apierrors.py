@@ -1,4 +1,4 @@
-"""A stable machine `code` beside every error's `detail`.
+"""A stable machine `code` beside an error's `detail`.
 
 Every error body was `{"detail": "<English sentence>"}`, and the sentence was
 all a client had. So the app routed on the words: a 402 whose `detail`
@@ -8,7 +8,7 @@ have silently changed which screen a user saw. And it showed the sentence as
 written, in English, inside an app translated into four other languages.
 
 A code is what a client can match on and translate. `detail` stays exactly
-what it was — every installed build shows it — and `code` is added beside it,
+what it was — the text installed builds show — and `code` is added beside it,
 which an installed build ignores.
 
 **A code, once sent, is contract.** Rewording `detail` is free; renaming a
@@ -19,8 +19,13 @@ Only what a client might act on or say differently gets its own code. Two
 sentences that mean the same thing to the user share one: `IMAGE_TOO_LARGE`
 is both the 10 MB upload cap and the pixel-count check. An `HTTPException`
 raised without one — FastAPI's own 404 and 405, and routes outside the app's
-four — gets a generic code from its status (`_BY_STATUS`), so no error body
-leaves without one, and a generic code is never one a client routes on.
+four — gets a code from its status (`_BY_STATUS`).
+
+So every `HTTPException`, every request-validation error and the body-size
+middleware's 400 and 413 carry a code. What does not is an exception nothing
+handles: `ServerErrorMiddleware` answers it with Starlette's plain-text
+"Internal Server Error" 500, with no code, which a client has to treat as
+unknown.
 """
 
 from __future__ import annotations
@@ -103,9 +108,11 @@ PAYLOAD_TOO_LARGE = "payload_too_large"
 #: A `content-length` that is not a number (400).
 BAD_CONTENT_LENGTH = "bad_content_length"
 
-#: For an error raised without a code. Generic on purpose: a client matches
-#: the specific codes above and treats these as "unknown", which is what they
-#: are.
+#: For an error raised without a code. Mostly generic on purpose: a client
+#: matches the specific codes above and treats these as "unknown", which is
+#: what they are. Three statuses have only one meaning here, so they map to
+#: that specific code, which a client may route on: 413 to
+#: `PAYLOAD_TOO_LARGE`, 426 to `UPDATE_REQUIRED` and 429 to `RATE_LIMITED`.
 _BY_STATUS: Mapping[int, str] = {
     400: "bad_request",
     401: "unauthorized",

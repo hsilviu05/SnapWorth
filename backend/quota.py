@@ -119,10 +119,12 @@ def _utc_month() -> str:
 def _exhausted_message(limit: int) -> str:
     """User-facing copy for a spent allowance.
 
-    The message is echoed to the user verbatim by the client, so it has to read
-    correctly at every limit. The old f-string hardcoded the plural and, once
-    the free tier moved to one scan a day, told everybody "You've used all 1
-    free scans today."
+    The client shows it as written: in every language on a build from before
+    the error codes, in English on one that reads them (another language gets
+    the app's own sentence for `quota_exhausted`). So it has to read correctly
+    at every limit. The old f-string hardcoded the plural and, once the free
+    tier moved to one scan a day, told everybody "You've used all 1 free scans
+    today."
     """
     if limit == 1:
         return "You've used your free scan for today."
