@@ -23,14 +23,17 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, File, Header, HTTPException, Request, UploadFile
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi import Response
 from fastapi.responses import HTMLResponse, JSONResponse
 from pydantic import BaseModel, Field
 from starlette.datastructures import Headers, MutableHeaders
+from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 import aiconfig
+import apierrors
 import auditlog
 import auth
 import cache as cache_module
@@ -49,6 +52,7 @@ import referral
 import social
 import tokens
 import valuation as valuation_module
+from apierrors import APIError
 from auditlog import AuditEvent
 from comps.engine import build_engine as build_comps_engine
 from comps.shadow import ShadowRunner
@@ -370,10 +374,10 @@ async def _refuse_if_paused(subject: str) -> None:
         # day, that this message exists to stop. Same reasoning as the 402 a
         # few hundred lines down, and the copy here is worth more than the
         # status-code nicety: nobody reads a status code.
-        raise HTTPException(
-            status_code=422,
-            detail="Scanning from this device is paused for 24 hours after repeated "
-                   "photos that could not be analysed.")
+        raise APIError(
+            422, apierrors.DEVICE_PAUSED,
+            "Scanning from this device is paused for 24 hours after repeated "
+            "photos that could not be analysed.")
 
 
 async def _refuse_outdated_build(request: Request) -> None:
@@ -400,9 +404,17 @@ async def _refuse_outdated_build(request: Request) -> None:
     `DEPENDENCY` 5xx that lands in the "5xx surge" page and reads as Gemini
     down. A 422 is a non-paging 4xx; `outdated_build_refused` counts it.
 
+    A build that names itself in `X-SnapWorth-Build` gets the honest 426
+    instead: it was written for this refusal, and shows the app's own update
+    message in the app's language rather than this `detail`. On the Scan tab
+    that is the "Scan Failed" alert with an App Store button beside OK;
+    everywhere else it is the message alone. Both statuses carry the code
+    `update_required`. The header wins over the User-Agent when both are
+    readable, because it is the one the app sends on purpose.
+
     A request whose build cannot be read is served: unknown is not old.
     """
-    build = observability.parse_client_build(request.headers.get("user-agent", ""))
+    build, explicit = observability.client_build(request.headers)
     if build is None:
         return
     minimum = await notify.minimum_build()
@@ -410,8 +422,9 @@ async def _refuse_outdated_build(request: Request) -> None:
         return
     metrics.outdated_build_refused.inc(endpoint=metrics.endpoint_label(request.url.path))
     log.info("outdated build told to update",
-             extra={"build": build, "minimum": minimum})
-    raise HTTPException(status_code=422, detail=notify.UPDATE_REQUIRED_DETAIL)
+             extra={"build": build, "minimum": minimum, "explicit": explicit})
+    raise APIError(426 if explicit else 422, apierrors.UPDATE_REQUIRED,
+                   notify.UPDATE_REQUIRED_DETAIL)
 
 
 async def _bot_scan(image_bytes: bytes, declared_type: str) -> dict:
@@ -425,7 +438,7 @@ async def _bot_scan(image_bytes: bytes, declared_type: str) -> dict:
     try:
         content_type = imagevalidation.validate(image_bytes, declared_type)
     except imagevalidation.ImageValidationError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from None
+        raise APIError(400, exc.code, str(exc)) from None
     # `count=False` is what makes the docstring above true. `_analyse` calls
     # `notify.count_scan_failure` at three sites and `_note_safety_block` at a
     # fourth, so an operator test photo the model could not price was filed as
@@ -521,6 +534,12 @@ _OPENAPI_URL = None if _is_production() else "/openapi.json"
 app = FastAPI(title="SnapWorth API", version=API_VERSION, lifespan=_lifespan,
               openapi_url=_OPENAPI_URL)
 
+# FastAPI's two default error handlers, each with `code` beside `detail` — see
+# `apierrors`. Registered for Starlette's `HTTPException` so the router's own
+# 404 and 405 carry one too.
+app.add_exception_handler(StarletteHTTPException, apierrors.http_error)
+app.add_exception_handler(RequestValidationError, apierrors.validation_error)
+
 app.add_middleware(RequestContextMiddleware)
 app.include_router(auth.router)
 app.include_router(social.router)
@@ -576,7 +595,7 @@ def _body_limit(path: str) -> int:
     return MAX_JSON_BODY_BYTES
 
 
-class RequestBodyTooLarge(HTTPException):
+class RequestBodyTooLarge(APIError):
     """Raised from inside `receive`, the moment a body passes its route's cap.
 
     An `HTTPException` because of where it surfaces: FastAPI reads the body in
@@ -587,7 +606,7 @@ class RequestBodyTooLarge(HTTPException):
     """
 
     def __init__(self) -> None:
-        super().__init__(status_code=413, detail="Request body is too large.")
+        super().__init__(413, apierrors.PAYLOAD_TOO_LARGE, "Request body is too large.")
 
 
 # Every layer below is pure ASGI, and must stay so. `@app.middleware("http")`
@@ -642,15 +661,17 @@ class LimitRequestBody:
             try:
                 length = int(declared)
             except ValueError:
-                await JSONResponse(status_code=400, content={
-                    "detail": "Malformed content-length."})(scope, receive, send)
+                await JSONResponse(status_code=400, content=apierrors.body(
+                    apierrors.BAD_CONTENT_LENGTH,
+                    "Malformed content-length."))(scope, receive, send)
                 return
             if length > limit:
                 log.warning("request body refused before reading",
                             extra={"path": path, "declared_bytes": length,
                                    "max_bytes": limit})
-                await JSONResponse(status_code=413, content={
-                    "detail": "Request body is too large."})(scope, receive, send)
+                await JSONResponse(status_code=413, content=apierrors.body(
+                    apierrors.PAYLOAD_TOO_LARGE,
+                    "Request body is too large."))(scope, receive, send)
                 return
 
         received = 0
@@ -684,8 +705,9 @@ class LimitRequestBody:
             # exception middleware stands between the read and this layer.
             if response_started:
                 raise
-            await JSONResponse(status_code=413, content={
-                "detail": "Request body is too large."})(scope, receive, send)
+            await JSONResponse(status_code=413, content=apierrors.body(
+                apierrors.PAYLOAD_TOO_LARGE,
+                "Request body is too large."))(scope, receive, send)
 
 
 class RecordMetrics:
@@ -847,8 +869,8 @@ def _check_rate_limit(device_id: str, ip: str | None = None, *,
             _ip_memory.check_sync(ip, IP_RATE_MAX_REQUESTS)
         _device_memory.check_sync(key, limit)
     except RateLimitExceeded as exc:
-        raise HTTPException(status_code=429, detail=exc.message,
-                            headers={"Retry-After": str(exc.retry_after)}) from None
+        raise APIError(429, apierrors.RATE_LIMITED, exc.message,
+                       headers={"Retry-After": str(exc.retry_after)}) from None
 
 
 async def _enforce_ip_limit(ip: str | None) -> None:
@@ -861,8 +883,8 @@ async def _enforce_ip_limit(ip: str | None) -> None:
         else:
             await _ip_limiter.check(f"ip:{ip}", IP_RATE_MAX_REQUESTS)
     except RateLimitExceeded as exc:
-        raise HTTPException(status_code=429, detail=exc.message,
-                            headers={"Retry-After": str(exc.retry_after)}) from None
+        raise APIError(429, apierrors.RATE_LIMITED, exc.message,
+                       headers={"Retry-After": str(exc.retry_after)}) from None
 
 
 #: Per-subject ceiling for `/auth/entitlement`, which had none at all.
@@ -908,8 +930,8 @@ async def _enforce_entitlement_limit(subject: str, ip: str | None) -> None:
             await _device_limiter.check(f"ent:{subject[:64]}",
                                        ENTITLEMENT_RATE_MAX_REQUESTS)
     except RateLimitExceeded as exc:
-        raise HTTPException(status_code=429, detail=exc.message,
-                            headers={"Retry-After": str(exc.retry_after)}) from None
+        raise APIError(429, apierrors.RATE_LIMITED, exc.message,
+                       headers={"Retry-After": str(exc.retry_after)}) from None
 
 
 #: Per-subject and per-IP ceilings for `/referral/status` and `/referral/claim`,
@@ -971,8 +993,8 @@ async def _enforce_limits(device_id: str, ip: str | None, *,
             await _ip_limiter.check(f"ip:{ip}", IP_RATE_MAX_REQUESTS)
         await _device_limiter.check(f"{bucket or 'dev'}:{device_id}", limit)
     except RateLimitExceeded as exc:
-        raise HTTPException(status_code=429, detail=exc.message,
-                            headers={"Retry-After": str(exc.retry_after)}) from None
+        raise APIError(429, apierrors.RATE_LIMITED, exc.message,
+                       headers={"Retry-After": str(exc.retry_after)}) from None
 
 
 # Constructed with explicit generation parameters — see aiconfig.py. The bare
@@ -1040,6 +1062,12 @@ class ScanResponse(BaseModel):
     confidence_score: int = Field(ge=0, le=100, default=0)
     confidence_summary: str = ""
     confidence_reasons: list[str] = Field(default_factory=list)
+    # One stable token per entry of `confidence_reasons`, in the same order
+    # (`confidence.ConfidenceSignal.code`), so a client can word each reason in
+    # its own language instead of printing the English. A new field rather than
+    # objects in `confidence_reasons`: that list is decoded as `[String]` by
+    # every build since #87, and one element of another type fails the scan.
+    confidence_reason_codes: list[str] = Field(default_factory=list)
 
     # Four price points rather than one band.
     quick_sale_price_usd: float | None = Field(ge=0, default=None)
@@ -1965,7 +1993,7 @@ async def _read_capped(upload: UploadFile, limit: int = MAX_UPLOAD_BYTES) -> byt
             break
         total += len(chunk)
         if total > limit:
-            raise HTTPException(status_code=400, detail="Image exceeds 10 MB limit.")
+            raise APIError(400, apierrors.IMAGE_TOO_LARGE, "Image exceeds 10 MB limit.")
         chunks.append(chunk)
     return b"".join(chunks)
 
@@ -2001,7 +2029,7 @@ async def scan(
         metrics.upload_rejected.inc(reason="validation")
         auditlog.record(AuditEvent.UPLOAD_REJECTED, principal.subject,
                         outcome="denied", reason=str(exc))
-        raise HTTPException(status_code=400, detail=str(exc)) from None
+        raise APIError(400, exc.code, str(exc)) from None
 
     # The tag photo, when one came with the request. Validated exactly like the
     # item photo; a bad one is dropped rather than failing the scan, because
@@ -2187,9 +2215,9 @@ async def _analyse(image_bytes: bytes, content_type: str, *, subject: str,
                         outcome="denied", reason=str(exc))
         if count:
             await _note_safety_block(subject)
-        raise HTTPException(
-            status_code=422,
-            detail="This photo couldn't be analysed. Try a clear photo of a single item.",
+        raise APIError(
+            422, apierrors.PHOTO_UNUSABLE,
+            "This photo couldn't be analysed. Try a clear photo of a single item.",
         ) from None
     except aiconfig.ModelUnavailable as exc:
         # A deadline stop is the app running out of time, not Gemini failing,
@@ -2202,9 +2230,9 @@ async def _analyse(image_bytes: bytes, content_type: str, *, subject: str,
         if count:
             notify.count_scan_failure(
                 "deadline" if isinstance(exc, _DeadlinePassed) else "provider")
-        raise HTTPException(
-            status_code=502,
-            detail="The AI service is temporarily unavailable. Please try again.",
+        raise APIError(
+            502, apierrors.AI_UNAVAILABLE,
+            "The AI service is temporarily unavailable. Please try again.",
         ) from None
 
     try:
@@ -2219,9 +2247,9 @@ async def _analyse(image_bytes: bytes, content_type: str, *, subject: str,
             log.error("scan unparseable after reformat", extra={"raw_prefix": raw[:200]})
             if count:
                 notify.count_scan_failure("unreadable")
-            raise HTTPException(
-                status_code=502,
-                detail="The AI response couldn't be read. Please try again.",
+            raise APIError(
+                502, apierrors.AI_UNREADABLE,
+                "The AI response couldn't be read. Please try again.",
             ) from None
 
     # Coerce, sanitise and repair price ordering — see valuation.py.
@@ -2257,12 +2285,14 @@ async def _analyse(image_bytes: bytes, content_type: str, *, subject: str,
             # scan was filed as a plain user scan.
             metrics.model_calls.inc(operation=label, outcome="not_resalable")
             # 422, not 502: nothing failed. The model read the photo and
-            # answered. The client renders `detail` verbatim for any non-2xx
-            # and retries nothing automatically, so this reaches the user as
-            # written on every shipped version.
-            raise HTTPException(
-                status_code=422,
-                detail=_not_resalable_message(val),
+            # answered, and no client retries it automatically. Every build
+            # from 1.3.1 shows a 422's `detail` as written, except that one
+            # which reads `code` does so only in English. In any other
+            # language it shows its own general sentence for `not_resalable`,
+            # without the model's reason (`ServerCopy.text`; the open question
+            # is in ios/Localization/README.md).
+            raise APIError(
+                422, apierrors.NOT_RESALABLE, _not_resalable_message(val),
             ) from None
 
         log.error("scan produced no usable price",
@@ -2275,9 +2305,9 @@ async def _analyse(image_bytes: bytes, content_type: str, *, subject: str,
         metrics.model_calls.inc(operation=label, outcome="no_price")
         if count:
             notify.count_scan_failure("no_price")
-        raise HTTPException(
-            status_code=502,
-            detail="The AI couldn't price this item. Please try again.",
+        raise APIError(
+            502, apierrors.AI_NO_PRICE,
+            "The AI couldn't price this item. Please try again.",
         ) from None
 
     # Category bands remain the outer backstop against order-of-magnitude errors
@@ -2341,6 +2371,7 @@ async def _analyse(image_bytes: bytes, content_type: str, *, subject: str,
         confidence_score=conf.score,
         confidence_summary=confidence_module.summary_sentence(conf),
         confidence_reasons=conf.reasons,
+        confidence_reason_codes=conf.reason_codes,
         quick_sale_price_usd=val.prices.quick or None,
         expected_price_usd=val.prices.expected or None,
         best_case_price_usd=val.prices.best or None,
@@ -2411,7 +2442,9 @@ async def _analyse(image_bytes: bytes, content_type: str, *, subject: str,
 # serialised response is trimmed. Charging free scans less would mean a second
 # prompt, which forks the thing the whole valuation rests on.
 _PRO_ONLY_DETAIL_FIELDS = (
-    "confidence_reasons",
+    # The codes are the reasons in another form, so they go with them —
+    # `likely_replica` among them is the authenticity verdict.
+    "confidence_reasons", "confidence_reason_codes",
     "quick_sale_price_usd", "expected_price_usd",
     "best_case_price_usd", "worst_case_price_usd",
     # `condition_grade` is deliberately NOT here. It is not something Pro
@@ -2915,10 +2948,10 @@ async def listing(
     """
     marketplace = req.marketplace.lower().strip()
     if marketplace not in SUPPORTED_MARKETPLACES:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Unsupported marketplace '{req.marketplace}'. "
-                   f"Supported: {', '.join(sorted(SUPPORTED_MARKETPLACES))}.",
+        raise APIError(
+            400, apierrors.UNSUPPORTED_MARKETPLACE,
+            f"Unsupported marketplace '{req.marketplace}'. "
+            f"Supported: {', '.join(sorted(SUPPORTED_MARKETPLACES))}.",
         )
     req.marketplace = marketplace
     if req.condition not in _VALID_CONDITIONS:
@@ -2932,9 +2965,9 @@ async def listing(
     if not principal.is_pro:
         auditlog.record(AuditEvent.LISTING_DENIED, principal.subject,
                         outcome="denied", reason="not_pro")
-        raise HTTPException(
-            status_code=402,
-            detail="Listing drafts are a SnapWorth Pro feature.",
+        raise APIError(
+            402, apierrors.PRO_REQUIRED,
+            "Listing drafts are a SnapWorth Pro feature.",
         )
 
     await _enforce_limits(principal.subject, _client_ip(request),
@@ -2956,9 +2989,9 @@ async def listing(
         return _fallback_listing(req)
     except aiconfig.ModelUnavailable as exc:
         log.error("listing gemini failed after retries: %s", exc)
-        raise HTTPException(
-            status_code=502,
-            detail="The AI service is temporarily unavailable. Please try again.",
+        raise APIError(
+            502, apierrors.AI_UNAVAILABLE,
+            "The AI service is temporarily unavailable. Please try again.",
         ) from None
 
     try:

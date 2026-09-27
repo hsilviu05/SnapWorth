@@ -3406,6 +3406,17 @@ class TestMinimumBuild:
         assert await notify.minimum_build() == 18
 
     @pytest.mark.asyncio
+    async def test_it_promises_the_app_store_button_only_where_there_is_one(
+            self, enabled_notify):
+        """Only the Scan tab's alert has an "Open App Store" button. Thrift
+        Flip, listing drafts and Haul show the message alone, so the operator
+        must not read that every refused screen offers the way to update."""
+        text, _ = await self._run("/minbuild 18")
+        assert "426" in text
+        assert "with an App Store button" not in text
+        assert "only the Scan tab's alert adds an App Store button" in text
+
+    @pytest.mark.asyncio
     async def test_clearing_it_takes_two_taps(self, enabled_notify):
         await self._run("/minbuild 18 yes")
         _, buttons = await self._run("/minbuild off")

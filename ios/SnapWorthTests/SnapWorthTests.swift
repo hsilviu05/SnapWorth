@@ -926,6 +926,27 @@ final class ScanViewModelSecurityTests: XCTestCase {
         XCTAssertNil(vm.errorMessage, "Stale error must be cleared on reset")
     }
 
+    /// "Open App Store" belongs to the update message and to nothing else.
+    /// Kept as a flag of its own, it outlived the alert it was set for.
+    func test_theAppStoreButtonGoesWithTheUpdateMessageOnly() {
+        vm.failureAlert = ScanViewModel.FailureAlert(.updateRequired)
+        XCTAssertTrue(vm.errorOffersUpdate)
+        XCTAssertEqual(vm.errorMessage, AppError.updateRequired.errorDescription)
+
+        // OK, Open App Store, or the alert dismissed: all three set nil.
+        vm.errorMessage = nil
+        XCTAssertFalse(vm.errorOffersUpdate)
+
+        // A later, unrelated message — `loadSelectedPhoto`'s, for a library
+        // photo that would not load — does not bring the button back.
+        vm.failureAlert = ScanViewModel.FailureAlert(.updateRequired)
+        vm.errorMessage = "Couldn't load the selected photo. Please try another."
+        XCTAssertFalse(vm.errorOffersUpdate)
+
+        XCTAssertEqual(ScanViewModel.FailureAlert(.network)?.offersUpdate, false)
+        XCTAssertNil(ScanViewModel.FailureAlert(.purchaseCancelled), "nothing to say, so no alert")
+    }
+
     func test_reset_setsIsAnalyzingToFalse() {
         vm.isAnalyzing = true
         vm.reset()
@@ -3848,6 +3869,44 @@ final class HaulDispositionTests: XCTestCase {
         XCTAssertEqual(disposition(paused, last: HaulSession.signature(for: paused)), .failAndHalt)
     }
 
+    /// A not-resalable verdict is about one photo. In English two in a row
+    /// read differently, because the server's words open with the model's
+    /// reason; in any other language both are this build's one sentence for
+    /// the code, and compared by message the second halted the rest.
+    func test_twoNotResalablePhotosInARowNeverHalt() {
+        func verdict(_ reason: String, inEnglish: Bool) -> AppError {
+            AppError.from(ScanAPIError.serverError(
+                422, "\(reason) Try a photo of a single item you'd actually sell.",
+                code: "not_resalable"), inEnglish: inEnglish)
+        }
+        for inEnglish in [false, true] {
+            let meal = verdict("This is a photograph of a cooked meal.", inEnglish: inEnglish)
+            let screenshot = verdict("This is a screenshot.", inEnglish: inEnglish)
+            XCTAssertEqual(disposition(screenshot, last: HaulSession.signature(for: meal)), .fail,
+                           "inEnglish: \(inEnglish)")
+            XCTAssertEqual(disposition(meal, last: HaulSession.signature(for: meal)), .fail,
+                           "the same reason twice is still two photos (inEnglish: \(inEnglish))")
+        }
+    }
+
+    /// The codes whose server words are the same for every photo still trip
+    /// the breaker, translated or not.
+    func test_aSafetyBlockOrAPausedDeviceTwiceHaltsInEveryLanguage() {
+        let bodies = [
+            ("This photo couldn't be analysed. Try a clear photo of a single item.", "photo_unusable"),
+            ("Scanning from this device is paused for 24 hours after repeated photos that could not be analysed.",
+             "device_paused"),
+        ]
+        for inEnglish in [false, true] {
+            for (detail, code) in bodies {
+                let error = AppError.from(ScanAPIError.serverError(422, detail, code: code),
+                                          inEnglish: inEnglish)
+                XCTAssertEqual(disposition(error, last: HaulSession.signature(for: error)), .failAndHalt,
+                               "\(code), inEnglish: \(inEnglish)")
+            }
+        }
+    }
+
     /// Spoken, the 429 says what the banner says: the photos are kept and the
     /// queue resumes by itself — not "Try again in…", which asks the user to
     /// act.
@@ -4157,6 +4216,42 @@ final class HaulSessionTests: XCTestCase {
         XCTAssertEqual(session.items[0].failureMessage, "Try a clear photo of a single item.")
         XCTAssertEqual(h.store.pending(now: h.clock.now).map(\.state), [.failed],
                        "kept, and marked so a relaunch does not re-send it")
+    }
+
+    /// A not-resalable verdict is the model answering about one photo: it
+    /// neither trips the breaker nor carries a run across itself.
+    func test_notResalableVerdictsNeverHaltTheHaul() async {
+        let h = HaulHarness()
+        defer { h.tearDown() }
+        let session = h.makeSession()
+        session.open()
+        for _ in 0..<5 { session.add(HaulFixtures.photo()) }
+        await haulWait("two in flight") { h.scans.waiting == 2 }
+
+        // Identical, as two verdicts are in any language but English, and in
+        // English when the model gives no reason.
+        let declined = ScanAPIError.serverError(
+            422, "This doesn't look like something with a resale value. "
+                + "Try a photo of a single item you'd actually sell.",
+            code: "not_resalable")
+        let blocked = ScanAPIError.serverError(
+            422, "This photo couldn't be analysed. Try a clear photo of a single item.",
+            code: "photo_unusable")
+
+        h.scans.failOldest(declined)
+        await haulWait("first failed") { session.failedCount == 1 && h.scans.waiting == 2 }
+        h.scans.failOldest(declined)
+        await haulWait("second failed") { session.failedCount == 2 && h.scans.waiting == 2 }
+        XCTAssertNil(session.hold, "two verdicts on two photos")
+
+        // A safety block either side of a verdict is not two in a row.
+        h.scans.failOldest(blocked)
+        await haulWait("third failed") { session.failedCount == 3 && h.scans.waiting == 2 }
+        h.scans.failOldest(declined)
+        await haulWait("fourth failed") { session.failedCount == 4 && h.scans.waiting == 1 }
+        h.scans.failOldest(blocked)
+        await haulWait("fifth failed") { session.failedCount == 5 && session.scansInFlight == 0 }
+        XCTAssertNil(session.hold)
     }
 
     func test_breakerHaltsAfterTwoIdenticalFailures() async {

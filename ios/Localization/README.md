@@ -157,10 +157,47 @@ the worked examples.
   generator does not own, and the catalogs go dirty in the working tree for no
   reason. Written down, they carry `extractionState: manual` and Xcode leaves
   them alone. Five identical values are the point, not an oversight.
+* **Server text this build has no words for.** An error body whose `code`
+  this build does not know, or that has none (a backend from before the
+  codes), shows the server's English `detail` in every language, and so does
+  a confidence reason without a known code, or a list of reasons whose codes
+  do not line up with it (`ServerCopy.text`,
+  `ValuationDetail.shownConfidenceReasons`). The alternative is a fixed
+  "Something went wrong", which tells the user less; a new code gets words in
+  the build after it.
+* **The confidence summary.** `confidence_summary`, the sentence at the top of
+  "Why this price", is shown as the server wrote it, in English, in every
+  language — to free users too, in the locked teaser
+  (`ResultView.lockedDetailTeaser`). The server builds it from the score's band
+  and its first two reasons and sends no code for it, and on a free scan the
+  reasons' codes are blanked as Pro detail, so there is nothing here to word
+  it from.
+* **Model-written text.** The item name, brand, condition notes, what drives
+  the value and how to improve the estimate are written by the model, which is
+  prompted in English and is not told the app's language — a scan request
+  carries none. Whether they should follow the app's language is a product
+  decision that has not been taken.
 
 `tools/check_localization.py` holds the same list, with the reasons, so a
 string that is English on purpose is distinguishable from one that was
-forgotten.
+forgotten. The server and model text above has no literal in the Swift, so
+there is nothing there for it to hold.
+
+### Open: the model's reason for a not-resalable photo
+
+When the model prices a photo at zero on purpose, the 422's `detail` opens with
+its reason — "This is a photograph of a cooked meal." — and English shows it.
+In Romanian, Spanish, German and Chinese this build shows its own general
+sentence for `not_resalable` instead, so the reason is lost there: the loss
+`_not_resalable_message` in `backend/main.py` was written to end, where the
+user "was told to try again and never told why". That trade was made in code,
+not by the owner, and it is theirs to make.
+
+The alternative to put to them: the translated first sentence ("This doesn't
+look like something with a resale value.") followed by the model's reason in
+English. That needs the reason on its own, as a new field beside `detail`;
+cutting it out of the English sentence would tie the client to the server's
+wording.
 
 ## Conventions, per language
 

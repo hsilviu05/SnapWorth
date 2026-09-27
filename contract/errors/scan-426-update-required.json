@@ -1,0 +1,8 @@
+{
+  "status": 426,
+  "headers": {},
+  "body": {
+    "detail": "This version of SnapWorth is no longer supported. Update SnapWorth from the App Store to keep using it.",
+    "code": "update_required"
+  }
+}

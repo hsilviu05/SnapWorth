@@ -210,6 +210,12 @@ extension URLSession {
         // indefinitely rather than failing so the user can retry.
         configuration.timeoutIntervalForResource = 35
         configuration.waitsForConnectivity = true
+        // On the session rather than per request, so no call site can forget
+        // it — /scan, /listing and /trends, and /auth, which the server reads
+        // for its log but never refuses on.
+        if let build = Config.buildNumber {
+            configuration.httpAdditionalHeaders = [Config.buildHeaderField: build]
+        }
         return URLSession(
             configuration: configuration,
             delegate: CertificatePinningDelegate(),

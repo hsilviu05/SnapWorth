@@ -522,6 +522,14 @@ struct ScanView: View {
             get: { vm.errorMessage != nil },
             set: { if !$0 { vm.errorMessage = nil } }
         )) {
+            // The server no longer serves this build. The message says to
+            // update; this is the way there, rather than a search.
+            if vm.errorOffersUpdate, let store = URL(string: Config.appStoreURL) {
+                Button("Open App Store") {
+                    vm.errorMessage = nil
+                    UIApplication.shared.open(store)
+                }
+            }
             Button("OK", role: .cancel) { vm.errorMessage = nil }
         } message: {
             Text(vm.errorMessage ?? "")
