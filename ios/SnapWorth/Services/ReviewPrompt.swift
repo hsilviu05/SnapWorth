@@ -58,6 +58,21 @@ enum ReviewPrompt {
         return now.timeIntervalSince(lastRequest) >= minimumGap
     }
 
+    /// The last request to measure the gap from. Pure, for the tests.
+    ///
+    /// A build that limited to once per version left only the version it
+    /// asked in, not when. That ask is treated as happening at `now` — the
+    /// first moment worth asking at on this build, which is the only place
+    /// this is reached — rather than as long ago: the likeliest case is an
+    /// ask during the run of updates just gone. So anyone an earlier build
+    /// ever prompted waits the full gap from their first confident, revealed
+    /// estimate after updating, not from the update itself.
+    nonisolated static func effectiveLastRequest(stored: Date?, promptedVersion: String?,
+                                                 now: Date) -> Date? {
+        if let stored { return stored }
+        return promptedVersion == nil ? nil : now
+    }
+
     /// Request a review if one is due. Call at a moment of value, with the
     /// payoff already on screen — today that is a fresh estimate, revealed,
     /// that the app is confident in (`ResultView`).
@@ -66,14 +81,10 @@ enum ReviewPrompt {
     /// and fees fields, and a system prompt there interrupts the user in the
     /// middle of typing the one number the ledger needs.
     static func requestIfDue(defaults: UserDefaults = .standard, now: Date = Date()) {
-        var lastRequest = defaults.object(forKey: lastRequestKey) as? Date
-        if lastRequest == nil, defaults.string(forKey: promptedVersionKey) != nil {
-            // An earlier build asked in some version, at some unknown time.
-            // Start the gap now rather than treating it as long ago: the
-            // likeliest case is an ask during the last few days of updates.
-            defaults.set(now, forKey: lastRequestKey)
-            lastRequest = now
-        }
+        let stored = defaults.object(forKey: lastRequestKey) as? Date
+        let lastRequest = effectiveLastRequest(
+            stored: stored, promptedVersion: defaults.string(forKey: promptedVersionKey), now: now)
+        if stored == nil, let lastRequest { defaults.set(lastRequest, forKey: lastRequestKey) }
         guard isDue(scanCount: defaults.integer(forKey: scanCountKey),
                     lastRequest: lastRequest, now: now) else { return }
 

@@ -5976,10 +5976,29 @@ final class ReviewPromptTimingTests: XCTestCase {
         // An earlier build asked at some unknown moment — most likely during
         // the run of updates just gone. Treating that as long ago would spend
         // another of the three a year straight away.
+        let seeded = ReviewPrompt.effectiveLastRequest(stored: nil, promptedVersion: "1.4.1", now: now)
+        XCTAssertEqual(seeded, now)
+        XCTAssertFalse(ReviewPrompt.isDue(scanCount: 5, lastRequest: seeded, now: now),
+                       "an upgrader would be asked at once")
+        XCTAssertNil(ReviewPrompt.effectiveLastRequest(stored: nil, promptedVersion: nil, now: now),
+                     "a user never asked by any build is not made to wait")
+        let earlier = now.addingTimeInterval(-86_400)
+        XCTAssertEqual(ReviewPrompt.effectiveLastRequest(stored: earlier, promptedVersion: "1.4.1",
+                                                         now: now), earlier,
+                       "a recorded request is the one the gap runs from")
+
+        // Through the real entry point: the gap is seeded, and iOS is not
+        // asked. Asserting only the stored date could not tell the two apart —
+        // a request writes the same key with the same value.
+        let spy = FunnelSpy()
+        Analytics.shared.configure(spy)
+        UserDefaults.standard.removeObject(forKey: Analytics.enabledKey)
         defaults.set(5, forKey: "snapworth_successful_scans")
         defaults.set("1.4.1", forKey: "snapworth_review_prompted_version")
         ReviewPrompt.requestIfDue(defaults: defaults, now: now)
         XCTAssertEqual(defaults.object(forKey: "snapworth_review_last_requested") as? Date, now)
+        XCTAssertFalse(spy.events.map(\.name).contains("review_prompt_requested"),
+                       "asked for a review instead of starting the gap")
     }
 
     func test_theRequestIsMadeFromTheRevealedResult() throws {
