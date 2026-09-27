@@ -172,10 +172,13 @@ class ResilientCache:
         self._degraded_since: float | None = None
         self._failures = 0
         # Told `True` when the primary starts failing and `False` when it
-        # answers again — transitions only, never per call. Wired by main to
-        # the ops bot, because a Redis outage fails every free scan closed and
-        # this object is the only thing that sees it happen. Injected rather
-        # than imported: the cache must not depend on the notifier.
+        # answers again — on every transition, which is not the same as rarely:
+        # a Redis that answers reads and refuses writes (full, `noeviction`)
+        # transitions on nearly every request, so a listener must debounce.
+        # Wired by main to the ops bot, because a Redis outage fails every free
+        # scan closed and this object is the only thing that sees it happen.
+        # Injected rather than imported: the cache must not depend on the
+        # notifier.
         self.on_change: Callable[[bool], None] | None = None
 
     @property

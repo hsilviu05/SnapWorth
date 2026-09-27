@@ -299,6 +299,21 @@ class TestCacheAlerts:
         assert len(enabled_notify.texts) == 1
 
     @pytest.mark.asyncio
+    async def test_flapping_keeps_one_settle_waiting_not_one_per_flip(self, enabled_notify):
+        """Superseded settles used to sleep out the whole window, so a
+        per-request flip held transitions/s × 60 tasks alive."""
+        for _ in range(20):
+            notify.cache_state_changed(True)
+            notify.cache_state_changed(False)
+        settles = [t for t in notify._tasks
+                   if getattr(t.get_coro(), "__name__", "") == "_settle_cache_state"]
+        await asyncio.sleep(0)
+        assert len(settles) == 40
+        assert sum(not t.done() for t in settles) == 1
+        await drain()
+        assert enabled_notify.texts == []          # it ended up, as it began
+
+    @pytest.mark.asyncio
     async def test_wired_to_a_real_cache_end_to_end(self, enabled_notify):
         class Down:
             async def get(self, *a, **k): raise ConnectionError("down")

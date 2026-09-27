@@ -736,7 +736,7 @@ def configure(cache, notifier: TelegramNotifier | None = None,
 
 async def aclose() -> None:
     """Tear down background work. Alerts in flight at shutdown are dropped."""
-    global _notifier, _digest_task, _command_task, _watch_task
+    global _notifier, _digest_task, _command_task, _watch_task, _cache_settle_task
     if _digest_task is not None:
         _digest_task.cancel()
         _digest_task = None
@@ -749,6 +749,7 @@ async def aclose() -> None:
     for task in list(_tasks):
         task.cancel()
     _tasks.clear()
+    _cache_settle_task = None
     _alert_last_sent.clear()
     _alert_awaiting_recovery.clear()
     await _release_poll_lock()
@@ -757,21 +758,22 @@ async def aclose() -> None:
         await notifier.aclose()
 
 
-def _spawn(coro) -> None:
+def _spawn(coro) -> asyncio.Task | None:
     """Run `coro` in the background, holding a reference until it finishes.
 
     Without the reference set, an un-awaited task is garbage-collectable
     mid-flight. Outside a running loop (sync tests, tooling) the coroutine is
-    closed unrun rather than raising.
+    closed unrun rather than raising, and None is returned.
     """
     try:
         loop = asyncio.get_running_loop()
     except RuntimeError:
         coro.close()
-        return
+        return None
     task = loop.create_task(coro)
     _tasks.add(task)
     task.add_done_callback(_tasks.discard)
+    return task
 
 
 # ── Daily counters ───────────────────────────────────────────────────────────
@@ -1400,16 +1402,23 @@ def model_recovered() -> None:
 # (RUNBOOK §3).
 CACHE_ALERT_SETTLE_SECONDS = 60.0
 _cache_state_generation = 0
+# The one settle still waiting. Each transition cancels it before starting the
+# next: left asleep, superseded settles piled up at transitions/s × 60 — about
+# 12,000 live tasks at 100 req/s against a write-refusing Redis, during the
+# very memory-pressure incident being announced.
+_cache_settle_task: asyncio.Task | None = None
 
 
 def cache_state_changed(degraded: bool) -> None:
     """`ResilientCache.on_change`, wired by main: Redis stopped or started
     answering. Schedules the announcement; never sends from inside the call."""
-    global _cache_state_generation
+    global _cache_state_generation, _cache_settle_task
     if _notifier is None:
         return
     _cache_state_generation += 1
-    _spawn(_settle_cache_state(_cache_state_generation, degraded))
+    if _cache_settle_task is not None:
+        _cache_settle_task.cancel()       # a no-op once it has run
+    _cache_settle_task = _spawn(_settle_cache_state(_cache_state_generation, degraded))
 
 
 async def _settle_cache_state(generation: int, degraded: bool) -> None:
