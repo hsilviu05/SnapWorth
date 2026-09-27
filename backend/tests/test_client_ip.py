@@ -143,7 +143,8 @@ class TestIPv6Keys:
 class TestForgedHops:
     """Railway's edge dropped a client-supplied header when probed, but the
     walk must not depend on that: whatever a caller writes is on the left of
-    the address Railway appends."""
+    the address Railway appends. Except where that address is one the walk
+    skips (`TestAFastlySourceChoosesItsKey`)."""
 
     @pytest.mark.parametrize("forged", [FORGED, "10.9.9.9", "151.101.9.9", "evil"])
     def test_forged_then_client_then_fastly_is_the_client(self, forged):
@@ -426,3 +427,153 @@ class TestTheRealLimiter:
         main._ip_rate_store.clear()
         assert self.codes([f"evil-{n}, railway-token" for n in range(8)]) \
             == [200] * 5 + [429] * 3
+
+
+def edge_of(xff: str | list[str] | None) -> str | None:
+    return ratelimit.forwarding_edge(ratelimit.client_ip(Req(xff)))
+
+
+class TestAFastlySourceChoosesItsKey:
+    """Known, and pinned so the assumption stays visible.
+
+    Fastly's addresses are every Fastly customer's. Anyone can put a Fastly
+    service of their own in front of this API, or call it from Fastly
+    Compute, and the request reaches Railway's edge from a Fastly address
+    carrying whatever X-Forwarded-For that service wrote. Railway's edge must
+    keep the header its own Fastly service writes — that is how "client,
+    edge" arrives — and whether it keeps a stranger's was never probed. If it
+    does, "R, E" is keyed on R, which the caller picks, where the rightmost
+    rule keyed E, which it cannot. The walk cannot tell the two apart, so the
+    edge bucket (`TestTheEdgeBucket`) bounds it instead."""
+
+    def test_a_rotating_hop_left_of_a_fastly_address_is_a_new_key(self):
+        keys = {key(f"203.0.113.{n}, {FASTLY_V4}") for n in range(1, 50)}
+        assert len(keys) == 49
+
+    def test_but_every_one_of_them_names_the_same_edge(self):
+        edges = {edge_of(f"203.0.113.{n}, {FASTLY_V4}") for n in range(1, 50)}
+        assert edges == {FASTLY_V4}
+
+
+class TestTheEdge:
+    """The nearest Fastly hop the walk skipped: the one the caller cannot
+    write, since whatever sits right of it is a proxy of ours."""
+
+    def test_the_cdn_path_names_its_edge(self):
+        assert edge_of(f"{CLIENT}, {FASTLY_V4}") == FASTLY_V4
+        assert edge_of(f"{CLIENT}, {FASTLY_V4}, {CGNAT}") == FASTLY_V4
+
+    def test_the_nearest_of_several(self):
+        assert edge_of(f"{CLIENT}, 151.101.9.9, {FASTLY_V4}") == FASTLY_V4
+
+    def test_keyed_as_a_client_address_is(self):
+        assert edge_of(f"{CLIENT}, {FASTLY_V6}") == "2a04:4e42:200::/64"
+        assert edge_of(f"{CLIENT}, ::ffff:{FASTLY_V4}") == FASTLY_V4
+
+    def test_the_fallbacks_keep_it(self):
+        assert edge_of(f"151.101.9.9, {FASTLY_V4}") == FASTLY_V4
+        assert edge_of(f"junk, {FASTLY_V4}") == FASTLY_V4
+
+    def test_none_where_no_fastly_hop_was_skipped(self):
+        assert edge_of(CLIENT) is None
+        assert edge_of(f"{CLIENT}, {CGNAT}") is None
+        assert edge_of(f"{FASTLY_V4}, {CLIENT}") is None
+        assert edge_of(None) is None
+        assert ratelimit.forwarding_edge("198.51.100.23") is None
+        assert ratelimit.forwarding_edge(None) is None
+
+
+class TestTheEdgeBucket:
+    """A request reached past a Fastly edge also spends a bucket keyed on
+    that edge, at EDGE_RATE_MULTIPLIER times the IP bucket. Callers behind
+    one edge are no longer held to one IP bucket between them, and a caller
+    that picks its key from a Fastly source gets a multiple of what the
+    rightmost rule gave it, not an unlimited supply. End to end, behind
+    uvicorn's middleware, with the IP bucket at 5."""
+
+    @pytest.fixture(autouse=True)
+    def real_limiter(self, monkeypatch):
+        monkeypatch.setattr(auth.deps, "ip_limiter", main._enforce_ip_limit)
+        monkeypatch.setattr(main, "_ip_limiter", None)
+        monkeypatch.setattr(main, "_device_limiter", None)
+        monkeypatch.setattr(main, "IP_RATE_MAX_REQUESTS", 5)
+        monkeypatch.setattr(main, "EDGE_RATE_MULTIPLIER", 2)
+        monkeypatch.setattr(ratelimit, "_EDGE_REFUSAL_NOTED", False)
+        main._ip_rate_store.clear()
+        main._rate_store.clear()
+        yield
+        main._ip_rate_store.clear()
+        main._rate_store.clear()
+
+    def codes(self, xffs):
+        return [deployed.post("/auth/challenge", headers={"x-forwarded-for": x}).status_code
+                for x in xffs]
+
+    def test_rotating_left_of_one_edge_is_refused_at_the_edge_cap(self):
+        codes = self.codes([f"203.0.113.{n}, {FASTLY_V4}" for n in range(1, 15)])
+        assert codes == [200] * 10 + [429] * 4
+
+    def test_the_same_through_a_v6_edge(self):
+        codes = self.codes([f"203.0.113.{n}, {FASTLY_V6}" for n in range(1, 15)])
+        assert codes == [200] * 10 + [429] * 4
+
+    def test_callers_behind_one_edge_share_the_multiple_not_one_bucket(self):
+        assert self.codes([f"198.51.100.1, {FASTLY_V4}"] * 5) == [200] * 5
+        assert self.codes([f"198.51.100.2, {FASTLY_V4}"] * 5) == [200] * 5
+        assert self.codes([f"198.51.100.3, {FASTLY_V4}"]) == [429]
+        # Another edge is another bucket.
+        assert self.codes([f"198.51.100.3, 151.101.2.2"]) == [200]
+
+    def test_a_caller_over_its_own_limit_does_not_spend_the_edge(self):
+        """The IP bucket is charged first, and a refusal there stops before
+        the edge: one caller hammering cannot use up its neighbours'."""
+        codes = self.codes([f"{CLIENT}, {FASTLY_V4}"] * 30)
+        assert codes == [200] * 5 + [429] * 25
+        assert self.codes([f"198.51.100.99, {FASTLY_V4}"] * 5) == [200] * 5
+
+    def test_the_direct_path_has_no_edge_bucket(self):
+        assert self.codes([f"198.51.100.{n}" for n in range(1, 15)]) == [200] * 14
+        assert not any(k.startswith("edge:") for k in main._ip_rate_store)
+
+    def test_the_scan_routes_and_entitlement_spend_the_same_edge(self):
+        async def spend():
+            for n in range(1, 5):
+                await main._enforce_limits(f"dev-{n}", ratelimit.client_ip(
+                    Req(f"203.0.113.{n}, {FASTLY_V4}")))
+            for n in range(5, 9):
+                await main._enforce_entitlement_limit(f"subj-{n}", ratelimit.client_ip(
+                    Req(f"203.0.113.{n}, {FASTLY_V4}")))
+        asyncio.run(spend())
+        assert self.codes([f"203.0.113.{n}, {FASTLY_V4}" for n in range(9, 13)]) \
+            == [200, 200, 429, 429]
+
+    def test_the_referral_routes_have_an_edge_bucket_of_their_own(self, monkeypatch):
+        """As they have an IP bucket of their own: the app polls /status on
+        every foreground, which must not spend the scan routes' allowance."""
+        monkeypatch.setattr(main, "REFERRAL_IP_RATE_MAX_REQUESTS", 3)
+
+        async def poll(n):
+            await main._enforce_referral_limit("status", f"subj-{n}", ratelimit.client_ip(
+                Req(f"203.0.113.{n}, {FASTLY_V4}")))
+
+        for n in range(1, 7):
+            asyncio.run(poll(n))
+        with pytest.raises(HTTPException) as refused:
+            asyncio.run(poll(7))
+        assert refused.value.status_code == 429
+        assert self.codes([f"203.0.113.{n}, {FASTLY_V4}" for n in range(20, 31)]) \
+            == [200] * 10 + [429]
+
+    def test_the_distributed_path_spends_it_too(self, monkeypatch):
+        facade = ratelimit.ResilientRateLimiter(None, main._ip_memory)
+        monkeypatch.setattr(main, "_ip_limiter", facade)
+        codes = self.codes([f"203.0.113.{n}, {FASTLY_V4}" for n in range(1, 15)])
+        assert codes == [200] * 10 + [429] * 4
+        assert f"edge:{FASTLY_V4}" in main._ip_rate_store
+
+    def test_a_refusal_is_logged_once_and_names_no_address(self, caplog):
+        with caplog.at_level(logging.WARNING, logger="snapworth.ratelimit"):
+            self.codes([f"203.0.113.{n}, {FASTLY_V4}" for n in range(1, 15)])
+        lines = [r.getMessage() for r in caplog.records if "edge" in r.getMessage()]
+        assert len(lines) == 1
+        assert FASTLY_V4 not in lines[0] and "RUNBOOK" in lines[0]

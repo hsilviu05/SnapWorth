@@ -369,6 +369,39 @@ availability one.
    address, and everyone routed through one Fastly POP shared one 60/hr
    bucket.
 
+   **A caller sending from a Fastly address picks its own key, and the edge
+   bucket is what bounds it.** The walk skips every Fastly address, and
+   Fastly's ranges are every Fastly customer's: anyone can put a Fastly
+   service or Compute app of their own in front of this API, and its
+   requests reach Railway's edge from a Fastly address carrying whatever
+   `X-Forwarded-For` that service wrote. Railway's edge has to keep the
+   header its own Fastly service writes, which is how `client, fastly-edge`
+   arrives. Whether it keeps a stranger's has not been probed (below). If
+   it does, `R, E` is keyed on `R`, the caller's choice, where the
+   rightmost rule keyed `E`, which it cannot choose; the walk cannot tell
+   that request from a real one. So a request reached past a Fastly hop
+   also spends a bucket keyed on the nearest one: `rl:edge:<edge>` beside
+   `rl:ip:`, and `rl:ref-edge:` and `rl:ref-claim-edge:` beside the referral
+   routes' IP buckets, each at `EDGE_RATE_MULTIPLIER` (default 10) times
+   the IP bucket's size. It is charged after the IP bucket, so a caller
+   over its own limit spends none of it. That caps a key-picking caller at
+   ten times what the rightmost rule allowed per edge address, and it is
+   also what the real users behind one edge share: 600/hr on the IP routes,
+   where the rightmost rule gave them 60 between them. The first refusal in
+   a process logs `a Fastly edge's rate-limit bucket refused a request`,
+   and its 429 reads `Rate limit: 600 requests/hour.`. If real traffic
+   reaches it, raise `EDGE_RATE_MULTIPLIER`, which loosens the cap on a
+   key-picking caller by the same factor.
+
+   *To probe, from outside Railway, and record the result here:* create a
+   Fastly service (VCL or Compute) of your own with this API as its
+   backend, have it **set** (not append) `X-Forwarded-For` to a value that
+   changes on every request, and `POST /auth/challenge` through it 61
+   times. A 429 on the 61st means Railway's edge replaced the header, so a
+   Fastly source cannot pick its key. Sixty-one 200s mean it kept it: the
+   edge bucket is then the only bound on such a caller, and
+   `EDGE_RATE_MULTIPLIER` should stay as low as real traffic allows.
+
    **After a deploy, read the log.** Each process logs one line per distinct
    (hop count, skipped count), counts only, at most six. CDN traffic should
    read
@@ -393,9 +426,12 @@ availability one.
    or to the leftmost hop alone. The leftmost is the caller only while
    Railway strips a client-supplied header, which was seen on the one path
    probed, and if it ever stops, the key is the caller's choice again: a
-   fresh bucket per request. **Before putting any other proxy in front of
-   Railway** (a proxied DNS record, another CDN), add its published ranges
-   beside Fastly's.
+   fresh bucket per request. The walk does not depend on that for a caller
+   connecting from anywhere else, since it stops at the address Railway
+   appends. It does for one connecting from a Fastly or internal address,
+   which it skips, and that is the case above. **Before putting any other
+   proxy in front of Railway** (a proxied DNS record, another CDN), add its
+   published ranges beside Fastly's; it then needs the same edge bucket.
 3. The IP bucket is one for every route with a limit — `/scan`, `/listing`,
    `/trends`, `/auth/entitlement`, and the unauthenticated `/auth` routes and
    `/apple/notifications` — so from one address they stop together. The
