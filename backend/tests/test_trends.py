@@ -34,6 +34,9 @@ DEVICES = ("dev-a", "dev-b", "dev-c")
 # whole days, which leaned every category ▼ all day and recovered at midnight
 # UTC. So fixtures start at days_ago=1; seeding day 0 puts data outside the
 # window on purpose, not by accident.
+#
+# `devices=None` writes a day as the code before device tags did — no
+# `cat_devices`, no `brand_devices`, no `d` on a find.
 async def seed(cache, days_ago: int, cats: dict, brands: dict, finds=(), scans: int = 0,
                devices=DEVICES):
     day = notify._day(datetime.now(timezone.utc) - timedelta(days=days_ago))
@@ -76,8 +79,9 @@ class TestFloor:
 class TestDeviceFloor:
     """Five scans used to be the whole floor, and at one to four real scans a
     day five scans of one label was a week's trend on every install. A row
-    now also needs TRENDS_MIN_DEVICES different devices, and so does a
-    notable find."""
+    now also needs different devices behind it — TRENDS_MIN_CATEGORY_DEVICES
+    for a category, TRENDS_MIN_BRAND_DEVICES for a brand — and a notable find
+    needs TRENDS_MIN_FIND_DEVICES."""
 
     @pytest.mark.asyncio
     async def test_many_scans_from_one_device_are_not_a_trend(self, cache):
@@ -86,6 +90,32 @@ class TestDeviceFloor:
         payload = await notify.trends(is_pro=True)
         assert payload["categories"] == [] and payload["brands"] == []
         assert payload["notable_finds"] == []
+
+    @pytest.mark.asyncio
+    async def test_a_category_needs_two_devices_and_a_brand_three(self, cache):
+        """Categories are a closed set and cannot carry a spam URL or a slur;
+        a brand is free text read off a photo, and can."""
+        await seed(cache, 1, {"clothing": 9}, {"Nike": 9}, devices=["dev-a", "dev-b"])
+        payload = await notify.trends(is_pro=False)
+        assert [(r["name"], r["count"]) for r in payload["categories"]] == [("clothing", 9)]
+        assert payload["brands"] == []
+
+        await seed(cache, 2, {"clothing": 1}, {"Nike": 1}, devices=["dev-c"])
+        await cache.delete(f"{notify.TRENDS_CACHE_KEY}:free")
+        payload = await notify.trends(is_pro=False)
+        assert [(r["name"], r["count"]) for r in payload["brands"]] == [("Nike", 10)]
+
+    @pytest.mark.asyncio
+    async def test_one_device_scanning_a_brand_every_day_never_trends(self, cache):
+        # Ten scans a day for five days is fifty scans and one device. A second
+        # device puts clothing on the card, so it is the brand held back, not
+        # the week.
+        for days_ago in range(1, 6):
+            await seed(cache, days_ago, {"clothing": 10}, {"Carhartt": 10}, devices=["dev-a"])
+        await seed(cache, 6, {"clothing": 1}, {}, devices=["dev-b"])
+        payload = await notify.trends(is_pro=False)
+        assert [(r["name"], r["count"]) for r in payload["categories"]] == [("clothing", 51)]
+        assert payload["brands"] == []
 
     @pytest.mark.asyncio
     async def test_devices_add_up_across_the_week(self, cache):
@@ -100,12 +130,16 @@ class TestDeviceFloor:
         assert [r["name"] for r in payload["brands"]] == ["Nike"]
 
     @pytest.mark.asyncio
-    async def test_a_notable_find_needs_as_many_devices_as_a_row(self, cache):
-        # The jacket: three devices across the week. The watch: one device,
-        # three days running, and the most valuable thing scanned.
-        for days_ago, device in ((1, "dev-a"), (2, "dev-b"), (3, "dev-c")):
+    async def test_a_notable_find_needs_three_devices(self, cache):
+        # The jacket: three devices across the week. The shirt: two, which is
+        # a category's floor and not a find's. The watch: one device, three
+        # days running, and the most valuable thing scanned.
+        for days_ago, device in ((1, "dev-a"), (2, "dev-b")):
             await seed(cache, days_ago, {"clothing": 3}, {},
-                       [find("Carhartt Detroit Jacket", "clothing", 60, 100)], devices=[device])
+                       [find("Carhartt Detroit Jacket", "clothing", 60, 100),
+                        find("Pendleton Board Shirt", "clothing", 80, 150)], devices=[device])
+        await seed(cache, 3, {"clothing": 3}, {},
+                   [find("Carhartt Detroit Jacket", "clothing", 60, 100)], devices=["dev-c"])
         for days_ago in (4, 5, 6):
             await seed(cache, days_ago, {"accessories": 1}, {},
                        [find("Rolex Submariner", "accessories", 5000, 9000)], devices=["dev-z"])
@@ -120,25 +154,17 @@ class TestDeviceFloor:
         assert "change_pct" not in row
 
     @pytest.mark.asyncio
-    async def test_days_recorded_before_devices_were_are_withheld(self, cache):
-        await seed(cache, 1, {"clothing": 40}, {"Nike": 30},
-                   [find("Le Creuset", "home", 100, 200)], devices=None)
-        payload = await notify.trends(is_pro=True)
-        assert payload["categories"] == [] and payload["brands"] == []
-        assert payload["notable_finds"] == []
-
-    @pytest.mark.asyncio
     async def test_a_quiet_week_can_show_categories_and_no_brands(self, cache):
-        """What the floor means at one to four scans a day: a category is
-        shared by three devices long before any one brand is, so the week
-        shows categories alone — the card still shows, since the app hides it
-        only when both lists are empty — and one device's brand, however
-        often scanned, shows nowhere."""
-        for days_ago, device in ((1, "dev-a"), (3, "dev-b"), (5, "dev-c")):
-            await seed(cache, days_ago, {"clothing": 2}, {}, devices=[device])
+        """What the floor means at one to four scans a day: two devices share
+        a category long before three share any one brand, so the week shows
+        categories alone — the card still shows, since the app hides it only
+        when both lists are empty — and a brand one or two devices scanned,
+        however often, shows nowhere."""
+        await seed(cache, 1, {"clothing": 2}, {}, devices=["dev-a"])
         await seed(cache, 2, {"clothing": 3}, {"Carhartt": 6}, devices=["dev-a"])
+        await seed(cache, 4, {"clothing": 2}, {"Carhartt": 1}, devices=["dev-b"])
         payload = await notify.trends(is_pro=False)
-        assert [(r["name"], r["count"]) for r in payload["categories"]] == [("clothing", 9)]
+        assert [(r["name"], r["count"]) for r in payload["categories"]] == [("clothing", 7)]
         assert payload["brands"] == []
 
     @pytest.mark.asyncio
@@ -161,12 +187,87 @@ class TestDeviceFloor:
 
         try:
             one = await scans(["one-device"] * 6)
-            assert one["categories"] == [] and one["notable_finds"] == []
-            both = await scans(["second-device", "third-device"])
-            assert [(r["name"], r["count"]) for r in both["categories"]] == [("clothing", 8)]
-            assert [f["name"] for f in both["notable_finds"]] == ["Carhartt Detroit Jacket"]
+            assert one["categories"] == [] and one["brands"] == []
+            assert one["notable_finds"] == []
+            two = await scans(["second-device"])
+            assert [(r["name"], r["count"]) for r in two["categories"]] == [("clothing", 7)]
+            assert two["brands"] == [] and two["notable_finds"] == []
+            three = await scans(["third-device"])
+            assert [(r["name"], r["count"]) for r in three["brands"]] == [("Carhartt", 8)]
+            assert [f["name"] for f in three["notable_finds"]] == ["Carhartt Detroit Jacket"]
         finally:
             await notify.aclose()
+
+
+class TestDaysRecordedBeforeDevices:
+    """Day documents written before device tags existed carry none. Withheld
+    outright, they emptied "Trending at the thrift" — which the paywall sells
+    to Pro — from deploy until enough devices had built up under the new
+    floor, which at one to four scans a day could take well over a week. So
+    their scans count as they were written to, by the five-scan floor alone,
+    until they leave the window; and nothing a single device scans since is
+    lifted over the floor by them."""
+
+    @pytest.mark.asyncio
+    async def test_an_old_week_is_judged_by_five_scans(self, cache):
+        await seed(cache, 1, {"clothing": 40, "shoes": 4}, {"Nike": 30, "Ferrari": 4},
+                   [find("Le Creuset", "home", 100, 200)], devices=None)
+        payload = await notify.trends(is_pro=True)
+        assert [(r["name"], r["count"]) for r in payload["categories"]] == [("clothing", 40)]
+        assert [(r["name"], r["count"]) for r in payload["brands"]] == [("Nike", 30)]
+        # A find never had a scan floor to fall back on — one scan used to be
+        # enough — so without devices it is still withheld.
+        assert payload["notable_finds"] == []
+
+    @pytest.mark.asyncio
+    async def test_old_brands_are_stripped_of_links_as_new_ones_are(self, cache):
+        # The code that wrote these did not strip links and handles.
+        await seed(cache, 1, {}, {"https://spam.example/x": 9, "@somehandle": 9,
+                                  "Nike www.cheap-nikes.example": 3, "Nike": 3}, devices=None)
+        brands = (await notify.trends(is_pro=False))["brands"]
+        assert [(r["name"], r["count"]) for r in brands] == [("Nike", 6)]
+
+    @pytest.mark.asyncio
+    async def test_one_device_cannot_lift_old_scans_over_the_floor(self, cache):
+        # Four old scans of each, one short of the floor; then one device,
+        # sixty times.
+        await seed(cache, 6, {"clothing": 4}, {"Carhartt": 4}, devices=None)
+        for days_ago in range(1, 5):
+            await seed(cache, days_ago, {"clothing": 15}, {"Carhartt": 15}, devices=["dev-a"])
+        payload = await notify.trends(is_pro=False)
+        assert payload["categories"] == [] and payload["brands"] == []
+
+    @pytest.mark.asyncio
+    async def test_new_scans_without_enough_devices_do_not_grow_an_old_row(self, cache):
+        # Five old scans are a row by themselves. One device's twenty new ones
+        # neither make it nor move it up the list.
+        await seed(cache, 6, {"clothing": 5}, {"Nike": 5}, devices=None)
+        await seed(cache, 1, {"clothing": 20}, {"Nike": 20}, devices=["dev-a"])
+        payload = await notify.trends(is_pro=False)
+        assert [(r["name"], r["count"]) for r in payload["categories"]] == [("clothing", 5)]
+        assert [(r["name"], r["count"]) for r in payload["brands"]] == [("Nike", 5)]
+
+    @pytest.mark.asyncio
+    async def test_new_scans_add_to_old_ones_once_their_devices_clear_the_floor(self, cache):
+        # Two old scans and three new ones from two devices: enough for a
+        # category, not for a brand — until a third device scans it.
+        await seed(cache, 6, {"clothing": 2}, {"Nike": 2}, devices=None)
+        await seed(cache, 1, {"clothing": 3}, {"Nike": 3}, devices=["dev-a", "dev-b"])
+        payload = await notify.trends(is_pro=False)
+        assert [(r["name"], r["count"]) for r in payload["categories"]] == [("clothing", 5)]
+        assert payload["brands"] == []
+
+        await seed(cache, 2, {"clothing": 1}, {"Nike": 1}, devices=["dev-c"])
+        await cache.delete(f"{notify.TRENDS_CACHE_KEY}:free")
+        payload = await notify.trends(is_pro=False)
+        assert [(r["name"], r["count"]) for r in payload["brands"]] == [("Nike", 6)]
+
+    @pytest.mark.asyncio
+    async def test_direction_against_an_old_week(self, cache):
+        await seed(cache, 1, {"clothing": 12}, {})
+        await seed(cache, 8, {"clothing": 6}, {}, devices=None)
+        (row,) = (await notify.trends(is_pro=False))["categories"]
+        assert row["change_pct"] == 100
 
 
 class TestTierSplit:

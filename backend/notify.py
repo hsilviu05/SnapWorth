@@ -2250,9 +2250,9 @@ async def _tally_top(day: str, category: str, brand: str | None,
     tally that exists to say "clothing 5 · Nike ×3".
 
     `device` is `_trend_device`'s keyed tag for whoever scanned it, recorded
-    beside each category, brand and find (at most TRENDS_MIN_DEVICES per
+    beside each category, brand and find (at most TRENDS_DEVICES_KEPT per
     entry) so `/trends` can count devices rather than scans — see
-    `TRENDS_MIN_DEVICES`. It stays as long as the document, STATS_TTL.
+    `TRENDS_MIN_CATEGORY_DEVICES`. It stays as long as the document, STATS_TTL.
     """
     key = _stat_key(day, "top")
     try:
@@ -2301,14 +2301,15 @@ def _trend_device(subject: str | None) -> str | None:
 
 
 def _add_device(devices, device: str | None) -> list[str]:
-    """`devices` with `device` added, holding at most TRENDS_MIN_DEVICES.
+    """`devices` with `device` added, holding at most TRENDS_DEVICES_KEPT.
 
     The cap is exact for the only question ever asked of the list — "did at
-    least N different devices do this, this week?" If any one day reached N,
-    its list is full and the week's union is at least N; if no day did, every
-    list is complete and the union is the true count."""
-    kept = [d for d in (devices or []) if isinstance(d, str)][:TRENDS_MIN_DEVICES]
-    if device and device not in kept and len(kept) < TRENDS_MIN_DEVICES:
+    least N different devices do this, this week?" — for every floor N, since
+    it is the largest of them. If any one day's list is full, the week's union
+    is at least the cap, so at least N; if none is, every list is complete and
+    the union is the true count."""
+    kept = [d for d in (devices or []) if isinstance(d, str)][:TRENDS_DEVICES_KEPT]
+    if device and device not in kept and len(kept) < TRENDS_DEVICES_KEPT:
         kept.append(device)
     return kept
 
@@ -2355,7 +2356,7 @@ def _find_record(*, item_name: str, brand: str | None, category: str,
 
     Not quite all that is stored: `_tally_top` adds `d`, the keyed tags of the
     devices behind the item (see `_trend_device`), so a find can be held back
-    until TRENDS_MIN_DEVICES have scanned it."""
+    until TRENDS_MIN_FIND_DEVICES have scanned it."""
     return {"n": _without_links(item_name)[:60] or "Unidentified item",
             "b": _clean_brand(brand), "c": _normalise_category(category),
             "lo": round(float(low)), "hi": round(float(high)),
@@ -3161,16 +3162,25 @@ async def _week_top(now: datetime | None = None) -> dict:
 # the thrift" row on every install, and notable finds had no floor at all: one
 # scan was enough. The text is read off a user's photo; nothing upstream of
 # here promises it is fit to show anyone else.
+#
+# Days tallied before devices were recorded still count, by scans alone, for
+# the fortnight they stay in the window — see `_floored`.
 
 TRENDS_MIN_COUNT = 5          # below this a row says more about one user than a trend
-# Different devices behind a row or a find, whatever the scan count. Day
-# documents written before devices were recorded carry none, so their rows are
-# withheld — the safe direction, and not a week's wait at most: at one to four
-# scans a day, three devices behind one category inside a week may take much
-# longer, and the app hides "Trending at the thrift" (sold to Pro) while both
-# lists are empty. Brands and finds are free text off a photo; categories are a
-# closed set, so their floor serves only "one user's afternoon is not a trend".
-TRENDS_MIN_DEVICES = 3
+# Different devices behind a row or a find across the week, whatever the scan
+# count. Brands and finds are free text off a photo, so they need three.
+# Categories are a closed set and cannot carry a URL or a slur; their floor
+# serves only "one user's afternoon is not a trend", and two devices say that.
+# The difference is felt at one to four scans a day, where three devices behind
+# one category may take much longer than a week, and the app hides "Trending at
+# the thrift" — which the paywall sells to Pro — while both lists are empty.
+TRENDS_MIN_CATEGORY_DEVICES = 2
+TRENDS_MIN_BRAND_DEVICES = 3
+TRENDS_MIN_FIND_DEVICES = 3
+# How many tags each list in a day document keeps: the largest floor, which
+# `_add_device` shows is all any floor needs.
+TRENDS_DEVICES_KEPT = max(TRENDS_MIN_CATEGORY_DEVICES, TRENDS_MIN_BRAND_DEVICES,
+                          TRENDS_MIN_FIND_DEVICES)
 TRENDS_FREE_ROWS = 3
 TRENDS_PRO_ROWS = 6
 TRENDS_FINDS = 5
@@ -3195,41 +3205,72 @@ def _trend_rows(counts: list[tuple[str, int]], previous: dict[str, int],
     return rows
 
 
+def _floored(docs: list[dict], counts_field: str, devices_field: str,
+             min_devices: int, clean: Callable[[str], str | None]) -> dict[str, int]:
+    """One table of `docs` — the days of one window — summed per name, from
+    the scans the device floor lets count.
+
+    A day tallied with device tags has `devices_field`, and its scans of a name
+    count only once `min_devices` different devices stand behind that name
+    across the window's tagged days. A day written before device tags existed
+    has no such field. Withholding it emptied the card from deploy until the
+    devices built up, so its scans count as they did then, by the scan floor
+    alone; its names go through `clean` first, because the code that wrote
+    them did not strip links.
+
+    In a window holding both, then, old scans always count and new scans only
+    with their devices. One device on its own, however often it scans, can
+    neither lift old scans that fell short of TRENDS_MIN_COUNT over it nor add
+    to a row they made by themselves: from new data, a brand needs three.
+    Old days drop out of the fortnight `trends()` reads two weeks after deploy.
+    The deploy day itself, written by both, is judged by the devices it
+    recorded, which leaves its earlier scans with none: cautious, for one day.
+    """
+    legacy: dict[str, int] = {}
+    tagged: dict[str, int] = {}
+    devices: dict[str, list[str]] = {}
+    for doc in docs:
+        counts = doc.get(counts_field)
+        counts = counts if isinstance(counts, dict) else {}
+        table = doc.get(devices_field)
+        if not isinstance(table, dict):
+            for name, n in counts.items():
+                name = clean(name)
+                if name is not None:
+                    legacy[name] = legacy.get(name, 0) + int(n)
+            continue
+        for name, n in counts.items():
+            tagged[name] = tagged.get(name, 0) + int(n)
+        for name, tags in table.items():
+            for tag in tags if isinstance(tags, list) else []:
+                devices[name] = _add_device(devices.get(name), tag)
+    counted = dict(legacy)
+    for name, n in tagged.items():
+        if len(devices.get(name) or []) >= min_devices:
+            counted[name] = counted.get(name, 0) + n
+    return counted
+
+
 async def _tallies(days: list[str]) -> tuple[dict[str, int], dict[str, int], list[dict], int]:
     """The days' category and brand counts, finds and scan total.
 
-    Counts come back only for names at least TRENDS_MIN_DEVICES different
-    devices stand behind across these days; everything else is left out here,
-    so no caller can forget the floor."""
-    cats: dict[str, int] = {}
-    brands: dict[str, int] = {}
-    cat_devices: dict[str, list[str]] = {}
-    brand_devices: dict[str, list[str]] = {}
-    finds: list[dict] = []
+    The counts are only what `_floored` lets count; everything else is left
+    out here, so no caller can forget the floor. Finds come back whole, and
+    `trends()` holds each back until TRENDS_MIN_FIND_DEVICES have scanned it."""
+    docs: list[dict] = []
     scans = 0
     for day in days:
         try:
             doc = json.loads(await _cache.get(_stat_key(day, "top")) or "{}")
         except Exception:
             doc = {}
-        for c, n in (doc.get("cats") or {}).items():
-            cats[c] = cats.get(c, 0) + int(n)
-        for b, n in (doc.get("brands") or {}).items():
-            brands[b] = brands.get(b, 0) + int(n)
-        for table, seen in ((doc.get("cat_devices"), cat_devices),
-                            (doc.get("brand_devices"), brand_devices)):
-            for name, devices in (table if isinstance(table, dict) else {}).items():
-                for device in devices if isinstance(devices, list) else []:
-                    seen[name] = _add_device(seen.get(name), device)
-        for f in doc.get("finds") or []:
-            if isinstance(f, dict):
-                finds.append(f)
+        docs.append(doc if isinstance(doc, dict) else {})
         scans += await _read_stat(day, "scans_free") + await _read_stat(day, "scans_pro")
-
-    def backed(counts: dict[str, int], devices: dict[str, list[str]]) -> dict[str, int]:
-        return {name: n for name, n in counts.items()
-                if len(devices.get(name) or []) >= TRENDS_MIN_DEVICES}
-    return backed(cats, cat_devices), backed(brands, brand_devices), finds, scans
+    finds = [f for doc in docs for f in doc.get("finds") or [] if isinstance(f, dict)]
+    return (_floored(docs, "cats", "cat_devices", TRENDS_MIN_CATEGORY_DEVICES,
+                     _normalise_category),
+            _floored(docs, "brands", "brand_devices", TRENDS_MIN_BRAND_DEVICES, _clean_brand),
+            finds, scans)
 
 
 async def trends(*, is_pro: bool, now: datetime | None = None) -> dict:
@@ -3290,13 +3331,17 @@ async def trends(*, is_pro: bool, now: datetime | None = None) -> dict:
             values = by_category.get(row["name"]) or []
             if len(values) >= 3:      # an average of one or two is not an average
                 row["average_estimate"] = round(sum(values) / len(values))
+        # A find from a day tallied before devices were recorded has no `d`,
+        # and stays withheld where its day's rows now count by scans: a find
+        # never had a scan floor to fall back on — one scan was enough — and
+        # an item name off one photo is the most particular thing shown here.
         payload["notable_finds"] = [
             {"name": str(f.get("n") or "Unidentified item")[:60],
              "category": str(f.get("c") or "other"),
              "low": round(float(f.get("lo") or 0)), "high": round(float(f.get("hi") or 0))}
             for f in [f for f in finds
                       if float(f.get("hi") or 0) > 0
-                      and len(f.get("d") or []) >= TRENDS_MIN_DEVICES][:TRENDS_FINDS]
+                      and len(f.get("d") or []) >= TRENDS_MIN_FIND_DEVICES][:TRENDS_FINDS]
         ]
 
     try:
