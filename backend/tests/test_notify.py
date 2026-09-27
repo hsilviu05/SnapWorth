@@ -1800,6 +1800,33 @@ class TestRedisCheckupLine:
         line = notify._redis_line(self.SAFE | {"aof_enabled": 0}, self.NOW)
         assert "⚠️" not in line
 
+    # Redis sets rdb_last_save_time to its start time at boot, with `save ""`
+    # and AOF off too. Read as a snapshot, a Redis with no persistence at all
+    # showed "last snapshot 0h ago" and no warning for a day after a restart.
+    BOOTED = {"aof_enabled": 0, "uptime_in_seconds": 600,
+              "rdb_last_save_time": int(NOW) - 600}
+
+    def test_the_boot_stamp_is_not_a_snapshot(self):
+        line = notify._redis_line(self.SAFE | self.BOOTED | {"rdb_saves": 0}, self.NOW)
+        assert "last snapshot" not in line and "no snapshot since start 0h ago" in line
+        assert "⚠️ no AOF and no snapshot since Redis started" in line
+
+    def test_the_boot_stamp_is_recognised_before_redis_7(self):
+        """No `rdb_saves` before Redis 7: a last save at the boot time is the stamp."""
+        line = notify._redis_line(self.SAFE | self.BOOTED, self.NOW)
+        assert "⚠️ no AOF and no snapshot since Redis started" in line
+
+    def test_a_snapshot_since_boot_is_one(self):
+        after_boot = {"rdb_last_save_time": int(self.NOW) - 60}
+        for extra in ({"rdb_saves": 1}, {}):
+            line = notify._redis_line(self.SAFE | self.BOOTED | after_boot | extra, self.NOW)
+            assert "last snapshot 0h ago" in line and "⚠️" not in line
+
+    def test_aof_covers_a_redis_that_has_not_snapshotted(self):
+        line = notify._redis_line(self.SAFE | self.BOOTED | {"aof_enabled": 1, "rdb_saves": 0},
+                                  self.NOW)
+        assert "no snapshot since start" in line and "⚠️" not in line
+
     @pytest.mark.asyncio
     async def test_checkup_carries_it_when_redis_answers_info(self, recorder, monkeypatch):
         monkeypatch.setattr(notify, "_tls_days_left", lambda host, timeout=5.0: 61)

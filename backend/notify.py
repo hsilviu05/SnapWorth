@@ -3708,6 +3708,9 @@ async def _archive_chat_line(chat_id: str) -> str:
 # Nothing reported either until this line: the only probe was a PING.
 REDIS_MEMORY_WARN_FRACTION = 0.8
 REDIS_SNAPSHOT_STALE_SECONDS = 24 * 3600
+# How close to the boot time a "last save" must be to be read as the boot
+# stamp rather than a snapshot, where INFO has no `rdb_saves` (before Redis 7).
+REDIS_BOOT_STAMP_SLACK_SECONDS = 10
 
 
 def _redis_line(info: dict, now: float) -> str:
@@ -3723,12 +3726,29 @@ def _redis_line(info: dict, now: float) -> str:
     evicted = num("evicted_keys")
     aof = num("aof_enabled") == 1
     last_save, save_ok = num("rdb_last_save_time"), info.get("rdb_last_bgsave_status")
+    uptime = num("uptime_in_seconds")
+    # Redis stamps rdb_last_save_time with its start time at boot ("at startup
+    # we consider the DB saved"), with `save ""` and AOF off as much as with
+    # persistence on. Read as a snapshot, that hid the restart warning below
+    # for a day after every restart or redeploy — the moment the owner runs
+    # Checkup after changing Railway's settings. `rdb_saves` counts real
+    # snapshots since start; before Redis 7, a last save at boot is the stamp.
+    if "rdb_saves" in info:
+        saved = num("rdb_saves") > 0
+    elif uptime:
+        saved = last_save - (now - uptime) > REDIS_BOOT_STAMP_SLACK_SECONDS
+    else:
+        saved = bool(last_save)
 
     mb = 1024 * 1024
     memory = (f"{used / mb:.1f} MB of {limit / mb:.0f} MB ({used / limit:.0%})" if limit
               else f"{used / mb:.1f} MB, no limit")
-    snapshot = (f"last snapshot {int((now - last_save) // 3600)}h ago" if last_save
-                else "no snapshot")
+    if saved:
+        snapshot = f"last snapshot {int((now - last_save) // 3600)}h ago"
+    elif uptime:
+        snapshot = f"no snapshot since start {uptime // 3600}h ago"
+    else:
+        snapshot = "no snapshot"
     line = (f"Redis: {memory} · policy {html.escape(policy)} · evicted {evicted} · "
             f"AOF {'on' if aof else 'off'} · {snapshot}")
 
@@ -3748,7 +3768,10 @@ def _redis_line(info: dict, now: float) -> str:
         warnings.append(f"{evicted} keys evicted since restart")
     if save_ok not in (None, "ok"):
         warnings.append(f"last snapshot failed ({html.escape(str(save_ok))})")
-    if not aof and (not last_save or now - last_save > REDIS_SNAPSHOT_STALE_SECONDS):
+    if not aof and not saved:
+        warnings.append("no AOF and no snapshot since Redis started — a restart "
+                        "loses everything written since (RUNBOOK §9)")
+    elif not aof and now - last_save > REDIS_SNAPSHOT_STALE_SECONDS:
         warnings.append("no AOF and no snapshot in 24h — a restart loses everything")
     return line + "".join(f"\n⚠️ {w}" for w in warnings)
 
