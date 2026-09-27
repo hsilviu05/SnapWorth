@@ -35,7 +35,8 @@ def client_ip(request: Any) -> str:
 
     The nearest `X-Forwarded-For` hop that is not a known proxy: walk the
     header from the right, skip Fastly's edge addresses and internal ones
-    (`_KNOWN_PROXIES`), and key on the first hop that is neither.
+    (`_KNOWN_PROXIES`), and key on the first hop that is neither — an IPv4
+    address as itself, an IPv6 one as its /64 (`_bucket_of`).
 
     The container runs uvicorn with `--forwarded-allow-ips='*'`, which makes
     `request.client.host` the *leftmost* — i.e. entirely client-supplied — hop.
@@ -146,6 +147,23 @@ def _is_known_proxy(addr: _Address) -> bool:
     return any(addr in network for network in _KNOWN_PROXIES)
 
 
+def _bucket_of(addr: _Address) -> str:
+    """The key an address is limited under: IPv4 per address, IPv6 per /64.
+
+    A /64 is what one line is given — a home router's LAN, a phone on
+    cellular, a VPS — and any address in it is the holder's to use; iOS
+    rotates temporary addresses inside it on its own. Keyed per address, one
+    IPv6 line was 2^64 fresh buckets. Keying on the network also drops a scope
+    id, which `ipaddress` accepts at any length and which rotated the key too,
+    and an IPv4-mapped address keys with the IPv4 one it carries.
+    """
+    if isinstance(addr, ipaddress.IPv6Address):
+        if addr.ipv4_mapped is not None:
+            return str(addr.ipv4_mapped)
+        return str(ipaddress.IPv6Network((int(addr), 64), strict=False))
+    return str(addr)
+
+
 def _nearest_client_hop(hops: list[str]) -> tuple[str | None, int, str]:
     """The key, how many known proxies were skipped to reach it, and where it
     came from — the last in words with no address in them, for the note."""
@@ -157,11 +175,11 @@ def _nearest_client_hop(hops: list[str]) -> tuple[str | None, int, str]:
         if _is_known_proxy(addr):
             skipped += 1
             continue
-        return str(addr), skipped, "the nearest hop that is not one"
+        return _bucket_of(addr), skipped, "the nearest hop that is not one"
     for hop in hops:
         addr = _parse_hop(hop)
         if addr is not None:
-            return str(addr), skipped, "the leftmost address, as every address is one"
+            return _bucket_of(addr), skipped, "the leftmost address, as every address is one"
     return None, skipped, "request.client.host, as no hop is an address"
 
 

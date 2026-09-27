@@ -55,13 +55,49 @@ class TestBothRoutingPaths:
 
     def test_client_then_a_fastly_ipv6_edge_is_the_client(self):
         assert key(f"{CLIENT}, {FASTLY_V6}") == CLIENT
-        assert key(f"2001:db8::23, {FASTLY_V6}") == "2001:db8::23"
+        assert key(f"2001:db8::23, {FASTLY_V6}") == "2001:db8::/64"
         # The same edge written as an IPv4-mapped IPv6 address.
         assert key(f"{CLIENT}, ::ffff:{FASTLY_V4}") == CLIENT
 
-    def test_an_ipv6_key_is_normalised(self):
-        """One bucket per address, however the hop happens to be written."""
-        assert key(f"2001:DB8:0:0::23, {FASTLY_V6}") == "2001:db8::23"
+
+class TestIPv6Keys:
+    """An IPv6 caller is keyed on its /64, not its address.
+
+    A /64 is what one line is given, a home router's LAN or a phone on
+    cellular or a VPS, and every address in it is the holder's to use: iOS
+    rotates temporary addresses inside it on its own. Keyed per address, one
+    line was 2^64 fresh buckets on both paths, and on the CDN path that was
+    new with the walk, which had keyed such traffic on the Fastly edge."""
+
+    NET = ipaddress.ip_network("2001:db8:1234:5678::/64")
+
+    def addresses(self, n):
+        return [str(self.NET[i * 7919 + 1]) for i in range(n)]
+
+    def test_rotating_inside_one_64_is_one_key_on_both_paths(self):
+        direct = {key(a) for a in self.addresses(500)}
+        cdn = {key(f"{a}, {FASTLY_V4}") for a in self.addresses(500)}
+        cdn_v6 = {key(f"{a}, {FASTLY_V6}") for a in self.addresses(500)}
+        assert direct == cdn == cdn_v6 == {"2001:db8:1234:5678::/64"}
+
+    def test_two_64s_are_two_keys(self):
+        assert key("2001:db8:1234:5678::1") != key("2001:db8:1234:5679::1")
+
+    def test_however_the_hop_is_written(self):
+        assert key(f"2001:DB8:0:0::23, {FASTLY_V6}") == "2001:db8::/64"
+        assert key("2001:db8:0:0:ffff:ffff:ffff:ffff") == "2001:db8::/64"
+
+    def test_a_scope_id_does_not_rotate_the_key(self):
+        keys = {key(f"2001:db8::1%{n}, {FASTLY_V4}") for n in range(20)}
+        assert keys == {"2001:db8::/64"}
+
+    def test_an_ipv4_mapped_client_keys_with_its_ipv4_address(self):
+        assert key(f"::ffff:{CLIENT}") == CLIENT
+        assert key(f"::ffff:c633:6417, {FASTLY_V4}") == CLIENT
+        assert key(CLIENT) == CLIENT
+
+    def test_ipv4_is_still_one_bucket_per_address(self):
+        assert key("198.51.100.23") != key("198.51.100.24")
 
     def test_every_published_fastly_range_is_skipped(self):
         for published in ratelimit._FASTLY_EDGE_RANGES:
@@ -102,8 +138,9 @@ class TestInternalHops:
     def test_documentation_ranges_are_not_internal(self):
         """`is_global` is false for these too, which is why the internal
         ranges are listed rather than read off it."""
-        for doc in ("192.0.2.4", "198.51.100.4", "203.0.113.4", "2001:db8::4"):
+        for doc in ("192.0.2.4", "198.51.100.4", "203.0.113.4"):
             assert key(f"{doc}, {CGNAT}") == doc
+        assert key(f"2001:db8::4, {CGNAT}") == "2001:db8::/64"
 
 
 class TestFallbacks:
@@ -136,10 +173,11 @@ class TestFallbacks:
 
     def test_the_key_is_truncated_on_every_path(self):
         """It reaches a cache key and is attacker-influenced. A parsed address
-        can still be long: IPv6 allows a scope id of any length."""
+        is short once keyed: IPv6 allows a scope id of any length, and the
+        /64 drops it."""
         scoped = "2001:db8::1%" + "z" * 200
-        assert key(f"{scoped}, {FASTLY_V4}") == scoped[:64]
-        assert key("fe80::1%" + "z" * 200) == ("fe80::1%" + "z" * 200)[:64]
+        assert key(f"{scoped}, {FASTLY_V4}") == "2001:db8::/64"
+        assert key("fe80::1%" + "z" * 200) == "fe80::/64"
         assert key("junk", host="y" * 500) == "y" * 64
         assert key(None, host="x" * 500) == "x" * 64
 
@@ -240,3 +278,33 @@ class TestEveryCallerUsesTheWalk:
                         headers={"x-forwarded-for": self.XFF})
         assert r.status_code == 418
         assert seen == [CLIENT]
+
+
+class TestTheRealLimiter:
+    """End to end: POST /auth/challenge through main's in-process IP bucket,
+    shrunk to `LIMIT` so a bypass shows as no 429 at all."""
+
+    LIMIT = 5
+
+    @pytest.fixture(autouse=True)
+    def real_limiter(self, monkeypatch):
+        monkeypatch.setattr(auth.deps, "ip_limiter", main._enforce_ip_limit)
+        monkeypatch.setattr(main, "_ip_limiter", None)
+        monkeypatch.setattr(main, "IP_RATE_MAX_REQUESTS", self.LIMIT)
+        main._ip_rate_store.clear()
+        yield
+        main._ip_rate_store.clear()
+
+    def codes(self, xffs):
+        return [client.post("/auth/challenge", headers={"x-forwarded-for": x}).status_code
+                for x in xffs]
+
+    def test_a_fixed_client_behind_fastly_is_refused_at_the_limit(self):
+        assert self.codes([f"{CLIENT}, {FASTLY_V4}"] * 8) == [200] * 5 + [429] * 3
+
+    def test_rotating_inside_one_ipv6_64_is_refused_at_the_limit(self):
+        net = ipaddress.ip_network("2001:db8:1234:5678::/64")
+        assert self.codes([f"{net[n]}, {FASTLY_V4}" for n in range(1, 9)]) \
+            == [200] * 5 + [429] * 3
+        main._ip_rate_store.clear()
+        assert self.codes([str(net[n * 7919]) for n in range(1, 9)]) == [200] * 5 + [429] * 3

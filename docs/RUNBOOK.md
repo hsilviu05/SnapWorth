@@ -349,7 +349,10 @@ availability one.
    It keys on the nearest `X-Forwarded-For` hop that is not a known proxy
    (`ratelimit.client_ip`): it walks the header from the right, skips Fastly's
    published edge ranges and internal addresses (RFC 1918, CGNAT
-   `100.64.0.0/10`, loopback, link-local), and keys on the first hop left.
+   `100.64.0.0/10`, loopback, link-local), and keys on the first hop left:
+   an IPv4 address as itself, an IPv6 one as its /64. A /64 is one line's
+   allocation, and every address in it is the holder's to use, so keyed per
+   address one IPv6 line was 2^64 buckets.
    Railway's edge sends two shapes, and both resolve to the caller. A request
    it routes through its Fastly CDN (rolled out ~Feb 2026) arrives as
    `client, fastly-edge`, and one it does not arrives as `client`
