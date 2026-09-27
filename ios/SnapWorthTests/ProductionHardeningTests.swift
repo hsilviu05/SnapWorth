@@ -2050,7 +2050,7 @@ final class PaywallBenefitsTests: XCTestCase {
 // MARK: - The paywall says why it opened
 //
 // The headline and the list were the same for all twelve entry points, so a
-// user who tapped "Add the tag" read the trial pitch with the care tag fourth
+// user who tapped "Add the tag" read the trial pitch with the care tag fifth
 // in the list. Each gate now leads with what it gates.
 
 final class PaywallPitchTests: XCTestCase {

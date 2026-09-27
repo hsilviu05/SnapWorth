@@ -515,7 +515,7 @@ enum PaywallCopy {
     ///
     /// The headline and the list used to be the same for every trigger, so
     /// someone who tapped "Add the tag" read the trial pitch with the care
-    /// tag fourth in the list, below three things they had not asked about.
+    /// tag fifth in the list, below four things they had not asked about.
     ///
     /// The row is named by its icon: unique in the list, and stable where the
     /// text is not — it is translated, and reworded more often than redrawn.
