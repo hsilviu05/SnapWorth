@@ -595,11 +595,19 @@ MAX_REQUEST_BYTES = int(os.environ.get("MAX_REQUEST_BYTES", str(20 * 1024 * 1024
 #: in its first test rather than shipping uncapped.
 MAX_JSON_BODY_BYTES = 64 * 1024
 
+#: The cap on both routes Apple posts notifications to, `/apple/notifications`
+#: and `/apple/notifications/sandbox`, which take the same `AppleNotification`.
 #: A V2 notification is one `signedPayload`, which the model bounds at 64 KiB.
 #: The rest is headroom for a Version 1 body — it carries the whole receipt —
-#: so that misconfiguration still reaches the handler's error naming it,
+#: so that misconfiguration still reaches either handler's error naming it,
 #: rather than stopping here as a bare 413 (see `AppleNotification`).
 MAX_NOTIFICATION_BODY_BYTES = 256 * 1024
+
+#: Every route that takes an `AppleNotification`. The Sandbox route (#198)
+#: came after the per-route caps (#188) and was left out, which capped it at
+#: 64 KiB, below its own schema's bound. `test_request_pipeline` finds the
+#: routes that take the model and fails when one is missing here.
+_NOTIFICATION_PATHS = frozenset({"/apple/notifications", "/apple/notifications/sandbox"})
 
 
 def _body_limit(path: str) -> int:
@@ -607,7 +615,7 @@ def _body_limit(path: str) -> int:
     the `MAX_REQUEST_BYTES` override see the current values."""
     if path == "/scan":
         return MAX_REQUEST_BYTES
-    if path == "/apple/notifications":
+    if path in _NOTIFICATION_PATHS:
         return MAX_NOTIFICATION_BODY_BYTES
     return MAX_JSON_BODY_BYTES
 
