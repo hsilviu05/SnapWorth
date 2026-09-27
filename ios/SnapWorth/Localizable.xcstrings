@@ -9017,6 +9017,42 @@
         }
       }
     },
+    "Export your flips" : {
+      "comment" : "Paywall headline when it opened from Export CSV in My Flips.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Exportier deine Flips"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Export your flips"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Exporta tus reventas"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Exportă-ți flipurile"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "导出你的转卖记录"
+          }
+        }
+      }
+    },
     "Feature Request" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -9577,6 +9613,42 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "白捡的"
+          }
+        }
+      }
+    },
+    "Free for %@, then %@. Cancel anytime." : {
+      "comment" : "Paywall, under a headline that names what the user tapped rather than the trial. First %@ is the trial length ('3 days'), second the yearly price ('$39.99/year').",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ gratis, danach %@. Jederzeit kündbar."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Free for %@, then %@. Cancel anytime."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gratis %@, luego %@. Cancela cuando quieras."
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gratuit %@, apoi %@. Anulezi oricând."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "免费 %@，之后 %@。可随时取消。"
           }
         }
       }
@@ -10865,6 +10937,42 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "继续扫描"
+          }
+        }
+      }
+    },
+    "Keep scanning today" : {
+      "comment" : "Paywall headline when it opened because the day's free scans are spent.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Scann heute weiter"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Keep scanning today"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sigue escaneando hoy"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Scanează în continuare azi"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "今天继续扫描"
           }
         }
       }
@@ -14468,6 +14576,42 @@
         }
       }
     },
+    "Read the care tag" : {
+      "comment" : "Paywall headline when it opened from 'Add the tag' on a result.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lies das Pflegeetikett"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Read the care tag"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lee la etiqueta"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Citește eticheta"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "读取洗标"
+          }
+        }
+      }
+    },
     "Read the care tag for a sharper estimate" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -15526,6 +15670,42 @@
         }
       }
     },
+    "Scan a whole haul" : {
+      "comment" : "Paywall headline when it opened from Haul mode (Lot / Lote / Stapel / 批量 — the camera mode, not the widgets' library).",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Scann einen ganzen Stapel"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Scan a whole haul"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Escanea un lote entero"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Scanează un lot întreg"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "整批好物都能扫"
+          }
+        }
+      }
+    },
     "Scan an item, then mark it Owned or Sold to start tracking your profit here." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -15984,6 +16164,114 @@
         }
       }
     },
+    "See every flip" : {
+      "comment" : "Paywall headline when it opened from 'Unlock N more + all-time totals' in My Flips.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sieh alle deine Flips"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "See every flip"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mira todas tus reventas"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vezi toate flipurile"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "查看全部转卖记录"
+          }
+        }
+      }
+    },
+    "See what's trending" : {
+      "comment" : "Paywall headline when it opened from the locked 'Trending at the thrift' card.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sieh, was gefragt ist"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "See what's trending"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mira lo que se busca"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vezi ce se caută"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "看看二手市场的风向"
+          }
+        }
+      }
+    },
+    "See why this price" : {
+      "comment" : "Paywall headline when it opened from the locked 'Why this price' panel on a result.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sieh, warum dieser Preis"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "See why this price"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Descubre por qué este precio"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Află de ce prețul ăsta"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "看看为什么是这个价"
+          }
+        }
+      }
+    },
     "See your estimated profit after marketplace fees, right there in the aisle." : {
       "comment" : "Onboarding, Thrift Flip slide. 'Estimated', never 'exact': the resale side is an AI estimate and the fees are approximate, which Thrift Flip itself says.",
       "extractionState" : "manual",
@@ -16051,6 +16339,42 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "看看本月的转卖"
+          }
+        }
+      }
+    },
+    "See your value over time" : {
+      "comment" : "Paywall headline when it opened from the locked portfolio value history on My Finds.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sieh den Wertverlauf deiner Sammlung"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "See your value over time"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mira cómo evoluciona el valor de tu colección"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vezi cum evoluează valoarea colecției"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "查看收藏的价值走势"
           }
         }
       }
@@ -19594,6 +19918,42 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "继续处理其余照片"
+          }
+        }
+      }
+    },
+    "Turn finds into listings" : {
+      "comment" : "Paywall headline when it opened from the locked marketplace listings (Snap → Sell).",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mach aus deinen Funden Inserate"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Turn finds into listings"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Convierte tus hallazgos en anuncios"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Transformă găselnițele în anunțuri"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "把好物写成商品描述"
           }
         }
       }

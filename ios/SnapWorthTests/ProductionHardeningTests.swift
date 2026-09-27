@@ -2041,6 +2041,125 @@ final class PaywallBenefitsTests: XCTestCase {
         XCTAssertEqual(Set(texts).count, texts.count)
         XCTAssertFalse(texts.contains(where: \.isEmpty))
         XCTAssertFalse(PaywallCopy.benefits.contains { $0.icon.isEmpty })
+        // A pitch names its lead row by icon.
+        let icons = PaywallCopy.benefits.map(\.icon)
+        XCTAssertEqual(Set(icons).count, icons.count)
+    }
+}
+
+// MARK: - The paywall says why it opened
+//
+// The headline and the list were the same for all twelve entry points, so a
+// user who tapped "Add the tag" read the trial pitch with the care tag fourth
+// in the list. Each gate now leads with what it gates.
+
+final class PaywallPitchTests: XCTestCase {
+    private let free3 = IntroOffer(kind: .freeTrial, displayPrice: "",
+                                   unitCount: 3, unit: "day", periodCount: 1)
+    private let paid = IntroOffer(kind: .payUpFront, displayPrice: "$9.99",
+                                  unitCount: 3, unit: "month", periodCount: 1)
+
+    func test_theThreeNamedGatesLeadWithWhatTheyGate() {
+        let cases: [(PaywallTrigger, String, String)] = [
+            (.addTag, "Read the care tag", "care tag"),
+            (.haul, "Scan a whole haul", "Haul mode"),
+            (.valuationDetail, "See why this price", "Why it's worth that"),
+        ]
+        for (trigger, headline, row) in cases {
+            XCTAssertEqual(PaywallCopy.headline(for: trigger, isYearly: true, offer: free3), headline)
+            let first = PaywallCopy.benefits(for: trigger).first?.text ?? ""
+            XCTAssertTrue(first.contains(row), "\(trigger.rawValue) leads with \(first)")
+        }
+    }
+
+    func test_everyPitchLeadsWithARowThatExists() {
+        for trigger in PaywallTrigger.allCases {
+            guard let pitch = PaywallCopy.pitch(for: trigger) else { continue }
+            XCTAssertTrue(PaywallCopy.benefits.contains { $0.icon == pitch.leadIcon },
+                          "\(trigger.rawValue) names a row the list does not have")
+            XCTAssertEqual(PaywallCopy.benefits(for: trigger).first?.icon, pitch.leadIcon)
+            XCTAssertFalse(pitch.headline.isEmpty)
+        }
+    }
+
+    func test_reorderingNeverAddsOrDropsARow() {
+        let all = PaywallCopy.benefits.map(\.text)
+        for trigger in PaywallTrigger.allCases {
+            let shown = PaywallCopy.benefits(for: trigger).map(\.text)
+            XCTAssertEqual(shown.sorted(), all.sorted(), trigger.rawValue)
+            // Only the lead moves; the rest keep the order a user meets them.
+            let lead = shown.first ?? ""
+            XCTAssertEqual(Array(shown.dropFirst()), all.filter { $0 != lead }, trigger.rawValue)
+        }
+    }
+
+    func test_theIntroAndSettingsPaywallsKeepTodaysCopy() {
+        for trigger in [PaywallTrigger.onboarding, .settings] {
+            XCTAssertNil(PaywallCopy.pitch(for: trigger))
+            XCTAssertEqual(PaywallCopy.headline(for: trigger, isYearly: true, offer: free3),
+                           PaywallCopy.headline(isYearly: true, offer: free3))
+            XCTAssertEqual(PaywallCopy.subheadline(for: trigger, isYearly: true, price: "$39.99", offer: free3),
+                           "Then $39.99/year. Cancel anytime.")
+            XCTAssertEqual(PaywallCopy.benefits(for: trigger), PaywallCopy.benefits)
+        }
+    }
+
+    /// The word "free" needs `IntroOffer.isFree`, and a pitched headline is
+    /// shown whatever the offer is.
+    func test_noPitchedHeadlineSaysFree() {
+        for trigger in PaywallTrigger.allCases {
+            guard let pitch = PaywallCopy.pitch(for: trigger) else { continue }
+            XCTAssertFalse(pitch.headline.localizedCaseInsensitiveContains("free"), trigger.rawValue)
+        }
+    }
+
+    /// With the trial out of the headline, the line under it must state it —
+    /// "Then $39.99/year" would follow nothing.
+    func test_underAPitchTheFreeTrialIsStillStated() {
+        for trigger in PaywallTrigger.allCases where PaywallCopy.pitch(for: trigger) != nil {
+            XCTAssertEqual(
+                PaywallCopy.subheadline(for: trigger, isYearly: true, price: "$39.99", offer: free3),
+                "Free for 3 days, then $39.99/year. Cancel anytime.", trigger.rawValue)
+            // Every other case already spelled its offer out, and is unchanged.
+            XCTAssertEqual(
+                PaywallCopy.subheadline(for: trigger, isYearly: true, price: "$39.99", offer: paid),
+                PaywallCopy.subheadline(isYearly: true, price: "$39.99", offer: paid))
+            XCTAssertEqual(
+                PaywallCopy.subheadline(for: trigger, isYearly: false, price: "$4.99", offer: free3),
+                "$4.99/month. Cancel anytime.")
+            XCTAssertEqual(
+                PaywallCopy.subheadline(for: trigger, isYearly: true, price: "—", offer: free3),
+                "Loading plans…")
+        }
+        // A paid offer never picks up the free sentence.
+        XCTAssertFalse(PaywallCopy.subheadline(for: .addTag, isYearly: true, price: "$39.99", offer: paid)
+            .localizedCaseInsensitiveContains("free"))
+    }
+
+    // ── The scan-limit paywall: the reset, and the streak ───────────────────
+
+    func test_onlyTheSpentAllowancesPaywallSaysWhenTheScanIsBack() {
+        XCTAssertTrue(PaywallCopy.showsFreeScanReturn(for: .scanLimit, remaining: 0))
+        // The Scan tab's "Upgrade to Pro" capsule exists only when spent.
+        XCTAssertTrue(PaywallCopy.showsFreeScanReturn(for: .upgradeButton, remaining: 0))
+        XCTAssertFalse(PaywallCopy.showsFreeScanReturn(for: .scanLimit, remaining: 1),
+                       "with a scan left there is nothing to wait for")
+        for trigger in PaywallTrigger.allCases where ![.scanLimit, .upgradeButton].contains(trigger) {
+            XCTAssertFalse(PaywallCopy.showsFreeScanReturn(for: trigger, remaining: 0), trigger.rawValue)
+        }
+    }
+
+    func test_theReturnLineNamesTheStreakFromTwoDaysOn() {
+        var utc = Calendar(identifier: .gregorian)
+        utc.timeZone = TimeZone(identifier: "UTC")!
+        let reset = utc.date(from: DateComponents(year: 2026, month: 9, day: 27))!
+        let time = FreeScanCounter.resetClockTime(reset)
+
+        XCTAssertEqual(PaywallCopy.freeScanReturn(resetsAt: reset, streak: 0), "Next free scan at \(time)")
+        XCTAssertEqual(PaywallCopy.freeScanReturn(resetsAt: reset, streak: 1), "Next free scan at \(time)",
+                       "a 1-day streak reads as a taunt, as on the Scan tab")
+        XCTAssertEqual(PaywallCopy.freeScanReturn(resetsAt: reset, streak: 5),
+                       "🔥 5-day streak · Next free scan at \(time)")
     }
 }
 

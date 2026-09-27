@@ -363,7 +363,9 @@ enum ReminderOptInSource: String {
 }
 
 /// Every place a paywall can be shown. Single source so triggers can't drift.
-enum PaywallTrigger: String {
+/// `CaseIterable` so the tests can hold every trigger's paywall copy to the
+/// same rules.
+enum PaywallTrigger: String, CaseIterable {
     case onboarding
     case scanLimit     = "scan_limit"
     case upgradeButton = "upgrade_button"
