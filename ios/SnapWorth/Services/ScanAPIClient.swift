@@ -298,8 +298,9 @@ struct ValuationDetail: Codable, Equatable {
     /// scan time. So a find scanned before its owner subscribed stays this
     /// thin forever, and the Pro panel — which shows only the sections that
     /// have content — rendered a score, a sentence and "good" to someone who
-    /// had just paid to see the rest. The result sheet offers a re-read when
-    /// this is true.
+    /// had just paid to see the rest. On a fresh result the sheet offers a
+    /// re-read; a find reopened from My Finds or My Flips says why its panel
+    /// is thin instead, and is never re-read — see `FullDetailOffer`.
     var lacksProDetail: Bool {
         confidenceReasons.isEmpty && quickSale == nil && expected == nil
             && bestCase == nil && worstCase == nil
