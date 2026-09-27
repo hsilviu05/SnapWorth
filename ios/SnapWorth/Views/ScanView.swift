@@ -576,6 +576,27 @@ struct ScanView: View {
         Task { await triggerScan(image: photo, afterPurchase: true) }
     }
 
+    private func triggerScan(image: UIImage, afterPurchase: Bool = false) async {
+        // Released on every exit, success or failure, so the shutter comes
+        // back exactly once per capture.
+        defer { captureInFlight = false }
+        let repository = ScanRepository(context: modelContext)
+        await vm.startScan(image: image, purchaseService: purchaseService, repository: repository,
+                           afterPurchase: afterPurchase)
+        // Release the full-resolution capture the moment it stops being
+        // needed. Both the upload (1568px) and the stored copy (1024px) are
+        // already encoded by now, and the only view that reads this image is
+        // the freeze-frame behind the analysing overlay, which has just gone.
+        // These references used to be cleared in `sheet(onDismiss:)`, so a
+        // 12MP capture — 48.8MB decoded, and up to 195MB on a 48MP HEIF —
+        // stayed resident for the whole time the result sheet was open.
+        vm.capturedImage = nil
+        cameraManager.capturedImage = nil
+        if vm.scanResult != nil {
+            showResult = true
+        }
+    }
+
 }
 
 // MARK: - Permission placeholder
@@ -618,26 +639,6 @@ struct CameraPermissionPlaceholder: View {
         }
     }
 
-    private func triggerScan(image: UIImage, afterPurchase: Bool = false) async {
-        // Released on every exit, success or failure, so the shutter comes
-        // back exactly once per capture.
-        defer { captureInFlight = false }
-        let repository = ScanRepository(context: modelContext)
-        await vm.startScan(image: image, purchaseService: purchaseService, repository: repository,
-                           afterPurchase: afterPurchase)
-        // Release the full-resolution capture the moment it stops being
-        // needed. Both the upload (1568px) and the stored copy (1024px) are
-        // already encoded by now, and the only view that reads this image is
-        // the freeze-frame behind the analysing overlay, which has just gone.
-        // These references used to be cleared in `sheet(onDismiss:)`, so a
-        // 12MP capture — 48.8MB decoded, and up to 195MB on a 48MP HEIF —
-        // stayed resident for the whole time the result sheet was open.
-        vm.capturedImage = nil
-        cameraManager.capturedImage = nil
-        if vm.scanResult != nil {
-            showResult = true
-        }
-    }
 }
 
 // MARK: - Corner accents for viewfinder

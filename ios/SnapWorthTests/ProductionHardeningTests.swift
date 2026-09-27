@@ -3178,6 +3178,64 @@ final class ValuationDetailTests: XCTestCase {
             XCTAssertTrue(prompt.contains(part), "\(part): \(prompt)")
         }
     }
+
+    // MARK: Server tokens are never display text
+
+    /// The backend's closed vocabularies (`valuation.py` `_CONDITION_GRADES`,
+    /// `_AUTHENTICITY`, `_DEMAND`, `_SUPPLY`). The server validates each field
+    /// against its set and sends the token, and the panel printed the token.
+    private let grades = ["new", "likeNew", "good", "used"]
+    private let authenticity = ["no_concerns", "minor_concerns", "cannot_verify", "likely_replica"]
+    private let demand = ["high", "medium", "low"]
+    private let supply = ["scarce", "moderate", "abundant"]
+
+    func test_everyServerTokenHasALabelThatIsNotTheToken() throws {
+        for token in grades {
+            let label = try XCTUnwrap(Condition(serverGrade: token)?.label, token)
+            XCTAssertFalse(label.contains("_"), token)
+        }
+        XCTAssertEqual(Set(authenticity), Set(AuthenticityRead.allCases.map(\.rawValue)))
+        for token in authenticity {
+            let label = try XCTUnwrap(AuthenticityRead(serverValue: token)?.label, token)
+            XCTAssertFalse(label.contains("_"), "\(token) printed as \(label)")
+            XCTAssertNotEqual(label, token)
+        }
+        for token in demand {
+            let label = try XCTUnwrap(MarketDemand(serverValue: token)?.label, token)
+            XCTAssertNotEqual(label, token, "a bare adjective reads as market fact")
+        }
+        for token in supply {
+            let label = try XCTUnwrap(MarketSupply(serverValue: token)?.label, token)
+            XCTAssertNotEqual(label, token, "a bare adjective reads as market fact")
+        }
+    }
+
+    func test_thePanelShowsLabelsAndAttributesTheMarketToTheAI() throws {
+        let response = try JSONDecoder().decode(ScanAPIResponse.self, from: v2.data(using: .utf8)!)
+        let detail = try XCTUnwrap(ValuationDetail(response: response))
+        XCTAssertEqual(detail.authenticityRead, .noConcerns)
+        XCTAssertEqual(detail.authenticityRead?.label, "No concerns")
+        XCTAssertEqual(detail.marketRead, "AI read: high demand, moderate supply")
+        XCTAssertEqual(detail.factsWithReadGrade, ["AI read: Good", "M", "2019", "fleece"])
+
+        var one = ValuationDetail()
+        one.supply = "scarce"
+        XCTAssertEqual(one.marketRead, "AI read: scarce supply",
+                       "one read alone is still the AI's, never stated bare")
+    }
+
+    func test_anUnknownTokenIsDroppedRatherThanPrinted() {
+        var detail = ValuationDetail()
+        detail.conditionGrade = "pristine"
+        detail.authenticityAssessment = "definitely_real"
+        detail.demand = "enormous"
+        detail.supply = "none_at_all"
+        detail.size = "M"
+        XCTAssertNil(detail.authenticityRead)
+        XCTAssertNil(detail.marketRead)
+        XCTAssertEqual(detail.facts, ["M"])
+        XCTAssertEqual(detail.factsWithReadGrade, ["M"])
+    }
 }
 
 // MARK: - A thin panel is re-read on a fresh result only
@@ -3359,64 +3417,6 @@ final class FullDetailOfferTests: XCTestCase {
         let card = try XCTUnwrap(file.range(of: "private var addTagCard: some View {"))
         let gate = try XCTUnwrap(file.range(of: "if ", range: card.upperBound..<file.endIndex))
         XCTAssertTrue(file[gate.lowerBound...].hasPrefix("if isFreshScan {"))
-    }
-
-    // MARK: Server tokens are never display text
-
-    /// The backend's closed vocabularies (`valuation.py` `_CONDITION_GRADES`,
-    /// `_AUTHENTICITY`, `_DEMAND`, `_SUPPLY`). The server validates each field
-    /// against its set and sends the token, and the panel printed the token.
-    private let grades = ["new", "likeNew", "good", "used"]
-    private let authenticity = ["no_concerns", "minor_concerns", "cannot_verify", "likely_replica"]
-    private let demand = ["high", "medium", "low"]
-    private let supply = ["scarce", "moderate", "abundant"]
-
-    func test_everyServerTokenHasALabelThatIsNotTheToken() throws {
-        for token in grades {
-            let label = try XCTUnwrap(Condition(serverGrade: token)?.label, token)
-            XCTAssertFalse(label.contains("_"), token)
-        }
-        XCTAssertEqual(Set(authenticity), Set(AuthenticityRead.allCases.map(\.rawValue)))
-        for token in authenticity {
-            let label = try XCTUnwrap(AuthenticityRead(serverValue: token)?.label, token)
-            XCTAssertFalse(label.contains("_"), "\(token) printed as \(label)")
-            XCTAssertNotEqual(label, token)
-        }
-        for token in demand {
-            let label = try XCTUnwrap(MarketDemand(serverValue: token)?.label, token)
-            XCTAssertNotEqual(label, token, "a bare adjective reads as market fact")
-        }
-        for token in supply {
-            let label = try XCTUnwrap(MarketSupply(serverValue: token)?.label, token)
-            XCTAssertNotEqual(label, token, "a bare adjective reads as market fact")
-        }
-    }
-
-    func test_thePanelShowsLabelsAndAttributesTheMarketToTheAI() throws {
-        let response = try JSONDecoder().decode(ScanAPIResponse.self, from: v2.data(using: .utf8)!)
-        let detail = try XCTUnwrap(ValuationDetail(response: response))
-        XCTAssertEqual(detail.authenticityRead, .noConcerns)
-        XCTAssertEqual(detail.authenticityRead?.label, "No concerns")
-        XCTAssertEqual(detail.marketRead, "AI read: high demand, moderate supply")
-        XCTAssertEqual(detail.factsWithReadGrade, ["AI read: Good", "M", "2019", "fleece"])
-
-        var one = ValuationDetail()
-        one.supply = "scarce"
-        XCTAssertEqual(one.marketRead, "AI read: scarce supply",
-                       "one read alone is still the AI's, never stated bare")
-    }
-
-    func test_anUnknownTokenIsDroppedRatherThanPrinted() {
-        var detail = ValuationDetail()
-        detail.conditionGrade = "pristine"
-        detail.authenticityAssessment = "definitely_real"
-        detail.demand = "enormous"
-        detail.supply = "none_at_all"
-        detail.size = "M"
-        XCTAssertNil(detail.authenticityRead)
-        XCTAssertNil(detail.marketRead)
-        XCTAssertEqual(detail.facts, ["M"])
-        XCTAssertEqual(detail.factsWithReadGrade, ["M"])
     }
 }
 
