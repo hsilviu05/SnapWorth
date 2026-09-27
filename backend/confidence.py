@@ -102,6 +102,25 @@ UNVERIFIED_AUTHENTICITY_REASON = "authenticity could not be verified from the ph
 REPLICA_CODE = "likely_replica"
 UNVERIFIED_AUTHENTICITY_CODE = "authenticity_unverified"
 
+#: Every code `compute` can put in `reason_codes`, which the scan response
+#: sends as `confidence_reason_codes`. Written out so `contract/` can list them
+#: for the client, whose `ConfidenceReason` must know each one; the tests
+#: drive every branch of `compute` and require this to be exactly what they
+#: produce, so a code added below without being added here fails them.
+REASON_CODES = frozenset({
+    "brand_identified", "brand_unidentified",
+    "range_unusable", "range_tight", "range_very_wide", "range_moderately_wide",
+    "range_single_price",
+    "photo_soft", "photo_lighting_uneven", "photo_low_resolution", "photo_low_contrast",
+    "photo_clear", "photo_limits_confidence",
+    "category_established", "category_varied",
+    "item_recognised", "item_uncertain", "model_unconfirmed",
+    "authenticity_no_concerns", REPLICA_CODE, UNVERIFIED_AUTHENTICITY_CODE,
+    "market_read", "market_read_incomplete",
+    "analysis_complete", "analysis_partial",
+    "estimate_adjusted",
+})
+
 #: Brand values that mean "no brand was identified". One list, shared with the
 #: operator's brand tallies (`notify._clean_brand`) and the eval's
 #: hallucination check (`eval.metrics`). The three copies had drifted: notify

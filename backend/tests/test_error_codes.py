@@ -258,6 +258,39 @@ class TestConfidenceReasonCodes:
             "the codes are the reasons in another form — `likely_replica` is the "
             "authenticity verdict — so they are Pro detail too")
 
+    def test_every_branch_produces_exactly_the_published_codes(self):
+        """`REASON_CODES` is what `contract/` hands the client, whose
+        `ConfidenceReason` must word each one. Every branch of `compute` is
+        driven here, so a new code fails this until it is published."""
+        blurry = ImageQuality(sharpness=0.1, exposure=0.1, detail=0.1, contrast=0.1)
+        base = dict(brand="Patagonia", category="clothing", identification_certainty="certain",
+                    authenticity="no_concerns", demand="high", supply="scarce",
+                    value_low=40, value_high=60, model_field_count=10,
+                    expected_field_count=10,
+                    image_quality=ImageQuality(sharpness=0.9, exposure=0.9, detail=0.9,
+                                               contrast=0.9))
+        variants = [
+            {}, {"brand": "Unknown"},
+            {"value_low": 0}, {"value_high": 400}, {"value_high": 120},
+            {"range_synthesised": True},
+            {"image_quality": blurry},
+            {"image_quality": ImageQuality(sharpness=0.9, exposure=0.1)},
+            {"image_quality": ImageQuality(sharpness=0.9, detail=0.1)},
+            {"image_quality": ImageQuality(sharpness=0.9, contrast=0.1)},
+            {"category": "furniture"}, {"category": "made-up"},
+            {"identification_certainty": "probable"},
+            {"identification_certainty": "uncertain"},
+            {"authenticity": "cannot_verify"}, {"authenticity": "likely_replica"},
+            {"demand": None}, {"model_field_count": 1},
+            {"was_clamped": True},
+        ]
+        produced: set[str] = set()
+        for variant in variants:
+            produced |= {s.code for s in confidence.compute(**(base | variant)).signals}
+        assert produced == confidence.REASON_CODES, (
+            f"produced but unpublished: {produced - confidence.REASON_CODES}; "
+            f"published but never produced: {confidence.REASON_CODES - produced}")
+
     def test_image_issues_keep_their_order_and_words(self):
         quality = ImageQuality(sharpness=0.1, exposure=0.1, detail=0.1, contrast=0.1)
         assert [text for _, text in quality.coded_issues()] == quality.issues()

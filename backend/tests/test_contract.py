@@ -293,6 +293,35 @@ def test_every_error_fixture_carries_a_code(name):
     assert isinstance(body.get("detail"), str) and body["detail"], name
 
 
+# ── The codes a client words itself ─────────────────────────────────────────
+#
+# Lists, not responses, and generated from the server like everything here: the
+# Swift suite checks its `ServerErrorCode` and `ConfidenceReason` against them,
+# so a client that waits for a code the server never sends, or a reason code
+# the client cannot word, fails a test instead of printing English.
+
+def _check_list(name: str, served: list[str]) -> list[str]:
+    path = CONTRACT / name
+    if REGENERATE:
+        path.write_text(json.dumps(served, indent=2) + "\n")
+    fixture = json.loads(path.read_text())
+    assert fixture == served, (
+        f"contract/{name} is not what the server sends. A removed code breaks "
+        f"every build that knows it; if the change is additive, regenerate.")
+    return fixture
+
+
+def test_the_error_codes():
+    codes = sorted({v for k, v in vars(apierrors).items()
+                    if k.isupper() and isinstance(v, str)})
+    _check_list("error-codes.json", codes)
+
+
+def test_the_confidence_reason_codes():
+    import confidence
+    _check_list("confidence-reason-codes.json", sorted(confidence.REASON_CODES))
+
+
 def test_every_fixture_is_checked_here():
     """A fixture nothing regenerates or compares is a hand-written one again."""
     source = pathlib.Path(__file__).read_text()

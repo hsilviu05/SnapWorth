@@ -13,6 +13,8 @@ Responses the server really sends, read by both test suites.
 | `errors/scan-426-update-required.json` | Below the operator's minimum build, for a build that sent `X-SnapWorth-Build` (`update_required`) |
 | `errors/scan-429-rate-limited.json` | The per-device limit (`rate_limited`). Carries `Retry-After` in seconds |
 | `errors/scan-502-ai-unavailable.json` | The model could not be reached (`ai_unavailable`) |
+| `error-codes.json` | Every specific error `code` the server sends (`backend/apierrors.py`) |
+| `confidence-reason-codes.json` | Every code `confidence_reason_codes` can carry (`confidence.REASON_CODES`) |
 
 An error fixture records the status, the headers the server sends that a
 client may rely on, and the body. Of those headers the app reads only
@@ -29,6 +31,10 @@ specific code gets a generic one from its status (`not_found`,
 `/scan` bodies also carry `confidence_reason_codes`: one token per entry of
 `confidence_reasons`, same order (`backend/confidence.py`). Pro detail, like
 the reasons: blanked to `[]` on a free scan.
+
+The two lists are not responses. They are what a client checks its own
+tables against: the app must word every reason code, and must not wait for an
+error code the server never sends.
 
 ## Why it exists
 
