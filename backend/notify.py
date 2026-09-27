@@ -2566,6 +2566,16 @@ async def _read_index_for_update(key: str) -> dict | None:
 
 
 async def _write_index(key: str, doc: dict, cap: int, recency: str) -> None:
+    # A row goes once it has been untouched for INDEX_TTL, which is the "up to
+    # 400 days" the privacy policy states. The document's own TTL cannot do
+    # that: every write renews it, so on a service that is used daily a row
+    # written once would otherwise stay until the cap pushed it out.
+    cutoff = time.time() - INDEX_TTL
+    for stale in [k for k, v in doc.items()
+                  if not isinstance(v, dict)
+                  or not isinstance(v.get(recency), (int, float))
+                  or v[recency] < cutoff]:
+        doc.pop(stale, None)
     if len(doc) > cap:
         # Drop the least recently seen until it fits.
         for stale in sorted(doc, key=lambda k: doc[k].get(recency, 0))[:len(doc) - cap]:
@@ -3148,11 +3158,13 @@ async def _week_top(now: datetime | None = None) -> dict:
 
 # ── Trends, for the app (#96) ────────────────────────────────────────────────
 #
-# The same tallies the bot reads, shaped for users. Aggregates only, with a
-# floor: a category or brand appears only once enough different scans back it,
-# so nothing here can be traced to one person's afternoon. Notable finds carry
-# an item name and a range and nothing else — no device, no photo, no time of
-# day. Pro sees the averages and the finds; free sees the counts.
+# The same tallies the bot reads, shaped for users. Category and brand rows are
+# aggregates with a floor: a row appears only once enough different scans back
+# it, so no row can be traced to one person's afternoon. Notable finds are NOT
+# aggregates and have no floor — each is one person's scan — so they leave the
+# server as a brand, a category and a range: never the item name, no device, no
+# photo, no time of day. Pro sees the averages and the finds; free sees the
+# counts.
 
 TRENDS_MIN_COUNT = 5          # below this a row says more about one user than a trend
 TRENDS_FREE_ROWS = 3
@@ -3254,13 +3266,32 @@ async def trends(*, is_pro: bool, now: datetime | None = None) -> dict:
             values = by_category.get(row["name"]) or []
             if len(values) >= 3:      # an average of one or two is not an average
                 row["average_estimate"] = round(sum(values) / len(values))
-        payload["notable_finds"] = [
-            {"name": str(f.get("n") or "Unidentified item")[:60],
-             "category": str(f.get("c") or "other"),
-             "low": round(float(f.get("lo") or 0)), "high": round(float(f.get("hi") or 0))}
-            for f in sorted(finds, key=lambda f: -float(f.get("hi") or 0))[:TRENDS_FINDS]
-            if float(f.get("hi") or 0) > 0
-        ]
+        # The brand stands in for the item name. At a few scans a day the
+        # week's best find is one person's scan, shown to strangers, and the
+        # name is whatever the model wrote about their photo — free text that
+        # can carry anything it read off a label. `name` stays the field so
+        # shipped clients decode it unchanged. A find with no brand has
+        # nothing left worth showing and is skipped.
+        #
+        # So is a repeat. Clients key a find on `name-low-high` and drop
+        # duplicates (`Trends.distinctNotableFinds`), and with the brand as the
+        # name, two scans of one brand at the same rounded range are one row to
+        # them — sent twice, it would take a slot and show nothing.
+        notable: list[dict] = []
+        shown: set[tuple[str, int, int]] = set()
+        for f in sorted(finds, key=lambda f: -float(f.get("hi") or 0)):
+            brand = _clean_brand(str(f.get("b") or ""))
+            if brand is None or float(f.get("hi") or 0) <= 0:
+                continue
+            lo, hi = round(float(f.get("lo") or 0)), round(float(f.get("hi") or 0))
+            if (brand, lo, hi) in shown:
+                continue
+            shown.add((brand, lo, hi))
+            notable.append({"name": brand, "category": str(f.get("c") or "other"),
+                            "low": lo, "high": hi})
+            if len(notable) >= TRENDS_FINDS:
+                break
+        payload["notable_finds"] = notable
 
     try:
         await _cache.set(f"{TRENDS_CACHE_KEY}:{tier}", json.dumps(payload), TRENDS_CACHE_TTL)

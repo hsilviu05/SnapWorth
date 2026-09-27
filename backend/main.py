@@ -1425,7 +1425,7 @@ def privacy():
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Privacy Policy — SnapWorth</title><style>{_STYLE}</style></head><body>
 <h1>Privacy Policy</h1>
-<p>Last updated: September 9, 2026</p>
+<p>Last updated: September 27, 2026</p>
 <p>SnapWorth ("we", "our", or "us") operates the SnapWorth mobile application.
 This page informs you of our policies regarding the collection, use, and
 disclosure of personal data when you use our Service.</p>
@@ -1436,12 +1436,29 @@ processed by an AI model to identify the item and estimate resale value, and
 are not stored after the response is returned.</p>
 <p>We collect an anonymous device identifier (UUID) for rate limiting (20 scans
 per hour) and to limit how many devices can use one subscription. This ID is not
-linked to your identity.</p>
+linked to your identity, except that if you subscribe it is kept with Apple's
+record of your purchase, described below.</p>
 <p>To tell a reinstall from a genuinely new device &mdash; so a free allowance
 cannot be reset by deleting and reinstalling &mdash; we send Apple's DeviceCheck
 token when your device first verifies itself. Apple stores two bits against the
 hardware on our behalf; we store the token to read them. It contains no personal
 information and cannot identify you.</p>
+<p>If you subscribe, the app sends our server Apple's signed record of your
+subscription purchase, and sends it again each time it checks your
+subscription. We verify Apple's signature and keep the record, together with
+the device identifier above, for up to 400 days after the app last sends it: so
+that Pro keeps working between app launches, and so that one subscription can
+be used on only a limited number of devices. It contains the subscription you
+bought, its price and currency, its purchase and expiry dates, the App Store
+country, and Apple's identifiers for the purchase. It does not contain your
+name, email address, Apple ID or payment details. Apple may also tell our
+server when a subscription renews, lapses or is refunded, and we may ask Apple
+for a subscription's current status to answer a support request.</p>
+<p>If you use Invite a friend, our server keeps the invite code made for your
+device and, when someone claims an invite, a record linking the two devices:
+their identifiers, the code, when it was claimed, and the Apple offer codes
+handed out. It is kept for up to 400 days, so that each invite is rewarded once
+and rewards stay within the yearly limit.</p>
 <p>We collect anonymous usage analytics to understand how the app is used and
 improve it. Using TelemetryDeck, we record in-app events &mdash; such as opening
 the app, starting a scan, viewing the paywall, and completing a purchase &mdash;
@@ -1478,13 +1495,32 @@ answered, a one-way salted hash of your device's attestation key together with
 that device's scan count, first and last activity dates, and subscription
 state. The hash is not the device identifier itself and cannot be reversed to
 it, and it is not an advertising identifier. This operational record is kept
-for up to 400 days. Never the photo, and never your name, email address or
-location.</p>
+for up to 400 days after the device last uses the service or, for a
+subscription, after the app or Apple last tells us about it. Never the photo,
+and never your name, email address or location.</p>
 
 <h2>Data Retention</h2>
-<p>Photos and scan results are processed in real time and are not retained on our
-servers. Scan history is stored locally on your device and can be deleted at any
-time from the app's Settings.</p>
+<p>Photos are not stored after the response is returned. Your scan history is
+stored on your device and can be deleted at any time from the app's
+Settings.</p>
+<p>From each scan our server keeps the following, without the photo and without
+your device identifier: daily counts of scans, categories and brands, and a
+short list of each day's highest-value scans &mdash; the item name the AI gave,
+its brand, category and estimated price range, and whether it was made on the
+free or Pro plan. These are kept for 35 days after the day of the scan. The
+operator can see them, and uses the week's highest-value scans, through
+Google's Gemini API, to draft ideas for SnapWorth's social-media posts &mdash;
+so a post may mention an item someone scanned, never who scanned it.</p>
+<p>In the app, everyone can see this week's most-scanned categories and brands,
+each shown only once at least five scans back it. Pro subscribers also see the
+week's highest-value finds, shown as brand, category and estimated price range
+only &mdash; never the item name, the photo, or who scanned it. A find is a
+single scan, so one of yours may appear there.</p>
+<p>The operational record described under Telegram, the subscription record and
+referral records are kept for up to 400 days after they were last updated, as
+described above. Messages
+relayed through Telegram stay in the operator's chat until the operator
+deletes them.</p>
 
 <h2>Children's Privacy</h2>
 <p>SnapWorth is not directed to children under 13. We do not knowingly collect
@@ -2002,8 +2038,9 @@ async def _analyse(image_bytes: bytes, content_type: str, *, subject: str,
         # correct behaviour under the `no_price` failure metric, which is the
         # alarm for the real fault and was being drowned in it.
         if valuation_module.priced_as_unsellable(data):
+            # Category only, never the item name: see "scan ok" below.
             log.info("scan declined: not a resalable object",
-                     extra={"item": val.item_name, "category": val.category})
+                     extra={"category": val.category})
             # `label`, as for `no_price` below: hardcoded, a bot or tag-photo
             # scan was filed as a plain user scan.
             metrics.model_calls.inc(operation=label, outcome="not_resalable")
@@ -2017,8 +2054,7 @@ async def _analyse(image_bytes: bytes, content_type: str, *, subject: str,
             ) from None
 
         log.error("scan produced no usable price",
-                  extra={"item": val.item_name, "category": val.category,
-                         "keys": sorted(data)[:20]})
+                  extra={"category": val.category, "keys": sorted(data)[:20]})
         # `label`, not a hardcoded "scan": it is already bound above as
         # `scan`/`scan_with_tag`/`bot_scan`/`bot_scan_with_tag`, and every
         # sibling on this path is gated on `count`. Hardcoded, an operator
@@ -2063,10 +2099,15 @@ async def _analyse(image_bytes: bytes, content_type: str, *, subject: str,
         metrics.valuation_clamped.inc()
 
     elapsed = time.monotonic() - t0
+    # How the scan went, never what it found. This line carries the device's
+    # pseudonym, and so does "scan start", whose request id every other line
+    # of the request shares. An item name or an estimate on any of them is a
+    # per-device record of what someone scanned, which /privacy does not
+    # describe: it says scan content is kept in the day's tallies, without the
+    # device (notify._note_scan). The plain log format dropping `extra` is no
+    # cover: LOG_FORMAT=json, which prints it, is the recommended setting.
     log.info("scan ok", extra={
-        "device": device_short, "item": val.item_name,
-        "value_low": low, "value_high": high,
-        "expected": val.prices.expected,
+        "device": device_short,
         "confidence": conf.band, "confidence_score": conf.score,
         "clamped": was_clamped, "prompt_version": prompt_version,
         "image_quality": quality.overall, "elapsed_s": round(elapsed, 2),
@@ -2602,9 +2643,11 @@ async def trends(
     The backend has kept these tallies since the operator bot shipped: counts
     per category and per brand, and the day's most valuable finds as an item
     name and a price range. Nothing in them identifies a device, and nothing
-    here changes that — a row appears only once at least five scans back it,
-    so a single user's afternoon cannot become a "trend", and an average is
-    withheld until three finds support it.
+    here changes that — a category or brand row appears only once at least
+    five scans back it, so a single user's afternoon cannot become a "trend",
+    and an average is withheld until three finds support it. Notable finds
+    have no such floor: each is one scan, so it is sent as brand, category and
+    range, never the item name (see `notify.trends`).
 
     The free/Pro split is decided **here**, from the verified principal, never
     by the client asking nicely: free gets the top three categories and brands

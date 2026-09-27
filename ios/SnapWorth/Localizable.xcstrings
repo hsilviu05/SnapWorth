@@ -4269,37 +4269,38 @@
         }
       }
     },
-    "Anonymous totals from everyone using SnapWorth. AI estimates." : {
+    "Anonymous data from everyone using SnapWorth. AI estimates." : {
+      "comment" : "Footer of the weekly trends card. Not 'totals': Pro's notable finds under it are single scans.",
       "extractionState" : "manual",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Anonyme Summen von allen, die SnapWorth nutzen. KI-Schätzungen."
+            "value" : "Anonyme Daten von allen, die SnapWorth nutzen. KI-Schätzungen."
           }
         },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Anonymous totals from everyone using SnapWorth. AI estimates."
+            "value" : "Anonymous data from everyone using SnapWorth. AI estimates."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Totales anónimos de toda la gente que usa SnapWorth. Estimaciones con IA."
+            "value" : "Datos anónimos de toda la gente que usa SnapWorth. Estimaciones con IA."
           }
         },
         "ro" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Totaluri anonime de la toți cei care folosesc SnapWorth. Estimări AI."
+            "value" : "Date anonime de la toți cei care folosesc SnapWorth. Estimări AI."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "来自所有 SnapWorth 用户的匿名汇总。均为 AI 估价。"
+            "value" : "来自所有 SnapWorth 用户的匿名数据。均为 AI 估价。"
           }
         }
       }

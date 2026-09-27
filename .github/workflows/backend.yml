@@ -7,6 +7,9 @@ on:
       - 'backend/**'
       - '.github/workflows/backend.yml'
       - 'contract/**'
+      # Not LegalView.swift, although pull_request lists it: every push that
+      # runs this workflow on main redeploys production, and an iOS-only change
+      # has nothing to deploy. The pull request is where its date is checked.
       - 'pyrightconfig.json'
   pull_request:
     branches: [main]
@@ -14,6 +17,8 @@ on:
       - 'backend/**'
       - '.github/workflows/backend.yml'
       - 'contract/**'
+      # The in-app privacy policy: test_main.py checks its date against /privacy.
+      - 'ios/SnapWorth/Views/LegalView.swift'
       - 'pyrightconfig.json'
 
 jobs:

@@ -266,6 +266,80 @@ class TestLegalEndpoints:
             f"the operator index keeps rows for {days} days; the policy says "
             f"something else")
 
+    def test_privacy_states_what_a_scan_leaves_on_the_server(self):
+        """It said "Photos and scan results are processed in real time and are
+        not retained on our servers" while every scan was tallied for 35 days
+        and each day's best finds, item name included, were shown to Pro
+        subscribers as notable finds. The photo claim was true; the rest was
+        not."""
+        import notify
+        body = _prose(client.get("/privacy").text)
+        assert "scan results are processed in real time" not in body
+        assert f"{notify.STATS_TTL // 86_400} days after the day of the scan" in body
+        assert "never the item name, the photo, or who scanned it" in body
+        # "Keeps only what running the service needs" was not the whole story:
+        # /post and /calendar hand the week's top finds, item names included,
+        # to the model as grounding for social-media drafts (notify._post_text,
+        # ideas.build_prompt).
+        assert "only what running the service needs" not in body
+        assert ("uses the week's highest-value scans, through Google's Gemini "
+                "API, to draft ideas for SnapWorth's social-media posts") in body
+
+    def test_privacy_does_not_call_a_subscribers_device_id_unlinked(self):
+        """The device id is stored with the signed purchase record, whose
+        originalTransactionId follows the Apple ID; PrivacyInfo.xcprivacy
+        declares that record linked. "Not linked to your identity", flat, sat
+        four paragraphs above saying so."""
+        body = _prose(client.get("/privacy").text)
+        assert ("not linked to your identity, except that if you subscribe it "
+                "is kept with Apple's record of your purchase") in body
+
+    def test_the_operator_record_retention_counts_from_apples_last_word(self):
+        """App Store notifications and status lookups rewrite the /subs row with
+        a fresh `seen` and keep its device pseudonym (notify._index_subscription),
+        and `_write_index` prunes on `seen`. So a subscriber who deleted the app
+        but keeps renewing keeps that row: 400 days from the app's last visit is
+        not what the code does."""
+        import notify
+        body = _prose(client.get("/privacy").text)
+        assert (f"for up to {notify.INDEX_TTL // 86_400} days after the device "
+                "last uses the service or, for a subscription, after the app or "
+                "Apple last tells us about it") in body
+
+    def test_privacy_discloses_the_purchase_record_and_its_retention(self):
+        """The app uploads Apple's signed transaction with the device id on
+        every status refresh, and the server keeps it; neither policy said so."""
+        import entitlements
+        body = _prose(client.get("/privacy").text)
+        assert "Apple's signed record of your subscription purchase" in body
+        days = entitlements.ENTITLEMENT_PROOF_TTL // 86_400
+        assert days == entitlements.DEVICE_BINDING_TTL // 86_400
+        assert f"for up to {days} days after the app last sends it" in body
+
+    def test_privacy_discloses_referral_records(self):
+        """A claimed invite links two devices for a year and more."""
+        import referral
+        body = _prose(client.get("/privacy").text)
+        assert "If you use Invite a friend" in body
+        assert f"up to {referral.RECORD_TTL // 86_400} days, so that each invite" in body
+
+    def test_web_and_in_app_policies_carry_the_same_date(self):
+        """Two copies of one document. When the text changes, both dates move,
+        or a reader of either copy cannot tell it changed.
+
+        backend.yml runs this suite on a pull request that changes
+        LegalView.swift, so moving the date in one copy and not the other is
+        caught before merge. Only the date: a body edit that leaves both dates
+        alone passes, and the phrase tests pin only the sentences they name.
+        """
+        import pathlib
+        import re
+        swift = (pathlib.Path(__file__).resolve().parents[2]
+                 / "ios" / "SnapWorth" / "Views" / "LegalView.swift").read_text()
+        match = re.search(r'enum PrivacyPolicy \{\s*static let updated = "([^"]+)"', swift)
+        assert match, "PrivacyPolicy.updated moved; update this test"
+        assert f"Last updated: {match.group(1)}" in client.get("/privacy").text
+
     def test_privacy_names_the_analytics_sdks_own_payload(self):
         """The enumeration stopped short of what the SDK actually attaches.
 
@@ -488,6 +562,38 @@ class TestScanEndpoint:
                 headers={"x-device-id": "png-test"},
             )
         assert r.status_code == 200
+
+    def test_scan_logs_say_how_it_went_never_what_it_found(self, caplog):
+        """"scan ok" logged the item name and the estimate beside the device's
+        pseudonym on every scan, and the declined and no-price lines logged the
+        name under a request id that "scan start" ties to the device. /privacy
+        says scan content is kept in the day's tallies, without the device."""
+        found = {**MOCK_RESPONSE_JSON, "item_name": "Signed Jordan card to Maria"}
+        declined = {**MOCK_RESPONSE_JSON, "item_name": "Maria's birthday cake",
+                    "category": "other", "est_value_low_usd": 0,
+                    "est_value_high_usd": 0, "worst_case_price_usd": 0,
+                    "quick_sale_price_usd": 0, "expected_price_usd": 0,
+                    "best_case_price_usd": 0}
+        unpriced = {k: v for k, v in found.items() if not k.endswith("_usd")}
+        statuses = []
+        with caplog.at_level("INFO", logger="snapworth"):
+            for i, reply in enumerate((found, declined, unpriced)):
+                mock_response = MagicMock()
+                mock_response.text = json.dumps(reply)
+                with patch("main._model") as mock_model:
+                    mock_model.generate_content_async = AsyncMock(return_value=mock_response)
+                    statuses.append(_make_scan_request(device_id=f"log-test-{i}").status_code)
+        assert statuses == [200, 422, 502], "each path must actually run"
+
+        messages = {r.getMessage() for r in caplog.records}
+        assert {"scan ok", "scan declined: not a resalable object",
+                "scan produced no usable price"} <= messages
+        for record in caplog.records:
+            for field in ("item", "value_low", "value_high", "expected"):
+                assert not hasattr(record, field), (
+                    f"{record.getMessage()!r} logs {field}")
+            assert "Maria" not in str(record.__dict__), (
+                f"{record.getMessage()!r} logs what was scanned")
 
 
 # ── POST /listing (Snap → Sell) ───────────────────────────────────────────────

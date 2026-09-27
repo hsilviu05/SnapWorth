@@ -1126,6 +1126,20 @@ class TestUsersTable:
         assert len(doc) == notify.USERS_INDEX_CAP
 
     @pytest.mark.asyncio
+    async def test_a_row_goes_after_the_retention_the_policy_states(self, enabled_notify, cache):
+        # The document's TTL is renewed by every write, so it never expires on
+        # a service in daily use; without pruning, a device seen once stayed
+        # until the cap pushed it out, while /privacy says 400 days.
+        long_ago = int(time.time()) - notify.INDEX_TTL - 60
+        recent = int(time.time()) - notify.INDEX_TTL + 3600
+        await cache.set(notify.USERS_INDEX_KEY, json.dumps({
+            "gone": {"first": long_ago, "last": long_ago, "scans": 1, "tier": "free"},
+            "kept": {"first": long_ago, "last": recent, "scans": 9, "tier": "free"},
+        }), 600)
+        await notify._index_user("new", tier="free")
+        assert set(json.loads(await cache.get(notify.USERS_INDEX_KEY))) == {"kept", "new"}
+
+    @pytest.mark.asyncio
     async def test_empty_table_says_so(self, enabled_notify):
         assert "No device has been seen" in await notify.handle_command("/users")
 
