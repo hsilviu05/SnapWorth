@@ -91,7 +91,12 @@ def client_ip(request: Any) -> str:
     one header, while `/scan`, `/trends` and `/listing` were keyed correctly.
     Two implementations was the whole bug.
     """
-    xff = request.headers.get("x-forwarded-for", "")
+    # Every line, joined in order: a header sent as several lines means their
+    # join (RFC 9110 §5.3), and uvicorn's proxy-header middleware reads it so.
+    # `headers.get` returns the first line alone, which let a caller's own
+    # line stand in for the whole header wherever a proxy adds its hop as a
+    # separate line.
+    xff = ",".join(request.headers.getlist("x-forwarded-for"))
     if xff:
         hops = xff.split(",")
         key, skipped, source = _nearest_client_hop(hops)

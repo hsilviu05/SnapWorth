@@ -16,6 +16,7 @@ import re
 
 import pytest
 from fastapi import HTTPException
+from starlette.datastructures import Headers
 
 import auth
 import main
@@ -30,12 +31,18 @@ CGNAT = "100.64.0.2"
 
 
 class Req:
-    def __init__(self, xff: str | None = None, host: str | None = "10.0.0.1"):
-        self.headers = {} if xff is None else {"x-forwarded-for": xff}
+    """What `client_ip` reads of a Starlette request. `xff` may be a list, for
+    a header that arrived as several lines."""
+
+    def __init__(self, xff: str | list[str] | None = None,
+                 host: str | None = "10.0.0.1"):
+        lines = [] if xff is None else [xff] if isinstance(xff, str) else xff
+        self.headers = Headers(raw=[(b"x-forwarded-for", line.encode("latin-1"))
+                                    for line in lines])
         self.client = None if host is None else type("C", (), {"host": host})()
 
 
-def key(xff: str | None = None, host: str | None = "10.0.0.1") -> str:
+def key(xff: str | list[str] | None = None, host: str | None = "10.0.0.1") -> str:
     return ratelimit.client_ip(Req(xff, host))
 
 
@@ -122,6 +129,35 @@ class TestForgedHops:
     def test_rotating_the_forged_hop_does_not_rotate_the_key(self):
         keys = {key(f"203.0.113.{n}, {CLIENT}, {FASTLY_V4}") for n in range(1, 50)}
         assert keys == {CLIENT}
+
+
+class TestRepeatedHeaderLines:
+    """A header may arrive as several lines, which mean their join in order
+    (RFC 9110 §5.3), and uvicorn's own proxy-header middleware reads it that
+    way. `client_ip` read only the first line, so where a proxy adds its hop
+    as a line of its own, a caller's line in front of it was the whole
+    header: the key was the caller's choice, a fresh bucket per request."""
+
+    def test_the_lines_are_one_header(self):
+        assert key([FORGED, f"{CLIENT}, {FASTLY_V4}"]) == CLIENT
+        assert key([FORGED, CLIENT]) == CLIENT
+        assert key([f"{FORGED}, {CLIENT}", FASTLY_V4]) == CLIENT
+
+    def test_rotating_the_first_line_does_not_rotate_the_key(self):
+        keys = {key([f"203.0.113.{n}", f"{CLIENT}, {FASTLY_V4}"]) for n in range(1, 50)}
+        assert keys == {CLIENT}
+
+    def test_through_the_route(self, monkeypatch):
+        seen = []
+
+        async def recording(ip):
+            seen.append(ip)
+        monkeypatch.setattr(auth.deps, "ip_limiter", recording)
+        for n in range(1, 4):
+            client.post("/auth/challenge", headers=[
+                ("x-forwarded-for", f"203.0.113.{n}"),
+                ("x-forwarded-for", f"{CLIENT}, {FASTLY_V4}")])
+        assert seen == [CLIENT] * 3
 
 
 class TestInternalHops:
@@ -301,6 +337,13 @@ class TestTheRealLimiter:
 
     def test_a_fixed_client_behind_fastly_is_refused_at_the_limit(self):
         assert self.codes([f"{CLIENT}, {FASTLY_V4}"] * 8) == [200] * 5 + [429] * 3
+
+    def test_a_rotating_first_header_line_is_refused_at_the_limit(self):
+        codes = [client.post("/auth/challenge", headers=[
+                     ("x-forwarded-for", f"203.0.113.{n}"),
+                     ("x-forwarded-for", f"{CLIENT}, {FASTLY_V4}")]).status_code
+                 for n in range(1, 9)]
+        assert codes == [200] * 5 + [429] * 3
 
     def test_rotating_inside_one_ipv6_64_is_refused_at_the_limit(self):
         net = ipaddress.ip_network("2001:db8:1234:5678::/64")

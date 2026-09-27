@@ -14,6 +14,7 @@ import pytest
 from fastapi import HTTPException
 from unittest.mock import AsyncMock, MagicMock, patch
 from fastapi.testclient import TestClient
+from starlette.datastructures import Headers
 
 import sys
 import os
@@ -163,7 +164,7 @@ class TestFileUploadSecurity:
 
         class Req:
             def __init__(self, xff=None, client="10.0.0.1"):
-                self.headers = {"x-forwarded-for": xff} if xff else {}
+                self.headers = Headers({"x-forwarded-for": xff} if xff else {})
                 self.client = type("C", (), {"host": client})() if client else None
 
         # Spoofed hops on the left are ignored; the hop Railway appended wins.
@@ -185,7 +186,7 @@ class TestFileUploadSecurity:
 
         class Req:
             def __init__(self, xff):
-                self.headers = {"x-forwarded-for": xff}
+                self.headers = Headers({"x-forwarded-for": xff})
                 self.client = type("C", (), {"host": "100.64.0.2"})()
 
         assert main._client_ip(Req("203.0.113.9")) == "203.0.113.9"  # type: ignore[arg-type]
@@ -197,7 +198,7 @@ class TestFileUploadSecurity:
 
         class Req:
             def __init__(self, xff: str, host: str | None = "10.0.0.1"):
-                self.headers = {"x-forwarded-for": xff}
+                self.headers = Headers({"x-forwarded-for": xff})
                 self.client = type("C", (), {"host": host})() if host else None
 
         # Not an address, so the key is request.client.host, which uvicorn
@@ -224,7 +225,7 @@ class TestFileUploadSecurity:
 
         class Req:
             def __init__(self, xff):
-                self.headers = {"x-forwarded-for": xff}
+                self.headers = Headers({"x-forwarded-for": xff})
                 self.client = type("C", (), {"host": "1.1.1.1"})()
 
         seen = []

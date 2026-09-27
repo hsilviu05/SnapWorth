@@ -347,7 +347,8 @@ availability one.
 2. Device id is client-supplied and trivially rotated — the real backstop is the
    per-IP limit (`IP_RATE_MAX_REQUESTS`, default 60/hr).
    It keys on the nearest `X-Forwarded-For` hop that is not a known proxy
-   (`ratelimit.client_ip`): it walks the header from the right, skips Fastly's
+   (`ratelimit.client_ip`): it joins every line of the header in order, as
+   uvicorn does, walks it from the right, skips Fastly's
    published edge ranges and internal addresses (RFC 1918, CGNAT
    `100.64.0.0/10`, loopback, link-local), and keys on the first hop left:
    an IPv4 address as itself, an IPv6 one as its /64. A /64 is one line's
