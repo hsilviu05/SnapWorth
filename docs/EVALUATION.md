@@ -204,8 +204,10 @@ python -m eval.runner --photos ~/scans --repeats 3 \
 
 `--photos` takes a folder of JPEGs. An arm is a prompt version with an
 optional `@N` thinking cap, applied per call so the other arm is untouched.
-The report gives consistency and repeatability per arm, latency, median output
-and thinking tokens, and the per-item price shift between the arms. It never
+The report gives consistency and repeatability per arm, latency, median answer,
+thinking and billed-output tokens (Gemini counts the answer and the thinking
+separately and bills both as output, so the cap moves the third), and the
+per-item price shift between the arms. It never
 reports accuracy, bias, calibration or hallucination: with no truth to measure
 against those metrics are absent, not zero. A shift says the cap *changes*
 prices, never that it makes them better or worse — that needs the gold set.

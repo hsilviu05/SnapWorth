@@ -438,7 +438,9 @@ def _fake_run_live(price_by_budget: dict):
             item_id=i.id, category=i.category, expected_price=i.expected_price,
             predicted_expected=price, predicted_low=price * 0.8,
             predicted_high=price * 1.2, confidence_score=70, latency_ms=900.0,
-            output_tokens=2000, thoughts_tokens=1400 if thinking_budget is None else 500)
+            # Separate counts, as Gemini reports them: the answer is smaller
+            # than the reasoning, and neither contains the other.
+            output_tokens=850, thoughts_tokens=1400 if thinking_budget is None else 500)
             for i in items]
     return fake, calls
 
@@ -474,6 +476,9 @@ class TestUnlabelledRuns:
             assert not {"mdape", "within_25pct", "bias", "calibration_ece",
                         "hallucination_rate"} & set(measured)
         assert result["arms"]["v2@512"]["metrics"]["thoughts_tokens_median"]["value"] == 500
+        billed = {arm: result["arms"][arm]["metrics"]["billed_output_tokens_median"]["value"]
+                  for arm in ("v2", "v2@512")}
+        assert billed == {"v2": 2250, "v2@512": 1350}
 
     def test_a_single_labelled_run_writes_the_gate_shape(self, tmp_path, monkeypatch):
         fake, _ = _fake_run_live({None: 50.0})
@@ -504,6 +509,25 @@ class TestUnlabelledRuns:
         assert report["accuracy"]["mdape"] is None
         assert report["calibration"]["ece"] is None
         assert runner.metric_set(report, "x").get("calibration_ece") is None
+
+    def test_unlabelled_predictions_report_no_hallucination_rate_either(self):
+        """The raw report is written to --json-out too, and the docs say an
+        unlabelled run carries no hallucination figure — not one resting on
+        two of its three heuristics."""
+        report = evaluate([Prediction(item_id="a", category="unlabelled",
+                                      expected_price=None, predicted_expected=40.0,
+                                      model_name="Synchilla", visual_evidence=[])])
+        assert report["hallucination"] == {"rate": None, "n": 0}
+        assert runner.metric_set(report, "x").get("hallucination_rate") is None
+
+    def test_tokens_print_as_separate_counts_not_a_share(self):
+        report = evaluate([Prediction(item_id="a", category="unlabelled",
+                                      expected_price=None, predicted_expected=40.0,
+                                      output_tokens=850, thoughts_tokens=1400)])
+        text = runner._format(report)
+        assert "of which" not in text
+        assert "answer 850.0" in text and "thinking 1400.0" in text
+        assert "billed output 2250.0" in text
 
 
 class TestLiveArm:

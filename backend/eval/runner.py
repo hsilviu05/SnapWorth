@@ -187,7 +187,8 @@ class Prediction:
     identification_certainty: str | None = None
     visual_evidence: list[str] = field(default_factory=list)
     latency_ms: float = 0.0
-    # Billed output and the reasoning share of it, when the SDK reports them.
+    # The answer and the reasoning, when the SDK reports them. Separate counts
+    # (`candidates_token_count` excludes thoughts) billed together as output.
     output_tokens: int | None = None
     thoughts_tokens: int | None = None
     prompt_version: str = ""
@@ -206,6 +207,11 @@ def _token_summary(predictions: list[Prediction]) -> dict:
                                  if p.output_tokens is not None]),
         "thoughts_median": median([p.thoughts_tokens for p in predictions
                                    if p.thoughts_tokens is not None]),
+        # What a thinking cap actually moves: the answer and the reasoning are
+        # billed at one output rate (notify's cost line adds them the same way).
+        "billed_output_median": median([p.output_tokens + (p.thoughts_tokens or 0)
+                                        for p in predictions
+                                        if p.output_tokens is not None]),
     }
 
 
@@ -227,7 +233,10 @@ def evaluate(predictions: list[Prediction]) -> dict:
             "identification_certainty": p.identification_certainty,
             "visual_evidence": p.visual_evidence,
         }
-        for p in usable
+        # Labelled only, like accuracy and calibration. Without a true brand
+        # the rate rests on two of its three heuristics, and docs/EVALUATION.md
+        # promises an unlabelled run reports none — so it is None there.
+        for p, _ in labelled
     ]
 
     cal = metrics.calibration(scored)
@@ -327,13 +336,12 @@ def metric_set(report: dict, label: str) -> MetricSet:
     within = acc.get("within_25pct")
     add("within_25pct", within * 100 if within is not None else None, n_labelled, "%")
     add("calibration_ece", (report.get("calibration") or {}).get("ece"), n_labelled)
-    if n_labelled:
-        # Only against labels: the brand-mismatch rule needs a true brand, so
-        # on unlabelled photos the rate would silently mean something smaller.
-        hall = report.get("hallucination") or {}
-        rate = hall.get("rate")
-        add("hallucination_rate", rate * 100 if rate is not None else None,
-            hall.get("n", 0), "%")
+    # Only against labels (`evaluate` computes it over labelled items): the
+    # brand-mismatch rule needs a true brand.
+    hall = report.get("hallucination") or {}
+    rate = hall.get("rate")
+    add("hallucination_rate", rate * 100 if rate is not None else None,
+        hall.get("n", 0), "%")
 
     latency = report.get("latency_ms") or {}
     for key in ("p50", "p95"):
@@ -342,6 +350,8 @@ def metric_set(report: dict, label: str) -> MetricSet:
     tokens = report.get("tokens") or {}
     add("thoughts_tokens_median", tokens.get("thoughts_median"), report.get("n_scored", 0))
     add("output_tokens_median", tokens.get("output_median"), report.get("n_scored", 0))
+    add("billed_output_tokens_median", tokens.get("billed_output_median"),
+        report.get("n_scored", 0))
 
     consistency = report.get("consistency") or {}
     add("consistency_mean_cv", consistency.get("mean_cv"), consistency.get("n", 0))
@@ -513,9 +523,10 @@ def _format(report: dict) -> str:
         f"p95 {num(report['latency_ms']['p95'])}   "
         f"p99 {num(report['latency_ms']['p99'])}",
         "",
-        "Tokens (median per scan)",
-        f"  output {num(tokens.get('output_median'))}   "
-        f"of which thinking {num(tokens.get('thoughts_median'))}",
+        "Tokens (median per scan; answer and thinking are billed together)",
+        f"  answer {num(tokens.get('output_median'))}   "
+        f"thinking {num(tokens.get('thoughts_median'))}   "
+        f"billed output {num(tokens.get('billed_output_median'))}",
     ]
     if report["by_category"]:
         lines += ["", "By category"]
