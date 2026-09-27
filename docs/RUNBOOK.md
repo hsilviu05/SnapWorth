@@ -505,6 +505,7 @@ still-starting instances, and the graceful shutdown achieves nothing.
 | `TOKEN_KEYS` | Quarterly | §8.1 — zero-downtime by design |
 | `AUDIT_SALT` | Rarely | Rotating breaks historical correlation, deliberately |
 | `DEVICECHECK_PRIVATE_KEY` | On suspicion | Apple Developer portal |
+| `TELEGRAM_BOT_TOKEN` | On suspicion | §8.5 — was in production's logs until 2026-09-27 |
 | TLS certificate | Automatic | Let's Encrypt, 90 days, platform-managed |
 
 ### 8.1 Token key rotation (zero downtime)
@@ -623,6 +624,30 @@ Rotate when the key may have been exposed. The blast radius is small by
 construction — a DeviceCheck key can read and write two bits per device and
 nothing else, no user data and no App Store Connect access — so this is
 housekeeping, not an incident, and step 3 matters more than speed.
+
+### 8.5 Telegram bot token rotation
+
+The Bot API puts the token in every request URL, so anything that logs a URL
+can leak it. Until 2026-09-27 httpx did exactly that on every `getUpdates`
+poll, and `RedactionFilter` passed the URL through because it was not a `str`
+(`observability.RedactionFilter.filter`). Whoever could read the Railway logs,
+or a drain fed from them, could read the token. Rotate once that fix is
+deployed — before it, the new token would be written to the logs too.
+
+Telegram keeps one token per bot, so this is revoke-then-paste, and alerts are
+down for the minutes in between:
+
+1. Telegram → @BotFather → `/mybots` → the bot → **API Token** →
+   **Revoke current token**. The old token stops working immediately.
+2. Railway: set `TELEGRAM_BOT_TOKEN` to the new value (the API redeploys).
+3. GitHub → Settings → Secrets → Actions: set `TELEGRAM_BOT_TOKEN`, the Uptime
+   workflow's copy (§3) — if it has been added yet (#209); otherwise add the
+   new value there, never the old one.
+4. `🩺 Checkup` answers, and a `workflow_dispatch` Uptime run posts to the
+   chat. `TELEGRAM_CHAT_ID` does not change.
+
+Nothing else holds the token: no webhook is registered (the bot polls), and
+the app never sees it.
 
 ---
 
