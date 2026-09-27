@@ -4929,6 +4929,63 @@ final class SubscriberPaywallTests: XCTestCase {
         XCTAssertEqual(EntitlementSyncFailure.reason(for: CocoaError(.fileNoSuchFile)), "unknown")
     }
 
+    // ── A server that could not be asked has not refused anyone ─────────────
+    //
+    // The full-breakdown re-read resyncs before it scans, so being offline, a
+    // timeout, a rate limit or an outage all ended in "Apple shows an active
+    // subscription, but SnapWorth couldn't confirm it", with advice to restore
+    // or write to support.
+
+    func test_aServerThatCouldNotBeAskedIsReportedAsItself() {
+        XCTAssertEqual(EntitlementSyncFailure.unreachable(URLError(.notConnectedToInternet)), .network)
+        XCTAssertEqual(EntitlementSyncFailure.unreachable(URLError(.timedOut)), .timeout)
+        XCTAssertEqual(EntitlementSyncFailure.unreachable(AttestationError.unavailable),
+                       .verificationUnavailable)
+        let limited = ScanAPIError.from(
+            HTTPURLResponse(url: URL(string: "https://api.snapworth.eu/auth/entitlement")!,
+                            statusCode: 429, httpVersion: nil, headerFields: ["Retry-After": "90"])!,
+            data: Data())
+        XCTAssertEqual(EntitlementSyncFailure.unreachable(limited), .rateLimit(retryAfter: 90),
+                       "a 429 keeps its wait")
+    }
+
+    func test_anAnswerThatQuestionsTheSubscriptionIsNotUnreachable() {
+        for error: Error in [AttestationError.serverRejected("Expired."),
+                             AttestationError.unsupportedDevice,
+                             CocoaError(.fileNoSuchFile)] {
+            XCTAssertNil(EntitlementSyncFailure.unreachable(error), "\(error)")
+        }
+    }
+
+    func test_afterA402AnUnreachableServerIsStillNotThePaywall() async {
+        let stub = ResyncStub(subscribed: true, resync: .unreachable(reason: "timeout", error: .timeout))
+        do {
+            _ = try await stub.confirmingSubscription(scripted([.failure(refused)]))
+            XCTFail("expected subscriptionUnconfirmed")
+        } catch {
+            XCTAssertEqual(AppError.from(error), .subscriptionUnconfirmed)
+        }
+        XCTAssertEqual(syncFailures, ["timeout"])
+    }
+
+    /// Source-level: the re-read is a view method over `ScanAPIClient.shared`.
+    func test_theFullBreakdownReReadShowsAnUnreachableServerInline() throws {
+        let file = try String(
+            contentsOf: URL(fileURLWithPath: #filePath)
+                .deletingLastPathComponent().deletingLastPathComponent()
+                .appendingPathComponent("SnapWorth/Views/ResultView.swift"),
+            encoding: .utf8)
+        let body = try XCTUnwrap(file.range(of: "private func rereadForFullDetail()"))
+        let arm = try XCTUnwrap(file.range(of: "case .unreachable(let reason, let error):",
+                                           range: body.upperBound..<file.endIndex))
+        let next = try XCTUnwrap(file.range(of: "case .failed(let reason):",
+                                            range: arm.upperBound..<file.endIndex))
+        let branch = file[arm.upperBound..<next.lowerBound]
+        XCTAssertTrue(branch.contains("fullDetailError = error.errorDescription"))
+        XCTAssertFalse(branch.contains("showSubscriptionUnconfirmed"),
+                       "an offline subscriber is not told their subscription is in question")
+    }
+
     /// Source-level: these go through `ScanAPIClient.shared` and
     /// `ListingAPIClient.shared`, which a unit test cannot make answer 402.
     /// Every request a subscriber can be refused on has to ask first.

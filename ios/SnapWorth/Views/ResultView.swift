@@ -1121,6 +1121,16 @@ struct ResultView: View {
                     break
                 case .notSubscribed:
                     return                  // the panel is back to the teaser
+                case .unreachable(let reason, let error):
+                    // Offline, timed out, rate-limited or down. Unlike a 402's
+                    // resync, nothing here has shown the network works, and
+                    // telling someone on a train that Apple and SnapWorth
+                    // disagree about their subscription is not what happened.
+                    Analytics.shared.track(.entitlementSyncFailed(reason: reason))
+                    Haptics.failure()
+                    fullDetailError = error.errorDescription
+                        ?? String(localized: "We couldn't load the full breakdown. Your estimate is unchanged.")
+                    return
                 case .failed(let reason):
                     Analytics.shared.track(.entitlementSyncFailed(reason: reason))
                     vm.showSubscriptionUnconfirmed = true

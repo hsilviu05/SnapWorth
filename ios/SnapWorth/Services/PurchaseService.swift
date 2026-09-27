@@ -154,6 +154,11 @@ enum EntitlementResync: Equatable {
     /// StoreKit shows a subscription and the server could not be brought to
     /// honour it. `reason` is a fixed analytics bucket, never an error string.
     case failed(reason: String)
+    /// The server could not be asked: offline, timed out, rate-limited, or
+    /// down. That says nothing about the subscription, so a screen that asked
+    /// on its own initiative shows `error` rather than "we couldn't confirm
+    /// your subscription". `reason` is the same bucket `failed` carries.
+    case unreachable(reason: String, error: AppError)
 }
 
 extension PurchaseService {
@@ -197,7 +202,9 @@ extension PurchaseService {
             switch await resyncEntitlement() {
             case .notSubscribed:
                 throw error
-            case .failed(let reason):
+            // Unreachable too: the 402 has just shown the network works, and
+            // whatever stopped the re-send, the paywall is still wrong.
+            case .failed(let reason), .unreachable(let reason, _):
                 Analytics.shared.track(.entitlementSyncFailed(reason: reason))
                 throw AppError.subscriptionUnconfirmed
             case .confirmed:

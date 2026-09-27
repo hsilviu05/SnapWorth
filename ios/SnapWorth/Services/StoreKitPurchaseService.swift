@@ -375,7 +375,11 @@ final class StoreKitPurchaseService: PurchaseService, ObservableObject {
             EntitlementSyncMemory.record(jws)
             return .confirmed
         } catch {
-            return .failed(reason: EntitlementSyncFailure.reason(for: error))
+            let reason = EntitlementSyncFailure.reason(for: error)
+            if let unreachable = EntitlementSyncFailure.unreachable(error) {
+                return .unreachable(reason: reason, error: unreachable)
+            }
+            return .failed(reason: reason)
         }
     }
 
@@ -535,6 +539,20 @@ enum EntitlementSyncFailure {
         case .sessionExpired, .deviceUnsupported:       return "attestation"
         case .verificationUnavailable, .serverUnavailable: return "unavailable"
         default:                                        return "unknown"
+        }
+    }
+
+    /// What to tell the user when `error` means the server could not be
+    /// asked — the network, timeout, rate-limit and unavailable buckets —
+    /// or nil when it answered with something that puts the subscription
+    /// itself in question. Kept as an `AppError` so a 429 keeps its wait.
+    static func unreachable(_ error: Error) -> AppError? {
+        let appError = AppError.from(error)
+        switch appError {
+        case .network, .timeout, .rateLimit, .verificationUnavailable, .serverUnavailable:
+            return appError
+        default:
+            return nil
         }
     }
 }
