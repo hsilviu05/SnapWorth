@@ -19,10 +19,11 @@ enum AppError: LocalizedError, Equatable {
     case serverUnavailable
     /// The scan pipeline reported why it failed — a real outage, an unreadable
     /// model response, or an item the AI could not price. The message is
-    /// user-safe copy written by the backend for that specific failure;
-    /// substituting a fixed "temporarily unavailable" string here told users
-    /// the service was down when they had photographed something unpriceable,
-    /// inviting them to retry the identical photo and fail identically.
+    /// specific to that failure: the server's words in English, this build's
+    /// own for the code in any other language (`ServerCopy.text`). One fixed
+    /// "temporarily unavailable" string here told users the service was down
+    /// when they had photographed something unpriceable, inviting them to
+    /// retry the identical photo and fail identically.
     case aiFailed(String)
     /// The server refused this device: its credential, even freshly minted,
     /// or its attestation. See the copy for why that is not transient.
@@ -36,6 +37,11 @@ enum AppError: LocalizedError, Equatable {
     case deviceUnsupported
     case imageEncodingFailed
     case unusablePhoto(String)
+    /// The model read the photo and priced it at zero on purpose: not
+    /// something that resells (`not_resalable`). Not `unusablePhoto`, because
+    /// it is a verdict on this one photo and says nothing about the next —
+    /// see `HaulSession.signature(for:)`.
+    case notResalable(String)
     case purchaseCancelled
     case purchaseFailed(String)
     case persistence
@@ -79,7 +85,8 @@ enum AppError: LocalizedError, Equatable {
         case .serverUnavailable:
             return String(localized: "Our AI is temporarily unavailable. Please try again in a moment.")
         case .aiFailed(let msg):
-            // Backend copy, shown verbatim — the same contract as .unusablePhoto.
+            // The server's words or this build's, chosen by `ServerCopy.text`
+            // in `from` — as for .unusablePhoto.
             return msg
         case .sessionExpired:
             // 401 previously fell through to .unknown -> "Something went wrong",
@@ -119,9 +126,11 @@ enum AppError: LocalizedError, Equatable {
             #endif
         case .imageEncodingFailed:
             return String(localized: "Could not process the photo. Please try a different image.")
-        case .unusablePhoto(let msg):
-            // Backend copy, shown verbatim: it names the fix (a clearer photo,
-            // one item in frame) rather than reporting a fault.
+        case .unusablePhoto(let msg), .notResalable(let msg):
+            // It names the fix (a clearer photo, one item in frame) rather
+            // than reporting a fault. The server's words in English, this
+            // build's for a code it knows in any other language — see
+            // `ServerCopy.text`.
             return msg
         case .purchaseCancelled:
             return nil
@@ -219,8 +228,7 @@ enum AppError: LocalizedError, Equatable {
                 case 429:        return .rateLimit(retryAfter: nil)
                 // 402 is the server saying "this needs payment" — either the
                 // free daily allowance is spent, or a Pro-only endpoint refused
-                // a free caller. Both route to the paywall, and `detail` is
-                // already user-safe copy written by the backend.
+                // a free caller. Both route to the paywall, carrying `text`.
                 //
                 // Told apart by the code. It used to be by the English — did
                 // `detail` contain "pro feature"? — so rewording either
@@ -239,21 +247,28 @@ enum AppError: LocalizedError, Equatable {
                 case 401:        return .sessionExpired
                 // 422 is the server saying it looked at the photo and could not
                 // use it — a safety block, or an image it cannot read. The
-                // detail is user-safe copy written by the backend and tells the
-                // user what to do differently ("try a clear photo of a single
-                // item"). It used to fall through to .unknown, which threw that
-                // away and said "Something went wrong", leaving the user to
-                // retry the identical photo and fail identically.
-                case 422:        return .unusablePhoto(text)
+                // text tells the user what to do differently ("try a clear
+                // photo of a single item"). It used to fall through to
+                // .unknown, which threw that away and said "Something went
+                // wrong", leaving the user to retry the identical photo and
+                // fail identically.
+                //
+                // A not-resalable verdict is a 422 too, and gets its own case:
+                // it is about this photo alone, where a safety block or a
+                // paused device repeats for every photo after it.
+                case 422:        return known == .notResalable
+                                     ? .notResalable(text)
+                                     : .unusablePhoto(text)
                 // 502 carries four distinct, user-safe explanations from the
                 // backend: a genuine outage, an unreadable model response, an
                 // item the AI couldn't price, and a listing-generation outage.
                 // Only the first is "temporarily unavailable" — collapsing all
                 // four into that fixed string told a user with an unpriceable
-                // photo that the service was down. Surface the detail the way
-                // 422 does; the outage detail still reads as an outage because
-                // the backend's own copy says so. Empty detail keeps the fixed
-                // string, and 503 really is the service refusing traffic.
+                // photo that the service was down. Surface the text the way
+                // 422 does; an outage still reads as an outage because its
+                // words — the server's, or this build's for `ai_unavailable` —
+                // say so. Empty detail keeps the fixed string, and 503 really
+                // is the service refusing traffic.
                 //
                 // `detail.isEmpty` never held: `APIErrorDetail.parse` returns
                 // its own fixed fallback — the very words `.unknown` prints —
@@ -414,7 +429,9 @@ enum ServerErrorCode: String, CaseIterable {
     /// more specific than any fixed sentence can be, this is the general one:
     /// `notResalable`'s `detail` opens with the model's reason for declining
     /// the photo, `quotaExhausted`'s counts the scans, and `proRequired`'s
-    /// names the one Pro endpoint that sends it today.
+    /// names the one Pro endpoint that sends it today. Outside English this
+    /// sentence replaces that detail. Losing the model's reason there is an
+    /// open owner decision, listed in `ios/Localization/README.md`.
     var message: String {
         switch self {
         case .updateRequired:

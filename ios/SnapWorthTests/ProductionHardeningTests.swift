@@ -330,6 +330,7 @@ final class PaymentRequiredMappingTests: XCTestCase {
         for error: AppError in [.network, .timeout, .rateLimit(retryAfter: nil), .serverUnavailable,
                                 .sessionExpired, .imageEncodingFailed, .persistence,
                                 .aiFailed("couldn't price it"), .unusablePhoto("too blurry"),
+                                .notResalable("a cooked meal"), .updateRequired,
                                 .unknown("?")] {
             XCTAssertFalse(error.isPaywall, "\(error) must not open the paywall")
         }
@@ -6206,10 +6207,12 @@ final class FallbackStoreSaveTests: XCTestCase {
             .deviceUnsupported,
             .imageEncodingFailed,
             .unusablePhoto("too dark"),
+            .notResalable("a cooked meal"),
             .purchaseCancelled,
             .purchaseFailed("declined"),
             .persistence,
             .storageUnavailable,
+            .updateRequired,
             .unknown("?"),
         ]
         for error in every {
@@ -6226,12 +6229,13 @@ final class FallbackStoreSaveTests: XCTestCase {
             .network, .timeout, .serverUnavailable, .sessionExpired,
             .verificationUnavailable, .deviceUnsupported, .subscriptionUnconfirmed,
             .imageEncodingFailed, .purchaseCancelled, .persistence,
-            .storageUnavailable,
+            .storageUnavailable, .updateRequired,
             .rateLimit(retryAfter: nil), .rateLimit(retryAfter: 90),
             .quotaExceeded("a"), .quotaExceeded("b"),
             .proRequired("a"),
             .aiFailed("a"), .aiFailed("b"),
             .unusablePhoto("a"), .unusablePhoto("b"),
+            .notResalable("a"), .notResalable("b"),
             .purchaseFailed("a"), .unknown("a"),
         ]
         for (i, lhs) in distinct.enumerated() {
@@ -7642,7 +7646,7 @@ final class ErrorContractTests: XCTestCase {
         case "scan-422-unusable-photo.json":
             return (.unusablePhoto(f.detail), .unusablePhoto(ServerErrorCode.photoUnusable.message))
         case "scan-422-not-resalable.json":
-            return (.unusablePhoto(f.detail), .unusablePhoto(ServerErrorCode.notResalable.message))
+            return (.notResalable(f.detail), .notResalable(ServerErrorCode.notResalable.message))
         case "scan-426-update-required.json":
             return (.updateRequired, .updateRequired)
         case "scan-429-rate-limited.json":
