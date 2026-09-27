@@ -440,6 +440,120 @@ after tests pass (`.github/workflows/backend.yml`).
 | Migrations | **None exist.** No relational database; Redis holds durable state (§9) but has no schema to migrate |
 | Feature flags | Env-var based: `SCAN_PROMPT_VERSION`, `COMPS_ENABLED`, `COMPS_SHADOW_MODE`, `ALLOWED_STOREKIT_ENVIRONMENTS`, `SANDBOX_ENTITLEMENTS` |
 
+### Merging
+
+A merge to main is a deploy: `backend.yml` ships every push to main that
+touches `backend/**`, and on 2026-09-27 ten merges redeployed production ten
+times in 80 minutes (#209). So main takes changes through a pull request whose
+checks have passed, and nothing else.
+
+**What is required: two checks on the PR's head commit.**
+
+| Check | Workflow | Why this one |
+|---|---|---|
+| `No secrets in source` | `secrets.yml` | No `paths:`; runs on every PR and every push |
+| `All required checks` | `required.yml` | No `paths:`; passes only when every other check on the head commit passed or was skipped |
+
+`backend.yml`, `ios.yml`, `website.yml` and `eval.yml` are path-filtered, and
+a required check that never starts leaves a PR waiting forever (requiring
+`Build & Test` would block every website-only PR). So none of their jobs is
+required by name; `All required checks` stands in for whichever of them ran.
+It ignores itself, `SwiftLint (report only)`, and anything skipped or neutral
+(`Deploy → Railway` and `Accuracy regression gate` on a PR, `Production does
+what vercel.json says` after a preview deployment). It does not read commit
+statuses, so Vercel's preview status is not a gate. It fails as soon as any
+other check fails, is cancelled, times out or waits for approval, or a
+workflow fails to start, and names it. It passes once `No secrets in source`
+has passed and nothing has been queued or running for 60 s `[DESIGNED]`,
+which is what gives a path-filtered workflow time to register. It gives up
+after 27 min `[DESIGNED]`; `Build & Test` took 5–13 min across 12 runs on
+2026-09-27, not counting any wait for a macOS runner `[MEASURED]`. Its log,
+and its run's summary page, end with a table of every check it saw and the
+verdict on each.
+
+The ruleset that makes the two required is the owner's (#209, step 3):
+ruleset **main** on the default branch, restrict deletions, block force
+pushes, require a pull request with 0 approvals, require both checks (with
+GitHub Actions as their source, so no other app's check of the same name
+counts), no bypass actors. **Until it exists nothing is enforced**, and this
+section is a convention. `gh api repos/hsilviu05/SnapWorth/rulesets` says
+whether it does. "Require branches to be up to date" stays off: with bursts
+of parallel PRs it forces a serial rebase of each one.
+
+**How to merge.**
+
+```bash
+gh pr merge <n> --merge --auto
+```
+
+`--auto` queues the merge and GitHub makes it when the ruleset's required
+checks pass, so nobody has to sit and wait for them. Two things have to be
+true first, both the owner's:
+
+- **Allow auto-merge** is on (Settings → General → Pull Requests). It was
+  off on 2026-09-27, and until it is on `--auto` is refused.
+- The ruleset exists. `--auto` waits for what the ruleset requires and
+  nothing else, so without one there is nothing to wait for.
+
+Until both are true, watch the checks and merge by hand:
+
+```bash
+gh pr checks <n> --watch --fail-fast
+gh pr merge <n> --merge        # only once both checks are green
+```
+
+Claude sessions that merge PRs use `--auto` and never merge around a red or
+pending check. A release bump (`chore: <version>, build <n>`) goes through a
+PR like anything else; some past bumps, e.g. `a84d1d9`, were pushed straight
+to main, which the ruleset refuses.
+
+**A check failed and was re-run green, and `All required checks` is still
+red.** It decides once, so re-run it as well: *Re-run failed jobs* on its run
+in the PR's Checks tab, or
+
+```bash
+gh run list --workflow required.yml --branch <branch> --limit 1   # the run id
+gh run rerun <run-id> --failed
+```
+
+The newest run of each check is the one it counts, so the re-run's pass
+replaces the failure it saw. Do the same when it gave up at 27 min because a
+macOS runner was slow to start. A workflow that failed to start (`no job
+started` in its table) has nothing to re-run: its run in the Actions tab says
+why, usually the workflow file itself, and the fix is a new commit.
+
+A pull request runs its own copy of `required.yml`, so a PR that edits it is
+judged by its edit. Read that diff before merging it.
+
+**In a genuine emergency**, disable the ruleset: production is down and the
+fix cannot wait for the PR's checks (up to ~13 min when the change runs the
+iOS job), or a required check cannot pass for a reason outside the
+repository (GitHub Actions or the gitleaks download is down). Don't delete
+the ruleset: a disabled one keeps its configuration.
+
+1. Settings → Rules → Rulesets → **main** → Enforcement status **Disabled** →
+   Save. Or from a terminal:
+   ```bash
+   gh api repos/hsilviu05/SnapWorth/rulesets --jq '.[] | [.id, .name, .enforcement] | @tsv'
+   gh api -X PUT repos/hsilviu05/SnapWorth/rulesets/<id> -f enforcement=disabled
+   ```
+2. Land the fix, and **say so in its commit message**: that the ruleset was
+   disabled, why, and which checks did not run, so the reason sits in
+   `git log` beside the change it let through.
+3. Re-enable it at once, on the same screen or with `-f enforcement=active`,
+   and confirm with
+   `gh api repos/hsilviu05/SnapWorth/rulesets/<id> --jq '{enforcement, rules: [.rules[].type]}'`
+   that it is `active` and still lists its rules.
+4. The workflows also run on the push to main; read them, and fix what the
+   skipped PR checks would have caught.
+
+Disabling the ruleset does not skip the backend's own deploy gate: on the push
+to main, `Deploy → Railway` still waits for `Test`, `Container builds` and
+`No known-vulnerable dependencies`. With GitHub Actions down nothing reaches
+Railway at all, and the way back is §7's redeploy of a previous build, not a
+merge. A flaky test is not an emergency (re-run it), and neither is a slow
+macOS runner (wait, or re-run).
+
 ### Changing the scan prompt
 
 `SCAN_PROMPT_VERSION` picks the valuation prompt: `v1`, `v2` (the default) or
