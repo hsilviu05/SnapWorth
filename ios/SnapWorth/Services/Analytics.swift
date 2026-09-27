@@ -91,9 +91,24 @@ enum AnalyticsEvent {
     case widgetsInstalled(count: String, kinds: String)
 
     // ── Referrals (#97) ──────────────────────────────────────────────
-    case referralShared
-    case referralRedeemed
-    case referralRewarded
+    //
+    // Taps, named as taps. These were `referral_shared`, `referral_redeemed`
+    // and `referral_rewarded`, and none of them was what it said: the first
+    // fired on the Share button before the sheet opened, the second when the
+    // server accepted a code and before Apple's sheet, the third on the
+    // Redeem button. An offer-code redemption never passes through the app's
+    // purchase flow, so the app cannot see one at all — the server counts
+    // redemptions, rewards and paid periods (RUNBOOK §18). Renamed before
+    // referrals were ever switched on, so no dashboard held the old names.
+
+    /// The Share invite button was tapped; the share sheet opened.
+    case referralShareOpened
+    /// The server accepted a friend's invite code and the app opened Apple's
+    /// redemption page. Not a redemption: the friend can still cancel there.
+    case referralCodeAccepted
+    /// Apple's redemption page was opened for a week the user earned.
+    /// `source` is `alert` (the "You earned a week" alert) or `invite_screen`.
+    case referralRewardOpened(source: String)
 
     // ── Thrift Flip ──────────────────────────────────────────────────
     case thriftFlipCalculated(verdict: String)
@@ -198,9 +213,9 @@ enum AnalyticsEvent {
         case .marketplaceOpened:    return "marketplace_opened"
         case .widgetOpened:         return "widget_opened"
         case .widgetsInstalled:     return "widgets_installed"
-        case .referralShared:       return "referral_shared"
-        case .referralRedeemed:     return "referral_redeemed"
-        case .referralRewarded:     return "referral_rewarded"
+        case .referralShareOpened:  return "referral_share_opened"
+        case .referralCodeAccepted: return "referral_code_accepted"
+        case .referralRewardOpened: return "referral_reward_opened"
         case .thriftFlipCalculated: return "thrift_flip_calculated"
         case .haulCompleted:        return "haul_completed"
         case .haulShared:           return "haul_shared"
@@ -262,7 +277,7 @@ enum AnalyticsEvent {
              let .listingCopied(marketplace), let .listingShared(marketplace),
              let .marketplaceOpened(marketplace):
             return ["marketplace": marketplace]
-        case let .widgetOpened(source):
+        case let .widgetOpened(source), let .referralRewardOpened(source):
             return ["source": source]
         case let .widgetsInstalled(count, kinds):
             return ["count": count, "kinds": kinds]

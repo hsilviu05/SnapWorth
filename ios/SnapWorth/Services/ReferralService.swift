@@ -149,6 +149,21 @@ actor ReferralAPIClient {
 enum ReferralRewardNotice {
     static let key = "referral.announcedRewardCodes"
 
+    /// Said wherever the referrer is offered Apple's redemption page. The
+    /// friend's screen has carried it since #97; the referrer redeems the same
+    /// kind of code — a free week on the yearly plan — and was told nothing.
+    /// Apple's sheet shows the terms, but only after the tap that opens it.
+    static var renewalNote: String {
+        String(localized: "After the free week, the subscription renews unless you cancel.")
+    }
+
+    /// The "You earned a week of Pro" alert's message, renewal note last and on
+    /// its own line.
+    static var alertMessage: String {
+        String(localized: "A friend used your invite. Redeem your free week with Apple.")
+            + "\n\n" + renewalNote
+    }
+
     static func unannounced(_ rewards: [ReferralStatus.Reward],
                             defaults: UserDefaults = .standard) -> [ReferralStatus.Reward] {
         let seen = Set(defaults.stringArray(forKey: key) ?? [])

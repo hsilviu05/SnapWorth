@@ -4722,6 +4722,42 @@
         }
       }
     },
+    "After the free week, the subscription renews unless you cancel." : {
+      "comment" : "Referrals (#97): the renewal terms, shown to the referrer under the weeks they earned and in the 'You earned a week of Pro' alert. The second half of the friend's 'Apple shows the offer…' sentence, translated the same way.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nach der Gratiswoche verlängert sich das Abo, wenn du nicht kündigst."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "After the free week, the subscription renews unless you cancel."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tras la semana gratis, la suscripción se renueva salvo que la canceles."
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "După săptămâna gratuită, abonamentul se reînnoiește dacă nu îl anulezi."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "免费一周结束后，订阅会自动续订，除非你取消。"
+          }
+        }
+      }
+    },
     "All" : {
       "comment" : "Flip filter: every status.",
       "extractionState" : "manual",

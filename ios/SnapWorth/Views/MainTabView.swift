@@ -116,12 +116,12 @@ struct MainTabView: View {
                isPresented: Binding(get: { earnedReward != nil }, set: { if !$0 { earnedReward = nil } }),
                presenting: earnedReward) { reward in
             Button("Redeem") {
-                Analytics.shared.track(.referralRewarded)
+                Analytics.shared.track(.referralRewardOpened(source: "alert"))
                 openURL(reward.redeemURL)
             }
             Button("Later", role: .cancel) {}
         } message: { _ in
-            Text("A friend used your invite. Redeem your free week with Apple.")
+            Text(ReferralRewardNotice.alertMessage)
         }
     }
 
