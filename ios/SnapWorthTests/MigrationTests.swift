@@ -987,13 +987,15 @@ final class PortfolioDigestTests: XCTestCase {
         formatter.calendar = Calendar.current
         formatter.dateFormat = "yyyyMMdd"
 
-        for offset in 0..<NotificationManager.freeScanLadderDays {
-            // The ladder starts at the *next* reminder, which is today or
-            // tomorrow, so a rung can land as far out as ladderDays inclusive.
-            guard let day = Calendar.current.date(byAdding: .day, value: offset + 1, to: now)
+        // The ladder starts at the first reminder after the UTC reset, which
+        // can be up to two local days out (west of UTC, after an evening
+        // scan), so a rung can land as far out as ladderDays + 1 — and the
+        // set keeps a day of margin past that for a clock or zone that moved.
+        for offset in 0...(NotificationManager.freeScanLadderDays + 2) {
+            guard let day = Calendar.current.date(byAdding: .day, value: offset, to: now)
             else { continue }
             XCTAssertTrue(ids.contains("freeScan.daily.\(formatter.string(from: day))"),
-                          "day +\(offset + 1) is schedulable but not cancellable")
+                          "day +\(offset) is schedulable but not cancellable")
         }
     }
 

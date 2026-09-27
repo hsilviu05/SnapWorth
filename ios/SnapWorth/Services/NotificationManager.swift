@@ -140,10 +140,16 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
     /// it is called from `setEnabled`, which SwiftUI calls from a toggle. The
     /// range runs a day wider than the ladder at both ends so a device whose
     /// clock or timezone moved cannot orphan a request.
+    ///
+    /// The ladder can start two local days out, not one: it waits for the UTC
+    /// reset, and west of UTC an evening scan's allowance comes back only the
+    /// evening after next. Its last rung can then sit at +8, which is where
+    /// the far end of this range used to stop — no margin left for the move
+    /// the margin is there for.
     nonisolated static func freeScanIDs(around now: Date,
                                         calendar: Calendar = .current) -> [String] {
         var ids = [freeScanID]
-        for offset in -1...(freeScanLadderDays + 1) {
+        for offset in -1...(freeScanLadderDays + 2) {
             guard let day = calendar.date(byAdding: .day, value: offset, to: now) else { continue }
             ids.append(freeScanLadderID(forDay: day, calendar: calendar))
         }

@@ -2643,6 +2643,26 @@ final class FreeScanReminderUTCTests: XCTestCase {
         XCTAssertEqual(firstRung(lastScan: scan, spentNow: true, now: scan, in: ny), at(ny, 5, 18))
     }
 
+    func test_aLadderThatStartsTwoDaysOutKeepsItsCancelMargin() throws {
+        // The same New York evening: the first rung is two local days out, so
+        // the seventh lands on the 11th, +8. `cancel(.freeScan)` clears by
+        // computed id, and the set promises a day of margin past the ladder for
+        // a clock or zone that moved; it stopped at +8, the last rung itself.
+        let ny = calendar("America/New_York")
+        let scan = at(ny, 3, 21)
+        let first = try XCTUnwrap(firstRung(lastScan: scan, spentNow: true, now: scan, in: ny))
+        let last = try XCTUnwrap(ny.date(byAdding: .day,
+                                         value: NotificationManager.freeScanLadderDays - 1, to: first))
+        XCTAssertEqual(last, at(ny, 11, 18))
+        func id(_ day: Date) -> String {
+            let p = ny.dateComponents([.year, .month, .day], from: day)
+            return String(format: "freeScan.daily.%04d%02d%02d", p.year!, p.month!, p.day!)
+        }
+        let ids = Set(NotificationManager.freeScanIDs(around: scan, calendar: ny))
+        XCTAssertTrue(ids.contains(id(last)), "the last rung cannot be cancelled")
+        XCTAssertTrue(ids.contains(id(at(ny, 12, 18))), "no margin past the last rung")
+    }
+
     func test_newYork_aMorningScanIsBackOnlyAfterTheSixOClockSlot() {
         // 09:00 EDT is 13:00 UTC; the reset is 20:00 EDT, after the 18:00
         // slot, so the first honest reminder is tomorrow at 18:00.
