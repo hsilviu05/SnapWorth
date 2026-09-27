@@ -112,12 +112,22 @@ jobs:
           #
           # "Newest installed" alone is not enough, for two reasons.
           #
-          # Betas. The Xcode 27 image carries prereleases beside the release
-          # (/Applications/Xcode_27.2_beta.app), plus version-alias symlinks
-          # that point at them (Xcode_27.2.app -> the beta), so sorting the
-          # directory names, as this step used to, would pick a beta: an SDK
-          # nobody can submit with, and its bugs reported as ours. Every name is resolved to the app it
-          # really is and anything whose real path says beta is skipped.
+          # Betas. The Xcode 27 image carries a prerelease, 27.2, plus
+          # version-alias symlinks that point at it (Xcode_27.2.app ->
+          # Xcode_27.2_beta.app), so sorting the directory names, as this step
+          # used to, would pick a beta: an SDK nobody can submit with, and its
+          # bugs reported as ours. Every name is resolved to the app it really
+          # is, and a beta is told by `licenseType` in the bundle's
+          # Contents/Resources/LicenseInfo.plist ("GM" on a release) — the
+          # field runner-images itself labels betas by
+          # (Test-XcodeStableRelease). Not by folder name: that image installs
+          # the released 27.1 at Xcode_27.1_beta.app, so a path test skipped a
+          # release, and on an image left with only _beta folders it would
+          # find no Xcode at all. Not by build number either: the released
+          # Xcode 16.2 is 16C5032a. The path test is kept only for a bundle
+          # whose plist cannot be read. On the 2026-09-21 image this selects
+          # 27.1 rather than the default 27.0, which the minor-version
+          # allowance below is for.
           #
           # A silently old image. This step used to pick the newest of what
           # macos-15 had, which was Xcode 26.3, while the App Store archives
@@ -132,7 +142,19 @@ jobs:
           REQUIRED_MAJOR=${REQUIRED%%.*}
           XCODE=$(for app in /Applications/Xcode_*.app; do
                     real=$(realpath "$app" 2>/dev/null) || continue
-                    if [[ "$real" == *[Bb]eta* ]]; then continue; fi
+                    license=$(/usr/libexec/PlistBuddy -c "Print :licenseType" \
+                      "$real/Contents/Resources/LicenseInfo.plist" 2>/dev/null) || license=""
+                    # `[[ ]]`, not `case`: bash 3.2, the image's bash, ends
+                    # the `$(` at a case pattern's `)` — a syntax error.
+                    if [ -n "$license" ]; then
+                      if [[ "$license" == *[Bb][Ee][Tt][Aa]* ]]; then
+                        echo "skipping $app: licenseType $license" >&2
+                        continue
+                      fi
+                    elif [[ "$real" == *[Bb]eta* ]]; then
+                      echo "skipping $app: no readable licenseType, path says beta" >&2
+                      continue
+                    fi
                     version=$(/usr/libexec/PlistBuddy \
                       -c "Print :CFBundleShortVersionString" "$real/Contents/Info.plist" \
                       2>/dev/null) || continue
