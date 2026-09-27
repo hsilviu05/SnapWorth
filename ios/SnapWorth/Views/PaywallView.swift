@@ -10,8 +10,30 @@ struct PaywallView: View {
     @State private var referralsEnabled = false
     @State private var showRedeemInvite = false
     let purchaseService: any PurchaseService
-    /// What surfaced this paywall — attributed to `paywall_viewed`.
-    var trigger: PaywallTrigger = .upgradeButton
+    /// What surfaced this paywall — attributed to `paywall_viewed`,
+    /// `paywall_dismissed` and the three purchase events.
+    let trigger: PaywallTrigger
+    /// What the header and the top of the list lead with, or nil for the
+    /// offer as the headline over the list in its usual order.
+    ///
+    /// The trigger's own pitch (`PaywallCopy.pitch(for:)`) unless the caller
+    /// passes one. A caller does when the trigger's pitch would promise what
+    /// buying there does not deliver — see `ResultView.paywallPitch(for:)`.
+    /// The trigger is still what the events report, so a paywall that leads
+    /// with the offer is counted at the gate it opened from.
+    let pitch: PaywallCopy.Pitch?
+
+    init(purchaseService: any PurchaseService, trigger: PaywallTrigger = .upgradeButton) {
+        self.init(purchaseService: purchaseService, trigger: trigger,
+                  pitch: PaywallCopy.pitch(for: trigger))
+    }
+
+    init(purchaseService: any PurchaseService, trigger: PaywallTrigger,
+         pitch: PaywallCopy.Pitch?) {
+        self.purchaseService = purchaseService
+        self.trigger = trigger
+        self.pitch = pitch
+    }
 
     var body: some View {
         ZStack(alignment: .topTrailing) {
@@ -33,20 +55,37 @@ struct PaywallView: View {
                             .symbolRenderingMode(.hierarchical)
                             .padding(.top, 56)
 
-                        Text(PaywallCopy.headline(isYearly: isYearly, offer: offer))
+                        Text(PaywallCopy.headline(pitch: pitch, isYearly: isYearly, offer: offer))
                             .font(.fraunces(32, weight: .bold, relativeTo: .largeTitle))
                             .foregroundStyle(Color.snapEspresso)
                             .multilineTextAlignment(.center)
                             .snapAnimation(.easeInOut(duration: 0.2), value: isYearly)
                             .accessibilityAddTraits(.isHeader)
 
-                        Text(PaywallCopy.subheadline(isYearly: isYearly,
+                        Text(PaywallCopy.subheadline(pitch: pitch, isYearly: isYearly,
                                                      price: selected.displayPrice,
                                                      offer: offer))
                             .font(.snapCaption)
                             .foregroundStyle(Color.snapWarmGray)
                             .multilineTextAlignment(.center)
                             .snapAnimation(.easeInOut(duration: 0.2), value: isYearly)
+
+                        // The free alternative, said on the paywall that the
+                        // spent allowance opened: when the scan is back, and
+                        // the streak a return keeps going. Read at render, so
+                        // it is never shown to someone with a scan left.
+                        if PaywallCopy.showsFreeScanReturn(for: trigger,
+                                                           remaining: FreeScanCounter.remaining) {
+                            Text(PaywallCopy.freeScanReturn(resetsAt: FreeScanCounter.nextReset(),
+                                                            streak: ScanStreak.current()))
+                                .font(.snapCaption)
+                                .foregroundStyle(Color.snapWarmGray)
+                                .multilineTextAlignment(.center)
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 6)
+                                .background(Color.snapBorder.opacity(0.5))
+                                .clipShape(Capsule())
+                        }
                     }
                     .padding(.bottom, 32)
                     // One header stop: the offer and its price read together.
@@ -107,7 +146,7 @@ struct PaywallView: View {
                     // "Full scan history" used to head the list and is not
                     // gated at all: HistoryView's grid has no `isPro` check.
                     VStack(alignment: .leading, spacing: 14) {
-                        ForEach(PaywallCopy.benefits, id: \.text) { benefit in
+                        ForEach(PaywallCopy.benefits(pitch: pitch), id: \.text) { benefit in
                             BenefitRow(icon: benefit.icon, text: benefit.text)
                         }
                         Text(PaywallCopy.fairUse)
@@ -182,7 +221,7 @@ struct PaywallView: View {
                             title: LocalizedStringKey(PaywallCopy.ctaTitle(isYearly: isYearly, offer: offer)),
                             isLoading: vm.isPurchasing
                         ) {
-                            Task { await vm.purchase(service: purchaseService) }
+                            Task { await vm.purchase(service: purchaseService, trigger: trigger) }
                         }
                         // Never let a tap through before StoreKit has confirmed
                         // the product exists — that path produced the "purchase
@@ -494,6 +533,111 @@ enum PaywallCopy {
         Benefit(icon: "chart.pie.fill", text: String(localized: "Portfolio value history and thrift trends")),
         Benefit(icon: "square.and.arrow.up", text: String(localized: "Unlimited sold flips, and CSV export")),
     ]
+
+    // ── Why it opened ────────────────────────────────────────────────
+
+    /// What a paywall opened from a gate says first: the thing the user
+    /// reached for, as the headline, and its row at the top of the list.
+    ///
+    /// The headline and the list used to be the same for every trigger, so
+    /// someone who tapped "Add the tag" read the trial pitch with the care
+    /// tag fifth in the list, below four things they had not asked about.
+    ///
+    /// The row is named by its icon: unique in the list, and stable where the
+    /// text is not — it is translated, and reworded more often than redrawn.
+    struct Pitch: Equatable {
+        let headline: String
+        let leadIcon: String
+    }
+
+    /// Exhaustive on purpose, so a new trigger cannot ship without someone
+    /// deciding what its paywall leads with.
+    ///
+    /// None of these may say "free": the headline is shown whatever the offer
+    /// is, and the word needs `IntroOffer.isFree` (see the type's comment).
+    /// The offer moves to the line under it — see `subheadline(pitch:…)`.
+    static func pitch(for trigger: PaywallTrigger) -> Pitch? {
+        switch trigger {
+        // Nobody reached for anything: the intro paywall after the first
+        // result, and Settings' own "Upgrade". The offer stays the headline.
+        case .onboarding, .settings:
+            return nil
+        // `.upgradeButton` is the capsule the Scan tab shows only once the
+        // allowance is spent, so it is the scan limit by another door.
+        case .scanLimit, .upgradeButton:
+            return Pitch(headline: String(localized: "Keep scanning today"), leadIcon: "infinity")
+        // Not "in one go": a haul shares the hourly scan limit and can pause
+        // partway (see the Haul row below). It keeps every photo and values
+        // the rest when it may, so the whole haul does get scanned.
+        case .haul:
+            return Pitch(headline: String(localized: "Scan a whole haul"),
+                         leadIcon: "square.stack.3d.up.fill")
+        // True where buying shows the find's breakdown: a fresh result,
+        // re-read once the purchase lands, or a full panel. Not on a free
+        // user's thin find reopened from My Finds or My Flips, which nothing
+        // re-reads; ResultView passes no pitch there
+        // (`ResultView.paywallPitch(for:)`).
+        case .valuationDetail:
+            return Pitch(headline: String(localized: "See why this price"),
+                         leadIcon: "chart.line.uptrend.xyaxis")
+        case .snapSell:
+            return Pitch(headline: String(localized: "Turn finds into listings"), leadIcon: "cart.fill")
+        case .addTag:
+            return Pitch(headline: String(localized: "Read the care tag"), leadIcon: "tag.fill")
+        case .portfolioTrend:
+            return Pitch(headline: String(localized: "See your value over time"),
+                         leadIcon: "chart.pie.fill")
+        case .trends:
+            return Pitch(headline: String(localized: "See what's trending"), leadIcon: "chart.pie.fill")
+        case .ledgerHistory:
+            return Pitch(headline: String(localized: "See every flip"), leadIcon: "square.and.arrow.up")
+        case .ledgerExport:
+            return Pitch(headline: String(localized: "Export your flips"), leadIcon: "square.and.arrow.up")
+        }
+    }
+
+    static func headline(pitch: Pitch?, isYearly: Bool, offer: IntroOffer?) -> String {
+        pitch?.headline ?? headline(isYearly: isYearly, offer: offer)
+    }
+
+    /// Under a pitch, the headline no longer names the free trial, so this
+    /// line must: "Then $39.99/year" would follow nothing, and the trial would
+    /// be stated only by the button. Every other case already spells its
+    /// offer out in full and is unchanged.
+    static func subheadline(pitch: Pitch?, isYearly: Bool, price: String,
+                            offer: IntroOffer?) -> String {
+        guard pitch != nil, price != "—", isYearly, let offer, offer.isFree else {
+            return subheadline(isYearly: isYearly, price: price, offer: offer)
+        }
+        let regular = String(localized: "\(price)/year")
+        return String(localized: "Free for \(duration(offer)), then \(regular). Cancel anytime.")
+    }
+
+    /// The pitch's row first, the rest in their usual order.
+    static func benefits(pitch: Pitch?) -> [Benefit] {
+        guard let icon = pitch?.leadIcon,
+              let lead = benefits.first(where: { $0.icon == icon }) else { return benefits }
+        return [lead] + benefits.filter { $0 != lead }
+    }
+
+    /// Whether the paywall says when the free scan is back.
+    ///
+    /// Only where the spent allowance opened it, and only while it is spent:
+    /// the reset is the free alternative to buying, and on any other paywall,
+    /// or with a scan left, it would answer a question nobody asked.
+    static func showsFreeScanReturn(for trigger: PaywallTrigger, remaining: Int) -> Bool {
+        remaining == 0 && (trigger == .scanLimit || trigger == .upgradeButton)
+    }
+
+    /// "🔥 5-day streak · Next free scan at 8:00 PM" — the streak from two
+    /// days on, as the Scan tab shows it. Stated, not promised: buying does
+    /// not extend a streak, and a scan tonight may fall on a day it already
+    /// counts, so nothing here says what a purchase or a return would do to it.
+    static func freeScanReturn(resetsAt: Date, streak: Int) -> String {
+        let reset = String(localized: "Next free scan at \(FreeScanCounter.resetClockTime(resetsAt))")
+        guard streak >= 2 else { return reset }
+        return [String(localized: "🔥 \(streak)-day streak"), reset].joined(separator: " · ")
+    }
 
     /// What "Unlimited scans" means, said where it is sold. The server caps
     /// each Pro device per hour (`ratelimit.PRO_SCAN_RATE_MAX_REQUESTS`) and

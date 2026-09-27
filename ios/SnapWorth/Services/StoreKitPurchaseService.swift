@@ -57,14 +57,15 @@ final class StoreKitPurchaseService: PurchaseService, ObservableObject {
 
     // MARK: - PurchaseService
 
-    func purchase(productID: String) async throws -> PurchaseOutcome {
+    func purchase(productID: String, trigger: PaywallTrigger) async throws -> PurchaseOutcome {
         let product = try await product(for: productID)
 
         let result: Product.PurchaseResult
         do {
             result = try await product.purchase()
         } catch {
-            Analytics.shared.track(.purchaseFailed(productID: productID, reason: "storekit_error"))
+            Analytics.shared.track(.purchaseFailed(productID: productID, reason: "storekit_error",
+                                                   trigger: trigger))
             throw PurchaseError.failed(error.localizedDescription)
         }
 
@@ -74,17 +75,20 @@ final class StoreKitPurchaseService: PurchaseService, ObservableObject {
             do {
                 transaction = try checkVerified(verification)
             } catch {
-                Analytics.shared.track(.purchaseFailed(productID: productID, reason: "unverified"))
+                Analytics.shared.track(.purchaseFailed(productID: productID, reason: "unverified",
+                                                       trigger: trigger))
                 throw error
             }
             await transaction.finish()
             await refreshSubscriptionStatus()
             // Fires on the confirmed StoreKit transaction — never on the tap.
             Analytics.shared.track(.purchaseCompleted(productID: transaction.productID,
-                                                      isFirst: ScanTally.isFirstRun()))
+                                                      isFirst: ScanTally.isFirstRun(),
+                                                      trigger: trigger))
             return .completed
         case .userCancelled:
-            Analytics.shared.track(.purchaseFailed(productID: productID, reason: "cancelled"))
+            Analytics.shared.track(.purchaseFailed(productID: productID, reason: "cancelled",
+                                                   trigger: trigger))
             throw PurchaseError.cancelled
         case .pending:
             // Deferred (e.g. Ask to Buy / SCA). Not a failure — leave state as-is.
@@ -92,7 +96,8 @@ final class StoreKitPurchaseService: PurchaseService, ObservableObject {
             // its own outcome so the paywall does not dismiss on it.
             return .pending
         @unknown default:
-            Analytics.shared.track(.purchaseFailed(productID: productID, reason: "unknown"))
+            Analytics.shared.track(.purchaseFailed(productID: productID, reason: "unknown",
+                                                   trigger: trigger))
             throw PurchaseError.failed(String(localized: "This purchase could not be completed."))
         }
     }

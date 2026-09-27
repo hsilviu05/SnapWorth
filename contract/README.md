@@ -6,7 +6,7 @@ Responses the server really sends, read by both test suites.
 |---|---|
 | `scan-response.json` | A `/scan` 200 for a Pro user: every v1 field plus the full v2 valuation payload |
 | `scan-response-free.json` | The same scan for a free user — the common case. The Pro-only detail is blanked (`null` or `[]`), never removed, and `free_scans_remaining` is what is left after the day's scan |
-| `errors/scan-402-quota.json` | The free allowance is spent (`quota_exhausted`). Carries `X-Quota-Resets-At`, which the app does not read yet |
+| `errors/scan-402-quota.json` | The free allowance is spent (`quota_exhausted`). Carries `X-Quota-Resets-At`, which the app reads for the spent state's "Next free scan at …" |
 | `errors/listing-402-pro.json` | `/listing` refusing a free caller (`pro_required`) |
 | `errors/scan-422-unusable-photo.json` | A safety block: the server looked at the photo and could not use it (`photo_unusable`) |
 | `errors/scan-422-not-resalable.json` | The model priced the photo at zero on purpose; `detail` carries its reason (`not_resalable`) |
@@ -17,9 +17,10 @@ Responses the server really sends, read by both test suites.
 | `confidence-reason-codes.json` | Every code `confidence_reason_codes` can carry (`confidence.REASON_CODES`) |
 
 An error fixture records the status, the headers the server sends that a
-client may rely on, and the body. Of those headers the app reads only
-`Retry-After` today. Header values are whatever the server sent when the file
-was generated; what is fixed is that they are plain integers.
+client may rely on, and the body. Of those headers the app reads
+`Retry-After` and `X-Quota-Resets-At`. Header values are whatever the server
+sent when the file was generated; what is fixed is that they are plain
+integers.
 
 An error body is `{"detail": …, "code": …}` for every `HTTPException` (the
 routes' own, and the router's 404 and 405), every request that fails
@@ -104,10 +105,10 @@ JSON type of every value on each run.
    `.github/workflows/contract.yml`, which has never existed — the path
    filters are and always were the mechanism.)
 
-The Swift suite decodes the two 200 bodies (`ScanContractTests`), runs every
-error fixture through `ScanAPIError.from` and `AppError.from`
-(`ErrorContractTests`), and checks its `ServerErrorCode` and
-`ConfidenceReason` against the two code lists, so a code the client routes on
-or words cannot change without a Swift test failing. Nothing on the client
-tests the free body against the check that shows the "Why this price" teaser
-yet.
+The Swift suite decodes the two 200 bodies (`ScanContractTests`), reads the
+quota 402's reset header (`QuotaResetTests`), runs every error fixture through
+`ScanAPIError.from` and `AppError.from` (`ErrorContractTests`), and checks its
+`ServerErrorCode` and `ConfidenceReason` against the two code lists, so a code
+the client routes on or words cannot change without a Swift test failing.
+Nothing on the client tests the free body against the check that shows the
+"Why this price" teaser yet.

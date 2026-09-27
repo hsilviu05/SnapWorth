@@ -156,6 +156,14 @@ struct ScanView: View {
                 .padding(.horizontal, 20)
                 .padding(.top, 8)
 
+                // The spent state's way back to tomorrow — see the row.
+                if !purchaseService.isSubscribed && vm.freeScansRemaining == 0 {
+                    FreeScanReturnRow(resetsAt: FreeScanCounter.nextReset(),
+                                      purchaseService: purchaseService)
+                        .padding(.horizontal, 20)
+                        .padding(.top, 6)
+                }
+
                 // Streak: shown from two days on, for every tier. One day is
                 // not a streak, and a "1-day streak" badge reads as a taunt.
                 if vm.streak >= 2 {
@@ -767,6 +775,146 @@ private struct ThriftRunControl: View {
         }
         .snapAnimation(.easeInOut(duration: 0.2), value: startRefused)
         .onAppear { isRunning = ThriftRunController.isRunning }
+    }
+}
+
+// MARK: - The free scan's return
+
+/// What the spent state says besides "Upgrade to Pro": when the free scan is
+/// back, and one tap to be reminded.
+///
+/// A new free user spends the day's one scan, closes the intro paywall, and
+/// used to be left with that capsule alone — no time, no reminder (it is
+/// opt-in and lived only in Settings → Notifications), and the one prompt
+/// that asks for notification permission skipped because the paywall had
+/// just been shown. One scan a day is a bet on day two, and nothing here
+/// asked for it.
+///
+/// Shown only to free users, so the reminder it switches on is never Pro's.
+/// Its own struct for the reason `resultSheet` is extracted: `body` is one
+/// expression near the type-checker's budget.
+private struct FreeScanReturnRow: View {
+    let resetsAt: Date
+    /// With the model context, what the opt-in schedules everything else
+    /// from, so the reminder it reads back is one the daily cap leaves.
+    let purchaseService: any PurchaseService
+
+    @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.modelContext) private var modelContext
+    @State private var reminder: Reminder = .unknown
+
+    enum Reminder: Equatable {
+        /// Not read yet. Nothing is drawn rather than a guess.
+        case unknown
+        /// Off, or on while iOS has never been asked — a tap settles both.
+        case offer
+        case asking
+        /// On and deliverable, with the next fire iOS actually holds.
+        case set(Date?)
+        /// On, and iOS refuses notifications: only Settings can change that,
+        /// and saying "reminder set" would be a promise nothing keeps.
+        case blocked
+    }
+
+    var body: some View {
+        HStack(spacing: 0) {
+            Spacer(minLength: 0)
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: 8) { resetLabel; reminderControl }
+                VStack(alignment: .trailing, spacing: 6) { resetLabel; reminderControl }
+            }
+        }
+        // Re-read on every return to the app: permission and the toggle both
+        // change in Settings, away from this screen. Not mid-tap, where the
+        // system alert itself moves the scene phase.
+        .task(id: scenePhase) {
+            guard scenePhase == .active, reminder != .asking else { return }
+            reminder = await Self.currentState()
+        }
+    }
+
+    private var resetLabel: some View {
+        Text("Next free scan at \(FreeScanCounter.resetClockTime(resetsAt))")
+            .font(.snapCaption)
+            .foregroundStyle(Color.snapOnCharcoal.opacity(0.9))
+            .multilineTextAlignment(.trailing)
+            .fixedSize(horizontal: false, vertical: true)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 5)
+            .background(Color.snapCharcoal.opacity(0.5))
+            .clipShape(Capsule())
+    }
+
+    @ViewBuilder
+    private var reminderControl: some View {
+        switch reminder {
+        case .unknown:
+            EmptyView()
+        case .offer, .asking:
+            Button {
+                Haptics.selection()
+                Task { await remindMe() }
+            } label: {
+                capsule(Label("Remind me", systemImage: "bell"))
+            }
+            .disabled(reminder == .asking)
+            .snapHitTarget()
+            .accessibilityHint("Turns on a reminder for when your free scan is back")
+        case .set(let next):
+            capsule(Label(next.map { String(localized: "Reminder set for \(Self.fireTime($0))") }
+                              ?? String(localized: "Reminder on"),
+                          systemImage: "bell.fill"))
+        case .blocked:
+            Button {
+                if let url = URL(string: UIApplication.openSettingsURLString) {
+                    UIApplication.shared.open(url)
+                }
+            } label: {
+                capsule(Label("Allow notifications in Settings", systemImage: "bell.slash"))
+            }
+            .snapHitTarget()
+            .accessibilityHint("Opens iOS Settings, where notifications are allowed")
+        }
+    }
+
+    private func capsule(_ label: Label<Text, Image>) -> some View {
+        label
+            .font(.snapCaption.bold())
+            .foregroundStyle(Color.snapOnCharcoal.opacity(0.9))
+            .padding(.horizontal, 10)
+            .padding(.vertical, 5)
+            .background(Color.snapCharcoal.opacity(0.5))
+            .clipShape(Capsule())
+    }
+
+    /// "Tue 6:00 PM". The reminder fires at the user's hour on the first day
+    /// the scan is back, which west of UTC can be the day after next — so the
+    /// day is named, where the reset beside it needs only a time.
+    private static func fireTime(_ date: Date) -> String {
+        date.formatted(.dateTime.weekday(.abbreviated).hour().minute())
+    }
+
+    private static func currentState() async -> Reminder {
+        let manager = NotificationManager.shared
+        guard manager.isEnabled(.freeScan) else { return .offer }
+        switch await manager.authorizationStatus() {
+        case .authorized, .provisional, .ephemeral:
+            return .set(await manager.pendingFreeScanReminder())
+        case .denied:
+            return .blocked
+        case .notDetermined:
+            return .offer
+        @unknown default:
+            return .offer
+        }
+    }
+
+    private func remindMe() async {
+        reminder = .asking
+        let manager = NotificationManager.shared
+        let allowed = await manager.optInToFreeScanReminder(source: .scanSpent, context: modelContext,
+                                                            purchaseService: purchaseService)
+        reminder = allowed ? .set(await manager.pendingFreeScanReminder()) : .blocked
     }
 }
 

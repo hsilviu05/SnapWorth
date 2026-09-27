@@ -338,7 +338,8 @@ struct ResultView: View {
                 rereadForFullDetail()
             }
         }) {
-            PaywallView(purchaseService: purchaseService, trigger: paywallTrigger)
+            PaywallView(purchaseService: purchaseService, trigger: paywallTrigger,
+                        pitch: paywallPitch(for: paywallTrigger))
         }
         .subscriptionUnconfirmedAlert(isPresented: $vm.showSubscriptionUnconfirmed,
                                       purchaseService: purchaseService)
@@ -1119,6 +1120,34 @@ struct ResultView: View {
                         detail: result.valuationDetail)
     }
 
+    /// What the paywall opened from this result leads with.
+    ///
+    /// The trigger's pitch, except "See why this price" on a thin find
+    /// reopened from My Finds or My Flips. Nothing re-reads that find, so
+    /// buying brings "Scanned before Pro" and not its breakdown, and its
+    /// teaser has just said so: "Upgrade to Pro", and "This find keeps the
+    /// summary it was saved with" (`lockedDetailTeaser`). A headline that
+    /// takes that back one tap later, on the screen that takes the money, is
+    /// the claim the teaser was reworded to stop making. Its paywall leads
+    /// with the offer instead, over the usual list, whose breakdown row
+    /// describes what Pro does on any new scan.
+    ///
+    /// `.scannedBeforePro` too, because it is what the same find becomes once
+    /// the purchase lands: the sheet is rebuilt while the paywall is still on
+    /// screen, and the headline must not change to the promise on the way out.
+    /// Only the copy changes; the trigger stays `.valuationDetail`, so the
+    /// events still report the gate. Internal, like `fullDetailOffer`, so a
+    /// test can build the sheet the way My Finds does and read the answer.
+    func paywallPitch(for trigger: PaywallTrigger) -> PaywallCopy.Pitch? {
+        guard trigger == .valuationDetail else { return PaywallCopy.pitch(for: trigger) }
+        switch fullDetailOffer {
+        case .none, .reread:
+            return PaywallCopy.pitch(for: trigger)
+        case .teaserNewScansOnly, .scannedBeforePro:
+            return nil
+        }
+    }
+
     /// For a subscriber looking at a fresh result that was saved with only
     /// the free part of the panel. Worded without claiming *why* it is thin,
     /// because the blob cannot say; in practice it is a scan made before Pro.
@@ -1258,7 +1287,8 @@ struct ResultView: View {
     /// from it delivered the label instead. So the button there sells Pro
     /// rather than this find's panel, and the caption says the breakdown comes
     /// with new scans and this find keeps its summary, as the label will say
-    /// once they have bought.
+    /// once they have bought. The paywall it opens keeps to that too
+    /// (`paywallPitch(for:)`).
     private func lockedDetailTeaser(_ detail: ValuationDetail, newScansOnly: Bool) -> some View {
         ZStack {
             VStack(alignment: .leading, spacing: 6) {

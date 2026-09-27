@@ -584,4 +584,69 @@ enum FreeScanCounter {
     static var hasRemaining: Bool { remaining > 0 }
 
     static func increment() { used += 1 }
+
+    // ── When it comes back ───────────────────────────────────────────
+
+    private static let serverResetKey = "snapworth_free_scans_resets_at"
+
+    /// `X-Quota-Resets-At` from the last quota 402, recorded by
+    /// `ScanAPIError.from`. The server sends it on every refusal and nothing
+    /// read it, so the spent state could say "Upgrade to Pro" and nothing
+    /// about when the free scan returns.
+    ///
+    /// Rarely set in practice: the client stops at zero on the server's own
+    /// count, so the request that would be refused is seldom sent. `nextReset`
+    /// works without it.
+    static var serverResetsAt: Date? {
+        get {
+            (UserDefaults.standard.object(forKey: serverResetKey) as? Double)
+                .map(Date.init(timeIntervalSince1970:))
+        }
+        set {
+            guard let newValue else {
+                UserDefaults.standard.removeObject(forKey: serverResetKey)
+                return
+            }
+            UserDefaults.standard.set(newValue.timeIntervalSince1970, forKey: serverResetKey)
+        }
+    }
+
+    /// When the next free scan comes back: the server's word when it has
+    /// given one that is still ahead, otherwise the next UTC midnight — the
+    /// same boundary `isServerToday`, the reminder and the widget use.
+    ///
+    /// The server's figure is rounded to the minute. `quota.py` builds it as
+    /// `int(now) + int(seconds to midnight)`, two truncations that land a
+    /// second early (the contract fixture reads 23:59:59 UTC), and the screen
+    /// shows minutes: unrounded, New York would read "7:59 PM". A figure more
+    /// than a day and an hour out is not a daily reset — a clock that has
+    /// jumped, most likely — and falls back to the calendar.
+    ///
+    /// Pure apart from its defaults, for the tests.
+    static func nextReset(after now: Date = Date(),
+                          serverSaid: Date? = serverResetsAt,
+                          serverCalendar: Calendar = WidgetHaulData.serverCalendar) -> Date {
+        let midnight = serverCalendar.date(byAdding: .day, value: 1,
+                                           to: serverCalendar.startOfDay(for: now))
+            ?? now.addingTimeInterval(86_400)
+        guard let serverSaid else { return midnight }
+        let rounded = Date(timeIntervalSince1970:
+            (serverSaid.timeIntervalSince1970 / 60).rounded() * 60)
+        guard rounded > now, rounded.timeIntervalSince(now) <= 25 * 3600 else { return midnight }
+        return rounded
+    }
+
+    /// The reset as a time of day on the phone's clock — the same UTC
+    /// midnight is "8:00 PM" in New York and "3:00 AM" in Bucharest.
+    ///
+    /// A time with no date is enough: the reset is never more than a day away,
+    /// so "3:00 AM" can only mean the next one. Takes its zone and locale for
+    /// the tests.
+    static func resetClockTime(_ reset: Date, timeZone: TimeZone = .current,
+                               locale: Locale = .current) -> String {
+        var style = Date.FormatStyle(date: .omitted, time: .shortened)
+        style.timeZone = timeZone
+        style.locale = locale
+        return reset.formatted(style)
+    }
 }

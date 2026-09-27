@@ -49,10 +49,15 @@ enum AnalyticsEvent {
     /// give a look-to-buy rate; a purchase closes it through
     /// `purchase_completed` instead and does not emit this.
     case paywallDismissed(trigger: PaywallTrigger)
-    case purchaseStarted(productID: String, isFirst: Bool)
+    /// The three purchase events carry the paywall's `trigger`, as
+    /// `paywall_viewed` and `paywall_dismissed` always have. Without it,
+    /// conversion could be read per entry point only by joining a purchase to
+    /// the view before it, and a user who opened two paywalls made the join a
+    /// guess.
+    case purchaseStarted(productID: String, isFirst: Bool, trigger: PaywallTrigger)
     /// Fires on the confirmed StoreKit transaction — never on a button tap.
-    case purchaseCompleted(productID: String, isFirst: Bool)
-    case purchaseFailed(productID: String, reason: String)
+    case purchaseCompleted(productID: String, isFirst: Bool, trigger: PaywallTrigger)
+    case purchaseFailed(productID: String, reason: String, trigger: PaywallTrigger)
     case restoreCompleted
     /// StoreKit shows a subscription the server would not honour, or the
     /// routine sync that tells the server failed. `reason` is a fixed bucket
@@ -145,6 +150,10 @@ enum AnalyticsEvent {
     // ── Local notifications ──────────────────────────────────────────
     case notificationScheduled(category: String)
     case notificationOpened(category: String)
+    /// The user switched the daily free-scan reminder on, and where. Counts
+    /// the choice, not the outcome: whether iOS then allowed notifications
+    /// shows up as `notification_scheduled{category:freeScan}`.
+    case reminderOptIn(source: ReminderOptInSource)
 
     // ── Ratings ──────────────────────────────────────────────────────
     /// `ReviewPrompt` asked iOS for a rating prompt. Whether iOS showed one is
@@ -227,6 +236,7 @@ enum AnalyticsEvent {
         case .ledgerMonthShared:    return "ledger_month_shared"
         case .notificationScheduled:return "notification_scheduled"
         case .notificationOpened:   return "notification_opened"
+        case .reminderOptIn:        return "reminder_opt_in"
         case .reviewPromptRequested: return "review_prompt_requested"
         case .persistentStoreFallback: return "persistent_store_fallback"
         case .certificatePinMismatch: return "certificate_pin_mismatch"
@@ -256,10 +266,12 @@ enum AnalyticsEvent {
             return ["trigger": trigger.rawValue, "is_first": String(isFirst)]
         case let .ledgerPaywallHit(trigger), let .paywallDismissed(trigger):
             return ["trigger": trigger.rawValue]
-        case let .purchaseStarted(productID, isFirst), let .purchaseCompleted(productID, isFirst):
-            return ["product_id": productID, "is_first": String(isFirst)]
-        case let .purchaseFailed(productID, reason):
-            return ["product_id": productID, "reason": reason]
+        case let .purchaseStarted(productID, isFirst, trigger),
+             let .purchaseCompleted(productID, isFirst, trigger):
+            return ["product_id": productID, "is_first": String(isFirst),
+                    "trigger": trigger.rawValue]
+        case let .purchaseFailed(productID, reason, trigger):
+            return ["product_id": productID, "reason": reason, "trigger": trigger.rawValue]
         case let .entitlementSyncFailed(reason):
             return ["reason": reason]
         case let .shareCardShared(activityType):
@@ -273,6 +285,8 @@ enum AnalyticsEvent {
             return ["style": style]
         case let .notificationScheduled(category), let .notificationOpened(category):
             return ["category": category]
+        case let .reminderOptIn(source):
+            return ["source": source.rawValue]
         case let .listingGenerated(marketplace), let .listingPhotoCleaned(marketplace),
              let .listingCopied(marketplace), let .listingShared(marketplace),
              let .marketplaceOpened(marketplace):
@@ -354,8 +368,19 @@ enum ScanFailureReason: String {
     }
 }
 
+/// Where the daily free-scan reminder was switched on.
+enum ReminderOptInSource: String {
+    /// "Remind me" beside the next free scan's time, on the Scan tab once
+    /// the allowance is spent.
+    case scanSpent = "scan_spent"
+    /// The toggle in Settings → Notifications.
+    case settings
+}
+
 /// Every place a paywall can be shown. Single source so triggers can't drift.
-enum PaywallTrigger: String {
+/// `CaseIterable` so the tests can hold every trigger's paywall copy to the
+/// same rules.
+enum PaywallTrigger: String, CaseIterable {
     case onboarding
     case scanLimit     = "scan_limit"
     case upgradeButton = "upgrade_button"
