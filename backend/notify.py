@@ -2200,7 +2200,10 @@ def _clean_brand(brand: str | None) -> str | None:
 #
 # What a value resolves to — the cap, the daily floor, the environment's say —
 # is the quota's to answer, and `_welcome_setting` asks it. This module used to
-# keep its own copy of each rule, and every copy was wrong once.
+# keep its own copy of each rule. The missing floor is the copy that made
+# screens untrue — the lever's confirmation (fixed in 6cae388) and
+# /experiment's lever line — while the default and the cap still matched,
+# each one quota edit away from not matching.
 
 LEVERS_KEY = "opsstate:levers"
 LEVER_CHANGES_CAP = 40

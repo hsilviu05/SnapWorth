@@ -540,9 +540,10 @@ class TestRuntimeOverride:
 
 class TestDescribeWelcome:
     """`describe_welcome` is what the ops bot reports and checks the lever
-    against, in place of its own copies of these rules — each of which went
-    wrong once. So it has to say what the quota *grants*, not what was asked
-    for, and answer for a value before anyone sets it."""
+    against, in place of its own copies of these rules — one of which, the
+    missing floor, already had it report a welcome the quota did not grant.
+    So it has to say what the quota *grants*, not what was asked for, and
+    answer for a value before anyone sets it."""
 
     def _quota(self, override=None, *, env_first_day=0, limit=1):
         async def lever():

@@ -111,10 +111,13 @@ class WelcomeSetting:
     The ops bot used to work this out for itself: its own default for
     FREE_SCANS_PER_DAY, its own copy of the cap, and not the rule that a
     first-day allowance no larger than the daily one is no welcome at all.
-    Each copy went wrong once, and `/experiment` printed
-    `FREE_SCANS_FIRST_DAY=1` — nothing, at a daily limit of 1 — as though the
-    lever were armed. It now asks the quota that grants the scans, and
-    `allowance` is the only statement of the rule.
+    The missing rule is the copy that went wrong, twice: `/lever arm`
+    confirmed "1 first-day scan" that the quota discarded (fixed in 6cae388),
+    and `/experiment` printed `FREE_SCANS_FIRST_DAY=1` — nothing, at a daily
+    limit of 1 — as though the lever were armed. The default and the cap
+    still matched; each was one quota edit away from not matching. It now
+    asks the quota that grants the scans, and `allowance` is the only
+    statement of the rule.
     """
 
     daily: int
