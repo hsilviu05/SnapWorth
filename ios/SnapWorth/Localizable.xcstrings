@@ -5076,6 +5076,42 @@
         }
       }
     },
+    "Apple shows an active subscription on this Apple ID, but SnapWorth couldn't confirm it just now. Restore your purchase to try again, or contact support if it keeps happening." : {
+      "comment" : "Alert message under \"We couldn't confirm your subscription\". The buttons are \"Restore purchase\" and \"Contact support\".",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apple zeigt ein aktives Abo für diese Apple-ID, aber SnapWorth konnte es gerade nicht bestätigen. Stell den Kauf wieder her, um es erneut zu versuchen, oder kontaktiere den Support, falls es wieder passiert."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apple shows an active subscription on this Apple ID, but SnapWorth couldn't confirm it just now. Restore your purchase to try again, or contact support if it keeps happening."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apple muestra una suscripción activa en este ID de Apple, pero SnapWorth no ha podido confirmarla ahora mismo. Restaura la compra para volver a intentarlo o contacta con soporte si sigue pasando."
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apple arată un abonament activ pe contul Apple ăsta, dar SnapWorth nu l-a putut confirma chiar acum. Restaurează cumpărătura ca să încerci din nou sau contactează asistența dacă se repetă."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apple 显示这个 Apple 账户有有效订阅，但 SnapWorth 暂时无法确认。请恢复购买后重试；如果一直这样，请联系客服。"
+          }
+        }
+      }
+    },
     "Apple shows the offer before you confirm. After the free week, the subscription renews unless you cancel." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -6763,6 +6799,42 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "正在确认你的订阅…"
+          }
+        }
+      }
+    },
+    "Contact support" : {
+      "comment" : "Button. Opens an email to SnapWorth support.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Support kontaktieren"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Contact support"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Contactar con soporte"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Contactează asistența"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "联系客服"
           }
         }
       }
@@ -9574,6 +9646,42 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "仅凭这张照片判断，不是鉴定结论。"
+          }
+        }
+      }
+    },
+    "Full breakdown loaded." : {
+      "comment" : "VoiceOver announcement after the full \"Why this price\" panel arrives.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vollständige Aufschlüsselung geladen."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Full breakdown loaded."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Desglose completo cargado."
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Analiza completă s-a încărcat."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "完整分析已加载。"
           }
         }
       }
@@ -12597,6 +12705,42 @@
         }
       }
     },
+    "On new scans, Pro shows four price points, what drives the value, and how to sharpen the estimate. This find keeps the summary it was saved with." : {
+      "comment" : "Caption in the locked \"Why this price\" teaser, shown to a free user on a find reopened from My Finds or My Flips that was saved with only the free part of the panel. Buying does not re-read such a find, so this says the full panel comes with new scans. The second sentence is the one the \"Scanned before Pro\" note uses after they buy.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bei neuen Scans zeigt Pro vier Preispunkte, was den Wert treibt, und wie du die Schätzung schärfst. Dieser Fund behält die Zusammenfassung, mit der er gespeichert wurde."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "On new scans, Pro shows four price points, what drives the value, and how to sharpen the estimate. This find keeps the summary it was saved with."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "En los escaneos nuevos, Pro muestra cuatro niveles de precio, qué sube el valor y cómo afinar la estimación. Este hallazgo conserva el resumen con el que se guardó."
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La scanările noi, Pro îți arată patru praguri de preț, ce ridică valoarea și cum faci estimarea mai exactă. Găselnița asta păstrează rezumatul cu care a fost salvată."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新扫描时，Pro 会显示四个价格档位、什么在抬高价值，以及怎样让估价更准。这件好物保留的是保存时的摘要。"
+          }
+        }
+      }
+    },
     "One snap.\nA ready listing." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -15413,6 +15557,42 @@
         }
       }
     },
+    "Scanned before Pro" : {
+      "comment" : "Label under \"Why this price\" when a subscriber reopens a find from My Finds or My Flips that was saved with only the free part of the panel. Such a find is not re-read, so this says why the panel is short.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vor Pro gescannt"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Scanned before Pro"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Escaneado antes de Pro"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Scanată înainte de Pro"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "开通 Pro 前扫描"
+          }
+        }
+      }
+    },
     "Scanning needs a real iPhone — device verification (App Attest) isn't available in the Simulator." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -16222,6 +16402,42 @@
         }
       }
     },
+    "Show the full breakdown" : {
+      "comment" : "Button under \"Why this price\": re-reads the find's photo to get the full panel.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vollständige Aufschlüsselung zeigen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Show the full breakdown"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ver el desglose completo"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Arată analiza completă"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "查看完整分析"
+          }
+        }
+      }
+    },
     "Shows a running total of this trip on your Lock Screen" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -16818,6 +17034,42 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "SnapWorth 收获，已扫描 %@，价值 %@。"
+          }
+        }
+      }
+    },
+    "SnapWorth recognizes your subscription now. Please try again." : {
+      "comment" : "Message under \"Subscription confirmed\". The request the server had refused is not re-run automatically, so the user is asked to repeat it.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SnapWorth erkennt dein Abo jetzt an. Versuch es noch einmal."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SnapWorth recognizes your subscription now. Please try again."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SnapWorth ya reconoce tu suscripción. Inténtalo de nuevo."
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SnapWorth îți recunoaște acum abonamentul. Încearcă din nou."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SnapWorth 现在已确认你的订阅。请再试一次。"
           }
         }
       }
@@ -17703,6 +17955,42 @@
         }
       }
     },
+    "Subscription confirmed" : {
+      "comment" : "Alert title after \"Restore purchase\" in the \"We couldn't confirm your subscription\" alert, once the server has accepted the subscription.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Abo bestätigt"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Subscription confirmed"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Suscripción confirmada"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Abonament confirmat"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "订阅已确认"
+          }
+        }
+      }
+    },
     "Suggest a feature" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -18124,6 +18412,42 @@
         }
       }
     },
+    "The full breakdown is only available for new scans. This find keeps the summary it was saved with." : {
+      "comment" : "Under \"Scanned before Pro\": a find reopened from My Finds or My Flips keeps the free part of \"Why this price\"; only a fresh scan offers the full panel.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die vollständige Aufschlüsselung gibt es nur für neue Scans. Dieser Fund behält die Zusammenfassung, mit der er gespeichert wurde."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The full breakdown is only available for new scans. This find keeps the summary it was saved with."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "El desglose completo solo está disponible para escaneos nuevos. Este hallazgo conserva el resumen con el que se guardó."
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Analiza completă e disponibilă doar pentru scanările noi. Găselnița asta păstrează rezumatul cu care a fost salvată."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "完整分析仅适用于新扫描。这件好物保留的是保存时的摘要。"
+          }
+        }
+      }
+    },
     "The original photo is no longer available for this find." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -18331,6 +18655,42 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "这台设备不支持安全验证。"
+          }
+        }
+      }
+    },
+    "This find was saved without its full breakdown. Re-read its photo to see the price points and what drives the value. The estimate, the item's name and details, and the listing draft may change." : {
+      "comment" : "Shown to a subscriber under \"Why this price\" when the find was saved with only the free part of the panel (usually scanned before they subscribed). A re-read replaces the estimate, name, brand, category, condition notes and listing draft, so all of them are named.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dieser Fund wurde ohne die vollständige Aufschlüsselung gespeichert. Lies sein Foto neu, um die Preispunkte zu sehen und was den Wert treibt. Dabei können sich die Schätzung, Name und Details des Artikels und der Inserat-Entwurf ändern."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This find was saved without its full breakdown. Re-read its photo to see the price points and what drives the value. The estimate, the item's name and details, and the listing draft may change."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Este hallazgo se guardó sin el desglose completo. Vuelve a leer su foto para ver los niveles de precio y qué sube el valor. Pueden cambiar la estimación, el nombre y los detalles del artículo, y el borrador del anuncio."
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Găselnița asta a fost salvată fără analiza completă. Recitește-i fotografia ca să vezi pragurile de preț și ce ridică valoarea. Se pot schimba estimarea, numele și detaliile obiectului și ciorna de anunț."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这件好物保存时没有完整分析。重新识别它的照片，就能看到价格档位和什么在抬高价值。估价、物品名称和细节，以及商品描述草稿都可能随之改变。"
           }
         }
       }
@@ -20153,6 +20513,113 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "等待估价"
+          }
+        }
+      }
+    },
+    "We couldn't confirm your subscription" : {
+      "comment" : "Alert title. StoreKit shows an active subscription but the server refused the request even after it was re-sent.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wir konnten dein Abo nicht bestätigen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "We couldn't confirm your subscription"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No pudimos confirmar tu suscripción"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nu ți-am putut confirma abonamentul"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "暂时无法确认你的订阅"
+          }
+        }
+      }
+    },
+    "We couldn't load the full breakdown. Your estimate is unchanged." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wir konnten die vollständige Aufschlüsselung nicht laden. Deine Schätzung bleibt unverändert."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "We couldn't load the full breakdown. Your estimate is unchanged."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No pudimos cargar el desglose completo. Tu estimación no ha cambiado."
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "N-am putut încărca analiza completă. Estimarea a rămas neschimbată."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "没能加载完整分析，估价保持不变。"
+          }
+        }
+      }
+    },
+    "We couldn't verify this device just now. Please try again in a moment." : {
+      "comment" : "Device verification (App Attest) hit an outage — ours or Apple's. Not a reason to reinstall.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wir konnten dieses Gerät gerade nicht überprüfen. Versuch es gleich noch einmal."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "We couldn't verify this device just now. Please try again in a moment."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No pudimos verificar este dispositivo ahora mismo. Inténtalo de nuevo en un momento."
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "N-am putut verifica dispozitivul chiar acum. Încearcă din nou peste puțin timp."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "暂时没能验证这台设备，请稍后再试。"
           }
         }
       }

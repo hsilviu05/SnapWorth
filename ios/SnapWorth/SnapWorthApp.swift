@@ -315,5 +315,8 @@ struct RootView: View {
             }
         }
         .animation(.easeInOut(duration: 0.35), value: hasCompletedOnboarding)
+        // Here rather than on `MainTabView`: this runs under onboarding too, so
+        // a new user's token is ready by their first scan.
+        .task { await AttestationService.prewarm() }
     }
 }

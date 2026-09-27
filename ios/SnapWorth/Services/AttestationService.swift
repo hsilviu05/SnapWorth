@@ -56,9 +56,29 @@ actor AttestationService {
         return try await task.value
     }
 
+    /// Mints the device's token before the first request that needs one.
+    ///
+    /// Nothing asked for a token until the first scan did, so a new user's
+    /// first valuation also paid for the whole App Attest handshake — key
+    /// generation, attestation, and the server's DeviceCheck query on a new
+    /// subject — inside "Analyzing…", and any attestation problem surfaced at
+    /// exactly that moment. The referral check on a return to the foreground
+    /// mints one too, but `onChange(of: scenePhase)` does not fire for the
+    /// first appearance, so a first session never reached it.
+    ///
+    /// Best effort: a failure here is retried, and reported, by the request
+    /// that actually needs the token.
+    static func prewarm() async {
+        guard Config.useAttestation, !Config.mockScans else { return }
+        _ = try? await shared.accessToken()
+    }
+
     /// Exchanges a StoreKit signed transaction for a Pro entitlement server-side.
     /// The server is the authority on subscription state from here on.
-    func submitEntitlement(signedTransaction: String) async throws {
+    /// - Returns: the tier the server recorded — "free" for a transaction it
+    ///   verified and found expired or revoked.
+    @discardableResult
+    func submitEntitlement(signedTransaction: String) async throws -> String {
         let token = try await accessToken()
         var request = URLRequest(url: baseURL.appendingPathComponent("auth/entitlement"))
         request.httpMethod = "POST"
@@ -87,22 +107,22 @@ actor AttestationService {
         // status refresh makes this "self-healing if an earlier attempt failed
         // offline" — true for offline, false for 401, because the retry
         // re-sent the same token. A paying user stayed on the free tier.
-        //
-        // `accessToken()` above stays as it is rather than becoming
-        // `attachBearerToken()`: that helper swallows an attestation failure so
-        // a *scan* can degrade to the unauthenticated path, and there is no
-        // such path for submitting an entitlement.
         let (data, http) = try await request.sendRetryingAuth(on: session)
+        // Kept apart from a rejection so `entitlement_sync_failed` can tell
+        // the operator which of the three it was.
+        if http.statusCode == 429 { throw ScanAPIError.from(http, data: data) }
+        if http.statusCode >= 500 { throw AttestationError.unavailable }
         guard http.statusCode == 200 else {
             throw AttestationError.serverRejected(Self.detail(from: data))
         }
+        let decoded = try JSONDecoder().decode(EntitlementResponse.self, from: data)
         // The server returns a re-issued token carrying the new tier; adopting
         // it immediately avoids a window where the client still looks free.
-        if let decoded = try? JSONDecoder().decode(EntitlementResponse.self, from: data),
-           let refreshed = decoded.accessToken {
+        if let refreshed = decoded.accessToken {
             TokenStore.shared.store(AccessToken(value: refreshed,
                                                 expiresAt: Date().addingTimeInterval(3600)))
         }
+        return decoded.tier
     }
 
     /// Discards local credentials. Used on sign-out or when the server reports
@@ -110,6 +130,7 @@ actor AttestationService {
     func reset() {
         TokenStore.shared.clear()
         UserDefaults.standard.removeObject(forKey: Keys.keyID)
+        EntitlementSyncMemory.forget()
         // The id is derived from the attestation subject, so it describes a
         // device identity this call is discarding. Keeping it would have a
         // support email quote an id the indexes no longer point at.
@@ -207,6 +228,9 @@ actor AttestationService {
         )
         let token = try await post(path: "auth/attest", body: body)
         UserDefaults.standard.set(keyID, forKey: Keys.keyID)
+        // A new key is a new subject, which the server has never been told is
+        // subscribed — whatever these defaults remember from the old one.
+        EntitlementSyncMemory.forget()
         log.info("attestation complete")
         return token
     }
@@ -238,6 +262,11 @@ actor AttestationService {
         request.httpMethod = "POST"
         let (data, response) = try await session.data(for: request)
         guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
+            // A 429 keeps its `Retry-After`, so the user is told how long to
+            // wait instead of to check a connection that is fine.
+            if let http = response as? HTTPURLResponse, http.statusCode == 429 {
+                throw ScanAPIError.from(http, data: data)
+            }
             throw AttestationError.challengeFailed
         }
         return try JSONDecoder().decode(ChallengeResponse.self, from: data).challenge
@@ -257,6 +286,15 @@ actor AttestationService {
         // eviction, key rotation) — the caller regenerates rather than failing.
         if http.statusCode == 401, path.hasSuffix("refresh") {
             throw AttestationError.reattestationRequired
+        }
+        // Neither of these is the server rejecting this device, and both used
+        // to be reported as if it were — "reinstall the app", which cannot
+        // help. A rate limit carries its wait; an outage says so.
+        if http.statusCode == 429 {
+            throw ScanAPIError.from(http, data: data)
+        }
+        if http.statusCode >= 500 {
+            throw AttestationError.unavailable
         }
         guard http.statusCode == 200 else {
             throw AttestationError.serverRejected(Self.detail(from: data))
@@ -379,6 +417,8 @@ enum AttestationError: LocalizedError {
     case unsupportedDevice
     case challengeFailed
     case reattestationRequired
+    /// The token service answered 5xx: an outage, not a verdict on the device.
+    case unavailable
     case serverRejected(String)
 
     var errorDescription: String? {
@@ -389,6 +429,8 @@ enum AttestationError: LocalizedError {
             return String(localized: "Couldn't reach SnapWorth. Check your connection and try again.")
         case .reattestationRequired:
             return String(localized: "Re-verification needed.")
+        case .unavailable:
+            return AppError.verificationUnavailable.errorDescription
         case let .serverRejected(detail):
             return detail
         }

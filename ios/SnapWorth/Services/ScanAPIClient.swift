@@ -290,6 +290,26 @@ struct ValuationDetail: Codable, Equatable {
             && size == nil && era == nil && material == nil
     }
 
+    /// True when this holds only what a free scan is sent: the confidence
+    /// score, its one-line summary and the condition grade.
+    ///
+    /// The server blanks everything else on a free response
+    /// (`_PRO_ONLY_DETAIL_FIELDS` in main.py) and the blob is written once, at
+    /// scan time. So a find scanned before its owner subscribed stays this
+    /// thin forever, and the Pro panel — which shows only the sections that
+    /// have content — rendered a score, a sentence and "good" to someone who
+    /// had just paid to see the rest. On a fresh result the sheet offers a
+    /// re-read; a find reopened from My Finds or My Flips says why its panel
+    /// is thin instead, and is never re-read — see `FullDetailOffer`.
+    var lacksProDetail: Bool {
+        confidenceReasons.isEmpty && quickSale == nil && expected == nil
+            && bestCase == nil && worstCase == nil
+            && valueDrivers.isEmpty && assumptions.isEmpty && uncertaintyFactors.isEmpty
+            && improveEstimate.isEmpty && authenticityAssessment == nil
+            && authenticityReasoning == nil && demand == nil && supply == nil
+            && size == nil && era == nil && material == nil
+    }
+
     /// The price points that exist, floor to ceiling, ready to render.
     ///
     /// `isExpected` rather than a comparison against the label: the view used
@@ -497,9 +517,6 @@ actor ScanAPIClient {
     /// pinning delegate; a locally-built session would silently bypass it.
     private let session: URLSession = .snapWorthAPI
 
-    // Keychain-backed, so it survives reinstall — see `DeviceIdentity`.
-    private var deviceID: String { DeviceIdentity.shared.id }
-
     /// Uploads `image` to the backend and returns the AI analysis.
     /// When `Config.mockScans` is true, returns realistic canned data instantly.
     /// `tagImage` is an optional close-up of the item's label (#88). When
@@ -654,10 +671,7 @@ actor ScanAPIClient {
         let endpoint = Config.baseURL.appendingPathComponent("scan")
         var request = URLRequest(url: endpoint)
         request.httpMethod = "POST"
-        // Retained during rollout: the server falls back to this when
-        // attestation isn't enforced yet.
-        request.setValue(deviceID, forHTTPHeaderField: "x-device-id")
-        await request.attachBearerToken()
+        try await request.requireBearerToken()
 
         let boundary = "Boundary-\(UUID().uuidString)"
         request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")

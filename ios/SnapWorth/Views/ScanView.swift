@@ -497,6 +497,8 @@ struct ScanView: View {
         .sheet(isPresented: $vm.showPaywall, onDismiss: paywallDismissed) {
             PaywallView(purchaseService: purchaseService, trigger: vm.paywallTrigger)
         }
+        .subscriptionUnconfirmedAlert(isPresented: $vm.showSubscriptionUnconfirmed,
+                                      purchaseService: purchaseService)
         .fullScreenCover(isPresented: $showThriftFlip) {
             ThriftFlipView(purchaseService: purchaseService)
         }
@@ -558,18 +560,29 @@ struct ScanView: View {
 
     /// A purchase made from the Haul entry lands in Haul, which is what the
     /// user was trying to open.
+    ///
+    /// Otherwise, a purchase from the scan-limit paywall finishes the scan it
+    /// interrupted, rather than leaving a new subscriber in front of an empty
+    /// viewfinder to shoot the same item again.
     private func paywallDismissed() {
-        if vm.paywallTrigger == .haul && purchaseService.isSubscribed {
-            showHaul = true
+        if vm.paywallTrigger == .haul {
+            if purchaseService.isSubscribed { showHaul = true }
+            return
         }
+        guard let photo = vm.takePhotoForResume(purchaseService: purchaseService),
+              !captureInFlight else { return }
+        captureInFlight = true
+        vm.capturedImage = photo
+        Task { await triggerScan(image: photo, afterPurchase: true) }
     }
 
-    private func triggerScan(image: UIImage) async {
+    private func triggerScan(image: UIImage, afterPurchase: Bool = false) async {
         // Released on every exit, success or failure, so the shutter comes
         // back exactly once per capture.
         defer { captureInFlight = false }
         let repository = ScanRepository(context: modelContext)
-        await vm.startScan(image: image, purchaseService: purchaseService, repository: repository)
+        await vm.startScan(image: image, purchaseService: purchaseService, repository: repository,
+                           afterPurchase: afterPurchase)
         // Release the full-resolution capture the moment it stops being
         // needed. Both the upload (1568px) and the stored copy (1024px) are
         // already encoded by now, and the only view that reads this image is
@@ -583,6 +596,7 @@ struct ScanView: View {
             showResult = true
         }
     }
+
 }
 
 // MARK: - Permission placeholder
@@ -624,6 +638,7 @@ struct CameraPermissionPlaceholder: View {
                                : String(localized: "Opens iOS Settings so you can allow camera access"))
         }
     }
+
 }
 
 // MARK: - Corner accents for viewfinder

@@ -207,9 +207,6 @@ actor ListingAPIClient {
     /// locally-constructed URLSession.
     private let session: URLSession = .snapWorthAPI
 
-    // Same device id as ScanAPIClient so the rate-limit backstop is coherent.
-    private var deviceID: String { DeviceIdentity.shared.id }
-
     /// Generates a listing for `input`, tailored to `marketplace`. Throws on
     /// network/server failure so the caller can offer a retry; the backend
     /// guarantees a validated, non-blank body on success.
@@ -243,8 +240,7 @@ actor ListingAPIClient {
         var request = URLRequest(url: endpoint)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue(deviceID, forHTTPHeaderField: "x-device-id")
-        await request.attachBearerToken()
+        try await request.requireBearerToken()
         request.httpBody = try JSONEncoder().encode(body)
 
         let (data, http) = try await request.sendRetryingAuth(on: session)
@@ -424,14 +420,13 @@ struct Trends: Decodable, Equatable {
     var isEmpty: Bool { categories.isEmpty && brands.isEmpty }
 }
 
-/// Reads `GET /trends`. Same session, same device header, same auth retry as
-/// every other call; the free/Pro shape is decided by the server.
+/// Reads `GET /trends`. Same session and same auth retry as every other call;
+/// the free/Pro shape is decided by the server.
 actor TrendsAPIClient {
     static let shared = TrendsAPIClient()
     private init() {}
 
     private let session: URLSession = .snapWorthAPI
-    private var deviceID: String { DeviceIdentity.shared.id }
 
     /// How long a fetched payload stays good.
     ///
@@ -473,8 +468,7 @@ actor TrendsAPIClient {
 
         var request = URLRequest(url: Config.baseURL.appendingPathComponent("trends"))
         request.httpMethod = "GET"
-        request.setValue(deviceID, forHTTPHeaderField: "x-device-id")
-        await request.attachBearerToken()
+        try await request.requireBearerToken()
 
         let (data, http) = try await request.sendRetryingAuth(on: session)
         guard (200..<300).contains(http.statusCode) else {

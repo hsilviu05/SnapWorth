@@ -115,8 +115,10 @@ final class ScanResult {
     /// without a detail blob — older scans, and any server that sent none.
     var valuationSource: ValuationSource { valuationDetail?.source ?? .model }
 
-    /// Replace this find's valuation with a re-read that had the label photo
-    /// too (#88).
+    /// Replace this find's valuation with a re-read of it: the tag re-read,
+    /// which had the label photo too (#88), or the full-breakdown re-read of
+    /// the stored photo, for a subscriber whose find was saved with the free
+    /// panel only.
     ///
     /// Deliberately partial: the photo, what the user paid, the ledger status
     /// and any condition they chose are theirs and survive. Only what the model

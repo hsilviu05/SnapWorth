@@ -59,21 +59,34 @@ at+qIxUCMG1mihDK1A3UT82NQz60imOlM27jbdoXt2QfyFMm+YhidDkLF1vLUagM
 6BgD56KyKA==
 -----END CERTIFICATE-----"""
 
-# Grace period after expiry during which we still honour a subscription, to
-# absorb Apple's billing-retry window and clock skew. Being briefly generous is
-# far cheaper than wrongly locking out a paying customer.
+# How long after the signed transaction's expiry we still honour it: clock
+# skew, and the gap between Apple renewing a subscription and the client
+# sending us the renewed transaction. Being briefly generous is far cheaper
+# than wrongly locking out a paying customer.
+#
+# It does not cover Apple's Billing Grace Period, which this comment used to
+# claim. That runs for days, not an hour, and during it the transaction's
+# expiry stays in the past while StoreKit's `currentEntitlements` still lists
+# the subscription — so the app shows Pro and this server records `free`. The
+# client no longer turns that into the paywall: a subscriber's 402 re-sends the
+# transaction, and a "free" answer is shown as "We couldn't confirm your
+# subscription" and counted as `entitlement_sync_failed{server_says_free}`.
+# Whether Billing Grace Period is enabled is an App Store Connect setting; if
+# it is, honouring it needs the renewal info's grace expiry (or an App Store
+# Server API lookup), not a longer constant here.
 EXPIRY_GRACE_SECONDS = 3600
 
 ENTITLEMENT_CACHE_TTL = 900          # 15 min — free, and the refund window
 
 # A Pro entitlement has to outlive an ordinary gap between app launches.
 # Only the client can refresh this cache: it POSTs /auth/entitlement from
-# StoreKitPurchaseService.refreshSubscriptionStatus(), which runs at cold
-# launch, purchase, restore and Transaction.updates — there is no foreground
-# hook. iOS keeps apps suspended, so resuming one does not re-run init(), and
-# at 15 minutes a paying subscriber read as `free` and was handed the free
-# quota: one scan a day. Still capped by the subscription's own expiry below,
-# and `Entitlement.is_active` re-checks expiry on every read.
+# StoreKitPurchaseService.refreshSubscriptionStatus(), on purchase, restore
+# and Transaction.updates, and at cold launch and on returning to the
+# foreground — those two at most once every twelve hours for an unchanged
+# transaction (`EntitlementSyncMemory`), which is why this must stay longer
+# than that. At 15 minutes a paying subscriber read as `free` and was handed
+# the free quota: one scan a day. Still capped by the subscription's own
+# expiry below, and `Entitlement.is_active` re-checks expiry on every read.
 PRO_ENTITLEMENT_CACHE_TTL = 86_400   # 24 h
 
 # How long Apple's signed transaction itself is kept, so the server can rebuild

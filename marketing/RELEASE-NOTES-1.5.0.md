@@ -67,10 +67,47 @@ The iMessage app icon comes from the binary; there is nothing to upload.
 - [ ] `hi-wave`, `worth-it-flip`, `yay-bounce` and `snooze` loop.
 - [ ] VoiceOver reads each sticker's label ("Tag waving hello", …).
 
+### Subscriptions (TestFlight build against production)
+
+TestFlight buys in the **Sandbox**, and production honours only Production
+transactions (`ALLOWED_STOREKIT_ENVIRONMENTS=Production`,
+`backend/entitlements.py`). A TestFlight purchase therefore never unlocks Pro
+on the server. That is by design, and it is not a bug in this build. What it
+looks like depends on whether the build carries the subscription
+re-confirmation (`PurchaseService.confirmingSubscription`):
+
+- [ ] With it: on a **fresh scan's** result, buy from "Unlock why this
+      price" and expect **"We couldn't confirm your subscription"** as soon
+      as the paywall closes, with the panel still thin. The alert's Restore
+      brings the same alert back. A scan past the free allowance, bought
+      through, ends in the same alert.
+- [ ] With it, on a find reopened from **My Finds or My Flips** that was
+      scanned free: the teaser's button reads **"Upgrade to Pro"**, not
+      "Unlock why this price", and the line under it says Pro shows the
+      price points on new scans and this find keeps its summary. Buying
+      through it starts no re-read and shows no alert. The panel keeps its
+      free part, with **"Scanned before Pro"** under it and no "Show the
+      full breakdown" button. That is the rule, not the Sandbox: the
+      full-breakdown re-read replaces the estimate, name and listing draft,
+      so it runs on a fresh result only, as the tag re-read always has.
+- [ ] Without it: the purchase stays free. The paywall comes back on the
+      next refused scan, and the panel stays thin.
+
+**App Review also buys in the Sandbox**, so this is what the reviewer sees
+too. See the first pre-submit item.
+
 ---
 
 ## Pre-submit checklist
 
+- [ ] **Decide how a reviewer's Sandbox purchase is treated** (owner
+      decision, open). Production refuses Sandbox transactions, so App
+      Review's purchase does not unlock Pro. There are two options. Production
+      can honour Sandbox in a bounded way: a short TTL, no revenue or
+      notification attribution, possibly only for the two product IDs. That
+      is the only option under which the reviewer's purchase works. Or the
+      client can skip the alert when the active transaction's `environment`
+      is `.sandbox`, which hides the symptom and leaves the purchase free.
 - [ ] **Archive from `main` after the merge of `feature/imessage-stickers`**,
       which carries the 1.5.0 bump. `MARKETING_VERSION = 1.5.0` and
       `CURRENT_PROJECT_VERSION = 20` in **all twelve** slots of

@@ -26,6 +26,21 @@ final class ScanViewModel {
     /// `paywall_viewed` is attributed correctly (scan wall vs. upgrade tap).
     var paywallTrigger: PaywallTrigger = .scanLimit
 
+    /// StoreKit shows a subscription and the server refused this scan even
+    /// after it was re-sent. Shown instead of the paywall — see
+    /// `PurchaseService.confirmingSubscription`.
+    var showSubscriptionUnconfirmed = false
+
+    /// The photo a scan-limit paywall interrupted, so a purchase can finish
+    /// the scan the user started — see `takePhotoForResume`.
+    ///
+    /// Nothing kept it: the paywall opened, the capture was released, and a
+    /// new subscriber's first Pro moment was an empty viewfinder and a second
+    /// shot of the same item. Held downscaled to the upload size, which is all
+    /// a scan uses, rather than as a full-resolution capture for as long as
+    /// the paywall is up.
+    @ObservationIgnored private var photoAwaitingPurchase: UIImage?
+
     // ── Free scan tracking ────────────────────────────────────────────
     // Backed by the shared `FreeScanCounter` (below) so the daily cap is enforced
     // consistently across the camera scan and Thrift Flip. Public API unchanged.
@@ -43,12 +58,19 @@ final class ScanViewModel {
     var streak: Int { ScanStreak.current() }
 
     // ── Scan trigger ─────────────────────────────────────────────────
-    func startScan(image: UIImage, purchaseService: any PurchaseService, repository: ScanRepository) async {
+    /// - Parameter afterPurchase: the scan a purchase has just unblocked.
+    ///   The purchase tells the server in a detached task, so this one waits
+    ///   for the server to have heard first — otherwise the new subscriber's
+    ///   first scan could be read as a free one, off the free allowance and
+    ///   without the Pro detail.
+    func startScan(image: UIImage, purchaseService: any PurchaseService, repository: ScanRepository,
+                   afterPurchase: Bool = false) async {
         guard !isAnalyzing else { return }
         guard purchaseService.isSubscribed || hasFreeScanRemaining else {
             Analytics.shared.track(.freeScanLimitHit)
             paywallTrigger = .scanLimit
             showPaywall = true
+            await holdForPurchase(image)
             return
         }
 
@@ -60,9 +82,19 @@ final class ScanViewModel {
         errorMessage = nil
         saveFailed = false
         defer { isAnalyzing = false }
+        // The request and the save, if the phone locks mid-scan.
+        let background = BackgroundScanActivity.begin("Scan")
+        defer { background.end() }
+        if afterPurchase {
+            // Its outcome is not needed here: a server that still refuses
+            // answers 402, which `confirmingSubscription` below handles.
+            _ = await purchaseService.resyncEntitlement()
+        }
 
         do {
-            let response = try await ScanAPIClient.shared.scan(image: image)
+            let response = try await purchaseService.confirmingSubscription {
+                try await ScanAPIClient.shared.scan(image: image)
+            }
 
             // Downscaled and encoded off the main actor — see
             // ScanAPIClient.encodeForStorage. Doing this inline on the
@@ -175,19 +207,28 @@ final class ScanViewModel {
                 // this path, the one where the two demonstrably disagree, did
                 // not write anything at all. So the counter went on
                 // advertising a scan the server had already refused: the top
-                // bar said "1 left", the next tap spent a paid model call to
-                // arrive at the same paywall, and `hasFreeScanRemaining` let
-                // Thrift Flip through on the same false premise.
+                // bar said "1 left", the next tap uploaded the photo only to
+                // arrive at the same paywall (the server refuses in
+                // `reserve_quota`, before any model call), and
+                // `hasFreeScanRemaining` let Thrift Flip through on the same
+                // false premise. Thrift Flip's own 402 does the same.
                 FreeScanCounter.serverRemaining = 0
                 Analytics.shared.track(.freeScanLimitHit)
                 paywallTrigger = .scanLimit
                 showPaywall = true
+                await holdForPurchase(image)
                 return
             }
 
             Haptics.failure()
-            errorMessage = appError.errorDescription
             Analytics.shared.track(.scanFailed(reason: ScanFailureReason(appError), isFirst: isFirst))
+            // A subscriber the server would not recognise gets a state of its
+            // own, with Restore and support — never the plan they pay for.
+            if appError == .subscriptionUnconfirmed {
+                showSubscriptionUnconfirmed = true
+                return
+            }
+            errorMessage = appError.errorDescription
         }
     }
 
@@ -202,7 +243,31 @@ final class ScanViewModel {
         selectedPhotoItem = nil
     }
 
+    /// Keeps the interrupted photo for `takePhotoForResume`. Downscaled off
+    /// the main actor, after the paywall has been asked for, so the sheet is
+    /// not held up by it.
+    private func holdForPurchase(_ image: UIImage) async {
+        let photo = await Task.detached(priority: .utility) {
+            ScanAPIClient.downscale(image, maxEdge: ScanAPIClient.maxUploadEdge)
+        }.value
+        // Closed already: nothing is waiting for it, and a later paywall must
+        // not resume a scan nobody asked for.
+        guard showPaywall else { return }
+        photoAwaitingPurchase = photo
+    }
+
+    /// The photo the scan-limit paywall interrupted, if the paywall has just
+    /// closed on a subscriber; otherwise nil. Either way the photo is let go:
+    /// a plain dismiss means the user chose not to buy, and the viewfinder is
+    /// where they expect to be.
+    func takePhotoForResume(purchaseService: any PurchaseService) -> UIImage? {
+        defer { photoAwaitingPurchase = nil }
+        guard purchaseService.isSubscribed else { return nil }
+        return photoAwaitingPurchase
+    }
+
     func reset() {
+        photoAwaitingPurchase = nil
         capturedImage = nil
         scanResult = nil
         errorMessage = nil
@@ -251,6 +316,20 @@ enum ScanTally {
     /// True until the first scan has been recorded.
     static func isFirstScan(defaults: UserDefaults = .standard) -> Bool {
         completedCount(defaults: defaults) == 0
+    }
+
+    /// True through the user's first valuation: before it, and while it is
+    /// still the only one.
+    ///
+    /// For events that can only fire *after* `record()`. The paywall a new
+    /// user actually sees opens once their first result is in — the intro
+    /// paywall when the result sheet closes, or the scan-limit one after the
+    /// allowance is spent — and `isFirstScan()` is false by then, so
+    /// `paywall_viewed{is_first}` was false for almost every first-run
+    /// paywall and a Day-0 funnel lost its bottom half. `scan_result_shown`
+    /// already read `<= 1` for the same reason.
+    static func isFirstRun(defaults: UserDefaults = .standard) -> Bool {
+        completedCount(defaults: defaults) <= 1
     }
 
     /// Record a scan that produced a result. Returns the milestone this scan
@@ -327,6 +406,46 @@ enum ScanStreak {
     private static func isYesterday(_ date: Date, relativeTo now: Date, calendar: Calendar) -> Bool {
         guard let yesterday = calendar.date(byAdding: .day, value: -1, to: now) else { return false }
         return calendar.isDate(date, inSameDayAs: yesterday)
+    }
+}
+
+// ── Finishing a scan the phone locked on ──────────────────────────────────────
+
+/// Asks iOS for time to finish a scan when the app leaves the foreground
+/// mid-request.
+///
+/// Nothing did, and every scan runs on the default session: lock the phone
+/// during "Analyzing…" and the process is suspended with the upload or the
+/// response in flight. The server charges a scan unless it sees the client
+/// disconnect first, so a free user could come back to "No internet
+/// connection" after the day's only scan had been spent — and a retry is a
+/// 402. A background task keeps the request and the save running for the
+/// few seconds they need; it does nothing at all while the app stays in
+/// front.
+///
+/// Begun before the request, ended in a `defer`, and ended by the expiration
+/// handler if iOS runs out of patience first. `end()` is idempotent, so the
+/// two cannot both end it.
+@MainActor
+final class BackgroundScanActivity {
+    private var identifier: UIBackgroundTaskIdentifier = .invalid
+
+    private init() {}
+
+    static func begin(_ name: String) -> BackgroundScanActivity {
+        let activity = BackgroundScanActivity()
+        activity.identifier = UIApplication.shared.beginBackgroundTask(withName: name) {
+            activity.end()
+        }
+        return activity
+    }
+
+    var isActive: Bool { identifier != .invalid }
+
+    func end() {
+        guard identifier != .invalid else { return }
+        UIApplication.shared.endBackgroundTask(identifier)
+        identifier = .invalid
     }
 }
 

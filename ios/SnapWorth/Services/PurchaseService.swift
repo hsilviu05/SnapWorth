@@ -135,6 +135,30 @@ protocol PurchaseService: AnyObject {
     /// chrome. The server still enforces (402), so this was stale UI rather
     /// than a leak, but it is the paywall the user never saw.
     func refreshEntitlements() async
+
+    /// Re-reads StoreKit and, if it still shows a subscription, sends it to
+    /// the server and waits for the server's answer.
+    ///
+    /// The routine sync is detached and fire-and-forget — right for a
+    /// purchase, which must not wait on it, and wrong for the one moment the
+    /// answer matters: a subscriber whose request has just been refused 402.
+    func resyncEntitlement() async -> EntitlementResync
+}
+
+/// What re-sending the subscription to the server established.
+enum EntitlementResync: Equatable {
+    /// The server now records this subscriber as Pro.
+    case confirmed
+    /// StoreKit shows no active subscription either, so a 402 was right.
+    case notSubscribed
+    /// StoreKit shows a subscription and the server could not be brought to
+    /// honour it. `reason` is a fixed analytics bucket, never an error string.
+    case failed(reason: String)
+    /// The server could not be asked: offline, timed out, rate-limited, or
+    /// down. That says nothing about the subscription, so a screen that asked
+    /// on its own initiative shows `error` rather than "we couldn't confirm
+    /// your subscription". `reason` is the same bucket `failed` carries.
+    case unreachable(reason: String, error: AppError)
 }
 
 extension PurchaseService {
@@ -148,6 +172,51 @@ extension PurchaseService {
     var pricingFailed: Bool { false }
     func reloadProducts() async {}
     func refreshEntitlements() async {}
+
+    /// Stubs have no server to tell, so a subscribed one cannot confirm.
+    func resyncEntitlement() async -> EntitlementResync {
+        isSubscribed ? .failed(reason: "unsupported") : .notSubscribed
+    }
+
+    /// Runs a request the server may refuse with 402, and does not take that
+    /// refusal at face value from someone StoreKit calls a subscriber.
+    ///
+    /// Every 402 used to open the paywall without asking. The server's idea of
+    /// the tier comes from a sync that is fire-and-forget and logs its
+    /// failures where nobody reads them, so a failed attestation, a sync lost
+    /// offline or a purchase-then-tap race put "Subscribe Yearly" in front of
+    /// a paying user — where a tap could start a crossgrade — and the operator
+    /// saw none of it.
+    ///
+    /// Now a subscriber's 402 re-sends the subscription and retries once.
+    /// StoreKit no longer showing one means the paywall was right, and the
+    /// original error goes through to it. Anything else — a sync that fails, or
+    /// a server that still refuses after it — is `subscriptionUnconfirmed`,
+    /// which the screens show as its own state with Restore and support rather
+    /// than as a price, and which is counted.
+    func confirmingSubscription<T>(_ request: () async throws -> T) async throws -> T {
+        do {
+            return try await request()
+        } catch {
+            guard isSubscribed, AppError.from(error).isPaywall else { throw error }
+            switch await resyncEntitlement() {
+            case .notSubscribed:
+                throw error
+            // Unreachable too: the 402 has just shown the network works, and
+            // whatever stopped the re-send, the paywall is still wrong.
+            case .failed(let reason), .unreachable(let reason, _):
+                Analytics.shared.track(.entitlementSyncFailed(reason: reason))
+                throw AppError.subscriptionUnconfirmed
+            case .confirmed:
+                do {
+                    return try await request()
+                } catch let retryError where AppError.from(retryError).isPaywall {
+                    Analytics.shared.track(.entitlementSyncFailed(reason: "still_refused"))
+                    throw AppError.subscriptionUnconfirmed
+                }
+            }
+        }
+    }
 }
 
 enum PurchaseError: LocalizedError {
