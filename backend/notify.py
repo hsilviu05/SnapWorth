@@ -4814,6 +4814,28 @@ def _redis_line(info: dict, now: float) -> str:
     return line + "".join(f"\n⚠️ {w}" for w in warnings)
 
 
+async def _budget_line() -> str:
+    """Whether a day's Gemini spend can page the operator at all.
+
+    `GEMINI_DAILY_BUDGET_USD` defaults to 0, which switches the alert off, and
+    it was never set — while RUNBOOK §3 listed "Over budget" among the alerts
+    that reach you. Pro is sold as unlimited scans, capped only per hour
+    (`ratelimit.PRO_SCAN_RATE_MAX_REQUESTS`), so this alert is the one thing
+    that would notice a heavy day. Its absence is said where the rest of the
+    unsafe configuration is.
+    """
+    budget = GEMINI_DAILY_BUDGET_USD
+    if budget <= 0:
+        return ("Spend alert: OFF ⚠️ — GEMINI_DAILY_BUDGET_USD is not set, so no "
+                "day's Gemini spend reaches you. Set it on Railway (RUNBOOK §12)")
+    try:
+        today = await _spend([_day()])
+    except Exception as exc:
+        return (f"Spend alert: above {_usd(budget)}/day · today's spend unreadable "
+                f"({html.escape(type(exc).__name__)})")
+    return f"Spend alert: above {_usd(budget)}/day · today ≈ {_usd(today)}"
+
+
 async def _checkup_text() -> str:
     lines = ["🩺 <b>Checkup</b>"]
 
@@ -4854,6 +4876,7 @@ async def _checkup_text() -> str:
         except Exception as exc:
             lines.append(f"Gemini: FAILED — {html.escape(_probe_reason(exc))} · a probe, "
                          "not counted against provider health")
+    lines.append(await _budget_line())
 
     # What the process itself knows.
     info: dict = {}

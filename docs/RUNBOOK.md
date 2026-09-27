@@ -61,8 +61,9 @@ actually arrives:
 
 Unprompted alerts arrive the same way: a new subscription, a deploy ping per
 commit, the AI provider or Redis going down and coming back, a quiet-hours
-note when nothing has scanned during US daytime, a budget warning (off unless
-`GEMINI_DAILY_BUDGET_USD` is set), and a device-paused alert after repeated
+note when nothing has scanned during US daytime, a budget warning (off until
+`GEMINI_DAILY_BUDGET_USD` is set — production must set it, §12, and
+`🩺 Checkup` says so while it is not), and a device-paused alert after repeated
 unanalysable photos. One alert comes from outside the backend, because the bot
 cannot report its own container being gone: the Uptime workflow probes
 `/health/ready` every 10 minutes (§3).
@@ -108,7 +109,7 @@ failed every free scan with a 503 and the next digest read like a quiet day.
 | **Redis unreachable** / recovered | `notify.cache_state_changed`, fed by `ResilientCache`'s own down/up transitions | cache calls have failed for 60 s straight (`CACHE_ALERT_SETTLE_SECONDS`); the all-clear after 60 s of success | Telegram, at most once per 30 min | §5.4 |
 | **AI provider degraded** / recovered | `notify.model_unhealthy`, from `main._ModelHealth` | `MODEL_UNHEALTHY_AFTER` (2) consecutive terminal model failures; a quota stop on the first | Telegram, at most once per 30 min | §5.3 |
 | **Quiet** | `notify._quiet_check`, every 15 min | no successful scan for 6 h during 13:00–03:59 UTC | Telegram, once per window | `🩺 Checkup` |
-| **Over budget** | `notify._note_usage` | day's Gemini spend passes `GEMINI_DAILY_BUDGET_USD` — **off by default (0)** | Telegram, once per day | `/costs` |
+| **Over budget** | `notify._note_usage` | day's Gemini spend passes `GEMINI_DAILY_BUDGET_USD` — **off by default (0), and must be set in production (§12)**; `🩺 Checkup` reads *Spend alert: OFF ⚠️* until it is | Telegram, once per day | `/costs` |
 | **Device paused** | `notify._announce_safety_pause` | repeated blocked photos from one device | Telegram, once per device per day | none needed |
 
 **Why two layers.** The Telegram alerts run *inside* the backend, so they
@@ -692,6 +693,27 @@ Optimisation effort belongs in what the model is asked to reason about, not in
 container efficiency. Margins stay healthy either way; the ranking of what to
 work on does not.
 
+### A Pro subscriber used hard
+
+The table above is an average, and averages hide the one case where a user
+costs more than they pay. Pro is sold as unlimited scans; what a day of it can
+cost, at the same ~$0.0059 a scan and assuming Apple's 15% commission (30%
+lowers both break-evens):
+
+| Plan | Net per day | Scans a day it pays for |
+|---|---|---|
+| Yearly, $39.99 | ~$0.093 | ~16 |
+| Monthly, $4.99 | ~$0.139 | ~24 |
+
+A reseller scanning 40 items a day costs ~$0.24 against ~$0.09 — a loss, not
+an outage. Drafts add to it: a listing is a text-only call and now runs
+without thinking (below), so it should cost well under a scan — unmeasured.
+The per-hour fair-use cap (§5.8, 60
+scans) bounds a burst, not a day: a full hour costs ~$0.35. What watches a
+heavy *day* is the over-budget alert, which is why `GEMINI_DAILY_BUDGET_USD`
+is on the launch checklist (§12). None of this is measured per subscriber;
+`/costs` has no per-subscriber view.
+
 ### Optimisations, ranked by value
 
 1. **Result caching by image hash** `[NOT IMPLEMENTED]` — users re-scan the same
@@ -757,6 +779,12 @@ work on does not.
       404-not-401 design below is hiding. Also publishes the
       `/apple/notifications` trust model and every request body's constraints.
 - [ ] `AUDIT_SALT` set to a real value
+- [ ] `GEMINI_DAILY_BUDGET_USD` set — **unset, the over-budget alert is off**
+      (0 disables it), and it is the only thing that notices a heavy day: Pro
+      is sold as unlimited scans and capped only per hour (§5.8, §10). Size it
+      at a few times a normal day's spend on `/costs`; crossing it sends one
+      💸 message and changes nothing else. `🩺 Checkup` reads *Spend alert:
+      OFF ⚠️* until it is set
 - [x] ~~`TRUSTED_PROXY=true`~~ — **no longer read.** `_client_ip` now always takes the
       rightmost `X-Forwarded-For` hop, so the per-IP limit no longer depends on this
       variable being remembered. The old note here was also wrong about the failure:
