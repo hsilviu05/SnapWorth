@@ -428,7 +428,8 @@ rotation needs no flag day:
 5. CI does **not** block a committed key — it finds one after the push, when
    the repository is public and the key is already published.
    `.github/workflows/secrets.yml` scans the tree and every commit in history
-   with gitleaks; only GitHub push protection (Settings → Code security)
+   with gitleaks, on every push to any branch and every pull request; only
+   GitHub push protection (Settings → Code security)
    refuses the push itself. A key that reached a commit is compromised
    whether or not a later commit deleted it: rotate it, then excuse the old
    hit by fingerprint in `.gitleaksignore`
