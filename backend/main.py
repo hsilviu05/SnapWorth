@@ -1510,7 +1510,12 @@ its brand, category and estimated price range, and whether it was made on the
 free or Pro plan. These are kept for 35 days after the day of the scan. The
 operator can see them, and uses the week's highest-value scans, through
 Google's Gemini API, to draft ideas for SnapWorth's social-media posts &mdash;
-so a post may mention an item someone scanned, never who scanned it.</p>
+so a post may mention an item someone scanned, never who scanned it. Beside
+each category, brand and highest-value scan we also keep a short tag for each
+device that scanned it: a keyed hash of your device's attestation key, which is
+neither the device identifier itself nor the hash described under Telegram. It
+is kept as long as the entry, and used only to count how many different devices
+stand behind an entry before the app shows it to anyone.</p>
 <p>In the app, everyone can see this week's most-scanned categories and brands,
 each shown only once at least five scans back it. Pro subscribers also see the
 week's highest-value finds, shown as brand, category and estimated price range

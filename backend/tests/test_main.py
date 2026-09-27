@@ -285,6 +285,23 @@ class TestLegalEndpoints:
         assert ("uses the week's highest-value scans, through Google's Gemini "
                 "API, to draft ideas for SnapWorth's social-media posts") in body
 
+    def test_privacy_discloses_the_device_tag_beside_each_tally(self):
+        """/trends counts devices, not scans, so every category, brand and
+        find in a day's tallies carries a tag per device for as long as the
+        day does. "Without your device identifier" stayed literally true and
+        told the reader nothing about it; the tag is disclosed on its own."""
+        import auditlog
+        import notify
+        body = _prose(client.get("/privacy").text)
+        assert ("Beside each category, brand and highest-value scan we also keep "
+                "a short tag for each device that scanned it") in body
+        assert ("neither the device identifier itself nor the hash described "
+                "under Telegram") in body
+        # What the sentence says the tag is, and is not.
+        tag = notify._trend_device("key-id")
+        assert tag == auditlog.keyed_tag("trends", "key-id")
+        assert tag not in auditlog.pseudonymise("key-id")
+
     def test_privacy_does_not_call_a_subscribers_device_id_unlinked(self):
         """The device id is stored with the signed purchase record, whose
         originalTransactionId follows the Apple ID; PrivacyInfo.xcprivacy
