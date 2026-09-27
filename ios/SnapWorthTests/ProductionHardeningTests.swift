@@ -530,19 +530,22 @@ final class PrivacyPolicyDisclosureTests: XCTestCase {
 // `prompts.py` and deployed to production with zero client-decode
 // verification. A renamed field would have been caught by neither suite.
 //
-// `contract/scan-response.json` is now the single fixture both sides read.
+// Both sides now read the 200 bodies in `contract/`: `scan-response.json`
+// (Pro) and `scan-response-free.json` (free), each generated from real server
+// output by `backend/tests/test_contract.py`.
 
 final class ScanContractTests: XCTestCase {
 
     /// The repo-root fixture, located from this file rather than from a
     /// bundle: the test target has no resources phase, and adding one to
     /// carry a single JSON file would be more machinery than the file.
-    static func contractData() throws -> Data {
+    static func contractData(_ name: String = "scan-response.json") throws -> Data {
         let url = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()   // SnapWorthTests
             .deletingLastPathComponent()   // ios
             .deletingLastPathComponent()   // repo root
-            .appendingPathComponent("contract/scan-response.json")
+            .appendingPathComponent("contract")
+            .appendingPathComponent(name)
         return try Data(contentsOf: url)
     }
 
@@ -569,12 +572,16 @@ final class ScanContractTests: XCTestCase {
     }
 
     func test_freeScansRemainingDecodesAsOptional() throws {
-        // Nil when the server omits it (Pro, or the quota store is down) —
-        // see I-3. The fixture carries a value, so this checks the present
-        // case; the absent case is covered below by `base`.
-        let decoded = try JSONDecoder().decode(
+        // Nil when the server sends null (Pro, or the quota store is down) —
+        // see I-3. Both fixtures are real server output now: the free body
+        // carries what is left after the day's scan, the Pro body null. The
+        // absent case is covered below by `base`.
+        let free = try JSONDecoder().decode(
+            ScanAPIResponse.self, from: Self.contractData("scan-response-free.json"))
+        XCTAssertEqual(free.freeScansRemaining, 0)
+        let pro = try JSONDecoder().decode(
             ScanAPIResponse.self, from: Self.contractData())
-        XCTAssertEqual(decoded.freeScansRemaining, 2)
+        XCTAssertNil(pro.freeScansRemaining)
     }
 }
 
@@ -1942,6 +1949,12 @@ final class PaywallBenefitsTests: XCTestCase {
                        "Thrift Flip is not gated — ThriftFlipView has no isPro check")
         XCTAssertTrue(texts.contains { $0.localizedCaseInsensitiveContains("tag") })
         XCTAssertTrue(texts.contains { $0.localizedCaseInsensitiveContains("export") })
+        // The portfolio total is on every user's History tab; only its history
+        // is gated. A row selling "portfolio value" sells something free.
+        let portfolio = texts.filter { $0.localizedCaseInsensitiveContains("portfolio") }
+        XCTAssertEqual(portfolio.count, 1)
+        XCTAssertTrue(portfolio.allSatisfy { $0.localizedCaseInsensitiveContains("value history") },
+                      "the portfolio total is free — PortfolioBanner shows it without an isPro check")
     }
 
     func test_rowsAreDistinctAndNonEmpty() {

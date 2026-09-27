@@ -2439,12 +2439,13 @@
       "de": "Halt die Kamera auf irgendeinen Second-Hand-Fund und sieh in Sekunden, was er im Wiederverkauf bringt – bevor du kaufst.",
       "zh-Hans": "把相机对准任何二手好物，几秒就知道它转手能卖多少——在你掏钱之前。"
     },
-    "Portfolio value, trend and thrift trends": {
-      "en": "Portfolio value, trend and thrift trends",
-      "ro": "Valoarea colecției, evoluția ei și trendurile",
-      "es": "Valor de tu colección, su evolución y las tendencias",
-      "de": "Wert deiner Sammlung, ihre Entwicklung und die Trends",
-      "zh-Hans": "收藏总值、走势，以及二手市场的风向"
+    "Portfolio value history and thrift trends": {
+      "comment": "Paywall benefit. The portfolio total is free for everyone; only its history (the trend behind 'Unlock value history') and the thrift trends are Pro.",
+      "en": "Portfolio value history and thrift trends",
+      "ro": "Istoricul valorii colecției și trendurile",
+      "es": "Historial del valor de tu colección y las tendencias",
+      "de": "Wertverlauf deiner Sammlung und die Trends",
+      "zh-Hans": "收藏的价值走势，以及二手市场的风向"
     },
     "Price points": {
       "en": "Price points",

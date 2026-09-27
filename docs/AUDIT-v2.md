@@ -978,7 +978,7 @@ flowchart TB
 | **Feature flags** | None | Redis-backed flag map, read per request, 60s local cache | Needed for the pinning kill switch (C-6) and prompt A/B |
 | **Versioning** | Unversioned paths | `/v1/scan`. Keep unversioned as a permanent alias | You already carry a compat field (`sold_listings_count`) because you can't version. That's the cost |
 | **Autoscaling** | Railway default | Scale on p95 latency, not CPU — you're IO-bound on Gemini | CPU stays flat while requests queue |
-| **DR** | None documented | Redis is a cache, not a system of record. Document that a full Redis loss = quota reset + entitlement re-sync (clients self-heal via `refreshSubscriptionStatus`). That's an acceptable RPO — write it down | — |
+| **DR** | None documented | Redis is a cache, not a system of record. Document that a full Redis loss = quota reset + entitlement re-sync (clients self-heal via `refreshSubscriptionStatus`). That's an acceptable RPO — write it down. **Superseded 2026-09-26:** Redis now holds state with no other copy (refund tombstones, the lever, referral codes, TikTok tokens, attest keys); RUNBOOK §9 lists each family and what losing it costs | — |
 | **Zero-downtime deploy** | `railway up --detach` | Add a `/health`-gated rolling deploy | Your `/health` already reports dependency posture. Use it |
 | **DI** | Module-level `auth.deps` singleton | Acceptable for this size. If it grows, move to a FastAPI `Depends`-provided container | Current approach is testable enough — your tests already swap `deps` |
 
@@ -1061,7 +1061,7 @@ Note `SCAN.source` — the field that makes honest labelling possible.
 | **SEC-M3** | `TOKEN_KEYS` absent → ephemeral random signing key, service still starts | `tokens.py:165-171` | Fail startup in production. `AuthConfig.enforce` has the right pattern (`auth.py:81-85`) — apply it here |
 | **SEC-M4** | Device ID header is client-supplied and used as a rate-limit key | `main.py:517`, `ratelimit.py:34` | **Fixed 2026-09-09.** The remedy in this row was wrong in both directions: unset, `_client_ip` returned the *client-supplied* hop (uvicorn runs `--forwarded-allow-ips='*'`), so IP limiting was spoofable per request rather than collapsed into one bucket. `_client_ip` now always takes the rightmost `X-Forwarded-For` hop and `TRUSTED_PROXY` is gone. See AUDIT-2026-09-07 B-14 |
 | **SEC-M5** | No `Strict-Transport-Security` header | `main.py:117-124` | Add `max-age=63072000; includeSubDomains; preload` |
-| **SEC-M6** | Attestation state TTL is 400 days in Redis | `auth.py:44` | Fine, but document that Redis eviction under memory pressure forces mass re-attestation. Use a separate Redis DB or `noeviction` for auth keys |
+| **SEC-M6** | Attestation state TTL is 400 days in Redis | `auth.py:44` | Fine, but document that Redis eviction under memory pressure forces mass re-attestation. Use a separate Redis DB or `noeviction` for auth keys. **Partly addressed 2026-09-26:** the attest write and refresh read are `required` (503, not a silent loss or a 401), `/health/ready` probes with a write so a full Redis reads unhealthy, and `🩺 Checkup` reports the policy, headroom and evictions. Setting `noeviction` and `maxmemory` on Railway is still open and unverified — RUNBOOK §11 |
 | **SEC-M7** | Error `detail` decoded as `[String: String]` | `ScanAPIClient.swift:130`, `AttestationService.swift:189` | FastAPI 422 returns `detail` as an array; decode fails → user sees "Unknown error" |
 
 ### Low
@@ -1385,7 +1385,7 @@ Note `valuation.source` and `comp_count` — the fields that let the UI make a t
 - [ ] HSTS header
 - [ ] Cert pinning decision executed
 - [ ] Onboarding funnel instrumented
-- [ ] Alerting on: p95 `/scan` latency, Gemini error rate, cache degraded, 402 rate, 429 rate
+- [ ] Alerting on: p95 `/scan` latency, Gemini error rate, cache degraded, 402 rate, 429 rate — *2026-09-26: Gemini errors, cache degraded and API-not-ready now alert (RUNBOOK §3); latency, 402 and 429 need a collector and do not*
 
 ---
 

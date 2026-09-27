@@ -1162,8 +1162,9 @@ a:focus-visible, button:focus-visible, summary:focus-visible, label:focus-within
      it under a generic "AI resale estimate" pitch.
    * The fee rates on this page are the ones the app actually uses
      (MarketplaceFees.swift): Poshmark 20% — or a flat $2.95 under $15 —
-     Mercari 10%, Depop 3.3% + $0.45, eBay 13.25% + $0.40, and Vinted /
-     Facebook Marketplace / OLX take no seller fee. A calculator that
+     Mercari 10%, Depop 3.3% + $0.45, eBay 13.25% + $0.40; Vinted /
+     Facebook Marketplace / OLX / Kleinanzeigen take no seller fee, and
+     Xianyu none on an ordinary personal sale. A calculator that
      disagreed with the product would be worse than no calculator.
    ══════════════════════════════════════════════════════════════════════════ */
 
@@ -1858,9 +1859,9 @@ details[open] .faq-x::after { transform: rotate(90deg); }
                   </div>
                   <div class="app-card">
                     <div class="app-card-label">Sell it on</div>
-                    <!-- Three, not all seven: .pf-chip is flex:1 in a 184px row, so a
+                    <!-- Three, not all nine: .pf-chip is flex:1 in a 184px row, so a
                          fourth label squeezes every pill to min-content and the text
-                         touches the border. The strip below the hero names all seven. -->
+                         touches the border. The strip below the hero names all nine. -->
                     <div class="pf-chips">
                       <span class="pf-chip is-on">Poshmark</span>
                       <span class="pf-chip">Mercari</span>
@@ -1940,7 +1941,7 @@ details[open] .faq-x::after { transform: rotate(90deg); }
       <div class="hd-strip">
         <span class="hd-strip-label">Listing drafts written for</span>
         <div class="hd-strip-list">
-          <span>Poshmark</span><span>Mercari</span><span>Depop</span><span>eBay</span><span>Vinted</span><span>Facebook Marketplace</span><span>OLX</span>
+          <span>Poshmark</span><span>Mercari</span><span>Depop</span><span>eBay</span><span>Vinted</span><span>Facebook Marketplace</span><span>OLX</span><span>Kleinanzeigen</span><span><span lang="zh-Hans">闲鱼</span> (Xianyu)</span>
         </div>
       </div>
     </div>
@@ -2011,8 +2012,9 @@ details[open] .faq-x::after { transform: rotate(90deg); }
        A live calculator, not a screenshot of one. Fee rates are the ones the
        app actually uses (MarketplaceFees.swift): Poshmark 20% (a flat $2.95
        under $15), Mercari 10%, Depop 3.3% + $0.45, eBay 13.25% + $0.40;
-       Vinted, Facebook Marketplace and OLX take no seller fee. A calculator on
-       the marketing site that disagreed with the product would be worse than
+       Vinted, Facebook Marketplace, OLX and Kleinanzeigen take no seller fee,
+       and Xianyu none on an ordinary personal sale. A calculator on the
+       marketing site that disagreed with the product would be worse than
        none.
 
        Rendered with real default values in the HTML, so with JavaScript off it
@@ -2043,6 +2045,8 @@ details[open] .faq-x::after { transform: rotate(90deg); }
               <button type="button" class="tf-chip" data-mp="vinted" aria-pressed="false">Vinted</button>
               <button type="button" class="tf-chip" data-mp="facebook" aria-pressed="false">Facebook Marketplace</button>
               <button type="button" class="tf-chip" data-mp="olx" aria-pressed="false">OLX</button>
+              <button type="button" class="tf-chip" data-mp="kleinanzeigen" aria-pressed="false">Kleinanzeigen</button>
+              <button type="button" class="tf-chip" data-mp="xianyu" aria-pressed="false"><span lang="zh-Hans">闲鱼</span> (Xianyu)</button>
             </div>
           </div>
           <div class="tf-inputs">
@@ -2097,13 +2101,16 @@ details[open] .faq-x::after { transform: rotate(90deg); }
             <!-- h3, not h4: the nearest heading above this is the section's
                  `.tf-h2`, so an h4 skips a level and leaves a gap in the
                  document outline a screen reader reads out. -->
-            <h3>Scanning and the resale estimate are free.</h3>
-            <p>The Thrift Flip profit verdict is part of the paid subscription &mdash; one free scan a day either way.</p>
+            <!-- Thrift Flip has been free in full since 1.4.3 (#128): the app
+                 stopped gating what this calculator gives away. Its Pro gate
+                 is the ledger a saved flip lands in, listed under Pricing. -->
+            <h3>Scanning, the estimate and Thrift Flip are free.</h3>
+            <p>The verdict, the profit and the fee breakdown are free for everyone &mdash; one free scan a day, and Pro removes the limit.</p>
           </div>
           <a href="#pricing" class="tf-foot-cta">See pricing</a>
         </div>
         <div class="tf-foot-note">
-          Poshmark takes <strong>20%</strong>, or a flat <strong>$2.95</strong> on sales under $15. Mercari takes <strong>10%</strong>, Depop <strong>3.3% + $0.45</strong> and eBay <strong>13.25% + $0.40</strong>. Vinted, Facebook Marketplace and OLX take no seller fee, so the only costs are the shop price and shipping. Rates are approximate and reviewed against each marketplace&rsquo;s published schedule.
+          Poshmark takes <strong>20%</strong>, or a flat <strong>$2.95</strong> on sales under $15. Mercari takes <strong>10%</strong>, Depop <strong>3.3% + $0.45</strong> and eBay <strong>13.25% + $0.40</strong>. Vinted, Facebook Marketplace, OLX and Kleinanzeigen take no seller fee, and <span lang="zh-Hans">闲鱼</span> (Xianyu) takes none on an ordinary personal sale, so the only costs are the shop price and shipping. Rates are approximate and reviewed against each marketplace&rsquo;s published schedule.
         </div>
       </div>
     </div>
@@ -2178,7 +2185,7 @@ details[open] .faq-x::after { transform: rotate(90deg); }
         <div class="feature">
           <div class="feature-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m13.2 5.8 5 5L8 21H3v-5z"/><path d="m16 3 5 5"/><path d="m8.5 15.5 5-5"/></svg></div>
           <h3>AI listing writer</h3>
-          <p>Tap once on any scan and Pro writes a compelling, SEO-optimized title and description in the voice of the marketplace you pick &mdash; Poshmark, Mercari, Depop, eBay, Vinted, Facebook Marketplace or OLX.</p>
+          <p>Tap once on any scan and Pro writes a compelling, SEO-optimized title and description in the voice of the marketplace you pick &mdash; Poshmark, Mercari, Depop, eBay, Vinted, Facebook Marketplace, OLX, Kleinanzeigen or <span lang="zh-Hans">闲鱼</span> (Xianyu).</p>
         </div>
         <div class="feature">
           <div class="feature-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8h16v11.2c0 .7-.6 1.3-1.3 1.3H5.3c-.7 0-1.3-.6-1.3-1.3z"/><path d="M3 4.5h18V8H3z"/><path d="M9.8 12h4.4"/></svg></div>
@@ -2203,6 +2210,11 @@ details[open] .faq-x::after { transform: rotate(90deg); }
         <h2 class="section-title">Start free.<br>Upgrade when you're ready.</h2>
         <p class="section-sub">One free scan a day with no card required. Pro unlocks unlimited.</p>
       </div>
+      <!-- The Pro lists are the app's real gates (the `PaywallTrigger` cases
+           in Analytics.swift), not a wish list: Thrift Flip went free in 1.4.3,
+           and the portfolio total was always free (the FAQ below says so) —
+           only its history is Pro. When a gate moves, change this list in the
+           same change as the paywall and the App Store listings. -->
       <div class="pricing-grid">
 
         <div class="plan">
@@ -2213,6 +2225,7 @@ details[open] .faq-x::after { transform: rotate(90deg); }
           <ul class="plan-features">
             <li>1 free scan a day</li>
             <li>Full value estimates</li>
+            <li>Thrift Flip profit verdict</li>
             <li>Your whole scan history</li>
           </ul>
           <a href="https://apps.apple.com/us/app/snapworth-resale-scanner/id6788521307" class="plan-cta plan-cta-outline">Download Free</a>
@@ -2226,10 +2239,11 @@ details[open] .faq-x::after { transform: rotate(90deg); }
           <div class="plan-divider"></div>
           <ul class="plan-features">
             <li>Unlimited scans</li>
-            <li>Thrift Flip profit verdict</li>
             <li>AI listing generator</li>
             <li>Why it&rsquo;s worth that &mdash; four price points</li>
-            <li>Portfolio value and thrift trends</li>
+            <li>Read the care tag for a sharper estimate</li>
+            <li>Portfolio value history and thrift trends</li>
+            <li>Unlimited profit ledger and CSV export</li>
             <li>3-day free trial</li>
           </ul>
           <a href="https://apps.apple.com/us/app/snapworth-resale-scanner/id6788521307" class="plan-cta plan-cta-main">Start Free Trial</a>
@@ -2242,10 +2256,11 @@ details[open] .faq-x::after { transform: rotate(90deg); }
           <div class="plan-divider"></div>
           <ul class="plan-features">
             <li>Unlimited scans</li>
-            <li>Thrift Flip profit verdict</li>
             <li>AI listing generator</li>
             <li>Why it&rsquo;s worth that &mdash; four price points</li>
-            <li>Portfolio value and thrift trends</li>
+            <li>Read the care tag for a sharper estimate</li>
+            <li>Portfolio value history and thrift trends</li>
+            <li>Unlimited profit ledger and CSV export</li>
           </ul>
           <a href="https://apps.apple.com/us/app/snapworth-resale-scanner/id6788521307" class="plan-cta plan-cta-outline">Subscribe Monthly</a>
         </div>
@@ -2280,7 +2295,7 @@ details[open] .faq-x::after { transform: rotate(90deg); }
           </details>
           <details>
             <summary>Which marketplaces does it cover?<span class="faq-x" aria-hidden="true"></span></summary>
-            <p>Listing drafts are written for Poshmark, Mercari, Depop, eBay, Vinted, Facebook Marketplace and OLX &mdash; seven, each in that marketplace&rsquo;s own voice. Thrift Flip runs the profit math with each one&rsquo;s real seller fees &mdash; the same rates the app uses, so the number you see here is the number you&rsquo;d see there.</p>
+            <p>Listing drafts are written for Poshmark, Mercari, Depop, eBay, Vinted, Facebook Marketplace, OLX, Kleinanzeigen and <span lang="zh-Hans">闲鱼</span> (Xianyu) &mdash; nine, each in that marketplace&rsquo;s own voice. Thrift Flip runs the profit math with each one&rsquo;s real seller fees &mdash; the same rates the app uses, so the number you see here is the number you&rsquo;d see there.</p>
           </details>
           <details>
             <summary>Where does my scan history live?<span class="faq-x" aria-hidden="true"></span></summary>
@@ -2299,7 +2314,7 @@ details[open] .faq-x::after { transform: rotate(90deg); }
     {"@type":"Question","name":"How accurate are the estimates?","acceptedAnswer":{"@type":"Answer","text":"Each scan returns a price range and a confidence level, drawn from the AI's broad knowledge of what things typically resell for — not live marketplace comps, and not an appraisal. Clear photos of tags and logos get the best results."}},
     {"@type":"Question","name":"Is it really free?","acceptedAnswer":{"@type":"Answer","text":"Yes — one free scan a day, forever, with no account and no card. Pro removes the daily limit and adds the AI listing writer: $4.99 a month, or $39.99 a year with a 3-day free trial."}},
     {"@type":"Question","name":"What can I scan?","acceptedAnswer":{"@type":"Answer","text":"Anything secondhand: clothing, shoes, bags, kitchenware, electronics, furniture and collectibles."}},
-    {"@type":"Question","name":"Which marketplaces does it cover?","acceptedAnswer":{"@type":"Answer","text":"Listing drafts are written for Poshmark, Mercari, Depop, eBay, Vinted, Facebook Marketplace and OLX, each in that marketplace's own voice, and Thrift Flip runs the profit math with each one's real seller fees."}},
+    {"@type":"Question","name":"Which marketplaces does it cover?","acceptedAnswer":{"@type":"Answer","text":"Listing drafts are written for Poshmark, Mercari, Depop, eBay, Vinted, Facebook Marketplace, OLX, Kleinanzeigen and 闲鱼 (Xianyu), each in that marketplace's own voice, and Thrift Flip runs the profit math with each one's real seller fees."}},
     {"@type":"Question","name":"Where does my scan history live?","acceptedAnswer":{"@type":"Answer","text":"On your device. Your finds are saved locally — searchable, sortable by value, with a running portfolio total."}},
     {"@type":"Question","name":"Is there an Android version?","acceptedAnswer":{"@type":"Answer","text":"SnapWorth is iPhone-only today."}}
   ]}
@@ -2655,9 +2670,14 @@ details[open] .faq-x::after { transform: rotate(90deg); }
  *   Mercari  10%
  *   Depop    3.3% + $0.45
  *   eBay     13.25% + $0.40
- *   Vinted / Facebook Marketplace / OLX — no seller fee
+ *   Vinted / Facebook Marketplace / OLX / Kleinanzeigen — no seller fee
+ *   Xianyu   no seller fee on an ordinary personal sale. The app's table
+ *            leaves out the service fee Xianyu charges accounts past a
+ *            volume threshold (no rate could be sourced), so its note says
+ *            which sale it is right about rather than using NO_FEE.
  * If those change in the app, change them here too. A marketing calculator
- * that disagrees with the product is worse than no calculator.
+ * that disagrees with the product is worse than no calculator, so CI holds
+ * this table to the app's (website/seo/check_fees.py).
  *
  * `note` is per-marketplace rather than assembled from pct/fixed, because the
  * one rule that isn't a percentage — Poshmark's flat charge on cheap sales —
@@ -2687,7 +2707,8 @@ details[open] .faq-x::after { transform: rotate(90deg); }
                 note: "Facebook Marketplace" + NO_FEE },
     olx:      { pct: 0, fixed: 0, name: "OLX",      note: "OLX" + NO_FEE },
     xianyu:   { pct: 0, fixed: 0, name: "\u95f2\u9c7c (Xianyu)",
-                note: "\u95f2\u9c7c (Xianyu)" + NO_FEE },
+                note: "\u95f2\u9c7c (Xianyu) takes no seller fee on an ordinary " +
+                      "personal sale, so the only cost is what you paid and shipping." },
     kleinanzeigen: { pct: 0, fixed: 0, name: "Kleinanzeigen",
                 note: "Kleinanzeigen" + NO_FEE }
   };
@@ -2710,9 +2731,10 @@ details[open] .faq-x::after { transform: rotate(90deg); }
   var mp = "poshmark";
 
   /* Accepts "$18", "18 usd", "18", and — the reason this is not a one-liner —
-     "12,50". Last separator wins, except that a lone comma with exactly three
-     digits after it is a thousands separator: "12,50" is twelve fifty and
-     "$1,250" is one thousand two hundred and fifty.
+     "12,50". With both separators present the last one is the decimal. With
+     only one kind, exactly three digits after the last one make it a
+     thousands separator, whichever mark it is: "12,50" and "12.50" are twelve
+     fifty, "$1,250" and "1.250" are one thousand two hundred and fifty.
 
      This used to be `replace(/[^0-9.]/g, "")`, which deleted the comma and
      read "12,50" as 1250 — so a visitor in France, Germany, Romania or Brazil
@@ -2720,8 +2742,15 @@ details[open] .faq-x::after { transform: rotate(90deg); }
      worth flipping, on a calculator this page says is the app's. The app has
      parsed it correctly since MoneyInput shipped.
 
+     Then the three-digit test was applied to the comma only, and a lone point
+     was always a decimal: "1.250", how a German visitor writes the price, was
+     1.25. The app had the same asymmetry and fixed it in da0b242; this copy
+     and /guess kept it until the check below existed.
+
      Third copy of this rule: ios MarketplaceFees.MoneyInput and
-     website/seo/build_guess.py's parse() are the others. They must agree.
+     website/seo/build_guess.py's parse() are the others. They must agree, and
+     website/seo/check_money_parsers.py runs the app's MoneyInput test cases
+     through both web copies in CI.
 
      Negative and non-finite input still reads as 0 rather than throwing —
      render() assumes a number, so an empty Shipping field must not be null. */
@@ -2729,10 +2758,10 @@ details[open] .faq-x::after { transform: rotate(90deg); }
     var kept = String(v).replace(/[^0-9.,]/g, "");
     if (!/[0-9]/.test(kept)) return 0;
     var lastComma = kept.lastIndexOf(","), lastDot = kept.lastIndexOf(".");
+    var last = Math.max(lastComma, lastDot);
     var cut = -1;
-    if (lastComma >= 0 && lastDot >= 0) cut = Math.max(lastComma, lastDot);
-    else if (lastDot >= 0) cut = lastDot;
-    else if (lastComma >= 0) cut = (kept.length - lastComma - 1) === 3 ? -1 : lastComma;
+    if (lastComma >= 0 && lastDot >= 0) cut = last;
+    else if (last >= 0) cut = (kept.length - last - 1) === 3 ? -1 : last;
     var out = "";
     for (var i = 0; i < kept.length; i++) {
       var c = kept.charAt(i);
