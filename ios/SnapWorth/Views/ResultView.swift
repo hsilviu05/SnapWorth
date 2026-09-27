@@ -29,6 +29,11 @@ struct ResultView: View {
     /// fresh result only (`addTagCard`, `FullDetailOffer`). The tag re-read
     /// was gated on `coverPrice`, and would have gone from fresh results the
     /// day the cover did, for the same reason as the funnel.
+    ///
+    /// A rare find's full result is fresh too, and offers both. It does not
+    /// send `scan_result_shown`, though: its reveal has already put this
+    /// valuation on screen and reported it (see `RareFindRevealView.play()`),
+    /// and a second event would count it twice — see `priceAlreadyShown`.
     var isFreshScan: Bool = false
 
 
@@ -88,11 +93,22 @@ struct ResultView: View {
     /// guess is a once-per-find moment, not a toll on every visit.
     private let coverPrice: Bool
 
+    /// See `init`'s `priceAlreadyShown`.
+    private let priceAlreadyShown: Bool
+
+    /// - Parameter priceAlreadyShown: the user has seen this estimate before
+    ///   this sheet opened — the rare-find reveal shows it first. The guess
+    ///   cover then starts lifted, and `scan_result_shown`, which the screen
+    ///   that showed it first has sent, is not sent again. Nothing else
+    ///   `coverPrice` or `isFreshScan` decides changes: "Sharpen this
+    ///   estimate", the tag re-read, the full breakdown and the rating request
+    ///   are all still there.
     init(result: ScanResult,
          purchaseService: any PurchaseService,
          onDismiss: @escaping () -> Void,
          didSave: Bool = true,
          coverPrice: Bool = false,
+         priceAlreadyShown: Bool = false,
          isFreshScan: Bool = false) {
         self.result = result
         self.purchaseService = purchaseService
@@ -100,6 +116,8 @@ struct ResultView: View {
         self.didSave = didSave
         self.coverPrice = coverPrice
         self.isFreshScan = isFreshScan
+        self.priceAlreadyShown = priceAlreadyShown
+        _priceRevealed = State(initialValue: priceAlreadyShown)
         _paidPriceText = State(initialValue: Self.moneyField(result.paidPrice))
         _soldPriceText = State(initialValue: Self.moneyField(result.soldPrice))
         _feesText      = State(initialValue: Self.moneyField(result.feesEstimate))
@@ -265,7 +283,10 @@ struct ResultView: View {
             // `isFirstRun()` rather than `isFirstScan()`: the tally has
             // already been recorded by the time this view appears, so the first
             // valuation reads 1, not 0. Correct under either ordering.
-            if isFreshScan {
+            //
+            // Not after a rare-find reveal, which sent it when it put this
+            // valuation on screen (`priceAlreadyShown`).
+            if isFreshScan, !priceAlreadyShown {
                 Analytics.shared.track(.scanResultShown(isFirst: ScanTally.isFirstRun()))
             }
             if let data = result.imageData {

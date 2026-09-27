@@ -41,6 +41,25 @@ final class ScanViewModel {
     /// the paywall is up.
     @ObservationIgnored private var photoAwaitingPurchase: UIImage?
 
+    // ── Rare find (the easter egg — see `RareFind`) ───────────────────
+    /// Set while the easter egg's appraisal plays in place of the analysing
+    /// overlay. Only ever set while `isAnalyzing`.
+    var rareFindAppraisal: RareFindReveal?
+
+    /// Set when a scan that matched has its result, and kept until the result
+    /// sheet closes: the sheet opens on the reveal, and the full result behind
+    /// it reads this to know the estimate has already been shown.
+    var rareFindReveal: RareFindReveal?
+
+    /// The user has moved on from the reveal to the full result.
+    var rareFindRevealDone = false
+
+    /// The detector racing the scan in flight. Held here rather than only
+    /// inside `startScan` so `reset()` can call it off: a cleared screen
+    /// otherwise left it open, and a match landing after the reset put the old
+    /// scan's appraisal over whatever was scanned next.
+    @ObservationIgnored private var rareFindWatch: RareFindWatch?
+
     // ── Free scan tracking ────────────────────────────────────────────
     // Backed by the shared `FreeScanCounter` (below) so the daily cap is enforced
     // consistently across the camera scan and Thrift Flip. Public API unchanged.
@@ -91,10 +110,30 @@ final class ScanViewModel {
             _ = await purchaseService.resyncEntitlement()
         }
 
+        // Raced against the request, never ahead of it — see `RareFindWatch`.
+        // Declared after the `isAnalyzing` defer above so it runs first:
+        // whatever the exit, the window is shut and the appraisal gone before
+        // the overlay is.
+        let watch = watchForRareFind(in: image)
+        rareFindWatch = watch
+        defer {
+            watch?.close()
+            // Only while the screen is still this scan's. After `reset()` it
+            // may belong to the next one, whose appraisal this must not clear.
+            if rareFindWatch === watch {
+                rareFindWatch = nil
+                rareFindAppraisal = nil
+            }
+        }
+
         do {
             let response = try await purchaseService.confirmingSubscription {
                 try await ScanAPIClient.shared.scan(image: image)
             }
+            // The estimate is in, so the race is decided here: a match that has
+            // not landed by now never will, as far as this scan is concerned.
+            // Nil, too, when `reset()` abandoned the watch in the meantime.
+            let rareFind = watch?.close()
 
             // Downscaled and encoded off the main actor — see
             // ScanAPIClient.encodeForStorage. Doing this inline on the
@@ -130,7 +169,9 @@ final class ScanViewModel {
                 FreeScanCounter.serverRemaining = response.freeScansRemaining
             }
 
-            Haptics.success()
+            // A rare find plays its success when its card appears instead; two
+            // for one result would be one too many.
+            if rareFind == nil { Haptics.success() }
             scanResult = result
             Analytics.shared.track(
                 .scanCompleted(success: true, category: ScanCategory(normalizing: response.category))
@@ -179,12 +220,28 @@ final class ScanViewModel {
             // be revealed on the result sheet — see `ReviewPrompt`.
             ReviewPrompt.recordSuccessfulScan()
 
+            // A rare find holds its result here until the appraisal has played
+            // out — here and not earlier, so the valuation is saved, counted
+            // against the quota and tracked at the moment it arrived, exactly
+            // as any other scan's is. Only what the user sees waits.
+            if let rareFind, let watch {
+                await revealRareFind(rareFind, from: watch)
+            }
+
             // Only scans schedule the monthly recap — never app launch — so a
             // quiet month fires nothing. Fires once this month reaches 3 scans.
             let monthScans = repository.countScansThisMonth()
             Task { await NotificationManager.shared.scheduleMonthlyRecap(monthScanCount: monthScans) }
 
         } catch {
+            // The request is back, if with an error, so the race is over here
+            // too: the paywall path below awaits the photo's downscale, and a
+            // match landing in that pause would put an appraisal under the
+            // paywall. One that has already landed goes now for the same
+            // reason, rather than in the defer after that pause — while the
+            // screen is still this scan's, as there.
+            watch?.close()
+            if rareFindWatch === watch { rareFindAppraisal = nil }
             let appError = AppError.from(error)
 
             // A 402 is the paywall, not a failure. It reaches here whenever the
@@ -267,12 +324,57 @@ final class ScanViewModel {
     }
 
     func reset() {
+        // First, so nothing the detector finds from here on reaches the
+        // screen, and a match it already found is forgotten: the scan in
+        // flight then finishes exactly as one that never matched.
+        rareFindWatch?.abandon()
+        rareFindWatch = nil
         photoAwaitingPurchase = nil
         capturedImage = nil
         scanResult = nil
         errorMessage = nil
         saveFailed = false
         isAnalyzing = false
+        rareFindAppraisal = nil
+        rareFindReveal = nil
+        rareFindRevealDone = false
+    }
+
+    // ── Rare find ─────────────────────────────────────────────────────
+
+    /// Starts the detector beside the scan request, or nothing when the easter
+    /// egg is switched off — then no detection runs at all.
+    private func watchForRareFind(in image: UIImage) -> RareFindWatch? {
+        guard Config.rareFindEasterEggEnabled else { return nil }
+        // Reduce Motion skips the appraisal outright: no sweep to sit through
+        // and no wait. The analysing overlay stays up until the estimate is
+        // back, and the card fades in with it.
+        let hold: Duration = UIAccessibility.isReduceMotionEnabled ? .zero : RareFind.appraisalDuration
+        // The box, not the image: see `RareFindPhoto`.
+        let photo = RareFindPhoto(image)
+        return RareFindWatch(
+            hold: hold,
+            detect: { await RareFind.detect(photo) },
+            onMatch: { [weak self] match in
+                // The window is only open while its scan is analysing — `reset()`
+                // abandons it — so this holds; it is checked because an
+                // appraisal over a screen that is not analysing would sit over
+                // nothing, or over the next scan's photo.
+                guard let self, self.isAnalyzing, match.playsAppraisal else { return }
+                self.rareFindAppraisal = match.reveal
+            })
+    }
+
+    /// Waits out the appraisal, then hands the result sheet its reveal.
+    private func revealRareFind(_ match: RareFindMatch, from watch: RareFindWatch) async {
+        let result = scanResult
+        try? await Task.sleep(until: match.appraisalEnds, clock: .continuous)
+        // The screen can be cleared while the appraisal plays — the widget's
+        // scan button resets it — and then there is nothing to reveal over.
+        // `reset()` drops the watch, which is what says so even if another
+        // scan has already started.
+        guard rareFindWatch === watch, isAnalyzing, let result, scanResult === result else { return }
+        rareFindReveal = match.reveal
     }
 }
 

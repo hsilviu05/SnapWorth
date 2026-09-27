@@ -98,6 +98,13 @@ enum AnalyticsEvent {
     // ── Thrift Flip ──────────────────────────────────────────────────
     case thriftFlipCalculated(verdict: String)
 
+    // ── Easter eggs ──────────────────────────────────────────────────
+    /// The rare-find reveal was put on screen (see `RareFind`). Deliberately
+    /// no parameters: not the item, not the estimate, and not which of the
+    /// random lines were drawn. The detection that earned it ran on-device and
+    /// sent nothing anywhere.
+    case rareFindEasterEggShown
+
     // ── Haul mode (#93) ──────────────────────────────────────────────
     /// The haul summary was reached. `items` is a bucket from
     /// `haulSizeBucket`, never the count — see there.
@@ -202,6 +209,7 @@ enum AnalyticsEvent {
         case .referralRedeemed:     return "referral_redeemed"
         case .referralRewarded:     return "referral_rewarded"
         case .thriftFlipCalculated: return "thrift_flip_calculated"
+        case .rareFindEasterEggShown: return "rare_find_easter_egg_shown"
         case .haulCompleted:        return "haul_completed"
         case .haulShared:           return "haul_shared"
         case .ledgerItemMarkedSold: return "ledger_item_marked_sold"
