@@ -64,7 +64,6 @@ import observability
 from observability import RequestContextMiddleware, configure_production_logging
 from quota import FREE_SCANS_PER_DAY, ScanQuota
 from ratelimit import (
-    EDGE_RATE_MULTIPLIER,
     IP_RATE_MAX_REQUESTS,
     LISTING_RATE_MAX_REQUESTS,
     PRO_SCAN_RATE_MAX_REQUESTS,
@@ -849,46 +848,6 @@ def _scan_rate_limit(principal: Principal) -> int:
     return PRO_SCAN_RATE_MAX_REQUESTS if principal.is_pro else RATE_MAX_REQUESTS
 
 
-def _edge_bucket(ip: str | None, name: str, ip_limit: int) -> tuple[str, int] | None:
-    """The bucket of the Fastly edge `ip` was reached past, if it was one:
-    `<name>:<edge>` at `EDGE_RATE_MULTIPLIER` times the IP bucket's size.
-
-    Charged after the IP bucket, by every limiter that charges one. The key
-    may be the caller's own choice when the connecting address is a Fastly
-    one (`ratelimit.client_ip`); the edge is not, so this bounds that, and
-    after the IP bucket so that a caller over its own limit spends none of
-    the edge its neighbours share."""
-    edge = ratelimit.forwarding_edge(ip)
-    if edge is None:
-        return None
-    return f"{name}:{edge}", ip_limit * EDGE_RATE_MULTIPLIER
-
-
-def _charge_edge_sync(ip: str | None, name: str, ip_limit: int) -> None:
-    bucket = _edge_bucket(ip, name, ip_limit)
-    if bucket is None:
-        return
-    try:
-        _ip_memory.check_sync(*bucket)
-    except RateLimitExceeded:
-        ratelimit.note_edge_refusal(EDGE_RATE_MULTIPLIER)
-        raise
-
-
-async def _charge_edge(ip: str | None, name: str, ip_limit: int) -> None:
-    bucket = _edge_bucket(ip, name, ip_limit)
-    if bucket is None:
-        return
-    try:
-        if _ip_limiter is None:
-            _ip_memory.check_sync(*bucket)
-        else:
-            await _ip_limiter.check(*bucket)
-    except RateLimitExceeded:
-        ratelimit.note_edge_refusal(EDGE_RATE_MULTIPLIER)
-        raise
-
-
 def _check_rate_limit(device_id: str, ip: str | None = None, *,
                       bucket: str | None = None, limit: int = RATE_MAX_REQUESTS) -> None:
     """Synchronous, in-process limit check.
@@ -904,7 +863,6 @@ def _check_rate_limit(device_id: str, ip: str | None = None, *,
         # request, so it can only ever be a secondary signal. Callers may omit it.
         if ip is not None:
             _ip_memory.check_sync(ip, IP_RATE_MAX_REQUESTS)
-            _charge_edge_sync(ip, "edge", IP_RATE_MAX_REQUESTS)
         _device_memory.check_sync(key, limit)
     except RateLimitExceeded as exc:
         raise APIError(429, apierrors.RATE_LIMITED, exc.message,
@@ -920,7 +878,6 @@ async def _enforce_ip_limit(ip: str | None) -> None:
             _ip_memory.check_sync(ip, IP_RATE_MAX_REQUESTS)
         else:
             await _ip_limiter.check(f"ip:{ip}", IP_RATE_MAX_REQUESTS)
-        await _charge_edge(ip, "edge", IP_RATE_MAX_REQUESTS)
     except RateLimitExceeded as exc:
         raise APIError(429, apierrors.RATE_LIMITED, exc.message,
                        headers={"Retry-After": str(exc.retry_after)}) from None
@@ -962,7 +919,6 @@ async def _enforce_entitlement_limit(subject: str, ip: str | None) -> None:
                 _ip_memory.check_sync(ip, IP_RATE_MAX_REQUESTS)
             else:
                 await _ip_limiter.check(f"ip:{ip}", IP_RATE_MAX_REQUESTS)
-            await _charge_edge(ip, "edge", IP_RATE_MAX_REQUESTS)
         if _device_limiter is None:
             _device_memory.check_sync(f"ent:{subject[:64]}",
                                       ENTITLEMENT_RATE_MAX_REQUESTS)
@@ -1007,7 +963,6 @@ async def _enforce_referral_limit(route: str, subject: str, ip: str | None) -> N
                 _ip_memory.check_sync(f"{prefix}-ip:{ip}", REFERRAL_IP_RATE_MAX_REQUESTS)
             else:
                 await _ip_limiter.check(f"{prefix}-ip:{ip}", REFERRAL_IP_RATE_MAX_REQUESTS)
-            await _charge_edge(ip, f"{prefix}-edge", REFERRAL_IP_RATE_MAX_REQUESTS)
         if _device_limiter is None:
             _device_memory.check_sync(f"{prefix}:{subject[:64]}", REFERRAL_RATE_MAX_REQUESTS)
         else:
@@ -1032,7 +987,6 @@ async def _enforce_limits(device_id: str, ip: str | None, *,
     try:
         if ip is not None:
             await _ip_limiter.check(f"ip:{ip}", IP_RATE_MAX_REQUESTS)
-            await _charge_edge(ip, "edge", IP_RATE_MAX_REQUESTS)
         await _device_limiter.check(f"{bucket or 'dev'}:{device_id}", limit)
     except RateLimitExceeded as exc:
         raise APIError(429, apierrors.RATE_LIMITED, exc.message,
