@@ -317,6 +317,13 @@ rate_limited = _counter(
     "snapworth_rate_limited_total", "Requests rejected by rate limiting", ("scope",))
 quota_exhausted = _counter(
     "snapworth_quota_exhausted_total", "Scans refused because the free allowance was spent")
+#: Requests told to update by the operator's `/minbuild`. Deliberately not
+#: labelled with the build: it comes from the User-Agent, which any caller
+#: writes. The access log carries it per request.
+outdated_build_refused = _counter(
+    "snapworth_outdated_build_refused_total",
+    "Requests refused because the calling app build is below the minimum",
+    ("endpoint",))
 
 # Model
 model_calls = _counter(

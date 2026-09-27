@@ -13,6 +13,9 @@ express "3 scans used today". So the split is:
   * **bit 0** marks "this device has exhausted its free allowance", and is
     consulted when a *fresh* subject appears, which is exactly the reinstall
     case.
+  * **bit 1** marks "this device has had the first-day welcome", so a
+    reinstall is not welcomed twice. Like bit 0 it counts only for the month
+    Apple stamps on the last write.
 
 A determined user can still get a new device. That is an acceptable floor.
 """
@@ -38,7 +41,22 @@ _PROBE_TOKEN = base64.b64encode(b"snapworth-devicecheck-probe").decode()
 
 
 class DeviceCheckError(Exception):
-    """DeviceCheck call failed. Never surfaced to the client verbatim."""
+    """DeviceCheck call failed. Never surfaced to the client verbatim.
+
+    `status` is Apple's HTTP status when Apple answered, and None when it could
+    not be reached. The quota needs the difference: Apple being down must not
+    cost a new user their welcome, but Apple refusing the token it was sent is
+    an answer, not an outage.
+    """
+
+    def __init__(self, message: str, status: int | None = None) -> None:
+        super().__init__(message)
+        self.status = status
+
+    @property
+    def is_refusal(self) -> bool:
+        """Apple answered, and said no (4xx)."""
+        return self.status is not None and 400 <= self.status < 500
 
 
 class DeviceCheckClient:
@@ -94,14 +112,23 @@ class DeviceCheckClient:
 
         Apple answers an unrecognised-but-valid token with 200 and the body
         "Failed to find bit state", which is a normal first-run state.
+
+        Raises `DeviceCheckError` for anything Apple did or did not say:
+        `status` is its answer, or None when it could not be reached. Anything
+        else, such as a key that cannot sign, propagates as itself.
         """
         if not self.is_configured:
             return None
-        status, body = await self._post("/v1/query_two_bits", {
-            "device_token": device_token,
-            "transaction_id": str(uuid.uuid4()),
-            "timestamp": int(time.time() * 1000),
-        })
+        import httpx
+        try:
+            status, body = await self._post("/v1/query_two_bits", {
+                "device_token": device_token,
+                "transaction_id": str(uuid.uuid4()),
+                "timestamp": int(time.time() * 1000),
+            })
+        except httpx.TransportError as exc:
+            raise DeviceCheckError(
+                f"DeviceCheck unreachable ({type(exc).__name__})") from exc
         if status == 200:
             body_stripped = body.strip()
             if not body_stripped or "Failed to find bit state" in body_stripped:
@@ -112,8 +139,8 @@ class DeviceCheckClient:
             except ValueError:
                 return None
         if status == 401:
-            raise DeviceCheckError("DeviceCheck authentication rejected")
-        raise DeviceCheckError(f"DeviceCheck query failed ({status})")
+            raise DeviceCheckError("DeviceCheck authentication rejected", status)
+        raise DeviceCheckError(f"DeviceCheck query failed ({status})", status)
 
     async def update_bits(self, device_token: str, bit0: bool, bit1: bool) -> None:
         if not self.is_configured:
@@ -126,7 +153,7 @@ class DeviceCheckClient:
             "bit1": bit1,
         })
         if status != 200:
-            raise DeviceCheckError(f"DeviceCheck update failed ({status})")
+            raise DeviceCheckError(f"DeviceCheck update failed ({status})", status)
 
     def _key_problem(self) -> str | None:
         """A shape problem in the configured PEM, named without echoing it.
@@ -151,9 +178,9 @@ class DeviceCheckClient:
         """Prove the credentials actually sign, without needing a real device.
 
         `is_configured` only says three environment variables are non-empty. It
-        cannot tell a working key from a typo, and every DeviceCheck failure
-        degrades open on purpose (see `quota.starting_balance`) — so a wrong key
-        looks exactly like a healthy service that keeps handing out free scans.
+        cannot tell a working key from a typo, and a wrong key cannot recognise
+        a reinstall (see `quota.starting_balance`) — so it looks exactly like a
+        healthy service while every reinstall gets a fresh daily allowance.
 
         Apple reads the Authorization header before the request body, which
         separates the two answers we need:
