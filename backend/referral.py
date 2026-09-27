@@ -48,7 +48,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
 from auth import Principal, deps, require_auth
-from entitlements import Entitlement
+from entitlements import Entitlement, is_bounded
 
 log = logging.getLogger("snapworth.referral")
 
@@ -258,6 +258,10 @@ async def on_entitlement(subject: str, device: str | None, ent: Entitlement) -> 
     """
     try:
         if not config.active or not device:
+            return False
+        if is_bounded(ent):
+            # A Sandbox redemption — a tester or App Review — is not a friend
+            # who subscribed, and every reward is a real Apple offer code.
             return False
         if ent.offer_type != OFFER_CODE or ent.offer_identifier != config.friend_offer:
             return False

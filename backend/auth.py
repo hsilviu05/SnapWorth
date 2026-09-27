@@ -459,20 +459,39 @@ async def record_entitlement(
     # own subscription, silently, because the client swallows this response.
     try:
         ent = await deps.entitlements.record(
-            principal.subject, req.signed_transaction, device_id=req.device_id)
+            principal.subject, req.signed_transaction, device_id=req.device_id,
+            # What admits a Sandbox purchase — App Review's, a TestFlight
+            # tester's — on the bounded terms in `entitlements`. Only a token
+            # this service minted after App Attest sets it; the legacy path's
+            # subject is a header the caller chose, and it is refused Sandbox
+            # with a 400 exactly as before.
+            authenticated=principal.authenticated)
     except EntitlementError as exc:
         auditlog.record(AuditEvent.ENTITLEMENT_REJECTED, principal.subject,
                         outcome="failure", reason=str(exc))
         raise HTTPException(status_code=400, detail=str(exc)) from None
+    except EntitlementsUnavailable:
+        # Raised only on the bounded Sandbox path: its one-device claim is an
+        # authorisation boundary and fails closed, where the Production
+        # binding fails open. Retryable, so not the 400 above.
+        log.error("entitlement store unavailable while recording a sandbox entitlement")
+        raise HTTPException(
+            status_code=503,
+            detail="Subscription status is temporarily unavailable. Please try again shortly.",
+        ) from None
 
+    # `environment` because a bounded Sandbox grant appears nowhere else the
+    # operator looks: not in /subs, not in the digest, not in an alert.
     auditlog.record(AuditEvent.ENTITLEMENT_RECORDED, principal.subject,
-                    tier=ent.tier, product_id=ent.product_id)
+                    tier=ent.tier, product_id=ent.product_id,
+                    environment=ent.environment)
     # Operator ping: first sighting of a subscription, or a proven downgrade.
     # Deduped and throttled inside; never raises, so it cannot fail the sync.
+    # Silent for a bounded Sandbox entitlement — a tester is not a customer.
     await notify.entitlement_recorded(principal.subject, ent)
     # A referred friend redeeming the friend offer earns their referrer a week.
     # Imported here, not at the top: `referral` imports this module for
-    # `deps` and `require_auth`. Never raises.
+    # `deps` and `require_auth`. Never raises, and never rewards Sandbox.
     import referral
     await referral.on_entitlement(principal.subject, req.device_id, ent)
 

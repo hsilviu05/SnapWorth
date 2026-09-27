@@ -314,7 +314,7 @@ after tests pass (`.github/workflows/backend.yml`).
 | Canary | `[NOT IMPLEMENTED]` |
 | Instant rollback | Railway redeploy of a previous build |
 | Migrations | **None exist.** No relational database; Redis is a cache |
-| Feature flags | Env-var based: `SCAN_PROMPT_VERSION`, `COMPS_ENABLED`, `COMPS_SHADOW_MODE`, `ALLOWED_STOREKIT_ENVIRONMENTS` |
+| Feature flags | Env-var based: `SCAN_PROMPT_VERSION`, `COMPS_ENABLED`, `COMPS_SHADOW_MODE`, `ALLOWED_STOREKIT_ENVIRONMENTS`, `SANDBOX_ENTITLEMENTS` |
 
 ### Shutdown sequence (implemented in `main._lifespan`)
 
@@ -579,7 +579,17 @@ work on does not.
       unset did not collapse everyone into one bucket, it gave each caller a bucket of
       their own choosing (uvicorn runs with `--forwarded-allow-ips='*'`, which makes
       `request.client.host` the client-supplied hop). Safe to delete from Railway.
-- [ ] `ALLOWED_STOREKIT_ENVIRONMENTS=Production`
+- [ ] `ALLOWED_STOREKIT_ENVIRONMENTS=Production` — the environments trusted
+      *fully*. Still Production only: listing Sandbox here would make every
+      TestFlight tester a customer with a 400-day proof and six devices
+- [ ] `SANDBOX_ENTITLEMENTS` unset or `bounded` — **not** Production-only any
+      more. App Review buys in Sandbox, and refusing it is the "purchased
+      content not delivered" rejection. Bounded Sandbox is attested callers
+      only, 24h at most, no proof, one device, never counted (§17). `off`
+      restores the old refusal
+- [ ] App Store Connect *Sandbox Server URL* set to
+      `https://api.snapworth.eu/apple/notifications/sandbox` (§14), so a
+      Sandbox refund withdraws the bounded grant
 - [ ] `LOG_FORMAT=json` — still wanted, but **no longer load-bearing for log
       injection**. The plain formatter is a bare `%(message)s`, so a newline in
       an interpolated value reads as a second log record; every caller-supplied
@@ -649,9 +659,24 @@ The server recognises that shape and logs it at ERROR naming the remedy, rather
 than letting it read as an integration that silently does not work while Apple
 retries for three days.
 
-Leave the Sandbox URL pointing at a staging deployment, or unset — a Sandbox notification is signed by the same Apple chain
-as a production one, and the only thing keeping TestFlight renewals out of the
-revenue view is `ALLOWED_STOREKIT_ENVIRONMENTS` (see §8).
+Set the **Sandbox Server URL**, also Version 2, to the Sandbox route:
+
+```
+https://api.snapworth.eu/apple/notifications/sandbox
+```
+
+Never to `/apple/notifications`. A Sandbox notification is signed by the same
+Apple chain as a production one, and that route keeps refusing it (400,
+`wrong environment`) because everything it does feeds the revenue view. The
+Sandbox route does one thing: a `REFUND` or `REVOKE` withdraws the bounded
+Sandbox grant (§17). Every other type is answered 200 and ignored — no row, no
+alert, no count — and a Production notification sent there is refused. With
+`SANDBOX_ENTITLEMENTS=off` it answers 404; clear the URL if you turn it off, or
+Apple retries each notification for three days.
+
+`appstore_test_notification.py --sandbox` proves it the same way as step 2
+below: the Telegram message says `(Sandbox)` and that nothing from Sandbox is
+counted.
 
 ### Why it exists
 
@@ -796,6 +821,8 @@ carry, and the access path consults it after verifying a proof.
 | `ent:{subject}` | the derived entitlement | 24h Pro / shorter free |
 | `entproof:{subject}` | Apple's signed transaction | to the term's expiry + 1h |
 | `entrevoked:{originalTransactionId}` | `{revoked_at, expires_at}` | 400 days |
+| `entrevoked:sandbox:{originalTransactionId}` | the same, for a Sandbox term (§17) | 400 days |
+| `entsandbox:{originalTransactionId}` | the one device holding a bounded Sandbox grant | ≤ 24h |
 
 `expires_at` in the tombstone is the **revoked term's** expiry, not the
 revocation date. `originalTransactionId` is stable across renewals *and*
@@ -826,3 +853,70 @@ Nothing here refunds anyone or changes what Apple charged. It only stops the
 server treating a taken-back term as paid. A user who re-subscribes is
 unaffected, and there is a test for that
 (`test_re_subscribing_after_a_refund_works`).
+
+## 17. Sandbox purchases (App Review, TestFlight)
+
+App Review buys in **Sandbox**, and so does every TestFlight build, against the
+same backend as the App Store app (`Config.swift`). Until the fix for the
+2026-09-26 audit, production accepted Production only, so a reviewer who bought
+Pro got a 400 from `/auth/entitlement`, then the paywall again, a 402 on
+`/listing` and an empty "Why this price" — Guideline 2.1 / 3.1.1, *purchased
+content not delivered* (`docs/AUDIT-2026-09-26.md`). It had not happened only
+because no reviewer had bought.
+
+Production now honours Sandbox, **bounded**. Two separate settings:
+
+| Variable | Means | Production value |
+|---|---|---|
+| `ALLOWED_STOREKIT_ENVIRONMENTS` | environments trusted fully, like a customer | `Production` |
+| `SANDBOX_ENTITLEMENTS` | how Sandbox is treated when not trusted fully | `bounded` (default) |
+
+### The bounds
+
+- **App Attest only.** Granted only to a caller with a token minted after App
+  Attest. The legacy unauthenticated path still gets the 400.
+- **Short.** The shorter of 24h and the transaction's own expiry plus the
+  usual one-hour grace. Sandbox renews a monthly plan every few minutes, so
+  the expiry is usually what ends it, and the client's re-sync on each
+  renewal is what extends it.
+- **No proof.** `entproof:` is never written, so nothing re-derives a Sandbox
+  grant once `ent:{subject}` lapses. The device has to present a live
+  transaction again.
+- **One device per `originalTransactionId`.** The newest device to present it
+  takes it over (`entsandbox:{otid}` names it), and every other device reads as
+  free from its next request. Replace rather than refuse: a reviewer moving
+  from iPhone to iPad on one Sandbox account is the case this exists for. A
+  reinstall on the same phone (same `device_id`) takes it over silently. Each
+  move logs `sandbox entitlement moved to another device`.
+- **Not a customer.** No `/subs` row, no MRR, no `new_subs` count in the
+  digest or `/status`, no "New Pro" / trial / "Subscription ended" alert, no
+  referral reward. It shows in the logs instead: the audit event
+  `entitlement.recorded` with `environment=Sandbox`, and `sandbox entitlement
+  recorded on bounded terms`. Usage figures — scans, active users, the Pro
+  scan count, `/users`'s Pro devices — do include testers, because their scans
+  cost the same as anyone's.
+- **Fails closed.** The one-device claim is read and written with Redis
+  required. If Redis is unreachable, the Sandbox sync answers 503 rather than
+  granting without the claim. Production's device binding still fails open.
+- **Refunds.** A Sandbox `REFUND`/`REVOKE` to the Sandbox route (§14) writes
+  `entrevoked:sandbox:{otid}` and drops the claim, so access goes at the
+  holder's next request. Sandbox tombstones have their own namespace, so a
+  tester's refund can never deny a Production subscriber whose id is the
+  same.
+
+### Turning it off
+
+`SANDBOX_ENTITLEMENTS=off`, then redeploy: the value is read at startup.
+Sandbox is refused with a 400 again, the Sandbox notification route
+answers 404, and any Sandbox grant already cached reads as free from its next
+request. An unrecognised value is read as `off` and logged at WARNING, so a
+typo can only narrow access.
+
+### Checking it
+
+- A TestFlight purchase unlocks Pro: scan, then draft a listing (no 402) and
+  open "Why this price".
+- `/subs` does not change, and there is no "New Pro subscription" alert.
+- Logs: `sandbox entitlement recorded on bounded terms`.
+- `redis-cli GET entsandbox:{otid}` names the subject that holds it.
+
