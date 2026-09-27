@@ -314,8 +314,11 @@ class TestTheNote:
                  for line in lines]
         assert pairs == [("1", "0"), ("2", "1"), ("2", "2"), ("3", "1")]
         for line in lines:
-            assert not re.search(r"\d+\.\d+\.\d+\.\d+|:", line), line
             assert not any(a in line for a in (CLIENT, FORGED, FASTLY_V4, CGNAT))
+            # Nothing finer than the key hop's /16 or /32, and only when
+            # entries sit left of it (the (3, 1) line).
+            coarse = re.sub(r" is in \S+/(16|32) ", " ", line)
+            assert not re.search(r"\d+\.\d+\.\d+\.\d+|:", coarse), line
 
     def test_the_cdn_line_reads_as_the_runbook_quotes_it(self, caplog):
         """RUNBOOK §5.8 tells the operator to look for this after a deploy."""
@@ -326,6 +329,36 @@ class TestTheNote:
         assert lines[0].endswith("the leftmost address, as every address is one")
         assert lines[1].endswith(
             "a fixed one, as the nearest hop that is not one is not an address")
+
+    LEFT = ("; entries sit left of the key's hop, which is in {} ({}) — a "
+            "proxy missing from the list, or a header Railway passed through "
+            "(RUNBOOK §5.8)")
+
+    @pytest.mark.parametrize("xff, prefix, scope", [
+        (f"{CLIENT}, 66.33.22.11", "66.33.0.0/16", "global"),
+        (f"{CLIENT}, 66.33.22.11, {CGNAT}", "66.33.0.0/16", "global"),
+        (f"{CLIENT}, ::ffff:66.33.22.11", "66.33.0.0/16", "global"),
+        (f"{FORGED}, {CLIENT}", "198.51.0.0/16", "not global"),
+        (f"{CLIENT}, 2001:db8:aa::1, {FASTLY_V4}", "2001:db8::/32", "not global"),
+    ])
+    def test_a_key_that_is_not_the_leftmost_says_where_its_hop_is(
+            self, caplog, xff, prefix, scope):
+        """Entries left of the key mean a proxy the list does not know, or a
+        client header Railway passed through: "skipped 0" alone could not
+        say which. So the line gives the key hop's /16 or /32 and whether it
+        is global, to check against Fastly's list and Railway's ranges; that
+        is coarse enough to name no one."""
+        [line] = self.lines(caplog, [xff])
+        assert line.endswith(self.LEFT.format(prefix, scope))
+        assert "66.33.22.11" not in line and CLIENT not in line
+
+    @pytest.mark.parametrize("xff", [
+        CLIENT, f"{CLIENT}, {FASTLY_V4}", f"{CLIENT}, {FASTLY_V4}, {CGNAT}",
+        f"{FASTLY_V4}, {CGNAT}", "evil, junk", f"{CLIENT}, junk",
+    ])
+    def test_otherwise_no_prefix(self, caplog, xff):
+        [line] = self.lines(caplog, [xff])
+        assert "sit left" not in line and "/16" not in line and "/32" not in line
 
     def test_lines_are_capped_per_process(self, caplog):
         """Eleven distinct pairs, at most `_HOP_NOTE_LIMIT` lines."""

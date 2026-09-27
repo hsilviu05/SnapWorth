@@ -403,17 +403,43 @@ availability one.
    `EDGE_RATE_MULTIPLIER` should stay as low as real traffic allows.
 
    **After a deploy, read the log.** Each process logs one line per distinct
-   (hop count, skipped count), counts only, at most six. CDN traffic should
-   read
+   (hop count, skipped count), at most six: counts, fixed words and at most
+   a /16 or /32 prefix, never an address. CDN traffic should read
 
    `x-forwarded-for carried 2 hop(s), skipped 1 known proxy hop(s) (Fastly edge or internal); the per-IP key is the nearest hop that is not one`
 
-   and the non-CDN path `carried 1 hop(s), skipped 0`. **`carried 2 hop(s),
-   skipped 0` means a hop on the right was not recognised**, most likely a
-   new Fastly range: refresh `_FASTLY_EDGE_RANGES` in `ratelimit.py` from
-   `https://api.fastly.com/public-ip-list` (`addresses` and
-   `ipv6_addresses`) and update the date beside it. Until then the users
-   behind that edge share one bucket: too strict, never too loose.
+   and the non-CDN path `carried 1 hop(s), skipped 0`. To check it
+   yourself, `POST /auth/challenge` once from your own machine right after
+   the deploy and find one of those two lines.
+
+   **Any line whose hop count is two or more above its skipped count means
+   the key is not the leftmost entry**, and the line then ends `entries sit
+   left of the key's hop, which is in <prefix> (global|not global)`, the key
+   hop's /16 (IPv4) or /32 (IPv6). `carried 2 hop(s), skipped 0` is the
+   plain case, and `carried 3 hop(s), skipped 1` is the same with an
+   internal hop on the right. It has two causes, and the prefix says which:
+
+   - *A proxy the list does not know*: the prefix is in a CDN's or
+     Railway's ranges, not an ISP's. If it is in Fastly's
+     (`https://api.fastly.com/public-ip-list`, `addresses` and
+     `ipv6_addresses`), refresh `_FASTLY_EDGE_RANGES` in `ratelimit.py` and
+     the date beside it. If it is anyone else's, Railway's own ingress
+     say, refreshing that list cannot help: treat it as another proxy in
+     front of Railway (the last paragraph here). Until then the users
+     behind that proxy share one bucket: too strict, never too loose.
+   - *A client header Railway passed through*: the prefix is an ISP's, and
+     the entries to its left were written by the caller. The key is still
+     the address Railway appended, so the limit holds for that caller, but
+     it means Railway is not stripping on that path, and the Fastly-source
+     case above then applies there too.
+
+   *To probe the non-CDN path, from outside Railway, and record the result
+   here:* the two probes so far both went through the CDN. Send `POST
+   /auth/challenge` with `X-Forwarded-For: 203.0.113.7` to the service's
+   `*.up.railway.app` host. A new `carried 2 hop(s), skipped 0` line whose
+   prefix is your own ISP's means that path passes a client's header
+   through. No new line means it stripped it, or that the pair was already
+   logged, which a deploy resets: probe right after one.
 
    The walk passes only hops it recognises. A hop that is not a bare address
    (`unknown`, an address with a port) stops it, and every request that
@@ -431,7 +457,10 @@ availability one.
    appends. It does for one connecting from a Fastly or internal address,
    which it skips, and that is the case above. **Before putting any other
    proxy in front of Railway** (a proxied DNS record, another CDN), add its
-   published ranges beside Fastly's; it then needs the same edge bucket.
+   published ranges to `_FASTLY_EDGE_RANGES` beside Fastly's, so that its
+   addresses get the edge bucket too. Not to `_INTERNAL_RANGES`, which gets
+   none and is only for addresses no caller can send from; anyone can send
+   from a shared CDN's.
 3. The IP bucket is one for every route with a limit — `/scan`, `/listing`,
    `/trends`, `/auth/entitlement`, and the unauthenticated `/auth` routes and
    `/apple/notifications` — so from one address they stop together. The

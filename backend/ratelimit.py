@@ -27,7 +27,7 @@ import os
 import secrets
 import time
 from collections import defaultdict
-from typing import Any, Protocol
+from typing import Any, NamedTuple, Protocol
 
 
 class ClientKey(str):
@@ -139,9 +139,9 @@ def client_ip(request: Any) -> ClientKey:
     xff = ",".join(request.headers.getlist("x-forwarded-for"))
     hops = [hop.strip() for hop in xff.split(",") if hop.strip()]
     if hops:
-        key, edge, skipped, source = _nearest_client_hop(hops)
-        _note_hop_count(len(hops), skipped, source)
-        return ClientKey(key[:64], edge)
+        walk = _nearest_client_hop(hops)
+        _note_hop_count(len(hops), walk)
+        return ClientKey(walk.key[:64], walk.edge)
     # No header, or one with no entry in it: nothing a caller wrote, and
     # uvicorn leaves the socket peer in place for an empty header.
     host = request.client.host if request.client else ""
@@ -153,7 +153,9 @@ def client_ip(request: Any) -> ClientKey:
 # (`addresses`, then `ipv6_addresses`, verbatim). Fastly changes them rarely.
 # A range missing here is keyed on as a client, which puts the users behind
 # that edge in one bucket again: too strict, never too loose. Two-hop traffic
-# then logs "skipped 0"; RUNBOOK §5.8 has the refresh.
+# then logs "skipped 0" and the edge's /16; RUNBOOK §5.8 has the refresh.
+# Anyone can send from these, so a hop skipped here also spends the edge
+# bucket (`ClientKey.edge`); another shared proxy's ranges belong here too.
 _FASTLY_EDGE_RANGES = (
     "23.235.32.0/20", "43.249.72.0/22", "103.244.50.0/24", "103.245.222.0/23",
     "103.245.224.0/24", "104.156.80.0/20", "140.248.64.0/18", "140.248.128.0/17",
@@ -222,59 +224,93 @@ def _bucket_of(addr: _Address) -> str:
     return str(addr)
 
 
-def _nearest_client_hop(hops: list[str]) -> tuple[str, str | None, int, str]:
-    """The key; the nearest Fastly hop skipped to reach it, keyed the same
-    way, or None; how many known proxies were skipped; and where the key came
-    from — the last in words with no address in them, for the note.
+class _Walk(NamedTuple):
+    key: str
+    # The nearest Fastly hop skipped to reach the key, keyed as a client
+    # address is, or None.
+    edge: str | None
+    # How many known proxies were skipped.
+    skipped: int
+    # Where the key came from, in words with no address in them, for the note.
+    source: str
+    # The address the walk stopped at, when it stopped at one rather than
+    # falling back to the leftmost; the note gives its coarse prefix.
+    stop: _Address | None = None
 
-    `hops` are the header's non-empty entries, stripped. The walk passes only
-    hops it recognises as proxies: one that is not an address stops it, and
-    is keyed as `_UNPARSEABLE`, never skipped, since everything to its left
-    is further from us and so no more trustworthy. The edge is the nearest
-    Fastly hop because only proxies of ours sit right of it: it is the one a
-    caller cannot write."""
+
+def _nearest_client_hop(hops: list[str]) -> _Walk:
+    """Walk `hops`, the header's non-empty entries, stripped, from the right.
+
+    The walk passes only hops it recognises as proxies: one that is not an
+    address stops it, and is keyed as `_UNPARSEABLE`, never skipped, since
+    everything to its left is further from us and so no more trustworthy.
+    The edge is the nearest Fastly hop because only proxies of ours sit
+    right of it: it is the one a caller cannot write."""
     skipped = 0
     edge: str | None = None
     addrs: list[_Address] = []
     for hop in reversed(hops):
         addr = _parse_hop(hop)
         if addr is None:
-            return (_UNPARSEABLE, edge, skipped,
-                    "a fixed one, as the nearest hop that is not one is not an address")
+            return _Walk(_UNPARSEABLE, edge, skipped,
+                         "a fixed one, as the nearest hop that is not one is not an address")
         if not _is_known_proxy(addr):
-            return _bucket_of(addr), edge, skipped, "the nearest hop that is not one"
+            return _Walk(_bucket_of(addr), edge, skipped,
+                         "the nearest hop that is not one", addr)
         if edge is None and _in(addr, _FASTLY_EDGES):
             edge = _bucket_of(addr)
         skipped += 1
         addrs.append(addr)
-    return (_bucket_of(addrs[-1]), edge, skipped,
-            "the leftmost address, as every address is one")
+    return _Walk(_bucket_of(addrs[-1]), edge, skipped,
+                 "the leftmost address, as every address is one")
+
+
+def _coarse(addr: _Address) -> str:
+    """An address's /16, or /32 for IPv6, and whether it is global: enough to
+    check against a provider's published ranges, too coarse to name anyone."""
+    if isinstance(addr, ipaddress.IPv6Address) and addr.ipv4_mapped is not None:
+        addr = addr.ipv4_mapped
+    network: _Network
+    if isinstance(addr, ipaddress.IPv4Address):
+        network = ipaddress.IPv4Network((int(addr), 16), strict=False)
+    else:
+        network = ipaddress.IPv6Network((int(addr), 32), strict=False)
+    return f"{network} ({'global' if addr.is_global else 'not global'})"
 
 
 _HOP_COUNTS_SEEN: set[tuple[int, int]] = set()
 _HOP_NOTE_LIMIT = 6
 
 
-def _note_hop_count(hops: int, skipped: int, source: str) -> None:
+def _note_hop_count(hops: int, walk: _Walk) -> None:
     """Log what the header carried and what the walk skipped, once per pair.
 
     The evidence for `client_ip`, from production rather than from a probe.
     CDN traffic should read "carried 2 hop(s), skipped 1" and the rest
-    "carried 1 hop(s), skipped 0". "carried 2 hop(s), skipped 0"
-    means the rightmost hop was not recognised, most likely a new Fastly
-    range. Once per distinct (hops, skipped) pair, each bucketed at 4, rather
-    than once, so a first request with an odd header is not the only sample;
-    at most `_HOP_NOTE_LIMIT` lines per process. Counts and fixed words only
-    — never an address.
+    "carried 1 hop(s), skipped 0". Whenever the hops outnumber the skipped
+    ones by two or more, entries sit left of the key, so the key is not the
+    leftmost: a proxy the list does not know, or a client header Railway
+    passed through. "carried 2 hop(s), skipped 0" is the plainest case, and
+    the count alone cannot say which, so the line then adds the key hop's
+    /16 or /32 and whether it is global (`_coarse`), to check against
+    Fastly's list and Railway's ranges. Once per distinct (hops, skipped)
+    pair, each bucketed at 4, rather than once, so a first request with an
+    odd header is not the only sample; at most `_HOP_NOTE_LIMIT` lines per
+    process. Counts, fixed words and at most that prefix — never an address.
     """
-    pair = (min(hops, 4), min(skipped, 4))
+    pair = (min(hops, 4), min(walk.skipped, 4))
     if pair in _HOP_COUNTS_SEEN or len(_HOP_COUNTS_SEEN) >= _HOP_NOTE_LIMIT:
         return
     _HOP_COUNTS_SEEN.add(pair)
     hops_seen, skipped_seen = (f"{n}+" if n == 4 else str(n) for n in pair)
+    left = ""
+    if walk.stop is not None and hops - walk.skipped >= 2:
+        left = (f"; entries sit left of the key's hop, which is in "
+                f"{_coarse(walk.stop)} — a proxy missing from the list, or a "
+                f"header Railway passed through (RUNBOOK §5.8)")
     log.info("x-forwarded-for carried %s hop(s), skipped %s known proxy "
-             "hop(s) (Fastly edge or internal); the per-IP key is %s",
-             hops_seen, skipped_seen, source)
+             "hop(s) (Fastly edge or internal); the per-IP key is %s%s",
+             hops_seen, skipped_seen, walk.source, left)
 
 
 _EDGE_REFUSAL_NOTED = False
