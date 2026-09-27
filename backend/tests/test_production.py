@@ -360,6 +360,48 @@ class TestUvicornLoggingIsRedactedToo:
                 f"{name} still formats its own lines")
 
 
+class TestHttpxLinesCarryNoToken:
+    """Production wrote the Telegram bot token on every getUpdates poll.
+
+    httpx logs each request at INFO as `'HTTP Request: %s %s "%s %d %s"'` with
+    `request.url` — an `httpx.URL`, not a `str` — and the Bot API puts the token
+    in the URL. `RedactionFilter` only redacted `str` arguments, so the URL went
+    through untouched and was str()'d after the filter had run. Found in
+    Railway's logs on 2026-09-27. These go through the production entry point
+    and a real handler, because the earlier unit tests fed strings and passed.
+    """
+
+    TOKEN = "123456789:AAtest-token-abcdefghijklmnopqrstuvwx"
+
+    def _emit(self, json_output: bool) -> str:
+        import io
+        import httpx
+        obs.configure_production_logging(json_output=json_output)
+        stream = io.StringIO()
+        handler = logging.getLogger().handlers[0]
+        handler.setStream(stream)  # type: ignore[attr-defined]
+        # WARNING, because INFO is no longer written — see the next test. The
+        # redaction has to hold for httpx's warnings too.
+        logging.getLogger("httpx").warning(
+            'HTTP Request: %s %s "%s %d %s"', "GET",
+            httpx.URL(f"https://api.telegram.org/bot{self.TOKEN}/getUpdates"),
+            "HTTP/1.1", 409, "Conflict")
+        return stream.getvalue()
+
+    @pytest.mark.parametrize("json_output", [False, True])
+    def test_an_httpx_url_argument_is_redacted(self, json_output):
+        out = self._emit(json_output)
+        assert "HTTP Request: GET" in out, out
+        assert self.TOKEN not in out and "AAtest-token" not in out, out
+        assert "<telegram-token-redacted>" in out, out
+        assert "409 Conflict" in out, "the %d argument must still format"
+
+    def test_httpx_request_lines_are_not_written(self):
+        obs.configure_production_logging()
+        assert not logging.getLogger("httpx").isEnabledFor(logging.INFO)
+        assert logging.getLogger("httpx").isEnabledFor(logging.WARNING)
+
+
 class TestRedaction:
     @pytest.mark.parametrize("secret,marker", [
         ("Authorization: Bearer abc123def456ghi789jkl", "Bearer <redacted>"),
@@ -436,6 +478,37 @@ class TestRedaction:
         ctx = caplog.records[-1].ctx
         assert "hunter2hunter2" not in ctx["url"]
         assert ctx["attempt"] == 3, "a numeric extra must stay a number"
+
+    def test_filter_redacts_an_argument_that_is_not_a_str(self, caplog):
+        class Url:
+            def __str__(self) -> str:
+                return "https://api.telegram.org/bot123456789:AAtest-token-abcdefghijklmnopqrstuvwx/x"
+        logger = logging.getLogger("test.redaction.obj")
+        logger.addFilter(obs.RedactionFilter())
+        with caplog.at_level(logging.INFO, logger="test.redaction.obj"):
+            logger.info("GET %s -> %d", Url(), 200)
+        message = caplog.records[-1].getMessage()
+        assert "AAtest-token" not in message
+        assert message.endswith("-> 200")
+
+    def test_a_percent_sign_an_argument_brings_in_is_not_reformatted(self, caplog):
+        # Folding the arguments into the message has to leave nothing for a
+        # second `%` pass: "100% of" would otherwise raise at emit time.
+        logger = logging.getLogger("test.redaction.pct")
+        logger.addFilter(obs.RedactionFilter())
+        with caplog.at_level(logging.INFO, logger="test.redaction.pct"):
+            logger.info("progress: %s", "100% of 3 %d done")
+        record = caplog.records[-1]
+        assert record.getMessage() == "progress: 100% of 3 %d done"
+        assert record.getMessage() == record.getMessage()
+
+    def test_a_record_whose_arguments_do_not_fit_is_left_to_logging(self):
+        # The fold must not turn logging's own "arguments don't fit" report
+        # into a silently rewritten message, and must not raise.
+        record = logging.LogRecord("n", logging.INFO, "p", 1, "%s and %s",
+                                   ("Bearer abcdefghijklmnopqrstuv",), None)
+        assert obs.RedactionFilter().filter(record) is True
+        assert record.args == ("Bearer <redacted>",)
 
     def test_numeric_extras_keep_their_type(self, caplog):
         """`observability` itself logs status, duration_ms and rate as numbers.
