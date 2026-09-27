@@ -57,6 +57,10 @@ struct ScanView: View {
     /// the same run-loop turn and there is no window at all.
     @State private var captureInFlight = false
 
+    /// A restricted camera has been counted for this screen — see the
+    /// `authStatus` handler.
+    @State private var restrictedCounted = false
+
     /// Anything presented on top of the camera. See the `onChange` below.
     private var isCameraObscured: Bool {
         showResult || showThriftFlip || showNotifPriming || vm.showPaywall
@@ -89,9 +93,9 @@ struct ScanView: View {
                 // The charcoal ground behind this ZStack is the whole screen.
                 EmptyView()
             case .restricted:
-                permissionPlaceholder(restricted: true)
+                CameraPermissionPlaceholder(restricted: true)
             default:
-                permissionPlaceholder(restricted: false)
+                CameraPermissionPlaceholder(restricted: false)
             }
 
             // ── Camera UI overlay ─────────────────────────────────────────
@@ -377,9 +381,20 @@ struct ScanView: View {
                 if await ThriftRunController.endIfExpired() { isRunOn = false }
             }
         }
-        .onChange(of: cameraManager.authStatus) { _, status in
-            if status == .denied {
+        // A refusal is counted when it happens. `.restricted` never happens
+        // on screen — it is already the status when the manager is built, so
+        // there is no change to observe — and it used to be counted only
+        // because `CameraManager` rewrote it to `.denied`. `initial: true`
+        // sees it at first appearance instead, once per screen.
+        .onChange(of: cameraManager.authStatus, initial: true) { old, status in
+            switch status {
+            case .denied where old != .denied:
                 Analytics.shared.track(.scanFailed(reason: .permission, isFirst: ScanTally.isFirstScan()))
+            case .restricted where !restrictedCounted:
+                restrictedCounted = true
+                Analytics.shared.track(.scanFailed(reason: .permission, isFirst: ScanTally.isFirstScan()))
+            default:
+                break
             }
         }
         .onDisappear { cameraManager.stopSession() }
@@ -504,8 +519,36 @@ struct ScanView: View {
         }
     }
 
-    // MARK: - Permission Placeholder
-    private func permissionPlaceholder(restricted: Bool) -> some View {
+    private func triggerScan(image: UIImage) async {
+        // Released on every exit, success or failure, so the shutter comes
+        // back exactly once per capture.
+        defer { captureInFlight = false }
+        let repository = ScanRepository(context: modelContext)
+        await vm.startScan(image: image, purchaseService: purchaseService, repository: repository)
+        // Release the full-resolution capture the moment it stops being
+        // needed. Both the upload (1568px) and the stored copy (1024px) are
+        // already encoded by now, and the only view that reads this image is
+        // the freeze-frame behind the analysing overlay, which has just gone.
+        // These references used to be cleared in `sheet(onDismiss:)`, so a
+        // 12MP capture — 48.8MB decoded, and up to 195MB on a 48MP HEIF —
+        // stayed resident for the whole time the result sheet was open.
+        vm.capturedImage = nil
+        cameraManager.capturedImage = nil
+        if vm.scanResult != nil {
+            showResult = true
+        }
+    }
+}
+
+// MARK: - Permission placeholder
+
+/// What stands in for the viewfinder when the camera cannot be used. Shared by
+/// the scan screen and the tag camera (`TagCameraSheet`), so a refused or
+/// restricted camera reads the same wherever the user meets it.
+struct CameraPermissionPlaceholder: View {
+    let restricted: Bool
+
+    var body: some View {
         VStack(spacing: 20) {
             Image(systemName: "camera.slash")
                 .snapSymbol(48, weight: .light)
@@ -534,26 +577,6 @@ struct ScanView: View {
             .accessibilityHint(restricted
                                ? String(localized: "Opens iOS Settings, where Screen Time restrictions are changed")
                                : String(localized: "Opens iOS Settings so you can allow camera access"))
-        }
-    }
-
-    private func triggerScan(image: UIImage) async {
-        // Released on every exit, success or failure, so the shutter comes
-        // back exactly once per capture.
-        defer { captureInFlight = false }
-        let repository = ScanRepository(context: modelContext)
-        await vm.startScan(image: image, purchaseService: purchaseService, repository: repository)
-        // Release the full-resolution capture the moment it stops being
-        // needed. Both the upload (1568px) and the stored copy (1024px) are
-        // already encoded by now, and the only view that reads this image is
-        // the freeze-frame behind the analysing overlay, which has just gone.
-        // These references used to be cleared in `sheet(onDismiss:)`, so a
-        // 12MP capture — 48.8MB decoded, and up to 195MB on a 48MP HEIF —
-        // stayed resident for the whole time the result sheet was open.
-        vm.capturedImage = nil
-        cameraManager.capturedImage = nil
-        if vm.scanResult != nil {
-            showResult = true
         }
     }
 }

@@ -139,6 +139,18 @@ struct ShareCardView: View {
 
     // MARK: - Hero section (standard or paid mode)
 
+    /// Under the range in both branches, as on the guess card's reveal. This
+    /// is the one image built to leave the app, and a bare "$45–$90" under the
+    /// SnapWorth name and a QR code reads to whoever sees it as what the item
+    /// is worth or sold for — the claim the in-app "AI estimate" caption and
+    /// the 341c786 copy pass exist to avoid. The card predates that pass.
+    private var estimateLabel: some View {
+        Text("AI resale estimate")
+            .font(Font.dmSans(15, weight: .medium))
+            .foregroundStyle(Color(hex: "8B7D71"))
+            .lineLimit(1)
+    }
+
     @ViewBuilder
     private var heroSection: some View {
         if let paid = result.paidPrice {
@@ -150,11 +162,14 @@ struct ShareCardView: View {
                     .foregroundStyle(Color(hex: "8B7D71"))
                     .lineLimit(1)
 
-                Text(result.formattedRange)
-                    .font(Font.fraunces(50, weight: .bold))
-                    .foregroundStyle(Color(hex: "6F8F6B"))
-                    .minimumScaleFactor(0.45)
-                    .lineLimit(1)
+                VStack(spacing: 2) {
+                    Text(result.formattedRange)
+                        .font(Font.fraunces(50, weight: .bold))
+                        .foregroundStyle(Color(hex: "6F8F6B"))
+                        .minimumScaleFactor(0.45)
+                        .lineLimit(1)
+                    estimateLabel
+                }
 
                 if let badge = findBadge(paid: paid) {
                     Text(badge)
@@ -169,13 +184,16 @@ struct ShareCardView: View {
             .padding(.top, 20)
             .padding(.horizontal, innerPad)
         } else {
-            Text(result.formattedRange)
-                .font(Font.fraunces(56, weight: .bold))
-                .foregroundStyle(Color(hex: "6F8F6B"))
-                .minimumScaleFactor(0.45)
-                .lineLimit(1)
-                .padding(.top, 24)
-                .padding(.horizontal, innerPad)
+            VStack(spacing: 2) {
+                Text(result.formattedRange)
+                    .font(Font.fraunces(56, weight: .bold))
+                    .foregroundStyle(Color(hex: "6F8F6B"))
+                    .minimumScaleFactor(0.45)
+                    .lineLimit(1)
+                estimateLabel
+            }
+            .padding(.top, 24)
+            .padding(.horizontal, innerPad)
         }
     }
 

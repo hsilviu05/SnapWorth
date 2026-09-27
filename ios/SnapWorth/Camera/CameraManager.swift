@@ -53,8 +53,14 @@ final class CameraManager: NSObject, ObservableObject {
                     if granted { self?.setupSessionIfNeeded() }
                 }
             }
-        case .denied, .restricted:
+        case .denied:
             authStatus = .denied
+        case .restricted:
+            // Kept apart from `.denied`. Folding it in meant the restricted
+            // copy in ScanView could never show: a device locked by Screen
+            // Time or MDM was told to allow access in Settings, which its
+            // user cannot do.
+            authStatus = .restricted
         @unknown default:
             break
         }

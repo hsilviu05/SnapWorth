@@ -226,6 +226,14 @@
       "de": "%@, aus %@",
       "zh-Hans": "%@，来自 %@"
     },
+    "%@. %@": {
+      "comment": "VoiceOver: one sentence, then another after it (the portfolio total, then the insight line under it). Only the full stop changes between languages.",
+      "en": "%@. %@",
+      "ro": "%@. %@",
+      "es": "%@. %@",
+      "de": "%@. %@",
+      "zh-Hans": "%@。%@"
+    },
     "%@. %@ AI estimate.": {
       "comment": "VoiceOver value of the result card: the range, then the confidence phrase.",
       "en": "%@. %@ AI estimate.",
@@ -847,12 +855,36 @@
       "de": "KI-Schätzung",
       "zh-Hans": "AI 估价"
     },
+    "AI read: %@": {
+      "comment": "Why this price: something the AI read from the photo or guessed, attributed to it rather than stated as fact. The argument is a condition grade, or the AI's read of demand or supply.",
+      "en": "AI read: %@",
+      "ro": "După AI: %@",
+      "es": "Según la IA: %@",
+      "de": "Laut KI: %@",
+      "zh-Hans": "AI 判断：%@"
+    },
+    "AI read: %@, %@": {
+      "comment": "Why this price: the AI's guess at demand, then at supply. SnapWorth has no market data, so this must always read as the AI's opinion.",
+      "en": "AI read: %@, %@",
+      "ro": "După AI: %@, %@",
+      "es": "Según la IA: %@, %@",
+      "de": "Laut KI: %@, %@",
+      "zh-Hans": "AI 判断：%@，%@"
+    },
     "AI resale estimate": {
       "en": "AI resale estimate",
       "ro": "Estimare AI de revânzare",
       "es": "Estimación de reventa con IA",
       "de": "KI-Schätzung für den Wiederverkauf",
       "zh-Hans": "AI 转卖估价"
+    },
+    "Accessories": {
+      "comment": "An item category (ScanCategory), as a label on its own: a row of 'Trending at the thrift', and the start of that row's VoiceOver sentence.",
+      "en": "Accessories",
+      "ro": "Accesorii",
+      "es": "Accesorios",
+      "de": "Accessoires",
+      "zh-Hans": "配饰"
     },
     "Account": {
       "en": "Account",
@@ -1027,6 +1059,22 @@
       "de": "Bestes Angebot",
       "zh-Hans": "最划算"
     },
+    "Books": {
+      "comment": "An item category (ScanCategory), as a label on its own: a row of 'Trending at the thrift', and the start of that row's VoiceOver sentence.",
+      "en": "Books",
+      "ro": "Cărți",
+      "es": "Libros",
+      "de": "Bücher",
+      "zh-Hans": "图书"
+    },
+    "Brand %@": {
+      "comment": "VoiceOver, on the result photo: the item's brand as read by the AI.",
+      "en": "Brand %@",
+      "ro": "Marca %@",
+      "es": "Marca %@",
+      "de": "Marke %@",
+      "zh-Hans": "品牌 %@"
+    },
     "Bug Report": {
       "en": "Bug Report",
       "ro": "Raportare de problemă",
@@ -1082,6 +1130,14 @@
       "es": "No se pudo iniciar la cámara. Reinicia la app.",
       "de": "Die Kamera konnte nicht gestartet werden. Starte die App neu.",
       "zh-Hans": "相机启动失败。请重新打开 App。"
+    },
+    "Can't tell from this photo": {
+      "comment": "Authenticity read, under 'What the photo suggests about authenticity'.",
+      "en": "Can't tell from this photo",
+      "ro": "Nu se vede din poza asta",
+      "es": "No se puede saber por esta foto",
+      "de": "Auf diesem Foto nicht zu erkennen",
+      "zh-Hans": "这张照片看不出来"
     },
     "Cancel": {
       "en": "Cancel",
@@ -1146,6 +1202,14 @@
       "de": "Foto aus der Mediathek wählen",
       "zh-Hans": "从相册选一张照片"
     },
+    "Choose the label photo from your library": {
+      "comment": "VoiceOver label for the library button on the tag camera ('Add the tag'): use a photo of the label that is already in Photos.",
+      "en": "Choose the label photo from your library",
+      "ro": "Alege poza etichetei din galerie",
+      "es": "Elegir la foto de la etiqueta de la galería",
+      "de": "Etikettfoto aus der Mediathek wählen",
+      "zh-Hans": "从相册选择标签照片"
+    },
     "Clean up photo": {
       "en": "Clean up photo",
       "ro": "Curăță poza",
@@ -1202,6 +1266,22 @@
       "de": "Schließt das Ergebnis und geht zurück zur Kamera",
       "zh-Hans": "关闭结果并回到相机"
     },
+    "Clothing": {
+      "comment": "An item category (ScanCategory), as a label on its own: a row of 'Trending at the thrift', and the start of that row's VoiceOver sentence.",
+      "en": "Clothing",
+      "ro": "Îmbrăcăminte",
+      "es": "Ropa",
+      "de": "Kleidung",
+      "zh-Hans": "服装"
+    },
+    "Collectibles": {
+      "comment": "An item category (ScanCategory), as a label on its own: a row of 'Trending at the thrift', and the start of that row's VoiceOver sentence.",
+      "en": "Collectibles",
+      "ro": "Obiecte de colecție",
+      "es": "Coleccionables",
+      "de": "Sammlerstücke",
+      "zh-Hans": "收藏品"
+    },
     "Condition": {
       "comment": "Section header above the condition chips.",
       "en": "Condition",
@@ -1209,6 +1289,14 @@
       "es": "Estado",
       "de": "Zustand",
       "zh-Hans": "成色"
+    },
+    "Condition %@": {
+      "comment": "VoiceOver, on the result photo: the condition grade shown on its chip (New, Like New, Good, Used).",
+      "en": "Condition %@",
+      "ro": "Stare %@",
+      "es": "Estado %@",
+      "de": "Zustand %@",
+      "zh-Hans": "成色 %@"
     },
     "Confidence": {
       "en": "Confidence",
@@ -1457,13 +1545,6 @@
       "de": "Diesen Fund löschen?",
       "zh-Hans": "删除这件好物？"
     },
-    "Demand %@": {
-      "en": "Demand %@",
-      "ro": "Cerere %@",
-      "es": "Demanda %@",
-      "de": "Nachfrage %@",
-      "zh-Hans": "需求 %@"
-    },
     "Did %@ sell? Update your ledger to keep your profit accurate.": {
       "en": "Did %@ sell? Update your ledger to keep your profit accurate.",
       "ro": "S-a vândut %@? Actualizează-ți registrul ca profitul să rămână corect.",
@@ -1505,6 +1586,14 @@
       "es": "Editar hallazgos",
       "de": "Funde bearbeiten",
       "zh-Hans": "编辑好物"
+    },
+    "Electronics": {
+      "comment": "An item category (ScanCategory), as a label on its own: a row of 'Trending at the thrift', and the start of that row's VoiceOver sentence.",
+      "en": "Electronics",
+      "ro": "Electronice",
+      "es": "Electrónica",
+      "de": "Elektronik",
+      "zh-Hans": "电子产品"
     },
     "Enable notifications": {
       "en": "Enable notifications",
@@ -1734,6 +1823,14 @@
       "de": "Nur aus diesem Foto – keine Echtheitsprüfung.",
       "zh-Hans": "仅凭这张照片判断，不是鉴定结论。"
     },
+    "Furniture": {
+      "comment": "An item category (ScanCategory), as a label on its own: a row of 'Trending at the thrift', and the start of that row's VoiceOver sentence.",
+      "en": "Furniture",
+      "ro": "Mobilă",
+      "es": "Muebles",
+      "de": "Möbel",
+      "zh-Hans": "家具"
+    },
     "General Feedback": {
       "en": "General Feedback",
       "ro": "Păreri generale",
@@ -1862,6 +1959,14 @@
       "de": "Hohe Sicherheit",
       "zh-Hans": "置信度高"
     },
+    "Home": {
+      "comment": "An item category (ScanCategory), as a label on its own: a row of 'Trending at the thrift', and the start of that row's VoiceOver sentence.",
+      "en": "Home",
+      "ro": "Casă",
+      "es": "Hogar",
+      "de": "Wohnen",
+      "zh-Hans": "家居"
+    },
     "I want to…": {
       "en": "I want to…",
       "ro": "Vreau să…",
@@ -1983,6 +2088,14 @@
       "de": "Wie neu",
       "zh-Hans": "几乎全新"
     },
+    "Likely a replica": {
+      "comment": "Authenticity read, under 'What the photo suggests about authenticity'. Followed by 'From this photo only — not a certification.'",
+      "en": "Likely a replica",
+      "ro": "Probabil o imitație",
+      "es": "Probablemente una réplica",
+      "de": "Wahrscheinlich eine Nachahmung",
+      "zh-Hans": "很可能是仿品"
+    },
     "Listed": {
       "comment": "Flip status.",
       "en": "Listed",
@@ -2068,6 +2181,14 @@
       "es": "Confianza media",
       "de": "Mittlere Sicherheit",
       "zh-Hans": "置信度中等"
+    },
+    "Minor concerns": {
+      "comment": "Authenticity read, under 'What the photo suggests about authenticity'.",
+      "en": "Minor concerns",
+      "ro": "Mici semne de întrebare",
+      "es": "Algunas dudas menores",
+      "de": "Kleinere Zweifel",
+      "zh-Hans": "有少许疑点"
     },
     "Monthly": {
       "en": "Monthly",
@@ -2165,6 +2286,14 @@
       "es": "No se encontró ninguna suscripción activa.",
       "de": "Kein aktives Abo gefunden.",
       "zh-Hans": "没有找到有效订阅。"
+    },
+    "No concerns": {
+      "comment": "Authenticity read, under 'What the photo suggests about authenticity'. An observation about one photo, never a verdict.",
+      "en": "No concerns",
+      "ro": "Nimic suspect",
+      "es": "Nada sospechoso",
+      "de": "Nichts Auffälliges",
+      "zh-Hans": "未见可疑之处"
     },
     "No finds yet": {
       "en": "No finds yet",
@@ -2364,6 +2493,14 @@
       "es": "Abre esta reventa",
       "de": "Öffnet diesen Flip",
       "zh-Hans": "打开这笔转卖"
+    },
+    "Other": {
+      "comment": "An item category (ScanCategory), as a label on its own: a row of 'Trending at the thrift', and the start of that row's VoiceOver sentence.",
+      "en": "Other",
+      "ro": "Altele",
+      "es": "Otros",
+      "de": "Sonstiges",
+      "zh-Hans": "其他"
     },
     "Our AI is temporarily unavailable. Please try again in a moment.": {
       "en": "Our AI is temporarily unavailable. Please try again in a moment.",
@@ -2846,12 +2983,13 @@
       "de": "Sieh die Durchschnittspreise und die besten Funde der Woche",
       "zh-Hans": "看看均价和本周最好的几件"
     },
-    "See your exact profit after marketplace fees, right there in the aisle.": {
-      "en": "See your exact profit after marketplace fees, right there in the aisle.",
-      "ro": "Vezi exact ce profit îți rămâne după comisioane, chiar acolo, în magazin.",
-      "es": "Mira exactamente cuánto ganas tras las comisiones, allí mismo, en la tienda.",
-      "de": "Sieh deinen genauen Gewinn nach Plattformgebühren – direkt im Laden.",
-      "zh-Hans": "就站在货架前，看清扣掉平台手续费后到底赚多少。"
+    "See your estimated profit after marketplace fees, right there in the aisle.": {
+      "comment": "Onboarding, Thrift Flip slide. 'Estimated', never 'exact': the resale side is an AI estimate and the fees are approximate, which Thrift Flip itself says.",
+      "en": "See your estimated profit after marketplace fees, right there in the aisle.",
+      "ro": "Vezi profitul estimat după comisioane, chiar acolo, în magazin.",
+      "es": "Mira una estimación de tu ganancia tras las comisiones, allí mismo, en la tienda.",
+      "de": "Sieh deinen geschätzten Gewinn nach Plattformgebühren – direkt im Laden.",
+      "zh-Hans": "就站在货架前，估算扣掉平台手续费后能赚多少。"
     },
     "See your flips for the month": {
       "en": "See your flips for the month",
@@ -2937,6 +3075,14 @@
       "es": "Envío (opcional)",
       "de": "Versand (optional)",
       "zh-Hans": "运费（选填）"
+    },
+    "Shoes": {
+      "comment": "An item category (ScanCategory), as a label on its own: a row of 'Trending at the thrift', and the start of that row's VoiceOver sentence.",
+      "en": "Shoes",
+      "ro": "Încălțăminte",
+      "es": "Calzado",
+      "de": "Schuhe",
+      "zh-Hans": "鞋靴"
     },
     "Shop price": {
       "en": "Shop price",
@@ -3147,6 +3293,14 @@
       "de": "Sortieren, den Monat teilen oder als CSV exportieren",
       "zh-Hans": "排序、分享本月，或导出 CSV"
     },
+    "Sports": {
+      "comment": "An item category (ScanCategory), as a label on its own: a row of 'Trending at the thrift', and the start of that row's VoiceOver sentence.",
+      "en": "Sports",
+      "ro": "Sport",
+      "es": "Deportes",
+      "de": "Sport",
+      "zh-Hans": "运动"
+    },
     "Spot on — your guess is inside the estimate.": {
       "en": "Spot on — your guess is inside the estimate.",
       "ro": "Exact — ai nimerit în interval.",
@@ -3181,6 +3335,14 @@
       "es": "Empezar a escanear",
       "de": "Los scannen",
       "zh-Hans": "开始扫描"
+    },
+    "Status %@": {
+      "comment": "VoiceOver announcement after a flip-status chip is tapped. The argument is the status (Scanned, Owned, Listed, Sold).",
+      "en": "Status %@",
+      "ro": "Stadiu %@",
+      "es": "Estado %@",
+      "de": "Status %@",
+      "zh-Hans": "状态 %@"
     },
     "Stay on top of your flips": {
       "comment": "Title of the notification permission priming alert.",
@@ -3402,6 +3564,14 @@
       "de": "Zu viele Versuche heute. Versuch es morgen wieder.",
       "zh-Hans": "今天尝试次数太多了。明天再试吧。"
     },
+    "Toys": {
+      "comment": "An item category (ScanCategory), as a label on its own: a row of 'Trending at the thrift', and the start of that row's VoiceOver sentence.",
+      "en": "Toys",
+      "ro": "Jucării",
+      "es": "Juguetes",
+      "de": "Spielzeug",
+      "zh-Hans": "玩具"
+    },
     "Trending at the thrift": {
       "en": "Trending at the thrift",
       "ro": "Ce se caută la second hand",
@@ -3534,17 +3704,45 @@
       "zh-Hans": "解锁\nSnapWorth Pro"
     },
     "Unlock %lld more + all-time totals": {
-      "en": "Unlock %lld more + all-time totals",
-      "ro": "Deblochează încă %lld + totalurile pe tot istoricul",
-      "es": "Desbloquea %lld más y los totales de siempre",
-      "de": "Schalt %lld weitere und die Gesamtsummen frei",
+      "comment": "My Flips, free tier: the button under the visible flips. The number is how many more flips Pro shows.",
+      "en": {
+        "one": "Unlock %lld more + all-time totals",
+        "other": "Unlock %lld more + all-time totals"
+      },
+      "ro": {
+        "one": "Deblochează încă unul + totalurile pe tot istoricul",
+        "few": "Deblochează încă %lld + totalurile pe tot istoricul",
+        "other": "Deblochează încă %lld + totalurile pe tot istoricul"
+      },
+      "es": {
+        "one": "Desbloquea %lld más y los totales de siempre",
+        "other": "Desbloquea %lld más y los totales de siempre"
+      },
+      "de": {
+        "one": "Schalt einen weiteren und die Gesamtsummen frei",
+        "other": "Schalt %lld weitere und die Gesamtsummen frei"
+      },
       "zh-Hans": "再解锁 %lld 条，以及全部累计数据"
     },
     "Unlock %lld more flips and all-time totals": {
-      "en": "Unlock %lld more flips and all-time totals",
-      "ro": "Deblochează încă %lld flipuri și totalurile pe tot istoricul",
-      "es": "Desbloquea %lld reventas más y los totales de siempre",
-      "de": "Schalt %lld weitere Flips und die Gesamtsummen frei",
+      "comment": "VoiceOver label for the same button: how many more flips Pro shows.",
+      "en": {
+        "one": "Unlock %lld more flip and all-time totals",
+        "other": "Unlock %lld more flips and all-time totals"
+      },
+      "ro": {
+        "one": "Deblochează încă un flip și totalurile pe tot istoricul",
+        "few": "Deblochează încă %lld flipuri și totalurile pe tot istoricul",
+        "other": "Deblochează încă %lld de flipuri și totalurile pe tot istoricul"
+      },
+      "es": {
+        "one": "Desbloquea %lld reventa más y los totales de siempre",
+        "other": "Desbloquea %lld reventas más y los totales de siempre"
+      },
+      "de": {
+        "one": "Schalt einen weiteren Flip und die Gesamtsummen frei",
+        "other": "Schalt %lld weitere Flips und die Gesamtsummen frei"
+      },
       "zh-Hans": "再解锁 %lld 笔转卖，以及全部累计数据"
     },
     "Unlock marketplace listings": {
@@ -3589,6 +3787,14 @@
       "es": "Usado",
       "de": "Gebraucht",
       "zh-Hans": "有使用痕迹"
+    },
+    "Value history": {
+      "comment": "VoiceOver label for the portfolio sparkline on My Finds (Pro). Its value is the first and last total, e.g. '$45 to $1,240'.",
+      "en": "Value history",
+      "ro": "Istoricul valorii",
+      "es": "Historial de valor",
+      "de": "Wertverlauf",
+      "zh-Hans": "价值走势"
     },
     "Values an item from a photo you already have": {
       "en": "Values an item from a photo you already have",
@@ -3958,6 +4164,14 @@
       "de": "Dein Abo wurde wiederhergestellt.",
       "zh-Hans": "你的订阅已恢复。"
     },
+    "abundant supply": {
+      "comment": "The AI's guess at how many comparable items are for sale. Placed inside 'AI read: %@, %@'.",
+      "en": "abundant supply",
+      "ro": "ofertă abundentă",
+      "es": "oferta abundante",
+      "de": "reichliches Angebot",
+      "zh-Hans": "货源充足"
+    },
     "after marketplace fees": {
       "en": "after marketplace fees",
       "ro": "după comisioanele platformei",
@@ -4030,6 +4244,14 @@
       "de": "guter gebrauchter Zustand",
       "zh-Hans": "二手，成色良好"
     },
+    "high demand": {
+      "comment": "The AI's guess at demand. Lower-case: it is placed inside 'AI read: %@, %@'.",
+      "en": "high demand",
+      "ro": "cerere mare",
+      "es": "demanda alta",
+      "de": "hohe Nachfrage",
+      "zh-Hans": "需求高"
+    },
     "item sold": {
       "comment": "Share card label under a count of 1.",
       "en": "item sold",
@@ -4052,6 +4274,30 @@
       "es": "como nuevo, apenas usado",
       "de": "wie neu, kaum getragen",
       "zh-Hans": "几乎全新，仅试用过"
+    },
+    "low demand": {
+      "comment": "The AI's guess at demand. Lower-case: it is placed inside 'AI read: %@, %@'.",
+      "en": "low demand",
+      "ro": "cerere mică",
+      "es": "demanda baja",
+      "de": "geringe Nachfrage",
+      "zh-Hans": "需求低"
+    },
+    "medium demand": {
+      "comment": "The AI's guess at demand. Lower-case: it is placed inside 'AI read: %@, %@'.",
+      "en": "medium demand",
+      "ro": "cerere medie",
+      "es": "demanda media",
+      "de": "mittlere Nachfrage",
+      "zh-Hans": "需求一般"
+    },
+    "moderate supply": {
+      "comment": "The AI's guess at how many comparable items are for sale. Placed inside 'AI read: %@, %@'.",
+      "en": "moderate supply",
+      "ro": "ofertă moderată",
+      "es": "oferta moderada",
+      "de": "mittleres Angebot",
+      "zh-Hans": "货源适中"
     },
     "month": {
       "comment": "One subscription period, no number.",
@@ -4090,12 +4336,13 @@
       "de": "Gewinn diesen Monat",
       "zh-Hans": "本月利润"
     },
-    "supply %@": {
-      "en": "supply %@",
-      "ro": "ofertă %@",
-      "es": "oferta %@",
-      "de": "Angebot %@",
-      "zh-Hans": "供给 %@"
+    "scarce supply": {
+      "comment": "The AI's guess at how many comparable items are for sale. Placed inside 'AI read: %@, %@'.",
+      "en": "scarce supply",
+      "ro": "ofertă redusă",
+      "es": "oferta escasa",
+      "de": "knappes Angebot",
+      "zh-Hans": "货源稀少"
     },
     "unchanged": {
       "en": "unchanged",

@@ -18,7 +18,7 @@ import Foundation
 /// than a parallel family of `first_*` names that a future call site could
 /// forget to emit. `ScanTally` decides what "first" means, in one place.
 ///
-/// Rules: no PII ever. Categories come from the fixed `ItemCategory` enum;
+/// Rules: no PII ever. Categories come from the fixed `ScanCategory` enum;
 /// amounts and item names are never included.
 enum AnalyticsEvent {
     // ── Launch funnel ────────────────────────────────────────────────
@@ -31,7 +31,7 @@ enum AnalyticsEvent {
     /// `skipped` used the Skip control.
     case onboardingCompleted(via: OnboardingExit)
     case scanStarted(isFirst: Bool)
-    case scanCompleted(success: Bool, category: ItemCategory?)
+    case scanCompleted(success: Bool, category: ScanCategory?)
     /// A valuation was actually put in front of the user. Distinct from
     /// `scan_completed`, which fires when the response arrives: between the two
     /// sit persistence, encoding and sheet presentation.
@@ -220,41 +220,9 @@ enum AnalyticsEvent {
 // MARK: - Fixed enums (keep payloads bounded & PII-free)
 // ═══════════════════════════════════════════════════════════════════
 
-/// Fixed set of item categories. The backend returns a free-form string; we
-/// normalize to this closed set so analytics never leaks an unexpected value.
-enum ItemCategory: String, CaseIterable {
-    case clothing, shoes, accessories, bags, electronics
-    case home, collectibles, media, toys, beauty, other
-
-    /// Buckets a raw backend category into the fixed set; unknown ⇒ `.other`.
-    init(normalizing raw: String) {
-        let key = raw.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        switch key {
-        case "clothing", "clothes", "apparel", "menswear", "womenswear":
-            self = .clothing
-        case "shoes", "sneakers", "footwear":
-            self = .shoes
-        case "accessories", "accessory", "jewelry", "watches", "watch":
-            self = .accessories
-        case "bags", "bag", "handbags", "handbag", "purse", "purses":
-            self = .bags
-        case "electronics", "electronic", "tech", "gadgets":
-            self = .electronics
-        case "home", "furniture", "homeware", "home goods", "kitchen", "decor":
-            self = .home
-        case "collectibles", "collectible", "antiques", "art", "vintage":
-            self = .collectibles
-        case "media", "books", "book", "music", "vinyl", "games", "video games":
-            self = .media
-        case "toys", "toy", "figures", "figure":
-            self = .toys
-        case "beauty", "cosmetics", "fragrance", "makeup":
-            self = .beauty
-        default:
-            self = .other
-        }
-    }
-}
+// Item categories are `ScanCategory` (ScanAPIClient.swift): the closed set the
+// scan prompt offers, normalised the way the server's tallies are, so a
+// category never carries an unexpected value into analytics.
 
 /// The three failure buckets the funnel cares about.
 /// How onboarding ended. Two values, because "did they read it or bail?" is
