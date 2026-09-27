@@ -3820,6 +3820,29 @@ class TestAFailedReadDoesNotWipeTheDocument:
         assert not any("New paying subscriber" in t for t in recorder.texts)
         assert await redis.get(notify._stat_key(notify._day(), "new_subs")) is None
 
+    @pytest.mark.asyncio
+    async def test_a_conversion_it_could_not_look_up_still_alerts(
+            self, flaky_notify, recorder):
+        """Money is never silent. A trial converting during the blip used to
+        send nothing at all, and nothing later recovered it: the device's
+        next sync rewrites the row as paid quietly, and the subscription was
+        already seen as a trial. So a neutral alert goes out, and it is not
+        counted, since it may equally be a renewal."""
+        redis = flaky_notify
+        await notify._index_subscription("device-a", _trial("otid-converting"))
+        sent = len(recorder.texts)
+
+        redis.failing = True
+        await notify.subscription_event(FakeNotification(
+            _paid("otid-converting"), paid_period=True))
+        redis.failing = False
+
+        alerts = recorder.texts[sent:]
+        assert len(alerts) == 1, alerts
+        assert "Paid period" in alerts[0] and "index unreadable" in alerts[0]
+        assert "New paying subscriber" not in alerts[0]
+        assert await redis.get(notify._stat_key(notify._day(), "new_subs")) is None
+
 
 # ── A refund Apple reverses ──────────────────────────────────────────────────
 #

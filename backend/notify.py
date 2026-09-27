@@ -1018,6 +1018,14 @@ async def subscription_event(note, *, reinstated=None) -> None:
             # this subscription did not exist as far as the bot was concerned.
             lines = ["🎉 <b>New paying subscriber</b> (Apple reported it first)", detail]
             await _count_new_subscription(otid)
+        elif note.is_paid_period and not known:
+            # Money, with nothing to say which kind. Staying silent lost the
+            # conversion alert for good: the device's next sync rewrites the
+            # row as paid without a word, and the subscription was already
+            # seen as a trial. Not counted, because a renewal must not be.
+            lines = ["💵 <b>Paid period</b> (subscription index unreadable: "
+                     "a renewal, a conversion or a new payer)", detail,
+                     "Not counted in today's new subscribers."]
         elif note.is_refund:
             lines = ["↩️ <b>Refund</b>", detail]
         elif note.is_revoke:
