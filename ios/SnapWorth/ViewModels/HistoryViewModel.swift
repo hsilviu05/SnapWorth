@@ -70,8 +70,8 @@ final class HistoryViewModel {
     /// with the size of the library this feature is meant to celebrate.
     ///
     /// Free of SwiftData and of the view, so the arithmetic is directly
-    /// testable without a ModelContainer. `LedgerMath.total`, which every
-    /// money sum in the app now shares.
+    /// testable without a ModelContainer. The sum itself is `LedgerMath.total`,
+    /// the one the widget's totals use too.
     nonisolated static func total(of values: [Decimal]) -> Decimal {
         LedgerMath.total(values)
     }

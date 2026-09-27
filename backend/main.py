@@ -981,8 +981,11 @@ class ScanResponse(BaseModel):
     # expected price and every figure above inherited the bias — while a Pro
     # user saw the real expected price on the ladder beside it. A separate
     # field rather than un-stripping `expected_price_usd`: the ladder stays
-    # Pro (44a107e, `_PRO_ONLY_DETAIL_FIELDS`). This is one number, not the
-    # ladder, and the app never labels it "Expected" for a free user.
+    # Pro (44a107e, `_PRO_ONLY_DETAIL_FIELDS`). It is one number and never a
+    # ladder row, but it is not hidden from a free user: it is inside every
+    # total the app shows, and Thrift Flip seeds its editable "Expected
+    # resale" field with it, which at the graded condition is the Pro
+    # ladder's Expected price under that label.
     likely_price_usd: float | None = Field(ge=0, default=None)
 
     # Identification detail.
@@ -2325,7 +2328,10 @@ async def _analyse(image_bytes: bytes, content_type: str, *, subject: str,
 # blurs, they keep the card (and the paywall) alive, and they are the least of
 # what a subscriber is paying for. Everything the panel actually sells — the
 # four-point price ladder, the drivers, the assumptions, the authenticity
-# read — is withheld.
+# read — is withheld. With one exception, by product decision: the ladder's
+# Expected point reaches every tier as `likely_price_usd`, the figure the
+# app's maths use, and Thrift Flip shows it to a free user as its "Expected
+# resale" seed. The other three points, and the ladder as a ladder, stay Pro.
 #
 # Including from the summary, which is rewritten rather than kept as built. A
 # likely replica caps the score (`confidence.REPLICA_CEILING`) and, as the

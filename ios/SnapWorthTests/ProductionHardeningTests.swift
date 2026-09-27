@@ -7698,7 +7698,7 @@ final class LikelyPriceTests: XCTestCase {
         XCTAssertNil(detail.expected, "the ladder is still Pro")
         XCTAssertTrue(detail.lacksProDetail,
                       "a free find must still be offered the full breakdown")
-        XCTAssertTrue(detail.ladder.isEmpty, "nothing labelled Expected for a free user")
+        XCTAssertTrue(detail.ladder.isEmpty, "a ladder row for a free user")
     }
 
     func test_theLikelyAloneIsNotAPanel() {
@@ -7920,6 +7920,44 @@ final class PricingRulesTests: XCTestCase {
         // Nothing left to record: the history already ends where the price is.
         r.refreshPortfolioValue()
         XCTAssertEqual(r.valueHistory.count, 2)
+    }
+
+    func test_theRebaseAlsoReExpressesABaselineThatMovedBeforeIt() throws {
+        // d1d7e4c's stale row. Saved at like-new while the baseline was read
+        // from the notes ($75, the midpoint), then moved to good by the user
+        // ($65.22). The model's own grade, `used`, has since become the
+        // baseline, so the same chip prices at 75/0.78 today — and with no
+        // expected price none of that is the rules-2 change. The ratio
+        // carries it anyway: the history is re-expressed under everything now
+        // in force, and the user's downgrade reads as the fall it was rather
+        // than as a $21 rise that is only the baseline moving.
+        let r = ScanResult(itemName: "Item", brand: "B", category: "clothing",
+                           conditionNotes: "Like new, tags attached", valueLow: 50, valueHigh: 100,
+                           confidence: "Medium", soldListingsCount: 0,
+                           listingTitle: "T", listingDescription: "D")
+        let t0 = Date(timeIntervalSince1970: 1_780_000_000)
+        r.refreshPortfolioValue(on: t0)
+        r.condition = .good
+        r.refreshPortfolioValue(on: t0.addingTimeInterval(86_400))
+        XCTAssertEqual(r.valueHistory.count, 2)
+        XCTAssertEqual(try XCTUnwrap(r.valueHistory.first).value, 75, accuracy: 0.001)
+        XCTAssertEqual(try XCTUnwrap(r.valueHistory.last).value, 75 / 1.15, accuracy: 0.001)
+
+        var detail = ValuationDetail()
+        detail.conditionGrade = "used"
+        r.valuationDetailData = detail.encoded()
+        let today = NSDecimalNumber(decimal: r.currentPriceRange.likely).doubleValue
+        XCTAssertEqual(today, 75 / 0.78, accuracy: 0.001, "precondition: still the midpoint")
+
+        r.rebaseStoredValue()
+
+        XCTAssertEqual(r.valueHistory.count, 2)
+        XCTAssertEqual(try XCTUnwrap(r.valueHistory.first).value, 75 * 1.15 / 0.78, accuracy: 0.001,
+                       "the entry point, at like-new under today's baseline")
+        XCTAssertEqual(try XCTUnwrap(r.valueHistory.last).value, today, accuracy: 0.001)
+        let change = NSDecimalNumber(decimal: try XCTUnwrap(r.valueChangeSinceAdded)).doubleValue
+        XCTAssertLessThan(change, 0, "a downgrade recorded as a rise in value")
+        XCTAssertEqual(change, 75 / 0.78 - 75 * 1.15 / 0.78, accuracy: 0.01)
     }
 
     func test_aFindNeverPricedIntoThePortfolioIsLeftAlone() {

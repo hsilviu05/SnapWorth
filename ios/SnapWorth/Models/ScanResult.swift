@@ -455,6 +455,20 @@ final class ScanResult {
     /// as a change in what the item is worth — the signal `WeeklyDigest` is
     /// careful never to invent.
     ///
+    /// The ratio runs from the last point to today's figure, so it
+    /// re-expresses the history under everything now in force, not only the
+    /// change that ran it. The baseline grade moved under stored rows with no
+    /// bump (0f753e0, 63dcb40, 6e20e65): a find whose chip was touched before
+    /// those ends its history on a figure today's rules would not give, and is
+    /// rescaled even with no expected price, still priced from the midpoint.
+    /// That is intended — left in place, the next `refreshPortfolioValue`
+    /// would record the drift as a move in value. The ratio also absorbs one
+    /// real move: a tag re-read (fa0697f) made before 027413d, which is when
+    /// `applySharpened` began recording a point, on a row not re-priced since.
+    /// The two cannot be told apart, and the pass runs once, so that move is
+    /// folded into the scale for good. Nothing displays the per-item history
+    /// yet.
+    ///
     /// A row never priced into the portfolio (nil value, empty history) is
     /// left alone: it prices live like every other, and a first snapshot
     /// written now would date its entry to today.
@@ -537,6 +551,10 @@ enum PricingRules {
     /// 1 — `likely` is the midpoint of the range, for every find.
     /// 2 — the model's expected price, where the find has one
     ///     (`ScanResult.baselineLikely`); the midpoint where it does not.
+    ///     The pass to 2 re-expressed stored values under everything then in
+    ///     force, not only this: the baseline-grade changes that shipped with
+    ///     no bump (0f753e0, 63dcb40, 6e20e65) too. See
+    ///     `ScanResult.rebaseStoredValue`.
     static let current = 2
 
     /// Absent reads as 0, which is rules 1: nothing was recorded before 2.
