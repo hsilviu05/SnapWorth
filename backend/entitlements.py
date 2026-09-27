@@ -943,6 +943,14 @@ class EntitlementService:
         Checked on every read of a bounded entry, which costs one cache read
         for testers and reviewers only, and is what lets all three take effect
         at the next request rather than when the entry lapses.
+
+        An unreachable store raises `EntitlementsUnavailable`, like every
+        required read in `current()`, and `require_auth` then falls back to the
+        tier in the caller's token. That fallback would have been the gap: a
+        token minted while this subject held the claim says "pro" for its
+        whole hour. So a token minted from a bounded entitlement is marked
+        (`auth._mint`) and the fallback reads it as free. Closed at the sync
+        and on the request path alike.
         """
         if SANDBOX_ENTITLEMENTS != SANDBOX_BOUNDED:
             return False

@@ -39,8 +39,8 @@ import ratelimit
 from cache import KeyValueStore
 from devicecheck import DeviceCheckClient
 from auditlog import AuditEvent
-from entitlements import EntitlementError, EntitlementService
-from entitlements import EntitlementsUnavailable
+from entitlements import Entitlement, EntitlementError, EntitlementService
+from entitlements import EntitlementsUnavailable, is_bounded
 from quota import QuotaExceeded, QuotaStatus, QuotaUnavailable, ScanQuota
 from tokens import TokenError, TokenSigner
 
@@ -209,6 +209,29 @@ def key_id_safe(subject: str) -> str:
     return subject[:128]
 
 
+#: Marks a token whose `tier` came from a bounded Sandbox entitlement. See
+#: `_mint` for why, and `require_auth` for the one place it is read.
+BOUNDED_CLAIM = "bounded"
+
+
+def _mint(signer: TokenSigner, subject: str, ent: Entitlement) -> tuple[str, dict]:
+    """Mint a token carrying `ent`'s tier, marked when that tier is bounded.
+
+    `require_auth` honours a token's `tier` while the entitlement store is
+    down, which suits a Production subscriber: that tier was verified and
+    lasts the paid term, and the token lasts an hour. A bounded Sandbox tier
+    is different. It is Pro only while this subject holds the transaction's
+    one-device claim, and the claim can move to another device or be dropped
+    by a Sandbox refund at any moment after this token is minted. Unmarked,
+    such a token stayed Pro for the rest of its hour whenever Redis was down,
+    after either had happened. The mark lets the fallback read it as free.
+
+    Both places that mint go through here, so neither can forget the mark.
+    """
+    extra = {BOUNDED_CLAIM: True} if is_bounded(ent) else None
+    return signer.mint(subject, tier=ent.tier, extra=extra)
+
+
 async def _issue_token(subject: str, device_token: str | None) -> TokenResponse:
     # `signer` is legitimately Optional — the callers below guard on it — but
     # reaching here without one means the service is misconfigured rather than
@@ -228,7 +251,7 @@ async def _issue_token(subject: str, device_token: str | None) -> TokenResponse:
             status_code=503,
             detail="Subscription status is temporarily unavailable. Please try again shortly.",
         ) from None
-    token, claims = signer.mint(subject, tier=ent.tier)
+    token, claims = _mint(signer, subject, ent)
 
     remaining = 0
     try:
@@ -415,6 +438,15 @@ async def require_auth(
             # it for the rest of its own lifetime is bounded, and strictly
             # better than guessing "free".
             ent_tier = claims.get("tier") or "free"
+            if claims.get(BOUNDED_CLAIM):
+                # Except a bounded Sandbox tier: it is Pro only while this
+                # subject holds the one-device claim, and the claim lives in
+                # the store that is down. It may have moved to another device,
+                # or a Sandbox refund dropped it, since this token was minted.
+                # The sync fails closed here already (a 503); so does this.
+                # App Review and TestFlight read as free for the outage;
+                # customers are unaffected. See `_mint`.
+                ent_tier = "free"
             log.warning("entitlement store unavailable, honouring the token's tier: %s",
                         exc, extra={"tier": ent_tier})
         notify.saw_user(subject, tier=ent_tier)
@@ -497,7 +529,7 @@ async def record_entitlement(
 
     access_token = None
     if deps.signer is not None and principal.authenticated:
-        access_token, _ = deps.signer.mint(principal.subject, tier=ent.tier)
+        access_token, _ = _mint(deps.signer, principal.subject, ent)
 
     return EntitlementResponse(
         tier=ent.tier, expires_at=ent.expires_at, access_token=access_token)

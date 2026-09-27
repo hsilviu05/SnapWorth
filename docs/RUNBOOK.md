@@ -901,7 +901,13 @@ Production now honours Sandbox, **bounded**. Two separate settings:
   cost the same as anyone's.
 - **Fails closed.** The one-device claim is read and written with Redis
   required. If Redis is unreachable, the Sandbox sync answers 503 rather than
-  granting without the claim. Production's device binding still fails open.
+  granting without the claim. On other requests, `require_auth` normally
+  falls back to the tier in the caller's token during an outage, for up to
+  the token's hour. A token minted from a bounded grant carries
+  `"bounded": true`, and that fallback reads it as free, because the claim
+  it depends on is in the store that is down. So reviewers and testers are
+  free for the outage, and customers keep Pro. Production's device binding
+  still fails open.
 - **Refunds.** A Sandbox `REFUND`/`REVOKE` to the Sandbox route (§14) writes
   `entrevoked:sandbox:{otid}` and drops the claim, so access goes at the
   holder's next request. Sandbox tombstones have their own namespace, so a

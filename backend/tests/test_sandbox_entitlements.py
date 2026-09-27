@@ -20,6 +20,7 @@ import sys
 import time
 
 import pytest
+from fastapi import Request
 from fastapi.testclient import TestClient
 
 _HERE = os.path.dirname(os.path.abspath(__file__))
@@ -431,6 +432,56 @@ class TestDurableStoreOutage:
         r = client.post("/auth/entitlement", json={"signed_transaction": sandbox(pinned)},
                         headers={"Authorization": f"Bearer {token}"})
         assert r.status_code == 503
+
+    # The request path. `require_auth` honours a token's `tier` while the store
+    # is down, which is right for a customer and was wrong here: a bounded tier
+    # rests on the claim, the claim is in the store that is down, and it may
+    # have moved or been dropped since the token was minted.
+
+    @staticmethod
+    def _tier_during_outage(token: str, monkeypatch) -> str:
+        monkeypatch.setattr(auth.deps, "entitlements",
+                            TestDurableStoreOutage._outage_service())
+        request = Request({"type": "http", "method": "POST", "path": "/scan",
+                           "headers": [], "client": ("1.2.3.4", 0)})
+        principal = run(auth.require_auth(
+            request, authorization=f"Bearer {token}", x_device_id="d"))
+        return principal.tier
+
+    def test_a_displaced_device_is_not_pro_on_its_token_while_redis_is_down(
+            self, pinned, monkeypatch):
+        jws = sandbox(pinned)
+        minted = {}
+        for subject, device in (("sub-iphone", "iphone"), ("sub-ipad", "ipad")):
+            r = client.post("/auth/entitlement",
+                            json={"signed_transaction": jws, "device_id": device},
+                            headers={"Authorization": f"Bearer {token_for(subject)}"})
+            assert r.status_code == 200 and r.json()["tier"] == "pro"
+            minted[subject] = r.json()["access_token"]
+        assert run(auth.deps.entitlements.current("sub-iphone")).tier == "free"
+
+        assert self._tier_during_outage(minted["sub-iphone"], monkeypatch) == "free", (
+            "the device another one displaced is Pro again for as long as Redis is down")
+        # The holder too: which device holds the claim is exactly what an
+        # outage cannot answer. The sync answers 503 for the same reason.
+        assert self._tier_during_outage(minted["sub-ipad"], monkeypatch) == "free"
+
+    def test_a_token_minted_at_refresh_is_marked_too(self, service, pinned, monkeypatch):
+        """`/auth/attest` and `/auth/refresh` mint through `_issue_token`,
+        which reads the tier from `current()` rather than from a purchase."""
+        monkeypatch.setattr(auth.deps, "entitlements", service)
+        run(service.record("reviewer", sandbox(pinned), authenticated=True))
+        issued = run(auth._issue_token("reviewer", None))
+        assert issued.tier == "pro"
+        assert self._tier_during_outage(issued.access_token, monkeypatch) == "free"
+
+    def test_a_customer_keeps_pro_through_the_same_outage(self, pinned, monkeypatch):
+        """The control: only the bounded tier is read as free."""
+        r = client.post("/auth/entitlement",
+                        json={"signed_transaction": production(pinned)},
+                        headers={"Authorization": f"Bearer {token_for('customer')}"})
+        assert r.status_code == 200 and r.json()["tier"] == "pro"
+        assert self._tier_during_outage(r.json()["access_token"], monkeypatch) == "pro"
 
 
 # ── Not a customer: no row, no count, no alert, no reward ───────────────────
