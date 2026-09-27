@@ -489,7 +489,9 @@ final class PrivacyPolicyDisclosureTests: XCTestCase {
 // `prompts.py` and deployed to production with zero client-decode
 // verification. A renamed field would have been caught by neither suite.
 //
-// `contract/scan-response.json` is now the single fixture both sides read.
+// Both sides now read the 200 bodies in `contract/`: `scan-response.json`
+// (Pro) and `scan-response-free.json` (free), each generated from real server
+// output by `backend/tests/test_contract.py`.
 
 final class ScanContractTests: XCTestCase {
 

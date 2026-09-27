@@ -43,7 +43,9 @@ def _json_type(value: object) -> str:
         return "null"
     if isinstance(value, bool):
         return "boolean"
-    # Kept apart: Swift decodes a Double from 37 but not an Int from 37.0.
+    # Kept apart, deliberately stricter than the client: Swift's JSONDecoder
+    # reads 37.0 as an Int and throws only on a truly fractional value such as
+    # 37.5. A whole number turning into a float is the step before that.
     if isinstance(value, int):
         return "integer"
     if isinstance(value, float):
@@ -103,7 +105,8 @@ def _check(name: str, served: dict) -> dict:
 
 def _error(response, *headers: str) -> dict:
     """An error response as its fixture records it: status, the headers the
-    client reads, and the body."""
+    server sends that a client may rely on, and the body. (The app reads
+    `Retry-After`; it does not read `X-Quota-Resets-At` yet.)"""
     return {
         "status": response.status_code,
         "headers": {h: response.headers[h] for h in headers},
@@ -167,9 +170,10 @@ class TestSuccessBodies:
         as objects, or a score turning fractional, passes a keys-only check."""
         served = _scan_with(V2_PAYLOAD, pro=True).json()
         fixture = json.loads((CONTRACT / "scan-response.json").read_text())
+        # A truly fractional score: the client reads 37.0 as an Int, not 37.5.
         changed = {**served,
                    "confidence_reasons": [{"code": "soft_photo", "text": "soft"}],
-                   "confidence_score": float(served["confidence_score"])}
+                   "confidence_score": served["confidence_score"] + 0.5}
         problems = shape_differences(fixture, changed)
         assert any(p.startswith("confidence_reasons[]") for p in problems)
         assert any(p.startswith("confidence_score") for p in problems)
