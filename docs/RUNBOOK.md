@@ -158,7 +158,9 @@ Cache hit ratio · rate-limit rejections · quota exhaustion · dependency error
 
 1. Split by class in `snapworth_http_requests_total{status_class="5xx"}`.
 2. **502s** are almost always the model — check
-   `model_calls_total{outcome="exhausted"}` → §5.3.
+   `model_calls_total{outcome="exhausted"}` → §5.3. `outcome="deadline"` is
+   the app's 33s budget running out (slow uploads, slow replies), not Gemini
+   failing.
 3. **500s** are ours. Find the request id in the log line and grep it; every log
    line carries one (`observability.RequestContextMiddleware`).
 4. If 500s started with a deploy, roll back first and diagnose after.
@@ -178,7 +180,10 @@ unaffected — users keep their Pro status and their history.
 3. Check the split: `outcome="blocked"` is content filtering (not an outage),
    `outcome="quota_exhausted"` is billing (above), `outcome="non_retryable"`
    usually means a bad API key, `outcome="no_price"` means the model answered
-   but carried no usable valuation — see §5.9.
+   but carried no usable valuation — see §5.9. `outcome="deadline"` is the
+   client's deadline passing before or during the call; it is not counted
+   against `/health` and is filed as "timed out", not "provider", in the
+   digest.
 4. If the key is the problem, rotate it (§8.2).
 5. There is currently **no fallback provider** `[NOT IMPLEMENTED]`. A Gemini
    outage is a full scan outage. This is the largest single-point-of-failure in
@@ -286,6 +291,14 @@ availability one.
 1. Check `rate_limited_total` and `quota_exhausted_total`.
 2. Device id is client-supplied and trivially rotated — the real backstop is the
    per-IP limit (`IP_RATE_MAX_REQUESTS`, default 60/hr).
+   It keys on the rightmost `X-Forwarded-For` hop (`ratelimit.client_ip`),
+   which is the caller's own address only while Railway's edge is the one proxy
+   in front of the container. Each process logs `x-forwarded-for carried N
+   hop(s)` the first time it sees each count; app traffic should read 1.
+   **Before putting a CDN or any other proxy in front of Railway** (a proxied
+   DNS record, Railway's CDN), change `client_ip` to take the hop a configured
+   number of places from the right. Otherwise the rightmost hop is the CDN's
+   address and one 60/hr bucket serves every user.
 3. Tighten via env; no deploy needed if the platform supports variable updates
    with a restart.
 4. Sustained abuse from one IP range needs a platform-level block; there is no

@@ -35,6 +35,7 @@ from pydantic import BaseModel, Field
 
 import appattest
 import auditlog
+import metrics
 import notify
 import ratelimit
 from cache import CacheUnavailable, ResilientCache
@@ -479,10 +480,12 @@ async def record_entitlement(
         ent = await deps.entitlements.record(
             principal.subject, req.signed_transaction, device_id=req.device_id)
     except EntitlementError as exc:
+        metrics.entitlement_operations.inc(outcome="rejected")
         auditlog.record(AuditEvent.ENTITLEMENT_REJECTED, principal.subject,
                         outcome="failure", reason=str(exc))
         raise HTTPException(status_code=400, detail=str(exc)) from None
 
+    metrics.entitlement_operations.inc(outcome="recorded")
     auditlog.record(AuditEvent.ENTITLEMENT_RECORDED, principal.subject,
                     tier=ent.tier, product_id=ent.product_id)
     # Operator ping: first sighting of a subscription, or a proven downgrade.
@@ -540,6 +543,8 @@ async def reserve_quota(principal: Principal) -> QuotaStatus | None:
     try:
         status = await deps.quota.reserve(principal.subject, principal.is_pro)
     except QuotaExceeded as exc:
+        # RUNBOOK §5.8 reads this; until now nothing incremented it.
+        metrics.quota_exhausted.inc()
         auditlog.record(AuditEvent.QUOTA_EXCEEDED, principal.subject, outcome="denied")
         # Countable, not just audited. The audit log is per-event and nothing
         # aggregates it, so the server half of the free-scan funnel did not

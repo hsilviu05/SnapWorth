@@ -345,9 +345,10 @@ image_processing_duration = _histogram(
 upload_rejected = _counter(
     "snapworth_upload_rejected_total", "Uploads rejected by validation", ("reason",))
 
-# Cache
-cache_operations = _counter(
-    "snapworth_cache_operations_total", "Cache operations", ("operation", "outcome"))
+# Cache. There was also a `cache_operations` counter here that nothing ever
+# incremented; a dashboard built on it would have read a flat zero. Removed
+# rather than wired into every Redis call: `cache_degraded` is the signal the
+# runbook acts on, and a per-operation count has no reader.
 cache_degraded = _gauge(
     "snapworth_cache_degraded", "1 when the durable cache is configured but unreachable")
 
@@ -420,10 +421,17 @@ def status_class(code: int) -> str:
 # Route templates we expose. Anything else is reported as "other" — an unbounded
 # `endpoint` label taken from the raw path is a cardinality bomb, because a
 # scanner probing random URLs would create a series per probe.
+#
+# Every route the app registers must be here; a test compares this with
+# `main.app.routes`. The last four were missing, so Apple's server
+# notifications, both referral calls and the TikTok callback were all counted
+# as "other" — indistinguishable from a scanner's probes.
 KNOWN_ENDPOINTS = frozenset({
     "/scan", "/listing", "/trends", "/health", "/health/live", "/health/ready",
     "/metrics", "/privacy", "/terms",
     "/auth/challenge", "/auth/attest", "/auth/refresh", "/auth/entitlement",
+    "/apple/notifications", "/referral/status", "/referral/claim",
+    "/social/tiktok/callback",
 })
 
 

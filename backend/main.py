@@ -708,6 +708,10 @@ class RecordMetrics:
 
         metrics.http_in_flight.inc()
         start = time.monotonic()
+        # Before the body is read: a slow upload spends the client's budget
+        # too. See `_client_deadline`. `scope["state"]` is what Starlette's
+        # `request.state` reads, so handlers see this as `request.state.arrived`.
+        scope.setdefault("state", {})["arrived"] = start
         try:
             await self.app(scope, receive, send_observed)
         finally:
@@ -887,31 +891,6 @@ async def _enforce_limits(device_id: str, ip: str | None) -> None:
                             headers={"Retry-After": str(exc.retry_after)}) from None
 
 
-SCAN_PROMPT = """You are an expert at identifying secondhand and thrift items from photos and estimating their typical resale value from your broad market knowledge.
-
-Analyze the provided image of a secondhand or thrift item and return ONLY a valid JSON object — no markdown, no explanation, no extra text.
-
-Required JSON schema:
-{
-  "item_name": "Specific item name including brand, model, size if visible (e.g. 'Patagonia Better Sweater 1/4-Zip, Size M')",
-  "brand": "Brand name, or 'Unknown' if not identifiable",
-  "category": "One of: clothing, shoes, accessories, electronics, books, furniture, home, sports, toys, collectibles, other",
-  "condition_notes": "Brief honest condition summary (e.g. 'Good — light pilling on cuffs, no stains')",
-  "est_value_low_usd": 12.00,
-  "est_value_high_usd": 45.00,
-  "confidence": "High, Medium, or Low based on how clearly you can identify the item",
-  "listing_title": "Compelling, SEO-friendly resale title under 80 chars",
-  "listing_description": "2-3 sentences highlighting key selling points, condition, and why it's a good buy"
-}
-
-Rules:
-- Estimate the typical secondhand resale range from your general market knowledge — reflect what these items usually resell for, not inflated retail or asking prices
-- If the brand is clearly visible, weight the estimate to that brand's typical secondhand market
-- est_value_low_usd must always be less than est_value_high_usd
-- confidence reflects how clearly you can identify the item from the image, nothing more
-- If the image is blurry, shows multiple items, or is not a resalable item, set confidence to "Low" and provide your best estimate anyway
-- Never return values outside the JSON object"""
-
 # Constructed with explicit generation parameters — see aiconfig.py. The bare
 # `genai.GenerativeModel(name)` this replaces ran at the API default temperature
 # of 1.0, i.e. full sampling randomness on a pricing task.
@@ -932,7 +911,14 @@ class ScanResponse(BaseModel):
     nullable.
 
     Everything below is additive and defaulted. Swift's `Decodable` ignores keys
-    it does not declare, so an old client is unaffected by their presence.
+    it does not declare, so adding one is safe. Changing one is not: since "Why
+    this price" (#87, 697d0c3) the client decodes most of them with
+    `decodeIfPresent`, which accepts null or absent but throws on a value of
+    the wrong type — and one throw fails the whole scan, after the allowance
+    was charged. So a v2 field's type is as fixed as a v1 field's: new
+    structure goes in a new field. `contract/` holds the real bodies and
+    `tests/test_contract.py` compares every key and type with what this
+    serves.
     """
 
     # ── v1 contract — do not change ─────────────────────────────────────────
@@ -1167,6 +1153,12 @@ def _fallback_listing(req: ListingRequest) -> ListingResponse:
     )
 
 
+#: How far above the valuation's high end an ask may sit, and how far below its
+#: low end a walk-away floor may. Room to negotiate, not room to invent.
+_LISTING_ASK_HEADROOM = 1.25
+_LISTING_FLOOR_GIVE = 0.8
+
+
 def _validate_listing(data: dict, req: ListingRequest) -> ListingResponse:
     """Coerce the model's JSON into a safe listing, repairing prices and falling
     back field-by-field so a partial/garbled response never blanks the listing."""
@@ -1183,6 +1175,24 @@ def _validate_listing(data: dict, req: ListingRequest) -> ListingResponse:
     floor = _safe_float(data.get("negotiation_floor", 0)) or fb.negotiation_floor
     if floor <= 0:
         floor = fb.negotiation_floor
+
+    # The ask is bounded by the valuation it was written from, as /scan's
+    # prices are by their category band. Only `floor <= ask` was enforced, so
+    # an ask of $450 over a $300 floor went through on a $4–$14 item — a
+    # hallucinated or tag-steered number that a Pro user copies straight into
+    # a public listing. The prompt pre-fills the valuation and a model that
+    # follows it lands well inside these bounds: a touch over the typical
+    # price for the ask, the low end for the floor. Outside them the number is
+    # not a judgement worth keeping, so the deterministic listing's price is
+    # used rather than the nearest edge.
+    points = [p for p in (req.price_low_usd, req.price_likely_usd, req.price_high_usd)
+              if p > 0]
+    if points:
+        low, high = min(points), max(points)
+        if not low <= price <= high * _LISTING_ASK_HEADROOM:
+            price = fb.listing_price
+        if not low * _LISTING_FLOOR_GIVE <= floor <= price:
+            floor = fb.negotiation_floor
     if floor > price:          # never let the walk-away floor exceed the ask
         floor = price
 
@@ -1789,7 +1799,8 @@ async def scan(
     try:
         response, elapsed = await _analyse(image_bytes, content_type,
                                            subject=principal.subject, device_short=device_short,
-                                           tag_bytes=tag_bytes, tag_type=tag_type)
+                                           tag_bytes=tag_bytes, tag_type=tag_type,
+                                           deadline=_client_deadline(request))
     except BaseException:
         # `quota_status` carries the UTC day the reservation was counted
         # against. Recomputing the day here refunded the wrong counter for a
@@ -1865,7 +1876,8 @@ def _not_resalable_message(val: valuation_module.Valuation) -> str:
 
 async def _analyse(image_bytes: bytes, content_type: str, *, subject: str,
                    device_short: str, tag_bytes: bytes | None = None,
-                   tag_type: str = "", count: bool = True) -> tuple[ScanResponse, float]:
+                   tag_type: str = "", count: bool = True,
+                   deadline: float | None = None) -> tuple[ScanResponse, float]:
     """The scan itself: model call, parse, normalise, clamp, score.
 
     Everything between "the upload is valid and allowed" and "charge for it":
@@ -1873,7 +1885,8 @@ async def _analyse(image_bytes: bytes, content_type: str, *, subject: str,
     the Telegram bot's photo test — which must exercise exactly this code and
     nothing else, or a green test scan would prove nothing about /scan.
     Returns the response (with `free_scans_remaining` unset) and the elapsed
-    seconds. Raises HTTPException exactly as the endpoint would.
+    seconds. Raises HTTPException exactly as the endpoint would. `deadline` is
+    `_generate_with_retry`'s, for both model calls a scan can make.
     """
 
     t0 = time.monotonic()
@@ -1909,7 +1922,7 @@ async def _analyse(image_bytes: bytes, content_type: str, *, subject: str,
             label = "scan_with_tag" if tag_bytes else "scan"
         else:
             label = "bot_scan_with_tag" if tag_bytes else "bot_scan"
-        raw, usage = await _generate_with_retry(contents, label=label)
+        raw, usage = await _generate_with_retry(contents, label=label, deadline=deadline)
     except aiconfig.ModelBlocked as exc:
         # A safety block is not an outage. Thrift inventory includes penknives,
         # lighters and vintage militaria; telling the user the service is down
@@ -1924,9 +1937,16 @@ async def _analyse(image_bytes: bytes, content_type: str, *, subject: str,
             detail="This photo couldn't be analysed. Try a clear photo of a single item.",
         ) from None
     except aiconfig.ModelUnavailable as exc:
-        log.error("gemini failed after retries: %s", exc)
+        # A deadline stop is the app running out of time, not Gemini failing,
+        # so it is not tallied as `provider` — that line is how the operator
+        # tells an outage from everything else.
+        if isinstance(exc, _DeadlinePassed):
+            log.warning("scan stopped at the client's deadline: %s", exc)
+        else:
+            log.error("gemini failed after retries: %s", exc)
         if count:
-            notify.count_scan_failure("provider")
+            notify.count_scan_failure(
+                "deadline" if isinstance(exc, _DeadlinePassed) else "provider")
         raise HTTPException(
             status_code=502,
             detail="The AI service is temporarily unavailable. Please try again.",
@@ -1939,7 +1959,7 @@ async def _analyse(image_bytes: bytes, content_type: str, *, subject: str,
         # an explicit reformat instruction before giving up — mirrors /listing,
         # which already degrades gracefully rather than 500-ing.
         log.warning("json parse error, attempting reformat", extra={"error": str(exc)})
-        data = await _retry_as_json(raw)
+        data = await _retry_as_json(raw, deadline=deadline)
         if data is None:
             log.error("scan unparseable after reformat", extra={"raw_prefix": raw[:200]})
             if count:
@@ -1961,7 +1981,12 @@ async def _analyse(image_bytes: bytes, content_type: str, *, subject: str,
     # missing prices to 0, `or` treats 0 as absent, and the constants were
     # presented as the estimate. Honest valuation is the product; inventing a
     # number when the model gave none is the one failure mode worth 502-ing for.
-    if not val.prices.worst or not val.prices.best:
+    #
+    # One price is the same failure. `reconcile_prices` copies it to all four
+    # points and the clamp opens it by ×1.5, so a reply cut off after its first
+    # price field was served as "$60–$90, High confidence". `servable` asks for
+    # both ends, or two different prices, from the model itself.
+    if not val.prices.servable:
         # ...unless the model priced it at zero on purpose. The prompt's last
         # honesty rule tells it to, for "a person, a pet, a room, a screenshot,
         # food" — so the documented correct answer was being served as a
@@ -1972,7 +1997,9 @@ async def _analyse(image_bytes: bytes, content_type: str, *, subject: str,
         if valuation_module.priced_as_unsellable(data):
             log.info("scan declined: not a resalable object",
                      extra={"item": val.item_name, "category": val.category})
-            metrics.model_calls.inc(operation="scan", outcome="not_resalable")
+            # `label`, as for `no_price` below: hardcoded, a bot or tag-photo
+            # scan was filed as a plain user scan.
+            metrics.model_calls.inc(operation=label, outcome="not_resalable")
             # 422, not 502: nothing failed. The model read the photo and
             # answered. The client renders `detail` verbatim for any non-2xx
             # and retries nothing automatically, so this reaches the user as
@@ -2021,6 +2048,7 @@ async def _analyse(image_bytes: bytes, content_type: str, *, subject: str,
         was_clamped=was_clamped,
         model_field_count=valuation_module.count_present_fields(val),
         expected_field_count=len(valuation_module.EXPECTED_OPTIONAL_FIELDS),
+        range_synthesised=val.prices.single_price,
     )
     val.confidence = conf
     metrics.confidence_score.observe(conf.score)
@@ -2109,6 +2137,16 @@ async def _analyse(image_bytes: bytes, content_type: str, *, subject: str,
 # four-point price ladder, the drivers, the assumptions, the authenticity
 # read — is withheld.
 #
+# Including from the summary, which is rewritten rather than kept as built. A
+# likely replica caps the score (`confidence.REPLICA_CEILING`) and, as the
+# weakest signal, is the first reason the summary names; kept as built, every
+# free scan of a suspected fake carried "the item may not be authentic" in its
+# raw body, behind nothing but the client's blur. The free summary words it as
+# "could not be verified", as it does every other doubtful authenticity read.
+# The Low badge stays — the price is still for an item the photo probably is
+# not — but the verdict is Pro detail. A replica flag for free users would be
+# a product decision and its own field.
+#
 # Note this saves no tokens. The model still generates all of it; only the
 # serialised response is trimmed. Charging free scans less would mean a second
 # prompt, which forks the thing the whole valuation rests on.
@@ -2133,6 +2171,12 @@ _PRO_ONLY_DETAIL_FIELDS = (
 
 def _strip_pro_detail(response: "ScanResponse") -> "ScanResponse":
     """Blank the Pro-only valuation fields on a free user's response."""
+    # Before `confidence_reasons` is blanked: the summary is rebuilt from it.
+    response.confidence_summary = confidence_module.summary_sentence(
+        confidence_module.ConfidenceResult(
+            score=response.confidence_score, band=response.confidence,
+            reasons=response.confidence_reasons),
+        withhold_authenticity=True)
     for field in _PRO_ONLY_DETAIL_FIELDS:
         current = getattr(response, field, None)
         setattr(response, field, [] if isinstance(current, list) else None)
@@ -2142,13 +2186,57 @@ def _strip_pro_detail(response: "ScanResponse") -> "ScanResponse":
 _RETRY_ATTEMPTS = int(os.environ.get("GEMINI_RETRY_ATTEMPTS", "2"))
 _RETRY_BASE_DELAY = float(os.environ.get("GEMINI_RETRY_BASE_DELAY", "0.5"))
 
+# How long after a request arrives the app is still waiting for the answer.
+# The iOS client gives up 35s after it starts a request, upload included
+# (`timeoutIntervalForResource` in CertificatePinning.swift); 33s from arrival
+# leaves the response time to travel back.
+#
+# The SDK's timeout (aiconfig.REQUEST_TIMEOUT_MS, 25s) is per attempt, and
+# there are two attempts, each with the full timeout and a backoff between
+# them — so a first attempt that timed out was followed by a second that ran
+# to about 50s, billed for a result the phone had stopped waiting for 15s
+# earlier. `_generate_with_retry` now bounds each attempt by what is left.
+CLIENT_DEADLINE_SECONDS = float(os.environ.get("CLIENT_DEADLINE_SECONDS", "33"))
+
+# A retry is not started with less than this left. A judgement, not a
+# measurement: a vision call that has to think and write ~1k tokens of JSON
+# rarely finishes faster, and the attempt is billed whether or not it does.
+_MIN_RETRY_SECONDS = 8.0
+
+
+class _DeadlinePassed(aiconfig.ModelUnavailable):
+    """The caller's deadline ended the model call, not the provider.
+
+    A `ModelUnavailable`, so every caller still answers the user as before.
+    Its own type because it says nothing about Gemini: filed as `exhausted`,
+    two slow uploads in a row — or one slow upload and an ordinary 15-20s
+    reply — marked the provider unhealthy, turned /health degraded and paged
+    the operator while Gemini was answering normally.
+    """
+
+
+def _client_deadline(request: Request) -> float:
+    """When the app stops waiting for this request, as a `time.monotonic()`
+    instant: CLIENT_DEADLINE_SECONDS after it arrived, which the metrics
+    middleware records before the upload is read."""
+    arrived = getattr(request.state, "arrived", None)
+    start = arrived if isinstance(arrived, float) else time.monotonic()
+    return start + CLIENT_DEADLINE_SECONDS
+
+
 # Substrings identifying failures that will not succeed on retry. Retrying these
 # wastes the user's time and doubles the bill for a guaranteed second failure.
+#
+# The fallback for an exception with no status code (a transport error, a test
+# double). A google-genai `APIError` carries `code`, and is classified on that:
+# its message embeds the whole error body, so a quota value of "4000" read as a
+# 400 here.
 _NON_RETRYABLE = (
     "invalid_argument", "invalid argument", "400",
     "permission_denied", "api key", "unauthenticated", "401", "403",
     "not_found", "404",
 )
+_NON_RETRYABLE_CODES = frozenset({400, 401, 403, 404})
 
 
 # A *hard* quota/billing stop, as distinct from an ordinary rate-limit 429.
@@ -2160,18 +2248,61 @@ _NON_RETRYABLE = (
 #
 # Matched on the billing wording specifically, NOT on "quota" or "429" — those
 # would also swallow the retryable rate-limit case, which is the common one.
+#
+# "exceeded your current quota" used to be here, filed as OpenAI's wording. It
+# is also the first sentence of Gemini's own *per-minute* 429 ("You exceeded
+# your current quota, please check your plan and billing details"), so an
+# ordinary burst was treated as a billing stop: no retry, the model marked
+# unhealthy on the first failure, and the operator paged to top up billing.
+# Gemini says which quota ran out in the error's structured details, so that is
+# what decides it now — see `_quota_ids`.
 _QUOTA_EXHAUSTED = (
     "prepayment credits",
     "credits are depleted",
-    "exceeded your current quota",
     "insufficient_quota",
     "billing account",
 )
 
 
+def _error_details(exc: Exception) -> list[dict]:
+    """The `details` array of a google-genai `APIError`, or [].
+
+    `APIError.details` is the whole response body, `{"error": {"code",
+    "message", "status", "details": [...]}}`; the list holds typed entries
+    (`google.rpc.QuotaFailure`, `google.rpc.RetryInfo`, …) keyed by "@type".
+    Anything else — a plain exception, a test double, a changed SDK — is [].
+    """
+    body = getattr(exc, "details", None)
+    if isinstance(body, dict) and isinstance(body.get("error"), dict):
+        body = body["error"]
+    details = body.get("details") if isinstance(body, dict) else None
+    if not isinstance(details, list):
+        return []
+    return [d for d in details if isinstance(d, dict)]
+
+
+def _detail_of_type(exc: Exception, suffix: str) -> list[dict]:
+    return [d for d in _error_details(exc) if str(d.get("@type", "")).endswith(suffix)]
+
+
+def _quota_ids(exc: Exception) -> list[str]:
+    """Which quotas a 429 says were exceeded, e.g.
+    `GenerateRequestsPerMinutePerProjectPerModel`."""
+    ids: list[str] = []
+    for failure in _detail_of_type(exc, "QuotaFailure"):
+        for violation in failure.get("violations") or []:
+            if isinstance(violation, dict) and isinstance(violation.get("quotaId"), str):
+                ids.append(violation["quotaId"])
+    return ids
+
+
 def _is_quota_exhausted(exc: Exception) -> bool:
     text = str(exc).lower()
-    return any(marker in text for marker in _QUOTA_EXHAUSTED)
+    if any(marker in text for marker in _QUOTA_EXHAUSTED):
+        return True
+    # A per-day quota does not clear until the day turns over, so it is a stop
+    # for today — the per-minute one beside it clears in seconds.
+    return any("perday" in quota_id.lower() for quota_id in _quota_ids(exc))
 
 
 def _is_retryable(exc: Exception) -> bool:
@@ -2179,6 +2310,9 @@ def _is_retryable(exc: Exception) -> bool:
     # those markers, so without this it falls through to "retryable".
     if _is_quota_exhausted(exc):
         return False
+    code = getattr(exc, "code", None)
+    if isinstance(code, int) and not isinstance(code, bool):
+        return code not in _NON_RETRYABLE_CODES
     text = str(exc).lower()
     return not any(marker in text for marker in _NON_RETRYABLE)
 
@@ -2255,8 +2389,18 @@ class _ModelHealth:
 _model_health = _ModelHealth()
 
 
+def _record_usage(label: str, usage: dict) -> None:
+    """Count one reply's tokens toward spend (`notify`) and the token metric."""
+    notify.model_usage(label, usage)
+    for kind, key in (("prompt", "prompt_tokens"), ("output", "output_tokens"),
+                      ("thoughts", "thoughts_tokens")):
+        if key in usage:
+            metrics.model_tokens.inc(usage[key], operation=label, kind=kind)
+
+
 async def _generate_with_retry(
-    contents, *, label: str, max_tokens: int | None = None, record_health: bool = True
+    contents, *, label: str, max_tokens: int | None = None, record_health: bool = True,
+    deadline: float | None = None,
 ) -> tuple[str, dict]:
     """Call the model with classified retries and jittered backoff.
 
@@ -2271,33 +2415,75 @@ async def _generate_with_retry(
     * **It treated a safety block as an outage.** `extract_text` separates the
       two so the caller can answer the user accurately.
 
+    `deadline`, a `time.monotonic()` instant, is when the caller stops
+    listening (see CLIENT_DEADLINE_SECONDS). Each attempt gets at most the time
+    left before it, and a retry is skipped when too little is left for it to
+    finish. None means no deadline beyond the SDK's per-attempt timeout. A call
+    the deadline stops raises `_DeadlinePassed` and is not held against the
+    provider; a real provider failure whose retry the deadline skipped still
+    is, because that attempt did fail at Gemini.
+
     Returns `(text, usage_dict)`.
     """
     last_exc: Exception | None = None
     config = aiconfig.generation_config(max_output_tokens=max_tokens) if max_tokens else None
 
     for attempt in range(_RETRY_ATTEMPTS):
+        remaining = None if deadline is None else deadline - time.monotonic()
         try:
+            if remaining is not None and remaining <= 0:
+                # Only reachable on a first attempt (a retry needs
+                # _MIN_RETRY_SECONDS): the upload alone outlasted the caller.
+                raise _DeadlinePassed("the caller's deadline passed before the model was called")
             # Annotated: the conditional infers dict[str, GenerationConfig],
             # and splatting that matches it against every other keyword
             # parameter of generate_content_async in turn.
             kwargs: dict[str, Any] = (
                 {"generation_config": config} if config else {})
             with metrics.Timer(metrics.model_duration, operation=label):
-                response = await _model.generate_content_async(contents, **kwargs)
-            text, usage = aiconfig.extract_text(response), aiconfig.usage_of(response)
+                call = _model.generate_content_async(contents, **kwargs)
+                if remaining is None:
+                    response = await call
+                else:
+                    # Our cut, told from the SDK's own timeout by `expired()`:
+                    # that one is Gemini being slow and is retried like any
+                    # transient failure; this one is the caller out of time.
+                    cut = asyncio.timeout(remaining)
+                    try:
+                        async with cut:
+                            response = await call
+                    except TimeoutError:
+                        if cut.expired():
+                            raise _DeadlinePassed(
+                                "the caller's deadline passed during the model call") from None
+                        raise
+            # Recorded before the text is read, because a reply is billed
+            # whether or not it carries any. This used to run only after
+            # `extract_text` succeeded, so a reply that was safety-blocked or
+            # came back empty — and an empty one is retried — could bill up to
+            # MAX_OUTPUT_TOKENS that /costs, $/scan and the budget alert never
+            # saw. Its outcome is labelled `blocked` or `empty` below.
+            usage = aiconfig.usage_of(response)
+            _record_usage(label, usage)
+            try:
+                text = aiconfig.extract_text(response)
+            except aiconfig.ModelUnavailable:
+                metrics.model_calls.inc(operation=label, outcome="empty")
+                raise
             metrics.model_calls.inc(operation=label, outcome="success")
             if record_health:
                 _model_health.record_success()
-            notify.model_usage(label, usage)
-            for kind, key in (("prompt", "prompt_tokens"), ("output", "output_tokens"),
-                              ("thoughts", "thoughts_tokens")):
-                if key in usage:
-                    metrics.model_tokens.inc(usage[key], operation=label, kind=kind)
             return text, usage
         except aiconfig.ModelBlocked:
             metrics.model_calls.inc(operation=label, outcome="blocked")
             raise                                   # deterministic; never retry
+        except _DeadlinePassed:
+            # Its own outcome and nothing else: no health failure and no
+            # dependency error, since Gemini did not fail. No retry either —
+            # there is no time left to give one.
+            metrics.model_calls.inc(operation=label, outcome="deadline")
+            log.warning("%s: stopped at the caller's deadline", label)
+            raise
         except Exception as exc:
             last_exc = exc
             if not _is_retryable(exc):
@@ -2320,8 +2506,13 @@ async def _generate_with_retry(
             log.warning("%s: attempt %d/%d failed: %s",
                         label, attempt + 1, _RETRY_ATTEMPTS, exc)
             if attempt < _RETRY_ATTEMPTS - 1:
-                delay = _RETRY_BASE_DELAY * (2 ** attempt)
-                await asyncio.sleep(delay * random.uniform(0.75, 1.25))
+                delay = _RETRY_BASE_DELAY * (2 ** attempt) * random.uniform(0.75, 1.25)
+                if (deadline is not None
+                        and deadline - time.monotonic() - delay < _MIN_RETRY_SECONDS):
+                    log.warning("%s: not retrying — too little time left before "
+                                "the caller gives up", label)
+                    break
+                await asyncio.sleep(delay)
 
     metrics.model_calls.inc(operation=label, outcome="exhausted")
     metrics.dependency_errors.inc(dependency="gemini", kind="exhausted")
@@ -2330,7 +2521,7 @@ async def _generate_with_retry(
     raise aiconfig.ModelUnavailable(str(last_exc))
 
 
-async def _retry_as_json(raw: str) -> dict | None:
+async def _retry_as_json(raw: str, *, deadline: float | None = None) -> dict | None:
     """Ask the model to restate an unparseable reply as bare JSON.
 
     Cheap (text-only, no image) and recovers the common failure where the model
@@ -2355,7 +2546,7 @@ async def _retry_as_json(raw: str) -> dict | None:
     # call. Recording it twice would make one bad scan look like two.
     try:
         text, _usage = await _generate_with_retry(
-            prompt, label="reformat", record_health=False)
+            prompt, label="reformat", record_health=False, deadline=deadline)
     except aiconfig.ModelUnavailable:
         # A real outage, correctly classified. The caller's own 502 already
         # says "try again", which is the right advice for this.
@@ -2463,7 +2654,8 @@ async def listing(
     prompt = _listing_prompt(req)
     try:
         raw, _usage = await _generate_with_retry(
-            prompt, label="listing", max_tokens=aiconfig.LISTING_MAX_OUTPUT_TOKENS)
+            prompt, label="listing", max_tokens=aiconfig.LISTING_MAX_OUTPUT_TOKENS,
+            deadline=_client_deadline(request))
     except aiconfig.ModelBlocked:
         # Listing copy is derived from the user's own valuation, so a block here
         # is recoverable — the deterministic fallback still produces a usable

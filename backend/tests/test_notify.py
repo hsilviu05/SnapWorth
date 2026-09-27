@@ -2241,6 +2241,13 @@ class TestScanFailureBreakdown:
         assert "3 failed (2 no price · 1 provider)" in digest
 
     @pytest.mark.asyncio
+    async def test_a_missed_deadline_is_named_apart_from_the_provider(self, cache, enabled_notify):
+        notify.count_scan_failure("deadline")
+        await drain()
+        status = await notify.handle_command("/status")
+        assert status is not None and "1 failed (1 timed out)" in status
+
+    @pytest.mark.asyncio
     async def test_an_unknown_kind_lands_in_other_rather_than_vanishing(self, cache, enabled_notify):
         notify.count_scan_failure("something_new")
         await drain()

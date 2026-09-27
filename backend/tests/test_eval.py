@@ -56,6 +56,45 @@ class TestHarnessMatchesProduction:
                 "payload — fields normalise discards are not evidence the "
                 "model answered")
 
+    @staticmethod
+    def _predict(reply: dict, tmp_path) -> Prediction:
+        """One item through `_predict_one`, the model answering `reply`."""
+        import asyncio
+        from types import SimpleNamespace
+        from unittest.mock import AsyncMock, MagicMock
+
+        from eval.runner import _predict_one
+        from tests.images import image_bytes
+
+        (tmp_path / "item.jpg").write_bytes(image_bytes("JPEG"))
+        item = SimpleNamespace(id="i1", category="clothing", actual_sale_price_usd=50.0,
+                               brand="Patagonia", image_path="item.jpg")
+        response = MagicMock()
+        response.text = json.dumps(reply)
+        model = MagicMock()
+        model.generate_content_async = AsyncMock(return_value=response)
+        return asyncio.run(_predict_one(model, item, "prompt", "v2", tmp_path))
+
+    def test_a_reply_scan_refuses_is_not_scored(self, tmp_path):
+        """`/scan` 502s a reply carrying one price (`prices.servable`) and 422s
+        a deliberate zero; the harness scored both as predictions."""
+        import valuation as valuation_module
+        from tests.test_ai_pipeline import V2_PAYLOAD
+
+        unpriced = {k: v for k, v in V2_PAYLOAD.items()
+                    if k not in valuation_module.V2_PRICE_FIELDS + valuation_module.V1_PRICE_FIELDS}
+
+        one_price = self._predict({**unpriced, "expected_price_usd": 58}, tmp_path)
+        assert one_price.error == "no_price"
+        assert not one_price.ok and one_price.confidence_score == 0
+
+        zero = dict.fromkeys(valuation_module.V2_PRICE_FIELDS, 0)
+        declined = self._predict({**unpriced, **zero}, tmp_path)
+        assert declined.error == "not_resalable" and not declined.ok
+
+        served = self._predict(V2_PAYLOAD, tmp_path)
+        assert served.error is None and served.ok
+
 
 # ── Point accuracy ───────────────────────────────────────────────────────────
 

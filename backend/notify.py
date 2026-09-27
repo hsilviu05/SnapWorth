@@ -69,7 +69,9 @@ from collections.abc import Awaitable, Callable
 from datetime import datetime, timedelta, timezone
 
 import auditlog
+import categories
 import ideas
+from confidence import brand_is_known
 
 log = logging.getLogger("snapworth.notify")
 
@@ -99,11 +101,7 @@ FEED_KEY = "opsfeed:enabled"
 # capped; categories are a closed set and need no cap.
 TOP_BRANDS_CAP = 200
 
-CATEGORY_EMOJI = {
-    "clothing": "🧥", "shoes": "👟", "accessories": "👜", "electronics": "📱",
-    "books": "📚", "furniture": "🪑", "home": "🏠", "sports": "⚽",
-    "toys": "🧸", "collectibles": "🏺", "other": "📦",
-}
+CATEGORY_EMOJI = {c.name: c.emoji for c in categories.CATEGORIES}
 
 # The weekly report goes out with Monday's digest, covering the seven days
 # that just ended against the seven before.
@@ -869,6 +867,8 @@ def count_limit_hit() -> None:
 # is the photo, and "unreadable" means the model answered but not in JSON we
 # could use even after the reformat retry. A bare "3 failed" cannot tell an
 # operator which of those happened, which is the whole point of the line.
+# "timed out" is the app's deadline passing before the model answered — a slow
+# upload or a slow reply, and not by itself the provider being down.
 #
 # Note what is NOT here: an attestation refusal never reaches the model, so it
 # 401s long before this counter and is not a scan failure in this sense.
@@ -876,6 +876,7 @@ SCAN_FAILURE_LABELS = {
     "provider": "provider",
     "unreadable": "unreadable",
     "no_price": "no price",
+    "deadline": "timed out",
     "other": "other",
 }
 
@@ -1982,14 +1983,15 @@ def _start_command_loop() -> None:
 # ── Live scan feed and what people scan ──────────────────────────────────────
 
 def _normalise_category(category: str | None) -> str:
-    key = (category or "").strip().lower()
-    return key if key in CATEGORY_EMOJI else "other"
+    # `/scan` already hands over a normalised category. Normalised again here
+    # because the day's tallies key on it and must not grow a row per spelling.
+    return categories.normalise(category)
 
 
 def _clean_brand(brand: str | None) -> str | None:
     """A brand worth tallying, or None. Model output: trimmed and bounded."""
     value = " ".join((brand or "").split())[:40]
-    if value.lower() in {"", "unknown", "n/a", "none", "generic", "unbranded"}:
+    if not brand_is_known(value):
         return None
     return value
 

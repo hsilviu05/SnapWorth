@@ -638,6 +638,40 @@ class TestListingEndpoint:
         data = r.json()
         assert data["negotiation_floor"] <= data["listing_price"]
 
+    def _listed(self, reply: dict, **req):
+        with patch("main._model") as mm:
+            mm.generate_content_async = AsyncMock(return_value=self._mock(json.dumps(reply)))
+            r = _post_listing(**req)
+        assert r.status_code == 200
+        return r.json()
+
+    def test_an_ask_far_above_the_valuation_is_not_served(self):
+        """Reproduced: an ask of 450 over a floor of 300 on a $4–$14 item went
+        through, because only floor <= ask was checked. The deterministic
+        listing's prices are used instead of the model's."""
+        data = self._listed({**MOCK_LISTING_JSON, "listing_price": 450.0,
+                             "negotiation_floor": 300.0},
+                            price_low_usd=4.0, price_likely_usd=9.0, price_high_usd=14.0)
+        assert data["listing_price"] == 9.0
+        assert data["negotiation_floor"] == 4.0
+
+    def test_an_ask_below_the_valuation_is_not_served(self):
+        data = self._listed({**MOCK_LISTING_JSON, "listing_price": 20.0,
+                             "negotiation_floor": 15.0})
+        assert data["listing_price"] == 68.0      # the request's typical price
+        assert data["negotiation_floor"] == 45.0  # the request's low end
+
+    def test_negotiating_room_inside_the_bounds_is_kept(self):
+        # Ask up to 1.25× the high end, floor down to 0.8× the low end.
+        data = self._listed({**MOCK_LISTING_JSON, "listing_price": 110.0,
+                             "negotiation_floor": 37.0})
+        assert (data["listing_price"], data["negotiation_floor"]) == (110.0, 37.0)
+
+    def test_a_floor_far_below_the_valuation_is_not_served(self):
+        data = self._listed({**MOCK_LISTING_JSON, "negotiation_floor": 5.0})
+        assert data["listing_price"] == 75.0
+        assert data["negotiation_floor"] == 45.0
+
     def test_missing_prices_repaired_from_request(self):
         partial = {"title": "Nice item", "description": "Good stuff", "category": "x",
                    "listing_price": 0, "negotiation_floor": 0}
@@ -760,6 +794,33 @@ class TestScanAccounting:
                 assert len(no_price) == 1
                 assert no_price[0]["operation"] == ("scan" if count else "bot_scan"), \
                     "the bot's own test photo must not be labelled a user scan"
+
+    def test_a_bot_test_photo_of_a_non_item_is_labelled_as_the_bot(self, monkeypatch):
+        """The same hardcoded "scan", on the not-resalable path beside it."""
+        import asyncio
+
+        import main
+        from fastapi import HTTPException
+        calls: list[dict] = []
+        monkeypatch.setattr(main.metrics.model_calls, "inc",
+                            lambda **kw: calls.append(kw))
+        declined = MagicMock()
+        declined.text = json.dumps({
+            **MOCK_RESPONSE_JSON, "category": "other",
+            "est_value_low_usd": 0, "est_value_high_usd": 0,
+            "worst_case_price_usd": 0, "quick_sale_price_usd": 0,
+            "expected_price_usd": 0, "best_case_price_usd": 0,
+            "uncertainty_factors": ["This is a photograph of food"]})
+
+        with patch("main._model") as model:
+            model.generate_content_async = AsyncMock(return_value=declined)
+            with pytest.raises(HTTPException) as refused:
+                asyncio.run(main._analyse(
+                    padded_image_bytes("JPEG", 1024), "image/jpeg",
+                    subject="op", device_short="op", count=False))
+        assert refused.value.status_code == 422
+        outcome = [c for c in calls if c.get("outcome") == "not_resalable"]
+        assert [c["operation"] for c in outcome] == ["bot_scan"]
 
     def test_a_scan_the_client_abandoned_still_counts_as_a_scan(self, monkeypatch):
         """It is billed, so it belongs in the denominator of $/scan.
