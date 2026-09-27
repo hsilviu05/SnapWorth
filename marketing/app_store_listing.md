@@ -2,7 +2,7 @@
 
 English (`en-US`), the primary storefront. The app also ships in Romanian,
 Spanish, German and Simplified Chinese, each with its own listing beside this
-one — `app_store_listing.ro.md`, `.es.md`, `.de.md`, `.zh-Hans.md`. Those three are metadata for an
+one — `app_store_listing.ro.md`, `.es.md`, `.de.md`, `.zh-Hans.md`. Those four are metadata for an
 app that is translated; the listing and the interface ship together, because a
 localized store page that opens an English app is worse than neither.
 
@@ -39,7 +39,7 @@ Every locale follows these; the translated files point here.
   *precisă*, *exacta*, *precisa*, *genau*, *exakt*, *准确*, *精准*. No accuracy
   figure has ever been measured (`docs/EVALUATION.md`: "zero measurements
   taken"). Until one is, the estimate is an AI estimate with a range and a
-  confidence score, and nothing stronger. "Accurate" sat in the description
+  confidence level, and nothing stronger. "Accurate" sat in the description
   from a26e321 until 1.5.1 and was live on the US store.
 * **"Unlimited scans" without its fair-use qualifier** — in every locale, and
   in the paywall's footnote it mirrors. Pro scans are capped per device per
@@ -52,6 +52,14 @@ Every locale follows these; the translated files point here.
   whether the brand was read, how tight the range is, how clear the photo is,
   the category, and — at low weight — the model's own certainty. Describe it
   as how strongly the photo and the identification back the estimate.
+* **Confidence as a score or a number.** A result shows a band — High,
+  Medium or Low confidence (`snapConfidencePhrase`) — and the site says
+  "confidence level" (`website/seo/build_seo.py`). The 0–100 figure behind the
+  band is Pro detail inside *Why this price*. Every locale names the band:
+  *Confidence level*, *Nivel de încredere*, *Nivel de confianza*,
+  *Sicherheit (hoch, mittel oder gering)*, *置信度（高、中等、低）* — the last
+  two in the app's own band words (`High confidence` in `App.json`). Never
+  *score*, *scor*, *puntuación*, *Punktzahl* or *分数*.
 
 The care-tag line's comparative ("sharper"; *mai exactă*, *genauere*, *更准* in
 the translations) is also unmeasured. It stays as the app words it, because
@@ -126,7 +134,7 @@ HOW IT WORKS
 WHAT YOU GET
 
 • Instant resale value — an estimated low-to-high range for your item
-• Confidence score — how strongly the photo and the identification back the estimate
+• Confidence level — how strongly the photo and the identification back the estimate
 • AI listing draft — a ready-to-post title and description with every scan
 • Thrift Flip — scan an item, add its shelf price, and see what you'd make after marketplace fees before you buy
 • Scan history — every find saved automatically with its value
@@ -151,14 +159,15 @@ SnapWorth is free to try — no account needed. You get one free scan every day,
 
 Pro adds:
 • Unlimited scans (fair use applies)
+• Haul mode — snap item after item while each is valued, with a running total
 • Listing drafts rewritten for the marketplace you pick — eBay, Poshmark, Mercari, Depop, Facebook Marketplace, Vinted, OLX, Kleinanzeigen or Xianyu
 • Why this price — the full breakdown behind an estimate, including the price ladder and what drove the value
 • Read the care tag — photograph the label for a sharper estimate
-• Portfolio value, trend and thrift trends
+• Portfolio value history and thrift trends
 • Your profit ledger — what you paid, what it sold for, and what you actually made after fees, with CSV export
 
 • Monthly: $4.99/month
-• Yearly: $39.99/year (3-day free trial included)
+• Yearly: $39.99/year — includes a free trial; its length is shown before you subscribe
 
 Cancel anytime from your iPhone settings.
 

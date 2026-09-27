@@ -32,12 +32,11 @@ sneak Romanian in early.
 falls back to the English set. Leave them — English screenshots of an English
 app are honest, and the v2 set is still 3 of 8 built.
 
-**Feature names match the Romanian app.** The interface is Romanian as of the
-version this listing ships with, so the description uses the names the buttons
-actually carry: *Găselnițe*, *Flipuri*, *Scanări rămase*. The two that stayed
-English in the app — "Thrift Flip" and "Why this price" — stay English here for
-the same reason, which is that a reader looking for them will be looking for
-those words.
+**Feature names match the Romanian app,** so the description uses the words
+the screens carry: a find is a *găselniță*, Haul mode is *Modul Lot*, and
+„De ce prețul ăsta” is *Why this price* (App.json has translated it since
+the app went Romanian, 028d90f). "Thrift Flip" and "Snap → Sell" are brand
+names, English in the app, and English here.
 
 **Prices.** The text does not name a figure. Romanian tiers are Apple's RON
 tiers, not a conversion of $4.99 and $39.99, and this environment cannot read
@@ -110,7 +109,7 @@ CUM FUNCȚIONEAZĂ
 CE PRIMEȘTI
 
 • Preț de revânzare pe loc — un interval estimat, de la minim la maxim
-• Scor de încredere — cât de bine e susținută estimarea de poză și de identificare
+• Nivel de încredere — cât de bine e susținută estimarea de poză și de identificare
 • Anunț scris de AI — titlu și descriere gata de postat, la fiecare scanare
 • Thrift Flip — scanezi obiectul, adaugi prețul din magazin și vezi cât îți rămâne după comisioanele platformei, înainte să-l cumperi
 • Istoricul scanărilor — fiecare găselniță salvată automat, cu valoarea ei
@@ -135,13 +134,14 @@ SnapWorth se folosește gratuit, fără cont. Primești o scanare gratuită în 
 
 Pro adaugă:
 • Scanări nelimitate (în limita utilizării rezonabile)
+• Modul Lot — fotografiezi obiect după obiect și fiecare e evaluat pe loc, cu totalul la vedere
 • Anunțuri rescrise pentru platforma pe care o alegi — OLX, Vinted, eBay, Poshmark, Mercari, Depop sau Facebook Marketplace
-• „Why this price” — explicația completă din spatele estimării, inclusiv scara de prețuri și ce a cântărit
+• „De ce prețul ăsta” — explicația completă din spatele estimării, inclusiv scara de prețuri și ce a cântărit
 • Citirea etichetei — fotografiază eticheta de întreținere pentru o estimare mai exactă
-• Valoarea portofoliului, evoluția lui și trendurile din second hand
+• Istoricul valorii colecției și trendurile
 • Registrul de profit — cât ai dat, cu cât ai vândut și cât ți-a rămas după comisioane, cu export CSV
 
-• Abonament lunar sau anual; cel anual include 3 zile gratuite. Prețul în lei apare în aplicație, pe pagina de abonament.
+• Abonament lunar sau anual; cel anual include o perioadă gratuită, iar durata ei o vezi înainte să te abonezi. Prețul în lei apare în aplicație, pe pagina de abonament.
 
 Poți anula oricând din setările iPhone-ului.
 

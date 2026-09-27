@@ -31,8 +31,10 @@ a resale app for twenty-somethings sound like a bank. It is a real choice and
 it should stay consistent between the store page and the first launch.
 
 **Feature names match the German app** — *Meine Funde*, *Meine Flips*,
-*Scans übrig*. "Thrift Flip" and "Why this price" stayed English in the app and
-stay English here.
+*Scans übrig*; Haul mode is the *Stapel-Modus*, and "Why this price" is
+*„Warum dieser Preis“*, as the app has said since it went German (52d2e74).
+"Thrift Flip" and "Snap → Sell" are brand names, English in the app, and
+English here.
 
 **Prices.** No figure appears. Euro and Swiss franc tiers are Apple's own, and
 one listing covers three currencies.
@@ -101,7 +103,7 @@ SO GEHT'S
 WAS DU BEKOMMST
 
 • Wiederverkaufswert sofort – eine geschätzte Spanne, von unten bis oben
-• Sicherheit – wie gut Foto und Erkennung die Schätzung stützen
+• Sicherheit (hoch, mittel oder gering) – wie gut Foto und Erkennung die Schätzung stützen
 • Inserat von der KI – Titel und Beschreibung, fertig zum Einstellen, bei jedem Scan
 • Thrift Flip – scann den Artikel, gib den Ladenpreis ein und sieh vor dem Kauf, was nach den Plattformgebühren übrig bleibt
 • Verlauf – jeder Fund wird automatisch gespeichert, mit seinem Wert
@@ -116,7 +118,7 @@ FÜR WEN
 • Für alle, die Second Hand durchstöbern und mit Gewinn weiterverkaufen wollen
 • Für alle, die auf Kleinanzeigen, Vinted, eBay, Poshmark, Mercari, Depop oder Facebook Marketplace verkaufen
 • Für Flohmarkt-, Trödel- und Haushaltsauflösungs-Gänger
-• Für alle, die sich schon mal gefragt haben: „Lohnt sich das?"
+• Für alle, die sich schon mal gefragt haben: „Lohnt sich das?“
 
 --------------------------
 
@@ -126,13 +128,14 @@ SnapWorth ist gratis und braucht kein Konto. Du bekommst jeden Tag einen Gratis-
 
 Pro bringt dazu:
 • Unbegrenzte Scans (im Rahmen fairer Nutzung)
+• Stapel-Modus – Artikel für Artikel fotografieren, jeder wird nebenbei bewertet, mit laufender Summe
 • Inserate, neu geschrieben für die Plattform, die du wählst – Kleinanzeigen, Vinted, eBay, Poshmark, Mercari, Depop oder Facebook Marketplace. Die Kleinanzeigen-Anzeige wird auf Deutsch geschrieben.
-• „Why this price" – die ganze Erklärung hinter der Schätzung, mit den Preispunkten und dem, was gewogen hat
+• „Warum dieser Preis“ – die ganze Erklärung hinter der Schätzung, mit den Preispunkten und dem, was gewogen hat
 • Etikett lesen – fotografier das Pflegeetikett für eine genauere Schätzung
-• Wert deiner Sammlung, ihre Entwicklung und die Trends
+• Wertverlauf deiner Sammlung und die Trends
 • Gewinnbuch – was du bezahlt hast, wofür du verkauft hast und was nach Gebühren übrig blieb, mit CSV-Export
 
-• Abo monatlich oder jährlich; das Jahresabo enthält 3 Gratis-Tage. Der Preis steht in der App, auf der Abo-Seite.
+• Abo monatlich oder jährlich; das Jahresabo enthält eine Gratis-Testphase, und wie lange sie läuft, siehst du vor dem Abschluss. Der Preis steht in der App, auf der Abo-Seite.
 
 Kündbar ist es jederzeit in den iPhone-Einstellungen.
 

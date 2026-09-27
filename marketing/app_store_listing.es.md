@@ -29,11 +29,11 @@ you can still edit. It ships with the version that carries the Spanish app —
 they go together, because a Spanish listing that opens an English app is worse
 than neither.
 
-**Feature names match the Spanish app.** The description uses the names the
-buttons carry: *Mis hallazgos*, *Mis reventas*, *Escaneos restantes*. The two
-that stayed English in the app — "Thrift Flip" and "Why this price" — stay
-English here, because a reader looking for them will be looking for those
-words.
+**Feature names match the Spanish app.** The description uses the words the
+screens carry: a find is a *hallazgo*, Haul mode is the *modo Lote*, and «Por
+qué este precio» is *Why this price* (App.json has translated it since the app
+went Spanish, 52d2e74). "Thrift Flip" and "Snap → Sell" are brand names,
+English in the app, and English here.
 
 **Prices.** No figure appears. Spanish and Latin American tiers are Apple's own
 per-storefront tiers, not a conversion of $4.99, and one listing covers twenty
@@ -128,13 +128,14 @@ SnapWorth se usa gratis y sin cuenta. Tienes un escaneo gratis cada día, para s
 
 Pro añade:
 • Escaneos ilimitados (sujetos a un uso razonable)
+• Modo Lote — fotografía artículo tras artículo mientras se valora cada uno, con el total a la vista
 • Anuncios reescritos para la plataforma que elijas — Vinted, eBay, Poshmark, Mercari, Depop o Facebook Marketplace
-• «Why this price» — la explicación completa detrás de la estimación, con los niveles de precio y qué ha pesado
+• «Por qué este precio» — la explicación completa detrás de la estimación, con los niveles de precio y qué ha pesado
 • Lectura de la etiqueta — fotografía la etiqueta de cuidado para afinar la estimación
-• Valor de tu colección, su evolución y las tendencias de segunda mano
+• Historial del valor de tu colección y las tendencias
 • Registro de ganancias — lo que pagaste, por cuánto vendiste y lo que te quedó tras comisiones, con exportación a CSV
 
-• Suscripción mensual o anual; la anual incluye 3 días gratis. El precio aparece en la app, en la página de suscripción.
+• Suscripción mensual o anual; la anual incluye una prueba gratis, y verás cuánto dura antes de suscribirte. El precio aparece en la app, en la página de suscripción.
 
 Puedes cancelar cuando quieras desde los ajustes del iPhone.
 
