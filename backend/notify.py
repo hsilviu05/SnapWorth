@@ -226,6 +226,13 @@ _ASK_QUOTE = re.compile(r"^✍️ /(\w+) —")
 MESSAGES_KEY = "opsstate:tgmsgs"
 MESSAGES_CAP = 400
 MESSAGES_TTL = 48 * 3600
+# What 🧹 Clear says when the list is empty. The list is in the cache, not the
+# process, so it survives restarts — "since this process started" was wrong
+# both ways. It is empty when nothing was tracked in 48 hours, or when the
+# read failed, which `_tracked_messages` cannot tell apart from that; and
+# never right after a clear, whose own confirmation is tracked.
+CLEAR_NOTHING_TRACKED = ("🧹 Nothing to clear — the bot has no record of a message "
+                         "in this chat from the last 48 hours.")
 
 # What 🧹 Clear removed, kept so it is not lost: the text of the bot's own
 # messages (the operator's are one-word commands and are not worth keeping),
@@ -4334,8 +4341,7 @@ async def _clear_prompt() -> tuple[str, Buttons]:
     operator's or of any photo unless an archive chat is configured."""
     known = {int(e[0]) for e in await _tracked_messages()}
     if not known:
-        return ("🧹 Nothing to clear yet — the bot has not sent or seen a message "
-                "since this process started.", await _buttons())
+        return (CLEAR_NOTHING_TRACKED, await _buttons())
     if os.environ.get(ARCHIVE_CHAT_ENV, "").strip():
         kept = ("Kept: everything tracked is forwarded to the archive chat first, "
                 "photos included, and the text of the bot's own messages stays in "
@@ -4407,8 +4413,7 @@ async def _clear_chat() -> None:
                 note += (f" (Telegram refused: {html.escape(str(why))})" if why else
                          " (nothing in the tracked list could be forwarded)")
     else:
-        note = ("🧹 Nothing to clear yet — the bot has not sent or seen a message since this "
-                "process started.")
+        note = CLEAR_NOTHING_TRACKED
     note += ("\nTelegram lets a bot delete only the last 48 hours; anything older is "
              "chat menu → Clear History.")
     await _notifier.send(note + "\n\n" + await _status_text(), await _buttons())

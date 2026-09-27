@@ -2066,9 +2066,18 @@ class TestClearChat:
             # The /clear message itself carried no id in this fixture, so
             # nothing is known and nothing is swept.
             assert bot.deleted == []
-            assert "Nothing to clear yet" in bot.replies[-1]
+            assert notify.CLEAR_NOTHING_TRACKED in bot.replies[-1]
         finally:
             await notify.aclose()
+
+    @pytest.mark.asyncio
+    async def test_nothing_to_clear_names_the_48_hours_not_the_process(
+            self, cache, enabled_notify):
+        """The list lives in the cache and survives a restart, so "since this
+        process started" was not what an empty list meant."""
+        text, _ = await notify._clear_prompt()
+        assert text == notify.CLEAR_NOTHING_TRACKED
+        assert "48 hours" in text and "process" not in text
 
     @pytest.mark.asyncio
     async def test_old_ids_are_forgotten(self, cache, enabled_notify):
