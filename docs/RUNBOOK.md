@@ -112,6 +112,7 @@ failed every free scan with a 503 and the next digest read like a quiet day.
 | **Quiet** | `notify._quiet_check`, every 15 min | no successful scan for 6 h during 13:00–03:59 UTC | Telegram, once per window | `🩺 Checkup` |
 | **Over budget** | `notify._note_usage` | day's Gemini spend passes `GEMINI_DAILY_BUDGET_USD` — **off by default (0), and must be set in production (§12)**; `🩺 Checkup` reads *Spend alert: OFF ⚠️* until it is | Telegram, once per day | `/costs` |
 | **Device paused** | `notify._announce_safety_pause` | repeated blocked photos from one device | Telegram, once per device per day | none needed |
+| **Referral pool low** / empty | `notify.referral_pool_low`, from `referral.take_code` | a friend or reward pool reaches `REFERRAL_POOL_LOW_AT` (20) codes, and again at empty; only while referrals are on | Telegram, once per pool per state per UTC day | §18 |
 
 **Why two layers.** The Telegram alerts run *inside* the backend, so they
 cannot report the backend being gone: a crash-looping or unscheduled container
@@ -654,8 +655,8 @@ Scan history still lives on-device, and nothing here can lose it.
 | `opsstate:levers` | the free-scan lever and its change log | none | **None** | The lever silently reverts to `FREE_SCANS_FIRST_DAY`, switching the experiment's arm mid-window, and `/experiment` loses the footnotes saying when it moved |
 | `opsidx:subs`, `opsidx:users` | the operator's subscriber and device tables | 400 d | Rebuilt slowly | `/subs` and `/users` start empty and refill as each subscriber syncs or Apple notifies — up to a year for yearly plans |
 | `opssocial:tiktok:tokens` | TikTok OAuth tokens | 400 d | **None** | `/social` loses TikTok until re-authorised |
-| `refpool:*`, `refpool:seen:*` | offer-code pools, cursor, and the loader's ledger of every code ever loaded | none | **None** | Unissued codes are gone; and without the ledger, reloading an old CSV hands out codes that were already given away |
-| `ref:*` | referral links, claims, earned and parked reward codes | 400 d | **None** | Referrers lose rewards they earned and have not redeemed |
+| `refpool:*`, `refpool:seen:*` | offer-code pools, cursor, and the loader's ledger of every code ever loaded | none | **None** | Every batch is burned: which of its codes were handed out is known only here. Reloading an old CSV — or a restore that rewinds the cursor — hands out codes friends were already given, which Apple refuses |
+| `ref:*` | referral links, device bindings, claims, reward and redemption markers, earned and parked reward codes | 400 d | **None** (the app log has each issued slot, `referral code issued`, never the code) | Referrers lose rewards they earned and have not redeemed; a reward can be issued twice for one purchase |
 | `dct:{keyId}` | DeviceCheck token from attestation | 400 d | Next attest | Reinstall marking waits for the device's next attestation |
 | `opsstats:*`, `opsstate:*` (other), `chal:*`, rate limits, `comps:*`, `safety:*` | counters, digests, challenges, limits, caches | ≤ 400 d | — | Digest history and today's limits; disposable |
 
@@ -689,14 +690,18 @@ restart would lose everything.
 ### If Redis's data is gone
 
 Restoring the volume, or any snapshot, comes first — a day-old snapshot loses
-a day; a fresh instance loses everything. Only if there is nothing to restore:
+a day; a fresh instance loses everything. **A restore still burns every
+referral batch:** the cursor goes back to the snapshot, and the codes handed
+out since would be handed out again. After any restore, run
+`load_referral_codes.py --retire friend` and `--retire reward`, then load a
+newly generated batch into each (§18). Only if there is nothing to restore:
 
 - [ ] **Refund tombstones.** Pull REFUND and REVOKE notifications from the App
       Store Server API's *Get Notification History* for as far back as Apple
       keeps them, and write each tombstone by hand (§16 step 4).
 - [ ] **Referral codes.** Do **not** reload an old code CSV: the ledger that
       stopped a code being loaded twice is gone, so already-issued codes would
-      be issued again. Load only a newly generated batch.
+      be issued again. Load only a newly generated batch (§18).
 - [ ] **Free-scan lever.** Re-arm it with `/lever` if it was armed, and note
       the date — `/experiment` no longer knows when it moved.
 - [ ] **TikTok.** Re-authorise from `/social`.
@@ -1249,3 +1254,157 @@ typo can only narrow access.
 - Logs: `sandbox entitlement recorded on bounded terms`.
 - `redis-cli GET entsandbox:{otid}` names the subject that holds it.
 
+---
+
+## 18. Referrals (#97) — before switching them on
+
+Off in production: `REFERRALS_ENABLED` is unset, and the feature is inert
+until `REFERRAL_FRIEND_OFFER` names the friend offer too. `backend/referral.py`
+has the design; this is what the operator does.
+
+### The hardening, and the decision it leaves open
+
+The 2026-09-26 audit found the routes would have taken any `device_id` from
+anyone once switched on, so a script could farm Apple codes until both pools
+ran dry. Now:
+
+- While on, both routes refuse a caller without an App Attest token (401).
+  The app always sends one; nothing else should be calling. Off, `/status`
+  still answers `enabled: false` to anyone and writes nothing.
+- A device answers to the first attested subject that presented it, and a
+  subject speaks for only the first device it presented (`ref:owner:*`,
+  `ref:subjdev:*`, 400 days). Anything else is a 403.
+- A reward is once per friend device **and** once per Apple
+  `originalTransactionId` (`ref:rewardedtxn:*`), so one redemption synced from
+  several devices pays once.
+- Limits: `REFERRAL_RATE_MAX_REQUESTS` (60/h per subject) and
+  `REFERRAL_IP_RATE_MAX_REQUESTS` (120/h per IP), with a pair of buckets per
+  route — `ref:`/`ref-ip:` for `/status`, `ref-claim:`/`ref-claim-ip:` for
+  `/claim`. Apart from the scan route's, so the app's status poll on every
+  foreground cannot spend anyone's scan allowance; apart from each other, so
+  it cannot spend a friend's claim either, which every installed build words
+  "Too many tries today. Try again tomorrow." A `/status` 429 hides the
+  referral surfaces for up to an hour (the app reads it as off); if that
+  happens to users behind one shared address, raise
+  `REFERRAL_IP_RATE_MAX_REQUESTS`.
+- Pool reads and the cursor increment require Redis: an outage is a 503
+  ("Invites are paused"), never a code served from process memory.
+- A claim's and a reward's markers are written for 10 minutes
+  (`PENDING_TTL`) and kept for 400 days only once the code is handed out or
+  parked. An outage that cuts an attempt off usually takes its undo with it;
+  what it left then expires in those 10 minutes, where it used to stay for
+  400 days — a friend refused as "already used an invite" without ever
+  getting a code, a referrer's week lost.
+
+- [ ] **Decide the reinstall trade-off.** An App Attest key is per install, so
+  a reinstall is a new subject presenting a device the old install owns, and
+  the binding refuses it for 400 days: that user's invite surfaces disappear,
+  and weeks their friends earn them are parked where they cannot collect
+  them. The alternative is to let a subject that has never presented any
+  device take over a bound device. That keeps reinstalls whole and still caps
+  one install to one device; what it gives up is protection against someone
+  who has learned another person's `device_id`, which the server never
+  discloses. Choose before enabling. The change is in `referral._bind`.
+
+### Switching on
+
+- [ ] **Not while installs still run a build without the app half.** 1.5.0
+      (build 20) already carries the referral UI — #97 (`6d133a5`) is an
+      ancestor of `435cba6` "chore: 1.5.0, build 20" — and none of `0074d2a`
+      or `4f1c591`. On those installs the referrer's "You earned a week"
+      alert and earned weeks say nothing about the week renewing, a referral
+      week gets no "trial ends tomorrow" reminder, and the events keep their
+      old names. They light up the moment `REFERRALS_ENABLED` does. Find the
+      first build whose archive holds `4f1c591` by its **Organizer archive
+      date** — the `chore:` bump is only a lower bound (CLAUDE.md) — and
+      switch on once the access log's `build` field shows installs have moved
+      to it. The alternative, `/referral/status` answering `enabled: false`
+      to older builds read from the User-Agent as `/minbuild` does, is an
+      additive server change and an owner decision not yet taken. (Unlike the
+      rest, `0074d2a`'s trial-reminder rule is live in that build whether
+      referrals are on or not: from iOS 17.2 any free promotional or
+      offer-code period gets the reminder.)
+- [ ] **Count both names of each event while 1.5.0 is installed.**
+      `referral_shared` is `referral_share_opened`; `referral_redeemed` is
+      `referral_code_accepted` — the server accepting a code, before Apple's
+      sheet, not a redemption; `referral_rewarded` is
+      `referral_reward_opened`. Conversions are the digest's server counters.
+- [ ] Two offers in App Store Connect, both 7 days free on the yearly plan,
+      one-time-use codes: the friend offer (eligibility: new subscribers) and
+      the reward offer.
+- [ ] Load both pools (below) and check `🩺 Checkup`'s Referrals line.
+- [ ] `REFERRAL_FRIEND_OFFER` = the friend offer's **reference name**, exactly;
+      `REFERRALS_ENABLED=1`. Read at startup: redeploy.
+- [ ] The website's `/i/<code>` page is live — every share link points
+      there. `python3 website/seo/check_live.py https://www.snapworth.eu`
+      must pass; on 2026-09-27 it did not (`/i/TEST1` answered 404).
+- [ ] **Check the privacy policy against what is kept.** Both copies say "If
+      you use Invite a friend, our server keeps the invite code made for your
+      device". But the app asks `/referral/status` on every return to the
+      foreground, and that mints a code — and now a device binding — for
+      every user on their first foreground once referrals are on, whether or
+      not they open Invite a friend. Reward and redemption markers are keyed
+      on Apple's `originalTransactionId`, which the policy lists under the
+      subscription record rather than under referrals. Either reword the
+      policy or have the app stop minting from the background poll; both are
+      owner decisions.
+
+### Loading codes
+
+```
+railway run python3 backend/tools/load_referral_codes.py friend codes.csv
+railway run python3 backend/tools/load_referral_codes.py reward codes.csv
+railway run python3 backend/tools/load_referral_codes.py --status
+```
+
+Loading appends and skips any code already loaded into either pool, so
+re-running a file against the same Redis is harmless. **After any loss of
+Redis's data — a fresh instance or a restore — every batch loaded before it is
+burned.** Nothing left can say which of its codes were handed out, and a code
+handed out twice is refused by Apple for the second friend, who cannot claim
+again. After a restore, `--retire friend` and `--retire reward` mark what is
+left as used; after a fresh instance there is nothing to retire. Then generate
+new batches and load only those. Reward codes earned but not yet redeemed live
+only in Redis and cannot be recovered; the app log records each issued slot
+(`referral code issued`, pool and slot, never the code) as the record of how
+far each batch had got.
+
+### What the operator sees
+
+- **Digest:** `Referrals: N claimed · N redeemed at Apple · N rewarded · N paid
+  after the free week`, on days with any. *Claimed* is a friend given an Apple
+  code; *redeemed* is the friend offer's transaction reaching the server;
+  *rewarded* is a week parked for a referrer; *paid* is that subscription's
+  first paid period, from the app's sync or Apple's renewal notice, whichever
+  comes first. The app's own events (`referral_share_opened`,
+  `referral_code_accepted`, `referral_reward_opened`) are taps, not
+  conversions.
+- **Checkup:** `Referrals: on · friend codes N of M left · reward codes N of M
+  left`, with ⚠️ at or below `REFERRAL_POOL_LOW_AT`. `pools unreadable
+  (CacheUnavailable)` is Redis not answering — the pools are not empty, and
+  there is nothing to load.
+- **Alert:** a pool reaching `REFERRAL_POOL_LOW_AT`, and again empty (§3). An
+  empty friend pool answers every claim "Invites are paused"; an empty reward
+  pool leaves the referrer owed a week, retried at the friend's next sync
+  once refilled.
+- **A week lost to an outage.** A reward that Redis cut off is retried at
+  the friend's next sync of the same purchase — at once if the undo reached
+  Redis, otherwise once its markers expire. That sync has to come during the
+  free week: after it, the subscription's transaction no longer carries the
+  friend offer, and nothing is retried. The reward's log lines (`referral
+  reward not issued`, `referral marker left to expire`, `referral reward
+  count not given back`) carry `purchase` and `referrer`:
+  `auditlog.pseudonymise` of the friend's `originalTransactionId` and of the
+  referrer's device id. A later `referral reward parked` with the same
+  `purchase` means the retry worked. If none came, reissue by hand: the
+  referrer's device is the `ref:mine:<device>` key whose pseudonym is
+  `referrer` (under `railway run`, which has `AUDIT_SALT`); take a code with
+  `referral.take_code("reward")`, so the pool's cursor moves, and append
+  `{"code": …, "earned_at": <unix time>}` to the JSON list at
+  `ref:rewards:<device>`. `referral claim not confirmed`, with `referrer`, is
+  a friend who got a code whose claim was not kept: a redemption synced more
+  than 10 minutes later finds no claim and rewards nobody, so if no
+  `referral reward parked` for that `referrer` follows, reissue the same way.
+  `referral reward marker not confirmed` is the opposite — the week was
+  parked, a later sync may park a second one, counted against the referrer's
+  yearly cap — and needs nothing.
