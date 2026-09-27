@@ -82,12 +82,14 @@ re-confirmation (`PurchaseService.confirmingSubscription`):
       brings the same alert back. A scan past the free allowance, bought
       through, ends in the same alert.
 - [ ] With it, on a find reopened from **My Finds or My Flips** that was
-      scanned free: buying from "Unlock why this price" starts no re-read
-      and shows no alert. The panel keeps its free part, with **"Scanned
-      before Pro"** under it and no "Show the full breakdown" button. That
-      is the rule, not the Sandbox: the full-breakdown re-read replaces the
-      estimate, name and listing draft, so it runs on a fresh result only,
-      as the tag re-read always has.
+      scanned free: the teaser's button reads **"Upgrade to Pro"**, not
+      "Unlock why this price", and the line under it says Pro shows the
+      price points on new scans and this find keeps its summary. Buying
+      through it starts no re-read and shows no alert. The panel keeps its
+      free part, with **"Scanned before Pro"** under it and no "Show the
+      full breakdown" button. That is the rule, not the Sandbox: the
+      full-breakdown re-read replaces the estimate, name and listing draft,
+      so it runs on a fresh result only, as the tag re-read always has.
 - [ ] Without it: the purchase stays free. The paywall comes back on the
       next refused scan, and the panel stays thin.
 
