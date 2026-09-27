@@ -261,6 +261,7 @@ COMMANDS: tuple[tuple[str, str], ...] = (
     ("costs", "Gemini spend: today, 7 and 30 days, per scan, vs MRR"),
     ("experiment", "Free-scan experiment: limit hits vs subscriptions, whole window"),
     ("lever", "Arm or disarm the free-scan allowance without a redeploy"),
+    ("minbuild", "Tell app builds below a number to update, without a redeploy"),
     ("social", "TikTok: followers, likes and the latest videos"),
     ("finds", "Best finds this week: the most valuable scans"),
     ("post", "Three TikTok post ideas from what people scanned; add a topic"),
@@ -1720,6 +1721,8 @@ async def handle_command_with_buttons(text: str) -> tuple[str, Buttons] | None:
                 _lever_buttons(current) + await _buttons())
     if command == "/lever":
         return await _lever_command(argument, rest)
+    if command == "/minbuild":
+        return await _minbuild_command(argument, rest)
     if command == "/social":
         return await _social_text(), await _buttons()
     if command == "/finds":
@@ -2111,6 +2114,112 @@ def _lever_buttons(current: int | None) -> Buttons:
         row.append(("↩️ Use env", "lever default"))
     row.append(("🔕 Disarm", "lever disarm"))
     return [row]
+
+
+# ── The oldest build still served ───────────────────────────────────────────
+#
+# A bad client release could not be told to update: the server did not know
+# which build was calling, and had no switch to act on it if it had.
+# `main._refuse_outdated_build` reads this on /scan, /listing and /trends and
+# refuses a build below it with `UPDATE_REQUIRED_DETAIL`. Only /scan and
+# /listing show that text; the app fetches /trends with `try?`, so a refusal
+# there shows nothing. /auth is never gated, so an old build can still sign in
+# and record a purchase.
+#
+# Off until set, and fails open: an unreadable value serves everyone, because
+# a switch that locks out every user when Redis blinks is worse than none.
+
+MIN_BUILD_KEY = "opsstate:minbuild"
+MIN_BUILD_MAX = 100_000
+
+#: What a refused build is told. Here rather than in main.py so the bot's
+#: confirmation can quote it word for word.
+UPDATE_REQUIRED_DETAIL = (
+    "This version of SnapWorth is no longer supported. "
+    "Update SnapWorth from the App Store to keep using it.")
+
+
+async def minimum_build() -> int | None:
+    """The oldest build /scan, /listing and /trends still serve, or None.
+
+    Raises nothing: anything unreadable is None, which serves every build.
+    """
+    cache = _cache
+    if cache is None:
+        return None
+    try:
+        raw = await cache.get(MIN_BUILD_KEY)
+        value = int(raw) if raw else None
+    except Exception:
+        return None
+    return value if value is not None and 0 < value <= MIN_BUILD_MAX else None
+
+
+async def _minbuild_command(argument: str, rest: str) -> tuple[str, Buttons]:
+    """`/minbuild`, `/minbuild <n>`, `/minbuild off`, and their confirmations.
+
+    Two taps, like `/lever`. The confirmation quotes what refused users are
+    told, because it sends them to the App Store: set past the build that is
+    actually live there, it tells them to install an update that does not
+    exist.
+    """
+    parts = (rest or "").split()
+    confirmed = any(token.lower() == "yes" for token in parts[1:])
+    current = await minimum_build()
+    back = [[("📵 Minimum build", "minbuild")]]
+    cache = _cache
+    if cache is None:  # the bot is wired by `configure`, which sets it first
+        return "📵 No store is configured, so there is no minimum build.", back
+
+    if argument == "off":
+        if current is None:
+            return "📵 No minimum build is set — every build is served.", back
+        if not confirmed:
+            return (f"📵 <b>Serve every build again?</b>\n"
+                    f"Builds below <b>{current}</b> are refused now.",
+                    [[("✅ Yes, serve all", "minbuild off yes"),
+                      ("Cancel", "minbuild")]])
+        await cache.delete(MIN_BUILD_KEY)
+        log.warning("minimum build cleared from chat", extra={"previous": current})
+        return "📵 Minimum build cleared — every build is served.", back
+
+    if argument.isdigit():
+        wanted = int(argument)
+        if not 0 < wanted <= MIN_BUILD_MAX:
+            return f"📵 <b>{wanted}</b> is not a build number.", back
+        if not confirmed:
+            return (f"📵 <b>Refuse builds below {wanted}?</b>\n"
+                    f"On /scan and /listing they would be told: "
+                    f"<i>{html.escape(UPDATE_REQUIRED_DETAIL)}</i>\n"
+                    f"/trends is refused too, but the app drops that error "
+                    f"silently and its Trending card just disappears.\n"
+                    f"Only do this once build <b>{wanted}</b> is live on the "
+                    f"App Store. Builds 7 and older cannot show this text and "
+                    f"will see \"Something went wrong\". Sign-in and purchases "
+                    f"stay open, and a request that does not say its build is "
+                    f"always served. The access log's <code>build</code> field "
+                    f"shows who is still on an older one, and "
+                    f"<code>snapworth_outdated_build_refused_total</code> "
+                    f"counts refusals.\n"
+                    f"Currently: <b>{current if current is not None else 'none'}</b>.",
+                    [[(f"✅ Yes, require {wanted}", f"minbuild {wanted} yes"),
+                      ("Cancel", "minbuild")]])
+        await cache.set(MIN_BUILD_KEY, str(wanted))
+        log.warning("minimum build set from chat",
+                    extra={"minimum": wanted, "previous": current})
+        return f"📵 Minimum build set to <b>{wanted}</b>.", back
+
+    if current is None:
+        return ("📵 <b>Minimum build</b>: none — every build is served.\n"
+                "<code>/minbuild &lt;n&gt;</code> refuses builds below n on "
+                "/scan, /listing and /trends. /scan and /listing tell them to "
+                "update; on /trends the Trending card just disappears.",
+                await _buttons())
+    return (f"📵 <b>Minimum build</b>: <b>{current}</b>\n"
+            f"Builds below it are told to update on /scan and /listing, and "
+            f"lose the Trending card, since the app drops a /trends error "
+            f"silently. Sign-in and purchases stay open.",
+            [[("↩️ Serve every build", "minbuild off")]] + await _buttons())
 
 
 async def _feed_enabled() -> bool:
