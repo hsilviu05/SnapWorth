@@ -931,6 +931,77 @@ class TestModelCallDeadline:
         calls, _ = self._run([Exception("503 overloaded")] * 2, deadline_in=None)
         assert calls == 2
 
+    # ── A missed deadline is not a provider failure ─────────────────────────
+    # Both deadline stops used to fall through to the post-loop `exhausted`
+    # exit: a health failure, a gemini dependency error and a `provider` scan
+    # failure. Two slow uploads in a row turned /health degraded and paged the
+    # operator while Gemini was answering normally.
+
+    @staticmethod
+    def _record(side_effect, deadline_in: float, runs: int = 2):
+        """Run `runs` calls against one fresh health record; return it, the
+        page mock, and every outcome and dependency error counted."""
+        import time
+        from unittest.mock import AsyncMock, patch
+
+        health = main._ModelHealth()
+        with patch("main._model") as model, \
+                patch("main._RETRY_BASE_DELAY", 0), \
+                patch.object(main, "_model_health", health), \
+                patch("main.notify.model_unhealthy") as paged, \
+                patch("main.metrics.model_calls.inc") as calls, \
+                patch("main.metrics.dependency_errors.inc") as dependency:
+            model.generate_content_async = AsyncMock(side_effect=side_effect)
+            errors = []
+            for _ in range(runs):
+                with pytest.raises(main.aiconfig.ModelUnavailable) as raised:
+                    asyncio.run(main._generate_with_retry(
+                        "prompt", label="scan", deadline=time.monotonic() + deadline_in))
+                errors.append(raised.value)
+        outcomes = [c.kwargs.get("outcome") for c in calls.call_args_list]
+        return health, paged, outcomes, dependency, errors[-1]
+
+    def test_a_deadline_passed_before_the_call_leaves_the_provider_healthy(self):
+        health, paged, outcomes, dependency, exc = self._record(
+            [Exception("never reached")] * 2, deadline_in=-1)
+        assert isinstance(exc, main._DeadlinePassed)
+        assert health.healthy and health.consecutive_failures == 0
+        paged.assert_not_called()
+        dependency.assert_not_called()
+        assert outcomes == ["deadline", "deadline"]
+
+    def test_an_attempt_cut_at_the_deadline_leaves_the_provider_healthy(self):
+        health, paged, outcomes, dependency, exc = self._record(
+            self._hang, deadline_in=0.2)
+        assert isinstance(exc, main._DeadlinePassed)
+        assert health.healthy and health.consecutive_failures == 0
+        paged.assert_not_called()
+        dependency.assert_not_called()
+        assert outcomes == ["deadline", "deadline"]
+
+    def test_the_sdks_own_timeout_is_still_held_against_the_provider(self):
+        """Only our cut is the caller's; a TimeoutError from the SDK with time
+        still left is Gemini being slow, retried and then counted."""
+        health, _paged, outcomes, dependency, exc = self._record(
+            [TimeoutError("sdk read timeout")] * 2, deadline_in=60, runs=1)
+        assert not isinstance(exc, main._DeadlinePassed)
+        assert health.consecutive_failures == 1
+        assert health.last_failure_kind == "exhausted"
+        assert outcomes == ["exhausted"]
+        dependency.assert_called_once_with(dependency="gemini", kind="exhausted")
+
+    def test_a_scan_stopped_at_the_deadline_is_not_a_provider_failure(self):
+        from unittest.mock import AsyncMock, patch
+
+        from tests.test_ai_pipeline import V2_PAYLOAD, _scan_with
+
+        for exc, kind in ((main._DeadlinePassed("late"), "deadline"),
+                          (main.aiconfig.ModelUnavailable("503"), "provider")):
+            with patch.object(main, "_generate_with_retry", AsyncMock(side_effect=exc)), \
+                    patch("main.notify.count_scan_failure") as failed:
+                assert _scan_with(V2_PAYLOAD).status_code == 502
+            failed.assert_called_once_with(kind)
+
     def test_the_deadline_counts_from_arrival(self):
         from types import SimpleNamespace
 

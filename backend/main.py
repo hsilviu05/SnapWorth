@@ -1732,9 +1732,16 @@ async def _analyse(image_bytes: bytes, content_type: str, *, subject: str,
             detail="This photo couldn't be analysed. Try a clear photo of a single item.",
         ) from None
     except aiconfig.ModelUnavailable as exc:
-        log.error("gemini failed after retries: %s", exc)
+        # A deadline stop is the app running out of time, not Gemini failing,
+        # so it is not tallied as `provider` — that line is how the operator
+        # tells an outage from everything else.
+        if isinstance(exc, _DeadlinePassed):
+            log.warning("scan stopped at the client's deadline: %s", exc)
+        else:
+            log.error("gemini failed after retries: %s", exc)
         if count:
-            notify.count_scan_failure("provider")
+            notify.count_scan_failure(
+                "deadline" if isinstance(exc, _DeadlinePassed) else "provider")
         raise HTTPException(
             status_code=502,
             detail="The AI service is temporarily unavailable. Please try again.",
@@ -1992,6 +1999,17 @@ CLIENT_DEADLINE_SECONDS = float(os.environ.get("CLIENT_DEADLINE_SECONDS", "33"))
 _MIN_RETRY_SECONDS = 8.0
 
 
+class _DeadlinePassed(aiconfig.ModelUnavailable):
+    """The caller's deadline ended the model call, not the provider.
+
+    A `ModelUnavailable`, so every caller still answers the user as before.
+    Its own type because it says nothing about Gemini: filed as `exhausted`,
+    two slow uploads in a row — or one slow upload and an ordinary 15-20s
+    reply — marked the provider unhealthy, turned /health degraded and paged
+    the operator while Gemini was answering normally.
+    """
+
+
 def _client_deadline(request: Request) -> float:
     """When the app stops waiting for this request, as a `time.monotonic()`
     instant: CLIENT_DEADLINE_SECONDS after it arrived, which the metrics
@@ -2195,7 +2213,10 @@ async def _generate_with_retry(
     `deadline`, a `time.monotonic()` instant, is when the caller stops
     listening (see CLIENT_DEADLINE_SECONDS). Each attempt gets at most the time
     left before it, and a retry is skipped when too little is left for it to
-    finish. None means no deadline beyond the SDK's per-attempt timeout.
+    finish. None means no deadline beyond the SDK's per-attempt timeout. A call
+    the deadline stops raises `_DeadlinePassed` and is not held against the
+    provider; a real provider failure whose retry the deadline skipped still
+    is, because that attempt did fail at Gemini.
 
     Returns `(text, usage_dict)`.
     """
@@ -2204,12 +2225,11 @@ async def _generate_with_retry(
 
     for attempt in range(_RETRY_ATTEMPTS):
         remaining = None if deadline is None else deadline - time.monotonic()
-        if remaining is not None and remaining <= 0:
-            # Only reachable on a first attempt (a retry needs
-            # _MIN_RETRY_SECONDS): the upload alone outlasted the caller.
-            last_exc = TimeoutError("the caller's deadline passed before the model was called")
-            break
         try:
+            if remaining is not None and remaining <= 0:
+                # Only reachable on a first attempt (a retry needs
+                # _MIN_RETRY_SECONDS): the upload alone outlasted the caller.
+                raise _DeadlinePassed("the caller's deadline passed before the model was called")
             # Annotated: the conditional infers dict[str, GenerationConfig],
             # and splatting that matches it against every other keyword
             # parameter of generate_content_async in turn.
@@ -2217,9 +2237,21 @@ async def _generate_with_retry(
                 {"generation_config": config} if config else {})
             with metrics.Timer(metrics.model_duration, operation=label):
                 call = _model.generate_content_async(contents, **kwargs)
-                # A TimeoutError here is retryable, like the SDK's own.
-                response = await (call if remaining is None
-                                  else asyncio.wait_for(call, remaining))
+                if remaining is None:
+                    response = await call
+                else:
+                    # Our cut, told from the SDK's own timeout by `expired()`:
+                    # that one is Gemini being slow and is retried like any
+                    # transient failure; this one is the caller out of time.
+                    cut = asyncio.timeout(remaining)
+                    try:
+                        async with cut:
+                            response = await call
+                    except TimeoutError:
+                        if cut.expired():
+                            raise _DeadlinePassed(
+                                "the caller's deadline passed during the model call") from None
+                        raise
             # Recorded before the text is read, because a reply is billed
             # whether or not it carries any. This used to run only after
             # `extract_text` succeeded, so a reply that was safety-blocked or
@@ -2240,6 +2272,13 @@ async def _generate_with_retry(
         except aiconfig.ModelBlocked:
             metrics.model_calls.inc(operation=label, outcome="blocked")
             raise                                   # deterministic; never retry
+        except _DeadlinePassed:
+            # Its own outcome and nothing else: no health failure and no
+            # dependency error, since Gemini did not fail. No retry either —
+            # there is no time left to give one.
+            metrics.model_calls.inc(operation=label, outcome="deadline")
+            log.warning("%s: stopped at the caller's deadline", label)
+            raise
         except Exception as exc:
             last_exc = exc
             if not _is_retryable(exc):

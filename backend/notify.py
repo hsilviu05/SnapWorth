@@ -866,6 +866,8 @@ def count_limit_hit() -> None:
 # is the photo, and "unreadable" means the model answered but not in JSON we
 # could use even after the reformat retry. A bare "3 failed" cannot tell an
 # operator which of those happened, which is the whole point of the line.
+# "timed out" is the app's deadline passing before the model answered — a slow
+# upload or a slow reply, and not by itself the provider being down.
 #
 # Note what is NOT here: an attestation refusal never reaches the model, so it
 # 401s long before this counter and is not a scan failure in this sense.
@@ -873,6 +875,7 @@ SCAN_FAILURE_LABELS = {
     "provider": "provider",
     "unreadable": "unreadable",
     "no_price": "no price",
+    "deadline": "timed out",
     "other": "other",
 }
 
