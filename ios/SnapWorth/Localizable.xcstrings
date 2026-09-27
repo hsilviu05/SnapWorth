@@ -4413,37 +4413,38 @@
         }
       }
     },
-    "Anonymous totals from everyone using SnapWorth. AI estimates." : {
+    "Anonymous data from everyone using SnapWorth. AI estimates." : {
+      "comment" : "Footer of the weekly trends card. Not 'totals': Pro's notable finds under it are single scans.",
       "extractionState" : "manual",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Anonyme Summen von allen, die SnapWorth nutzen. KI-Schätzungen."
+            "value" : "Anonyme Daten von allen, die SnapWorth nutzen. KI-Schätzungen."
           }
         },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Anonymous totals from everyone using SnapWorth. AI estimates."
+            "value" : "Anonymous data from everyone using SnapWorth. AI estimates."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Totales anónimos de toda la gente que usa SnapWorth. Estimaciones con IA."
+            "value" : "Datos anónimos de toda la gente que usa SnapWorth. Estimaciones con IA."
           }
         },
         "ro" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Totaluri anonime de la toți cei care folosesc SnapWorth. Estimări AI."
+            "value" : "Date anonime de la toți cei care folosesc SnapWorth. Estimări AI."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "来自所有 SnapWorth 用户的匿名汇总。均为 AI 估价。"
+            "value" : "来自所有 SnapWorth 用户的匿名数据。均为 AI 估价。"
           }
         }
       }
@@ -12280,37 +12281,38 @@
         }
       }
     },
-    "Portfolio value, trend and thrift trends" : {
+    "Portfolio value history and thrift trends" : {
+      "comment" : "Paywall benefit. The portfolio total is free for everyone; only its history (the trend behind 'Unlock value history') and the thrift trends are Pro.",
       "extractionState" : "manual",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Wert deiner Sammlung, ihre Entwicklung und die Trends"
+            "value" : "Wertverlauf deiner Sammlung und die Trends"
           }
         },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Portfolio value, trend and thrift trends"
+            "value" : "Portfolio value history and thrift trends"
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Valor de tu colección, su evolución y las tendencias"
+            "value" : "Historial del valor de tu colección y las tendencias"
           }
         },
         "ro" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Valoarea colecției, evoluția ei și trendurile"
+            "value" : "Istoricul valorii colecției și trendurile"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "收藏总值、走势，以及二手市场的风向"
+            "value" : "收藏的价值走势，以及二手市场的风向"
           }
         }
       }

@@ -20,11 +20,18 @@ on:
     paths:
       - 'website/**'
       - 'marketing/mascot/**'
+      # The app's fee table and MoneyInput, and MoneyInput's test cases: the
+      # calculator's rates and the site's two money parsers are checked
+      # against them below, so a change on the app side must run this too.
+      - 'ios/SnapWorth/Models/MarketplaceFees.swift'
+      - 'ios/SnapWorthTests/ProductionHardeningTests.swift'
       - '.github/workflows/website.yml'
   pull_request:
     paths:
       - 'website/**'
       - 'marketing/mascot/**'
+      - 'ios/SnapWorth/Models/MarketplaceFees.swift'
+      - 'ios/SnapWorthTests/ProductionHardeningTests.swift'
       - '.github/workflows/website.yml'
 
 concurrency:
@@ -37,6 +44,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+        with:
+          # build_seo.py stamps each sitemap URL with the date its file last
+          # changed in git, which a one-commit clone cannot know.
+          fetch-depth: 0
 
       - uses: actions/setup-python@v7
         with:
@@ -52,6 +63,22 @@ jobs:
       - name: Every declared FAQ answer is on the page
         run: python3 website/seo/check_faq_visible.py
 
+      # FEES on index.html is a hand copy of MarketplaceFees.defaults, and the
+      # calculator says its rates are the app's. Rates, flat charges, the
+      # chips, and the figures the notes and footnote print, all compared.
+      - name: The calculator's fees are the app's fees
+        run: python3 website/seo/check_fees.py
+
+      # The calculator's num() and /guess's parse() are copies of the app's
+      # MoneyInput rule, and drifted from it: both still read "1.250" as 1.25
+      # after the app fixed that in da0b242. This runs the app's own MoneyInput
+      # test cases through both with node (preinstalled on ubuntu-latest):
+      # every XCTAssertEqual/XCTAssertNil on a string literal, with or without
+      # a message, and the symmetry pairs. It fails if it finds fewer than a
+      # fixed minimum, which would mean the suite moved rather than shrank.
+      - name: The site's money parsers agree with the app
+        run: python3 website/seo/check_money_parsers.py
+
       # Tag's inline SVG on index.html and 404.html is generated from
       # marketing/mascot/mascots.py, the same source as the app's artwork.
       # A drawing change that nobody rebuilt would leave the site showing the
@@ -59,19 +86,26 @@ jobs:
       - name: Tag's SVG is freshly generated
         run: python3 website/seo/build_tag.py --check
 
-      # `website/worth` only, deliberately. sitemap.xml stamps each `lastmod`
-      # from the served file's mtime — which is the right signal, and which git
-      # does not preserve: every file's mtime in a fresh checkout is the
-      # checkout time, so the sitemap would differ on every run and this step
-      # would be red every day for no reason. The pages themselves are
-      # deterministic from the dataset, which is what matters here.
+      # sitemap.xml too. It used to be left out because each `lastmod` came
+      # from the file's mtime, which a checkout resets, so it differed on every
+      # run; nothing then noticed it going stale, and all 20 URLs said
+      # 2026-09-12 two weeks and two homepage changes later. `lastmod` now
+      # comes from each page's last non-merge commit (see build_seo.py's
+      # `lastmod`), so a clean checkout regenerates it byte for byte, and a
+      # page changed without regenerating it fails here like a stale page
+      # does. Merges are skipped because a page both sides edited would
+      # otherwise take the merge's own date, which neither side stamped. Two
+      # ways to trip this with no content change: committing on a later day
+      # than the run that stamped today, and regenerating in the middle of a
+      # merge. Running the generators again, after the commit, fixes both.
       - name: The committed generated pages are freshly generated
         run: |
           python3 website/seo/build_seo.py
           python3 website/seo/build_guess.py
-          if ! git diff --quiet -- website/worth website/guess.html; then
-            echo "::error::generated pages are stale — run website/seo/build_seo.py and website/seo/build_guess.py, then commit the result"
+          if ! git diff --quiet -- website/worth website/guess.html website/sitemap.xml; then
+            echo "::error::generated files are stale — run website/seo/build_guess.py, then website/seo/build_seo.py (after committing any merge in progress), and commit the result"
+            git --no-pager diff -- website/sitemap.xml
             git --no-pager diff --stat -- website/worth website/guess.html
             exit 1
           fi
-          echo "the committed generated pages match what the generators produce"
+          echo "the committed generated pages and sitemap match what the generators produce"

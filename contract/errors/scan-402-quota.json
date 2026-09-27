@@ -1,0 +1,9 @@
+{
+  "status": 402,
+  "headers": {
+    "X-Quota-Resets-At": "1790467199"
+  },
+  "body": {
+    "detail": "You've used your free scan for today."
+  }
+}

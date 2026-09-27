@@ -12,9 +12,16 @@ the paying subscribers.
 
 Mirrors `app_store_listing.md`, including its accuracy rules: no claim of sold
 listings, comps or market data; the one-scan-a-day limit in every plan mention;
-Thrift Flip left out of the Pro list, because it is free in full (#128).
+Thrift Flip in the free list rather than the Pro one, because it is free in
+full (#128). The full list of claims it does not make is in the English file,
+under *Claims this listing does not make*.
 
 ## Read this before pasting
+
+**Not live yet (checked 2026-09-26).** The live 1.5.0 carries no Spanish
+metadata: the `es` storefront shows the English page. Add this locale to
+1.5.1 and paste everything below — see *Paste with 1.5.1* in
+`app_store_listing.md`.
 
 **Adding a language is version-scoped.** Name, subtitle, keywords, description
 and What's New belong to a *version*, so `es` can only be added to a version
@@ -96,10 +103,12 @@ CÓMO FUNCIONA
 QUÉ INCLUYE
 
 • Precio de reventa al instante — un intervalo estimado, de mínimo a máximo
-• Nivel de confianza — cómo de claro ha sido el reconocimiento
+• Nivel de confianza — cuánto respaldan la foto y el reconocimiento la estimación
 • Anuncio escrito por la IA — título y descripción listos para publicar, en cada escaneo
+• Thrift Flip — escanea el artículo, añade el precio de la tienda y mira cuánto ganarías tras las comisiones de la plataforma, antes de comprarlo
 • Historial — cada hallazgo se guarda solo, con su valor
 • Total — cuánto vale todo lo que has escaneado, de un vistazo
+• Widgets — el total de tu colección en la pantalla bloqueada; tus últimos hallazgos, los escaneos que te quedan y el escaneo con un toque en la pantalla de inicio
 • Stickers para iMessage — 20 stickers de Tag, nuestra mascota (cuatro animados), para presumir de tus hallazgos
 
 --------------------------

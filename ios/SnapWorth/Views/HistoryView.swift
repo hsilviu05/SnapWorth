@@ -566,8 +566,10 @@ private struct Sparkline: Shape {
 // MARK: - Trending at the thrift (#96)
 // ═══════════════════════════════════════════════════════════════════
 
-/// What everyone scanned this week. Aggregates only — the server applies a
-/// floor before sending, so nothing here is about one person.
+/// What everyone scanned this week. The category and brand rows are
+/// aggregates the server floors before sending; the notable finds are single
+/// scans with no floor, which is why the server sends only their brand,
+/// category and range.
 ///
 /// Free sees the counts and which way each moved; Pro also sees the average
 /// estimate per category and the week's notable finds. Absent entirely when
@@ -609,9 +611,9 @@ struct TrendingCard: View {
             }
 
             if isPro {
-                // Deduped — see `distinctNotableFinds`. The server appends
-                // each day's finds without dedup, so the same item on two days
-                // arrives twice with the same id.
+                // Deduped — see `distinctNotableFinds`. A find's id is its
+                // brand and rounded range, so the same brand at the same range
+                // is one row however many scans or days it came from.
                 let notable = trends.distinctNotableFinds
                 if !notable.isEmpty {
                     VStack(alignment: .leading, spacing: 6) {
@@ -652,7 +654,7 @@ struct TrendingCard: View {
                 .accessibilityHint("Opens subscription options")
             }
 
-            Text("Anonymous totals from everyone using SnapWorth. AI estimates.")
+            Text("Anonymous data from everyone using SnapWorth. AI estimates.")
                 .font(.snapCaption)
                 .foregroundStyle(Color.snapWarmGray)
         }

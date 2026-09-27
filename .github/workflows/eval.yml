@@ -9,6 +9,13 @@ name: Evaluation gates
 # reports SKIPPED, never PASSED: a green tick on an unmeasured benchmark is the
 # single most dangerous output this workflow could produce, because it looks
 # identical to a real pass.
+#
+# "Skipped" has to be decided by a job *before* the gate. A step cannot mark
+# its own job skipped — the gate used to `exit 0` from inside a step when there
+# was no gold set, which GitHub shows as a green success, and that is what
+# every backend PR displayed while no gold file had ever existed. A job-level
+# `if: hashFiles(...)` does not work either (no checkout exists yet when a
+# job's `if` is evaluated), hence the `gold-check` job and its output.
 
 on:
   pull_request:
@@ -108,11 +115,51 @@ jobs:
             echo "::notice::No baseline gold set on the target branch."
           fi
 
+  # ── Can accuracy be measured at all? ──────────────────────────────────────
+  gold-check:
+    name: Accuracy measurable?
+    runs-on: ubuntu-latest
+    outputs:
+      measure: ${{ steps.check.outputs.measure }}
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.13'
+      # `eval.cli status` is stdlib-only, so this needs no install. It counts
+      # headline-eligible records, not the file: a gold.jsonl of drafts is not
+      # something to measure against either.
+      - name: Gold set and model key
+        id: check
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: |
+          can=$(python -m eval.cli status \
+                | python -c 'import json,sys; print(json.load(sys.stdin)["can_measure_accuracy"])')
+          if [ "$can" != "True" ]; then
+            echo "::notice::No headline-eligible gold records — the accuracy gate is skipped. This is NOT a pass."
+            echo "measure=false" >> "$GITHUB_OUTPUT"
+          elif [ -z "$GEMINI_API_KEY" ]; then
+            # A fork PR or a Dependabot run gets no Actions secrets. The gate
+            # cannot measure without the model, so it is skipped, not failed
+            # for something the PR author cannot fix — and not passed.
+            echo "::warning::A gold set exists but GEMINI_API_KEY is not available to this run — the accuracy gate is skipped. This is NOT a pass."
+            echo "measure=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "measure=true" >> "$GITHUB_OUTPUT"
+          fi
+
   # ── Accuracy gate: only meaningful once a gold set exists ─────────────────
   accuracy-gate:
     name: Accuracy regression gate
     runs-on: ubuntu-latest
-    needs: [platform-tests]
+    needs: [platform-tests, gold-check]
+    # Skipped — grey, not green — whenever gold-check says there is nothing to
+    # measure. Every run that gets past this line measures something real.
+    if: needs.gold-check.outputs.measure == 'true'
     defaults:
       run:
         working-directory: backend
@@ -128,43 +175,38 @@ jobs:
       - name: Report what can be measured
         env:
           GEMINI_API_KEY: ci-placeholder-not-real
-        run: python -m eval.cli status || true
+        run: python -m eval.cli status
 
       - name: Run evaluation
-        id: evaluate
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: |
-          if [ ! -f eval/data/gold.jsonl ]; then
-            echo "::notice::No gold dataset — accuracy gate skipped. This is NOT a pass."
-            echo "ran=false" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-          if [ -z "$GEMINI_API_KEY" ]; then
-            echo "::warning::GEMINI_API_KEY not set — cannot run a live evaluation."
-            echo "ran=false" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
           python -m eval.runner --dataset eval/data/gold.jsonl \
                                 --json-out /tmp/run.json
-          echo "ran=true" >> "$GITHUB_OUTPUT"
 
+      # --require-measurement: a run whose every gate skipped fails rather
+      # than passing. That includes the first run on a new gold set, which has
+      # numbers but no baseline to compare them with — the message says to
+      # commit a runner --json-out file as eval/data/baseline.json.
       - name: Check gates
-        if: steps.evaluate.outputs.ran == 'true'
         run: |
           python -m eval.cli gate \
             --current /tmp/run.json \
             --baseline eval/data/baseline.json \
-            --json-out /tmp/gates.json
+            --json-out /tmp/gates.json \
+            --require-measurement
 
+      # always(): a failed gate is exactly when the numbers are wanted, and the
+      # first run's run.json is the baseline to commit.
       - name: Upload evaluation artefacts
-        if: steps.evaluate.outputs.ran == 'true'
+        if: always()
         uses: actions/upload-artifact@v7
         with:
           name: evaluation-${{ github.sha }}
           path: |
             /tmp/run.json
             /tmp/gates.json
+          if-no-files-found: ignore
           retention-days: 30
 
   # ── Schema compliance: cheap, unambiguous, hard failure ───────────────────
@@ -187,6 +229,8 @@ jobs:
         env:
           GEMINI_API_KEY: ci-placeholder-not-real
         run: |
-          # A removed or nulled field is a decode failure on installed clients
-          # that cannot be fixed without an App Store release.
+          # A removed, nulled or retyped field is a decode failure on installed
+          # clients that cannot be fixed without an App Store release.
+          # test_contract.py compares every key and type with contract/.
           pytest tests/test_ai_pipeline.py -k "Contract" -v --tb=short
+          pytest tests/test_contract.py -v --tb=short
