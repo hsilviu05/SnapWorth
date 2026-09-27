@@ -27,6 +27,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi import Response
 from fastapi.responses import HTMLResponse, JSONResponse
 from pydantic import BaseModel, Field
+from starlette.datastructures import Headers, MutableHeaders
+from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 import aiconfig
 import auditlog
@@ -361,6 +363,44 @@ async def _refuse_if_paused(subject: str) -> None:
                    "photos that could not be analysed.")
 
 
+async def _refuse_outdated_build(request: Request) -> None:
+    """Tell a build below the operator's minimum (`/minbuild`) to update.
+
+    On /scan, /listing and /trends only, and on the route rather than the app,
+    so /auth is never gated: an old build can still sign in and record a
+    purchase. Route-level, so it runs before `require_auth` — a refused build
+    is told to update rather than sent round a token refresh first. Only /scan
+    and /listing show the message: the app fetches /trends with `try?`
+    (HistoryView), so there a refusal just hides the Trending card.
+
+    422 because it is the status whose `detail` every build from 1.3.1
+    (build 8) shows word for word (`AppError.from` → `.unusablePhoto`, which no
+    view special-cases). 426 would be the honest code, and every installed
+    build shows it as "Something went wrong". Builds 7 and older show fixed
+    copy whatever the status — for 422, that same "Something went wrong" —
+    which `/minbuild` says before it is set.
+
+    Not 502, which this was first: that rested on 502 reaching every build
+    from 11 and nothing before 11 showing server text at all. Builds 8-10 map
+    502 to the fixed "Our AI is temporarily unavailable" — an outage, and a
+    retry, told to someone who needs an update — and a 502 is a paging
+    `DEPENDENCY` 5xx that lands in the "5xx surge" page and reads as Gemini
+    down. A 422 is a non-paging 4xx; `outdated_build_refused` counts it.
+
+    A request whose build cannot be read is served: unknown is not old.
+    """
+    build = observability.parse_client_build(request.headers.get("user-agent", ""))
+    if build is None:
+        return
+    minimum = await notify.minimum_build()
+    if minimum is None or build >= minimum:
+        return
+    metrics.outdated_build_refused.inc(endpoint=metrics.endpoint_label(request.url.path))
+    log.info("outdated build told to update",
+             extra={"build": build, "minimum": minimum})
+    raise HTTPException(status_code=422, detail=notify.UPDATE_REQUIRED_DETAIL)
+
+
 async def _bot_scan(image_bytes: bytes, declared_type: str) -> dict:
     """A photo the operator sent the Telegram bot, through the real pipeline.
 
@@ -491,16 +531,63 @@ if _allowed_origins:
 
 # Deliberately well above the 10 MB `MAX_UPLOAD_BYTES` the /scan route
 # enforces itself. This is not a second copy of that limit — it is a ceiling
-# on what any request may be, so an ordinary oversized photo still reaches the
-# route and gets its own friendly "Image exceeds 10 MB limit." rather than a
-# bare 413 the client has no case for (`AppError.from` maps 400 and 422; it
-# has no 413, which is exactly why `_read_capped` answers 400).
+# on what a /scan request may be (every other route has a far smaller one,
+# below), so an ordinary oversized photo still reaches the route and gets its
+# own friendly "Image exceeds 10 MB limit." rather than a bare 413 the client
+# has no case for (`AppError.from` maps 400 and 422; it has no 413, which is
+# exactly why `_read_capped` answers 400).
 MAX_REQUEST_BYTES = int(os.environ.get("MAX_REQUEST_BYTES", str(20 * 1024 * 1024)))
 
+#: Every route but /scan takes a small JSON body, and none needs 20 MB of
+#: headroom. The largest genuine one is `/auth/attest`, whose schema bounds its
+#: fields at about 37 KB together (`auth.AttestRequest`); `/auth/entitlement`
+#: is under 17 KB and the rest are a few hundred bytes. A route added later
+#: gets this too, which is the safe default: a new upload route fails loudly
+#: in its first test rather than shipping uncapped.
+MAX_JSON_BODY_BYTES = 64 * 1024
 
-@app.middleware("http")
-async def limit_request_body(request: Request, call_next):
-    """Refuse an implausibly large body before anything reads it.
+#: A V2 notification is one `signedPayload`, which the model bounds at 64 KiB.
+#: The rest is headroom for a Version 1 body — it carries the whole receipt —
+#: so that misconfiguration still reaches the handler's error naming it,
+#: rather than stopping here as a bare 413 (see `AppleNotification`).
+MAX_NOTIFICATION_BODY_BYTES = 256 * 1024
+
+
+def _body_limit(path: str) -> int:
+    """The most a request to `path` may carry. Read per request, so tests and
+    the `MAX_REQUEST_BYTES` override see the current values."""
+    if path == "/scan":
+        return MAX_REQUEST_BYTES
+    if path == "/apple/notifications":
+        return MAX_NOTIFICATION_BODY_BYTES
+    return MAX_JSON_BODY_BYTES
+
+
+class RequestBodyTooLarge(HTTPException):
+    """Raised from inside `receive`, the moment a body passes its route's cap.
+
+    An `HTTPException` because of where it surfaces: FastAPI reads the body in
+    its request handler, which re-raises an `HTTPException` from that read and
+    turns anything else into a 400 "error parsing the body". So this reaches
+    the exception middleware and goes out as an ordinary 413 through every
+    layer above it, headers and metrics included.
+    """
+
+    def __init__(self) -> None:
+        super().__init__(status_code=413, detail="Request body is too large.")
+
+
+# Every layer below is pure ASGI, and must stay so. `@app.middleware("http")`
+# is `BaseHTTPMiddleware`, which relays `receive` through a task group; with
+# one of those anywhere in the stack, `Request.is_disconnected` — which asks
+# with an already-cancelled scope — is cancelled before it reaches the server
+# and always answers "still connected". /scan relies on it to hand back the
+# allowance for a result the phone gave up waiting for, and with four such
+# layers it never once fired. See `RequestContextMiddleware` for the rest.
+
+
+class LimitRequestBody:
+    """Refuse a body past its route's cap, counting it as it arrives.
 
     `_read_capped` bounds what the process will *hold* — it reads the file part
     in chunks and stops one byte past 10 MB — but by then Starlette has already
@@ -511,74 +598,168 @@ async def limit_request_body(request: Request, call_next):
     megabytes per request, with `--workers 1` (see Dockerfile) and no proxy
     body cap in front of it.
 
-    Checked against the request-level `content-length`, which every client that
-    posts a multipart body sends, so this covers every real caller. A chunked
-    body with no declared length is NOT bounded here — buffering it to measure
-    it would reintroduce the memory problem this is meant to avoid — and stays
-    covered only by `_read_capped`'s 10 MB on the file part.
+    The guard this replaces read only the declared `content-length`, and let a
+    chunked body — which declares none — through unbounded, on the reasoning
+    that measuring it would mean buffering it. It does not: wrapping `receive`
+    counts each message as the app asks for it and stops the read at the
+    message that crosses the cap, holding nothing. The gap was real — a chunked
+    60 MB multipart was received in full and *then* answered 401, and a chunked
+    200 MB JSON body peaked at about 1.2 GB before its 422 — with no rate limit
+    in the way, because the limiters run inside the handlers, after the body.
+    The per-route caps matter as much as the counting: under a flat 20 MB, one
+    declared-length request to a JSON route could still cost about 120 MB.
+
+    A declared length over the cap is still refused before anything is read.
+    Pure ASGI rather than `@app.middleware("http")`, which is
+    `BaseHTTPMiddleware` and has no way to wrap `receive`.
     """
-    if request.method in {"POST", "PUT", "PATCH"}:
-        declared = request.headers.get("content-length")
+
+    def __init__(self, app: ASGIApp) -> None:
+        self.app = app
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+
+        path = scope["path"]
+        limit = _body_limit(path)
+        declared = Headers(scope=scope).get("content-length")
         if declared is not None:
             try:
                 length = int(declared)
             except ValueError:
-                return JSONResponse(status_code=400,
-                                    content={"detail": "Malformed content-length."})
-            if length > MAX_REQUEST_BYTES:
+                await JSONResponse(status_code=400, content={
+                    "detail": "Malformed content-length."})(scope, receive, send)
+                return
+            if length > limit:
                 log.warning("request body refused before reading",
-                            extra={"declared_bytes": length,
-                                   "max_bytes": MAX_REQUEST_BYTES})
-                return JSONResponse(
-                    status_code=413,
-                    content={"detail": "Request body is too large."})
-    return await call_next(request)
+                            extra={"path": path, "declared_bytes": length,
+                                   "max_bytes": limit})
+                await JSONResponse(status_code=413, content={
+                    "detail": "Request body is too large."})(scope, receive, send)
+                return
+
+        received = 0
+        response_started = False
+
+        async def receive_capped() -> Message:
+            nonlocal received
+            # No await of its own beyond `receive`: `Request.is_disconnected`
+            # asks with an already-cancelled scope, and an extra checkpoint
+            # here would cancel the ask before it reached the server.
+            message = await receive()
+            if message["type"] == "http.request":
+                received += len(message.get("body", b""))
+                if received > limit:
+                    log.warning("request body refused while reading",
+                                extra={"path": path, "received_bytes": received,
+                                       "max_bytes": limit})
+                    raise RequestBodyTooLarge()
+            return message
+
+        async def send_tracked(message: Message) -> None:
+            nonlocal response_started
+            if message["type"] == "http.response.start":
+                response_started = True
+            await send(message)
+
+        try:
+            await self.app(scope, receive_capped, send_tracked)
+        except RequestBodyTooLarge:
+            # Only when the body was read outside a route handler, where no
+            # exception middleware stands between the read and this layer.
+            if response_started:
+                raise
+            await JSONResponse(status_code=413, content={
+                "detail": "Request body is too large."})(scope, receive, send)
 
 
-@app.middleware("http")
-async def record_metrics(request: Request, call_next):
+class RecordMetrics:
     """Instrument every request.
 
-    Sits outside `security_headers` so it observes the response that is actually
-    sent, including error responses raised inside handlers.
+    Sits outside the body limit, so a refusal there is counted too, and
+    observes the status actually sent — including an error response raised
+    inside a handler. An exception that escapes the stack is counted as the
+    500 that `ServerErrorMiddleware`, outside every layer here, turns it into.
 
     `endpoint_label` maps to a closed set of route templates — using the raw
     path would create one time series per URL a scanner probes, which is the
     classic way a metrics layer takes down the monitoring system.
     """
-    endpoint = metrics.endpoint_label(request.url.path)
-    metrics.http_in_flight.inc()
-    start = time.monotonic()
-    status = 500
-    try:
-        response = await call_next(request)
-        status = response.status_code
-        return response
-    finally:
-        metrics.http_in_flight.dec()
-        metrics.http_duration.observe(
-            time.monotonic() - start, endpoint=endpoint, method=request.method)
-        metrics.http_requests.inc(
-            endpoint=endpoint, method=request.method,
-            status_class=metrics.status_class(status))
-        if status == 429:
-            metrics.rate_limited.inc(scope="http")
+
+    def __init__(self, app: ASGIApp) -> None:
+        self.app = app
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+
+        endpoint = metrics.endpoint_label(scope["path"])
+        method = scope["method"]
+        status = 500
+
+        async def send_observed(message: Message) -> None:
+            nonlocal status
+            if message["type"] == "http.response.start":
+                status = message["status"]
+            await send(message)
+
+        metrics.http_in_flight.inc()
+        start = time.monotonic()
+        try:
+            await self.app(scope, receive, send_observed)
+        finally:
+            metrics.http_in_flight.dec()
+            metrics.http_duration.observe(
+                time.monotonic() - start, endpoint=endpoint, method=method)
+            metrics.http_requests.inc(
+                endpoint=endpoint, method=method,
+                status_class=metrics.status_class(status))
+            if status == 429:
+                metrics.rate_limited.inc(scope="http")
 
 
-@app.middleware("http")
-async def security_headers(request: Request, call_next):
-    response = await call_next(request)
-    response.headers["X-Content-Type-Options"] = "nosniff"
-    response.headers["X-Frame-Options"] = "DENY"
-    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
-    response.headers["X-XSS-Protection"] = "1; mode=block"
+_SECURITY_HEADERS = (
+    ("X-Content-Type-Options", "nosniff"),
+    ("X-Frame-Options", "DENY"),
+    ("Referrer-Policy", "strict-origin-when-cross-origin"),
+    ("X-XSS-Protection", "1; mode=block"),
     # The API serves /privacy and /terms to real browsers (they are the URLs on
     # the App Store listing), so downgrade protection is not academic here.
-    response.headers["Strict-Transport-Security"] = (
-        "max-age=63072000; includeSubDomains")
-    response.headers["Permissions-Policy"] = (
-        "camera=(), microphone=(), geolocation=(), interest-cohort=()")
-    return response
+    ("Strict-Transport-Security", "max-age=63072000; includeSubDomains"),
+    ("Permissions-Policy", "camera=(), microphone=(), geolocation=(), interest-cohort=()"),
+)
+
+
+class SecurityHeaders:
+    def __init__(self, app: ASGIApp) -> None:
+        self.app = app
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+
+        async def send_headed(message: Message) -> None:
+            if message["type"] == "http.response.start":
+                message.setdefault("headers", [])
+                headers = MutableHeaders(scope=message)
+                for name, value in _SECURITY_HEADERS:
+                    headers[name] = value
+            await send(message)
+
+        await self.app(scope, receive, send_headed)
+
+
+# Added in the order the decorators they replace were defined, which keeps the
+# stack as it was: `SecurityHeaders` outermost, then `RecordMetrics`, then
+# `LimitRequestBody`, with CORS and `RequestContextMiddleware` inside them.
+app.add_middleware(LimitRequestBody)
+app.add_middleware(RecordMetrics)
+app.add_middleware(SecurityHeaders)
+
 
 # ── Rate limiting ────────────────────────────────────────────────────────────
 # Backed by Redis when REDIS_URL is set, degrading to per-process counters when
@@ -759,8 +940,11 @@ class ScanResponse(BaseModel):
     # One field is gone from it: `sold_listings_count`. The model never produced
     # it, the app has no sold-listings source, and it was pinned to a literal 0
     # so that clients below 1.2 — which decoded it as a non-optional Int —
-    # would not fail the whole response. 1.2 shipped 2026-07-28; those installs
-    # have aged out (#49). Clients from 1.2 on decode it as optional.
+    # would not fail the whole response. 1.2 shipped 2026-07-28, and those
+    # installs were taken to have aged out (#49) — assumed, not measured:
+    # nothing then recorded which build was calling. The access log's `build`
+    # field does now, and a build below 5 is one of them. Clients from 1.2 on
+    # decode it as optional.
     #
     # The name is retired, not parked. It is the field behind the "38 sold
     # listings" claim the July screenshots made and could not support; when
@@ -1535,7 +1719,8 @@ async def _read_capped(upload: UploadFile, limit: int = MAX_UPLOAD_BYTES) -> byt
     return b"".join(chunks)
 
 
-@app.post("/scan", response_model=ScanResponse)
+@app.post("/scan", response_model=ScanResponse,
+          dependencies=[Depends(_refuse_outdated_build)])
 async def scan(
     request: Request,
     file: UploadFile = File(...),
@@ -2208,7 +2393,8 @@ class TrendsResponse(BaseModel):
     notable_finds: list[NotableFind] = Field(default_factory=list)   # Pro only
 
 
-@app.get("/trends", response_model=TrendsResponse)
+@app.get("/trends", response_model=TrendsResponse,
+         dependencies=[Depends(_refuse_outdated_build)])
 async def trends(
     request: Request,
     principal: Principal = Depends(require_auth),
@@ -2231,7 +2417,8 @@ async def trends(
     return TrendsResponse(**await notify.trends(is_pro=principal.is_pro))
 
 
-@app.post("/listing", response_model=ListingResponse)
+@app.post("/listing", response_model=ListingResponse,
+          dependencies=[Depends(_refuse_outdated_build)])
 async def listing(
     request: Request,
     req: ListingRequest,

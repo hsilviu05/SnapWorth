@@ -9,6 +9,7 @@ triggered it. The happy path is one HTTP POST; everything else is the point.
 from __future__ import annotations
 
 import asyncio
+import html
 import json
 import os
 import sys
@@ -659,7 +660,7 @@ class TestPolling:
             (menu,) = bot.command_menus
             assert [c["command"] for c in menu] == [
                 "status", "subs", "sub", "users", "costs", "experiment", "lever",
-                "social", "finds",
+                "minbuild", "social", "finds",
                 "post", "calendar",
                 "caption", "hooks", "reply", "price", "trend", "user", "checkup", "clear",
                 "history", "feed", "digest", "week", "help"]
@@ -2810,6 +2811,88 @@ class TestFreeScanLever:
     async def test_the_experiment_screen_offers_the_lever(self, enabled_notify):
         _, buttons = await self._run("/experiment")
         assert any(d.startswith("lever") for d in self._datas(buttons))
+
+
+class TestMinimumBuild:
+    """`/minbuild`: the switch that tells an outdated build to update.
+
+    `main._refuse_outdated_build` reads `minimum_build` on /scan, /listing and
+    /trends, so these are the properties that make it safe from a phone: two
+    taps, a confirmation that quotes what users will be told, and a store that
+    fails open.
+    """
+
+    async def _run(self, cmd: str) -> tuple[str, list]:
+        reply = await notify.handle_command_with_buttons(cmd)
+        assert reply is not None
+        return reply[0], reply[1]
+
+    def _datas(self, buttons) -> list[str]:
+        return [d for row in (buttons or []) for _, d in row]
+
+    @pytest.mark.asyncio
+    async def test_off_until_set(self, enabled_notify):
+        text, _ = await self._run("/minbuild")
+        assert "every build is served" in text
+        assert await notify.minimum_build() is None
+
+    @pytest.mark.asyncio
+    async def test_it_does_not_claim_trends_users_are_told(self, enabled_notify):
+        """The only /trends caller is `try? await TrendsAPIClient…fetch`, so a
+        refused build is told nothing there; the Trending card disappears."""
+        unset, _ = await self._run("/minbuild")
+        await self._run("/minbuild 18 yes")
+        current, _ = await self._run("/minbuild")
+        for text in (unset, current):
+            assert "Trending card" in text
+            assert "/listing and /trends, telling" not in text
+            assert "update on /scan, /listing and /trends" not in text
+
+    @pytest.mark.asyncio
+    async def test_setting_it_takes_two_taps_and_quotes_the_message(self, enabled_notify):
+        text, buttons = await self._run("/minbuild 18")
+        assert await notify.minimum_build() is None, "the first tap must not act"
+        # The operator sees what refused users will read before it goes live,
+        # what the oldest builds see instead, and that /trends shows nothing:
+        # the app fetches it with `try?`, so nobody there is "told" anything.
+        assert html.escape(notify.UPDATE_REQUIRED_DETAIL) in text
+        assert "Something went wrong" in text
+        assert "outage" not in text
+        assert "disappears" in text
+        confirm = next(d for d in self._datas(buttons) if d.endswith("yes"))
+        text, _ = await self._run("/" + confirm)
+        assert "18" in text
+        assert await notify.minimum_build() == 18
+
+    @pytest.mark.asyncio
+    async def test_clearing_it_takes_two_taps(self, enabled_notify):
+        await self._run("/minbuild 18 yes")
+        _, buttons = await self._run("/minbuild off")
+        assert await notify.minimum_build() == 18, "the first tap must not act"
+        confirm = next(d for d in self._datas(buttons) if d.endswith("yes"))
+        await self._run("/" + confirm)
+        assert await notify.minimum_build() is None
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("value", ["0", "100001"])
+    async def test_a_value_that_is_not_a_build_is_refused(self, enabled_notify, value):
+        text, _ = await self._run(f"/minbuild {value} yes")
+        assert "not a build number" in text
+        assert await notify.minimum_build() is None
+
+    @pytest.mark.asyncio
+    async def test_an_unreadable_value_serves_every_build(self, enabled_notify, cache):
+        await cache.set(notify.MIN_BUILD_KEY, "eighteen")
+        assert await notify.minimum_build() is None
+
+    @pytest.mark.asyncio
+    async def test_its_buttons_are_commands(self, enabled_notify):
+        # "ask …" is the shared keyboard's, routed by `/ask` before commands.
+        known = {c for c, _ in notify.COMMANDS} | {"ask"}
+        for cmd in ("/minbuild", "/minbuild 18", "/minbuild 18 yes", "/minbuild off"):
+            _, buttons = await self._run(cmd)
+            for data in self._datas(buttons):
+                assert data.split()[0] in known, (cmd, data)
 
 
 # ── App Store Server Notifications ───────────────────────────────────────────
