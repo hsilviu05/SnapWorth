@@ -156,9 +156,12 @@ class TestFileUploadSecurity:
         """B-14: the rate-limit key must not be one the caller picks.
 
         uvicorn runs with `--forwarded-allow-ips='*'`, so `request.client.host`
-        is the *leftmost* — client-supplied — hop. Keying on it gave an attacker
-        a fresh bucket per request. The key is the nearest hop that is not a
-        known proxy, which is the address Railway appended.
+        is the *leftmost* hop. While a caller's own header reached the app,
+        keying on it gave an attacker a fresh bucket per request. Railway's
+        edge now writes the whole header and drops a client's (forged probes,
+        2026-09-27), so the key is the first entry, and a header longer than
+        Railway writes, whose left may be the caller's own, falls back to the
+        walk from the right.
 
         Through uvicorn's own middleware, as deployed. A fake request whose
         host is a socket peer let this pass while a header with no address in
@@ -179,7 +182,10 @@ class TestFileUploadSecurity:
         def key(xff=None):
             return deployed.get("/", headers={"x-forwarded-for": xff} if xff else {}).text
 
-        # Spoofed hops on the left are ignored; the hop Railway appended wins.
+        # Railway's shape: the first entry, not its edge after it.
+        assert key("198.51.100.23, 95.173.10.20") == "198.51.100.23"
+        # More entries than Railway writes: the walk, which never reaches the
+        # left while an address it does not know is on the right.
         assert key("1.1.1.1, 2.2.2.2, 203.0.113.9") == "203.0.113.9"
         # Not an address, so never the caller's choice: one shared key, where
         # request.client.host would be the leftmost entry, the caller's.
@@ -189,12 +195,12 @@ class TestFileUploadSecurity:
         assert key() == "testclient"
 
     def test_client_ip_behind_railways_edge_is_the_caller(self):
-        """What production sends on the path Railway does not route through
-        its Fastly CDN: its edge appends the connecting address, and the app
-        sends no header of its own, so the header holds one entry and it is
-        the caller. On the CDN path a Fastly edge follows it, and is skipped
-        (tests/test_client_ip.py). Either way the key is the caller, not a
-        proxy — keying on a proxy is one 60/h bucket for everyone behind it."""
+        """What production sends: Railway's edge writes the connecting
+        address, and on every request of 2026-09-27 its own address after it,
+        in 95.173.0.0/16. The key is the first entry, never the edge: keying
+        on the edge is one 60/h bucket for everyone behind it, which is what
+        the rightmost rule and #250's walk both did
+        (tests/test_client_ip.py)."""
         import main
 
         class Req:
@@ -203,7 +209,7 @@ class TestFileUploadSecurity:
                 self.client = type("C", (), {"host": "100.64.0.2"})()
 
         assert main._client_ip(Req("203.0.113.9")) == "203.0.113.9"  # type: ignore[arg-type]
-        assert main._client_ip(Req("203.0.113.9, 151.101.1.1")) == "203.0.113.9"  # type: ignore[arg-type]
+        assert main._client_ip(Req("203.0.113.9, 95.173.10.20")) == "203.0.113.9"  # type: ignore[arg-type]
 
     def test_client_ip_is_truncated_and_never_empty(self):
         """It reaches a cache key and is attacker-influenced."""
@@ -250,14 +256,14 @@ class TestFileUploadSecurity:
         previous = auth.deps.ip_limiter
         auth.deps.ip_limiter = recording_limiter
         try:
-            xff = "1.1.1.1, 2.2.2.2, 203.0.113.9"
+            xff = "198.51.100.23, 95.173.10.20"
             asyncio.run(auth._limit_unauthenticated(Req(xff)))
         finally:
             auth.deps.ip_limiter = previous
 
-        assert seen == ["203.0.113.9"], (
-            "the unauthenticated limiter must key on the proxy's own hop, not "
-            f"the caller-supplied leftmost one; got {seen}")
+        assert seen == ["198.51.100.23"], (
+            "the unauthenticated limiter must key on the first entry, which "
+            f"Railway writes, not on its edge; got {seen}")
         assert seen[0] == main._client_ip(Req(xff)), (
             "one resolver, or the two drift apart again")
 

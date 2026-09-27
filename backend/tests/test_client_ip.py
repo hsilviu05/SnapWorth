@@ -1,12 +1,15 @@
 """The per-IP rate-limit key behind Railway's edge.
 
-Railway sends `X-Forwarded-For` in two shapes: `client` for a request it
-does not route through its Fastly CDN, and `client, fastly-edge` for one it
-does. Until 2026-09-27 `ratelimit.client_ip` took the rightmost hop, which on
-the CDN path is the Fastly edge, so everyone routed through one Fastly POP
-shared one 60/h bucket. It now walks from the right past known proxies, and
-these pin that on both paths, with the forged, malformed and all-proxy cases
-around them.
+Railway's edge writes the whole `X-Forwarded-For` header: it drops whatever
+the client sent and writes `client` or `client, edge`. Every production
+request on 2026-09-27 carried two entries, and forged headers never reached
+the left. So `ratelimit.client_ip` keys on the first entry. Until that day
+it took the rightmost entry, and then, from #250, the nearest one that is
+not a Fastly or internal address; the second entry is Railway's own edge,
+in 95.173.0.0/16, which is neither, so both keyed everyone behind one edge
+on one 60/h bucket. A header of three or more entries means Railway's shape
+changed, and falls back to #250's walk with a warning. These pin both, with
+the normalisation, malformed and absent-header cases around them.
 """
 
 import asyncio
@@ -28,6 +31,7 @@ from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 import auth
 import main
 import ratelimit
+import referral
 from tests.test_main import client
 
 # The app as the container serves it: uvicorn runs with --proxy-headers and
@@ -40,18 +44,32 @@ deployed = TestClient(ProxyHeadersMiddleware(main.app, trusted_hosts="*"))
 async def _echo_key(request: Request) -> PlainTextResponse:
     return PlainTextResponse(ratelimit.client_ip(request))
 
+
+async def _echo_host(request: Request) -> PlainTextResponse:
+    """What uvicorn's access log prints as the client: `request.client.host`."""
+    return PlainTextResponse(request.client.host if request.client else "")
+
 _echo = TestClient(ProxyHeadersMiddleware(
-    Starlette(routes=[Route("/", _echo_key)]), trusted_hosts="*"))
+    Starlette(routes=[Route("/", _echo_key), Route("/host", _echo_host)]),
+    trusted_hosts="*"))
 
 
 def deployed_key(*lines: str) -> str:
     """`client_ip` behind uvicorn's proxy-header middleware, as deployed."""
     return _echo.get("/", headers=[("x-forwarded-for", line) for line in lines]).text
 
+
+def access_log_host(*lines: str) -> str:
+    return _echo.get("/host", headers=[("x-forwarded-for", line) for line in lines]).text
+
 UNPARSEABLE = "unparseable"
 
 CLIENT = "198.51.100.23"
 FORGED = "203.0.113.7"
+# In 95.173.0.0/16, the /16 production logged for the second entry on
+# 2026-09-27: Railway's edge. Not a documentation address, because the
+# point is that it is global and on neither of the walk's lists.
+EDGE = "95.173.10.20"
 FASTLY_V4 = "151.101.1.1"           # in 151.101.0.0/16
 FASTLY_V6 = "2a04:4e42:200::313"    # in 2a04:4e42::/32
 CGNAT = "100.64.0.2"
@@ -76,22 +94,41 @@ def key(xff: str | list[str] | None = None, host: str | None = "10.0.0.1") -> st
 @pytest.fixture(autouse=True)
 def fresh_notes(monkeypatch):
     monkeypatch.setattr(ratelimit, "_HOP_COUNTS_SEEN", set())
+    monkeypatch.setattr(ratelimit, "_EXTRA_HOPS_WARNED", False)
 
 
-class TestBothRoutingPaths:
-    def test_one_hop_is_the_client(self):
-        """The path Railway does not route through Fastly."""
+def records(caplog, headers):
+    """Every log record `client_ip` writes for `headers`, in order."""
+    with caplog.at_level(logging.INFO, logger="snapworth.ratelimit"):
+        for xff in headers:
+            ratelimit.client_ip(Req(xff))
+    return [r for r in caplog.records if r.name == "snapworth.ratelimit"]
+
+
+class TestTheFirstEntry:
+    def test_client_then_railways_edge_is_the_client(self):
+        """What every production request carried on 2026-09-27. #250's walk
+        keyed this on the edge, which is on neither of its lists, and so did
+        the rightmost rule before it: one bucket for everyone behind it."""
+        assert key(f"{CLIENT}, {EDGE}") == CLIENT
+
+    def test_one_entry_is_the_client(self):
         assert key(CLIENT) == CLIENT
 
-    def test_client_then_a_fastly_ipv4_edge_is_the_client(self):
-        """The path it does. This returned the edge until 2026-09-27."""
-        assert key(f"{CLIENT}, {FASTLY_V4}") == CLIENT
+    @pytest.mark.parametrize("second", [
+        EDGE, FASTLY_V4, FASTLY_V6, CGNAT, "2001:db8::1", "junk",
+        f"{CLIENT}:5678", "999.1.1.1",
+    ])
+    def test_the_second_entry_never_decides(self, second):
+        """Railway writes it. Whatever it holds, the first entry is the key."""
+        assert key(f"{CLIENT}, {second}") == CLIENT
 
-    def test_client_then_a_fastly_ipv6_edge_is_the_client(self):
-        assert key(f"{CLIENT}, {FASTLY_V6}") == CLIENT
-        assert key(f"2001:db8::23, {FASTLY_V6}") == "2001:db8::/64"
-        # The same edge written as an IPv4-mapped IPv6 address.
-        assert key(f"{CLIENT}, ::ffff:{FASTLY_V4}") == CLIENT
+    def test_the_key_is_what_uvicorns_access_log_prints(self):
+        """RUNBOOK §5.8's owner probe reads the leftmost entry off uvicorn's
+        access log, which prints `request.client.host`. For an IPv4 caller
+        that is the key itself."""
+        for xff in (CLIENT, f"{CLIENT}, {EDGE}"):
+            assert access_log_host(xff) == deployed_key(xff) == CLIENT
 
 
 class TestIPv6Keys:
@@ -100,80 +137,60 @@ class TestIPv6Keys:
     A /64 is what one line is given, a home router's LAN or a phone on
     cellular or a VPS, and every address in it is the holder's to use: iOS
     rotates temporary addresses inside it on its own. Keyed per address, one
-    line was 2^64 fresh buckets on both paths, and on the CDN path that was
-    new with the walk, which had keyed such traffic on the Fastly edge."""
+    line would be 2^64 fresh buckets."""
 
     NET = ipaddress.ip_network("2001:db8:1234:5678::/64")
 
     def addresses(self, n):
         return [str(self.NET[i * 7919 + 1]) for i in range(n)]
 
-    def test_rotating_inside_one_64_is_one_key_on_both_paths(self):
-        direct = {key(a) for a in self.addresses(500)}
-        cdn = {key(f"{a}, {FASTLY_V4}") for a in self.addresses(500)}
-        cdn_v6 = {key(f"{a}, {FASTLY_V6}") for a in self.addresses(500)}
-        assert direct == cdn == cdn_v6 == {"2001:db8:1234:5678::/64"}
+    def test_rotating_inside_one_64_is_one_key(self):
+        alone = {key(a) for a in self.addresses(500)}
+        behind_the_edge = {key(f"{a}, {EDGE}") for a in self.addresses(500)}
+        assert alone == behind_the_edge == {"2001:db8:1234:5678::/64"}
 
     def test_two_64s_are_two_keys(self):
         assert key("2001:db8:1234:5678::1") != key("2001:db8:1234:5679::1")
 
-    def test_however_the_hop_is_written(self):
-        assert key(f"2001:DB8:0:0::23, {FASTLY_V6}") == "2001:db8::/64"
+    def test_however_the_entry_is_written(self):
+        assert key(f"2001:DB8:0:0::23, {EDGE}") == "2001:db8::/64"
         assert key("2001:db8:0:0:ffff:ffff:ffff:ffff") == "2001:db8::/64"
 
-    def test_a_scope_id_does_not_rotate_the_key(self):
-        keys = {key(f"2001:db8::1%{n}, {FASTLY_V4}") for n in range(20)}
+    def test_a_zone_id_does_not_rotate_the_key(self):
+        keys = {key(f"2001:db8::1%{n}, {EDGE}") for n in range(20)}
         assert keys == {"2001:db8::/64"}
 
     def test_an_ipv4_mapped_client_keys_with_its_ipv4_address(self):
         assert key(f"::ffff:{CLIENT}") == CLIENT
-        assert key(f"::ffff:c633:6417, {FASTLY_V4}") == CLIENT
+        assert key(f"::ffff:c633:6417, {EDGE}") == CLIENT
         assert key(CLIENT) == CLIENT
 
     def test_ipv4_is_still_one_bucket_per_address(self):
         assert key("198.51.100.23") != key("198.51.100.24")
 
-    def test_every_published_fastly_range_is_skipped(self):
-        for published in ratelimit._FASTLY_EDGE_RANGES:
-            network = ipaddress.ip_network(published)
-            for edge in (network[0], network[-1]):
-                assert key(f"{CLIENT}, {edge}") == CLIENT, published
-
-
-class TestForgedHops:
-    """Railway's edge dropped a client-supplied header when probed, but the
-    walk must not depend on that: whatever a caller writes is on the left of
-    the address Railway appends. Except where that address is one the walk
-    skips (`TestAFastlySourceChoosesItsKey`)."""
-
-    @pytest.mark.parametrize("forged", [FORGED, "10.9.9.9", "151.101.9.9", "evil"])
-    def test_forged_then_client_then_fastly_is_the_client(self, forged):
-        assert key(f"{forged}, {CLIENT}, {FASTLY_V4}") == CLIENT
-
-    @pytest.mark.parametrize("forged", [FORGED, "10.9.9.9", "151.101.9.9", "evil"])
-    def test_forged_then_client_on_the_non_cdn_path_is_the_client(self, forged):
-        assert key(f"{forged}, {CLIENT}") == CLIENT
-
-    def test_rotating_the_forged_hop_does_not_rotate_the_key(self):
-        keys = {key(f"203.0.113.{n}, {CLIENT}, {FASTLY_V4}") for n in range(1, 50)}
-        assert keys == {CLIENT}
-
 
 class TestRepeatedHeaderLines:
     """A header may arrive as several lines, which mean their join in order
     (RFC 9110 §5.3), and uvicorn's own proxy-header middleware reads it that
-    way. `client_ip` read only the first line, so where a proxy adds its hop
-    as a line of its own, a caller's line in front of it was the whole
-    header: the key was the caller's choice, a fresh bucket per request."""
+    way. The first line alone has the same first entry, but not the same
+    count, and the count is what says whether Railway's shape still holds."""
 
-    def test_the_lines_are_one_header(self):
+    def test_two_lines_of_one_entry_each_are_two_entries(self, caplog):
+        assert key([CLIENT, EDGE]) == CLIENT
+        [note] = records(caplog, [[CLIENT, EDGE]])
+        assert note.getMessage().startswith("x-forwarded-for carried 2 hop(s);")
+
+    def test_a_third_entry_on_a_line_of_its_own_is_counted(self):
+        """Read as its first line alone, each of these is one or two entries
+        and keys on its first. Joined, each is three, which Railway never
+        writes, so the walk decides."""
         assert key([FORGED, f"{CLIENT}, {FASTLY_V4}"]) == CLIENT
-        assert key([FORGED, CLIENT]) == CLIENT
-        assert key([f"{FORGED}, {CLIENT}", FASTLY_V4]) == CLIENT
+        assert key([f"{FORGED}, {CLIENT}", EDGE]) == EDGE
+        assert key([FORGED, CLIENT, EDGE]) == EDGE
 
-    def test_rotating_the_first_line_does_not_rotate_the_key(self):
-        keys = {key([f"203.0.113.{n}", f"{CLIENT}, {FASTLY_V4}"]) for n in range(1, 50)}
-        assert keys == {CLIENT}
+    def test_rotating_the_first_line_of_three_entries_does_not_rotate_the_key(self):
+        keys = {key([f"203.0.113.{n}", f"{CLIENT}, {EDGE}"]) for n in range(1, 50)}
+        assert keys == {EDGE}
 
     def test_through_the_route(self, monkeypatch):
         seen = []
@@ -181,45 +198,167 @@ class TestRepeatedHeaderLines:
         async def recording(ip):
             seen.append(ip)
         monkeypatch.setattr(auth.deps, "ip_limiter", recording)
+        client.post("/auth/challenge", headers=[
+            ("x-forwarded-for", CLIENT), ("x-forwarded-for", EDGE)])
         for n in range(1, 4):
             client.post("/auth/challenge", headers=[
                 ("x-forwarded-for", f"203.0.113.{n}"),
-                ("x-forwarded-for", f"{CLIENT}, {FASTLY_V4}")])
-        assert seen == [CLIENT] * 3
+                ("x-forwarded-for", f"{CLIENT}, {EDGE}")])
+        assert seen == [CLIENT] + [EDGE] * 3
 
 
-class TestInternalHops:
+class TestThreeOrMoreEntries:
+    """More entries than Railway writes: its stripping failed or the topology
+    changed, so the first entry may be the caller's own. #250's walk decides
+    instead: from the right, past Fastly's published ranges and internal
+    ones, to the first hop that is neither. It never reaches an entry left of
+    an address it does not know, and Railway's edge is one, so on Railway's
+    shape it keys on the edge: a shared bucket, never the caller's choice."""
+
+    def test_railways_shape_with_an_entry_in_front_keys_on_the_edge(self):
+        assert key(f"{FORGED}, {CLIENT}, {EDGE}") == EDGE
+        keys = {key(f"203.0.113.{n}, {CLIENT}, {EDGE}") for n in range(1, 50)}
+        assert keys == {EDGE}
+
+    @pytest.mark.parametrize("forged", [FORGED, "10.9.9.9", "151.101.9.9", "evil"])
+    def test_forged_then_client_then_a_known_proxy_is_the_client(self, forged):
+        assert key(f"{forged}, {CLIENT}, {FASTLY_V4}") == CLIENT
+        assert key(f"{forged}, {CLIENT}, {CGNAT}") == CLIENT
+
+    def test_rotating_the_forged_entry_does_not_rotate_the_key(self):
+        keys = {key(f"203.0.113.{n}, {CLIENT}, {FASTLY_V4}") for n in range(1, 50)}
+        assert keys == {CLIENT}
+
     @pytest.mark.parametrize("internal", [
         CGNAT, "100.127.255.254", "10.1.2.3", "172.16.0.9", "192.168.1.1",
         "127.0.0.1", "169.254.1.1", "::1", "fd00::1", "fe80::1",
     ])
-    def test_client_then_an_internal_hop_is_the_client(self, internal):
-        assert key(f"{CLIENT}, {internal}") == CLIENT
+    def test_an_internal_hop_is_skipped(self, internal):
+        assert key(f"{FORGED}, {CLIENT}, {internal}") == CLIENT
 
-    def test_client_fastly_and_an_internal_hop_is_the_client(self):
-        assert key(f"{CLIENT}, {FASTLY_V4}, {CGNAT}") == CLIENT
+    def test_every_published_fastly_range_is_skipped(self):
+        for published in ratelimit._FASTLY_EDGE_RANGES:
+            network = ipaddress.ip_network(published)
+            for fastly in (network[0], network[-1]):
+                assert key(f"{FORGED}, {CLIENT}, {fastly}") == CLIENT, published
+        assert key(f"{FORGED}, {CLIENT}, ::ffff:{FASTLY_V4}") == CLIENT
 
     def test_documentation_ranges_are_not_internal(self):
         """`is_global` is false for these too, which is why the internal
         ranges are listed rather than read off it."""
         for doc in ("192.0.2.4", "198.51.100.4", "203.0.113.4"):
-            assert key(f"{doc}, {CGNAT}") == doc
-        assert key(f"2001:db8::4, {CGNAT}") == "2001:db8::/64"
+            assert key(f"{FORGED}, {doc}, {CGNAT}") == doc
+        assert key(f"{FORGED}, 2001:db8::4, {CGNAT}") == "2001:db8::/64"
 
-
-class TestFallbacks:
     def test_every_hop_a_known_proxy_is_the_leftmost(self):
-        assert key(f"{FASTLY_V4}, {CGNAT}") == FASTLY_V4
-        assert key(f"{CGNAT}, {FASTLY_V4}") == CGNAT
-        assert key(FASTLY_V4) == FASTLY_V4
+        assert key(f"{FASTLY_V4}, {CGNAT}, {FASTLY_V6}") == FASTLY_V4
+        assert key(f"{CGNAT}, {FASTLY_V4}, {CGNAT}") == CGNAT
 
     @pytest.mark.parametrize("xff", [
-        f" , {CLIENT} ,, {FASTLY_V4}",
+        f"{CLIENT}, not-an-ip, {FASTLY_V4}",
+        f"junk, {CGNAT}, {FASTLY_V4}",
+        f"{FORGED}, {CLIENT}, {EDGE}:5678",
+        "r1, r2, junk",
+    ])
+    def test_a_hop_that_is_not_an_address_stops_the_walk(self, xff):
+        """Skipping it would walk on into the caller's end of the header."""
+        assert key(xff) == UNPARSEABLE
+        assert deployed_key(xff) == UNPARSEABLE
+
+    def test_a_non_address_left_of_the_client_is_never_reached(self):
+        assert key(f"evil, {CLIENT}, {FASTLY_V4}") == CLIENT
+
+    WARNING = ("x-forwarded-for carried 3 hop(s), more than the 2 Railway "
+               "writes: its stripping failed or the topology changed. Such "
+               "requests are keyed by the walk from the right, which skipped "
+               "1 known proxy hop(s) (Fastly edge or internal); the per-IP key "
+               "is the nearest hop that is not a known proxy. Once per process "
+               "(RUNBOOK §5.8)")
+
+    def test_warns_once_per_process_with_counts_only(self, caplog):
+        logged = records(caplog, [
+            f"{FORGED}, {CLIENT}, {FASTLY_V4}",
+            f"{FORGED}, {CLIENT}, {EDGE}",
+            ", ".join([FORGED] * 5 + [CLIENT, EDGE]),
+            [FORGED, f"{CLIENT}, {EDGE}"],
+        ])
+        assert [(r.levelno, r.getMessage()) for r in logged] \
+            == [(logging.WARNING, self.WARNING)]
+        message = logged[0].getMessage()
+        assert not re.search(r"\d+\.\d+\.\d+\.\d+", message)
+        assert not any(a in message for a in (CLIENT, FORGED, EDGE, FASTLY_V4))
+
+    def test_the_warning_says_how_the_walk_ended(self, caplog, monkeypatch):
+        endings = []
+        for xff in (f"{FORGED}, {CLIENT}, {EDGE}", "evil, junk, x",
+                    f"{FASTLY_V4}, {CGNAT}, {FASTLY_V6}"):
+            monkeypatch.setattr(ratelimit, "_EXTRA_HOPS_WARNED", False)
+            caplog.clear()
+            [warning] = records(caplog, [xff])
+            assert warning.levelno == logging.WARNING
+            endings.append(re.findall(r"skipped (\d+) .*the per-IP key is (.*)\. Once",
+                                      warning.getMessage())[0])
+        assert endings == [
+            ("0", "the nearest hop that is not a known proxy"),
+            ("0", "a fixed one, as the nearest hop that is not a known proxy "
+                  "is not an address"),
+            ("3", "the leftmost address, as every hop is a known proxy"),
+        ]
+
+
+class TestTheNote:
+    """The production evidence: counts and fixed words, once per pair."""
+
+    POST_DEPLOY_LINE = ("x-forwarded-for carried 2 hop(s); the per-IP key is "
+                        "the first entry (Railway strips client values)")
+
+    def lines(self, caplog, headers):
+        return [r.getMessage() for r in records(caplog, headers)
+                if r.levelno == logging.INFO]
+
+    def test_the_post_deploy_line_reads_as_the_runbook_quotes_it(self, caplog):
+        """RUNBOOK §5.8 and the 1.5.1 pre-submit list tell the operator to
+        look for this after a deploy."""
+        assert self.lines(caplog, [f"{CLIENT}, {EDGE}"]) == [self.POST_DEPLOY_LINE]
+
+    def test_once_per_distinct_pair_and_never_an_address(self, caplog):
+        headers = [
+            CLIENT,                                     # (1, address)
+            "198.51.100.24",                            # (1, address) again
+            f"{CLIENT}, {EDGE}",                        # (2, address)
+            f"2001:db8::23, {FASTLY_V6}",               # (2, address) again
+            "evil",                                     # (1, not)
+            f"evil, {EDGE}",                            # (2, not)
+            f"junk, {CLIENT}",                          # (2, not) again
+            f"{FORGED}, {CLIENT}, {EDGE}",              # three: the warning
+        ]
+        lines = self.lines(caplog, headers)
+        assert lines == [
+            "x-forwarded-for carried 1 hop(s); the per-IP key is the first "
+            "entry (Railway strips client values)",
+            self.POST_DEPLOY_LINE,
+            "x-forwarded-for carried 1 hop(s); the per-IP key is a fixed one, "
+            "as the first entry is not an address",
+            "x-forwarded-for carried 2 hop(s); the per-IP key is a fixed one, "
+            "as the first entry is not an address",
+        ]
+        for line in lines:
+            assert not re.search(r"\d+\.\d+\.\d+\.\d+|::", line), line
+
+    def test_no_header_logs_nothing(self, caplog):
+        assert records(caplog, [None, ", ,"]) == []
+
+
+class TestNoEntries:
+    @pytest.mark.parametrize("xff", [
+        f" , {CLIENT} ,, {EDGE}",
         f"{CLIENT}, ",
         f"{CLIENT},",
         f",{CLIENT}",
+        f" , , {CLIENT}, ,{EDGE}, ",
     ])
-    def test_empty_entries_are_not_hops(self, xff):
+    def test_empty_entries_are_not_entries(self, xff):
+        """Nor do they count towards three."""
         assert key(xff) == CLIENT
 
     def test_no_entry_at_all_is_request_client_host(self):
@@ -234,178 +373,82 @@ class TestFallbacks:
         assert key(None, host="192.0.2.4") == "192.0.2.4"
         assert key(None, host=None) == "unknown"
         assert key(None, host="") == "unknown"
+        assert deployed_key() == "testclient"
 
     def test_the_key_is_truncated_on_every_path(self):
         """It reaches a cache key and is attacker-influenced. A parsed address
-        is short once keyed: IPv6 allows a scope id of any length, and the
+        is short once keyed: IPv6 allows a zone id of any length, and the
         /64 drops it."""
         scoped = "2001:db8::1%" + "z" * 200
-        assert key(f"{scoped}, {FASTLY_V4}") == "2001:db8::/64"
+        assert key(f"{scoped}, {EDGE}") == "2001:db8::/64"
+        assert key(f"{FORGED}, {CLIENT}, {scoped}") == "2001:db8::/64"
         assert key("fe80::1%" + "z" * 200) == "fe80::/64"
         assert key("x" * 500, host="y" * 500) == UNPARSEABLE
         assert key(None, host="x" * 500) == "x" * 64
 
 
-class TestAHopThatIsNotAnAddress:
-    """The walk stops at the nearest hop it cannot vouch for, and keys every
-    request that stops there on one fixed value.
-
-    It used to skip such a hop and walk on to the left, and key on
-    `request.client.host` when nothing parsed. Deployed, that host is the
-    leftmost entry, written by the caller (`deployed`, above), so both ways
-    it reached the caller's end of the header: "evil-a, evil-b" was keyed on
-    evil-a where the rightmost rule had keyed evil-b, and were Railway ever
-    to append something that is not a bare address — an address with a port
-    — the key would be the caller's choice. The limit fails closed instead:
-    one bucket for everything that reads so, which no caller can multiply."""
+class TestAFirstEntryThatIsNotAnAddress:
+    """Every request whose first entry is not an address shares one fixed
+    key. Deployed, `request.client.host` is that entry verbatim (`deployed`,
+    above), so keying on it or on the raw text would be a fresh bucket per
+    value; were Railway ever to write something that is not a bare address
+    there, everyone would share the one bucket instead, and the note says so."""
 
     def test_behind_uvicorn_no_address_is_one_bucket(self):
         assert deployed_key("evil-a") == deployed_key("evil-b") == UNPARSEABLE
         assert deployed_key("evil-a, evil-b") == UNPARSEABLE
-        assert deployed_key("r1, r2, junk") == UNPARSEABLE
 
-    def test_rotating_left_of_a_non_address_does_not_rotate_the_key(self):
-        keys = {deployed_key(f"evil-{n}, railway-token") for n in range(30)}
+    def test_rotating_it_does_not_rotate_the_key(self):
+        keys = {deployed_key(f"evil-{n}, {EDGE}") for n in range(30)}
         assert keys == {UNPARSEABLE}
-        keys = {deployed_key(f"203.0.113.{n}, {CLIENT}:5678") for n in range(1, 30)}
+        keys = {deployed_key(f"{CLIENT}:{n}, {EDGE}") for n in range(5000, 5030)}
         assert keys == {UNPARSEABLE}
 
     @pytest.mark.parametrize("xff", [
-        f"{CLIENT}, not-an-ip, {FASTLY_V4}",
-        f"{CLIENT}, 999.1.1.1",
-        f"{CLIENT}:5678, {FASTLY_V4}",
-        f"junk, {CGNAT}, {FASTLY_V4}",
-        "evil", "999.1.1.1, x",
+        f"{CLIENT}:5678, {EDGE}", "evil", "999.1.1.1, x", "unknown",
+        f"[2001:db8::1], {EDGE}",
     ])
-    def test_the_nearest_non_proxy_hop_decides(self, xff):
+    def test_it_is_the_fixed_key(self, xff):
         assert key(xff) == UNPARSEABLE
         assert key(xff, host=None) == UNPARSEABLE
 
-    def test_a_non_address_left_of_the_client_is_never_reached(self):
-        assert key(f"evil, {CLIENT}, {FASTLY_V4}") == CLIENT
-        assert key(f"evil, {CLIENT}") == CLIENT
 
+class TestEveryCallerUsesIt:
+    """One resolver: `auth`, `main` and `referral` must all key on the first
+    entry on Railway's shape, and on the walk past it, or they drift apart
+    again (B-14)."""
 
-class TestTheNote:
-    """The production evidence: counts only, once per pair, a few lines."""
+    CASES = [(f"{CLIENT}, {EDGE}", CLIENT),
+             (f"{FORGED}, {CLIENT}, {FASTLY_V4}", CLIENT),
+             (f"{FORGED}, {CLIENT}, {EDGE}", EDGE)]
 
-    CDN_LINE = ("x-forwarded-for carried 2 hop(s), skipped 1 known proxy hop(s) "
-                "(Fastly edge or internal); the per-IP key is the nearest hop "
-                "that is not one")
+    @pytest.mark.parametrize("xff, expected", CASES)
+    def test_main_client_ip(self, xff, expected):
+        assert main._client_ip(Req(xff)) == expected  # type: ignore[arg-type]
 
-    def lines(self, caplog, headers):
-        with caplog.at_level(logging.INFO, logger="snapworth.ratelimit"):
-            for xff in headers:
-                ratelimit.client_ip(Req(xff))
-        return [r.getMessage() for r in caplog.records
-                if r.getMessage().startswith("x-forwarded-for carried")]
-
-    def test_once_per_distinct_pair_and_never_an_address(self, caplog):
-        headers = [
-            CLIENT,                                     # (1, 0)
-            "198.51.100.24",                            # (1, 0) again
-            f"{CLIENT}, {FASTLY_V4}",                   # (2, 1)
-            f"2001:db8::23, {FASTLY_V6}",               # (2, 1) again
-            f"{FASTLY_V4}, {CGNAT}",                    # (2, 2), the leftmost
-            f"{FORGED}, {CLIENT}, {FASTLY_V4}",         # (3, 1)
-        ]
-        lines = self.lines(caplog, headers)
-        pairs = [re.findall(r"carried (\S+) hop\(s\), skipped (\S+) ", line)[0]
-                 for line in lines]
-        assert pairs == [("1", "0"), ("2", "1"), ("2", "2"), ("3", "1")]
-        for line in lines:
-            assert not any(a in line for a in (CLIENT, FORGED, FASTLY_V4, CGNAT))
-            # Nothing finer than the key hop's /16 or /32, and only when
-            # entries sit left of it (the (3, 1) line).
-            coarse = re.sub(r" is in \S+/(16|32) ", " ", line)
-            assert not re.search(r"\d+\.\d+\.\d+\.\d+|:", coarse), line
-
-    def test_the_cdn_line_reads_as_the_runbook_quotes_it(self, caplog):
-        """RUNBOOK §5.8 tells the operator to look for this after a deploy."""
-        assert self.lines(caplog, [f"{CLIENT}, {FASTLY_V4}"]) == [self.CDN_LINE]
-
-    def test_the_fallbacks_say_which_they_were(self, caplog):
-        lines = self.lines(caplog, [f"{FASTLY_V4}, {CGNAT}", "evil, junk"])
-        assert lines[0].endswith("the leftmost address, as every address is one")
-        assert lines[1].endswith(
-            "a fixed one, as the nearest hop that is not one is not an address")
-
-    LEFT = ("; entries sit left of the key's hop, which is in {} ({}) — a "
-            "proxy missing from the list, or a header Railway passed through "
-            "(RUNBOOK §5.8)")
-
-    @pytest.mark.parametrize("xff, prefix, scope", [
-        (f"{CLIENT}, 66.33.22.11", "66.33.0.0/16", "global"),
-        (f"{CLIENT}, 66.33.22.11, {CGNAT}", "66.33.0.0/16", "global"),
-        (f"{CLIENT}, ::ffff:66.33.22.11", "66.33.0.0/16", "global"),
-        (f"{FORGED}, {CLIENT}", "198.51.0.0/16", "not global"),
-        (f"{CLIENT}, 2001:db8:aa::1, {FASTLY_V4}", "2001:db8::/32", "not global"),
-    ])
-    def test_a_key_that_is_not_the_leftmost_says_where_its_hop_is(
-            self, caplog, xff, prefix, scope):
-        """Entries left of the key mean a proxy the list does not know, or a
-        client header Railway passed through: "skipped 0" alone could not
-        say which. So the line gives the key hop's /16 or /32 and whether it
-        is global, to check against Fastly's list and Railway's ranges; that
-        is coarse enough to name no one."""
-        [line] = self.lines(caplog, [xff])
-        assert line.endswith(self.LEFT.format(prefix, scope))
-        assert "66.33.22.11" not in line and CLIENT not in line
-
-    @pytest.mark.parametrize("xff", [
-        CLIENT, f"{CLIENT}, {FASTLY_V4}", f"{CLIENT}, {FASTLY_V4}, {CGNAT}",
-        f"{FASTLY_V4}, {CGNAT}", "evil, junk", f"{CLIENT}, junk",
-    ])
-    def test_otherwise_no_prefix(self, caplog, xff):
-        [line] = self.lines(caplog, [xff])
-        assert "sit left" not in line and "/16" not in line and "/32" not in line
-
-    def test_lines_are_capped_per_process(self, caplog):
-        """Eleven distinct pairs, at most `_HOP_NOTE_LIMIT` lines."""
-        headers = [", ".join([FORGED] * forged + [CLIENT] + [FASTLY_V4] * edges)
-                   for forged in range(4) for edges in range(5)]
-        pairs = {(min(forged + 1 + edges, 4), min(edges, 4))
-                 for forged in range(4) for edges in range(5)}
-        assert len(pairs) == 11
-        lines = self.lines(caplog, headers)
-        assert len(lines) == ratelimit._HOP_NOTE_LIMIT == 6
-
-    def test_four_or_more_reads_four_plus(self, caplog):
-        lines = self.lines(caplog, [", ".join([CLIENT] + [FASTLY_V4] * 5)])
-        assert len(lines) == 1
-        assert lines[0].startswith(
-            "x-forwarded-for carried 4+ hop(s), skipped 4+ known proxy")
-
-
-class TestEveryCallerUsesTheWalk:
-    """One resolver: `auth` and `main` must both key on the client on the CDN
-    path, or the two drift apart again (B-14)."""
-
-    XFF = f"{FORGED}, {CLIENT}, {FASTLY_V4}"
-
-    def test_main_client_ip(self):
-        assert main._client_ip(Req(self.XFF)) == CLIENT  # type: ignore[arg-type]
-
-    def test_auth_unauthenticated_limiter(self, monkeypatch):
+    @pytest.mark.parametrize("xff, expected", CASES)
+    def test_auth_unauthenticated_limiter(self, monkeypatch, xff, expected):
         seen = []
 
         async def recording(ip):
             seen.append(ip)
         monkeypatch.setattr(auth.deps, "ip_limiter", recording)
-        asyncio.run(auth._limit_unauthenticated(Req(self.XFF)))  # type: ignore[arg-type]
-        assert seen == [CLIENT]
+        asyncio.run(auth._limit_unauthenticated(Req(xff)))  # type: ignore[arg-type]
+        assert seen == [expected]
 
-    def test_the_auth_challenge_route(self, monkeypatch):
+    @pytest.mark.parametrize("xff, expected", CASES)
+    def test_the_auth_challenge_route(self, monkeypatch, xff, expected):
         seen = []
 
         async def recording(ip):
             seen.append(ip)
         monkeypatch.setattr(auth.deps, "ip_limiter", recording)
-        r = client.post("/auth/challenge", headers={"x-forwarded-for": self.XFF})
+        r = client.post("/auth/challenge", headers={"x-forwarded-for": xff})
         assert r.status_code == 200
-        assert seen == [CLIENT]
+        assert seen == [expected]
 
-    def test_mains_apple_notifications_route(self, monkeypatch):
+    @pytest.mark.parametrize("xff, expected", CASES)
+    def test_mains_apple_notifications_route(self, monkeypatch, xff, expected):
         seen = []
 
         async def recording(ip):
@@ -413,9 +456,26 @@ class TestEveryCallerUsesTheWalk:
             raise HTTPException(status_code=418)
         monkeypatch.setattr(main, "_enforce_ip_limit", recording)
         r = client.post("/apple/notifications", json={},
-                        headers={"x-forwarded-for": self.XFF})
+                        headers={"x-forwarded-for": xff})
         assert r.status_code == 418
-        assert seen == [CLIENT]
+        assert seen == [expected]
+
+    @pytest.mark.parametrize("xff, expected", CASES)
+    def test_the_referral_routes(self, monkeypatch, xff, expected):
+        seen = []
+
+        async def recording(route, subject, ip):
+            seen.append((route, ip))
+        monkeypatch.setattr(referral, "config",
+                            referral.ReferralConfig(enabled=True,
+                                                    friend_offer="referral-friend-7d"))
+        monkeypatch.setattr(referral, "limiter", recording)
+        token, _ = auth.deps.signer.mint("subj-client-ip")
+        headers = {"Authorization": f"Bearer {token}", "x-forwarded-for": xff}
+        client.post("/referral/status", json={"device_id": "dev-a"}, headers=headers)
+        client.post("/referral/claim", json={"device_id": "dev-a", "code": "ZZZZZZ"},
+                    headers=headers)
+        assert seen == [("status", expected), ("claim", expected)]
 
 
 class TestTheRealLimiter:
@@ -438,57 +498,58 @@ class TestTheRealLimiter:
         return [deployed.post("/auth/challenge", headers={"x-forwarded-for": x}).status_code
                 for x in xffs]
 
-    def test_a_fixed_client_behind_fastly_is_refused_at_the_limit(self):
-        assert self.codes([f"{CLIENT}, {FASTLY_V4}"] * 8) == [200] * 5 + [429] * 3
+    def test_a_fixed_client_behind_the_edge_is_refused_at_the_limit(self):
+        assert self.codes([f"{CLIENT}, {EDGE}"] * 8) == [200] * 5 + [429] * 3
 
     def test_a_rotating_first_header_line_is_refused_at_the_limit(self):
+        """Three entries: the walk, which keys on the edge here."""
         codes = [deployed.post("/auth/challenge", headers=[
                      ("x-forwarded-for", f"203.0.113.{n}"),
-                     ("x-forwarded-for", f"{CLIENT}, {FASTLY_V4}")]).status_code
+                     ("x-forwarded-for", f"{CLIENT}, {EDGE}")]).status_code
                  for n in range(1, 9)]
         assert codes == [200] * 5 + [429] * 3
 
     def test_rotating_inside_one_ipv6_64_is_refused_at_the_limit(self):
         net = ipaddress.ip_network("2001:db8:1234:5678::/64")
-        assert self.codes([f"{net[n]}, {FASTLY_V4}" for n in range(1, 9)]) \
+        assert self.codes([f"{net[n]}, {EDGE}" for n in range(1, 9)]) \
             == [200] * 5 + [429] * 3
         main._ip_rate_store.clear()
         assert self.codes([str(net[n * 7919]) for n in range(1, 9)]) == [200] * 5 + [429] * 3
 
-    def test_rotating_a_header_that_is_not_an_address_is_refused_at_the_limit(self):
+    def test_rotating_a_first_entry_that_is_not_an_address_is_refused_at_the_limit(self):
         assert self.codes([f"evil-{n}" for n in range(8)]) == [200] * 5 + [429] * 3
         main._ip_rate_store.clear()
-        assert self.codes([f"evil-{n}, railway-token" for n in range(8)]) \
+        assert self.codes([f"evil-{n}, {EDGE}" for n in range(8)]) \
             == [200] * 5 + [429] * 3
 
-    def test_callers_behind_one_edge_do_not_share_a_bucket(self):
-        """Nothing is keyed on the Fastly edge. A bucket per edge was tried,
-        at 100 times the IP bucket, and one caller with 100 keys filled it
-        and locked everyone behind that edge out for an hour. Here 30 callers
+    def test_thirty_users_behind_one_edge_address_each_get_their_own_bucket(self):
+        """The launch scenario. Every user Railway routes through one edge
+        arrives as "user, edge" with the same edge. #250 keyed all of them on
+        it, so the sixth request from any of them here was refused; that is
+        60/h shared by everyone behind the edge in production. Here 30 users
         each spend all of theirs through one edge, and the next is refused
         only by its own bucket."""
         for n in range(1, 31):
-            assert self.codes([f"203.0.113.{n}, {FASTLY_V4}"] * self.LIMIT) \
+            assert self.codes([f"203.0.113.{n}, {EDGE}"] * self.LIMIT) \
                 == [200] * self.LIMIT
-        assert self.codes([f"{CLIENT}, {FASTLY_V4}"] * 6) == [200] * 5 + [429]
+        assert self.codes([f"{CLIENT}, {EDGE}"] * 6) == [200] * 5 + [429]
         assert set(main._ip_rate_store) \
             == {f"203.0.113.{n}" for n in range(1, 31)} | {CLIENT}
 
 
-class TestAFastlySourceChoosesItsKey:
-    """Known, unprobed, and pinned so the assumption stays visible.
+class TestTheResidualRisk:
+    """Known, and pinned so the assumption stays visible.
 
-    Fastly's addresses are every Fastly customer's. Anyone can put a Fastly
-    service of their own in front of this API, or call it from Fastly
-    Compute, and the request reaches Railway's edge from a Fastly address
-    carrying whatever X-Forwarded-For that service wrote. Railway's edge must
-    keep the header its own Fastly service writes — that is how "client,
-    edge" arrives — and whether it keeps a Fastly customer's has never been
-    probed. If it does, "R, E" is keyed on R, which the caller picks, where
-    the rightmost rule keyed E, which it cannot, and nothing else bounds it.
-    RUNBOOK §5.8 has the probe, and what to build if it shows the header is
-    kept."""
+    The first entry is the caller only because Railway's edge strips a
+    client's header, which forged probes showed on 2026-09-27. If it ever
+    stops while still sending two entries, "forged, client" is keyed on
+    the forged entry, a fresh bucket per value, and nothing in the header
+    tells that request from a real one. App Attest where it is required, the
+    per-device buckets and the daily spend alert once it is set still apply;
+    this limit does not. RUNBOOK §5.8
+    has the probe that checks stripping, after any Railway networking change
+    and monthly."""
 
-    def test_a_rotating_hop_left_of_a_fastly_address_is_a_new_key(self):
-        keys = {key(f"203.0.113.{n}, {FASTLY_V4}") for n in range(1, 50)}
+    def test_two_entries_are_trusted_to_be_railways(self):
+        keys = {key(f"203.0.113.{n}, {CLIENT}") for n in range(1, 50)}
         assert len(keys) == 49

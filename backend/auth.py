@@ -296,13 +296,15 @@ async def _limit_unauthenticated(request: Request) -> None:
     # `ratelimit.client_ip`, not `request.client.host`.
     #
     # uvicorn runs with `--forwarded-allow-ips='*'`, so `request.client.host`
-    # is the *leftmost* `X-Forwarded-For` hop — entirely client-supplied. These
-    # three routes were therefore keyed on a value the caller picks per
-    # request, which is a fresh bucket on demand rather than a limit, while
-    # `/scan`, `/trends` and `/listing` were keyed on the rightmost hop all
-    # along. `main._client_ip`'s own docstring describes this exact trap; the
-    # routes added later just did not get it, because the helper lived in a
-    # module `auth` cannot import. It is in `ratelimit` now.
+    # comes from the leftmost `X-Forwarded-For` entry. `client_ip` keys on
+    # that entry too, but it is the one place that knows why: Railway's edge
+    # strips a client's own header. It keys IPv6 on its /64 and an entry
+    # that is not an address on one fixed value, and it falls back to a walk
+    # from the right when the header has more entries than Railway writes,
+    # which is where the leftmost could be the caller's choice. These three
+    # routes were once keyed on `request.client.host` while `/scan`, `/trends`
+    # and `/listing` went through a helper in a module `auth` cannot import.
+    # It is in `ratelimit` now.
     await deps.ip_limiter(ratelimit.client_ip(request))
 
 

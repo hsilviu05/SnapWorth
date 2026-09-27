@@ -66,7 +66,7 @@ difference.
 | [#241](https://github.com/hsilviu05/SnapWorth/pull/241) | U: scan prompt v2.1 (v2 still selectable) |
 | [#243](https://github.com/hsilviu05/SnapWorth/pull/243) | #210: startup and Checkup say when `AUDIT_SALT` is a published placeholder; the Sandbox notification route gets the notification body cap |
 | [#244](https://github.com/hsilviu05/SnapWorth/pull/244) | The Telegram bot token no longer reaches the logs (httpx URLs were not redacted). Rotate it: RUNBOOK §8.6 |
-| [#250](https://github.com/hsilviu05/SnapWorth/pull/250) | Per-IP limits keyed on the caller, not on Railway's CDN edge, which every user behind one edge shared. **Must be live before 21 is released** (pre-submit list) |
+| [#250](https://github.com/hsilviu05/SnapWorth/pull/250), [#254](https://github.com/hsilviu05/SnapWorth/pull/254) | Per-IP limits keyed on the caller, not on Railway's edge, which every user behind one edge shared. #250 alone still keyed on the edge; #254 keys on the first `X-Forwarded-For` entry. **#254 must be live before 21 is released** (pre-submit list) |
 
 ### Repository only (no user or server effect)
 
@@ -234,9 +234,10 @@ the failure that names the build the fix needs.
       per-address cap (`IP_RATE_MAX_REQUESTS`). Run this only once that
       deploy is live.
       **The per-address cap was not per address on 09-27.** Behind Railway's
-      CDN, `X-Forwarded-For` arrives as *client, Fastly edge*, and the server
+      CDN, `X-Forwarded-For` arrives as *client, Railway edge*, and the server
       keyed the cap on the edge, so everyone routed through one edge shared
-      one 60-an-hour bucket (#206's smoke test). One tester's haul still fits
+      one 60-an-hour bucket (#206's smoke test; #250 did not change that,
+      #254 does). One tester's haul still fits
       under it; a launch day would not. The fix must be deployed before 21 is
       released, and this check passing does not show it is.
 - [ ] A 429 shows the countdown, and no photo is lost across lock, kill and
@@ -355,10 +356,15 @@ the failure that names the build the fix needs.
       tracking. It has to match `PrivacyInfo.xcprivacy` in this binary.
 - [ ] Screenshots (#203) are uploaded, or it is recorded that 1.5.1 goes with
       the old ones.
-- [ ] **#250 is deployed** and Railway's log shows `x-forwarded-for carried 2
-      hop(s), skipped 1 known proxy hop(s)` for app traffic (RUNBOOK §5.8).
-      Until it is, every user behind one CDN edge shares one 60-an-hour
-      per-address bucket, and a launch day would trip it.
+- [ ] **[#254](https://github.com/hsilviu05/SnapWorth/pull/254) is deployed**
+      (#250 alone is not enough: it still keyed on Railway's edge) and
+      Railway's log shows `x-forwarded-for carried 2 hop(s); the per-IP key
+      is the first entry (Railway strips client values)` for app traffic,
+      with no `more than the 2 Railway writes` warning (RUNBOOK §5.8). The
+      owner probe in the same section passes on the day: a forged
+      `X-Forwarded-For` never shows as the client in uvicorn's access log.
+      Until then, every user behind one Railway edge address shares one
+      60-an-hour per-address bucket, and a launch day would trip it.
 - [ ] `SANDBOX_ENTITLEMENTS` is `bounded` on Railway while 21 is with App
       Review (RUNBOOK §17: `off` refuses the reviewer's purchase). The same
       section says: no public TestFlight link while it is `bounded` (#208).
