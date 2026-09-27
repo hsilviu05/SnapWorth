@@ -215,6 +215,11 @@ REQUEST_TIMEOUT_MS = int(os.environ.get("GEMINI_TIMEOUT_MS", "25000"))
 # asks for the prices before the evidence, and with less thinking the evidence
 # written after a price is a justification of it; v2.1 has the model write
 # what it saw first.
+#
+# And ship a lowered budget only while v2.1 is what serves: SCAN_PROMPT_VERSION
+# set to v2.1, or v2.1 the default (`prompts.DEFAULT_PROMPT_VERSION`, v2 as of
+# this writing). This setting is process-wide, whatever the prompt, so a cap
+# measured on v2.1 and set while v2 serves is exactly the case above.
 _THINKING_BUDGET_RAW = os.environ.get("GEMINI_THINKING_BUDGET", "").strip()
 THINKING_BUDGET: int | None = (
     int(_THINKING_BUDGET_RAW) if _THINKING_BUDGET_RAW.lstrip("-").isdigit() else None

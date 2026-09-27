@@ -711,6 +711,9 @@ work on does not.
    quality decision and belongs to `backend/eval/runner.py`, run at a candidate
    budget and compared, not to a number picked here. This is the highest-value
    *cost* lever in the list and the one most able to damage the product.
+   Measure it on prompt v2.1 and set it only while v2.1 serves: the cap applies
+   to every scan whatever the prompt, and v2 asks for the prices before the
+   evidence (`docs/EVALUATION.md`, *Without labels*).
 4. **Prompt length** — v2 is ~700 tokens of the ~960 input. Input is ~5% of
    per-scan cost, so trimming saves ~$85/mo at 1M users; not worth degrading
    output for. (The old model put this at ~$40/mo on prices 4× too low.)

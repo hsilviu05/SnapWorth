@@ -7,7 +7,7 @@ calibration, consistency, hallucination rate and latency.
     python -m eval.runner --dataset ... --prompt-version v1   # baseline
     python -m eval.runner --dataset ... --repeats 3           # consistency
     python -m eval.runner --dataset ... --compare v1 v2       # A/B
-    python -m eval.runner --photos ~/scans --repeats 3 --compare v2 v2@512
+    python -m eval.runner --photos ~/scans --repeats 3 --compare v2.1 v2.1@512
                                    # no labels: consistency, latency, tokens,
                                    # and how far the second arm moves prices
 
@@ -18,6 +18,8 @@ so a run's own output is also a valid baseline file.
 
 An arm is a prompt version, optionally with `@N` to cap the model's thinking
 budget at N tokens for that arm only (`aiconfig.THINKING_BUDGET`).
+A thinking cap is measured on v2.1, and shipped only while v2.1 serves;
+`aiconfig.THINKING_BUDGET` says why.
 
 Design notes
 ------------
@@ -560,7 +562,7 @@ def main(argv=None) -> int:
                         help="the arm to run: a prompt version, optionally @N to "
                              "cap the thinking budget at N tokens")
     parser.add_argument("--compare", nargs=2, metavar=("A", "B"),
-                        help="run two arms (e.g. v2 v2@512) and print both reports")
+                        help="run two arms (e.g. v2.1 v2.1@512) and print both reports")
     parser.add_argument("--repeats", type=int, default=1,
                         help="runs per item; >1 enables the consistency metric")
     parser.add_argument("--limit", type=int, help="evaluate only the first N items")

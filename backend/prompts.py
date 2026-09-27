@@ -315,25 +315,36 @@ Rules for the numeric fields:
 
 
 # Prompt registry. Selected at request time so a rollback is an env var, not a
-# redeploy, and so the eval harness can run any two against the same dataset.
+# code deploy, and so the eval harness can run any two against the same dataset.
 PROMPTS: dict[str, str] = {
     "v1": SCAN_PROMPT_V1,
     "v2": SCAN_PROMPT_V2,
     "v2.1": SCAN_PROMPT_V2_1,
 }
 
-# Still v2. v2.1 was to become the default once the eval runner's unlabelled
-# mode had compared the two, and no comparison has been run: it needs real
-# photos and a Gemini key, and the only image fixtures in this repository are
+# Still v2. The owner's condition for changing it, verbatim: "make v2.1 the
+# default only if the eval CLI's unlabelled --repeats/--compare mode (added in
+# the CI batch) can run a sanity comparison with the test fixtures — otherwise
+# leave the default at v2 and document how to switch."
+#
+# It reads two ways. Literally, it is met: `TestTheEvalCanCompareIt` in
+# tests/test_prompt_v21.py runs `eval.runner --photos <fixture JPEGs>
+# --repeats 2 --compare v2 v2.1` end to end and gets a price shift. That
+# proves the harness and nothing about the prompts, because the fixtures are
 # generated single-colour squares with nothing on them to price
-# (`tests/images.py`). To move over:
+# (`tests/images.py`) and the model is a stand-in. A comparison that says
+# anything about v2.1 needs real photos and GEMINI_API_KEY, and none has been
+# run. The default stays at v2, the cautious reading, until the owner decides
+# to flip on the literal one or a real-photo run exists:
 #
 #     python -m eval.runner --photos <folder of real scans> --repeats 3 \
 #         --compare v2 v2.1 --json-out runs/v2.1.json
 #
-# then set SCAN_PROMPT_VERSION=v2.1 on the service, which needs no redeploy.
-# Unset it, or set v2, to go back. Once v2.1 has served and held, change this
-# line so a deploy without the variable agrees with production.
+# To switch without changing this line, set SCAN_PROMPT_VERSION=v2.1 on the
+# service. That needs no code deploy, but it is read at startup, so it takes
+# effect when the service restarts with it (RUNBOOK §6). Unset it, or set v2,
+# to go back. Once v2.1 has served and held, change this line so a deploy
+# without the variable agrees with production.
 DEFAULT_PROMPT_VERSION = "v2"
 
 # Appended when the client sent a close-up of the label as well (#88). Kept

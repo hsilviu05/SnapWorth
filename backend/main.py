@@ -908,8 +908,9 @@ _model = aiconfig.build_model()
 
 # Which prompt revision serves traffic: v1, v2 or v2.1 (`prompts.PROMPTS`).
 # Env-switchable so moving between them, forward or back, is a config change
-# rather than a redeploy. An unknown value serves the default, so check a
-# scan's `prompt_version` after changing it.
+# rather than a code deploy. Read once, here, at import, so a change applies
+# when the service restarts with it (RUNBOOK §6). An unknown value serves the
+# default, so check a scan's `prompt_version` after changing it.
 SCAN_PROMPT_VERSION = os.environ.get("SCAN_PROMPT_VERSION", prompts.DEFAULT_PROMPT_VERSION)
 
 
