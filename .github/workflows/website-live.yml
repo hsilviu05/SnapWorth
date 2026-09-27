@@ -1,0 +1,43 @@
+name: Website is live
+
+# vercel.json carries the /i/<code> invite rewrite, the security headers, the
+# font caching, the clean-URL redirects and the branded 404, and none of it can
+# be seen in the files. On 2026-09-26 production (from 22865a3) applied none of
+# it, and never has: the July /support rewrite was "ignored" (d8b69a5), and the
+# 2026-09-01 deployment ignored the old catch-all rewrite and the font header
+# too. `vercel build` of 22865a3 with the CLI the platform used (59.25.4)
+# emits every one of those rules, so the cause is not in the file. Two audits had
+# recorded the headers and the 404 as done, because nothing ever requested the
+# live site. The invite links the app builds point at exactly that rewrite.
+#
+# So after every production deployment Vercel reports to GitHub, this asks the
+# live site whether it does what vercel.json says. website/seo/check_live.py
+# has the checks and reads its expectations from vercel.json.
+#
+# It fails until production applies vercel.json's routes. That is the point:
+# a red run here is the signal that was missing. Referrals must not be switched
+# on while it is red.
+
+on:
+  deployment_status:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  live:
+    name: Production does what vercel.json says
+    # Vercel's production deployments only: the backend deploys elsewhere, and
+    # preview URLs sit behind Vercel's login.
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.deployment_status.state == 'success' &&
+       github.event.deployment.environment == 'Production' &&
+       github.event.deployment.creator.login == 'vercel[bot]')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Invite rewrite, headers, font caching, 404 page, redirects
+        run: python3 website/seo/check_live.py https://www.snapworth.eu

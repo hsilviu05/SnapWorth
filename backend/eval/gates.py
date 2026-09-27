@@ -59,6 +59,13 @@ class Threshold:
     direction: Direction
     # Relative regression tolerated before failing, e.g. 0.05 = 5% worse.
     max_regression: float = 0.05
+    # For a signed metric whose ideal is zero (bias), set this instead: how far
+    # further onto the harmful side of zero — the positive side when lower is
+    # better — a run may move, in the metric's own units. A relative change
+    # cannot work across zero: bias -10 → -5 is an improvement that read as
+    # "+50% regressed", +2 → -40 read as a pass, and a zero baseline left no
+    # tolerance at all.
+    signed_tolerance: float | None = None
     # Optional hard bound, independent of the baseline.
     absolute_limit: float | None = None
     # Warn instead of fail. For metrics that are noisy or not yet trusted.
@@ -92,9 +99,28 @@ class Threshold:
             return GateResult(self.metric, GateStatus.SKIPPED, current.value, None,
                               message="no baseline recorded — first run")
 
+        if self.signed_tolerance is not None:
+            return self._evaluate_signed(baseline.value, current.value,
+                                         self.signed_tolerance)
+
         if baseline.value == 0:
-            return GateResult(self.metric, GateStatus.SKIPPED, current.value,
-                              baseline.value, message="baseline is zero")
+            # Relative change is undefined here, and this used to return
+            # SKIPPED — which switched off "fabrication must never increase" at
+            # a baseline of zero hallucinations, the value it most exists to
+            # protect: 0% → 4% passed, caught only by the 5% absolute limit.
+            # experiment.Guardrail had the same bug and the same fix: judge the
+            # direction alone, so any move the wrong way from zero regresses.
+            worse = (current.value > 0 if self.direction is Direction.LOWER_IS_BETTER
+                     else current.value < 0)
+            if worse:
+                return GateResult(
+                    self.metric,
+                    GateStatus.WARNED if self.warn_only else GateStatus.FAILED,
+                    current.value, baseline.value,
+                    message=(f"regressed from 0 to {current.value:.3f} — any move "
+                             "the wrong way from a zero baseline is a regression"))
+            return GateResult(self.metric, GateStatus.PASSED, current.value,
+                              baseline.value, message="held against a zero baseline")
 
         delta = (current.value - baseline.value) / abs(baseline.value)
         regression = delta if self.direction is Direction.LOWER_IS_BETTER else -delta
@@ -111,6 +137,28 @@ class Threshold:
         return GateResult(self.metric, GateStatus.PASSED, current.value,
                           baseline.value,
                           message=f"{regression:+.1%} vs baseline")
+
+    def _evaluate_signed(self, baseline: float, current: float,
+                         tolerance: float) -> "GateResult":
+        # Only the harmful side counts. For bias that is over-valuation; an
+        # under-valuation large enough to matter already moves MdAPE, which is
+        # gated, while judging it here would fail a run for moving toward zero.
+        def harm(value: float) -> float:
+            return max(value if self.direction is Direction.LOWER_IS_BETTER
+                       else -value, 0.0)
+
+        worse_by = harm(current) - harm(baseline)
+        if worse_by > tolerance:
+            return GateResult(
+                self.metric,
+                GateStatus.WARNED if self.warn_only else GateStatus.FAILED,
+                current, baseline,
+                message=(f"moved {worse_by:+.2f} onto the harmful side of zero "
+                         f"({baseline:.3f} → {current:.3f}), "
+                         f"tolerance {tolerance:.2f}"))
+        return GateResult(self.metric, GateStatus.PASSED, current, baseline,
+                          message=(f"{worse_by:+.2f} on the harmful side of zero "
+                                   f"({baseline:.3f} → {current:.3f})"))
 
 
 @dataclass(frozen=True)
@@ -133,7 +181,10 @@ DEFAULT_THRESHOLDS = (
               description="median accuracy must not degrade"),
     Threshold("within_25pct", Direction.HIGHER_IS_BETTER, max_regression=0.05,
               description="share of usable estimates"),
-    Threshold("bias", Direction.LOWER_IS_BETTER, max_regression=0.15,
+    # Signed, in percentage points: 2 points of median over-valuation is $1 on
+    # a $50 item. A starting value — the run-to-run spread of the first real
+    # baselines is what should set it, as with every tolerance here.
+    Threshold("bias", Direction.LOWER_IS_BETTER, signed_tolerance=2.0,
               description="systematic over-valuation is the dangerous direction"),
     Threshold("calibration_ece", Direction.LOWER_IS_BETTER, max_regression=0.10,
               description="confidence must keep meaning what it says"),
@@ -142,6 +193,13 @@ DEFAULT_THRESHOLDS = (
               description="fabrication must never increase"),
     Threshold("latency_p95", Direction.LOWER_IS_BETTER, max_regression=0.20,
               description="scans must not get visibly slower"),
+    # Every accuracy metric is computed over the scans that produced a price,
+    # so a change that breaks half the responses would pass on its survivors.
+    # Not `schema_compliance`: a failure here includes a 429 or a timeout,
+    # and a zero-tolerance gate would fail CI on two of those in a hundred.
+    Threshold("scored_fraction", Direction.HIGHER_IS_BETTER, max_regression=0.05,
+              absolute_limit=90.0,
+              description="scans that produced a price, of all attempted"),
     Threshold("schema_compliance", Direction.HIGHER_IS_BETTER, max_regression=0.0,
               absolute_limit=99.0,
               description="responses must satisfy the API contract"),

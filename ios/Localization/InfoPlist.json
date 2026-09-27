@@ -34,12 +34,12 @@
       "zh-Hans": "SnapWorth 需要访问相册，让你挑选照片来查看照片里物品的转卖价。"
     },
     "NSPhotoLibraryAddUsageDescription": {
-      "comment": "Shown when saving a share card to Photos.",
-      "en": "Allow SnapWorth to save your valuation card to Photos.",
-      "ro": "Permite-i lui SnapWorth să salveze în Poze cardul cu evaluarea.",
-      "es": "Permite que SnapWorth guarde en Fotos la tarjeta con la valoración.",
-      "de": "Erlaube SnapWorth, deine Bewertungskarte in „Fotos“ zu sichern.",
-      "zh-Hans": "允许 SnapWorth 把估价卡片存到“照片”。"
+      "comment": "Shown the first time SnapWorth saves to Photos: a share card from the share sheet, or a cleaned-up listing photo from Snap → Sell.",
+      "en": "Allow SnapWorth to save share cards and cleaned-up listing photos to Photos.",
+      "ro": "Permite-i lui SnapWorth să salveze în Poze cardurile de distribuit și pozele curățate pentru anunțuri.",
+      "es": "Permite que SnapWorth guarde en Fotos las tarjetas para compartir y las fotos de anuncios sin fondo.",
+      "de": "Erlaube SnapWorth, Karten zum Teilen und freigestellte Fotos fürs Inserat in „Fotos“ zu sichern.",
+      "zh-Hans": "允许 SnapWorth 把分享卡片和去除背景的商品照片存到“照片”。"
     }
   }
 }

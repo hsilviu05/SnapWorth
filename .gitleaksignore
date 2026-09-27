@@ -1,0 +1,25 @@
+# Findings in *history* that were reviewed and are not credentials.
+#
+# The Secrets workflow scans every commit reachable from the checked-out one,
+# not just the current tree, so anything that was ever committed is scanned
+# again on every run. These three are in commits that are already public and
+# cannot be un-published; each is excused by its exact fingerprint
+# (commit:file:rule:line), which matches that one hit and nothing else — not
+# the file, not the rule, not the same string in a later commit.
+#
+# Adding a line here is the last step after a real leak, never the first:
+# rotate the credential, then excuse the historical hit. A fingerprint for a
+# live key only silences the alarm for something still exploitable.
+
+# 517627e — a throwaway P-256 key written into the DeviceCheck verify tests so
+# pyjwt had something to sign with. Removed in 922805f, which generates the key
+# at test time instead and records that no real .p8 ever entered the repo
+# (checked by key body and by filename). It signs nothing of ours.
+517627ef9152c4d52c6c03a95889f44aeebada2a:backend/tests/test_production.py:private-key:423
+
+# f686498 — two deliberately malformed key shapes (a flattened PEM and a bare
+# base64 body) that devicecheck.py must name. Both bodies are the same 48
+# characters: the fixed PKCS#8 prefix every P-256 key starts with, cut off
+# before the private scalar. There is no key material in either.
+f686498bc7dc1c62b95eb2f7c9a7fb61f005ad73:backend/tests/test_production.py:private-key:497
+f686498bc7dc1c62b95eb2f7c9a7fb61f005ad73:backend/tests/test_production.py:generic-api-key:508

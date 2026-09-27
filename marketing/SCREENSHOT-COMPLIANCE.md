@@ -89,7 +89,9 @@ in four seconds.
 
 - "AI resale estimate" / "AI-powered valuation"
 - "In seconds" / "instant"
-- "Confidence score — see how clearly the AI identified your item"
+- "Confidence score — how strongly the photo and the identification back the estimate"
+  (not "how clearly the AI identified your item": that was v1, and the v2
+  score in `backend/confidence.py` weighs several signals)
 - "Ready-to-paste listing draft"
 - "Photos are never stored on our servers"
 - "Track what you paid, listed, and sold for"

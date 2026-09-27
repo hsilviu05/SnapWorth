@@ -63,6 +63,10 @@ struct ScanView: View {
     /// the same run-loop turn and there is no window at all.
     @State private var captureInFlight = false
 
+    /// A restricted camera has been counted for this screen — see the
+    /// `authStatus` handler.
+    @State private var restrictedCounted = false
+
     /// Anything presented on top of the camera. See the `onChange` below.
     private var isCameraObscured: Bool {
         showResult || showThriftFlip || showNotifPriming || vm.showPaywall || showHaul
@@ -395,9 +399,20 @@ struct ScanView: View {
                 if await ThriftRunController.endIfExpired() { isRunOn = false }
             }
         }
-        .onChange(of: cameraManager.authStatus) { _, status in
-            if status == .denied {
+        // A refusal is counted when it happens. `.restricted` never happens
+        // on screen — it is already the status when the manager is built, so
+        // there is no change to observe — and it used to be counted only
+        // because `CameraManager` rewrote it to `.denied`. `initial: true`
+        // sees it at first appearance instead, once per screen.
+        .onChange(of: cameraManager.authStatus, initial: true) { old, status in
+            switch status {
+            case .denied where old != .denied:
                 Analytics.shared.track(.scanFailed(reason: .permission, isFirst: ScanTally.isFirstScan()))
+            case .restricted where !restrictedCounted:
+                restrictedCounted = true
+                Analytics.shared.track(.scanFailed(reason: .permission, isFirst: ScanTally.isFirstScan()))
+            default:
+                break
             }
         }
         .onDisappear { cameraManager.stopSession() }
@@ -558,6 +573,47 @@ struct ScanView: View {
     }
 }
 
+// MARK: - Permission placeholder
+
+/// What stands in for the viewfinder when the camera cannot be used. Shared by
+/// the scan screen and the tag camera (`TagCameraSheet`), so a refused or
+/// restricted camera reads the same wherever the user meets it.
+struct CameraPermissionPlaceholder: View {
+    let restricted: Bool
+
+    var body: some View {
+        VStack(spacing: 20) {
+            Image(systemName: "camera.slash")
+                .snapSymbol(48, weight: .light)
+                .foregroundStyle(Color.snapOnCharcoal.opacity(0.5))
+                .accessibilityHidden(true)
+
+            // Under Screen Time or an MDM profile the camera is not something
+            // the user turned down, and telling them it is makes the app look
+            // broken rather than restricted.
+            Text(restricted
+                 ? String(localized: "Camera access is restricted on this device")
+                 : String(localized: "Camera access needed to scan items"))
+                .font(.snapBody)
+                .foregroundStyle(Color.snapOnCharcoal.opacity(0.8))
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.horizontal, 40)
+                .accessibilityAddTraits(.isHeader)
+
+            PrimaryButton(title: "Open Settings") {
+                if let url = URL(string: UIApplication.openSettingsURLString) {
+                    UIApplication.shared.open(url)
+                }
+            }
+            .frame(maxWidth: 200)
+            .accessibilityHint(restricted
+                               ? String(localized: "Opens iOS Settings, where Screen Time restrictions are changed")
+                               : String(localized: "Opens iOS Settings so you can allow camera access"))
+        }
+    }
+}
+
 // MARK: - Corner accents for viewfinder
 private struct CornerAccents: View {
     var body: some View {
@@ -676,48 +732,6 @@ private struct ThriftRunControl: View {
         }
         .snapAnimation(.easeInOut(duration: 0.2), value: startRefused)
         .onAppear { isRunning = ThriftRunController.isRunning }
-    }
-}
-
-// MARK: - Permission Placeholder
-
-/// Where the camera preview would be, when there is no camera access: what
-/// happened and the way to Settings. The Scan tab's and Haul's — Haul is
-/// entered whatever the permission, since photos from an earlier haul still
-/// drain without a camera.
-struct CameraPermissionPlaceholder: View {
-    let restricted: Bool
-
-    var body: some View {
-        VStack(spacing: 20) {
-            Image(systemName: "camera.slash")
-                .snapSymbol(48, weight: .light)
-                .foregroundStyle(Color.snapOnCharcoal.opacity(0.5))
-                .accessibilityHidden(true)
-
-            // Under Screen Time or an MDM profile the camera is not something
-            // the user turned down, and telling them it is makes the app look
-            // broken rather than restricted.
-            Text(restricted
-                 ? String(localized: "Camera access is restricted on this device")
-                 : String(localized: "Camera access needed to scan items"))
-                .font(.snapBody)
-                .foregroundStyle(Color.snapOnCharcoal.opacity(0.8))
-                .multilineTextAlignment(.center)
-                .fixedSize(horizontal: false, vertical: true)
-                .padding(.horizontal, 40)
-                .accessibilityAddTraits(.isHeader)
-
-            PrimaryButton(title: "Open Settings") {
-                if let url = URL(string: UIApplication.openSettingsURLString) {
-                    UIApplication.shared.open(url)
-                }
-            }
-            .frame(maxWidth: 200)
-            .accessibilityHint(restricted
-                               ? String(localized: "Opens iOS Settings, where Screen Time restrictions are changed")
-                               : String(localized: "Opens iOS Settings so you can allow camera access"))
-        }
     }
 }
 

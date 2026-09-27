@@ -110,37 +110,37 @@
       }
     },
     "NSPhotoLibraryAddUsageDescription" : {
-      "comment" : "Shown when saving a share card to Photos.",
+      "comment" : "Shown the first time SnapWorth saves to Photos: a share card from the share sheet, or a cleaned-up listing photo from Snap → Sell.",
       "extractionState" : "manual",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Erlaube SnapWorth, deine Bewertungskarte in „Fotos“ zu sichern."
+            "value" : "Erlaube SnapWorth, Karten zum Teilen und freigestellte Fotos fürs Inserat in „Fotos“ zu sichern."
           }
         },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Allow SnapWorth to save your valuation card to Photos."
+            "value" : "Allow SnapWorth to save share cards and cleaned-up listing photos to Photos."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Permite que SnapWorth guarde en Fotos la tarjeta con la valoración."
+            "value" : "Permite que SnapWorth guarde en Fotos las tarjetas para compartir y las fotos de anuncios sin fondo."
           }
         },
         "ro" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Permite-i lui SnapWorth să salveze în Poze cardul cu evaluarea."
+            "value" : "Permite-i lui SnapWorth să salveze în Poze cardurile de distribuit și pozele curățate pentru anunțuri."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "允许 SnapWorth 把估价卡片存到“照片”。"
+            "value" : "允许 SnapWorth 把分享卡片和去除背景的商品照片存到“照片”。"
           }
         }
       }

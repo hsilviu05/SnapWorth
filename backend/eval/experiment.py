@@ -124,6 +124,11 @@ class Guardrail:
 
     metric: str
     max_relative_increase: float = 0.10   # 10% worse is the default tolerance
+    # For a signed metric whose ideal is zero (bias): how far further past
+    # zero on the positive side the candidate may sit, in the metric's own
+    # units. See gates.Threshold.signed_tolerance — a relative increase across
+    # zero blocked -10 → -5 as "+50%" and waved through +2 → -40.
+    signed_tolerance: float | None = None
     absolute_ceiling: float | None = None
     description: str = ""
 
@@ -135,6 +140,15 @@ class Guardrail:
             return (f"{self.metric} = {candidate.value:.2f} exceeds ceiling "
                     f"{self.absolute_ceiling:.2f}")
         if baseline is None or baseline.value is None:
+            return None
+
+        if self.signed_tolerance is not None:
+            # Over-valuation only; a large under-valuation moves MdAPE.
+            worse_by = max(candidate.value, 0.0) - max(baseline.value, 0.0)
+            if worse_by > self.signed_tolerance:
+                return (f"{self.metric} moved {worse_by:+.2f} further past zero "
+                        f"({baseline.value:.2f} → {candidate.value:.2f}), "
+                        f"limit {self.signed_tolerance:.2f}")
             return None
 
         if baseline.value == 0:
@@ -162,7 +176,9 @@ DEFAULT_GUARDRAILS = (
               description="fabrication must never increase"),
     Guardrail("calibration_ece", 0.20,
               description="confidence must not become less meaningful"),
-    Guardrail("bias", 0.30,
+    # Percentage points, twice the CI gate's allowance as the relative 30%
+    # was twice its 15%.
+    Guardrail("bias", signed_tolerance=4.0,
               description="systematic over-valuation is the dangerous direction"),
 )
 
