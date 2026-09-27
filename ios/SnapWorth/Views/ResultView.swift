@@ -1834,7 +1834,7 @@ struct ValuationDetailView: View {
             // A neutral mark, not a checkmark: the server sends the *weakest*
             // signals here (`confidence.py`), so a tick beside "the brand
             // could not be identified" endorsed the problem it names.
-            ForEach(Array(detail.confidenceReasons.prefix(3).enumerated()), id: \.offset) { _, reason in
+            ForEach(Array(detail.shownConfidenceReasons().prefix(3).enumerated()), id: \.offset) { _, reason in
                 bullet(reason, icon: "info.circle")
             }
         }

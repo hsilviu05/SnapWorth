@@ -96,7 +96,10 @@ JSON type of every value on each run.
    `.github/workflows/contract.yml`, which has never existed — the path
    filters are and always were the mechanism.)
 
-The Swift suite decodes the two 200 bodies (`ScanContractTests`). It does not
-read the error fixtures yet, and nothing on the client tests the free body
-against the check that shows the "Why this price" teaser; both are the next
-iOS change to make here.
+The Swift suite decodes the two 200 bodies (`ScanContractTests`), runs every
+error fixture through `ScanAPIError.from` and `AppError.from`
+(`ErrorContractTests`), and checks its `ServerErrorCode` and
+`ConfidenceReason` against the two code lists, so a code the client routes on
+or words cannot change without a Swift test failing. Nothing on the client
+tests the free body against the check that shows the "Why this price" teaser
+yet.

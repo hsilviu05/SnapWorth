@@ -7600,3 +7600,273 @@ final class UsageAnalyticsTests: XCTestCase {
         XCTAssertEqual(WidgetInstallReport.bucket(40), "4+")
     }
 }
+
+// MARK: - Server error codes
+//
+// Every error body now carries a `code` beside `detail` (`backend/apierrors.py`).
+// The client routes on it — the two 402s were told apart by whether the
+// English contained "pro feature" — and words it in the app's language, where
+// every earlier build printed the server's English in a translated app.
+
+/// Every error fixture in `contract/errors`, through the same two steps a real
+/// response takes: `ScanAPIError.from`, then `AppError.from`.
+final class ErrorContractTests: XCTestCase {
+
+    private struct Fixture {
+        let error: ScanAPIError
+        let detail: String
+    }
+
+    private func fixture(_ name: String) throws -> Fixture {
+        let data = try ScanContractTests.contractData("errors/\(name)")
+        let root = try XCTUnwrap(try JSONSerialization.jsonObject(with: data) as? [String: Any])
+        let status = try XCTUnwrap(root["status"] as? Int)
+        let headers = try XCTUnwrap(root["headers"] as? [String: String])
+        let body = try XCTUnwrap(root["body"] as? [String: Any])
+        let response = try XCTUnwrap(HTTPURLResponse(
+            url: URL(string: "https://api.snapworth.eu/scan")!, statusCode: status,
+            httpVersion: nil, headerFields: headers))
+        let bytes = try JSONSerialization.data(withJSONObject: body)
+        return Fixture(error: ScanAPIError.from(response, data: bytes),
+                       detail: try XCTUnwrap(body["detail"] as? String))
+    }
+
+    /// What each fixture must become — in English, where the server's words
+    /// are shown, and in any other language, where this build's are.
+    private func expected(_ name: String, _ f: Fixture) -> (english: AppError, other: AppError)? {
+        switch name {
+        case "scan-402-quota.json":
+            return (.quotaExceeded(f.detail), .quotaExceeded(ServerErrorCode.quotaExhausted.message))
+        case "listing-402-pro.json":
+            return (.proRequired(f.detail), .proRequired(ServerErrorCode.proRequired.message))
+        case "scan-422-unusable-photo.json":
+            return (.unusablePhoto(f.detail), .unusablePhoto(ServerErrorCode.photoUnusable.message))
+        case "scan-422-not-resalable.json":
+            return (.unusablePhoto(f.detail), .unusablePhoto(ServerErrorCode.notResalable.message))
+        case "scan-426-update-required.json":
+            return (.updateRequired, .updateRequired)
+        case "scan-429-rate-limited.json":
+            // The wait is the fixture's own `Retry-After`; the client's copy
+            // for a 429 is written from it, in every language.
+            guard case .rateLimited(_, let retryAfter) = f.error else { return nil }
+            return (.rateLimit(retryAfter: retryAfter), .rateLimit(retryAfter: retryAfter))
+        case "scan-502-ai-unavailable.json":
+            return (.aiFailed(f.detail), .aiFailed(ServerErrorCode.aiUnavailable.message))
+        default:
+            return nil
+        }
+    }
+
+    func test_everyErrorFixtureMapsToWhatItMeans() throws {
+        let directory = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("contract/errors")
+        let names = try FileManager.default.contentsOfDirectory(atPath: directory.path)
+            .filter { $0.hasSuffix(".json") }.sorted()
+        XCTAssertFalse(names.isEmpty)
+        for name in names {
+            let f = try fixture(name)
+            let want = try XCTUnwrap(expected(name, f),
+                                     "contract/errors/\(name) has no expectation here")
+            XCTAssertEqual(AppError.from(f.error, inEnglish: true), want.english, name)
+            XCTAssertEqual(AppError.from(f.error, inEnglish: false), want.other, name)
+        }
+    }
+
+    func test_theNotResalableReasonReachesAnEnglishUser() throws {
+        // The model's reason is the only useful part of that message, and it
+        // is English: an English user keeps it.
+        let f = try fixture("scan-422-not-resalable.json")
+        XCTAssertTrue(AppError.from(f.error, inEnglish: true).errorDescription?
+            .contains("photograph of food") ?? false)
+    }
+
+    func test_the429FixtureKeepsItsWait() throws {
+        let f = try fixture("scan-429-rate-limited.json")
+        guard case .rateLimit(let wait?) = AppError.from(f.error) else {
+            return XCTFail("the 429 lost its Retry-After")
+        }
+        XCTAssertGreaterThan(wait, 0)
+    }
+
+    func test_everyCodeThisBuildWordsIsOneTheServerSends() throws {
+        let data = try ScanContractTests.contractData("error-codes.json")
+        let sent = Set(try JSONDecoder().decode([String].self, from: data))
+        for code in ServerErrorCode.allCases {
+            XCTAssertTrue(sent.contains(code.rawValue),
+                          "\(code.rawValue) is not in contract/error-codes.json")
+        }
+    }
+}
+
+final class ServerErrorCodeRoutingTests: XCTestCase {
+
+    func test_theCodeDecidesBetweenThe402s_notTheWords() {
+        // Reworded on the server: the words no longer say "pro feature".
+        XCTAssertEqual(AppError.from(ScanAPIError.serverError(
+            402, "Upgrade to draft listings.", code: "pro_required"), inEnglish: true),
+                       .proRequired("Upgrade to draft listings."))
+        // And a quota message that happens to mention a Pro feature.
+        XCTAssertEqual(AppError.from(ScanAPIError.serverError(
+            402, "Out of scans — unlimited scans are a Pro feature.", code: "quota_exhausted"),
+                                     inEnglish: true),
+                       .quotaExceeded("Out of scans — unlimited scans are a Pro feature."))
+    }
+
+    func test_withoutACodeThe402sAreStillToldApartByTheWords() {
+        // A backend rolled back to before the codes.
+        XCTAssertEqual(AppError.from(ScanAPIError.serverError(
+            402, "Listing drafts are a SnapWorth Pro feature.")),
+                       .proRequired("Listing drafts are a SnapWorth Pro feature."))
+        XCTAssertEqual(AppError.from(ScanAPIError.serverError(
+            402, "You've used your free scan for today.")),
+                       .quotaExceeded("You've used your free scan for today."))
+    }
+
+    func test_updateRequiredArrivesAsA426OrAsTheCode() {
+        XCTAssertEqual(AppError.from(ScanAPIError.serverError(426, "Update.")), .updateRequired)
+        // The server answers a build it read from the User-Agent with the 422
+        // that build can show, and the same code.
+        XCTAssertEqual(AppError.from(ScanAPIError.serverError(
+            422, "This version of SnapWorth is no longer supported.", code: "update_required")),
+                       .updateRequired)
+        XCTAssertFalse(AppError.updateRequired.isPaywall)
+        XCTAssertEqual(AppError.updateRequired.errorDescription,
+                       ServerErrorCode.updateRequired.message)
+    }
+
+    func test_anUnknownCodeShowsTheServersWordsInEveryLanguage() {
+        let error = ScanAPIError.serverError(422, "Something new went wrong.", code: "brand_new_failure")
+        XCTAssertEqual(AppError.from(error, inEnglish: false), .unusablePhoto("Something new went wrong."))
+    }
+
+    func test_aPlaceholderDetailNeverBeatsATranslation() {
+        // The body had a code and no usable `detail`: the parser's stand-in
+        // is not the server's words.
+        XCTAssertEqual(ServerCopy.text(server: "Something went wrong. Please try again.",
+                                       translated: "Translated.", inEnglish: true),
+                       "Translated.")
+        XCTAssertEqual(ServerCopy.text(server: "Server words.", translated: "Translated.",
+                                       inEnglish: true), "Server words.")
+        XCTAssertEqual(ServerCopy.text(server: "Server words.", translated: "Translated.",
+                                       inEnglish: false), "Translated.")
+        XCTAssertEqual(ServerCopy.text(server: "Server words.", translated: nil,
+                                       inEnglish: false), "Server words.")
+    }
+
+    func test_theCodeIsReadBesideTheDetail() {
+        func code(_ json: String) -> String? { APIErrorDetail.code(Data(json.utf8)) }
+        XCTAssertEqual(code(#"{"detail": "x", "code": "pro_required"}"#), "pro_required")
+        XCTAssertNil(code(#"{"detail": "x"}"#))
+        XCTAssertNil(code(#"{"detail": "x", "code": ""}"#))
+        XCTAssertNil(code(#"{"detail": "x", "code": 402}"#))
+        XCTAssertNil(code("not json"))
+        XCTAssertNil(APIErrorDetail.code(Data()))
+    }
+
+    func test_aHaulHaltsOnAnUnsupportedBuild() {
+        XCTAssertEqual(HaulSession.disposition(for: .updateRequired, lastFailure: nil,
+                                               offlineStreak: 0), .halt)
+    }
+
+    func test_everyMessageIsTranslatedInTheShippedBundle() throws {
+        // `check_localization.py` proves each key has a catalog entry; this
+        // proves the compiled bundle answers it, for one language.
+        let path = try XCTUnwrap(Bundle.main.path(forResource: "ro", ofType: "lproj"))
+        let romanian = try XCTUnwrap(Bundle(path: path))
+        let english = ServerErrorCode.allCases.map(\.message)
+            + ConfidenceReason.allCases.map(\.label)
+        for key in english {
+            let translated = romanian.localizedString(forKey: key, value: nil, table: nil)
+            XCTAssertNotEqual(translated, key, "no Romanian for: \(key)")
+        }
+    }
+}
+
+final class BuildHeaderTests: XCTestCase {
+
+    func test_everyAPIRequestSaysWhichBuildItIs() throws {
+        let headers = URLSession.snapWorthAPI.configuration.httpAdditionalHeaders
+        let sent = try XCTUnwrap(headers?[Config.buildHeaderField] as? String)
+        XCTAssertEqual(sent, Bundle.main.infoDictionary?["CFBundleVersion"] as? String)
+        // The server reads digits and nothing else; anything more is "unknown".
+        XCTAssertFalse(sent.isEmpty)
+        XCTAssertTrue(sent.allSatisfy { $0.isASCII && $0.isNumber }, sent)
+        XCTAssertLessThanOrEqual(sent.count, 6)
+    }
+}
+
+final class ConfidenceReasonCodeTests: XCTestCase {
+
+    private func detail(reasons: [String], codes: [String]?) -> ValuationDetail {
+        var detail = ValuationDetail()
+        detail.confidenceScore = 50
+        detail.confidenceReasons = reasons
+        detail.confidenceReasonCodes = codes
+        return detail
+    }
+
+    func test_theProFixtureCarriesACodePerReason() throws {
+        let decoded = try JSONDecoder().decode(ScanAPIResponse.self,
+                                               from: ScanContractTests.contractData())
+        XCTAssertEqual(decoded.confidenceReasonCodes.count, decoded.confidenceReasons.count)
+        let detail = try XCTUnwrap(ValuationDetail(response: decoded))
+        XCTAssertEqual(detail.confidenceReasonCodes, decoded.confidenceReasonCodes)
+        XCTAssertEqual(detail.shownConfidenceReasons(inEnglish: true), decoded.confidenceReasons)
+        XCTAssertEqual(detail.shownConfidenceReasons(inEnglish: false),
+                       decoded.confidenceReasonCodes.compactMap {
+                           ConfidenceReason(rawValue: $0)?.label })
+    }
+
+    func test_everyCodeTheServerCanSendIsWorded() throws {
+        let data = try ScanContractTests.contractData("confidence-reason-codes.json")
+        let sent = Set(try JSONDecoder().decode([String].self, from: data))
+        let worded = Set(ConfidenceReason.allCases.map(\.rawValue))
+        XCTAssertEqual(sent.subtracting(worded), [], "codes the panel would print in English")
+        XCTAssertEqual(worded.subtracting(sent), [], "codes the server never sends")
+    }
+
+    func test_eachReasonIsWordedByItsOwnCode() {
+        let shown = detail(reasons: ["the brand could not be identified", "a reason from later"],
+                           codes: ["brand_unidentified", "reason_from_a_later_server"])
+            .shownConfidenceReasons(inEnglish: false)
+        XCTAssertEqual(shown, [ConfidenceReason.brandUnidentified.label, "a reason from later"])
+    }
+
+    func test_codesThatDoNotLineUpAreIgnored() {
+        let reasons = ["the brand could not be identified", "the price range is very wide"]
+        XCTAssertEqual(detail(reasons: reasons, codes: ["range_very_wide"])
+            .shownConfidenceReasons(inEnglish: false), reasons)
+        XCTAssertEqual(detail(reasons: reasons, codes: nil)
+            .shownConfidenceReasons(inEnglish: false), reasons)
+    }
+
+    func test_aFindSavedBeforeTheCodesKeepsItsPanel() throws {
+        // What `encoded()` wrote before the field existed: no key at all. A
+        // non-optional field would fail this decode and the panel would vanish.
+        var old = detail(reasons: ["the price range is tight"], codes: nil)
+        old.expected = 40
+        let json = String(decoding: try XCTUnwrap(old.encoded()), as: UTF8.self)
+        XCTAssertFalse(json.contains("confidenceReasonCodes"))
+        let restored = try XCTUnwrap(ValuationDetail.decode(Data(json.utf8)))
+        XCTAssertNil(restored.confidenceReasonCodes)
+        XCTAssertEqual(restored.shownConfidenceReasons(inEnglish: false), ["the price range is tight"])
+    }
+
+    func test_aMalformedCodeListDoesNotFailTheScan() throws {
+        var body = try XCTUnwrap(try JSONSerialization.jsonObject(
+            with: ScanContractTests.contractData()) as? [String: Any])
+        body["confidence_reason_codes"] = 5
+        let decoded = try JSONDecoder().decode(
+            ScanAPIResponse.self, from: try JSONSerialization.data(withJSONObject: body))
+        XCTAssertEqual(decoded.confidenceReasonCodes, [])
+        XCTAssertFalse(decoded.confidenceReasons.isEmpty)
+    }
+
+    func test_theFreeBodyHasNoCodes() throws {
+        let decoded = try JSONDecoder().decode(
+            ScanAPIResponse.self, from: ScanContractTests.contractData("scan-response-free.json"))
+        XCTAssertEqual(decoded.confidenceReasonCodes, [])
+        XCTAssertNil(ValuationDetail(response: decoded)?.confidenceReasonCodes)
+    }
+}

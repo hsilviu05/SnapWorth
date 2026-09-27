@@ -43,6 +43,10 @@ enum AppError: LocalizedError, Equatable {
     /// session survives it. Distinct from `persistence`, which is a write that
     /// failed and can be retried — this one cannot.
     case storageUnavailable
+    /// The server no longer serves this build: a 426, or any body whose code
+    /// is `update_required`. Not a failure to retry — the scan view offers
+    /// the App Store (`Config.appStoreURL`) beside it.
+    case updateRequired
     case unknown(String)
 
     /// A 402 from the server: the free allowance is spent, or a Pro-only
@@ -131,6 +135,11 @@ enum AppError: LocalizedError, Equatable {
             // in-memory one, so a second attempt succeeds exactly as silently
             // as the first and is lost the same way.
             return String(localized: "SnapWorth couldn't open your library on this launch, so this find can't be saved to it. Reopening the app may fix it.")
+        case .updateRequired:
+            // This build's own words, not the server's `detail`: the server
+            // says the same in English, and a build that reads the code can
+            // say it in the user's language.
+            return ServerErrorCode.updateRequired.message
         case .unknown:
             return String(localized: "Something went wrong. Please try again.")
         }
@@ -174,7 +183,11 @@ enum AppError: LocalizedError, Equatable {
         return String(localized: "\(lead) Try again in \(wait).")
     }
 
-    static func from(_ error: Error) -> AppError {
+    /// - Parameter inEnglish: whether the app is running in English, which
+    ///   decides between the server's words and this build's for a code it
+    ///   knows — see `ServerCopy.text`. A parameter so tests can take the
+    ///   other branch in an English simulator.
+    static func from(_ error: Error, inEnglish: Bool = ServerCopy.appIsInEnglish) -> AppError {
         if let appErr = error as? AppError { return appErr }
 
         if let scanErr = error as? ScanAPIError {
@@ -188,8 +201,18 @@ enum AppError: LocalizedError, Equatable {
                 // on the client, because what the user needs is the *wait*, and
                 // that arrives in a header.
                 return .rateLimit(retryAfter: retryAfter)
-            case .serverError(let code, let detail):
-                switch code {
+            case .serverError(let status, let detail, let code):
+                let known = code.flatMap(ServerErrorCode.init(rawValue:))
+                // Before the status. A 426 is only ever this, and the same
+                // refusal reaches a build the server read from its
+                // User-Agent as a 422 — the status it can show — with the
+                // same code.
+                if status == 426 || known == .updateRequired { return .updateRequired }
+                // For the cases below that show server copy: the server's
+                // `detail`, or this build's words for its code.
+                let text = ServerCopy.text(server: detail, translated: known?.message,
+                                           inEnglish: inEnglish)
+                switch status {
                 // Reachable only if something throws a plain `serverError`
                 // with a 429; `ScanAPIError.from` produces `.rateLimited`,
                 // which carries the header and is handled above.
@@ -198,9 +221,21 @@ enum AppError: LocalizedError, Equatable {
                 // free daily allowance is spent, or a Pro-only endpoint refused
                 // a free caller. Both route to the paywall, and `detail` is
                 // already user-safe copy written by the backend.
-                case 402:        return detail.lowercased().contains("pro feature")
-                                     ? .proRequired(detail)
-                                     : .quotaExceeded(detail)
+                //
+                // Told apart by the code. It used to be by the English — did
+                // `detail` contain "pro feature"? — so rewording either
+                // message on the server would have sent users to the wrong
+                // screen. The words are still the test for a body without a
+                // code: a backend rolled back to before the codes.
+                case 402:
+                    switch known {
+                    case .proRequired?:    return .proRequired(text)
+                    case .quotaExhausted?: return .quotaExceeded(text)
+                    default:
+                        return detail.lowercased().contains("pro feature")
+                            ? .proRequired(text)
+                            : .quotaExceeded(text)
+                    }
                 case 401:        return .sessionExpired
                 // 422 is the server saying it looked at the photo and could not
                 // use it — a safety block, or an image it cannot read. The
@@ -209,7 +244,7 @@ enum AppError: LocalizedError, Equatable {
                 // item"). It used to fall through to .unknown, which threw that
                 // away and said "Something went wrong", leaving the user to
                 // retry the identical photo and fail identically.
-                case 422:        return .unusablePhoto(detail)
+                case 422:        return .unusablePhoto(text)
                 // 502 carries four distinct, user-safe explanations from the
                 // backend: a genuine outage, an unreadable model response, an
                 // item the AI couldn't price, and a listing-generation outage.
@@ -231,7 +266,7 @@ enum AppError: LocalizedError, Equatable {
                 // produces.
                 case 502:        return Self.isPlaceholderDetail(detail)
                                      ? .serverUnavailable
-                                     : .aiFailed(detail)
+                                     : .aiFailed(text)
                 case 503:        return .serverUnavailable
                 default:         return .unknown(detail)
                 }
@@ -351,4 +386,84 @@ enum AppError: LocalizedError, Equatable {
     // `AppError.from(.storeUnavailable(…)) == .storageUnavailable` was false.
     //
     // Synthesis cannot drift: a new case is covered the moment it is declared.
+}
+
+// MARK: - Server copy
+
+/// The `code` the server sends beside `detail` on an error
+/// (`backend/apierrors.py`), for the failures this build words itself.
+///
+/// `detail` is English, and every earlier build shows it as written — in an
+/// app translated into four other languages. A code is what can be
+/// translated, and routed on. One this build does not know is not an error:
+/// the server's own words are shown, as they always were.
+enum ServerErrorCode: String, CaseIterable {
+    case updateRequired = "update_required"
+    case quotaExhausted = "quota_exhausted"
+    case proRequired    = "pro_required"
+    case photoUnusable  = "photo_unusable"
+    case notResalable   = "not_resalable"
+    case devicePaused   = "device_paused"
+    case aiUnavailable  = "ai_unavailable"
+    case aiUnreadable   = "ai_unreadable"
+    case aiNoPrice      = "ai_no_price"
+
+    /// This build's words for it.
+    ///
+    /// The server's own English where that is fixed. Where the server's is
+    /// more specific than any fixed sentence can be, this is the general one:
+    /// `notResalable`'s `detail` opens with the model's reason for declining
+    /// the photo, `quotaExhausted`'s counts the scans, and `proRequired`'s
+    /// names the one Pro endpoint that sends it today.
+    var message: String {
+        switch self {
+        case .updateRequired:
+            return String(localized: "This version of SnapWorth is no longer supported. Update SnapWorth from the App Store to keep using it.")
+        case .quotaExhausted:
+            return String(localized: "You've used today's free scans.")
+        case .proRequired:
+            return String(localized: "This is a SnapWorth Pro feature.")
+        case .photoUnusable:
+            return String(localized: "This photo couldn't be analysed. Try a clear photo of a single item.")
+        case .notResalable:
+            return String(localized: "This doesn't look like something with a resale value. Try a photo of a single item you'd actually sell.")
+        case .devicePaused:
+            return String(localized: "Scanning from this device is paused for 24 hours after repeated photos that could not be analysed.")
+        case .aiUnavailable:
+            return String(localized: "The AI service is temporarily unavailable. Please try again.")
+        case .aiUnreadable:
+            return String(localized: "The AI response couldn't be read. Please try again.")
+        case .aiNoPrice:
+            return String(localized: "The AI couldn't price this item. Please try again.")
+        }
+    }
+}
+
+/// Which words to show for something the server wrote in English and sent
+/// with a code: an error's `detail`, a confidence reason.
+enum ServerCopy {
+    /// Whether the app is running in English — its own language, not the
+    /// phone's. A phone set to French runs the English app, and is English
+    /// here.
+    static var appIsInEnglish: Bool {
+        Bundle.main.preferredLocalizations.first?.hasPrefix("en") ?? true
+    }
+
+    /// The server's words in English; in any other language, this build's
+    /// translation when it has one, and the server's English when it does not.
+    ///
+    /// English keeps the server's words because they can say more than a
+    /// fixed sentence: the model's reason for declining a photo, how many free
+    /// scans were spent, which category a confidence reason is about. They are
+    /// also exactly what every earlier build showed, so English loses nothing.
+    /// Every other language gives up that detail for words it can read — the
+    /// detail was in English there anyway. Server text that is only the
+    /// parser's stand-in (`AppError.isPlaceholderDetail`) is never preferred
+    /// to a translation.
+    static func text(server: String, translated: String?,
+                     inEnglish: Bool = appIsInEnglish) -> String {
+        guard let translated else { return server }
+        if inEnglish && !AppError.isPlaceholderDetail(server) { return server }
+        return translated
+    }
 }

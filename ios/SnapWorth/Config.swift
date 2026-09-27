@@ -72,8 +72,24 @@ enum Config {
     static let yearlyProductID  = "com.snapworth.yearly"
 
     // ── App Store ────────────────────────────────────────────────────────────
-    /// Update to the App Store product URL once the app is live. Used for the share-card QR code.
+    /// The app's App Store page: the share-card QR code, the review link, and
+    /// the button beside "no longer supported" (`AppError.updateRequired`).
     static let appStoreURL = "https://apps.apple.com/app/id6788521307"
+
+    // ── Which build is calling ───────────────────────────────────────────────
+    /// Sent on every API request (`URLSession.snapWorthAPI`), so the server
+    /// knows the build without reading it out of URLSession's default
+    /// User-Agent — which this app does not write, and which is all every
+    /// earlier build sends. Its presence also tells the server's
+    /// minimum-build gate that this build can show a 426
+    /// (`observability.client_build`).
+    static let buildHeaderField = "X-SnapWorth-Build"
+
+    /// `CFBundleVersion`, which is `$(CURRENT_PROJECT_VERSION)`: the build
+    /// number, digits only, which is all the server reads.
+    static var buildNumber: String? {
+        Bundle.main.infoDictionary?["CFBundleVersion"] as? String
+    }
 
     // ── Support ──────────────────────────────────────────────────────────────
     /// The one place the support address lives.

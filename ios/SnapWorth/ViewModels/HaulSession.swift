@@ -1654,7 +1654,8 @@ extension HaulSession {
     /// * **503** backs off like no connection, twice more — a 503 may use a
     ///   slot — and then halts: three in a row is an outage.
     /// * **An expired session** halts: the client already re-minted once, so
-    ///   every photo would fail the same way.
+    ///   every photo would fail the same way. So does **an unsupported build**
+    ///   (`updateRequired`): only an update changes the answer.
     /// * **A timeout** fails the photo and offers Try again. At 35 s the
     ///   server has usually finished and charged the slot and the model call;
     ///   a silent re-send doubles that.
@@ -1681,7 +1682,9 @@ extension HaulSession {
             return .offline(offlineBackoff(streak: offlineStreak))
         case .serverUnavailable:
             return offlineStreak < 3 ? .offline(offlineBackoff(streak: offlineStreak)) : .halt
-        case .sessionExpired:
+        // The server no longer serves this build: every photo would get the
+        // same answer, and each would cost an upload to hear it.
+        case .sessionExpired, .updateRequired:
             return .halt
         case .imageEncodingFailed:
             return .fail

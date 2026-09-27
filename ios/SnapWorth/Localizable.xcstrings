@@ -12812,6 +12812,42 @@
         }
       }
     },
+    "Open App Store" : {
+      "comment" : "Button beside \"no longer supported\": opens SnapWorth's App Store page.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "App Store öffnen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open App Store"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Abrir App Store"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Deschide App Store"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "打开 App Store"
+          }
+        }
+      }
+    },
     "Open Settings" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -15589,6 +15625,42 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "开通 Pro 前扫描"
+          }
+        }
+      }
+    },
+    "Scanning from this device is paused for 24 hours after repeated photos that could not be analysed." : {
+      "comment" : "An error the server sent with a code this build words itself (backend/apierrors.py). In English the server's own sentence is shown instead.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Scannen ist auf diesem Gerät für 24 Stunden pausiert, nachdem mehrere Fotos nicht analysiert werden konnten."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Scanning from this device is paused for 24 hours after repeated photos that could not be analysed."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "El escaneo desde este dispositivo está en pausa durante 24 horas tras varias fotos que no se pudieron analizar."
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Scanarea de pe acest dispozitiv e oprită pentru 24 de ore după mai multe poze care nu au putut fi analizate."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "由于多张照片无法分析，此设备的扫描已暂停 24 小时。"
           }
         }
       }
@@ -18412,6 +18484,114 @@
         }
       }
     },
+    "The AI couldn't price this item. Please try again." : {
+      "comment" : "An error the server sent with a code this build words itself (backend/apierrors.py). In English the server's own sentence is shown instead.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die KI konnte für diesen Artikel keinen Preis ermitteln. Versuch es noch einmal."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The AI couldn't price this item. Please try again."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La IA no ha podido poner precio a este artículo. Inténtalo de nuevo."
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AI-ul nu a putut estima un preț pentru acest obiect. Încearcă din nou."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AI 无法给这件物品估价，请再试一次。"
+          }
+        }
+      }
+    },
+    "The AI response couldn't be read. Please try again." : {
+      "comment" : "An error the server sent with a code this build words itself (backend/apierrors.py). In English the server's own sentence is shown instead.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die Antwort der KI konnte nicht gelesen werden. Versuch es noch einmal."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The AI response couldn't be read. Please try again."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No se ha podido leer la respuesta de la IA. Inténtalo de nuevo."
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Răspunsul AI-ului nu a putut fi citit. Încearcă din nou."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无法读取 AI 的回复，请再试一次。"
+          }
+        }
+      }
+    },
+    "The AI service is temporarily unavailable. Please try again." : {
+      "comment" : "An error the server sent with a code this build words itself (backend/apierrors.py). In English the server's own sentence is shown instead.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Der KI-Dienst ist vorübergehend nicht erreichbar. Versuch es noch einmal."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The AI service is temporarily unavailable. Please try again."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "El servicio de IA no está disponible temporalmente. Inténtalo de nuevo."
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Serviciul AI e momentan indisponibil. Încearcă din nou."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AI 服务暂时不可用，请再试一次。"
+          }
+        }
+      }
+    },
     "The full breakdown is only available for new scans. This find keeps the summary it was saved with." : {
       "comment" : "Under \"Scanned before Pro\": a find reopened from My Finds or My Flips keeps the free part of \"Why this price\"; only a fresh scan offers the full panel.",
       "extractionState" : "manual",
@@ -18659,6 +18839,42 @@
         }
       }
     },
+    "This doesn't look like something with a resale value. Try a photo of a single item you'd actually sell." : {
+      "comment" : "An error the server sent with a code this build words itself (backend/apierrors.py). In English the server's own sentence is shown instead. The server's English also gives the AI's reason; that reason is model text and stays English.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Das sieht nicht nach etwas mit Wiederverkaufswert aus. Versuch es mit einem Foto von einem einzelnen Artikel, den du wirklich verkaufen würdest."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This doesn't look like something with a resale value. Try a photo of a single item you'd actually sell."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Esto no parece algo con valor de reventa. Prueba con una foto de un solo artículo que de verdad venderías."
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nu pare să fie ceva ce se poate revinde. Încearcă o poză cu un singur obiect pe care chiar l-ai vinde."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这看起来不像有转卖价值的东西。请拍一件你真的会卖的单件物品。"
+          }
+        }
+      }
+    },
     "This find was saved without its full breakdown. Re-read its photo to see the price points and what drives the value. The estimate, the item's name and details, and the listing draft may change." : {
       "comment" : "Shown to a subscriber under \"Why this price\" when the find was saved with only the free part of the panel (usually scanned before they subscribed). A re-read replaces the estimate, name, brand, category, condition notes and listing draft, so all of them are named.",
       "extractionState" : "manual",
@@ -18766,6 +18982,42 @@
         }
       }
     },
+    "This is a SnapWorth Pro feature." : {
+      "comment" : "An error the server sent with a code this build words itself (backend/apierrors.py). In English the server's own sentence is shown instead.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Das ist eine SnapWorth-Pro-Funktion."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This is a SnapWorth Pro feature."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Esta es una función de SnapWorth Pro."
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aceasta este o funcție SnapWorth Pro."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这是 SnapWorth Pro 功能。"
+          }
+        }
+      }
+    },
     "This phone has already used an invite." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -18797,6 +19049,42 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "这部手机已经用过一次邀请了。"
+          }
+        }
+      }
+    },
+    "This photo couldn't be analysed. Try a clear photo of a single item." : {
+      "comment" : "An error the server sent with a code this build words itself (backend/apierrors.py). In English the server's own sentence is shown instead.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dieses Foto konnte nicht analysiert werden. Versuch es mit einem scharfen Foto von nur einem Artikel."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This photo couldn't be analysed. Try a clear photo of a single item."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No se ha podido analizar esta foto. Prueba con una foto nítida de un solo artículo."
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Poza asta nu a putut fi analizată. Încearcă o poză clară cu un singur obiect."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这张照片无法分析。请拍一张清晰的单件物品照片。"
           }
         }
       }
@@ -18867,6 +19155,42 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "这个订阅目前不可用。请再试一次。"
+          }
+        }
+      }
+    },
+    "This version of SnapWorth is no longer supported. Update SnapWorth from the App Store to keep using it." : {
+      "comment" : "The server no longer serves this build. Shown with an Open App Store button.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Diese Version von SnapWorth wird nicht mehr unterstützt. Aktualisiere SnapWorth im App Store, um es weiter zu nutzen."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This version of SnapWorth is no longer supported. Update SnapWorth from the App Store to keep using it."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Esta versión de SnapWorth ya no es compatible. Actualiza SnapWorth desde el App Store para seguir usándolo."
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Această versiune de SnapWorth nu mai este acceptată. Actualizează SnapWorth din App Store ca să-l poți folosi în continuare."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此版本的 SnapWorth 已不再受支持。请前往 App Store 更新 SnapWorth 以继续使用。"
           }
         }
       }
@@ -21659,6 +21983,42 @@
         }
       }
     },
+    "You've used today's free scans." : {
+      "comment" : "An error the server sent with a code this build words itself (backend/apierrors.py). In English the server's own sentence is shown instead. Count-neutral on purpose: the allowance is one scan on most days and more on the first.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Du hast die Gratis-Scans von heute verbraucht."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You've used today's free scans."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Has gastado los escaneos gratis de hoy."
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ai consumat scanările gratuite de azi."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "今天的免费扫描用完了。"
+          }
+        }
+      }
+    },
     "You've used today's free scans. Opens subscription options." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -22384,6 +22744,42 @@
         }
       }
     },
+    "authenticity could not be verified from the photo" : {
+      "comment" : "One reason under the confidence score in \"Why this price\": a lower-case clause, no full stop, shown as a bullet. In English the server's own clause is shown instead.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "die Echtheit ließ sich anhand des Fotos nicht prüfen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "authenticity could not be verified from the photo"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "no se ha podido verificar la autenticidad a partir de la foto"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "autenticitatea nu a putut fi verificată din poză"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无法从照片核实真伪"
+          }
+        }
+      }
+    },
     "average estimate %@" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -23095,6 +23491,42 @@
         }
       }
     },
+    "no authenticity concerns" : {
+      "comment" : "One reason under the confidence score in \"Why this price\": a lower-case clause, no full stop, shown as a bullet. In English the server's own clause is shown instead.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "keine Zweifel an der Echtheit"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "no authenticity concerns"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "sin dudas sobre la autenticidad"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "nicio îndoială privind autenticitatea"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "真伪方面没有疑点"
+          }
+        }
+      }
+    },
     "nothing scanned yet" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -23237,6 +23669,834 @@
         }
       }
     },
+    "the AI gave a read on demand and supply" : {
+      "comment" : "One reason under the confidence score in \"Why this price\": a lower-case clause, no full stop, shown as a bullet. In English the server's own clause is shown instead.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "die KI hat Nachfrage und Angebot eingeschätzt"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "the AI gave a read on demand and supply"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "la IA ha dado una lectura de la oferta y la demanda"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AI-ul a dat o estimare a cererii și ofertei"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AI 给出了供需判断"
+          }
+        }
+      }
+    },
+    "the AI's read on demand and supply is incomplete" : {
+      "comment" : "One reason under the confidence score in \"Why this price\": a lower-case clause, no full stop, shown as a bullet. In English the server's own clause is shown instead.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "die Einschätzung der KI zu Nachfrage und Angebot ist unvollständig"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "the AI's read on demand and supply is incomplete"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "la lectura de la IA sobre la oferta y la demanda está incompleta"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "estimarea AI-ului privind cererea și oferta e incompletă"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AI 的供需判断不完整"
+          }
+        }
+      }
+    },
+    "the analysis came back partial" : {
+      "comment" : "One reason under the confidence score in \"Why this price\": a lower-case clause, no full stop, shown as a bullet. In English the server's own clause is shown instead.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "die Analyse ist nur teilweise zurückgekommen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "the analysis came back partial"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "el análisis ha llegado incompleto"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "analiza a venit incompletă"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "分析结果不完整"
+          }
+        }
+      }
+    },
+    "the analysis is complete" : {
+      "comment" : "One reason under the confidence score in \"Why this price\": a lower-case clause, no full stop, shown as a bullet. In English the server's own clause is shown instead.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "die Analyse ist vollständig"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "the analysis is complete"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "el análisis está completo"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "analiza e completă"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "分析完整"
+          }
+        }
+      }
+    },
+    "the brand could not be identified" : {
+      "comment" : "One reason under the confidence score in \"Why this price\": a lower-case clause, no full stop, shown as a bullet. In English the server's own clause is shown instead.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "die Marke konnte nicht erkannt werden"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "the brand could not be identified"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "no se ha podido identificar la marca"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "marca nu a putut fi identificată"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无法识别品牌"
+          }
+        }
+      }
+    },
+    "the brand is identified" : {
+      "comment" : "One reason under the confidence score in \"Why this price\": a lower-case clause, no full stop, shown as a bullet. In English the server's own clause is shown instead.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "die Marke ist erkannt"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "the brand is identified"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "la marca está identificada"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "marca este identificată"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "品牌已识别"
+          }
+        }
+      }
+    },
+    "the estimate was outside the plausible range for this category and was adjusted" : {
+      "comment" : "One reason under the confidence score in \"Why this price\": a lower-case clause, no full stop, shown as a bullet. In English the server's own clause is shown instead.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "die Schätzung lag außerhalb des plausiblen Bereichs für diese Kategorie und wurde angepasst"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "the estimate was outside the plausible range for this category and was adjusted"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "la estimación estaba fuera del rango razonable para esta categoría y se ha ajustado"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "estimarea era în afara intervalului plauzibil pentru categoria asta și a fost ajustată"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "估价超出了该品类的合理范围，已做调整"
+          }
+        }
+      }
+    },
+    "the exact model could not be pinned down" : {
+      "comment" : "One reason under the confidence score in \"Why this price\": a lower-case clause, no full stop, shown as a bullet. In English the server's own clause is shown instead.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "das genaue Modell ließ sich nicht bestimmen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "the exact model could not be pinned down"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "no se ha podido precisar el modelo exacto"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "modelul exact nu a putut fi stabilit"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无法确定具体型号"
+          }
+        }
+      }
+    },
+    "the item could not be identified with certainty" : {
+      "comment" : "One reason under the confidence score in \"Why this price\": a lower-case clause, no full stop, shown as a bullet. In English the server's own clause is shown instead.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "der Artikel konnte nicht sicher bestimmt werden"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "the item could not be identified with certainty"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "no se ha podido identificar el artículo con certeza"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "obiectul nu a putut fi identificat cu certitudine"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无法确定这是什么物品"
+          }
+        }
+      }
+    },
+    "the item doesn't stand out clearly from the background" : {
+      "comment" : "One reason under the confidence score in \"Why this price\": a lower-case clause, no full stop, shown as a bullet. In English the server's own clause is shown instead.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "der Artikel hebt sich nicht klar vom Hintergrund ab"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "the item doesn't stand out clearly from the background"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "el artículo no se distingue bien del fondo"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "obiectul nu se distinge clar de fundal"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "物品与背景区分不明显"
+          }
+        }
+      }
+    },
+    "the item may not be authentic" : {
+      "comment" : "One reason under the confidence score in \"Why this price\": a lower-case clause, no full stop, shown as a bullet. In English the server's own clause is shown instead.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "der Artikel ist möglicherweise nicht echt"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "the item may not be authentic"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "puede que el artículo no sea auténtico"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "este posibil ca obiectul să nu fie autentic"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这件物品可能不是正品"
+          }
+        }
+      }
+    },
+    "the item was recognised confidently" : {
+      "comment" : "One reason under the confidence score in \"Why this price\": a lower-case clause, no full stop, shown as a bullet. In English the server's own clause is shown instead.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "der Artikel wurde sicher erkannt"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "the item was recognised confidently"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "el artículo se ha reconocido con seguridad"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "obiectul a fost recunoscut cu încredere"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "物品识别把握较大"
+          }
+        }
+      }
+    },
+    "the lighting is uneven — too dark or blown out" : {
+      "comment" : "One reason under the confidence score in \"Why this price\": a lower-case clause, no full stop, shown as a bullet. In English the server's own clause is shown instead.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "die Beleuchtung ist ungleichmäßig – zu dunkel oder überbelichtet"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "the lighting is uneven — too dark or blown out"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "la luz es irregular: demasiado oscura o quemada"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "lumina e inegală — prea întunecată sau supraexpusă"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "光线不均匀，过暗或过曝"
+          }
+        }
+      }
+    },
+    "the photo is clear enough to work from" : {
+      "comment" : "One reason under the confidence score in \"Why this price\": a lower-case clause, no full stop, shown as a bullet. In English the server's own clause is shown instead.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "das Foto ist scharf genug"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "the photo is clear enough to work from"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "la foto es lo bastante nítida para trabajar con ella"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "poza e suficient de clară"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "照片足够清晰"
+          }
+        }
+      }
+    },
+    "the photo is low resolution, so small details like tags aren't legible" : {
+      "comment" : "One reason under the confidence score in \"Why this price\": a lower-case clause, no full stop, shown as a bullet. In English the server's own clause is shown instead.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "das Foto hat eine niedrige Auflösung, kleine Details wie Etiketten sind nicht lesbar"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "the photo is low resolution, so small details like tags aren't legible"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "la foto tiene poca resolución, así que los detalles pequeños como las etiquetas no se leen"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "poza are rezoluție mică, așa că detaliile mici, ca etichetele, nu se pot citi"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "照片分辨率低，标签等小细节看不清"
+          }
+        }
+      }
+    },
+    "the photo is soft or out of focus" : {
+      "comment" : "One reason under the confidence score in \"Why this price\": a lower-case clause, no full stop, shown as a bullet. In English the server's own clause is shown instead.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "das Foto ist unscharf"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "the photo is soft or out of focus"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "la foto está borrosa o desenfocada"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "poza e neclară sau nefocalizată"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "照片模糊或失焦"
+          }
+        }
+      }
+    },
+    "the photo quality limits how confident this estimate can be" : {
+      "comment" : "One reason under the confidence score in \"Why this price\": a lower-case clause, no full stop, shown as a bullet. In English the server's own clause is shown instead.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "die Fotoqualität begrenzt, wie sicher diese Schätzung sein kann"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "the photo quality limits how confident this estimate can be"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "la calidad de la foto limita la confianza de esta estimación"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "calitatea pozei limitează cât de sigură poate fi estimarea"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "照片质量限制了这次估价的可信度"
+          }
+        }
+      }
+    },
+    "the price range is moderately wide" : {
+      "comment" : "One reason under the confidence score in \"Why this price\": a lower-case clause, no full stop, shown as a bullet. In English the server's own clause is shown instead.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "die Preisspanne ist recht breit"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "the price range is moderately wide"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "el rango de precio es bastante amplio"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "intervalul de preț e destul de larg"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "价格区间偏宽"
+          }
+        }
+      }
+    },
+    "the price range is not usable" : {
+      "comment" : "One reason under the confidence score in \"Why this price\": a lower-case clause, no full stop, shown as a bullet. In English the server's own clause is shown instead.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "die Preisspanne ist nicht brauchbar"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "the price range is not usable"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "el rango de precio no es utilizable"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "intervalul de preț nu poate fi folosit"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "价格区间无法使用"
+          }
+        }
+      }
+    },
+    "the price range is tight" : {
+      "comment" : "One reason under the confidence score in \"Why this price\": a lower-case clause, no full stop, shown as a bullet. In English the server's own clause is shown instead.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "die Preisspanne ist eng"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "the price range is tight"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "el rango de precio es estrecho"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "intervalul de preț e strâns"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "价格区间较窄"
+          }
+        }
+      }
+    },
+    "the price range is very wide" : {
+      "comment" : "One reason under the confidence score in \"Why this price\": a lower-case clause, no full stop, shown as a bullet. In English the server's own clause is shown instead.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "die Preisspanne ist sehr breit"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "the price range is very wide"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "el rango de precio es muy amplio"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "intervalul de preț e foarte larg"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "价格区间非常宽"
+          }
+        }
+      }
+    },
+    "the range was estimated from a single price" : {
+      "comment" : "One reason under the confidence score in \"Why this price\": a lower-case clause, no full stop, shown as a bullet. In English the server's own clause is shown instead.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "die Spanne wurde aus einem einzigen Preis geschätzt"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "the range was estimated from a single price"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "el rango se estimó a partir de un solo precio"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "intervalul a fost estimat pornind de la un singur preț"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "价格区间是根据单一价格估算的"
+          }
+        }
+      }
+    },
+    "this category has a well-established resale market" : {
+      "comment" : "One reason under the confidence score in \"Why this price\": a lower-case clause, no full stop, shown as a bullet. In English the server's own clause is shown instead. The server's English names the category; this one leaves it out.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "diese Kategorie hat einen etablierten Wiederverkaufsmarkt"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "this category has a well-established resale market"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "esta categoría tiene un mercado de reventa consolidado"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "categoria asta are o piață de revânzare bine stabilită"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这个品类的转卖市场很成熟"
+          }
+        }
+      }
+    },
     "top find" : {
       "comment" : "Label for the most valuable item in a haul, on the summary and the share card. Lower case, like \"best flip\".",
       "extractionState" : "manual",
@@ -23374,6 +24634,42 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "二手，有使用痕迹"
+          }
+        }
+      }
+    },
+    "values in this category vary a lot between individual items" : {
+      "comment" : "One reason under the confidence score in \"Why this price\": a lower-case clause, no full stop, shown as a bullet. In English the server's own clause is shown instead. The server's English names the category; this one leaves it out.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "in dieser Kategorie schwanken die Werte stark von Artikel zu Artikel"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "values in this category vary a lot between individual items"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "en esta categoría, el valor varía mucho de un artículo a otro"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "în categoria asta, valorile diferă mult de la un obiect la altul"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这个品类的价格因物品而差异很大"
           }
         }
       }

@@ -10,6 +10,9 @@ final class ScanViewModel {
     var isAnalyzing: Bool = false
     var scanResult: ScanResult?
     var errorMessage: String?
+    /// `errorMessage` says this build is no longer served, so the alert
+    /// offers the App Store beside OK. Set and cleared with it.
+    var errorOffersUpdate = false
     var showPaywall: Bool = false
     var showImagePicker: Bool = false
     var selectedPhotoItem: PhotosPickerItem?
@@ -80,6 +83,7 @@ final class ScanViewModel {
         Analytics.shared.track(.scanStarted(isFirst: isFirst))
         isAnalyzing = true
         errorMessage = nil
+        errorOffersUpdate = false
         saveFailed = false
         defer { isAnalyzing = false }
         // The request and the save, if the phone locks mid-scan.
@@ -228,6 +232,7 @@ final class ScanViewModel {
                 showSubscriptionUnconfirmed = true
                 return
             }
+            errorOffersUpdate = appError == .updateRequired
             errorMessage = appError.errorDescription
         }
     }
@@ -271,6 +276,7 @@ final class ScanViewModel {
         capturedImage = nil
         scanResult = nil
         errorMessage = nil
+        errorOffersUpdate = false
         saveFailed = false
         isAnalyzing = false
     }
