@@ -436,9 +436,11 @@ final class StoreKitPurchaseService: PurchaseService, ObservableObject {
         trialEndDate = trialEnd
 
         // Push proof of purchase to the backend so it can lift the free-scan
-        // quota. Runs on every status refresh — purchase, restore, and the
-        // transaction listener all funnel through here — which also makes it
-        // self-healing if an earlier attempt failed offline.
+        // quota. Purchase, restore and the transaction listener always send.
+        // Cold launch and the foreground send only when `EntitlementSyncMemory`
+        // says the server has not had this transaction recently — and only a
+        // success is remembered, so an attempt that failed offline is still
+        // retried by the next one. `resyncEntitlement` sends it itself.
         if let activeJWS, serverSync != .never {
             // Detached, not awaited: this sits inside the `purchase()` await
             // chain on the main actor, and attestation plus the POST can take

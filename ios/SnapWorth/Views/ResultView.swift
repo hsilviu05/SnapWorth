@@ -941,9 +941,10 @@ struct ResultView: View {
 
     /// Everything that has to follow a change to this item's valuation.
     ///
-    /// There are exactly two ways a saved item's value moves without a row
-    /// being inserted or deleted: the condition chips, and the tag re-read. The
-    /// chip did four of these things and the re-read did one, so a re-read that
+    /// There are exactly three ways a saved item's value moves without a row
+    /// being inserted or deleted: the condition chips, the tag re-read, and
+    /// the full-breakdown re-read (`rereadForFullDetail`). The chip did four of
+    /// these things and the tag re-read did one, so a re-read that
     /// tripled an estimate left behind a Home Screen widget and a thrift-run
     /// Live Activity still totalling the old number, a cached share card that
     /// would post the old number, and a generated listing priced for it. The
