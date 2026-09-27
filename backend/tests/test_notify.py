@@ -24,7 +24,7 @@ import notify  # noqa: E402
 import observability  # noqa: E402
 from cache import InMemoryCache, ResilientCache  # noqa: E402
 from datetime import datetime, timedelta, timezone  # noqa: E402
-from entitlements import FREE, Entitlement  # noqa: E402
+from entitlements import FREE, Entitlement, Reinstatement  # noqa: E402
 
 # Shaped like a real BotFather token; used to prove it never reaches the logs.
 FAKE_TOKEN = "123456789:AAtest-token-abcdefghijklmnopqrstuvwx"
@@ -3854,7 +3854,7 @@ class TestAReversedRefund:
 
         await notify.subscription_event(FakeNotification(
             term, notification_type="REFUND_REVERSED", refund_reversal=True),
-            lifted=True)
+            reinstated=Reinstatement.LIFTED)
 
         alert = enabled_notify.texts[-1]
         assert "Refund reversed" in alert
@@ -3862,6 +3862,25 @@ class TestAReversedRefund:
         rows = subs_rows(await notify.handle_command("/subs"))
         assert rows and "refund" not in rows[0], (
             "the same term, reinstated by Apple, still reads as refunded", rows)
+
+    @pytest.mark.asyncio
+    async def test_a_block_kept_for_another_term_is_not_reported_as_none(
+            self, enabled_notify):
+        """`reinstate` keeps a block whose expiry differs from the reversal's.
+        When that block ends later it still denies the reinstated term, and
+        the alert used to say "no refund block on this term" — the one answer
+        that gave the operator no reason to run /sub."""
+        now = int(time.time())
+        term = Entitlement("pro", "com.snapworth.yearly", now + 29 * 86_400,
+                           "otid-kept", "Production")
+        await notify.subscription_event(FakeNotification(
+            term, notification_type="REFUND_REVERSED", refund_reversal=True),
+            reinstated=Reinstatement.STILL_BLOCKED)
+
+        alert = enabled_notify.texts[-1]
+        assert "no refund block" not in alert
+        assert "still denies this one" in alert
+        assert "/sub otid-kept" in alert
 
     @pytest.mark.asyncio
     async def test_a_live_lookup_clears_a_refund_apple_no_longer_shows(

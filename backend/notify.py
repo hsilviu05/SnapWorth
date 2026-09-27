@@ -954,7 +954,7 @@ async def appstore_test_notification(environment: str) -> str:
     return "sent" if ok else "send failed"
 
 
-async def subscription_event(note, *, lifted: bool | None = None) -> None:
+async def subscription_event(note, *, reinstated=None) -> None:
     """Record one App Store Server Notification. Awaited, but never raises.
 
     This is the half of the picture the client cannot give us. `/auth/entitlement`
@@ -972,9 +972,10 @@ async def subscription_event(note, *, lifted: bool | None = None) -> None:
     entitlement stays verified per request against the transaction the client
     presents.
 
-    `lifted` is what `EntitlementService.reinstate` answered for a
-    REFUND_REVERSED — whether the access path was holding a refund block on
-    this term — and None for every other type.
+    `reinstated` is the `entitlements.Reinstatement` that
+    `EntitlementService.reinstate` answered for a REFUND_REVERSED — whether
+    the access path lifted a refund block on this term, held none, or kept one
+    that still denies it — and None for every other type.
     """
     if _notifier is None or _cache is None:
         return
@@ -1025,12 +1026,21 @@ async def subscription_event(note, *, lifted: bool | None = None) -> None:
             # Apple took back a refund it had granted, so this term is paid
             # for again. The handler has already acted on the access path;
             # this says what it found there.
+            from entitlements import Reinstatement
             lines = ["↪️ <b>Refund reversed by Apple</b>", detail]
-            if lifted is True:
+            if reinstated is Reinstatement.LIFTED:
                 lines.append("Refund block lifted: Pro comes back at the "
                              "app's next sync, if not sooner.")
-            elif lifted is False:
+            elif reinstated is Reinstatement.NOT_BLOCKED:
                 lines.append("The server held no refund block on this term.")
+            elif reinstated is Reinstatement.STILL_BLOCKED:
+                # Kept because it names a different term, but that term ends
+                # later, so the block still denies this one. Saying "no
+                # block" here gave the operator no reason to look.
+                lines.append(
+                    "⚠️ A refund block for a different term was kept, and it "
+                    f"still denies this one. <code>/sub {html.escape(otid)}</code> "
+                    "shows it next to Apple's live status and can lift it.")
         elif note.is_expiry:
             lines = ["📉 <b>Subscription ended</b>", f"{detail} · was {was or now_acq}"]
         elif note.is_cancellation:

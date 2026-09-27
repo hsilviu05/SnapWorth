@@ -504,7 +504,7 @@ class TestEntitlementService:
         await service.revoke(self._term(payload, revoked_at=int(time.time())))
         assert (await service.record("subject-rev", jws)).tier == "free"
 
-        assert await service.reinstate(self._term(payload)) is True
+        assert await service.reinstate(self._term(payload)) is entitlements.Reinstatement.LIFTED
 
         assert (await service.record("subject-rev", jws)).tier == "pro", (
             "the refund was reversed and the tombstone still denies the term")
@@ -517,14 +517,35 @@ class TestEntitlementService:
         later = valid_payload(expiresDate=int((time.time() + 400 * 86_400) * 1000))
         await service.revoke(self._term(later, revoked_at=int(time.time())))
 
-        assert await service.reinstate(self._term(earlier)) is False
+        assert await service.reinstate(self._term(earlier)) is entitlements.Reinstatement.STILL_BLOCKED
 
         ent = await service.record("subject-later", make_jws(later, leaf_key, chain))
         assert ent.tier == "free", "a reversal lifted a different term's refund"
 
     @pytest.mark.asyncio
     async def test_a_reversal_with_no_block_to_lift_says_so(self, service):
-        assert await service.reinstate(self._term(valid_payload())) is False
+        assert await service.reinstate(self._term(valid_payload())) is entitlements.Reinstatement.NOT_BLOCKED
+
+    @pytest.mark.asyncio
+    async def test_a_kept_block_says_whether_it_still_denies_the_term(
+            self, service, pinned_root):
+        """A reversal whose expiry is not the tombstone's keeps the block. It
+        used to answer False either way, the same as "no block at all", and
+        the operator alert said there was none. Kept and ending later, it
+        still denies the reinstated term; ending earlier, it does not."""
+        leaf_key, chain = pinned_root
+        refunded = valid_payload(expiresDate=int((time.time() + 30 * 86_400) * 1000))
+        reversed_ = valid_payload(expiresDate=int((time.time() + 29 * 86_400) * 1000))
+        await service.revoke(self._term(refunded, revoked_at=int(time.time())))
+
+        assert await service.reinstate(self._term(reversed_)) is entitlements.Reinstatement.STILL_BLOCKED
+        ent = await service.record("subject-kept", make_jws(reversed_, leaf_key, chain))
+        assert ent.tier == "free", "STILL_BLOCKED must mean the term is still denied"
+
+        later = valid_payload(expiresDate=int((time.time() + 60 * 86_400) * 1000))
+        assert await service.reinstate(self._term(later)) is entitlements.Reinstatement.NOT_BLOCKED
+        ent = await service.record("subject-later", make_jws(later, leaf_key, chain))
+        assert ent.tier == "pro", "NOT_BLOCKED must mean the term is not denied"
 
     @pytest.mark.asyncio
     async def test_a_reversal_that_cannot_reach_redis_raises(self):

@@ -852,6 +852,9 @@ sync. A store failure is a 503 here too, and Apple redelivers.
 A reversal lifts a tombstone only when the tombstone is for the same term,
 meaning the same expiry. Apple keeps the renewal date when it reverses a
 refund. A tombstone for any other term is a different refund, and it stays.
+If the kept tombstone ends later than the reversed term, it still denies that
+term, and the alert says so and names the `/sub` command to run. That is what
+a reversal whose expiry is not the refunded term's would look like.
 
 **If a customer whose refund was reversed still reads as free**, run
 `/sub <originalTransactionId>`. It shows any refund block next to Apple's live

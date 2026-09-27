@@ -28,6 +28,7 @@ import os
 import time
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from enum import Enum
 
 import jwt
 from cryptography import x509
@@ -152,6 +153,18 @@ class EntitlementsUnavailable(Exception):
     Distinct from a genuine miss, which means "this subject is free". Reading
     an outage as a miss downgraded every paying subscriber for its duration.
     """
+
+
+class Reinstatement(str, Enum):
+    """What `EntitlementService.reinstate` found on the access path.
+
+    Three answers, not a bool. "Nothing was lifted" covered both "no block on
+    this term" and "a block for another term was kept, and it still denies
+    this one", and the operator alert said the first when it was the second.
+    """
+    LIFTED = "lifted"                 # a block on this term, now gone
+    NOT_BLOCKED = "not_blocked"       # nothing held denies this term
+    STILL_BLOCKED = "still_blocked"   # a block for another term, kept, denies it
 
 
 @dataclass(frozen=True)
@@ -605,7 +618,7 @@ class EntitlementService:
                  extra={"product_id": ent.product_id})
         return True
 
-    async def reinstate(self, ent: Entitlement) -> bool:
+    async def reinstate(self, ent: Entitlement) -> Reinstatement:
         """Lift the tombstone `revoke` wrote, because Apple reversed the refund.
 
         Without this a REFUND_REVERSED changed nothing: the tombstone kept
@@ -624,16 +637,22 @@ class EntitlementService:
         still holds.
 
         Raises, like `revoke`, when the store cannot be read or written, so the
-        webhook answers 5xx and Apple retries. True when a tombstone was lifted.
+        webhook answers 5xx and Apple retries.
+
+        `STILL_BLOCKED` is the case to act on: the tombstone was kept because
+        its expiry differs, but it is later than this term's, so it goes on
+        denying the term Apple just reinstated. That is what a reversal whose
+        `expiresDate` is not the refunded term's would look like, and only
+        the operator can settle it, from `/sub`.
         """
         otid = ent.original_transaction_id
         if not otid:
             log.warning("a refund reversal carried no original transaction id")
-            return False
+            return Reinstatement.NOT_BLOCKED
         key = self._revoked_key(otid)
         raw = await self._cache.get(key, required=True)
         if not raw:
-            return False
+            return Reinstatement.NOT_BLOCKED
         try:
             revoked_expiry = json.loads(raw).get("expires_at")
         except Exception:
@@ -644,11 +663,14 @@ class EntitlementService:
                 and revoked_expiry != ent.expires_at):
             log.info("refund reversal is for a different term than the "
                      "tombstone; kept", extra={"product_id": ent.product_id})
-            return False
+            # The same comparison `_is_revoked` makes.
+            return (Reinstatement.STILL_BLOCKED
+                    if ent.expires_at <= revoked_expiry
+                    else Reinstatement.NOT_BLOCKED)
         await self._cache.delete(key, required=True)
         log.info("refund reversed by Apple; term reinstated",
                  extra={"product_id": ent.product_id})
-        return True
+        return Reinstatement.LIFTED
 
     async def _is_revoked(self, ent: Entitlement) -> bool:
         """Whether Apple has since taken back the term this entitlement covers.

@@ -51,7 +51,7 @@ from comps.engine import build_engine as build_comps_engine
 from comps.shadow import ShadowRunner
 from auth import (Principal, record_quota_consumed, refund_quota,
                   require_auth, reserve_quota)
-from entitlements import EntitlementError, EntitlementService
+from entitlements import EntitlementError, EntitlementService, Reinstatement
 from fastapi import Depends
 import observability
 from observability import RequestContextMiddleware, configure_production_logging
@@ -1413,7 +1413,7 @@ async def apple_notifications(body: AppleNotification, request: Request) -> dict
     # nothing to give back. The marker is then proof the change landed, which
     # is why a redelivery that finds it does not re-apply: a REFUND retried
     # after its REFUND_REVERSED must not put the block back.
-    lifted: bool | None = None
+    reinstated: Reinstatement | None = None
     if ((note.is_refund or note.is_revoke or note.is_refund_reversal)
             and note.entitlement is not None):
         try:
@@ -1425,7 +1425,7 @@ async def apple_notifications(body: AppleNotification, request: Request) -> dict
             return {"status": "duplicate"}
         try:
             if note.is_refund_reversal:
-                lifted = await auth.deps.entitlements.reinstate(note.entitlement)
+                reinstated = await auth.deps.entitlements.reinstate(note.entitlement)
             else:
                 await auth.deps.entitlements.revoke(note.entitlement)
         except Exception as exc:
@@ -1458,7 +1458,7 @@ async def apple_notifications(body: AppleNotification, request: Request) -> dict
     if not note.is_indexed:
         return {"status": "ignored", "type": note.notification_type}
 
-    await notify.subscription_event(note, lifted=lifted)
+    await notify.subscription_event(note, reinstated=reinstated)
     return {"status": "ok", "type": note.notification_type}
 
 
