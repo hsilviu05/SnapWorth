@@ -2393,9 +2393,9 @@ async def _tally_top(day: str, category: str, brand: str | None,
     doc = await _read_index_for_update(key)
     if doc is None:
         return
-    cats = doc.get("cats") if isinstance(doc.get("cats"), dict) else {}
-    brands = doc.get("brands") if isinstance(doc.get("brands"), dict) else {}
-    finds = doc.get("finds") if isinstance(doc.get("finds"), list) else []
+    cats = c if isinstance(c := doc.get("cats"), dict) else {}
+    brands = b if isinstance(b := doc.get("brands"), dict) else {}
+    finds = f if isinstance(f := doc.get("finds"), list) else []
     cats[category] = int(cats.get(category, 0)) + 1
     if brand is not None and (brand in brands or len(brands) < TOP_BRANDS_CAP):
         brands[brand] = int(brands.get(brand, 0)) + 1
