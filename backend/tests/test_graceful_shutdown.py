@@ -55,6 +55,11 @@ async def slow(seconds: float) -> dict:
         await asyncio.sleep(seconds)
     except asyncio.CancelledError:
         print("slow request cancelled", flush=True)
+        # A cancelled scan's cleanup, the free-scan refund, is a Redis round
+        # trip: it awaits. Only the lifespan's drain waits for it, so a cleanup
+        # that took no time would pass with the drain at 0.
+        await asyncio.sleep(1)
+        print("slow request cleaned up", flush=True)
         raise
     print("slow request finished", flush=True)
     return {"slept": seconds}
@@ -103,8 +108,14 @@ def _ci_stop_timeout() -> int:
     return int(match.group(1))
 
 
+def _env_example_drains() -> list[str]:
+    """Every DRAIN_TIMEOUT_SECONDS line in .env.example, set or commented out."""
+    text = (BACKEND / ".env.example").read_text()
+    return re.findall(r"^[ \t]*#?[ \t]*DRAIN_TIMEOUT_SECONDS=(.*)$", text, re.MULTILINE)
+
+
 class TestShutdownBudget:
-    """One budget, stated in four places. A change to one without the others is
+    """One budget, stated in five places. A change to one without the others is
     how the Dockerfile came to promise a 30s Railway grace that is really 0."""
 
     def test_the_graceful_window_outlasts_every_request_still_awaited(self):
@@ -122,6 +133,22 @@ class TestShutdownBudget:
 
     def test_ci_stops_the_container_on_railways_budget(self):
         assert _ci_stop_timeout() == _railway_draining_seconds()
+
+    def test_env_example_stays_inside_the_budget(self):
+        # The README tells developers to copy .env.example and calls it
+        # production's full set, so a drain in it, even commented out, is one
+        # someone will run. It read 15 against Railway's 50 and a 40s window.
+        graceful, railway = _graceful_seconds(), _railway_draining_seconds()
+        for value in _env_example_drains():
+            try:
+                drain = float(value)
+            except ValueError:
+                pytest.fail(f".env.example sets DRAIN_TIMEOUT_SECONDS={value!r}, "
+                            "which main.py cannot parse at startup")
+            assert 0 < drain < graceful, value
+            assert railway >= graceful + drain + 1, (
+                f".env.example's DRAIN_TIMEOUT_SECONDS={value} does not fit: "
+                f"{graceful}s window + {value}s drain + 1 > {railway}s to SIGKILL")
 
     def test_runbook_states_the_numbers_that_ship(self):
         section = _runbook_section_6()
@@ -288,8 +315,10 @@ class TestSigtermWithARequestInFlight:
             assert request.error is not None or request.status != 200
             assert server.position("timeout graceful shutdown exceeded") \
                 < server.position("slow request cancelled") \
+                < server.position("slow request cleaned up") \
                 < server.position("shutdown complete")
             assert server.position("timeout graceful shutdown exceeded") \
                 < server.position("shutdown: readiness withdrawn")
+            # The drain waited for the cleanup, rather than closing under it.
             assert "still in flight after" not in server.output
             assert time.monotonic() - signalled < 1 + drain + 15
