@@ -316,7 +316,8 @@ struct ResultView: View {
             // Bought from "Unlock why this price" on a fresh result: that is
             // what they paid to see, and this find was saved without it. A
             // find reopened from My Finds or My Flips is not re-read after a
-            // purchase either; its panel says why (`FullDetailOffer`).
+            // purchase either; its teaser said so, and its panel says why
+            // (`FullDetailOffer`).
             if paywallTrigger == .valuationDetail, fullDetailOffer == .reread {
                 rereadForFullDetail()
             }
@@ -1071,10 +1072,13 @@ struct ResultView: View {
                     switch fullDetailOffer {
                     case .reread:           fullDetailPrompt
                     case .scannedBeforePro: scannedBeforeProNote
-                    case .none:             EmptyView()
+                    // `.teaserNewScansOnly` is a free user's; it never gets here.
+                    case .none, .teaserNewScansOnly:
+                        EmptyView()
                     }
                 } else {
-                    lockedDetailTeaser(detail)
+                    lockedDetailTeaser(detail,
+                                       newScansOnly: fullDetailOffer == .teaserNewScansOnly)
                 }
             }
             .padding(20)
@@ -1085,9 +1089,10 @@ struct ResultView: View {
         }
     }
 
-    /// What "Why this price" adds under a thin panel — see `FullDetailOffer`.
-    /// Internal rather than private so a test can build this sheet the way
-    /// each call site does and read the answer.
+    /// What "Why this price" says about a thin panel, to a subscriber under it
+    /// and to a free user in the teaser — see `FullDetailOffer`. Internal
+    /// rather than private so a test can build this sheet the way each call
+    /// site does and read the answer.
     var fullDetailOffer: FullDetailOffer {
         FullDetailOffer(isPro: isPro, isFreshScan: isFreshScan,
                         detail: result.valuationDetail)
@@ -1221,7 +1226,19 @@ struct ResultView: View {
         }
     }
 
-    private func lockedDetailTeaser(_ detail: ValuationDetail) -> some View {
+    /// What a free user sees in place of the panel: a blurred first line, and
+    /// the way in.
+    ///
+    /// `newScansOnly` is a thin find reopened from My Finds or My Flips
+    /// (`FullDetailOffer.teaserNewScansOnly`). Buying does not bring that
+    /// find's breakdown: it is not re-read, and the panel then says "Scanned
+    /// before Pro". This teaser used to offer to "Unlock why this price" there
+    /// too, above four price points and what drives the value, and a purchase
+    /// from it delivered the label instead. So the button there sells Pro
+    /// rather than this find's panel, and the caption says the breakdown comes
+    /// with new scans and this find keeps its summary, as the label will say
+    /// once they have bought.
+    private func lockedDetailTeaser(_ detail: ValuationDetail, newScansOnly: Bool) -> some View {
         ZStack {
             VStack(alignment: .leading, spacing: 6) {
                 Text(detail.confidenceSummary
@@ -1244,14 +1261,21 @@ struct ResultView: View {
                 Image(systemName: "lock.fill")
                     .snapSymbol(18)
                     .foregroundStyle(Color.snapTerracottaText)
-                PrimaryButton(title: "Unlock why this price") {
+                PrimaryButton(title: newScansOnly ? "Upgrade to Pro" : "Unlock why this price") {
                     paywallTrigger = .valuationDetail
                     showPaywall = true
                 }
-                Text("Four price points, what drives the value, and how to sharpen the estimate.")
-                    .font(.snapCaption)
-                    .foregroundStyle(Color.snapWarmGray)
-                    .multilineTextAlignment(.center)
+                Group {
+                    if newScansOnly {
+                        Text("On new scans, Pro shows four price points, what drives the value, and how to sharpen the estimate. This find keeps the summary it was saved with.")
+                    } else {
+                        Text("Four price points, what drives the value, and how to sharpen the estimate.")
+                    }
+                }
+                .font(.snapCaption)
+                .foregroundStyle(Color.snapWarmGray)
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
             }
         }
     }
@@ -1643,8 +1667,9 @@ struct ResultView: View {
 
 // MARK: - A thin panel, fresh or reopened
 
-/// What "Why this price" adds for a subscriber whose find was saved with only
-/// the free part of the panel (`ValuationDetail.lacksProDetail`).
+/// What "Why this price" says about a find that was saved with only the free
+/// part of the panel (`ValuationDetail.lacksProDetail`), to a subscriber and
+/// to a free user deciding whether to become one.
 ///
 /// A re-read of the stored photo returns the full panel, and replaces the
 /// estimate, the name, the details and the listing draft with it
@@ -1655,26 +1680,47 @@ struct ResultView: View {
 /// is thin instead, and nothing re-reads it, including a purchase made from
 /// its own teaser. That is the owner's decision.
 ///
-/// A value rather than three conditions in the view, so the one rule that
-/// matters, that only a fresh result is ever re-read, is tested directly.
+/// Which is why the free teaser is decided here too. On such a find a
+/// purchase delivers `scannedBeforePro`, not the breakdown, and the teaser
+/// that sold it — "Unlock why this price", four price points and what drives
+/// the value — described a panel this find will never show. It says the
+/// breakdown comes with new scans instead (`teaserNewScansOnly`).
+///
+/// A value rather than conditions in the view, so the one rule that matters,
+/// that only a fresh result is ever re-read, is tested directly, and so is
+/// what the teaser promises either side of it.
 enum FullDetailOffer: Equatable {
-    /// Nothing to add: the free teaser is showing, there is no panel, or the
-    /// panel is already full.
+    /// Nothing to add: the panel is full or there is none, or the free teaser
+    /// is showing on a find that buying would deliver — a fresh result, which
+    /// is re-read after the purchase.
     case none
     /// A fresh result: "Show the full breakdown", and the automatic re-read
     /// when the paywall opened from this panel closes on a purchase.
     case reread
     /// Reopened from My Finds or My Flips: a label saying why, never a re-read.
     case scannedBeforePro
+    /// The free teaser on a find reopened from My Finds or My Flips. Buying
+    /// turns it into `scannedBeforePro`, so the teaser offers Pro for new
+    /// scans rather than this find's breakdown.
+    case teaserNewScansOnly
 
     /// Takes `isFreshScan`, not `coverPrice`: the cover is a presentation
     /// choice, and this is about what happened — see `ResultView.isFreshScan`.
+    ///
+    /// A full panel needs nothing either way. That includes a lapsed
+    /// subscriber's find from their Pro months: the free teaser is shown, and
+    /// re-subscribing shows the panel the find was saved with.
     init(isPro: Bool, isFreshScan: Bool, detail: ValuationDetail?) {
-        guard isPro, detail?.lacksProDetail == true else {
+        guard detail?.lacksProDetail == true else {
             self = .none
             return
         }
-        self = isFreshScan ? .reread : .scannedBeforePro
+        switch (isPro, isFreshScan) {
+        case (true, true):   self = .reread
+        case (true, false):  self = .scannedBeforePro
+        case (false, true):  self = .none
+        case (false, false): self = .teaserNewScansOnly
+        }
     }
 }
 

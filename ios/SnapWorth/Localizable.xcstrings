@@ -10965,6 +10965,42 @@
         }
       }
     },
+    "On new scans, Pro shows four price points, what drives the value, and how to sharpen the estimate. This find keeps the summary it was saved with." : {
+      "comment" : "Caption in the locked \"Why this price\" teaser, shown to a free user on a find reopened from My Finds or My Flips that was saved with only the free part of the panel. Buying does not re-read such a find, so this says the full panel comes with new scans. The second sentence is the one the \"Scanned before Pro\" note uses after they buy.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bei neuen Scans zeigt Pro vier Preispunkte, was den Wert treibt, und wie du die Schätzung schärfst. Dieser Fund behält die Zusammenfassung, mit der er gespeichert wurde."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "On new scans, Pro shows four price points, what drives the value, and how to sharpen the estimate. This find keeps the summary it was saved with."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "En los escaneos nuevos, Pro muestra cuatro niveles de precio, qué sube el valor y cómo afinar la estimación. Este hallazgo conserva el resumen con el que se guardó."
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La scanările noi, Pro îți arată patru praguri de preț, ce ridică valoarea și cum faci estimarea mai exactă. Găselnița asta păstrează rezumatul cu care a fost salvată."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新扫描时，Pro 会显示四个价格档位、什么在抬高价值，以及怎样让估价更准。这件好物保留的是保存时的摘要。"
+          }
+        }
+      }
+    },
     "One snap.\nA ready listing." : {
       "extractionState" : "manual",
       "localizations" : {

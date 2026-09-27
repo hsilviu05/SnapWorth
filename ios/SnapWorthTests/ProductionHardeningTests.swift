@@ -2934,7 +2934,8 @@ final class ValuationDetailTests: XCTestCase {
 /// only. A re-read replaces the estimate, the name and the listing draft, and
 /// a find reopened from My Finds or My Flips may already have been listed or
 /// sold on the number it has. It gets a label saying why its panel is thin,
-/// and is never re-read, whatever its status.
+/// and is never re-read, whatever its status. A free user's teaser on such a
+/// find says so before they buy.
 @MainActor
 final class FullDetailOfferTests: XCTestCase {
 
@@ -3005,16 +3006,75 @@ final class FullDetailOfferTests: XCTestCase {
         XCTAssertEqual(freshUncovered.fullDetailOffer, .reread)
     }
 
-    func test_nothingIsAddedForAFreeUserOrAFullPanel() {
+    /// The teaser as it has always read, where buying delivers what it
+    /// describes: a free user's fresh result, which is re-read after the
+    /// purchase, and any full panel.
+    func test_nothingIsAddedForAFreeFreshResultOrAFullPanel() {
+        XCTAssertEqual(FullDetailOffer(isPro: false, isFreshScan: true, detail: thin), .none,
+                       "a free user sees the usual teaser, and buying re-reads the find")
         for fresh in [true, false] {
-            XCTAssertEqual(FullDetailOffer(isPro: false, isFreshScan: fresh, detail: thin), .none,
-                           "a free user sees the teaser")
-            XCTAssertEqual(FullDetailOffer(isPro: true, isFreshScan: fresh, detail: full), .none)
-            XCTAssertEqual(FullDetailOffer(isPro: true, isFreshScan: fresh, detail: nil), .none)
+            for isPro in [true, false] {
+                XCTAssertEqual(FullDetailOffer(isPro: isPro, isFreshScan: fresh, detail: full), .none)
+                XCTAssertEqual(FullDetailOffer(isPro: isPro, isFreshScan: fresh, detail: nil), .none)
+            }
         }
         let free = ResultView(result: find(thin), purchaseService: MockPurchaseService(),
                               onDismiss: {}, isFreshScan: true)
         XCTAssertEqual(free.fullDetailOffer, .none)
+    }
+
+    /// A free user reopening a thin find. Buying from its teaser gives the
+    /// label, never a re-read, so the teaser must not sell this find's
+    /// breakdown. It used to be `.none`, the usual teaser, and the purchase
+    /// delivered "Scanned before Pro" under a score, a sentence and a grade.
+    func test_aFreeUsersReopenedThinFindIsOfferedNewScansOnly() async throws {
+        XCTAssertEqual(FullDetailOffer(isPro: false, isFreshScan: false, detail: thin),
+                       .teaserNewScansOnly)
+        // Built the way My Finds (`HistoryView`) and My Flips (`FlipsView`)
+        // build it, with no `isFreshScan`.
+        for status in FlipStatus.allCases {
+            let sheet = ResultView(result: find(thin, status: status),
+                                   purchaseService: MockPurchaseService(), onDismiss: {})
+            XCTAssertEqual(sheet.fullDetailOffer, .teaserNewScansOnly, status.rawValue)
+        }
+        // What the purchase from that teaser turns the same sheet into.
+        let store = MockPurchaseService()
+        let sheet = ResultView(result: find(thin), purchaseService: store, onDismiss: {})
+        XCTAssertEqual(sheet.fullDetailOffer, .teaserNewScansOnly)
+        _ = try await store.purchase(productID: Config.yearlyProductID)
+        XCTAssertEqual(sheet.fullDetailOffer, .scannedBeforePro)
+    }
+
+    /// A lapsed subscriber's find from their Pro months was saved full, and
+    /// re-subscribing shows it, so its teaser keeps the usual promise.
+    func test_aLapsedSubscribersFullFindKeepsTheUsualTeaser() {
+        let sheet = ResultView(result: find(full), purchaseService: MockPurchaseService(),
+                               onDismiss: {})
+        XCTAssertEqual(sheet.fullDetailOffer, .none)
+    }
+
+    /// Source-level: a view's copy cannot be read in a unit test. On
+    /// `.teaserNewScansOnly` the button must not offer to unlock "this price",
+    /// and the caption must say the breakdown comes with new scans.
+    func test_theNewScansOnlyTeaserDoesNotSellThisFindsBreakdown() throws {
+        let file = try String(
+            contentsOf: URL(fileURLWithPath: #filePath)
+                .deletingLastPathComponent().deletingLastPathComponent()
+                .appendingPathComponent("SnapWorth/Views/ResultView.swift"),
+            encoding: .utf8)
+        XCTAssertTrue(file.contains("newScansOnly: fullDetailOffer == .teaserNewScansOnly)"),
+                      "the card hands the teaser the offer's answer")
+        let teaser = try XCTUnwrap(file.range(of: "private func lockedDetailTeaser("))
+        let body = file[teaser.upperBound...]
+        XCTAssertTrue(body.contains(
+            #"PrimaryButton(title: newScansOnly ? "Upgrade to Pro" : "Unlock why this price")"#))
+        let branch = try XCTUnwrap(body.range(of: "if newScansOnly {"))
+        let open = try XCTUnwrap(body.range(of: "Text(\"", range: branch.upperBound..<body.endIndex))
+        let close = try XCTUnwrap(body.range(of: "\")", range: open.upperBound..<body.endIndex))
+        let caption = body[open.upperBound..<close.lowerBound]
+        XCTAssertTrue(caption.contains("On new scans"), String(caption))
+        XCTAssertTrue(caption.contains("This find keeps the summary it was saved with."),
+                      "the same words the label uses once they have bought: \(caption)")
     }
 
     /// Source-level: which sheet is fresh is decided at its call site. Only the
