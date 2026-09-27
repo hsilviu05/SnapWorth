@@ -261,6 +261,19 @@ class TestSemantics:
         assert note.is_cancellation
         assert not note.is_loss
 
+    def test_a_reversed_refund_is_acted_on_not_ignored(self, pinned):
+        """REFUND_REVERSED was absent from the types this acts on, so it was
+        acknowledged and dropped while the REFUND's tombstone went on denying
+        the term. It is indexed now, and it is neither a loss nor new money."""
+        leaf_key, chain = pinned
+        note = appstorenotify.parse_notification(
+            make_notification(leaf_key, chain, notification_type="REFUND_REVERSED"),
+            BUNDLE_ID, PRODUCTS)
+        assert note.is_refund_reversal and note.is_indexed
+        assert not note.is_refund
+        assert not note.is_loss
+        assert not note.is_paid_period
+
     def test_apples_own_test_notification_is_accepted(self, pinned):
         """`TEST` carries no transaction — there is no purchase behind it. It
         has to be recognised before anything reads signedTransactionInfo, or

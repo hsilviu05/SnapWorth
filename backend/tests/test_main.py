@@ -266,6 +266,80 @@ class TestLegalEndpoints:
             f"the operator index keeps rows for {days} days; the policy says "
             f"something else")
 
+    def test_privacy_states_what_a_scan_leaves_on_the_server(self):
+        """It said "Photos and scan results are processed in real time and are
+        not retained on our servers" while every scan was tallied for 35 days
+        and each day's best finds, item name included, were shown to Pro
+        subscribers as notable finds. The photo claim was true; the rest was
+        not."""
+        import notify
+        body = _prose(client.get("/privacy").text)
+        assert "scan results are processed in real time" not in body
+        assert f"{notify.STATS_TTL // 86_400} days after the day of the scan" in body
+        assert "never the item name, the photo, or who scanned it" in body
+        # "Keeps only what running the service needs" was not the whole story:
+        # /post and /calendar hand the week's top finds, item names included,
+        # to the model as grounding for social-media drafts (notify._post_text,
+        # ideas.build_prompt).
+        assert "only what running the service needs" not in body
+        assert ("uses the week's highest-value scans, through Google's Gemini "
+                "API, to draft ideas for SnapWorth's social-media posts") in body
+
+    def test_privacy_does_not_call_a_subscribers_device_id_unlinked(self):
+        """The device id is stored with the signed purchase record, whose
+        originalTransactionId follows the Apple ID; PrivacyInfo.xcprivacy
+        declares that record linked. "Not linked to your identity", flat, sat
+        four paragraphs above saying so."""
+        body = _prose(client.get("/privacy").text)
+        assert ("not linked to your identity, except that if you subscribe it "
+                "is kept with Apple's record of your purchase") in body
+
+    def test_the_operator_record_retention_counts_from_apples_last_word(self):
+        """App Store notifications and status lookups rewrite the /subs row with
+        a fresh `seen` and keep its device pseudonym (notify._index_subscription),
+        and `_write_index` prunes on `seen`. So a subscriber who deleted the app
+        but keeps renewing keeps that row: 400 days from the app's last visit is
+        not what the code does."""
+        import notify
+        body = _prose(client.get("/privacy").text)
+        assert (f"for up to {notify.INDEX_TTL // 86_400} days after the device "
+                "last uses the service or, for a subscription, after the app or "
+                "Apple last tells us about it") in body
+
+    def test_privacy_discloses_the_purchase_record_and_its_retention(self):
+        """The app uploads Apple's signed transaction with the device id on
+        every status refresh, and the server keeps it; neither policy said so."""
+        import entitlements
+        body = _prose(client.get("/privacy").text)
+        assert "Apple's signed record of your subscription purchase" in body
+        days = entitlements.ENTITLEMENT_PROOF_TTL // 86_400
+        assert days == entitlements.DEVICE_BINDING_TTL // 86_400
+        assert f"for up to {days} days after the app last sends it" in body
+
+    def test_privacy_discloses_referral_records(self):
+        """A claimed invite links two devices for a year and more."""
+        import referral
+        body = _prose(client.get("/privacy").text)
+        assert "If you use Invite a friend" in body
+        assert f"up to {referral.RECORD_TTL // 86_400} days, so that each invite" in body
+
+    def test_web_and_in_app_policies_carry_the_same_date(self):
+        """Two copies of one document. When the text changes, both dates move,
+        or a reader of either copy cannot tell it changed.
+
+        backend.yml runs this suite on a pull request that changes
+        LegalView.swift, so moving the date in one copy and not the other is
+        caught before merge. Only the date: a body edit that leaves both dates
+        alone passes, and the phrase tests pin only the sentences they name.
+        """
+        import pathlib
+        import re
+        swift = (pathlib.Path(__file__).resolve().parents[2]
+                 / "ios" / "SnapWorth" / "Views" / "LegalView.swift").read_text()
+        match = re.search(r'enum PrivacyPolicy \{\s*static let updated = "([^"]+)"', swift)
+        assert match, "PrivacyPolicy.updated moved; update this test"
+        assert f"Last updated: {match.group(1)}" in client.get("/privacy").text
+
     def test_privacy_names_the_analytics_sdks_own_payload(self):
         """The enumeration stopped short of what the SDK actually attaches.
 
@@ -489,6 +563,38 @@ class TestScanEndpoint:
             )
         assert r.status_code == 200
 
+    def test_scan_logs_say_how_it_went_never_what_it_found(self, caplog):
+        """"scan ok" logged the item name and the estimate beside the device's
+        pseudonym on every scan, and the declined and no-price lines logged the
+        name under a request id that "scan start" ties to the device. /privacy
+        says scan content is kept in the day's tallies, without the device."""
+        found = {**MOCK_RESPONSE_JSON, "item_name": "Signed Jordan card to Maria"}
+        declined = {**MOCK_RESPONSE_JSON, "item_name": "Maria's birthday cake",
+                    "category": "other", "est_value_low_usd": 0,
+                    "est_value_high_usd": 0, "worst_case_price_usd": 0,
+                    "quick_sale_price_usd": 0, "expected_price_usd": 0,
+                    "best_case_price_usd": 0}
+        unpriced = {k: v for k, v in found.items() if not k.endswith("_usd")}
+        statuses = []
+        with caplog.at_level("INFO", logger="snapworth"):
+            for i, reply in enumerate((found, declined, unpriced)):
+                mock_response = MagicMock()
+                mock_response.text = json.dumps(reply)
+                with patch("main._model") as mock_model:
+                    mock_model.generate_content_async = AsyncMock(return_value=mock_response)
+                    statuses.append(_make_scan_request(device_id=f"log-test-{i}").status_code)
+        assert statuses == [200, 422, 502], "each path must actually run"
+
+        messages = {r.getMessage() for r in caplog.records}
+        assert {"scan ok", "scan declined: not a resalable object",
+                "scan produced no usable price"} <= messages
+        for record in caplog.records:
+            for field in ("item", "value_low", "value_high", "expected"):
+                assert not hasattr(record, field), (
+                    f"{record.getMessage()!r} logs {field}")
+            assert "Maria" not in str(record.__dict__), (
+                f"{record.getMessage()!r} logs what was scanned")
+
 
 # ── POST /listing (Snap → Sell) ───────────────────────────────────────────────
 
@@ -638,6 +744,40 @@ class TestListingEndpoint:
         data = r.json()
         assert data["negotiation_floor"] <= data["listing_price"]
 
+    def _listed(self, reply: dict, **req):
+        with patch("main._model") as mm:
+            mm.generate_content_async = AsyncMock(return_value=self._mock(json.dumps(reply)))
+            r = _post_listing(**req)
+        assert r.status_code == 200
+        return r.json()
+
+    def test_an_ask_far_above_the_valuation_is_not_served(self):
+        """Reproduced: an ask of 450 over a floor of 300 on a $4–$14 item went
+        through, because only floor <= ask was checked. The deterministic
+        listing's prices are used instead of the model's."""
+        data = self._listed({**MOCK_LISTING_JSON, "listing_price": 450.0,
+                             "negotiation_floor": 300.0},
+                            price_low_usd=4.0, price_likely_usd=9.0, price_high_usd=14.0)
+        assert data["listing_price"] == 9.0
+        assert data["negotiation_floor"] == 4.0
+
+    def test_an_ask_below_the_valuation_is_not_served(self):
+        data = self._listed({**MOCK_LISTING_JSON, "listing_price": 20.0,
+                             "negotiation_floor": 15.0})
+        assert data["listing_price"] == 68.0      # the request's typical price
+        assert data["negotiation_floor"] == 45.0  # the request's low end
+
+    def test_negotiating_room_inside_the_bounds_is_kept(self):
+        # Ask up to 1.25× the high end, floor down to 0.8× the low end.
+        data = self._listed({**MOCK_LISTING_JSON, "listing_price": 110.0,
+                             "negotiation_floor": 37.0})
+        assert (data["listing_price"], data["negotiation_floor"]) == (110.0, 37.0)
+
+    def test_a_floor_far_below_the_valuation_is_not_served(self):
+        data = self._listed({**MOCK_LISTING_JSON, "negotiation_floor": 5.0})
+        assert data["listing_price"] == 75.0
+        assert data["negotiation_floor"] == 45.0
+
     def test_missing_prices_repaired_from_request(self):
         partial = {"title": "Nice item", "description": "Good stuff", "category": "x",
                    "listing_price": 0, "negotiation_floor": 0}
@@ -760,6 +900,33 @@ class TestScanAccounting:
                 assert len(no_price) == 1
                 assert no_price[0]["operation"] == ("scan" if count else "bot_scan"), \
                     "the bot's own test photo must not be labelled a user scan"
+
+    def test_a_bot_test_photo_of_a_non_item_is_labelled_as_the_bot(self, monkeypatch):
+        """The same hardcoded "scan", on the not-resalable path beside it."""
+        import asyncio
+
+        import main
+        from fastapi import HTTPException
+        calls: list[dict] = []
+        monkeypatch.setattr(main.metrics.model_calls, "inc",
+                            lambda **kw: calls.append(kw))
+        declined = MagicMock()
+        declined.text = json.dumps({
+            **MOCK_RESPONSE_JSON, "category": "other",
+            "est_value_low_usd": 0, "est_value_high_usd": 0,
+            "worst_case_price_usd": 0, "quick_sale_price_usd": 0,
+            "expected_price_usd": 0, "best_case_price_usd": 0,
+            "uncertainty_factors": ["This is a photograph of food"]})
+
+        with patch("main._model") as model:
+            model.generate_content_async = AsyncMock(return_value=declined)
+            with pytest.raises(HTTPException) as refused:
+                asyncio.run(main._analyse(
+                    padded_image_bytes("JPEG", 1024), "image/jpeg",
+                    subject="op", device_short="op", count=False))
+        assert refused.value.status_code == 422
+        outcome = [c for c in calls if c.get("outcome") == "not_resalable"]
+        assert [c["operation"] for c in outcome] == ["bot_scan"]
 
     def test_a_scan_the_client_abandoned_still_counts_as_a_scan(self, monkeypatch):
         """It is billed, so it belongs in the denominator of $/scan.
@@ -999,6 +1166,233 @@ class TestAppleNotifications:
         assert (asyncio.run(entitlement_store.current(
             "refunded-subject"))).tier == "free", (
             "the refunded subscriber is still being re-derived as Pro")
+
+    def test_a_refund_during_a_redis_outage_is_refused_so_apple_retries(
+            self, pinned, monkeypatch):
+        """The tombstone write is `required`, so an outage is a 503, not a 200.
+
+        Every other test here runs on a cache where memory is authoritative,
+        which is exactly the one configuration where writing the tombstone to
+        memory is right. Production has `REDIS_URL` set: there, the unflagged
+        write degraded to this replica's memory, the handler answered 200, and
+        Apple — which does not redeliver a 2xx — never sent it again. The
+        tombstone was invisible to `_is_revoked` after recovery and gone at the
+        next deploy.
+        """
+        import auth as _auth
+        from test_entitlements import make_jws, valid_payload
+
+        class _Flaky(InMemoryCache):
+            """Redis that can be unplugged: every call raises while `down`."""
+            down = False
+
+            async def _guard(self):
+                if self.down:
+                    raise ConnectionError("redis is down")
+
+            async def get(self, *a, **k):
+                await self._guard()
+                return await super().get(*a, **k)
+
+            async def set(self, *a, **k):
+                await self._guard()
+                return await super().set(*a, **k)
+
+            async def add(self, *a, **k):
+                await self._guard()
+                return await super().add(*a, **k)
+
+            async def delete(self, *a, **k):
+                await self._guard()
+                return await super().delete(*a, **k)
+
+        redis = _Flaky()
+        durable = ResilientCache(redis, InMemoryCache(), configured=True)
+        store = _entitlements.EntitlementService(
+            durable, "eu.snapworth.app",
+            {"com.snapworth.yearly", "com.snapworth.monthly"})
+        monkeypatch.setattr(_auth.deps, "entitlements", store)
+        monkeypatch.setattr(main, "_cache", durable)
+
+        leaf_key, chain = pinned
+        payload = valid_payload()
+        assert asyncio.run(store.record(
+            "outage-subject", make_jws(payload, leaf_key, chain))).tier == "pro"
+
+        refund = make_notification(
+            leaf_key, chain, notification_type="REFUND",
+            uuid="dddddddd-1111-2222-3333-444444444444",
+            revocationDate=int(time.time() * 1000),
+            originalTransactionId=payload["originalTransactionId"])
+
+        redis.down = True
+        r = client.post("/apple/notifications", json={"signedPayload": refund})
+        assert r.status_code == 503, (
+            "a refund whose tombstone was not stored durably must not be "
+            "acknowledged — Apple does not redeliver a 200")
+
+        # Redis comes back and Apple redelivers. The retry must do the work,
+        # not land on the idempotency marker the failed attempt claimed.
+        redis.down = False
+        r = client.post("/apple/notifications", json={"signedPayload": refund})
+        assert r.status_code == 200
+        assert r.json()["status"] != "duplicate"
+
+        asyncio.run(durable.delete("ent:outage-subject"))
+        assert asyncio.run(store.current("outage-subject")).tier == "free"
+
+    class _Partial(InMemoryCache):
+        """Redis whose reads and `add`s land while its writes fail — the
+        failure between two calls of one request that the all-or-nothing
+        outage above cannot show."""
+        down = False
+
+        async def set(self, *a, **k):
+            if self.down:
+                raise ConnectionError("redis timed out")
+            return await super().set(*a, **k)
+
+        async def delete(self, *a, **k):
+            if self.down:
+                raise ConnectionError("redis timed out")
+            return await super().delete(*a, **k)
+
+    def _partial_store(self, monkeypatch):
+        import auth as _auth
+        redis = self._Partial()
+        durable = ResilientCache(redis, InMemoryCache(), configured=True)
+        store = _entitlements.EntitlementService(
+            durable, "eu.snapworth.app",
+            {"com.snapworth.yearly", "com.snapworth.monthly"})
+        monkeypatch.setattr(_auth.deps, "entitlements", store)
+        monkeypatch.setattr(main, "_cache", durable)
+        return redis, durable, store
+
+    def test_a_refund_whose_tombstone_write_fails_mid_request_is_retried(
+            self, pinned, monkeypatch):
+        """The idempotency marker used to be claimed first and handed back
+        with a plain `delete` on failure. On a Redis failing between calls,
+        that `delete` went to process memory without raising, the marker
+        stayed in Redis, and Apple's retry of the 503 was answered 200
+        "duplicate" — the refund never applied. The marker is now claimed only
+        once the tombstone is stored."""
+        from test_entitlements import make_jws, valid_payload
+        redis, durable, store = self._partial_store(monkeypatch)
+        leaf_key, chain = pinned
+        payload = valid_payload()
+        assert asyncio.run(store.record(
+            "partial-subject", make_jws(payload, leaf_key, chain))).tier == "pro"
+        uuid = "dddddddd-1111-2222-3333-555555555555"
+        refund = make_notification(
+            leaf_key, chain, notification_type="REFUND", uuid=uuid,
+            revocationDate=int(time.time() * 1000),
+            originalTransactionId=payload["originalTransactionId"])
+
+        redis.down = True
+        r = client.post("/apple/notifications", json={"signedPayload": refund})
+        assert r.status_code == 503
+        assert asyncio.run(redis.get(f"apns2:{uuid}")) is None, (
+            "a notification that changed nothing was marked handled")
+
+        redis.down = False
+        r = client.post("/apple/notifications", json={"signedPayload": refund})
+        assert r.status_code == 200
+        assert r.json()["status"] == "ok", "Apple's retry landed on the duplicate branch"
+
+        asyncio.run(durable.delete("ent:partial-subject"))
+        assert asyncio.run(store.current("partial-subject")).tier == "free"
+
+    def test_a_reversal_whose_delete_fails_mid_request_is_retried(
+            self, pinned, monkeypatch):
+        from test_entitlements import make_jws, valid_payload
+        redis, durable, store = self._partial_store(monkeypatch)
+        leaf_key, chain = pinned
+        payload = valid_payload()
+        jws = make_jws(payload, leaf_key, chain)
+        otid = payload["originalTransactionId"]
+        r = client.post("/apple/notifications", json={
+            "signedPayload": make_notification(
+                leaf_key, chain, notification_type="REFUND",
+                uuid="dddddddd-1111-2222-3333-666666666666",
+                revocationDate=int(time.time() * 1000),
+                originalTransactionId=otid)})
+        assert r.status_code == 200
+        reversal = make_notification(
+            leaf_key, chain, notification_type="REFUND_REVERSED",
+            uuid="dddddddd-1111-2222-3333-777777777777",
+            originalTransactionId=otid)
+
+        redis.down = True
+        r = client.post("/apple/notifications", json={"signedPayload": reversal})
+        assert r.status_code == 503
+
+        redis.down = False
+        r = client.post("/apple/notifications", json={"signedPayload": reversal})
+        assert r.json() == {"status": "ok", "type": "REFUND_REVERSED"}
+        assert asyncio.run(store.record("partial-subject", jws)).tier == "pro", (
+            "the reversal's retry did not lift the block")
+
+    def test_a_refund_redelivered_after_its_reversal_does_not_block_again(
+            self, pinned, entitlement_store):
+        """Apple redelivers a notification whose 2xx it did not receive. The
+        marker is written only after the change landed, so finding it means
+        the REFUND was applied once already — re-applying it after the
+        REFUND_REVERSED would deny a term that is paid for again."""
+        from test_entitlements import make_jws, valid_payload
+        leaf_key, chain = pinned
+        payload = valid_payload()
+        jws = make_jws(payload, leaf_key, chain)
+        otid = payload["originalTransactionId"]
+        refund = make_notification(
+            leaf_key, chain, notification_type="REFUND",
+            uuid="dddddddd-1111-2222-3333-888888888888",
+            revocationDate=int(time.time() * 1000),
+            originalTransactionId=otid)
+        assert client.post("/apple/notifications",
+                           json={"signedPayload": refund}).status_code == 200
+        r = client.post("/apple/notifications", json={
+            "signedPayload": make_notification(
+                leaf_key, chain, notification_type="REFUND_REVERSED",
+                uuid="dddddddd-1111-2222-3333-999999999999",
+                originalTransactionId=otid)})
+        assert r.status_code == 200
+
+        again = client.post("/apple/notifications", json={"signedPayload": refund})
+        assert again.json()["status"] == "duplicate"
+        assert asyncio.run(entitlement_store.record("redelivered", jws)).tier == "pro"
+
+    def test_a_reversed_refund_gives_the_access_back(
+            self, pinned, entitlement_store):
+        """REFUND_REVERSED used to be acknowledged and ignored, and the
+        REFUND's tombstone went on denying the term for up to 400 days: every
+        sync cached the customer as free and deleted their proof, while Apple
+        was collecting for that term again."""
+        from test_entitlements import make_jws, valid_payload
+        leaf_key, chain = pinned
+        payload = valid_payload()
+        jws = make_jws(payload, leaf_key, chain)
+        otid = payload["originalTransactionId"]
+
+        r = client.post("/apple/notifications", json={
+            "signedPayload": make_notification(
+                leaf_key, chain, notification_type="REFUND",
+                uuid="eeeeeeee-1111-2222-3333-444444444444",
+                revocationDate=int(time.time() * 1000),
+                originalTransactionId=otid)})
+        assert r.status_code == 200
+        # The device syncs while the refund stands.
+        assert asyncio.run(entitlement_store.record("reversed-subject", jws)).tier == "free"
+
+        r = client.post("/apple/notifications", json={
+            "signedPayload": make_notification(
+                leaf_key, chain, notification_type="REFUND_REVERSED",
+                uuid="ffffffff-1111-2222-3333-444444444444",
+                originalTransactionId=otid)})
+        assert r.status_code == 200
+        assert r.json() == {"status": "ok", "type": "REFUND_REVERSED"}
+
+        assert asyncio.run(entitlement_store.record("reversed-subject", jws)).tier == "pro", (
+            "Apple reversed the refund and the server still denies the term")
 
     def test_a_renewal_does_not_revoke_anything(self, pinned, entitlement_store):
         from test_entitlements import make_jws, valid_payload

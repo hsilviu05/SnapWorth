@@ -155,15 +155,30 @@ def verify_attestation(
     except Exception:
         raise AttestationError("Attestation object could not be decoded.") from None
 
+    # The shape checks `verify_assertion` already has. The body is whatever
+    # the caller sent, and CBOR decodes to any type: a top-level list or an
+    # `attStmt` string reached `.get` as an AttributeError, and a non-bytes
+    # `authData` behind a replayed genuine chain reached `+` as a TypeError.
+    # Both escaped the endpoint's `except AttestationError` as a 500.
+    if not isinstance(obj, dict):
+        raise AttestationError("Attestation object is malformed.")
     if obj.get("fmt") != "apple-appattest":
         raise AttestationError("Unexpected attestation format.")
 
     stmt = obj.get("attStmt") or {}
+    if not isinstance(stmt, dict):
+        raise AttestationError("Attestation object is malformed.")
     auth_data = obj.get("authData")
     x5c = stmt.get("x5c") or []
     receipt = stmt.get("receipt") or b""
     if not auth_data or not x5c:
         raise AttestationError("Attestation object is missing required fields.")
+    # `bytes` alone: cbor2 decodes every CBOR byte string to it.
+    if (not isinstance(auth_data, bytes)
+            or not isinstance(x5c, list)
+            or not all(isinstance(c, bytes) for c in x5c)
+            or not isinstance(receipt, bytes)):
+        raise AttestationError("Attestation object is malformed.")
 
     try:
         certs = [x509.load_der_x509_certificate(c) for c in x5c]

@@ -27,6 +27,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi import Response
 from fastapi.responses import HTMLResponse, JSONResponse
 from pydantic import BaseModel, Field
+from starlette.datastructures import Headers, MutableHeaders
+from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 import aiconfig
 import auditlog
@@ -51,7 +53,7 @@ from comps.engine import build_engine as build_comps_engine
 from comps.shadow import ShadowRunner
 from auth import (Principal, record_quota_consumed, refund_quota,
                   require_auth, reserve_quota)
-from entitlements import EntitlementError, EntitlementService
+from entitlements import EntitlementError, EntitlementService, Reinstatement
 from fastapi import Depends
 import observability
 from observability import RequestContextMiddleware, configure_production_logging
@@ -204,6 +206,9 @@ async def _lifespan(_app: FastAPI):
     await _init_rate_limiters()
 
     _cache = await cache_module.build_cache()
+    # Redis going away or coming back reaches the ops bot. Safe before
+    # `notify.configure` below: the hook does nothing until a notifier exists.
+    _cache.on_change = notify.cache_state_changed
     _comps_shadow.engine = build_comps_engine(_cache)
     dc = devicecheck.client_from_env()
     auth.deps.cache = _cache
@@ -361,6 +366,44 @@ async def _refuse_if_paused(subject: str) -> None:
                    "photos that could not be analysed.")
 
 
+async def _refuse_outdated_build(request: Request) -> None:
+    """Tell a build below the operator's minimum (`/minbuild`) to update.
+
+    On /scan, /listing and /trends only, and on the route rather than the app,
+    so /auth is never gated: an old build can still sign in and record a
+    purchase. Route-level, so it runs before `require_auth` — a refused build
+    is told to update rather than sent round a token refresh first. Only /scan
+    and /listing show the message: the app fetches /trends with `try?`
+    (HistoryView), so there a refusal just hides the Trending card.
+
+    422 because it is the status whose `detail` every build from 1.3.1
+    (build 8) shows word for word (`AppError.from` → `.unusablePhoto`, which no
+    view special-cases). 426 would be the honest code, and every installed
+    build shows it as "Something went wrong". Builds 7 and older show fixed
+    copy whatever the status — for 422, that same "Something went wrong" —
+    which `/minbuild` says before it is set.
+
+    Not 502, which this was first: that rested on 502 reaching every build
+    from 11 and nothing before 11 showing server text at all. Builds 8-10 map
+    502 to the fixed "Our AI is temporarily unavailable" — an outage, and a
+    retry, told to someone who needs an update — and a 502 is a paging
+    `DEPENDENCY` 5xx that lands in the "5xx surge" page and reads as Gemini
+    down. A 422 is a non-paging 4xx; `outdated_build_refused` counts it.
+
+    A request whose build cannot be read is served: unknown is not old.
+    """
+    build = observability.parse_client_build(request.headers.get("user-agent", ""))
+    if build is None:
+        return
+    minimum = await notify.minimum_build()
+    if minimum is None or build >= minimum:
+        return
+    metrics.outdated_build_refused.inc(endpoint=metrics.endpoint_label(request.url.path))
+    log.info("outdated build told to update",
+             extra={"build": build, "minimum": minimum})
+    raise HTTPException(status_code=422, detail=notify.UPDATE_REQUIRED_DETAIL)
+
+
 async def _bot_scan(image_bytes: bytes, declared_type: str) -> dict:
     """A photo the operator sent the Telegram bot, through the real pipeline.
 
@@ -491,16 +534,63 @@ if _allowed_origins:
 
 # Deliberately well above the 10 MB `MAX_UPLOAD_BYTES` the /scan route
 # enforces itself. This is not a second copy of that limit — it is a ceiling
-# on what any request may be, so an ordinary oversized photo still reaches the
-# route and gets its own friendly "Image exceeds 10 MB limit." rather than a
-# bare 413 the client has no case for (`AppError.from` maps 400 and 422; it
-# has no 413, which is exactly why `_read_capped` answers 400).
+# on what a /scan request may be (every other route has a far smaller one,
+# below), so an ordinary oversized photo still reaches the route and gets its
+# own friendly "Image exceeds 10 MB limit." rather than a bare 413 the client
+# has no case for (`AppError.from` maps 400 and 422; it has no 413, which is
+# exactly why `_read_capped` answers 400).
 MAX_REQUEST_BYTES = int(os.environ.get("MAX_REQUEST_BYTES", str(20 * 1024 * 1024)))
 
+#: Every route but /scan takes a small JSON body, and none needs 20 MB of
+#: headroom. The largest genuine one is `/auth/attest`, whose schema bounds its
+#: fields at about 37 KB together (`auth.AttestRequest`); `/auth/entitlement`
+#: is under 17 KB and the rest are a few hundred bytes. A route added later
+#: gets this too, which is the safe default: a new upload route fails loudly
+#: in its first test rather than shipping uncapped.
+MAX_JSON_BODY_BYTES = 64 * 1024
 
-@app.middleware("http")
-async def limit_request_body(request: Request, call_next):
-    """Refuse an implausibly large body before anything reads it.
+#: A V2 notification is one `signedPayload`, which the model bounds at 64 KiB.
+#: The rest is headroom for a Version 1 body — it carries the whole receipt —
+#: so that misconfiguration still reaches the handler's error naming it,
+#: rather than stopping here as a bare 413 (see `AppleNotification`).
+MAX_NOTIFICATION_BODY_BYTES = 256 * 1024
+
+
+def _body_limit(path: str) -> int:
+    """The most a request to `path` may carry. Read per request, so tests and
+    the `MAX_REQUEST_BYTES` override see the current values."""
+    if path == "/scan":
+        return MAX_REQUEST_BYTES
+    if path == "/apple/notifications":
+        return MAX_NOTIFICATION_BODY_BYTES
+    return MAX_JSON_BODY_BYTES
+
+
+class RequestBodyTooLarge(HTTPException):
+    """Raised from inside `receive`, the moment a body passes its route's cap.
+
+    An `HTTPException` because of where it surfaces: FastAPI reads the body in
+    its request handler, which re-raises an `HTTPException` from that read and
+    turns anything else into a 400 "error parsing the body". So this reaches
+    the exception middleware and goes out as an ordinary 413 through every
+    layer above it, headers and metrics included.
+    """
+
+    def __init__(self) -> None:
+        super().__init__(status_code=413, detail="Request body is too large.")
+
+
+# Every layer below is pure ASGI, and must stay so. `@app.middleware("http")`
+# is `BaseHTTPMiddleware`, which relays `receive` through a task group; with
+# one of those anywhere in the stack, `Request.is_disconnected` — which asks
+# with an already-cancelled scope — is cancelled before it reaches the server
+# and always answers "still connected". /scan relies on it to hand back the
+# allowance for a result the phone gave up waiting for, and with four such
+# layers it never once fired. See `RequestContextMiddleware` for the rest.
+
+
+class LimitRequestBody:
+    """Refuse a body past its route's cap, counting it as it arrives.
 
     `_read_capped` bounds what the process will *hold* — it reads the file part
     in chunks and stops one byte past 10 MB — but by then Starlette has already
@@ -511,74 +601,172 @@ async def limit_request_body(request: Request, call_next):
     megabytes per request, with `--workers 1` (see Dockerfile) and no proxy
     body cap in front of it.
 
-    Checked against the request-level `content-length`, which every client that
-    posts a multipart body sends, so this covers every real caller. A chunked
-    body with no declared length is NOT bounded here — buffering it to measure
-    it would reintroduce the memory problem this is meant to avoid — and stays
-    covered only by `_read_capped`'s 10 MB on the file part.
+    The guard this replaces read only the declared `content-length`, and let a
+    chunked body — which declares none — through unbounded, on the reasoning
+    that measuring it would mean buffering it. It does not: wrapping `receive`
+    counts each message as the app asks for it and stops the read at the
+    message that crosses the cap, holding nothing. The gap was real — a chunked
+    60 MB multipart was received in full and *then* answered 401, and a chunked
+    200 MB JSON body peaked at about 1.2 GB before its 422 — with no rate limit
+    in the way, because the limiters run inside the handlers, after the body.
+    The per-route caps matter as much as the counting: under a flat 20 MB, one
+    declared-length request to a JSON route could still cost about 120 MB.
+
+    A declared length over the cap is still refused before anything is read.
+    Pure ASGI rather than `@app.middleware("http")`, which is
+    `BaseHTTPMiddleware` and has no way to wrap `receive`.
     """
-    if request.method in {"POST", "PUT", "PATCH"}:
-        declared = request.headers.get("content-length")
+
+    def __init__(self, app: ASGIApp) -> None:
+        self.app = app
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+
+        path = scope["path"]
+        limit = _body_limit(path)
+        declared = Headers(scope=scope).get("content-length")
         if declared is not None:
             try:
                 length = int(declared)
             except ValueError:
-                return JSONResponse(status_code=400,
-                                    content={"detail": "Malformed content-length."})
-            if length > MAX_REQUEST_BYTES:
+                await JSONResponse(status_code=400, content={
+                    "detail": "Malformed content-length."})(scope, receive, send)
+                return
+            if length > limit:
                 log.warning("request body refused before reading",
-                            extra={"declared_bytes": length,
-                                   "max_bytes": MAX_REQUEST_BYTES})
-                return JSONResponse(
-                    status_code=413,
-                    content={"detail": "Request body is too large."})
-    return await call_next(request)
+                            extra={"path": path, "declared_bytes": length,
+                                   "max_bytes": limit})
+                await JSONResponse(status_code=413, content={
+                    "detail": "Request body is too large."})(scope, receive, send)
+                return
+
+        received = 0
+        response_started = False
+
+        async def receive_capped() -> Message:
+            nonlocal received
+            # No await of its own beyond `receive`: `Request.is_disconnected`
+            # asks with an already-cancelled scope, and an extra checkpoint
+            # here would cancel the ask before it reached the server.
+            message = await receive()
+            if message["type"] == "http.request":
+                received += len(message.get("body", b""))
+                if received > limit:
+                    log.warning("request body refused while reading",
+                                extra={"path": path, "received_bytes": received,
+                                       "max_bytes": limit})
+                    raise RequestBodyTooLarge()
+            return message
+
+        async def send_tracked(message: Message) -> None:
+            nonlocal response_started
+            if message["type"] == "http.response.start":
+                response_started = True
+            await send(message)
+
+        try:
+            await self.app(scope, receive_capped, send_tracked)
+        except RequestBodyTooLarge:
+            # Only when the body was read outside a route handler, where no
+            # exception middleware stands between the read and this layer.
+            if response_started:
+                raise
+            await JSONResponse(status_code=413, content={
+                "detail": "Request body is too large."})(scope, receive, send)
 
 
-@app.middleware("http")
-async def record_metrics(request: Request, call_next):
+class RecordMetrics:
     """Instrument every request.
 
-    Sits outside `security_headers` so it observes the response that is actually
-    sent, including error responses raised inside handlers.
+    Sits outside the body limit, so a refusal there is counted too, and
+    observes the status actually sent — including an error response raised
+    inside a handler. An exception that escapes the stack is counted as the
+    500 that `ServerErrorMiddleware`, outside every layer here, turns it into.
 
     `endpoint_label` maps to a closed set of route templates — using the raw
     path would create one time series per URL a scanner probes, which is the
     classic way a metrics layer takes down the monitoring system.
     """
-    endpoint = metrics.endpoint_label(request.url.path)
-    metrics.http_in_flight.inc()
-    start = time.monotonic()
-    status = 500
-    try:
-        response = await call_next(request)
-        status = response.status_code
-        return response
-    finally:
-        metrics.http_in_flight.dec()
-        metrics.http_duration.observe(
-            time.monotonic() - start, endpoint=endpoint, method=request.method)
-        metrics.http_requests.inc(
-            endpoint=endpoint, method=request.method,
-            status_class=metrics.status_class(status))
-        if status == 429:
-            metrics.rate_limited.inc(scope="http")
+
+    def __init__(self, app: ASGIApp) -> None:
+        self.app = app
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+
+        endpoint = metrics.endpoint_label(scope["path"])
+        method = scope["method"]
+        status = 500
+
+        async def send_observed(message: Message) -> None:
+            nonlocal status
+            if message["type"] == "http.response.start":
+                status = message["status"]
+            await send(message)
+
+        metrics.http_in_flight.inc()
+        start = time.monotonic()
+        # Before the body is read: a slow upload spends the client's budget
+        # too. See `_client_deadline`. `scope["state"]` is what Starlette's
+        # `request.state` reads, so handlers see this as `request.state.arrived`.
+        scope.setdefault("state", {})["arrived"] = start
+        try:
+            await self.app(scope, receive, send_observed)
+        finally:
+            metrics.http_in_flight.dec()
+            metrics.http_duration.observe(
+                time.monotonic() - start, endpoint=endpoint, method=method)
+            metrics.http_requests.inc(
+                endpoint=endpoint, method=method,
+                status_class=metrics.status_class(status))
+            if status == 429:
+                metrics.rate_limited.inc(scope="http")
 
 
-@app.middleware("http")
-async def security_headers(request: Request, call_next):
-    response = await call_next(request)
-    response.headers["X-Content-Type-Options"] = "nosniff"
-    response.headers["X-Frame-Options"] = "DENY"
-    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
-    response.headers["X-XSS-Protection"] = "1; mode=block"
+_SECURITY_HEADERS = (
+    ("X-Content-Type-Options", "nosniff"),
+    ("X-Frame-Options", "DENY"),
+    ("Referrer-Policy", "strict-origin-when-cross-origin"),
+    ("X-XSS-Protection", "1; mode=block"),
     # The API serves /privacy and /terms to real browsers (they are the URLs on
     # the App Store listing), so downgrade protection is not academic here.
-    response.headers["Strict-Transport-Security"] = (
-        "max-age=63072000; includeSubDomains")
-    response.headers["Permissions-Policy"] = (
-        "camera=(), microphone=(), geolocation=(), interest-cohort=()")
-    return response
+    ("Strict-Transport-Security", "max-age=63072000; includeSubDomains"),
+    ("Permissions-Policy", "camera=(), microphone=(), geolocation=(), interest-cohort=()"),
+)
+
+
+class SecurityHeaders:
+    def __init__(self, app: ASGIApp) -> None:
+        self.app = app
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+
+        async def send_headed(message: Message) -> None:
+            if message["type"] == "http.response.start":
+                message.setdefault("headers", [])
+                headers = MutableHeaders(scope=message)
+                for name, value in _SECURITY_HEADERS:
+                    headers[name] = value
+            await send(message)
+
+        await self.app(scope, receive, send_headed)
+
+
+# Added in the order the decorators they replace were defined, which keeps the
+# stack as it was: `SecurityHeaders` outermost, then `RecordMetrics`, then
+# `LimitRequestBody`, with CORS and `RequestContextMiddleware` inside them.
+app.add_middleware(LimitRequestBody)
+app.add_middleware(RecordMetrics)
+app.add_middleware(SecurityHeaders)
+
 
 # ── Rate limiting ────────────────────────────────────────────────────────────
 # Backed by Redis when REDIS_URL is set, degrading to per-process counters when
@@ -706,31 +894,6 @@ async def _enforce_limits(device_id: str, ip: str | None) -> None:
                             headers={"Retry-After": str(exc.retry_after)}) from None
 
 
-SCAN_PROMPT = """You are an expert at identifying secondhand and thrift items from photos and estimating their typical resale value from your broad market knowledge.
-
-Analyze the provided image of a secondhand or thrift item and return ONLY a valid JSON object — no markdown, no explanation, no extra text.
-
-Required JSON schema:
-{
-  "item_name": "Specific item name including brand, model, size if visible (e.g. 'Patagonia Better Sweater 1/4-Zip, Size M')",
-  "brand": "Brand name, or 'Unknown' if not identifiable",
-  "category": "One of: clothing, shoes, accessories, electronics, books, furniture, home, sports, toys, collectibles, other",
-  "condition_notes": "Brief honest condition summary (e.g. 'Good — light pilling on cuffs, no stains')",
-  "est_value_low_usd": 12.00,
-  "est_value_high_usd": 45.00,
-  "confidence": "High, Medium, or Low based on how clearly you can identify the item",
-  "listing_title": "Compelling, SEO-friendly resale title under 80 chars",
-  "listing_description": "2-3 sentences highlighting key selling points, condition, and why it's a good buy"
-}
-
-Rules:
-- Estimate the typical secondhand resale range from your general market knowledge — reflect what these items usually resell for, not inflated retail or asking prices
-- If the brand is clearly visible, weight the estimate to that brand's typical secondhand market
-- est_value_low_usd must always be less than est_value_high_usd
-- confidence reflects how clearly you can identify the item from the image, nothing more
-- If the image is blurry, shows multiple items, or is not a resalable item, set confidence to "Low" and provide your best estimate anyway
-- Never return values outside the JSON object"""
-
 # Constructed with explicit generation parameters — see aiconfig.py. The bare
 # `genai.GenerativeModel(name)` this replaces ran at the API default temperature
 # of 1.0, i.e. full sampling randomness on a pricing task.
@@ -751,7 +914,14 @@ class ScanResponse(BaseModel):
     nullable.
 
     Everything below is additive and defaulted. Swift's `Decodable` ignores keys
-    it does not declare, so an old client is unaffected by their presence.
+    it does not declare, so adding one is safe. Changing one is not: since "Why
+    this price" (#87, 697d0c3) the client decodes most of them with
+    `decodeIfPresent`, which accepts null or absent but throws on a value of
+    the wrong type — and one throw fails the whole scan, after the allowance
+    was charged. So a v2 field's type is as fixed as a v1 field's: new
+    structure goes in a new field. `contract/` holds the real bodies and
+    `tests/test_contract.py` compares every key and type with what this
+    serves.
     """
 
     # ── v1 contract — do not change ─────────────────────────────────────────
@@ -759,8 +929,11 @@ class ScanResponse(BaseModel):
     # One field is gone from it: `sold_listings_count`. The model never produced
     # it, the app has no sold-listings source, and it was pinned to a literal 0
     # so that clients below 1.2 — which decoded it as a non-optional Int —
-    # would not fail the whole response. 1.2 shipped 2026-07-28; those installs
-    # have aged out (#49). Clients from 1.2 on decode it as optional.
+    # would not fail the whole response. 1.2 shipped 2026-07-28, and those
+    # installs were taken to have aged out (#49) — assumed, not measured:
+    # nothing then recorded which build was calling. The access log's `build`
+    # field does now, and a build below 5 is one of them. Clients from 1.2 on
+    # decode it as optional.
     #
     # The name is retired, not parked. It is the field behind the "38 sold
     # listings" claim the July screenshots made and could not support; when
@@ -983,6 +1156,12 @@ def _fallback_listing(req: ListingRequest) -> ListingResponse:
     )
 
 
+#: How far above the valuation's high end an ask may sit, and how far below its
+#: low end a walk-away floor may. Room to negotiate, not room to invent.
+_LISTING_ASK_HEADROOM = 1.25
+_LISTING_FLOOR_GIVE = 0.8
+
+
 def _validate_listing(data: dict, req: ListingRequest) -> ListingResponse:
     """Coerce the model's JSON into a safe listing, repairing prices and falling
     back field-by-field so a partial/garbled response never blanks the listing."""
@@ -999,6 +1178,24 @@ def _validate_listing(data: dict, req: ListingRequest) -> ListingResponse:
     floor = _safe_float(data.get("negotiation_floor", 0)) or fb.negotiation_floor
     if floor <= 0:
         floor = fb.negotiation_floor
+
+    # The ask is bounded by the valuation it was written from, as /scan's
+    # prices are by their category band. Only `floor <= ask` was enforced, so
+    # an ask of $450 over a $300 floor went through on a $4–$14 item — a
+    # hallucinated or tag-steered number that a Pro user copies straight into
+    # a public listing. The prompt pre-fills the valuation and a model that
+    # follows it lands well inside these bounds: a touch over the typical
+    # price for the ask, the low end for the floor. Outside them the number is
+    # not a judgement worth keeping, so the deterministic listing's price is
+    # used rather than the nearest edge.
+    points = [p for p in (req.price_low_usd, req.price_likely_usd, req.price_high_usd)
+              if p > 0]
+    if points:
+        low, high = min(points), max(points)
+        if not low <= price <= high * _LISTING_ASK_HEADROOM:
+            price = fb.listing_price
+        if not low * _LISTING_FLOOR_GIVE <= floor <= price:
+            floor = fb.negotiation_floor
     if floor > price:          # never let the walk-away floor exceed the ask
         floor = price
 
@@ -1130,9 +1327,10 @@ async def readiness() -> dict | JSONResponse:
     """Readiness probe: should this instance receive traffic?
 
     Returns 503 while starting up, while draining on shutdown, or when a
-    configured-but-unreachable cache means quota and entitlement checks would
-    fail closed. In each case the instance is alive but cannot serve correctly,
-    and the load balancer should route elsewhere.
+    configured cache cannot take a write — unreachable, or full and refusing
+    writes — so quota and entitlement checks would fail closed. In each case
+    the instance is alive but cannot serve correctly, and the load balancer
+    should route elsewhere.
     """
     payload: dict = {"status": "ready", "ready": _ready}
 
@@ -1147,7 +1345,9 @@ async def readiness() -> dict | JSONResponse:
         metrics.cache_degraded.set(0.0 if cache_health.get("healthy", True) else 1.0)
         if not cache_health.get("healthy", True):
             payload["status"] = "not_ready"
-            payload["reason"] = "durable cache configured but unreachable"
+            # `cache.health()` probes with a write, so this covers a Redis at
+            # maxmemory that still answers PING as well as one that is gone.
+            payload["reason"] = "durable cache configured but not accepting writes"
             return JSONResponse(status_code=503, content=payload)
 
     # Set alongside `cache_degraded` so both gauges refresh on the same probe.
@@ -1225,7 +1425,7 @@ def privacy():
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Privacy Policy — SnapWorth</title><style>{_STYLE}</style></head><body>
 <h1>Privacy Policy</h1>
-<p>Last updated: September 9, 2026</p>
+<p>Last updated: September 27, 2026</p>
 <p>SnapWorth ("we", "our", or "us") operates the SnapWorth mobile application.
 This page informs you of our policies regarding the collection, use, and
 disclosure of personal data when you use our Service.</p>
@@ -1236,12 +1436,29 @@ processed by an AI model to identify the item and estimate resale value, and
 are not stored after the response is returned.</p>
 <p>We collect an anonymous device identifier (UUID) for rate limiting (20 scans
 per hour) and to limit how many devices can use one subscription. This ID is not
-linked to your identity.</p>
+linked to your identity, except that if you subscribe it is kept with Apple's
+record of your purchase, described below.</p>
 <p>To tell a reinstall from a genuinely new device &mdash; so a free allowance
 cannot be reset by deleting and reinstalling &mdash; we send Apple's DeviceCheck
 token when your device first verifies itself. Apple stores two bits against the
 hardware on our behalf; we store the token to read them. It contains no personal
 information and cannot identify you.</p>
+<p>If you subscribe, the app sends our server Apple's signed record of your
+subscription purchase, and sends it again each time it checks your
+subscription. We verify Apple's signature and keep the record, together with
+the device identifier above, for up to 400 days after the app last sends it: so
+that Pro keeps working between app launches, and so that one subscription can
+be used on only a limited number of devices. It contains the subscription you
+bought, its price and currency, its purchase and expiry dates, the App Store
+country, and Apple's identifiers for the purchase. It does not contain your
+name, email address, Apple ID or payment details. Apple may also tell our
+server when a subscription renews, lapses or is refunded, and we may ask Apple
+for a subscription's current status to answer a support request.</p>
+<p>If you use Invite a friend, our server keeps the invite code made for your
+device and, when someone claims an invite, a record linking the two devices:
+their identifiers, the code, when it was claimed, and the Apple offer codes
+handed out. It is kept for up to 400 days, so that each invite is rewarded once
+and rewards stay within the yearly limit.</p>
 <p>We collect anonymous usage analytics to understand how the app is used and
 improve it. Using TelemetryDeck, we record in-app events &mdash; such as opening
 the app, starting a scan, viewing the paywall, and completing a purchase &mdash;
@@ -1278,13 +1495,32 @@ answered, a one-way salted hash of your device's attestation key together with
 that device's scan count, first and last activity dates, and subscription
 state. The hash is not the device identifier itself and cannot be reversed to
 it, and it is not an advertising identifier. This operational record is kept
-for up to 400 days. Never the photo, and never your name, email address or
-location.</p>
+for up to 400 days after the device last uses the service or, for a
+subscription, after the app or Apple last tells us about it. Never the photo,
+and never your name, email address or location.</p>
 
 <h2>Data Retention</h2>
-<p>Photos and scan results are processed in real time and are not retained on our
-servers. Scan history is stored locally on your device and can be deleted at any
-time from the app's Settings.</p>
+<p>Photos are not stored after the response is returned. Your scan history is
+stored on your device and can be deleted at any time from the app's
+Settings.</p>
+<p>From each scan our server keeps the following, without the photo and without
+your device identifier: daily counts of scans, categories and brands, and a
+short list of each day's highest-value scans &mdash; the item name the AI gave,
+its brand, category and estimated price range, and whether it was made on the
+free or Pro plan. These are kept for 35 days after the day of the scan. The
+operator can see them, and uses the week's highest-value scans, through
+Google's Gemini API, to draft ideas for SnapWorth's social-media posts &mdash;
+so a post may mention an item someone scanned, never who scanned it.</p>
+<p>In the app, everyone can see this week's most-scanned categories and brands,
+each shown only once at least five scans back it. Pro subscribers also see the
+week's highest-value finds, shown as brand, category and estimated price range
+only &mdash; never the item name, the photo, or who scanned it. A find is a
+single scan, so one of yours may appear there.</p>
+<p>The operational record described under Telegram, the subscription record and
+referral records are kept for up to 400 days after they were last updated, as
+described above. Messages
+relayed through Telegram stay in the operator's chat until the operator
+deletes them.</p>
 
 <h2>Children's Privacy</h2>
 <p>SnapWorth is not directed to children under 13. We do not knowingly collect
@@ -1351,7 +1587,8 @@ async def apple_notifications(body: AppleNotification, request: Request) -> dict
     subscription index and the Telegram alerts; a caller who somehow produced a
     valid Apple signature for our bundle could tell us about a purchase, not
     create one. Entitlement remains verified per request against the
-    transaction the client presents.
+    transaction the client presents. The one entitlement change it makes is to
+    withdraw a refunded term, and to lift that again on a REFUND_REVERSED.
 
     Answers 200 for anything it understood, including a type it deliberately
     ignores — a non-2xx makes Apple redeliver the same notification for days.
@@ -1388,9 +1625,56 @@ async def apple_notifications(body: AppleNotification, request: Request) -> dict
         log.warning("rejected App Store notification: %s", exc)
         raise HTTPException(status_code=400, detail=str(exc)) from None
 
-    # Before the idempotency check: a redelivery is Apple reaching us too, and
-    # /checkup's "last verified notification" line is about arrival.
+    # Before either idempotency check: a redelivery is Apple reaching us too,
+    # and /checkup's "last verified notification" line is about arrival.
     notify.appstore_notification_verified(note.environment, note.notification_type)
+
+    seen_key = f"apns2:{note.uuid}"
+
+    # A refund or a revoke is the only message Apple sends that has to change
+    # entitlement state, and it is the one the server could not act on: the
+    # stored proof carries the revocation state it was signed with, a refund
+    # does not move `expiresDate`, so the pre-refund JWS kept re-deriving Pro
+    # for the rest of the paid term. See `EntitlementService.revoke`.
+    #
+    # Before the index write, so an operator who sees the Telegram message
+    # knows the access was already withdrawn rather than merely reported.
+    #
+    # A REFUND_REVERSED undoes exactly that, and needs the same care: left
+    # unhandled, the tombstone went on denying a customer whose refund Apple
+    # had reversed for up to 400 days. See `EntitlementService.reinstate`.
+    #
+    # And before the idempotency claim below. The claim used to come first,
+    # with a `delete` to hand it back if this failed. On a configured Redis
+    # that fails between two calls, that `delete` went to process memory
+    # without raising, so the marker stayed in Redis: Apple's retry of the
+    # 503 landed on the duplicate branch, was answered 200, and the refund
+    # was never applied. Claiming only once the change is stored leaves
+    # nothing to give back. The marker is then proof the change landed, which
+    # is why a redelivery that finds it does not re-apply: a REFUND retried
+    # after its REFUND_REVERSED must not put the block back.
+    reinstated: Reinstatement | None = None
+    if ((note.is_refund or note.is_revoke or note.is_refund_reversal)
+            and note.entitlement is not None):
+        try:
+            handled = (_cache is not None
+                       and await _cache.get(seen_key) is not None)
+        except Exception:
+            handled = False
+        if handled:
+            return {"status": "duplicate"}
+        try:
+            if note.is_refund_reversal:
+                reinstated = await auth.deps.entitlements.reinstate(note.entitlement)
+            else:
+                await auth.deps.entitlements.revoke(note.entitlement)
+        except Exception as exc:
+            log.error("could not apply %s to the entitlement: %s",
+                      note.notification_type, exc)
+            raise HTTPException(
+                status_code=503,
+                detail="Could not update the entitlement; please retry.",
+            ) from None
 
     # Idempotency. Apple redelivers until it gets a 2xx, and a retry that
     # re-ran the handler would push the operator a second "trial converted"
@@ -1398,7 +1682,8 @@ async def apple_notifications(body: AppleNotification, request: Request) -> dict
     # alert is a smaller problem than dropping a real notification, and the
     # index write is itself idempotent.
     try:
-        first = await _cache.add(f"apns2:{note.uuid}", "1", _NOTIFICATION_SEEN_TTL)
+        first = (await _cache.add(seen_key, "1", _NOTIFICATION_SEEN_TTL)
+                 if _cache is not None else True)
     except Exception:
         first = True
     if not first:
@@ -1411,39 +1696,10 @@ async def apple_notifications(body: AppleNotification, request: Request) -> dict
         await notify.appstore_test_notification(note.environment)
         return {"status": "test", "environment": note.environment}
 
-    # A refund or a revoke is the only message Apple sends that has to change
-    # entitlement state, and it is the one the server could not act on: the
-    # stored proof carries the revocation state it was signed with, a refund
-    # does not move `expiresDate`, so the pre-refund JWS kept re-deriving Pro
-    # for the rest of the paid term. See `EntitlementService.revoke`.
-    #
-    # Before the index write, so an operator who sees the Telegram message
-    # knows the access was already withdrawn rather than merely reported.
-    if (note.is_refund or note.is_revoke) and note.entitlement is not None:
-        try:
-            await auth.deps.entitlements.revoke(note.entitlement)
-        except Exception as exc:
-            # Give the uuid back before failing. The idempotency claim above
-            # is made before any work is done, so answering 5xx while holding
-            # it would make Apple's redelivery land on the duplicate branch
-            # and return 200 without ever withdrawing the access — the same
-            # outcome as never having handled the refund. Releasing it means
-            # the retry gets a real second attempt.
-            log.error("could not revoke a refunded entitlement: %s", exc)
-            try:
-                await _cache.delete(f"apns2:{note.uuid}")
-            except Exception:
-                log.error("could not release the notification idempotency key; "
-                          "this refund will not be retried")
-            raise HTTPException(
-                status_code=503,
-                detail="Could not withdraw the entitlement; please retry.",
-            ) from None
-
     if not note.is_indexed:
         return {"status": "ignored", "type": note.notification_type}
 
-    await notify.subscription_event(note)
+    await notify.subscription_event(note, reinstated=reinstated)
     return {"status": "ok", "type": note.notification_type}
 
 
@@ -1520,7 +1776,8 @@ async def _read_capped(upload: UploadFile, limit: int = MAX_UPLOAD_BYTES) -> byt
     return b"".join(chunks)
 
 
-@app.post("/scan", response_model=ScanResponse)
+@app.post("/scan", response_model=ScanResponse,
+          dependencies=[Depends(_refuse_outdated_build)])
 async def scan(
     request: Request,
     file: UploadFile = File(...),
@@ -1589,7 +1846,8 @@ async def scan(
     try:
         response, elapsed = await _analyse(image_bytes, content_type,
                                            subject=principal.subject, device_short=device_short,
-                                           tag_bytes=tag_bytes, tag_type=tag_type)
+                                           tag_bytes=tag_bytes, tag_type=tag_type,
+                                           deadline=_client_deadline(request))
     except BaseException:
         # `quota_status` carries the UTC day the reservation was counted
         # against. Recomputing the day here refunded the wrong counter for a
@@ -1669,7 +1927,8 @@ def _not_resalable_message(val: valuation_module.Valuation) -> str:
 
 async def _analyse(image_bytes: bytes, content_type: str, *, subject: str,
                    device_short: str, tag_bytes: bytes | None = None,
-                   tag_type: str = "", count: bool = True) -> tuple[ScanResponse, float]:
+                   tag_type: str = "", count: bool = True,
+                   deadline: float | None = None) -> tuple[ScanResponse, float]:
     """The scan itself: model call, parse, normalise, clamp, score.
 
     Everything between "the upload is valid and allowed" and "charge for it":
@@ -1677,7 +1936,8 @@ async def _analyse(image_bytes: bytes, content_type: str, *, subject: str,
     the Telegram bot's photo test — which must exercise exactly this code and
     nothing else, or a green test scan would prove nothing about /scan.
     Returns the response (with `free_scans_remaining` unset) and the elapsed
-    seconds. Raises HTTPException exactly as the endpoint would.
+    seconds. Raises HTTPException exactly as the endpoint would. `deadline` is
+    `_generate_with_retry`'s, for both model calls a scan can make.
     """
 
     t0 = time.monotonic()
@@ -1713,7 +1973,7 @@ async def _analyse(image_bytes: bytes, content_type: str, *, subject: str,
             label = "scan_with_tag" if tag_bytes else "scan"
         else:
             label = "bot_scan_with_tag" if tag_bytes else "bot_scan"
-        raw, usage = await _generate_with_retry(contents, label=label)
+        raw, usage = await _generate_with_retry(contents, label=label, deadline=deadline)
     except aiconfig.ModelBlocked as exc:
         # A safety block is not an outage. Thrift inventory includes penknives,
         # lighters and vintage militaria; telling the user the service is down
@@ -1728,9 +1988,16 @@ async def _analyse(image_bytes: bytes, content_type: str, *, subject: str,
             detail="This photo couldn't be analysed. Try a clear photo of a single item.",
         ) from None
     except aiconfig.ModelUnavailable as exc:
-        log.error("gemini failed after retries: %s", exc)
+        # A deadline stop is the app running out of time, not Gemini failing,
+        # so it is not tallied as `provider` — that line is how the operator
+        # tells an outage from everything else.
+        if isinstance(exc, _DeadlinePassed):
+            log.warning("scan stopped at the client's deadline: %s", exc)
+        else:
+            log.error("gemini failed after retries: %s", exc)
         if count:
-            notify.count_scan_failure("provider")
+            notify.count_scan_failure(
+                "deadline" if isinstance(exc, _DeadlinePassed) else "provider")
         raise HTTPException(
             status_code=502,
             detail="The AI service is temporarily unavailable. Please try again.",
@@ -1743,7 +2010,7 @@ async def _analyse(image_bytes: bytes, content_type: str, *, subject: str,
         # an explicit reformat instruction before giving up — mirrors /listing,
         # which already degrades gracefully rather than 500-ing.
         log.warning("json parse error, attempting reformat", extra={"error": str(exc)})
-        data = await _retry_as_json(raw)
+        data = await _retry_as_json(raw, deadline=deadline)
         if data is None:
             log.error("scan unparseable after reformat", extra={"raw_prefix": raw[:200]})
             if count:
@@ -1765,7 +2032,12 @@ async def _analyse(image_bytes: bytes, content_type: str, *, subject: str,
     # missing prices to 0, `or` treats 0 as absent, and the constants were
     # presented as the estimate. Honest valuation is the product; inventing a
     # number when the model gave none is the one failure mode worth 502-ing for.
-    if not val.prices.worst or not val.prices.best:
+    #
+    # One price is the same failure. `reconcile_prices` copies it to all four
+    # points and the clamp opens it by ×1.5, so a reply cut off after its first
+    # price field was served as "$60–$90, High confidence". `servable` asks for
+    # both ends, or two different prices, from the model itself.
+    if not val.prices.servable:
         # ...unless the model priced it at zero on purpose. The prompt's last
         # honesty rule tells it to, for "a person, a pet, a room, a screenshot,
         # food" — so the documented correct answer was being served as a
@@ -1774,9 +2046,12 @@ async def _analyse(image_bytes: bytes, content_type: str, *, subject: str,
         # correct behaviour under the `no_price` failure metric, which is the
         # alarm for the real fault and was being drowned in it.
         if valuation_module.priced_as_unsellable(data):
+            # Category only, never the item name: see "scan ok" below.
             log.info("scan declined: not a resalable object",
-                     extra={"item": val.item_name, "category": val.category})
-            metrics.model_calls.inc(operation="scan", outcome="not_resalable")
+                     extra={"category": val.category})
+            # `label`, as for `no_price` below: hardcoded, a bot or tag-photo
+            # scan was filed as a plain user scan.
+            metrics.model_calls.inc(operation=label, outcome="not_resalable")
             # 422, not 502: nothing failed. The model read the photo and
             # answered. The client renders `detail` verbatim for any non-2xx
             # and retries nothing automatically, so this reaches the user as
@@ -1787,8 +2062,7 @@ async def _analyse(image_bytes: bytes, content_type: str, *, subject: str,
             ) from None
 
         log.error("scan produced no usable price",
-                  extra={"item": val.item_name, "category": val.category,
-                         "keys": sorted(data)[:20]})
+                  extra={"category": val.category, "keys": sorted(data)[:20]})
         # `label`, not a hardcoded "scan": it is already bound above as
         # `scan`/`scan_with_tag`/`bot_scan`/`bot_scan_with_tag`, and every
         # sibling on this path is gated on `count`. Hardcoded, an operator
@@ -1825,6 +2099,7 @@ async def _analyse(image_bytes: bytes, content_type: str, *, subject: str,
         was_clamped=was_clamped,
         model_field_count=valuation_module.count_present_fields(val),
         expected_field_count=len(valuation_module.EXPECTED_OPTIONAL_FIELDS),
+        range_synthesised=val.prices.single_price,
     )
     val.confidence = conf
     metrics.confidence_score.observe(conf.score)
@@ -1832,10 +2107,15 @@ async def _analyse(image_bytes: bytes, content_type: str, *, subject: str,
         metrics.valuation_clamped.inc()
 
     elapsed = time.monotonic() - t0
+    # How the scan went, never what it found. This line carries the device's
+    # pseudonym, and so does "scan start", whose request id every other line
+    # of the request shares. An item name or an estimate on any of them is a
+    # per-device record of what someone scanned, which /privacy does not
+    # describe: it says scan content is kept in the day's tallies, without the
+    # device (notify._note_scan). The plain log format dropping `extra` is no
+    # cover: LOG_FORMAT=json, which prints it, is the recommended setting.
     log.info("scan ok", extra={
-        "device": device_short, "item": val.item_name,
-        "value_low": low, "value_high": high,
-        "expected": val.prices.expected,
+        "device": device_short,
         "confidence": conf.band, "confidence_score": conf.score,
         "clamped": was_clamped, "prompt_version": prompt_version,
         "image_quality": quality.overall, "elapsed_s": round(elapsed, 2),
@@ -1913,6 +2193,16 @@ async def _analyse(image_bytes: bytes, content_type: str, *, subject: str,
 # four-point price ladder, the drivers, the assumptions, the authenticity
 # read — is withheld.
 #
+# Including from the summary, which is rewritten rather than kept as built. A
+# likely replica caps the score (`confidence.REPLICA_CEILING`) and, as the
+# weakest signal, is the first reason the summary names; kept as built, every
+# free scan of a suspected fake carried "the item may not be authentic" in its
+# raw body, behind nothing but the client's blur. The free summary words it as
+# "could not be verified", as it does every other doubtful authenticity read.
+# The Low badge stays — the price is still for an item the photo probably is
+# not — but the verdict is Pro detail. A replica flag for free users would be
+# a product decision and its own field.
+#
 # Note this saves no tokens. The model still generates all of it; only the
 # serialised response is trimmed. Charging free scans less would mean a second
 # prompt, which forks the thing the whole valuation rests on.
@@ -1937,6 +2227,12 @@ _PRO_ONLY_DETAIL_FIELDS = (
 
 def _strip_pro_detail(response: "ScanResponse") -> "ScanResponse":
     """Blank the Pro-only valuation fields on a free user's response."""
+    # Before `confidence_reasons` is blanked: the summary is rebuilt from it.
+    response.confidence_summary = confidence_module.summary_sentence(
+        confidence_module.ConfidenceResult(
+            score=response.confidence_score, band=response.confidence,
+            reasons=response.confidence_reasons),
+        withhold_authenticity=True)
     for field in _PRO_ONLY_DETAIL_FIELDS:
         current = getattr(response, field, None)
         setattr(response, field, [] if isinstance(current, list) else None)
@@ -1946,13 +2242,57 @@ def _strip_pro_detail(response: "ScanResponse") -> "ScanResponse":
 _RETRY_ATTEMPTS = int(os.environ.get("GEMINI_RETRY_ATTEMPTS", "2"))
 _RETRY_BASE_DELAY = float(os.environ.get("GEMINI_RETRY_BASE_DELAY", "0.5"))
 
+# How long after a request arrives the app is still waiting for the answer.
+# The iOS client gives up 35s after it starts a request, upload included
+# (`timeoutIntervalForResource` in CertificatePinning.swift); 33s from arrival
+# leaves the response time to travel back.
+#
+# The SDK's timeout (aiconfig.REQUEST_TIMEOUT_MS, 25s) is per attempt, and
+# there are two attempts, each with the full timeout and a backoff between
+# them — so a first attempt that timed out was followed by a second that ran
+# to about 50s, billed for a result the phone had stopped waiting for 15s
+# earlier. `_generate_with_retry` now bounds each attempt by what is left.
+CLIENT_DEADLINE_SECONDS = float(os.environ.get("CLIENT_DEADLINE_SECONDS", "33"))
+
+# A retry is not started with less than this left. A judgement, not a
+# measurement: a vision call that has to think and write ~1k tokens of JSON
+# rarely finishes faster, and the attempt is billed whether or not it does.
+_MIN_RETRY_SECONDS = 8.0
+
+
+class _DeadlinePassed(aiconfig.ModelUnavailable):
+    """The caller's deadline ended the model call, not the provider.
+
+    A `ModelUnavailable`, so every caller still answers the user as before.
+    Its own type because it says nothing about Gemini: filed as `exhausted`,
+    two slow uploads in a row — or one slow upload and an ordinary 15-20s
+    reply — marked the provider unhealthy, turned /health degraded and paged
+    the operator while Gemini was answering normally.
+    """
+
+
+def _client_deadline(request: Request) -> float:
+    """When the app stops waiting for this request, as a `time.monotonic()`
+    instant: CLIENT_DEADLINE_SECONDS after it arrived, which the metrics
+    middleware records before the upload is read."""
+    arrived = getattr(request.state, "arrived", None)
+    start = arrived if isinstance(arrived, float) else time.monotonic()
+    return start + CLIENT_DEADLINE_SECONDS
+
+
 # Substrings identifying failures that will not succeed on retry. Retrying these
 # wastes the user's time and doubles the bill for a guaranteed second failure.
+#
+# The fallback for an exception with no status code (a transport error, a test
+# double). A google-genai `APIError` carries `code`, and is classified on that:
+# its message embeds the whole error body, so a quota value of "4000" read as a
+# 400 here.
 _NON_RETRYABLE = (
     "invalid_argument", "invalid argument", "400",
     "permission_denied", "api key", "unauthenticated", "401", "403",
     "not_found", "404",
 )
+_NON_RETRYABLE_CODES = frozenset({400, 401, 403, 404})
 
 
 # A *hard* quota/billing stop, as distinct from an ordinary rate-limit 429.
@@ -1964,18 +2304,61 @@ _NON_RETRYABLE = (
 #
 # Matched on the billing wording specifically, NOT on "quota" or "429" — those
 # would also swallow the retryable rate-limit case, which is the common one.
+#
+# "exceeded your current quota" used to be here, filed as OpenAI's wording. It
+# is also the first sentence of Gemini's own *per-minute* 429 ("You exceeded
+# your current quota, please check your plan and billing details"), so an
+# ordinary burst was treated as a billing stop: no retry, the model marked
+# unhealthy on the first failure, and the operator paged to top up billing.
+# Gemini says which quota ran out in the error's structured details, so that is
+# what decides it now — see `_quota_ids`.
 _QUOTA_EXHAUSTED = (
     "prepayment credits",
     "credits are depleted",
-    "exceeded your current quota",
     "insufficient_quota",
     "billing account",
 )
 
 
+def _error_details(exc: Exception) -> list[dict]:
+    """The `details` array of a google-genai `APIError`, or [].
+
+    `APIError.details` is the whole response body, `{"error": {"code",
+    "message", "status", "details": [...]}}`; the list holds typed entries
+    (`google.rpc.QuotaFailure`, `google.rpc.RetryInfo`, …) keyed by "@type".
+    Anything else — a plain exception, a test double, a changed SDK — is [].
+    """
+    body = getattr(exc, "details", None)
+    if isinstance(body, dict) and isinstance(body.get("error"), dict):
+        body = body["error"]
+    details = body.get("details") if isinstance(body, dict) else None
+    if not isinstance(details, list):
+        return []
+    return [d for d in details if isinstance(d, dict)]
+
+
+def _detail_of_type(exc: Exception, suffix: str) -> list[dict]:
+    return [d for d in _error_details(exc) if str(d.get("@type", "")).endswith(suffix)]
+
+
+def _quota_ids(exc: Exception) -> list[str]:
+    """Which quotas a 429 says were exceeded, e.g.
+    `GenerateRequestsPerMinutePerProjectPerModel`."""
+    ids: list[str] = []
+    for failure in _detail_of_type(exc, "QuotaFailure"):
+        for violation in failure.get("violations") or []:
+            if isinstance(violation, dict) and isinstance(violation.get("quotaId"), str):
+                ids.append(violation["quotaId"])
+    return ids
+
+
 def _is_quota_exhausted(exc: Exception) -> bool:
     text = str(exc).lower()
-    return any(marker in text for marker in _QUOTA_EXHAUSTED)
+    if any(marker in text for marker in _QUOTA_EXHAUSTED):
+        return True
+    # A per-day quota does not clear until the day turns over, so it is a stop
+    # for today — the per-minute one beside it clears in seconds.
+    return any("perday" in quota_id.lower() for quota_id in _quota_ids(exc))
 
 
 def _is_retryable(exc: Exception) -> bool:
@@ -1983,6 +2366,9 @@ def _is_retryable(exc: Exception) -> bool:
     # those markers, so without this it falls through to "retryable".
     if _is_quota_exhausted(exc):
         return False
+    code = getattr(exc, "code", None)
+    if isinstance(code, int) and not isinstance(code, bool):
+        return code not in _NON_RETRYABLE_CODES
     text = str(exc).lower()
     return not any(marker in text for marker in _NON_RETRYABLE)
 
@@ -2059,8 +2445,18 @@ class _ModelHealth:
 _model_health = _ModelHealth()
 
 
+def _record_usage(label: str, usage: dict) -> None:
+    """Count one reply's tokens toward spend (`notify`) and the token metric."""
+    notify.model_usage(label, usage)
+    for kind, key in (("prompt", "prompt_tokens"), ("output", "output_tokens"),
+                      ("thoughts", "thoughts_tokens")):
+        if key in usage:
+            metrics.model_tokens.inc(usage[key], operation=label, kind=kind)
+
+
 async def _generate_with_retry(
-    contents, *, label: str, max_tokens: int | None = None, record_health: bool = True
+    contents, *, label: str, max_tokens: int | None = None, record_health: bool = True,
+    deadline: float | None = None,
 ) -> tuple[str, dict]:
     """Call the model with classified retries and jittered backoff.
 
@@ -2075,33 +2471,75 @@ async def _generate_with_retry(
     * **It treated a safety block as an outage.** `extract_text` separates the
       two so the caller can answer the user accurately.
 
+    `deadline`, a `time.monotonic()` instant, is when the caller stops
+    listening (see CLIENT_DEADLINE_SECONDS). Each attempt gets at most the time
+    left before it, and a retry is skipped when too little is left for it to
+    finish. None means no deadline beyond the SDK's per-attempt timeout. A call
+    the deadline stops raises `_DeadlinePassed` and is not held against the
+    provider; a real provider failure whose retry the deadline skipped still
+    is, because that attempt did fail at Gemini.
+
     Returns `(text, usage_dict)`.
     """
     last_exc: Exception | None = None
     config = aiconfig.generation_config(max_output_tokens=max_tokens) if max_tokens else None
 
     for attempt in range(_RETRY_ATTEMPTS):
+        remaining = None if deadline is None else deadline - time.monotonic()
         try:
+            if remaining is not None and remaining <= 0:
+                # Only reachable on a first attempt (a retry needs
+                # _MIN_RETRY_SECONDS): the upload alone outlasted the caller.
+                raise _DeadlinePassed("the caller's deadline passed before the model was called")
             # Annotated: the conditional infers dict[str, GenerationConfig],
             # and splatting that matches it against every other keyword
             # parameter of generate_content_async in turn.
             kwargs: dict[str, Any] = (
                 {"generation_config": config} if config else {})
             with metrics.Timer(metrics.model_duration, operation=label):
-                response = await _model.generate_content_async(contents, **kwargs)
-            text, usage = aiconfig.extract_text(response), aiconfig.usage_of(response)
+                call = _model.generate_content_async(contents, **kwargs)
+                if remaining is None:
+                    response = await call
+                else:
+                    # Our cut, told from the SDK's own timeout by `expired()`:
+                    # that one is Gemini being slow and is retried like any
+                    # transient failure; this one is the caller out of time.
+                    cut = asyncio.timeout(remaining)
+                    try:
+                        async with cut:
+                            response = await call
+                    except TimeoutError:
+                        if cut.expired():
+                            raise _DeadlinePassed(
+                                "the caller's deadline passed during the model call") from None
+                        raise
+            # Recorded before the text is read, because a reply is billed
+            # whether or not it carries any. This used to run only after
+            # `extract_text` succeeded, so a reply that was safety-blocked or
+            # came back empty — and an empty one is retried — could bill up to
+            # MAX_OUTPUT_TOKENS that /costs, $/scan and the budget alert never
+            # saw. Its outcome is labelled `blocked` or `empty` below.
+            usage = aiconfig.usage_of(response)
+            _record_usage(label, usage)
+            try:
+                text = aiconfig.extract_text(response)
+            except aiconfig.ModelUnavailable:
+                metrics.model_calls.inc(operation=label, outcome="empty")
+                raise
             metrics.model_calls.inc(operation=label, outcome="success")
             if record_health:
                 _model_health.record_success()
-            notify.model_usage(label, usage)
-            for kind, key in (("prompt", "prompt_tokens"), ("output", "output_tokens"),
-                              ("thoughts", "thoughts_tokens")):
-                if key in usage:
-                    metrics.model_tokens.inc(usage[key], operation=label, kind=kind)
             return text, usage
         except aiconfig.ModelBlocked:
             metrics.model_calls.inc(operation=label, outcome="blocked")
             raise                                   # deterministic; never retry
+        except _DeadlinePassed:
+            # Its own outcome and nothing else: no health failure and no
+            # dependency error, since Gemini did not fail. No retry either —
+            # there is no time left to give one.
+            metrics.model_calls.inc(operation=label, outcome="deadline")
+            log.warning("%s: stopped at the caller's deadline", label)
+            raise
         except Exception as exc:
             last_exc = exc
             if not _is_retryable(exc):
@@ -2124,8 +2562,13 @@ async def _generate_with_retry(
             log.warning("%s: attempt %d/%d failed: %s",
                         label, attempt + 1, _RETRY_ATTEMPTS, exc)
             if attempt < _RETRY_ATTEMPTS - 1:
-                delay = _RETRY_BASE_DELAY * (2 ** attempt)
-                await asyncio.sleep(delay * random.uniform(0.75, 1.25))
+                delay = _RETRY_BASE_DELAY * (2 ** attempt) * random.uniform(0.75, 1.25)
+                if (deadline is not None
+                        and deadline - time.monotonic() - delay < _MIN_RETRY_SECONDS):
+                    log.warning("%s: not retrying — too little time left before "
+                                "the caller gives up", label)
+                    break
+                await asyncio.sleep(delay)
 
     metrics.model_calls.inc(operation=label, outcome="exhausted")
     metrics.dependency_errors.inc(dependency="gemini", kind="exhausted")
@@ -2134,7 +2577,7 @@ async def _generate_with_retry(
     raise aiconfig.ModelUnavailable(str(last_exc))
 
 
-async def _retry_as_json(raw: str) -> dict | None:
+async def _retry_as_json(raw: str, *, deadline: float | None = None) -> dict | None:
     """Ask the model to restate an unparseable reply as bare JSON.
 
     Cheap (text-only, no image) and recovers the common failure where the model
@@ -2159,7 +2602,7 @@ async def _retry_as_json(raw: str) -> dict | None:
     # call. Recording it twice would make one bad scan look like two.
     try:
         text, _usage = await _generate_with_retry(
-            prompt, label="reformat", record_health=False)
+            prompt, label="reformat", record_health=False, deadline=deadline)
     except aiconfig.ModelUnavailable:
         # A real outage, correctly classified. The caller's own 502 already
         # says "try again", which is the right advice for this.
@@ -2197,7 +2640,8 @@ class TrendsResponse(BaseModel):
     notable_finds: list[NotableFind] = Field(default_factory=list)   # Pro only
 
 
-@app.get("/trends", response_model=TrendsResponse)
+@app.get("/trends", response_model=TrendsResponse,
+         dependencies=[Depends(_refuse_outdated_build)])
 async def trends(
     request: Request,
     principal: Principal = Depends(require_auth),
@@ -2211,9 +2655,11 @@ async def trends(
     devices for a category and three for a brand, and a notable find only
     once three different devices have scanned that item, so one user's
     afternoon — or one label read five times — cannot become a "trend"; an
-    average is withheld until three distinct finds support it. Days tallied
-    before devices were recorded count by scans alone while they are in the
-    window. See `notify.TRENDS_MIN_CATEGORY_DEVICES` and `notify._floored`.
+    average is withheld until three distinct finds support it. A find is
+    still one item, so it is sent as brand, category and range, never the
+    item name (see `notify.trends`). Days tallied before devices were
+    recorded count by scans alone while they are in the window. See
+    `notify.TRENDS_MIN_CATEGORY_DEVICES` and `notify._floored`.
 
     The free/Pro split is decided **here**, from the verified principal, never
     by the client asking nicely: free gets the top three categories and brands
@@ -2224,7 +2670,8 @@ async def trends(
     return TrendsResponse(**await notify.trends(is_pro=principal.is_pro))
 
 
-@app.post("/listing", response_model=ListingResponse)
+@app.post("/listing", response_model=ListingResponse,
+          dependencies=[Depends(_refuse_outdated_build)])
 async def listing(
     request: Request,
     req: ListingRequest,
@@ -2269,7 +2716,8 @@ async def listing(
     prompt = _listing_prompt(req)
     try:
         raw, _usage = await _generate_with_retry(
-            prompt, label="listing", max_tokens=aiconfig.LISTING_MAX_OUTPUT_TOKENS)
+            prompt, label="listing", max_tokens=aiconfig.LISTING_MAX_OUTPUT_TOKENS,
+            deadline=_client_deadline(request))
     except aiconfig.ModelBlocked:
         # Listing copy is derived from the user's own valuation, so a block here
         # is recoverable — the deterministic fallback still produces a usable

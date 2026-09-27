@@ -476,6 +476,47 @@ final class PrivacyPolicyDisclosureTests: XCTestCase {
         // unchanged to anyone checking whether they need to re-consent.
         XCTAssertNotEqual(PrivacyPolicy.updated, "September 2, 2026",
                           "the date must move when the policy does")
+        // Nor older than the retention rewrite. backend/tests/test_main.py
+        // holds the web copy's date to this one.
+        XCTAssertNotEqual(PrivacyPolicy.updated, "September 9, 2026")
+    }
+
+    func test_retentionSaysWhatAScanLeavesOnTheServer() {
+        // It said "Photos and scan results are processed in real time and are
+        // not retained on our servers" while every scan was tallied for 35 days
+        // and each day's best finds, item name included, were shown to Pro
+        // subscribers. The photo half was true; the rest was not.
+        XCTAssertFalse(policy.contains("scan results are processed in real time"),
+                       "the claim the tallies contradict is back")
+        XCTAssertTrue(policy.contains("35 days after the day of the scan"))
+        XCTAssertTrue(policy.contains("never the item name, the photo, or who scanned it"),
+                      "must match what /trends sends — see notify.trends")
+        // Not "only what running the service needs": the bot's /post and
+        // /calendar give the week's top finds to Gemini to draft social posts.
+        XCTAssertFalse(policy.contains("only what running the service needs"))
+        XCTAssertTrue(policy.contains("uses the week's highest-value scans, through Google's Gemini API, to draft ideas for SnapWorth's social-media posts"))
+    }
+
+    func test_purchasesAndReferralsAreDisclosed() {
+        // The signed transaction goes up with the device ID on every status
+        // refresh and is kept; a claimed invite links two devices. Neither was
+        // in either copy of the policy.
+        XCTAssertTrue(policy.contains("Apple's signed record of your subscription purchase"))
+        XCTAssertTrue(policy.contains("for up to 400 days after the app last sends it"))
+        XCTAssertTrue(policy.contains("If you use Invite a friend"))
+    }
+
+    func test_aSubscribersDeviceIdIsNotCalledUnlinked() {
+        // It is stored with the purchase record, which PrivacyInfo.xcprivacy
+        // declares linked. "Not linked to your identity", flat, contradicted
+        // the paragraph below it.
+        XCTAssertTrue(policy.contains("This ID is not linked to your identity, except that if you subscribe it is kept with Apple's record of your purchase"))
+    }
+
+    func test_theOperatorRecordRetentionCountsFromApplesLastWord() {
+        // Apple's renewal notices refresh the operator's subscription row,
+        // device pseudonym included, so it outlives the app's last visit.
+        XCTAssertTrue(policy.contains("for up to 400 days after the device last uses the service or, for a subscription, after the app or Apple last tells us about it"))
     }
 }
 
@@ -489,19 +530,22 @@ final class PrivacyPolicyDisclosureTests: XCTestCase {
 // `prompts.py` and deployed to production with zero client-decode
 // verification. A renamed field would have been caught by neither suite.
 //
-// `contract/scan-response.json` is now the single fixture both sides read.
+// Both sides now read the 200 bodies in `contract/`: `scan-response.json`
+// (Pro) and `scan-response-free.json` (free), each generated from real server
+// output by `backend/tests/test_contract.py`.
 
 final class ScanContractTests: XCTestCase {
 
     /// The repo-root fixture, located from this file rather than from a
     /// bundle: the test target has no resources phase, and adding one to
     /// carry a single JSON file would be more machinery than the file.
-    static func contractData() throws -> Data {
+    static func contractData(_ name: String = "scan-response.json") throws -> Data {
         let url = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()   // SnapWorthTests
             .deletingLastPathComponent()   // ios
             .deletingLastPathComponent()   // repo root
-            .appendingPathComponent("contract/scan-response.json")
+            .appendingPathComponent("contract")
+            .appendingPathComponent(name)
         return try Data(contentsOf: url)
     }
 
@@ -528,12 +572,16 @@ final class ScanContractTests: XCTestCase {
     }
 
     func test_freeScansRemainingDecodesAsOptional() throws {
-        // Nil when the server omits it (Pro, or the quota store is down) —
-        // see I-3. The fixture carries a value, so this checks the present
-        // case; the absent case is covered below by `base`.
-        let decoded = try JSONDecoder().decode(
+        // Nil when the server sends null (Pro, or the quota store is down) —
+        // see I-3. Both fixtures are real server output now: the free body
+        // carries what is left after the day's scan, the Pro body null. The
+        // absent case is covered below by `base`.
+        let free = try JSONDecoder().decode(
+            ScanAPIResponse.self, from: Self.contractData("scan-response-free.json"))
+        XCTAssertEqual(free.freeScansRemaining, 0)
+        let pro = try JSONDecoder().decode(
             ScanAPIResponse.self, from: Self.contractData())
-        XCTAssertEqual(decoded.freeScansRemaining, 2)
+        XCTAssertNil(pro.freeScansRemaining)
     }
 }
 
@@ -1706,12 +1754,30 @@ final class PrivacyManifestTests: XCTestCase {
                        "it is attached to analytics signals, and nothing else")
     }
 
-    func test_nothingIsLinkedToIdentityOrUsedForTracking() throws {
+    func test_purchaseHistoryIsDeclared() throws {
+        // The app uploads the signed StoreKit transaction with the device ID on
+        // every status refresh, and the server keeps it for up to 400 days.
+        // The manifest had no Purchase History entry at all.
+        let collected = try manifest()["NSPrivacyCollectedDataTypes"] as? [[String: Any]] ?? []
+        let entry = collected.first { $0["NSPrivacyCollectedDataType"] as? String
+                                      == "NSPrivacyCollectedDataTypePurchaseHistory" }
+        XCTAssertNotNil(entry, "the signed transaction is collected and undeclared")
+        XCTAssertEqual(entry?["NSPrivacyCollectedDataTypePurposes"] as? [String],
+                       ["NSPrivacyCollectedDataTypePurposeAppFunctionality"])
+    }
+
+    func test_onlyPurchaseHistoryIsLinked_andNothingIsUsedForTracking() throws {
+        // Purchase History is linked: its originalTransactionId is the same on
+        // every device under one Apple ID, and the server stores it against the
+        // device ID to join them. Everything else stays unlinked; widening this
+        // set changes the App Store label and needs the same argument made.
         let collected = try manifest()["NSPrivacyCollectedDataTypes"] as? [[String: Any]] ?? []
         for entry in collected {
             let name = entry["NSPrivacyCollectedDataType"] as? String ?? "?"
-            XCTAssertEqual(entry["NSPrivacyCollectedDataTypeLinked"] as? Bool, false,
-                           "\(name) must not be linked to identity")
+            let linked = name == "NSPrivacyCollectedDataTypePurchaseHistory"
+            XCTAssertEqual(entry["NSPrivacyCollectedDataTypeLinked"] as? Bool, linked,
+                           linked ? "\(name) is joined to the Apple account; declare it linked"
+                                  : "\(name) must not be linked to identity")
             XCTAssertEqual(entry["NSPrivacyCollectedDataTypeTracking"] as? Bool, false,
                            "\(name) must not be used for tracking")
         }
@@ -1883,6 +1949,12 @@ final class PaywallBenefitsTests: XCTestCase {
                        "Thrift Flip is not gated — ThriftFlipView has no isPro check")
         XCTAssertTrue(texts.contains { $0.localizedCaseInsensitiveContains("tag") })
         XCTAssertTrue(texts.contains { $0.localizedCaseInsensitiveContains("export") })
+        // The portfolio total is on every user's History tab; only its history
+        // is gated. A row selling "portfolio value" sells something free.
+        let portfolio = texts.filter { $0.localizedCaseInsensitiveContains("portfolio") }
+        XCTAssertEqual(portfolio.count, 1)
+        XCTAssertTrue(portfolio.allSatisfy { $0.localizedCaseInsensitiveContains("value history") },
+                      "the portfolio total is free — PortfolioBanner shows it without an isPro check")
     }
 
     func test_rowsAreDistinctAndNonEmpty() {
@@ -4700,12 +4772,13 @@ final class SettingsEntitlementObservationTests: XCTestCase {
 
 // ── The same find, twice, with the same ID ───────────────────────────────────
 //
-// `NotableFind.id` is `name-low-high`, and the server builds `notable_finds` by
-// appending each of the seven day-documents' find lists with no dedup, emitting
-// the truncated name and *rounded* bounds. An item that topped the chart on two
-// days therefore arrives twice, byte-identical — and an ID-keyed `ForEach` over
-// that is undefined: SwiftUI logs "the ID … occurs multiple times within the
-// collection" and renders the row unreliably.
+// `NotableFind.id` is `name-low-high`, where `name` is the brand and the bounds
+// are *rounded*. An item that topped the chart on two days, or two scans of one
+// brand at the same rounded range, share an id. The server skips such repeats
+// now, but it did not always, and an ID-keyed `ForEach` over one is undefined:
+// SwiftUI logs "the ID … occurs multiple times within the collection" and
+// renders the row unreliably. The fixtures below use item-like names; the
+// client dedups whatever `name` holds.
 
 final class NotableFindDedupTests: XCTestCase {
 

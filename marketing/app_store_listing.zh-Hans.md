@@ -19,6 +19,11 @@ the listing in Chinese. That is what this page is allowed to promise.
 
 ## Read this before pasting
 
+**Not live yet (checked 2026-09-26).** The live 1.5.0 carries no Chinese
+metadata: the `cn` storefront shows the English page. Add this locale to
+1.5.1 and paste everything below — see *Paste with 1.5.1* in
+`app_store_listing.md`, which also lists the claims this page does not make.
+
 **Adding a language is version-scoped.** It ships with the version that carries
 the Chinese app and the Xianyu support. All three go together.
 
@@ -97,10 +102,12 @@ you do in three characters.
 你会得到什么
 
 • 立刻出转卖价——一个从低到高的估算区间
-• 置信度——AI 识别得有多清楚，一目了然
+• 置信度——照片和识别结果对这个估价的支撑有多强
 • AI 写好的商品描述——每次扫描都附带标题和正文
+• Thrift Flip——扫一下物品，填上店里的标价，买之前就能看到扣掉平台手续费后能赚多少
 • 扫描历史——每件好物自动保存，连同它的价值
 • 总值——扫过的全部东西加起来值多少，一眼看清
+• 小组件——锁定屏幕上的收获总值；主屏幕上的最近好物、剩余扫描次数，以及一键扫描
 • iMessage 贴纸——吉祥物 Tag 的 20 款贴纸（其中 4 款为动图），晒出你的好物
 
 --------------------------

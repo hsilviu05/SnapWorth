@@ -9,6 +9,7 @@ triggered it. The happy path is one HTTP POST; everything else is the point.
 from __future__ import annotations
 
 import asyncio
+import html
 import json
 import os
 import sys
@@ -24,7 +25,7 @@ import notify  # noqa: E402
 import observability  # noqa: E402
 from cache import InMemoryCache, ResilientCache  # noqa: E402
 from datetime import datetime, timedelta, timezone  # noqa: E402
-from entitlements import FREE, Entitlement  # noqa: E402
+from entitlements import FREE, Entitlement, Reinstatement  # noqa: E402
 
 # Shaped like a real BotFather token; used to prove it never reaches the logs.
 FAKE_TOKEN = "123456789:AAtest-token-abcdefghijklmnopqrstuvwx"
@@ -260,6 +261,76 @@ class TestModelHealthAlerts:
         notify.model_unhealthy("exhausted")
         await drain()
         assert len(enabled_notify.texts) == 3
+
+
+class TestCacheAlerts:
+    """A Redis outage fails every free scan closed and used to announce
+    nothing. The cache reports transitions; notify announces the ones that
+    hold for CACHE_ALERT_SETTLE_SECONDS."""
+
+    @pytest.fixture(autouse=True)
+    def _fast_settle(self, monkeypatch):
+        monkeypatch.setattr(notify, "CACHE_ALERT_SETTLE_SECONDS", 0.01)
+
+    @pytest.mark.asyncio
+    async def test_an_outage_that_holds_is_announced_and_so_is_the_recovery(
+            self, enabled_notify):
+        notify.cache_state_changed(True)
+        await drain()
+        assert len(enabled_notify.texts) == 1
+        assert "Redis unreachable" in enabled_notify.texts[0]
+        assert "503" in enabled_notify.texts[0]
+
+        notify.cache_state_changed(False)
+        await drain()
+        assert len(enabled_notify.texts) == 2
+        assert "Redis recovered" in enabled_notify.texts[1]
+
+    @pytest.mark.asyncio
+    async def test_a_blip_that_recovers_inside_the_window_says_nothing(self, enabled_notify):
+        notify.cache_state_changed(True)
+        notify.cache_state_changed(False)
+        await drain()
+        assert enabled_notify.texts == []
+
+    @pytest.mark.asyncio
+    async def test_flapping_is_not_a_siren(self, enabled_notify):
+        """A Redis that answers reads and refuses writes flips per request."""
+        for _ in range(20):
+            notify.cache_state_changed(True)
+            notify.cache_state_changed(False)
+        notify.cache_state_changed(True)
+        await drain()
+        assert len(enabled_notify.texts) == 1
+
+    @pytest.mark.asyncio
+    async def test_flapping_keeps_one_settle_waiting_not_one_per_flip(self, enabled_notify):
+        """Superseded settles used to sleep out the whole window, so a
+        per-request flip held transitions/s × 60 tasks alive."""
+        for _ in range(20):
+            notify.cache_state_changed(True)
+            notify.cache_state_changed(False)
+        settles = [t for t in notify._tasks
+                   if getattr(t.get_coro(), "__name__", "") == "_settle_cache_state"]
+        await asyncio.sleep(0)
+        assert len(settles) == 40
+        assert sum(not t.done() for t in settles) == 1
+        await drain()
+        assert enabled_notify.texts == []          # it ended up, as it began
+
+    @pytest.mark.asyncio
+    async def test_wired_to_a_real_cache_end_to_end(self, enabled_notify):
+        class Down:
+            async def get(self, *a, **k): raise ConnectionError("down")
+
+        cache = ResilientCache(Down(), InMemoryCache())    # type: ignore[arg-type]
+        cache.on_change = notify.cache_state_changed
+        await cache.get("anything")
+        await drain()
+        assert any("Redis unreachable" in t for t in enabled_notify.texts)
+
+    def test_silent_when_the_bot_is_not_configured(self):
+        notify.cache_state_changed(True)           # no notifier, no loop: no-op
 
 
 # ── Deploy ping ──────────────────────────────────────────────────────────────
@@ -663,7 +734,7 @@ class TestPolling:
             (menu,) = bot.command_menus
             assert [c["command"] for c in menu] == [
                 "status", "subs", "sub", "users", "costs", "experiment", "lever",
-                "social", "finds",
+                "minbuild", "social", "finds",
                 "post", "calendar",
                 "caption", "hooks", "reply", "price", "trend", "user", "checkup", "clear",
                 "history", "feed", "digest", "week", "help"]
@@ -1129,6 +1200,20 @@ class TestUsersTable:
             await notify._index_user(f"dev{i:05d}", tier="free")
         doc = json.loads(await cache.get(notify.USERS_INDEX_KEY))
         assert len(doc) == notify.USERS_INDEX_CAP
+
+    @pytest.mark.asyncio
+    async def test_a_row_goes_after_the_retention_the_policy_states(self, enabled_notify, cache):
+        # The document's TTL is renewed by every write, so it never expires on
+        # a service in daily use; without pruning, a device seen once stayed
+        # until the cap pushed it out, while /privacy says 400 days.
+        long_ago = int(time.time()) - notify.INDEX_TTL - 60
+        recent = int(time.time()) - notify.INDEX_TTL + 3600
+        await cache.set(notify.USERS_INDEX_KEY, json.dumps({
+            "gone": {"first": long_ago, "last": long_ago, "scans": 1, "tier": "free"},
+            "kept": {"first": long_ago, "last": recent, "scans": 9, "tier": "free"},
+        }), 600)
+        await notify._index_user("new", tier="free")
+        assert set(json.loads(await cache.get(notify.USERS_INDEX_KEY))) == {"kept", "new"}
 
     @pytest.mark.asyncio
     async def test_empty_table_says_so(self, enabled_notify):
@@ -1867,6 +1952,91 @@ class TestCheckupAppStore:
         assert "5d ago (Production, REFUND)" in await notify._last_appstore_notification_line()
 
 
+class TestRedisCheckupLine:
+    """What a full Redis does, and whether a restart keeps it, were reported
+    nowhere: the only probe was a PING."""
+
+    NOW = 1_790_000_000.0
+    SAFE = {"used_memory": 50 * 1024 * 1024, "maxmemory": 384 * 1024 * 1024,
+            "maxmemory_policy": "noeviction", "evicted_keys": 0, "aof_enabled": 1,
+            "rdb_last_save_time": int(NOW) - 3600, "rdb_last_bgsave_status": "ok"}
+
+    def test_a_safe_configuration_reads_clean(self):
+        line = notify._redis_line(self.SAFE, self.NOW)
+        assert line.startswith("Redis: 50.0 MB of 384 MB (13%) · policy noeviction · evicted 0")
+        assert "AOF on" in line and "last snapshot 1h ago" in line
+        assert "⚠️" not in line
+
+    @pytest.mark.parametrize("override, warning", [
+        ({"maxmemory_policy": "allkeys-lru"}, "evicts state nothing can rebuild"),
+        ({"maxmemory_policy": "volatile-ttl"}, "evicts state nothing can rebuild"),
+        ({"maxmemory": 0}, "no maxmemory"),
+        ({"used_memory": 330 * 1024 * 1024}, "above 80% of maxmemory"),
+        ({"evicted_keys": 12}, "12 keys evicted"),
+        ({"rdb_last_bgsave_status": "err"}, "last snapshot failed"),
+        ({"aof_enabled": 0, "rdb_last_save_time": int(NOW) - 3 * 86400},
+         "a restart loses everything"),
+    ])
+    def test_each_unsafe_setting_is_flagged(self, override, warning):
+        line = notify._redis_line(self.SAFE | override, self.NOW)
+        assert "⚠️" in line and warning in line
+
+    def test_snapshots_without_aof_are_enough(self):
+        line = notify._redis_line(self.SAFE | {"aof_enabled": 0}, self.NOW)
+        assert "⚠️" not in line
+
+    # Redis sets rdb_last_save_time to its start time at boot, with `save ""`
+    # and AOF off too. Read as a snapshot, a Redis with no persistence at all
+    # showed "last snapshot 0h ago" and no warning for a day after a restart.
+    BOOTED = {"aof_enabled": 0, "uptime_in_seconds": 600,
+              "rdb_last_save_time": int(NOW) - 600}
+
+    def test_the_boot_stamp_is_not_a_snapshot(self):
+        line = notify._redis_line(self.SAFE | self.BOOTED | {"rdb_saves": 0}, self.NOW)
+        assert "last snapshot" not in line and "no snapshot since start 0h ago" in line
+        assert "⚠️ no AOF and no snapshot since Redis started" in line
+
+    def test_the_boot_stamp_is_recognised_before_redis_7(self):
+        """No `rdb_saves` before Redis 7: a last save at the boot time is the stamp."""
+        line = notify._redis_line(self.SAFE | self.BOOTED, self.NOW)
+        assert "⚠️ no AOF and no snapshot since Redis started" in line
+
+    def test_a_snapshot_since_boot_is_one(self):
+        after_boot = {"rdb_last_save_time": int(self.NOW) - 60}
+        for extra in ({"rdb_saves": 1}, {}):
+            line = notify._redis_line(self.SAFE | self.BOOTED | after_boot | extra, self.NOW)
+            assert "last snapshot 0h ago" in line and "⚠️" not in line
+
+    def test_aof_covers_a_redis_that_has_not_snapshotted(self):
+        line = notify._redis_line(self.SAFE | self.BOOTED | {"aof_enabled": 1, "rdb_saves": 0},
+                                  self.NOW)
+        assert "no snapshot since start" in line and "⚠️" not in line
+
+    @pytest.mark.asyncio
+    async def test_checkup_carries_it_when_redis_answers_info(self, recorder, monkeypatch):
+        monkeypatch.setattr(notify, "_tls_days_left", lambda host, timeout=5.0: 61)
+        safe = self.SAFE
+
+        class Primary(InMemoryCache):
+            async def info(self) -> dict:
+                return dict(safe) | {"rdb_last_save_time": int(time.time())}
+
+        cache = ResilientCache(Primary(), InMemoryCache())
+        notifier = notify.TelegramNotifier(
+            FAKE_TOKEN, FAKE_CHAT,
+            client=httpx.AsyncClient(transport=httpx.MockTransport(recorder.handler)))
+        notify.configure(cache, notifier=notifier)
+        try:
+            text = await notify.handle_command("/checkup")
+            assert text is not None and "Redis: 50.0 MB of 384 MB" in text
+        finally:
+            await notify.aclose()
+
+    @pytest.mark.asyncio
+    async def test_no_redis_no_line(self, cache):
+        assert await cache.redis_info() is None
+
+
 class TestQuietAndSpike:
     @pytest.mark.asyncio
     async def test_quiet_note_once_per_day_in_us_hours_only(self, enabled_notify, cache):
@@ -2391,9 +2561,9 @@ class TestSafetyBlocks:
 
 
 class TestDeviceCheckLine:
-    """`is_configured` only proves three variables are non-empty. Because every
-    DeviceCheck failure degrades open, a typo'd key looks exactly like a healthy
-    one while every reinstall gets a fresh allowance."""
+    """`is_configured` only proves three variables are non-empty. A typo'd key
+    cannot recognise a reinstall, so it looks exactly like a healthy one while
+    every reinstall gets a fresh allowance."""
 
     async def line(self, cache, monkeypatch, configured, probe):
         monkeypatch.setattr(notify, "_tls_days_left", lambda host, timeout=5.0: 60)
@@ -2462,6 +2632,13 @@ class TestScanFailureBreakdown:
 
         digest = await notify._digest_text(datetime.now(timezone.utc))
         assert "3 failed (2 no price · 1 provider)" in digest
+
+    @pytest.mark.asyncio
+    async def test_a_missed_deadline_is_named_apart_from_the_provider(self, cache, enabled_notify):
+        notify.count_scan_failure("deadline")
+        await drain()
+        status = await notify.handle_command("/status")
+        assert status is not None and "1 failed (1 timed out)" in status
 
     @pytest.mark.asyncio
     async def test_an_unknown_kind_lands_in_other_rather_than_vanishing(self, cache, enabled_notify):
@@ -3039,6 +3216,88 @@ class TestFreeScanLever:
         assert any(d.startswith("lever") for d in self._datas(buttons))
 
 
+class TestMinimumBuild:
+    """`/minbuild`: the switch that tells an outdated build to update.
+
+    `main._refuse_outdated_build` reads `minimum_build` on /scan, /listing and
+    /trends, so these are the properties that make it safe from a phone: two
+    taps, a confirmation that quotes what users will be told, and a store that
+    fails open.
+    """
+
+    async def _run(self, cmd: str) -> tuple[str, list]:
+        reply = await notify.handle_command_with_buttons(cmd)
+        assert reply is not None
+        return reply[0], reply[1]
+
+    def _datas(self, buttons) -> list[str]:
+        return [d for row in (buttons or []) for _, d in row]
+
+    @pytest.mark.asyncio
+    async def test_off_until_set(self, enabled_notify):
+        text, _ = await self._run("/minbuild")
+        assert "every build is served" in text
+        assert await notify.minimum_build() is None
+
+    @pytest.mark.asyncio
+    async def test_it_does_not_claim_trends_users_are_told(self, enabled_notify):
+        """The only /trends caller is `try? await TrendsAPIClient…fetch`, so a
+        refused build is told nothing there; the Trending card disappears."""
+        unset, _ = await self._run("/minbuild")
+        await self._run("/minbuild 18 yes")
+        current, _ = await self._run("/minbuild")
+        for text in (unset, current):
+            assert "Trending card" in text
+            assert "/listing and /trends, telling" not in text
+            assert "update on /scan, /listing and /trends" not in text
+
+    @pytest.mark.asyncio
+    async def test_setting_it_takes_two_taps_and_quotes_the_message(self, enabled_notify):
+        text, buttons = await self._run("/minbuild 18")
+        assert await notify.minimum_build() is None, "the first tap must not act"
+        # The operator sees what refused users will read before it goes live,
+        # what the oldest builds see instead, and that /trends shows nothing:
+        # the app fetches it with `try?`, so nobody there is "told" anything.
+        assert html.escape(notify.UPDATE_REQUIRED_DETAIL) in text
+        assert "Something went wrong" in text
+        assert "outage" not in text
+        assert "disappears" in text
+        confirm = next(d for d in self._datas(buttons) if d.endswith("yes"))
+        text, _ = await self._run("/" + confirm)
+        assert "18" in text
+        assert await notify.minimum_build() == 18
+
+    @pytest.mark.asyncio
+    async def test_clearing_it_takes_two_taps(self, enabled_notify):
+        await self._run("/minbuild 18 yes")
+        _, buttons = await self._run("/minbuild off")
+        assert await notify.minimum_build() == 18, "the first tap must not act"
+        confirm = next(d for d in self._datas(buttons) if d.endswith("yes"))
+        await self._run("/" + confirm)
+        assert await notify.minimum_build() is None
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("value", ["0", "100001"])
+    async def test_a_value_that_is_not_a_build_is_refused(self, enabled_notify, value):
+        text, _ = await self._run(f"/minbuild {value} yes")
+        assert "not a build number" in text
+        assert await notify.minimum_build() is None
+
+    @pytest.mark.asyncio
+    async def test_an_unreadable_value_serves_every_build(self, enabled_notify, cache):
+        await cache.set(notify.MIN_BUILD_KEY, "eighteen")
+        assert await notify.minimum_build() is None
+
+    @pytest.mark.asyncio
+    async def test_its_buttons_are_commands(self, enabled_notify):
+        # "ask …" is the shared keyboard's, routed by `/ask` before commands.
+        known = {c for c, _ in notify.COMMANDS} | {"ask"}
+        for cmd in ("/minbuild", "/minbuild 18", "/minbuild 18 yes", "/minbuild off"):
+            _, buttons = await self._run(cmd)
+            for data in self._datas(buttons):
+                assert data.split()[0] in known, (cmd, data)
+
+
 # ── App Store Server Notifications ───────────────────────────────────────────
 #
 # The live failure this fixes, from 2026-09-11: subscriber `3c4176` started a
@@ -3061,7 +3320,8 @@ class FakeNotification:
     def __init__(self, ent, *, notification_type="DID_RENEW", subtype=None,
                  uuid="uuid-1", indexed=True, paid_period=False, refund=False,
                  revoke=False, expiry=False, cancellation=False,
-                 billing_failure=False, auto_renew=None) -> None:
+                 billing_failure=False, auto_renew=None,
+                 refund_reversal=False) -> None:
         self.entitlement = ent
         self.notification_type = notification_type
         self.subtype = subtype
@@ -3070,6 +3330,7 @@ class FakeNotification:
         self.is_paid_period = paid_period
         self.is_refund = refund
         self.is_revoke = revoke
+        self.is_refund_reversal = refund_reversal
         self.is_expiry = expiry
         self.is_cancellation = cancellation
         self.is_billing_failure = billing_failure
@@ -4082,3 +4343,335 @@ class TestSubCommandErrors:
 
         assert "Could not ask Apple" in text
         assert "Could not reach Apple" in text
+
+
+# ── A failed read must not become an empty document ──────────────────────────
+#
+# These documents are read, changed and written back whole. On a configured
+# Redis a plain `get` that fails falls back to memory and returns None rather
+# than raising, so the writer took the document as empty and — once Redis
+# answered the `set` — replaced it with the one entry it had just added.
+
+class _SlowGetRedis(InMemoryCache):
+    """A Redis whose GETs time out while `failing`; writes still land."""
+
+    failing = False
+
+    async def get(self, key):
+        if self.failing:
+            raise TimeoutError("redis GET timed out")
+        return await super().get(key)
+
+
+@pytest_asyncio.fixture
+async def flaky_notify(recorder):
+    redis = _SlowGetRedis()
+    cache = ResilientCache(redis, InMemoryCache(), configured=True)
+    notifier = notify.TelegramNotifier(
+        FAKE_TOKEN, FAKE_CHAT,
+        client=httpx.AsyncClient(transport=httpx.MockTransport(recorder.handler)))
+    notify.configure(cache, notifier=notifier)
+    yield redis
+    await notify.aclose()
+
+
+class TestAFailedReadDoesNotWipeTheDocument:
+    @pytest.mark.asyncio
+    async def test_the_subscription_index_keeps_its_rows(self, flaky_notify):
+        redis = flaky_notify
+        for n in range(3):
+            await notify._index_subscription(None, pro_entitlement(f"otid-{n}"), True)
+
+        redis.failing = True
+        await notify._index_subscription(None, pro_entitlement("otid-new"))
+        redis.failing = False
+
+        doc = json.loads(await redis.get(notify.SUBS_INDEX_KEY))
+        assert set(doc) == {"otid-0", "otid-1", "otid-2"}, (
+            "one failed GET replaced the index with a single row")
+        assert all(row.get("auto_renew") is True for row in doc.values())
+
+    @pytest.mark.asyncio
+    async def test_the_device_index_keeps_its_rows(self, flaky_notify):
+        redis = flaky_notify
+        for who in ("dev-a", "dev-b"):
+            await notify._index_user(who, tier="free", scanned=True)
+
+        redis.failing = True
+        await notify._index_user("dev-c", tier="free")
+        redis.failing = False
+
+        doc = json.loads(await redis.get(notify.USERS_INDEX_KEY))
+        assert set(doc) == {"dev-a", "dev-b"}
+
+    @pytest.mark.asyncio
+    async def test_the_days_tally_is_not_reset(self, flaky_notify):
+        redis = flaky_notify
+        day = notify._day()
+        for _ in range(4):
+            await notify._tally_top(day, "clothing", "Nike")
+
+        redis.failing = True
+        await notify._tally_top(day, "shoes", "Adidas")
+        redis.failing = False
+
+        doc = json.loads(await redis.get(notify._stat_key(day, "top")))
+        assert doc["cats"] == {"clothing": 4}
+        assert doc["brands"] == {"Nike": 4}
+
+    @pytest.mark.asyncio
+    async def test_the_message_list_and_archive_survive(self, flaky_notify):
+        redis = flaky_notify
+        await notify._remember_message(1, "first")
+        await notify._remember_message(2, "second")
+        await notify._archive([[1, 1, "kept one"], [2, 2, "kept two"]])
+
+        redis.failing = True
+        await notify._remember_message(3, "third")
+        assert await notify._archive([[3, 3, "kept three"]]) is None
+        redis.failing = False
+
+        messages = json.loads(await redis.get(notify.MESSAGES_KEY))
+        assert [e[0] for e in messages] == [1, 2]
+        archive = json.loads(await redis.get(notify.ARCHIVE_KEY))
+        assert [a[1] for a in archive] == ["kept one", "kept two"]
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("unreadable", ["list", "archive"])
+    async def test_clear_deletes_nothing_it_could_not_archive(
+            self, flaky_notify, recorder, unreadable):
+        """"Nothing is lost" is /clear's promise. With the list unreadable it
+        deleted the list; with the archive unreadable it deleted the messages
+        whose texts the archive had just failed to keep."""
+        redis = flaky_notify
+        entries = [[11, int(time.time()), "said one"], [12, int(time.time()), "said two"]]
+        await redis.set(notify.MESSAGES_KEY, json.dumps(entries))
+        await redis.set(notify.ARCHIVE_KEY, json.dumps([[1, "older"]]))
+
+        key = notify.MESSAGES_KEY if unreadable == "list" else notify.ARCHIVE_KEY
+        real_get = redis.get
+
+        async def get(k):
+            if k == key:
+                raise TimeoutError("redis GET timed out")
+            return await real_get(k)
+        redis.get = get
+        await notify._clear_chat()
+        redis.get = real_get
+
+        assert not any(r["path"].endswith("/deleteMessages") for r in recorder.requests)
+        assert "Nothing was cleared" in recorder.texts[-1]
+        assert json.loads(await redis.get(notify.MESSAGES_KEY)) == entries
+        assert json.loads(await redis.get(notify.ARCHIVE_KEY)) == [[1, "older"]]
+
+    @pytest.mark.asyncio
+    async def test_the_lever_keeps_its_change_history(self, flaky_notify, monkeypatch):
+        redis = flaky_notify
+        monkeypatch.setenv("FREE_SCANS_PER_DAY", "1")
+        await notify.handle_command("/lever arm 3 yes")
+        before = json.loads(await redis.get(notify.LEVERS_KEY))
+
+        redis.failing = True
+        reply = await notify.handle_command("/lever disarm yes")
+        redis.failing = False
+
+        assert "Nothing changed" in reply
+        assert json.loads(await redis.get(notify.LEVERS_KEY)) == before
+
+    @pytest.mark.asyncio
+    async def test_sub_does_not_claim_an_index_write_it_skipped(
+            self, flaky_notify, monkeypatch):
+        redis = flaky_notify
+        _patch_lookup(monkeypatch, [_FakeStatus(sub("2000000000000001"))])
+
+        redis.failing = True
+        text = await notify.handle_command("/sub 2000000000000001")
+        redis.failing = False
+
+        assert "Live from Apple" in text, "the answer itself is still shown"
+        assert "Index updated" not in text
+
+    @pytest.mark.asyncio
+    async def test_a_renewal_it_could_not_look_up_is_not_a_new_payer(
+            self, flaky_notify, recorder):
+        """With no previous row to compare against, a paid period is neither
+        a conversion nor a new subscriber — and must not be counted as one."""
+        redis = flaky_notify
+        await notify._index_subscription(None, _paid("otid-renewing"), True)
+
+        redis.failing = True
+        await notify.subscription_event(FakeNotification(
+            _paid("otid-renewing"), paid_period=True))
+        redis.failing = False
+
+        assert not any("New paying subscriber" in t for t in recorder.texts)
+        assert await redis.get(notify._stat_key(notify._day(), "new_subs")) is None
+
+    @pytest.mark.asyncio
+    async def test_a_conversion_it_could_not_look_up_still_alerts(
+            self, flaky_notify, recorder):
+        """Money is never silent. A trial converting during the blip used to
+        send nothing at all, and nothing later recovered it: the device's
+        next sync rewrites the row as paid quietly, and the subscription was
+        already seen as a trial. So a neutral alert goes out, and it is not
+        counted, since it may equally be a renewal."""
+        redis = flaky_notify
+        await notify._index_subscription("device-a", _trial("otid-converting"))
+        sent = len(recorder.texts)
+
+        redis.failing = True
+        await notify.subscription_event(FakeNotification(
+            _paid("otid-converting"), paid_period=True))
+        redis.failing = False
+
+        alerts = recorder.texts[sent:]
+        assert len(alerts) == 1, alerts
+        assert "Paid period" in alerts[0] and "index unreadable" in alerts[0]
+        assert "New paying subscriber" not in alerts[0]
+        assert await redis.get(notify._stat_key(notify._day(), "new_subs")) is None
+
+
+# ── A refund Apple reverses ──────────────────────────────────────────────────
+#
+# REFUND_REVERSED used to be ignored. The access path's tombstone went on
+# denying the term, the index kept the row marked `refund` — its rule only
+# clears the mark for a *later* term — and `/sub` could see neither.
+
+def _refund_block_store(cache):
+    from entitlements import EntitlementService
+    return EntitlementService(cache, "eu.snapworth.app")
+
+
+def _flat(buttons) -> list[tuple[str, str]]:
+    return [button for row in buttons for button in row]
+
+
+class TestAReversedRefund:
+    @pytest.mark.asyncio
+    async def test_the_alert_says_so_and_the_row_is_no_longer_a_refund(
+            self, enabled_notify):
+        now = int(time.time())
+        common = dict(original_purchase_at=now - 86_400, price=39.99, currency="USD")
+        term = Entitlement("pro", "com.snapworth.yearly", now + 30 * 86_400,
+                           "otid-reversed", "Production", **common)
+        await notify.entitlement_recorded("a" * 64, term)
+        await notify.subscription_event(FakeNotification(
+            Entitlement("pro", "com.snapworth.yearly", now + 30 * 86_400,
+                        "otid-reversed", "Production", revoked_at=now, **common),
+            notification_type="REFUND", refund=True))
+        rows = subs_rows(await notify.handle_command("/subs"))
+        assert rows and "refund" in rows[0], rows
+
+        await notify.subscription_event(FakeNotification(
+            term, notification_type="REFUND_REVERSED", refund_reversal=True),
+            reinstated=Reinstatement.LIFTED)
+
+        alert = enabled_notify.texts[-1]
+        assert "Refund reversed" in alert
+        assert "Refund block lifted" in alert
+        rows = subs_rows(await notify.handle_command("/subs"))
+        assert rows and "refund" not in rows[0], (
+            "the same term, reinstated by Apple, still reads as refunded", rows)
+
+    @pytest.mark.asyncio
+    async def test_a_block_kept_for_another_term_is_not_reported_as_none(
+            self, enabled_notify):
+        """`reinstate` keeps a block whose expiry differs from the reversal's.
+        When that block ends later it still denies the reinstated term, and
+        the alert used to say "no refund block on this term" — the one answer
+        that gave the operator no reason to run /sub."""
+        now = int(time.time())
+        term = Entitlement("pro", "com.snapworth.yearly", now + 29 * 86_400,
+                           "otid-kept", "Production")
+        await notify.subscription_event(FakeNotification(
+            term, notification_type="REFUND_REVERSED", refund_reversal=True),
+            reinstated=Reinstatement.STILL_BLOCKED)
+
+        alert = enabled_notify.texts[-1]
+        assert "no refund block" not in alert
+        assert "still denies this one" in alert
+        assert "/sub otid-kept" in alert
+
+    @pytest.mark.asyncio
+    async def test_a_live_lookup_clears_a_refund_apple_no_longer_shows(
+            self, enabled_notify, monkeypatch):
+        now = int(time.time())
+        term = sub("otid-live", expires_in_days=30)
+        await notify._index_subscription(None, Entitlement(
+            "pro", term.product_id, term.expires_at, "otid-live", "Production",
+            revoked_at=now))
+        _patch_lookup(monkeypatch, [_FakeStatus(term, state="active")])
+
+        await notify.handle_command("/sub 2000000000000007")
+
+        rows = subs_rows(await notify.handle_command("/subs"))
+        assert rows and "refund" not in rows[0], rows
+
+    @pytest.mark.asyncio
+    async def test_sub_shows_a_stale_block_and_offers_to_lift_it(
+            self, enabled_notify, cache, monkeypatch):
+        term = sub("2000000000000008", expires_in_days=30)
+        await _refund_block_store(cache).revoke(term, revoked_at=int(time.time()))
+        _patch_lookup(monkeypatch, [_FakeStatus(term, state="active")])
+
+        text, buttons = await notify.handle_command_with_buttons(
+            "/sub 2000000000000008")
+
+        assert "Refund block" in text
+        assert "not</b> refunded" in text
+        assert ("🔓 Lift refund block", "sub 2000000000000008 lift") in _flat(buttons)
+
+    @pytest.mark.asyncio
+    async def test_a_block_apple_agrees_with_is_not_offered(
+            self, enabled_notify, cache, monkeypatch):
+        now = int(time.time())
+        term = sub("2000000000000009", expires_in_days=30)
+        await _refund_block_store(cache).revoke(term, revoked_at=now)
+        refunded = Entitlement("pro", term.product_id, term.expires_at,
+                               "2000000000000009", "Production", revoked_at=now)
+        _patch_lookup(monkeypatch, [_FakeStatus(refunded, state="revoked")])
+
+        text, buttons = await notify.handle_command_with_buttons(
+            "/sub 2000000000000009")
+
+        assert "Apple still shows this term refunded" in text
+        assert not any("lift" in data for _, data in _flat(buttons))
+
+    @pytest.mark.asyncio
+    async def test_lifting_takes_two_taps_and_asks_apple_again(
+            self, enabled_notify, cache, monkeypatch):
+        import entitlements
+        term = sub("2000000000000010", expires_in_days=30)
+        await _refund_block_store(cache).revoke(term, revoked_at=int(time.time()))
+        spy = _patch_lookup(monkeypatch, [_FakeStatus(term, state="active")])
+
+        text, buttons = await notify.handle_command_with_buttons(
+            "/sub 2000000000000010 lift")
+        assert "Lift the refund block" in text
+        assert ("✅ Yes, lift it", "sub 2000000000000010 lift yes") in _flat(buttons)
+        assert await entitlements.read_revocation(cache, "2000000000000010") is not None
+        assert spy.called_with == []
+
+        text = await notify.handle_command("/sub 2000000000000010 lift yes")
+
+        assert "Refund block lifted" in text
+        assert spy.called_with == ["2000000000000010"]
+        assert await entitlements.read_revocation(cache, "2000000000000010") is None
+
+    @pytest.mark.asyncio
+    async def test_a_block_apple_still_shows_refunded_is_not_lifted(
+            self, enabled_notify, cache, monkeypatch):
+        """Lifting it would let the server re-derive Pro from the pre-refund
+        proof it holds — the bug the block exists to stop."""
+        import entitlements
+        now = int(time.time())
+        term = sub("2000000000000011", expires_in_days=30)
+        await _refund_block_store(cache).revoke(term, revoked_at=now)
+        _patch_lookup(monkeypatch, [_FakeStatus(Entitlement(
+            "pro", term.product_id, term.expires_at, "2000000000000011",
+            "Production", revoked_at=now), state="revoked")])
+
+        text = await notify.handle_command("/sub 2000000000000011 lift yes")
+
+        assert "still shows" in text
+        assert await entitlements.read_revocation(cache, "2000000000000011") is not None

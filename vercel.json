@@ -3,6 +3,7 @@
   "buildCommand": "",
   "framework": null,
   "cleanUrls": true,
+  "trailingSlash": false,
   "headers": [
     {
       "source": "/(.*)",

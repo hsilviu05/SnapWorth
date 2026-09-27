@@ -51,8 +51,8 @@ async def seed(cache, days_ago: int, cats: dict, brands: dict, finds=(), scans: 
         await cache.set(notify._stat_key(day, "scans_free"), str(scans), 600)
 
 
-def find(name, category, lo, hi):
-    return {"n": name, "c": category, "lo": lo, "hi": hi, "t": "free"}
+def find(name, category, lo, hi, brand=None):
+    return {"n": name, "b": brand, "c": category, "lo": lo, "hi": hi, "t": "free"}
 
 
 class TestFloor:
@@ -86,7 +86,7 @@ class TestDeviceFloor:
     @pytest.mark.asyncio
     async def test_many_scans_from_one_device_are_not_a_trend(self, cache):
         await seed(cache, 1, {"clothing": 9}, {"spam.example free money": 9},
-                   [find("Visit my shop", "clothing", 900, 1000)], devices=["dev-a"])
+                   [find("Visit my shop", "clothing", 900, 1000, "Visit my shop")], devices=["dev-a"])
         payload = await notify.trends(is_pro=True)
         assert payload["categories"] == [] and payload["brands"] == []
         assert payload["notable_finds"] == []
@@ -136,15 +136,18 @@ class TestDeviceFloor:
         # days running, and the most valuable thing scanned.
         for days_ago, device in ((1, "dev-a"), (2, "dev-b")):
             await seed(cache, days_ago, {"clothing": 3}, {},
-                       [find("Carhartt Detroit Jacket", "clothing", 60, 100),
-                        find("Pendleton Board Shirt", "clothing", 80, 150)], devices=[device])
+                       [find("Carhartt Detroit Jacket", "clothing", 60, 100, "Carhartt"),
+                        find("Pendleton Board Shirt", "clothing", 80, 150, "Pendleton")],
+                       devices=[device])
         await seed(cache, 3, {"clothing": 3}, {},
-                   [find("Carhartt Detroit Jacket", "clothing", 60, 100)], devices=["dev-c"])
+                   [find("Carhartt Detroit Jacket", "clothing", 60, 100, "Carhartt")],
+                   devices=["dev-c"])
         for days_ago in (4, 5, 6):
             await seed(cache, days_ago, {"accessories": 1}, {},
-                       [find("Rolex Submariner", "accessories", 5000, 9000)], devices=["dev-z"])
+                       [find("Rolex Submariner", "accessories", 5000, 9000, "Rolex")],
+                       devices=["dev-z"])
         notable = (await notify.trends(is_pro=True))["notable_finds"]
-        assert [f["name"] for f in notable] == ["Carhartt Detroit Jacket"]
+        assert [f["name"] for f in notable] == ["Carhartt"]
 
     @pytest.mark.asyncio
     async def test_last_weeks_direction_needs_last_weeks_devices(self, cache):
@@ -194,7 +197,7 @@ class TestDeviceFloor:
             assert two["brands"] == [] and two["notable_finds"] == []
             three = await scans(["third-device"])
             assert [(r["name"], r["count"]) for r in three["brands"]] == [("Carhartt", 8)]
-            assert [f["name"] for f in three["notable_finds"]] == ["Carhartt Detroit Jacket"]
+            assert [f["name"] for f in three["notable_finds"]] == ["Carhartt"]
         finally:
             await notify.aclose()
 
@@ -211,7 +214,7 @@ class TestDaysRecordedBeforeDevices:
     @pytest.mark.asyncio
     async def test_an_old_week_is_judged_by_five_scans(self, cache):
         await seed(cache, 1, {"clothing": 40, "shoes": 4}, {"Nike": 30, "Ferrari": 4},
-                   [find("Le Creuset", "home", 100, 200)], devices=None)
+                   [find("Le Creuset 5.5qt", "home", 100, 200, "Le Creuset")], devices=None)
         payload = await notify.trends(is_pro=True)
         assert [(r["name"], r["count"]) for r in payload["categories"]] == [("clothing", 40)]
         assert [(r["name"], r["count"]) for r in payload["brands"]] == [("Nike", 30)]
@@ -281,17 +284,17 @@ class TestTierSplit:
 
     @pytest.mark.asyncio
     async def test_pro_gets_averages_and_notable_finds(self, cache):
-        finds = [find("Le Creuset 5.5qt", "home", 120, 220),
-                 find("KitchenAid Mixer", "home", 100, 180),
-                 find("Pyrex set", "home", 40, 80)]
+        finds = [find("Le Creuset 5.5qt", "home", 120, 220, "Le Creuset"),
+                 find("KitchenAid Mixer", "home", 100, 180, "KitchenAid"),
+                 find("Pyrex set", "home", 40, 80, "Pyrex")]
         await seed(cache, 1, {"home": 9}, {"Le Creuset": 6}, finds)
         payload = await notify.trends(is_pro=True)
         (home,) = payload["categories"]
         assert home["average_estimate"] == 123        # (170 + 140 + 60) / 3
         assert [f["name"] for f in payload["notable_finds"]] == \
-            ["Le Creuset 5.5qt", "KitchenAid Mixer", "Pyrex set"]
+            ["Le Creuset", "KitchenAid", "Pyrex"]
         assert set(payload["notable_finds"][0]) == {"name", "category", "low", "high"}, \
-            "a find is an item and a price — never a device, never a time"
+            "a find is a brand and a price — never a device, never a time"
 
     @pytest.mark.asyncio
     async def test_an_average_needs_three_finds(self, cache):
@@ -318,22 +321,24 @@ class TestNotableFindsAreDistinct:
     async def test_one_item_scanned_four_times_takes_one_slot(self, cache):
         # The same jacket on four days, at four readings, and on one day twice
         # with different spacing and case — plus four genuinely different items.
+        # Four readings are four ranges, so the brand-and-range dedupe alone
+        # would still send the jacket four times.
+        jacket = "Carhartt Detroit Jacket"
         await seed(cache, 1, {"clothing": 9}, {},
-                   [find("Carhartt Detroit Jacket", "clothing", 60, 100),
-                    find("carhartt  detroit JACKET", "clothing", 70, 140)])
-        await seed(cache, 2, {"clothing": 9}, {}, [find("Carhartt Detroit Jacket", "clothing", 50, 90)])
-        await seed(cache, 3, {"clothing": 9}, {}, [find("Carhartt Detroit Jacket", "clothing", 60, 120)])
+                   [find(jacket, "clothing", 60, 100, "Carhartt"),
+                    find("carhartt  detroit JACKET", "clothing", 70, 140, "Carhartt")])
+        await seed(cache, 2, {"clothing": 9}, {}, [find(jacket, "clothing", 50, 90, "Carhartt")])
+        await seed(cache, 3, {"clothing": 9}, {}, [find(jacket, "clothing", 60, 120, "Carhartt")])
         await seed(cache, 4, {"home": 9}, {},
-                   [find("Le Creuset 5.5qt", "home", 120, 130),
-                    find("KitchenAid Mixer", "home", 100, 125),
-                    find("Pyrex set", "home", 40, 80),
-                    find("Dansk Kobenstyle pot", "home", 30, 60)])
+                   [find("Le Creuset 5.5qt", "home", 120, 130, "Le Creuset"),
+                    find("KitchenAid Mixer", "home", 100, 125, "KitchenAid"),
+                    find("Pyrex set", "home", 40, 80, "Pyrex"),
+                    find("Dansk Kobenstyle pot", "home", 30, 60, "Dansk")])
 
         notable = (await notify.trends(is_pro=True))["notable_finds"]
 
         assert [f["name"] for f in notable] == [
-            "carhartt  detroit JACKET", "Le Creuset 5.5qt", "KitchenAid Mixer",
-            "Pyrex set", "Dansk Kobenstyle pot"]
+            "Carhartt", "Le Creuset", "KitchenAid", "Pyrex", "Dansk"]
         # The most valuable reading of the repeated item is the one kept.
         assert (notable[0]["low"], notable[0]["high"]) == (70, 140)
 
@@ -376,6 +381,56 @@ class TestWrittenWithoutTelegram:
             assert [r["name"] for r in payload["brands"]] == ["Carhartt"]
         finally:
             await notify.aclose()
+
+
+class TestNotableFindsAreNotSomeonesScan:
+    """A notable find is one person's scan with no floor under it, shown to
+    other people. The privacy policy said scan results were not kept at all;
+    what it can truthfully say is that others see a brand, a category and a
+    range — so that is all that may leave the server."""
+
+    @pytest.mark.asyncio
+    async def test_the_item_name_never_leaves_the_server(self, cache):
+        await seed(cache, 1, {"collectibles": 9}, {},
+                   [find("Signed 1998 Jordan card, to Maria from Dad",
+                         "collectibles", 900, 1500, "Upper Deck")])
+        payload = await notify.trends(is_pro=True)
+        assert payload["notable_finds"] == [
+            {"name": "Upper Deck", "category": "collectibles", "low": 900, "high": 1500}]
+        assert "Maria" not in json.dumps(payload)
+
+    @pytest.mark.asyncio
+    async def test_a_find_without_a_brand_is_left_out(self, cache):
+        await seed(cache, 1, {"home": 9}, {},
+                   [find("Hand-painted portrait of our house", "home", 300, 600),
+                    find("Unbranded lamp", "home", 200, 400, "Unbranded"),
+                    find("Pyrex set", "home", 40, 80, "Pyrex")])
+        payload = await notify.trends(is_pro=True)
+        assert [f["name"] for f in payload["notable_finds"]] == ["Pyrex"]
+
+    @pytest.mark.asyncio
+    async def test_skipped_finds_do_not_cost_a_slot(self, cache):
+        finds = [find(f"Mystery {i}", "home", 900 - i, 1000 - i) for i in range(10)]
+        finds += [find(f"Branded {i}", "home", 100 - i, 200 - i, f"Brand{i}") for i in range(10)]
+        await seed(cache, 1, {"home": 9}, {}, finds)
+        payload = await notify.trends(is_pro=True)
+        assert len(payload["notable_finds"]) == notify.TRENDS_FINDS
+
+    @pytest.mark.asyncio
+    async def test_one_brand_at_one_range_is_one_find(self, cache):
+        """With the brand as the name, two different scans can arrive with the
+        same `name-low-high`, which the app keys on and collapses to one row.
+        Sent twice, the repeat took a slot and a Pro user saw fewer finds."""
+        await seed(cache, 1, {"home": 9}, {},
+                   [find("Dutch oven 5.5qt", "home", 120, 220, "Le Creuset"),
+                    find("Braiser 3.5qt", "home", 120, 220, "Le Creuset"),
+                    find("Skillet 10in", "home", 60, 110, "Le Creuset")])
+        await seed(cache, 2, {"home": 9}, {},
+                   [find("Dutch oven 5.5qt", "home", 120, 220, "Le Creuset"),
+                    find("Pyrex set", "home", 40, 80, "Pyrex")])
+        payload = await notify.trends(is_pro=True)
+        assert [(f["name"], f["low"], f["high"]) for f in payload["notable_finds"]] == [
+            ("Le Creuset", 120, 220), ("Le Creuset", 60, 110), ("Pyrex", 40, 80)]
 
 
 class TestCaching:

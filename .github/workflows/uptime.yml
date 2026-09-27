@@ -1,0 +1,88 @@
+name: Uptime
+
+# An outside view of the API, because nothing inside it can report its own
+# absence.
+#
+# Every other alert this service has — the Telegram ops bot, the model and
+# Redis alerts in notify.py — runs inside the backend container. A container
+# that is crash-looping, not scheduled, or unreachable from the internet sends
+# nothing, and neither does one whose Redis is up but refusing writes. The
+# next daily digest then reads like a quiet day. This probe runs somewhere
+# else and asks the one question that covers all of those: does
+# /health/ready answer 200?
+#
+# It is a floor, not a pager with an SLA. GitHub starts scheduled runs late
+# under load (often by several minutes), and disables a public repository's
+# schedules after 60 days without a commit. An external monitor on the same
+# URL (UptimeRobot, Better Stack) closes both gaps; see RUNBOOK §3.
+
+on:
+  schedule:
+    - cron: '*/10 * * * *'
+  workflow_dispatch:
+
+# Reads nothing from the repository; the job needs no token.
+permissions: {}
+
+concurrency:
+  group: uptime
+  cancel-in-progress: false
+
+jobs:
+  probe:
+    name: /health/ready answers
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Probe readiness
+        id: probe
+        env:
+          READY_URL: ${{ vars.READY_URL || 'https://api.snapworth.eu/health/ready' }}
+        run: |
+          # Three tries over a minute. A rolling deploy drains the old
+          # container with a 503 for a few seconds, by design, and one refused
+          # connection is not an outage.
+          code=000
+          for attempt in 1 2 3; do
+            # curl leaves an old body in place when nothing answers, and the
+            # reason below must describe the last attempt, not an earlier one.
+            rm -f /tmp/ready.json
+            code=$(curl -sS -o /tmp/ready.json -w '%{http_code}' --max-time 15 "$READY_URL" || true)
+            code=${code:-000}
+            if [ "$code" = "200" ]; then
+              echo "ready on attempt ${attempt}"
+              exit 0
+            fi
+            echo "attempt ${attempt}: HTTP ${code}"
+            if [ "$attempt" -lt 3 ]; then sleep 30; fi
+          done
+          # /health/ready names its reason: "durable cache configured but
+          # not accepting writes" is Redis — down (§5.4) or full and refusing
+          # writes (§5.4c); "starting up or draining" is the process; 000 is
+          # nothing answering at all.
+          reason=$(python3 -c 'import json; print(json.load(open("/tmp/ready.json")).get("reason", ""))' 2>/dev/null || true)
+          echo "status=${code}" >> "$GITHUB_OUTPUT"
+          echo "reason=${reason}" >> "$GITHUB_OUTPUT"
+          echo "::error::${READY_URL} answered HTTP ${code} on three tries over a minute${reason:+ — ${reason}}"
+          exit 1
+
+      # A failed scheduled run also emails whoever last edited the schedule
+      # above, so an outage is reported even before the secrets below exist.
+      - name: Tell the operator
+        if: failure()
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          STATUS: ${{ steps.probe.outputs.status }}
+          REASON: ${{ steps.probe.outputs.reason }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          if [ -z "$TELEGRAM_BOT_TOKEN" ] || [ -z "$TELEGRAM_CHAT_ID" ]; then
+            echo "::warning::TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID are not repository secrets, so only GitHub's failed-run email reports this."
+            exit 0
+          fi
+          text="🔴 API not ready — HTTP ${STATUS:-000}${REASON:+: ${REASON}}. Seen from outside (GitHub Actions), three tries over a minute; repeats every 10 min until it answers. ${RUN_URL}"
+          curl -sS -o /dev/null --max-time 15 \
+            --data-urlencode "chat_id=${TELEGRAM_CHAT_ID}" \
+            --data-urlencode "text=${text}" \
+            "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage"

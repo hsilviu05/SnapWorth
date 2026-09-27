@@ -174,6 +174,41 @@ class TestFileUploadSecurity:
         assert main._client_ip(Req(None, client="198.51.100.4")) == "198.51.100.4"
         assert main._client_ip(Req(None, client=None)) == "unknown"
 
+    def test_client_ip_behind_railways_edge_is_the_caller(self):
+        """What production actually sends: Railway's edge appends the
+        connecting address, and the app sends no header of its own, so the
+        header holds one entry and it is the caller — not the proxy, as a
+        comment in ratelimit.py used to say (which would have meant one 60/h
+        bucket for every user)."""
+        import main
+
+        class Req:
+            headers = {"x-forwarded-for": "203.0.113.9"}
+            client = type("C", (), {"host": "100.64.0.2"})()   # Railway's hop
+
+        assert main._client_ip(Req()) == "203.0.113.9"  # type: ignore[arg-type]
+
+    def test_the_hop_count_is_logged_once_per_count_and_never_the_address(
+            self, caplog, monkeypatch):
+        import logging
+
+        import ratelimit
+
+        monkeypatch.setattr(ratelimit, "_HOP_COUNTS_SEEN", set())
+
+        class Req:
+            def __init__(self, xff):
+                self.headers = {"x-forwarded-for": xff}
+                self.client = None
+
+        with caplog.at_level(logging.INFO, logger="snapworth.ratelimit"):
+            for xff in ("203.0.113.9", "198.51.100.7", "1.1.1.1, 203.0.113.9",
+                        "1, 2, 3, 4", "1, 2, 3, 4, 5, 6"):
+                ratelimit.client_ip(Req(xff))
+        lines = [r.getMessage() for r in caplog.records if "hop(s)" in r.getMessage()]
+        assert [line.split()[2] for line in lines] == ["1", "2", "4+"]
+        assert not any("203.0.113.9" in line or "198.51" in line for line in lines)
+
     def test_client_ip_is_truncated_and_never_empty(self):
         """It reaches a cache key and is attacker-influenced."""
         import main
