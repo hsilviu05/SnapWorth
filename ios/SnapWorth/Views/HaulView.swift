@@ -27,6 +27,10 @@ struct HaulView: View {
 
     @State private var showSummary = false
     @State private var sheet: HaulSheet?
+    /// Whether the sheet being dismissed is the paywall. `sheet` is already
+    /// nil in `onDismiss`, and only a paywall can have bought anything — a
+    /// share sheet closing must not restart the subscription retries.
+    @State private var paywallShown = false
     @State private var failedItemID: UUID?
     @State private var deletingItemID: UUID?
     @State private var captureNotice: String?
@@ -45,23 +49,23 @@ struct HaulView: View {
         ZStack {
             Color.snapCharcoal.ignoresSafeArea()
 
-            switch camera.authStatus {
-            case .authorized:
-                CameraPreview(session: camera.session)
-                    .ignoresSafeArea()
-            case .notDetermined:
-                EmptyView()
-            default:
-                Text(camera.authStatus == .restricted
-                     ? String(localized: "Camera access is restricted on this device")
-                     : String(localized: "Camera access needed to scan items"))
-                    .font(.snapBody)
-                    .foregroundStyle(Color.snapOnCharcoal.opacity(0.8))
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal, 40)
-            }
+            // Everything under the summary is hidden from VoiceOver while it
+            // is up: SwiftUI does not prune what is only covered, and the
+            // shutter there would fire a capture into a stopped session.
+            Group {
+                switch camera.authStatus {
+                case .authorized:
+                    CameraPreview(session: camera.session)
+                        .ignoresSafeArea()
+                case .notDetermined:
+                    EmptyView()
+                default:
+                    CameraPermissionPlaceholder(restricted: camera.authStatus == .restricted)
+                }
 
-            captureChrome
+                captureChrome
+            }
+            .accessibilityHidden(showSummary)
 
             if showSummary {
                 HaulSummaryView(
@@ -70,7 +74,7 @@ struct HaulView: View {
                     isClosing: closing == .done,
                     onShare: shareCard,
                     onShareDrafts: { sheet = .shareDrafts(session.allDraftsText()) },
-                    onUpgrade: { sheet = .paywall($0) },
+                    onUpgrade: showPaywall,
                     onRestore: restore,
                     onKeepScanning: { showSummary = false },
                     onDone: { request(.done) })
@@ -90,6 +94,11 @@ struct HaulView: View {
             }
             Haptics.prepare()
             camera.requestPermissionAndSetup()
+            // `onChange(of: scenePhase)` fires on changes only. Haul closed
+            // while inactive — Done, then a swipe home before the capture it
+            // waited for landed — reopens already active, and the session
+            // would still believe it was in the background.
+            session.setForeground(scenePhase == .active)
             session.open()
         }
         .onDisappear {
@@ -133,6 +142,8 @@ struct HaulView: View {
         }
         .sheet(item: $sheet, onDismiss: {
             // A no-op unless something is on hold waiting for exactly this.
+            guard paywallShown else { return }
+            paywallShown = false
             if purchaseService.isSubscribed { session.resumeAfterPurchase() }
         }) { sheet in
             switch sheet {
@@ -180,16 +191,26 @@ struct HaulView: View {
 
     // MARK: - Capture phase
 
+    /// Laid out controls first. At accessibility text sizes a pause and a
+    /// hold banner together can be taller than the screen, and a plain VStack
+    /// centres what overflows — pushing the shutter off the bottom and
+    /// Finish off the top. So the top bar, the strip and the shutter are
+    /// sized first (priority 2), the banners get what is left (priority 1)
+    /// and scroll when that is not enough, and the spacer gets the rest.
     private var captureChrome: some View {
         VStack(spacing: 10) {
             HaulTopBar(session: session, isFinishing: closing == .finish,
                        onFinish: { request(.finish) })
+                .layoutPriority(2)
 
-            HaulBanners(session: session, onCamera: true, includeDrafts: false,
-                        onUpgrade: { sheet = .paywall($0) }, onRestore: restore)
-                .padding(.horizontal, 16)
+            ViewThatFits(in: .vertical) {
+                banners
+                ScrollView { banners }
+                    .scrollBounceBehavior(.basedOnSize)
+            }
+            .layoutPriority(1)
 
-            Spacer()
+            Spacer(minLength: 0)
 
             if let captureNotice {
                 Text(captureNotice)
@@ -204,8 +225,10 @@ struct HaulView: View {
 
             HaulStrip(session: session,
                       voiceOverEnabled: voiceOverEnabled,
+                      canCapture: camera.authStatus == .authorized,
                       onFailedTap: { failedItemID = $0 },
                       onDelete: { deletingItemID = $0 })
+                .layoutPriority(2)
 
             Button {
                 Haptics.capture()
@@ -226,8 +249,15 @@ struct HaulView: View {
             .accessibilityHint("Captures the item and estimates its resale value")
             .accessibilitySortPriority(100)
             .padding(.bottom, 28)
+            .layoutPriority(2)
         }
         .snapAnimation(.easeInOut(duration: 0.2), value: captureNotice)
+    }
+
+    private var banners: some View {
+        HaulBanners(session: session, onCamera: true, includeDrafts: false,
+                    onUpgrade: showPaywall, onRestore: restore)
+            .padding(.horizontal, 16)
     }
 
     // MARK: - Actions
@@ -284,6 +314,11 @@ struct HaulView: View {
     private func shareCard() {
         guard let card = session.renderShareCard() else { return }
         sheet = .shareCard(card)
+    }
+
+    private func showPaywall(_ trigger: PaywallTrigger) {
+        paywallShown = true
+        sheet = .paywall(trigger)
     }
 
     private func restore() {
@@ -343,11 +378,13 @@ private struct HaulTopBar: View {
         .padding(.top, 8)
     }
 
+    /// Every photo taken — the shutter's feedback, so it counts one the
+    /// moment it is taken.
     private var count: some View {
         Text("\(session.items.count) items")
             .font(.snapCaption)
             .foregroundStyle(Color.snapOnCharcoal.opacity(0.9))
-            // Already inside the total's spoken value.
+            // Already inside the total's spoken value, broken down.
             .accessibilityHidden(true)
     }
 
@@ -403,14 +440,22 @@ private struct HaulTotalLabel: View {
         .accessibilityAddTraits(.updatesFrequently)
     }
 
+    /// The total and the items it is the total *of* — the valued ones — then
+    /// whatever is not in it yet, or will not be. Together they add up to
+    /// the photos taken, which is what the camera's visible count shows.
     private var spokenValue: String {
         let money = HistoryViewModel.money(session.total)
-        let items = String(localized: "\(session.items.count) items")
-        let base = String(localized: "\(money), \(items)")
-        let pending = session.pendingCount
-        guard pending > 0 else { return base }
-        let waiting = String(localized: "\(pending) photos still being valued")
-        return String(localized: "\(base), \(waiting)")
+        let items = String(localized: "\(session.valuedCount) items")
+        var spoken = String(localized: "\(money), \(items)")
+        if session.pendingCount > 0 {
+            let waiting = String(localized: "\(session.pendingCount) photos still being valued")
+            spoken = String(localized: "\(spoken), \(waiting)")
+        }
+        if session.failedCount > 0 {
+            let failed = String(localized: "\(session.failedCount) photos couldn't be valued")
+            spoken = String(localized: "\(spoken), \(failed)")
+        }
+        return spoken
     }
 }
 
@@ -470,6 +515,8 @@ private struct HaulBannerBackground: ViewModifier {
     }
 }
 
+/// The capsule is drawn at caption size, about 33pt tall; the hit target
+/// around it is the 44pt the rest of the screen's controls have.
 private struct HaulBannerButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
@@ -480,7 +527,7 @@ private struct HaulBannerButtonStyle: ButtonStyle {
             .background(Color.snapTerracottaFill)
             .clipShape(Capsule())
             .opacity(configuration.isPressed ? 0.85 : 1)
-            .contentShape(Capsule())
+            .snapHitTarget()
     }
 }
 
@@ -525,12 +572,13 @@ private struct HaulPauseBanner: View {
 
         switch pause {
         case .rateLimited(let until):
-            // One element, worded by the same function as a single scan's
-            // 429, and rounded up so it never invites a retry that fails.
+            // One element, saying what the banner says: the photos are kept
+            // and the queue resumes by itself. The wait is rounded up, and
+            // redrawn once a minute, so it is never read as shorter than it
+            // is.
             text
                 .accessibilityElement(children: .ignore)
-                .accessibilityLabel(AppError.rateLimitMessage(
-                    retryAfter: max(0, until.timeIntervalSince(date))))
+                .accessibilityLabel(pause.announcement(remaining: until.timeIntervalSince(date)))
         case .offline:
             text.accessibilityElement(children: .combine)
         }
@@ -600,6 +648,9 @@ private struct HaulHoldBanner: View {
 private struct HaulStrip: View {
     let session: HaulSession
     let voiceOverEnabled: Bool
+    /// Without camera access the hint to snap each item is a promise the
+    /// shutter cannot keep; the placeholder behind says what to do instead.
+    let canCapture: Bool
     let onFailedTap: (UUID) -> Void
     let onDelete: (UUID) -> Void
 
@@ -613,44 +664,52 @@ private struct HaulStrip: View {
             }
 
             if session.items.isEmpty {
-                Text("Snap each item — they're valued as you go.")
-                    .font(.snapCaption)
-                    .foregroundStyle(Color.snapOnCharcoal.opacity(0.9))
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 5)
-                    .background(Color.snapCharcoal.opacity(0.5))
-                    .clipShape(Capsule())
-                    .padding(.horizontal, 20)
+                if canCapture { emptyHint }
             } else {
-                ScrollViewReader { proxy in
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        LazyHStack(spacing: 8) {
-                            ForEach(session.items) { item in
-                                HaulCell(item: item,
-                                         onFailedTap: { onFailedTap(item.id) },
-                                         onRetry: { session.retry(item.id) },
-                                         onRemove: { session.remove(item.id) },
-                                         onDelete: { onDelete(item.id) })
-                                    .id(item.id)
-                            }
-                        }
-                        .padding(.horizontal, 16)
-                    }
-                    // Not under VoiceOver: moving the strip under a user who
-                    // is reading an earlier cell takes their place away.
-                    .onChange(of: session.items.count) { old, new in
-                        guard new > old, !voiceOverEnabled, let last = session.items.last else { return }
-                        withAnimation(reduceMotion ? nil : .easeOut(duration: 0.25)) {
-                            proxy.scrollTo(last.id, anchor: .trailing)
-                        }
-                    }
-                }
-                .frame(height: 88)
-                .accessibilityElement(children: .contain)
-                .accessibilityLabel("Photos in this haul")
+                strip
             }
         }
+    }
+
+    private var emptyHint: some View {
+        Text("Snap each item — they're valued as you go.")
+            .font(.snapCaption)
+            .foregroundStyle(Color.snapOnCharcoal.opacity(0.9))
+            .multilineTextAlignment(.center)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 5)
+            .background(Color.snapCharcoal.opacity(0.5))
+            .clipShape(Capsule())
+            .padding(.horizontal, 20)
+    }
+
+    private var strip: some View {
+        ScrollViewReader { proxy in
+            ScrollView(.horizontal, showsIndicators: false) {
+                LazyHStack(spacing: 8) {
+                    ForEach(session.items) { item in
+                        HaulCell(item: item,
+                                 onFailedTap: { onFailedTap(item.id) },
+                                 onRetry: { session.retry(item.id) },
+                                 onRemove: { session.remove(item.id) },
+                                 onDelete: { onDelete(item.id) })
+                            .id(item.id)
+                    }
+                }
+                .padding(.horizontal, 16)
+            }
+            // Not under VoiceOver: moving the strip under a user who
+            // is reading an earlier cell takes their place away.
+            .onChange(of: session.items.count) { old, new in
+                guard new > old, !voiceOverEnabled, let last = session.items.last else { return }
+                withAnimation(reduceMotion ? nil : .easeOut(duration: 0.25)) {
+                    proxy.scrollTo(last.id, anchor: .trailing)
+                }
+            }
+        }
+        .frame(height: 88)
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("Photos in this haul")
     }
 }
 
@@ -674,6 +733,9 @@ private struct HaulCell: View {
             if item.result != nil {
                 Button("Delete", role: .destructive, action: onDelete)
             }
+            if isQueued {
+                Button("Remove photo", role: .destructive, action: onRemove)
+            }
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(label)
@@ -686,7 +748,19 @@ private struct HaulCell: View {
                 Button("Try again", action: onRetry)
                 Button("Remove photo", action: onRemove)
             }
+            if isQueued {
+                Button("Remove photo", action: onRemove)
+            }
         }
+    }
+
+    /// Waiting its turn. A duplicate or a blurred shot can go before it is
+    /// sent: sending it would spend one of the hour's 20 requests, and save
+    /// a find and a scan to the stats only to be deleted. Not while it is
+    /// being prepared — `HaulSession.remove` cannot stop that.
+    private var isQueued: Bool {
+        if case .queued = item.state { return true }
+        return false
     }
 
     private var content: some View {
@@ -800,6 +874,10 @@ private struct HaulSummaryView: View {
     let onKeepScanning: () -> Void
     let onDone: () -> Void
 
+    /// Moved here when the summary appears: otherwise VoiceOver stays on the
+    /// Finish button it covered.
+    @AccessibilityFocusState private var headerFocused: Bool
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
@@ -841,7 +919,14 @@ private struct HaulSummaryView: View {
             .padding(20)
         }
         .background(Color.snapBackground.ignoresSafeArea())
+        .accessibilityAddTraits(.isModal)
         .onAppear { session.didReachSummary() }
+        .task {
+            // After the slide-in: focus asked for while the view is still
+            // arriving is not reliably taken.
+            try? await Task.sleep(for: .milliseconds(350))
+            headerFocused = true
+        }
     }
 
     private var header: some View {
@@ -850,8 +935,11 @@ private struct HaulSummaryView: View {
                 .font(.snapHeadline)
                 .foregroundStyle(Color.snapEspresso)
                 .accessibilityAddTraits(.isHeader)
+                .accessibilityFocused($headerFocused)
             HaulTotalLabel(session: session, onCamera: false)
-            Text("\(session.items.count) items")
+            // The items the total is the total of. Pending and failed photos
+            // are in neither, and each has its own line below.
+            Text("\(session.valuedCount) items")
                 .font(.snapBody)
                 .foregroundStyle(Color.snapWarmGray)
                 .accessibilityHidden(true)
@@ -865,6 +953,19 @@ private struct HaulSummaryView: View {
                 .foregroundStyle(Color.snapEspresso)
                 .fixedSize(horizontal: false, vertical: true)
                 .accessibilityElement(children: .combine)
+            }
+            if session.failedCount > 0 {
+                // Without this line a haul where every photo failed has a
+                // total of nothing and Share and Draft greyed out, with no
+                // reason given.
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("\(session.failedCount) photos couldn't be valued")
+                        .font(.snapBodyMedium)
+                        .foregroundStyle(Color.snapTerracottaText)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Button("Try all again") { session.retryAllFailed() }
+                        .buttonStyle(HaulBannerButtonStyle())
+                }
             }
         }
         .padding(.top, 24)
@@ -975,6 +1076,8 @@ private struct HaulDraftsSection: View {
         guard case .done(let listing)? = item.draft else { return }
         UIPasteboard.general.string = listing.shareText
         Haptics.light()
+        // The button's "Copied" is a silent label swap.
+        UIAccessibility.post(notification: .announcement, argument: String(localized: "Copied"))
         copiedID = item.id
         Task {
             try? await Task.sleep(for: .seconds(2))
@@ -1027,10 +1130,14 @@ private struct HaulDraftRow: View {
                     .font(.snapCaption)
                     .foregroundStyle(Color.snapWarmGray)
             } else {
-                Image(systemName: "clock")
-                    .snapSymbol(13)
-                    .foregroundStyle(Color.snapWarmGray)
-                    .accessibilityHidden(true)
+                HStack(spacing: 6) {
+                    Image(systemName: "clock")
+                        .snapSymbol(13)
+                        .accessibilityHidden(true)
+                    Text("Waiting to be drafted")
+                        .font(.snapCaption)
+                }
+                .foregroundStyle(Color.snapWarmGray)
             }
         case .drafting?:
             HStack(spacing: 6) {
@@ -1039,10 +1146,17 @@ private struct HaulDraftRow: View {
                     .font(.snapCaption)
                     .foregroundStyle(Color.snapWarmGray)
             }
-        case .failed?:
-            Text("Couldn't draft this one")
-                .font(.snapCaption)
-                .foregroundStyle(Color.snapTerracottaText)
+        case .failed(let reason)?:
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Couldn't draft this one")
+                    .foregroundStyle(Color.snapTerracottaText)
+                // Why, which the line above cannot say: a refused photo and
+                // an outage call for different things.
+                Text(verbatim: reason)
+                    .foregroundStyle(Color.snapWarmGray)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .font(.snapCaption)
         case .done?, nil:
             EmptyView()
         }
@@ -1056,11 +1170,19 @@ private struct HaulDraftRow: View {
                 Text(copied ? String(localized: "Copied") : String(localized: "Copy"))
             }
             .buttonStyle(HaulBannerButtonStyle())
+            // Found by the rotor as one of a list of buttons, so it names
+            // its item.
+            .accessibilityLabel(copyLabel)
         case .failed?:
             Button("Try again", action: onRetry)
                 .buttonStyle(HaulBannerButtonStyle())
         default:
             EmptyView()
         }
+    }
+
+    private var copyLabel: String {
+        guard let name = item.result?.itemName else { return String(localized: "Copy") }
+        return String(localized: "Copy listing for \(name)")
     }
 }

@@ -994,6 +994,42 @@
         }
       }
     },
+    "%@, %@. Estimated total: %@" : {
+      "comment" : "Haul: VoiceOver announcement when the queue empties with some photos failed. First %@ is \"%lld photos valued\", second \"%lld photos couldn't be valued\", third a dollar amount. An estimate, never a sale.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@, %@. Geschätzte Summe: %@"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@, %@. Estimated total: %@"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@, %@. Total estimado: %@"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@, %@. Total estimat: %@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@，%@。估计总额：%@"
+          }
+        }
+      }
+    },
     "%@, estimated %@" : {
       "comment" : "VoiceOver label for a history card: item name, then its value range.",
       "extractionState" : "manual",
@@ -2816,6 +2852,96 @@
         }
       }
     },
+    "%lld photos couldn't be valued" : {
+      "comment" : "Haul: photos the server refused or that failed. On the summary, in the total's VoiceOver value, and placed into \"%@, %@. Estimated total: %@\".",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld Foto konnte nicht bewertet werden"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld Fotos konnten nicht bewertet werden"
+                }
+              }
+            }
+          }
+        },
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld photo couldn't be valued"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld photos couldn't be valued"
+                }
+              }
+            }
+          }
+        },
+        "es" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld foto no se pudo valorar"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld fotos no se pudieron valorar"
+                }
+              }
+            }
+          }
+        },
+        "ro" : {
+          "variations" : {
+            "plural" : {
+              "few" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld fotografii nu au putut fi evaluate"
+                }
+              },
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "o fotografie nu a putut fi evaluată"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld de fotografii nu au putut fi evaluate"
+                }
+              }
+            }
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld 张照片无法估价"
+          }
+        }
+      }
+    },
     "%lld photos still being valued" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2901,6 +3027,96 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "还有 %lld 张照片在估价"
+          }
+        }
+      }
+    },
+    "%lld photos valued" : {
+      "comment" : "Haul: VoiceOver announcement when the queue empties with some photos failed. Inflected on its own and placed into \"%@, %@. Estimated total: %@\".",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld Foto bewertet"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld Fotos bewertet"
+                }
+              }
+            }
+          }
+        },
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld photo valued"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld photos valued"
+                }
+              }
+            }
+          }
+        },
+        "es" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld foto valorada"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld fotos valoradas"
+                }
+              }
+            }
+          }
+        },
+        "ro" : {
+          "variations" : {
+            "plural" : {
+              "few" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld fotografii evaluate"
+                }
+              },
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "o fotografie evaluată"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld de fotografii evaluate"
+                }
+              }
+            }
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld 张照片已估价"
           }
         }
       }
@@ -3174,7 +3390,7 @@
       }
     },
     "%lld waiting" : {
-      "comment" : "Haul entry badge: photos from an earlier haul still waiting to be valued.",
+      "comment" : "Haul entry badge: photos from an earlier haul still waiting — to be valued, or, having failed, for Try again.",
       "extractionState" : "manual",
       "localizations" : {
         "de" : {
@@ -6254,6 +6470,42 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "复制商品描述草稿"
+          }
+        }
+      }
+    },
+    "Copy listing for %@" : {
+      "comment" : "Haul summary: VoiceOver label of a draft's Copy button. %@ is the item's name.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Inserat für %@ kopieren"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Copy listing for %@"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Copiar el anuncio de %@"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Copiază anunțul pentru %@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "复制“%@”的商品描述"
           }
         }
       }
@@ -18855,6 +19107,42 @@
         }
       }
     },
+    "Waiting to be drafted" : {
+      "comment" : "Haul summary: a valued item whose listing draft has not started yet.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wartet auf Entwurf"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Waiting to be drafted"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pendiente de redactar"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Așteaptă scrierea anunțului"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "等待生成商品描述"
+          }
+        }
+      }
+    },
     "Waiting to be valued" : {
       "comment" : "Haul: VoiceOver label of a photo not yet sent.",
       "extractionState" : "manual",
@@ -20404,7 +20692,7 @@
       }
     },
     "Your photos are kept — resuming in %@" : {
-      "comment" : "Haul pause banner. %@ is a live countdown (e.g. 12:40). The Chinese avoids 照片都已保存, which reads as saved to Photos.",
+      "comment" : "Haul pause banner. %@ is a live countdown (e.g. 12:40) on screen, and, spoken by VoiceOver, a duration from \"%lld minutes\" or \"%lld seconds\" (e.g. 12 minutes). The Chinese avoids 照片都已保存, which reads as saved to Photos.",
       "extractionState" : "manual",
       "localizations" : {
         "de" : {

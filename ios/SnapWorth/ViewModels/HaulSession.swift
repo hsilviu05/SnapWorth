@@ -1,3 +1,4 @@
+import Network
 import SwiftUI
 import UIKit
 import os
@@ -43,6 +44,16 @@ struct HaulQueue<ID: Hashable> {
     private var order: [ID: (rank: Int, sequence: Int)] = [:]
     private var nextRank = 0
     private var nextSequence = 0
+    /// Bumped by every pause and hold, and stamped on each claim, so a
+    /// success can say whether its request was sent after the latest one.
+    ///
+    /// At the limit the usual order is: one request takes the 20th slot and
+    /// spends seconds in the model, the other gets an immediate 429. The
+    /// admitted one's success arrives *after* the 429 and says nothing about
+    /// the budget now — ending the probe on it sends two into a window that
+    /// has one slot.
+    private var epoch = 0
+    private var claimedIn: [ID: Int] = [:]
 
     init(maxInFlight: Int) {
         self.maxInFlight = max(1, maxInFlight)
@@ -90,6 +101,7 @@ struct HaulQueue<ID: Hashable> {
               let index = waiting.firstIndex(where: { !inFlight.contains($0) }) {
             let id = waiting.remove(at: index)
             inFlight.insert(id)
+            claimedIn[id] = epoch
             claimed.append(id)
         }
         return claimed
@@ -97,6 +109,13 @@ struct HaulQueue<ID: Hashable> {
 
     mutating func release(_ id: ID) {
         inFlight.remove(id)
+        claimedIn[id] = nil
+    }
+
+    /// Whether `id`, in flight, was claimed after the latest pause or hold —
+    /// whether its success says anything about how things stand now.
+    func isCurrent(_ id: ID) -> Bool {
+        claimedIn[id] == epoch
     }
 
     /// A request went through: the budget is there, so stop probing.
@@ -109,6 +128,7 @@ struct HaulQueue<ID: Hashable> {
     mutating func pause(until: Date) {
         pausedUntil = max(pausedUntil ?? until, until)
         isProbing = true
+        epoch += 1
     }
 
     /// Ends a pause early. Only ever for an *offline* pause — a rate-limit
@@ -122,7 +142,10 @@ struct HaulQueue<ID: Hashable> {
         isProbing = true
     }
 
-    mutating func hold() { isHeld = true }
+    mutating func hold() {
+        isHeld = true
+        epoch += 1
+    }
     mutating func unhold() { isHeld = false }
 
     var isIdle: Bool { waiting.isEmpty && inFlight.isEmpty }
@@ -158,8 +181,40 @@ enum HaulDisposition: Equatable {
     case entitlement
     /// Requeue and hold until "Try the rest".
     case halt
+    /// The breaker: this photo got the same answer as the one before it.
+    /// It fails — the server has given its verdict on it — and the rest are
+    /// held. Put back instead, "Try the rest" would send it first and pay a
+    /// slot, a model call and, for a safety block, a strike toward the
+    /// device's 24-hour pause to hear the same verdict.
+    case failAndHalt
     /// This photo only: mark it failed and keep it.
     case fail
+}
+
+/// What is known about whether a failed request reached the server, beyond
+/// the `AppError` it was flattened into — `AppError.network` covers a
+/// connection that was never made and one that dropped mid-request alike.
+enum HaulReach: Equatable {
+    /// Nothing more than the error says.
+    case unknown
+    /// The phone had no network path from the send to the failure. The API
+    /// session waits for connectivity until its 35 s resource timeout, so
+    /// this is how *offline* usually arrives: as `.timeout`, not as
+    /// `.notConnectedToInternet`.
+    case neverConnected
+    /// `URLError.networkConnectionLost`: the connection dropped with the
+    /// request under way, so the upload may have landed and the server may
+    /// have charged the slot and run the model. It is also what a request
+    /// left open when the app suspends usually ends as.
+    case droppedMidRequest
+}
+
+/// The device's network path as `NWPathMonitor` last reported it.
+struct HaulNetworkPath: Equatable, Sendable {
+    var isSatisfied: Bool
+    /// Bumped each time the path becomes satisfied, so two readings tell
+    /// whether there was a path at any moment between them.
+    var satisfiedCount: Int
 }
 
 /// Two server failures are "the same" when their case and their message
@@ -388,6 +443,38 @@ enum HaulPause: Equatable {
         case .rateLimited(let until), .offline(let until, _): return until
         }
     }
+
+    var isRateLimited: Bool {
+        if case .rateLimited = self { return true }
+        return false
+    }
+
+    /// The banner's two lines as VoiceOver hears them, `remaining` seconds
+    /// before the pause ends.
+    ///
+    /// Not `AppError.rateLimitMessage`: its "Try again in…" asks the user to
+    /// act, when the queue resumes by itself and the shutter keeps working,
+    /// and it leaves out that the photos are kept.
+    func announcement(remaining: TimeInterval) -> String {
+        let lead: String
+        switch self {
+        case .rateLimited:             lead = String(localized: "You've hit the scan limit.")
+        case .offline(_, let message): lead = message
+        }
+        let kept = String(localized: "Your photos are kept — resuming in \(Self.spokenWait(remaining))")
+        return String(localized: "\(lead) \(kept)")
+    }
+
+    /// Rounded up, like `AppError.rateLimitMessage`, so a label read late is
+    /// never shorter than the real wait.
+    static func spokenWait(_ remaining: TimeInterval) -> String {
+        let seconds = max(1, Int(remaining.rounded(.up)))
+        if seconds < 60 {
+            return String(localized: "\(seconds) seconds")
+        }
+        let minutes = Int((Double(seconds) / 60).rounded(.up))
+        return String(localized: "\(minutes) minutes")
+    }
 }
 
 /// Why nothing is being sent until something changes.
@@ -405,6 +492,11 @@ enum HaulHold: Equatable {
     /// The breaker, an expired session or an outage, with its message.
     case halted(String)
 
+    var isHalted: Bool {
+        if case .halted = self { return true }
+        return false
+    }
+
     /// The paywall trigger for this hold's Upgrade button, or nil when it has
     /// none. Drafting is Snap → Sell's funnel; a quota refusal on a scan is
     /// the scan-limit funnel `ScanViewModel` protects.
@@ -413,6 +505,24 @@ enum HaulHold: Equatable {
         case .notEntitled: return forDrafts ? .snapSell : .haul
         case .quota:       return forDrafts ? .snapSell : .scanLimit
         case .confirmingSubscription, .subscriptionUnconfirmed, .halted: return nil
+        }
+    }
+
+    /// What VoiceOver hears when this hold begins: the banner's own words,
+    /// under the same keys as `HaulHoldBanner`'s.
+    var announcement: String {
+        switch self {
+        case .confirmingSubscription:
+            return String(localized: "Confirming your subscription…")
+        case .subscriptionUnconfirmed:
+            return String(localized: "SnapWorth couldn't confirm your Pro subscription yet, so the rest of this haul is on hold. Your photos are kept.")
+        case .notEntitled:
+            return String(localized: "Haul mode is part of SnapWorth Pro. Your photos are kept for 14 days.")
+        case .quota(let message):
+            return message
+        case .halted(let message):
+            let rest = String(localized: "The rest are on hold so they don't run into the same problem.")
+            return String(localized: "\(message) \(rest)")
         }
     }
 }
@@ -451,6 +561,7 @@ final class HaulSession {
         var generate: @Sendable (ListingInput, Marketplace) async throws -> GeneratedListing
         var isEntitled: @MainActor () -> Bool
         var refreshEntitlements: @MainActor () async -> Void
+        var networkPath: @MainActor () -> HaulNetworkPath
         /// Returns `end`, which is idempotent.
         var beginBackgroundTask: @MainActor (String) -> @MainActor () -> Void
         /// The haul summary was reached for the first time in an open.
@@ -462,11 +573,36 @@ final class HaulSession {
     }
 
     // ── Observed state ───────────────────────────────────────────────────
+    //
+    // Each pause and hold is announced to VoiceOver as it begins, here rather
+    // than at each place that sets one: a sighted user sees every one of them
+    // as a banner, and a VoiceOver user shooting a pile otherwise hears the
+    // count rise while nothing is being valued.
+
     /// Capture order, which is strip order.
     private(set) var items: [HaulItem] = []
-    private(set) var pause: HaulPause?
-    private(set) var hold: HaulHold?
-    private(set) var draftHold: HaulHold?
+    private(set) var pause: HaulPause? {
+        didSet {
+            // A later deadline, or a second offline message, is the same
+            // pause; only a new kind of pause is news.
+            guard let pause, pause.isRateLimited != oldValue?.isRateLimited else { return }
+            announce(pause.announcement(remaining: pause.until.timeIntervalSince(deps.now())))
+        }
+    }
+    private(set) var hold: HaulHold? {
+        didSet {
+            guard let hold, hold != oldValue else { return }
+            announce(hold.announcement)
+        }
+    }
+    private(set) var draftHold: HaulHold? {
+        didSet {
+            // The summary shows the drafts' hold only when it differs from
+            // the scans'; so does VoiceOver.
+            guard let draftHold, draftHold != oldValue, draftHold != hold else { return }
+            announce(draftHold.announcement)
+        }
+    }
     /// Chosen once per haul.
     private(set) var draftMarketplace: Marketplace?
     private(set) var isOpen = false
@@ -499,7 +635,9 @@ final class HaulSession {
     @ObservationIgnored private var lastFailure: HaulFailureSignature?
     @ObservationIgnored private var offlineStreak = 0
     @ObservationIgnored private var draftSnapshot: Set<UUID> = []
-    @ObservationIgnored private var reportedCompletion = false
+    /// The size `haul_completed` last reported in this open, or nil before
+    /// the first summary.
+    @ObservationIgnored private var reportedSize: Int?
     @ObservationIgnored private var limitHitReported = false
     @ObservationIgnored private var celebrationDue = false
     @ObservationIgnored private var didRestore = false
@@ -540,6 +678,7 @@ final class HaulSession {
             },
             isEntitled: { purchaseService.isSubscribed },
             refreshEntitlements: { await purchaseService.refreshEntitlements() },
+            networkPath: { HaulPathMonitor.shared.current },
             beginBackgroundTask: { name in
                 let task = HaulBackgroundTask(name: name)
                 return { task.end() }
@@ -560,6 +699,8 @@ final class HaulSession {
             defaults: .standard,
             store: .live))
         shared = session
+        // Started now, so it has a reading by the first send.
+        _ = HaulPathMonitor.shared
         Task { await session.restorePending() }
         return session
     }
@@ -603,6 +744,16 @@ final class HaulSession {
 
     func open() {
         isOpen = true
+        // A `.quota` hold outlives the screen, and the way back in after
+        // buying is the Scan tab's paywall, whose dismissal never reaches
+        // `resumeAfterPurchase`. Only `.quota`: an unconfirmed subscription
+        // is retried on the user's say-so, and `.notEntitled` lifts in
+        // `pump` by itself.
+        if deps.isEntitled() {
+            for lane in [Lane.scans, .drafts] {
+                if case .quota? = holdValue(lane) { reconfirm(lane) }
+            }
+        }
         pump()
     }
 
@@ -748,8 +899,7 @@ final class HaulSession {
                     await self.deps.refreshEntitlements()
                     guard !Task.isCancelled else { return }
                     self.confirmTasks[lane] = nil
-                    self.withQueue(lane) { $0.unhold(); $0.beginProbing() }
-                    self.pump()
+                    self.releaseConfirmation(lane)
                 }
             default:
                 break
@@ -787,32 +937,50 @@ final class HaulSession {
         for lane in [Lane.scans, .drafts] {
             switch holdValue(lane) {
             case .notEntitled?, .quota?, .subscriptionUnconfirmed?:
-                confirmAttempts[lane] = 0
-                if lane == .scans { limitHitReported = false }
-                beginConfirming(lane)
+                reconfirm(lane)
             default:
                 break
             }
         }
     }
 
-    /// The first Finish of an open.
+    /// A fresh confirmation episode, with its two retries.
+    private func reconfirm(_ lane: Lane) {
+        confirmAttempts[lane] = 0
+        if lane == .scans { limitHitReported = false }
+        beginConfirming(lane)
+    }
+
+    /// Every Finish of an open.
     ///
-    /// Here and not in the view's `onDisappear`: a haul most often ends with
-    /// the app killed from the switcher while the summary is on screen, which
-    /// never fires `onDisappear`. It also puts `haul_completed` before any
-    /// `haul_shared`.
+    /// The first reports `haul_completed`. Here and not in the view's
+    /// `onDisappear`: a haul most often ends with the app killed from the
+    /// switcher while the summary is on screen, which never fires
+    /// `onDisappear`. It also puts `haul_completed` before any `haul_shared`.
+    ///
+    /// A later one — after "Keep scanning" — reports again only if the haul
+    /// has grown into a larger bucket, as a revision naming the bucket it
+    /// replaces. Without it the hauls that grew past their first Finish,
+    /// which are the big ones, would be counted at their first size.
     func didReachSummary() {
-        guard !reportedCompletion else { return }
         let count = valuedCount + pendingCount
         guard count > 0 else { return }
-        reportedCompletion = true
-        Analytics.shared.track(.haulCompleted(itemsBucket: AnalyticsEvent.haulSizeBucket(count)))
-        deps.summaryReached()
+        let bucket = AnalyticsEvent.haulSizeBucket(count)
+        guard let reported = reportedSize else {
+            reportedSize = count
+            Analytics.shared.track(.haulCompleted(itemsBucket: bucket))
+            deps.summaryReached()
+            return
+        }
+        let previous = AnalyticsEvent.haulSizeBucket(reported)
+        guard count > reported, bucket != previous else { return }
+        reportedSize = count
+        Analytics.shared.track(.haulCompleted(itemsBucket: bucket, revisedFrom: previous))
     }
 
     /// Done. Valued items leave the haul — they are in My Finds — and pending
-    /// or failed ones stay for the next open. Scans in flight finish and save.
+    /// or failed ones stay for the next open. Scans in flight finish and save,
+    /// and leave as they land (`succeed`).
     func finishHaul() {
         items.removeAll { $0.result != nil }
         for id in draftQueue.waiting { draftQueue.remove(id) }
@@ -824,7 +992,7 @@ final class HaulSession {
         draftQueue.unhold()
         draftHold = nil
         isOpen = false
-        reportedCompletion = false
+        reportedSize = nil
     }
 
     // ── Drafts ───────────────────────────────────────────────────────────
@@ -833,7 +1001,8 @@ final class HaulSession {
     ///
     /// Photos captured afterwards are not drafted: the confirmation the user
     /// agreed to named a number. Drafts run one at a time and only while no
-    /// scan is waiting — a photo cannot be taken again, a draft can.
+    /// scan is waiting — a photo cannot be taken again, a draft can — or
+    /// while the ones waiting are halted (see `pump`).
     func draftAll(for marketplace: Marketplace) {
         if draftMarketplace == nil {
             draftMarketplace = marketplace
@@ -945,8 +1114,15 @@ final class HaulSession {
             if let index = index(of: id) { items[index].state = .scanning }
             Task { await self.runScan(id) }
         }
-        // Scans get the shared budget first.
-        if scanQueue.isIdle {
+        // Scans get the shared budget first — but photos waiting under a
+        // halt spend none of it, and would otherwise keep every draft on its
+        // clock icon until the user dealt with them. The commonest halts,
+        // the 24-hour device pause and the breaker on an unusable photo, are
+        // `/scan`'s alone: `/listing` does not check them. Only a halt: under
+        // a 402 hold a draft would be refused as well, and spend a slot to
+        // hear it.
+        let scansSpendNothing = scanQueue.waiting.isEmpty || hold?.isHalted == true
+        if scanQueue.inFlight.isEmpty, scansSpendNothing {
             for id in draftQueue.claim(now: now) {
                 Task { await self.runDraft(id) }
             }
@@ -1030,12 +1206,14 @@ final class HaulSession {
             return
         }
 
+        let pathAtSend = deps.networkPath()
         do {
             let response = try await deps.scan(image)
             let (result, saved) = await deps.record(response, image, capturedAt)
             succeed(id, capturedAt: capturedAt, result: result, saved: saved)
         } catch {
-            handleScanError(error, id: id)
+            let reach = Self.reach(of: error, pathAtSend: pathAtSend, pathNow: deps.networkPath())
+            handleScanError(error, reach: reach, id: id)
         }
     }
 
@@ -1048,19 +1226,30 @@ final class HaulSession {
             // Kept, and restored as failed on the next launch.
             deps.store.mark(id, capturedAt: capturedAt, .failed)
         }
-        noteSuccess(.scans)
-        celebrationDue = true
+        noteSuccess(.scans, id)
         guard let index = index(of: id) else { return }
+        if !isOpen, saved {
+            // Done was tapped while this was in flight. It is in My Finds,
+            // which is where `finishHaul` sent every other valued item — and
+            // kept here, in a session that outlives the screen, it would be a
+            // live `@Model` that My Finds can delete without telling the
+            // haul, and the next open would read it.
+            forget(id)
+            items.remove(at: index)
+            return
+        }
+        celebrationDue = true
         items[index].state = .done(result, saved: saved)
         if draftSnapshot.contains(id), items[index].draft == .waiting {
             draftQueue.enqueue(id, rank: Self.rank(capturedAt))
         }
     }
 
-    private func handleScanError(_ error: Error, id: UUID) {
+    private func handleScanError(_ error: Error, reach: HaulReach, id: UUID) {
         let appError = AppError.from(error)
         let now = deps.now()
-        switch Self.disposition(for: appError, lastFailure: lastFailure, offlineStreak: offlineStreak) {
+        switch Self.disposition(for: appError, lastFailure: lastFailure,
+                                offlineStreak: offlineStreak, reach: reach) {
         case .rateLimited(let wait):
             requeueScan(id)
             applyRateLimit(until: now.addingTimeInterval(wait))
@@ -1071,17 +1260,32 @@ final class HaulSession {
             // second one, and must not double the backoff.
             if case .offline(let until, _)? = pause, until > now { return }
             offlineStreak += 1
-            applyOffline(until: now.addingTimeInterval(wait), message: appError.errorDescription ?? "")
+            // A timeout with no path is the phone being offline; say that,
+            // not "The request timed out".
+            let shown = reach == .neverConnected ? AppError.network : appError
+            applyOffline(until: now.addingTimeInterval(wait), message: shown.errorDescription ?? "")
         case .entitlement:
             requeueScan(id)
             entitlementRefused(appError, lane: .scans)
         case .halt:
             requeueScan(id)
-            scanQueue.hold()
-            hold = .halted(appError.errorDescription ?? "")
+            halt(appError)
+        case .failAndHalt:
+            failScan(id, appError)
+            halt(appError)
         case .fail:
             failScan(id, appError)
         }
+    }
+
+    /// Holds the scans behind "Try the rest". A subscription confirmation
+    /// scheduled by the other request in flight is cancelled: it would lift
+    /// this hold on its own and send under the halted banner.
+    private func halt(_ error: AppError) {
+        confirmTasks[.scans]?.cancel()
+        confirmTasks[.scans] = nil
+        scanQueue.hold()
+        hold = .halted(error.errorDescription ?? "")
     }
 
     private func requeueScan(_ id: UUID) {
@@ -1102,15 +1306,25 @@ final class HaulSession {
                                            isFirst: firstFlags[id] ?? false))
         if firstClaim == id { firstClaim = nil }
         if let signature = Self.signature(for: error) { lastFailure = signature }
+        announce(String(localized: "Couldn't value this photo"))
     }
 
     private func celebrateIfDone() {
         guard celebrationDue, isOpen, pendingCount == 0, valuedCount > 0 else { return }
         celebrationDue = false
-        // One haptic for the haul, not one per photo: a buzz per item while
-        // the next one is being framed is noise.
-        Haptics.success()
-        announce(String(localized: "All photos valued. Estimated total: \(HistoryViewModel.money(total))"))
+        let money = HistoryViewModel.money(total)
+        guard failedCount > 0 else {
+            // One haptic for the haul, not one per photo: a buzz per item
+            // while the next one is being framed is noise.
+            Haptics.success()
+            announce(String(localized: "All photos valued. Estimated total: \(money)"))
+            return
+        }
+        // Not "all photos valued", and no success haptic: some were not.
+        // Two counts, so two plural keys — see ios/Localization/README.md.
+        let valued = String(localized: "\(valuedCount) photos valued")
+        let failed = String(localized: "\(failedCount) photos couldn't be valued")
+        announce(String(localized: "\(valued), \(failed). Estimated total: \(money)"))
     }
 
     // ── One draft ────────────────────────────────────────────────────────
@@ -1130,7 +1344,7 @@ final class HaulSession {
         let input = ListingInput(result: result, condition: result.condition)
         do {
             let listing = try await deps.generate(input, marketplace)
-            noteSuccess(.drafts)
+            noteSuccess(.drafts, id)
             guard let index = self.index(of: id) else { return }
             items[index].draft = .done(listing)
             Analytics.shared.track(.listingGenerated(marketplace: marketplace.rawValue))
@@ -1159,13 +1373,9 @@ final class HaulSession {
         draftQueue.pause(until: until)
         let deadline = max(rateLimitDeadline ?? until, until)
         rateLimitDeadline = deadline
-        let wasRateLimited: Bool
-        if case .rateLimited? = pause { wasRateLimited = true } else { wasRateLimited = false }
+        // Announced by `pause`'s didSet, the first time only.
         pause = .rateLimited(until: max(deadline, pause?.until ?? deadline))
         deps.defaults.set(deadline.timeIntervalSince1970, forKey: Self.rateLimitKey)
-        if !wasRateLimited {
-            announce(AppError.rateLimitMessage(retryAfter: deadline.timeIntervalSince(deps.now())))
-        }
         scheduleResume(at: pause?.until ?? deadline)
     }
 
@@ -1205,10 +1415,15 @@ final class HaulSession {
     /// but nothing here presents the paywall. Haul only holds, and the banner
     /// offers Upgrade.
     private func entitlementRefused(_ error: AppError, lane: Lane) {
+        // A halt from the other request in flight stays: it is lifted by the
+        // user, and a confirmation would lift it after 5 s on its own —
+        // past, say, the 24-hour device pause. "Try the rest" sends again,
+        // and a 402 then is handled from scratch.
+        let halted = holdValue(lane)?.isHalted == true
         if deps.isEntitled() {
             // A response that was in flight before the hold: the retry is
             // already scheduled, and this is not a second refusal.
-            if holdValue(lane) == .confirmingSubscription, confirmTasks[lane] != nil {
+            if halted || (holdValue(lane) == .confirmingSubscription && confirmTasks[lane] != nil) {
                 withQueue(lane) { $0.hold() }
                 return
             }
@@ -1216,7 +1431,7 @@ final class HaulSession {
             return
         }
         withQueue(lane) { $0.hold() }
-        setHold(lane, .quota(error.errorDescription ?? ""))
+        if !halted { setHold(lane, .quota(error.errorDescription ?? "")) }
         guard lane == .scans else { return }
         // What `ScanViewModel.startScan` does with a 402 — the server has
         // refused, so the counter must stop advertising a scan — minus
@@ -1250,27 +1465,48 @@ final class HaulSession {
             do { try await sleep(delay) } catch { return }
             guard !Task.isCancelled else { return }
             self.confirmTasks[lane] = nil
-            self.withQueue(lane) { $0.unhold(); $0.beginProbing() }
-            self.pump()
+            self.releaseConfirmation(lane)
         }
     }
 
-    private func noteSuccess(_ lane: Lane) {
+    /// The confirmation's retry. Only a queue still held for *this* reason is
+    /// let go: a halt that arrived meanwhile — from the other request in
+    /// flight — is the user's to lift, and sending under its banner would
+    /// spend a request on what it just said to stop for.
+    private func releaseConfirmation(_ lane: Lane) {
+        guard holdValue(lane) == .confirmingSubscription else { return }
+        withQueue(lane) { $0.unhold(); $0.beginProbing() }
+        pump()
+    }
+
+    /// `id` went through.
+    ///
+    /// Whatever it was claimed under, the server and the network work, so the
+    /// breaker's run and the offline streak end. What it says about the
+    /// *budget* and the *entitlement* depends on when it was sent: a request
+    /// claimed before the latest pause or hold — usually the one that took
+    /// the 20th slot while the other got the 429 — answers for the moment it
+    /// was admitted, not for now. Only a request sent since ends the probe,
+    /// forgets the deadline (in memory and on disk) or confirms the
+    /// subscription.
+    private func noteSuccess(_ lane: Lane, _ id: UUID) {
+        if lane == .scans {
+            lastFailure = nil
+            offlineStreak = 0
+        }
+        let isCurrent = lane == .scans ? scanQueue.isCurrent(id) : draftQueue.isCurrent(id)
+        guard isCurrent else { return }
         scanQueue.succeeded()
         draftQueue.succeeded()
         rateLimitDeadline = nil
         deps.defaults.removeObject(forKey: Self.rateLimitKey)
         confirmAttempts[lane] = 0
+        if lane == .scans { limitHitReported = false }
         if holdValue(lane) == .confirmingSubscription {
             confirmTasks[lane]?.cancel()
             confirmTasks[lane] = nil
             withQueue(lane) { $0.unhold() }
             setHold(lane, nil)
-        }
-        if lane == .scans {
-            lastFailure = nil
-            offlineStreak = 0
-            limitHitReported = false
         }
     }
 
@@ -1316,6 +1552,7 @@ final class HaulSession {
         case .encodeFailed:
             unpreparedPhotos[id] = photo
             items[index].state = .failed(AppError.imageEncodingFailed.errorDescription)
+            announce(String(localized: "Couldn't value this photo"))
         case .ready(let thumbnail, let unsaved):
             items[index].thumbnail = thumbnail
             items[index].state = .queued
@@ -1372,9 +1609,15 @@ final class HaulSession {
         }
     }
 
+    /// Queued behind whatever VoiceOver is saying rather than cutting it off:
+    /// a failed photo and the halt it trips arrive in the same turn, and the
+    /// second would otherwise silence the first. Nothing with Haul closed —
+    /// a scan landing late would speak over whatever screen is up.
     private func announce(_ message: String) {
-        guard UIAccessibility.isVoiceOverRunning else { return }
-        UIAccessibility.post(notification: .announcement, argument: message)
+        guard isOpen, UIAccessibility.isVoiceOverRunning else { return }
+        let queued = NSAttributedString(string: message,
+                                        attributes: [.accessibilitySpeechQueueAnnouncement: true])
+        UIAccessibility.post(notification: .announcement, argument: queued)
     }
 }
 
@@ -1389,7 +1632,13 @@ extension HaulSession {
     ///   window itself.
     /// * **402** is the entitlement, not the photo.
     /// * **No connection** backs off 15 → 30 → 60 → 120 → 300 s. Nothing
-    ///   reached the server, so a probe costs nothing.
+    ///   reached the server, so a probe costs nothing. That covers the
+    ///   connect-time failures, and a timeout with no network path from send
+    ///   to failure (`HaulReach.neverConnected`) — which is how offline
+    ///   usually arrives, the API session waiting for connectivity until it
+    ///   times out.
+    /// * **A dropped connection** (`HaulReach.droppedMidRequest`) fails the
+    ///   photo, like a timeout: the upload may have landed and been charged.
     /// * **503** backs off like no connection, twice more — a 503 may use a
     ///   slot — and then halts: three in a row is an outage.
     /// * **An expired session** halts: the client already re-minted once, so
@@ -1398,19 +1647,25 @@ extension HaulSession {
     ///   server has usually finished and charged the slot and the model call;
     ///   a silent re-send doubles that.
     /// * **The breaker**: two server failures in a row with the same case and
-    ///   message halt the queue. It catches an outage that arrives as
-    ///   `.aiFailed`, and the 24-hour "device paused" 422 — which, arriving
-    ///   for every photo, would otherwise turn the whole strip red.
+    ///   message fail the second photo too and halt the rest. It catches an
+    ///   outage that arrives as `.aiFailed`, and the 24-hour "device paused"
+    ///   422 — which, arriving for every photo, would otherwise turn the
+    ///   whole strip red.
     /// * **A local encoding failure** fails the photo and never trips the
     ///   breaker: it used no slot and says nothing about the server.
     nonisolated static func disposition(for error: AppError,
                                         lastFailure: HaulFailureSignature?,
-                                        offlineStreak: Int) -> HaulDisposition {
+                                        offlineStreak: Int,
+                                        reach: HaulReach = .unknown) -> HaulDisposition {
         if error.isPaywall { return .entitlement }
         switch error {
         case .rateLimit(let retryAfter):
             return .rateLimited(clampedPause(retryAfter))
+        case .network where reach == .droppedMidRequest:
+            return .fail
         case .network:
+            return .offline(offlineBackoff(streak: offlineStreak))
+        case .timeout where reach == .neverConnected:
             return .offline(offlineBackoff(streak: offlineStreak))
         case .serverUnavailable:
             return offlineStreak < 3 ? .offline(offlineBackoff(streak: offlineStreak)) : .halt
@@ -1419,9 +1674,19 @@ extension HaulSession {
         case .imageEncodingFailed:
             return .fail
         default:
-            if let signature = signature(for: error), signature == lastFailure { return .halt }
+            if let signature = signature(for: error), signature == lastFailure { return .failAndHalt }
             return .fail
         }
+    }
+
+    /// Reads, before the error is flattened into an `AppError`, what the
+    /// transport knows about whether the request reached the server.
+    nonisolated static func reach(of error: Error, pathAtSend: HaulNetworkPath,
+                                  pathNow: HaulNetworkPath) -> HaulReach {
+        if (error as? URLError)?.code == .networkConnectionLost { return .droppedMidRequest }
+        let neverSatisfied = !pathAtSend.isSatisfied && !pathNow.isSatisfied
+            && pathAtSend.satisfiedCount == pathNow.satisfiedCount
+        return neverSatisfied ? .neverConnected : .unknown
     }
 
     nonisolated static func clampedPause(_ retryAfter: TimeInterval?) -> TimeInterval {
@@ -1532,5 +1797,33 @@ private final class HaulBackgroundTask {
             UIApplication.shared.endBackgroundTask(identifier)
         }
         identifier = .invalid
+    }
+}
+
+// MARK: - Network path
+
+/// The device's network path, for `HaulSession.reach(of:)`.
+///
+/// Starts optimistic — satisfied — until its first reading, which arrives
+/// almost at once: an unknown path then leaves a timeout failing, as it
+/// always did, rather than guessing it offline.
+@MainActor
+final class HaulPathMonitor {
+    static let shared = HaulPathMonitor()
+
+    private(set) var current = HaulNetworkPath(isSatisfied: true, satisfiedCount: 0)
+    private let monitor = NWPathMonitor()
+
+    private init() {
+        monitor.pathUpdateHandler = { [weak self] path in
+            let satisfied = path.status == .satisfied
+            MainActor.assumeIsolated { self?.update(satisfied: satisfied) }
+        }
+        monitor.start(queue: .main)
+    }
+
+    private func update(satisfied: Bool) {
+        if satisfied, !current.isSatisfied { current.satisfiedCount += 1 }
+        current.isSatisfied = satisfied
     }
 }

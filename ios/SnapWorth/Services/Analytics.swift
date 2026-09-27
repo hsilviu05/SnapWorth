@@ -84,7 +84,13 @@ enum AnalyticsEvent {
     /// ones are valued, saved and counted as scans when they land. Counting
     /// only the valued ones would shrink exactly the hauls big enough to hit
     /// the limit.
-    case haulCompleted(itemsBucket: String)
+    ///
+    /// Once per haul at its first Finish, so a kill from the switcher does
+    /// not lose it. A haul that grows into a larger bucket after "Keep
+    /// scanning" reports again with `revised_from`, the bucket it replaces:
+    /// hauls are the events without it, and each revision moves one haul
+    /// from `revised_from` to `items`.
+    case haulCompleted(itemsBucket: String, revisedFrom: String? = nil)
     /// The haul card left through the share sheet. Only a completed share.
     case haulShared
 
@@ -214,8 +220,9 @@ enum AnalyticsEvent {
             return ["marketplace": marketplace]
         case let .thriftFlipCalculated(verdict):
             return ["verdict": verdict]
-        case let .haulCompleted(bucket):
-            return ["items": bucket]
+        case let .haulCompleted(bucket, revisedFrom):
+            guard let revisedFrom else { return ["items": bucket] }
+            return ["items": bucket, "revised_from": revisedFrom]
         case let .crashReported(signal, termination):
             return ["signal": signal, "termination": termination]
         case let .hangReported(bucket), let .launchTimeReported(bucket), let .scanStreak(bucket):

@@ -5581,6 +5581,8 @@ final class HaulAnalyticsTests: XCTestCase {
     func test_theNewEventsCarryTheNamesAndParametersTheDashboardQueries() {
         XCTAssertEqual(AnalyticsEvent.haulCompleted(itemsBucket: "10-14").name, "haul_completed")
         XCTAssertEqual(AnalyticsEvent.haulCompleted(itemsBucket: "10-14").parameters, ["items": "10-14"])
+        XCTAssertEqual(AnalyticsEvent.haulCompleted(itemsBucket: "10-14", revisedFrom: "2-4").parameters,
+                       ["items": "10-14", "revised_from": "2-4"])
         XCTAssertEqual(AnalyticsEvent.haulShared.name, "haul_shared")
         XCTAssertEqual(AnalyticsEvent.haulShared.parameters, [:])
         XCTAssertEqual(PaywallTrigger.haul.rawValue, "haul")
@@ -5616,6 +5618,32 @@ final class HaulAnalyticsTests: XCTestCase {
         session.didReachSummary()
         XCTAssertEqual(spy.events.filter { $0.name == "haul_completed" }.count, 2,
                        "a new open is a new haul")
+    }
+
+    /// Finish, Keep scanning, Finish again: the first report survives a kill,
+    /// and the second says how big the haul really got — as a revision, so
+    /// the count of hauls is still the count of events without one.
+    func test_aHaulThatGrowsAfterKeepScanningReportsItsNewSize() async {
+        let h = HaulHarness()
+        defer { h.tearDown() }
+        let spy = FunnelSpy()
+        Analytics.shared.configure(spy)
+        let session = h.makeSession()
+
+        for _ in 0..<2 { session.add(HaulFixtures.photo()) }
+        session.didReachSummary()
+        for _ in 0..<3 { session.add(HaulFixtures.photo()) }
+        session.didReachSummary()
+        session.didReachSummary()
+
+        XCTAssertEqual(spy.events.filter { $0.name == "haul_completed" }.map(\.params),
+                       [["items": "2-4"], ["items": "5-9", "revised_from": "2-4"]])
+        XCTAssertEqual(h.summaryCount, 1, "the recap and the review prompt once per haul")
+
+        session.add(HaulFixtures.photo())
+        session.didReachSummary()
+        XCTAssertEqual(spy.events.filter { $0.name == "haul_completed" }.count, 2,
+                       "grown within its bucket: nothing to revise")
     }
 
     func test_isFirstIsClaimedByAtMostOneScanInFlight() async {

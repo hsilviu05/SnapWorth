@@ -95,9 +95,9 @@ struct ScanView: View {
                 // The charcoal ground behind this ZStack is the whole screen.
                 EmptyView()
             case .restricted:
-                permissionPlaceholder(restricted: true)
+                CameraPermissionPlaceholder(restricted: true)
             default:
-                permissionPlaceholder(restricted: false)
+                CameraPermissionPlaceholder(restricted: false)
             }
 
             // ── Camera UI overlay ─────────────────────────────────────────
@@ -234,7 +234,7 @@ struct ScanView: View {
                 Spacer()
 
                 HaulEntryPill(isPro: purchaseService.isSubscribed,
-                              waiting: haul?.pendingCount ?? 0,
+                              waiting: (haul?.pendingCount ?? 0) + (haul?.failedCount ?? 0),
                               isDisabled: vm.isAnalyzing || captureInFlight) {
                     if purchaseService.isSubscribed {
                         showHaul = true
@@ -529,39 +529,6 @@ struct ScanView: View {
         }
     }
 
-    // MARK: - Permission Placeholder
-    private func permissionPlaceholder(restricted: Bool) -> some View {
-        VStack(spacing: 20) {
-            Image(systemName: "camera.slash")
-                .snapSymbol(48, weight: .light)
-                .foregroundStyle(Color.snapOnCharcoal.opacity(0.5))
-                .accessibilityHidden(true)
-
-            // Under Screen Time or an MDM profile the camera is not something
-            // the user turned down, and telling them it is makes the app look
-            // broken rather than restricted.
-            Text(restricted
-                 ? String(localized: "Camera access is restricted on this device")
-                 : String(localized: "Camera access needed to scan items"))
-                .font(.snapBody)
-                .foregroundStyle(Color.snapOnCharcoal.opacity(0.8))
-                .multilineTextAlignment(.center)
-                .fixedSize(horizontal: false, vertical: true)
-                .padding(.horizontal, 40)
-                .accessibilityAddTraits(.isHeader)
-
-            PrimaryButton(title: "Open Settings") {
-                if let url = URL(string: UIApplication.openSettingsURLString) {
-                    UIApplication.shared.open(url)
-                }
-            }
-            .frame(maxWidth: 200)
-            .accessibilityHint(restricted
-                               ? String(localized: "Opens iOS Settings, where Screen Time restrictions are changed")
-                               : String(localized: "Opens iOS Settings so you can allow camera access"))
-        }
-    }
-
     /// A purchase made from the Haul entry lands in Haul, which is what the
     /// user was trying to open.
     private func paywallDismissed() {
@@ -712,6 +679,48 @@ private struct ThriftRunControl: View {
     }
 }
 
+// MARK: - Permission Placeholder
+
+/// Where the camera preview would be, when there is no camera access: what
+/// happened and the way to Settings. The Scan tab's and Haul's — Haul is
+/// entered whatever the permission, since photos from an earlier haul still
+/// drain without a camera.
+struct CameraPermissionPlaceholder: View {
+    let restricted: Bool
+
+    var body: some View {
+        VStack(spacing: 20) {
+            Image(systemName: "camera.slash")
+                .snapSymbol(48, weight: .light)
+                .foregroundStyle(Color.snapOnCharcoal.opacity(0.5))
+                .accessibilityHidden(true)
+
+            // Under Screen Time or an MDM profile the camera is not something
+            // the user turned down, and telling them it is makes the app look
+            // broken rather than restricted.
+            Text(restricted
+                 ? String(localized: "Camera access is restricted on this device")
+                 : String(localized: "Camera access needed to scan items"))
+                .font(.snapBody)
+                .foregroundStyle(Color.snapOnCharcoal.opacity(0.8))
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.horizontal, 40)
+                .accessibilityAddTraits(.isHeader)
+
+            PrimaryButton(title: "Open Settings") {
+                if let url = URL(string: UIApplication.openSettingsURLString) {
+                    UIApplication.shared.open(url)
+                }
+            }
+            .frame(maxWidth: 200)
+            .accessibilityHint(restricted
+                               ? String(localized: "Opens iOS Settings, where Screen Time restrictions are changed")
+                               : String(localized: "Opens iOS Settings so you can allow camera access"))
+        }
+    }
+}
+
 // MARK: - Haul mode (#93)
 
 /// The way into Haul mode, above the shutter.
@@ -722,7 +731,8 @@ private struct ThriftRunControl: View {
 /// one expression near the type-checker's budget.
 private struct HaulEntryPill: View {
     let isPro: Bool
-    /// Photos an earlier haul left waiting.
+    /// Photos an earlier haul left waiting: to be valued, or — failed — for
+    /// the user's Try again or Remove, which are only offered inside.
     let waiting: Int
     let isDisabled: Bool
     let action: () -> Void

@@ -3494,6 +3494,8 @@ final class HaulHarness {
 
     var entitled = true
     var saveSucceeds = true
+    /// What `NWPathMonitor` would report. Satisfied unless a test says not.
+    var path = HaulNetworkPath(isSatisfied: true, satisfiedCount: 0)
     private(set) var refreshCount = 0
     private(set) var summaryCount = 0
     private(set) var deleted: [UUID] = []
@@ -3527,6 +3529,7 @@ final class HaulHarness {
             generate: { _, _ in try await drafts.call() },
             isEntitled: { [self] in self.entitled },
             refreshEntitlements: { [self] in self.refreshCount += 1 },
+            networkPath: { [self] in self.path },
             beginBackgroundTask: { name in background.begin(name) },
             summaryReached: { [self] in self.summaryCount += 1 },
             sleep: { duration in try await sleeper.sleep(duration) },
@@ -3669,6 +3672,24 @@ final class HaulQueueTests: XCTestCase {
         queue.release(1)
         XCTAssertEqual(queue.claim(now: t0), [3])
     }
+
+    func test_aRequestClaimedBeforeAPauseOrHoldIsNotCurrent() {
+        var queue = HaulQueue<Int>(maxInFlight: 2)
+        (1...3).forEach { queue.enqueue($0) }
+        XCTAssertEqual(queue.claim(now: t0), [1, 2])
+        XCTAssertTrue(queue.isCurrent(1))
+
+        queue.pause(until: t0.addingTimeInterval(10))
+        XCTAssertFalse(queue.isCurrent(1), "sent before the 429: its success says nothing about now")
+        queue.release(1)
+        queue.release(2)
+        XCTAssertEqual(queue.claim(now: t0.addingTimeInterval(10)), [3], "the probe")
+        XCTAssertTrue(queue.isCurrent(3))
+
+        queue.hold()
+        XCTAssertFalse(queue.isCurrent(3), "a hold starts a new epoch too")
+        XCTAssertFalse(queue.isCurrent(99), "never claimed")
+    }
 }
 
 // ── The error policy ─────────────────────────────────────────────────────────
@@ -3676,8 +3697,8 @@ final class HaulQueueTests: XCTestCase {
 @MainActor
 final class HaulDispositionTests: XCTestCase {
     private func disposition(_ error: AppError, last: HaulFailureSignature? = nil,
-                             streak: Int = 0) -> HaulDisposition {
-        HaulSession.disposition(for: error, lastFailure: last, offlineStreak: streak)
+                             streak: Int = 0, reach: HaulReach = .unknown) -> HaulDisposition {
+        HaulSession.disposition(for: error, lastFailure: last, offlineStreak: streak, reach: reach)
     }
 
     func test_rateLimitWaitsForTheServersDeadlineClamped() {
@@ -3713,21 +3734,61 @@ final class HaulDispositionTests: XCTestCase {
         XCTAssertEqual(disposition(.timeout), .fail)
     }
 
-    func test_theBreakerHaltsOnTheSameFailureTwice() {
+    /// The API session waits for connectivity until its resource timeout, so
+    /// offline arrives as a timeout, not as `.notConnectedToInternet`.
+    func test_aTimeoutWithNoPathFromSendToFailureIsOffline() {
+        XCTAssertEqual(disposition(.timeout, streak: 1, reach: .neverConnected), .offline(30))
+    }
+
+    func test_aDroppedConnectionFailsLikeATimeout() {
+        XCTAssertEqual(disposition(.network, reach: .droppedMidRequest), .fail,
+                       "the upload may have landed and been charged; a silent re-send doubles that")
+        XCTAssertEqual(disposition(.network), .offline(15))
+    }
+
+    func test_reachReadsTheTransportBeforeTheErrorIsFlattened() {
+        let up = HaulNetworkPath(isSatisfied: true, satisfiedCount: 3)
+        let down = HaulNetworkPath(isSatisfied: false, satisfiedCount: 3)
+        let upAndDownAgain = HaulNetworkPath(isSatisfied: false, satisfiedCount: 4)
+
+        XCTAssertEqual(HaulSession.reach(of: URLError(.networkConnectionLost), pathAtSend: up, pathNow: up),
+                       .droppedMidRequest)
+        XCTAssertEqual(AppError.from(URLError(.networkConnectionLost)), .network,
+                       "which the flattened error cannot tell from a connection never made")
+        XCTAssertEqual(HaulSession.reach(of: URLError(.timedOut), pathAtSend: down, pathNow: down),
+                       .neverConnected)
+        XCTAssertEqual(HaulSession.reach(of: URLError(.timedOut), pathAtSend: down, pathNow: upAndDownAgain),
+                       .unknown, "there was a path for a while: the server may have been reached")
+        XCTAssertEqual(HaulSession.reach(of: URLError(.timedOut), pathAtSend: up, pathNow: down), .unknown)
+    }
+
+    func test_theBreakerFailsTheSecondPhotoAndHaltsTheRest() {
         let unusable = AppError.unusablePhoto("Try a clear photo of a single item.")
         XCTAssertEqual(disposition(unusable), .fail)
-        XCTAssertEqual(disposition(unusable, last: HaulSession.signature(for: unusable)), .halt)
+        XCTAssertEqual(disposition(unusable, last: HaulSession.signature(for: unusable)), .failAndHalt)
         XCTAssertEqual(disposition(.unusablePhoto("Something else"),
                                    last: HaulSession.signature(for: unusable)), .fail,
                        "a different message is a different photo's problem")
 
         let outage = AppError.aiFailed("Our AI is having trouble right now.")
-        XCTAssertEqual(disposition(outage, last: HaulSession.signature(for: outage)), .halt)
+        XCTAssertEqual(disposition(outage, last: HaulSession.signature(for: outage)), .failAndHalt)
     }
 
     func test_thePausedDevice422TwiceHalts() {
         let paused = AppError.unusablePhoto("This device is paused for 24 hours.")
-        XCTAssertEqual(disposition(paused, last: HaulSession.signature(for: paused)), .halt)
+        XCTAssertEqual(disposition(paused, last: HaulSession.signature(for: paused)), .failAndHalt)
+    }
+
+    /// Spoken, the 429 says what the banner says: the photos are kept and the
+    /// queue resumes by itself — not "Try again in…", which asks the user to
+    /// act.
+    func test_the429IsSpokenAsTheBannerReads() {
+        let pause = HaulPause.rateLimited(until: HaulFixtures.start)
+        XCTAssertEqual(pause.announcement(remaining: 12 * 60 + 40),
+                       "You've hit the scan limit. Your photos are kept — resuming in 13 minutes")
+        XCTAssertEqual(HaulPause.spokenWait(45), "45 seconds")
+        XCTAssertEqual(HaulPause.spokenWait(59.2), "1 minute", "rounded up, never shorter")
+        XCTAssertEqual(HaulPause.spokenWait(0), "1 second")
     }
 
     func test_aLocalEncodingFailureNeverHalts() {
@@ -3830,6 +3891,81 @@ final class HaulSessionTests: XCTestCase {
         XCTAssertEqual(h.scans.calls, 1, "nothing sent before the deadline")
     }
 
+    /// The usual order at the limit: one request takes the 20th slot and
+    /// spends seconds in the model, the other is refused at once. The
+    /// admitted one's success arrives after the 429.
+    private func hitTheLimitThenLandTheAdmittedOne(_ h: HaulHarness, _ session: HaulSession) async {
+        session.open()
+        for _ in 0..<4 { session.add(HaulFixtures.photo()) }
+        await haulWait("two in flight") { h.scans.waiting == 2 }
+        h.scans.failOldest(ScanAPIError.rateLimited(detail: "Rate limit", retryAfter: 30))
+        await haulWait("paused") { session.pause != nil }
+        h.scans.succeedOldest(HaulFixtures.response())
+        await haulWait("the admitted one lands") { session.valuedCount == 1 && session.scansInFlight == 0 }
+    }
+
+    func test_aSuccessSentBeforeThe429KeepsTheProbeAndTheDeadline() async {
+        let h = HaulHarness()
+        defer { h.tearDown() }
+        let session = h.makeSession()
+        await hitTheLimitThenLandTheAdmittedOne(h, session)
+
+        XCTAssertTrue(session.isProbing, "that success answers for the moment it was admitted, not now")
+        XCTAssertNotNil(h.defaults.object(forKey: HaulSession.rateLimitKey))
+        XCTAssertEqual(session.pause, .rateLimited(until: HaulFixtures.start.addingTimeInterval(30)))
+
+        h.clock.advance(30)
+        h.sleeper.resumeAll()
+        await haulWait("the probe") { h.scans.waiting == 1 }
+        await haulSettle()
+        XCTAssertEqual(session.scansInFlight, 1, "Retry-After frees one slot: one request, not two")
+        XCTAssertNotNil(h.defaults.object(forKey: HaulSession.rateLimitKey),
+                        "kept until a request sent since the 429 succeeds")
+
+        h.scans.succeedOldest(HaulFixtures.response())
+        await haulWait("two again") { h.scans.waiting == 2 }
+        XCTAssertFalse(session.isProbing)
+        XCTAssertNil(h.defaults.object(forKey: HaulSession.rateLimitKey))
+    }
+
+    func test_aKillAfterThatSuccessStillComesBackPausedAndProbing() async {
+        let h = HaulHarness()
+        defer { h.tearDown() }
+        await hitTheLimitThenLandTheAdmittedOne(h, h.makeSession())
+
+        let relaunched = h.makeSession()
+        await relaunched.restorePending()
+        XCTAssertEqual(relaunched.pause, .rateLimited(until: HaulFixtures.start.addingTimeInterval(30)))
+        XCTAssertTrue(relaunched.isProbing)
+    }
+
+    /// Done right after the last shutter is the usual way to finish, with a
+    /// scan still in the model. The session outlives the screen, and a find
+    /// kept in it is a live `@Model` that My Finds can delete.
+    func test_aScanLandingAfterDoneLeavesTheHaul() async {
+        let h = HaulHarness()
+        defer { h.tearDown() }
+        let session = h.makeSession()
+        session.open()
+        session.add(HaulFixtures.photo())
+        await haulWait("in flight") { h.scans.waiting == 1 }
+
+        session.finishHaul()
+        h.scans.succeedOldest(HaulFixtures.response())
+        await haulWait("landed") { h.store.pending(now: h.clock.now).isEmpty && session.scansInFlight == 0 }
+        XCTAssertTrue(session.items.isEmpty, "saved to My Finds, where Done sent every other valued item")
+        XCTAssertEqual(session.valuedCount, 0)
+
+        // One that could not be saved stays: its photo is the only copy.
+        h.saveSucceeds = false
+        session.open()
+        session.add(HaulFixtures.photo())
+        await haulWait("in flight") { h.scans.waiting == 1 }
+        session.finishHaul()
+        h.scans.succeedOldest(HaulFixtures.response())
+        await haulWait("landed") { session.items.first?.isUnsaved ?? false }
+    }
+
     // Network, service and the breaker
 
     func test_offlinePausesInsteadOfFailing() async {
@@ -3864,6 +4000,51 @@ final class HaulSessionTests: XCTestCase {
         await haulWait("valued") { session.valuedCount == 1 }
         XCTAssertEqual(h.scans.calls, 3)
         XCTAssertNil(session.pause)
+    }
+
+    /// How offline really arrives: the API session waits for connectivity
+    /// and then times out. Two photos out at the time must not turn red or
+    /// trip the breaker between them.
+    func test_aTimeoutWithNoNetworkPathPausesInsteadOfFailing() async {
+        let h = HaulHarness()
+        defer { h.tearDown() }
+        h.path = HaulNetworkPath(isSatisfied: false, satisfiedCount: 0)
+        let session = h.makeSession()
+        session.open()
+        session.add(HaulFixtures.photo())
+        session.add(HaulFixtures.photo())
+        await haulWait("two in flight") { h.scans.waiting == 2 }
+
+        h.scans.failAll(URLError(.timedOut))
+        await haulWait("both back") { session.scansInFlight == 0 }
+        guard case .offline(_, let message)? = session.pause else { return XCTFail("expected an offline pause") }
+        XCTAssertEqual(message, AppError.network.errorDescription, "it says offline, not \"timed out\"")
+        XCTAssertEqual(session.failedCount, 0)
+        XCTAssertNil(session.hold, "no breaker")
+        XCTAssertEqual(session.items.map { session.attemptCount(for: $0.id) }, [0, 0])
+
+        // With a path, a timeout is the server taking too long: it fails.
+        h.path = HaulNetworkPath(isSatisfied: true, satisfiedCount: 1)
+        session.resumeNow()
+        await haulWait("the probe") { h.scans.waiting == 1 }
+        h.scans.failOldest(URLError(.timedOut))
+        await haulWait("failed") { session.failedCount == 1 }
+    }
+
+    func test_aDroppedConnectionFailsThePhotoInsteadOfResending() async {
+        let h = HaulHarness()
+        defer { h.tearDown() }
+        let session = h.makeSession()
+        session.open()
+        session.add(HaulFixtures.photo())
+        await haulWait("sent") { h.scans.waiting == 1 }
+
+        h.scans.failOldest(URLError(.networkConnectionLost))
+        await haulWait("failed") { session.failedCount == 1 }
+        XCTAssertNil(session.pause)
+        await haulSettle()
+        XCTAssertEqual(h.scans.calls, 1,
+                       "the upload may have landed and been charged; only Try again sends it again")
     }
 
     func test_timeoutFailsOnceAndManualRetryRecovers() async {
@@ -3917,6 +4098,7 @@ final class HaulSessionTests: XCTestCase {
         for _ in 0..<4 { session.add(HaulFixtures.photo()) }
         await haulWait("two in flight") { h.scans.waiting == 2 }
         let second = session.items[1].id
+        let fourth = session.items[3].id
 
         let outage = ScanAPIError.serverError(502, "Our AI is having trouble right now.")
         h.scans.failOldest(outage)
@@ -3925,8 +4107,11 @@ final class HaulSessionTests: XCTestCase {
         await haulWait("halted") { session.hold != nil }
 
         XCTAssertEqual(session.hold, .halted("Our AI is having trouble right now."))
-        XCTAssertEqual(session.failedCount, 1, "the second photo is put back, not failed")
-        XCTAssertTrue(item(session, second)?.state.isQueued ?? false)
+        XCTAssertEqual(session.failedCount, 2,
+                       "the photo that tripped the breaker has had its answer, like the first")
+        XCTAssertTrue(item(session, second)?.isFailed ?? false)
+        XCTAssertEqual(h.store.pending(now: h.clock.now).filter { $0.state == .failed }.count, 2,
+                       "and a relaunch does not re-send it either")
 
         h.scans.succeedOldest(HaulFixtures.response())
         await haulWait("third valued") { session.valuedCount == 1 }
@@ -3934,9 +4119,31 @@ final class HaulSessionTests: XCTestCase {
         XCTAssertEqual(h.scans.calls, 3, "nothing more goes out while halted")
 
         session.resumeHeld()
-        await haulWait("Try the rest sends again") { h.scans.waiting == 1 }
+        await haulWait("Try the rest sends the rest") { h.scans.waiting == 1 }
         XCTAssertNil(session.hold)
         XCTAssertEqual(h.scans.calls, 4)
+        XCTAssertEqual(item(session, fourth)?.state.isScanning, true,
+                       "the rest — not the refused photo again, which would spend a slot to hear the same")
+    }
+
+    /// For a safety block, each re-send is also a strike toward the device's
+    /// 24-hour pause.
+    func test_theBreakerNeverResendsTheRefusedPhotoOnTryTheRest() async {
+        let h = HaulHarness()
+        defer { h.tearDown() }
+        let session = h.makeSession()
+        session.open()
+        for _ in 0..<2 { session.add(HaulFixtures.photo()) }
+        await haulWait("two in flight") { h.scans.waiting == 2 }
+        let blocked = ScanAPIError.serverError(422, "This photo couldn't be analysed. Try a clear photo of a single item.")
+        h.scans.failOldest(blocked)
+        h.scans.failOldest(blocked)
+        await haulWait("halted") { session.hold != nil }
+
+        session.resumeHeld()
+        await haulSettle()
+        XCTAssertEqual(h.scans.calls, 2, "nothing is left to try but the two refused photos")
+        XCTAssertEqual(session.failedCount, 2)
     }
 
     // Entitlement and 402
@@ -4027,6 +4234,77 @@ final class HaulSessionTests: XCTestCase {
         await haulWait("sent") { h.scans.waiting == 1 }
         h.scans.succeedOldest(HaulFixtures.response())
         await haulWait("valued") { session.valuedCount == 1 }
+    }
+
+    /// Pro lapsed mid-haul, the user closed Haul and bought from the Scan
+    /// tab's paywall — whose dismissal never reaches `resumeAfterPurchase`.
+    func test_aQuotaHoldIsConfirmedOnTheNextOpenOnceSubscribed() async {
+        let remainingKey = "snapworth_free_scans_server_remaining"
+        let previous = UserDefaults.standard.object(forKey: remainingKey)
+        defer { UserDefaults.standard.set(previous, forKey: remainingKey) }
+
+        let h = HaulHarness()
+        defer { h.tearDown() }
+        let session = h.makeSession()
+        session.open()
+        session.add(HaulFixtures.photo())
+        await haulWait("sent") { h.scans.waiting == 1 }
+        h.entitled = false
+        h.scans.failOldest(ScanAPIError.serverError(402, "You've used today's free scan."))
+        await haulWait("quota") { session.hold == .quota("You've used today's free scan.") }
+        session.finishHaul()
+
+        h.entitled = true
+        session.open()
+        XCTAssertEqual(session.hold, .confirmingSubscription, "not Upgrade to Pro, to someone who just did")
+        await haulWait("confirming") { h.sleeper.waiting == 1 }
+        h.sleeper.resumeAll()
+        await haulWait("one request") { h.scans.waiting == 1 }
+        h.scans.succeedOldest(HaulFixtures.response())
+        await haulWait("valued") { session.valuedCount == 1 }
+        XCTAssertNil(session.hold)
+        XCTAssertEqual(h.scans.calls, 2)
+    }
+
+    /// A 402 and a halt on the two requests in flight, in either order: the
+    /// halt stays until the user lifts it.
+    func test_aHaltIsNotLiftedByAConfirmationFromTheOtherRequest() async {
+        let h = HaulHarness()
+        defer { h.tearDown() }
+        let session = h.makeSession()
+        session.open()
+        for _ in 0..<3 { session.add(HaulFixtures.photo()) }
+        await haulWait("two in flight") { h.scans.waiting == 2 }
+
+        h.scans.failOldest(ScanAPIError.serverError(402, "You've used today's free scan."))
+        await haulWait("confirming") { h.sleeper.waiting == 1 }
+        h.scans.failOldest(ScanAPIError.serverError(401, "Unauthorized"))
+        await haulWait("halted") { session.hold?.isHalted == true }
+
+        h.sleeper.resumeAll()
+        await haulSettle()
+        XCTAssertEqual(h.scans.calls, 2, "nothing is sent under the halted banner")
+        XCTAssertEqual(session.hold?.isHalted, true)
+    }
+
+    func test_a402AfterAHaltKeepsTheHalt() async {
+        let h = HaulHarness()
+        defer { h.tearDown() }
+        let session = h.makeSession()
+        session.open()
+        for _ in 0..<3 { session.add(HaulFixtures.photo()) }
+        await haulWait("two in flight") { h.scans.waiting == 2 }
+
+        h.scans.failOldest(ScanAPIError.serverError(401, "Unauthorized"))
+        await haulWait("halted") { session.hold?.isHalted == true }
+        h.scans.failOldest(ScanAPIError.serverError(402, "You've used today's free scan."))
+        await haulWait("both back") { session.scansInFlight == 0 }
+        await haulSettle()
+
+        XCTAssertEqual(session.hold?.isHalted, true, "not replaced by a confirmation that lifts itself in 5 s")
+        XCTAssertEqual(h.sleeper.waiting, 0)
+        XCTAssertEqual(h.scans.calls, 2)
+        XCTAssertEqual(session.pendingCount, 3, "both put back")
     }
 
     // Foreground, background time and persistence
@@ -4236,11 +4514,65 @@ final class HaulSessionTests: XCTestCase {
         XCTAssertTrue(h.spy.named("free_scan_limit_hit").isEmpty, "that is the scan funnel's event")
         XCTAssertEqual(session.items[0].draft, .waiting, "kept for after an upgrade")
     }
+
+    /// The 24-hour device pause is `/scan`'s alone. A photo waiting under
+    /// the halt it trips spends nothing, and must not keep the drafts on
+    /// their clock icons.
+    func test_draftsRunWhileTheWaitingScansAreHalted() async {
+        let h = HaulHarness()
+        defer { h.tearDown() }
+        let session = h.makeSession()
+        session.open()
+        for _ in 0..<5 { session.add(HaulFixtures.photo()) }
+        await haulWait("two in flight") { h.scans.waiting == 2 }
+
+        h.scans.succeedOldest(HaulFixtures.response())
+        await haulWait("third sent") { session.valuedCount == 1 && h.scans.waiting == 2 }
+        let paused = ScanAPIError.serverError(422, "This device is paused for 24 hours.")
+        h.scans.failOldest(paused)
+        await haulWait("fourth sent") { session.failedCount == 1 && h.scans.waiting == 2 }
+        h.scans.failOldest(paused)
+        await haulWait("halted") { session.hold?.isHalted == true }
+        h.scans.succeedOldest(HaulFixtures.response())
+        await haulWait("scans idle but for the halted one") {
+            session.valuedCount == 2 && session.scansInFlight == 0
+        }
+        XCTAssertEqual(session.pendingCount, 1)
+
+        session.draftAll(for: .ebay)
+        await haulWait("a draft goes out") { h.drafts.waiting == 1 }
+        XCTAssertEqual(h.scans.calls, 4, "the halted photo stays where it is")
+    }
+
+    /// A duplicate or a blurred shot, taken out before it spends a request.
+    func test_aQueuedPhotoCanBeRemovedBeforeItIsSent() async {
+        let h = HaulHarness()
+        defer { h.tearDown() }
+        let session = h.makeSession()
+        session.open()
+        for _ in 0..<3 { session.add(HaulFixtures.photo()) }
+        await haulWait("two in flight, one queued") {
+            h.scans.waiting == 2 && (session.items.last?.state.isQueued ?? false)
+        }
+
+        session.remove(session.items[2].id)
+        XCTAssertEqual(session.items.count, 2)
+        h.scans.succeedAll(HaulFixtures.response())
+        await haulWait("valued") { session.valuedCount == 2 }
+        await haulSettle()
+        XCTAssertEqual(h.scans.calls, 2)
+        XCTAssertTrue(h.store.pending(now: h.clock.now).isEmpty, "its file went with it")
+    }
 }
 
 extension HaulItem.State {
     var isQueued: Bool {
         if case .queued = self { return true }
+        return false
+    }
+
+    var isScanning: Bool {
+        if case .scanning = self { return true }
         return false
     }
 }

@@ -210,6 +210,14 @@
       "de": "%@, %@",
       "zh-Hans": "%@, %@"
     },
+    "%@, %@. Estimated total: %@": {
+      "comment": "Haul: VoiceOver announcement when the queue empties with some photos failed. First %@ is \"%lld photos valued\", second \"%lld photos couldn't be valued\", third a dollar amount. An estimate, never a sale.",
+      "en": "%@, %@. Estimated total: %@",
+      "ro": "%@, %@. Total estimat: %@",
+      "es": "%@, %@. Total estimado: %@",
+      "de": "%@, %@. Geschätzte Summe: %@",
+      "zh-Hans": "%@，%@。估计总额：%@"
+    },
     "%@, estimated %@": {
       "comment": "VoiceOver label for a history card: item name, then its value range.",
       "en": "%@, estimated %@",
@@ -620,6 +628,27 @@
       },
       "zh-Hans": "%lld 件没填入手价"
     },
+    "%lld photos couldn't be valued": {
+      "comment": "Haul: photos the server refused or that failed. On the summary, in the total's VoiceOver value, and placed into \"%@, %@. Estimated total: %@\".",
+      "en": {
+        "one": "%lld photo couldn't be valued",
+        "other": "%lld photos couldn't be valued"
+      },
+      "ro": {
+        "one": "o fotografie nu a putut fi evaluată",
+        "few": "%lld fotografii nu au putut fi evaluate",
+        "other": "%lld de fotografii nu au putut fi evaluate"
+      },
+      "es": {
+        "one": "%lld foto no se pudo valorar",
+        "other": "%lld fotos no se pudieron valorar"
+      },
+      "de": {
+        "one": "%lld Foto konnte nicht bewertet werden",
+        "other": "%lld Fotos konnten nicht bewertet werden"
+      },
+      "zh-Hans": "%lld 张照片无法估价"
+    },
     "%lld photos still being valued": {
       "en": {
         "one": "%lld photo still being valued",
@@ -639,6 +668,27 @@
         "other": "%lld Fotos werden noch bewertet"
       },
       "zh-Hans": "还有 %lld 张照片在估价"
+    },
+    "%lld photos valued": {
+      "comment": "Haul: VoiceOver announcement when the queue empties with some photos failed. Inflected on its own and placed into \"%@, %@. Estimated total: %@\".",
+      "en": {
+        "one": "%lld photo valued",
+        "other": "%lld photos valued"
+      },
+      "ro": {
+        "one": "o fotografie evaluată",
+        "few": "%lld fotografii evaluate",
+        "other": "%lld de fotografii evaluate"
+      },
+      "es": {
+        "one": "%lld foto valorada",
+        "other": "%lld fotos valoradas"
+      },
+      "de": {
+        "one": "%lld Foto bewertet",
+        "other": "%lld Fotos bewertet"
+      },
+      "zh-Hans": "%lld 张照片已估价"
     },
     "%lld scans": {
       "comment": "Inflected on its own, then placed in the trending row's VoiceOver sentence.",
@@ -702,7 +752,7 @@
       "zh-Hans": "%lld 秒"
     },
     "%lld waiting": {
-      "comment": "Haul entry badge: photos from an earlier haul still waiting to be valued.",
+      "comment": "Haul entry badge: photos from an earlier haul still waiting — to be valued, or, having failed, for Try again.",
       "en": {
         "one": "%lld waiting",
         "other": "%lld waiting"
@@ -1342,6 +1392,14 @@
       "es": "Copiar el borrador del anuncio",
       "de": "Inserat-Entwurf kopieren",
       "zh-Hans": "复制商品描述草稿"
+    },
+    "Copy listing for %@": {
+      "comment": "Haul summary: VoiceOver label of a draft's Copy button. %@ is the item's name.",
+      "en": "Copy listing for %@",
+      "ro": "Copiază anunțul pentru %@",
+      "es": "Copiar el anuncio de %@",
+      "de": "Inserat für %@ kopieren",
+      "zh-Hans": "复制“%@”的商品描述"
     },
     "Copy message and address": {
       "en": "Copy message and address",
@@ -3920,6 +3978,14 @@
       "de": "Warte auf die Freigabe. Dein Abo startet, sobald sie da ist – du musst nicht noch einmal kaufen.",
       "zh-Hans": "等待批准中。批准后订阅会立即生效，你不用再买一次。"
     },
+    "Waiting to be drafted": {
+      "comment": "Haul summary: a valued item whose listing draft has not started yet.",
+      "en": "Waiting to be drafted",
+      "ro": "Așteaptă scrierea anunțului",
+      "es": "Pendiente de redactar",
+      "de": "Wartet auf Entwurf",
+      "zh-Hans": "等待生成商品描述"
+    },
     "Waiting to be valued": {
       "comment": "Haul: VoiceOver label of a photo not yet sent.",
       "en": "Waiting to be valued",
@@ -4239,7 +4305,7 @@
       "zh-Hans": "你的留言"
     },
     "Your photos are kept — resuming in %@": {
-      "comment": "Haul pause banner. %@ is a live countdown (e.g. 12:40). The Chinese avoids 照片都已保存, which reads as saved to Photos.",
+      "comment": "Haul pause banner. %@ is a live countdown (e.g. 12:40) on screen, and, spoken by VoiceOver, a duration from \"%lld minutes\" or \"%lld seconds\" (e.g. 12 minutes). The Chinese avoids 照片都已保存, which reads as saved to Photos.",
       "en": "Your photos are kept — resuming in %@",
       "ro": "Fotografiile tale sunt păstrate — reluăm peste %@",
       "es": "Tus fotos se conservan: seguimos en %@",
