@@ -90,6 +90,16 @@ _AUTHENTICITY_SCORE = {
 REPLICA_CEILING = 30
 UNCERTAIN_ID_CEILING = HIGH_THRESHOLD - 1
 
+# A likely replica's own explanation, and the one every other doubtful
+# authenticity read gets. The first is the verdict, which is Pro detail
+# (`main._PRO_ONLY_DETAIL_FIELDS`); `confidence_summary` is not — it keeps the
+# free tier's locked "Why this price" teaser alive — so a free user's summary
+# is written with the second (`summary_sentence(withhold_authenticity=True)`).
+# Before the replica read had its own words, all three doubtful reads produced
+# the neutral one, and the free summary never carried the verdict.
+REPLICA_REASON = "the item may not be authentic"
+UNVERIFIED_AUTHENTICITY_REASON = "authenticity could not be verified from the photo"
+
 #: Brand values that mean "no brand was identified". One list, shared with the
 #: operator's brand tallies (`notify._clean_brand`) and the eval's
 #: hallucination check (`eval.metrics`). The three copies had drifted: notify
@@ -242,9 +252,9 @@ def compute(
         if auth >= 0.9:
             auth_reason = "no authenticity concerns"
         elif auth_key == "likely_replica":
-            auth_reason = "the item may not be authentic"
+            auth_reason = REPLICA_REASON
         else:
-            auth_reason = "authenticity could not be verified from the photo"
+            auth_reason = UNVERIFIED_AUTHENTICITY_REASON
         signals.append(ConfidenceSignal("authenticity", auth, 0.08, auth_reason))
 
     # ── Market signal completeness ──────────────────────────────────────────
@@ -330,15 +340,23 @@ def compute(
     return ConfidenceResult(score=score, band=_band(score), signals=signals, reasons=reasons)
 
 
-def summary_sentence(result: ConfidenceResult) -> str:
+def summary_sentence(result: ConfidenceResult, *, withhold_authenticity: bool = False) -> str:
     """One plain-language sentence explaining the score.
 
     Deliberately not a metric readout: "72 out of 100" tells a reseller nothing
     they can act on, whereas naming the weak signal does.
+
+    `withhold_authenticity` writes a likely replica as "could not be verified"
+    — for a free user, who does not get the authenticity read (see
+    REPLICA_REASON). The score and band are unchanged: the cap still applies.
     """
-    if not result.reasons:
+    reasons = result.reasons
+    if withhold_authenticity:
+        reasons = [UNVERIFIED_AUTHENTICITY_REASON if r == REPLICA_REASON else r
+                   for r in reasons]
+    if not reasons:
         return f"{result.band} confidence."
-    joined = result.reasons[0]
-    if len(result.reasons) > 1:
-        joined = ", and ".join([result.reasons[0], result.reasons[1]])
+    joined = reasons[0]
+    if len(reasons) > 1:
+        joined = ", and ".join([reasons[0], reasons[1]])
     return f"{result.band} confidence — {joined}."

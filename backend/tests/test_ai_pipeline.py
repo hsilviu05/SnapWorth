@@ -558,6 +558,19 @@ class TestConfidence:
         assert any(s.explanation == "authenticity could not be verified from the photo"
                    for s in cannot)
 
+    def test_a_withheld_summary_reads_a_replica_as_unverified(self):
+        """The free tier's wording: the verdict is Pro detail, the cap is not."""
+        result = _compute(brand="Louis Vuitton", category="accessories",
+                          authenticity="likely_replica")
+        withheld = confidence_module.summary_sentence(result, withhold_authenticity=True)
+        assert "not be authentic" not in withheld
+        assert withheld.startswith("Low confidence — authenticity could not be verified")
+        assert "not be authentic" in confidence_module.summary_sentence(result)
+        # Nothing else changes: a read with no replica words is left alone.
+        plain = _compute(brand="Unknown")
+        assert (confidence_module.summary_sentence(plain, withhold_authenticity=True)
+                == confidence_module.summary_sentence(plain))
+
     def test_an_uncertain_identification_is_never_high(self):
         result = _compute(identification_certainty="uncertain")
         assert result.score <= confidence_module.UNCERTAIN_ID_CEILING
@@ -1284,6 +1297,28 @@ class TestProDetailGate:
         body = _scan_with(V2_PAYLOAD).json()
         assert body["confidence_score"] > 0
         assert body["confidence_summary"]
+
+    def test_the_replica_verdict_does_not_ride_the_free_summary(self):
+        """`confidence_summary` survives the strip, and a likely replica is the
+        first reason it names — so a free scan of a suspected fake carried the
+        authenticity verdict in its raw body, behind only the client's blur.
+
+        "Could not be verified" is not the leak: every doubtful authenticity
+        read produced it before the replica had its own words."""
+        replica = {**V2_PAYLOAD, "brand": "Louis Vuitton", "category": "accessories",
+                   "authenticity_assessment": "likely_replica"}
+        free = _scan_with(replica)
+        assert free.status_code == 200
+        assert "not be authentic" not in free.text
+        body = free.json()
+        assert "could not be verified" in body["confidence_summary"]
+        # The cap is kept: the badge a free user sees is still Low.
+        assert body["confidence"] == "Low"
+        assert body["confidence_score"] <= confidence_module.REPLICA_CEILING
+
+        pro = _scan_with(replica, pro=True).json()
+        assert "not be authentic" in pro["confidence_summary"]
+        assert confidence_module.REPLICA_REASON in pro["confidence_reasons"]
 
     def test_the_v1_contract_is_untouched_for_free_users(self):
         """Whatever else changes, an installed client must still decode."""

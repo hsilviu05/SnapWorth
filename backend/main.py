@@ -1925,6 +1925,16 @@ async def _analyse(image_bytes: bytes, content_type: str, *, subject: str,
 # four-point price ladder, the drivers, the assumptions, the authenticity
 # read — is withheld.
 #
+# Including from the summary, which is rewritten rather than kept as built. A
+# likely replica caps the score (`confidence.REPLICA_CEILING`) and, as the
+# weakest signal, is the first reason the summary names; kept as built, every
+# free scan of a suspected fake carried "the item may not be authentic" in its
+# raw body, behind nothing but the client's blur. The free summary words it as
+# "could not be verified", as it does every other doubtful authenticity read.
+# The Low badge stays — the price is still for an item the photo probably is
+# not — but the verdict is Pro detail. A replica flag for free users would be
+# a product decision and its own field.
+#
 # Note this saves no tokens. The model still generates all of it; only the
 # serialised response is trimmed. Charging free scans less would mean a second
 # prompt, which forks the thing the whole valuation rests on.
@@ -1949,6 +1959,12 @@ _PRO_ONLY_DETAIL_FIELDS = (
 
 def _strip_pro_detail(response: "ScanResponse") -> "ScanResponse":
     """Blank the Pro-only valuation fields on a free user's response."""
+    # Before `confidence_reasons` is blanked: the summary is rebuilt from it.
+    response.confidence_summary = confidence_module.summary_sentence(
+        confidence_module.ConfidenceResult(
+            score=response.confidence_score, band=response.confidence,
+            reasons=response.confidence_reasons),
+        withhold_authenticity=True)
     for field in _PRO_ONLY_DETAIL_FIELDS:
         current = getattr(response, field, None)
         setattr(response, field, [] if isinstance(current, list) else None)
