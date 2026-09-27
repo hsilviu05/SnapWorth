@@ -28,8 +28,8 @@ flowchart LR
 |---|---|
 | API container | `backend/Dockerfile`, python 3.13-slim, unprivileged uid 10001 |
 | Process model | 1 uvicorn worker per container; scale horizontally |
-| Durable state | Redis — quota, entitlements, rate limits, attestation |
-| System of record | **None.** Redis is a cache; scan history lives on-device |
+| Durable state | Redis — quota, entitlements and the signed proofs behind them, refund tombstones, App Attest keys, referral codes, the operator's indexes, TikTok tokens, the free-scan lever, rate limits |
+| System of record | Scan history: none, it lives on-device. **Several Redis key families have no other copy** (§9), so Redis is their system of record and has to be persisted like one |
 | Metrics | `/metrics`, Prometheus text format `[DESIGNED]` |
 | Collector | `[NOT IMPLEMENTED]` — and **not planned**; see below |
 | Monitoring surface | **The Telegram ops bot.** This is the real one |
@@ -56,11 +56,16 @@ actually arrives:
 | Subscribers | `/subs` | Active, paid, comped, and MRR |
 | Is the free-scan experiment working | `/experiment` | The whole window at once: limit hits against new subscriptions, day by day, with a running total |
 | Start or stop the free-scan experiment | `/lever` | Arms or disarms the first-day allowance without a Railway change or a redeploy. Two taps, clamped, and `/experiment` footnotes any day it moved |
+| Make a bad or stranded build update | `/minbuild <n>` | /scan, /listing and /trends answer builds below `n` with a 422 telling them to update from the App Store; `/minbuild off` serves all again. Two taps. Set it only once build `n` is live. /scan and /listing show the message to builds 8 and up; builds 7 and older show fixed copy ("Something went wrong"). /trends is refused too, but the app drops that error silently and the Trending card disappears. /auth is never gated, and a request whose build is unreadable is served. A 422 is a non-paging 4xx: refusals are counted in `snapworth_outdated_build_refused_total`, by endpoint. The access log's `build` field (from the User-Agent) shows who is still on what |
 | Yesterday | The daily digest | Sent automatically at `TELEGRAM_DIGEST_UTC_HOUR` (default 06:00 UTC); a weekly report on Mondays |
 
 Unprompted alerts arrive the same way: a new subscription, a deploy ping per
-commit, a quiet-hours note when nothing has scanned during US daytime, a
-budget warning, and a device-paused alert after repeated unanalysable photos.
+commit, the AI provider or Redis going down and coming back, a quiet-hours
+note when nothing has scanned during US daytime, a budget warning (off unless
+`GEMINI_DAILY_BUDGET_USD` is set), and a device-paused alert after repeated
+unanalysable photos. One alert comes from outside the backend, because the bot
+cannot report its own container being gone: the Uptime workflow probes
+`/health/ready` every 10 minutes (§3).
 
 **The decision on `/metrics` (previously tracked as A-7, open and unrecorded
 for five days): accept it as designed-but-unscraped.** One replica and a
@@ -76,7 +81,7 @@ monitoring today, and this table is what is.
 | Path | Purpose | Failure semantics |
 |---|---|---|
 | `/health/live` | Liveness | Checks nothing external — see below |
-| `/health/ready` | Readiness | 503 while starting, draining, or cache-unreachable |
+| `/health/ready` | Readiness | 503 while starting, draining, or when the cache cannot take a write (unreachable, or full) |
 | `/health` | Legacy | Retained for compatibility |
 | `/metrics` | Prometheus scrape | Requires `Authorization: Bearer $METRICS_TOKEN`; 404 without it |
 
@@ -89,36 +94,63 @@ readiness, where the consequence is "route elsewhere" rather than "kill it".
 
 ## 3. Alerts
 
-`[DESIGNED]` — thresholds below are starting points to be tuned against real
-baselines. Alerting on an unmeasured system produces noise, so treat the first
-fortnight as calibration.
+What actually reaches the operator. Until 2026-09-26 this section listed
+Prometheus rules — `up == 0`, `cache_degraded == 1` — as the pages for "API
+down" and "Cache unreachable". Nothing evaluates Prometheus rules here (§1: no
+collector, by decision), so neither condition reached anyone: a Redis outage
+failed every free scan with a 503 and the next digest read like a quiet day.
 
-### Page (wake someone)
+### What alerts today
+
+| Alert | Raised by | Fires when | Reaches you as | First action |
+|---|---|---|---|---|
+| **API not ready** | `.github/workflows/uptime.yml`, outside the backend | `/health/ready` is not 200 on three tries over a minute; checked every 10 min `[DESIGNED]` | Telegram, if `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID` are set as **GitHub repository secrets** (not only in Railway); always GitHub's failed-run email | §5.1 — or §5.4 when the message says *cache* |
+| **Redis unreachable** / recovered | `notify.cache_state_changed`, fed by `ResilientCache`'s own down/up transitions | cache calls have failed for 60 s straight (`CACHE_ALERT_SETTLE_SECONDS`); the all-clear after 60 s of success | Telegram, at most once per 30 min | §5.4 |
+| **AI provider degraded** / recovered | `notify.model_unhealthy`, from `main._ModelHealth` | `MODEL_UNHEALTHY_AFTER` (2) consecutive terminal model failures; a quota stop on the first | Telegram, at most once per 30 min | §5.3 |
+| **Quiet** | `notify._quiet_check`, every 15 min | no successful scan for 6 h during 13:00–03:59 UTC | Telegram, once per window | `🩺 Checkup` |
+| **Over budget** | `notify._note_usage` | day's Gemini spend passes `GEMINI_DAILY_BUDGET_USD` — **off by default (0)** | Telegram, once per day | `/costs` |
+| **Device paused** | `notify._announce_safety_pause` | repeated blocked photos from one device | Telegram, once per device per day | none needed |
+
+**Why two layers.** The Telegram alerts run *inside* the backend, so they
+cannot report the backend being gone: a crash-looping or unscheduled container
+sends nothing. The uptime workflow runs on GitHub and covers that, and it
+also catches a Redis that is full and refusing writes while still answering
+`PING` and `GET`, because `/health/ready` probes with a write. The in-process
+Redis alert is deliberately silent on that flapping state (§5.4c) and is
+minutes faster than a 10-minute schedule on a plain outage.
+
+**What the uptime check cannot promise.** GitHub starts scheduled runs late
+under load, and disables a public repository's schedules after 60 days without
+a commit. A free external monitor pointed at the same URL — UptimeRobot or
+Better Stack, 5-minute interval, alerting on anything but 200 — removes both
+gaps and is the cheapest upgrade here. It is an account only the owner can
+create.
+
+**Not alerted** `[NOT IMPLEMENTED]`: 5xx rate, latency, readiness flapping,
+429 or quota spikes, confidence collapse, clamp rate. Each needs a collector
+reading `/metrics`. The rules below are the design for if one ever exists;
+until then they are **not** monitoring, and `🩺 Checkup` plus the daily digest
+are how those questions get answered.
+
+### If a collector is ever added `[DESIGNED]`
 
 | Alert | Condition | First action |
 |---|---|---|
-| **API down** | `up == 0` for 2 min | §5.1 |
-| **5xx surge** | 5xx rate > 5% over 5 min | §5.2 |
-| **Model unavailable** | `model_calls_total{outcome="exhausted"}` > 10/min | §5.3 |
-| **Cache unreachable** | `cache_degraded == 1` for 3 min | §5.4 |
-| **Latency collapse** | p95 `/scan` > 20s for 5 min | §5.5 |
-| **Readiness flapping** | readiness toggles > 3× in 10 min | §5.1 |
-
-### Ticket (do not page)
-
-| Alert | Condition | Why not a page |
-|---|---|---|
-| 429 rate elevated | > 2% of requests | Rate limiting working as designed |
-| Quota exhaustion spike | 3× 7-day baseline | Expected under growth |
-| Entitlement failures | > 1% of `/auth/entitlement` | Often Apple-side, self-heals |
-| Confidence collapse | median `confidence_score` drops > 20 pts day-on-day | Signals a model or prompt regression |
-| Upload size drift | p50 `upload_bytes` > 1 MB | Client-side downscale regressed |
-| Clamp rate rising | `valuation_clamped_total` > 5% of scans | Model producing implausible numbers |
+| 5xx surge | 5xx rate > 5% over 5 min | §5.2 |
+| Latency collapse | p95 `/scan` > 20s for 5 min | §5.5 |
+| Readiness flapping | readiness toggles > 3× in 10 min | §5.1 |
+| 429 rate elevated | > 2% of requests | ticket — rate limiting working as designed |
+| Quota exhaustion spike | 3× 7-day baseline | ticket — expected under growth |
+| Entitlement failures | > 1% of `/auth/entitlement` | ticket — often Apple-side, self-heals |
+| Confidence collapse | median `confidence_score` drops > 20 pts day-on-day | ticket — model or prompt regression |
+| Upload size drift | p50 `upload_bytes` > 1 MB | ticket — client downscale regressed |
+| Clamp rate rising | `valuation_clamped_total` > 5% of scans | ticket — implausible model numbers |
 
 **4xx never pages.** `observability.classify_status` marks `CLIENT`,
 `CAPACITY` and `SECURITY` as non-paging: a scraper generating 404s, or rate
 limiting doing its job, is the system working correctly. Only `DEPENDENCY` and
-`INTERNAL` page.
+`INTERNAL` would page. That classifier has no production caller today — it is
+part of the collector design above.
 
 ---
 
@@ -149,15 +181,18 @@ Cache hit ratio · rate-limit rejections · quota exhaustion · dependency error
    `TOKEN_KEYS must be set in production` — both are deliberate startup refusals
    (`main._lifespan`, `tokens.signer_from_env`). Fix the variable; do not remove
    the guard.
-3. Check `/health/ready`. A 503 with `"durable cache configured but unreachable"`
-   means Redis, not the API → §5.4.
+3. Check `/health/ready`. A 503 with `"durable cache configured but not
+   accepting writes"` means Redis, not the API → §5.4, or §5.4c if Redis
+   still answers.
 4. If the container is crash-looping with no startup error, roll back (§7).
 
 ### 5.2 Elevated 5xx
 
 1. Split by class in `snapworth_http_requests_total{status_class="5xx"}`.
 2. **502s** are almost always the model — check
-   `model_calls_total{outcome="exhausted"}` → §5.3.
+   `model_calls_total{outcome="exhausted"}` → §5.3. `outcome="deadline"` is
+   the app's 33s budget running out (slow uploads, slow replies), not Gemini
+   failing.
 3. **500s** are ours. Find the request id in the log line and grep it; every log
    line carries one (`observability.RequestContextMiddleware`).
 4. If 500s started with a deploy, roll back first and diagnose after.
@@ -177,7 +212,10 @@ unaffected — users keep their Pro status and their history.
 3. Check the split: `outcome="blocked"` is content filtering (not an outage),
    `outcome="quota_exhausted"` is billing (above), `outcome="non_retryable"`
    usually means a bad API key, `outcome="no_price"` means the model answered
-   but carried no usable valuation — see §5.9.
+   but carried no usable valuation — see §5.9. `outcome="deadline"` is the
+   client's deadline passing before or during the call; it is not counted
+   against `/health` and is filed as "timed out", not "provider", in the
+   digest.
 4. If the key is the problem, rotate it (§8.2).
 5. There is currently **no fallback provider** `[NOT IMPLEMENTED]`. A Gemini
    outage is a full scan outage. This is the largest single-point-of-failure in
@@ -197,9 +235,22 @@ never a free scan.
    single-instance mode where memory is treated as authoritative, silently
    disabling the quota across every replica (see `cache.ResilientCache`).
 4. The client reconnects automatically once Redis returns; no deploy needed.
-5. If the outage is prolonged and free-tier revenue leakage is preferable to a
-   full outage, that is a **deliberate, logged decision** — set
-   `FREE_SCANS_PER_DAY=0` to make everyone Pro-gated rather than erroring.
+   A refund, revoke or refund-reversal notification that arrives during the
+   outage is answered 503, and Apple redelivers it. The webhook marks a
+   notification handled only after its change is stored, so a Redis that
+   fails halfway through a request leaves the retry a real second attempt.
+   There is nothing to replay by hand unless the outage outlasts Apple's three
+   days of retries; then apply them by hand as §16 describes.
+5. There is no variable that turns this 503 into something else. An earlier
+   version of this step said `FREE_SCANS_PER_DAY=0` would show free users the
+   paywall instead of an error. It did not: `ScanQuota.reserve` increments the
+   Redis counter (`required=True`) *before* comparing it with the limit, so an
+   unreachable Redis is a 503 at any limit. The 503 is also the honest answer,
+   since those users have not used their scan and a paywall would say they had.
+   **If you set `FREE_SCANS_PER_DAY=0` during an earlier outage, set it back**
+   (the default is `1`). It is read at startup and nothing reverts it, and at
+   `0` there is no daily free scan: every free user gets the paywall on their
+   first scan of the day, unless an armed first-day welcome covers them.
 
 ### 5.4b Redis *misconfigured* (not unreachable)
 
@@ -234,6 +285,25 @@ because a degraded replica still serves `/scan` (quota goes per-process) while a
 crash-looping one serves nothing. `configured` stays true throughout, so nobody
 gets free Pro out of it.
 
+### 5.4c Redis full (answers, but refuses writes)
+
+*Signature:* `/health/ready` 503 with `"not accepting writes"` while
+`redis-cli PING` still answers; logs carry `OOM command not allowed when used
+memory > 'maxmemory'`; `🩺 Checkup`'s Redis line shows usage at or near
+`maxmemory`. Under `noeviction` — the policy this service needs (§11) — that
+is the designed failure: writes stop, nothing is silently dropped, free scans
+503 and new sign-ins fail.
+
+1. Raise `maxmemory` if the service has headroom (`CONFIG SET maxmemory …`
+   takes effect at once — then make it stick wherever the Redis service's
+   configuration lives, or a restart reverts it), or raise the service's
+   memory and `maxmemory` with it. No backend deploy is needed.
+2. Look for what grew. `redis-cli --bigkeys` and `INFO keyspace`; the
+   400-day families in §9 are the expected bulk.
+3. Do **not** switch to an evicting policy to get writes flowing. Every key
+   family here is either a paid-resource gate or state nothing can rebuild
+   (§9), and eviction drops them silently.
+
 ### 5.5 Latency collapse
 
 1. Check `model_duration_seconds` p95 first — the model dominates scan latency.
@@ -249,7 +319,9 @@ gets free Pro out of it.
 
 - **DeviceCheck down** → reinstall protection degrades open. `quota.note_exhausted`
   and `starting_balance` both swallow failures deliberately: Apple's availability
-  must not gate our service. No action needed.
+  must not gate our service. No action needed. "Down" means unreachable or a
+  5xx. A 4xx is Apple refusing the token or our key, which is not an outage:
+  that install gets the daily limit and no first-day welcome.
 - **App Store server down** → `/auth/entitlement` verification is *offline* (the
   JWS is verified against a pinned Apple root CA locally), so existing Pro users
   are unaffected. Only brand-new purchases are impacted, and the client retries
@@ -270,6 +342,14 @@ availability one.
 1. Check `rate_limited_total` and `quota_exhausted_total`.
 2. Device id is client-supplied and trivially rotated — the real backstop is the
    per-IP limit (`IP_RATE_MAX_REQUESTS`, default 60/hr).
+   It keys on the rightmost `X-Forwarded-For` hop (`ratelimit.client_ip`),
+   which is the caller's own address only while Railway's edge is the one proxy
+   in front of the container. Each process logs `x-forwarded-for carried N
+   hop(s)` the first time it sees each count; app traffic should read 1.
+   **Before putting a CDN or any other proxy in front of Railway** (a proxied
+   DNS record, Railway's CDN), change `client_ip` to take the hop a configured
+   number of places from the right. Otherwise the rightmost hop is the CDN's
+   address and one 60/hr bucket serves every user.
 3. Tighten via env; no deploy needed if the platform supports variable updates
    with a restart.
 4. Sustained abuse from one IP range needs a platform-level block; there is no
@@ -313,8 +393,8 @@ after tests pass (`.github/workflows/backend.yml`).
 | Blue/green | `[NOT IMPLEMENTED]` |
 | Canary | `[NOT IMPLEMENTED]` |
 | Instant rollback | Railway redeploy of a previous build |
-| Migrations | **None exist.** No relational database; Redis is a cache |
-| Feature flags | Env-var based: `SCAN_PROMPT_VERSION`, `COMPS_ENABLED`, `COMPS_SHADOW_MODE`, `ALLOWED_STOREKIT_ENVIRONMENTS` |
+| Migrations | **None exist.** No relational database; Redis holds durable state (§9) but has no schema to migrate |
+| Feature flags | Env-var based: `SCAN_PROMPT_VERSION`, `COMPS_ENABLED`, `COMPS_SHADOW_MODE`, `ALLOWED_STOREKIT_ENVIRONMENTS`, `SANDBOX_ENTITLEMENTS` |
 
 ### Shutdown sequence (implemented in `main._lifespan`)
 
@@ -334,14 +414,17 @@ still-starting instances, and the graceful shutdown achieves nothing.
 
 ## 7. Rollback checklist
 
-- [ ] Confirm the regression is deploy-correlated (compare against the previous
-      release in `snapworth_build_info`)
+- [ ] Confirm the regression is deploy-correlated: the Telegram deploy ping
+      names each commit as it goes live, `/status` shows the last one, and
+      `GET /health` reports the running `commit`. (`snapworth_build_info` has
+      the same fact, but nothing scrapes `/metrics` — §3.)
 - [ ] **Prompt-only regression?** Set `SCAN_PROMPT_VERSION=v1` — no redeploy
 - [ ] **Comps-related?** Set `COMPS_ENABLED=false` — no redeploy
 - [ ] Otherwise redeploy the previous Railway build
 - [ ] Verify `/health/ready` returns 200
 - [ ] Verify a real scan end-to-end
-- [ ] No data migration to reverse — Redis is a cache and the client holds history
+- [ ] No data migration to reverse. A rollback never touches Redis — do not
+      flush it as part of one; much of what it holds has no other copy (§9)
 
 ---
 
@@ -371,7 +454,14 @@ rotation needs no flag day:
 2. Update `GEMINI_API_KEY`, restart
 3. Verify `model_calls_total{outcome="success"}` recovers
 4. Revoke the old key
-5. CI already blocks committed keys (`.github/workflows/backend.yml`)
+5. CI does **not** block a committed key — it finds one after the push, when
+   the repository is public and the key is already published.
+   `.github/workflows/secrets.yml` scans the tree and every commit in history
+   with gitleaks, on every push to any branch and every pull request; only
+   GitHub push protection (Settings → Code security)
+   refuses the push itself. A key that reached a commit is compromised
+   whether or not a later commit deleted it: rotate it, then excuse the old
+   hit by fingerprint in `.gitleaksignore`
 
 ### 8.3 Provisioning DeviceCheck
 
@@ -410,8 +500,10 @@ body-only key, so the checkup names the shape instead:
 | `could not reach Apple (…)` | network, not credentials — nothing to change |
 
 **Then verify — do not trust "configured".** `is_configured` only means the
-three variables are non-empty, and *every* DeviceCheck failure degrades open
-(§5.6), so a typo'd key silently hands every reinstall a fresh allowance.
+three variables are non-empty, and a wrong key cannot recognise a reinstall, so
+a typo'd key silently hands every reinstall a fresh daily allowance. It also
+withholds the first-day welcome from every new install, since Apple refusing
+the key is not an outage (§5.6).
 Run `🩺 Checkup`:
 
 - `DeviceCheck: configured ✅ — credentials accepted by Apple` — Apple signed off.
@@ -424,15 +516,17 @@ while a `401` proves it does not. No device is involved.
 
 **`DEVICECHECK_SANDBOX`**: leave unset. Device tokens from an Xcode-run debug
 build belong to Apple's development environment and will be refused by the
-production host — expected, and harmless because the path degrades open. Set it
+production host. That is expected and harmless: the install still gets the daily
+limit, and only misses the first-day welcome. Set it
 only if you ever point a build at the sandbox deliberately; a stale `true` would
 break DeviceCheck for real App Store users, silently.
 
 ### 8.4 DeviceCheck key rotation
 
 **Add, verify, revoke — in that order.** Revoking first leaves DeviceCheck
-failing for as long as it takes to paste the replacement, and it fails *open*
-(§5.6): every reinstall in that window gets a fresh free allowance, silently.
+failing for as long as it takes to paste the replacement, and while it fails no
+reinstall is recognised: every reinstall in that window gets a fresh daily
+allowance, silently, and no new install gets the first-day welcome.
 
 1. Portal → Keys → **+**, tick **DeviceCheck**, Register, download the `.p8`.
 2. Railway: set `DEVICECHECK_KEY_ID` and `DEVICECHECK_PRIVATE_KEY` to the new
@@ -457,23 +551,84 @@ housekeeping, not an incident, and step 3 matters more than speed.
 
 ## 9. Disaster recovery
 
-**RPO/RTO are shaped by an unusual property: there is no system of record.**
-Scan history lives on-device, and StoreKit transactions are re-verifiable
-offline. Redis holds only derived state.
+**Redis is not a cache.** This section used to say it was: "Redis holds only
+derived state", an acceptable RPO of "effectively total loss", and "document
+this rather than engineering Redis persistence". That was true when written
+(b189302, July). Since then state with no other copy has moved in — refund
+tombstones (90b16f5), stored entitlement proofs (541e552), the free-scan lever
+and its change log (20abdb1), TikTok tokens (567f695), the referral pools and
+their ledger (f772c5c) — while App Attest keys were there all along. A fresh
+Redis is no longer a recovery. It is a different service that re-grants free
+scans, forgets refunds and forgets who is signed in.
+
+Scan history still lives on-device, and nothing here can lose it.
+
+### What Redis holds, and what losing it costs
+
+| Keys | Holds | TTL | Other copy? | Losing it |
+|---|---|---|---|---|
+| `attest:{keyId}` | each device's App Attest public key and counter | 400 d | **None** | Every device's next token refresh answers 401 "unknown key"; the app discards its key, attests again and comes back as a **new subject** — a re-attestation wave, and a fresh free allowance for every device DeviceCheck does not recognise (its bits live at Apple and survive) |
+| `quota:{subject}:{day}` | today's free scans used | 30 h | None | Everyone's allowance resets for today |
+| `quota:seen:*`, `quota:welcome:*` | first sighting; welcome granted or refused | 400 d | None | Every subject looks new: DeviceCheck is re-queried for the whole base, and with the first-day lever armed, devices it does not recognise get the welcome allowance again |
+| `entproof:{subject}` | Apple's signed transaction behind a Pro tier | to the term's end | On the device | Pro users read as free until the app re-syncs (`/auth/entitlement`, on the next status refresh) |
+| `ent:{subject}` | derived entitlement | 15 min / 24 h | Derived | Nothing lasting |
+| `entrevoked:{otid}` | refund and revoke tombstones | 400 d | Apple's notification history | A refunded purchase's transaction grants Pro again until that term expires (§16) |
+| `txn:{otid}` | devices bound to one subscription | 400 d | None | The six-device sharing cap starts counting from zero |
+| `apns2:{uuid}` | App Store notifications already handled | 5 d | None | A redelivered notification is processed twice (a conversion counted twice) |
+| `opsstate:levers` | the free-scan lever and its change log | none | **None** | The lever silently reverts to `FREE_SCANS_FIRST_DAY`, switching the experiment's arm mid-window, and `/experiment` loses the footnotes saying when it moved |
+| `opsidx:subs`, `opsidx:users` | the operator's subscriber and device tables | 400 d | Rebuilt slowly | `/subs` and `/users` start empty and refill as each subscriber syncs or Apple notifies — up to a year for yearly plans |
+| `opssocial:tiktok:tokens` | TikTok OAuth tokens | 400 d | **None** | `/social` loses TikTok until re-authorised |
+| `refpool:*`, `refpool:seen:*` | offer-code pools, cursor, and the loader's ledger of every code ever loaded | none | **None** | Unissued codes are gone; and without the ledger, reloading an old CSV hands out codes that were already given away |
+| `ref:*` | referral links, claims, earned and parked reward codes | 400 d | **None** | Referrers lose rewards they earned and have not redeemed |
+| `dct:{keyId}` | DeviceCheck token from attestation | 400 d | Next attest | Reinstall marking waits for the device's next attestation |
+| `opsstats:*`, `opsstate:*` (other), `chal:*`, rate limits, `comps:*`, `safety:*` | counters, digests, challenges, limits, caches | ≤ 400 d | — | Digest history and today's limits; disposable |
+
+**RPO for Redis is therefore not "total loss is fine".** Target: no more than
+one second of writes (`appendonly yes`, `appendfsync everysec`) on a volume
+that survives a restart and a redeploy of the Redis service.
+`[NOT VERIFIED]` — nobody has checked what Railway's Redis does today. To
+check, against the production instance:
+
+```
+redis-cli CONFIG GET appendonly     # want: yes
+redis-cli CONFIG GET appendfsync    # want: everysec
+redis-cli CONFIG GET save           # RDB snapshots as well are fine
+redis-cli INFO persistence          # aof_last_write_status:ok, rdb_last_bgsave_status:ok
+```
+
+and confirm in Railway that the Redis service has a volume attached.
+`🩺 Checkup`'s Redis line shows AOF and the last snapshot, and warns when a
+restart would lose everything.
 
 | Failure | Impact | Recovery | RTO |
 |---|---|---|---|
-| Container loss | None — stateless | Platform restarts | seconds |
-| Total Redis loss | Quota resets; Pro users re-sync on next status refresh | Provision new instance, set `REDIS_URL` | ~15 min `[ESTIMATED]` |
+| Container loss | None — the API container is stateless | Platform restarts | seconds |
+| Redis restart, persistence on | ≤ 1 s of writes | Automatic replay of the AOF | ~1 min `[ESTIMATED]` |
+| Redis data lost | Every row of the table above | Restore the volume or a snapshot first; only then the rebuild checklist below | Restore: ~15 min `[ESTIMATED]`; rebuild: weeks for `/subs` |
 | Gemini outage | Scans fail; everything else works | Wait, or add a fallback provider | Provider-dependent |
-| Region failure | Full outage | Redeploy to another region | ~1 hour `[ESTIMATED]` |
+| Region failure | Full outage | Redeploy to another region, **with Redis's data** | ~1 hour `[ESTIMATED]` |
 | Certificate expiry | Full outage | Platform auto-renews; pinning is report-only so a mismatch cannot brick clients | — |
 | Key compromise | Sessions invalid | Rotate `TOKEN_KEYS`, drop old immediately | ~10 min |
 
-**Acceptable RPO for Redis is effectively total loss.** Quota resets to today's
-allowance (a small revenue leak, not a correctness failure) and entitlements
-re-derive from the client's signed transaction. Document this rather than
-engineering Redis persistence for it.
+### If Redis's data is gone
+
+Restoring the volume, or any snapshot, comes first — a day-old snapshot loses
+a day; a fresh instance loses everything. Only if there is nothing to restore:
+
+- [ ] **Refund tombstones.** Pull REFUND and REVOKE notifications from the App
+      Store Server API's *Get Notification History* for as far back as Apple
+      keeps them, and write each tombstone by hand (§16 step 4).
+- [ ] **Referral codes.** Do **not** reload an old code CSV: the ledger that
+      stopped a code being loaded twice is gone, so already-issued codes would
+      be issued again. Load only a newly generated batch.
+- [ ] **Free-scan lever.** Re-arm it with `/lever` if it was armed, and note
+      the date — `/experiment` no longer knows when it moved.
+- [ ] **TikTok.** Re-authorise from `/social`.
+- [ ] **Expect, and do not chase:** a wave of re-attestations as every
+      device's next refresh answers 401; free allowances re-granted to devices
+      DeviceCheck does not recognise; Pro users shown as free until their app
+      re-syncs; `/subs` refilling over a renewal cycle.
+- [ ] Nothing on-device is lost, and nothing needs announcing to users.
 
 ---
 
@@ -549,6 +704,7 @@ work on does not.
 |---|---|---|
 | Async correctness | ✅ | No blocking I/O on the event loop |
 | Redis pooling | ✅ | `max_connections=50`, bounded timeouts |
+| Redis memory | ⚠️ Unverified | Needs `maxmemory` at ~75% of the Redis service's memory and `maxmemory-policy noeviction`. Neither value is recorded anywhere or known to be set on Railway — check with `CONFIG GET maxmemory*`. `🩺 Checkup` prints usage, policy, evictions and persistence, and warns on each unsafe value. Growth ~50 MB per 10k users `[ESTIMATED]` |
 | DeviceCheck pooling | ✅ Fixed | Was a new TLS handshake per call |
 | Worker count | 1/container | Correct for I/O-bound work; scale by containers |
 | Rate limiting | ✅ | Redis-backed, Lua-atomic; degrades to per-process |
@@ -564,6 +720,10 @@ work on does not.
 **Blocking**
 
 - [ ] `REDIS_URL` set and reachable
+- [ ] Redis persists to disk and survives a restart: `appendonly yes`,
+      `appendfsync everysec`, a volume attached (§9)
+- [ ] Redis `maxmemory-policy noeviction` with `maxmemory` set (§11); `🩺
+      Checkup` shows no ⚠️ on its Redis line
 - [ ] `TOKEN_KEYS` + `TOKEN_CURRENT_KID` set
 - [ ] `ENVIRONMENT=production` — two effects, both wanted: strict startup
       checks (refuses to boot without `TOKEN_KEYS`), and **no `/openapi.json`,
@@ -579,7 +739,22 @@ work on does not.
       unset did not collapse everyone into one bucket, it gave each caller a bucket of
       their own choosing (uvicorn runs with `--forwarded-allow-ips='*'`, which makes
       `request.client.host` the client-supplied hop). Safe to delete from Railway.
-- [ ] `ALLOWED_STOREKIT_ENVIRONMENTS=Production`
+- [ ] `ALLOWED_STOREKIT_ENVIRONMENTS=Production` — the environments trusted
+      *fully*. Still Production only: listing Sandbox here would make every
+      TestFlight tester a customer with a 400-day proof and six devices
+- [ ] `SANDBOX_ENTITLEMENTS` unset or `bounded` — **not** Production-only any
+      more. App Review buys in Sandbox, and refusing it is the "purchased
+      content not delivered" rejection. Bounded Sandbox is attested callers
+      only, 24h at most, no proof, one device, never in revenue figures (§17).
+      It is also every TestFlight tester, not just App Review: anyone who can
+      install a TestFlight build is Pro in production, with unlimited scans,
+      for as long as they keep a Sandbox subscription. Keep TestFlight to
+      internal testers and small invite-only external groups, and never
+      enable a public TestFlight link while this is `bounded`. `off` restores
+      the old refusal
+- [ ] App Store Connect *Sandbox Server URL* set to
+      `https://api.snapworth.eu/apple/notifications/sandbox` (§14), so a
+      Sandbox refund withdraws the bounded grant
 - [ ] `LOG_FORMAT=json` — still wanted, but **no longer load-bearing for log
       injection**. The plain formatter is a bare `%(message)s`, so a newline in
       an interpolated value reads as a second log record; every caller-supplied
@@ -597,7 +772,10 @@ work on does not.
       that ships the guard, or observability goes dark
 - [ ] Metrics collector scraping `/metrics` — must send
       `Authorization: Bearer $METRICS_TOKEN`
-- [ ] Alerts configured from §3
+- [ ] `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID` added as GitHub repository
+      secrets, so the Uptime workflow's alert reaches Telegram and not only
+      email (§3)
+- [ ] An external uptime monitor on `/health/ready` (§3)
 - [ ] On-call rota and escalation path
 - [ ] Load test at 10× expected peak
 - [ ] Gold dataset + recorded baseline (`docs/EVALUATION.md`)
@@ -608,7 +786,7 @@ work on does not.
 
 **Start of shift**
 - [ ] `/health/ready` returns 200
-- [ ] No firing alerts
+- [ ] No unresolved 🔴 in the ops chat, and the last Uptime run is green
 - [ ] Last deploy is green
 
 **During an incident**
@@ -649,9 +827,24 @@ The server recognises that shape and logs it at ERROR naming the remedy, rather
 than letting it read as an integration that silently does not work while Apple
 retries for three days.
 
-Leave the Sandbox URL pointing at a staging deployment, or unset — a Sandbox notification is signed by the same Apple chain
-as a production one, and the only thing keeping TestFlight renewals out of the
-revenue view is `ALLOWED_STOREKIT_ENVIRONMENTS` (see §8).
+Set the **Sandbox Server URL**, also Version 2, to the Sandbox route:
+
+```
+https://api.snapworth.eu/apple/notifications/sandbox
+```
+
+Never to `/apple/notifications`. A Sandbox notification is signed by the same
+Apple chain as a production one, and that route keeps refusing it (400,
+`wrong environment`) because everything it does feeds the revenue view. The
+Sandbox route does one thing: a `REFUND` or `REVOKE` withdraws the bounded
+Sandbox grant (§17). Every other type is answered 200 and ignored — no row, no
+alert, no count — and a Production notification sent there is refused. With
+`SANDBOX_ENTITLEMENTS=off` it answers 404; clear the URL if you turn it off, or
+Apple retries each notification for three days.
+
+`appstore_test_notification.py --sandbox` proves it the same way as step 2
+below: the Telegram message says `(Sandbox)` and that nothing from Sandbox is
+counted.
 
 ### Why it exists
 
@@ -796,6 +989,8 @@ carry, and the access path consults it after verifying a proof.
 | `ent:{subject}` | the derived entitlement | 24h Pro / shorter free |
 | `entproof:{subject}` | Apple's signed transaction | to the term's expiry + 1h |
 | `entrevoked:{originalTransactionId}` | `{revoked_at, expires_at}` | 400 days |
+| `entrevoked:sandbox:{originalTransactionId}` | the same, for a Sandbox term (§17) | 400 days |
+| `entsandbox:{originalTransactionId}` | the one device holding a bounded Sandbox grant | ≤ 24h |
 
 `expires_at` in the tombstone is the **revoked term's** expiry, not the
 revocation date. `originalTransactionId` is stable across renewals *and*
@@ -812,13 +1007,42 @@ tombstone's.
    `redis-cli GET entrevoked:{originalTransactionId}`. The id is in the
    refund alert.
 3. If it is missing, the webhook answered 503 and Apple should have retried.
-   A 503 releases the `apns2:{uuid}` idempotency key on purpose, so the
-   redelivery gets a real second attempt rather than landing on the duplicate
-   branch. Check the logs for `could not revoke a refunded entitlement`.
+   The `apns2:{uuid}` idempotency key is written only after the tombstone is
+   stored, so a 503 leaves no key behind and the redelivery gets a real second
+   attempt rather than landing on the duplicate branch. Check the logs for
+   `could not apply REFUND to the entitlement`.
+   A Redis outage is a 503 too, because the tombstone is written with Redis
+   required. Before that it was not: the write fell back to one replica's
+   memory and Apple got a 200, so a refund that arrived during an earlier
+   outage may have no tombstone and no retry coming. Use step 4 for it.
 4. To revoke by hand, write the tombstone yourself:
    `redis-cli SET entrevoked:{otid} '{"revoked_at":<epoch>,"expires_at":<term expiry epoch>}' EX 34560000`
 5. Access goes away at the user's next request, or immediately if you also
    `DEL ent:{subject}` — which needs the subject, so usually it is the former.
+
+### If Apple reverses a refund
+
+Apple sends `REFUND_REVERSED` when it takes a refund back after a dispute the
+customer raised, and the term is paid for again. The webhook lifts the
+tombstone for that term (`EntitlementService.reinstate`) and clears the `refund`
+mark on the `/subs` row. The operator Telegram gets `↪️ Refund reversed by
+Apple`, saying whether a block was lifted. Pro comes back at the app's next
+sync. A store failure is a 503 here too, and Apple redelivers.
+
+A reversal lifts a tombstone only when the tombstone is for the same term,
+meaning the same expiry. Apple keeps the renewal date when it reverses a
+refund. A tombstone for any other term is a different refund, and it stays.
+If the kept tombstone ends later than the reversed term, it still denies that
+term, and the alert says so and names the `/sub` command to run. That is what
+a reversal whose expiry is not the refunded term's would look like.
+
+**If a customer whose refund was reversed still reads as free**, run
+`/sub <originalTransactionId>`. It shows any refund block next to Apple's live
+answer, and the lookup clears a stale `refund` mark on the `/subs` row. When
+Apple shows the term not refunded, it offers **🔓 Lift refund block**. That
+takes two taps, and the second asks Apple again: it refuses while Apple still
+shows the refund, since lifting it then would let the stored pre-refund proof
+re-derive Pro. No `redis-cli` needed.
 
 ### What this does not do
 
@@ -826,3 +1050,90 @@ Nothing here refunds anyone or changes what Apple charged. It only stops the
 server treating a taken-back term as paid. A user who re-subscribes is
 unaffected, and there is a test for that
 (`test_re_subscribing_after_a_refund_works`).
+
+## 17. Sandbox purchases (App Review, TestFlight)
+
+App Review buys in **Sandbox**, and so does every TestFlight build, against the
+same backend as the App Store app (`Config.swift`). Until the fix for the
+2026-09-26 audit, production accepted Production only, so a reviewer who bought
+Pro got a 400 from `/auth/entitlement`, then the paywall again, a 402 on
+`/listing` and an empty "Why this price" — Guideline 2.1 / 3.1.1, *purchased
+content not delivered* (`docs/AUDIT-2026-09-26.md`). It had not happened only
+because no reviewer had bought.
+
+Production now honours Sandbox, **bounded**. Two separate settings:
+
+| Variable | Means | Production value |
+|---|---|---|
+| `ALLOWED_STOREKIT_ENVIRONMENTS` | environments trusted fully, like a customer | `Production` |
+| `SANDBOX_ENTITLEMENTS` | how Sandbox is treated when not trusted fully | `bounded` (default) |
+
+### The bounds
+
+- **App Attest only.** Granted only to a caller with a token minted after App
+  Attest. The legacy unauthenticated path still gets the 400.
+- **Short.** The shorter of 24h and the transaction's own expiry plus the
+  usual one-hour grace. Sandbox renews a monthly plan every few minutes, so
+  the expiry is usually what ends it, and the client's re-sync on each
+  renewal is what extends it.
+- **No proof.** `entproof:` is never written, so nothing re-derives a Sandbox
+  grant once `ent:{subject}` lapses. The device has to present a live
+  transaction again.
+- **One device per `originalTransactionId`.** The newest device to present it
+  takes it over (`entsandbox:{otid}` names it), and every other device reads as
+  free from its next request. Replace rather than refuse: a reviewer moving
+  from iPhone to iPad on one Sandbox account is the case this exists for. A
+  reinstall on the same phone (same `device_id`) takes it over silently. Each
+  move logs `sandbox entitlement moved to another device`.
+- **Not a customer.** No `/subs` row, no MRR, no `new_subs` count in the
+  digest or `/status`, no "New Pro" / trial / "Subscription ended" alert, no
+  referral reward. It shows in the logs instead: the audit event
+  `entitlement.recorded` with `environment=Sandbox`, and `sandbox entitlement
+  recorded on bounded terms`. Usage figures — scans, active users, the Pro
+  scan count, `/users`'s Pro devices — do include testers, because their scans
+  cost the same as anyone's.
+- **Fails closed.** The one-device claim is read and written with Redis
+  required. If Redis is unreachable, the Sandbox sync answers 503 rather than
+  granting without the claim. On other requests, `require_auth` normally
+  falls back to the tier in the caller's token during an outage, for up to
+  the token's hour. A token minted from a bounded grant carries
+  `"bounded": true`, and that fallback reads it as free, because the claim
+  it depends on is in the store that is down. So reviewers and testers are
+  free for the outage, and customers keep Pro. Production's device binding
+  still fails open.
+- **Refunds.** A Sandbox `REFUND`/`REVOKE` to the Sandbox route (§14) writes
+  `entrevoked:sandbox:{otid}` and drops the claim, so access goes at the
+  holder's next request. Sandbox tombstones have their own namespace, so a
+  tester's refund can never deny a Production subscriber whose id is the
+  same.
+- **TestFlight's audience is the gate.** Nothing above tells App Review apart
+  from any other Sandbox buyer, and there is no allowlist. Every TestFlight
+  build passes App Attest, and its Sandbox purchases are free and can be
+  bought again whenever one ends. So anyone who can install a TestFlight
+  build is Pro in production, with unlimited scans that each cost real AI
+  money, for as long as they keep a Sandbox subscription going. The one-device
+  rule stops a transaction being shared. It does not stop a tester using
+  their own. The number of people who can install TestFlight builds
+  (internal testers, every external group, any public link) is therefore the
+  only limit on free production Pro. Keep TestFlight to internal testers and
+  small invite-only external groups. Never enable a public TestFlight link
+  while this is `bounded`. If one is ever needed, set
+  `SANDBOX_ENTITLEMENTS=off` for as long as it is live, and not while a build
+  is with App Review, which needs `bounded`.
+
+### Turning it off
+
+`SANDBOX_ENTITLEMENTS=off`, then redeploy: the value is read at startup.
+Sandbox is refused with a 400 again, the Sandbox notification route
+answers 404, and any Sandbox grant already cached reads as free from its next
+request. An unrecognised value is read as `off` and logged at WARNING, so a
+typo can only narrow access.
+
+### Checking it
+
+- A TestFlight purchase unlocks Pro: scan, then draft a listing (no 402) and
+  open "Why this price".
+- `/subs` does not change, and there is no "New Pro subscription" alert.
+- Logs: `sandbox entitlement recorded on bounded terms`.
+- `redis-cli GET entsandbox:{otid}` names the subject that holds it.
+

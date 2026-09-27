@@ -21,6 +21,17 @@ Scope is deliberately narrow, because a checker that cries wolf gets deleted:
 translated on purpose says so here, with the reason, rather than being missing
 in a way nobody can tell from a mistake.
 
+Two positions are checked the other way round, because nothing there is ever
+looked up — a catalog entry cannot save them, so they fail outright:
+
+  * a literal passed straight to `UIAccessibility.post(…, argument:)`. The
+    parameter is `Any?`, so the literal is a plain `String` and VoiceOver
+    announces it verbatim, in English, inside an otherwise translated app.
+  * `.accessibilityLabel(x.rawValue)`, and the same for `Hint` and `Value`.
+    Raw values are English by convention in this codebase — persisted, sent to
+    the backend, used as mail subjects — and each enum that has one also has a
+    translated `label` for exactly this.
+
 Run it with no arguments from anywhere in the repository.
 """
 
@@ -209,6 +220,38 @@ def takes_a_key(code, pos):
     return False
 
 
+def enclosing_call(code, pos):
+    """The name of the call whose argument list contains `pos`, qualified
+    (`UIAccessibility.post`), or None."""
+    depth, j = 0, pos - 1
+    while j >= 0:
+        if code[j] == ")":
+            depth += 1
+        elif code[j] == "(":
+            if depth == 0:
+                m = re.search(r"[A-Za-z_][\w.]*$", code[:j].rstrip())
+                return m.group(0) if m else None
+            depth -= 1
+        j -= 1
+    return None
+
+
+def announced_verbatim(code, pos):
+    """Is the literal at `pos` the `argument:` of `UIAccessibility.post`?"""
+    j = pos - 1
+    while j >= 0 and code[j] in " \t\n":
+        j -= 1
+    if j < 0 or code[j] != ":":
+        return False
+    m = IDENT.search(code[:j])
+    return (bool(m) and m.group(0) == "argument"
+            and enclosing_call(code, pos) == "UIAccessibility.post")
+
+
+RAW_VALUE_SPOKEN = re.compile(
+    r"\.accessibility(?:Label|Value|Hint)\(\s*([A-Za-z_][\w.]*\.rawValue)\s*\)")
+
+
 def unescape(text):
     return (text.replace("\\n", "\n").replace("\\t", "\t")
                 .replace('\\"', '"').replace("\\\\", "\\"))
@@ -216,6 +259,8 @@ def unescape(text):
 
 def main():
     problems = []
+    # (path, line, what, why): positions no catalog entry can fix.
+    verbatim = []
     for target, catalog in TARGETS:
         with open(os.path.join(ROOT, catalog), encoding="utf-8") as f:
             known = set(json.load(f)["strings"])
@@ -228,6 +273,13 @@ def main():
                     src = f.read()
                 code = without_comments(src)
                 for lit in literals(src):
+                    if announced_verbatim(code, lit.start):
+                        line = src.count("\n", 0, lit.start) + 1
+                        verbatim.append((os.path.relpath(path, ROOT), line,
+                                         unescape(lit.text),
+                                         "is announced verbatim by UIAccessibility.post"
+                                         " — wrap it in String(localized:)"))
+                        continue
                     if lit.interpolated or lit.multiline:
                         continue
                     if not takes_a_key(code, lit.start):
@@ -239,6 +291,11 @@ def main():
                         continue
                     line = src.count("\n", 0, lit.start) + 1
                     problems.append((os.path.relpath(path, ROOT), line, key, catalog))
+                for m in RAW_VALUE_SPOKEN.finditer(code):
+                    line = src.count("\n", 0, m.start()) + 1
+                    verbatim.append((os.path.relpath(path, ROOT), line, m.group(1),
+                                     "is spoken to VoiceOver, and raw values stay"
+                                     " English — use the enum's translated label"))
 
     for path, line, key, catalog in problems:
         print(f"::error file={path},line={line}::{key!r} is shown to the user but "
@@ -247,8 +304,13 @@ def main():
               f"tools/check_localization.py's DELIBERATELY_ENGLISH with a reason")
         print(f"{path}:{line}  {key!r}", file=sys.stderr)
 
-    if problems:
-        print(f"\n{len(problems)} untranslated string(s)", file=sys.stderr)
+    for path, line, what, why in verbatim:
+        print(f"::error file={path},line={line}::{what!r} {why}")
+        print(f"{path}:{line}  {what!r}", file=sys.stderr)
+
+    if problems or verbatim:
+        print(f"\n{len(problems) + len(verbatim)} untranslated string(s)",
+              file=sys.stderr)
         return 1
     print("every literal shown to the user has a catalog entry")
     return 0

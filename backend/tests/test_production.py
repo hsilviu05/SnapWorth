@@ -264,6 +264,51 @@ class TestRequestInstrumentation:
         assert metrics.http_requests.value(
             endpoint="other", method="GET", status_class="4xx") >= 1
 
+    def test_every_route_has_its_own_endpoint_label(self):
+        """Four routes were missing from KNOWN_ENDPOINTS — Apple's server
+        notifications among them — and were counted as "other", alongside
+        every scanner probe."""
+        from fastapi.routing import APIRoute
+
+        routes = {r.path for r in app.routes if isinstance(r, APIRoute)}
+        assert routes - metrics.KNOWN_ENDPOINTS == set()
+
+
+class TestDeclaredMetricsAreIncremented:
+    """A declared metric nothing increments reads as a flat zero on any
+    dashboard built on it — "no problem" rather than "no data"."""
+
+    def test_entitlement_outcomes_are_counted(self, monkeypatch):
+        import auth
+        import notify
+        import referral
+        from entitlements import Entitlement, EntitlementError
+
+        ent = Entitlement("pro", "com.snapworth.yearly", None, "otid-1", "Production")
+
+        async def record(subject, jws, device_id=None, authenticated=False):
+            if jws == "bad":
+                raise EntitlementError("signature did not verify")
+            return ent
+
+        async def quiet(*_args, **_kwargs):
+            return False
+
+        monkeypatch.setattr(auth.deps.entitlements, "record", record)
+        monkeypatch.setattr(notify, "entitlement_recorded", quiet)
+        monkeypatch.setattr(referral, "on_entitlement", quiet)
+        headers = {"x-device-id": "entitlement-metric"}
+        assert client.post("/auth/entitlement", json={"signed_transaction": "ok"},
+                           headers=headers).status_code == 200
+        assert client.post("/auth/entitlement", json={"signed_transaction": "bad"},
+                           headers=headers).status_code == 400
+        assert metrics.entitlement_operations.value(outcome="recorded") == 1
+        assert metrics.entitlement_operations.value(outcome="rejected") == 1
+
+    def test_the_never_incremented_cache_counter_is_gone(self):
+        assert not hasattr(metrics, "cache_operations")
+        assert "snapworth_cache_operations_total" not in metrics.render()
+
 
 # ═══ Log redaction ════════════════════════════════════════════════════════════
 
@@ -724,18 +769,276 @@ class TestQuotaExhaustion:
     def test_ordinary_rate_limit_is_still_retryable(self):
         # The regression this guards: matching on "429" or "quota" would make
         # every transient per-minute rate limit permanent, turning a blip that
-        # clears in seconds into a failed scan.
+        # clears in seconds into a failed scan. This is the old SDK's wording;
+        # the current API's is below.
         transient = Exception(
             "429 Resource has been exhausted (e.g. check quota).")
         assert not main._is_quota_exhausted(transient)
         assert main._is_retryable(transient)
 
-    def test_openai_style_wording_also_matches(self):
-        assert main._is_quota_exhausted(
-            Exception("You exceeded your current quota, please check your plan"))
+    # What google-genai raises for a Gemini 429: an `APIError` whose `details`
+    # is the whole response body. The message is the same for every quota; the
+    # QuotaFailure entry says which one ran out.
+    _QUOTA_MESSAGE = (
+        "You exceeded your current quota, please check your plan and billing "
+        "details. For more information on this error, head to: "
+        "https://ai.google.dev/gemini-api/docs/rate-limits.")
+
+    @classmethod
+    def _gemini_429(cls, quota_id: str, retry_delay: str = "23s"):
+        from google.genai import errors
+
+        return errors.ClientError(429, {"error": {
+            "code": 429, "message": cls._QUOTA_MESSAGE, "status": "RESOURCE_EXHAUSTED",
+            "details": [
+                {"@type": "type.googleapis.com/google.rpc.QuotaFailure",
+                 "violations": [{
+                     "quotaMetric": "generativelanguage.googleapis.com/"
+                                    "generate_content_paid_tier_requests",
+                     "quotaId": quota_id,
+                     "quotaDimensions": {"location": "global",
+                                         "model": "gemini-2.5-flash"},
+                     "quotaValue": "4000"}]},
+                {"@type": "type.googleapis.com/google.rpc.Help",
+                 "links": [{"description": "Learn more about Gemini API quotas",
+                            "url": "https://ai.google.dev/gemini-api/docs/rate-limits"}]},
+                {"@type": "type.googleapis.com/google.rpc.RetryInfo",
+                 "retryDelay": retry_delay},
+            ]}})
+
+    def test_geminis_per_minute_429_is_a_rate_limit_not_a_billing_stop(self):
+        """Its message opens "You exceeded your current quota", which was on
+        the billing list filed as OpenAI's wording — so a burst got no retry,
+        marked the model unhealthy on the first failure and paged the
+        operator to top up billing."""
+        per_minute = self._gemini_429("GenerateRequestsPerMinutePerProjectPerModel")
+        assert not main._is_quota_exhausted(per_minute)
+        assert main._is_retryable(per_minute)
+        # Its body quotes a quota value of 4000, which the text markers read
+        # as a 400; the status code is what counts when there is one.
+        assert "400" in str(per_minute)
+
+    def test_the_same_message_bare_is_not_a_billing_stop(self):
+        assert not main._is_quota_exhausted(Exception(self._QUOTA_MESSAGE))
+        assert main._is_retryable(Exception(self._QUOTA_MESSAGE))
+
+    def test_a_per_day_quota_is_a_stop_for_today(self):
+        per_day = self._gemini_429("GenerateRequestsPerDayPerProjectPerModel-FreeTier",
+                                   retry_delay="41380s")
+        assert main._is_quota_exhausted(per_day)
+        assert not main._is_retryable(per_day)
 
     def test_auth_failures_remain_non_retryable(self):
+        from google.genai import errors
+
         assert not main._is_retryable(Exception("401 API key not valid"))
+        assert not main._is_retryable(errors.ClientError(400, {"error": {
+            "code": 400, "message": "API key not valid. Please pass a valid API key.",
+            "status": "INVALID_ARGUMENT"}}))
+
+    def test_a_server_error_is_retryable(self):
+        from google.genai import errors
+
+        assert main._is_retryable(errors.ServerError(503, {"error": {
+            "code": 503, "message": "The model is overloaded.", "status": "UNAVAILABLE"}}))
+
+    def test_a_per_minute_429_is_retried_and_does_not_page_about_billing(self):
+        """End to end through the retry loop: a burst clears on the retry."""
+        import asyncio
+        from unittest.mock import AsyncMock, MagicMock, patch
+
+        ok = MagicMock()
+        ok.text = "{}"
+        health = main._ModelHealth()
+        with patch("main._model") as model, \
+                patch("main._RETRY_BASE_DELAY", 0), \
+                patch.object(main, "_model_health", health), \
+                patch("main.notify.model_unhealthy") as paged:
+            model.generate_content_async = AsyncMock(side_effect=[
+                self._gemini_429("GenerateRequestsPerMinutePerProjectPerModel",
+                                 retry_delay="0s"), ok])
+            text, _ = asyncio.run(main._generate_with_retry("prompt", label="scan"))
+        assert text == "{}"
+        assert model.generate_content_async.await_count == 2
+        assert health.healthy
+        paged.assert_not_called()
+
+
+class TestModelCallDeadline:
+    """The SDK's 25s timeout is per attempt, and there are two attempts, so a
+    first attempt that timed out was followed by a second that ran to about
+    50s — billed, for a phone that gives up at 35s."""
+
+    @staticmethod
+    def _run(side_effect, deadline_in: float | None):
+        import time
+        from unittest.mock import AsyncMock, patch
+
+        with patch("main._model") as model, \
+                patch("main._RETRY_BASE_DELAY", 0), \
+                patch.object(main, "_model_health", main._ModelHealth()):
+            model.generate_content_async = AsyncMock(side_effect=side_effect)
+            deadline = None if deadline_in is None else time.monotonic() + deadline_in
+            start = time.monotonic()
+            with pytest.raises(main.aiconfig.ModelUnavailable):
+                asyncio.run(main._generate_with_retry(
+                    "prompt", label="scan", deadline=deadline))
+        return model.generate_content_async.await_count, time.monotonic() - start
+
+    @staticmethod
+    async def _hang(*_args, **_kwargs):
+        await asyncio.sleep(30)
+
+    def test_no_retry_when_too_little_time_is_left(self):
+        calls, _ = self._run([Exception("503 overloaded")] * 2,
+                             deadline_in=main._MIN_RETRY_SECONDS - 1)
+        assert calls == 1
+
+    def test_a_retry_with_time_left_still_happens(self):
+        calls, _ = self._run([Exception("503 overloaded")] * 2,
+                             deadline_in=main._MIN_RETRY_SECONDS + 5)
+        assert calls == 2
+
+    def test_an_attempt_is_cut_off_at_the_deadline(self):
+        """The first attempt is bounded by the time left, not the SDK's 25s,
+        and the retry after it is skipped."""
+        calls, elapsed = self._run(self._hang, deadline_in=0.3)
+        assert calls == 1
+        assert elapsed < 5
+
+    def test_a_retry_gets_only_the_time_that_is_left(self):
+        from unittest.mock import patch
+
+        attempts: list[int] = []
+
+        async def fail_then_hang(*_args, **_kwargs):
+            attempts.append(1)
+            if len(attempts) == 1:
+                raise Exception("503 overloaded")
+            await asyncio.sleep(30)
+
+        with patch("main._MIN_RETRY_SECONDS", 0.1):
+            calls, elapsed = self._run(fail_then_hang, deadline_in=0.5)
+        assert calls == 2
+        assert elapsed < 5
+
+    def test_nothing_is_called_once_the_deadline_has_passed(self):
+        calls, _ = self._run([Exception("never reached")], deadline_in=-1)
+        assert calls == 0
+
+    def test_without_a_deadline_both_attempts_run(self):
+        """The Telegram bot, the eval and /checkup pass none."""
+        calls, _ = self._run([Exception("503 overloaded")] * 2, deadline_in=None)
+        assert calls == 2
+
+    # ── A missed deadline is not a provider failure ─────────────────────────
+    # Both deadline stops used to fall through to the post-loop `exhausted`
+    # exit: a health failure, a gemini dependency error and a `provider` scan
+    # failure. Two slow uploads in a row turned /health degraded and paged the
+    # operator while Gemini was answering normally.
+
+    @staticmethod
+    def _record(side_effect, deadline_in: float, runs: int = 2):
+        """Run `runs` calls against one fresh health record; return it, the
+        page mock, and every outcome and dependency error counted."""
+        import time
+        from unittest.mock import AsyncMock, patch
+
+        health = main._ModelHealth()
+        with patch("main._model") as model, \
+                patch("main._RETRY_BASE_DELAY", 0), \
+                patch.object(main, "_model_health", health), \
+                patch("main.notify.model_unhealthy") as paged, \
+                patch("main.metrics.model_calls.inc") as calls, \
+                patch("main.metrics.dependency_errors.inc") as dependency:
+            model.generate_content_async = AsyncMock(side_effect=side_effect)
+            errors = []
+            for _ in range(runs):
+                with pytest.raises(main.aiconfig.ModelUnavailable) as raised:
+                    asyncio.run(main._generate_with_retry(
+                        "prompt", label="scan", deadline=time.monotonic() + deadline_in))
+                errors.append(raised.value)
+        outcomes = [c.kwargs.get("outcome") for c in calls.call_args_list]
+        return health, paged, outcomes, dependency, errors[-1]
+
+    def test_a_deadline_passed_before_the_call_leaves_the_provider_healthy(self):
+        health, paged, outcomes, dependency, exc = self._record(
+            [Exception("never reached")] * 2, deadline_in=-1)
+        assert isinstance(exc, main._DeadlinePassed)
+        assert health.healthy and health.consecutive_failures == 0
+        paged.assert_not_called()
+        dependency.assert_not_called()
+        assert outcomes == ["deadline", "deadline"]
+
+    def test_an_attempt_cut_at_the_deadline_leaves_the_provider_healthy(self):
+        health, paged, outcomes, dependency, exc = self._record(
+            self._hang, deadline_in=0.2)
+        assert isinstance(exc, main._DeadlinePassed)
+        assert health.healthy and health.consecutive_failures == 0
+        paged.assert_not_called()
+        dependency.assert_not_called()
+        assert outcomes == ["deadline", "deadline"]
+
+    def test_the_sdks_own_timeout_is_still_held_against_the_provider(self):
+        """Only our cut is the caller's; a TimeoutError from the SDK with time
+        still left is Gemini being slow, retried and then counted."""
+        health, _paged, outcomes, dependency, exc = self._record(
+            [TimeoutError("sdk read timeout")] * 2, deadline_in=60, runs=1)
+        assert not isinstance(exc, main._DeadlinePassed)
+        assert health.consecutive_failures == 1
+        assert health.last_failure_kind == "exhausted"
+        assert outcomes == ["exhausted"]
+        dependency.assert_called_once_with(dependency="gemini", kind="exhausted")
+
+    def test_a_scan_stopped_at_the_deadline_is_not_a_provider_failure(self):
+        from unittest.mock import AsyncMock, patch
+
+        from tests.test_ai_pipeline import V2_PAYLOAD, _scan_with
+
+        for exc, kind in ((main._DeadlinePassed("late"), "deadline"),
+                          (main.aiconfig.ModelUnavailable("503"), "provider")):
+            with patch.object(main, "_generate_with_retry", AsyncMock(side_effect=exc)), \
+                    patch("main.notify.count_scan_failure") as failed:
+                assert _scan_with(V2_PAYLOAD).status_code == 502
+            failed.assert_called_once_with(kind)
+
+    def test_the_deadline_counts_from_arrival(self):
+        from types import SimpleNamespace
+
+        request = SimpleNamespace(state=SimpleNamespace(arrived=100.0))
+        assert main._client_deadline(request) == 100.0 + main.CLIENT_DEADLINE_SECONDS  # type: ignore[arg-type]
+
+    def test_scan_and_listing_pass_a_deadline_from_arrival(self):
+        """Arrival is recorded by the metrics middleware, before the upload is
+        read, so a slow upload spends the budget too."""
+        import time
+        from unittest.mock import AsyncMock, patch
+
+        from tests.test_ai_pipeline import V2_PAYLOAD, _scan_with
+        from tests.test_main import _post_listing
+
+        seen: list[float] = []
+        arrivals: list[object] = []
+        real = main._client_deadline
+
+        def recording(request):
+            arrivals.append(getattr(request.state, "arrived", None))
+            return real(request)
+
+        async def fake(contents, *, label, max_tokens=None, record_health=True,
+                       deadline=None):
+            assert deadline is not None
+            seen.append(deadline - time.monotonic())
+            return json.dumps(V2_PAYLOAD), {}
+
+        with patch.object(main, "_generate_with_retry", AsyncMock(side_effect=fake)), \
+                patch.object(main, "_client_deadline", recording):
+            assert _scan_with(V2_PAYLOAD, pro=True).status_code == 200
+            assert _post_listing().status_code == 200
+        assert len(seen) == 2
+        assert all(isinstance(a, float) for a in arrivals), "middleware did not record arrival"
+        for left in seen:
+            assert main.CLIENT_DEADLINE_SECONDS - 5 < left <= main.CLIENT_DEADLINE_SECONDS
 
 
 class TestModelHealth:

@@ -26,6 +26,21 @@ final class ScanViewModel {
     /// `paywall_viewed` is attributed correctly (scan wall vs. upgrade tap).
     var paywallTrigger: PaywallTrigger = .scanLimit
 
+    /// StoreKit shows a subscription and the server refused this scan even
+    /// after it was re-sent. Shown instead of the paywall — see
+    /// `PurchaseService.confirmingSubscription`.
+    var showSubscriptionUnconfirmed = false
+
+    /// The photo a scan-limit paywall interrupted, so a purchase can finish
+    /// the scan the user started — see `takePhotoForResume`.
+    ///
+    /// Nothing kept it: the paywall opened, the capture was released, and a
+    /// new subscriber's first Pro moment was an empty viewfinder and a second
+    /// shot of the same item. Held downscaled to the upload size, which is all
+    /// a scan uses, rather than as a full-resolution capture for as long as
+    /// the paywall is up.
+    @ObservationIgnored private var photoAwaitingPurchase: UIImage?
+
     // ── Rare find (the easter egg — see `RareFind`) ───────────────────
     /// Set while the easter egg's appraisal plays in place of the analysing
     /// overlay. Only ever set while `isAnalyzing`.
@@ -62,12 +77,19 @@ final class ScanViewModel {
     var streak: Int { ScanStreak.current() }
 
     // ── Scan trigger ─────────────────────────────────────────────────
-    func startScan(image: UIImage, purchaseService: any PurchaseService, repository: ScanRepository) async {
+    /// - Parameter afterPurchase: the scan a purchase has just unblocked.
+    ///   The purchase tells the server in a detached task, so this one waits
+    ///   for the server to have heard first — otherwise the new subscriber's
+    ///   first scan could be read as a free one, off the free allowance and
+    ///   without the Pro detail.
+    func startScan(image: UIImage, purchaseService: any PurchaseService, repository: ScanRepository,
+                   afterPurchase: Bool = false) async {
         guard !isAnalyzing else { return }
         guard purchaseService.isSubscribed || hasFreeScanRemaining else {
             Analytics.shared.track(.freeScanLimitHit)
             paywallTrigger = .scanLimit
             showPaywall = true
+            await holdForPurchase(image)
             return
         }
 
@@ -79,10 +101,19 @@ final class ScanViewModel {
         errorMessage = nil
         saveFailed = false
         defer { isAnalyzing = false }
+        // The request and the save, if the phone locks mid-scan.
+        let background = BackgroundScanActivity.begin("Scan")
+        defer { background.end() }
+        if afterPurchase {
+            // Its outcome is not needed here: a server that still refuses
+            // answers 402, which `confirmingSubscription` below handles.
+            _ = await purchaseService.resyncEntitlement()
+        }
 
         // Raced against the request, never ahead of it — see `RareFindWatch`.
-        // Declared after the defer above so it runs first: whatever the exit,
-        // the window is shut and the appraisal gone before the overlay is.
+        // Declared after the `isAnalyzing` defer above so it runs first:
+        // whatever the exit, the window is shut and the appraisal gone before
+        // the overlay is.
         let watch = watchForRareFind(in: image)
         rareFindWatch = watch
         defer {
@@ -96,7 +127,9 @@ final class ScanViewModel {
         }
 
         do {
-            let response = try await ScanAPIClient.shared.scan(image: image)
+            let response = try await purchaseService.confirmingSubscription {
+                try await ScanAPIClient.shared.scan(image: image)
+            }
             // The estimate is in, so the race is decided here: a match that has
             // not landed by now never will, as far as this scan is concerned.
             // Nil, too, when `reset()` abandoned the watch in the meantime.
@@ -141,7 +174,7 @@ final class ScanViewModel {
             if rareFind == nil { Haptics.success() }
             scanResult = result
             Analytics.shared.track(
-                .scanCompleted(success: true, category: ItemCategory(normalizing: response.category))
+                .scanCompleted(success: true, category: ScanCategory(normalizing: response.category))
             )
             if let milestone = ScanTally.record() {
                 Analytics.shared.track(.scanCountMilestone(count: milestone))
@@ -183,6 +216,10 @@ final class ScanViewModel {
                 }
             }
 
+            // Counted here; the rating request itself waits for the price to
+            // be revealed on the result sheet — see `ReviewPrompt`.
+            ReviewPrompt.recordSuccessfulScan()
+
             // A rare find holds its result here until the appraisal has played
             // out — here and not earlier, so the valuation is saved, counted
             // against the quota and tracked at the moment it arrived, exactly
@@ -191,18 +228,17 @@ final class ScanViewModel {
                 await revealRareFind(rareFind, from: watch)
             }
 
-            // Ask for a rating on a high point — after the result is on screen.
-            Task {
-                try? await Task.sleep(for: .seconds(1.2))
-                ReviewPrompt.recordSuccessfulScan()
-            }
-
             // Only scans schedule the monthly recap — never app launch — so a
             // quiet month fires nothing. Fires once this month reaches 3 scans.
             let monthScans = repository.countScansThisMonth()
             Task { await NotificationManager.shared.scheduleMonthlyRecap(monthScanCount: monthScans) }
 
         } catch {
+            // The request is back, if with an error, so the race is over here
+            // too: the paywall path below awaits the photo's downscale, and a
+            // match landing in that pause would put an appraisal under the
+            // paywall.
+            watch?.close()
             let appError = AppError.from(error)
 
             // A 402 is the paywall, not a failure. It reaches here whenever the
@@ -225,19 +261,28 @@ final class ScanViewModel {
                 // this path, the one where the two demonstrably disagree, did
                 // not write anything at all. So the counter went on
                 // advertising a scan the server had already refused: the top
-                // bar said "1 left", the next tap spent a paid model call to
-                // arrive at the same paywall, and `hasFreeScanRemaining` let
-                // Thrift Flip through on the same false premise.
+                // bar said "1 left", the next tap uploaded the photo only to
+                // arrive at the same paywall (the server refuses in
+                // `reserve_quota`, before any model call), and
+                // `hasFreeScanRemaining` let Thrift Flip through on the same
+                // false premise. Thrift Flip's own 402 does the same.
                 FreeScanCounter.serverRemaining = 0
                 Analytics.shared.track(.freeScanLimitHit)
                 paywallTrigger = .scanLimit
                 showPaywall = true
+                await holdForPurchase(image)
                 return
             }
 
             Haptics.failure()
-            errorMessage = appError.errorDescription
             Analytics.shared.track(.scanFailed(reason: ScanFailureReason(appError), isFirst: isFirst))
+            // A subscriber the server would not recognise gets a state of its
+            // own, with Restore and support — never the plan they pay for.
+            if appError == .subscriptionUnconfirmed {
+                showSubscriptionUnconfirmed = true
+                return
+            }
+            errorMessage = appError.errorDescription
         }
     }
 
@@ -252,12 +297,36 @@ final class ScanViewModel {
         selectedPhotoItem = nil
     }
 
+    /// Keeps the interrupted photo for `takePhotoForResume`. Downscaled off
+    /// the main actor, after the paywall has been asked for, so the sheet is
+    /// not held up by it.
+    private func holdForPurchase(_ image: UIImage) async {
+        let photo = await Task.detached(priority: .utility) {
+            ScanAPIClient.downscale(image, maxEdge: ScanAPIClient.maxUploadEdge)
+        }.value
+        // Closed already: nothing is waiting for it, and a later paywall must
+        // not resume a scan nobody asked for.
+        guard showPaywall else { return }
+        photoAwaitingPurchase = photo
+    }
+
+    /// The photo the scan-limit paywall interrupted, if the paywall has just
+    /// closed on a subscriber; otherwise nil. Either way the photo is let go:
+    /// a plain dismiss means the user chose not to buy, and the viewfinder is
+    /// where they expect to be.
+    func takePhotoForResume(purchaseService: any PurchaseService) -> UIImage? {
+        defer { photoAwaitingPurchase = nil }
+        guard purchaseService.isSubscribed else { return nil }
+        return photoAwaitingPurchase
+    }
+
     func reset() {
         // First, so nothing the detector finds from here on reaches the
         // screen, and a match it already found is forgotten: the scan in
         // flight then finishes exactly as one that never matched.
         rareFindWatch?.abandon()
         rareFindWatch = nil
+        photoAwaitingPurchase = nil
         capturedImage = nil
         scanResult = nil
         errorMessage = nil
@@ -348,6 +417,20 @@ enum ScanTally {
         completedCount(defaults: defaults) == 0
     }
 
+    /// True through the user's first valuation: before it, and while it is
+    /// still the only one.
+    ///
+    /// For events that can only fire *after* `record()`. The paywall a new
+    /// user actually sees opens once their first result is in — the intro
+    /// paywall when the result sheet closes, or the scan-limit one after the
+    /// allowance is spent — and `isFirstScan()` is false by then, so
+    /// `paywall_viewed{is_first}` was false for almost every first-run
+    /// paywall and a Day-0 funnel lost its bottom half. `scan_result_shown`
+    /// already read `<= 1` for the same reason.
+    static func isFirstRun(defaults: UserDefaults = .standard) -> Bool {
+        completedCount(defaults: defaults) <= 1
+    }
+
     /// Record a scan that produced a result. Returns the milestone this scan
     /// just crossed, or nil.
     @discardableResult
@@ -368,7 +451,15 @@ enum ScanStreak {
                        calendar: Calendar = .current) -> Int {
         let count = defaults.integer(forKey: countKey)
         if let last = defaults.object(forKey: lastKey) as? Date {
-            if calendar.isDate(last, inSameDayAs: now) { return max(count, 1) }
+            if calendar.isDate(last, inSameDayAs: now) {
+                // The same streak day, but the latest instant. The free-scan
+                // reminder reads this as *when* the last scan was, to find the
+                // UTC reset after it, and the first scan of a local day can sit
+                // in an earlier UTC day than the last one. Every streak test is
+                // by local day, so moving it within the day changes none.
+                defaults.set(now, forKey: lastKey)
+                return max(count, 1)
+            }
             if isYesterday(last, relativeTo: now, calendar: calendar) {
                 defaults.set(count + 1, forKey: countKey)
                 defaults.set(now, forKey: lastKey)
@@ -391,21 +482,14 @@ enum ScanStreak {
         return 0
     }
 
-    /// The day the streak was last extended, for the widget blob.
+    /// When the last scan happened, for the widget blob and the free-scan
+    /// reminder.
     ///
     /// The widget cannot call `current()` — this store is in
     /// `UserDefaults.standard`, not the App Group — so it needs the date to
     /// apply the same today-or-yesterday test itself.
     static var lastScan: Date? {
         UserDefaults.standard.object(forKey: lastKey) as? Date
-    }
-
-    /// Whether a scan has been recorded today — any tier, so the reminder
-    /// logic does not depend on the free counter.
-    static func scannedToday(now: Date = Date(), defaults: UserDefaults = .standard,
-                             calendar: Calendar = .current) -> Bool {
-        guard let last = defaults.object(forKey: lastKey) as? Date else { return false }
-        return calendar.isDate(last, inSameDayAs: now)
     }
 
     /// Coarse buckets for analytics — never the exact count.
@@ -424,16 +508,56 @@ enum ScanStreak {
     }
 }
 
+// ── Finishing a scan the phone locked on ──────────────────────────────────────
+
+/// Asks iOS for time to finish a scan when the app leaves the foreground
+/// mid-request.
+///
+/// Nothing did, and every scan runs on the default session: lock the phone
+/// during "Analyzing…" and the process is suspended with the upload or the
+/// response in flight. The server charges a scan unless it sees the client
+/// disconnect first, so a free user could come back to "No internet
+/// connection" after the day's only scan had been spent — and a retry is a
+/// 402. A background task keeps the request and the save running for the
+/// few seconds they need; it does nothing at all while the app stays in
+/// front.
+///
+/// Begun before the request, ended in a `defer`, and ended by the expiration
+/// handler if iOS runs out of patience first. `end()` is idempotent, so the
+/// two cannot both end it.
+@MainActor
+final class BackgroundScanActivity {
+    private var identifier: UIBackgroundTaskIdentifier = .invalid
+
+    private init() {}
+
+    static func begin(_ name: String) -> BackgroundScanActivity {
+        let activity = BackgroundScanActivity()
+        activity.identifier = UIApplication.shared.beginBackgroundTask(withName: name) {
+            activity.end()
+        }
+        return activity
+    }
+
+    var isActive: Bool { identifier != .invalid }
+
+    func end() {
+        guard identifier != .invalid else { return }
+        UIApplication.shared.endBackgroundTask(identifier)
+        identifier = .invalid
+    }
+}
+
 extension ScanViewModel {
     /// Shared by the camera scan and Thrift Flip: advance the streak, report
-    /// its bucket, and move the free-scan reminder to tomorrow — today's
-    /// allowance is spent, so today's nudge would be a lie.
+    /// its bucket, and move the free-scan reminder past the next UTC reset —
+    /// the allowance is spent until then, so an earlier nudge would be a lie.
     static func noteScanForStreakAndReminder(isPro: Bool) {
         let streak = ScanStreak.record()
         Analytics.shared.track(.scanStreak(bucket: ScanStreak.bucket(streak)))
         Task {
             await NotificationManager.shared.syncFreeScanReminder(
-                isPro: isPro, scannedToday: true, streak: streak)
+                isPro: isPro, lastScan: ScanStreak.lastScan, streak: streak)
         }
     }
 }

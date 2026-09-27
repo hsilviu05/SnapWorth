@@ -57,7 +57,8 @@ final class PaywallViewModel {
         errorMessage = nil
         pendingMessage = nil
         defer { isPurchasing = false }
-        Analytics.shared.track(.purchaseStarted(productID: selectedProductID))
+        Analytics.shared.track(.purchaseStarted(productID: selectedProductID,
+                                                isFirst: ScanTally.isFirstRun()))
         do {
             switch try await service.purchase(productID: selectedProductID) {
             case .completed:

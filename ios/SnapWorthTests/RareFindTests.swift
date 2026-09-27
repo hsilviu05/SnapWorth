@@ -555,11 +555,14 @@ final class RareFindWiringTests: XCTestCase {
     /// The full result after a reveal is the full result: `coverPrice` also
     /// offers "Sharpen this estimate", so the reveal lifts the guess cover
     /// with a parameter of its own rather than by turning `coverPrice` off.
+    /// The same for `isFreshScan`, which also offers the tag re-read and the
+    /// full breakdown (`FullDetailOffer`).
     func test_theFullResultAfterAReveal_stillOffersToSharpenTheEstimate() throws {
         let scanView = try source("SnapWorth/Views/ScanView.swift")
         XCTAssertTrue(scanView.contains("coverPrice: true,"))
         XCTAssertTrue(scanView.contains("priceAlreadyShown: vm.rareFindReveal != nil"))
         XCTAssertFalse(scanView.contains("coverPrice: vm.rareFindReveal"))
+        XCTAssertFalse(scanView.contains("isFreshScan: vm.rareFindReveal"))
     }
 }
 

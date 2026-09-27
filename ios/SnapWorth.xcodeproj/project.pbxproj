@@ -23,6 +23,8 @@
 		FEED000000000000000000B5 /* ThriftFlipView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FEED000000000000000000A5 /* ThriftFlipView.swift */; };
 		FEED000000000000000097B2 /* ReferralViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = FEED000000000000000097A2 /* ReferralViews.swift */; };
 		FEED000000000000000000B4 /* ThriftFlipViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = FEED000000000000000000A4 /* ThriftFlipViewModel.swift */; };
+		FEED000000000000000093B1 /* HaulSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = FEED000000000000000093A1 /* HaulSession.swift */; };
+		FEED000000000000000093B2 /* HaulView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FEED000000000000000093A2 /* HaulView.swift */; };
 		FEED000000000000000000B3 /* MarketplaceFees.swift in Sources */ = {isa = PBXBuildFile; fileRef = FEED000000000000000000A3 /* MarketplaceFees.swift */; };
 		FEED000000000000000000B2 /* PriceTagOCR.swift in Sources */ = {isa = PBXBuildFile; fileRef = FEED000000000000000000A2 /* PriceTagOCR.swift */; };
 		EA57E0000000000000000B01 /* RareFind.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA57E0000000000000000A01 /* RareFind.swift */; };
@@ -137,6 +139,8 @@
 		FEED000000000000000000A5 /* ThriftFlipView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThriftFlipView.swift; sourceTree = "<group>"; };
 		FEED000000000000000097A2 /* ReferralViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReferralViews.swift; sourceTree = "<group>"; };
 		FEED000000000000000000A4 /* ThriftFlipViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThriftFlipViewModel.swift; sourceTree = "<group>"; };
+		FEED000000000000000093A1 /* HaulSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HaulSession.swift; sourceTree = "<group>"; };
+		FEED000000000000000093A2 /* HaulView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HaulView.swift; sourceTree = "<group>"; };
 		FEED000000000000000000A3 /* MarketplaceFees.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarketplaceFees.swift; sourceTree = "<group>"; };
 		FEED000000000000000000A2 /* PriceTagOCR.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PriceTagOCR.swift; sourceTree = "<group>"; };
 		EA57E0000000000000000A01 /* RareFind.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RareFind.swift; sourceTree = "<group>"; };
@@ -357,6 +361,7 @@
 				AA00000000000000000000DC /* SettingsViewModel.swift */,
 				ADD1EC0000000000000000B7 /* FlipsViewModel.swift */,
 				FEED000000000000000000A4 /* ThriftFlipViewModel.swift */,
+				FEED000000000000000093A1 /* HaulSession.swift */,
 			);
 			path = ViewModels;
 			sourceTree = "<group>";
@@ -380,6 +385,7 @@
 				FEED000000000000000000A5 /* ThriftFlipView.swift */,
 				FEED000000000000000097A2 /* ReferralViews.swift */,
 				EA57E0000000000000000A02 /* RareFindViews.swift */,
+				FEED000000000000000093A2 /* HaulView.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -630,6 +636,8 @@
 				FEED000000000000000000B5 /* ThriftFlipView.swift in Sources */,
 				FEED000000000000000097B2 /* ReferralViews.swift in Sources */,
 				FEED000000000000000000B4 /* ThriftFlipViewModel.swift in Sources */,
+				FEED000000000000000093B1 /* HaulSession.swift in Sources */,
+				FEED000000000000000093B2 /* HaulView.swift in Sources */,
 				FEED000000000000000000B3 /* MarketplaceFees.swift in Sources */,
 				FEED000000000000000000B2 /* PriceTagOCR.swift in Sources */,
 				EA57E0000000000000000B01 /* RareFind.swift in Sources */,

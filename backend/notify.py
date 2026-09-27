@@ -6,7 +6,9 @@ cheapest reliable way to do that — the Bot API is free, needs no SDK, and a
 message to a private chat is push-delivered.
 
 Everything here is OFF unless both ``TELEGRAM_BOT_TOKEN`` and
-``TELEGRAM_CHAT_ID`` are set, and every path is best-effort by construction:
+``TELEGRAM_CHAT_ID`` are set — except the scan count and the category, brand
+and finds tallies, which `/trends` serves to the app and which therefore run
+whenever there is a cache — and every path is best-effort by construction:
 an alert *about* production must never be able to degrade production. No user
 request ever waits on Telegram — sends run as background tasks — and the one
 awaited entry point (`entitlement_recorded`) swallows its own failures.
@@ -55,6 +57,15 @@ logged by exception class name only, and observability.py redacts the token
 pattern as a backstop.
 """
 
+# `_cache` and `_notifier` are module state set once by `configure`. Every
+# public entry point returns early while either is None, and the ~40 private
+# helpers below them run only past that guard — which pyright cannot see
+# across a call, so each `_cache.get` read as a possible None access: 78 of
+# this file's errors, none of them reachable. Scoped to this file and this one
+# rule; every other check, including Optional subscripts and arguments, stays
+# on here and everywhere else.
+# pyright: reportOptionalMemberAccess=false
+
 from __future__ import annotations
 
 import asyncio
@@ -69,7 +80,9 @@ from collections.abc import Awaitable, Callable
 from datetime import datetime, timedelta, timezone
 
 import auditlog
+import categories
 import ideas
+from confidence import brand_is_known
 
 log = logging.getLogger("snapworth.notify")
 
@@ -99,11 +112,7 @@ FEED_KEY = "opsfeed:enabled"
 # capped; categories are a closed set and need no cap.
 TOP_BRANDS_CAP = 200
 
-CATEGORY_EMOJI = {
-    "clothing": "🧥", "shoes": "👟", "accessories": "👜", "electronics": "📱",
-    "books": "📚", "furniture": "🪑", "home": "🏠", "sports": "⚽",
-    "toys": "🧸", "collectibles": "🏺", "other": "📦",
-}
+CATEGORY_EMOJI = {c.name: c.emoji for c in categories.CATEGORIES}
 
 # The weekly report goes out with Monday's digest, covering the seven days
 # that just ended against the seven before.
@@ -224,6 +233,14 @@ _ASK_QUOTE = re.compile(r"^✍️ /(\w+) —")
 MESSAGES_KEY = "opsstate:tgmsgs"
 MESSAGES_CAP = 400
 MESSAGES_TTL = 48 * 3600
+# What 🧹 Clear says when the list is empty. The list is in the cache, not the
+# process, so it survives restarts — "since this process started" was wrong
+# both ways. It is empty when nothing was tracked in 48 hours, or, for the
+# prompt, when the read failed, which `_tracked_messages` cannot tell apart
+# from that (`_clear_chat` reads `required` and refuses instead); and never
+# right after a clear, whose own confirmation is tracked.
+CLEAR_NOTHING_TRACKED = ("🧹 Nothing to clear — the bot has no record of a message "
+                         "in this chat from the last 48 hours.")
 
 # What 🧹 Clear removed, kept so it is not lost: the text of the bot's own
 # messages (the operator's are one-word commands and are not worth keeping),
@@ -239,11 +256,13 @@ HISTORY_SNIPPET_LINES = 4
 # /clear forwards everything to before deleting, so the copy is a real
 # Telegram copy, photos included. Off when unset.
 ARCHIVE_CHAT_ENV = "TELEGRAM_ARCHIVE_CHAT_ID"
-# Message ids in a private chat are sequential, so /clear also sweeps this
-# many ids below the newest one it knows. Telegram skips ids it cannot delete
-# (older than 48 hours, never existed, not ours), so the sweep costs a handful
-# of calls and catches everything in the window the bot never recorded —
-# messages from before the feature existed, or from a replica that died.
+# Message ids in a private chat are sequential, so /clear also sweeps the gaps
+# between the oldest and newest ids it knows — at most this many ids. Those are
+# messages inside the span being cleared that the bot lost track of (the
+# tracked list is an unlocked read-modify-write, so two sends at once can drop
+# one). Telegram skips ids it cannot delete. It used to sweep 600 ids below the
+# newest whatever the tracked span, reaching past it into messages the bot had
+# no copy of and had never been asked to clear.
 CLEAR_SWEEP_IDS = 600
 # Upper bound on deleteMessages calls per /clear, however the batches split.
 DELETE_MAX_CALLS = 60
@@ -253,6 +272,11 @@ FORWARD_MAX_CALLS = 60
 # out?" without anyone reading Railway logs.
 LAST_DEPLOY_KEY = "opsstate:lastdeploy"
 
+# When a signed App Store Server Notification last verified, for /checkup.
+# `/apple/notifications` is the only route that withdraws a refund, and
+# nothing else says when Apple last reached it.
+LAST_APPSTORE_NOTIFICATION_KEY = "opsstate:lastasn"
+
 COMMANDS: tuple[tuple[str, str], ...] = (
     ("status", "Active users, scans today, provider health"),
     ("subs", "Every subscription seen: plan, how obtained, renews"),
@@ -261,6 +285,7 @@ COMMANDS: tuple[tuple[str, str], ...] = (
     ("costs", "Gemini spend: today, 7 and 30 days, per scan, vs MRR"),
     ("experiment", "Free-scan experiment: limit hits vs subscriptions, whole window"),
     ("lever", "Arm or disarm the free-scan allowance without a redeploy"),
+    ("minbuild", "Tell app builds below a number to update, without a redeploy"),
     ("social", "TikTok: followers, likes and the latest videos"),
     ("finds", "Best finds this week: the most valuable scans"),
     ("post", "Three TikTok post ideas from what people scanned; add a topic"),
@@ -271,8 +296,8 @@ COMMANDS: tuple[tuple[str, str], ...] = (
     ("price", "/price <item> — a text-only estimate, no photo"),
     ("trend", "/trend <brand or category> — 30 days of scans"),
     ("user", "/user <id> — one device's story, for support"),
-    ("checkup", "Redis, Gemini, DeviceCheck, TLS expiry — one screen"),
-    ("clear", "Delete the last two days of this chat and start fresh (kept in /history)"),
+    ("checkup", "Redis, Gemini, DeviceCheck, App Store, TLS expiry — one screen"),
+    ("clear", "Delete the last two days of this chat — asks first; /history keeps the bot's side"),
     ("history", "/history [n] — what the bot said before the last clears"),
     ("feed", "Live scan feed: on, off, or show"),
     ("digest", "Yesterday's digest, now"),
@@ -290,6 +315,14 @@ SUBS_INDEX_CAP = 500
 USERS_INDEX_CAP = 500
 INDEX_TTL = 60 * 60 * 24 * 400
 TABLE_ROWS = 20
+# How long /user can say what the last purchase sync from a device came to.
+# A subscriber's app re-syncs at every cold launch, so this is the horizon
+# for a device that stopped opening the app.
+SYNC_TTL = 60 * 60 * 24 * 90
+# Devices remembered per subscription row, most recent last. Above the
+# entitlement device cap (MAX_DEVICES_PER_SUBSCRIPTION, 6 by default) so a
+# household's phones and the ones they replaced all still resolve.
+SUB_DEVICES_CAP = 10
 
 # Apple's offerType values.
 OFFER_INTRODUCTORY, OFFER_PROMOTIONAL, OFFER_CODE = 1, 2, 3
@@ -361,8 +394,9 @@ class TelegramNotifier:
                 return False
             if self.on_sent is not None:
                 try:
-                    message_id = int(((resp.json() or {}).get("result") or {}).get("message_id"))
-                    await self.on_sent(message_id, text)
+                    message_id = ((resp.json() or {}).get("result") or {}).get("message_id")
+                    if isinstance(message_id, int):
+                        await self.on_sent(message_id, text)
                 except Exception:
                     pass
             return True
@@ -689,7 +723,8 @@ def configure(cache, notifier: TelegramNotifier | None = None,
     """Wire the notifier from the environment. Called once at startup.
 
     With the env vars unset this leaves everything disabled and every public
-    function a no-op — the feature costs nothing until it is turned on.
+    function a no-op — the feature costs nothing until it is turned on — apart
+    from `count_scan` and `scan_completed`'s tallies, which `/trends` reads.
     """
     global _notifier, _cache, _status_provider, _social, _generator, _scanner
     global _device_check_probe
@@ -726,7 +761,7 @@ def configure(cache, notifier: TelegramNotifier | None = None,
 
 async def aclose() -> None:
     """Tear down background work. Alerts in flight at shutdown are dropped."""
-    global _notifier, _digest_task, _command_task, _watch_task
+    global _notifier, _digest_task, _command_task, _watch_task, _cache_settle_task
     if _digest_task is not None:
         _digest_task.cancel()
         _digest_task = None
@@ -739,6 +774,7 @@ async def aclose() -> None:
     for task in list(_tasks):
         task.cancel()
     _tasks.clear()
+    _cache_settle_task = None
     _alert_last_sent.clear()
     _alert_awaiting_recovery.clear()
     await _release_poll_lock()
@@ -747,21 +783,22 @@ async def aclose() -> None:
         await notifier.aclose()
 
 
-def _spawn(coro) -> None:
+def _spawn(coro) -> asyncio.Task | None:
     """Run `coro` in the background, holding a reference until it finishes.
 
     Without the reference set, an un-awaited task is garbage-collectable
     mid-flight. Outside a running loop (sync tests, tooling) the coroutine is
-    closed unrun rather than raising.
+    closed unrun rather than raising, and None is returned.
     """
     try:
         loop = asyncio.get_running_loop()
     except RuntimeError:
         coro.close()
-        return
+        return None
     task = loop.create_task(coro)
     _tasks.add(task)
     task.add_done_callback(_tasks.discard)
+    return task
 
 
 # ── Daily counters ───────────────────────────────────────────────────────────
@@ -838,8 +875,12 @@ async def _bump(name: str) -> None:
 
 
 def count_scan(tier: str) -> None:
-    """Tally one successful scan. Fire-and-forget; free when alerts are off."""
-    if _notifier is None:
+    """Tally one successful scan. Fire-and-forget.
+
+    Runs whenever there is a cache, Telegram or not: `/trends` reports this
+    count to users ("N scans this week"), and a feature in the app must not
+    depend on whether the operator's bot is configured."""
+    if _cache is None:
         return
     _spawn(_bump("scans_pro" if tier == "pro" else "scans_free"))
 
@@ -868,6 +909,8 @@ def count_limit_hit() -> None:
 # is the photo, and "unreadable" means the model answered but not in JSON we
 # could use even after the reformat retry. A bare "3 failed" cannot tell an
 # operator which of those happened, which is the whole point of the line.
+# "timed out" is the app's deadline passing before the model answered — a slow
+# upload or a slow reply, and not by itself the provider being down.
 #
 # Note what is NOT here: an attestation refusal never reaches the model, so it
 # 401s long before this counter and is not a scan failure in this sense.
@@ -875,6 +918,7 @@ SCAN_FAILURE_LABELS = {
     "provider": "provider",
     "unreadable": "unreadable",
     "no_price": "no price",
+    "deadline": "timed out",
     "other": "other",
 }
 
@@ -945,16 +989,48 @@ async def appstore_test_notification(environment: str) -> str:
     """
     if _notifier is None:
         return "no notifier configured"
+    if environment == "Sandbox":
+        # The Sandbox route acts on refunds and revokes and nothing else, so
+        # promising renewals here would describe a feed that does not exist.
+        what = ("Sandbox refunds and revokes will now withdraw a tester's or "
+                "reviewer's Pro. Nothing from Sandbox reaches /subs or "
+                "the revenue figures.")
+    else:
+        what = ("Renewals, expiries and refunds will now arrive without "
+                "waiting for anyone to open the app.")
     ok = await _notifier.send(
         "\u2705 <b>App Store Server Notifications are connected</b>\n"
         f"Apple delivered a test notification ({html.escape(environment)}). "
-        "Renewals, expiries and refunds will now arrive without waiting for "
-        "anyone to open the app.",
+        + what,
         _SUBS_BUTTONS)
     return "sent" if ok else "send failed"
 
 
-async def subscription_event(note) -> None:
+async def _note_appstore_notification(environment: str, notification_type: str | None) -> None:
+    if _cache is None:
+        return
+    try:
+        await _cache.set(LAST_APPSTORE_NOTIFICATION_KEY,
+                         json.dumps([int(time.time()), str(environment)[:20],
+                                     str(notification_type or "?")[:40]]),
+                         INDEX_TTL)
+    except Exception as exc:
+        log.debug("notification arrival note failed: %s", type(exc).__name__)
+
+
+def appstore_notification_verified(environment: str, notification_type: str | None) -> None:
+    """A signed App Store Server Notification verified. Fire-and-forget.
+
+    Recorded for `/checkup`, whatever the notification turns out to be — a
+    redelivery and a test are Apple reaching us too. If Apple's notifications
+    stop, refunded subscribers keep Pro until their term ends, and without this
+    no line on /checkup would change."""
+    if _notifier is None or _cache is None:
+        return
+    _spawn(_note_appstore_notification(environment, notification_type))
+
+
+async def subscription_event(note, *, reinstated=None) -> None:
     """Record one App Store Server Notification. Awaited, but never raises.
 
     This is the half of the picture the client cannot give us. `/auth/entitlement`
@@ -971,6 +1047,11 @@ async def subscription_event(note) -> None:
     Nothing here grants access. The index and the alerts are an operator view;
     entitlement stays verified per request against the transaction the client
     presents.
+
+    `reinstated` is the `entitlements.Reinstatement` that
+    `EntitlementService.reinstate` answered for a REFUND_REVERSED — whether
+    the access path lifted a refund block on this term, held none, or kept one
+    that still denies it — and None for every other type.
     """
     if _notifier is None or _cache is None:
         return
@@ -979,8 +1060,20 @@ async def subscription_event(note) -> None:
         otid = ent.original_transaction_id
         if not otid or not note.is_indexed:
             return
+        if _is_bounded(ent):
+            # `/apple/notifications` refuses Sandbox and the Sandbox route
+            # never calls this, so nothing should reach here. If something
+            # does, it is a tester's renewal and not money.
+            return
 
-        before = await _index_subscription(None, ent, note.auto_renew)
+        before = await _index_subscription(None, ent, note.auto_renew,
+                                           current=note.is_refund_reversal)
+        # None: the index could not be read, so there is no previous row to
+        # judge a paid period against. It is then neither a conversion nor a
+        # new payer — an ordinary renewal would otherwise be announced, and
+        # counted, as "New paying subscriber".
+        known = before is not None
+        before = before or {}
         was = str(before.get("acq") or "") if before else ""
         now_acq = _acquisition(ent)
 
@@ -1001,15 +1094,42 @@ async def subscription_event(note) -> None:
             label = "Trial converted" if was == "trial" else f"{was.capitalize()} converted"
             lines = [f"🎉 <b>{label} — this is real money</b>", detail]
             await _count_new_subscription(otid)
-        elif note.is_paid_period and not before:
+        elif note.is_paid_period and known and not before:
             # A payer no device ever synced. Before Apple told us directly,
             # this subscription did not exist as far as the bot was concerned.
             lines = ["🎉 <b>New paying subscriber</b> (Apple reported it first)", detail]
             await _count_new_subscription(otid)
+        elif note.is_paid_period and not known:
+            # Money, with nothing to say which kind. Staying silent lost the
+            # conversion alert for good: the device's next sync rewrites the
+            # row as paid without a word, and the subscription was already
+            # seen as a trial. Not counted, because a renewal must not be.
+            lines = ["💵 <b>Paid period</b> (subscription index unreadable: "
+                     "a renewal, a conversion or a new payer)", detail,
+                     "Not counted in today's new subscribers."]
         elif note.is_refund:
             lines = ["↩️ <b>Refund</b>", detail]
         elif note.is_revoke:
             lines = ["🚫 <b>Subscription revoked</b>", detail]
+        elif note.is_refund_reversal:
+            # Apple took back a refund it had granted, so this term is paid
+            # for again. The handler has already acted on the access path;
+            # this says what it found there.
+            from entitlements import Reinstatement
+            lines = ["↪️ <b>Refund reversed by Apple</b>", detail]
+            if reinstated is Reinstatement.LIFTED:
+                lines.append("Refund block lifted: Pro comes back at the "
+                             "app's next sync, if not sooner.")
+            elif reinstated is Reinstatement.NOT_BLOCKED:
+                lines.append("The server held no refund block on this term.")
+            elif reinstated is Reinstatement.STILL_BLOCKED:
+                # Kept because it names a different term, but that term ends
+                # later, so the block still denies this one. Saying "no
+                # block" here gave the operator no reason to look.
+                lines.append(
+                    "⚠️ A refund block for a different term was kept, and it "
+                    f"still denies this one. <code>/sub {html.escape(otid)}</code> "
+                    "shows it next to Apple's live status and can lift it.")
         elif note.is_expiry:
             lines = ["📉 <b>Subscription ended</b>", f"{detail} · was {was or now_acq}"]
         elif note.is_cancellation:
@@ -1082,6 +1202,12 @@ async def entitlement_recorded(subject: str, ent) -> None:
     """
     if _notifier is None or _cache is None:
         return
+    _spawn(_note_sync(subject, "pro" if ent.tier == "pro" else "free"))
+    if _is_bounded(ent):
+        # App Review or a TestFlight tester, honoured on bounded terms. Pro
+        # for that device and nothing more: no row, no count, no "New Pro",
+        # and no "Subscription ended" when their transaction lapses.
+        return
     try:
         if ent.tier == "pro":
             otid = ent.original_transaction_id
@@ -1089,7 +1215,7 @@ async def entitlement_recorded(subject: str, ent) -> None:
                 return
             # The previous row is the only source of auto-renew here: the
             # client presents a signed transaction, which has no such field.
-            before = await _index_subscription(subject, ent)
+            before = await _index_subscription(subject, ent) or {}
             if not await _cache.add(f"opsseen:sub:{otid}", "1", SUB_SEEN_TTL):
                 return
             purchased = getattr(ent, "original_purchase_at", None)
@@ -1148,6 +1274,18 @@ async def entitlement_recorded(subject: str, ent) -> None:
                 "verified as not-Pro — refunded, revoked or expired.")
     except Exception as exc:
         log.warning("subscription alert failed: %s", type(exc).__name__)
+
+
+def entitlement_rejected(subject: str, reason: str) -> None:
+    """/auth/entitlement refused a signed transaction. Fire-and-forget.
+
+    Not an alert — a malformed or Sandbox transaction is routine noise — but
+    recorded on the device, so that when a customer writes "I paid and the
+    app says free", `/user` can say the purchase reached the server and why
+    it was turned away."""
+    if _notifier is None or _cache is None or not subject:
+        return
+    _spawn(_note_sync(subject, "rejected", reason))
 
 
 # ── Subscription sharing signal ──────────────────────────────────────────────
@@ -1379,6 +1517,52 @@ def model_unhealthy(kind: str | None) -> None:
 def model_recovered() -> None:
     _recovered("model", "🟢 <b>AI provider recovered</b> — scans are succeeding again.",
                _HEALTH_BUTTONS)
+
+
+# How long Redis must stay down (or back up) before it is announced. The cache
+# reports every transition, and one timeout under load is a transition; so is
+# every request against a Redis that answers reads but refuses writes, which
+# flips down and up per call. A state that does not hold for this long says
+# nothing, rather than a siren of down/up pairs. The write-refusing case is
+# left to /health/ready and the outside uptime check that reads it
+# (RUNBOOK §3).
+CACHE_ALERT_SETTLE_SECONDS = 60.0
+_cache_state_generation = 0
+# The one settle still waiting. Each transition cancels it before starting the
+# next: left asleep, superseded settles piled up at transitions/s × 60 — about
+# 12,000 live tasks at 100 req/s against a write-refusing Redis, during the
+# very memory-pressure incident being announced.
+_cache_settle_task: asyncio.Task | None = None
+
+
+def cache_state_changed(degraded: bool) -> None:
+    """`ResilientCache.on_change`, wired by main: Redis stopped or started
+    answering. Schedules the announcement; never sends from inside the call."""
+    global _cache_state_generation, _cache_settle_task
+    if _notifier is None:
+        return
+    _cache_state_generation += 1
+    if _cache_settle_task is not None:
+        _cache_settle_task.cancel()       # a no-op once it has run
+    _cache_settle_task = _spawn(_settle_cache_state(_cache_state_generation, degraded))
+
+
+async def _settle_cache_state(generation: int, degraded: bool) -> None:
+    await asyncio.sleep(CACHE_ALERT_SETTLE_SECONDS)
+    if generation != _cache_state_generation:
+        return                            # it changed again inside the window
+    if degraded:
+        # Before this, a Redis outage announced nothing: the cache logged and
+        # fell back, free scans and token mints failed closed with a 503, no
+        # model call was made so the model alert never fired, and the quiet
+        # check read its timestamp from the empty fallback and stayed silent.
+        _alert("cache",
+               "🔴 <b>Redis unreachable</b>\nQuota and entitlement checks fail "
+               "closed: free scans and token mints return 503 until it answers. "
+               "RUNBOOK §5.4.", _HEALTH_BUTTONS)
+    else:
+        _recovered("cache", "🟢 <b>Redis recovered</b> — cache calls are succeeding again.",
+                   _HEALTH_BUTTONS)
 
 
 # ── Daily digest ─────────────────────────────────────────────────────────────
@@ -1709,7 +1893,7 @@ async def handle_command_with_buttons(text: str) -> tuple[str, Buttons] | None:
     if command == "/subs":
         return await _subs_text(), await _buttons()
     if command == "/sub":
-        return await _sub_text(rest), await _buttons()
+        return await _sub_command(rest)
     if command == "/users":
         return await _users_text(), await _buttons()
     if command == "/costs":
@@ -1720,6 +1904,8 @@ async def handle_command_with_buttons(text: str) -> tuple[str, Buttons] | None:
                 _lever_buttons(current) + await _buttons())
     if command == "/lever":
         return await _lever_command(argument, rest)
+    if command == "/minbuild":
+        return await _minbuild_command(argument, rest)
     if command == "/social":
         return await _social_text(), await _buttons()
     if command == "/finds":
@@ -1877,8 +2063,14 @@ async def _handle_update(update: dict) -> int:
             await _notifier.send(question, ask=placeholder)
             return 1
         return 0
-    if text.split("@", 1)[0].lower() == "/clear":
-        await _clear_chat()
+    words = text.split()
+    if words and words[0].split("@", 1)[0].lower() == "/clear":
+        # Two taps, as /lever does: the button sits one away from 🗂 History
+        # on every keyboard, and what it deletes cannot be brought back.
+        if len(words) > 1 and words[1].lower() == "yes":
+            await _clear_chat()
+        else:
+            await _notifier.send(*await _clear_prompt())
         return 1
     reply = await handle_command_with_buttons(text)
     if reply:
@@ -1940,14 +2132,36 @@ def _start_command_loop() -> None:
 # ── Live scan feed and what people scan ──────────────────────────────────────
 
 def _normalise_category(category: str | None) -> str:
-    key = (category or "").strip().lower()
-    return key if key in CATEGORY_EMOJI else "other"
+    # `/scan` already hands over a normalised category. Normalised again here
+    # because the day's tallies key on it and must not grow a row per spelling.
+    return categories.normalise(category)
+
+
+# Web addresses, e-mail addresses and @handles. Brands and item names are text
+# the model read off a user's photo, and `/trends` shows them to every install:
+# a label printed with "shop at x.com" or "follow @x" is an advert, not a brand.
+# The domain branch names its endings rather than matching any "a.b", so
+# "J.Crew", "A.P.C." and "Mr. Coffee" survive.
+_LINKISH = re.compile(
+    r"(?:https?://|www\.)\S*"
+    r"|\S+@\S+"
+    r"|(?<![\w.])@\w+"
+    r"|\b[\w-]+(?:\.[\w-]+)*\.(?:com|net|org|info|biz|io|co|me|ly|gg|tv|xyz|app|"
+    r"shop|store|link|site|online|club|live|top|tk|ru|cn|us|uk|de|eu|ro)\b(?:/\S*)?",
+    re.IGNORECASE)
+
+
+def _without_links(text: str | None) -> str:
+    """`text` with anything shaped like a URL or a handle removed, and its
+    whitespace collapsed."""
+    return " ".join(_LINKISH.sub(" ", text or "").split())
 
 
 def _clean_brand(brand: str | None) -> str | None:
-    """A brand worth tallying, or None. Model output: trimmed and bounded."""
-    value = " ".join((brand or "").split())[:40]
-    if value.lower() in {"", "unknown", "n/a", "none", "generic", "unbranded"}:
+    """A brand worth tallying, or None. Model output: trimmed, bounded, and
+    stripped of links and handles."""
+    value = _without_links(brand)[:40]
+    if not brand_is_known(value):
         return None
     return value
 
@@ -1981,13 +2195,20 @@ def _daily_free_scans() -> int:
         return 1
 
 
-async def _levers() -> dict:
+async def _levers(*, required: bool = False) -> dict:
+    """The levers document. {} when unreadable, unless `required`, which
+    raises instead: see `_set_free_scan_lever`."""
     try:
-        raw = await _cache.get(LEVERS_KEY)
+        raw = await _cache.get(LEVERS_KEY, required=required)
+    except Exception:
+        if required:
+            raise
+        return {}
+    try:
         doc = json.loads(raw) if raw else {}
-        return doc if isinstance(doc, dict) else {}
     except Exception:
         return {}
+    return doc if isinstance(doc, dict) else {}
 
 
 async def free_scan_lever() -> int | None:
@@ -2000,14 +2221,22 @@ async def free_scan_lever() -> int | None:
     return int(value) if isinstance(value, (int, float)) else None
 
 
-async def _set_free_scan_lever(value: int | None) -> dict:
+async def _set_free_scan_lever(value: int | None) -> dict | None:
     """Set or clear the lever, and record the day it changed.
 
     The record is the point. A measurement window whose lever moved mid-flight
     and does not say so is worse than no window at all — the numbers look
     continuous and are not.
+
+    None, with nothing written, when the document could not be read. Read as
+    {} it was written back as just this change, and the record of every
+    earlier one was gone.
     """
-    doc = await _levers()
+    try:
+        doc = await _levers(required=True)
+    except Exception as exc:
+        log.warning("levers unreadable, not changing them: %s", type(exc).__name__)
+        return None
     before = doc.get("free_scans_first_day")
     if value is None:
         doc.pop("free_scans_first_day", None)
@@ -2024,6 +2253,11 @@ def _lever_label(value: int | None) -> str:
     if value is None:
         return "environment default"
     return f"{value} first-day scan{'s' if value != 1 else ''}"
+
+
+_LEVER_UNREADABLE = ("🎚 Nothing changed: the lever's stored state could not be "
+                     "read, and writing over it would lose its change history. "
+                     "Try again in a minute.")
 
 
 async def _lever_command(argument: str, rest: str) -> tuple[str, Buttons]:
@@ -2073,7 +2307,8 @@ async def _lever_command(argument: str, rest: str) -> tuple[str, Buttons]:
                     f"This spends money: every extra scan is a model call.",
                     [[("✅ Yes, arm it", f"lever arm {wanted} yes"),
                       ("Cancel", "experiment")]])
-        await _set_free_scan_lever(wanted)
+        if await _set_free_scan_lever(wanted) is None:
+            return _LEVER_UNREADABLE, _lever_buttons(current)
         return (f"🧪 Lever armed — <b>{_lever_label(wanted)}</b>.",
                 [[("🧪 Experiment", "experiment")]])
 
@@ -2085,7 +2320,8 @@ async def _lever_command(argument: str, rest: str) -> tuple[str, Buttons]:
                     "The window in /experiment keeps running; only the allowance stops.",
                     [[("✅ Yes, disarm it", "lever disarm yes"),
                       ("Cancel", "experiment")]])
-        await _set_free_scan_lever(0)
+        if await _set_free_scan_lever(0) is None:
+            return _LEVER_UNREADABLE, _lever_buttons(current)
         return ("🔕 Lever disarmed — new users get the daily limit.",
                 [[("🧪 Experiment", "experiment")]])
 
@@ -2095,7 +2331,8 @@ async def _lever_command(argument: str, rest: str) -> tuple[str, Buttons]:
                     f"FREE_SCANS_FIRST_DAY would decide again. Currently "
                     f"<b>{_lever_label(current)}</b>.",
                     [[("✅ Yes", "lever default yes"), ("Cancel", "experiment")]])
-        await _set_free_scan_lever(None)
+        if await _set_free_scan_lever(None) is None:
+            return _LEVER_UNREADABLE, _lever_buttons(current)
         return ("↩️ Lever cleared — the environment decides again.",
                 [[("🧪 Experiment", "experiment")]])
 
@@ -2111,6 +2348,112 @@ def _lever_buttons(current: int | None) -> Buttons:
         row.append(("↩️ Use env", "lever default"))
     row.append(("🔕 Disarm", "lever disarm"))
     return [row]
+
+
+# ── The oldest build still served ───────────────────────────────────────────
+#
+# A bad client release could not be told to update: the server did not know
+# which build was calling, and had no switch to act on it if it had.
+# `main._refuse_outdated_build` reads this on /scan, /listing and /trends and
+# refuses a build below it with `UPDATE_REQUIRED_DETAIL`. Only /scan and
+# /listing show that text; the app fetches /trends with `try?`, so a refusal
+# there shows nothing. /auth is never gated, so an old build can still sign in
+# and record a purchase.
+#
+# Off until set, and fails open: an unreadable value serves everyone, because
+# a switch that locks out every user when Redis blinks is worse than none.
+
+MIN_BUILD_KEY = "opsstate:minbuild"
+MIN_BUILD_MAX = 100_000
+
+#: What a refused build is told. Here rather than in main.py so the bot's
+#: confirmation can quote it word for word.
+UPDATE_REQUIRED_DETAIL = (
+    "This version of SnapWorth is no longer supported. "
+    "Update SnapWorth from the App Store to keep using it.")
+
+
+async def minimum_build() -> int | None:
+    """The oldest build /scan, /listing and /trends still serve, or None.
+
+    Raises nothing: anything unreadable is None, which serves every build.
+    """
+    cache = _cache
+    if cache is None:
+        return None
+    try:
+        raw = await cache.get(MIN_BUILD_KEY)
+        value = int(raw) if raw else None
+    except Exception:
+        return None
+    return value if value is not None and 0 < value <= MIN_BUILD_MAX else None
+
+
+async def _minbuild_command(argument: str, rest: str) -> tuple[str, Buttons]:
+    """`/minbuild`, `/minbuild <n>`, `/minbuild off`, and their confirmations.
+
+    Two taps, like `/lever`. The confirmation quotes what refused users are
+    told, because it sends them to the App Store: set past the build that is
+    actually live there, it tells them to install an update that does not
+    exist.
+    """
+    parts = (rest or "").split()
+    confirmed = any(token.lower() == "yes" for token in parts[1:])
+    current = await minimum_build()
+    back = [[("📵 Minimum build", "minbuild")]]
+    cache = _cache
+    if cache is None:  # the bot is wired by `configure`, which sets it first
+        return "📵 No store is configured, so there is no minimum build.", back
+
+    if argument == "off":
+        if current is None:
+            return "📵 No minimum build is set — every build is served.", back
+        if not confirmed:
+            return (f"📵 <b>Serve every build again?</b>\n"
+                    f"Builds below <b>{current}</b> are refused now.",
+                    [[("✅ Yes, serve all", "minbuild off yes"),
+                      ("Cancel", "minbuild")]])
+        await cache.delete(MIN_BUILD_KEY)
+        log.warning("minimum build cleared from chat", extra={"previous": current})
+        return "📵 Minimum build cleared — every build is served.", back
+
+    if argument.isdigit():
+        wanted = int(argument)
+        if not 0 < wanted <= MIN_BUILD_MAX:
+            return f"📵 <b>{wanted}</b> is not a build number.", back
+        if not confirmed:
+            return (f"📵 <b>Refuse builds below {wanted}?</b>\n"
+                    f"On /scan and /listing they would be told: "
+                    f"<i>{html.escape(UPDATE_REQUIRED_DETAIL)}</i>\n"
+                    f"/trends is refused too, but the app drops that error "
+                    f"silently and its Trending card just disappears.\n"
+                    f"Only do this once build <b>{wanted}</b> is live on the "
+                    f"App Store. Builds 7 and older cannot show this text and "
+                    f"will see \"Something went wrong\". Sign-in and purchases "
+                    f"stay open, and a request that does not say its build is "
+                    f"always served. The access log's <code>build</code> field "
+                    f"shows who is still on an older one, and "
+                    f"<code>snapworth_outdated_build_refused_total</code> "
+                    f"counts refusals.\n"
+                    f"Currently: <b>{current if current is not None else 'none'}</b>.",
+                    [[(f"✅ Yes, require {wanted}", f"minbuild {wanted} yes"),
+                      ("Cancel", "minbuild")]])
+        await cache.set(MIN_BUILD_KEY, str(wanted))
+        log.warning("minimum build set from chat",
+                    extra={"minimum": wanted, "previous": current})
+        return f"📵 Minimum build set to <b>{wanted}</b>.", back
+
+    if current is None:
+        return ("📵 <b>Minimum build</b>: none — every build is served.\n"
+                "<code>/minbuild &lt;n&gt;</code> refuses builds below n on "
+                "/scan, /listing and /trends. /scan and /listing tell them to "
+                "update; on /trends the Trending card just disappears.",
+                await _buttons())
+    return (f"📵 <b>Minimum build</b>: <b>{current}</b>\n"
+            f"Builds below it are told to update on /scan and /listing, and "
+            f"lose the Trending card, since the app drops a /trends error "
+            f"silently. Sign-in and purchases stay open.",
+            [[("↩️ Serve every build", "minbuild off")]] + await _buttons())
 
 
 async def _feed_enabled() -> bool:
@@ -2147,36 +2490,134 @@ def _feed_text(*, item_name: str, category: str, low: float, high: float,
 
 
 async def _tally_top(day: str, category: str, brand: str | None,
-                     find: dict | None = None) -> None:
+                     find: dict | None = None, device: str | None = None) -> None:
     """Read-modify-write of the day's category and brand counts, and its
     handful of most valuable finds.
 
     One small JSON document rather than a key per brand, because the cache
     interface cannot enumerate keys and the report needs the whole table.
     A lost update between two replicas costs one count, which is fine for a
-    tally that exists to say "clothing 5 · Nike ×3".
+    tally that exists to say "clothing 5 · Nike ×3". A lost *read* is not:
+    see `_read_index_for_update`, which this shares a document shape with.
+    Losing this scan's count is the price of not resetting the day's.
+
+    `device` is `_trend_device`'s keyed tag for whoever scanned it, recorded
+    beside each category, brand and find (at most TRENDS_DEVICES_KEPT per
+    entry) so `/trends` can count devices rather than scans — see
+    `TRENDS_MIN_CATEGORY_DEVICES`. It stays as long as the document, STATS_TTL.
+
+    The write that gives a day its device maps also offers that day to
+    TRENDS_TAGGED_SINCE_KEY, which keeps the first: see `_tagged_since`.
     """
     key = _stat_key(day, "top")
-    try:
-        doc = json.loads(await _cache.get(key) or "{}")
-    except Exception:
-        doc = {}
-    cats = doc.get("cats") if isinstance(doc.get("cats"), dict) else {}
-    brands = doc.get("brands") if isinstance(doc.get("brands"), dict) else {}
-    finds = doc.get("finds") if isinstance(doc.get("finds"), list) else []
+    doc = await _read_index_for_update(key)
+    if doc is None:
+        return
+    first_tagged_write = not isinstance(doc.get("cat_devices"), dict)
+    cats = c if isinstance(c := doc.get("cats"), dict) else {}
+    brands = b if isinstance(b := doc.get("brands"), dict) else {}
+    finds = f if isinstance(f := doc.get("finds"), list) else []
+    cat_devices = cd if isinstance(cd := doc.get("cat_devices"), dict) else {}
+    brand_devices = bd if isinstance(bd := doc.get("brand_devices"), dict) else {}
     cats[category] = int(cats.get(category, 0)) + 1
+    cat_devices[category] = _add_device(cat_devices.get(category), device)
     if brand is not None and (brand in brands or len(brands) < TOP_BRANDS_CAP):
         brands[brand] = int(brands.get(brand, 0)) + 1
+        brand_devices[brand] = _add_device(brand_devices.get(brand), device)
     if find is not None:
-        finds = sorted([*finds, find], key=lambda f: -float(f.get("hi") or 0))[:TOP_FINDS_CAP]
-    await _cache.set(key, json.dumps({"cats": cats, "brands": brands, "finds": finds}),
+        find = {**find, "d": _add_device(None, device)}
+        finds = _merge_finds([*finds, find])[:TOP_FINDS_CAP]
+    await _cache.set(key, json.dumps({"cats": cats, "brands": brands, "finds": finds,
+                                      "cat_devices": cat_devices,
+                                      "brand_devices": brand_devices}),
                      STATS_TTL)
+    if first_tagged_write:
+        # A day's first write, or the first since an older build wrote the
+        # day back without its maps. `add`, so only the first ever stands.
+        try:
+            await _cache.add(TRENDS_TAGGED_SINCE_KEY, day)
+        except Exception as exc:
+            log.debug("trends tagged-since note failed: %s", type(exc).__name__)
+
+
+def _trend_device(subject: str | None) -> str | None:
+    """A short tag meaning "a different device", for the `/trends` floor.
+
+    Kept beside the categories, brands and finds a device scanned, for as
+    long as the day document (STATS_TTL, 35 days), and used for nothing but
+    counting distinct devices. So it must not be a join key. It was a plain
+    hash of the audit pseudonym, and the same cache holds every pseudonym in
+    full — `/users`'s index, each `/subs` row — so anyone who could read the
+    cache could recompute every tag and tie a device, and through its
+    subscription or a support mail a customer, to the items it scanned.
+
+    Now `auditlog.keyed_tag`: an HMAC under AUDIT_SALT, which lives in the
+    environment and never in the cache. Someone holding the salt and a
+    device's key id can still recompute its tag; nothing stored beside it
+    can. None when the scan has no subject, which counts toward nothing."""
+    if not subject:
+        return None
+    return auditlog.keyed_tag("trends", subject)
+
+
+def _add_device(devices, device: str | None) -> list[str]:
+    """`devices` with `device` added, holding at most TRENDS_DEVICES_KEPT.
+
+    The cap is exact for the only question ever asked of the list — "did at
+    least N different devices do this, this week?" — for every floor N, since
+    it is the largest of them. If any one day's list is full, the week's union
+    is at least the cap, so at least N; if none is, every list is complete and
+    the union is the true count."""
+    kept = [d for d in (devices or []) if isinstance(d, str)][:TRENDS_DEVICES_KEPT]
+    if device and device not in kept and len(kept) < TRENDS_DEVICES_KEPT:
+        kept.append(device)
+    return kept
+
+
+def _find_key(find: dict) -> tuple[str, str]:
+    """What makes two finds the same item: the name, case and spacing
+    ignored, within one category."""
+    return (" ".join(str(find.get("n") or "").lower().split()),
+            str(find.get("c") or "other"))
+
+
+def _merge_finds(finds: list) -> list[dict]:
+    """One entry per item, the most valuable reading kept, best first.
+
+    A find is recorded per scan, so one jacket scanned four times was four of
+    the day's eight slots, and the week's list — seven days appended — could
+    carry it once per day as well. `/trends` then cut to five *before* anything
+    removed the repeats, and the client's dedupe could only work on what was
+    left: two or three notable finds instead of five, or the same item twice at
+    two prices. Deduped here, on write and again across days, so the cut is
+    taken over distinct items."""
+    best: dict[tuple[str, str], dict] = {}
+    for find in finds:
+        if not isinstance(find, dict):
+            continue
+        key = _find_key(find)
+        kept = best.get(key)
+        if kept is None:
+            best[key] = find
+            continue
+        # Whichever reading wins, the devices behind the item are all of them.
+        devices = list(kept.get("d") or [])
+        for device in find.get("d") or []:
+            devices = _add_device(devices, device)
+        winner = find if float(find.get("hi") or 0) > float(kept.get("hi") or 0) else kept
+        best[key] = {**winner, "d": devices}
+    return sorted(best.values(), key=lambda f: -float(f.get("hi") or 0))
 
 
 def _find_record(*, item_name: str, brand: str | None, category: str,
                  low: float, high: float, tier: str) -> dict:
-    """What /finds keeps about a scan: the item and its price, nothing else."""
-    return {"n": " ".join((item_name or "").split())[:60] or "Unidentified item",
+    """A scan as /finds and /trends keep it: the item and its price. The name
+    is stripped of links and handles, as `_clean_brand` does.
+
+    Not quite all that is stored: `_tally_top` adds `d`, the keyed tags of the
+    devices behind the item (see `_trend_device`), so a find can be held back
+    until TRENDS_MIN_FIND_DEVICES have scanned it."""
+    return {"n": _without_links(item_name)[:60] or "Unidentified item",
             "b": _clean_brand(brand), "c": _normalise_category(category),
             "lo": round(float(low)), "hi": round(float(high)),
             "t": "pro" if tier == "pro" else "free"}
@@ -2199,15 +2640,23 @@ async def _top_text(day: str, limit: int = 3) -> str:
 
 async def _note_scan(*, tier: str, item_name: str, brand: str | None,
                      category: str, low: float, high: float, confidence: str,
-                     subject: str | None = None, elapsed_ms: int | None = None) -> None:
+                     subject: str | None = None, elapsed_ms: int | None = None,
+                     reread: bool = False) -> None:
     try:
+        # The count and the tallies feed `/trends` as well as the bot, so they
+        # run with or without Telegram. Everything after them is the
+        # operator's alone.
         await _bump("scans_pro" if tier == "pro" else "scans_free")
+        if not reread:
+            await _tally_top(_day(), _normalise_category(category), _clean_brand(brand),
+                             _find_record(item_name=item_name, brand=brand, category=category,
+                                          low=low, high=high, tier=tier),
+                             _trend_device(subject))
+        if _notifier is None:
+            return
         await _cache.set(LAST_SCAN_KEY, str(int(time.time())), STATS_TTL)
         if elapsed_ms:
             await _cache.incr(_stat_key(_day(), "scan_ms"), STATS_TTL, int(elapsed_ms))
-        await _tally_top(_day(), _normalise_category(category), _clean_brand(brand),
-                         _find_record(item_name=item_name, brand=brand, category=category,
-                                      low=low, high=high, tier=tier))
         if subject:
             await _index_user(auditlog.pseudonymise(subject), tier=tier, scanned=True)
         if await _feed_enabled():
@@ -2220,15 +2669,30 @@ async def _note_scan(*, tier: str, item_name: str, brand: str | None,
 
 def scan_completed(*, tier: str, item_name: str, brand: str | None, category: str,
                    low: float, high: float, confidence: str,
-                   subject: str | None = None, elapsed_ms: int | None = None) -> None:
+                   subject: str | None = None, elapsed_ms: int | None = None,
+                   reread: bool = False) -> None:
     """A scan produced a valuation. Counts it, tallies what it was, and — when
-    the feed is on — tells the operator. Fire-and-forget; item and price only,
-    never who scanned it and never the photo."""
-    if _notifier is None or _cache is None:
+    the feed is on — tells the operator. Fire-and-forget; never the photo.
+
+    What the tallies keep is the item, its price, and `_trend_device`'s keyed
+    tag for the device, for STATS_TTL, only so `/trends` can count distinct
+    devices. The tag joins to nothing else the cache holds without AUDIT_SALT.
+    The feed message is item and price alone.
+
+    Gated on the cache alone. The tallies are what `/trends` serves to the
+    app, and this was their only writer: gated on Telegram as well, unsetting
+    the bot's variables would have emptied "Trending at the thrift" for every
+    user over the following week, with no error anywhere — the card hides
+    itself when it has nothing to show.
+
+    `reread` is a second look at an item already scanned — the result
+    screen's "add a tag photo". It is a model call, so it is counted, but the
+    item was tallied the first time and is not tallied again."""
+    if _cache is None:
         return
     _spawn(_note_scan(tier=tier, item_name=item_name, brand=brand, category=category,
                       low=low, high=high, confidence=confidence, subject=subject,
-                      elapsed_ms=elapsed_ms))
+                      elapsed_ms=elapsed_ms, reread=reread))
 
 
 # ── Weekly report ────────────────────────────────────────────────────────────
@@ -2308,12 +2772,97 @@ async def _read_index(key: str) -> dict:
     return doc if isinstance(doc, dict) else {}
 
 
+async def _read_index_for_update(key: str) -> dict | None:
+    """`_read_index` for a caller about to write the whole document back.
+
+    None means the store could not be read, and the caller must not write.
+    `_read_index` answers {} for that, which is right for a report and wrong
+    here: a plain `get` on a failing Redis falls back to memory and returns
+    None rather than raising, so the writer took the document as empty and,
+    once Redis answered again, overwrote it with the one row it had just
+    added. A 300-row subscription index became 1, and the auto-renew state
+    and history in those rows came back from nowhere. `required=True` makes
+    that read raise instead. A document that is present but unreadable is
+    still replaced, as before.
+    """
+    try:
+        raw = await _cache.get(key, required=True)
+    except Exception as exc:
+        log.warning("index %s unreadable, not rewriting it: %s", key, type(exc).__name__)
+        return None
+    try:
+        doc = json.loads(raw or "{}")
+    except Exception:
+        return {}
+    return doc if isinstance(doc, dict) else {}
+
+
 async def _write_index(key: str, doc: dict, cap: int, recency: str) -> None:
+    # A row goes once it has been untouched for INDEX_TTL, which is the "up to
+    # 400 days" the privacy policy states. The document's own TTL cannot do
+    # that: every write renews it, so on a service that is used daily a row
+    # written once would otherwise stay until the cap pushed it out.
+    cutoff = time.time() - INDEX_TTL
+    for stale in [k for k, v in doc.items()
+                  if not isinstance(v, dict)
+                  or not isinstance(v.get(recency), (int, float))
+                  or v[recency] < cutoff]:
+        doc.pop(stale, None)
     if len(doc) > cap:
         # Drop the least recently seen until it fits.
         for stale in sorted(doc, key=lambda k: doc[k].get(recency, 0))[:len(doc) - cap]:
             doc.pop(stale, None)
     await _cache.set(key, json.dumps(doc, separators=(",", ":")), INDEX_TTL)
+
+
+def _same_device(recorded: str, wanted: str) -> bool:
+    """Whether an id someone typed names this recorded device.
+
+    Both are prefixes of one sixteen-character pseudonym, so either may be
+    the longer: the operator types six characters from /subs, or pastes all
+    sixteen from a support mail — and rows written before the full pseudonym
+    was stored hold only six."""
+    recorded, wanted = recorded.lower(), wanted.lower()
+    return bool(recorded and wanted) and (recorded.startswith(wanted)
+                                          or wanted.startswith(recorded))
+
+
+def _with_device(devices: list, who: str) -> list[str]:
+    """`devices` with `who` moved to the end (most recent), capped.
+
+    A six-character id kept from an older row is the same device as the full
+    pseudonym it begins, and is dropped in its favour."""
+    kept = [d for d in devices
+            if isinstance(d, str) and d and d != who and not who.startswith(d)]
+    return [*kept, who][-SUB_DEVICES_CAP:]
+
+
+def _row_devices(row: dict) -> list[str]:
+    """Every device id a subscription row knows, legacy `who` included."""
+    found = [d for d in (row.get("devices") or []) if isinstance(d, str) and d]
+    who = row.get("who")
+    if isinstance(who, str) and who and who not in found:
+        found.append(who)
+    return found
+
+
+def _device_argument(argument: str | None) -> str:
+    """What the operator typed, as an id: trimmed, lower-cased, and without
+    the "Device" the in-app support form writes in front of it."""
+    parts = (argument or "").strip().lower().split()
+    if len(parts) == 2 and parts[0] == "device":
+        parts = parts[1:]
+    return " ".join(parts)
+
+
+def _is_bounded(ent) -> bool:
+    """A Sandbox entitlement production honours on bounded terms: not a customer.
+
+    See `entitlements.SANDBOX_ENTITLEMENTS`. Imported here rather than at the
+    top for the same cycle `_sub_text` describes.
+    """
+    import entitlements
+    return entitlements.is_bounded(ent)
 
 
 def _acquisition(ent) -> str:
@@ -2352,8 +2901,10 @@ def _via(acq: str | None) -> str:
 
 
 async def _index_subscription(subject: str | None, ent,
-                              auto_renew: bool | None = None) -> dict:
-    """Record what we now know about one subscription. Returns the previous row.
+                              auto_renew: bool | None = None, *,
+                              current: bool = False) -> dict | None:
+    """Record what we now know about one subscription. Returns the previous row,
+    or None when the index could not be read and nothing was written.
 
     `subject` is None when App Store Server Notifications told us rather than a
     device checking in. There is no pseudonymised device to attribute it to,
@@ -2371,11 +2922,27 @@ async def _index_subscription(subject: str | None, ent,
 
     The previous row is returned because a notification alone cannot say
     whether a paid period is a *conversion*. Only the row it replaces can.
+
+    `current` says `ent` is Apple's word on this term as of now — a live
+    status lookup, or a REFUND_REVERSED — rather than a transaction that may
+    have been signed before a refund and delivered after it. See the refund
+    mark below.
+
+    A bounded Sandbox entitlement is never written, whoever calls. This is the
+    one writer every path shares, so the rule lives here as well as at each
+    caller: `/subs`, MRR and the digest's subscriber line all read this index,
+    and a tester in it is revenue that does not exist.
     """
-    doc = await _read_index(SUBS_INDEX_KEY)
+    if _is_bounded(ent):
+        return {}
+    doc = await _read_index_for_update(SUBS_INDEX_KEY)
+    if doc is None:
+        # Nothing written, and nothing known about the row. `/sub` can repair
+        # it once Redis is back.
+        return None
     otid = str(ent.original_transaction_id)
-    before = doc.get(otid) if isinstance(doc.get(otid), dict) else {}
-    entry = dict(before)
+    before: dict = row if isinstance(row := doc.get(otid), dict) else {}
+    entry: dict = dict(before)
     entry.update({
         "product": ent.product_id, "env": ent.environment,
         "first": getattr(ent, "original_purchase_at", None),
@@ -2385,7 +2952,17 @@ async def _index_subscription(subject: str | None, ent,
         "seen": int(time.time()),
     })
     if subject is not None:
-        entry["who"] = auditlog.pseudonymise(subject)[:6]
+        # The full pseudonym, and every device that has synced this
+        # subscription, not just the last. `who` used to be the first six
+        # characters of whichever device synced most recently: a support mail
+        # carries all sixteen ("Device 3f2a…" from the in-app form, the
+        # `support_id` /auth/token hands the app), and a family's second phone
+        # was overwritten by the first on every launch — so /sub refused the
+        # id the customer sent and /user told every other device that nothing
+        # had ever synced from it.
+        who = auditlog.pseudonymise(subject)
+        entry["devices"] = _with_device(_row_devices(entry), who)
+        entry["who"] = who
     if auto_renew is not None:
         entry["auto_renew"] = auto_renew
     # The revocation is a tombstone on a *term*, not on the row.
@@ -2402,6 +2979,11 @@ async def _index_subscription(subject: str | None, ent,
     # survives the tombstone. The operator's index gets the same rule, rather
     # than clearing on any non-revoked transaction — Apple can redeliver a
     # pre-refund renewal after the REFUND, and that must not resurrect the row.
+    #
+    # That rule alone left no way to clear the mark on the *same* term, which
+    # is exactly what a reversed refund needs: the row said `refund` for a
+    # customer paying for that term again, and `/sub` asking Apple could not
+    # fix it. A `current` transaction is not a redelivery, so it may.
     revoked = getattr(ent, "revoked_at", None)
     if revoked is not None:
         entry["revoked"] = revoked
@@ -2411,7 +2993,8 @@ async def _index_subscription(subject: str | None, ent,
         if (entry.get("revoked") is not None
                 and ent.expires_at is not None
                 and tombstoned is not None
-                and float(ent.expires_at) > float(tombstoned)):
+                and (float(ent.expires_at) >= float(tombstoned) if current
+                     else float(ent.expires_at) > float(tombstoned))):
             entry.pop("revoked", None)
             entry.pop("revoked_expires", None)
     doc[otid] = entry
@@ -2420,15 +3003,41 @@ async def _index_subscription(subject: str | None, ent,
 
 
 async def _index_user(who: str, *, tier: str, scanned: bool = False) -> None:
-    doc = await _read_index(USERS_INDEX_KEY)
+    doc = await _read_index_for_update(USERS_INDEX_KEY)
+    if doc is None:
+        return
     now = int(time.time())
-    entry = doc.get(who) if isinstance(doc.get(who), dict) else {"first": now, "scans": 0}
+    entry: dict = row if isinstance(row := doc.get(who), dict) else {"first": now, "scans": 0}
     entry["last"] = now
     entry["tier"] = "pro" if tier == "pro" else "free"
     if scanned:
         entry["scans"] = int(entry.get("scans", 0)) + 1
     doc[who] = entry
     await _write_index(USERS_INDEX_KEY, doc, USERS_INDEX_CAP, "last")
+
+
+def _sync_key(who: str) -> str:
+    return f"opsstate:sync:{who}"
+
+
+async def _note_sync(subject: str, outcome: str, detail: str | None = None) -> None:
+    """Record what `/auth/entitlement` made of this device's last signed
+    transaction: "pro", "free" (verified, not entitled) or "rejected" with
+    the reason. Never raises.
+
+    The subscription index only ever hears about a transaction that
+    verified, so a refused one left no trace the operator could find: the
+    customer who paid and was told free had, as far as the bot knew, never
+    tried. `/user` shows this line. A key per device rather than a field in
+    the devices index, so it is one plain write that cannot lose, or be
+    lost to, the index's read-modify-write."""
+    if _cache is None:
+        return
+    try:
+        record = [int(time.time()), outcome] + ([detail[:160]] if detail else [])
+        await _cache.set(_sync_key(auditlog.pseudonymise(subject)), json.dumps(record), SYNC_TTL)
+    except Exception as exc:
+        log.debug("entitlement sync note failed: %s", type(exc).__name__)
 
 
 #: The `/subs` auto-renew column, one character wide.
@@ -2526,7 +3135,7 @@ async def _subs_text() -> str:
             f"{(_short_date(int(e['first'])) if e.get('first') else '?'):<7} "
             f"{renews:<7} {_renew_mark(e):<2} "
             f"{(_short_date(int(e['seen'])) if e.get('seen') else '?'):<7} "
-            f"{str(e.get('who') or ''):<6}")
+            f"{str(e.get('who') or '')[:6]:<6}")
     if len(rows) > TABLE_ROWS:
         body.append(f"… and {len(rows) - TABLE_ROWS} more")
     lines.append("<pre>" + html.escape("\n".join(body)) + "</pre>")
@@ -2873,17 +3482,48 @@ async def _week_top(now: datetime | None = None) -> dict:
 # ── Trends, for the app (#96) ────────────────────────────────────────────────
 #
 # The same tallies the bot reads, shaped for users. Aggregates only, with a
-# floor: a category or brand appears only once enough different scans back it,
-# so nothing here can be traced to one person's afternoon. Notable finds carry
-# an item name and a range and nothing else — no device, no photo, no time of
-# day. Pro sees the averages and the finds; free sees the counts.
+# floor: a category or brand appears only once enough scans *and* enough
+# different devices back it, and a notable find only once enough different
+# devices have scanned that item. A find is still one item rather than a total,
+# so it leaves the server as a brand, a category and a range: never the item
+# name, no device, no photo, no time of day. Pro sees the averages and the
+# finds; free sees the counts.
+#
+# The floor used to count scans alone, and at one to four real scans a day,
+# five scans of one label — a spam URL, a slur — was that week's "Trending at
+# the thrift" row on every install, and notable finds had no floor at all: one
+# scan was enough. The text is read off a user's photo; nothing upstream of
+# here promises it is fit to show anyone else.
+#
+# Days tallied before devices were recorded still count, by scans alone, for
+# the fortnight they stay in the window. A day an older build wrote back after
+# tags began has lost its devices rather than never had them, and is withheld
+# — see `_floored`.
 
 TRENDS_MIN_COUNT = 5          # below this a row says more about one user than a trend
+# Different devices behind a row or a find across the week, whatever the scan
+# count. Brands and finds are free text off a photo, so they need three.
+# Categories are a closed set and cannot carry a URL or a slur; their floor
+# serves only "one user's afternoon is not a trend", and two devices say that.
+# The difference is felt at one to four scans a day, where three devices behind
+# one category may take much longer than a week, and the app hides "Trending at
+# the thrift" — which the paywall sells to Pro — while both lists are empty.
+TRENDS_MIN_CATEGORY_DEVICES = 2
+TRENDS_MIN_BRAND_DEVICES = 3
+TRENDS_MIN_FIND_DEVICES = 3
+# How many tags each list in a day document keeps: the largest floor, which
+# `_add_device` shows is all any floor needs.
+TRENDS_DEVICES_KEPT = max(TRENDS_MIN_CATEGORY_DEVICES, TRENDS_MIN_BRAND_DEVICES,
+                          TRENDS_MIN_FIND_DEVICES)
 TRENDS_FREE_ROWS = 3
 TRENDS_PRO_ROWS = 6
 TRENDS_FINDS = 5
 TRENDS_CACHE_KEY = "opsstate:trends"
 TRENDS_CACHE_TTL = 15 * 60
+# The first day `_tally_top` gave a day document its device maps. Kept with no
+# expiry: it is one date, and the code before tags never writes it, so no
+# rollback can move or remove it. See `_tagged_since`.
+TRENDS_TAGGED_SINCE_KEY = "opsstate:trends_tagged_since"
 
 
 def _trend_rows(counts: list[tuple[str, int]], previous: dict[str, int],
@@ -2903,25 +3543,113 @@ def _trend_rows(counts: list[tuple[str, int]], previous: dict[str, int],
     return rows
 
 
-async def _tallies(days: list[str]) -> tuple[dict[str, int], dict[str, int], list[dict], int]:
-    cats: dict[str, int] = {}
-    brands: dict[str, int] = {}
-    finds: list[dict] = []
-    scans = 0
+def _floored(docs: list[tuple[str, dict]], counts_field: str, devices_field: str,
+             min_devices: int, clean: Callable[[str], str | None],
+             tagged_since: str | None) -> dict[str, int]:
+    """One table of `docs` — `(day, document)` for the days of one window —
+    summed per name, from the scans the device floor lets count.
+
+    A day tallied with device tags has `devices_field`, and its scans of a name
+    count only once `min_devices` different devices stand behind that name
+    across the window's tagged days. A day written before device tags existed
+    has no such field. Withholding it emptied the card from deploy until the
+    devices built up, so its scans count as they did then, by the scan floor
+    alone; its names go through `clean` first, because the code that wrote
+    them did not strip links.
+
+    But a missing field means "before tags" only for a day earlier than
+    `tagged_since`, the first day tagged code wrote. The code before tags
+    writes the whole document back without the maps, and a rollback is a
+    deploy — the runbook's first move — so a day it wrote on or after that
+    day has lost its devices, not never had them. Counted by scans, one
+    device's five scans of a brand were on every install for as long as that
+    day stayed in the window after the redeploy. It is withheld instead; a
+    tagged write landing on it again is judged by the devices that write
+    recorded, which is cautious, since the earlier ones are gone.
+
+    In a window holding both, then, old scans always count and new scans only
+    with their devices. One device on its own, however often it scans, can
+    neither lift old scans that fell short of TRENDS_MIN_COUNT over it nor add
+    to a row they made by themselves: from new data, a brand needs three.
+    Days before `tagged_since` leave the fortnight `trends()` reads two weeks
+    after it, and from then on nothing counts by scans alone. The deploy day
+    itself, written by both, is judged by the devices it recorded, which
+    leaves its earlier scans with none: cautious, for one day.
+    """
+    legacy: dict[str, int] = {}
+    tagged: dict[str, int] = {}
+    devices: dict[str, list[str]] = {}
+    for day, doc in docs:
+        counts = doc.get(counts_field)
+        counts = counts if isinstance(counts, dict) else {}
+        table = doc.get(devices_field)
+        if not isinstance(table, dict):
+            if tagged_since is not None and day >= tagged_since:
+                continue
+            for name, n in counts.items():
+                name = clean(name)
+                if name is not None:
+                    legacy[name] = legacy.get(name, 0) + int(n)
+            continue
+        for name, n in counts.items():
+            tagged[name] = tagged.get(name, 0) + int(n)
+        for name, tags in table.items():
+            for tag in tags if isinstance(tags, list) else []:
+                devices[name] = _add_device(devices.get(name), tag)
+    counted = dict(legacy)
+    for name, n in tagged.items():
+        if len(devices.get(name) or []) >= min_devices:
+            counted[name] = counted.get(name, 0) + n
+    return counted
+
+
+async def _top_docs(days: list[str]) -> list[tuple[str, dict]]:
+    """Each day's top document beside its day; {} when absent or unreadable."""
+    docs: list[tuple[str, dict]] = []
     for day in days:
         try:
             doc = json.loads(await _cache.get(_stat_key(day, "top")) or "{}")
         except Exception:
             doc = {}
-        for c, n in (doc.get("cats") or {}).items():
-            cats[c] = cats.get(c, 0) + int(n)
-        for b, n in (doc.get("brands") or {}).items():
-            brands[b] = brands.get(b, 0) + int(n)
-        for f in doc.get("finds") or []:
-            if isinstance(f, dict):
-                finds.append(f)
+        docs.append((day, doc if isinstance(doc, dict) else {}))
+    return docs
+
+
+async def _tagged_since(docs: list[tuple[str, dict]]) -> str | None:
+    """The first day tagged code wrote, or None if it never has — the line
+    `_floored` draws between a day from before tags and a day an older build
+    wrote back after them.
+
+    TRENDS_TAGGED_SINCE_KEY holds it, because the days themselves cannot:
+    after a rollback longer than the window, no tagged day is left in it to
+    say when tags began. The earliest tagged day in `docs` stands in when the
+    key cannot be read or was lost, and a lost key costs no more than that."""
+    try:
+        recorded = await _cache.get(TRENDS_TAGGED_SINCE_KEY)
+    except Exception:
+        recorded = None
+    days = [day for day, doc in docs if isinstance(doc.get("cat_devices"), dict)]
+    if recorded:
+        days.append(str(recorded))
+    return min(days) if days else None
+
+
+async def _tallies(docs: list[tuple[str, dict]], tagged_since: str | None
+                   ) -> tuple[dict[str, int], dict[str, int], list[dict], int]:
+    """The days' category and brand counts, finds and scan total.
+
+    The counts are only what `_floored` lets count; everything else is left
+    out here, so no caller can forget the floor. Finds come back whole, and
+    `trends()` holds each back until TRENDS_MIN_FIND_DEVICES have scanned it."""
+    scans = 0
+    for day, _ in docs:
         scans += await _read_stat(day, "scans_free") + await _read_stat(day, "scans_pro")
-    return cats, brands, finds, scans
+    finds = [f for _, doc in docs for f in doc.get("finds") or [] if isinstance(f, dict)]
+    return (_floored(docs, "cats", "cat_devices", TRENDS_MIN_CATEGORY_DEVICES,
+                     _normalise_category, tagged_since),
+            _floored(docs, "brands", "brand_devices", TRENDS_MIN_BRAND_DEVICES,
+                     _clean_brand, tagged_since),
+            finds, scans)
 
 
 async def trends(*, is_pro: bool, now: datetime | None = None) -> dict:
@@ -2952,8 +3680,10 @@ async def trends(*, is_pro: bool, now: datetime | None = None) -> dict:
     end = now - timedelta(days=1)
     this_week = [_day(end - timedelta(days=i)) for i in range(7)]
     last_week = [_day(end - timedelta(days=i)) for i in range(7, 14)]
-    cats, brands, finds, scans = await _tallies(this_week)
-    prev_cats, prev_brands, _, _ = await _tallies(last_week)
+    current, previous = await _top_docs(this_week), await _top_docs(last_week)
+    since = await _tagged_since(current + previous)
+    cats, brands, finds, scans = await _tallies(current, since)
+    prev_cats, prev_brands, _, _ = await _tallies(previous, since)
 
     limit = TRENDS_PRO_ROWS if is_pro else TRENDS_FREE_ROWS
     payload: dict = {
@@ -2963,6 +3693,10 @@ async def trends(*, is_pro: bool, now: datetime | None = None) -> dict:
         "brands": _trend_rows(sorted(brands.items(), key=lambda kv: -kv[1]), prev_brands, limit),
     }
     if is_pro:
+        # One entry per item across the week, before anything is averaged or
+        # cut to five — see `_merge_finds`, which also pools the devices
+        # behind each item.
+        finds = _merge_finds(finds)
         # Average estimate per category, from the day's best finds only —
         # which is what the tallies keep. Labelled as such by the client.
         by_category: dict[str, list[float]] = {}
@@ -2978,13 +3712,39 @@ async def trends(*, is_pro: bool, now: datetime | None = None) -> dict:
             values = by_category.get(row["name"]) or []
             if len(values) >= 3:      # an average of one or two is not an average
                 row["average_estimate"] = round(sum(values) / len(values))
-        payload["notable_finds"] = [
-            {"name": str(f.get("n") or "Unidentified item")[:60],
-             "category": str(f.get("c") or "other"),
-             "low": round(float(f.get("lo") or 0)), "high": round(float(f.get("hi") or 0))}
-            for f in sorted(finds, key=lambda f: -float(f.get("hi") or 0))[:TRENDS_FINDS]
-            if float(f.get("hi") or 0) > 0
-        ]
+        # The brand stands in for the item name. A find is one item, shown to
+        # strangers, and the name is whatever the model wrote about someone's
+        # photo — free text that can carry anything it read off a label.
+        # `name` stays the field so shipped clients decode it unchanged. A
+        # find with no brand has nothing left worth showing and is skipped.
+        #
+        # So is a repeat. Clients key a find on `name-low-high` and drop
+        # duplicates (`Trends.distinctNotableFinds`), and with the brand as the
+        # name, two scans of one brand at the same rounded range are one row to
+        # them — sent twice, it would take a slot and show nothing.
+        #
+        # And so is a find fewer than TRENDS_MIN_FIND_DEVICES scanned, counted
+        # per item by `_merge_finds` above. A find from a day tallied before
+        # devices were recorded has no `d`, and stays withheld where its day's
+        # rows now count by scans: a find never had a scan floor to fall back
+        # on — one scan was enough.
+        notable: list[dict] = []
+        shown: set[tuple[str, int, int]] = set()
+        for f in finds:
+            if len(f.get("d") or []) < TRENDS_MIN_FIND_DEVICES:
+                continue
+            brand = _clean_brand(str(f.get("b") or ""))
+            if brand is None or float(f.get("hi") or 0) <= 0:
+                continue
+            lo, hi = round(float(f.get("lo") or 0)), round(float(f.get("hi") or 0))
+            if (brand, lo, hi) in shown:
+                continue
+            shown.add((brand, lo, hi))
+            notable.append({"name": brand, "category": str(f.get("c") or "other"),
+                            "low": lo, "high": hi})
+            if len(notable) >= TRENDS_FINDS:
+                break
+        payload["notable_finds"] = notable
 
     try:
         await _cache.set(f"{TRENDS_CACHE_KEY}:{tier}", json.dumps(payload), TRENDS_CACHE_TTL)
@@ -3309,58 +4069,111 @@ async def _resolve_transaction_id(wanted: str) -> tuple[str | None, str | None]:
 
     Returns `(transaction_id, error_message)` — exactly one is not None.
 
-    Two kinds of input, because the operator has two kinds of id to hand and
-    only one of them is Apple's:
+    Two kinds of input here, because the operator has two kinds of id to hand
+    and only one of them is Apple's (the third, an order id off the customer's
+    receipt, is `_apple_order_id`'s):
 
       * an originalTransactionId, as `/subs` keys its rows and as Apple's
         own console shows it — all digits, and long;
-      * the six-character `id` column from `/subs` and `/users`.
+      * a device id: the six-character `id` column from `/subs` and `/users`,
+        the eight `/user` prints, or all sixteen from a support mail's
+        "Device …" line — any prefix of the pseudonym.
 
-    The short one is **not** a truncated transaction id and cannot be turned
-    back into one by itself: it is `sha256(AUDIT_SALT + subject)[:16][:6]`, a
+    The device id is **not** a truncated transaction id and cannot be turned
+    back into one by itself: it is `sha256(AUDIT_SALT + subject)[:16]`, a
     deliberately one-way pseudonym (`auditlog.pseudonymise`) so the audit log
     is not a device registry. What makes the lookup possible is that the subs
-    index is keyed by the *full* transaction id with the short pseudonym stored
-    in the row, so this is a scan, not a decode — the same reverse lookup
-    `_user_text` already does.
+    index is keyed by the *full* transaction id with the devices that synced
+    it stored in the row, so this is a scan, not a decode — the same reverse
+    lookup `_user_text` does.
 
     Two consequences worth stating, because both look like bugs otherwise:
-    a device whose subscription only ever arrived by notification has no `who`
-    at all and is unreachable this way, and a six-character prefix of a
+    a device whose subscription only ever arrived by notification is not on
+    the row at all and is unreachable this way, and a short prefix of a
     sixteen-character hash can collide.
     """
-    wanted = wanted.strip().lower()
+    wanted = _device_argument(wanted)
     if not wanted:
-        return None, ("Usage: /sub &lt;id&gt; — an originalTransactionId, or the "
-                      "six-character id column from /subs.")
+        return None, ("Usage: /sub &lt;id&gt; — an originalTransactionId, the "
+                      "order ID from the customer's Apple receipt, or a device "
+                      "id: the id column from /subs, or the 16 characters after "
+                      "\"Device\" in a support mail.")
 
     # Apple's transaction ids are long decimal strings. Anything of that shape
     # is passed through untouched: the index may well not have it, which is
     # the whole point of asking Apple directly.
-    if wanted.isdigit() and len(wanted) >= 10:
+    #
+    # Except at sixteen characters, which is also a full pseudonym. It is hex,
+    # and about one device in 1,845 has one made only of digits; sent to Apple
+    # as a transaction id it came back "a typo", and the index — which does
+    # have it — was never asked. So a sixteen-digit id is looked for among the
+    # devices first, unless it is a transaction id the index already keys, and
+    # is Apple's only when no device matches.
+    #
+    # Matched whole, not by prefix. Nearly every real transaction id begins
+    # 200000 or 100000, so one older row holding a six-character device id of
+    # that shape would otherwise catch every unindexed transaction id pasted
+    # here and answer with that customer's subscription.
+    looks_like_transaction = wanted.isdigit() and len(wanted) >= 10
+    if looks_like_transaction and len(wanted) != 16:
         return wanted, None
 
     doc = await _read_index(SUBS_INDEX_KEY)
-    matches = {otid: row for otid, row in doc.items()
-               if isinstance(row, dict)
-               and str(row.get("who") or "").lower().startswith(wanted)}
+    if looks_like_transaction and wanted in doc:
+        return wanted, None
+    matches: dict[str, dict] = {}
+    devices: set[str] = set()
+    for otid, row in doc.items():
+        if not isinstance(row, dict):
+            continue
+        hits = [d for d in _row_devices(row)
+                if (d.lower() == wanted if looks_like_transaction else _same_device(d, wanted))]
+        if hits:
+            matches[otid] = row
+            devices.update(d.lower() for d in hits)
+    if not matches and looks_like_transaction:
+        return wanted, None
     if not matches:
-        return None, (f"💳 Nothing in the index has an id starting "
+        return None, (f"💳 Nothing in the index has a device id starting "
                       f"<code>{html.escape(wanted)}</code>. If you have Apple's "
-                      "originalTransactionId, pass that instead — it does not "
-                      "need to be in the index.")
+                      "originalTransactionId, or the order ID from the "
+                      "customer's receipt, pass that instead — neither needs "
+                      "to be in the index. /user shows whether this device "
+                      "ever tried to sync a purchase, and what happened.")
 
     # Several rows for one device is normal — a resubscribe, or a plan change —
     # and harmless, because Apple returns every subscription belonging to the
     # customer behind whichever id we send. Several *devices* is a genuine
-    # collision and the operator has to disambiguate.
-    whos = {str(row.get("who")) for row in matches.values()}
-    if len(whos) > 1:
-        return None, (f"💳 {len(whos)} devices start with "
+    # collision and the operator has to disambiguate. A six-character id kept
+    # from an older row is the same device as the full one it begins.
+    distinct = {d for d in devices
+                if not any(o != d and o.startswith(d) for o in devices)}
+    if len(distinct) > 1:
+        return None, (f"💳 {len(distinct)} devices start with "
                       f"<code>{html.escape(wanted)}</code> — give more "
                       "characters: " + ", ".join(
-                          html.escape(w) for w in sorted(whos)[:6]))
-    return next(iter(matches)), None
+                          html.escape(d[:8]) for d in sorted(distinct)[:6]))
+    return max(matches, key=lambda otid: float(matches[otid].get("seen") or 0)), None
+
+
+# An App Store order ID, as printed on the customer's receipt email ("Order
+# ID: MK5TTTV8JH"): upper-case letters and digits. Checked after the other
+# shapes, so an all-digit transaction id or an all-hex device id never lands
+# here.
+_ORDER_ID = re.compile(r"[A-Z0-9]{8,20}")
+
+
+def _apple_order_id(argument: str | None) -> str | None:
+    """The argument as an Apple order ID, or None if it is not shaped like one.
+
+    The one id a customer can always find: it is on the receipt Apple emails
+    for every purchase, and it is what they paste when they have nothing
+    else. Apple's Look Up Order ID resolves it to their transactions."""
+    value = (argument or "").strip().upper()
+    if (not _ORDER_ID.fullmatch(value) or value.isdigit()
+            or re.fullmatch(r"[0-9A-F]+", value)):
+        return None
+    return value
 
 
 def _status_lines(status) -> list[str]:
@@ -3401,7 +4214,201 @@ def _status_lines(status) -> list[str]:
     return lines
 
 
-async def _sub_text(argument: str) -> str:
+async def _sub_command(rest: str) -> tuple[str, Buttons]:
+    """`/sub <id>`, and `/sub <otid> lift [yes]` for a stale refund block."""
+    parts = (rest or "").split()
+    if len(parts) >= 2 and parts[1].lower() == "lift":
+        confirmed = any(token.lower() == "yes" for token in parts[2:])
+        return await _lift_refund_block(parts[0], confirmed)
+    text, offers = await _sub_text(rest)
+    return text, offers + await _buttons()
+
+
+async def _ask_apple(transaction_id: str) -> tuple[list | None, str | None]:
+    """`appstorestatus.lookup`, with each failure in the operator's words.
+
+    Returns `(statuses, error_message)` — exactly one is not None.
+    """
+    import appstorestatus
+
+    try:
+        return await appstorestatus.lookup(transaction_id), None
+    except appstorestatus.StatusError as exc:
+        return None, _apple_problem(exc)
+
+
+async def _ask_apple_order(order_id: str) -> tuple[str | None, str | None]:
+    """The transaction id behind the Order ID on a customer's App Store
+    receipt, through Apple's Look Up Order ID, for `_ask_apple`.
+
+    Returns `(transaction_id, error_message)` — exactly one is not None.
+    """
+    import appstorestatus
+
+    try:
+        return (await appstorestatus.lookup_order(order_id))[0], None
+    except appstorestatus.StatusError as exc:
+        return None, _apple_problem(exc)
+
+
+def _apple_problem(exc: Exception) -> str:
+    """One of `appstorestatus`'s failures, as the operator reads it."""
+    import appstorestatus
+    import entitlements
+
+    if isinstance(exc, appstorestatus.OrderNotFound):
+        return (f"💳 {html.escape(str(exc))}\n\nRead as an Apple order ID — the "
+                "\"Order ID\" on the customer's App Store receipt email. A "
+                "transaction id is all digits; a device id is hex.")
+    if isinstance(exc, appstorestatus.SubscriberNotFound):
+        return (f"💳 {html.escape(str(exc))}\n\nChecked Production and Sandbox. "
+                "An id Apple does not recognise is usually a transactionId from "
+                "a different app, or a typo.")
+    if isinstance(exc, appstorestatus.StatusRetryLater):
+        # Right after a purchase — when the support mail is written — Apple
+        # answers "not found, retry". Reported as that, not as a typo, and
+        # without Sandbox's "never heard of it" standing in for it.
+        text = (f"💳 <b>Not yet — retry in a few minutes</b>\n{html.escape(str(exc))}\n\n"
+                "Not necessarily a typo: Apple marks this not-found as "
+                "retryable, which is what a purchase from the last few minutes "
+                "looks like. ")
+        if exc.environment == "Production":
+            return text + "Sandbox was not asked."
+        # Production's not-found was definite, so the lookup went on to
+        # Sandbox, and it is Sandbox saying "not yet". That Production has
+        # nothing is the useful half: this is a TestFlight or App Review
+        # purchase, which this server may refuse whatever Sandbox says next.
+        text += (f"Production has nothing under this id; it is "
+                 f"{html.escape(exc.environment)} that says not yet.")
+        if exc.environment not in entitlements.ALLOWED_ENVIRONMENTS:
+            text += (f"\n⚠️ <b>This server refuses {html.escape(exc.environment)} "
+                     "purchases</b> (ALLOWED_STOREKIT_ENVIRONMENTS): even once Apple "
+                     "has it, the app is told free for this one. TestFlight and "
+                     "App Review buy in Sandbox.")
+        return text
+    if isinstance(exc, appstorestatus.StatusNotConfigured):
+        return (f"💳 {html.escape(str(exc))}\n\nThe rest of the bot is "
+                "unaffected — /subs still reports what notifications have said.")
+    if isinstance(exc, appstorestatus.StatusRateLimited):
+        return f"💳 {html.escape(str(exc))}"
+    if isinstance(exc, appstorestatus.StatusCredentialsRejected):
+        return f"💳 <b>Credentials refused</b>\n{html.escape(str(exc))}"
+    # StatusUnavailable and anything added later. Still named, still not
+    # silent — this branch exists so a new subclass cannot become a
+    # mystery empty reply.
+    return f"💳 <b>Could not ask Apple</b>\n{html.escape(str(exc))}"
+
+
+def _block_denies(tombstone: dict, ent) -> bool:
+    """Whether a refund block denies `ent`'s term — `_is_revoked`'s rule."""
+    blocked_until = tombstone.get("expires_at")
+    if ent.expires_at is None or not isinstance(blocked_until, (int, float)):
+        return True
+    return ent.expires_at <= blocked_until
+
+
+async def _refund_block_lines(statuses) -> tuple[list[str], Buttons]:
+    """The access path's refund blocks for these subscriptions, if any.
+
+    A REFUND writes `entrevoked:{originalTransactionId}`, and the access path
+    denies the term it names for up to 400 days. Nothing showed it: a customer
+    whose refund Apple had reversed read as free on every sync, this command
+    said they were paying, `/subs` said `refund`, and finding the cause took
+    `redis-cli` against production. The block is shown next to what Apple
+    says now, and when Apple says the term is not refunded, lifting it is
+    offered — as two taps, see `_lift_refund_block`.
+    """
+    import entitlements
+
+    lines: list[str] = []
+    offers: Buttons = []
+    latest: dict[str, object] = {}
+    for status in statuses:
+        otid = status.entitlement.original_transaction_id
+        if otid:
+            latest.setdefault(otid, status.entitlement)
+    for otid, ent in latest.items():
+        code = f"<code>{html.escape(otid)}</code>"
+        try:
+            tombstone = await entitlements.read_revocation(_cache, otid)
+        except Exception as exc:
+            lines.append(f"Refund block for {code}: could not read the store "
+                         f"({html.escape(type(exc).__name__)}).")
+            continue
+        if tombstone is None:
+            continue
+        until = tombstone.get("expires_at")
+        what = (f"denies terms ending by {_date(int(until))}"
+                if isinstance(until, (int, float)) else "denies every term")
+        lines.append(f"🚫 <b>Refund block</b> on {code}: {what}.")
+        if getattr(ent, "revoked_at", None) is not None:
+            lines.append("Apple still shows this term refunded, so the block is right.")
+        elif _block_denies(tombstone, ent):
+            lines.append("Apple shows this term <b>not</b> refunded, so the block "
+                         "is denying Pro to someone paying for it.")
+            offers.append([("🔓 Lift refund block", f"sub {otid} lift")])
+        else:
+            lines.append("It does not cover the current term.")
+    return lines, offers
+
+
+async def _lift_refund_block(otid: str, confirmed: bool) -> tuple[str, Buttons]:
+    """Delete one refund block — only once Apple says the refund is gone.
+
+    Two taps, like `/lever`: the first names the block, the second lifts it.
+    And the second asks Apple again rather than trusting the first. Lifting a
+    block on a term Apple still shows refunded would let the server re-derive
+    Pro from the pre-refund proof it holds, which is the bug the block exists
+    to stop.
+    """
+    import entitlements
+
+    otid = otid.strip()
+    code = f"<code>{html.escape(otid)}</code>"
+    if not (otid.isdigit() and len(otid) >= 10):
+        return ("Usage: /sub &lt;originalTransactionId&gt; lift — the full id "
+                "from /sub, not the short one.", await _buttons())
+    try:
+        tombstone = await entitlements.read_revocation(_cache, otid)
+    except Exception as exc:
+        return (f"🚫 Could not read the refund block for {code} "
+                f"({html.escape(type(exc).__name__)}). Nothing was changed.",
+                await _buttons())
+    if tombstone is None:
+        return f"🚫 No refund block is held for {code}.", await _buttons()
+
+    if not confirmed:
+        until = tombstone.get("expires_at")
+        what = (f"denies terms ending by {_date(int(until))}"
+                if isinstance(until, (int, float)) else "denies every term")
+        return (f"🔓 <b>Lift the refund block on {code}?</b>\n"
+                f"It {what}. Apple is asked again first, and it is lifted only "
+                "if Apple no longer shows the term refunded.",
+                [[("✅ Yes, lift it", f"sub {otid} lift yes"),
+                  ("Cancel", f"sub {otid}")]])
+
+    statuses, problem = await _ask_apple(otid)
+    if problem is not None:
+        return problem + "\n\nThe refund block was left in place.", await _buttons()
+    assert statuses is not None
+    mine = [st for st in statuses if st.entitlement.original_transaction_id == otid]
+    if not mine:
+        return (f"🚫 Apple returned nothing under {code}, so the block was left "
+                "in place.", await _buttons())
+    if any(getattr(st.entitlement, "revoked_at", None) is not None for st in mine):
+        return (f"🚫 Apple still shows {code} refunded. The block was left in "
+                "place: lifting it would let the server re-derive Pro from the "
+                "proof it holds.", await _buttons())
+    try:
+        await entitlements.clear_revocation(_cache, otid)
+    except Exception as exc:
+        return (f"🚫 Could not lift the block on {code} "
+                f"({html.escape(type(exc).__name__)}). Try again.", await _buttons())
+    return (f"🔓 Refund block lifted on {code}. Pro comes back at the app's "
+            "next sync, if not sooner.", await _buttons())
+
+
+async def _sub_text(argument: str) -> tuple[str, Buttons]:
     """Ask Apple what one subscription is doing, right now.
 
     Everything else the bot knows about subscriptions is a cache of what it was
@@ -3420,38 +4427,53 @@ async def _sub_text(argument: str) -> str:
     # imports `entitlements` — so either at the top of this file closes an
     # import cycle. The same reason `appstorenotify`'s header gives for
     # duck-typing the notification it is handed.
-    import appstorestatus
     import entitlements
 
-    transaction_id, problem = await _resolve_transaction_id(argument or "")
+    via: list[str] = []
+    order_id = _apple_order_id(argument)
+    if order_id is None:
+        transaction_id, problem = await _resolve_transaction_id(argument or "")
+    else:
+        transaction_id, problem = await _ask_apple_order(order_id)
+        if transaction_id is not None:
+            via = [f"Order <code>{html.escape(order_id)}</code> → "
+                   f"<code>{html.escape(transaction_id)}</code>"]
     if problem is not None:
-        return problem
+        return problem, []
     assert transaction_id is not None
 
-    try:
-        statuses = await appstorestatus.lookup(transaction_id)
-    except appstorestatus.SubscriberNotFound as exc:
-        return (f"💳 {html.escape(str(exc))}\n\nChecked Production and Sandbox. "
-                "An id Apple does not recognise is usually a transactionId from "
-                "a different app, or a typo.")
-    except appstorestatus.StatusNotConfigured as exc:
-        return (f"💳 {html.escape(str(exc))}\n\nThe rest of the bot is "
-                "unaffected — /subs still reports what notifications have said.")
-    except appstorestatus.StatusRateLimited as exc:
-        return f"💳 {html.escape(str(exc))}"
-    except appstorestatus.StatusCredentialsRejected as exc:
-        return f"💳 <b>Credentials refused</b>\n{html.escape(str(exc))}"
-    except appstorestatus.StatusError as exc:
-        # StatusUnavailable and anything added later. Still named, still not
-        # silent — this branch exists so a new subclass cannot become a
-        # mystery empty reply.
-        return f"💳 <b>Could not ask Apple</b>\n{html.escape(str(exc))}"
+    statuses, problem = await _ask_apple(transaction_id)
+    if problem is not None:
+        return problem, []
+    assert statuses is not None
 
     lines = [f"💳 <b>Live from Apple</b> — {len(statuses)} subscription"
-             f"{'s' if len(statuses) != 1 else ''}"]
+             f"{'s' if len(statuses) != 1 else ''}", *via]
+    # The lookup asks Production first and moves on to Sandbox only when
+    # Production definitely has nothing, so a Sandbox answer means both were
+    # asked. Said outright: it used to be one word on the detail line.
+    if statuses and all(status.environment == "Sandbox" for status in statuses):
+        lines.append("Production: nothing under this id. The answer below is Sandbox's.")
     for status in statuses:
         lines.append("")
         lines.extend(_status_lines(status))
+        environment = status.entitlement.environment
+        if environment not in entitlements.ALLOWED_ENVIRONMENTS:
+            # Apple says "active"; this server says free. `verify_signed_
+            # transaction` refuses any environment outside the allowed set —
+            # which is what keeps a free Sandbox tester from being production
+            # Pro — so a TestFlight or App Review purchase never unlocks Pro
+            # here, and "active" alone would send the operator looking for a
+            # bug that is a policy.
+            lines.append(
+                f"⚠️ <b>This server refuses {html.escape(environment)} purchases</b> "
+                "(ALLOWED_STOREKIT_ENVIRONMENTS): the app is told free for this "
+                "one, and it is not indexed. TestFlight and App Review buy in Sandbox.")
+
+    block_lines, offers = await _refund_block_lines(statuses)
+    if block_lines:
+        lines.append("")
+        lines.extend(block_lines)
 
     # Fold what Apple just said back into the index. This is the only writer
     # that can correct a row which drifted — a notification that never arrived
@@ -3469,8 +4491,13 @@ async def _sub_text(argument: str) -> str:
         if not status.entitlement.original_transaction_id:
             continue
         try:
-            await _index_subscription(None, status.entitlement, status.auto_renew)
-            indexed += 1
+            # None: the index could not be read, so nothing was written, and
+            # the line below must not say otherwise. `current`: this is
+            # Apple's word now, so a refund it no longer shows is cleared.
+            if await _index_subscription(
+                    None, status.entitlement, status.auto_renew,
+                    current=True) is not None:
+                indexed += 1
         except Exception:
             # The answer above is the point of the command; failing to cache it
             # must not lose it.
@@ -3479,15 +4506,24 @@ async def _sub_text(argument: str) -> str:
         lines.append("")
         lines.append(f"Index updated from this lookup ({indexed} row"
                      f"{'s' if indexed != 1 else ''}).")
-    return "\n".join(lines)
+    return "\n".join(lines), offers
 
 
 # ── One device, for a support email ──────────────────────────────────────────
 
+#: How /user words the last `/auth/entitlement` result it recorded.
+_SYNC_WORDS = {
+    "pro": "verified as Pro",
+    "free": "verified, but not Pro — refunded, revoked or expired",
+    "rejected": "REJECTED",
+}
+
+
 async def _user_text(argument: str) -> str:
-    wanted = (argument or "").strip().lower()
+    wanted = _device_argument(argument)
     if not wanted:
-        return "Usage: /user &lt;id&gt; — the id column from /users or /subs."
+        return ("Usage: /user &lt;id&gt; — the id column from /users or /subs, or "
+                "the 16 characters after \"Device\" in a support mail.")
     users = await _read_index(USERS_INDEX_KEY)
     matches = [(who, e) for who, e in users.items() if who.lower().startswith(wanted)]
     if not matches:
@@ -3505,8 +4541,24 @@ async def _user_text(argument: str) -> str:
         when = (f"{ago // 3600}h ago" if ago < 86400 else f"{ago // 86400}d ago")
         lines.append(f"Last seen {_date(int(e['last']))} ({when})")
     lines.append(f"Scans since the bot started watching: {int(e.get('scans', 0))}")
-    subs = [s for s in (await _read_index(SUBS_INDEX_KEY)).values() if s.get("who") == who[:6]]
-    for s in subs:
+    try:
+        sync = (json.loads(await _cache.get(_sync_key(who)) or "null")
+                if _cache is not None else None)
+    except Exception:
+        sync = None
+    if isinstance(sync, list) and len(sync) >= 2:
+        # What the server made of the last signed transaction this device
+        # sent. When it was refused, this is the only place that says so —
+        # nothing is indexed for a transaction that did not verify.
+        ago = int(now - float(sync[0]))
+        when = (f"{ago // 3600}h ago" if ago < 86400 else f"{ago // 86400}d ago")
+        what = _SYNC_WORDS.get(str(sync[1]), html.escape(str(sync[1])))
+        if len(sync) > 2 and sync[2]:
+            what += f" — {html.escape(str(sync[2]))}"
+        lines.append(f"Last purchase sync: {_date(int(sync[0]))} ({when}) — {what}")
+    subs = [(otid, s) for otid, s in (await _read_index(SUBS_INDEX_KEY)).items()
+            if isinstance(s, dict) and any(_same_device(d, who) for d in _row_devices(s))]
+    for otid, s in subs:
         # `_sub_is_alive`, like the two readers of this same index in `/subs`.
         # This one tested expiry alone, so a refunded subscription — which
         # keeps its expiry — read "renews 12 Mar 2027" here while `/subs`
@@ -3525,8 +4577,10 @@ async def _user_text(argument: str) -> str:
             state = f"renews {renews}"
         else:
             state = f"ended {renews}"
+        # The transaction id is what Apple, App Store Connect and /sub all
+        # take, so it is printed where it can be tapped and copied.
         lines.append(f"Subscription: {_plan(s.get('product'))} · "
-                     f"{s.get('acq') or '?'} · {state}")
+                     f"{s.get('acq') or '?'} · {state} · <code>{html.escape(str(otid))}</code>")
     if not subs:
         lines.append("No subscription has synced from this device.")
     lines.append("Devices, not people — this is the audit log's pseudonym.")
@@ -3544,7 +4598,7 @@ def _tls_days_left(host: str, timeout: float = 5.0) -> int | None:
         with ctx.wrap_socket(sock, server_hostname=host) as tls:
             cert = tls.getpeercert()
     not_after = cert.get("notAfter") if cert else None
-    if not not_after:
+    if not isinstance(not_after, str) or not not_after:
         return None
     expires = datetime.strptime(not_after, "%b %d %H:%M:%S %Y %Z").replace(tzinfo=timezone.utc)
     return (expires - datetime.now(timezone.utc)).days
@@ -3588,9 +4642,9 @@ async def _device_check_line(configured: bool) -> str:
     """Whether reinstall protection is actually working, not merely switched on.
 
     Three non-empty environment variables is what `is_configured` knows, and a
-    typo'd key looks identical to a healthy one from here: every DeviceCheck
-    failure degrades open by design, so a wrong key silently hands every
-    reinstall a fresh allowance. The probe asks Apple."""
+    typo'd key looks identical to a healthy one from here: a wrong key cannot
+    recognise a reinstall, so it silently hands every reinstall a fresh
+    allowance. The probe asks Apple."""
     if not configured:
         return "DeviceCheck: NOT configured — reinstalls get a fresh allowance"
     if _device_check_probe is None:
@@ -3645,6 +4699,121 @@ async def _archive_chat_line(chat_id: str) -> str:
     return f"Archive chat: {title} ({kind}) ✅ — /clear forwards here first"
 
 
+async def _appstore_api_line() -> str:
+    """Whether /sub can ask Apple, and whether Apple is failing to reach us.
+
+    The App Store Server API key is optional — a deployment without it boots,
+    and only /sub says so — so the operator used to learn it was missing in
+    the middle of a support mail. One call to Apple's notification history,
+    failures only, answers both: it is refused when the key is wrong, and it
+    lists what Apple tried to deliver here and could not. A refund among those
+    is a refund whose Pro has not been withdrawn."""
+    import appstorestatus
+    try:
+        failed, more = await asyncio.wait_for(appstorestatus.undelivered_notifications(), 10)
+    except appstorestatus.StatusNotConfigured as exc:
+        return f"App Store API: NOT configured — /sub cannot ask Apple. {html.escape(str(exc))}"
+    except appstorestatus.StatusCredentialsRejected as exc:
+        return f"App Store API: key REJECTED — {html.escape(str(exc))}"
+    except Exception as exc:
+        detail = str(exc) if isinstance(exc, appstorestatus.StatusError) else type(exc).__name__
+        return f"App Store API: probe failed — {html.escape(detail)}"
+    if not failed:
+        return "App Store API: key accepted ✅ · no undelivered notifications in 24h"
+    count = f"{failed}{'+' if more else ''}"
+    return (f"App Store API: key accepted · ⚠️ Apple could not deliver {count} "
+            f"notification{'s' if failed != 1 or more else ''} here in 24h — any refund "
+            "among them has not been applied yet")
+
+
+async def _last_appstore_notification_line() -> str:
+    """When `/apple/notifications` last received something that verified."""
+    try:
+        record = json.loads(await _cache.get(LAST_APPSTORE_NOTIFICATION_KEY) or "null")
+    except Exception:
+        record = None
+    if not (isinstance(record, list) and len(record) >= 3):
+        return "Last verified App Store notification: none on record"
+    ago = max(0, int(time.time() - float(record[0])))
+    when = (f"{ago // 60} min ago" if ago < 7200 else
+            f"{ago // 3600}h ago" if ago < 2 * 86400 else f"{ago // 86400}d ago")
+    return (f"Last verified App Store notification: {when} "
+            f"({html.escape(str(record[1]))}, {html.escape(str(record[2]))})")
+
+
+# Redis holds state nothing can rebuild (RUNBOOK §9), so how it behaves when
+# full and whether it survives a restart are operational facts, not tuning.
+# Nothing reported either until this line: the only probe was a PING.
+REDIS_MEMORY_WARN_FRACTION = 0.8
+REDIS_SNAPSHOT_STALE_SECONDS = 24 * 3600
+# How close to the boot time a "last save" must be to be read as the boot
+# stamp rather than a snapshot, where INFO has no `rdb_saves` (before Redis 7).
+REDIS_BOOT_STAMP_SLACK_SECONDS = 10
+
+
+def _redis_line(info: dict, now: float) -> str:
+    """One checkup line from Redis INFO, with a ⚠️ for each unsafe setting."""
+    def num(key: str) -> int:
+        try:
+            return int(info.get(key) or 0)
+        except (TypeError, ValueError):
+            return 0
+
+    used, limit = num("used_memory"), num("maxmemory")
+    policy = str(info.get("maxmemory_policy") or "unknown")
+    evicted = num("evicted_keys")
+    aof = num("aof_enabled") == 1
+    last_save, save_ok = num("rdb_last_save_time"), info.get("rdb_last_bgsave_status")
+    uptime = num("uptime_in_seconds")
+    # Redis stamps rdb_last_save_time with its start time at boot ("at startup
+    # we consider the DB saved"), with `save ""` and AOF off as much as with
+    # persistence on. Read as a snapshot, that hid the restart warning below
+    # for a day after every restart or redeploy — the moment the owner runs
+    # Checkup after changing Railway's settings. `rdb_saves` counts real
+    # snapshots since start; before Redis 7, a last save at boot is the stamp.
+    if "rdb_saves" in info:
+        saved = num("rdb_saves") > 0
+    elif uptime:
+        saved = last_save - (now - uptime) > REDIS_BOOT_STAMP_SLACK_SECONDS
+    else:
+        saved = bool(last_save)
+
+    mb = 1024 * 1024
+    memory = (f"{used / mb:.1f} MB of {limit / mb:.0f} MB ({used / limit:.0%})" if limit
+              else f"{used / mb:.1f} MB, no limit")
+    if saved:
+        snapshot = f"last snapshot {int((now - last_save) // 3600)}h ago"
+    elif uptime:
+        snapshot = f"no snapshot since start {uptime // 3600}h ago"
+    else:
+        snapshot = "no snapshot"
+    line = (f"Redis: {memory} · policy {html.escape(policy)} · evicted {evicted} · "
+            f"AOF {'on' if aof else 'off'} · {snapshot}")
+
+    warnings: list[str] = []
+    if policy != "noeviction":
+        # Any evicting policy drops keys to make room, and the keys here are
+        # quota counters, entitlement proofs, refund tombstones and attest
+        # state — a silent re-grant or a forced re-attestation.
+        warnings.append(f"policy {html.escape(policy)} evicts state nothing can "
+                        "rebuild — set noeviction")
+    if not limit:
+        warnings.append("no maxmemory — Redis grows until the container is killed")
+    elif used >= limit * REDIS_MEMORY_WARN_FRACTION:
+        warnings.append(f"above {REDIS_MEMORY_WARN_FRACTION:.0%} of maxmemory — "
+                        "under noeviction, writes fail and free scans 503 at 100%")
+    if evicted:
+        warnings.append(f"{evicted} keys evicted since restart")
+    if save_ok not in (None, "ok"):
+        warnings.append(f"last snapshot failed ({html.escape(str(save_ok))})")
+    if not aof and not saved:
+        warnings.append("no AOF and no snapshot since Redis started — a restart "
+                        "loses everything written since (RUNBOOK §9)")
+    elif not aof and now - last_save > REDIS_SNAPSHOT_STALE_SECONDS:
+        warnings.append("no AOF and no snapshot in 24h — a restart loses everything")
+    return line + "".join(f"\n⚠️ {w}" for w in warnings)
+
+
 async def _checkup_text() -> str:
     lines = ["🩺 <b>Checkup</b>"]
 
@@ -3662,6 +4831,15 @@ async def _checkup_text() -> str:
         lines.append(f"Cache ({backend}): {state} · {ms:.0f} ms")
     except Exception as exc:
         lines.append(f"Cache: error ({html.escape(type(exc).__name__)})")
+
+    # Redis itself: what it does when full, and whether a restart loses it.
+    redis_info = getattr(_cache, "redis_info", None)
+    try:
+        redis_stats = await redis_info() if redis_info is not None else None
+        if redis_stats:
+            lines.append(_redis_line(redis_stats, time.time()))
+    except Exception as exc:
+        lines.append(f"Redis INFO: error ({html.escape(type(exc).__name__)})")
 
     # Model: a one-token round trip, billed like everything else.
     if _generator is None:
@@ -3705,6 +4883,11 @@ async def _checkup_text() -> str:
                          "(Let's Encrypt renews at 30; pinned intermediate to 2028-09-02)")
     except Exception as exc:
         lines.append(f"TLS {html.escape(host)}: unreachable ({html.escape(type(exc).__name__)})")
+
+    # App Store: can /sub ask Apple, and is Apple reaching the route that
+    # withdraws refunds? Probed live, for the reason DeviceCheck is.
+    lines.append(await _appstore_api_line())
+    lines.append(await _last_appstore_notification_line())
 
     # The archive chat, if configured: does the id resolve, and to what?
     archive_chat = os.environ.get(ARCHIVE_CHAT_ENV, "").strip()
@@ -3805,10 +4988,13 @@ async def _remember_message(message_id: int, text: str | None = None) -> None:
     the bot's own messages, its text (so /clear can keep a copy)."""
     try:
         now = int(time.time())
-        raw = await _cache.get(MESSAGES_KEY)
+        # `required`, so an unreadable list raises into the `except` below and
+        # is left alone — read as empty, it was overwritten with one entry
+        # and /clear lost every id and archived text before it.
+        raw = await _cache.get(MESSAGES_KEY, required=True)
         entries = [e for e in (json.loads(raw) if raw else [])
                    if isinstance(e, list) and len(e) >= 2 and now - int(e[1]) < MESSAGES_TTL]
-        entry = [int(message_id), now]
+        entry: list[int | str] = [int(message_id), now]
         if text:
             entry.append(text[:4096])
         entries.append(entry)
@@ -3817,46 +5003,108 @@ async def _remember_message(message_id: int, text: str | None = None) -> None:
         log.debug("message id note failed: %s", type(exc).__name__)
 
 
-async def _archive(entries: list[list]) -> int:
-    """Keep the text of the bot's messages that are about to be deleted."""
+async def _archive(entries: list[list]) -> int | None:
+    """Keep the text of the bot's messages that are about to be deleted.
+
+    The number kept, or None when they could not be kept — which `/clear`
+    must not take as "nothing to keep" and delete them anyway."""
     texts = [[int(e[1]), e[2]] for e in entries if len(e) >= 3 and e[2]]
     if not texts:
         return 0
     try:
-        raw = await _cache.get(ARCHIVE_KEY)
+        # `required` for the reason `_remember_message` gives: an archive read
+        # as empty is an archive about to be replaced by this one batch.
+        raw = await _cache.get(ARCHIVE_KEY, required=True)
         kept = [a for a in (json.loads(raw) if raw else []) if isinstance(a, list) and len(a) == 2]
         kept += texts
         await _cache.set(ARCHIVE_KEY, json.dumps(kept[-ARCHIVE_CAP:]), ARCHIVE_TTL)
     except Exception as exc:
         log.debug("archive write failed: %s", type(exc).__name__)
-        return 0
+        return None
     return len(texts)
+
+
+async def _tracked_messages() -> list[list]:
+    """The chat's tracked messages: `[id, when]`, plus the text for the bot's."""
+    try:
+        raw = await _cache.get(MESSAGES_KEY) if _cache is not None else None
+        return [e for e in (json.loads(raw) if raw else []) if isinstance(e, list) and e]
+    except Exception:
+        return []
+
+
+async def _clear_prompt() -> tuple[str, Buttons]:
+    """What 🧹 Clear is about to delete and what survives it, before it does.
+
+    The button runs on one tap no longer. It sits beside 🗂 History on every
+    keyboard, and it takes up to two days of alerts and /sub answers with it —
+    and what it keeps is less than "everything": the text of the bot's own
+    messages, of which /history shows the first lines, and nothing of the
+    operator's or of any photo unless an archive chat is configured."""
+    known = {int(e[0]) for e in await _tracked_messages()}
+    if not known:
+        return (CLEAR_NOTHING_TRACKED, await _buttons())
+    if os.environ.get(ARCHIVE_CHAT_ENV, "").strip():
+        kept = ("Kept: everything tracked is forwarded to the archive chat first, "
+                "photos included, and the text of the bot's own messages stays in "
+                "/history for 30 days.")
+    else:
+        kept = ("Kept: the text of the bot's own messages, for 30 days; /history "
+                "shows the first lines of each. Your messages and photos are not kept.")
+    return ("🧹 <b>Clear the chat?</b>\n"
+            f"Deletes the {len(known)} message{'s' if len(known) != 1 else ''} the bot "
+            "tracked here in the last 48 hours — yours and its own — and any it "
+            "lost track of between them.\n" + kept,
+            [[("🧹 Yes, clear it", "clear yes"), ("Cancel", "status")]])
+
+
+_CLEAR_REFUSED = ("🧹 Nothing was cleared: the bot's messages could not be copied "
+                  "to 🗂 History first, and deleting them uncopied would lose them. "
+                  "Try again in a minute.")
 
 
 async def _clear_chat() -> None:
     """Delete every message the bot remembers in this chat, then post a fresh
     status so the keyboard is still there. Only the last 48 hours can go —
-    Telegram's limit for bots, not ours — and only what was sent since this
-    feature deployed, because ids before that were never recorded.
+    Telegram's limit for bots, not ours — and only what was tracked.
 
-    Nothing is lost: the bot's own messages are archived for /history first,
-    and, when TELEGRAM_ARCHIVE_CHAT_ID names a second chat, everything is
-    forwarded there — a real Telegram copy, photos included."""
+    What survives is the text of the bot's own messages, archived for /history
+    first, and, when TELEGRAM_ARCHIVE_CHAT_ID names a second chat, everything
+    tracked, forwarded there — a real Telegram copy, photos included. The
+    operator's own messages and photos are not otherwise kept; `_clear_prompt`
+    says so before this runs."""
+    if _notifier is None or _cache is None:
+        return
     try:
-        raw = await _cache.get(MESSAGES_KEY)
+        # `required`: read as empty, an unreadable list was deleted below
+        # without anything in it being archived. `_tracked_messages` reads
+        # leniently, which is right for the prompt and wrong here.
+        raw = await _cache.get(MESSAGES_KEY, required=True)
+    except Exception as exc:
+        log.warning("message list unreadable, not clearing: %s", type(exc).__name__)
+        await _notifier.send(_CLEAR_REFUSED, await _buttons())
+        return
+    try:
         entries = [e for e in (json.loads(raw) if raw else []) if isinstance(e, list) and e]
     except Exception:
         entries = []
     known = sorted({int(e[0]) for e in entries})
     archived = await _archive(entries)
+    if archived is None:
+        # Deleting now would lose exactly the texts the archive exists to keep.
+        await _notifier.send(_CLEAR_REFUSED, await _buttons())
+        return
     archive_chat = os.environ.get(ARCHIVE_CHAT_ENV, "").strip()
     forwarded = await _notifier.forward_messages(archive_chat, known) if archive_chat and known else 0
-    # Known ids first, then the sweep below the newest of them: private-chat
-    # ids are sequential, and Telegram silently skips what it cannot delete.
+    # Known ids first, then the gaps between them: private-chat ids are
+    # sequential, and Telegram silently skips what it cannot delete. Only
+    # *between* the oldest and newest known — see CLEAR_SWEEP_IDS.
     sweep: list[int] = []
     if known:
-        newest = known[-1]
-        sweep = [i for i in range(max(1, newest - CLEAR_SWEEP_IDS), newest + 1) if i not in set(known)]
+        oldest, newest = known[0], known[-1]
+        tracked = set(known)
+        sweep = [i for i in range(max(oldest, newest - CLEAR_SWEEP_IDS), newest + 1)
+                 if i not in tracked]
     deleted = await _notifier.delete_messages(known) if known else 0
     try:
         await _cache.delete(MESSAGES_KEY)
@@ -3874,7 +5122,7 @@ async def _clear_chat() -> None:
         note = f"🧹 Cleared {deleted} tracked message{'s' if deleted != 1 else ''}."
         if swept:
             note += (f" Also swept {swept} untracked id"
-                     f"{'s' if swept != 1 else ''} below the newest — Telegram "
+                     f"{'s' if swept != 1 else ''} between them — Telegram "
                      "does not say how many of those existed.")
         if archived:
             note += f" {archived} of the bot's kept — 🗂 History shows them."
@@ -3890,8 +5138,7 @@ async def _clear_chat() -> None:
                 note += (f" (Telegram refused: {html.escape(str(why))})" if why else
                          " (nothing in the tracked list could be forwarded)")
     else:
-        note = ("🧹 Nothing to clear yet — the bot has not sent or seen a message since this "
-                "process started.")
+        note = CLEAR_NOTHING_TRACKED
     note += ("\nTelegram lets a bot delete only the last 48 hours; anything older is "
              "chat menu → Clear History.")
     await _notifier.send(note + "\n\n" + await _status_text(), await _buttons())

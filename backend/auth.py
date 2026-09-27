@@ -22,6 +22,7 @@ from __future__ import annotations
 
 from collections.abc import Awaitable, Callable
 
+import asyncio
 import base64
 import json
 import logging
@@ -34,13 +35,14 @@ from pydantic import BaseModel, Field
 
 import appattest
 import auditlog
+import metrics
 import notify
 import ratelimit
-from cache import KeyValueStore
+from cache import CacheUnavailable, ResilientCache
 from devicecheck import DeviceCheckClient
 from auditlog import AuditEvent
-from entitlements import EntitlementError, EntitlementService
-from entitlements import EntitlementsUnavailable
+from entitlements import Entitlement, EntitlementError, EntitlementService
+from entitlements import EntitlementsUnavailable, is_bounded
 from quota import QuotaExceeded, QuotaStatus, QuotaUnavailable, ScanQuota
 from tokens import TokenError, TokenSigner
 
@@ -104,7 +106,13 @@ class AuthDeps:
     # without a default so that is the type: reading one before startup now
     # raises AttributeError naming the field, instead of returning None and
     # failing later as "NoneType has no attribute" inside a handler.
-    cache: KeyValueStore
+    #
+    # `cache` is the ResilientCache itself, not the narrow KeyValueStore it was
+    # typed as: attestation state must be able to fail closed (`required=`) —
+    # `refresh` has to tell a key the server does not know from a store it
+    # could not ask — and referral.py draws offer codes with `add`/`incr`,
+    # neither of which KeyValueStore declares.
+    cache: ResilientCache
     entitlements: EntitlementService
     quota: ScanQuota
 
@@ -209,6 +217,29 @@ def key_id_safe(subject: str) -> str:
     return subject[:128]
 
 
+#: Marks a token whose `tier` came from a bounded Sandbox entitlement. See
+#: `_mint` for why, and `require_auth` for the one place it is read.
+BOUNDED_CLAIM = "bounded"
+
+
+def _mint(signer: TokenSigner, subject: str, ent: Entitlement) -> tuple[str, dict]:
+    """Mint a token carrying `ent`'s tier, marked when that tier is bounded.
+
+    `require_auth` honours a token's `tier` while the entitlement store is
+    down, which suits a Production subscriber: that tier was verified and
+    lasts the paid term, and the token lasts an hour. A bounded Sandbox tier
+    is different. It is Pro only while this subject holds the transaction's
+    one-device claim, and the claim can move to another device or be dropped
+    by a Sandbox refund at any moment after this token is minted. Unmarked,
+    such a token stayed Pro for the rest of its hour whenever Redis was down,
+    after either had happened. The mark lets the fallback read it as free.
+
+    Both places that mint go through here, so neither can forget the mark.
+    """
+    extra = {BOUNDED_CLAIM: True} if is_bounded(ent) else None
+    return signer.mint(subject, tier=ent.tier, extra=extra)
+
+
 async def _issue_token(subject: str, device_token: str | None) -> TokenResponse:
     # `signer` is legitimately Optional — the callers below guard on it — but
     # reaching here without one means the service is misconfigured rather than
@@ -228,7 +259,7 @@ async def _issue_token(subject: str, device_token: str | None) -> TokenResponse:
             status_code=503,
             detail="Subscription status is temporarily unavailable. Please try again shortly.",
         ) from None
-    token, claims = signer.mint(subject, tier=ent.tier)
+    token, claims = _mint(signer, subject, ent)
 
     remaining = 0
     try:
@@ -321,11 +352,28 @@ async def attest(req: AttestRequest, request: Request) -> TokenResponse:
         raise HTTPException(status_code=401, detail=str(exc)) from None
 
     subject = key_id.hex()
-    await deps.cache.set(_state_key(subject), json.dumps({
-        "public_key": result.public_key_pem.decode(),
-        "counter": result.counter,
-        "environment": result.environment,
-    }), ATTEST_STATE_TTL)
+    # Required: this is the only copy of the key the device will prove
+    # possession of. Written to the in-process fallback during a Redis outage
+    # (or with Redis full and refusing writes), it was lost at the next deploy
+    # or on the other replica; the device's next refresh then got 401, threw its
+    # key away, attested again and came back as a new subject with a fresh free
+    # allowance. Failing the attest instead means the client never keeps a key
+    # the server did not: it stores the key id only after a 200
+    # (AttestationService.attestFresh), so it cannot later meet that 401. It
+    # has no older key to fall back on here — it attests again, with a new
+    # one, once Redis accepts writes.
+    try:
+        await deps.cache.set(_state_key(subject), json.dumps({
+            "public_key": result.public_key_pem.decode(),
+            "counter": result.counter,
+            "environment": result.environment,
+        }), ATTEST_STATE_TTL, required=True)
+    except CacheUnavailable:
+        log.error("attestation state could not be stored — cache unavailable")
+        raise HTTPException(
+            status_code=503,
+            detail="Sign-in is temporarily unavailable. Please try again shortly.",
+        ) from None
 
     # Retained so the quota layer can mark the *hardware* when the free
     # allowance runs out — the per-install counter cannot survive a reinstall,
@@ -355,7 +403,21 @@ async def refresh(req: AssertRequest, request: Request) -> TokenResponse:
         raise HTTPException(status_code=400, detail="Malformed assertion payload.") from None
 
     subject = key_id.hex()
-    raw_state = await deps.cache.get(_state_key(subject))
+    try:
+        # `required`, because the 401 below makes the client discard its key
+        # and attest a new one. A plain read on a configured Redis that fails
+        # answers from process memory, which has no state, so one failed GET
+        # minted a new subject. On hardware DeviceCheck marked this month that
+        # subject starts with today's scan spent, for a user who had not
+        # scanned. Could-not-look is a 503, which the client retries with the
+        # key it has.
+        raw_state = await deps.cache.get(_state_key(subject), required=True)
+    except CacheUnavailable:
+        log.error("attestation state unreadable on refresh")
+        raise HTTPException(
+            status_code=503,
+            detail="Sign-in is temporarily unavailable. Please try again shortly.",
+        ) from None
     if not raw_state:
         # Unknown key: the client must attest again.
         raise HTTPException(status_code=401, detail="Unknown key. Re-attestation required.")
@@ -374,6 +436,9 @@ async def refresh(req: AssertRequest, request: Request) -> TokenResponse:
         raise HTTPException(status_code=401, detail=str(exc)) from None
 
     state["counter"] = new_counter
+    # Not required, unlike the two above: the key is already stored and this
+    # only advances its counter. A counter left behind admits nothing the
+    # single-use challenge consumed above does not already refuse.
     await deps.cache.set(_state_key(subject), json.dumps(state), ATTEST_STATE_TTL)
     return await _issue_token(subject, None)
 
@@ -415,6 +480,15 @@ async def require_auth(
             # it for the rest of its own lifetime is bounded, and strictly
             # better than guessing "free".
             ent_tier = claims.get("tier") or "free"
+            if claims.get(BOUNDED_CLAIM):
+                # Except a bounded Sandbox tier: it is Pro only while this
+                # subject holds the one-device claim, and the claim lives in
+                # the store that is down. It may have moved to another device,
+                # or a Sandbox refund dropped it, since this token was minted.
+                # The sync fails closed here already (a 503); so does this.
+                # App Review and TestFlight read as free for the outage;
+                # customers are unaffected. See `_mint`.
+                ent_tier = "free"
             log.warning("entitlement store unavailable, honouring the token's tier: %s",
                         exc, extra={"tier": ent_tier})
         notify.saw_user(subject, tier=ent_tier)
@@ -459,26 +533,49 @@ async def record_entitlement(
     # own subscription, silently, because the client swallows this response.
     try:
         ent = await deps.entitlements.record(
-            principal.subject, req.signed_transaction, device_id=req.device_id)
+            principal.subject, req.signed_transaction, device_id=req.device_id,
+            # What admits a Sandbox purchase — App Review's, a TestFlight
+            # tester's — on the bounded terms in `entitlements`. Only a token
+            # this service minted after App Attest sets it; the legacy path's
+            # subject is a header the caller chose, and it is refused Sandbox
+            # with a 400 exactly as before.
+            authenticated=principal.authenticated)
     except EntitlementError as exc:
+        metrics.entitlement_operations.inc(outcome="rejected")
         auditlog.record(AuditEvent.ENTITLEMENT_REJECTED, principal.subject,
                         outcome="failure", reason=str(exc))
+        # So `/user` can say the purchase reached us and why it was refused.
+        notify.entitlement_rejected(principal.subject, str(exc))
         raise HTTPException(status_code=400, detail=str(exc)) from None
+    except EntitlementsUnavailable:
+        # Raised only on the bounded Sandbox path: its one-device claim is an
+        # authorisation boundary and fails closed, where the Production
+        # binding fails open. Retryable, so not the 400 above.
+        log.error("entitlement store unavailable while recording a sandbox entitlement")
+        raise HTTPException(
+            status_code=503,
+            detail="Subscription status is temporarily unavailable. Please try again shortly.",
+        ) from None
 
+    metrics.entitlement_operations.inc(outcome="recorded")
+    # `environment` because a bounded Sandbox grant appears nowhere else the
+    # operator looks: not in /subs, not in the digest, not in an alert.
     auditlog.record(AuditEvent.ENTITLEMENT_RECORDED, principal.subject,
-                    tier=ent.tier, product_id=ent.product_id)
+                    tier=ent.tier, product_id=ent.product_id,
+                    environment=ent.environment)
     # Operator ping: first sighting of a subscription, or a proven downgrade.
     # Deduped and throttled inside; never raises, so it cannot fail the sync.
+    # Silent for a bounded Sandbox entitlement — a tester is not a customer.
     await notify.entitlement_recorded(principal.subject, ent)
     # A referred friend redeeming the friend offer earns their referrer a week.
     # Imported here, not at the top: `referral` imports this module for
-    # `deps` and `require_auth`. Never raises.
+    # `deps` and `require_auth`. Never raises, and never rewards Sandbox.
     import referral
     await referral.on_entitlement(principal.subject, req.device_id, ent)
 
     access_token = None
     if deps.signer is not None and principal.authenticated:
-        access_token, _ = deps.signer.mint(principal.subject, tier=ent.tier)
+        access_token, _ = _mint(deps.signer, principal.subject, ent)
 
     return EntitlementResponse(
         tier=ent.tier, expires_at=ent.expires_at, access_token=access_token)
@@ -491,6 +588,17 @@ async def _device_token_for(subject: str) -> str | None:
     except Exception as exc:
         log.warning("devicecheck token lookup failed: %s", exc)
         return None
+
+
+async def _mark_device_exhausted(principal: Principal) -> None:
+    """Set the device's DeviceCheck bit. Swallows its own failures."""
+    token = principal.device_token or await _device_token_for(principal.subject)
+    await deps.quota.note_exhausted(token)
+
+
+# Holds a reference to each background mark until it finishes: an un-awaited
+# task is otherwise collectable mid-flight.
+_background: set[asyncio.Task] = set()
 
 
 async def reserve_quota(principal: Principal) -> QuotaStatus | None:
@@ -509,20 +617,19 @@ async def reserve_quota(principal: Principal) -> QuotaStatus | None:
     if principal.is_pro:
         return None
     try:
-        return await deps.quota.reserve(principal.subject, principal.is_pro)
+        status = await deps.quota.reserve(principal.subject, principal.is_pro)
     except QuotaExceeded as exc:
+        # RUNBOOK §5.8 reads this; until now nothing incremented it.
+        metrics.quota_exhausted.inc()
         auditlog.record(AuditEvent.QUOTA_EXCEEDED, principal.subject, outcome="denied")
         # Countable, not just audited. The audit log is per-event and nothing
         # aggregates it, so the server half of the free-scan funnel did not
         # exist — the FREE_SCANS_FIRST_DAY experiment was being measured by
         # the client alone, with no way to cross-check it.
         notify.count_limit_hit()
-        # Mark the physical device as having spent its allowance. Without this
-        # the reinstall defence in `ScanQuota.starting_balance` reads a bit that
-        # nothing ever sets, so delete-and-reinstall mints a fresh allowance
-        # indefinitely. Swallows its own failures by design.
-        token = principal.device_token or await _device_token_for(principal.subject)
-        await deps.quota.note_exhausted(token)
+        # Re-marked here too: a refusal also means the allowance is spent,
+        # and a mark from last month is refreshed to this one.
+        await _mark_device_exhausted(principal)
         raise HTTPException(
             status_code=402,
             detail=exc.message,
@@ -534,6 +641,28 @@ async def reserve_quota(principal: Principal) -> QuotaStatus | None:
             status_code=503,
             detail="Scan quota is temporarily unavailable. Please try again shortly.",
         ) from None
+
+    if status.used >= status.limit:
+        # This reservation took the last scan, so mark the physical device as
+        # having spent its allowance. Without the mark, the reinstall defence
+        # in `ScanQuota.starting_balance` reads a bit nothing sets, and
+        # delete-and-reinstall mints a fresh allowance, plus the welcome.
+        #
+        # Marking only on refusal, as this used to, almost never fired. The
+        # client stops at zero using the server's own count, so the request
+        # that would be refused is never sent. A scan that fails after this
+        # and is refunded leaves the mark in place. The cost falls on any new
+        # App Attest subject on this device in the same month, not only a
+        # reinstall: a re-attestation on the same phone loses that day's scan
+        # and the welcome too. See `ScanQuota.starting_balance`.
+        #
+        # In the background: this is a round trip to Apple on the scan path,
+        # and the scan must not wait for it or fail because of it.
+        task = asyncio.get_running_loop().create_task(
+            _mark_device_exhausted(principal))
+        _background.add(task)
+        task.add_done_callback(_background.discard)
+    return status
 
 
 async def refund_quota(principal: Principal,

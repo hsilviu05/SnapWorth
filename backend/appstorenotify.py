@@ -22,7 +22,10 @@ same gate the entitlement path already runs on.
 Telegram alerts. Entitlement stays where it is: verified per request against
 the signed transaction the client presents. That separation is deliberate —
 an endpoint anyone on the internet can POST to must not be able to make
-someone Pro, and this one cannot, whatever it is sent.
+someone Pro, and this one cannot, whatever it is sent. What a notification
+can do is withdraw a term Apple refunded, and lift that again when Apple
+reverses the refund; either way the term still has to be proven by a signed
+transaction before it is Pro.
 """
 
 from __future__ import annotations
@@ -52,6 +55,11 @@ DID_FAIL_TO_RENEW = "DID_FAIL_TO_RENEW"
 DID_CHANGE_RENEWAL_STATUS = "DID_CHANGE_RENEWAL_STATUS"
 REFUND = "REFUND"
 REVOKE = "REVOKE"
+# Apple reversed a refund it had granted, after a dispute the customer raised.
+# Apple's instruction is to reinstate whatever the refund withdrew — and since
+# a REFUND writes a tombstone that denies the term for up to 400 days, ignoring
+# this one left the customer on the free tier for the rest of their term.
+REFUND_REVERSED = "REFUND_REVERSED"
 
 # Apple sends this when the operator asks for one, to prove the endpoint is
 # reachable. It carries no transaction — there is no purchase behind it — so it
@@ -61,7 +69,7 @@ TEST = "TEST"
 
 INDEXED_TYPES = frozenset({
     SUBSCRIBED, DID_RENEW, EXPIRED, DID_FAIL_TO_RENEW,
-    DID_CHANGE_RENEWAL_STATUS, REFUND, REVOKE,
+    DID_CHANGE_RENEWAL_STATUS, REFUND, REVOKE, REFUND_REVERSED,
 })
 
 
@@ -132,6 +140,10 @@ class Notification:
     @property
     def is_revoke(self) -> bool:
         return self.notification_type == REVOKE
+
+    @property
+    def is_refund_reversal(self) -> bool:
+        return self.notification_type == REFUND_REVERSED
 
     @property
     def is_expiry(self) -> bool:

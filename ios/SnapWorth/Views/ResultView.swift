@@ -1,3 +1,4 @@
+import PhotosUI
 import SwiftData
 import SwiftUI
 
@@ -22,9 +23,17 @@ struct ResultView: View {
     /// straight away, the funnel would go quiet with nothing to say it had.
     /// One is what the screen does; this is what happened.
     ///
-    /// The one fresh scan that passes false is a rare find's: its reveal has
-    /// already put this valuation on screen and reported it (see
-    /// `RareFindRevealView.play()`), and a second event would count it twice.
+    /// It also decides whether this sheet may rewrite the valuation. Both
+    /// re-reads, "Add the tag" and "Show the full breakdown", replace the
+    /// estimate, the name and the listing draft, so both are offered on a
+    /// fresh result only (`addTagCard`, `FullDetailOffer`). The tag re-read
+    /// was gated on `coverPrice`, and would have gone from fresh results the
+    /// day the cover did, for the same reason as the funnel.
+    ///
+    /// A rare find's full result is fresh too, and offers both. It does not
+    /// send `scan_result_shown`, though: its reveal has already put this
+    /// valuation on screen and reported it (see `RareFindRevealView.play()`),
+    /// and a second event would count it twice — see `priceAlreadyShown`.
     var isFreshScan: Bool = false
 
 
@@ -41,6 +50,8 @@ struct ResultView: View {
     @State private var tagError: String?
     /// Success counterpart to `tagError` — see `rescan(withTag:)`.
     @State private var tagSuccess: String?
+    /// Why the full-breakdown re-read failed — see `rereadForFullDetail()`.
+    @State private var fullDetailError: String?
     /// What the share sheet carries: the result card, or the guess story pair.
     @State private var shareItems: [Any] = []
     @State private var showPaywall = false
@@ -82,10 +93,16 @@ struct ResultView: View {
     /// guess is a once-per-find moment, not a toll on every visit.
     private let coverPrice: Bool
 
+    /// See `init`'s `priceAlreadyShown`.
+    private let priceAlreadyShown: Bool
+
     /// - Parameter priceAlreadyShown: the user has seen this estimate before
     ///   this sheet opened — the rare-find reveal shows it first. The guess
-    ///   cover then starts lifted, and nothing else `coverPrice` decides
-    ///   changes: "Sharpen this estimate" is still offered.
+    ///   cover then starts lifted, and `scan_result_shown`, which the screen
+    ///   that showed it first has sent, is not sent again. Nothing else
+    ///   `coverPrice` or `isFreshScan` decides changes: "Sharpen this
+    ///   estimate", the tag re-read, the full breakdown and the rating request
+    ///   are all still there.
     init(result: ScanResult,
          purchaseService: any PurchaseService,
          onDismiss: @escaping () -> Void,
@@ -99,6 +116,7 @@ struct ResultView: View {
         self.didSave = didSave
         self.coverPrice = coverPrice
         self.isFreshScan = isFreshScan
+        self.priceAlreadyShown = priceAlreadyShown
         _priceRevealed = State(initialValue: priceAlreadyShown)
         _paidPriceText = State(initialValue: Self.moneyField(result.paidPrice))
         _soldPriceText = State(initialValue: Self.moneyField(result.soldPrice))
@@ -262,11 +280,14 @@ struct ResultView: View {
             // lands; persistence, image encoding and sheet presentation all sit
             // between that and the user actually seeing a number.
             //
-            // `completedCount() <= 1` rather than `isFirstScan()`: the tally has
+            // `isFirstRun()` rather than `isFirstScan()`: the tally has
             // already been recorded by the time this view appears, so the first
             // valuation reads 1, not 0. Correct under either ordering.
-            if isFreshScan {
-                Analytics.shared.track(.scanResultShown(isFirst: ScanTally.completedCount() <= 1))
+            //
+            // Not after a rare-find reveal, which sent it when it put this
+            // valuation on screen (`priceAlreadyShown`).
+            if isFreshScan, !priceAlreadyShown {
+                Analytics.shared.track(.scanResultShown(isFirst: ScanTally.isFirstRun()))
             }
             if let data = result.imageData {
                 photo = await Task.detached(priority: .userInitiated) {
@@ -274,6 +295,17 @@ struct ResultView: View {
                 }.value
             }
             vm.prepareShareCard(result: result, photo: photo)
+        }
+        // The rating request waits for the number. Keyed on the cover, so it
+        // runs when a fresh sheet opens uncovered (guess-first off) and again
+        // at the reveal; a sheet dismissed inside the pause cancels it rather
+        // than prompting over the camera.
+        .task(id: priceCovered) {
+            guard isFreshScan, !priceCovered,
+                  ReviewPrompt.isWorthAskingAbout(confidence: result.confidence) else { return }
+            try? await Task.sleep(for: .seconds(2))
+            guard !Task.isCancelled else { return }
+            ReviewPrompt.requestIfDue()
         }
         // `Double(newValue)` here discarded every comma-decimal amount — see
         // `MoneyInput`. Clearing the field still clears the stored value; a
@@ -310,12 +342,27 @@ struct ResultView: View {
         }
         .sheet(isPresented: $showListingShare) {
             if let items = vm.listingShareItems {
-                ActivityShareSheet(items: items) { _ in }
+                ActivityShareSheet(items: items) { _ in
+                    if let marketplace = vm.generatedListing?.marketplace {
+                        Analytics.shared.track(.listingShared(marketplace: marketplace.rawValue))
+                    }
+                }
             }
         }
-        .sheet(isPresented: $showPaywall) {
+        .sheet(isPresented: $showPaywall, onDismiss: {
+            // Bought from "Unlock why this price" on a fresh result: that is
+            // what they paid to see, and this find was saved without it. A
+            // find reopened from My Finds or My Flips is not re-read after a
+            // purchase either; its teaser said so, and its panel says why
+            // (`FullDetailOffer`).
+            if paywallTrigger == .valuationDetail, fullDetailOffer == .reread {
+                rereadForFullDetail()
+            }
+        }) {
             PaywallView(purchaseService: purchaseService, trigger: paywallTrigger)
         }
+        .subscriptionUnconfirmedAlert(isPresented: $vm.showSubscriptionUnconfirmed,
+                                      purchaseService: purchaseService)
     }
 
     // MARK: - Condition Card
@@ -450,8 +497,11 @@ struct ResultView: View {
         let selected = result.status == status
         return Button {
             setStatus(status)
+            // `String(localized:)`: `argument` is `Any?`, so a bare literal
+            // here is announced verbatim — "Status" in English inside every
+            // translated label.
             UIAccessibility.post(notification: .announcement,
-                                 argument: "Status \(status.label)")
+                                 argument: String(localized: "Status \(status.label)"))
         } label: {
             Text(status.label)
                 .font(.dmSans(13, weight: .semibold))
@@ -574,6 +624,7 @@ struct ResultView: View {
             let id = result.id
             Task { await NotificationManager.shared.cancelLedgerFollowUp(itemID: id) }
         case .listed:
+            if previous != .listed { Analytics.shared.track(.ledgerItemMarkedListed) }
             // Coming back to Listed restarts the clock. Keeping the original
             // date puts the fire date 14 days after the *first* listing —
             // already in the past for anything listed over two weeks ago — and
@@ -649,16 +700,15 @@ struct ResultView: View {
                     if !result.brand.isEmpty && result.brand != "Unknown" {
                         photoChip(result.brand)
                     }
-                    let condition = String(
-                        (result.conditionNotes
-                            .components(separatedBy: CharacterSet(charactersIn: "—–-."))
-                            .first?
-                            .trimmingCharacters(in: .whitespaces) ?? "")
-                            .prefix(22)
-                    )
-                    if !condition.isEmpty {
-                        photoChip(condition)
-                    }
+                    // The grade itself, as the Condition chips below word it.
+                    // This used to be cut out of `conditionNotes` — split on
+                    // dashes and full stops, first 22 characters — which fit
+                    // v1's "Good — light pilling" notes. v2 writes prose, so
+                    // the chip read "Well", "Pre" or "Moderate fading throug",
+                    // in English in every language, and could contradict the
+                    // grade the user had picked. The notes stay whole in the
+                    // Condition card further down.
+                    photoChip(result.condition.label)
                 }
             }
             .padding(.horizontal, 20)
@@ -676,14 +726,14 @@ struct ResultView: View {
         .accessibilitySortPriority(90)
     }
 
+    /// What the hero's chips say, spoken — so the grade, as on the chip. The
+    /// full notes are read in the Condition card below.
     private var heroAccessibilityLabel: String {
         var parts = [result.itemName]
         if !result.brand.isEmpty, result.brand != "Unknown" {
-            parts.append("Brand \(result.brand)")
+            parts.append(String(localized: "Brand \(result.brand)"))
         }
-        if !result.conditionNotes.isEmpty {
-            parts.append(result.conditionNotes)
-        }
+        parts.append(String(localized: "Condition \(result.condition.label)"))
         return parts.joined(separator: ". ")
     }
 
@@ -886,12 +936,15 @@ struct ResultView: View {
     /// estimate" above so often says "photograph the tag" and, until now, gave
     /// the user nowhere to put it.
     ///
-    /// Offered on a fresh result only (`coverPrice` marks one): re-pricing a
+    /// Offered on a fresh result only (`isFreshScan` marks one): re-pricing a
     /// find from My Finds weeks later would rewrite a number the user has
-    /// already acted on.
+    /// already acted on. The full-breakdown re-read keeps the same rule
+    /// (`FullDetailOffer`). This was gated on `coverPrice`, which is true in
+    /// the same cases today but says whether to play the guess moment, not
+    /// whether the valuation is new — see `isFreshScan`.
     @ViewBuilder
     private var addTagCard: some View {
-        if coverPrice {
+        if isFreshScan {
             VStack(alignment: .leading, spacing: 10) {
                 HStack {
                     Text("Sharpen this estimate")
@@ -940,9 +993,10 @@ struct ResultView: View {
 
     /// Everything that has to follow a change to this item's valuation.
     ///
-    /// There are exactly two ways a saved item's value moves without a row
-    /// being inserted or deleted: the condition chips, and the tag re-read. The
-    /// chip did four of these things and the re-read did one, so a re-read that
+    /// There are exactly three ways a saved item's value moves without a row
+    /// being inserted or deleted: the condition chips, the tag re-read, and
+    /// the full-breakdown re-read (`rereadForFullDetail`). The chip did four of
+    /// these things and the tag re-read did one, so a re-read that
     /// tripled an estimate left behind a Home Screen widget and a thrift-run
     /// Live Activity still totalling the old number, a cached share card that
     /// would post the old number, and a generated listing priced for it. The
@@ -995,6 +1049,11 @@ struct ResultView: View {
     /// exactly as it was and says so — the first answer was paid for and must
     /// not be lost to a second attempt.
     private func rescan(withTag tagImage: UIImage) {
+        // The button checks this too, but the button is not the only caller:
+        // the tag sheet is. Two re-scans in flight would each spend a scan,
+        // the later answer would win, and the first to finish would clear
+        // "Re-reading…" while the other was still running.
+        guard !isRescanning else { return }
         guard let photo else {
             tagError = String(localized: "The original photo is no longer available for this find.")
             return
@@ -1004,8 +1063,13 @@ struct ResultView: View {
         tagSuccess = nil
         Task {
             defer { isRescanning = false }
+            // A paid model call, like any scan — see `BackgroundScanActivity`.
+            let background = BackgroundScanActivity.begin("Tag re-read")
+            defer { background.end() }
             do {
-                let response = try await ScanAPIClient.shared.scan(image: photo, tagImage: tagImage)
+                let response = try await purchaseService.confirmingSubscription {
+                    try await ScanAPIClient.shared.scan(image: photo, tagImage: tagImage)
+                }
                 result.applySharpened(response)
                 valuationDidChange()
                 priceRevealed = true          // the user has seen the first number already
@@ -1018,10 +1082,16 @@ struct ResultView: View {
                 UIAccessibility.post(notification: .announcement, argument: tagSuccess ?? "")
                 Analytics.shared.track(.tagPhotoAdded(succeeded: true))
             } catch {
-                tagError = AppError.from(error).errorDescription
-                    ?? String(localized: "That didn't work. Your estimate is unchanged.")
                 Haptics.failure()
                 Analytics.shared.track(.tagPhotoAdded(succeeded: false))
+                // A subscriber the server would not recognise: the alert, with
+                // Restore and support, rather than a line under a Pro card.
+                if AppError.from(error) == .subscriptionUnconfirmed {
+                    vm.showSubscriptionUnconfirmed = true
+                    return
+                }
+                tagError = AppError.from(error).errorDescription
+                    ?? String(localized: "That didn't work. Your estimate is unchanged.")
             }
         }
     }
@@ -1044,8 +1114,16 @@ struct ResultView: View {
                     ValuationDetailView(detail: detail,
                                         priceFactor: result.conditionPriceFactor,
                                         gradeWasOverridden: result.conditionWasOverridden)
+                    switch fullDetailOffer {
+                    case .reread:           fullDetailPrompt
+                    case .scannedBeforePro: scannedBeforeProNote
+                    // `.teaserNewScansOnly` is a free user's; it never gets here.
+                    case .none, .teaserNewScansOnly:
+                        EmptyView()
+                    }
                 } else {
-                    lockedDetailTeaser(detail)
+                    lockedDetailTeaser(detail,
+                                       newScansOnly: fullDetailOffer == .teaserNewScansOnly)
                 }
             }
             .padding(20)
@@ -1056,7 +1134,156 @@ struct ResultView: View {
         }
     }
 
-    private func lockedDetailTeaser(_ detail: ValuationDetail) -> some View {
+    /// What "Why this price" says about a thin panel, to a subscriber under it
+    /// and to a free user in the teaser — see `FullDetailOffer`. Internal
+    /// rather than private so a test can build this sheet the way each call
+    /// site does and read the answer.
+    var fullDetailOffer: FullDetailOffer {
+        FullDetailOffer(isPro: isPro, isFreshScan: isFreshScan,
+                        detail: result.valuationDetail)
+    }
+
+    /// For a subscriber looking at a fresh result that was saved with only
+    /// the free part of the panel. Worded without claiming *why* it is thin,
+    /// because the blob cannot say; in practice it is a scan made before Pro.
+    ///
+    /// It names everything a re-read replaces (`applySharpened`). It said only
+    /// that "the estimate may change", and a tap also renames the item and
+    /// rewrites its details and listing draft.
+    private var fullDetailPrompt: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("This find was saved without its full breakdown. Re-read its photo to see the price points and what drives the value. The estimate, the item's name and details, and the listing draft may change.")
+                .font(.snapCaption)
+                .foregroundStyle(Color.snapWarmGray)
+                .fixedSize(horizontal: false, vertical: true)
+            if let fullDetailError {
+                Text(fullDetailError)
+                    .font(.snapCaption)
+                    .foregroundStyle(Color.snapTerracottaText)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            PrimaryButton(title: isRescanning ? "Re-reading…" : "Show the full breakdown") {
+                rereadForFullDetail()
+            }
+            .disabled(isRescanning)
+        }
+    }
+
+    /// For a subscriber reopening a thin find from My Finds or My Flips,
+    /// which is not re-read (`FullDetailOffer`). Without it the panel is a
+    /// score, a sentence and a grade, and nothing says that is not all Pro
+    /// has to show.
+    ///
+    /// "Scanned before Pro" names the usual cause. The blob cannot prove it:
+    /// a scan the server answered as free while the device was already Pro is
+    /// thin too. That is a scan in the moments after a purchase, before the
+    /// server has been told, and "before Pro" is how the server saw it.
+    private var scannedBeforeProNote: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Label("Scanned before Pro", systemImage: "clock")
+                .font(.dmSans(13, weight: .semibold))
+                .foregroundStyle(Color.snapEspresso)
+            Text("The full breakdown is only available for new scans. This find keeps the summary it was saved with.")
+                .font(.snapCaption)
+                .foregroundStyle(Color.snapWarmGray)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .accessibilityElement(children: .combine)
+    }
+
+    /// Re-reads the stored photo so a subscriber gets the panel a free scan
+    /// was never sent — see `ValuationDetail.lacksProDetail`.
+    ///
+    /// A fresh result only, like the tag re-read. `FullDetailOffer` decides,
+    /// and it is checked here as well as at the button and the paywall's
+    /// dismissal, so no path re-prices a find reopened from My Finds or My
+    /// Flips.
+    ///
+    /// The same machinery as the tag re-read, and like it this replaces the
+    /// estimate: the ladder has to explain the number beside it, so taking the
+    /// new detail and keeping the old range would show a breakdown of a price
+    /// the app no longer states.
+    private func rereadForFullDetail() {
+        guard !isRescanning, fullDetailOffer == .reread else { return }
+        guard let photo else {
+            fullDetailError = String(localized: "The original photo is no longer available for this find.")
+            return
+        }
+        isRescanning = true
+        fullDetailError = nil
+        Task {
+            defer { isRescanning = false }
+            let background = BackgroundScanActivity.begin("Full breakdown")
+            defer { background.end() }
+            // A server that still reads this device as free does not refuse
+            // the scan — it answers it, off the free allowance, stripped of
+            // exactly what this is for. Right after a purchase it usually
+            // does: the purchase tells the server in a detached task. So wait
+            // for the server to agree first, and do not scan if it will not.
+            if !Config.mockScans {
+                switch await purchaseService.resyncEntitlement() {
+                case .confirmed:
+                    break
+                case .notSubscribed:
+                    return                  // the panel is back to the teaser
+                case .unreachable(let reason, let error):
+                    // Offline, timed out, rate-limited or down. Unlike a 402's
+                    // resync, nothing here has shown the network works, and
+                    // telling someone on a train that Apple and SnapWorth
+                    // disagree about their subscription is not what happened.
+                    Analytics.shared.track(.entitlementSyncFailed(reason: reason))
+                    Haptics.failure()
+                    fullDetailError = error.errorDescription
+                        ?? String(localized: "We couldn't load the full breakdown. Your estimate is unchanged.")
+                    return
+                case .failed(let reason):
+                    Analytics.shared.track(.entitlementSyncFailed(reason: reason))
+                    vm.showSubscriptionUnconfirmed = true
+                    return
+                }
+            }
+            do {
+                let response = try await purchaseService.confirmingSubscription {
+                    try await ScanAPIClient.shared.scan(image: photo)
+                }
+                // Still stripped: applying it would move the estimate and
+                // leave the panel as thin as before.
+                guard let detail = ValuationDetail(response: response), !detail.lacksProDetail else {
+                    Haptics.failure()
+                    fullDetailError = String(localized: "We couldn't load the full breakdown. Your estimate is unchanged.")
+                    return
+                }
+                result.applySharpened(response)
+                valuationDidChange()
+                priceRevealed = true
+                Haptics.success()
+                UIAccessibility.post(notification: .announcement,
+                                     argument: String(localized: "Full breakdown loaded."))
+            } catch {
+                Haptics.failure()
+                if AppError.from(error) == .subscriptionUnconfirmed {
+                    vm.showSubscriptionUnconfirmed = true
+                    return
+                }
+                fullDetailError = AppError.from(error).errorDescription
+                    ?? String(localized: "We couldn't load the full breakdown. Your estimate is unchanged.")
+            }
+        }
+    }
+
+    /// What a free user sees in place of the panel: a blurred first line, and
+    /// the way in.
+    ///
+    /// `newScansOnly` is a thin find reopened from My Finds or My Flips
+    /// (`FullDetailOffer.teaserNewScansOnly`). Buying does not bring that
+    /// find's breakdown: it is not re-read, and the panel then says "Scanned
+    /// before Pro". This teaser used to offer to "Unlock why this price" there
+    /// too, above four price points and what drives the value, and a purchase
+    /// from it delivered the label instead. So the button there sells Pro
+    /// rather than this find's panel, and the caption says the breakdown comes
+    /// with new scans and this find keeps its summary, as the label will say
+    /// once they have bought.
+    private func lockedDetailTeaser(_ detail: ValuationDetail, newScansOnly: Bool) -> some View {
         ZStack {
             VStack(alignment: .leading, spacing: 6) {
                 Text(detail.confidenceSummary
@@ -1079,14 +1306,21 @@ struct ResultView: View {
                 Image(systemName: "lock.fill")
                     .snapSymbol(18)
                     .foregroundStyle(Color.snapTerracottaText)
-                PrimaryButton(title: "Unlock why this price") {
+                PrimaryButton(title: newScansOnly ? "Upgrade to Pro" : "Unlock why this price") {
                     paywallTrigger = .valuationDetail
                     showPaywall = true
                 }
-                Text("Four price points, what drives the value, and how to sharpen the estimate.")
-                    .font(.snapCaption)
-                    .foregroundStyle(Color.snapWarmGray)
-                    .multilineTextAlignment(.center)
+                Group {
+                    if newScansOnly {
+                        Text("On new scans, Pro shows four price points, what drives the value, and how to sharpen the estimate. This find keeps the summary it was saved with.")
+                    } else {
+                        Text("Four price points, what drives the value, and how to sharpen the estimate.")
+                    }
+                }
+                .font(.snapCaption)
+                .foregroundStyle(Color.snapWarmGray)
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
             }
         }
     }
@@ -1249,7 +1483,7 @@ struct ResultView: View {
                     .multilineTextAlignment(.center)
                     .frame(maxWidth: .infinity, alignment: .center)
                 PrimaryButton(title: "Try again") {
-                    Task { await vm.generateListing(result: result) }
+                    Task { await vm.generateListing(result: result, purchaseService: purchaseService) }
                 }
             }
         } else {
@@ -1258,7 +1492,7 @@ struct ResultView: View {
                     ? LocalizedStringKey("Writing your listing…")
                     : LocalizedStringKey("Generate \(vm.selectedMarketplace.displayName) listing")
             ) {
-                Task { await vm.generateListing(result: result) }
+                Task { await vm.generateListing(result: result, purchaseService: purchaseService) }
             }
             .disabled(vm.isGeneratingListing)
         }
@@ -1301,7 +1535,7 @@ struct ResultView: View {
 
             Button("Regenerate") {
                 vm.generatedListing = nil
-                Task { await vm.generateListing(result: result) }
+                Task { await vm.generateListing(result: result, purchaseService: purchaseService) }
             }
             .font(.dmSans(13, weight: .semibold))
             .foregroundStyle(Color.snapTerracottaText)
@@ -1476,11 +1710,74 @@ struct ResultView: View {
 }
 
 
+// MARK: - A thin panel, fresh or reopened
+
+/// What "Why this price" says about a find that was saved with only the free
+/// part of the panel (`ValuationDetail.lacksProDetail`), to a subscriber and
+/// to a free user deciding whether to become one.
+///
+/// A re-read of the stored photo returns the full panel, and replaces the
+/// estimate, the name, the details and the listing draft with it
+/// (`applySharpened`). So it keeps the tag re-read's rule: a fresh result
+/// only. A find reopened from My Finds or My Flips may have been priced,
+/// listed or sold on the number it has, and re-pricing it weeks later would
+/// rewrite a number the user has already acted on. It is told why its panel
+/// is thin instead, and nothing re-reads it, including a purchase made from
+/// its own teaser. That is the owner's decision.
+///
+/// Which is why the free teaser is decided here too. On such a find a
+/// purchase delivers `scannedBeforePro`, not the breakdown, and the teaser
+/// that sold it — "Unlock why this price", four price points and what drives
+/// the value — described a panel this find will never show. It says the
+/// breakdown comes with new scans instead (`teaserNewScansOnly`).
+///
+/// A value rather than conditions in the view, so the one rule that matters,
+/// that only a fresh result is ever re-read, is tested directly, and so is
+/// what the teaser promises either side of it.
+enum FullDetailOffer: Equatable {
+    /// Nothing to add: the panel is full or there is none, or the free teaser
+    /// is showing on a find that buying would deliver — a fresh result, which
+    /// is re-read after the purchase.
+    case none
+    /// A fresh result: "Show the full breakdown", and the automatic re-read
+    /// when the paywall opened from this panel closes on a purchase.
+    case reread
+    /// Reopened from My Finds or My Flips: a label saying why, never a re-read.
+    case scannedBeforePro
+    /// The free teaser on a find reopened from My Finds or My Flips. Buying
+    /// turns it into `scannedBeforePro`, so the teaser offers Pro for new
+    /// scans rather than this find's breakdown.
+    case teaserNewScansOnly
+
+    /// Takes `isFreshScan`, not `coverPrice`: the cover is a presentation
+    /// choice, and this is about what happened — see `ResultView.isFreshScan`.
+    ///
+    /// A full panel needs nothing either way. That includes a lapsed
+    /// subscriber's find from their Pro months: the free teaser is shown, and
+    /// re-subscribing shows the panel the find was saved with.
+    init(isPro: Bool, isFreshScan: Bool, detail: ValuationDetail?) {
+        guard detail?.lacksProDetail == true else {
+            self = .none
+            return
+        }
+        switch (isPro, isFreshScan) {
+        case (true, true):   self = .reread
+        case (true, false):  self = .scannedBeforePro
+        case (false, true):  self = .none
+        case (false, false): self = .teaserNewScansOnly
+        }
+    }
+}
+
+
 // MARK: - Valuation detail panel (#87)
 
 /// Renders a `ValuationDetail`. Every section is conditional on its data, so a
 /// thin response shows a thin panel rather than empty headings. Copy rule:
 /// "estimate", never "worth" or "sells for" — the same line marketing holds.
+/// And never a server token as text: an enum field is shown through its
+/// client label (`ValuationDetail.facts`, `authenticityRead`, `marketRead`),
+/// and demand and supply only as the AI's read, never as market fact.
 struct ValuationDetailView: View {
     let detail: ValuationDetail
 
@@ -1500,7 +1797,7 @@ struct ValuationDetailView: View {
             bullets("What drives the value", detail.valueDrivers, icon: "arrow.up.right")
             bullets("What we assumed", detail.assumptions, icon: "questionmark.circle")
             bullets("Sharpen this estimate", detail.improveEstimate, icon: "camera.viewfinder")
-            if let read = detail.authenticityAssessment, !read.isEmpty { authenticity(read) }
+            if let read = detail.authenticityRead { authenticity(read) }
             factsRow
         }
     }
@@ -1555,8 +1852,11 @@ struct ValuationDetailView: View {
                     .foregroundStyle(Color.snapEspresso)
                     .fixedSize(horizontal: false, vertical: true)
             }
+            // A neutral mark, not a checkmark: the server sends the *weakest*
+            // signals here (`confidence.py`), so a tick beside "the brand
+            // could not be identified" endorsed the problem it names.
             ForEach(Array(detail.confidenceReasons.prefix(3).enumerated()), id: \.offset) { _, reason in
-                bullet(reason, icon: "checkmark.circle")
+                bullet(reason, icon: "info.circle")
             }
         }
     }
@@ -1591,11 +1891,11 @@ struct ValuationDetailView: View {
 
     // ── Authenticity: an observation about the photo, never a verdict ──
 
-    private func authenticity(_ read: String) -> some View {
+    private func authenticity(_ read: AuthenticityRead) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             Text("What the photo suggests about authenticity")
                 .snapSectionHeader()
-            Text(read)
+            Text(read.label)
                 .font(.dmSans(15, weight: .semibold))
                 .foregroundStyle(Color.snapEspresso)
             if let why = detail.authenticityReasoning, !why.isEmpty {
@@ -1632,18 +1932,16 @@ struct ValuationDetailView: View {
         // thought it was looking at is the most useful fact in the row, and it
         // is why the estimate started where it did.
         let facts = gradeWasOverridden ? detail.factsWithReadGrade : detail.facts
-        let market = [detail.demand.map { String(localized: "Demand \($0)") },
-                      detail.supply.map { String(localized: "supply \($0)") }]
-            .compactMap { $0 }
-        if !facts.isEmpty || !market.isEmpty {
+        let market = detail.marketRead
+        if !facts.isEmpty || market != nil {
             VStack(alignment: .leading, spacing: 4) {
                 if !facts.isEmpty {
                     Text(facts.joined(separator: " · "))
                         .font(.snapCaption)
                         .foregroundStyle(Color.snapWarmGray)
                 }
-                if !market.isEmpty {
-                    Text(market.joined(separator: " · "))
+                if let market {
+                    Text(market)
                         .font(.snapCaption)
                         .foregroundStyle(Color.snapWarmGray)
                 }
@@ -1666,24 +1964,67 @@ struct ValuationDetailView: View {
 /// Its own `CameraManager` rather than the scan tab's: this is presented over
 /// a result sheet, and reusing the tab's session would leave the scan camera
 /// running behind two layers of presentation.
+///
+/// The scan screen's states, not just its happy path. This used to show the
+/// preview only when access was authorized and otherwise a disabled shutter
+/// over black, with nothing to say why — so a user who had denied the camera
+/// and scanned from Photos reached a screen that looked broken. It also had
+/// no way to use a label photo already in the camera roll, and a failed
+/// capture only vibrated.
 struct TagCameraSheet: View {
     /// Nil when the user backed out.
     let onCapture: (UIImage?) -> Void
 
     @StateObject private var camera = CameraManager()
+    @State private var pickedItem: PhotosPickerItem?
+    @State private var pickFailed = false
+    @State private var delivered = false
+
+    /// The guide and shutter only mean something while there is, or may soon
+    /// be, a viewfinder behind them.
+    private var cameraUsable: Bool {
+        camera.authStatus == .authorized || camera.authStatus == .notDetermined
+    }
+
+    /// Non-nil from the pick until its load finishes, which for an iCloud-only
+    /// photo can be seconds.
+    private var isLoadingPick: Bool { pickedItem != nil }
+
+    /// The one way out of this sheet, and it opens once.
+    ///
+    /// Cancel, the shutter and a library pick all end the sheet, and each of
+    /// the last two is a paid re-scan. A pick that finished loading after
+    /// Cancel, or after a shutter capture, used to deliver a second image —
+    /// re-scanning an item the user had backed out of, or re-scanning it twice.
+    /// Cancelling the load is not enough on its own: the cover's task is only
+    /// cancelled when the view disappears, after the dismissal animation.
+    private func deliver(_ image: UIImage?) {
+        guard !delivered else { return }
+        delivered = true
+        onCapture(image)
+    }
 
     var body: some View {
         ZStack {
             Color.snapCharcoal.ignoresSafeArea()
 
-            if camera.authStatus == .authorized {
+            // The same three states as ScanView.
+            switch camera.authStatus {
+            case .authorized:
                 CameraPreview(session: camera.session)
                     .ignoresSafeArea()
+            case .notDetermined:
+                // The system prompt is on screen, over this.
+                EmptyView()
+            case .restricted:
+                CameraPermissionPlaceholder(restricted: true)
+            default:
+                CameraPermissionPlaceholder(restricted: false)
             }
 
             VStack(spacing: 0) {
                 HStack {
-                    Button("Cancel") { onCapture(nil) }
+                    Button("Cancel") { deliver(nil) }
                         .font(.dmSans(15, weight: .semibold))
                         .foregroundStyle(Color.snapOnCharcoal)
                         .snapHitTarget()
@@ -1694,38 +2035,77 @@ struct TagCameraSheet: View {
 
                 Spacer()
 
-                // A tag is wider than it is tall and sits close to the lens;
-                // the guide says "fill this" without a paragraph of copy.
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .strokeBorder(Color.snapOnCharcoal.opacity(0.6), lineWidth: 2)
-                    .frame(width: 300, height: 190)
-                    .accessibilityHidden(true)
+                if cameraUsable {
+                    // A tag is wider than it is tall and sits close to the lens;
+                    // the guide says "fill this" without a paragraph of copy.
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .strokeBorder(Color.snapOnCharcoal.opacity(0.6), lineWidth: 2)
+                        .frame(width: 300, height: 190)
+                        .accessibilityHidden(true)
 
-                Text("Fill the frame with the label")
-                    .font(.snapBody)
-                    .foregroundStyle(Color.snapOnCharcoal)
-                    .padding(.top, 16)
-                Text("Care tag, size label, sole stamp or serial plate. Hold steady — the small print is the point.")
-                    .font(.snapCaption)
-                    .foregroundStyle(Color.snapOnCharcoal.opacity(0.7))
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal, 40)
-                    .padding(.top, 4)
+                    Text("Fill the frame with the label")
+                        .font(.snapBody)
+                        .foregroundStyle(Color.snapOnCharcoal)
+                        .padding(.top, 16)
+                    Text("Care tag, size label, sole stamp or serial plate. Hold steady — the small print is the point.")
+                        .font(.snapCaption)
+                        .foregroundStyle(Color.snapOnCharcoal.opacity(0.7))
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, 40)
+                        .padding(.top, 4)
+                }
 
                 Spacer()
 
-                Button {
-                    Haptics.capture()
-                    camera.capturePhoto()
-                } label: {
-                    ZStack {
-                        Circle().fill(Color.snapOnCharcoal).frame(width: 80, height: 80)
-                        Circle().strokeBorder(Color.snapOnCharcoal.opacity(0.4), lineWidth: 3)
-                            .frame(width: 94, height: 94)
+                HStack(alignment: .center) {
+                    // The label may already be in the camera roll, and with the
+                    // camera refused this is the only way in at all.
+                    PhotosPicker(selection: $pickedItem, matching: .images) {
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            .fill(Color.snapOnCharcoal.opacity(0.2))
+                            .frame(width: 52, height: 52)
+                            .overlay {
+                                // Something has to show while an iCloud photo
+                                // downloads, or the pick looks like it did nothing.
+                                if isLoadingPick {
+                                    ProgressView().tint(Color.snapOnCharcoal)
+                                } else {
+                                    Image(systemName: "photo.on.rectangle")
+                                        .snapSymbol(22, weight: .light)
+                                        .foregroundStyle(Color.snapOnCharcoal)
+                                }
+                            }
                     }
+                    .snapHitTarget()
+                    .accessibilityLabel("Choose the label photo from your library")
+
+                    Spacer()
+
+                    // Not while a pick is loading: the two would race to be the
+                    // tag photo.
+                    let canShoot = camera.authStatus == .authorized && !isLoadingPick
+                    Button {
+                        Haptics.capture()
+                        camera.capturePhoto()
+                    } label: {
+                        ZStack {
+                            Circle().fill(Color.snapOnCharcoal).frame(width: 80, height: 80)
+                            Circle().strokeBorder(Color.snapOnCharcoal.opacity(0.4), lineWidth: 3)
+                                .frame(width: 94, height: 94)
+                        }
+                    }
+                    .disabled(!canShoot)
+                    .opacity(canShoot ? 1 : 0.35)
+                    .accessibilityLabel("Take the label photo")
+
+                    Spacer()
+
+                    // Balances the library tile, so the shutter stays centred.
+                    Color.clear
+                        .frame(width: 52, height: 52)
+                        .accessibilityHidden(true)
                 }
-                .disabled(camera.authStatus != .authorized)
-                .accessibilityLabel("Take the label photo")
+                .padding(.horizontal, 36)
                 .padding(.bottom, 44)
             }
         }
@@ -1736,7 +2116,35 @@ struct TagCameraSheet: View {
         .onDisappear { camera.stopSession() }
         .onChange(of: camera.capturedImage) { _, image in
             guard let image else { return }
-            onCapture(image)
+            deliver(image)
+        }
+        // Tied to the pick, so a newer pick or the sheet going away cancels it.
+        .task(id: pickedItem) {
+            guard let item = pickedItem else { return }
+            let data = try? await item.loadTransferable(type: Data.self)
+            // Superseded, dismissed, or the sheet already answered: this load
+            // has nothing left to say — not even that it failed.
+            guard !Task.isCancelled, !delivered else { return }
+            if let data, let image = UIImage(data: data) {
+                deliver(image)
+            } else {
+                pickFailed = true
+            }
+            pickedItem = nil
+        }
+        // The capture did not arrive: the session was not running, or the
+        // photo could not be decoded. ScanView says so in the same words; here
+        // it only vibrated.
+        .alert("Camera Error", isPresented: Binding(
+            get: { camera.error != nil },
+            set: { if !$0 { camera.error = nil } }
+        )) {
+            Button("OK", role: .cancel) { camera.error = nil }
+        } message: {
+            Text(camera.error?.errorDescription ?? "")
+        }
+        .alert("Couldn't load the selected photo. Please try another.", isPresented: $pickFailed) {
+            Button("OK", role: .cancel) {}
         }
     }
 }

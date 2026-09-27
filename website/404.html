@@ -142,5 +142,16 @@
     <span>© 2026 SnapWorth</span>
   </footer>
   <script defer src="/tag.js"></script>
+  <!-- Vercel Web Analytics, as on every page: cookieless, no consent banner.
+       The missing path is what makes a 404 worth counting (it shows which
+       links are broken), with one exception: if /i/<code> ever lands here
+       instead of on the invite page, the code is reported as /i/[code]. -->
+  <script>
+    window.va = window.va || function () { (window.vaq = window.vaq || []).push(arguments); };
+    window.va('beforeSend', function (event) {
+      return Object.assign({}, event, { url: event.url.replace(/\/i\/[^\/?#]+/, '/i/[code]') });
+    });
+  </script>
+  <script defer src="/_vercel/insights/script.js"></script>
 </body>
 </html>

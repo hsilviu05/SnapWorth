@@ -1,5 +1,4 @@
 import Foundation
-import os.log
 import Security
 
 /// A bearer token and its expiry.
@@ -199,23 +198,23 @@ struct KeychainDeviceIdentityStore: DeviceIdentityStore {
 }
 
 extension URLRequest {
-    /// Attaches a bearer token, minting one via App Attest if needed.
+    /// Attaches a bearer token, minting one via App Attest if needed, and
+    /// throws when there is none to attach.
     ///
-    /// Deliberately non-throwing: during rollout the server still accepts
-    /// unauthenticated requests, so an attestation failure (unsupported device,
-    /// offline, simulator) must degrade to the legacy path rather than block a
-    /// scan. Once the server enforces, it will answer 401 and the client
-    /// surfaces that as a normal server error.
-    mutating func attachBearerToken() async {
+    /// This used to swallow the failure and send the request anyway, which
+    /// made sense while the server still accepted unauthenticated requests.
+    /// Production enforces now (`auth_enforcing`), so a request without a
+    /// token is a certain 401 — and it still went out: the photo uploaded, the
+    /// 401 came back, and the user read "reinstalling the app will reset it"
+    /// whatever the real cause was. A rate limit on `/auth/challenge` and an
+    /// App Attest outage both said "reinstall", which fixes neither, and an
+    /// offline phone with an expired token waited out the mint and then the
+    /// upload — about seventy seconds of "Analyzing…". Throwing the mint's own
+    /// error reports what actually happened and uploads nothing.
+    mutating func requireBearerToken() async throws {
         guard Config.useAttestation else { return }
-        do {
-            let token = try await AttestationService.shared.accessToken()
-            setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-        } catch {
-            // Logged rather than thrown — see note above.
-            os_log(.info, "attestation unavailable, continuing unauthenticated: %{public}@",
-                   error.localizedDescription)
-        }
+        let token = try await AttestationService.shared.accessToken()
+        setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
     }
 
     /// Sends the request, and on a 401 re-mints the token and sends it once more.
@@ -239,10 +238,10 @@ extension URLRequest {
 
         await AttestationService.shared.invalidateCachedToken()
         var retry = self
-        await retry.attachBearerToken()
-        // No new token means attestation itself is failing; returning the
-        // original 401 reports that honestly rather than re-sending the same
-        // request to get the same answer.
+        // A mint that fails throws its own error — offline, rate limited,
+        // unavailable — which says more than the 401 it would replace.
+        try await retry.requireBearerToken()
+        // The same token again would get the same answer.
         guard retry.value(forHTTPHeaderField: "Authorization")
                 != value(forHTTPHeaderField: "Authorization") else {
             return (data, http)

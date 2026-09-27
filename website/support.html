@@ -470,7 +470,11 @@
           <span class="faq-arrow">▾</span>
         </summary>
         <div class="faq-a">
-          No. Photos are sent to our server for real-time processing only and are not retained after the valuation is returned. Your scan history is stored locally on your device and can be deleted at any time from Settings. We do not sell or share your data. See our full <a href="https://api.snapworth.eu/privacy" target="_blank">Privacy Policy</a>.
+          <!-- Must agree with the Privacy Policy it links to (backend/main.py
+               /privacy, and PrivacyPolicy in LegalView.swift). This answer
+               used to open with "No" and end "We do not sell or share your
+               data", while every photo goes to Google's Gemini API. -->
+          We don&rsquo;t keep your photos, but we do share them to produce the estimate: each photo is sent to our server and on to Google&rsquo;s Gemini API, which identifies the item and estimates its value, and we don&rsquo;t retain it once the estimate is returned. Your scan history is stored locally on your device and can be deleted at any time from Settings. We never sell your data; the service providers that receive any of it are named in our <a href="https://api.snapworth.eu/privacy" target="_blank">Privacy Policy</a>.
         </div>
       </details>
 
@@ -480,7 +484,7 @@
           <span class="faq-arrow">▾</span>
         </summary>
         <div class="faq-a">
-          Estimates come from an AI model's broad knowledge of the secondhand market and are intended as a useful reference range, not a guaranteed sale price. The confidence level reflects how clearly the AI could identify your item. For anything valuable, we recommend double-checking recent sold prices yourself before you buy or sell.
+          Estimates come from an AI model's broad knowledge of the secondhand market and are intended as a useful reference range, not a guaranteed sale price. The confidence level reflects how well the photo and the identification support the estimate &mdash; whether the brand could be read, how clear the photo is, and how tight the price range came out. For anything valuable, we recommend double-checking recent sold prices yourself before you buy or sell.
         </div>
       </details>
 
@@ -490,7 +494,7 @@
           <span class="faq-arrow">▾</span>
         </summary>
         <div class="faq-a">
-          Clear, well-lit photos with visible brand tags, labels, or logos give the best results. Including multiple angles can help the AI identify the item more precisely.
+          Clear, well-lit photos with visible brand tags, labels, or logos give the best results. If a result looks off, retake the photo from a clearer angle &mdash; or, with Pro, add a photo of the care tag.
         </div>
       </details>
 

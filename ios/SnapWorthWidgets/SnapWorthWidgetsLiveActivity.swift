@@ -21,7 +21,7 @@ struct ThriftRunLiveActivity: Widget {
                 // the phone locked, mid-run, which is the whole point of the
                 // feature — opened the app on whatever tab was last selected
                 // instead of the camera.
-                .widgetURL(URL(string: "snapworth://scan"))
+                .widgetURL(URL(string: "snapworth://scan?src=live_activity"))
                 .activityBackgroundTint(Color.wCharcoal)
                 .activitySystemActionForegroundColor(Color.wBackground)
         } dynamicIsland: { context in
@@ -79,7 +79,7 @@ struct ThriftRunLiveActivity: Widget {
                     .accessibilityLabel(String(localized:
                         "Thrift run in progress, \(context.state.findsLabel)"))
             }
-            .widgetURL(URL(string: "snapworth://scan"))
+            .widgetURL(URL(string: "snapworth://scan?src=dynamic_island"))
             .keylineTint(Color.wTerracotta)
         }
     }

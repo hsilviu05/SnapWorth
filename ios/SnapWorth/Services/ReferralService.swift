@@ -133,8 +133,7 @@ actor ReferralAPIClient {
         var request = URLRequest(url: Config.baseURL.appendingPathComponent(path))
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue(deviceID, forHTTPHeaderField: "x-device-id")
-        await request.attachBearerToken()
+        try await request.requireBearerToken()
         request.httpBody = try JSONEncoder().encode(body)
         return try await request.sendRetryingAuth(on: session)
     }

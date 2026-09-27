@@ -290,6 +290,26 @@ struct ValuationDetail: Codable, Equatable {
             && size == nil && era == nil && material == nil
     }
 
+    /// True when this holds only what a free scan is sent: the confidence
+    /// score, its one-line summary and the condition grade.
+    ///
+    /// The server blanks everything else on a free response
+    /// (`_PRO_ONLY_DETAIL_FIELDS` in main.py) and the blob is written once, at
+    /// scan time. So a find scanned before its owner subscribed stays this
+    /// thin forever, and the Pro panel — which shows only the sections that
+    /// have content — rendered a score, a sentence and "good" to someone who
+    /// had just paid to see the rest. On a fresh result the sheet offers a
+    /// re-read; a find reopened from My Finds or My Flips says why its panel
+    /// is thin instead, and is never re-read — see `FullDetailOffer`.
+    var lacksProDetail: Bool {
+        confidenceReasons.isEmpty && quickSale == nil && expected == nil
+            && bestCase == nil && worstCase == nil
+            && valueDrivers.isEmpty && assumptions.isEmpty && uncertaintyFactors.isEmpty
+            && improveEstimate.isEmpty && authenticityAssessment == nil
+            && authenticityReasoning == nil && demand == nil && supply == nil
+            && size == nil && era == nil && material == nil
+    }
+
     /// The price points that exist, floor to ceiling, ready to render.
     ///
     /// `isExpected` rather than a comparison against the label: the view used
@@ -313,9 +333,21 @@ struct ValuationDetail: Codable, Equatable {
         return rows.map { (label: $0.0, value: $0.1, isExpected: $0.2) }
     }
 
+    // The four fields below arrive as tokens from closed vocabularies
+    // (`valuation.py` validates each one and sends the token, never prose), and
+    // were printed as received: `cannot_verify`, `likeNew · M · Fleece`,
+    // "Demand high" — debug output on the main Pro panel, in every language.
+    // Each is now worded by a client enum, and a token this build does not know
+    // is dropped rather than shown.
+
+    /// `conditionGrade` as the condition picker words it.
+    var gradeLabel: String? {
+        conditionGrade.flatMap(Condition.init(serverGrade:))?.label
+    }
+
     /// Identification facts worth a line: grade, size, era, material.
     var facts: [String] {
-        [conditionGrade, size, era, material].compactMap { $0 }.filter { !$0.isEmpty }
+        [gradeLabel, size, era, material].compactMap { $0 }.filter { !$0.isEmpty }
     }
 
     /// `facts`, with the grade marked as the model's read rather than stated
@@ -323,8 +355,31 @@ struct ValuationDetail: Codable, Equatable {
     /// corrected — see `ValuationDetailView.factsRow`.
     var factsWithReadGrade: [String] {
         let rest = [size, era, material].compactMap { $0 }.filter { !$0.isEmpty }
-        guard let grade = conditionGrade, !grade.isEmpty else { return rest }
-        return ["AI read \(grade)"] + rest
+        guard let grade = gradeLabel else { return rest }
+        return [String(localized: "AI read: \(grade)")] + rest
+    }
+
+    var authenticityRead: AuthenticityRead? {
+        authenticityAssessment.flatMap(AuthenticityRead.init(serverValue:))
+    }
+
+    /// Demand and supply, attributed to the model.
+    ///
+    /// Always prefixed: the prompt asks for both with no data source behind
+    /// them (`prompts.py`), and SnapWorth has no market data. Printed bare,
+    /// "high demand" reads as a fact about the market rather than the model's
+    /// guess at it — the claim the listing copy is careful never to make.
+    var marketRead: String? {
+        let demandLabel = demand.flatMap(MarketDemand.init(serverValue:))?.label
+        let supplyLabel = supply.flatMap(MarketSupply.init(serverValue:))?.label
+        switch (demandLabel, supplyLabel) {
+        case let (demandLabel?, supplyLabel?):
+            return String(localized: "AI read: \(demandLabel), \(supplyLabel)")
+        case let (only?, nil), let (nil, only?):
+            return String(localized: "AI read: \(only)")
+        case (nil, nil):
+            return nil
+        }
     }
 
     func encoded() -> Data? { try? JSONEncoder().encode(self) }
@@ -333,6 +388,122 @@ struct ValuationDetail: Codable, Equatable {
         guard let data, let detail = try? JSONDecoder().decode(ValuationDetail.self, from: data),
               !detail.isEmpty else { return nil }
         return detail
+    }
+}
+
+/// `authenticity_assessment` — `valuation.py` `_AUTHENTICITY`.
+///
+/// Worded as what one photo shows, under a heading that already says so:
+/// an observation, never a verdict.
+enum AuthenticityRead: String, CaseIterable {
+    case noConcerns    = "no_concerns"
+    case minorConcerns = "minor_concerns"
+    case cannotVerify  = "cannot_verify"
+    case likelyReplica = "likely_replica"
+
+    init?(serverValue raw: String) {
+        self.init(rawValue: raw.trimmingCharacters(in: .whitespacesAndNewlines).lowercased())
+    }
+
+    var label: String {
+        switch self {
+        case .noConcerns:    return String(localized: "No concerns", comment: "Authenticity read")
+        case .minorConcerns: return String(localized: "Minor concerns", comment: "Authenticity read")
+        case .cannotVerify:  return String(localized: "Can't tell from this photo", comment: "Authenticity read")
+        case .likelyReplica: return String(localized: "Likely a replica", comment: "Authenticity read")
+        }
+    }
+}
+
+/// `demand` — `valuation.py` `_DEMAND`. Only ever shown inside
+/// `ValuationDetail.marketRead`, which attributes it to the model.
+enum MarketDemand: String, CaseIterable {
+    case high, medium, low
+
+    init?(serverValue raw: String) {
+        self.init(rawValue: raw.trimmingCharacters(in: .whitespacesAndNewlines).lowercased())
+    }
+
+    var label: String {
+        switch self {
+        case .high:   return String(localized: "high demand", comment: "The model's read of demand")
+        case .medium: return String(localized: "medium demand", comment: "The model's read of demand")
+        case .low:    return String(localized: "low demand", comment: "The model's read of demand")
+        }
+    }
+}
+
+/// `supply` — `valuation.py` `_SUPPLY`. Same rule as `MarketDemand`.
+enum MarketSupply: String, CaseIterable {
+    case scarce, moderate, abundant
+
+    init?(serverValue raw: String) {
+        self.init(rawValue: raw.trimmingCharacters(in: .whitespacesAndNewlines).lowercased())
+    }
+
+    var label: String {
+        switch self {
+        case .scarce:   return String(localized: "scarce supply", comment: "The model's read of supply")
+        case .moderate: return String(localized: "moderate supply", comment: "The model's read of supply")
+        case .abundant: return String(localized: "abundant supply", comment: "The model's read of supply")
+        }
+    }
+}
+
+/// `category` — the eleven the scan prompt offers the model (`prompts.py`).
+///
+/// The app's one copy of that list. There were two, and they had drifted: the
+/// trend card kept an emoji table and printed the server's token capitalised,
+/// in English under a translated heading; analytics kept `ItemCategory`, whose
+/// set had grown bags, media and beauty (which the prompt never offers) and
+/// lost books, furniture and sports — so a sports scan was counted as "other"
+/// here and as "sports" in the server's own tally.
+///
+/// The server does not hold the model to the list (`valuation.py` passes the
+/// word through), so anything else is `.other`. That is the rule the server's
+/// tallies apply (`notify._normalise_category`), which keeps the two counting
+/// a scan in the same bucket. The raw value is the wire token — analytics and
+/// the server; `label` is for the screen.
+enum ScanCategory: String, CaseIterable {
+    case clothing, shoes, accessories, electronics, books, furniture
+    case home, sports, toys, collectibles, other
+
+    init(normalizing raw: String) {
+        self = ScanCategory(rawValue: raw.trimmingCharacters(in: .whitespacesAndNewlines).lowercased())
+            ?? .other
+    }
+
+    var label: String {
+        switch self {
+        case .clothing:     return String(localized: "Clothing")
+        case .shoes:        return String(localized: "Shoes")
+        case .accessories:  return String(localized: "Accessories")
+        case .electronics:  return String(localized: "Electronics")
+        case .books:        return String(localized: "Books")
+        case .furniture:    return String(localized: "Furniture")
+        case .home:         return String(localized: "Home")
+        case .sports:       return String(localized: "Sports")
+        case .toys:         return String(localized: "Toys")
+        case .collectibles: return String(localized: "Collectibles")
+        case .other:        return String(localized: "Other")
+        }
+    }
+
+    /// The same marks the server's scan feed uses (`notify.CATEGORY_EMOJI`).
+    var emoji: String {
+        switch self {
+        case .clothing:     return "🧥"
+        case .shoes:        return "👟"
+        case .accessories:  return "👜"
+        case .electronics:  return "📱"
+        case .books:        return "📚"
+        case .furniture:    return "🪑"
+        case .home:         return "🏠"
+        case .sports:       return "⚽"
+        case .toys:         return "🧸"
+        case .collectibles: return "🏺"
+        case .other:        return "📦"
+        }
     }
 }
 
@@ -345,9 +516,6 @@ actor ScanAPIClient {
     /// instance (rather than a private one) is what puts API traffic behind the
     /// pinning delegate; a locally-built session would silently bypass it.
     private let session: URLSession = .snapWorthAPI
-
-    // Keychain-backed, so it survives reinstall — see `DeviceIdentity`.
-    private var deviceID: String { DeviceIdentity.shared.id }
 
     /// Uploads `image` to the backend and returns the AI analysis.
     /// When `Config.mockScans` is true, returns realistic canned data instantly.
@@ -362,10 +530,36 @@ actor ScanAPIClient {
     }
 
     // ── Mock ──────────────────────────────────────────────────────────────────
+
+    #if DEBUG
+    /// Add beside `-mock-scans` to make every fifth canned scan a 429 with a
+    /// 20-second `Retry-After`.
+    ///
+    /// Haul mode (#93) pauses on a 429 with a countdown and then probes with
+    /// one request before resuming two at a time. Seeing that for real costs
+    /// twenty model calls and an hour's lockout on the test device; this shows
+    /// it in the Simulator in a minute. DEBUG only, and a launch argument, so
+    /// an App Store build can never receive it.
+    static let mockRateLimitLaunchArgument = "-mock-scan-429"
+    private var mockScanCount = 0
+    #endif
+
     private func mockScan(sharpened: Bool = false) async throws -> ScanAPIResponse {
         // Simulate ~2 second network + AI latency
         try await Task.sleep(for: .seconds(2.2))
 
+        #if DEBUG
+        mockScanCount += 1
+        if CommandLine.arguments.contains(Self.mockRateLimitLaunchArgument),
+           mockScanCount % 5 == 0 {
+            throw ScanAPIError.rateLimited(detail: "Rate limit: 20 requests/hour.", retryAfter: 20)
+        }
+        #endif
+
+        // The enum fields carry the tokens the backend actually sends
+        // (`valuation.py`), not prose. Mocks written in prose are what let
+        // "Demand high · supply abundant" and `cannot_verify` through: the
+        // Simulator flow never showed a token, so nobody saw one printed raw.
         let mocks: [ScanAPIResponse] = [
             ScanAPIResponse(
                 itemName: "Patagonia Better Sweater 1/4-Zip, Size M",
@@ -384,9 +578,9 @@ actor ScanAPIClient {
                 valueDrivers: ["Classic neutral colourway", "Patagonia's repair reputation keeps resale strong"],
                 assumptions: ["Size M as read from the label", "No hidden damage on the reverse"],
                 improveEstimate: ["Photograph the inside care tag", "Show the cuffs where pilling gathers"],
-                authenticityAssessment: "Consistent with genuine",
+                authenticityAssessment: "no_concerns",
                 authenticityReasoning: "Label typography, zip and stitching match the current production run.",
-                demand: "steady", supply: "plentiful", conditionGrade: "Good", size: "M", material: "Fleece"
+                demand: "medium", supply: "abundant", conditionGrade: "good", size: "M", material: "Fleece"
             ),
             ScanAPIResponse(
                 itemName: "Levi's 501 Original Straight Jeans, 32x32",
@@ -405,7 +599,7 @@ actor ScanAPIClient {
                 valueDrivers: ["501 is the most-searched vintage denim model", "Dark, even wash"],
                 assumptions: ["Imported, not made in USA", "Measured waist matches the tag"],
                 improveEstimate: ["Photograph the inside label — a made-in-USA or big-E tab changes the range", "Lay flat and show the hem"],
-                demand: "high", supply: "plentiful", conditionGrade: "Very good", size: "32x32", era: "2010s", material: "Denim"
+                demand: "high", supply: "abundant", conditionGrade: "likeNew", size: "32x32", era: "2010s", material: "Denim"
             ),
             ScanAPIResponse(
                 itemName: "Nike Air Max 90 Sneakers, Size 10",
@@ -424,9 +618,9 @@ actor ScanAPIClient {
                 valueDrivers: ["General-release colourways resell steadily; collaborations far higher"],
                 assumptions: ["General release, not a collaboration", "Midsole not yellowed"],
                 improveEstimate: ["Photograph the sole and heel tab", "Show the size on the tongue label"],
-                authenticityAssessment: "Cannot tell from this photo",
+                authenticityAssessment: "cannot_verify",
                 authenticityReasoning: "The tongue label and box label are the usual tells, and neither is in frame.",
-                demand: "steady", supply: "plentiful", conditionGrade: "Good", size: "US 10"
+                demand: "medium", supply: "abundant", conditionGrade: "good", size: "US 10"
             ),
         ]
 
@@ -477,10 +671,7 @@ actor ScanAPIClient {
         let endpoint = Config.baseURL.appendingPathComponent("scan")
         var request = URLRequest(url: endpoint)
         request.httpMethod = "POST"
-        // Retained during rollout: the server falls back to this when
-        // attestation isn't enforced yet.
-        request.setValue(deviceID, forHTTPHeaderField: "x-device-id")
-        await request.attachBearerToken()
+        try await request.requireBearerToken()
 
         let boundary = "Boundary-\(UUID().uuidString)"
         request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")

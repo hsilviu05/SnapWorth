@@ -207,9 +207,6 @@ actor ListingAPIClient {
     /// locally-constructed URLSession.
     private let session: URLSession = .snapWorthAPI
 
-    // Same device id as ScanAPIClient so the rate-limit backstop is coherent.
-    private var deviceID: String { DeviceIdentity.shared.id }
-
     /// Generates a listing for `input`, tailored to `marketplace`. Throws on
     /// network/server failure so the caller can offer a retry; the backend
     /// guarantees a validated, non-blank body on success.
@@ -243,8 +240,7 @@ actor ListingAPIClient {
         var request = URLRequest(url: endpoint)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue(deviceID, forHTTPHeaderField: "x-device-id")
-        await request.attachBearerToken()
+        try await request.requireBearerToken()
         request.httpBody = try JSONEncoder().encode(body)
 
         let (data, http) = try await request.sendRetryingAuth(on: session)
@@ -351,6 +347,10 @@ struct TrendRow: Decodable, Identifiable, Equatable {
     }
 }
 
+/// One of the week's highest-value scans. `name` is the brand, never the item
+/// name: the server holds a find back until three different devices have
+/// scanned that item, but it is still one item rather than a total, so it
+/// sends only brand, category and range (`notify.trends`).
 struct NotableFind: Decodable, Identifiable, Equatable {
     let name: String
     let category: String
@@ -360,8 +360,10 @@ struct NotableFind: Decodable, Identifiable, Equatable {
     var id: String { "\(name)-\(low)-\(high)" }
 }
 
-/// What the app shows on My Finds. Aggregates about everyone, never about a
-/// person: the server applies a floor before any of this is sent.
+/// What the app shows on My Finds. The category and brand rows are aggregates
+/// the server floors before sending. `notableFinds` are not aggregates — each
+/// is one item, floored only by how many devices scanned it — which is why
+/// they arrive as brand, category and range only.
 struct Trends: Decodable, Equatable {
     let days: Int
     let scans: Int
@@ -371,13 +373,15 @@ struct Trends: Decodable, Equatable {
 
     /// `notableFinds` with the repeats removed, first occurrence kept.
     ///
-    /// `NotableFind.id` is `name-low-high`, and the server builds this list by
-    /// appending each of the seven day-documents' find lists with no dedup,
-    /// emitting the truncated name and *rounded* bounds. An item that topped
-    /// the chart on two days therefore arrives twice with a byte-identical id —
-    /// and an ID-keyed `ForEach` over that is undefined: SwiftUI logs "the ID …
-    /// occurs multiple times within the collection" and renders the row
-    /// unreliably, so a Pro user sees the same find twice or one that flickers.
+    /// `NotableFind.id` is `name-low-high`, where `name` is the brand and the
+    /// bounds are *rounded*. So one item that topped the chart on two days, or
+    /// two different scans of one brand at the same rounded range, share an
+    /// id, and this merges them. The server skips such repeats now
+    /// (`notify.trends`), but it appended the seven day-documents' finds with
+    /// no dedup before that, and an ID-keyed `ForEach` over a repeat is
+    /// undefined: SwiftUI logs "the ID … occurs multiple times within the
+    /// collection" and renders the row unreliably, so a Pro user sees the same
+    /// find twice or one that flickers.
     ///
     /// Deduped rather than index-keyed, because "Notable finds" listing the
     /// same item twice is not a rendering artefact the user should have to
@@ -416,14 +420,13 @@ struct Trends: Decodable, Equatable {
     var isEmpty: Bool { categories.isEmpty && brands.isEmpty }
 }
 
-/// Reads `GET /trends`. Same session, same device header, same auth retry as
-/// every other call; the free/Pro shape is decided by the server.
+/// Reads `GET /trends`. Same session and same auth retry as every other call;
+/// the free/Pro shape is decided by the server.
 actor TrendsAPIClient {
     static let shared = TrendsAPIClient()
     private init() {}
 
     private let session: URLSession = .snapWorthAPI
-    private var deviceID: String { DeviceIdentity.shared.id }
 
     /// How long a fetched payload stays good.
     ///
@@ -465,8 +468,7 @@ actor TrendsAPIClient {
 
         var request = URLRequest(url: Config.baseURL.appendingPathComponent("trends"))
         request.httpMethod = "GET"
-        request.setValue(deviceID, forHTTPHeaderField: "x-device-id")
-        await request.attachBearerToken()
+        try await request.requireBearerToken()
 
         let (data, http) = try await request.sendRetryingAuth(on: session)
         guard (200..<300).contains(http.statusCode) else {
@@ -486,6 +488,6 @@ actor TrendsAPIClient {
         brands: [TrendRow(name: "Carhartt", count: 14, changePct: 40, averageEstimate: nil),
                  TrendRow(name: "Nike", count: 11, changePct: 5, averageEstimate: nil),
                  TrendRow(name: "Le Creuset", count: 7, changePct: nil, averageEstimate: nil)],
-        notableFinds: [NotableFind(name: "Le Creuset Dutch Oven 5.5qt", category: "home", low: 120, high: 220),
-                       NotableFind(name: "The North Face Nuptse 700", category: "clothing", low: 110, high: 200)])
+        notableFinds: [NotableFind(name: "Le Creuset", category: "home", low: 120, high: 220),
+                       NotableFind(name: "The North Face", category: "clothing", low: 110, high: 200)])
 }

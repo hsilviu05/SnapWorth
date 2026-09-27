@@ -91,7 +91,10 @@ struct FeedbackView: View {
                                     .padding(.horizontal, 14)
                                     .padding(.vertical, 9)
                                     .background(feedbackType == type ? Color.snapTerracottaFill : Color.snapCard)
-                                    .foregroundStyle(feedbackType == type ? Color.snapBackground : Color.snapEspresso)
+                                    // `snapOnAccent`, as on every other selected
+                                    // chip: `snapBackground` on the fill was
+                                    // 3.21:1 in dark mode, under AA.
+                                    .foregroundStyle(feedbackType == type ? Color.snapOnAccent : Color.snapEspresso)
                                     .clipShape(Capsule())
                                     .overlay(
                                         Capsule()
@@ -106,7 +109,9 @@ struct FeedbackView: View {
                                 // 9pt of vertical padding left a ~31pt target,
                                 // and selection was carried by colour alone.
                                 .snapHitTarget()
-                                .accessibilityLabel(type.rawValue)
+                                // `label`, not `rawValue`: the raw value is
+                                // the English mail subject.
+                                .accessibilityLabel(type.label)
                                 .accessibilityAddTraits(
                                     feedbackType == type ? [.isButton, .isSelected] : .isButton)
                             }

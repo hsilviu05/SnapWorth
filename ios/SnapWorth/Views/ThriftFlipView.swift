@@ -72,6 +72,8 @@ struct ThriftFlipView: View {
         .sheet(isPresented: $vm.showPaywall) {
             PaywallView(purchaseService: purchaseService, trigger: .scanLimit)
         }
+        .subscriptionUnconfirmedAlert(isPresented: $vm.showSubscriptionUnconfirmed,
+                                      purchaseService: purchaseService)
     }
 
     // MARK: - Empty state (scan the item)

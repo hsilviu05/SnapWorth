@@ -421,10 +421,10 @@ struct RareFindRevealView: View {
         // and this is where a rare find's first is: the real range and
         // confidence sit under "Okay, seriously:". So it fires here, with the
         // count ResultView would have read, and ResultView does not fire it
-        // again after a reveal (ScanView passes it `isFreshScan: false`). Left
+        // again after a reveal (ScanView passes it `priceAlreadyShown`). Left
         // on the full result, it went unsent by anyone who swiped the sheet
         // away from here, and late for everyone else.
-        Analytics.shared.track(.scanResultShown(isFirst: ScanTally.completedCount() <= 1))
+        Analytics.shared.track(.scanResultShown(isFirst: ScanTally.isFirstRun()))
         // The one event the easter egg adds.
         Analytics.shared.track(.rareFindEasterEggShown)
         Haptics.success()

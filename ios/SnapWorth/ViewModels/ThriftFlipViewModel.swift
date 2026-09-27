@@ -13,6 +13,8 @@ final class ThriftFlipViewModel {
     var isScanningItem = false
     var scanError: String?
     var showPaywall = false
+    /// See `ScanViewModel.showSubscriptionUnconfirmed`.
+    var showSubscriptionUnconfirmed = false
 
     // ── Inputs ───────────────────────────────────────────────────────────────
     // Each of the four inputs re-syncs an already-saved ledger row — see
@@ -69,9 +71,14 @@ final class ThriftFlipViewModel {
         scanError = nil
         itemImage = image
         defer { isScanningItem = false }
+        // See `BackgroundScanActivity`: a locked phone must not strand a paid scan.
+        let background = BackgroundScanActivity.begin("Thrift Flip scan")
+        defer { background.end() }
 
         do {
-            let response = try await ScanAPIClient.shared.scan(image: image)
+            let response = try await purchaseService.confirmingSubscription {
+                try await ScanAPIClient.shared.scan(image: image)
+            }
             // Encoded off the main actor — see ScanAPIClient.encodeForStorage.
             let storedImage = await ScanAPIClient.encodeForStorage(image)
             // Drop the original now the encodes are done: the only surface that
@@ -110,7 +117,7 @@ final class ThriftFlipViewModel {
                 }
             }
             Analytics.shared.track(
-                .scanCompleted(success: true, category: ItemCategory(normalizing: response.category))
+                .scanCompleted(success: true, category: ScanCategory(normalizing: response.category))
             )
             if let milestone = ScanTally.record() {
                 Analytics.shared.track(.scanCountMilestone(count: milestone))
@@ -124,13 +131,21 @@ final class ThriftFlipViewModel {
             // path shares the daily cap, so it shares the local-vs-UTC day skew
             // that lets a spent allowance past the pre-flight gate.
             if appError.isPaywall {
+                // And the same reconciliation. The server has said there is
+                // nothing left today; without this the Scan tab and the widget
+                // went on advertising a free scan it had already refused.
+                FreeScanCounter.serverRemaining = 0
                 Analytics.shared.track(.freeScanLimitHit)
                 showPaywall = true
                 return
             }
 
-            scanError = appError.errorDescription
             Analytics.shared.track(.scanFailed(reason: ScanFailureReason(appError), isFirst: isFirst))
+            if appError == .subscriptionUnconfirmed {
+                showSubscriptionUnconfirmed = true
+                return
+            }
+            scanError = appError.errorDescription
         }
     }
 

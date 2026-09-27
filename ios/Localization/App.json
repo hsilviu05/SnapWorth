@@ -210,6 +210,14 @@
       "de": "%@, %@",
       "zh-Hans": "%@, %@"
     },
+    "%@, %@. Estimated total: %@": {
+      "comment": "Haul: VoiceOver announcement when the queue empties with some photos failed. First %@ is \"%lld photos valued\", second \"%lld photos couldn't be valued\", third a dollar amount. An estimate, never a sale.",
+      "en": "%@, %@. Estimated total: %@",
+      "ro": "%@, %@. Total estimat: %@",
+      "es": "%@, %@. Total estimado: %@",
+      "de": "%@, %@. Geschätzte Summe: %@",
+      "zh-Hans": "%@，%@。估计总额：%@"
+    },
     "%@, estimated %@": {
       "comment": "VoiceOver label for a history card: item name, then its value range.",
       "en": "%@, estimated %@",
@@ -225,6 +233,14 @@
       "es": "%@, de %@",
       "de": "%@, aus %@",
       "zh-Hans": "%@，来自 %@"
+    },
+    "%@. %@": {
+      "comment": "VoiceOver: one sentence, then another after it (the portfolio total, then the insight line under it). Only the full stop changes between languages.",
+      "en": "%@. %@",
+      "ro": "%@. %@",
+      "es": "%@. %@",
+      "de": "%@. %@",
+      "zh-Hans": "%@。%@"
     },
     "%@. %@ AI estimate.": {
       "comment": "VoiceOver value of the result card: the range, then the confidence phrase.",
@@ -506,6 +522,27 @@
       },
       "zh-Hans": "已售出 %lld 件"
     },
+    "%lld listings": {
+      "comment": "Inflected on its own and placed into \"Draft %@ for %@?\" — one plural key agrees with one number.",
+      "en": {
+        "one": "%lld listing",
+        "other": "%lld listings"
+      },
+      "ro": {
+        "one": "un anunț",
+        "few": "%lld anunțuri",
+        "other": "%lld de anunțuri"
+      },
+      "es": {
+        "one": "%lld anuncio",
+        "other": "%lld anuncios"
+      },
+      "de": {
+        "one": "%lld Inserat",
+        "other": "%lld Inserate"
+      },
+      "zh-Hans": "%lld 条商品描述"
+    },
     "%lld minutes": {
       "en": {
         "one": "%lld minute",
@@ -615,6 +652,68 @@
       "de": "%lld von %lld",
       "zh-Hans": "%lld 分（满分 %lld 分）"
     },
+    "%lld photos couldn't be valued": {
+      "comment": "Haul: photos the server refused or that failed. On the summary, in the total's VoiceOver value, and placed into \"%@, %@. Estimated total: %@\".",
+      "en": {
+        "one": "%lld photo couldn't be valued",
+        "other": "%lld photos couldn't be valued"
+      },
+      "ro": {
+        "one": "o fotografie nu a putut fi evaluată",
+        "few": "%lld fotografii nu au putut fi evaluate",
+        "other": "%lld de fotografii nu au putut fi evaluate"
+      },
+      "es": {
+        "one": "%lld foto no se pudo valorar",
+        "other": "%lld fotos no se pudieron valorar"
+      },
+      "de": {
+        "one": "%lld Foto konnte nicht bewertet werden",
+        "other": "%lld Fotos konnten nicht bewertet werden"
+      },
+      "zh-Hans": "%lld 张照片无法估价"
+    },
+    "%lld photos still being valued": {
+      "en": {
+        "one": "%lld photo still being valued",
+        "other": "%lld photos still being valued"
+      },
+      "ro": {
+        "one": "o fotografie încă în evaluare",
+        "few": "%lld fotografii încă în evaluare",
+        "other": "%lld de fotografii încă în evaluare"
+      },
+      "es": {
+        "one": "%lld foto aún en valoración",
+        "other": "%lld fotos aún en valoración"
+      },
+      "de": {
+        "one": "%lld Foto wird noch bewertet",
+        "other": "%lld Fotos werden noch bewertet"
+      },
+      "zh-Hans": "还有 %lld 张照片在估价"
+    },
+    "%lld photos valued": {
+      "comment": "Haul: VoiceOver announcement when the queue empties with some photos failed. Inflected on its own and placed into \"%@, %@. Estimated total: %@\".",
+      "en": {
+        "one": "%lld photo valued",
+        "other": "%lld photos valued"
+      },
+      "ro": {
+        "one": "o fotografie evaluată",
+        "few": "%lld fotografii evaluate",
+        "other": "%lld de fotografii evaluate"
+      },
+      "es": {
+        "one": "%lld foto valorada",
+        "other": "%lld fotos valoradas"
+      },
+      "de": {
+        "one": "%lld Foto bewertet",
+        "other": "%lld Fotos bewertet"
+      },
+      "zh-Hans": "%lld 张照片已估价"
+    },
     "%lld scans": {
       "comment": "Inflected on its own, then placed in the trending row's VoiceOver sentence.",
       "en": {
@@ -675,6 +774,27 @@
         "other": "%lld Sekunden"
       },
       "zh-Hans": "%lld 秒"
+    },
+    "%lld waiting": {
+      "comment": "Haul entry badge: photos from an earlier haul still waiting — to be valued, or, having failed, for Try again.",
+      "en": {
+        "one": "%lld waiting",
+        "other": "%lld waiting"
+      },
+      "ro": {
+        "one": "unul așteaptă",
+        "few": "%lld așteaptă",
+        "other": "%lld așteaptă"
+      },
+      "es": {
+        "one": "%lld pendiente",
+        "other": "%lld pendientes"
+      },
+      "de": {
+        "one": "%lld wartet",
+        "other": "%lld warten"
+      },
+      "zh-Hans": "%lld 张待估价"
     },
     "%lld weeks": {
       "en": {
@@ -871,12 +991,36 @@
       "de": "KI-Schätzung",
       "zh-Hans": "AI 估价"
     },
+    "AI read: %@": {
+      "comment": "Why this price: something the AI read from the photo or guessed, attributed to it rather than stated as fact. The argument is a condition grade, or the AI's read of demand or supply.",
+      "en": "AI read: %@",
+      "ro": "După AI: %@",
+      "es": "Según la IA: %@",
+      "de": "Laut KI: %@",
+      "zh-Hans": "AI 判断：%@"
+    },
+    "AI read: %@, %@": {
+      "comment": "Why this price: the AI's guess at demand, then at supply. SnapWorth has no market data, so this must always read as the AI's opinion.",
+      "en": "AI read: %@, %@",
+      "ro": "După AI: %@, %@",
+      "es": "Según la IA: %@, %@",
+      "de": "Laut KI: %@, %@",
+      "zh-Hans": "AI 判断：%@，%@"
+    },
     "AI resale estimate": {
       "en": "AI resale estimate",
       "ro": "Estimare AI de revânzare",
       "es": "Estimación de reventa con IA",
       "de": "KI-Schätzung für den Wiederverkauf",
       "zh-Hans": "AI 转卖估价"
+    },
+    "Accessories": {
+      "comment": "An item category (ScanCategory), as a label on its own: a row of 'Trending at the thrift', and the start of that row's VoiceOver sentence.",
+      "en": "Accessories",
+      "ro": "Accesorii",
+      "es": "Accesorios",
+      "de": "Accessoires",
+      "zh-Hans": "配饰"
     },
     "Account": {
       "en": "Account",
@@ -937,12 +1081,28 @@
       "de": "Alle",
       "zh-Hans": "全部"
     },
+    "All photos valued. Estimated total: %@": {
+      "comment": "VoiceOver announcement. %@ is a dollar amount.",
+      "en": "All photos valued. Estimated total: %@",
+      "ro": "Toate fotografiile au fost evaluate. Total estimat: %@",
+      "es": "Todas las fotos valoradas. Total estimado: %@",
+      "de": "Alle Fotos bewertet. Geschätzte Summe: %@",
+      "zh-Hans": "所有照片已估价。估计总额：%@"
+    },
     "All-time profit": {
       "en": "All-time profit",
       "ro": "Profit total",
       "es": "Ganancia total",
       "de": "Gewinn insgesamt",
       "zh-Hans": "总利润"
+    },
+    "Allow notifications": {
+      "comment": "Banner title in Notification settings when iOS has never been asked for permission. Tapping it shows the system permission alert.",
+      "en": "Allow notifications",
+      "ro": "Permite notificările",
+      "es": "Permitir notificaciones",
+      "de": "Mitteilungen erlauben",
+      "zh-Hans": "允许通知"
     },
     "Almost there…": {
       "en": "Almost there…",
@@ -965,12 +1125,13 @@
       "de": "Artikel wird analysiert…",
       "zh-Hans": "正在分析物品…"
     },
-    "Anonymous totals from everyone using SnapWorth. AI estimates.": {
-      "en": "Anonymous totals from everyone using SnapWorth. AI estimates.",
-      "ro": "Totaluri anonime de la toți cei care folosesc SnapWorth. Estimări AI.",
-      "es": "Totales anónimos de toda la gente que usa SnapWorth. Estimaciones con IA.",
-      "de": "Anonyme Summen von allen, die SnapWorth nutzen. KI-Schätzungen.",
-      "zh-Hans": "来自所有 SnapWorth 用户的匿名汇总。均为 AI 估价。"
+    "Anonymous data from everyone using SnapWorth. AI estimates.": {
+      "comment": "Footer of the weekly trends card. Not 'totals': Pro's notable finds under it are single scans.",
+      "en": "Anonymous data from everyone using SnapWorth. AI estimates.",
+      "ro": "Date anonime de la toți cei care folosesc SnapWorth. Estimări AI.",
+      "es": "Datos anónimos de toda la gente que usa SnapWorth. Estimaciones con IA.",
+      "de": "Anonyme Daten von allen, die SnapWorth nutzen. KI-Schätzungen.",
+      "zh-Hans": "来自所有 SnapWorth 用户的匿名数据。均为 AI 估价。"
     },
     "Anonymous usage only — never your photos, item names, or prices": {
       "en": "Anonymous usage only — never your photos, item names, or prices",
@@ -985,6 +1146,14 @@
       "es": "La respuesta, en la siguiente",
       "de": "Antwort auf der nächsten Folie",
       "zh-Hans": "答案在下一页"
+    },
+    "Apple shows an active subscription on this Apple ID, but SnapWorth couldn't confirm it just now. Restore your purchase to try again, or contact support if it keeps happening.": {
+      "comment": "Alert message under \"We couldn't confirm your subscription\". The buttons are \"Restore purchase\" and \"Contact support\".",
+      "en": "Apple shows an active subscription on this Apple ID, but SnapWorth couldn't confirm it just now. Restore your purchase to try again, or contact support if it keeps happening.",
+      "ro": "Apple arată un abonament activ pe contul Apple ăsta, dar SnapWorth nu l-a putut confirma chiar acum. Restaurează cumpărătura ca să încerci din nou sau contactează asistența dacă se repetă.",
+      "es": "Apple muestra una suscripción activa en este ID de Apple, pero SnapWorth no ha podido confirmarla ahora mismo. Restaura la compra para volver a intentarlo o contacta con soporte si sigue pasando.",
+      "de": "Apple zeigt ein aktives Abo für diese Apple-ID, aber SnapWorth konnte es gerade nicht bestätigen. Stell den Kauf wieder her, um es erneut zu versuchen, oder kontaktiere den Support, falls es wieder passiert.",
+      "zh-Hans": "Apple 显示这个 Apple 账户有有效订阅，但 SnapWorth 暂时无法确认。请恢复购买后重试；如果一直这样，请联系客服。"
     },
     "Apple shows the offer before you confirm. After the free week, the subscription renews unless you cancel.": {
       "en": "Apple shows the offer before you confirm. After the free week, the subscription renews unless you cancel.",
@@ -1082,6 +1251,22 @@
       "de": "Jenseits von legendär",
       "zh-Hans": "超越传说"
     },
+    "Books": {
+      "comment": "An item category (ScanCategory), as a label on its own: a row of 'Trending at the thrift', and the start of that row's VoiceOver sentence.",
+      "en": "Books",
+      "ro": "Cărți",
+      "es": "Libros",
+      "de": "Bücher",
+      "zh-Hans": "图书"
+    },
+    "Brand %@": {
+      "comment": "VoiceOver, on the result photo: the item's brand as read by the AI.",
+      "en": "Brand %@",
+      "ro": "Marca %@",
+      "es": "Marca %@",
+      "de": "Marke %@",
+      "zh-Hans": "品牌 %@"
+    },
     "Bug Report": {
       "en": "Bug Report",
       "ro": "Raportare de problemă",
@@ -1146,6 +1331,14 @@
       "de": "Die Kamera konnte nicht gestartet werden. Starte die App neu.",
       "zh-Hans": "相机启动失败。请重新打开 App。"
     },
+    "Can't tell from this photo": {
+      "comment": "Authenticity read, under 'What the photo suggests about authenticity'.",
+      "en": "Can't tell from this photo",
+      "ro": "Nu se vede din poza asta",
+      "es": "No se puede saber por esta foto",
+      "de": "Auf diesem Foto nicht zu erkennen",
+      "zh-Hans": "这张照片看不出来"
+    },
     "Cancel": {
       "en": "Cancel",
       "ro": "Anulează",
@@ -1203,6 +1396,14 @@
       "de": "Wird geprüft…",
       "zh-Hans": "正在验证…"
     },
+    "Choose a marketplace": {
+      "comment": "Empty choice of the Marketplace picker on the Haul summary.",
+      "en": "Choose a marketplace",
+      "ro": "Alege o platformă",
+      "es": "Elige una plataforma",
+      "de": "Marktplatz wählen",
+      "zh-Hans": "选择平台"
+    },
     "Choose from library": {
       "en": "Choose from library",
       "ro": "Alege din galerie",
@@ -1216,6 +1417,14 @@
       "es": "Elegir una foto de la galería",
       "de": "Foto aus der Mediathek wählen",
       "zh-Hans": "从相册选一张照片"
+    },
+    "Choose the label photo from your library": {
+      "comment": "VoiceOver label for the library button on the tag camera ('Add the tag'): use a photo of the label that is already in Photos.",
+      "en": "Choose the label photo from your library",
+      "ro": "Alege poza etichetei din galerie",
+      "es": "Elegir la foto de la etiqueta de la galería",
+      "de": "Etikettfoto aus der Mediathek wählen",
+      "zh-Hans": "从相册选择标签照片"
     },
     "Classified.": {
       "comment": "Rare-find easter egg (RareFind.swift). The joke is hype and rarity only — keep it that way in translation. Replaces the figure once the ticker lands.",
@@ -1274,12 +1483,35 @@
       "de": "Schließen",
       "zh-Hans": "关闭"
     },
+    "Close now and they'll carry on the next time you open Haul.": {
+      "en": "Close now and they'll carry on the next time you open Haul.",
+      "ro": "Dacă închizi acum, continuăm data viitoare când deschizi modul Lot.",
+      "es": "Si cierras ahora, seguirán la próxima vez que abras el modo Lote.",
+      "de": "Wenn du jetzt schließt, geht es beim nächsten Öffnen des Stapel-Modus weiter.",
+      "zh-Hans": "现在关闭的话，下次打开批量模式时会继续。"
+    },
     "Closes this result and returns to the camera": {
       "en": "Closes this result and returns to the camera",
       "ro": "Închide rezultatul și te duce înapoi la cameră",
       "es": "Cierra el resultado y vuelve a la cámara",
       "de": "Schließt das Ergebnis und geht zurück zur Kamera",
       "zh-Hans": "关闭结果并回到相机"
+    },
+    "Clothing": {
+      "comment": "An item category (ScanCategory), as a label on its own: a row of 'Trending at the thrift', and the start of that row's VoiceOver sentence.",
+      "en": "Clothing",
+      "ro": "Îmbrăcăminte",
+      "es": "Ropa",
+      "de": "Kleidung",
+      "zh-Hans": "服装"
+    },
+    "Collectibles": {
+      "comment": "An item category (ScanCategory), as a label on its own: a row of 'Trending at the thrift', and the start of that row's VoiceOver sentence.",
+      "en": "Collectibles",
+      "ro": "Obiecte de colecție",
+      "es": "Coleccionables",
+      "de": "Sammlerstücke",
+      "zh-Hans": "收藏品"
     },
     "Collectors alerted": {
       "comment": "Rare-find easter egg (RareFind.swift). The joke is hype and rarity only — keep it that way in translation.",
@@ -1305,6 +1537,14 @@
       "de": "Zustand",
       "zh-Hans": "成色"
     },
+    "Condition %@": {
+      "comment": "VoiceOver, on the result photo: the condition grade shown on its chip (New, Like New, Good, Used).",
+      "en": "Condition %@",
+      "ro": "Stare %@",
+      "es": "Estado %@",
+      "de": "Zustand %@",
+      "zh-Hans": "成色 %@"
+    },
     "Confidence": {
       "en": "Confidence",
       "ro": "Încredere",
@@ -1319,6 +1559,13 @@
       "de": "Sicherheit %lld von 100",
       "zh-Hans": "置信度 %lld 分（满分 100）"
     },
+    "Confirming your subscription…": {
+      "en": "Confirming your subscription…",
+      "ro": "Confirmăm abonamentul…",
+      "es": "Confirmando tu suscripción…",
+      "de": "Dein Abo wird bestätigt …",
+      "zh-Hans": "正在确认你的订阅…"
+    },
     "Consulting three fashion historians…": {
       "comment": "Rare-find easter egg (RareFind.swift). The joke is hype and rarity only — keep it that way in translation.",
       "en": "Consulting three fashion historians…",
@@ -1326,6 +1573,14 @@
       "es": "Consultando a tres historiadores de la moda…",
       "de": "Drei Modehistoriker werden befragt…",
       "zh-Hans": "正在请教三位时尚史学家…"
+    },
+    "Contact support": {
+      "comment": "Button. Opens an email to SnapWorth support.",
+      "en": "Contact support",
+      "ro": "Contactează asistența",
+      "es": "Contactar con soporte",
+      "de": "Support kontaktieren",
+      "zh-Hans": "联系客服"
     },
     "Copied": {
       "en": "Copied",
@@ -1354,6 +1609,14 @@
       "es": "Copiar el borrador del anuncio",
       "de": "Inserat-Entwurf kopieren",
       "zh-Hans": "复制商品描述草稿"
+    },
+    "Copy listing for %@": {
+      "comment": "Haul summary: VoiceOver label of a draft's Copy button. %@ is the item's name.",
+      "en": "Copy listing for %@",
+      "ro": "Copiază anunțul pentru %@",
+      "es": "Copiar el anuncio de %@",
+      "de": "Inserat für %@ kopieren",
+      "zh-Hans": "复制“%@”的商品描述"
     },
     "Copy message and address": {
       "en": "Copy message and address",
@@ -1403,6 +1666,13 @@
       "es": "No se pudo borrar el historial",
       "de": "Der Verlauf konnte nicht gelöscht werden",
       "zh-Hans": "没能清空历史记录"
+    },
+    "Couldn't draft this one": {
+      "en": "Couldn't draft this one",
+      "ro": "Nu am putut scrie anunțul pentru acesta",
+      "es": "No se pudo redactar este",
+      "de": "Dafür konnte kein Entwurf erstellt werden",
+      "zh-Hans": "这件未能生成描述"
     },
     "Couldn't find a clear item in this photo, so it's left as it was.": {
       "en": "Couldn't find a clear item in this photo, so it's left as it was.",
@@ -1495,6 +1765,13 @@
       "de": "Nicht gestartet – prüf die Live-Aktivitäten in den Einstellungen",
       "zh-Hans": "没能开始，去“设置”里看看实时活动"
     },
+    "Couldn't value this photo": {
+      "en": "Couldn't value this photo",
+      "ro": "Nu am putut evalua această fotografie",
+      "es": "No se pudo valorar esta foto",
+      "de": "Dieses Foto konnte nicht bewertet werden",
+      "zh-Hans": "无法为这张照片估价"
+    },
     "Counting threads. Lost count…": {
       "comment": "Rare-find easter egg (RareFind.swift). The joke is hype and rarity only — keep it that way in translation.",
       "en": "Counting threads. Lost count…",
@@ -1576,13 +1853,6 @@
       "de": "Diesen Fund löschen?",
       "zh-Hans": "删除这件好物？"
     },
-    "Demand %@": {
-      "en": "Demand %@",
-      "ro": "Cerere %@",
-      "es": "Demanda %@",
-      "de": "Nachfrage %@",
-      "zh-Hans": "需求 %@"
-    },
     "Did %@ sell? Update your ledger to keep your profit accurate.": {
       "en": "Did %@ sell? Update your ledger to keep your profit accurate.",
       "ro": "S-a vândut %@? Actualizează-ți registrul ca profitul să rămână corect.",
@@ -1618,6 +1888,28 @@
       "es": "Edición terminada",
       "de": "Bearbeiten beendet",
       "zh-Hans": "编辑完成"
+    },
+    "Draft %@ for %@?": {
+      "comment": "Confirmation title. First %@ is \"%lld listings\", second is a marketplace name.",
+      "en": "Draft %@ for %@?",
+      "ro": "Scriem %@ pentru %@?",
+      "es": "¿Redactar %@ para %@?",
+      "de": "%@ für %@ entwerfen?",
+      "zh-Hans": "为 %2$@ 生成 %1$@？"
+    },
+    "Draft listings for all": {
+      "en": "Draft listings for all",
+      "ro": "Scrie anunțuri pentru toate",
+      "es": "Redactar anuncios para todos",
+      "de": "Inserate für alle entwerfen",
+      "zh-Hans": "为全部生成商品描述"
+    },
+    "Drafts use the same hourly limit as scans. Scanning may pause for up to an hour.": {
+      "en": "Drafts use the same hourly limit as scans. Scanning may pause for up to an hour.",
+      "ro": "Ciornele folosesc aceeași limită pe oră ca scanările. Scanarea se poate opri până la o oră.",
+      "es": "Los borradores usan el mismo límite por hora que los escaneos. El escaneo puede pausarse hasta una hora.",
+      "de": "Entwürfe nutzen dasselbe Stundenlimit wie Scans. Das Scannen kann bis zu einer Stunde pausieren.",
+      "zh-Hans": "商品描述与扫描共用每小时上限，扫描可能会暂停最多一小时。"
     },
     "Dragon detected. Recalibrating…": {
       "comment": "Rare-find easter egg (RareFind.swift). The joke is hype and rarity only — keep it that way in translation. The dragon is the shirt's own print.",
@@ -1680,6 +1972,14 @@
       "es": "Editar hallazgos",
       "de": "Funde bearbeiten",
       "zh-Hans": "编辑好物"
+    },
+    "Electronics": {
+      "comment": "An item category (ScanCategory), as a label on its own: a row of 'Trending at the thrift', and the start of that row's VoiceOver sentence.",
+      "en": "Electronics",
+      "ro": "Electronice",
+      "es": "Electrónica",
+      "de": "Elektronik",
+      "zh-Hans": "电子产品"
     },
     "Enable notifications": {
       "en": "Enable notifications",
@@ -1752,6 +2052,14 @@
       "es": "Valor de reventa estimado %@. Según ventas recientes. %@.",
       "de": "Geschätzter Wiederverkaufswert %@. Aus echten Verkäufen. %@.",
       "zh-Hans": "预计转卖价 %@。依据近期成交。%@。"
+    },
+    "Estimated total": {
+      "comment": "Haul: caption over the running total of expected prices. An estimate, never a sale.",
+      "en": "Estimated total",
+      "ro": "Total estimat",
+      "es": "Total estimado",
+      "de": "Geschätzte Summe",
+      "zh-Hans": "估计总额"
     },
     "Estimated value: %@, %@.": {
       "comment": "Rare-find easter egg (RareFind.swift). The joke is hype and rarity only — keep it that way in translation. Read aloud. The first %@ is the joke figure or word (“$48,000”, “Priceless”), the second its punchline.",
@@ -1854,6 +2162,14 @@
       "de": "Filtert nach Artikelname oder Marke",
       "zh-Hans": "按物品名称或品牌筛选"
     },
+    "Finish": {
+      "comment": "Haul: ends capturing and opens the summary.",
+      "en": "Finish",
+      "ro": "Termină",
+      "es": "Terminar",
+      "de": "Abschließen",
+      "zh-Hans": "结束"
+    },
     "Flexible, cancel anytime": {
       "en": "Flexible, cancel anytime",
       "ro": "Flexibil, anulezi oricând",
@@ -1932,6 +2248,22 @@
       "es": "Solo a partir de esta foto: no es una certificación.",
       "de": "Nur aus diesem Foto – keine Echtheitsprüfung.",
       "zh-Hans": "仅凭这张照片判断，不是鉴定结论。"
+    },
+    "Full breakdown loaded.": {
+      "comment": "VoiceOver announcement after the full \"Why this price\" panel arrives.",
+      "en": "Full breakdown loaded.",
+      "ro": "Analiza completă s-a încărcat.",
+      "es": "Desglose completo cargado.",
+      "de": "Vollständige Aufschlüsselung geladen.",
+      "zh-Hans": "完整分析已加载。"
+    },
+    "Furniture": {
+      "comment": "An item category (ScanCategory), as a label on its own: a row of 'Trending at the thrift', and the start of that row's VoiceOver sentence.",
+      "en": "Furniture",
+      "ro": "Mobilă",
+      "es": "Muebles",
+      "de": "Möbel",
+      "zh-Hans": "家具"
     },
     "General Feedback": {
       "en": "General Feedback",
@@ -2035,6 +2367,30 @@
       "de": "Haptisches Feedback",
       "zh-Hans": "触感反馈"
     },
+    "Haul": {
+      "comment": "Haul mode (#93): one session of scanning item after item, on the Scan tab's entry and alert title. Not the widget's \"haul\", which is the whole library (Colecție / Colección / Sammlung / 收获, in Widgets.json) — English uses one word for both; see ios/Localization/README.md.",
+      "en": "Haul",
+      "ro": "Lot",
+      "es": "Lote",
+      "de": "Stapel",
+      "zh-Hans": "批量"
+    },
+    "Haul mode is part of SnapWorth Pro. Your photos are kept for 14 days.": {
+      "comment": "14 is HaulPhotoStore.maxAge, in days; change both together.",
+      "en": "Haul mode is part of SnapWorth Pro. Your photos are kept for 14 days.",
+      "ro": "Modul Lot face parte din SnapWorth Pro. Fotografiile tale sunt păstrate 14 zile.",
+      "es": "El modo Lote forma parte de SnapWorth Pro. Tus fotos se conservan 14 días.",
+      "de": "Der Stapel-Modus gehört zu SnapWorth Pro. Deine Fotos bleiben 14 Tage erhalten.",
+      "zh-Hans": "批量模式属于 SnapWorth Pro。照片会保留 14 天。"
+    },
+    "Haul mode — snap item after item while each is valued, with a running total": {
+      "comment": "Paywall benefit row.",
+      "en": "Haul mode — snap item after item while each is valued, with a running total",
+      "ro": "Modul Lot — fotografiezi obiect după obiect și fiecare e evaluat pe loc, cu totalul la vedere",
+      "es": "Modo Lote: fotografía artículo tras artículo mientras se valora cada uno, con el total a la vista",
+      "de": "Stapel-Modus – Artikel für Artikel fotografieren, jeder wird nebenbei bewertet, mit laufender Summe",
+      "zh-Hans": "批量模式：一件接一件拍，边拍边估价，实时显示总额"
+    },
     "Have an invite code?": {
       "en": "Have an invite code?",
       "ro": "Ai un cod de invitație?",
@@ -2084,6 +2440,14 @@
       "es": "Historiadores consultados",
       "de": "Befragte Historiker",
       "zh-Hans": "请教的史学家"
+    },
+    "Home": {
+      "comment": "An item category (ScanCategory), as a label on its own: a row of 'Trending at the thrift', and the start of that row's VoiceOver sentence.",
+      "en": "Home",
+      "ro": "Casă",
+      "es": "Hogar",
+      "de": "Wohnen",
+      "zh-Hans": "家居"
     },
     "Hype level": {
       "comment": "Rare-find easter egg (RareFind.swift). The joke is hype and rarity only — keep it that way in translation.",
@@ -2180,6 +2544,13 @@
       "de": "Halt es von der Sonne fern. Es hat genug durchgemacht.",
       "zh-Hans": "别再晒太阳了，它已经受够了。"
     },
+    "Keep scanning": {
+      "en": "Keep scanning",
+      "ro": "Continuă scanarea",
+      "es": "Seguir escaneando",
+      "de": "Weiter scannen",
+      "zh-Hans": "继续扫描"
+    },
     "Last 6 months": {
       "en": "Last 6 months",
       "ro": "Ultimele 6 luni",
@@ -2254,6 +2625,14 @@
       "de": "Wie neu",
       "zh-Hans": "几乎全新"
     },
+    "Likely a replica": {
+      "comment": "Authenticity read, under 'What the photo suggests about authenticity'. Followed by 'From this photo only — not a certification.'",
+      "en": "Likely a replica",
+      "ro": "Probabil o imitație",
+      "es": "Probablemente una réplica",
+      "de": "Wahrscheinlich eine Nachahmung",
+      "zh-Hans": "很可能是仿品"
+    },
     "Listed": {
       "comment": "Flip status.",
       "en": "Listed",
@@ -2305,6 +2684,14 @@
       "de": "MEINE FLIPS · %@",
       "zh-Hans": "我的转卖 · %@"
     },
+    "MY HAUL": {
+      "comment": "Haul share card heading, set in capitals like \"MY FLIPS\".",
+      "en": "MY HAUL",
+      "ro": "LOTUL MEU",
+      "es": "MI LOTE",
+      "de": "MEIN STAPEL",
+      "zh-Hans": "我的这批"
+    },
     "Manage subscription": {
       "en": "Manage subscription",
       "ro": "Gestionează abonamentul",
@@ -2347,6 +2734,14 @@
       "es": "Confianza media",
       "de": "Mittlere Sicherheit",
       "zh-Hans": "置信度中等"
+    },
+    "Minor concerns": {
+      "comment": "Authenticity read, under 'What the photo suggests about authenticity'.",
+      "en": "Minor concerns",
+      "ro": "Mici semne de întrebare",
+      "es": "Algunas dudas menores",
+      "de": "Kleinere Zweifel",
+      "zh-Hans": "有少许疑点"
     },
     "Monthly": {
       "en": "Monthly",
@@ -2477,6 +2872,14 @@
       "de": "Kein aktives Abo gefunden.",
       "zh-Hans": "没有找到有效订阅。"
     },
+    "No concerns": {
+      "comment": "Authenticity read, under 'What the photo suggests about authenticity'. An observation about one photo, never a verdict.",
+      "en": "No concerns",
+      "ro": "Nimic suspect",
+      "es": "Nada sospechoso",
+      "de": "Nichts Auffälliges",
+      "zh-Hans": "未见可疑之处"
+    },
     "No finds yet": {
       "en": "No finds yet",
       "ro": "Nicio găselniță încă",
@@ -2518,6 +2921,14 @@
       "es": "Sin resultados para «%@»",
       "de": "Keine Treffer für „%@“",
       "zh-Hans": "没有找到“%@”"
+    },
+    "None of these reminders can arrive until you do.": {
+      "comment": "Under 'Allow notifications': until permission is given, none of the reminders listed below can be delivered.",
+      "en": "None of these reminders can arrive until you do.",
+      "ro": "Până atunci, niciunul dintre aceste memento-uri nu poate ajunge la tine.",
+      "es": "Hasta entonces, ninguno de estos avisos puede llegarte.",
+      "de": "Bis dahin kann keine dieser Erinnerungen ankommen.",
+      "zh-Hans": "在此之前，这些提醒都无法送达。"
     },
     "Not a shirt. An heirloom.": {
       "comment": "Rare-find easter egg (RareFind.swift). The joke is hype and rarity only — keep it that way in translation.",
@@ -2585,12 +2996,12 @@
       "de": "Nur gelegentliche, nützliche Erinnerungen: der Monatsrückblick, ein Anstoß, dein Buch zu aktualisieren, und ein Hinweis, bevor eine Testphase endet. Werbemitteilungen schicken wir nie.",
       "zh-Hans": "只发有用的提醒，而且不多：月度回顾、提醒你更新账本，以及试用期结束前打个招呼。我们从不发推广通知。"
     },
-    "Off by default. When on, one reminder at the time you pick — only on days you haven't scanned yet, and never once you're on Pro.": {
-      "en": "Off by default. When on, one reminder at the time you pick — only on days you haven't scanned yet, and never once you're on Pro.",
-      "ro": "Oprit implicit. Când e pornit, un singur memento la ora aleasă — doar în zilele în care n-ai scanat încă și niciodată după ce treci pe Pro.",
-      "es": "Desactivado por defecto. Si lo activas, un solo aviso a la hora que elijas, solo los días en que aún no hayas escaneado y nunca cuando tengas Pro.",
-      "de": "Standardmäßig aus. Wenn du es anschaltest, eine Erinnerung zur gewählten Zeit – nur an Tagen, an denen du noch nicht gescannt hast, und nie mehr, sobald du Pro hast.",
-      "zh-Hans": "默认关闭。开启后，只在你选的时间提醒一次，而且只在当天还没扫描过时；升级 Pro 后不再提醒。"
+    "Off by default. When on, one reminder at the time you pick — only once your free scan is back, and never once you're on Pro.": {
+      "en": "Off by default. When on, one reminder at the time you pick — only once your free scan is back, and never once you're on Pro.",
+      "ro": "Oprit implicit. Când e pornit, un singur memento la ora aleasă — doar după ce ai iar scanarea gratuită și niciodată după ce treci pe Pro.",
+      "es": "Desactivado por defecto. Si lo activas, un solo aviso a la hora que elijas, solo cuando vuelvas a tener tu escaneo gratis y nunca cuando tengas Pro.",
+      "de": "Standardmäßig aus. Wenn du es anschaltest, eine Erinnerung zur gewählten Zeit – nur wenn dein Gratis-Scan wieder da ist, und nie mehr, sobald du Pro hast.",
+      "zh-Hans": "默认关闭。开启后，只在你选的时间提醒一次，而且只在免费扫描恢复之后；升级 Pro 后不再提醒。"
     },
     "Off the charts.": {
       "comment": "Rare-find easter egg (RareFind.swift). The joke is hype and rarity only — keep it that way in translation. Replaces the figure once the ticker lands.",
@@ -2607,6 +3018,14 @@
       "es": "Vale, ahora en serio:",
       "de": "Okay, jetzt im Ernst:",
       "zh-Hans": "好了，说正经的："
+    },
+    "On new scans, Pro shows four price points, what drives the value, and how to sharpen the estimate. This find keeps the summary it was saved with.": {
+      "comment": "Caption in the locked \"Why this price\" teaser, shown to a free user on a find reopened from My Finds or My Flips that was saved with only the free part of the panel. Buying does not re-read such a find, so this says the full panel comes with new scans. The second sentence is the one the \"Scanned before Pro\" note uses after they buy.",
+      "en": "On new scans, Pro shows four price points, what drives the value, and how to sharpen the estimate. This find keeps the summary it was saved with.",
+      "ro": "La scanările noi, Pro îți arată patru praguri de preț, ce ridică valoarea și cum faci estimarea mai exactă. Găselnița asta păstrează rezumatul cu care a fost salvată.",
+      "es": "En los escaneos nuevos, Pro muestra cuatro niveles de precio, qué sube el valor y cómo afinar la estimación. Este hallazgo conserva el resumen con el que se guardó.",
+      "de": "Bei neuen Scans zeigt Pro vier Preispunkte, was den Wert treibt, und wie du die Schätzung schärfst. Dieser Fund behält die Zusammenfassung, mit der er gespeichert wurde.",
+      "zh-Hans": "新扫描时，Pro 会显示四个价格档位、什么在抬高价值，以及怎样让估价更准。这件好物保留的是保存时的摘要。"
     },
     "One snap.\nA ready listing.": {
       "en": "One snap.\nA ready listing.",
@@ -2708,6 +3127,14 @@
       "de": "Öffnet diesen Flip",
       "zh-Hans": "打开这笔转卖"
     },
+    "Other": {
+      "comment": "An item category (ScanCategory), as a label on its own: a row of 'Trending at the thrift', and the start of that row's VoiceOver sentence.",
+      "en": "Other",
+      "ro": "Altele",
+      "es": "Otros",
+      "de": "Sonstiges",
+      "zh-Hans": "其他"
+    },
     "Our AI is temporarily unavailable. Please try again in a moment.": {
       "en": "Our AI is temporarily unavailable. Please try again in a moment.",
       "ro": "AI-ul nostru e momentan indisponibil. Încearcă din nou peste puțin timp.",
@@ -2768,6 +3195,14 @@
       "de": "Fotografier das Pflegeetikett, das Größenetikett oder die Sohlenprägung, und wir lesen den Artikel mit beiden Fotos neu.",
       "zh-Hans": "拍一下洗标、尺码标或鞋底钢印，我们会用两张照片重新识别这件物品。"
     },
+    "Photos in this haul": {
+      "comment": "VoiceOver label for Haul's strip of photos.",
+      "en": "Photos in this haul",
+      "ro": "Fotografiile din acest lot",
+      "es": "Fotos de este lote",
+      "de": "Fotos in diesem Stapel",
+      "zh-Hans": "本批照片"
+    },
     "Please wait for the current scan to finish": {
       "en": "Please wait for the current scan to finish",
       "ro": "Așteaptă să se termine scanarea curentă",
@@ -2782,12 +3217,13 @@
       "de": "Halt die Kamera auf irgendeinen Second-Hand-Fund und sieh in Sekunden, was er im Wiederverkauf bringt – bevor du kaufst.",
       "zh-Hans": "把相机对准任何二手好物，几秒就知道它转手能卖多少——在你掏钱之前。"
     },
-    "Portfolio value, trend and thrift trends": {
-      "en": "Portfolio value, trend and thrift trends",
-      "ro": "Valoarea colecției, evoluția ei și trendurile",
-      "es": "Valor de tu colección, su evolución y las tendencias",
-      "de": "Wert deiner Sammlung, ihre Entwicklung und die Trends",
-      "zh-Hans": "收藏总值、走势，以及二手市场的风向"
+    "Portfolio value history and thrift trends": {
+      "comment": "Paywall benefit. The portfolio total is free for everyone; only its history (the trend behind 'Unlock value history') and the thrift trends are Pro.",
+      "en": "Portfolio value history and thrift trends",
+      "ro": "Istoricul valorii colecției și trendurile",
+      "es": "Historial del valor de tu colección y las tendencias",
+      "de": "Wertverlauf deiner Sammlung und die Trends",
+      "zh-Hans": "收藏的价值走势，以及二手市场的风向"
     },
     "Price points": {
       "en": "Price points",
@@ -2999,6 +3435,13 @@
       "de": "Erinnere mich um",
       "zh-Hans": "提醒时间"
     },
+    "Remove photo": {
+      "en": "Remove photo",
+      "ro": "Elimină fotografia",
+      "es": "Eliminar la foto",
+      "de": "Foto entfernen",
+      "zh-Hans": "移除照片"
+    },
     "Removes the running total from your Lock Screen": {
       "en": "Removes the running total from your Lock Screen",
       "ro": "Scoate totalul turei de pe ecranul blocat",
@@ -3142,6 +3585,14 @@
       "de": "Scan fehlgeschlagen",
       "zh-Hans": "扫描失败"
     },
+    "Scan a pile of items one after another, with a running total": {
+      "comment": "VoiceOver hint for the Haul entry on the Scan tab.",
+      "en": "Scan a pile of items one after another, with a running total",
+      "ro": "Scanează un teanc de obiecte unul după altul, cu totalul la vedere",
+      "es": "Escanea un montón de artículos uno tras otro, con el total a la vista",
+      "de": "Scanne einen ganzen Stapel Artikel nacheinander, mit laufender Summe",
+      "zh-Hans": "连续扫描一堆物品，并实时显示总额"
+    },
     "Scan an item, then mark it Owned or Sold to start tracking your profit here.": {
       "en": "Scan an item, then mark it Owned or Sold to start tracking your profit here.",
       "ro": "Scanează un obiect, apoi marchează-l „În posesie” sau „Vândut” ca să îți urmărești profitul aici.",
@@ -3192,12 +3643,28 @@
       "de": "Gescannt",
       "zh-Hans": "已扫描"
     },
+    "Scanned before Pro": {
+      "comment": "Label under \"Why this price\" when a subscriber reopens a find from My Finds or My Flips that was saved with only the free part of the panel. Such a find is not re-read, so this says why the panel is short.",
+      "en": "Scanned before Pro",
+      "ro": "Scanată înainte de Pro",
+      "es": "Escaneado antes de Pro",
+      "de": "Vor Pro gescannt",
+      "zh-Hans": "开通 Pro 前扫描"
+    },
     "Scanning needs a real iPhone — device verification (App Attest) isn't available in the Simulator.": {
       "en": "Scanning needs a real iPhone — device verification (App Attest) isn't available in the Simulator.",
       "ro": "Scanarea are nevoie de un iPhone real — verificarea dispozitivului (App Attest) nu există în Simulator.",
       "es": "Escanear necesita un iPhone real: la verificación del dispositivo (App Attest) no existe en el simulador.",
       "de": "Scannen braucht ein echtes iPhone – die Geräteüberprüfung (App Attest) gibt es im Simulator nicht.",
       "zh-Hans": "扫描需要真机：模拟器上没有设备验证（App Attest）。"
+    },
+    "Scanning resumed": {
+      "comment": "VoiceOver announcement when a Haul pause ends.",
+      "en": "Scanning resumed",
+      "ro": "Scanarea a fost reluată",
+      "es": "Escaneo reanudado",
+      "de": "Scannen geht weiter",
+      "zh-Hans": "已恢复扫描"
     },
     "Search finds": {
       "en": "Search finds",
@@ -3228,12 +3695,13 @@
       "de": "Vollständiges Ergebnis ansehen",
       "zh-Hans": "查看完整结果"
     },
-    "See your exact profit after marketplace fees, right there in the aisle.": {
-      "en": "See your exact profit after marketplace fees, right there in the aisle.",
-      "ro": "Vezi exact ce profit îți rămâne după comisioane, chiar acolo, în magazin.",
-      "es": "Mira exactamente cuánto ganas tras las comisiones, allí mismo, en la tienda.",
-      "de": "Sieh deinen genauen Gewinn nach Plattformgebühren – direkt im Laden.",
-      "zh-Hans": "就站在货架前，看清扣掉平台手续费后到底赚多少。"
+    "See your estimated profit after marketplace fees, right there in the aisle.": {
+      "comment": "Onboarding, Thrift Flip slide. 'Estimated', never 'exact': the resale side is an AI estimate and the fees are approximate, which Thrift Flip itself says.",
+      "en": "See your estimated profit after marketplace fees, right there in the aisle.",
+      "ro": "Vezi profitul estimat după comisioane, chiar acolo, în magazin.",
+      "es": "Mira una estimación de tu ganancia tras las comisiones, allí mismo, en la tienda.",
+      "de": "Sieh deinen geschätzten Gewinn nach Plattformgebühren – direkt im Laden.",
+      "zh-Hans": "就站在货架前，估算扣掉平台手续费后能赚多少。"
     },
     "See your flips for the month": {
       "en": "See your flips for the month",
@@ -3271,6 +3739,13 @@
       "de": "Teilen",
       "zh-Hans": "分享"
     },
+    "Share all drafts": {
+      "en": "Share all drafts",
+      "ro": "Distribuie toate ciornele",
+      "es": "Compartir todos los borradores",
+      "de": "Alle Entwürfe teilen",
+      "zh-Hans": "分享全部商品描述"
+    },
     "Share anonymous analytics": {
       "en": "Share anonymous analytics",
       "ro": "Trimite statistici anonime",
@@ -3284,6 +3759,13 @@
       "es": "La tarjeta aún se está preparando",
       "de": "Die Karte wird noch vorbereitet",
       "zh-Hans": "分享卡片还在生成"
+    },
+    "Share haul": {
+      "en": "Share haul",
+      "ro": "Distribuie lotul",
+      "es": "Compartir el lote",
+      "de": "Stapel teilen",
+      "zh-Hans": "分享本批"
     },
     "Share invite": {
       "en": "Share invite",
@@ -3336,6 +3818,14 @@
       "de": "Versand (optional)",
       "zh-Hans": "运费（选填）"
     },
+    "Shoes": {
+      "comment": "An item category (ScanCategory), as a label on its own: a row of 'Trending at the thrift', and the start of that row's VoiceOver sentence.",
+      "en": "Shoes",
+      "ro": "Încălțăminte",
+      "es": "Calzado",
+      "de": "Schuhe",
+      "zh-Hans": "鞋靴"
+    },
     "Shop price": {
       "en": "Shop price",
       "ro": "Prețul din magazin",
@@ -3349,6 +3839,14 @@
       "es": "¿Te lo llevas?",
       "de": "Mitnehmen oder liegen lassen?",
       "zh-Hans": "这件值不值得拿下？"
+    },
+    "Show the full breakdown": {
+      "comment": "Button under \"Why this price\": re-reads the find's photo to get the full panel.",
+      "en": "Show the full breakdown",
+      "ro": "Arată analiza completă",
+      "es": "Ver el desglose completo",
+      "de": "Vollständige Aufschlüsselung zeigen",
+      "zh-Hans": "查看完整分析"
     },
     "Shows a running total of this trip on your Lock Screen": {
       "en": "Shows a running total of this trip on your Lock Screen",
@@ -3401,6 +3899,14 @@
       "de": "Überspringt die Einführung",
       "zh-Hans": "跳过介绍"
     },
+    "Snap each item — they're valued as you go.": {
+      "comment": "Haul: empty strip, before the first photo.",
+      "en": "Snap each item — they're valued as you go.",
+      "ro": "Fotografiază fiecare obiect — le evaluăm pe măsură ce avansezi.",
+      "es": "Fotografía cada artículo: los valoramos sobre la marcha.",
+      "de": "Fotografiere jeden Artikel – bewertet wird nebenbei.",
+      "zh-Hans": "逐件拍照，边拍边估价。"
+    },
     "Snap → Sell": {
       "comment": "Brand or feature name: the same in every language, deliberately (see DELIBERATELY_ENGLISH). In the catalog only so Xcode stops re-extracting it.",
       "en": "Snap → Sell",
@@ -3439,6 +3945,13 @@
       "de": "SnapWorth kann nichts zu deinen Fotos hinzufügen. Erlaube es unter Einstellungen → SnapWorth → Fotos.",
       "zh-Hans": "SnapWorth 无法添加到你的照片。请在“设置”→ SnapWorth →“照片”中允许。"
     },
+    "SnapWorth couldn't confirm your Pro subscription yet, so the rest of this haul is on hold. Your photos are kept.": {
+      "en": "SnapWorth couldn't confirm your Pro subscription yet, so the rest of this haul is on hold. Your photos are kept.",
+      "ro": "SnapWorth nu a putut confirma încă abonamentul Pro, așa că restul lotului așteaptă. Fotografiile tale sunt păstrate.",
+      "es": "SnapWorth aún no ha podido confirmar tu suscripción Pro, así que el resto del lote queda en espera. Tus fotos se conservan.",
+      "de": "SnapWorth konnte dein Pro-Abo noch nicht bestätigen, deshalb wartet der Rest des Stapels. Deine Fotos bleiben erhalten.",
+      "zh-Hans": "SnapWorth 暂时无法确认你的 Pro 订阅，本批其余照片先暂缓。照片不会丢失。"
+    },
     "SnapWorth couldn't open your library on this launch, so this find can't be saved to it. Reopening the app may fix it.": {
       "en": "SnapWorth couldn't open your library on this launch, so this find can't be saved to it. Reopening the app may fix it.",
       "ro": "SnapWorth n-a putut deschide colecția la pornirea asta, așa că găselnița nu poate fi salvată în ea. Repornirea aplicației poate rezolva.",
@@ -3466,6 +3979,14 @@
       "es": "Colección de SnapWorth, %@ escaneados, por valor de %@.",
       "de": "SnapWorth-Sammlung, %@ gescannt, im Wert von %@.",
       "zh-Hans": "SnapWorth 收获，已扫描 %@，价值 %@。"
+    },
+    "SnapWorth recognizes your subscription now. Please try again.": {
+      "comment": "Message under \"Subscription confirmed\". The request the server had refused is not re-run automatically, so the user is asked to repeat it.",
+      "en": "SnapWorth recognizes your subscription now. Please try again.",
+      "ro": "SnapWorth îți recunoaște acum abonamentul. Încearcă din nou.",
+      "es": "SnapWorth ya reconoce tu suscripción. Inténtalo de nuevo.",
+      "de": "SnapWorth erkennt dein Abo jetzt an. Versuch es noch einmal.",
+      "zh-Hans": "SnapWorth 现在已确认你的订阅。请再试一次。"
     },
     "SnapWorth version %@": {
       "en": "SnapWorth version %@",
@@ -3553,6 +4074,14 @@
       "de": "Sortieren, den Monat teilen oder als CSV exportieren",
       "zh-Hans": "排序、分享本月，或导出 CSV"
     },
+    "Sports": {
+      "comment": "An item category (ScanCategory), as a label on its own: a row of 'Trending at the thrift', and the start of that row's VoiceOver sentence.",
+      "en": "Sports",
+      "ro": "Sport",
+      "es": "Deportes",
+      "de": "Sport",
+      "zh-Hans": "运动"
+    },
     "Spot on — your guess is inside the estimate.": {
       "en": "Spot on — your guess is inside the estimate.",
       "ro": "Exact — ai nimerit în interval.",
@@ -3588,6 +4117,14 @@
       "de": "Los scannen",
       "zh-Hans": "开始扫描"
     },
+    "Status %@": {
+      "comment": "VoiceOver announcement after a flip-status chip is tapped. The argument is the status (Scanned, Owned, Listed, Sold).",
+      "en": "Status %@",
+      "ro": "Stadiu %@",
+      "es": "Estado %@",
+      "de": "Status %@",
+      "zh-Hans": "状态 %@"
+    },
     "Stay on top of your flips": {
       "comment": "Title of the notification permission priming alert.",
       "en": "Stay on top of your flips",
@@ -3595,6 +4132,13 @@
       "es": "No pierdas de vista tus reventas",
       "de": "Behalt deine Flips im Blick",
       "zh-Hans": "别让转卖的事落下"
+    },
+    "Stop drafting": {
+      "en": "Stop drafting",
+      "ro": "Oprește ciornele",
+      "es": "Dejar de redactar",
+      "de": "Entwürfe stoppen",
+      "zh-Hans": "停止生成"
     },
     "Stops removing finds": {
       "en": "Stops removing finds",
@@ -3624,6 +4168,14 @@
       "es": "La suscripción se renueva automáticamente salvo que la canceles al menos 24 horas antes de que acabe el periodo en curso. Se cobrará la renovación a tu cuenta de ID de Apple durante las 24 horas anteriores al fin del periodo en curso. Puedes gestionarla o cancelarla cuando quieras en los ajustes de tu cuenta de ID de Apple. La parte no usada de una prueba gratuita se pierde al comprar.",
       "de": "Das Abo verlängert sich automatisch, sofern es nicht mindestens 24 Stunden vor Ende des laufenden Zeitraums gekündigt wird. Die Verlängerung wird deiner Apple-ID innerhalb der letzten 24 Stunden des laufenden Zeitraums berechnet. Du kannst das Abo jederzeit in den Einstellungen deines Apple-ID-Accounts verwalten oder kündigen. Ein nicht genutzter Teil einer Testphase verfällt mit dem Kauf.",
       "zh-Hans": "订阅会自动续期，除非在当前周期结束前至少 24 小时取消。续期费用将在当前周期结束前 24 小时内从你的 Apple 账户扣除。你可以随时在 Apple 账户设置中管理或取消订阅。购买后，免费试用期中未使用的部分将作废。"
+    },
+    "Subscription confirmed": {
+      "comment": "Alert title after \"Restore purchase\" in the \"We couldn't confirm your subscription\" alert, once the server has accepted the subscription.",
+      "en": "Subscription confirmed",
+      "ro": "Abonament confirmat",
+      "es": "Suscripción confirmada",
+      "de": "Abo bestätigt",
+      "zh-Hans": "订阅已确认"
     },
     "Suggest a feature": {
       "en": "Suggest a feature",
@@ -3704,6 +4256,13 @@
       "de": "Das hat nicht geklappt. Deine Schätzung bleibt unverändert.",
       "zh-Hans": "没成功，估价保持不变。"
     },
+    "That photo didn't take — try again.": {
+      "en": "That photo didn't take — try again.",
+      "ro": "Fotografia nu s-a făcut — încearcă din nou.",
+      "es": "La foto no se ha hecho: vuelve a intentarlo.",
+      "de": "Das Foto wurde nicht aufgenommen – versuch es noch einmal.",
+      "zh-Hans": "这张没拍成，请再拍一次。"
+    },
     "That's your own invite code. Share it with a friend instead.": {
       "en": "That's your own invite code. Share it with a friend instead.",
       "ro": "E propriul tău cod de invitație. Trimite-l unui prieten.",
@@ -3726,6 +4285,14 @@
       "es": "La calculadora se rindió.",
       "de": "Der Taschenrechner hat gekündigt.",
       "zh-Hans": "计算器罢工了。"
+    },
+    "The full breakdown is only available for new scans. This find keeps the summary it was saved with.": {
+      "comment": "Under \"Scanned before Pro\": a find reopened from My Finds or My Flips keeps the free part of \"Why this price\"; only a fresh scan offers the full panel.",
+      "en": "The full breakdown is only available for new scans. This find keeps the summary it was saved with.",
+      "ro": "Analiza completă e disponibilă doar pentru scanările noi. Găselnița asta păstrează rezumatul cu care a fost salvată.",
+      "es": "El desglose completo solo está disponible para escaneos nuevos. Este hallazgo conserva el resumen con el que se guardó.",
+      "de": "Die vollständige Aufschlüsselung gibt es nur für neue Scans. Dieser Fund behält die Zusammenfassung, mit der er gespeichert wurde.",
+      "zh-Hans": "完整分析仅适用于新扫描。这件好物保留的是保存时的摘要。"
     },
     "The historians are arguing…": {
       "comment": "Rare-find easter egg (RareFind.swift). The joke is hype and rarity only — keep it that way in translation.",
@@ -3757,6 +4324,14 @@
       "de": "Die Anfrage hat zu lange gedauert. Versuch es noch einmal.",
       "zh-Hans": "请求超时。请再试一次。"
     },
+    "The rest are on hold so they don't run into the same problem.": {
+      "comment": "Haul: under the server's message when two photos in a row failed the same way.",
+      "en": "The rest are on hold so they don't run into the same problem.",
+      "ro": "Restul sunt puse în așteptare ca să nu dea de aceeași problemă.",
+      "es": "El resto queda en espera para que no se encuentre con el mismo problema.",
+      "de": "Der Rest wartet, damit er nicht auf dasselbe Problem stößt.",
+      "zh-Hans": "其余照片已暂缓，以免遇到同样的问题。"
+    },
     "The shirt reads:": {
       "comment": "Rare-find easter egg (RareFind.swift). The joke is hype and rarity only — keep it that way in translation. Read aloud, last in the card's summary; VoiceOver then reads the shirt's printed line, in English, as the next element.",
       "en": "The shirt reads:",
@@ -3786,6 +4361,14 @@
       "de": "Dieses Gerät unterstützt die sichere Überprüfung nicht.",
       "zh-Hans": "这台设备不支持安全验证。"
     },
+    "This find was saved without its full breakdown. Re-read its photo to see the price points and what drives the value. The estimate, the item's name and details, and the listing draft may change.": {
+      "comment": "Shown to a subscriber under \"Why this price\" when the find was saved with only the free part of the panel (usually scanned before they subscribed). A re-read replaces the estimate, name, brand, category, condition notes and listing draft, so all of them are named.",
+      "en": "This find was saved without its full breakdown. Re-read its photo to see the price points and what drives the value. The estimate, the item's name and details, and the listing draft may change.",
+      "ro": "Găselnița asta a fost salvată fără analiza completă. Recitește-i fotografia ca să vezi pragurile de preț și ce ridică valoarea. Se pot schimba estimarea, numele și detaliile obiectului și ciorna de anunț.",
+      "es": "Este hallazgo se guardó sin el desglose completo. Vuelve a leer su foto para ver los niveles de precio y qué sube el valor. Pueden cambiar la estimación, el nombre y los detalles del artículo, y el borrador del anuncio.",
+      "de": "Dieser Fund wurde ohne die vollständige Aufschlüsselung gespeichert. Lies sein Foto neu, um die Preispunkte zu sehen und was den Wert treibt. Dabei können sich die Schätzung, Name und Details des Artikels und der Inserat-Entwurf ändern.",
+      "zh-Hans": "这件好物保存时没有完整分析。重新识别它的照片，就能看到价格档位和什么在抬高价值。估价、物品名称和细节，以及商品描述草稿都可能随之改变。"
+    },
     "This has never happened before…": {
       "comment": "Rare-find easter egg (RareFind.swift). The joke is hype and rarity only — keep it that way in translation.",
       "en": "This has never happened before…",
@@ -3793,6 +4376,14 @@
       "es": "Esto nunca había pasado…",
       "de": "Das ist noch nie passiert…",
       "zh-Hans": "前所未有…"
+    },
+    "This haul": {
+      "comment": "Heading of the Haul summary.",
+      "en": "This haul",
+      "ro": "Acest lot",
+      "es": "Este lote",
+      "de": "Dieser Stapel",
+      "zh-Hans": "本批"
     },
     "This iPhone has no email account set up. Copy your message and send it to %@ from wherever you do have mail.": {
       "en": "This iPhone has no email account set up. Copy your message and send it to %@ from wherever you do have mail.",
@@ -3864,6 +4455,14 @@
       "de": "Zu viele Versuche heute. Versuch es morgen wieder.",
       "zh-Hans": "今天尝试次数太多了。明天再试吧。"
     },
+    "Toys": {
+      "comment": "An item category (ScanCategory), as a label on its own: a row of 'Trending at the thrift', and the start of that row's VoiceOver sentence.",
+      "en": "Toys",
+      "ro": "Jucării",
+      "es": "Juguetes",
+      "de": "Spielzeug",
+      "zh-Hans": "玩具"
+    },
     "Trending at the thrift": {
       "en": "Trending at the thrift",
       "ro": "Ce se caută la second hand",
@@ -3898,6 +4497,28 @@
       "es": "Inténtalo de nuevo",
       "de": "Noch einmal versuchen",
       "zh-Hans": "再试一次"
+    },
+    "Try again or remove it": {
+      "comment": "VoiceOver hint on a photo that could not be valued.",
+      "en": "Try again or remove it",
+      "ro": "Încearcă din nou sau elimin-o",
+      "es": "Vuelve a intentarlo o elimínala",
+      "de": "Versuch es noch einmal oder entferne es",
+      "zh-Hans": "重试或将其移除"
+    },
+    "Try all again": {
+      "en": "Try all again",
+      "ro": "Încearcă-le din nou pe toate",
+      "es": "Reintentar todas",
+      "de": "Alle erneut versuchen",
+      "zh-Hans": "全部重试"
+    },
+    "Try the rest": {
+      "en": "Try the rest",
+      "ro": "Încearcă-le pe celelalte",
+      "es": "Probar con el resto",
+      "de": "Rest versuchen",
+      "zh-Hans": "继续处理其余照片"
     },
     "Turn them on in iOS Settings to get these reminders.": {
       "en": "Turn them on in iOS Settings to get these reminders.",
@@ -3996,17 +4617,45 @@
       "zh-Hans": "解锁\nSnapWorth Pro"
     },
     "Unlock %lld more + all-time totals": {
-      "en": "Unlock %lld more + all-time totals",
-      "ro": "Deblochează încă %lld + totalurile pe tot istoricul",
-      "es": "Desbloquea %lld más y los totales de siempre",
-      "de": "Schalt %lld weitere und die Gesamtsummen frei",
+      "comment": "My Flips, free tier: the button under the visible flips. The number is how many more flips Pro shows.",
+      "en": {
+        "one": "Unlock %lld more + all-time totals",
+        "other": "Unlock %lld more + all-time totals"
+      },
+      "ro": {
+        "one": "Deblochează încă unul + totalurile pe tot istoricul",
+        "few": "Deblochează încă %lld + totalurile pe tot istoricul",
+        "other": "Deblochează încă %lld + totalurile pe tot istoricul"
+      },
+      "es": {
+        "one": "Desbloquea %lld más y los totales de siempre",
+        "other": "Desbloquea %lld más y los totales de siempre"
+      },
+      "de": {
+        "one": "Schalt einen weiteren und die Gesamtsummen frei",
+        "other": "Schalt %lld weitere und die Gesamtsummen frei"
+      },
       "zh-Hans": "再解锁 %lld 条，以及全部累计数据"
     },
     "Unlock %lld more flips and all-time totals": {
-      "en": "Unlock %lld more flips and all-time totals",
-      "ro": "Deblochează încă %lld flipuri și totalurile pe tot istoricul",
-      "es": "Desbloquea %lld reventas más y los totales de siempre",
-      "de": "Schalt %lld weitere Flips und die Gesamtsummen frei",
+      "comment": "VoiceOver label for the same button: how many more flips Pro shows.",
+      "en": {
+        "one": "Unlock %lld more flip and all-time totals",
+        "other": "Unlock %lld more flips and all-time totals"
+      },
+      "ro": {
+        "one": "Deblochează încă un flip și totalurile pe tot istoricul",
+        "few": "Deblochează încă %lld flipuri și totalurile pe tot istoricul",
+        "other": "Deblochează încă %lld de flipuri și totalurile pe tot istoricul"
+      },
+      "es": {
+        "one": "Desbloquea %lld reventa más y los totales de siempre",
+        "other": "Desbloquea %lld reventas más y los totales de siempre"
+      },
+      "de": {
+        "one": "Schalt einen weiteren Flip und die Gesamtsummen frei",
+        "other": "Schalt %lld weitere Flips und die Gesamtsummen frei"
+      },
       "zh-Hans": "再解锁 %lld 笔转卖，以及全部累计数据"
     },
     "Unlock marketplace listings": {
@@ -4051,6 +4700,14 @@
       "es": "Usado",
       "de": "Gebraucht",
       "zh-Hans": "有使用痕迹"
+    },
+    "Value history": {
+      "comment": "VoiceOver label for the portfolio sparkline on My Finds (Pro). Its value is the first and last total, e.g. '$45 to $1,240'.",
+      "en": "Value history",
+      "ro": "Istoricul valorii",
+      "es": "Historial de valor",
+      "de": "Wertverlauf",
+      "zh-Hans": "价值走势"
     },
     "Values an item from a photo you already have": {
       "en": "Values an item from a photo you already have",
@@ -4097,6 +4754,22 @@
       "de": "Warte auf die Freigabe. Dein Abo startet, sobald sie da ist – du musst nicht noch einmal kaufen.",
       "zh-Hans": "等待批准中。批准后订阅会立即生效，你不用再买一次。"
     },
+    "Waiting to be drafted": {
+      "comment": "Haul summary: a valued item whose listing draft has not started yet.",
+      "en": "Waiting to be drafted",
+      "ro": "Așteaptă scrierea anunțului",
+      "es": "Pendiente de redactar",
+      "de": "Wartet auf Entwurf",
+      "zh-Hans": "等待生成商品描述"
+    },
+    "Waiting to be valued": {
+      "comment": "Haul: VoiceOver label of a photo not yet sent.",
+      "en": "Waiting to be valued",
+      "ro": "Așteaptă evaluarea",
+      "es": "Pendiente de valorar",
+      "de": "Wartet auf Bewertung",
+      "zh-Hans": "等待估价"
+    },
     "We checked. Twice.": {
       "comment": "Rare-find easter egg (RareFind.swift). The joke is hype and rarity only — keep it that way in translation.",
       "en": "We checked. Twice.",
@@ -4104,6 +4777,29 @@
       "es": "Lo comprobamos. Dos veces.",
       "de": "Wir haben nachgeprüft. Zweimal.",
       "zh-Hans": "我们核对过了。两次。"
+    },
+    "We couldn't confirm your subscription": {
+      "comment": "Alert title. StoreKit shows an active subscription but the server refused the request even after it was re-sent.",
+      "en": "We couldn't confirm your subscription",
+      "ro": "Nu ți-am putut confirma abonamentul",
+      "es": "No pudimos confirmar tu suscripción",
+      "de": "Wir konnten dein Abo nicht bestätigen",
+      "zh-Hans": "暂时无法确认你的订阅"
+    },
+    "We couldn't load the full breakdown. Your estimate is unchanged.": {
+      "en": "We couldn't load the full breakdown. Your estimate is unchanged.",
+      "ro": "N-am putut încărca analiza completă. Estimarea a rămas neschimbată.",
+      "es": "No pudimos cargar el desglose completo. Tu estimación no ha cambiado.",
+      "de": "Wir konnten die vollständige Aufschlüsselung nicht laden. Deine Schätzung bleibt unverändert.",
+      "zh-Hans": "没能加载完整分析，估价保持不变。"
+    },
+    "We couldn't verify this device just now. Please try again in a moment.": {
+      "comment": "Device verification (App Attest) hit an outage — ours or Apple's. Not a reason to reinstall.",
+      "en": "We couldn't verify this device just now. Please try again in a moment.",
+      "ro": "N-am putut verifica dispozitivul chiar acum. Încearcă din nou peste puțin timp.",
+      "es": "No pudimos verificar este dispositivo ahora mismo. Inténtalo de nuevo en un momento.",
+      "de": "Wir konnten dieses Gerät gerade nicht überprüfen. Versuch es gleich noch einmal.",
+      "zh-Hans": "暂时没能验证这台设备，请稍后再试。"
     },
     "We couldn't verify this device. Try again — if it keeps happening, reinstalling the app will reset it.": {
       "en": "We couldn't verify this device. Try again — if it keeps happening, reinstalling the app will reset it.",
@@ -4367,6 +5063,14 @@
       },
       "zh-Hans": "你的 %lld 件好物价值"
     },
+    "Your SnapWorth trial ends the day after tomorrow, at %@.": {
+      "comment": "Notification. %@ is a time of day (e.g. 1:40 AM). Sent at 21:00 two calendar days before a trial that ends in the small hours.",
+      "en": "Your SnapWorth trial ends the day after tomorrow, at %@.",
+      "ro": "Perioada gratuită SnapWorth se termină poimâine, la %@.",
+      "es": "Tu prueba de SnapWorth acaba pasado mañana (%@).",
+      "de": "Deine SnapWorth-Testphase endet übermorgen um %@.",
+      "zh-Hans": "你的 SnapWorth 试用将于后天 %@ 到期。"
+    },
     "Your SnapWorth trial ends tomorrow.": {
       "en": "Your SnapWorth trial ends tomorrow.",
       "ro": "Perioada gratuită SnapWorth se termină mâine.",
@@ -4423,6 +5127,14 @@
       "de": "Deine Nachricht",
       "zh-Hans": "你的留言"
     },
+    "Your photos are kept — resuming in %@": {
+      "comment": "Haul pause banner. %@ is a live countdown (e.g. 12:40) on screen, and, spoken by VoiceOver, a duration from \"%lld minutes\" or \"%lld seconds\" (e.g. 12 minutes). The Chinese avoids 照片都已保存, which reads as saved to Photos.",
+      "en": "Your photos are kept — resuming in %@",
+      "ro": "Fotografiile tale sunt păstrate — reluăm peste %@",
+      "es": "Tus fotos se conservan: seguimos en %@",
+      "de": "Deine Fotos bleiben erhalten – weiter in %@",
+      "zh-Hans": "照片不会丢失，%@ 后继续"
+    },
     "Your purchase could not be verified.": {
       "en": "Your purchase could not be verified.",
       "ro": "Cumpărătura nu a putut fi verificată.",
@@ -4443,6 +5155,14 @@
       "es": "Se ha restaurado tu suscripción.",
       "de": "Dein Abo wurde wiederhergestellt.",
       "zh-Hans": "你的订阅已恢复。"
+    },
+    "abundant supply": {
+      "comment": "The AI's guess at how many comparable items are for sale. Placed inside 'AI read: %@, %@'.",
+      "en": "abundant supply",
+      "ro": "ofertă abundentă",
+      "es": "oferta abundante",
+      "de": "reichliches Angebot",
+      "zh-Hans": "货源充足"
     },
     "after marketplace fees": {
       "en": "after marketplace fees",
@@ -4556,6 +5276,22 @@
       "de": "guter gebrauchter Zustand",
       "zh-Hans": "二手，成色良好"
     },
+    "high demand": {
+      "comment": "The AI's guess at demand. Lower-case: it is placed inside 'AI read: %@, %@'.",
+      "en": "high demand",
+      "ro": "cerere mare",
+      "es": "demanda alta",
+      "de": "hohe Nachfrage",
+      "zh-Hans": "需求高"
+    },
+    "item scanned": {
+      "comment": "Haul share card, under the number 1. The number is drawn separately above it.",
+      "en": "item scanned",
+      "ro": "obiect scanat",
+      "es": "artículo escaneado",
+      "de": "Artikel gescannt",
+      "zh-Hans": "件已扫描"
+    },
     "item sold": {
       "comment": "Share card label under a count of 1.",
       "en": "item sold",
@@ -4563,6 +5299,14 @@
       "es": "artículo vendido",
       "de": "Artikel verkauft",
       "zh-Hans": "件已售出"
+    },
+    "items scanned": {
+      "comment": "Haul share card, under a number other than 1. The number is drawn separately above it.",
+      "en": "items scanned",
+      "ro": "obiecte scanate",
+      "es": "artículos escaneados",
+      "de": "Artikel gescannt",
+      "zh-Hans": "件已扫描"
     },
     "items sold": {
       "comment": "Share card label under a count.",
@@ -4579,6 +5323,14 @@
       "de": "wie neu, kaum getragen",
       "zh-Hans": "几乎全新，仅试用过"
     },
+    "low demand": {
+      "comment": "The AI's guess at demand. Lower-case: it is placed inside 'AI read: %@, %@'.",
+      "en": "low demand",
+      "ro": "cerere mică",
+      "es": "demanda baja",
+      "de": "geringe Nachfrage",
+      "zh-Hans": "需求低"
+    },
     "market rate: unhinged": {
       "comment": "Rare-find easter egg (RareFind.swift). The joke is hype and rarity only — keep it that way in translation.",
       "en": "market rate: unhinged",
@@ -4586,6 +5338,22 @@
       "es": "precio de mercado: desquiciado",
       "de": "Marktpreis: völlig durchgedreht",
       "zh-Hans": "市场行情：失控"
+    },
+    "medium demand": {
+      "comment": "The AI's guess at demand. Lower-case: it is placed inside 'AI read: %@, %@'.",
+      "en": "medium demand",
+      "ro": "cerere medie",
+      "es": "demanda media",
+      "de": "mittlere Nachfrage",
+      "zh-Hans": "需求一般"
+    },
+    "moderate supply": {
+      "comment": "The AI's guess at how many comparable items are for sale. Placed inside 'AI read: %@, %@'.",
+      "en": "moderate supply",
+      "ro": "ofertă moderată",
+      "es": "oferta moderada",
+      "de": "mittleres Angebot",
+      "zh-Hans": "货源适中"
     },
     "month": {
       "comment": "One subscription period, no number.",
@@ -4640,6 +5408,14 @@
       "de": "Gewinn diesen Monat",
       "zh-Hans": "本月利润"
     },
+    "scarce supply": {
+      "comment": "The AI's guess at how many comparable items are for sale. Placed inside 'AI read: %@, %@'.",
+      "en": "scarce supply",
+      "ro": "ofertă redusă",
+      "es": "oferta escasa",
+      "de": "knappes Angebot",
+      "zh-Hans": "货源稀少"
+    },
     "shipping not included": {
       "comment": "Rare-find easter egg (RareFind.swift). The joke is hype and rarity only — keep it that way in translation.",
       "en": "shipping not included",
@@ -4647,13 +5423,6 @@
       "es": "envío no incluido",
       "de": "zzgl. Versand",
       "zh-Hans": "不含运费"
-    },
-    "supply %@": {
-      "en": "supply %@",
-      "ro": "ofertă %@",
-      "es": "oferta %@",
-      "de": "Angebot %@",
-      "zh-Hans": "供给 %@"
     },
     "suspiciously specific": {
       "comment": "Rare-find easter egg (RareFind.swift). The joke is hype and rarity only — keep it that way in translation.",
@@ -4670,6 +5439,14 @@
       "es": "la escala no da más",
       "de": "die Skala ist am Anschlag",
       "zh-Hans": "量表已爆表"
+    },
+    "top find": {
+      "comment": "Label for the most valuable item in a haul, on the summary and the share card. Lower case, like \"best flip\".",
+      "en": "top find",
+      "ro": "cea mai bună găselniță",
+      "es": "mejor hallazgo",
+      "de": "bester Fund",
+      "zh-Hans": "最值钱的一件"
     },
     "unchanged": {
       "en": "unchanged",

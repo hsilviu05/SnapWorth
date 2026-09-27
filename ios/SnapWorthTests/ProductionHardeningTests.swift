@@ -334,6 +334,25 @@ final class PaymentRequiredMappingTests: XCTestCase {
             XCTAssertFalse(error.isPaywall, "\(error) must not open the paywall")
         }
     }
+
+    /// Source-level, because both scans go through `ScanAPIClient.shared`,
+    /// which a unit test cannot make answer 402. Thrift Flip opened the
+    /// paywall on a 402 and left the counter alone, so the Scan tab and the
+    /// widget kept advertising a free scan the server had just refused.
+    func test_bothScanEntryPointsZeroTheCounterWhenTheServerRefuses() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("SnapWorth/ViewModels")
+        for name in ["ScanViewModel.swift", "ThriftFlipViewModel.swift"] {
+            let file = try String(contentsOf: root.appendingPathComponent(name), encoding: .utf8)
+            let start = try XCTUnwrap(file.range(of: "if appError.isPaywall {"), name)
+            let end = try XCTUnwrap(file.range(of: "showPaywall = true",
+                                               range: start.upperBound..<file.endIndex), name)
+            XCTAssertTrue(file[start.upperBound..<end.lowerBound]
+                            .contains("FreeScanCounter.serverRemaining = 0"),
+                          "\(name) opens the paywall on a 402 without zeroing the count")
+        }
+    }
 }
 
 // MARK: - App Attest key recovery (I-1)
@@ -476,6 +495,56 @@ final class PrivacyPolicyDisclosureTests: XCTestCase {
         // unchanged to anyone checking whether they need to re-consent.
         XCTAssertNotEqual(PrivacyPolicy.updated, "September 2, 2026",
                           "the date must move when the policy does")
+        // Nor older than the retention rewrite. backend/tests/test_main.py
+        // holds the web copy's date to this one.
+        XCTAssertNotEqual(PrivacyPolicy.updated, "September 9, 2026")
+    }
+
+    func test_retentionSaysWhatAScanLeavesOnTheServer() {
+        // It said "Photos and scan results are processed in real time and are
+        // not retained on our servers" while every scan was tallied for 35 days
+        // and each day's best finds, item name included, were shown to Pro
+        // subscribers. The photo half was true; the rest was not.
+        XCTAssertFalse(policy.contains("scan results are processed in real time"),
+                       "the claim the tallies contradict is back")
+        XCTAssertTrue(policy.contains("35 days after the day of the scan"))
+        XCTAssertTrue(policy.contains("never the item name, the photo, or who scanned it"),
+                      "must match what /trends sends — see notify.trends")
+        // Not "only what running the service needs": the bot's /post and
+        // /calendar give the week's top finds to Gemini to draft social posts.
+        XCTAssertFalse(policy.contains("only what running the service needs"))
+        XCTAssertTrue(policy.contains("uses the week's highest-value scans, through Google's Gemini API, to draft ideas for SnapWorth's social-media posts"))
+    }
+
+    func test_theDeviceTagBesideEachTallyIsDisclosed() {
+        // /trends counts devices, so the server keeps a tag per device beside
+        // every category, brand and find for as long as the day's tallies.
+        // "Without your device identifier" was literally true and said
+        // nothing about it. backend/tests/test_main.py pins the web copy.
+        XCTAssertTrue(policy.contains("Beside each category, brand and highest-value scan we also keep a short tag for each device that scanned it"))
+        XCTAssertTrue(policy.contains("neither the device identifier itself nor the hash described under Telegram"))
+    }
+
+    func test_purchasesAndReferralsAreDisclosed() {
+        // The signed transaction goes up with the device ID on every status
+        // refresh and is kept; a claimed invite links two devices. Neither was
+        // in either copy of the policy.
+        XCTAssertTrue(policy.contains("Apple's signed record of your subscription purchase"))
+        XCTAssertTrue(policy.contains("for up to 400 days after the app last sends it"))
+        XCTAssertTrue(policy.contains("If you use Invite a friend"))
+    }
+
+    func test_aSubscribersDeviceIdIsNotCalledUnlinked() {
+        // It is stored with the purchase record, which PrivacyInfo.xcprivacy
+        // declares linked. "Not linked to your identity", flat, contradicted
+        // the paragraph below it.
+        XCTAssertTrue(policy.contains("This ID is not linked to your identity, except that if you subscribe it is kept with Apple's record of your purchase"))
+    }
+
+    func test_theOperatorRecordRetentionCountsFromApplesLastWord() {
+        // Apple's renewal notices refresh the operator's subscription row,
+        // device pseudonym included, so it outlives the app's last visit.
+        XCTAssertTrue(policy.contains("for up to 400 days after the device last uses the service or, for a subscription, after the app or Apple last tells us about it"))
     }
 }
 
@@ -489,19 +558,22 @@ final class PrivacyPolicyDisclosureTests: XCTestCase {
 // `prompts.py` and deployed to production with zero client-decode
 // verification. A renamed field would have been caught by neither suite.
 //
-// `contract/scan-response.json` is now the single fixture both sides read.
+// Both sides now read the 200 bodies in `contract/`: `scan-response.json`
+// (Pro) and `scan-response-free.json` (free), each generated from real server
+// output by `backend/tests/test_contract.py`.
 
 final class ScanContractTests: XCTestCase {
 
     /// The repo-root fixture, located from this file rather than from a
     /// bundle: the test target has no resources phase, and adding one to
     /// carry a single JSON file would be more machinery than the file.
-    static func contractData() throws -> Data {
+    static func contractData(_ name: String = "scan-response.json") throws -> Data {
         let url = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()   // SnapWorthTests
             .deletingLastPathComponent()   // ios
             .deletingLastPathComponent()   // repo root
-            .appendingPathComponent("contract/scan-response.json")
+            .appendingPathComponent("contract")
+            .appendingPathComponent(name)
         return try Data(contentsOf: url)
     }
 
@@ -527,13 +599,37 @@ final class ScanContractTests: XCTestCase {
         XCTAssertNotNil(detail, "the v2 payload in the shared fixture no longer decodes")
     }
 
-    func test_freeScansRemainingDecodesAsOptional() throws {
-        // Nil when the server omits it (Pro, or the quota store is down) —
-        // see I-3. The fixture carries a value, so this checks the present
-        // case; the absent case is covered below by `base`.
+    /// Everything the panel prints from the shared fixture, which carries the
+    /// backend's real tokens (`likeNew`-style grades, `no_concerns`, `high`).
+    /// None of it may be a token: no underscore, and no bare adjective.
+    func test_theSharedFixtureRendersNoServerTokens() throws {
         let decoded = try JSONDecoder().decode(
             ScanAPIResponse.self, from: Self.contractData())
-        XCTAssertEqual(decoded.freeScansRemaining, 2)
+        let detail = try XCTUnwrap(ValuationDetail(response: decoded))
+        let shown = detail.facts + detail.factsWithReadGrade
+            + [detail.marketRead, detail.authenticityRead?.label].compactMap { $0 }
+        XCTAssertNotNil(detail.authenticityRead, "the fixture's authenticity token has no label")
+        XCTAssertNotNil(detail.marketRead, "the fixture's demand and supply tokens have no label")
+        for text in shown {
+            XCTAssertFalse(text.contains("_"), "raw token on the panel: \(text)")
+            for token in [decoded.authenticityAssessment, decoded.demand, decoded.supply,
+                          decoded.conditionGrade].compactMap({ $0 }) {
+                XCTAssertNotEqual(text, token, "raw token on the panel: \(text)")
+            }
+        }
+    }
+
+    func test_freeScansRemainingDecodesAsOptional() throws {
+        // Nil when the server sends null (Pro, or the quota store is down) —
+        // see I-3. Both fixtures are real server output now: the free body
+        // carries what is left after the day's scan, the Pro body null. The
+        // absent case is covered below by `base`.
+        let free = try JSONDecoder().decode(
+            ScanAPIResponse.self, from: Self.contractData("scan-response-free.json"))
+        XCTAssertEqual(free.freeScansRemaining, 0)
+        let pro = try JSONDecoder().decode(
+            ScanAPIResponse.self, from: Self.contractData())
+        XCTAssertNil(pro.freeScansRemaining)
     }
 }
 
@@ -945,6 +1041,37 @@ final class PlanPricingTests: XCTestCase {
         await service.reloadProducts()
         let pricing = await service.pricing
         XCTAssertFalse(pricing.isEmpty)
+    }
+
+    // ── The yearly saving ───────────────────────────────────────────────────
+    //
+    // `NSDecimalNumber.intValue` returned 0 for the unrounded quotient, so the
+    // badge was nil at the shipped prices and the yearly card said "BEST
+    // VALUE" in every storefront. The mock hardcoded 33, so nothing noticed.
+
+    private func percent(_ yearly: String, _ monthly: String) -> Int? {
+        StoreKitPurchaseService.savingsPercent(yearly: Decimal(string: yearly)!,
+                                               monthly: Decimal(string: monthly)!)
+    }
+
+    func test_theShippedPricesSaveThirtyThreePercent() {
+        // SnapWorth.storekit: 39.99 a year against 4.99 a month.
+        XCTAssertEqual(percent("39.99", "4.99"), 33)
+    }
+
+    func test_theSavingIsRoundedDownNotUp() {
+        // 37.41%: the badge must not claim 38.
+        XCTAssertEqual(percent("44.99", "5.99"), 37)
+        // 16.42%.
+        XCTAssertEqual(percent("29.99", "2.99"), 16)
+    }
+
+    func test_noSavingMeansNoBadge() {
+        XCTAssertNil(percent("59.88", "4.99"), "twelve months exactly saves nothing")
+        XCTAssertNil(percent("69.99", "4.99"), "a dearer yearly plan saves nothing")
+        XCTAssertNil(percent("0.50", "0"), "no monthly price to compare against")
+        // Under one percent rounds down to nothing, rather than "SAVE 0%".
+        XCTAssertNil(percent("59.50", "4.99"))
     }
 }
 
@@ -1706,12 +1833,30 @@ final class PrivacyManifestTests: XCTestCase {
                        "it is attached to analytics signals, and nothing else")
     }
 
-    func test_nothingIsLinkedToIdentityOrUsedForTracking() throws {
+    func test_purchaseHistoryIsDeclared() throws {
+        // The app uploads the signed StoreKit transaction with the device ID on
+        // every status refresh, and the server keeps it for up to 400 days.
+        // The manifest had no Purchase History entry at all.
+        let collected = try manifest()["NSPrivacyCollectedDataTypes"] as? [[String: Any]] ?? []
+        let entry = collected.first { $0["NSPrivacyCollectedDataType"] as? String
+                                      == "NSPrivacyCollectedDataTypePurchaseHistory" }
+        XCTAssertNotNil(entry, "the signed transaction is collected and undeclared")
+        XCTAssertEqual(entry?["NSPrivacyCollectedDataTypePurposes"] as? [String],
+                       ["NSPrivacyCollectedDataTypePurposeAppFunctionality"])
+    }
+
+    func test_onlyPurchaseHistoryIsLinked_andNothingIsUsedForTracking() throws {
+        // Purchase History is linked: its originalTransactionId is the same on
+        // every device under one Apple ID, and the server stores it against the
+        // device ID to join them. Everything else stays unlinked; widening this
+        // set changes the App Store label and needs the same argument made.
         let collected = try manifest()["NSPrivacyCollectedDataTypes"] as? [[String: Any]] ?? []
         for entry in collected {
             let name = entry["NSPrivacyCollectedDataType"] as? String ?? "?"
-            XCTAssertEqual(entry["NSPrivacyCollectedDataTypeLinked"] as? Bool, false,
-                           "\(name) must not be linked to identity")
+            let linked = name == "NSPrivacyCollectedDataTypePurchaseHistory"
+            XCTAssertEqual(entry["NSPrivacyCollectedDataTypeLinked"] as? Bool, linked,
+                           linked ? "\(name) is joined to the Apple account; declare it linked"
+                                  : "\(name) must not be linked to identity")
             XCTAssertEqual(entry["NSPrivacyCollectedDataTypeTracking"] as? Bool, false,
                            "\(name) must not be used for tracking")
         }
@@ -1883,6 +2028,12 @@ final class PaywallBenefitsTests: XCTestCase {
                        "Thrift Flip is not gated — ThriftFlipView has no isPro check")
         XCTAssertTrue(texts.contains { $0.localizedCaseInsensitiveContains("tag") })
         XCTAssertTrue(texts.contains { $0.localizedCaseInsensitiveContains("export") })
+        // The portfolio total is on every user's History tab; only its history
+        // is gated. A row selling "portfolio value" sells something free.
+        let portfolio = texts.filter { $0.localizedCaseInsensitiveContains("portfolio") }
+        XCTAssertEqual(portfolio.count, 1)
+        XCTAssertTrue(portfolio.allSatisfy { $0.localizedCaseInsensitiveContains("value history") },
+                      "the portfolio total is free — PortfolioBanner shows it without an isPro check")
     }
 
     func test_rowsAreDistinctAndNonEmpty() {
@@ -2439,11 +2590,16 @@ final class ScanStreakTests: XCTestCase {
         XCTAssertEqual(ScanStreak.record(now: day(4), defaults: defaults, calendar: cal), 1)
     }
 
-    func test_scannedTodayIsTierAgnostic() {
-        XCTAssertFalse(ScanStreak.scannedToday(now: day(1), defaults: defaults, calendar: cal))
-        ScanStreak.record(now: day(1), defaults: defaults, calendar: cal)
-        XCTAssertTrue(ScanStreak.scannedToday(now: day(1, hour: 23), defaults: defaults, calendar: cal))
-        XCTAssertFalse(ScanStreak.scannedToday(now: day(2), defaults: defaults, calendar: cal))
+    func test_aLaterScanTheSameDayMovesTheLastScanForward() {
+        // The free-scan reminder dates the UTC reset from this. Across local
+        // midnight-to-evening the first scan and the last can fall in
+        // different UTC days, and the later one is the one that spent today's
+        // allowance.
+        ScanStreak.record(now: day(1, hour: 8), defaults: defaults, calendar: cal)
+        XCTAssertEqual(ScanStreak.record(now: day(1, hour: 21), defaults: defaults, calendar: cal), 1)
+        XCTAssertEqual(defaults.object(forKey: ScanStreak.lastKey) as? Date, day(1, hour: 21))
+        XCTAssertEqual(ScanStreak.record(now: day(2), defaults: defaults, calendar: cal), 2,
+                       "moving it within the day must not change what the next day counts as")
     }
 
     func test_bucketsNeverLeakTheExactCount() {
@@ -2463,23 +2619,30 @@ final class FreeScanReminderTests: XCTestCase {
         cal.date(from: DateComponents(year: 2026, month: 9, day: day, hour: hour, minute: minute))!
     }
 
-    func test_todayAtTheChosenTimeWhenStillAheadAndUnscanned() {
+    func test_todayAtTheChosenTimeWhenStillAheadAndAvailable() {
         let fire = NotificationManager.nextFreeScanDate(after: at(3, 9), hour: 18, minute: 30,
-                                                        scannedToday: false, calendar: cal)
+                                                        notBefore: nil, calendar: cal)
         XCTAssertEqual(fire, at(3, 18, 30))
     }
 
     func test_tomorrowWhenTheTimeHasPassed() {
         let fire = NotificationManager.nextFreeScanDate(after: at(3, 19), hour: 18, minute: 0,
-                                                        scannedToday: false, calendar: cal)
+                                                        notBefore: nil, calendar: cal)
         XCTAssertEqual(fire, at(4, 18))
     }
 
-    func test_tomorrowWhenTodayIsAlreadyScanned() {
-        // 09:00, reminder at 18:00, but the free scan is spent: no nudge today.
+    func test_tomorrowWhenTheAllowanceIsBackOnlyAfterTodaysSlot() {
+        // 09:00, reminder at 18:00, but the free scan is spent until 20:00: no
+        // nudge today.
         let fire = NotificationManager.nextFreeScanDate(after: at(3, 9), hour: 18, minute: 0,
-                                                        scannedToday: true, calendar: cal)
+                                                        notBefore: at(3, 20), calendar: cal)
         XCTAssertEqual(fire, at(4, 18))
+    }
+
+    func test_todayWhenTheAllowanceIsBackBeforeTodaysSlot() {
+        let fire = NotificationManager.nextFreeScanDate(after: at(3, 9), hour: 18, minute: 0,
+                                                        notBefore: at(3, 10), calendar: cal)
+        XCTAssertEqual(fire, at(3, 18))
     }
 
     func test_copyNamesTheStreakOnlyWhenThereIsOne() {
@@ -2514,7 +2677,7 @@ final class FreeScanReminderTests: XCTestCase {
         // 09:00, unscanned, reminder at 18:00 — same day, nothing moves.
         let now = at(3, 9)
         let fire = NotificationManager.nextFreeScanDate(after: now, hour: 18, minute: 0,
-                                                        scannedToday: false, calendar: cal)!
+                                                        notBefore: nil, calendar: cal)!
         XCTAssertTrue(NotificationManager.streakOutlives(
             fireDate: fire, now: now, scannedToday: false, calendar: cal))
     }
@@ -2527,7 +2690,7 @@ final class FreeScanReminderTests: XCTestCase {
         // produce day 1.
         let now = at(3, 20)
         let fire = NotificationManager.nextFreeScanDate(after: now, hour: 18, minute: 0,
-                                                        scannedToday: false, calendar: cal)!
+                                                        notBefore: nil, calendar: cal)!
         XCTAssertEqual(fire, at(4, 18))
         XCTAssertFalse(NotificationManager.streakOutlives(
             fireDate: fire, now: now, scannedToday: false, calendar: cal))
@@ -2538,27 +2701,176 @@ final class FreeScanReminderTests: XCTestCase {
         // 18:00 it is still inside the window `ScanStreak.current()` allows.
         let now = at(3, 9)
         let fire = NotificationManager.nextFreeScanDate(after: now, hour: 18, minute: 0,
-                                                        scannedToday: true, calendar: cal)!
+                                                        notBefore: at(4, 0), calendar: cal)!
         XCTAssertEqual(fire, at(4, 18))
         XCTAssertTrue(NotificationManager.streakOutlives(
             fireDate: fire, now: now, scannedToday: true, calendar: cal))
     }
 
+    func test_aScanTodayNamesNoStreakOnAnyOtherDay() {
+        // Waiting for the UTC reset puts the first rung somewhere the local
+        // day never did. The same evening, east of UTC: today's streak day is
+        // already made, so "Day N is waiting" would be false. The day after
+        // tomorrow, west of UTC: the streak lapses tomorrow unless they scan.
+        let now = at(3, 9)
+        XCTAssertFalse(NotificationManager.streakOutlives(
+            fireDate: at(3, 18), now: now, scannedToday: true, calendar: cal))
+        XCTAssertFalse(NotificationManager.streakOutlives(
+            fireDate: at(5, 18), now: now, scannedToday: true, calendar: cal))
+    }
+
     func test_theFurtherOutTheRungTheLessThereIsToClaim() {
         // `syncFreeScanReminder` only ever asks about the first rung, and the
         // question is how far that rung is from now. With nothing scanned
-        // today there is nothing to carry, however far out it lands.
-        //
-        // Note the scanned-today case is deliberately *not* asserted here: the
-        // function's answer for it is yes at any distance, which is only ever
-        // correct because the caller asks solely about the first rung. The
-        // ladder's later rungs get `streak: 0` by construction, not by asking.
+        // today there is nothing to carry, however far out it lands; with a
+        // scan today, only tomorrow carries it.
         for day in 4...9 {
             XCTAssertFalse(
                 NotificationManager.streakOutlives(
                     fireDate: at(day, 18), now: at(3, 20),
                     scannedToday: false, calendar: cal),
                 "day \(day)")
+        }
+        for day in 5...9 {
+            XCTAssertFalse(
+                NotificationManager.streakOutlives(
+                    fireDate: at(day, 18), now: at(3, 20),
+                    scannedToday: true, calendar: cal),
+                "day \(day)")
+        }
+    }
+}
+
+// ── The free scan comes back at UTC midnight, not local midnight ─────────────
+//
+// `quota.py` counts UTC days, and so do `FreeScanCounter` and the Scans-left
+// widget. The reminder asked the local calendar: in New York an evening scan
+// was followed by "your free scan is back" at 18:00 the next day, two hours
+// before it was, and the tap opened the paywall. East of UTC it ran the other
+// way and skipped evenings on which the scan really was back.
+
+final class FreeScanReminderUTCTests: XCTestCase {
+
+    private func calendar(_ zone: String) -> Calendar {
+        var c = Calendar(identifier: .gregorian)
+        c.timeZone = TimeZone(identifier: zone)!
+        return c
+    }
+
+    private let utc: Calendar = {
+        var c = Calendar(identifier: .gregorian)
+        c.timeZone = TimeZone(secondsFromGMT: 0)!
+        return c
+    }()
+
+    private func at(_ cal: Calendar, _ day: Int, _ hour: Int, _ minute: Int = 0) -> Date {
+        cal.date(from: DateComponents(year: 2026, month: 9, day: day, hour: hour, minute: minute))!
+    }
+
+    /// The whole path `syncFreeScanReminder` takes to its first rung.
+    private func firstRung(lastScan: Date?, spentNow: Bool = false, now: Date,
+                           in cal: Calendar) -> Date? {
+        let returns = NotificationManager.freeScanReturns(
+            lastScan: lastScan, spentNow: spentNow, now: now, serverCalendar: utc)
+        return NotificationManager.nextFreeScanDate(after: now, hour: 18, minute: 0,
+                                                    notBefore: returns, calendar: cal)
+    }
+
+    func test_newYork_anEveningScanIsNotBackAtSixTheNextDay() {
+        // The defect. 21:00 EDT on the 3rd is 01:00 UTC on the 4th: that UTC
+        // day's scan is spent until 00:00 UTC on the 5th, which is 20:00 EDT
+        // on the 4th. 18:00 on the 4th would be a lie; 18:00 on the 5th is not.
+        let ny = calendar("America/New_York")
+        let scan = at(ny, 3, 21)
+        XCTAssertEqual(NotificationManager.freeScanReturns(
+            lastScan: scan, spentNow: true, now: scan, serverCalendar: utc), at(ny, 4, 20))
+        XCTAssertEqual(firstRung(lastScan: scan, spentNow: true, now: scan, in: ny), at(ny, 5, 18))
+    }
+
+    func test_aLadderThatStartsTwoDaysOutKeepsItsCancelMargin() throws {
+        // The same New York evening: the first rung is two local days out, so
+        // the seventh lands on the 11th, +8. `cancel(.freeScan)` clears by
+        // computed id, and the set promises a day of margin past the ladder for
+        // a clock or zone that moved; it stopped at +8, the last rung itself.
+        let ny = calendar("America/New_York")
+        let scan = at(ny, 3, 21)
+        let first = try XCTUnwrap(firstRung(lastScan: scan, spentNow: true, now: scan, in: ny))
+        let last = try XCTUnwrap(ny.date(byAdding: .day,
+                                         value: NotificationManager.freeScanLadderDays - 1, to: first))
+        XCTAssertEqual(last, at(ny, 11, 18))
+        func id(_ day: Date) -> String {
+            let p = ny.dateComponents([.year, .month, .day], from: day)
+            return String(format: "freeScan.daily.%04d%02d%02d", p.year!, p.month!, p.day!)
+        }
+        let ids = Set(NotificationManager.freeScanIDs(around: scan, calendar: ny))
+        XCTAssertTrue(ids.contains(id(last)), "the last rung cannot be cancelled")
+        XCTAssertTrue(ids.contains(id(at(ny, 12, 18))), "no margin past the last rung")
+    }
+
+    func test_newYork_aMorningScanIsBackOnlyAfterTheSixOClockSlot() {
+        // 09:00 EDT is 13:00 UTC; the reset is 20:00 EDT, after the 18:00
+        // slot, so the first honest reminder is tomorrow at 18:00.
+        let ny = calendar("America/New_York")
+        let scan = at(ny, 3, 9)
+        XCTAssertEqual(firstRung(lastScan: scan, spentNow: true, now: scan, in: ny), at(ny, 4, 18))
+    }
+
+    func test_utcPlusTen_aMorningScanIsBackBeforeTheEvening() {
+        // 08:00 in Brisbane (UTC+10, no daylight saving) is 22:00 UTC the day
+        // before, so the allowance it spent comes back at 10:00 local — and
+        // the 18:00 reminder the local calendar skipped is true.
+        let bne = calendar("Australia/Brisbane")
+        let scan = at(bne, 3, 8)
+        XCTAssertEqual(NotificationManager.freeScanReturns(
+            lastScan: scan, spentNow: true, now: scan, serverCalendar: utc), at(bne, 3, 10))
+        XCTAssertEqual(firstRung(lastScan: scan, spentNow: true, now: scan, in: bne), at(bne, 3, 18))
+    }
+
+    func test_utcPlusTen_anAfternoonScanWaitsForTomorrow() {
+        // 14:00 in Brisbane is 04:00 UTC, the same UTC day as the evening:
+        // the scan comes back at 10:00 tomorrow.
+        let bne = calendar("Australia/Brisbane")
+        let scan = at(bne, 3, 14)
+        XCTAssertEqual(firstRung(lastScan: scan, spentNow: true, now: scan, in: bne), at(bne, 4, 18))
+    }
+
+    func test_aResetThatHasPassedIsNoLongerAWait() {
+        let ny = calendar("America/New_York")
+        let now = at(ny, 5, 9)
+        XCTAssertNil(NotificationManager.freeScanReturns(
+            lastScan: at(ny, 3, 21), spentNow: false, now: now, serverCalendar: utc))
+        XCTAssertEqual(firstRung(lastScan: at(ny, 3, 21), now: now, in: ny), at(ny, 5, 18))
+    }
+
+    func test_aSpentAllowanceWithNoRecordedScanStillWaits() {
+        // A 402, or a reinstall whose allowance was withheld: the server says
+        // none are left and there is no scan here to date it by.
+        let ny = calendar("America/New_York")
+        let now = at(ny, 3, 9)
+        XCTAssertEqual(NotificationManager.freeScanReturns(
+            lastScan: nil, spentNow: true, now: now, serverCalendar: utc), at(ny, 3, 20))
+        XCTAssertNil(NotificationManager.freeScanReturns(
+            lastScan: nil, spentNow: false, now: now, serverCalendar: utc))
+    }
+
+    func test_neverBeforeTheReset_atAnyHourInEitherZone() {
+        // The property the reminder promises, swept across a day of scan
+        // times and every reminder hour.
+        for zone in ["America/New_York", "Australia/Brisbane", "Europe/Bucharest",
+                     "Pacific/Honolulu", "Asia/Kolkata"] {
+            let cal = calendar(zone)
+            for scanHour in 0..<24 {
+                let scan = at(cal, 10, scanHour, 30)
+                let returns = NotificationManager.freeScanReturns(
+                    lastScan: scan, spentNow: true, now: scan, serverCalendar: utc)!
+                for hour in 0..<24 {
+                    let fire = NotificationManager.nextFreeScanDate(
+                        after: scan, hour: hour, minute: 0, notBefore: returns, calendar: cal)!
+                    XCTAssertGreaterThanOrEqual(fire, returns, "\(zone) scan \(scanHour):30, slot \(hour):00")
+                    XCTAssertLessThan(fire.timeIntervalSince(returns), 86_400,
+                                      "\(zone) scan \(scanHour):30, slot \(hour):00 skipped a day")
+                }
+            }
         }
     }
 }
@@ -2728,9 +3040,9 @@ final class ValuationDetailTests: XCTestCase {
         "confidence_reasons":["Logo visible","Common item","Clear photo","Fourth reason"],
         "quick_sale_price_usd":45,"expected_price_usd":58,"best_case_price_usd":90,"worst_case_price_usd":40,
         "value_drivers":["Classic colourway"],"assumptions":["Size M"],"uncertainty_factors":["Pilling not visible"],
-        "improve_estimate":["Photograph the tag"],"authenticity_assessment":"Consistent with genuine",
-        "authenticity_reasoning":"Stitching and label match","demand":"steady","supply":"plentiful",
-        "condition_grade":"Good","size":"M","era":"2019","material":"fleece",
+        "improve_estimate":["Photograph the tag"],"authenticity_assessment":"no_concerns",
+        "authenticity_reasoning":"Stitching and label match","demand":"high","supply":"moderate",
+        "condition_grade":"good","size":"M","era":"2019","material":"fleece",
         """#)
     }
 
@@ -2783,6 +3095,337 @@ final class ValuationDetailTests: XCTestCase {
 
     func test_paywallTriggerExists() {
         XCTAssertEqual(PaywallTrigger.valuationDetail.rawValue, "valuation_detail")
+    }
+
+    // ── What a purchase from this panel unlocks ─────────────────────────────
+    //
+    // The blob is written once, at scan time, and a free scan's is stripped by
+    // the server. Buying from "Unlock why this price" then showed a subscriber
+    // a score, one sentence and "good": the panel they had just paid for.
+
+    /// What `_strip_pro_detail` in main.py leaves on a free response.
+    private var freeTier: String {
+        v1.replacingOccurrences(of: #""confidence":"High","#, with: #"""
+        "confidence":"High","confidence_score":72,"confidence_summary":"Brand and model are legible.",
+        "confidence_reasons":[],"quick_sale_price_usd":null,"expected_price_usd":null,
+        "best_case_price_usd":null,"worst_case_price_usd":null,"value_drivers":[],"assumptions":[],
+        "uncertainty_factors":[],"improve_estimate":[],"authenticity_assessment":null,
+        "authenticity_reasoning":null,"demand":null,"supply":null,"condition_grade":"good",
+        "size":null,"era":null,"material":null,
+        """#)
+    }
+
+    func test_aFreeResponseIsRecognisedAsMissingTheProPanel() throws {
+        let free = try JSONDecoder().decode(ScanAPIResponse.self, from: Data(freeTier.utf8))
+        let thin = try XCTUnwrap(ValuationDetail(response: free), "the teaser still needs its card")
+        XCTAssertTrue(thin.lacksProDetail)
+
+        let pro = try JSONDecoder().decode(ScanAPIResponse.self, from: Data(v2.utf8))
+        XCTAssertFalse(try XCTUnwrap(ValuationDetail(response: pro)).lacksProDetail)
+    }
+
+    func test_anyProSectionIsEnoughToShowThePanel() {
+        var detail = ValuationDetail()
+        detail.confidenceScore = 60
+        detail.confidenceSummary = "Clear photo."
+        detail.conditionGrade = "good"
+        XCTAssertTrue(detail.lacksProDetail)
+
+        var ladder = detail; ladder.worstCase = 10
+        var drivers = detail; drivers.valueDrivers = ["Colourway"]
+        var authenticity = detail; authenticity.authenticityAssessment = "Consistent"
+        var facts = detail; facts.material = "wool"
+        for full in [ladder, drivers, authenticity, facts] {
+            XCTAssertFalse(full.lacksProDetail)
+        }
+    }
+
+    /// Source-level: the re-read goes through `ScanAPIClient.shared`, which a
+    /// unit test cannot drive. Whether it is offered at all is
+    /// `FullDetailOffer`, tested in `FullDetailOfferTests`; this pins that
+    /// every way into the re-read asks it.
+    func test_buyingFromThePanelReReadsTheFind() throws {
+        let file = try String(
+            contentsOf: URL(fileURLWithPath: #filePath)
+                .deletingLastPathComponent().deletingLastPathComponent()
+                .appendingPathComponent("SnapWorth/Views/ResultView.swift"),
+            encoding: .utf8)
+        XCTAssertTrue(file.contains("if paywallTrigger == .valuationDetail, fullDetailOffer == .reread {"),
+                      "a purchase from this panel must hand back what it sold, on a fresh result only")
+        XCTAssertTrue(file.contains("case .reread:           fullDetailPrompt"),
+                      "the button is shown where the re-read is offered")
+        XCTAssertTrue(file.contains("case .scannedBeforePro: scannedBeforeProNote"),
+                      "a reopened thin find says why, rather than offering a re-read")
+        let body = try XCTUnwrap(file.range(of: "private func rereadForFullDetail()"))
+        let rest = file[body.upperBound...]
+        // It checks for itself, before any work starts, so no future caller
+        // can re-price a find reopened from My Finds or My Flips.
+        let own = try XCTUnwrap(rest.range(of: "guard !isRescanning, fullDetailOffer == .reread else { return }"))
+        let work = try XCTUnwrap(rest.range(of: "Task {"))
+        XCTAssertLessThan(own.lowerBound, work.lowerBound)
+        // The server is asked first: a device it still reads as free is not
+        // refused, it is answered — off the free allowance, stripped again.
+        let resync = try XCTUnwrap(rest.range(of: "await purchaseService.resyncEntitlement()"))
+        let scan = try XCTUnwrap(rest.range(of: "ScanAPIClient.shared.scan("))
+        XCTAssertLessThan(resync.lowerBound, scan.lowerBound)
+    }
+
+    /// Source-level, for the same reason. `applySharpened` replaces the name,
+    /// the details and the listing draft as well as the estimate, and the
+    /// prompt said only that "the estimate may change".
+    func test_theReReadPromptSaysEverythingItMayChange() throws {
+        let file = try String(
+            contentsOf: URL(fileURLWithPath: #filePath)
+                .deletingLastPathComponent().deletingLastPathComponent()
+                .appendingPathComponent("SnapWorth/Views/ResultView.swift"),
+            encoding: .utf8)
+        let view = try XCTUnwrap(file.range(of: "private var fullDetailPrompt: some View {"))
+        let open = try XCTUnwrap(file.range(of: "Text(\"", range: view.upperBound..<file.endIndex))
+        let close = try XCTUnwrap(file.range(of: "\")", range: open.upperBound..<file.endIndex))
+        let prompt = file[open.upperBound..<close.lowerBound]
+        for part in ["estimate", "name", "details", "listing draft"] {
+            XCTAssertTrue(prompt.contains(part), "\(part): \(prompt)")
+        }
+    }
+
+    // MARK: Server tokens are never display text
+
+    /// The backend's closed vocabularies (`valuation.py` `_CONDITION_GRADES`,
+    /// `_AUTHENTICITY`, `_DEMAND`, `_SUPPLY`). The server validates each field
+    /// against its set and sends the token, and the panel printed the token.
+    private let grades = ["new", "likeNew", "good", "used"]
+    private let authenticity = ["no_concerns", "minor_concerns", "cannot_verify", "likely_replica"]
+    private let demand = ["high", "medium", "low"]
+    private let supply = ["scarce", "moderate", "abundant"]
+
+    func test_everyServerTokenHasALabelThatIsNotTheToken() throws {
+        for token in grades {
+            let label = try XCTUnwrap(Condition(serverGrade: token)?.label, token)
+            XCTAssertFalse(label.contains("_"), token)
+        }
+        XCTAssertEqual(Set(authenticity), Set(AuthenticityRead.allCases.map(\.rawValue)))
+        for token in authenticity {
+            let label = try XCTUnwrap(AuthenticityRead(serverValue: token)?.label, token)
+            XCTAssertFalse(label.contains("_"), "\(token) printed as \(label)")
+            XCTAssertNotEqual(label, token)
+        }
+        for token in demand {
+            let label = try XCTUnwrap(MarketDemand(serverValue: token)?.label, token)
+            XCTAssertNotEqual(label, token, "a bare adjective reads as market fact")
+        }
+        for token in supply {
+            let label = try XCTUnwrap(MarketSupply(serverValue: token)?.label, token)
+            XCTAssertNotEqual(label, token, "a bare adjective reads as market fact")
+        }
+    }
+
+    func test_thePanelShowsLabelsAndAttributesTheMarketToTheAI() throws {
+        let response = try JSONDecoder().decode(ScanAPIResponse.self, from: v2.data(using: .utf8)!)
+        let detail = try XCTUnwrap(ValuationDetail(response: response))
+        XCTAssertEqual(detail.authenticityRead, .noConcerns)
+        XCTAssertEqual(detail.authenticityRead?.label, "No concerns")
+        XCTAssertEqual(detail.marketRead, "AI read: high demand, moderate supply")
+        XCTAssertEqual(detail.factsWithReadGrade, ["AI read: Good", "M", "2019", "fleece"])
+
+        var one = ValuationDetail()
+        one.supply = "scarce"
+        XCTAssertEqual(one.marketRead, "AI read: scarce supply",
+                       "one read alone is still the AI's, never stated bare")
+    }
+
+    func test_anUnknownTokenIsDroppedRatherThanPrinted() {
+        var detail = ValuationDetail()
+        detail.conditionGrade = "pristine"
+        detail.authenticityAssessment = "definitely_real"
+        detail.demand = "enormous"
+        detail.supply = "none_at_all"
+        detail.size = "M"
+        XCTAssertNil(detail.authenticityRead)
+        XCTAssertNil(detail.marketRead)
+        XCTAssertEqual(detail.facts, ["M"])
+        XCTAssertEqual(detail.factsWithReadGrade, ["M"])
+    }
+}
+
+// MARK: - A thin panel is re-read on a fresh result only
+
+/// The owner's rule for the full-breakdown re-read: the button and the
+/// automatic re-read after a purchase from the panel run on a fresh result
+/// only. A re-read replaces the estimate, the name and the listing draft, and
+/// a find reopened from My Finds or My Flips may already have been listed or
+/// sold on the number it has. It gets a label saying why its panel is thin,
+/// and is never re-read, whatever its status. A free user's teaser on such a
+/// find says so before they buy.
+@MainActor
+final class FullDetailOfferTests: XCTestCase {
+
+    /// What a free scan's panel keeps: score, summary, grade.
+    private var thin: ValuationDetail {
+        var detail = ValuationDetail()
+        detail.confidenceScore = 72
+        detail.confidenceSummary = "Brand and model are legible."
+        detail.conditionGrade = "good"
+        return detail
+    }
+
+    private var full: ValuationDetail {
+        var detail = thin
+        detail.expected = 58
+        detail.valueDrivers = ["Classic colourway"]
+        return detail
+    }
+
+    private func find(_ detail: ValuationDetail?, status: FlipStatus = .scanned) -> ScanResult {
+        let item = ScanResult(itemName: "Patagonia Better Sweater", brand: "Patagonia",
+                              category: "clothing", conditionNotes: "Good",
+                              valueLow: 45, valueHigh: 90, confidence: "High",
+                              soldListingsCount: 0, listingTitle: "T", listingDescription: "D",
+                              valuationDetailData: detail?.encoded())
+        item.status = status
+        return item
+    }
+
+    private var pro: MockPurchaseService { MockPurchaseService(forcedSubscribed: true) }
+
+    func test_aFreshThinResultIsOfferedTheReRead() {
+        XCTAssertTrue(thin.lacksProDetail)
+        XCTAssertEqual(FullDetailOffer(isPro: true, isFreshScan: true, detail: thin), .reread)
+        // Built the way the scan sheet builds it (`ScanView.resultSheet`).
+        let sheet = ResultView(result: find(thin), purchaseService: pro, onDismiss: {},
+                               didSave: true, coverPrice: true, isFreshScan: true)
+        XCTAssertEqual(sheet.fullDetailOffer, .reread)
+    }
+
+    func test_aReopenedThinFindGetsTheLabelAndNeverTheReRead() {
+        XCTAssertEqual(FullDetailOffer(isPro: true, isFreshScan: false, detail: thin),
+                       .scannedBeforePro)
+        // Built the way My Finds builds it (`HistoryView`).
+        let sheet = ResultView(result: find(thin), purchaseService: pro, onDismiss: {})
+        XCTAssertEqual(sheet.fullDetailOffer, .scannedBeforePro)
+    }
+
+    /// My Flips builds its sheet exactly as My Finds does. Listed and sold are
+    /// the statuses where the number has certainly been acted on, and no
+    /// status turns a reopened find back into a fresh one.
+    func test_soldAndListedLedgerItemsAreNeverReRead() {
+        for status in FlipStatus.allCases {
+            let sheet = ResultView(result: find(thin, status: status), purchaseService: pro,
+                                   onDismiss: {})
+            XCTAssertEqual(sheet.fullDetailOffer, .scannedBeforePro, status.rawValue)
+        }
+    }
+
+    /// Whether the value starts covered is a presentation choice; whether the
+    /// valuation is new is what decides.
+    func test_theFreshResultDecidesNotThePriceCover() {
+        let coveredOnly = ResultView(result: find(thin), purchaseService: pro, onDismiss: {},
+                                     coverPrice: true)
+        XCTAssertEqual(coveredOnly.fullDetailOffer, .scannedBeforePro)
+        let freshUncovered = ResultView(result: find(thin), purchaseService: pro, onDismiss: {},
+                                        isFreshScan: true)
+        XCTAssertEqual(freshUncovered.fullDetailOffer, .reread)
+    }
+
+    /// The teaser as it has always read, where buying delivers what it
+    /// describes: a free user's fresh result, which is re-read after the
+    /// purchase, and any full panel.
+    func test_nothingIsAddedForAFreeFreshResultOrAFullPanel() {
+        XCTAssertEqual(FullDetailOffer(isPro: false, isFreshScan: true, detail: thin), .none,
+                       "a free user sees the usual teaser, and buying re-reads the find")
+        for fresh in [true, false] {
+            for isPro in [true, false] {
+                XCTAssertEqual(FullDetailOffer(isPro: isPro, isFreshScan: fresh, detail: full), .none)
+                XCTAssertEqual(FullDetailOffer(isPro: isPro, isFreshScan: fresh, detail: nil), .none)
+            }
+        }
+        let free = ResultView(result: find(thin), purchaseService: MockPurchaseService(),
+                              onDismiss: {}, isFreshScan: true)
+        XCTAssertEqual(free.fullDetailOffer, .none)
+    }
+
+    /// A free user reopening a thin find. Buying from its teaser gives the
+    /// label, never a re-read, so the teaser must not sell this find's
+    /// breakdown. It used to be `.none`, the usual teaser, and the purchase
+    /// delivered "Scanned before Pro" under a score, a sentence and a grade.
+    func test_aFreeUsersReopenedThinFindIsOfferedNewScansOnly() async throws {
+        XCTAssertEqual(FullDetailOffer(isPro: false, isFreshScan: false, detail: thin),
+                       .teaserNewScansOnly)
+        // Built the way My Finds (`HistoryView`) and My Flips (`FlipsView`)
+        // build it, with no `isFreshScan`.
+        for status in FlipStatus.allCases {
+            let sheet = ResultView(result: find(thin, status: status),
+                                   purchaseService: MockPurchaseService(), onDismiss: {})
+            XCTAssertEqual(sheet.fullDetailOffer, .teaserNewScansOnly, status.rawValue)
+        }
+        // What the purchase from that teaser turns the same sheet into.
+        let store = MockPurchaseService()
+        let sheet = ResultView(result: find(thin), purchaseService: store, onDismiss: {})
+        XCTAssertEqual(sheet.fullDetailOffer, .teaserNewScansOnly)
+        _ = try await store.purchase(productID: Config.yearlyProductID)
+        XCTAssertEqual(sheet.fullDetailOffer, .scannedBeforePro)
+    }
+
+    /// A lapsed subscriber's find from their Pro months was saved full, and
+    /// re-subscribing shows it, so its teaser keeps the usual promise.
+    func test_aLapsedSubscribersFullFindKeepsTheUsualTeaser() {
+        let sheet = ResultView(result: find(full), purchaseService: MockPurchaseService(),
+                               onDismiss: {})
+        XCTAssertEqual(sheet.fullDetailOffer, .none)
+    }
+
+    /// Source-level: a view's copy cannot be read in a unit test. On
+    /// `.teaserNewScansOnly` the button must not offer to unlock "this price",
+    /// and the caption must say the breakdown comes with new scans.
+    func test_theNewScansOnlyTeaserDoesNotSellThisFindsBreakdown() throws {
+        let file = try String(
+            contentsOf: URL(fileURLWithPath: #filePath)
+                .deletingLastPathComponent().deletingLastPathComponent()
+                .appendingPathComponent("SnapWorth/Views/ResultView.swift"),
+            encoding: .utf8)
+        XCTAssertTrue(file.contains("newScansOnly: fullDetailOffer == .teaserNewScansOnly)"),
+                      "the card hands the teaser the offer's answer")
+        let teaser = try XCTUnwrap(file.range(of: "private func lockedDetailTeaser("))
+        let body = file[teaser.upperBound...]
+        XCTAssertTrue(body.contains(
+            #"PrimaryButton(title: newScansOnly ? "Upgrade to Pro" : "Unlock why this price")"#))
+        let branch = try XCTUnwrap(body.range(of: "if newScansOnly {"))
+        let open = try XCTUnwrap(body.range(of: "Text(\"", range: branch.upperBound..<body.endIndex))
+        let close = try XCTUnwrap(body.range(of: "\")", range: open.upperBound..<body.endIndex))
+        let caption = body[open.upperBound..<close.lowerBound]
+        XCTAssertTrue(caption.contains("On new scans"), String(caption))
+        XCTAssertTrue(caption.contains("This find keeps the summary it was saved with."),
+                      "the same words the label uses once they have bought: \(caption)")
+    }
+
+    /// Source-level: which sheet is fresh is decided at its call site. Only the
+    /// scan sheet may say so. My Finds and My Flips, whose items include
+    /// everything listed and sold, must not.
+    func test_onlyTheScanSheetIsFresh() throws {
+        let views = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("SnapWorth/Views")
+        func source(_ name: String) throws -> String {
+            try String(contentsOf: views.appendingPathComponent(name), encoding: .utf8)
+        }
+        XCTAssertTrue(try source("ScanView.swift").contains("isFreshScan: true"))
+        for reopened in ["HistoryView.swift", "FlipsView.swift"] {
+            let file = try source(reopened)
+            XCTAssertTrue(file.contains("ResultView("), reopened)
+            XCTAssertFalse(file.contains("isFreshScan"), "\(reopened) reopens saved finds")
+        }
+    }
+
+    /// Source-level: the tag re-read keeps the same rule on the same signal, so
+    /// the two cannot come apart the day the cover changes.
+    func test_theTagReReadIsGatedOnTheSameSignal() throws {
+        let file = try String(
+            contentsOf: URL(fileURLWithPath: #filePath)
+                .deletingLastPathComponent().deletingLastPathComponent()
+                .appendingPathComponent("SnapWorth/Views/ResultView.swift"),
+            encoding: .utf8)
+        let card = try XCTUnwrap(file.range(of: "private var addTagCard: some View {"))
+        let gate = try XCTUnwrap(file.range(of: "if ", range: card.upperBound..<file.endIndex))
+        XCTAssertTrue(file[gate.lowerBound...].hasPrefix("if isFreshScan {"))
     }
 }
 
@@ -2947,6 +3590,44 @@ final class TrendsDecodingTests: XCTestCase {
                        "Clothing, 54 scans, up 18 percent", "free never hears the average")
         let down = TrendRow(name: "shoes", count: 9, changePct: -7, averageEstimate: nil)
         XCTAssertEqual(TrendingCard.rowLabel(down, isPro: true), "Shoes, 9 scans, down 7 percent")
+        let offList = TrendRow(name: "gadgets", count: 5, changePct: nil, averageEstimate: nil)
+        XCTAssertEqual(TrendingCard.rowLabel(offList, isPro: false), "Other, 5 scans",
+                       "a word the model made up is not printed as if it were a category")
+    }
+
+    // The eleven the scan prompt offers (`prompts.py`), in its order.
+    private let promptCategories = ["clothing", "shoes", "accessories", "electronics", "books",
+                                    "furniture", "home", "sports", "toys", "collectibles", "other"]
+
+    func test_theAppsCategoriesAreThePromptsCategories() {
+        XCTAssertEqual(ScanCategory.allCases.map(\.rawValue), promptCategories)
+        for token in promptCategories {
+            XCTAssertEqual(ScanCategory(normalizing: token).rawValue, token)
+        }
+        let labels = ScanCategory.allCases.map(\.label)
+        XCTAssertEqual(Set(labels).count, labels.count, "two categories share a label")
+        XCTAssertFalse(labels.contains { promptCategories.contains($0) },
+                       "a label is the wire token, not a word")
+    }
+
+    func test_anOffListCategoryIsOtherTheWayTheServerCountsIt() {
+        XCTAssertEqual(ScanCategory(normalizing: "  Shoes\n"), .shoes)
+        // `notify._normalise_category`: exact match or "other". The old
+        // analytics table mapped these to buckets of its own the server does
+        // not have, so the two disagreed on the same scan.
+        for word in ["sneakers", "bags", "media", "beauty", "", "Clothing & shoes"] {
+            XCTAssertEqual(ScanCategory(normalizing: word), .other, word)
+        }
+    }
+
+    func test_analyticsCountsASportsScanAsSports() {
+        // Filed as "other" before: the analytics set had no sports, books or
+        // furniture.
+        for token in ["sports", "books", "furniture"] {
+            let event = AnalyticsEvent.scanCompleted(success: true,
+                                                     category: ScanCategory(normalizing: token))
+            XCTAssertEqual(event.parameters["item_category"], token)
+        }
     }
 
     func test_paywallTriggerExists() {
@@ -4489,7 +5170,7 @@ final class BearerRetryStructureTests: XCTestCase {
     func test_submitEntitlementRetriesOnAnExpiredToken() throws {
         let file = try source("Services/AttestationService.swift")
         let method = try body(
-            of: "func submitEntitlement(signedTransaction: String) async throws {",
+            of: "func submitEntitlement(signedTransaction: String) async throws -> String {",
             in: file)
 
         XCTAssertTrue(method.contains("sendRetryingAuth(on: session)"),
@@ -4522,14 +5203,675 @@ final class BearerRetryStructureTests: XCTestCase {
         // site added inside a file that already uses the wrapper elsewhere.
         for path in ["Services/AttestationService.swift",
                      "Services/ScanAPIClient.swift",
-                     "Services/ListingService.swift"] {
+                     "Services/ListingService.swift",
+                     "Services/ReferralService.swift"] {
             let file = try source(path)
-            let attaches = file.contains("attachBearerToken")
+            let attaches = file.contains("requireBearerToken")
                 || file.contains(#"forHTTPHeaderField: "Authorization""#)
             guard attaches else { continue }
             XCTAssertTrue(file.contains("sendRetryingAuth"),
                           "\(path) attaches a bearer token and never retries one")
         }
+    }
+
+    /// The rollout fallback is gone. `attachBearerToken` swallowed a failed
+    /// mint and sent the request unauthenticated, which production answers
+    /// 401 every time: the photo went up, and the user was told to reinstall
+    /// whatever the real cause was — offline, a rate limit, an outage.
+    func test_aRequestWithoutATokenIsNeverSent() throws {
+        let tokenStore = try source("Services/TokenStore.swift")
+        XCTAssertTrue(tokenStore.contains("mutating func requireBearerToken() async throws {"))
+        XCTAssertFalse(tokenStore.contains("continuing unauthenticated"))
+        for path in ["Services/ScanAPIClient.swift",
+                     "Services/ListingService.swift",
+                     "Services/ReferralService.swift"] {
+            let file = try source(path)
+            XCTAssertFalse(file.contains("attachBearerToken"), path)
+            // Read only by the server's pre-enforcement path, which a request
+            // that always carries a token never reaches.
+            XCTAssertFalse(file.contains(#""x-device-id""#), path)
+        }
+    }
+}
+
+// ── A locked phone does not strand a paid scan ───────────────────────────────
+//
+// Nothing asked iOS for background time, so locking the phone during
+// "Analyzing…" suspended the request the server was about to charge for.
+
+@MainActor
+final class BackgroundScanActivityTests: XCTestCase {
+
+    func test_endingTwiceIsHarmless() {
+        // The expiration handler and the caller's `defer` can both reach
+        // `end()`; ending an identifier UIKit has already released is an error.
+        let activity = BackgroundScanActivity.begin("test")
+        activity.end()
+        XCTAssertFalse(activity.isActive)
+        activity.end()
+        XCTAssertFalse(activity.isActive)
+    }
+
+    /// Source-level: all three paths go through `ScanAPIClient.shared`, which
+    /// a unit test cannot drive. What matters is that each one begins the
+    /// activity and ends it in a `defer`.
+    func test_everyPaidScanPathKeepsItselfAlive() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("SnapWorth")
+        for path in ["ViewModels/ScanViewModel.swift",
+                     "ViewModels/ThriftFlipViewModel.swift",
+                     "Views/ResultView.swift"] {
+            let file = try String(contentsOf: root.appendingPathComponent(path), encoding: .utf8)
+            var searchFrom = file.startIndex
+            var found = 0
+            while let call = file.range(of: "ScanAPIClient.shared.scan(",
+                                        range: searchFrom..<file.endIndex) {
+                let before = file[file.startIndex..<call.lowerBound]
+                let begin = try XCTUnwrap(before.range(of: "BackgroundScanActivity.begin(",
+                                                       options: .backwards),
+                                          "\(path): a scan with no background activity")
+                XCTAssertTrue(file[begin.upperBound..<call.lowerBound]
+                                .contains("defer { background.end() }"),
+                              "\(path): the activity is never ended")
+                found += 1
+                searchFrom = call.upperBound
+            }
+            XCTAssertGreaterThan(found, 0, path)
+        }
+    }
+}
+
+// ── A failed mint says what failed ───────────────────────────────────────────
+//
+// Now that a mint failure is thrown rather than swallowed, it is what the user
+// reads. Only a real verdict on the device may suggest a reinstall.
+
+final class TokenMintFailureMappingTests: XCTestCase {
+
+    func test_aChallengeRateLimitKeepsItsWait() {
+        let http = HTTPURLResponse(url: URL(string: "https://api.snapworth.eu/auth/challenge")!,
+                                   statusCode: 429, httpVersion: nil,
+                                   headerFields: ["Retry-After": "90"])!
+        XCTAssertEqual(AppError.from(ScanAPIError.from(http, data: Data())),
+                       .rateLimit(retryAfter: 90))
+    }
+
+    func test_anOutageIsNotAReasonToReinstall() {
+        // `.unknownSystemFailure` is one `requiresFreshKey` keeps the key
+        // for: a reinstall, which only replaces the key, cannot help.
+        for error: Error in [AttestationError.challengeFailed,
+                             AttestationError.unavailable,
+                             DCError(.serverUnavailable),
+                             DCError(.unknownSystemFailure)] {
+            XCTAssertEqual(AppError.from(error), .verificationUnavailable, "\(error)")
+        }
+        let message = AppError.verificationUnavailable.errorDescription ?? ""
+        XCTAssertFalse(message.isEmpty)
+        XCTAssertFalse(message.lowercased().contains("reinstall"), message)
+    }
+
+    func test_aDeviceWithoutAppAttestIsToldSoRatherThanToReinstall() {
+        for error: Error in [AttestationError.unsupportedDevice,
+                             DCError(.featureUnsupported)] {
+            XCTAssertEqual(AppError.from(error), .deviceUnsupported, "\(error)")
+        }
+        let message = AppError.deviceUnsupported.errorDescription ?? ""
+        XCTAssertFalse(message.isEmpty)
+        XCTAssertFalse(message.lowercased().contains("reinstall"), message)
+        #if targetEnvironment(simulator)
+        // Where every mint ends here: the developer is told the real reason.
+        XCTAssertTrue(message.contains("real iPhone"), message)
+        #endif
+    }
+
+    func test_aRealRejectionStillOffersTheReset() {
+        for error: Error in [AttestationError.serverRejected("Attestation invalid."),
+                             AttestationError.reattestationRequired,
+                             DCError(.invalidKey),
+                             DCError(.invalidInput),
+                             ScanAPIError.serverError(401, "unauthorized")] {
+            XCTAssertEqual(AppError.from(error), .sessionExpired, "\(error)")
+        }
+    }
+
+    func test_offlineMintReadsAsOffline() {
+        XCTAssertEqual(AppError.from(URLError(.notConnectedToInternet)), .network)
+        XCTAssertEqual(AppError.from(URLError(.timedOut)), .timeout)
+    }
+
+    func test_noneOfThemOpensThePaywall() {
+        XCTAssertFalse(AppError.verificationUnavailable.isPaywall)
+        XCTAssertFalse(AppError.deviceUnsupported.isPaywall)
+    }
+}
+
+// ── A subscriber is never sold their own plan ────────────────────────────────
+//
+// Every 402 opened the paywall, including for a user StoreKit shows as
+// subscribed — whose server-side tier comes from a fire-and-forget sync that
+// can fail, lag a purchase, or disagree during a billing grace period. So a
+// paying user could be shown "Subscribe Yearly", and nothing was counted.
+
+@MainActor
+private final class ResyncStub: PurchaseService {
+    var isSubscribed: Bool
+    var resyncResult: EntitlementResync
+    /// What `restorePurchases` throws, when it should fail.
+    var restoreError: Error?
+    private(set) var resyncCalls = 0
+
+    init(subscribed: Bool, resync: EntitlementResync) {
+        isSubscribed = subscribed
+        resyncResult = resync
+    }
+
+    func purchase(productID: String) async throws -> PurchaseOutcome { .completed }
+    func restorePurchases() async throws {
+        if let restoreError { throw restoreError }
+    }
+    func resyncEntitlement() async -> EntitlementResync {
+        resyncCalls += 1
+        if resyncResult == .notSubscribed { isSubscribed = false }
+        return resyncResult
+    }
+}
+
+private final class EventSpy: AnalyticsService {
+    var events: [AnalyticsEvent] = []
+    func track(_ event: AnalyticsEvent) { events.append(event) }
+}
+
+@MainActor
+final class SubscriberPaywallTests: XCTestCase {
+
+    private let refused = ScanAPIError.serverError(402, "You've used today's free scan.")
+    private var spy = EventSpy()
+
+    override func setUp() {
+        super.setUp()
+        spy = EventSpy()
+        Analytics.shared.configure(spy)
+    }
+
+    private var syncFailures: [String] {
+        spy.events.compactMap {
+            guard $0.name == "entitlement_sync_failed" else { return nil }
+            return $0.parameters["reason"]
+        }
+    }
+
+    /// A request that answers from `answers` in turn, throwing an `Error`.
+    private func scripted(_ answers: [Result<Int, Error>]) -> () async throws -> Int {
+        var remaining = answers
+        return { try remaining.removeFirst().get() }
+    }
+
+    func test_aFreeUsersRefusalIsThePaywallAndNothingElse() async {
+        let stub = ResyncStub(subscribed: false, resync: .confirmed)
+        do {
+            _ = try await stub.confirmingSubscription(scripted([.failure(refused)]))
+            XCTFail("the 402 must reach the caller")
+        } catch {
+            XCTAssertTrue(AppError.from(error).isPaywall)
+        }
+        XCTAssertEqual(stub.resyncCalls, 0, "a free user's 402 is simply right")
+    }
+
+    func test_aConfirmedResyncRetriesOnceAndSucceeds() async throws {
+        let stub = ResyncStub(subscribed: true, resync: .confirmed)
+        let value = try await stub.confirmingSubscription(scripted([.failure(refused), .success(7)]))
+        XCTAssertEqual(value, 7)
+        XCTAssertEqual(stub.resyncCalls, 1)
+        XCTAssertTrue(syncFailures.isEmpty)
+    }
+
+    func test_aLapsedSubscriptionStillReachesThePaywall() async {
+        // StoreKit, re-read, no longer shows one: the server was right.
+        let stub = ResyncStub(subscribed: true, resync: .notSubscribed)
+        do {
+            _ = try await stub.confirmingSubscription(scripted([.failure(refused)]))
+            XCTFail("the 402 must reach the caller")
+        } catch {
+            XCTAssertTrue(AppError.from(error).isPaywall)
+        }
+        XCTAssertTrue(syncFailures.isEmpty)
+    }
+
+    func test_aFailedResyncIsItsOwnStateNotThePaywall() async {
+        let stub = ResyncStub(subscribed: true, resync: .failed(reason: "network"))
+        do {
+            _ = try await stub.confirmingSubscription(scripted([.failure(refused)]))
+            XCTFail("expected subscriptionUnconfirmed")
+        } catch {
+            XCTAssertEqual(AppError.from(error), .subscriptionUnconfirmed)
+            XCTAssertFalse(AppError.from(error).isPaywall,
+                           "offering a subscriber their own plan is the one wrong answer")
+        }
+        XCTAssertEqual(syncFailures, ["network"])
+    }
+
+    func test_aServerThatStillRefusesIsCountedAndNotSold() async {
+        let stub = ResyncStub(subscribed: true, resync: .confirmed)
+        do {
+            _ = try await stub.confirmingSubscription(scripted([.failure(refused), .failure(refused)]))
+            XCTFail("expected subscriptionUnconfirmed")
+        } catch {
+            XCTAssertEqual(AppError.from(error), .subscriptionUnconfirmed)
+        }
+        XCTAssertEqual(stub.resyncCalls, 1, "one retry, not a loop")
+        XCTAssertEqual(syncFailures, ["still_refused"])
+    }
+
+    func test_otherFailuresPassStraightThrough() async {
+        let stub = ResyncStub(subscribed: true, resync: .confirmed)
+        do {
+            _ = try await stub.confirmingSubscription(scripted([.failure(URLError(.notConnectedToInternet))]))
+            XCTFail("expected the network error")
+        } catch {
+            XCTAssertEqual(AppError.from(error), .network)
+        }
+        XCTAssertEqual(stub.resyncCalls, 0, "only a 402 is a question about the tier")
+    }
+
+    func test_theUnconfirmedCopyOffersNoPriceAndNoReinstall() {
+        let message = AppError.subscriptionUnconfirmed.errorDescription ?? ""
+        XCTAssertFalse(message.isEmpty)
+        XCTAssertFalse(message.lowercased().contains("reinstall"), message)
+        XCTAssertFalse(message.contains("$"), message)
+    }
+
+    func test_syncFailuresAreFixedBucketsNeverErrorText() {
+        XCTAssertEqual(AnalyticsEvent.entitlementSyncFailed(reason: "network").name,
+                       "entitlement_sync_failed")
+        XCTAssertEqual(EntitlementSyncFailure.reason(for: URLError(.notConnectedToInternet)), "network")
+        XCTAssertEqual(EntitlementSyncFailure.reason(for: URLError(.timedOut)), "timeout")
+        XCTAssertEqual(EntitlementSyncFailure.reason(for: AttestationError.unavailable), "unavailable")
+        XCTAssertEqual(EntitlementSyncFailure.reason(for: AttestationError.unsupportedDevice), "attestation")
+        // On /auth/entitlement a rejection is the server refusing the
+        // transaction, not the device.
+        XCTAssertEqual(EntitlementSyncFailure.reason(for: AttestationError.serverRejected("Expired.")),
+                       "rejected")
+        let limited = ScanAPIError.from(
+            HTTPURLResponse(url: URL(string: "https://api.snapworth.eu/auth/entitlement")!,
+                            statusCode: 429, httpVersion: nil, headerFields: nil)!,
+            data: Data())
+        XCTAssertEqual(EntitlementSyncFailure.reason(for: limited), "rate_limited")
+        XCTAssertEqual(EntitlementSyncFailure.reason(for: CocoaError(.fileNoSuchFile)), "unknown")
+    }
+
+    // ── A server that could not be asked has not refused anyone ─────────────
+    //
+    // The full-breakdown re-read resyncs before it scans, so being offline, a
+    // timeout, a rate limit or an outage all ended in "Apple shows an active
+    // subscription, but SnapWorth couldn't confirm it", with advice to restore
+    // or write to support.
+
+    func test_aServerThatCouldNotBeAskedIsReportedAsItself() {
+        XCTAssertEqual(EntitlementSyncFailure.unreachable(URLError(.notConnectedToInternet)), .network)
+        XCTAssertEqual(EntitlementSyncFailure.unreachable(URLError(.timedOut)), .timeout)
+        XCTAssertEqual(EntitlementSyncFailure.unreachable(AttestationError.unavailable),
+                       .verificationUnavailable)
+        let limited = ScanAPIError.from(
+            HTTPURLResponse(url: URL(string: "https://api.snapworth.eu/auth/entitlement")!,
+                            statusCode: 429, httpVersion: nil, headerFields: ["Retry-After": "90"])!,
+            data: Data())
+        XCTAssertEqual(EntitlementSyncFailure.unreachable(limited), .rateLimit(retryAfter: 90),
+                       "a 429 keeps its wait")
+    }
+
+    func test_anAnswerThatQuestionsTheSubscriptionIsNotUnreachable() {
+        for error: Error in [AttestationError.serverRejected("Expired."),
+                             AttestationError.unsupportedDevice,
+                             CocoaError(.fileNoSuchFile)] {
+            XCTAssertNil(EntitlementSyncFailure.unreachable(error), "\(error)")
+        }
+    }
+
+    func test_afterA402AnUnreachableServerIsStillNotThePaywall() async {
+        let stub = ResyncStub(subscribed: true, resync: .unreachable(reason: "timeout", error: .timeout))
+        do {
+            _ = try await stub.confirmingSubscription(scripted([.failure(refused)]))
+            XCTFail("expected subscriptionUnconfirmed")
+        } catch {
+            XCTAssertEqual(AppError.from(error), .subscriptionUnconfirmed)
+        }
+        XCTAssertEqual(syncFailures, ["timeout"])
+    }
+
+    /// Source-level: the re-read is a view method over `ScanAPIClient.shared`.
+    func test_theFullBreakdownReReadShowsAnUnreachableServerInline() throws {
+        let file = try String(
+            contentsOf: URL(fileURLWithPath: #filePath)
+                .deletingLastPathComponent().deletingLastPathComponent()
+                .appendingPathComponent("SnapWorth/Views/ResultView.swift"),
+            encoding: .utf8)
+        let body = try XCTUnwrap(file.range(of: "private func rereadForFullDetail()"))
+        let arm = try XCTUnwrap(file.range(of: "case .unreachable(let reason, let error):",
+                                           range: body.upperBound..<file.endIndex))
+        let next = try XCTUnwrap(file.range(of: "case .failed(let reason):",
+                                            range: arm.upperBound..<file.endIndex))
+        let branch = file[arm.upperBound..<next.lowerBound]
+        XCTAssertTrue(branch.contains("fullDetailError = error.errorDescription"))
+        XCTAssertFalse(branch.contains("showSubscriptionUnconfirmed"),
+                       "an offline subscriber is not told their subscription is in question")
+    }
+
+    /// Source-level: these go through `ScanAPIClient.shared` and
+    /// `ListingAPIClient.shared`, which a unit test cannot make answer 402.
+    /// Every request a subscriber can be refused on has to ask first.
+    func test_everyPaidRequestAsksBeforeSellingAPlan() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("SnapWorth")
+        let calls = [("ViewModels/ScanViewModel.swift", "ScanAPIClient.shared.scan("),
+                     ("ViewModels/ThriftFlipViewModel.swift", "ScanAPIClient.shared.scan("),
+                     ("Views/ResultView.swift", "ScanAPIClient.shared.scan("),
+                     ("ViewModels/ResultViewModel.swift", "ListingAPIClient.shared.generate(")]
+        for (path, call) in calls {
+            let file = try String(contentsOf: root.appendingPathComponent(path), encoding: .utf8)
+            var searchFrom = file.startIndex
+            var found = 0
+            while let site = file.range(of: call, range: searchFrom..<file.endIndex) {
+                let leadStart: String.Index = file.index(site.lowerBound, offsetBy: -160,
+                                                         limitedBy: file.startIndex) ?? file.startIndex
+                let lead: Substring = file[leadStart..<site.lowerBound]
+                XCTAssertTrue(lead.contains("purchaseService.confirmingSubscription {"),
+                              "\(path): \(call) can sell a subscriber their own plan")
+                found += 1
+                searchFrom = site.upperBound
+            }
+            XCTAssertGreaterThan(found, 0, path)
+        }
+    }
+}
+
+// ── The alert's Restore says what it found ───────────────────────────────────
+//
+// It was `try? await restorePurchases()` behind an alert that closes on the
+// tap, so nothing on screen changed whatever happened — on the one alert that
+// appears right after a sync has failed.
+
+@MainActor
+final class SubscriptionRestoreTests: XCTestCase {
+
+    private var spy = EventSpy()
+
+    override func setUp() {
+        super.setUp()
+        spy = EventSpy()
+        Analytics.shared.configure(spy)
+    }
+
+    private var syncFailures: [String] {
+        spy.events.compactMap {
+            guard $0.name == "entitlement_sync_failed" else { return nil }
+            return $0.parameters["reason"]
+        }
+    }
+
+    func test_aConfirmedSubscriptionIsSaidSo() async {
+        let stub = ResyncStub(subscribed: true, resync: .confirmed)
+        let outcome = await SubscriptionRestore.run(stub)
+        guard case .notice(let notice) = outcome else { return XCTFail("\(outcome)") }
+        XCTAssertEqual(notice.title, String(localized: "Subscription confirmed"))
+        XCTAssertEqual(stub.resyncCalls, 1, "the server's answer is awaited, not left to a detached push")
+    }
+
+    func test_aServerThatStillRefusesBringsTheAlertBack() async {
+        let stub = ResyncStub(subscribed: true, resync: .failed(reason: "rejected"))
+        let outcome = await SubscriptionRestore.run(stub)
+        XCTAssertEqual(outcome, .stillUnconfirmed, "with its way to support")
+        XCTAssertEqual(syncFailures, ["rejected"])
+    }
+
+    func test_anUnreachableServerIsReportedAsItself() async {
+        let stub = ResyncStub(subscribed: true, resync: .unreachable(reason: "network", error: .network))
+        let outcome = await SubscriptionRestore.run(stub)
+        guard case .notice(let notice) = outcome else { return XCTFail("\(outcome)") }
+        XCTAssertEqual(notice.message, AppError.network.errorDescription)
+        XCTAssertEqual(syncFailures, ["network"])
+    }
+
+    func test_noSubscriptionAfterAllIsSaidSo() async {
+        let stub = ResyncStub(subscribed: true, resync: .notSubscribed)
+        let outcome = await SubscriptionRestore.run(stub)
+        guard case .notice(let notice) = outcome else { return XCTFail("\(outcome)") }
+        XCTAssertEqual(notice.message, String(localized: "No active subscription found on this Apple ID."))
+        XCTAssertFalse(stub.isSubscribed, "so the next refusal reaches the paywall")
+    }
+
+    func test_aFailedRestoreShowsItsError() async {
+        let stub = ResyncStub(subscribed: true, resync: .confirmed)
+        stub.restoreError = PurchaseError.failed("Cannot connect to the App Store.")
+        let outcome = await SubscriptionRestore.run(stub)
+        guard case .notice(let notice) = outcome else { return XCTFail("\(outcome)") }
+        XCTAssertEqual(notice.message, "Cannot connect to the App Store.")
+        XCTAssertEqual(stub.resyncCalls, 0)
+    }
+
+    func test_aDismissedSignInIsNotAResult() async {
+        let stub = ResyncStub(subscribed: true, resync: .confirmed)
+        stub.restoreError = PurchaseError.cancelled
+        let outcome = await SubscriptionRestore.run(stub)
+        XCTAssertEqual(outcome, .cancelled)
+        XCTAssertEqual(stub.resyncCalls, 0)
+    }
+}
+
+// ── A purchase finishes the scan the paywall interrupted ─────────────────────
+//
+// The scan-limit paywall dropped the photo, so a new subscriber's first Pro
+// moment was an empty viewfinder and a second shot of the same item.
+
+@MainActor
+final class ScanLimitResumeTests: XCTestCase {
+
+    private func capture() -> UIImage {
+        let format = UIGraphicsImageRendererFormat.default()
+        format.scale = 1
+        return UIGraphicsImageRenderer(size: CGSize(width: 4000, height: 3000), format: format)
+            .image { ctx in
+                UIColor.brown.setFill()
+                ctx.fill(CGRect(x: 0, y: 0, width: 4000, height: 3000))
+            }
+    }
+
+    private func repository() throws -> ScanRepository {
+        let config = ModelConfiguration(isStoredInMemoryOnly: true)
+        let container = try ModelContainer(for: ScanResult.self, configurations: config)
+        return ScanRepository(context: ModelContext(container))
+    }
+
+    /// The day's allowance is spent, so `startScan` stops at the paywall.
+    private func hitTheLimit(_ vm: ScanViewModel, _ service: any PurchaseService) async throws {
+        FreeScanCounter.serverRemaining = 0
+        await vm.startScan(image: capture(), purchaseService: service, repository: try repository())
+        XCTAssertTrue(vm.showPaywall)
+        XCTAssertEqual(vm.paywallTrigger, .scanLimit)
+    }
+
+    private func clearCounter() {
+        for key in ["snapworth_free_scans_server_remaining",
+                    "snapworth_free_scans_used", "snapworth_free_scans_date"] {
+            UserDefaults.standard.removeObject(forKey: key)
+        }
+    }
+
+    func test_aPurchaseResumesTheScanThePaywallInterrupted() async throws {
+        defer { clearCounter() }
+        let vm = ScanViewModel()
+        let stub = ResyncStub(subscribed: false, resync: .confirmed)
+        try await hitTheLimit(vm, stub)
+
+        stub.isSubscribed = true               // bought from the paywall
+        let photo = try XCTUnwrap(vm.takePhotoForResume(purchaseService: stub))
+        XCTAssertLessThanOrEqual(max(photo.size.width, photo.size.height),
+                                 ScanAPIClient.maxUploadEdge,
+                                 "held at upload size, not as a full-resolution capture")
+        XCTAssertNil(vm.takePhotoForResume(purchaseService: stub), "resumed once")
+    }
+
+    func test_aPlainDismissLetsThePhotoGo() async throws {
+        defer { clearCounter() }
+        let vm = ScanViewModel()
+        let stub = ResyncStub(subscribed: false, resync: .confirmed)
+        try await hitTheLimit(vm, stub)
+
+        XCTAssertNil(vm.takePhotoForResume(purchaseService: stub))
+        // Not kept for a later paywall to resume behind the user's back.
+        stub.isSubscribed = true
+        XCTAssertNil(vm.takePhotoForResume(purchaseService: stub))
+    }
+
+    func test_resetLetsThePhotoGo() async throws {
+        defer { clearCounter() }
+        let vm = ScanViewModel()
+        let stub = ResyncStub(subscribed: false, resync: .confirmed)
+        try await hitTheLimit(vm, stub)
+
+        vm.reset()
+        stub.isSubscribed = true
+        XCTAssertNil(vm.takePhotoForResume(purchaseService: stub))
+    }
+}
+
+// ── Telling the server once, not on every visit ──────────────────────────────
+//
+// Every return to the foreground re-sent the same signed transaction to
+// /auth/entitlement: a certificate-chain verification per visit, out of the IP
+// bucket the scan route uses.
+
+final class EntitlementSyncMemoryTests: XCTestCase {
+
+    private var defaults: UserDefaults!
+    private let suite = "EntitlementSyncMemoryTests"
+    private let now = Date(timeIntervalSince1970: 1_790_000_000)
+
+    override func setUp() {
+        super.setUp()
+        defaults = UserDefaults(suiteName: suite)
+        defaults.removePersistentDomain(forName: suite)
+    }
+
+    override func tearDown() {
+        defaults.removePersistentDomain(forName: suite)
+        super.tearDown()
+    }
+
+    func test_nothingIsFreshUntilTheServerHasHonouredIt() {
+        XCTAssertFalse(EntitlementSyncMemory.isFresh("jws-a", now: now, defaults: defaults))
+    }
+
+    func test_theSameTransactionIsNotResentWithinTheInterval() {
+        EntitlementSyncMemory.record("jws-a", now: now, defaults: defaults)
+        XCTAssertTrue(EntitlementSyncMemory.isFresh(
+            "jws-a", now: now.addingTimeInterval(EntitlementSyncMemory.interval - 60), defaults: defaults))
+        XCTAssertFalse(EntitlementSyncMemory.isFresh(
+            "jws-a", now: now.addingTimeInterval(EntitlementSyncMemory.interval), defaults: defaults),
+            "the server is told again before its own 24-hour entry can lapse")
+    }
+
+    func test_aRenewalIsSentAtOnce() {
+        // A renewal is a new transaction, so a new signature.
+        EntitlementSyncMemory.record("jws-a", now: now, defaults: defaults)
+        XCTAssertFalse(EntitlementSyncMemory.isFresh("jws-b", now: now, defaults: defaults))
+    }
+
+    func test_aClockMovedBackIsNotFresh() {
+        EntitlementSyncMemory.record("jws-a", now: now, defaults: defaults)
+        XCTAssertFalse(EntitlementSyncMemory.isFresh(
+            "jws-a", now: now.addingTimeInterval(-60), defaults: defaults))
+    }
+
+    func test_aNewAttestationSubjectIsToldAgain() {
+        // An iCloud restore carries these defaults to a phone whose App Attest
+        // key — and so whose server subject — is new.
+        EntitlementSyncMemory.record("jws-a", now: now, defaults: defaults)
+        EntitlementSyncMemory.forget(defaults: defaults)
+        XCTAssertFalse(EntitlementSyncMemory.isFresh("jws-a", now: now, defaults: defaults))
+    }
+
+    func test_theIntervalStaysInsideTheServersProCacheLifetime() {
+        // backend/entitlements.py: PRO_ENTITLEMENT_CACHE_TTL = 86_400.
+        XCTAssertLessThan(EntitlementSyncMemory.interval, 86_400)
+    }
+
+    // The skip was decided before the launch mint had finished, and a
+    // re-attestation forgets the memory only at its end — so a device whose
+    // /auth/refresh was answered 401 within twelve hours of its last sync
+    // never told its new subject it was subscribed.
+
+    func test_aReattestationDuringTheMintIsSeen() async throws {
+        let defaults = try XCTUnwrap(self.defaults)
+        EntitlementSyncMemory.record("jws-a", now: now, defaults: defaults)
+        let due = try await EntitlementSyncMemory.needsSending("jws-a", now: now, defaults: defaults) {
+            EntitlementSyncMemory.forget(defaults: defaults)      // what `attestFresh` does
+        }
+        XCTAssertTrue(due)
+    }
+
+    func test_anUnchangedSubjectStillSkipsAFreshTransaction() async throws {
+        let defaults = try XCTUnwrap(self.defaults)
+        EntitlementSyncMemory.record("jws-a", now: now, defaults: defaults)
+        let due = try await EntitlementSyncMemory.needsSending("jws-a", now: now, defaults: defaults) {}
+        XCTAssertFalse(due)
+    }
+
+    func test_aFailedMintSkipsAFreshTransactionQuietly() async throws {
+        // No new subject was made, so the memory still holds.
+        let defaults = try XCTUnwrap(self.defaults)
+        EntitlementSyncMemory.record("jws-a", now: now, defaults: defaults)
+        let due = try await EntitlementSyncMemory.needsSending("jws-a", now: now, defaults: defaults) {
+            throw URLError(.notConnectedToInternet)
+        }
+        XCTAssertFalse(due)
+    }
+
+    func test_aFailedMintIsReportedWhenTheSendWasDue() async throws {
+        let defaults = try XCTUnwrap(self.defaults)
+        do {
+            _ = try await EntitlementSyncMemory.needsSending("jws-a", now: now, defaults: defaults) {
+                throw URLError(.notConnectedToInternet)
+            }
+            XCTFail("a send that was due and could not happen is a sync failure")
+        } catch {
+            XCTAssertEqual(EntitlementSyncFailure.reason(for: error), "network")
+        }
+    }
+
+    /// Source-level: which refreshes may skip is the whole fix, and StoreKit
+    /// cannot be driven from a unit test.
+    func test_onlyTheRoutineRefreshesMaySkip() throws {
+        let file = try String(
+            contentsOf: URL(fileURLWithPath: #filePath)
+                .deletingLastPathComponent().deletingLastPathComponent()
+                .appendingPathComponent("SnapWorth/Services/StoreKitPurchaseService.swift"),
+            encoding: .utf8)
+        // Cold launch and the foreground refresh.
+        XCTAssertEqual(file.components(separatedBy: "refreshSubscriptionStatus(serverSync: .ifStale)").count - 1, 2)
+        // Purchase, restore and `Transaction.updates` keep the default.
+        XCTAssertEqual(file.components(separatedBy: "await refreshSubscriptionStatus()").count - 1, 2)
+        XCTAssertEqual(file.components(separatedBy: "await self.refreshSubscriptionStatus()").count - 1, 1)
+        XCTAssertTrue(file.contains("private func refreshSubscriptionStatus(serverSync: ServerSync = .always)"))
+        // And the skip is decided after the token, not when the refresh ran.
+        XCTAssertFalse(file.contains("!EntitlementSyncMemory.isFresh("))
+        let check = try XCTUnwrap(file.range(of: "try await EntitlementSyncMemory.needsSending(jws) {"))
+        let settle = file[check.upperBound...].prefix(120)
+        XCTAssertTrue(settle.contains("AttestationService.shared.accessToken()"), String(settle))
+    }
+
+    /// The first scan paid for the whole App Attest handshake inside
+    /// "Analyzing…", because nothing asked for a token before it did.
+    func test_theTokenIsMintedBeforeTheFirstScanAsksForIt() throws {
+        let app = try String(
+            contentsOf: URL(fileURLWithPath: #filePath)
+                .deletingLastPathComponent().deletingLastPathComponent()
+                .appendingPathComponent("SnapWorth/SnapWorthApp.swift"),
+            encoding: .utf8)
+        let root = try XCTUnwrap(app.range(of: "struct RootView: View {"))
+        XCTAssertTrue(app[root.upperBound...].contains(".task { await AttestationService.prewarm() }"),
+                      "RootView hosts onboarding too, so the token is ready by the first scan")
     }
 }
 
@@ -4660,9 +6002,10 @@ final class SettingsEntitlementObservationTests: XCTestCase {
     func test_theRateRowDoesNotSpendASystemPrompt() throws {
         // `requestReview()` asks the system to *maybe* show a prompt — roughly
         // three per year per app, ignored otherwise with no error and no
-        // callback — and `ReviewPrompt` already spends that quota on the third
-        // successful scan of each version. So for every engaged user, the only
-        // kind who goes looking for the row, tapping it did nothing.
+        // callback — and `ReviewPrompt` already spends that quota on its own,
+        // after a revealed estimate once three scans are in. So for every
+        // engaged user, the only kind who goes looking for the row, tapping it
+        // did nothing.
         let settings = try source("Views/SettingsView.swift")
         XCTAssertTrue(settings.contains("action=write-review"),
                       "the row must open the review composer")
@@ -4700,12 +6043,13 @@ final class SettingsEntitlementObservationTests: XCTestCase {
 
 // ── The same find, twice, with the same ID ───────────────────────────────────
 //
-// `NotableFind.id` is `name-low-high`, and the server builds `notable_finds` by
-// appending each of the seven day-documents' find lists with no dedup, emitting
-// the truncated name and *rounded* bounds. An item that topped the chart on two
-// days therefore arrives twice, byte-identical — and an ID-keyed `ForEach` over
-// that is undefined: SwiftUI logs "the ID … occurs multiple times within the
-// collection" and renders the row unreliably.
+// `NotableFind.id` is `name-low-high`, where `name` is the brand and the bounds
+// are *rounded*. An item that topped the chart on two days, or two scans of one
+// brand at the same rounded range, share an id. The server skips such repeats
+// now, but it did not always, and an ID-keyed `ForEach` over one is undefined:
+// SwiftUI logs "the ID … occurs multiple times within the collection" and
+// renders the row unreliably. The fixtures below use item-like names; the
+// client dedups whatever `name` holds.
 
 final class NotableFindDedupTests: XCTestCase {
 
@@ -4854,9 +6198,12 @@ final class FallbackStoreSaveTests: XCTestCase {
             .rateLimit(retryAfter: 90),
             .quotaExceeded("spent"),
             .proRequired("pro"),
+            .subscriptionUnconfirmed,
             .serverUnavailable,
             .aiFailed("no price"),
             .sessionExpired,
+            .verificationUnavailable,
+            .deviceUnsupported,
             .imageEncodingFailed,
             .unusablePhoto("too dark"),
             .purchaseCancelled,
@@ -4877,6 +6224,7 @@ final class FallbackStoreSaveTests: XCTestCase {
     func test_noTwoDifferentErrorsAreEqual() {
         let distinct: [AppError] = [
             .network, .timeout, .serverUnavailable, .sessionExpired,
+            .verificationUnavailable, .deviceUnsupported, .subscriptionUnconfirmed,
             .imageEncodingFailed, .purchaseCancelled, .persistence,
             .storageUnavailable,
             .rateLimit(retryAfter: nil), .rateLimit(retryAfter: 90),
@@ -5365,7 +6713,7 @@ final class ThriftFlipLibraryPersistenceTests: XCTestCase {
 // ── The retention funnel: is_first, the tally, and the events ────────────────
 //
 // The funnel had no way to answer "did this person ever get a valuation out of
-// us". `ScanStreak` counts days, `ReviewPrompt` counts per version and
+// us". `ScanStreak` counts days, `ReviewPrompt` counts towards a request and
 // `FreeScanCounter` counts today — none of them counts ever. `ScanTally` does,
 // and `is_first` on four events is what makes a Day-0 funnel one filter rather
 // than a parallel family of `first_*` names a later call site could forget.
@@ -5417,6 +6765,20 @@ final class RetentionFunnelTests: XCTestCase {
                       "a failed scan must not spend the user's first-scan status")
     }
 
+    /// The paywall a new user sees opens after `record()`: the intro paywall
+    /// when the first result closes, the scan-limit one once the allowance is
+    /// spent. `isFirstScan()` is already false by then, so every first-run
+    /// paywall reported `is_first=false`.
+    func test_theFirstRunLastsThroughTheFirstValuation() {
+        XCTAssertTrue(ScanTally.isFirstRun(defaults: defaults), "before any scan")
+        ScanTally.record(defaults: defaults)
+        XCTAssertFalse(ScanTally.isFirstScan(defaults: defaults))
+        XCTAssertTrue(ScanTally.isFirstRun(defaults: defaults),
+                      "the paywall after the first result is still the first run")
+        ScanTally.record(defaults: defaults)
+        XCTAssertFalse(ScanTally.isFirstRun(defaults: defaults))
+    }
+
     func test_milestonesFireAtOneThreeAndFiveAndNowhereElse() {
         var fired: [Int] = []
         for _ in 1...8 {
@@ -5445,14 +6807,17 @@ final class RetentionFunnelTests: XCTestCase {
         XCTAssertEqual(AnalyticsEvent.paywallDismissed(trigger: .scanLimit).name, "paywall_dismissed")
     }
 
-    func test_isFirstRidesOnAllFourFunnelEvents() {
+    func test_isFirstRidesOnEveryFunnelEvent() {
         // One filter has to work across the whole first run, so the parameter
-        // name must be identical on every event that carries it.
+        // name must be identical on every event that carries it — down to the
+        // purchase, or a Day-0 funnel stops at the paywall.
         let events: [AnalyticsEvent] = [
             .scanStarted(isFirst: true),
             .scanResultShown(isFirst: true),
             .scanFailed(reason: .network, isFirst: true),
             .paywallViewed(trigger: .scanLimit, isFirst: true),
+            .purchaseStarted(productID: Config.yearlyProductID, isFirst: true),
+            .purchaseCompleted(productID: Config.yearlyProductID, isFirst: true),
         ]
         for event in events {
             XCTAssertEqual(event.parameters["is_first"], "true",
@@ -5492,6 +6857,20 @@ final class RetentionFunnelTests: XCTestCase {
 
     // ── Where they fire ─────────────────────────────────────────────────────
 
+    /// Source-inspected: the paywall's `onAppear` is where `paywall_viewed`
+    /// is built, and the fix is which `ScanTally` question it asks.
+    func test_thePaywallAsksWhetherThisIsTheFirstRunNotTheFirstScan() throws {
+        let source = try String(
+            contentsOf: URL(fileURLWithPath: #filePath)
+                .deletingLastPathComponent()
+                .deletingLastPathComponent()
+                .appendingPathComponent("SnapWorth/Views/PaywallView.swift"),
+            encoding: .utf8)
+        XCTAssertTrue(source.contains("isFirst: ScanTally.isFirstRun()"))
+        XCTAssertFalse(source.contains("ScanTally.isFirstScan()"),
+                       "both first-run paywalls open after the first scan is recorded")
+    }
+
     /// Source-inspected, like the repo's other "a modifier that must be there"
     /// tests: a purchase also dismisses the sheet, and counting that as a
     /// dismissal would put every conversion on both sides of the rate. Nothing
@@ -5517,10 +6896,12 @@ final class RetentionFunnelTests: XCTestCase {
 
     /// Thrift Flip emitted `scan_completed` and `scan_failed` but never
     /// `scan_started`, so every started-to-completed rate was computed against a
-    /// denominator missing that tab's scans.
-    func test_bothScanEntryPointsEmitScanStarted() throws {
+    /// denominator missing that tab's scans. Haul mode (#93) is the third way
+    /// in, and the same denominator.
+    func test_everyScanEntryPointEmitsScanStarted() throws {
         for file in ["SnapWorth/ViewModels/ScanViewModel.swift",
-                     "SnapWorth/ViewModels/ThriftFlipViewModel.swift"] {
+                     "SnapWorth/ViewModels/ThriftFlipViewModel.swift",
+                     "SnapWorth/ViewModels/HaulSession.swift"] {
             let source = try String(
                 contentsOf: URL(fileURLWithPath: #filePath)
                     .deletingLastPathComponent()
@@ -5543,10 +6924,13 @@ final class RetentionFunnelTests: XCTestCase {
                 .appendingPathComponent(path), encoding: .utf8)
         }
 
-        // Fresh except after a rare-find reveal, which has already put this
-        // valuation on screen and reported it — once, from the reveal.
-        XCTAssertTrue(try source("SnapWorth/Views/ScanView.swift").contains("isFreshScan: vm.rareFindReveal == nil"),
+        XCTAssertTrue(try source("SnapWorth/Views/ScanView.swift").contains("isFreshScan: true"),
                       "the scan path no longer marks its own result as fresh")
+        // A rare find's reveal has already put this valuation on screen and
+        // reported it — once, from the reveal — and the full result after it
+        // is told so, rather than told it is not fresh.
+        XCTAssertTrue(try source("SnapWorth/Views/ScanView.swift").contains("priceAlreadyShown: vm.rareFindReveal != nil"),
+                      "the full result after a reveal would report the valuation a second time")
         XCTAssertTrue(try source("SnapWorth/Views/RareFindViews.swift").contains(".scanResultShown(isFirst:"),
                       "a rare find's reveal shows the real estimate but does not report it")
         for browsing in ["SnapWorth/Views/HistoryView.swift",
@@ -5554,7 +6938,7 @@ final class RetentionFunnelTests: XCTestCase {
             XCTAssertFalse(try source(browsing).contains("isFreshScan"),
                            "\(browsing) reopens saved finds — it must not report them as scans")
         }
-        XCTAssertTrue(try source("SnapWorth/Views/ResultView.swift").contains("if isFreshScan {"),
+        XCTAssertTrue(try source("SnapWorth/Views/ResultView.swift").contains("if isFreshScan, !priceAlreadyShown {"),
                       "the event is no longer gated")
     }
 
@@ -5567,5 +6951,659 @@ final class RetentionFunnelTests: XCTestCase {
         XCTAssertEqual(spy.events.map(\.name), ["scan_result_shown", "onboarding_completed"])
         XCTAssertEqual(spy.params(for: "scan_result_shown")?["is_first"], "true")
         XCTAssertEqual(spy.params(for: "onboarding_completed")?["via"], "skipped")
+    }
+}
+
+// ── Haul mode's analytics (#93) ──────────────────────────────────────────────
+//
+// Two new events and one new trigger, and the rules that keep the existing
+// funnel honest when photos are sent two at a time: one `scan_started` per
+// photo, `is_first` on at most one of them, and `haul_completed` once per
+// haul with a bucketed size.
+
+@MainActor
+final class HaulAnalyticsTests: XCTestCase {
+
+    func test_theNewEventsCarryTheNamesAndParametersTheDashboardQueries() {
+        XCTAssertEqual(AnalyticsEvent.haulCompleted(itemsBucket: "10-14").name, "haul_completed")
+        XCTAssertEqual(AnalyticsEvent.haulCompleted(itemsBucket: "10-14").parameters, ["items": "10-14"])
+        XCTAssertEqual(AnalyticsEvent.haulCompleted(itemsBucket: "10-14", revisedFrom: "2-4").parameters,
+                       ["items": "10-14", "revised_from": "2-4"])
+        XCTAssertEqual(AnalyticsEvent.haulShared.name, "haul_shared")
+        XCTAssertEqual(AnalyticsEvent.haulShared.parameters, [:])
+        XCTAssertEqual(PaywallTrigger.haul.rawValue, "haul")
+    }
+
+    func test_theSizeIsABucketNeverTheCount() {
+        let edges = [1: "1", 2: "2-4", 4: "2-4", 5: "5-9", 9: "5-9",
+                     10: "10-14", 14: "10-14", 15: "15+", 100: "15+"]
+        for (count, bucket) in edges {
+            XCTAssertEqual(AnalyticsEvent.haulSizeBucket(count), bucket, "\(count)")
+        }
+    }
+
+    func test_haulCompletedFiresOncePerOpenAndNeverEmpty() async {
+        let h = HaulHarness()
+        defer { h.tearDown() }
+        let spy = FunnelSpy()
+        Analytics.shared.configure(spy)
+        let session = h.makeSession()
+
+        session.didReachSummary()
+        XCTAssertTrue(spy.events.isEmpty, "a haul of nothing is not a haul")
+
+        session.add(HaulFixtures.photo())   // pending: counts
+        session.didReachSummary()
+        session.didReachSummary()
+        XCTAssertEqual(spy.events.filter { $0.name == "haul_completed" }.count, 1)
+        XCTAssertEqual(spy.params(for: "haul_completed"), ["items": "1"])
+        XCTAssertEqual(h.summaryCount, 1, "the recap and the review prompt ride on the same moment")
+
+        session.finishHaul()
+        session.open()
+        session.didReachSummary()
+        XCTAssertEqual(spy.events.filter { $0.name == "haul_completed" }.count, 2,
+                       "a new open is a new haul")
+    }
+
+    /// Finish, Keep scanning, Finish again: the first report survives a kill,
+    /// and the second says how big the haul really got — as a revision, so
+    /// the count of hauls is still the count of events without one.
+    func test_aHaulThatGrowsAfterKeepScanningReportsItsNewSize() async {
+        let h = HaulHarness()
+        defer { h.tearDown() }
+        let spy = FunnelSpy()
+        Analytics.shared.configure(spy)
+        let session = h.makeSession()
+
+        for _ in 0..<2 { session.add(HaulFixtures.photo()) }
+        session.didReachSummary()
+        for _ in 0..<3 { session.add(HaulFixtures.photo()) }
+        session.didReachSummary()
+        session.didReachSummary()
+
+        XCTAssertEqual(spy.events.filter { $0.name == "haul_completed" }.map(\.params),
+                       [["items": "2-4"], ["items": "5-9", "revised_from": "2-4"]])
+        XCTAssertEqual(h.summaryCount, 1, "the recap and the review prompt once per haul")
+
+        session.add(HaulFixtures.photo())
+        session.didReachSummary()
+        XCTAssertEqual(spy.events.filter { $0.name == "haul_completed" }.count, 2,
+                       "grown within its bucket: nothing to revise")
+    }
+
+    func test_isFirstIsClaimedByAtMostOneScanInFlight() async {
+        let previous = UserDefaults.standard.object(forKey: ScanTally.countKey)
+        defer { UserDefaults.standard.set(previous, forKey: ScanTally.countKey) }
+        UserDefaults.standard.removeObject(forKey: ScanTally.countKey)
+
+        let h = HaulHarness()
+        defer { h.tearDown() }
+        let spy = FunnelSpy()
+        Analytics.shared.configure(spy)
+        let session = h.makeSession()
+        session.open()
+        session.add(HaulFixtures.photo())
+        session.add(HaulFixtures.photo())
+        await haulWait("two in flight") { h.scans.waiting == 2 }
+
+        let started = spy.events.filter { $0.name == "scan_started" }
+        XCTAssertEqual(started.count, 2, "one scan_started per photo")
+        XCTAssertEqual(started.filter { $0.params["is_first"] == "true" }.count, 1,
+                       "two scans in flight on a new install are one first scan, not two")
+        h.scans.succeedOldest(HaulFixtures.response())
+        h.scans.succeedOldest(HaulFixtures.response())
+        await haulWait("valued") { session.valuedCount == 2 }
+    }
+
+    /// Source-inspected: a share sheet's completion cannot be driven from a
+    /// unit test. `haul_shared` means the card left the app — not that the
+    /// sheet opened, and not that drafts were shared.
+    func test_haulSharedIsTrackedOnlyFromTheCardsCompletedShare() throws {
+        let source = try String(
+            contentsOf: URL(fileURLWithPath: #filePath)
+                .deletingLastPathComponent()
+                .deletingLastPathComponent()
+                .appendingPathComponent("SnapWorth/Views/HaulView.swift"),
+            encoding: .utf8)
+        XCTAssertEqual(source.components(separatedBy: ".haulShared").count - 1, 1)
+
+        guard let card = source.range(of: "case .shareCard(let card):"),
+              let track = source.range(of: ".haulShared"),
+              let drafts = source.range(of: "case .shareDrafts(let text):") else {
+            return XCTFail("could not locate the share sheets")
+        }
+        let between = String(source[card.upperBound..<track.lowerBound])
+        XCTAssertTrue(between.contains("onComplete:"), "tracked on completion, not on presentation")
+        XCTAssertLessThan(track.lowerBound, drafts.lowerBound, "the drafts share does not count")
+    }
+}
+
+// ── One price read per row ───────────────────────────────────────────────────
+//
+// `baselineCondition` decoded the whole valuation blob to find one field, and
+// every price read went through it — a Most Valuable comparison read it eight
+// times, and 500 finds took 1.6 s to sort, again on every search keystroke.
+
+final class PriceReadTests: XCTestCase {
+
+    private func item(_ name: String = "Item", low: Double = 45, high: Double = 90,
+                      grade: String? = "good", notes: String = "Some wear") -> ScanResult {
+        var detail = ValuationDetail()
+        detail.conditionGrade = grade
+        return ScanResult(itemName: name, brand: "B", category: "clothing", conditionNotes: notes,
+                          valueLow: low, valueHigh: high, confidence: "High", soldListingsCount: 0,
+                          listingTitle: "T", listingDescription: "D",
+                          valuationDetailData: grade == nil ? nil : detail.encoded())
+    }
+
+    func test_theOneReadAgreesWithTheTwoItReplaces() {
+        let untouched = item()
+        let regraded = item(); regraded.condition = .used
+        let prose = item(grade: nil, notes: "Heavy staining at the hem")
+        let proseRegraded = item(grade: nil, notes: "Like new"); proseRegraded.condition = .good
+        for r in [untouched, regraded, prose, proseRegraded] {
+            let current = r.currentPriceRange
+            let reference = r.priceRange(for: r.condition)
+            XCTAssertEqual(current.low, reference.low)
+            XCTAssertEqual(current.likely, reference.likely)
+            XCTAssertEqual(current.high, reference.high)
+            XCTAssertEqual(r.midpointValue, NSDecimalNumber(decimal: reference.likely).doubleValue)
+        }
+    }
+
+    func test_theMemoisedGradeFollowsNewBytes() {
+        // `applySharpened` re-reads the tag and writes a new blob. The memo is
+        // keyed by content, so the new grade has to take at once.
+        let r = item(grade: "good")
+        XCTAssertEqual(r.baselineCondition, .good)
+        var detail = ValuationDetail()
+        detail.conditionGrade = "used"
+        r.valuationDetailData = detail.encoded()
+        XCTAssertEqual(r.baselineCondition, .used)
+        r.valuationDetailData = nil
+        XCTAssertEqual(r.baselineCondition, Condition.inferred(from: r.conditionNotes))
+    }
+
+    func test_twoRowsWithTheSameBlobShareAGradeButNotAPrice() {
+        let a = item("A", low: 10, high: 20)
+        let b = item("B", low: 100, high: 200)
+        XCTAssertEqual(a.baselineCondition, b.baselineCondition)
+        XCTAssertNotEqual(a.portfolioValue, b.portfolioValue)
+    }
+
+    @MainActor
+    func test_mostValuableOrdersExactlyAsBefore() {
+        let grades: [String?] = ["good", "used", "likeNew", nil]
+        var library: [ScanResult] = []
+        for i in 1...30 {
+            let low = Double((i * 37) % 101)
+            library.append(item("Item \(i)", low: low, high: low + 20, grade: grades[i % 4]))
+        }
+        let vm = HistoryViewModel()
+        vm.sortOrder = .mostValuable
+        let expected: [Double] = library
+            .sorted { $0.midpointValue > $1.midpointValue }
+            .map { $0.midpointValue }
+        XCTAssertEqual(vm.sorted(library).map { $0.midpointValue }, expected)
+    }
+
+    @MainActor
+    func test_searchNarrowsThenSortsToTheSameList() {
+        let library = [item("Nike tee", low: 10, high: 20), item("Adidas", low: 90, high: 100),
+                       item("Nike jacket", low: 50, high: 60)]
+        let vm = HistoryViewModel()
+        vm.sortOrder = .mostValuable
+        vm.searchText = "nike"
+        XCTAssertEqual(vm.filtered(library).map(\.itemName), ["Nike jacket", "Nike tee"])
+    }
+}
+
+// ── The trial warning arrives in waking hours ────────────────────────────────
+//
+// It fired exactly 24 hours before the trial ended, to the second, and a trial
+// ends at the minute it began — so one started at 01:40 woke its owner at
+// 01:40 two nights later, with a sound, as the one category that also evicts
+// anything else due that day.
+
+final class TrialReminderTimingTests: XCTestCase {
+
+    private func calendar(_ zone: String) -> Calendar {
+        var c = Calendar(identifier: .gregorian)
+        c.timeZone = TimeZone(identifier: zone)!
+        return c
+    }
+
+    private func at(_ cal: Calendar, _ day: Int, _ hour: Int, _ minute: Int = 0) -> Date {
+        cal.date(from: DateComponents(year: 2026, month: 9, day: day, hour: hour, minute: minute))!
+    }
+
+    func test_aTrialStartedInTheSmallHoursIsWarnedTheEveningBefore() {
+        let cal = calendar("Europe/Bucharest")
+        let end = at(cal, 22, 1, 40)
+        let fire = NotificationManager.trialReminderDate(endDate: end, calendar: cal)
+        XCTAssertEqual(fire, at(cal, 20, 21), "not 01:40 on the 21st")
+
+        // Two calendar days out, so "tomorrow" would be wrong.
+        let body = NotificationManager.trialBody(fireDate: fire!, endDate: end, calendar: cal)
+        XCTAssertTrue(body.contains("day after tomorrow"), body)
+        XCTAssertTrue(body.contains("1:40"), "the time it ends: \(body)")
+    }
+
+    func test_aDaytimeDeadlineKeepsItsFullDay() {
+        let cal = calendar("America/New_York")
+        let end = at(cal, 22, 15)
+        let fire = NotificationManager.trialReminderDate(endDate: end, calendar: cal)
+        XCTAssertEqual(fire, at(cal, 21, 15))
+        XCTAssertEqual(NotificationManager.trialBody(fireDate: fire!, endDate: end, calendar: cal),
+                       "Your SnapWorth trial ends tomorrow.")
+    }
+
+    func test_aLateEveningDeadlineMovesToNineOClock() {
+        let cal = calendar("America/New_York")
+        let end = at(cal, 22, 23, 30)
+        let fire = NotificationManager.trialReminderDate(endDate: end, calendar: cal)
+        XCTAssertEqual(fire, at(cal, 21, 21))
+        XCTAssertEqual(NotificationManager.trialBody(fireDate: fire!, endDate: end, calendar: cal),
+                       "Your SnapWorth trial ends tomorrow.")
+    }
+
+    func test_theWindowEdgesAreKept() {
+        let cal = calendar("Europe/Bucharest")
+        XCTAssertEqual(NotificationManager.trialReminderDate(endDate: at(cal, 22, 9), calendar: cal),
+                       at(cal, 21, 9))
+        XCTAssertEqual(NotificationManager.trialReminderDate(endDate: at(cal, 22, 21), calendar: cal),
+                       at(cal, 21, 21))
+        XCTAssertEqual(NotificationManager.trialReminderDate(endDate: at(cal, 22, 8, 59), calendar: cal),
+                       at(cal, 20, 21))
+    }
+
+    func test_alwaysADayAheadAndNeverAtNight_atEveryMinuteOfTheDay() {
+        for zone in ["Europe/Bucharest", "America/Los_Angeles", "Asia/Tokyo", "Asia/Kolkata"] {
+            let cal = calendar(zone)
+            for minute in stride(from: 0, to: 24 * 60, by: 10) {
+                let end = at(cal, 22, minute / 60, minute % 60)
+                guard let fire = NotificationManager.trialReminderDate(endDate: end, calendar: cal) else {
+                    return XCTFail("\(zone) \(minute)")
+                }
+                XCTAssertGreaterThanOrEqual(end.timeIntervalSince(fire), 24 * 3600,
+                                            "\(zone) end \(minute / 60):\(minute % 60) — inside the last day")
+                XCTAssertLessThan(end.timeIntervalSince(fire), 36 * 3600,
+                                  "\(zone) end \(minute / 60):\(minute % 60) — needlessly early")
+                let c = cal.dateComponents([.hour, .minute], from: fire)
+                let minuteOfDay = (c.hour ?? 0) * 60 + (c.minute ?? 0)
+                XCTAssertTrue((9 * 60)...(21 * 60) ~= minuteOfDay,
+                              "\(zone) end \(minute / 60):\(minute % 60) fires at \(c.hour ?? -1):\(c.minute ?? -1)")
+            }
+        }
+    }
+
+    // ── A sync that arrives after the slot but before the mark ───────────────
+    //
+    // The slot moved the warning up to twelve hours earlier than the mark, and
+    // the scheduler still required the slot to be ahead — so a first sync in
+    // between (notifications allowed mid-trial, a restore, the first
+    // foreground after an update) scheduled nothing, and removed what an
+    // older build had pending.
+
+    func test_aSyncBetweenTheSlotAndTheMarkStillWarns() throws {
+        let cal = calendar("Europe/Bucharest")
+        let end = at(cal, 22, 1, 40)            // slot 21:00 on the 20th, mark 01:40 on the 21st
+        let now = at(cal, 20, 22)
+        let fire = try XCTUnwrap(
+            NotificationManager.trialReminderFireDate(endDate: end, now: now, calendar: cal),
+            "the slot has passed but a full day's notice can still be given")
+        XCTAssertGreaterThan(fire, now)
+        XCTAssertEqual(fire, at(cal, 21, 1, 40), "the mark itself, the same instant on every sync")
+        XCTAssertGreaterThanOrEqual(end.timeIntervalSince(fire), 24 * 3600)
+        XCTAssertEqual(NotificationManager.trialBody(fireDate: fire, endDate: end, calendar: cal),
+                       "Your SnapWorth trial ends tomorrow.")
+    }
+
+    func test_theSlotIsKeptWhileItIsAhead_andNothingOnceTheMarkHasPassed() {
+        let cal = calendar("Europe/Bucharest")
+        let end = at(cal, 22, 1, 40)
+        XCTAssertEqual(NotificationManager.trialReminderFireDate(endDate: end, now: at(cal, 20, 12),
+                                                                 calendar: cal),
+                       at(cal, 20, 21))
+        XCTAssertNil(NotificationManager.trialReminderFireDate(endDate: end, now: at(cal, 21, 1, 40),
+                                                               calendar: cal),
+                     "inside the last day a warning can no longer keep its promise")
+    }
+
+    func test_aDaytimeMarkLeavesNoGap() {
+        // The slot is the mark when the mark is in waking hours, so once it
+        // has passed there is nothing left to fall back to.
+        let cal = calendar("America/New_York")
+        let end = at(cal, 22, 15)
+        XCTAssertEqual(NotificationManager.trialReminderFireDate(endDate: end, now: at(cal, 21, 14, 59),
+                                                                 calendar: cal),
+                       at(cal, 21, 15))
+        XCTAssertNil(NotificationManager.trialReminderFireDate(endDate: end, now: at(cal, 21, 15),
+                                                               calendar: cal))
+    }
+}
+
+// ── The rating request waits for the number ──────────────────────────────────
+//
+// It fired 1.2 seconds after a fresh result opened — under the guess-first
+// cover, before the user had seen the price they scanned for — and "once per
+// version" re-armed it on every update. iOS allows three prompts a year.
+
+@MainActor
+final class ReviewPromptTimingTests: XCTestCase {
+
+    private var defaults: UserDefaults!
+    private let now = Date(timeIntervalSince1970: 1_790_000_000)
+
+    override func setUp() {
+        super.setUp()
+        defaults = UserDefaults(suiteName: "ReviewPromptTests-\(UUID().uuidString)")
+    }
+
+    func test_notBeforeTheThirdScan() {
+        XCTAssertFalse(ReviewPrompt.isDue(scanCount: 2, lastRequest: nil, now: now))
+        XCTAssertTrue(ReviewPrompt.isDue(scanCount: 3, lastRequest: nil, now: now))
+    }
+
+    func test_notAgainInsideTheGap_whateverTheVersion() {
+        XCTAssertGreaterThanOrEqual(ReviewPrompt.minimumGap, 60 * 86_400)
+        let gap = ReviewPrompt.minimumGap
+        XCTAssertFalse(ReviewPrompt.isDue(scanCount: 50, lastRequest: now.addingTimeInterval(-gap + 60),
+                                          now: now))
+        XCTAssertTrue(ReviewPrompt.isDue(scanCount: 50, lastRequest: now.addingTimeInterval(-gap),
+                                         now: now))
+    }
+
+    func test_aClockThatMovedBackwardsIsNotDue() {
+        XCTAssertFalse(ReviewPrompt.isDue(scanCount: 50, lastRequest: now.addingTimeInterval(3600),
+                                          now: now))
+    }
+
+    func test_onlyAConfidentEstimateIsAMomentToAsk() {
+        for c in ["High", "high", "Medium", "medium"] {
+            XCTAssertTrue(ReviewPrompt.isWorthAskingAbout(confidence: c), c)
+        }
+        for c in ["Low", "low", "", "unknown"] {
+            XCTAssertFalse(ReviewPrompt.isWorthAskingAbout(confidence: c), c)
+        }
+    }
+
+    func test_countingAScanNeverRequests() {
+        for _ in 0..<5 { ReviewPrompt.recordSuccessfulScan(defaults: defaults) }
+        XCTAssertEqual(defaults.integer(forKey: "snapworth_successful_scans"), 5)
+        XCTAssertNil(defaults.object(forKey: "snapworth_review_last_requested"),
+                     "the scan path must only count")
+    }
+
+    func test_anUpgradeFromThePerVersionRuleStartsTheGapRatherThanAsking() {
+        // An earlier build asked at some unknown moment — most likely during
+        // the run of updates just gone. Treating that as long ago would spend
+        // another of the three a year straight away.
+        let seeded = ReviewPrompt.effectiveLastRequest(stored: nil, promptedVersion: "1.4.1", now: now)
+        XCTAssertEqual(seeded, now)
+        XCTAssertFalse(ReviewPrompt.isDue(scanCount: 5, lastRequest: seeded, now: now),
+                       "an upgrader would be asked at once")
+        XCTAssertNil(ReviewPrompt.effectiveLastRequest(stored: nil, promptedVersion: nil, now: now),
+                     "a user never asked by any build is not made to wait")
+        let earlier = now.addingTimeInterval(-86_400)
+        XCTAssertEqual(ReviewPrompt.effectiveLastRequest(stored: earlier, promptedVersion: "1.4.1",
+                                                         now: now), earlier,
+                       "a recorded request is the one the gap runs from")
+
+        // Through the real entry point: the gap is seeded, and iOS is not
+        // asked. Asserting only the stored date could not tell the two apart —
+        // a request writes the same key with the same value.
+        let spy = FunnelSpy()
+        Analytics.shared.configure(spy)
+        UserDefaults.standard.removeObject(forKey: Analytics.enabledKey)
+        defaults.set(5, forKey: "snapworth_successful_scans")
+        defaults.set("1.4.1", forKey: "snapworth_review_prompted_version")
+        ReviewPrompt.requestIfDue(defaults: defaults, now: now)
+        XCTAssertEqual(defaults.object(forKey: "snapworth_review_last_requested") as? Date, now)
+        XCTAssertFalse(spy.events.map(\.name).contains("review_prompt_requested"),
+                       "asked for a review instead of starting the gap")
+    }
+
+    func test_theRequestIsMadeFromTheRevealedResult() throws {
+        func source(_ path: String) throws -> String {
+            try String(contentsOf: URL(fileURLWithPath: #filePath)
+                .deletingLastPathComponent()
+                .deletingLastPathComponent()
+                .appendingPathComponent("SnapWorth/\(path)"), encoding: .utf8)
+        }
+        let scan = try source("ViewModels/ScanViewModel.swift")
+        XCTAssertFalse(scan.contains("requestIfDue"), "the scan path asks before the price is seen")
+        XCTAssertFalse(scan.contains(".seconds(1.2)"), "the timer that raced the reveal is back")
+
+        let result = try source("Views/ResultView.swift")
+        guard let task = result.range(of: ".task(id: priceCovered)") else {
+            return XCTFail("the request is no longer keyed on the cover")
+        }
+        let body = String(result[task.upperBound...].prefix(500))
+        XCTAssertTrue(body.contains("!priceCovered"), "must wait for the reveal")
+        XCTAssertTrue(body.contains("isWorthAskingAbout"), "must skip a Low estimate")
+        XCTAssertTrue(body.contains("ReviewPrompt.requestIfDue()"))
+    }
+
+    func test_theRequestIsCounted() {
+        XCTAssertEqual(AnalyticsEvent.reviewPromptRequested.name, "review_prompt_requested")
+        XCTAssertEqual(AnalyticsEvent.reviewPromptRequested.parameters, [:])
+    }
+}
+
+// ── A URL-driven scan consumes the Control Centre request ────────────────────
+//
+// The intent writes an App Group request *and* opens `snapworth://scan`, and
+// says whichever arrives first consumes the request. The URL side never did,
+// so for five minutes the next inactive-to-active edge — a lock and unlock,
+// Notification Centre, the StoreKit sheet closing — drained it and reset the
+// Scan tab: a result sheet, a Thrift Flip with typed prices, or the paywall
+// mid-purchase, closed.
+
+@MainActor
+final class WidgetURLRoutingTests: XCTestCase {
+
+    private func url(_ s: String) -> URL { URL(string: s)! }
+
+    private func requireAppGroup() throws {
+        guard UserDefaults(suiteName: WidgetDataStore.appGroupID) != nil else {
+            throw XCTSkip("no App Group container in this host")
+        }
+    }
+
+    func test_aURLDrivenScanLeavesNothingPending() throws {
+        try requireAppGroup()
+        defer { _ = WidgetBridge.takePendingAction() }
+        WidgetBridge.request(.scan)
+        XCTAssertEqual(SnapWorthApp.route(url("snapworth://scan?src=control"), onboarded: true),
+                       .snapWidgetOpenScan)
+        XCTAssertNil(WidgetBridge.takePendingAction(),
+                     "left for the next foreground to drain — that is the defect")
+    }
+
+    func test_beforeOnboardingTheRequestIsKeptForTheDrain() throws {
+        // The drain holds it back until someone is listening; taking it here
+        // would destroy it for the same reason.
+        try requireAppGroup()
+        defer { _ = WidgetBridge.takePendingAction() }
+        WidgetBridge.request(.scan)
+        _ = SnapWorthApp.route(url("snapworth://scan?src=control"), onboarded: false)
+        XCTAssertEqual(WidgetBridge.takePendingAction(), .scan)
+    }
+
+    func test_otherRoutesAreUnchanged() {
+        XCTAssertEqual(SnapWorthApp.route(url("snapworth://history?src=haul"), onboarded: true),
+                       .snapWidgetOpenHistory)
+        XCTAssertEqual(SnapWorthApp.route(url("snapworth://flips"), onboarded: true), .snapOpenFlips)
+        XCTAssertNil(SnapWorthApp.route(url("snapworth://elsewhere"), onboarded: true))
+        XCTAssertNil(SnapWorthApp.route(url("https://snapworth.app/scan"), onboarded: true))
+    }
+}
+
+// ── "Open SnapWorth to refresh" has to refresh ───────────────────────────────
+//
+// The stale Live Activity's one instruction. Its stale date moved only in
+// `ThriftRunController.update(results:)`, reached from a scan mutation, so
+// opening the app changed nothing. ActivityKit cannot hand a test a live
+// Activity, so the two call sites are held by their source, as the other
+// ActivityKit paths are.
+
+final class StaleRunRefreshTests: XCTestCase {
+
+    private func source(_ path: String) throws -> String {
+        try String(contentsOf: URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("SnapWorth/\(path)"), encoding: .utf8)
+    }
+
+    func test_comingForwardRepublishesALiveRun() throws {
+        let view = try source("Views/ScanView.swift")
+        guard let handler = view.range(of: ".onChange(of: scenePhase)") else {
+            return XCTFail("the foreground handler moved")
+        }
+        let body = String(view[handler.upperBound...].prefix(2_500))
+        XCTAssertTrue(body.contains("ThriftRunController.isRunning"))
+        XCTAssertTrue(body.contains(".refreshWidget()"),
+                      "a warm open leaves a stale run grey until the next scan")
+    }
+
+    func test_aColdLaunchRepublishesALiveRun() throws {
+        let app = try source("SnapWorthApp.swift")
+        guard let seed = app.range(of: "private func seedWidgetData(") else {
+            return XCTFail("the launch seed moved")
+        }
+        let body = String(app[seed.upperBound...].prefix(2_000))
+        XCTAssertTrue(body.contains("ThriftRunController.update(results:"),
+                      "a launch from the stale Activity itself changes nothing")
+    }
+
+    func test_noPathCanZeroARunFromAFallbackStore() throws {
+        // A fallback launch's library is empty and in memory; the Activity is
+        // the earlier process's, counting scans that store cannot see. The
+        // guard was on the launch seed alone, so the foreground refresh — and
+        // the debounced sync and `deleteAll` behind it — published zero over
+        // a real run. It has to hold in `update`, before the Activity is read.
+        let controller = try source("Services/ThriftRunController.swift")
+        guard let update = controller.range(of: "static func update(results:") else {
+            return XCTFail("the run update moved")
+        }
+        let body = String(controller[update.upperBound...].prefix(1_200))
+        guard let guardAt = body.range(of: "guard !AppLaunchState.isRunningOnFallbackStore"),
+              let readAt = body.range(of: "guard let activity = current")
+        else { return XCTFail("the fallback guard is gone from `update`") }
+        XCTAssertLessThan(guardAt.lowerBound, readAt.lowerBound,
+                          "checked after the run is already being updated")
+
+        // And nothing else in the app publishes run content past it.
+        let app = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("SnapWorth")
+        let files = FileManager.default.enumerator(at: app, includingPropertiesForKeys: nil)?
+            .compactMap { $0 as? URL }
+            .filter { $0.pathExtension == "swift" } ?? []
+        XCTAssertFalse(files.isEmpty)
+        for file in files where file.lastPathComponent != "ThriftRunController.swift" {
+            let text = try String(contentsOf: file, encoding: .utf8)
+            XCTAssertFalse(text.contains("ActivityContent("),
+                           "\(file.lastPathComponent) updates the run around the guard")
+        }
+    }
+
+    @MainActor
+    func test_theRefreshIsTheSameDebouncedPathAScanTakes() throws {
+        // `refreshWidget` must go through the coalesced sync, which is what
+        // updates the run, rather than a second route to keep in step.
+        let config = ModelConfiguration(isStoredInMemoryOnly: true)
+        let container = try ModelContainer(for: ScanResult.self, configurations: config)
+        defer { ScanRepository.widgetSync?.cancel() }
+        ScanRepository(context: ModelContext(container)).refreshWidget()
+        XCTAssertNotNil(ScanRepository.widgetSync)
+    }
+}
+
+// ── Where the app was opened from ────────────────────────────────────────────
+//
+// Nothing recorded a widget opening the app, so whether the 1.4.0 widgets were
+// used at all was unknowable. The widgets now say where a tap came from, and
+// the app counts it — from a closed set, never the raw query.
+
+@MainActor
+final class WidgetSourceTests: XCTestCase {
+
+    private func url(_ s: String) -> URL { URL(string: s)! }
+
+    func test_aWidgetOpenIsCountedOnlyFromAKnownSource() {
+        // Any app or page can open this scheme; an arbitrary `src` has no
+        // business in the analytics payload.
+        let spy = FunnelSpy()
+        Analytics.shared.configure(spy)
+        UserDefaults.standard.removeObject(forKey: Analytics.enabledKey)
+
+        _ = SnapWorthApp.route(url("snapworth://history?src=recent_finds"), onboarded: true)
+        _ = SnapWorthApp.route(url("snapworth://history?src=%3Cscript%3E"), onboarded: true)
+        _ = SnapWorthApp.route(url("snapworth://history"), onboarded: true)
+
+        XCTAssertEqual(spy.events.map(\.name), ["widget_opened"])
+        XCTAssertEqual(spy.params(for: "widget_opened"), ["source": "recent_finds"])
+    }
+
+    func test_everySourceTheWidgetsSendIsOneTheAppKnows() throws {
+        // The extension cannot import `WidgetSource`, so its URLs spell the
+        // values by hand. This holds the two sides to each other.
+        let dir = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("SnapWorthWidgets")
+        let files = try FileManager.default.contentsOfDirectory(at: dir, includingPropertiesForKeys: nil)
+            .filter { $0.pathExtension == "swift" }
+        XCTAssertFalse(files.isEmpty)
+
+        let tagged = try NSRegularExpression(pattern: #""snapworth://[a-z]+\?src=([a-z_]+)""#)
+        let untagged = try NSRegularExpression(pattern: #""snapworth://[a-z]+""#)
+        var sent: Set<String> = []
+        for file in files {
+            let text = try String(contentsOf: file, encoding: .utf8)
+            let range = NSRange(text.startIndex..., in: text)
+            for m in tagged.matches(in: text, range: range) {
+                sent.insert(String(text[Range(m.range(at: 1), in: text)!]))
+            }
+            XCTAssertEqual(untagged.numberOfMatches(in: text, range: range), 0,
+                           "\(file.lastPathComponent) opens the app without saying from where")
+        }
+        XCTAssertEqual(sent, Set(WidgetSource.allCases.map(\.rawValue)))
+    }
+}
+
+// ── Whether the widgets and Snap → Sell are used at all ──────────────────────
+
+final class UsageAnalyticsTests: XCTestCase {
+
+    func test_theNewEventsHaveStableNamesAndBoundedParameters() {
+        let cases: [(AnalyticsEvent, String, [String: String])] = [
+            (.listingCopied(marketplace: "ebay"), "listing_copied", ["marketplace": "ebay"]),
+            (.listingCopied(marketplace: "draft"), "listing_copied", ["marketplace": "draft"]),
+            (.listingShared(marketplace: "vinted"), "listing_shared", ["marketplace": "vinted"]),
+            (.marketplaceOpened(marketplace: "depop"), "marketplace_opened", ["marketplace": "depop"]),
+            (.widgetOpened(source: "haul"), "widget_opened", ["source": "haul"]),
+            (.widgetsInstalled(count: "2-3", kinds: "A,B"), "widgets_installed",
+             ["count": "2-3", "kinds": "A,B"]),
+            (.ledgerItemMarkedListed, "ledger_item_marked_listed", [:]),
+        ]
+        for (event, name, params) in cases {
+            XCTAssertEqual(event.name, name)
+            XCTAssertEqual(event.parameters, params, name)
+        }
+    }
+
+    func test_theInstalledCountIsBucketed() {
+        XCTAssertEqual(WidgetInstallReport.bucket(0), "0")
+        XCTAssertEqual(WidgetInstallReport.bucket(1), "1")
+        XCTAssertEqual(WidgetInstallReport.bucket(2), "2-3")
+        XCTAssertEqual(WidgetInstallReport.bucket(3), "2-3")
+        XCTAssertEqual(WidgetInstallReport.bucket(4), "4+")
+        XCTAssertEqual(WidgetInstallReport.bucket(40), "4+")
     }
 }

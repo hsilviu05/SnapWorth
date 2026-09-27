@@ -30,6 +30,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+import time
 from dataclasses import dataclass
 
 import entitlements
@@ -79,6 +80,32 @@ class StatusCredentialsRejected(StatusError):
 
 class SubscriberNotFound(StatusError):
     """Apple has no subscription under that id, in either environment."""
+
+
+class StatusRetryLater(StatusError):
+    """Apple does not have the id *yet*, and said so with a retryable code.
+
+    ORIGINAL_TRANSACTION_ID_NOT_FOUND_RETRYABLE and ACCOUNT_NOT_FOUND_RETRYABLE
+    are Apple's "not found, but try again" — the answer to expect in the
+    first minutes after someone pays, which is exactly when "I paid but the
+    app says free" is written. These were folded into `SubscriberNotFound`,
+    so the lookup fell through to Sandbox, kept Sandbox's plain "not found",
+    and `/sub` blamed a typo. Deliberately not a `SubscriberNotFound`: it
+    must not trigger the Sandbox fallback, and it must not read as "no such
+    subscription".
+
+    `environment` is which one said it. Usually Production, which stops the
+    lookup there; but when Production's not-found is definite, Sandbox is
+    asked and can answer "not yet" too — and then Sandbox was asked, and
+    Production has nothing, which is the more useful half of the answer."""
+
+    def __init__(self, message: str, *, environment: str) -> None:
+        super().__init__(message)
+        self.environment = environment
+
+
+class OrderNotFound(StatusError):
+    """Apple does not recognise that order ID for this app."""
 
 
 class StatusRateLimited(StatusError):
@@ -295,7 +322,11 @@ class AppStoreStatusClient:
         which is why the caller does not have to know which one it has.
 
         Tries Production, then Sandbox. Raises `SubscriberNotFound` only when
-        *both* have nothing.
+        *both* have nothing. Falls back only on a definite not-found: a
+        retryable one (`StatusRetryLater`) is Production saying "not yet",
+        and Sandbox's "never heard of it" must not replace that answer.
+        Sandbox can say "not yet" as well, after Production's definite
+        not-found; its `environment` says which one it was.
         """
         if not transaction_id or not transaction_id.strip():
             raise SubscriberNotFound("No transaction id given.")
@@ -318,6 +349,107 @@ class AppStoreStatusClient:
         raise last_not_found or SubscriberNotFound(
             f"Apple has no subscription under {transaction_id} in Production "
             "or Sandbox.")
+
+    async def order_transaction_ids(self, order_id: str) -> list[str]:
+        """The originalTransactionIds in one App Store order.
+
+        The order ID is the one id a customer always has: it is printed on
+        the receipt Apple emails for every purchase. Apple's Look Up Order ID
+        answers with the order's signed transactions, verified here exactly
+        as a status lookup's are, and any one of their ids is enough for
+        `statuses` to return everything the customer holds.
+
+        Production only. An order ID comes from a real App Store receipt;
+        Sandbox and TestFlight purchases do not produce one.
+        """
+        from appstoreserverlibrary.api_client import APIException
+        from appstoreserverlibrary.signed_data_verifier import VerificationException
+
+        order_id = (order_id or "").strip()
+        # It goes into the request path as it is, so nothing but the letters
+        # and digits an order ID is made of.
+        if not order_id or not (order_id.isascii() and order_id.isalnum()):
+            raise OrderNotFound("An order ID is letters and digits only.")
+        name, environment = self._environments()[0]
+        client = self._client_for(name, environment)
+        async with self._lock:
+            try:
+                response = await asyncio.wait_for(
+                    client.look_up_order_id(order_id),  # type: ignore[attr-defined]
+                    timeout=TIMEOUT_SECONDS)
+            except TimeoutError:
+                raise StatusUnavailable(
+                    f"Apple did not answer within {TIMEOUT_SECONDS:.0f}s ({name}).") from None
+            except APIException as exc:
+                translated = self._translate(exc, name)
+                if isinstance(translated, SubscriberNotFound):
+                    # `_translate` words a 404 for a subscription lookup,
+                    # which asks both environments; this one asked only
+                    # Production, and about an order.
+                    raise OrderNotFound(
+                        f"Apple has no order {order_id} for this app.") from None
+                raise translated from None
+            except Exception as exc:
+                raise StatusUnavailable(
+                    f"Could not reach Apple ({type(exc).__name__}).") from None
+
+        # 0 is VALID; anything else — 1 is INVALID — is Apple saying this is
+        # not an order for this app.
+        if getattr(response, "rawStatus", None) != 0:
+            raise OrderNotFound(f"Apple has no order {order_id} for this app.")
+
+        verifier = self._verifier_for(name, environment)
+        found: list[str] = []
+        for signed in response.signedTransactions or []:
+            try:
+                transaction = verifier.verify_and_decode_signed_transaction(  # type: ignore[attr-defined]
+                    signed)
+            except VerificationException as exc:
+                raise StatusUnavailable(
+                    f"A transaction from Apple failed verification ({exc}).") from None
+            otid = transaction.originalTransactionId
+            if otid and otid not in found:
+                found.append(str(otid))
+        if not found:
+            raise OrderNotFound(
+                f"Order {order_id} is valid but holds no transaction for this app.")
+        return found
+
+    async def undelivered_notifications(self, hours: int = 24) -> tuple[int, bool]:
+        """App Store Server Notifications Apple could not deliver to us in the
+        last `hours`, as `(count on the first page, more pages exist)`.
+
+        Apple's Get Notification History with `onlyFailures`, which also lists
+        what it is still retrying. It answers two questions `/checkup` could
+        not: whether this deployment's key is accepted — the key is optional,
+        so its absence used to surface in the middle of a support mail — and
+        whether Apple is failing to reach `/apple/notifications`, the only
+        route that withdraws a refund. Production only: that is the
+        environment whose refunds matter.
+        """
+        from appstoreserverlibrary.api_client import APIException
+        from appstoreserverlibrary.models.NotificationHistoryRequest import (
+            NotificationHistoryRequest)
+
+        name, environment = self._environments()[0]
+        client = self._client_for(name, environment)
+        end = int(time.time() * 1000)
+        request = NotificationHistoryRequest(
+            startDate=end - hours * 3600 * 1000, endDate=end, onlyFailures=True)
+        async with self._lock:
+            try:
+                response = await asyncio.wait_for(
+                    client.get_notification_history(None, request),  # type: ignore[attr-defined]
+                    timeout=TIMEOUT_SECONDS)
+            except TimeoutError:
+                raise StatusUnavailable(
+                    f"Apple did not answer within {TIMEOUT_SECONDS:.0f}s ({name}).") from None
+            except APIException as exc:
+                raise self._translate(exc, name) from None
+            except Exception as exc:
+                raise StatusUnavailable(
+                    f"Could not reach Apple ({type(exc).__name__}).") from None
+        return len(response.notificationHistory or []), bool(response.hasMore)
 
     async def _statuses_in(self, name: str, environment,
                            transaction_id: str) -> list[SubscriptionStatus]:
@@ -364,13 +496,20 @@ class AppStoreStatusClient:
 
         not_found = {
             APIError.ORIGINAL_TRANSACTION_ID_NOT_FOUND,
-            APIError.ORIGINAL_TRANSACTION_ID_NOT_FOUND_RETRYABLE,
             APIError.TRANSACTION_ID_NOT_FOUND,
             APIError.ACCOUNT_NOT_FOUND,
+        }
+        not_found_yet = {
+            APIError.ORIGINAL_TRANSACTION_ID_NOT_FOUND_RETRYABLE,
             APIError.ACCOUNT_NOT_FOUND_RETRYABLE,
         }
         if code in not_found:
             return SubscriberNotFound(f"No such subscription in {name}.")
+        if code in not_found_yet:
+            return StatusRetryLater(
+                f"{name} has nothing under this id yet — Apple answered "
+                f"{getattr(code, 'name', code)}, its not-found that is worth retrying. "
+                "Retry in a few minutes.", environment=name)
         if http == 429 or code == APIError.RATE_LIMIT_EXCEEDED:
             # Apple's limit is per key, and the bot shares one with any other
             # caller. Worth saying so — the fix is to wait, not to re-run.
@@ -447,7 +586,8 @@ class AppStoreStatusClient:
         )
 
         raw_status = getattr(item, "rawStatus", None)
-        state = STATUS_WORDS.get(raw_status, f"unknown ({raw_status})")
+        state = (STATUS_WORDS.get(raw_status, f"unknown ({raw_status})")
+                 if isinstance(raw_status, int) else f"unknown ({raw_status})")
 
         auto_renew: bool | None = None
         offer_identifier = transaction.offerIdentifier
@@ -504,6 +644,18 @@ async def aclose() -> None:
 
 
 async def lookup(transaction_id: str) -> list[SubscriptionStatus]:
-    """Every subscription Apple holds for this id. The module's whole surface."""
+    """Every subscription Apple holds for this id."""
     client = await get_client()
     return await client.statuses(transaction_id)
+
+
+async def lookup_order(order_id: str) -> list[str]:
+    """The originalTransactionIds in an App Store order, for `lookup`."""
+    client = await get_client()
+    return await client.order_transaction_ids(order_id)
+
+
+async def undelivered_notifications(hours: int = 24) -> tuple[int, bool]:
+    """What Apple could not deliver to us lately, for `/checkup`."""
+    client = await get_client()
+    return await client.undelivered_notifications(hours)

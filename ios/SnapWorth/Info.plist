@@ -27,7 +27,7 @@
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>SnapWorth lets you pick photos from your library to scan for resale value.</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>
-	<string>Allow SnapWorth to save your valuation card to Photos.</string>
+	<string>Allow SnapWorth to save share cards and cleaned-up listing photos to Photos.</string>
 	<key>UIAppFonts</key>
 	<array>
 		<string>Fraunces-Variable.ttf</string>

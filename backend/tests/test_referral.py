@@ -160,6 +160,20 @@ class TestReward:
         run(load(POOL_REWARD, ["REWARD1"]))
         assert run(referral.on_entitlement("subj-f", "friend", ent)) is False
 
+    def test_a_sandbox_redemption_rewards_nothing(self, monkeypatch):
+        """Production honours Sandbox for App Review and TestFlight, on bounded
+        terms that keep it out of everything that counts money. A reward is a
+        real Apple offer code, so it counts."""
+        import dataclasses
+        import entitlements
+        monkeypatch.setattr(entitlements, "ALLOWED_ENVIRONMENTS", frozenset({"Production"}))
+        self.claimed()
+        run(load(POOL_REWARD, ["REWARD1"]))
+        tester = dataclasses.replace(redeemed(), environment="Sandbox")
+        assert run(referral.on_entitlement("subj-f", "friend", tester)) is False
+        # The claim and the pool were left alone for the real redemption.
+        assert run(referral.on_entitlement("subj-f", "friend", redeemed())) is True
+
     def test_no_claim_no_reward(self):
         run(load(POOL_REWARD, ["REWARD1"]))
         assert run(referral.on_entitlement("subj-x", "stranger", redeemed())) is False
@@ -257,7 +271,7 @@ class TestEntitlementHook:
         fires in production however well `on_entitlement` is tested."""
         ent = redeemed()
 
-        async def record(subject, jws, device_id=None):
+        async def record(subject, jws, device_id=None, *, authenticated=False):
             return ent
         seen = []
 
