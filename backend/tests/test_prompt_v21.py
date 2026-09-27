@@ -13,6 +13,8 @@ What these pin, and why each matters more than the wording:
 * The v1 `est_value_low_usd`/`est_value_high_usd` pair is the server's to fill.
   v2 asked the model for it as a copy of worst/best and then ignored the copy.
 * A reply that follows v2.1 serves exactly the shape installed clients decode.
+* The multiple-items rule gives way to the not-resalable one, and a decline
+  shows the model's reason, never the multi-item flag that can share its list.
 """
 
 from __future__ import annotations
@@ -109,6 +111,19 @@ class TestMultipleItems:
 
     def test_it_caps_identification_certainty(self):
         assert '`identification_certainty` to "probable" at most' in self.RULE
+
+    def test_it_gives_way_to_the_not_resalable_rule(self):
+        """Both rules override everything, and a room or a table of food is
+        often several prominent things at once. Without a winner named, the
+        model could price the centre of a photo v2 declined, or head a
+        decline's explanation with the flag (see `TestServedAsV21`)."""
+        last = self.RULE.rsplit(". ", 1)[-1]
+        assert last.startswith("This rule is for resalable items only")
+        assert "not of a resalable object" in last
+        assert last.endswith("instead of this one.")
+        # "below" has to be true for the model to find it.
+        assert (V21.index(self.RULE)
+                < V21.index("- **If this is not a resalable object**"))
 
 
 class TestMarket:
@@ -211,7 +226,37 @@ class TestServedAsV21:
         assert result.status_code == 422
         assert "photograph of food" in result.json()["detail"]
 
-    def test_a_multi_item_reply_reaches_the_user_flagged(self, monkeypatch):
+    @pytest.mark.parametrize("flag", [
+        prompts.MULTIPLE_ITEMS_FACTOR, "Multiple items in frame.",
+        " MULTIPLE ITEMS IN FRAME ",
+    ])
+    def test_a_crowded_decline_shows_the_reason_not_the_flag(self, monkeypatch, flag):
+        """A model that applies both rules to a room lists the flag first, and
+        the banner read "multiple items in frame. Try a photo…" in place of
+        the explanation `_not_resalable_message` exists to show."""
+        declined = {**V21_PAYLOAD, "category": "other", "item_name": "Living room",
+                    "identification_certainty": "uncertain",
+                    "uncertainty_factors": [flag, "This is a photograph of a room"],
+                    **{price: 0 for price in PRICES}}
+        result, _ = _scan(monkeypatch, declined)
+        assert result.status_code == 422
+        detail = result.json()["detail"]
+        assert detail.startswith("This is a photograph of a room. ")
+        assert "multiple items" not in detail.casefold()
+
+    def test_a_decline_with_only_the_flag_gets_the_fallback(self, monkeypatch):
+        declined = {**V21_PAYLOAD, "category": "other",
+                    "uncertainty_factors": [prompts.MULTIPLE_ITEMS_FACTOR],
+                    **{price: 0 for price in PRICES}}
+        result, _ = _scan(monkeypatch, declined)
+        assert result.status_code == 422
+        assert result.json()["detail"] == main._NOT_RESALABLE_FALLBACK
+
+    def test_a_multi_item_reply_carries_the_flag_in_the_response(self, monkeypatch):
+        """In the Pro response, that is. Nobody sees it yet: free responses
+        withhold `uncertainty_factors` and the app renders none of it
+        (`prompts.MULTIPLE_ITEMS_FACTOR`), so `item_name` is what tells the
+        person which item was priced."""
         crowded = {**V21_PAYLOAD,
                    "item_name": "Patagonia Better Sweater 1/4-Zip (centre of rack)",
                    "identification_certainty": "probable",

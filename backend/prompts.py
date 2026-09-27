@@ -52,6 +52,8 @@ wording, so a comparison between the two measures these and nothing else.
   valuation of an item nobody named, or a lot price shown as one item's value.
   v2.1 prices the most central item, names it, adds `MULTIPLE_ITEMS_FACTOR` to
   `uncertainty_factors` and caps `identification_certainty` at "probable".
+  It is for resalable items only and gives way to the not-resalable rule,
+  whose explanation shares that list and is what the decline banner shows.
 
 * **Evidence before prices.** "Design of v2" says the model commits to its
   evidence before it prices, but v2's output schema put the four prices ahead
@@ -93,6 +95,19 @@ VALUATION_MARKET = "US resale value, in USD"
 #: What v2.1 tells the model to put in `uncertainty_factors` when several items
 #: are prominent. Written once, here, so anything that later reads the flag
 #: back out of a response matches what the prompt asked for.
+#:
+#: Nothing shows it to anyone yet. `uncertainty_factors` is withheld from free
+#: responses (`main._PRO_ONLY_DETAIL_FIELDS`), the app decodes it for Pro and
+#: renders none of it, and "probable" is too strong a signal for `confidence`
+#: to name as a reason. Until that changes, `item_name` is the only thing that
+#: tells the person which item on the rack was priced.
+#:
+#: The cap on `identification_certainty` is the prompt's alone: a reply that
+#: carries this flag and says "certain" is served as "certain". That is a
+#: choice. Clamped to "probable" on the server it would move the score four or
+#: five points (the signal weighs 0.10) and still name no reason, as above.
+#: Whether a crowded frame should keep a scan out of High is the question that
+#: matters, and it is the owner's.
 MULTIPLE_ITEMS_FACTOR = "multiple items in frame"
 
 # Retained verbatim: still served when SCAN_PROMPT_VERSION=v1, and used by the
@@ -199,6 +214,17 @@ Rules for the numeric fields:
 
 # One line, built apart from the prompt so the flag's spelling comes from
 # `MULTIPLE_ITEMS_FACTOR` rather than being typed twice.
+#
+# Its last sentence settles which rule wins. Both sit in the block that
+# overrides everything, and the not-resalable rule's own examples (a room,
+# food) are often several prominent things at once. That rule's explanation is
+# the one piece of a decline the person is shown, so it is the one that wins.
+#
+# Open, and the owner's to decide: a lot or bundle photographed as one thing
+# to sell. A flat-lay is how resellers shoot one, and this wording prices its
+# most central piece. Valuing a lot as a unit would take a sentence saying that
+# a matched set, or a lot clearly photographed for sale as one, counts as one
+# item and is named as the lot.
 _MULTIPLE_ITEMS_RULE = (
     "- **One item per valuation.** If several items are prominent in the photo "
     "(a rack, a shelf, a bin, a pile, a flat-lay), do not price the group and do "
@@ -207,7 +233,9 @@ _MULTIPLE_ITEMS_RULE = (
     f'one you priced. Add "{MULTIPLE_ITEMS_FACTOR}" to `uncertainty_factors`, and '
     'set `identification_certainty` to "probable" at most, or "uncertain" if no '
     "single item stands out. One item photographed against a cluttered "
-    "background is not this case."
+    "background is not this case. This rule is for resalable items only: if "
+    "the photo is not of a resalable object, follow the rule for that below "
+    "instead of this one."
 )
 
 # v2 with the four changes in the module docstring. The steps, the price

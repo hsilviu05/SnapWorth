@@ -2033,8 +2033,17 @@ def _not_resalable_message(val: valuation_module.Valuation) -> str:
     `promptsafety.sanitize_text` and `_string_list` in `normalise` — the same
     path as every field this app displays on a successful scan. Bounded to one
     factor and one line because this is an error banner, not a result screen.
+
+    Prompt v2.1's multiple-items flag is never the reason. The same list
+    carries it, and a room or a table of food is often several prominent
+    things at once, so a model that applies both rules and lists the flag
+    first had the banner read "multiple items in frame. Try a photo…": in
+    lower case, and in place of the explanation this function exists to show.
+    Compared loosely because it is model output copied from the prompt.
     """
-    reason = next((f for f in val.uncertainty_factors if f), "")
+    reason = next((f for f in val.uncertainty_factors
+                   if f and f.strip().rstrip(".").casefold()
+                   != prompts.MULTIPLE_ITEMS_FACTOR), "")
     if not reason:
         return _NOT_RESALABLE_FALLBACK
     if len(reason) > 160:
