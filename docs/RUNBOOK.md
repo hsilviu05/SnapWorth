@@ -83,7 +83,7 @@ monitoring today, and this table is what is.
 | Path | Purpose | Failure semantics |
 |---|---|---|
 | `/health/live` | Liveness | Checks nothing external — see below |
-| `/health/ready` | Readiness | 503 while starting, draining, or when the cache cannot take a write (unreachable, or full) |
+| `/health/ready` | Readiness | 503 when the cache cannot take a write (unreachable, or full). It would also say 503 before startup completes and after shutdown begins, but uvicorn serves nothing then: it opens the listener after startup and closes it at SIGTERM, so a deploying instance refuses connections instead (§6) |
 | `/health` | Legacy | Retained for compatibility |
 | `/metrics` | Prometheus scrape | Requires `Authorization: Bearer $METRICS_TOKEN`; 404 without it |
 
