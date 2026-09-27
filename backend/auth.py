@@ -544,6 +544,8 @@ async def record_entitlement(
         metrics.entitlement_operations.inc(outcome="rejected")
         auditlog.record(AuditEvent.ENTITLEMENT_REJECTED, principal.subject,
                         outcome="failure", reason=str(exc))
+        # So `/user` can say the purchase reached us and why it was refused.
+        notify.entitlement_rejected(principal.subject, str(exc))
         raise HTTPException(status_code=400, detail=str(exc)) from None
     except EntitlementsUnavailable:
         # Raised only on the bounded Sandbox path: its one-device claim is an

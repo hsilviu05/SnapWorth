@@ -16,6 +16,7 @@ Two rules shape it:
 from __future__ import annotations
 
 import hashlib
+import hmac
 import logging
 import os
 from enum import Enum
@@ -52,6 +53,20 @@ def pseudonymise(subject: str | None) -> str:
     if not subject:
         return "-"
     return hashlib.sha256(_SALT + subject.encode()).hexdigest()[:16]
+
+
+def keyed_tag(purpose: str, subject: str, length: int = 8) -> str:
+    """A tag for `subject` that means something only within `purpose`.
+
+    An HMAC keyed with the salt, over the subject itself. Unlike a hash of
+    the pseudonym, it cannot be recomputed from what is stored beside it: the
+    cache holds full pseudonyms (the operator's /users and /subs indexes) and
+    raw key ids (quota and entitlement keys), but never the salt. Without the
+    salt a tag joins to nothing; with it and a device's key id, it does. That
+    holds only while AUDIT_SALT is set to a real secret, which the pseudonyms
+    already require."""
+    purpose_and_subject = f"{purpose}:{subject}".encode()
+    return hmac.new(_SALT, purpose_and_subject, hashlib.sha256).hexdigest()[:length]
 
 
 def record(

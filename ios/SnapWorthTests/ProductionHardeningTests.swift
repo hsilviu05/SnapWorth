@@ -497,6 +497,15 @@ final class PrivacyPolicyDisclosureTests: XCTestCase {
         XCTAssertTrue(policy.contains("uses the week's highest-value scans, through Google's Gemini API, to draft ideas for SnapWorth's social-media posts"))
     }
 
+    func test_theDeviceTagBesideEachTallyIsDisclosed() {
+        // /trends counts devices, so the server keeps a tag per device beside
+        // every category, brand and find for as long as the day's tallies.
+        // "Without your device identifier" was literally true and said
+        // nothing about it. backend/tests/test_main.py pins the web copy.
+        XCTAssertTrue(policy.contains("Beside each category, brand and highest-value scan we also keep a short tag for each device that scanned it"))
+        XCTAssertTrue(policy.contains("neither the device identifier itself nor the hash described under Telegram"))
+    }
+
     func test_purchasesAndReferralsAreDisclosed() {
         // The signed transaction goes up with the device ID on every status
         // refresh and is kept; a claimed invite links two devices. Neither was

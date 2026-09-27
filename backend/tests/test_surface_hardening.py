@@ -226,6 +226,25 @@ class TestEntitlementRouteIsLimited:
         assert main.ENTITLEMENT_RATE_MAX_REQUESTS > main.RATE_MAX_REQUESTS
         assert main.ENTITLEMENT_RATE_MAX_REQUESTS == 60
 
+    def test_a_refused_transaction_is_recorded_for_the_operator(self, monkeypatch):
+        """Only verified transactions reach the subscription index, so a
+        refused one left nothing `/user` could show: the customer who paid and
+        was told free looked as if they had never tried."""
+        import notify
+        seen: list[tuple[str, str]] = []
+        monkeypatch.setattr(notify, "entitlement_rejected",
+                            lambda subject, reason: seen.append((subject, reason)))
+
+        response = client.post("/auth/entitlement",
+                               json={"signed_transaction": "not-a-jws"},
+                               headers={"x-device-id": "refused-probe"})
+
+        assert response.status_code == 400
+        assert len(seen) == 1
+        subject, reason = seen[0]
+        assert "refused-probe" in subject
+        assert reason == response.json()["detail"]
+
 
 # ── Signals that existed and reached nobody ─────────────────────────────────
 

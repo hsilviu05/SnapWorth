@@ -285,6 +285,23 @@ class TestLegalEndpoints:
         assert ("uses the week's highest-value scans, through Google's Gemini "
                 "API, to draft ideas for SnapWorth's social-media posts") in body
 
+    def test_privacy_discloses_the_device_tag_beside_each_tally(self):
+        """/trends counts devices, not scans, so every category, brand and
+        find in a day's tallies carries a tag per device for as long as the
+        day does. "Without your device identifier" stayed literally true and
+        told the reader nothing about it; the tag is disclosed on its own."""
+        import auditlog
+        import notify
+        body = _prose(client.get("/privacy").text)
+        assert ("Beside each category, brand and highest-value scan we also keep "
+                "a short tag for each device that scanned it") in body
+        assert ("neither the device identifier itself nor the hash described "
+                "under Telegram") in body
+        # What the sentence says the tag is, and is not.
+        tag = notify._trend_device("key-id")
+        assert tag == auditlog.keyed_tag("trends", "key-id")
+        assert tag not in auditlog.pseudonymise("key-id")
+
     def test_privacy_does_not_call_a_subscribers_device_id_unlinked(self):
         """The device id is stored with the signed purchase record, whose
         originalTransactionId follows the Apple ID; PrivacyInfo.xcprivacy
@@ -1072,7 +1089,11 @@ class TestTrendsEndpoint:
             notify._stat_key(day, "top"),
             _json.dumps({"cats": {"clothing": 9}, "brands": {"Nike": 6},
                          "finds": [{"n": "Carhartt Detroit Jacket", "c": "clothing",
-                                    "lo": 60, "hi": 100}] * 3}), 600))
+                                    "lo": 60, "hi": 100, "d": ["d1", "d2", "d3"]}] * 3,
+                         # Three devices behind each row: the floor counts
+                         # devices as well as scans.
+                         "cat_devices": {"clothing": ["d1", "d2", "d3"]},
+                         "brand_devices": {"Nike": ["d1", "d2", "d3"]}}), 600))
         return cache
 
     def test_free_caller_gets_counts_without_finds(self):
@@ -1415,6 +1436,28 @@ class TestAppleNotifications:
             "signedPayload": make_notification(leaf_key, chain)})
         assert r.status_code == 200
         assert r.json()["type"] == "DID_RENEW"
+
+    def test_arrival_is_recorded_for_checkup_and_only_once_verified(
+            self, pinned, monkeypatch):
+        """/checkup's "last verified App Store notification" line. A forged
+        body must not be able to make a silent webhook look alive."""
+        import notify
+        seen: list[tuple[str, str]] = []
+        monkeypatch.setattr(notify, "appstore_notification_verified",
+                            lambda env, kind: seen.append((env, kind)))
+        leaf_key, chain = pinned
+
+        client.post("/apple/notifications", json={"signedPayload": "not-a-jws"})
+        other_key, other_chain = build_chain()
+        client.post("/apple/notifications", json={
+            "signedPayload": make_notification(other_key, other_chain)})
+        assert seen == []
+
+        payload = make_notification(leaf_key, chain, uuid="arrival-1")
+        client.post("/apple/notifications", json={"signedPayload": payload})
+        client.post("/apple/notifications", json={"signedPayload": payload})
+        # A redelivery is Apple reaching us too.
+        assert seen == [("Production", "DID_RENEW")] * 2
 
     def test_the_endpoint_is_rate_limited_like_every_other_open_route(self, pinned):
         """Unauthenticated, and every accepted body runs a full JWS verify.

@@ -1511,7 +1511,12 @@ its brand, category and estimated price range, and whether it was made on the
 free or Pro plan. These are kept for 35 days after the day of the scan. The
 operator can see them, and uses the week's highest-value scans, through
 Google's Gemini API, to draft ideas for SnapWorth's social-media posts &mdash;
-so a post may mention an item someone scanned, never who scanned it.</p>
+so a post may mention an item someone scanned, never who scanned it. Beside
+each category, brand and highest-value scan we also keep a short tag for each
+device that scanned it: a keyed hash of your device's attestation key, which is
+neither the device identifier itself nor the hash described under Telegram. It
+is kept as long as the entry, and used only to count how many different devices
+stand behind an entry before the app shows it to anyone.</p>
 <p>In the app, everyone can see this week's most-scanned categories and brands,
 each shown only once at least five scans back it. Pro subscribers also see the
 week's highest-value finds, shown as brand, category and estimated price range
@@ -1625,6 +1630,10 @@ async def apple_notifications(body: AppleNotification, request: Request) -> dict
         # Deliberately a 4xx: retrying it would never succeed.
         log.warning("rejected App Store notification: %s", exc)
         raise HTTPException(status_code=400, detail=str(exc)) from None
+
+    # Before either idempotency check: a redelivery is Apple reaching us too,
+    # and /checkup's "last verified notification" line is about arrival.
+    notify.appstore_notification_verified(note.environment, note.notification_type)
 
     seen_key = f"apns2:{note.uuid}"
 
@@ -1981,11 +1990,15 @@ async def scan(
         response = _strip_pro_detail(response)
 
     record_quota_consumed(principal)
+    # A tag photo only ever arrives as the result screen's re-read of an item
+    # already scanned (ResultView `rescan(withTag:)`), so it is counted as the
+    # model call it is but not tallied into /trends a second time.
     notify.scan_completed(
         tier=principal.tier, item_name=response.item_name, brand=response.brand,
         category=response.category, low=response.est_value_low_usd,
         high=response.est_value_high_usd, confidence=response.confidence,
-        subject=principal.subject, elapsed_ms=int(elapsed * 1000))
+        subject=principal.subject, elapsed_ms=int(elapsed * 1000),
+        reread=tag_bytes is not None)
     # Optional and omitted for Pro or when the quota store is unreachable: the
     # client must fall back to its own count rather than be handed a number.
     response.free_scans_remaining = (
@@ -2748,12 +2761,17 @@ async def trends(
 
     The backend has kept these tallies since the operator bot shipped: counts
     per category and per brand, and the day's most valuable finds as an item
-    name and a price range. Nothing in them identifies a device, and nothing
-    here changes that — a category or brand row appears only once at least
-    five scans back it, so a single user's afternoon cannot become a "trend",
-    and an average is withheld until three finds support it. Notable finds
-    have no such floor: each is one scan, so it is sent as brand, category and
-    range, never the item name (see `notify.trends`).
+    name and a price range. Nothing here identifies a device. A row appears
+    only once at least five scans back it, from at least two different
+    devices for a category and three for a brand, and a notable find only
+    once three different devices have scanned that item, so one user's
+    afternoon — or one label read five times — cannot become a "trend"; an
+    average is withheld until three distinct finds support it. A find is
+    still one item, so it is sent as brand, category and range, never the
+    item name (see `notify.trends`). Days tallied before devices were
+    recorded count by scans alone while they are in the window; a day an
+    older build wrote back after that, as a rollback does, is withheld. See
+    `notify.TRENDS_MIN_CATEGORY_DEVICES` and `notify._floored`.
 
     The free/Pro split is decided **here**, from the verified principal, never
     by the client asking nicely: free gets the top three categories and brands
