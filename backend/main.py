@@ -237,7 +237,10 @@ async def _lifespan(_app: FastAPI):
     notify.configure(_cache, status_provider=_status_snapshot,
                      social=social_readers if social_readers.configured else None,
                      generator=_bot_generate, scanner=_bot_scan,
-                     device_check_probe=dc.verify)
+                     device_check_probe=dc.verify,
+                     # The other direction of `welcome_override`: the bot asks
+                     # this quota what the welcome is instead of re-deriving it.
+                     welcome=auth.deps.quota.describe_welcome)
 
     cfg = auth.deps.config
     if cfg.enforce and not cfg.is_configured:

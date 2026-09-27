@@ -26,6 +26,7 @@ import observability  # noqa: E402
 from cache import InMemoryCache, ResilientCache  # noqa: E402
 from datetime import datetime, timedelta, timezone  # noqa: E402
 from entitlements import FREE, Entitlement, Reinstatement  # noqa: E402
+from quota import ScanQuota  # noqa: E402
 
 # Shaped like a real BotFather token; used to prove it never reaches the logs.
 FAKE_TOKEN = "123456789:AAtest-token-abcdefghijklmnopqrstuvwx"
@@ -90,6 +91,19 @@ async def drain() -> None:
     pending = [t for t in notify._tasks if not t.done()]
     if pending:
         await asyncio.gather(*pending, return_exceptions=True)
+
+
+def wire_welcome(monkeypatch, *, daily: int = 1, env_first_day: int = 0) -> ScanQuota:
+    """Hand the bot the quota's own account of the welcome, as main does.
+
+    The bot no longer reads FREE_SCANS_PER_DAY or FREE_SCANS_FIRST_DAY itself,
+    so a test that wants either builds the quota that holds them — reading the
+    lever through `free_scan_lever`, exactly as production's does. Needs
+    `enabled_notify` first, for the cache."""
+    quota = ScanQuota(notify._cache, None, limit=daily, first_day_limit=env_first_day,
+                      welcome_override=notify.free_scan_lever)
+    monkeypatch.setattr(notify, "_describe_welcome", quota.describe_welcome)
+    return quota
 
 
 # ── Disabled by default ──────────────────────────────────────────────────────
@@ -2597,6 +2611,82 @@ class TestDeviceCheckLine:
         assert "Reinstalls get a fresh allowance until this is fixed." in line
 
     @pytest.mark.asyncio
+    async def test_apple_unreachable_is_not_reported_as_rejected(self, cache, monkeypatch):
+        """A timeout said "REJECTED … until this is fixed", which sends someone
+        to the developer portal to fix a key that works. Nothing needs fixing;
+        the check needs repeating."""
+        async def probe():
+            return None, "ConnectTimeout"
+        line = await self.line(cache, monkeypatch, True, probe)
+        assert line == ("DeviceCheck: configured · Apple unreachable just now "
+                        "(ConnectTimeout) — reinstalls get a fresh allowance while "
+                        "this lasts; run /checkup again")
+        assert "REJECTED" not in line and "until this is fixed" not in line
+
+    @staticmethod
+    def _real_probe(apple):
+        """`DeviceCheckClient.verify` against a stand-in for Apple, so the two
+        halves are tested together: what the probe returns for each failure,
+        and what the checkup line makes of it."""
+        import devicecheck
+        from cryptography.hazmat.primitives import serialization
+        from cryptography.hazmat.primitives.asymmetric import ec
+        # Generated, never written down: see test_production's `_key`.
+        key = ec.generate_private_key(ec.SECP256R1()).private_bytes(
+            encoding=serialization.Encoding.PEM,
+            format=serialization.PrivateFormat.PKCS8,
+            encryption_algorithm=serialization.NoEncryption()).decode()
+        dc = devicecheck.DeviceCheckClient(
+            team_id="TEAM123456", key_id="KEY1234567", private_key_pem=key)
+
+        async def probe():
+            devicecheck._client = httpx.AsyncClient(transport=httpx.MockTransport(apple))
+            try:
+                return await dc.verify()
+            finally:
+                await devicecheck.aclose()
+        return probe
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("outage, kind", [("timeout", "ConnectTimeout"),
+                                              ("503", "HTTP 503: try later")])
+    async def test_the_real_probe_reads_an_outage_as_unreachable(
+            self, cache, monkeypatch, outage, kind):
+        def apple(request):
+            if outage == "timeout":
+                raise httpx.ConnectTimeout("timed out")
+            return httpx.Response(503, text="try later")
+        line = await self.line(cache, monkeypatch, True, self._real_probe(apple))
+        assert line.startswith(
+            f"DeviceCheck: configured · Apple unreachable just now ({kind})"), line
+        assert "REJECTED" not in line
+
+    @pytest.mark.asyncio
+    async def test_the_real_probe_still_reads_a_refused_key_as_rejected(
+            self, cache, monkeypatch):
+        def apple(request):
+            return httpx.Response(401, text="Unable to verify authorization token")
+        line = await self.line(cache, monkeypatch, True, self._real_probe(apple))
+        assert line.startswith("DeviceCheck: configured but REJECTED — key rejected"), line
+        assert line.endswith("Reinstalls get a fresh allowance until this is fixed.")
+
+    @pytest.mark.asyncio
+    async def test_a_probe_that_was_never_sent_is_not_reported_as_rejected(
+            self, cache, monkeypatch):
+        """An exception from the request that is not the network — a response
+        that would not decode, a closed client — came back as False and read
+        "configured but REJECTED". Nothing was rejected: no answer from Apple
+        was read, and the developer portal is the wrong place to look."""
+        def apple(request):
+            raise httpx.DecodingError("Error -3 while decompressing data")
+        line = await self.line(cache, monkeypatch, True, self._real_probe(apple))
+        assert line == ("DeviceCheck: configured · probe could not be sent "
+                        "(DecodingError) — not a verdict on the key; the server "
+                        "log has the traceback. Scans send the same request, so "
+                        "reinstalls get a fresh allowance until it is fixed."), line
+        assert "REJECTED" not in line and "unreachable" not in line
+
+    @pytest.mark.asyncio
     async def test_a_probe_that_blows_up_does_not_take_the_checkup_with_it(
             self, cache, monkeypatch):
         async def probe():
@@ -2842,7 +2932,7 @@ class TestExperimentCommand:
         monkeypatch.setattr(notify, "EXPERIMENT_START_DAY", self.START)
         monkeypatch.setattr(notify, "EXPERIMENT_END_DAY", self.END)
         monkeypatch.setattr(notify, "EXPERIMENT_PARTIAL_DAY", partial)
-        monkeypatch.setenv("FREE_SCANS_FIRST_DAY", "3")
+        wire_welcome(monkeypatch, env_first_day=3)
 
     async def _seed(self, cache, day: str, *, act=0, free=0, hits=0, subs=0) -> None:
         for name, value in (("active_users", act), ("scans_free", free),
@@ -2932,7 +3022,7 @@ class TestExperimentCommand:
         ending the report. The table would keep printing zeros that look like a
         finding rather than an absence."""
         self._window(monkeypatch)
-        monkeypatch.delenv("FREE_SCANS_FIRST_DAY", raising=False)
+        wire_welcome(monkeypatch, env_first_day=0)
         text = await notify._experiment_text(
             datetime(2026, 9, 12, 8, 0, tzinfo=timezone.utc))
         assert "lever not armed" in text
@@ -3142,6 +3232,10 @@ class TestFreeScanLever:
     `free_scan_lever` on every free scan, so these are the properties that make
     a money-spending button in a chat window safe to have.
     """
+
+    @pytest.fixture(autouse=True)
+    def _quota(self, enabled_notify, monkeypatch):
+        wire_welcome(monkeypatch, daily=1)
 
     async def _run(self, cmd: str) -> tuple[str, list]:
         reply = await notify.handle_command_with_buttons(cmd)
@@ -3534,24 +3628,29 @@ class TestSubscriptionNotifications:
 # ── The lever's floor, and the source /experiment reads ─────────────────────
 
 class TestLeverFloorAndSource:
-    """Two ways the operator was told something untrue about the experiment.
+    """Ways the operator was told something untrue about the experiment.
 
-    `ScanQuota._first_day_limit` clamps 0..10 *and then* returns
-    `configured if configured > FREE_SCANS_PER_DAY else 0` — so an armed value
-    at or below the daily limit grants nothing. `/lever arm` mirrored only the
-    upper half of that clamp and confirmed "Lever armed — 1 first-day scan",
-    then kept rendering that override on every later call, from a stored
-    document with no TTL.
+    `ScanQuota` clamps the welcome to its cap *and then* discards anything at
+    or below the daily limit. `/lever arm` mirrored only the upper half of
+    that and confirmed "Lever armed — 1 first-day scan", then kept rendering
+    that override on every later call, from a stored document with no TTL.
 
-    And `/experiment` read `FREE_SCANS_FIRST_DAY` from the environment, which
+    `/experiment` read `FREE_SCANS_FIRST_DAY` from the environment, which
     `/lever` never writes — so arming from chat left the line that says whether
-    the thing being measured is switched on reading "lever not armed".
+    the thing being measured is switched on reading "lever not armed". Then it
+    printed the variable raw, so `FREE_SCANS_FIRST_DAY=1` read as armed at a
+    daily limit of 1, where it grants nothing.
+
+    Every one of those was the bot keeping its own copy of the quota's rules.
+    It now asks the quota (`ScanQuota.describe_welcome`, wired by main), so
+    these tests build the quota that holds the numbers rather than setting
+    environment variables the bot no longer reads.
     """
 
     @pytest.mark.asyncio
     async def test_arming_at_or_below_the_daily_limit_is_refused(
             self, enabled_notify, monkeypatch):
-        monkeypatch.setenv("FREE_SCANS_PER_DAY", "1")
+        wire_welcome(monkeypatch, daily=1)
         for value in ("0", "1"):
             reply = await notify.handle_command(f"/lever arm {value} yes")
             assert "not a welcome" in reply, reply
@@ -3561,38 +3660,146 @@ class TestLeverFloorAndSource:
     @pytest.mark.asyncio
     async def test_arming_above_the_daily_limit_still_works(
             self, enabled_notify, monkeypatch):
-        monkeypatch.setenv("FREE_SCANS_PER_DAY", "1")
+        wire_welcome(monkeypatch, daily=1)
         reply = await notify.handle_command("/lever arm 3 yes")
         assert "not a welcome" not in reply, reply
         assert await notify.free_scan_lever() == 3
 
     @pytest.mark.asyncio
-    async def test_the_floor_follows_the_daily_limit(
+    async def test_the_floor_is_the_quotas_daily_limit_not_the_environments(
             self, enabled_notify, monkeypatch):
-        # Not hardcoded to 1: the refusal has to move with the environment.
-        monkeypatch.setenv("FREE_SCANS_PER_DAY", "3")
-        assert "not a welcome" in await notify.handle_command("/lever arm 3 yes")
+        # The bot used to read FREE_SCANS_PER_DAY with its own default of "1".
+        # The quota is what grants the scans, so its limit is the one that
+        # counts; the variable here disagrees on purpose.
+        monkeypatch.setenv("FREE_SCANS_PER_DAY", "1")
+        wire_welcome(monkeypatch, daily=3)
+        reply = await notify.handle_command("/lever arm 3 yes")
+        assert "not a welcome" in reply and "Arm <b>4</b> or more" in reply, reply
         assert "not a welcome" not in await notify.handle_command("/lever arm 4 yes")
         assert await notify.free_scan_lever() == 4
 
     @pytest.mark.asyncio
+    async def test_the_cap_is_the_quotas(self, enabled_notify, monkeypatch):
+        # It was a literal 10 here, copied from `MAX_FIRST_DAY_SCANS`. Move the
+        # quota's cap and the bot has to move with it, or it confirms an
+        # allowance the quota will not grant.
+        monkeypatch.setattr(ScanQuota, "MAX_FIRST_DAY_SCANS", 5)
+        wire_welcome(monkeypatch, daily=1)
+        reply = await notify.handle_command("/lever arm 9999 yes")
+        assert "5 first-day scans" in reply, reply
+        assert await notify.free_scan_lever() == 5
+
+    @pytest.mark.asyncio
+    async def test_no_welcome_fits_under_the_cap(self, enabled_notify, monkeypatch):
+        wire_welcome(monkeypatch, daily=ScanQuota.MAX_FIRST_DAY_SCANS)
+        reply = await notify.handle_command("/lever arm 9999 yes")
+        assert "not a welcome" in reply and "no welcome to arm" in reply, reply
+        assert "or more" not in reply, "there is no larger value to suggest"
+        assert await notify.free_scan_lever() is None
+
+    @pytest.mark.asyncio
+    async def test_without_the_quota_the_bot_will_not_arm_blind(
+            self, enabled_notify, monkeypatch):
+        # `enabled_notify` wires no `welcome`. Guessing the rules is what went
+        # wrong before; with nothing to ask, the lever stays where it is.
+        monkeypatch.setenv("FREE_SCANS_PER_DAY", "1")
+        reply = await notify.handle_command("/lever arm 3 yes")
+        assert "will not arm one blind" in reply, reply
+        assert await notify.free_scan_lever() is None
+        text = await notify.handle_command("/experiment")
+        assert "welcome unknown" in text, text
+        assert "lever armed" not in text
+
+    @pytest.mark.asyncio
+    async def test_a_first_day_value_at_the_daily_limit_does_not_read_as_armed(
+            self, enabled_notify, monkeypatch):
+        """The case the audit found live: FREE_SCANS_FIRST_DAY=1 against a
+        daily limit of 1. `/experiment` printed the variable, which reads as
+        a welcome of one; the quota grants no welcome at all."""
+        wire_welcome(monkeypatch, daily=1, env_first_day=1)
+        text = await notify.handle_command("/experiment")
+        assert "<b>lever not armed</b>" in text, text
+        assert "FREE_SCANS_FIRST_DAY=1 is not above the daily limit of 1" in text, text
+        assert "lever armed" not in text
+
+        lever = await notify.handle_command("/lever")
+        assert "Now: <b>lever not armed</b>" in lever, lever
+        assert "daily limit 1" in lever, lever
+
+    @pytest.mark.asyncio
+    async def test_a_value_the_cap_removes_is_not_blamed_on_the_daily_limit(
+            self, enabled_notify, monkeypatch):
+        """50 is above a daily limit of 10; the cap of 10 is not. Every screen
+        said "FREE_SCANS_FIRST_DAY=50 is not above the daily limit of 10",
+        which is false — the cap is why there is no welcome."""
+        cap = ScanQuota.MAX_FIRST_DAY_SCANS
+        wire_welcome(monkeypatch, daily=cap, env_first_day=50)
+        text = await notify.handle_command("/experiment")
+        assert (f"FREE_SCANS_FIRST_DAY=50 is capped at {cap}, which is not above "
+                f"the daily limit of {cap}, so no first-day welcome") in text, text
+        assert "=50 is not above" not in text, text
+
+        # One above the daily limit, and the cap is the daily limit: the same.
+        wire_welcome(monkeypatch, daily=cap, env_first_day=cap + 1)
+        assert f"is capped at {cap}" in await notify.handle_command("/lever")
+
+        # At or below the daily limit, the daily limit is the reason, and the
+        # cap has nothing to do with it.
+        wire_welcome(monkeypatch, daily=cap + 2, env_first_day=cap + 1)
+        text = await notify.handle_command("/experiment")
+        assert (f"FREE_SCANS_FIRST_DAY={cap + 1} is not above the daily limit of "
+                f"{cap + 2}, so no first-day welcome") in text, text
+        assert "capped" not in text, text
+
+    def test_a_capped_override_from_chat_names_the_cap_too(self):
+        from quota import WelcomeSetting
+        armed, head, why = notify._welcome_summary(
+            WelcomeSetting(daily=10, environment=0, override=12, cap=10))
+        assert (armed, head) == (False, "lever not armed")
+        assert why.startswith("the lever's 12, set from chat, is capped at 10, "
+                              "which is not above the daily limit of 10"), why
+
+    @pytest.mark.asyncio
+    async def test_the_confirmations_say_what_is_granted_now(
+            self, enabled_notify, monkeypatch):
+        # "Currently 1 first-day scan" was the raw override; it has to be what
+        # the quota does with it.
+        wire_welcome(monkeypatch, daily=1, env_first_day=1)
+        reply = await notify.handle_command("/lever arm 3")
+        assert "Currently <b>lever not armed</b>" in reply, reply
+        await notify.handle_command("/lever arm 3 yes")
+        reply = await notify.handle_command("/lever disarm")
+        assert "Currently lever armed — 3 first-day scans, set from chat" in reply, reply
+
+    @pytest.mark.asyncio
+    async def test_handing_back_says_what_the_environment_would_grant(
+            self, enabled_notify, monkeypatch):
+        wire_welcome(monkeypatch, daily=1, env_first_day=1)
+        await notify.handle_command("/lever arm 3 yes")
+        reply = await notify.handle_command("/lever default")
+        assert ("FREE_SCANS_FIRST_DAY=1 would decide again — "
+                "<b>no first-day welcome</b>") in reply, reply
+
+        wire_welcome(monkeypatch, daily=1, env_first_day=2)
+        reply = await notify.handle_command("/lever default")
+        assert "would decide again — <b>2 first-day scans</b>" in reply, reply
+
+    @pytest.mark.asyncio
     async def test_experiment_reports_a_lever_armed_from_chat(
             self, enabled_notify, monkeypatch):
-        monkeypatch.setenv("FREE_SCANS_PER_DAY", "1")
-        monkeypatch.delenv("FREE_SCANS_FIRST_DAY", raising=False)
+        wire_welcome(monkeypatch, daily=1, env_first_day=0)
         await notify.handle_command("/lever arm 3 yes")
 
         text = await notify.handle_command("/experiment")
         assert "lever not armed" not in text, text
-        assert "3 first-day scans" in text, text
+        assert "lever armed — 3 first-day scans, set from chat" in text, text
 
     @pytest.mark.asyncio
     async def test_experiment_names_both_when_they_disagree(
             self, enabled_notify, monkeypatch):
-        # The environment is what a redeploy would fall back to, so an operator
+        # The environment is what ↩️ Use env hands back to, so an operator
         # reading this needs to know the two do not match.
-        monkeypatch.setenv("FREE_SCANS_PER_DAY", "1")
-        monkeypatch.setenv("FREE_SCANS_FIRST_DAY", "5")
+        wire_welcome(monkeypatch, daily=1, env_first_day=5)
         await notify.handle_command("/lever arm 3 yes")
 
         text = await notify.handle_command("/experiment")
@@ -3602,10 +3809,227 @@ class TestLeverFloorAndSource:
     @pytest.mark.asyncio
     async def test_experiment_falls_back_to_the_environment(
             self, enabled_notify, monkeypatch):
-        monkeypatch.setenv("FREE_SCANS_FIRST_DAY", "2")
+        wire_welcome(monkeypatch, daily=1, env_first_day=2)
         text = await notify.handle_command("/experiment")
-        assert "FREE_SCANS_FIRST_DAY=2" in text, text
+        assert "lever armed — 2 first-day scans, from FREE_SCANS_FIRST_DAY=2" in text, text
         assert "lever not armed" not in text, text
+
+    @pytest.mark.asyncio
+    async def test_a_disarm_from_chat_is_named_as_one(self, enabled_notify, monkeypatch):
+        wire_welcome(monkeypatch, daily=1, env_first_day=3)
+        await notify.handle_command("/lever disarm yes")
+        text = await notify.handle_command("/experiment")
+        assert "<b>lever not armed</b> — disarmed from chat · env FREE_SCANS_FIRST_DAY=3" \
+            in text, text
+
+
+# ── Keeping the experiment's record before its counters expire ──────────────
+
+class TestExperimentExport:
+    """`/experiment export` — the window as CSV, before STATS_TTL deletes it.
+
+    The table's counters expire 35 days after each day, so the server's record
+    of the 20260910–20260924 window goes a day at a time from 2026-10-15. The
+    export is what gets kept, so the tests are about what a kept copy may
+    claim: an expired day is empty, not zero; an unreadable cache produces no
+    copy rather than one full of zeros; the half-counted day and any lever
+    move travel with the rows.
+    """
+
+    START, END = "20260910", "20260924"
+
+    @pytest.fixture(autouse=True)
+    def _window(self, enabled_notify, monkeypatch):
+        monkeypatch.setattr(notify, "EXPERIMENT_START_DAY", self.START)
+        monkeypatch.setattr(notify, "EXPERIMENT_END_DAY", self.END)
+        monkeypatch.setattr(notify, "EXPERIMENT_PARTIAL_DAY", self.START)
+        wire_welcome(monkeypatch, daily=1, env_first_day=3)
+
+    async def _seed(self, cache, day: str, **counts) -> None:
+        for name, value in counts.items():
+            await cache.set(notify._stat_key(day, name), str(value))
+
+    @staticmethod
+    def _csv(text: str) -> list[str]:
+        assert "<pre>" in text, text
+        body = text.split("<pre>", 1)[1].split("</pre>", 1)[0]
+        return html.unescape(body).split("\n")
+
+    @pytest.mark.asyncio
+    async def test_every_day_of_a_closed_window_is_a_row(self, cache):
+        await self._seed(cache, "20260910", active_users=6, scans_free=4, limit_hits=1)
+        await self._seed(cache, "20260912", active_users=9, scans_free=8,
+                         limit_hits=2, new_subs=1)
+        text = await notify._experiment_export(
+            datetime(2026, 9, 30, 8, 0, tzinfo=timezone.utc))
+        lines = self._csv(text)
+        assert lines[0] == ("# SnapWorth free-scan experiment · 2026-09-10 to "
+                            "2026-09-24 · exported 2026-09-30 08:00 UTC")
+        assert ("# welcome at export: lever armed — 3 first-day scans · "
+                "from FREE_SCANS_FIRST_DAY=3") in lines
+        header = lines.index("day,active_users,scans_free,limit_hits,new_subs,note")
+        rows = lines[header + 1:]
+        assert len(rows) == 15, rows
+        assert rows[0] == f"2026-09-10,6,4,1,0,{notify.EXPERIMENT_PARTIAL_NOTE}"
+        assert rows[1] == "2026-09-11,0,0,0,0,", "a readable day with no counts is a zero"
+        assert rows[2] == "2026-09-12,9,8,2,1,"
+        assert rows[-1].startswith("2026-09-24,")
+        assert "The 09-10 counters expire on 15 Oct" in text, text
+
+    @pytest.mark.asyncio
+    async def test_an_expired_day_is_empty_not_zero(self, cache):
+        await self._seed(cache, "20260910", active_users=6, scans_free=4, limit_hits=5)
+        await self._seed(cache, "20260911", active_users=8, scans_free=7, limit_hits=3)
+        text = await notify._experiment_export(
+            datetime(2026, 10, 15, 8, 0, tzinfo=timezone.utc))
+        lines = self._csv(text)
+        assert "2026-09-10,,,,,expired: past the 35-day counter TTL" in lines, lines
+        assert "2026-09-11,8,7,3,0," in lines
+        assert "The 09-11 counters expire on 16 Oct" in text, text
+
+    @pytest.mark.asyncio
+    async def test_an_open_window_exports_the_days_so_far(self, cache):
+        text = await notify._experiment_export(
+            datetime(2026, 9, 12, 20, 0, tzinfo=timezone.utc))
+        lines = self._csv(text)
+        assert lines[0].endswith("while the window was open")
+        assert [ln[:10] for ln in lines if ln.startswith("2026-")] == [
+            "2026-09-10", "2026-09-11", "2026-09-12"]
+
+    @pytest.mark.asyncio
+    async def test_the_block_parses_as_csv_with_each_note_one_field(
+            self, cache, monkeypatch):
+        """CSV has no comments. The notes had commas in them — the welcome line
+        several, most with the lever set from chat and capped — so the block
+        saved as a .csv read as ragged rows ahead of its header."""
+        import csv
+
+        from quota import WelcomeSetting
+
+        async def capped():
+            return WelcomeSetting(daily=10, environment=3, override=12, cap=10)
+        monkeypatch.setattr(notify, "_describe_welcome", capped)
+        await cache.set(notify.LEVERS_KEY, json.dumps({
+            "free_scans_first_day": 12,
+            "changes": [["20260911", None, 12]]}))
+        await self._seed(cache, "20260910", active_users=6, scans_free=4, limit_hits=1)
+
+        lines = self._csv(await notify._experiment_export(
+            datetime(2026, 9, 30, 8, 0, tzinfo=timezone.utc)))
+        parsed = list(csv.reader(lines))
+        notes = [row for row in parsed if row and row[0].startswith("#")]
+        assert len(notes) == 3, notes
+        assert all(len(row) == 1 for row in notes), notes
+        assert "capped at 10" in notes[1][0] and "set from chat" in notes[1][0], notes
+        assert notes[2] == ["# lever changed 2026-09-11: environment default -> "
+                            "12 first-day scans"]
+        table = [row for row in parsed if row and not row[0].startswith("#")]
+        assert table[0] == ["day", *notify.EXPERIMENT_COUNTERS, "note"]
+        assert {len(row) for row in table} == {len(table[0])}, table
+        assert table[1] == ["2026-09-10", "6", "4", "1", "0",
+                            notify.EXPERIMENT_PARTIAL_NOTE]
+        # A reader that skips `#` lines gets the table and nothing else.
+        rows = list(csv.DictReader(ln for ln in lines if not ln.startswith("#")))
+        assert len(rows) == 15 and rows[0]["limit_hits"] == "1", rows[0]
+
+    @pytest.mark.asyncio
+    async def test_an_unreadable_cache_exports_nothing_rather_than_zeros(
+            self, cache, monkeypatch):
+        from cache import CacheUnavailable
+
+        async def down(key, *, required=False):
+            if required:
+                raise CacheUnavailable("redis down")
+            return None
+        monkeypatch.setattr(notify._cache, "get", down)
+        text = await notify._experiment_export(
+            datetime(2026, 9, 30, 8, 0, tzinfo=timezone.utc))
+        assert "Nothing exported" in text and "CacheUnavailable" in text, text
+        assert "<pre>" not in text
+
+    @pytest.mark.asyncio
+    async def test_an_unreadable_lever_record_alone_exports_nothing(
+            self, cache, monkeypatch):
+        """The test above passes because every read fails. This is the case it
+        does not cover: the counters read, and only the lever's record does
+        not. Read best-effort, that record was {} — a kept copy with no lever
+        move in it, and nothing refused it."""
+        from cache import CacheUnavailable
+
+        monkeypatch.setattr(notify, "EXPERIMENT_START_DAY", notify._day())
+        monkeypatch.setattr(notify, "EXPERIMENT_END_DAY", notify._day())
+        await notify.handle_command("/lever arm 4 yes")
+        real_get = cache.get
+
+        async def levers_down(key, *, required=False):
+            if key == notify.LEVERS_KEY and required:
+                raise CacheUnavailable("redis down")
+            return await real_get(key, required=required)
+        monkeypatch.setattr(notify._cache, "get", levers_down)
+        text = await notify._experiment_export()
+        assert "Nothing exported" in text and "CacheUnavailable" in text, text
+        assert "<pre>" not in text
+
+    @pytest.mark.asyncio
+    async def test_the_export_does_not_trust_a_best_effort_lever_read(
+            self, cache, monkeypatch):
+        """A failed best-effort read of the lever falls back to memory, which
+        has nothing, so both the change lines and the welcome line (the quota
+        reads the lever that way too) came out as though it had never
+        moved. Here only that best-effort read misses; the export must still
+        carry what the stored record says."""
+        monkeypatch.setattr(notify, "EXPERIMENT_START_DAY", notify._day())
+        monkeypatch.setattr(notify, "EXPERIMENT_END_DAY", notify._day())
+        await notify.handle_command("/lever arm 4 yes")
+        real_get = cache.get
+
+        async def best_effort_misses(key, *, required=False):
+            if key == notify.LEVERS_KEY and not required:
+                return None
+            return await real_get(key, required=required)
+        monkeypatch.setattr(notify._cache, "get", best_effort_misses)
+        lines = self._csv(await notify._experiment_export())
+        day = notify._day()
+        assert (f"# lever changed {day[:4]}-{day[4:6]}-{day[6:]}: "
+                "environment default -> 4 first-day scans") in lines, lines
+        welcome = next(ln for ln in lines if ln.startswith("# welcome at export"))
+        assert "lever armed — 4 first-day scans" in welcome, welcome
+        assert "set from chat" in welcome, welcome
+
+    @pytest.mark.asyncio
+    async def test_a_lever_move_inside_the_window_travels_with_the_rows(
+            self, monkeypatch):
+        monkeypatch.setattr(notify, "EXPERIMENT_START_DAY", notify._day())
+        monkeypatch.setattr(notify, "EXPERIMENT_END_DAY", notify._day())
+        await notify.handle_command("/lever arm 4 yes")
+        lines = self._csv(await notify._experiment_export())
+        day = notify._day()
+        assert (f"# lever changed {day[:4]}-{day[4:6]}-{day[6:]}: "
+                "environment default -> 4 first-day scans") in lines, lines
+
+    @pytest.mark.asyncio
+    async def test_before_the_window_opens_there_is_nothing_to_export(self):
+        text = await notify._experiment_export(
+            datetime(2026, 9, 8, 9, 0, tzinfo=timezone.utc))
+        assert text == "💾 Nothing to export — the window opens 10 Sep."
+
+    @pytest.mark.asyncio
+    async def test_it_is_one_tap_from_the_experiment_screen(self):
+        _, buttons = await notify.handle_command_with_buttons("/experiment")
+        datas = [d for row in buttons for _, d in row]
+        assert "experiment export" in datas
+        text = await notify.handle_command("/experiment export")
+        assert text.startswith("💾 <b>Free-scan experiment — export</b>"), text
+
+    @pytest.mark.asyncio
+    async def test_the_table_says_when_its_oldest_day_goes(self):
+        text = await notify._experiment_text(
+            datetime(2026, 9, 30, 8, 0, tzinfo=timezone.utc))
+        assert ("💾 The 09-10 counters expire on 15 Oct — /experiment export "
+                "gives a copy to keep.") in text, text
+        gone = await notify._experiment_text(
+            datetime(2026, 11, 30, 8, 0, tzinfo=timezone.utc))
+        assert "/experiment export" not in gone, "nothing is left to keep"
 
 
 # ── The sale counter, and the tombstone on a subscription row ───────────────
@@ -4467,7 +4891,7 @@ class TestAFailedReadDoesNotWipeTheDocument:
     @pytest.mark.asyncio
     async def test_the_lever_keeps_its_change_history(self, flaky_notify, monkeypatch):
         redis = flaky_notify
-        monkeypatch.setenv("FREE_SCANS_PER_DAY", "1")
+        wire_welcome(monkeypatch, daily=1)
         await notify.handle_command("/lever arm 3 yes")
         before = json.loads(await redis.get(notify.LEVERS_KEY))
 
