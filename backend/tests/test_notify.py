@@ -1857,6 +1857,9 @@ class TestCheckup:
     @pytest.mark.asyncio
     async def test_one_screen_of_dependencies(self, cache, recorder, monkeypatch):
         monkeypatch.setattr(notify, "_tls_days_left", lambda host, timeout=5.0: 61)
+        # A healthy production configuration has the spend alert on; without
+        # it the checkup carries a ⚠️ (TestCheckupSpendAlert).
+        monkeypatch.setattr(notify, "GEMINI_DAILY_BUDGET_USD", 2.0)
         notifier = notify.TelegramNotifier(
             FAKE_TOKEN, FAKE_CHAT,
             client=httpx.AsyncClient(transport=httpx.MockTransport(recorder.handler)))
@@ -1881,6 +1884,7 @@ class TestCheckup:
             assert calls == [{"prompt": notify.PROBE_PROMPT, "max_tokens": notify.PROBE_MAX_TOKENS,
                               "probe": True}]
             assert "DeviceCheck: NOT configured" in text
+            assert "Spend alert: above $2.00/day · today ≈ $0.00" in text
             assert "TLS api.snapworth.eu: leaf expires in 61 days" in text and "⚠️" not in text
             assert "Telegram poller: this replica" in text
         finally:
@@ -2049,6 +2053,46 @@ class TestRedisCheckupLine:
     @pytest.mark.asyncio
     async def test_no_redis_no_line(self, cache):
         assert await cache.redis_info() is None
+
+
+class TestCheckupSpendAlert:
+    """`GEMINI_DAILY_BUDGET_USD` defaults to 0, which turns the over-budget
+    alert off, and it was never set in production — while the runbook listed
+    that alert among the ones that reach the operator. Nothing said so."""
+
+    @pytest.fixture(autouse=True)
+    def prices(self, monkeypatch):
+        monkeypatch.setattr(notify, "GEMINI_PRICE_INPUT_PER_M", 0.30)
+        monkeypatch.setattr(notify, "GEMINI_PRICE_OUTPUT_PER_M", 2.50)
+
+    @pytest.mark.asyncio
+    async def test_an_unset_budget_is_a_warning_on_the_checkup(
+            self, enabled_notify, monkeypatch):
+        monkeypatch.setattr(notify, "_tls_days_left", lambda host, timeout=5.0: 61)
+        monkeypatch.setattr(notify, "GEMINI_DAILY_BUDGET_USD", 0.0)
+        text = await notify.handle_command("/checkup")
+        line = [ln for ln in text.split("\n") if ln.startswith("Spend alert")]
+        assert line == ["Spend alert: OFF ⚠️ — GEMINI_DAILY_BUDGET_USD is not set, so "
+                        "no day's Gemini spend reaches you. Set it on Railway (RUNBOOK §12)"]
+
+    @pytest.mark.asyncio
+    async def test_a_set_budget_reads_against_todays_spend(self, enabled_notify, monkeypatch):
+        monkeypatch.setattr(notify, "GEMINI_DAILY_BUDGET_USD", 1.5)
+        # 100K in × $0.30/M + 20K out × $2.50/M = $0.03 + $0.05.
+        notify.model_usage("scan", {"prompt_tokens": 100_000, "output_tokens": 20_000})
+        await drain()
+        assert await notify._budget_line() == "Spend alert: above $1.50/day · today ≈ $0.08"
+
+    @pytest.mark.asyncio
+    async def test_a_cache_that_cannot_answer_does_not_hide_the_budget(
+            self, enabled_notify, monkeypatch):
+        monkeypatch.setattr(notify, "GEMINI_DAILY_BUDGET_USD", 1.5)
+
+        async def broken(days):
+            raise ConnectionError("redis gone")
+        monkeypatch.setattr(notify, "_spend", broken)
+        assert await notify._budget_line() == (
+            "Spend alert: above $1.50/day · today's spend unreadable (ConnectionError)")
 
 
 class TestQuietAndSpike:

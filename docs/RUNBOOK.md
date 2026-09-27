@@ -62,8 +62,9 @@ actually arrives:
 
 Unprompted alerts arrive the same way: a new subscription, a deploy ping per
 commit, the AI provider or Redis going down and coming back, a quiet-hours
-note when nothing has scanned during US daytime, a budget warning (off unless
-`GEMINI_DAILY_BUDGET_USD` is set), and a device-paused alert after repeated
+note when nothing has scanned during US daytime, a budget warning (off until
+`GEMINI_DAILY_BUDGET_USD` is set — production must set it, §12, and
+`🩺 Checkup` says so while it is not), and a device-paused alert after repeated
 unanalysable photos. One alert comes from outside the backend, because the bot
 cannot report its own container being gone: the Uptime workflow probes
 `/health/ready` every 10 minutes (§3).
@@ -109,7 +110,7 @@ failed every free scan with a 503 and the next digest read like a quiet day.
 | **Redis unreachable** / recovered | `notify.cache_state_changed`, fed by `ResilientCache`'s own down/up transitions | cache calls have failed for 60 s straight (`CACHE_ALERT_SETTLE_SECONDS`); the all-clear after 60 s of success | Telegram, at most once per 30 min | §5.4 |
 | **AI provider degraded** / recovered | `notify.model_unhealthy`, from `main._ModelHealth` | `MODEL_UNHEALTHY_AFTER` (2) consecutive terminal model failures; a quota stop on the first | Telegram, at most once per 30 min | §5.3 |
 | **Quiet** | `notify._quiet_check`, every 15 min | no successful scan for 6 h during 13:00–03:59 UTC | Telegram, once per window | `🩺 Checkup` |
-| **Over budget** | `notify._note_usage` | day's Gemini spend passes `GEMINI_DAILY_BUDGET_USD` — **off by default (0)** | Telegram, once per day | `/costs` |
+| **Over budget** | `notify._note_usage` | day's Gemini spend passes `GEMINI_DAILY_BUDGET_USD` — **off by default (0), and must be set in production (§12)**; `🩺 Checkup` reads *Spend alert: OFF ⚠️* until it is | Telegram, once per day | `/costs` |
 | **Device paused** | `notify._announce_safety_pause` | repeated blocked photos from one device | Telegram, once per device per day | none needed |
 
 **Why two layers.** The Telegram alerts run *inside* the backend, so they
@@ -352,9 +353,49 @@ availability one.
    DNS record, Railway's CDN), change `client_ip` to take the hop a configured
    number of places from the right. Otherwise the rightmost hop is the CDN's
    address and one 60/hr bucket serves every user.
-3. Tighten via env; no deploy needed if the platform supports variable updates
+3. The IP bucket is one for every route with a limit — `/scan`, `/listing`,
+   `/trends`, `/auth/entitlement`, and the unauthenticated `/auth` routes and
+   `/apple/notifications` — so from one address they stop together. The
+   per-device buckets are one per route, per hour (`ratelimit.py`):
+
+   | Route | Bucket (Redis key) | Default | Env |
+   |---|---|---|---|
+   | `/scan`, free | `rl:dev:<subject>` | 20 | `RATE_MAX_REQUESTS` |
+   | `/scan`, Pro | `rl:dev:<subject>` | 60 — the fair-use ceiling on "Unlimited scans" | `PRO_SCAN_RATE_MAX_REQUESTS` |
+   | `/listing` (Pro only) | `rl:listing:<subject>` | 60, the IP cap; never below it (below) | `LISTING_RATE_MAX_REQUESTS` |
+   | `/trends` | `rl:trends:<subject>` | 60 — no model call; a loop-breaker | `TRENDS_RATE_MAX_REQUESTS` |
+   | `/auth/entitlement` | `rl:ent:<subject>` | 60 | `ENTITLEMENT_RATE_MAX_REQUESTS` |
+
+   `/scan`, `/listing` and `/trends` used to share `rl:dev:` at 20: a Pro
+   reseller who scanned and drafted each item stopped after about ten, and
+   each Trending card fetch spent a scan. By default the Pro scan cap and the
+   listing cap both equal the IP cap. So a Pro user who also drafts or opens
+   My Finds from the same address meets the IP cap first, and it refuses scans
+   and drafts together. A reseller who drafts every item gets about thirty an
+   hour. Raising `IP_RATE_MAX_REQUESTS` lifts that and loosens the
+   unauthenticated routes with it; raise `LISTING_RATE_MAX_REQUESTS` with it.
+
+   **Keep the listing cap at or above the IP cap.** Every build of the app
+   says "You've hit the scan limit." for any 429, a draft's included
+   (`AppError.rateLimitMessage`), and Haul pauses both of its queues on
+   either one's 429 (`HaulSession`). That is true only when the address
+   bucket refused. At 20, the size `/listing` had while it shared `rl:dev:`,
+   a Pro user's 21st draft of the hour was refused with scans to spare. The
+   Result screen said "scan limit", Haul stopped scanning for up to the rest
+   of the hour, and Haul's confirm still said "Drafts use the same hourly
+   limit as scans." Lowering `LISTING_RATE_MAX_REQUESTS`, or raising
+   `IP_RATE_MAX_REQUESTS` past it, brings all of that back for every
+   installed build, and the server cannot fix it there. Either fix needs a
+   new binary. One is app copy for a draft's 429 (new App.json keys). The
+   other is a response header naming the bucket that refused (additive;
+   nothing sends one yet), so Haul could pause only the full queue. One case
+   remains at 60: a device that changes address within the hour can fill its
+   own draft bucket first. The cost is unchanged per address, since the IP
+   cap bounds that at 60 requests an hour, whatever the mix. A device moving
+   between addresses can reach 60 scans and 60 drafts.
+4. Tighten via env; no deploy needed if the platform supports variable updates
    with a restart.
-4. Sustained abuse from one IP range needs a platform-level block; there is no
+5. Sustained abuse from one IP range needs a platform-level block; there is no
    application-level IP blocklist `[NOT IMPLEMENTED]`.
 
 ---
@@ -708,6 +749,28 @@ Optimisation effort belongs in what the model is asked to reason about, not in
 container efficiency. Margins stay healthy either way; the ranking of what to
 work on does not.
 
+### A Pro subscriber used hard
+
+The table above is an average, and averages hide the one case where a user
+costs more than they pay. Pro is sold as unlimited scans; what a day of it can
+cost, at the same ~$0.0059 a scan and assuming Apple's 15% commission (30%
+lowers both break-evens):
+
+| Plan | Net per day | Scans a day it pays for |
+|---|---|---|
+| Yearly, $39.99 | ~$0.093 | ~16 |
+| Monthly, $4.99 | ~$0.139 | ~24 |
+
+A reseller scanning 40 items a day costs ~$0.24 against ~$0.09 — a loss, not
+an outage. Drafts add to it: a listing is a text-only call and now runs
+without thinking (below), so it should cost well under a scan — unmeasured.
+The per-hour fair-use cap (§5.8, 60 scans) bounds a burst, not a day: a full
+hour costs ~$0.35. From one address, scans and drafts share 60 requests an
+hour, so drafts take the place of scans under that ceiling rather than adding
+to it. What watches a heavy *day* is the over-budget alert, which is why
+`GEMINI_DAILY_BUDGET_USD` is on the launch checklist (§12). None of this is
+measured per subscriber; `/costs` has no per-subscriber view.
+
 ### Optimisations, ranked by value
 
 1. **Result caching by image hash** `[NOT IMPLEMENTED]` — users re-scan the same
@@ -723,6 +786,11 @@ work on does not.
    Measure it on prompt v2.1 and set it only while v2.1 serves: the cap applies
    to every scan whatever the prompt, and v2 asks for the prices before the
    evidence (`docs/EVALUATION.md`, *Without labels*).
+   It is the scan's budget only. `/listing` and the reformat retry below run
+   with thinking off (`GEMINI_TEXT_THINKING_BUDGET`, default 0): neither
+   produces a valuation, so they are not that quality decision. Set it to
+   `-1` before pointing `GEMINI_MODEL` at a model that cannot run without
+   thinking — 2.5 Pro refuses 0, which would fail every listing.
 4. **Prompt length** — v2 is ~700 tokens of the ~960 input. Input is ~5% of
    per-scan cost, so trimming saves ~$85/mo at 1M users; not worth degrading
    output for. (The old model put this at ~$40/mo on prices 4× too low.)
@@ -771,6 +839,12 @@ work on does not.
       404-not-401 design below is hiding. Also publishes the
       `/apple/notifications` trust model and every request body's constraints.
 - [ ] `AUDIT_SALT` set to a real value
+- [ ] `GEMINI_DAILY_BUDGET_USD` set — **unset, the over-budget alert is off**
+      (0 disables it), and it is the only thing that notices a heavy day: Pro
+      is sold as unlimited scans and capped only per hour (§5.8, §10). Size it
+      at a few times a normal day's spend on `/costs`; crossing it sends one
+      💸 message and changes nothing else. `🩺 Checkup` reads *Spend alert:
+      OFF ⚠️* until it is set
 - [x] ~~`TRUSTED_PROXY=true`~~ — **no longer read.** `_client_ip` now always takes the
       rightmost `X-Forwarded-For` hop, so the per-IP limit no longer depends on this
       variable being remembered. The old note here was also wrong about the failure:
