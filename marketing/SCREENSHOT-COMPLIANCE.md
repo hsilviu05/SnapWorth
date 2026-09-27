@@ -1,14 +1,22 @@
-# App Store screenshot compliance — BLOCKER before next submission
+# App Store screenshot compliance
 
-**Status:** 🔴 Unresolved. Requires regenerating two PNG design assets.
-**Owner:** design (cannot be fixed in code — see "Why this isn't a code fix" below).
+**Status:** ✅ The sold-listings blocker is resolved: the live set was
+replaced on 2026-09-01 (#35) by `screenshots/store_1..4`, which make no
+sold-listings, comps or market-data claim. 1.5.1 replaces those in turn with
+the v3 set (#203, `SCREENSHOT-SPEC.md`).
+**Still true:** `screenshots/screenshot_1.png` and `screenshot_2.png` remain
+in the repo with the false claim below. They are a record, never an upload.
+
+This file is the history of that blocker and the rule it left behind. The
+rules every frame follows now are `SCREENSHOT-SPEC.md` §0 and the listing's
+*Claims this listing does not make* (`app_store_listing.md`).
 
 ---
 
-## The problem
+## The problem (2026-07-28)
 
-Two shipped screenshots make a factual claim about a data source SnapWorth does
-not have.
+Two shipped screenshots made a factual claim about a data source SnapWorth
+does not have.
 
 | Asset | Claim on the asset |
 |---|---|
@@ -19,16 +27,13 @@ not have.
 
 ### What the product actually does
 
-`backend/main.py` — the scan prompt instructs the model to estimate from its own
-training knowledge, not from any marketplace lookup:
-
-```
-- Estimate the typical secondhand resale range from your general market knowledge —
-  reflect what these items usually resell for, not inflated retail or asking prices
-```
-
-There is no eBay Browse API call, no Terapeak integration, no scraper, and no
-comps table anywhere in `backend/`. A scan is one Gemini vision call.
+The estimate is the model's: the scan prompt asks for a typical secondhand
+resale range from the model's general market knowledge, not from any
+marketplace lookup. A comparable-sales engine now exists in
+`backend/comps/`, but it runs in shadow mode behind `COMPS_ENABLED`, which
+production keeps `false` until a provider grants sold data in writing
+(`backend/main.py:204-208`, `backend/comps/shadow.py:22-24`). With it off the
+engine is never called, and every result reads **AI estimate**.
 
 `sold_listings_count` — the field behind the retired "38 sold listings" claim —
 was a hardcoded `0` kept only so clients below 1.2 could decode the response.
@@ -36,17 +41,12 @@ Those installs have aged out and the field was removed from the response
 entirely (#49). The name is retired for good: a real comparable-sales count,
 when it exists, ships under its own name (see `docs/COMPS-ARCHITECTURE.md`).
 
-### Verified scope
-
-Confirmed by source review on 2026-07-28: **no shipped UI surface renders a
-sold-listings count.** The in-app experience is honest. The false claim exists
-only in these two marketing PNGs.
-
-The "38" in screenshot 2 came from the mock fixture in `ScanAPIClient.mockScan()`,
-which is what runs when screenshots are captured (`Config.mockMode = true`).
-**That fixture has now been zeroed**, and `ProductionHardeningTests.swift`
-asserts the default stays `0`, so the number cannot be re-manufactured by
-recapturing screenshots. But the existing PNGs still carry it.
+The "38" came from the mock fixture in `ScanAPIClient.mockScan()`, which is
+what ran when those screenshots were captured with `Config.mockMode = true`.
+The fixture has since been zeroed, and `mockMode` stays `false` under a test.
+**Screenshots are no longer captured from mocks at all:** since 1.5.1 every
+device frame comes from the submitted TestFlight build against production
+(`SCREENSHOT-HANDOFF.md` §2), so a canned figure cannot reach the store again.
 
 ---
 
@@ -54,81 +54,53 @@ recapturing screenshots. But the existing PNGs still carry it.
 
 **App Store Review.** Guideline 2.3.1 requires metadata — explicitly including
 screenshots — to accurately reflect the app; 2.3.7 covers screenshot accuracy
-specifically. Reviewers read screenshot captions. Expect a rejection and a lost
-review cycle.
+specifically. Reviewers read screenshot captions.
 
 **Consumer protection.** SnapWorth operates under `snapworth.eu`. The EU Unfair
 Commercial Practices Directive (2005/29/EC) treats a false claim about a
 product's characteristics as a misleading action regardless of intent; the US
-FTC Act §5 analysis is equivalent. "Real sold listings" is specific, falsifiable,
-and material — it is the reason a user picks SnapWorth over a free image search.
+FTC Act §5 analysis is equivalent. "Real sold listings" is specific,
+falsifiable, and material.
 
-**Trust.** The product's entire proposition is "trust this number." Note that
-`ios/SnapWorth/Views/LegalView.swift:49` already states estimates are "not
-guarantees of actual sale prices." Honest legal copy plus overclaiming marketing
-copy is the worst combination, because it demonstrates the discrepancy was known.
+**Trust.** The in-app legal copy already says estimates are not guarantees of
+actual sale prices (`ios/SnapWorth/Views/LegalView.swift`). Honest legal copy
+beside overclaiming marketing copy is the worst combination, because it shows
+the discrepancy was known.
 
 ---
 
-## Replacement copy
+## Claims
 
-Do not water the claim down into vagueness. Replace it with a claim that is both
-true **and** more differentiating — speed and place are what SnapWorth actually
-wins on. eBay's own app has comps; it does not work standing in a Goodwill aisle
-in four seconds.
+### Safe to make in 1.5.1
 
-| Asset | Remove | Use instead |
-|---|---|---|
-| Screenshot 1 badge | "Scan any secondhand item" | *keep — already accurate* |
-| Screenshot 1 subhead | "AI checks real sold listings and gives you an instant valuation." | **"Point your camera. Get a resale range in seconds."** |
-| Screenshot 2 badge | "• Real sold listings, not guesses" | **"• Instant · On the shelf"** |
-| Screenshot 2 subhead | "See what your item actually sells for based on recent marketplace data." | **"An AI resale estimate with an honest confidence read."** |
-| Screenshot 2 mock UI | "38 sold listings" chip | **Thrift Flip verdict chip — "+$32 after fees"** |
-
-### Claims that are safe to make today
-
-- "AI resale estimate" / "AI-powered valuation"
-- "In seconds" / "instant"
-- "Confidence score — how strongly the photo and the identification back the estimate"
-  (not "how clearly the AI identified your item": that was v1, and the v2
-  score in `backend/confidence.py` weighs several signals)
-- "Ready-to-paste listing draft"
+- "AI resale estimate"
+- "In seconds"
+- "Confidence level" — High, Medium or Low: how strongly the photo and the
+  identification back the estimate. **Not "confidence score"** and never the
+  0–100 number: the listing names a level, and the number is Pro detail
+  inside *Why this price* (`app_store_listing.md`, *Confidence as a score or a
+  number*)
+- "Profit after marketplace fees", before you buy
+- "Ready-to-paste listing", with Pro
 - "Photos are never stored on our servers"
-- "Track what you paid, listed, and sold for"
+- "Track what you paid, what it sold for, and what you made"
 
-### Claims that require building the comps pipeline first
+### Need the comps pipeline live first
 
 - anything containing "sold listings", "comps", "recent sales", "marketplace data"
 - "what it actually sells for"
 - any specific count of listings, sales, or data points
 
----
-
-## Earning the claim properly
-
-The claim is worth having. To make it true, `/scan` needs a real comps path:
-
-1. Gemini identifies brand + model + size (it already does).
-2. Query eBay Browse / Marketplace Insights for **sold** items, 90-day window.
-3. If ≥5 comps: return the p25–p75 range and set `valuation.source = "comps"`.
-4. Otherwise fall back to the model estimate with `valuation.source = "model"`.
-5. Label the two differently in the UI: *"Based on 38 sold listings (median $62)"*
-   vs *"AI estimate — no recent sales found."*
-
-Cache aggressively — comps for a given normalised item identity change slowly, so
-a 24h Redis TTL gives a high hit rate at near-zero marginal cost.
-
-Once `source == "comps"` is real, this becomes the strongest honest claim in the
-category, and no competitor built on a raw vision model can follow.
+The app has a caption for a comps-backed result, "Based on recent sales"
+(`ScanAPIClient.swift:26`). No screenshot may show it while `COMPS_ENABLED` is
+off, and none should be taken of it until a comps-backed estimate is the
+normal case rather than the exception.
 
 ---
 
-## Checklist before next submission
+## Before each submission
 
-- [ ] Regenerate `screenshot_1.png` with replacement subhead
-- [ ] Regenerate `screenshot_2.png` with replacement badge, subhead, and verdict chip
-- [ ] Crop both tighter — currently ~40% of each canvas is empty space below the
-      device frame, and the App Store gallery preview crops the bottom
-- [ ] Re-read every remaining screenshot for comps language
-- [ ] Confirm `marketing/app_store_listing.md` stays clean (it currently is)
-- [ ] Confirm `website/index.html` carries no comps claim (verified clean 2026-07-28)
+- [ ] Run `SCREENSHOT-HANDOFF.md` §8's gate on every frame
+- [ ] `python3 marketing/build_screenshots.py --check` passes
+- [ ] `marketing/app_store_listing*.md` still follow *Claims this listing does
+      not make*

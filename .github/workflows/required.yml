@@ -1,0 +1,317 @@
+name: Required
+
+# The one check a ruleset can require besides `No secrets in source`.
+#
+# backend.yml, ios.yml, website.yml and eval.yml are path-filtered, and a
+# required check that never starts leaves the pull request waiting forever:
+# requiring `Build & Test` would block every website-only PR. This workflow
+# has no `paths:`, so it runs on every pull request, and it passes only when
+# every other check on the PR's head commit has passed or was skipped. It
+# stands in for all of them, whichever ran. RUNBOOK §6, Merging.
+#
+# What it reads, on the PR head (github.event.pull_request.head.sha; not
+# GITHUB_SHA, which is the merge commit and has no checks):
+#   - the check runs, one per job, Vercel's included. The newest run of each
+#     name decides, so a re-run replaces the attempt it re-ran: within a
+#     workflow run through `filter=latest` (on acbb372 `Response schema
+#     contract` failed and was re-run green, and `latest` lists only the
+#     pass); across workflow runs by run id, for a PR closed and reopened on
+#     the same commit, whose new runs cancel or repeat the old ones.
+#   - the workflow runs. A workflow that fails to start creates no check run
+#     at all: on 56cd7c4 (2026-09-13) five workflows ended `startup_failure`
+#     and the commit's only check run was Vercel's. Only the workflow run
+#     says so, and names it. Read when the check runs look finished and once
+#     a minute before that, which also covers a `needs:` job (`Deploy →
+#     Railway`) whose check run appears only once the jobs it waits on end.
+#
+# What it ignores:
+#   - itself, by name;
+#   - `SwiftLint (report only)`, which is `continue-on-error` by design;
+#   - anything that concluded `skipped` or `neutral`: `Deploy → Railway` and
+#     `Accuracy regression gate` on a PR, `Production does what vercel.json
+#     says` after a preview deployment;
+#   - commit statuses. The only one on the last 60 PR heads is `Vercel`, the
+#     preview deployment, which is a deployment rather than a test: website.yml
+#     tests the site, and a failed preview would fail the same way on main
+#     without replacing what is live. So `statuses: read` is not asked for.
+#
+# When it decides:
+#   - failure as soon as any other check concludes anything but
+#     success/skipped/neutral (failure, cancelled, timed_out,
+#     action_required, startup_failure, and any conclusion GitHub adds
+#     later), naming it;
+#   - success only when `No secrets in source` (from GitHub Actions) has
+#     passed AND nothing has been queued or running for QUIET_SECONDS in a
+#     row. The quiet window is what lets a path-filtered workflow register
+#     before this one declares the PR clean;
+#   - failure at DEADLINE_MINUTES if it is still waiting, naming what it was
+#     waiting for. That is under the job's timeout so the table is printed
+#     rather than the job killed. `Build & Test` took 5–13 min across 12 runs
+#     on 2026-09-27, before any wait for a macOS runner.
+#
+# It decides once. If a check fails and is re-run green, this job stays red
+# until it is re-run as well (RUNBOOK §6, Merging).
+#
+# A pull request runs its own copy of this file, so a PR that edits it is
+# judged by its edit. Read the diff of any PR that touches it.
+#
+# No actions, no checkout: python3 and the REST API are on the runner, and
+# nothing from the pull request's tree is executed.
+
+on:
+  pull_request:
+
+permissions:
+  # The check runs on the PR head.
+  checks: read
+  # The workflow runs on the PR head (/actions/runs?head_sha=), for the one
+  # failure the check runs cannot show: a workflow that never started. Read
+  # only; the repository is public and the Actions tab shows the same.
+  actions: read
+
+# A newer push to the PR makes this run moot: its checks are on the new head.
+concurrency:
+  group: required-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  all-required:
+    name: All required checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Wait for every other check on the PR head
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          QUIET_SECONDS: '60'
+          POLL_SECONDS: '15'
+          DEADLINE_MINUTES: '27'
+        run: |
+          python3 - <<'PY'
+          import json, os, sys, time, urllib.error, urllib.request
+
+          API = os.environ.get("GITHUB_API_URL", "https://api.github.com")
+          REPO = os.environ["GITHUB_REPOSITORY"]
+          SHA = os.environ["HEAD_SHA"]
+          # Empty only when this is run by hand against the public API
+          # (60 unauthenticated requests an hour); CI always has one.
+          TOKEN = os.environ.get("GH_TOKEN", "")
+          SELF_RUN_ID = os.environ.get("GITHUB_RUN_ID", "")
+          SELF_WORKFLOW = os.environ.get("GITHUB_WORKFLOW", "Required")
+          QUIET = int(os.environ["QUIET_SECONDS"])
+          POLL = int(os.environ["POLL_SECONDS"])
+          START = time.monotonic()
+          DEADLINE = START + 60 * int(os.environ["DEADLINE_MINUTES"])
+          MAX_BAD_POLLS = 10  # in a row; one failed request is a hiccup, ten is not
+
+          SELF = "All required checks"
+          ANCHOR = "No secrets in source"
+          IGNORED_NAMES = {
+              SELF: "this check",
+              "SwiftLint (report only)": "report only",
+          }
+          PASSED = {"success"}
+          IGNORED_CONCLUSIONS = {"skipped", "neutral"}
+
+          def get_all(path, key):
+              items, page = [], 1
+              while True:
+                  sep = "&" if "?" in path else "?"
+                  req = urllib.request.Request(
+                      f"{API}/repos/{REPO}/{path}{sep}per_page=100&page={page}",
+                      headers={
+                          "Accept": "application/vnd.github+json",
+                          "X-GitHub-Api-Version": "2022-11-28",
+                          **({"Authorization": f"Bearer {TOKEN}"} if TOKEN else {}),
+                      },
+                  )
+                  with urllib.request.urlopen(req, timeout=30) as resp:
+                      body = json.load(resp)
+                  batch = body[key]
+                  items.extend(batch)
+                  if len(batch) < 100 or len(items) >= body["total_count"]:
+                      return items
+                  page += 1
+
+          def verdict(status, conclusion):
+              if status != "completed":
+                  return "pending"
+              if conclusion in PASSED:
+                  return "passed"
+              if conclusion in IGNORED_CONCLUSIONS:
+                  return "ignored"
+              # failure, cancelled, timed_out, action_required,
+              # startup_failure, stale, or one GitHub adds later: only
+              # success counts as a pass.
+              return "failed"
+
+          def row(v, name, app, status, conclusion, why, url):
+              return {"verdict": v, "name": name, "app": app, "status": status,
+                      "conclusion": conclusion or "-", "why": why, "url": url or ""}
+
+          def check_rows(runs):
+              """One row per check name: the newest run of that name decides."""
+              groups = {}
+              for run in runs:
+                  key = ((run.get("app") or {}).get("slug", "?"), run["name"])
+                  groups.setdefault(key, []).append(run)
+              rows = []
+              for (app, name), group in groups.items():
+                  newest = max(group, key=lambda r: r["id"])
+                  notes = [f"newest of {len(group)}"] if len(group) > 1 else []
+                  if name in IGNORED_NAMES:
+                      v = "ignored"
+                      notes.insert(0, IGNORED_NAMES[name])
+                  else:
+                      v = verdict(newest["status"], newest.get("conclusion"))
+                      # A newer run replaces an older one's result, but not
+                      # while the older one is still going: that is work in
+                      # progress on this commit (the push and PR scans run
+                      # side by side).
+                      if v != "failed" and any(r["status"] != "completed" for r in group):
+                          if v != "pending":
+                              notes.append("an older run is still going")
+                          v = "pending"
+                  rows.append(row(v, name, app, newest["status"], newest.get("conclusion"),
+                                  ", ".join(notes), newest.get("html_url")))
+              return rows
+
+          def workflow_rows(wruns, runs):
+              """What the check runs cannot show: a workflow with no job yet, or none ever."""
+              jobs_by_suite = {}
+              for run in runs:
+                  jobs_by_suite.setdefault((run.get("check_suite") or {}).get("id"), []).append(run)
+              newest = {}
+              for w in wruns:
+                  if str(w["id"]) == SELF_RUN_ID or w.get("name") == SELF_WORKFLOW:
+                      continue
+                  key = (w["workflow_id"], w["event"])
+                  if key not in newest or w["id"] > newest[key]["id"]:
+                      newest[key] = w
+              rows = []
+              for w in newest.values():
+                  jobs = jobs_by_suite.get(w["check_suite_id"], [])
+                  name = f"{w['name']} (workflow, {w['event']})"
+                  if w["status"] != "completed":
+                      if not any(j["status"] != "completed" for j in jobs):
+                          rows.append(row("pending", name, "github-actions", w["status"], None,
+                                          "jobs still to start", w.get("html_url")))
+                  elif not jobs and verdict("completed", w.get("conclusion")) == "failed":
+                      rows.append(row("failed", name, "github-actions", w["status"],
+                                      w.get("conclusion"), "no job started", w.get("html_url")))
+              return rows
+
+          ORDER = {"failed": 0, "pending": 1, "passed": 2, "ignored": 3}
+
+          def report(rows, outcome):
+              rows = sorted(rows, key=lambda r: (ORDER[r["verdict"]], r["name"]))
+              cols = [("verdict", "VERDICT"), ("name", "CHECK"), ("app", "APP"),
+                      ("status", "STATUS"), ("conclusion", "CONCLUSION"), ("why", "NOTE")]
+              width = {k: max([len(h)] + [len(r[k]) for r in rows]) for k, h in cols}
+              line = lambda cells: "  ".join(c.ljust(width[k]) for (k, _), c in zip(cols, cells)).rstrip()
+              print(f"\n{outcome}. {len(rows)} checks on {SHA[:7]}, the newest run of each:\n")
+              print(line([h for _, h in cols]))
+              for r in rows:
+                  print(line([r[k] for k, _ in cols]))
+              summary = os.environ.get("GITHUB_STEP_SUMMARY")
+              if summary:
+                  esc = lambda s: s.replace("|", "\\|")
+                  with open(summary, "a", encoding="utf-8") as fh:
+                      fh.write(f"### All required checks: {esc(outcome)}\n\n"
+                               f"Checks on `{SHA[:7]}`, the newest run of each.\n\n"
+                               "| Verdict | Check | App | Result | Note |\n|---|---|---|---|---|\n")
+                      for r in rows:
+                          name = f"[{esc(r['name'])}]({r['url']})" if r["url"] else esc(r["name"])
+                          result = r["conclusion"] if r["status"] == "completed" else r["status"]
+                          fh.write(f"| {r['verdict']} | {name} | {r['app']} | {result} | "
+                                   f"{esc(r['why'])} |\n")
+
+          quiet_since = None
+          bad_polls = 0
+          rows = []
+          last_state = None
+          last_print = 0.0
+          last_wf_fetch = None
+
+          while True:
+              now = time.monotonic()
+              try:
+                  runs = get_all(f"commits/{SHA}/check-runs?filter=latest", "check_runs")
+                  rows = check_rows(runs)
+                  # The workflow runs are read when the check runs look
+                  # finished, which is when a missing one would matter, and
+                  # once a minute meanwhile, so a workflow that failed to
+                  # start is named early.
+                  if (last_wf_fetch is None or now - last_wf_fetch >= 60
+                          or not any(r["verdict"] == "pending" for r in rows)):
+                      rows += workflow_rows(get_all(f"actions/runs?head_sha={SHA}",
+                                                    "workflow_runs"), runs)
+                      last_wf_fetch = now
+                  bad_polls = 0
+              except (urllib.error.URLError, OSError, ValueError, KeyError, TypeError) as exc:
+                  # HTTPError is a URLError; a timeout is an OSError; a
+                  # truncated body is a ValueError; an unexpected shape is a
+                  # KeyError or a TypeError. None of them says anything about
+                  # the checks, so the last good poll stands.
+                  bad_polls += 1
+                  wait = POLL
+                  # A rate limit says when to come back: Retry-After for the
+                  # secondary limit, x-ratelimit-reset for the hourly one.
+                  headers = getattr(exc, "headers", None) or {}
+                  if str(headers.get("Retry-After", "")).isdigit():
+                      wait = int(headers["Retry-After"])
+                  elif headers.get("x-ratelimit-remaining") == "0" and \
+                          str(headers.get("x-ratelimit-reset", "")).isdigit():
+                      wait = int(headers["x-ratelimit-reset"]) - int(time.time()) + 1
+                  wait = max(POLL, min(wait, 120))
+                  if bad_polls >= MAX_BAD_POLLS or now + wait >= DEADLINE:
+                      if rows:
+                          report(rows, "Could not read the checks")
+                      print(f"::error title={SELF}::could not read the checks on {SHA} "
+                            f"({exc}), {bad_polls} tries in a row. Re-run this job.")
+                      sys.exit(1)
+                  print(f"::warning::poll failed ({exc}); {bad_polls} in a row, retrying in {wait}s")
+                  time.sleep(wait)
+                  continue
+
+              failed = [r for r in rows if r["verdict"] == "failed"]
+              if failed:
+                  report(rows, "Failed")
+                  for r in failed:
+                      print(f"::error title={SELF}::{r['name']} concluded {r['conclusion']}"
+                            + (f" ({r['why']})" if r["why"] else "") + f"  {r['url']}")
+                  sys.exit(1)
+
+              pending = sorted(r["name"] for r in rows if r["verdict"] == "pending")
+              anchor_ok = any(r["name"] == ANCHOR and r["app"] == "github-actions"
+                              and r["verdict"] == "passed" for r in rows)
+
+              if pending:
+                  quiet_since = None
+              elif quiet_since is None:
+                  quiet_since = now
+              quiet_for = 0 if quiet_since is None else int(now - quiet_since)
+
+              if anchor_ok and not pending and quiet_for >= QUIET:
+                  report(rows, "Passed")
+                  sys.exit(0)
+
+              if now >= DEADLINE:
+                  report(rows, "Gave up waiting")
+                  waiting = pending or ([] if anchor_ok else [f"{ANCHOR} (it never passed)"])
+                  print(f"::error title={SELF}::still waiting after {int(now - START) // 60} min "
+                        f"for: {', '.join(waiting) or 'the quiet window'}. Re-run this job once "
+                        "they have finished.")
+                  sys.exit(1)
+
+              state = (f"{len(rows)} seen, {len(pending)} running"
+                       + (f" ({', '.join(pending)})" if pending else "")
+                       + ("" if anchor_ok else f", waiting for {ANCHOR}"))
+              if state != last_state or now - last_print >= 60:
+                  print(f"[{int(now - START):4d}s] {state}"
+                        + ("" if pending else f", quiet for {quiet_for}s"), flush=True)
+                  last_state, last_print = state, now
+              time.sleep(POLL)
+          PY
