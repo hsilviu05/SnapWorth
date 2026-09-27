@@ -240,7 +240,10 @@ async def _lifespan(_app: FastAPI):
     notify.configure(_cache, status_provider=_status_snapshot,
                      social=social_readers if social_readers.configured else None,
                      generator=_bot_generate, scanner=_bot_scan,
-                     device_check_probe=dc.verify)
+                     device_check_probe=dc.verify,
+                     # The other direction of `welcome_override`: the bot asks
+                     # this quota what the welcome is instead of re-deriving it.
+                     welcome=auth.deps.quota.describe_welcome)
 
     cfg = auth.deps.config
     if cfg.enforce and not cfg.is_configured:
@@ -932,8 +935,11 @@ async def _enforce_limits(device_id: str, ip: str | None, *,
 # of 1.0, i.e. full sampling randomness on a pricing task.
 _model = aiconfig.build_model()
 
-# Which prompt revision serves traffic. Env-switchable so a rollback to v1 is a
-# config change rather than a redeploy.
+# Which prompt revision serves traffic: v1, v2 or v2.1 (`prompts.PROMPTS`).
+# Env-switchable so moving between them, forward or back, is a config change
+# rather than a code deploy. Read once, here, at import, so a change applies
+# when the service restarts with it (RUNBOOK §6). An unknown value serves the
+# default, so check a scan's `prompt_version` after changing it.
 SCAN_PROMPT_VERSION = os.environ.get("SCAN_PROMPT_VERSION", prompts.DEFAULT_PROMPT_VERSION)
 
 
@@ -2058,8 +2064,17 @@ def _not_resalable_message(val: valuation_module.Valuation) -> str:
     `promptsafety.sanitize_text` and `_string_list` in `normalise` — the same
     path as every field this app displays on a successful scan. Bounded to one
     factor and one line because this is an error banner, not a result screen.
+
+    Prompt v2.1's multiple-items flag is never the reason. The same list
+    carries it, and a room or a table of food is often several prominent
+    things at once, so a model that applies both rules and lists the flag
+    first had the banner read "multiple items in frame. Try a photo…": in
+    lower case, and in place of the explanation this function exists to show.
+    Compared loosely because it is model output copied from the prompt.
     """
-    reason = next((f for f in val.uncertainty_factors if f), "")
+    reason = next((f for f in val.uncertainty_factors
+                   if f and f.strip().rstrip(".").casefold()
+                   != prompts.MULTIPLE_ITEMS_FACTOR), "")
     if not reason:
         return _NOT_RESALABLE_FALLBACK
     if len(reason) > 160:
@@ -2726,6 +2741,22 @@ async def _generate_with_retry(
     raise aiconfig.ModelUnavailable(str(last_exc))
 
 
+#: How much of an unparseable reply `_retry_as_json` shows the model. It was
+#: 4000, set when v1's whole answer was a few hundred characters. Under JSON
+#: mode a reply that will not parse is nearly always one cut off at
+#: `aiconfig.MAX_OUTPUT_TOKENS`, and the reformat can only recover prices that
+#: sit inside this window. v2 asks for them first, about 600 characters in.
+#: v2.1 asks for every piece of evidence first, which puts the last price near
+#: 900 with short entries and past 4000 once each list holds five entries of
+#: 150 characters. Past the window the reformat returns JSON with no prices,
+#: and the scan becomes the 502 v2 would have recovered.
+#:
+#: 8000 holds v2.1's prices with entries of 300 characters. It is not the whole
+#: reply because the model has to write the window back out, within its own
+#: output ceiling and beside its own thinking.
+_REFORMAT_WINDOW_CHARS = 8000
+
+
 async def _retry_as_json(raw: str, *, deadline: float | None = None) -> dict | None:
     """Ask the model to restate an unparseable reply as bare JSON.
 
@@ -2737,7 +2768,7 @@ async def _retry_as_json(raw: str, *, deadline: float | None = None) -> dict | N
     prompt = (
         "Convert the following into a single valid JSON object with no markdown "
         "and no commentary. Preserve the values exactly; invent nothing.\n\n"
-        f"{promptsafety.fence(raw[:4000])}"
+        f"{promptsafety.fence(raw[:_REFORMAT_WINDOW_CHARS])}"
     )
     # Routed through `_generate_with_retry` like every other model call.
     # This used to call the model directly under a blanket `suppress`, which

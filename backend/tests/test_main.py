@@ -1321,6 +1321,11 @@ class TestAppleNotifications:
         asyncio.run(durable.delete("ent:partial-subject"))
         assert asyncio.run(store.current("partial-subject")).tier == "free"
 
+    # The refund/reversal tests below pin every notification's expiresDate to
+    # the purchase's. `reinstate` matches a reversal to its refund by exact
+    # expiry, as Apple's payloads for one term carry; left to the fixture,
+    # each notification took its own `time.time()`, and a run that crossed a
+    # second between the two saw two terms and kept the refund (seen on CI).
     def test_a_reversal_whose_delete_fails_mid_request_is_retried(
             self, pinned, monkeypatch):
         from test_entitlements import make_jws, valid_payload
@@ -1334,12 +1339,14 @@ class TestAppleNotifications:
                 leaf_key, chain, notification_type="REFUND",
                 uuid="dddddddd-1111-2222-3333-666666666666",
                 revocationDate=int(time.time() * 1000),
-                originalTransactionId=otid)})
+                originalTransactionId=otid,
+                expiresDate=payload["expiresDate"])})
         assert r.status_code == 200
         reversal = make_notification(
             leaf_key, chain, notification_type="REFUND_REVERSED",
             uuid="dddddddd-1111-2222-3333-777777777777",
-            originalTransactionId=otid)
+            originalTransactionId=otid,
+                expiresDate=payload["expiresDate"])
 
         redis.down = True
         r = client.post("/apple/notifications", json={"signedPayload": reversal})
@@ -1366,14 +1373,16 @@ class TestAppleNotifications:
             leaf_key, chain, notification_type="REFUND",
             uuid="dddddddd-1111-2222-3333-888888888888",
             revocationDate=int(time.time() * 1000),
-            originalTransactionId=otid)
+            originalTransactionId=otid,
+                expiresDate=payload["expiresDate"])
         assert client.post("/apple/notifications",
                            json={"signedPayload": refund}).status_code == 200
         r = client.post("/apple/notifications", json={
             "signedPayload": make_notification(
                 leaf_key, chain, notification_type="REFUND_REVERSED",
                 uuid="dddddddd-1111-2222-3333-999999999999",
-                originalTransactionId=otid)})
+                originalTransactionId=otid,
+                expiresDate=payload["expiresDate"])})
         assert r.status_code == 200
 
         again = client.post("/apple/notifications", json={"signedPayload": refund})
@@ -1397,7 +1406,8 @@ class TestAppleNotifications:
                 leaf_key, chain, notification_type="REFUND",
                 uuid="eeeeeeee-1111-2222-3333-444444444444",
                 revocationDate=int(time.time() * 1000),
-                originalTransactionId=otid)})
+                originalTransactionId=otid,
+                expiresDate=payload["expiresDate"])})
         assert r.status_code == 200
         # The device syncs while the refund stands.
         assert asyncio.run(entitlement_store.record("reversed-subject", jws)).tier == "free"
@@ -1406,7 +1416,8 @@ class TestAppleNotifications:
             "signedPayload": make_notification(
                 leaf_key, chain, notification_type="REFUND_REVERSED",
                 uuid="ffffffff-1111-2222-3333-444444444444",
-                originalTransactionId=otid)})
+                originalTransactionId=otid,
+                expiresDate=payload["expiresDate"])})
         assert r.status_code == 200
         assert r.json() == {"status": "ok", "type": "REFUND_REVERSED"}
 

@@ -54,8 +54,9 @@ actually arrives:
 | Current state | `/status` | Build, cache backend, auth enforcement, last deploy ping, today's counters |
 | What it costs | `/costs` | Gemini spend by window, `$/scan`, free-tier giveaway, and the operator's own bot usage listed separately |
 | Subscribers | `/subs` | Active, paid, comped, and MRR |
-| Is the free-scan experiment working | `/experiment` | The whole window at once: limit hits against new subscriptions, day by day, with a running total |
-| Start or stop the free-scan experiment | `/lever` | Arms or disarms the first-day allowance without a Railway change or a redeploy. Two taps, clamped, and `/experiment` footnotes any day it moved |
+| Is the free-scan experiment working | `/experiment` | The whole window at once: limit hits against new subscriptions, day by day, with a running total, and whether a new user gets a first-day welcome right now — as the quota resolves it, so `FREE_SCANS_FIRST_DAY=1` at a daily limit of 1 reads "lever not armed" |
+| Keep the experiment's numbers | `/experiment export` (💾 under `/experiment`) | The same rows as CSV in a block to copy into `docs/`. The counters expire 35 days after each day, so the 2026-09-10 → 09-24 window starts disappearing on 2026-10-15. An expired day is exported empty, not as zeros, and an unreadable Redis exports nothing. The `#` lines above the header (the window, the welcome, any lever move) have no commas, so each parses as one CSV field, and a reader that skips `#` lines gets only the table |
+| Start or stop the free-scan experiment | `/lever` | Arms or disarms the first-day allowance without a Railway change or a redeploy. Two taps, clamped, and `/experiment` footnotes any day it moved. It checks a value against the running quota's own daily limit and cap, and refuses to arm when it cannot ask |
 | Make a bad or stranded build update | `/minbuild <n>` | /scan, /listing and /trends answer builds below `n` with a 422 telling them to update from the App Store; `/minbuild off` serves all again. Two taps. Set it only once build `n` is live. /scan and /listing show the message to builds 8 and up; builds 7 and older show fixed copy ("Something went wrong"). /trends is refused too, but the app drops that error silently and the Trending card disappears. /auth is never gated, and a request whose build is unreadable is served. A 422 is a non-paging 4xx: refusals are counted in `snapworth_outdated_build_refused_total`, by endpoint. The access log's `build` field (from the User-Agent) shows who is still on what |
 | Yesterday | The daily digest | Sent automatically at `TELEGRAM_DIGEST_UTC_HOUR` (default 06:00 UTC); a weekly report on Mondays |
 
@@ -335,7 +336,8 @@ model change degraded identification. It is a **quality** incident, not an
 availability one.
 
 1. Compare `confidence_score` and `valuation_clamped_total` before and after.
-2. Roll back the prompt without a redeploy: `SCAN_PROMPT_VERSION=v1`.
+2. Roll back the prompt without a code deploy: `SCAN_PROMPT_VERSION=v2` if
+   v2.1 is serving, `v1` if v2 is (§6, *Changing the scan prompt*).
 3. Run the benchmark before shipping a fix (`docs/EVALUATION.md`).
 
 ### 5.8 Quota abuse
@@ -414,7 +416,7 @@ confident wrong number is the product being wrong, and users act on it.
    is the known cause: gemini-2.5-flash spends **reasoning** tokens out of
    `max_output_tokens`, measured at 1138–1777 per scan against a ~700-token
    payload. If the ceiling is squeezed, JSON truncates before the price fields,
-   which sit two-thirds down the v2 schema.
+   which sit two-thirds down the v2 schema and lower still in v2.1's.
 3. Do not lower `GEMINI_MAX_OUTPUT_TOKENS` below **4096** — 2048 shipped and
    produced exactly this bug. It is a cap, not a spend: unused headroom is not
    billed, while truncated answers are billed in full and thrown away.
@@ -436,6 +438,30 @@ after tests pass (`.github/workflows/backend.yml`).
 | Instant rollback | Railway redeploy of a previous build |
 | Migrations | **None exist.** No relational database; Redis holds durable state (§9) but has no schema to migrate |
 | Feature flags | Env-var based: `SCAN_PROMPT_VERSION`, `COMPS_ENABLED`, `COMPS_SHADOW_MODE`, `ALLOWED_STOREKIT_ENVIRONMENTS`, `SANDBOX_ENTITLEMENTS` |
+
+### Changing the scan prompt
+
+`SCAN_PROMPT_VERSION` picks the valuation prompt: `v1`, `v2` (the default) or
+`v2.1`. v2.1 is v2 with the multiple-items rule restored, the evidence asked
+for before the prices, the market named (US resale value, in USD), and the v1
+low/high pair left to the server; `backend/prompts.py` gives the reasons. The
+response has the same fields and types under all three.
+
+1. Compare on real photos first. It needs `GEMINI_API_KEY`, and costs one
+   vision call per photo, per arm, per repeat:
+   ```bash
+   cd backend && python -m eval.runner --photos <folder of real scans> \
+     --repeats 3 --compare v2 v2.1 --json-out runs/v2.1.json
+   ```
+   Without sale prices this says how far v2.1 moves prices, and its
+   consistency, latency and tokens, not whether it is more accurate
+   (`docs/EVALUATION.md`, *Without labels*).
+2. Set `SCAN_PROMPT_VERSION=v2.1` on the Railway service. It is read at
+   startup, so it applies once the service restarts with it.
+3. Send the Telegram bot a photo. The last line of its reply starts
+   `Prompt v2.1`. An unrecognised value serves the default without
+   complaint, so this is the check that the change took.
+4. To go back, set `v2` or remove the variable.
 
 ### Shutdown sequence (implemented in `main._lifespan`)
 
@@ -459,7 +485,8 @@ still-starting instances, and the graceful shutdown achieves nothing.
       names each commit as it goes live, `/status` shows the last one, and
       `GET /health` reports the running `commit`. (`snapworth_build_info` has
       the same fact, but nothing scrapes `/metrics` — §3.)
-- [ ] **Prompt-only regression?** Set `SCAN_PROMPT_VERSION=v1` — no redeploy
+- [ ] **Prompt-only regression?** Set `SCAN_PROMPT_VERSION` back one version
+      (`v2.1` → `v2`, `v2` → `v1`) — no code deploy
 - [ ] **Comps-related?** Set `COMPS_ENABLED=false` — no redeploy
 - [ ] Otherwise redeploy the previous Railway build
 - [ ] Verify `/health/ready` returns 200
@@ -538,7 +565,8 @@ body-only key, so the checkup names the shape instead:
 | `…is on a single line — its newlines were lost` | re-paste with real line breaks, or with a literal `\n` between them |
 | `…has no BEGIN/END lines` | paste the whole file, not just the base64 body |
 | `private key unreadable — …` | the envelope is right but the contents are not a P-256 key; check it is the unencrypted `.p8` Apple issued |
-| `could not reach Apple (…)` | network, not credentials — nothing to change |
+| `Apple unreachable just now (…)` | a timeout, a connection failure or a 5xx — not credentials. Nothing to change; run the checkup again |
+| `probe could not be sent (…)` | the request failed before any answer from Apple was read, for a reason that is not the network: a client or code fault, not the key. Look in the server log for `devicecheck probe could not be sent` and its traceback, not in the developer portal |
 
 **Then verify — do not trust "configured".** `is_configured` only means the
 three variables are non-empty, and a wrong key cannot recognise a reinstall, so
@@ -550,6 +578,13 @@ Run `🩺 Checkup`:
 - `DeviceCheck: configured ✅ — credentials accepted by Apple` — Apple signed off.
 - `DeviceCheck: configured but REJECTED — key rejected …` — one of the three
   variables is wrong, or the key lacks the DeviceCheck capability.
+- `DeviceCheck: configured · Apple unreachable just now (…)` — Apple did not
+  answer, so nothing is known about the key yet. Run it again. While it lasts,
+  reinstalls get a fresh allowance, as in any Apple outage (§5.6).
+- `DeviceCheck: configured · probe could not be sent (…)` — not a verdict on
+  the key either, but not transient: see the table above. Scans send the same
+  request, so until it is fixed reinstalls get a fresh allowance and new
+  installs no welcome, as with a rejected key.
 
 The probe sends a deliberately fake device token: Apple reads the
 Authorization header first, so a `400` about the token proves the key signs
@@ -748,6 +783,9 @@ measured per subscriber; `/costs` has no per-subscriber view.
    quality decision and belongs to `backend/eval/runner.py`, run at a candidate
    budget and compared, not to a number picked here. This is the highest-value
    *cost* lever in the list and the one most able to damage the product.
+   Measure it on prompt v2.1 and set it only while v2.1 serves: the cap applies
+   to every scan whatever the prompt, and v2 asks for the prices before the
+   evidence (`docs/EVALUATION.md`, *Without labels*).
    It is the scan's budget only. `/listing` and the reformat retry below run
    with thinking off (`GEMINI_TEXT_THINKING_BUDGET`, default 0): neither
    produces a valuation, so they are not that quality decision. Set it to
