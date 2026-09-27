@@ -6,6 +6,7 @@ Usage:
     REDIS_URL=redis://… python3 backend/tools/load_referral_codes.py friend codes.csv
     REDIS_URL=redis://… python3 backend/tools/load_referral_codes.py reward codes.csv
     REDIS_URL=redis://… python3 backend/tools/load_referral_codes.py --status
+    REDIS_URL=redis://… python3 backend/tools/load_referral_codes.py --retire friend
 
 With Railway, `railway run python3 backend/tools/load_referral_codes.py …`
 supplies production's REDIS_URL without it ever touching a file.
@@ -22,7 +23,19 @@ product with one-time-use codes:
 The file is App Store Connect's code download: one code per line. Anything
 that is not a code (a header, blank lines) is skipped. Loading appends, and a
 code already loaded into either pool is skipped, so re-running the same file
-is harmless. Codes are never printed.
+against the same Redis is harmless. Codes are never printed.
+
+**A batch is burned by any loss of Redis's data** — a fresh instance, and a
+restore from a snapshot just the same. The ledger of loaded codes, the pools,
+and the cursor that records which codes were handed out all live in that one
+Redis, so once any of it is lost or rewound nothing can say which codes of a
+batch are still unissued. Re-running a CSV after a loss re-issues codes that
+friends were already given: Apple refuses them, and a device can claim only
+once, so those friends never get their week. After a restore, `--retire` each
+pool, which marks everything loaded so far as handed out; after a fresh
+instance there is nothing to retire. Either way, generate a new batch in App
+Store Connect and load only that. Earned reward codes not yet redeemed are in
+Redis alone and are gone with it (RUNBOOK §9).
 """
 
 from __future__ import annotations
@@ -61,12 +74,31 @@ def status(r: redis.Redis) -> None:
     for pool in POOLS:
         size = _count(r.get(pool_size_key(pool)))
         used = min(size, _count(r.get(pool_cursor_key(pool))))
-        print(f"{pool:7s} loaded {size:6d}  handed out {used:6d}  remaining {size - used:6d}")
+        print(f"{pool:7s} slots {size:6d}  handed out {used:6d}  remaining {size - used:6d}")
+
+
+def retire(r: redis.Redis, pool: str) -> int:
+    """Mark every code loaded into `pool` so far as handed out. Returns how
+    many unissued codes that burned.
+
+    For after a restore: the cursor may have been rewound past codes that were
+    already given away, and nothing left can say which. A new batch loaded
+    afterwards is appended after this point and handed out normally.
+    """
+    size = _count(r.get(pool_size_key(pool)))
+    used = _count(r.get(pool_cursor_key(pool)))
+    r.set(pool_cursor_key(pool), max(size, used))
+    return max(0, size - used)
 
 
 def load(r: redis.Redis, pool: str, codes: list[str]) -> int:
     added = 0
-    size = _count(r.get(pool_size_key(pool)))
+    # After the cursor, not after `size`, when the cursor is further on. Two
+    # requests racing for a pool's last code carry it past `size` (and every
+    # refused claim did, before `take_code` read the cursor first), and a
+    # batch appended at `size + 1` then had its first codes skipped. The
+    # slots in between stay empty and are never read.
+    size = max(_count(r.get(pool_size_key(pool))), _count(r.get(pool_cursor_key(pool))))
     for code in codes:
         # One ledger across both pools: a code must never be both a friend's
         # week and a referrer's reward.
@@ -86,6 +118,8 @@ def main() -> int:
     parser.add_argument("pool", nargs="?", choices=POOLS)
     parser.add_argument("file", nargs="?")
     parser.add_argument("--status", action="store_true", help="show pool sizes and exit")
+    parser.add_argument("--retire", choices=POOLS,
+                        help="mark every code in this pool as handed out (after a Redis restore)")
     args = parser.parse_args()
 
     url = os.environ.get("REDIS_URL")
@@ -95,6 +129,11 @@ def main() -> int:
     r = redis.Redis.from_url(url, decode_responses=True)
 
     if args.status:
+        status(r)
+        return 0
+    if args.retire:
+        burned = retire(r, args.retire)
+        print(f"{args.retire}: retired, {burned} unissued codes burned. Load a new batch.")
         status(r)
         return 0
     if not args.pool or not args.file:

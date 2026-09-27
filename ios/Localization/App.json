@@ -1041,6 +1041,14 @@
       "de": "Zeigt auf der Karte, um das Wievielfache du deinen Einsatz rausholst",
       "zh-Hans": "在分享卡片上显示你翻了几倍"
     },
+    "After the free week, the subscription renews unless you cancel.": {
+      "comment": "Referrals (#97): the renewal terms, shown to the referrer under the weeks they earned and in the 'You earned a week of Pro' alert. The second half of the friend's 'Apple shows the offer…' sentence, translated the same way.",
+      "en": "After the free week, the subscription renews unless you cancel.",
+      "ro": "După săptămâna gratuită, abonamentul se reînnoiește dacă nu îl anulezi.",
+      "es": "Tras la semana gratis, la suscripción se renueva salvo que la canceles.",
+      "de": "Nach der Gratiswoche verlängert sich das Abo, wenn du nicht kündigst.",
+      "zh-Hans": "免费一周结束后，订阅会自动续订，除非你取消。"
+    },
     "All": {
       "comment": "Flip filter: every status.",
       "en": "All",
@@ -4155,6 +4163,14 @@
       "es": "Escaneos ilimitados",
       "de": "Unbegrenzte Scans",
       "zh-Hans": "无限扫描"
+    },
+    "Unlimited scans are subject to fair use: very heavy use can pause scanning for up to an hour.": {
+      "comment": "Footnote under the paywall's list of what Pro includes. Qualifies the \"Unlimited scans\" row: Pro scans are capped per hour, and a device over the cap waits at most an hour.",
+      "en": "Unlimited scans are subject to fair use: very heavy use can pause scanning for up to an hour.",
+      "ro": "Scanările nelimitate sunt supuse utilizării rezonabile: la o folosire foarte intensă, scanarea se poate opri pentru cel mult o oră.",
+      "es": "Los escaneos ilimitados están sujetos a un uso razonable: con un uso muy intensivo, el escaneo puede pausarse hasta una hora.",
+      "de": "Unbegrenzte Scans unterliegen der fairen Nutzung: Bei sehr intensiver Nutzung kann das Scannen bis zu einer Stunde pausieren.",
+      "zh-Hans": "无限扫描适用合理使用原则：使用过于频繁时，扫描可能暂停，最长一小时。"
     },
     "Unlimited scans · Active": {
       "en": "Unlimited scans · Active",

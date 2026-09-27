@@ -125,7 +125,7 @@ GRATIS UND PRO
 SnapWorth ist gratis und braucht kein Konto. Du bekommst jeden Tag einen Gratis-Scan, dauerhaft. Jeder Fund wird mit seinem Wert auf deinem Gerät gespeichert, und der Verlauf gehört dir, ob du zahlst oder nicht.
 
 Pro bringt dazu:
-• Unbegrenzte Scans
+• Unbegrenzte Scans (im Rahmen fairer Nutzung)
 • Inserate, neu geschrieben für die Plattform, die du wählst – Kleinanzeigen, Vinted, eBay, Poshmark, Mercari, Depop oder Facebook Marketplace. Die Kleinanzeigen-Anzeige wird auf Deutsch geschrieben.
 • „Why this price" – die ganze Erklärung hinter der Schätzung, mit den Preispunkten und dem, was gewogen hat
 • Etikett lesen – fotografier das Pflegeetikett für eine genauere Schätzung
