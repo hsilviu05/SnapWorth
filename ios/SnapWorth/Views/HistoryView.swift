@@ -543,8 +543,8 @@ private struct Sparkline: Shape {
 
 /// What everyone scanned this week. The category and brand rows are
 /// aggregates the server floors before sending; the notable finds are single
-/// scans with no floor, which is why the server sends only their brand,
-/// category and range.
+/// items, held back until three different devices have scanned one, which is
+/// why the server sends only their brand, category and range.
 ///
 /// Free sees the counts and which way each moved; Pro also sees the average
 /// estimate per category and the week's notable finds. Absent entirely when

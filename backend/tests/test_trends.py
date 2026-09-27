@@ -461,8 +461,9 @@ class TestWrittenWithoutTelegram:
 
 
 class TestNotableFindsAreNotSomeonesScan:
-    """A notable find is one person's scan with no floor under it, shown to
-    other people. The privacy policy said scan results were not kept at all;
+    """A notable find is one item's reading, shown to other people: held back
+    until three devices have scanned it, but one item, not a total. The
+    privacy policy said scan results were not kept at all;
     what it can truthfully say is that others see a brand, a category and a
     range — so that is all that may leave the server."""
 

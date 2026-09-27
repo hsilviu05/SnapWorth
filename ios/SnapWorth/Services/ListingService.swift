@@ -352,8 +352,9 @@ struct TrendRow: Decodable, Identifiable, Equatable {
 }
 
 /// One of the week's highest-value scans. `name` is the brand, never the item
-/// name: each find is a single person's scan with no floor under it, so the
-/// server sends only brand, category and range (`notify.trends`).
+/// name: the server holds a find back until three different devices have
+/// scanned that item, but it is still one item rather than a total, so it
+/// sends only brand, category and range (`notify.trends`).
 struct NotableFind: Decodable, Identifiable, Equatable {
     let name: String
     let category: String
@@ -365,7 +366,8 @@ struct NotableFind: Decodable, Identifiable, Equatable {
 
 /// What the app shows on My Finds. The category and brand rows are aggregates
 /// the server floors before sending. `notableFinds` are not aggregates — each
-/// is one scan — which is why they arrive as brand, category and range only.
+/// is one item, floored only by how many devices scanned it — which is why
+/// they arrive as brand, category and range only.
 struct Trends: Decodable, Equatable {
     let days: Int
     let scans: Int
