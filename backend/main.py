@@ -970,6 +970,21 @@ class ScanResponse(BaseModel):
     best_case_price_usd: float | None = Field(ge=0, default=None)
     worst_case_price_usd: float | None = Field(ge=0, default=None)
 
+    # The figure the app does its own maths with: the portfolio total, the
+    # Thrift Flip resale seed, the listing ask, the widgets and the Most
+    # Valuable sort. The same number as `expected_price_usd` — the model's
+    # point estimate after `apply_price_bounds` — but sent on every tier.
+    #
+    # Without it the app took the midpoint of `est_value_low_usd` and
+    # `est_value_high_usd`. Since v2 those are the worst and best case, and a
+    # resale range has a long upper tail, so the midpoint sits above the
+    # expected price and every figure above inherited the bias — while a Pro
+    # user saw the real expected price on the ladder beside it. A separate
+    # field rather than un-stripping `expected_price_usd`: the ladder stays
+    # Pro (44a107e, `_PRO_ONLY_DETAIL_FIELDS`). This is one number, not the
+    # ladder, and the app never labels it "Expected" for a free user.
+    likely_price_usd: float | None = Field(ge=0, default=None)
+
     # Identification detail.
     model_name: str | None = None
     variant: str | None = None
@@ -2258,6 +2273,8 @@ async def _analyse(image_bytes: bytes, content_type: str, *, subject: str,
         expected_price_usd=val.prices.expected or None,
         best_case_price_usd=val.prices.best or None,
         worst_case_price_usd=val.prices.worst or None,
+        # After the clamp, so it is always inside the range served above.
+        likely_price_usd=val.prices.expected or None,
         model_name=val.model,
         variant=val.variant,
         size=val.size,
@@ -2339,6 +2356,11 @@ _PRO_ONLY_DETAIL_FIELDS = (
     "authenticity_assessment", "authenticity_reasoning",
     "visual_evidence", "assumptions", "uncertainty_factors",
     "improve_estimate", "value_drivers",
+    # `likely_price_usd` is deliberately NOT here either, though it carries
+    # the same value as `expected_price_usd`. It is what the app prices the
+    # portfolio, the flip verdict and the listing ask from, on every tier —
+    # a product decision, so that a free user's figures are not built on the
+    # midpoint of a worst and a best case. Stripping it puts them back there.
 )
 
 
