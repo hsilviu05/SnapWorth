@@ -39,11 +39,11 @@ final class HistoryViewModel {
         case .newest:
             return results.sorted { $0.timestamp > $1.timestamp }
         case .mostValuable:
-            // Each key once, then sort. A comparator reading `midpointValue`
+            // Each key once, then sort. A comparator reading `likelyValue`
             // re-prices both sides of every comparison — n log n price reads
             // where n will do.
             return results
-                .map { (result: $0, value: $0.midpointValue) }
+                .map { (result: $0, value: $0.likelyValue) }
                 .sorted { $0.value > $1.value }
                 .map(\.result)
         }

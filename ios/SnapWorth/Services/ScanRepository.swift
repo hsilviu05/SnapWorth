@@ -193,6 +193,38 @@ final class ScanRepository {
         scheduleWidgetSync()
     }
 
+    // ── Pricing rules ────────────────────────────────────────────────────────
+
+    /// Re-expresses every find's stored value under the pricing rules now in
+    /// force, once per change to those rules. Returns whether it ran.
+    ///
+    /// Every figure on screen is computed live (`ScanResult.portfolioValue`),
+    /// so a rules change reaches the cards, totals and widgets by itself. What
+    /// does not is what was *stored* under the old rules — `portfolioValueRaw`
+    /// and the value history behind it — and the next re-price would compare
+    /// its new-rules figure against an old-rules history and record the rules
+    /// change as a move in the item's value. See `rebaseStoredValue`.
+    ///
+    /// Marked done only after a save that succeeded, and never on a fallback
+    /// launch: that session's store is an empty in-memory one, and marking the
+    /// rules applied there would skip the real library for good.
+    @discardableResult
+    func applyPricingRulesIfNeeded(defaults: UserDefaults = .standard) -> Bool {
+        guard !AppLaunchState.isRunningOnFallbackStore else { return false }
+        guard defaults.integer(forKey: PricingRules.defaultsKey) < PricingRules.current
+        else { return false }
+        guard let all = try? context.fetch(FetchDescriptor<ScanResult>()) else { return false }
+        all.forEach { $0.rebaseStoredValue() }
+        do {
+            try context.save()
+        } catch {
+            context.rollback()
+            return false
+        }
+        defaults.set(PricingRules.current, forKey: PricingRules.defaultsKey)
+        return true
+    }
+
     /// The sync waiting to run, so the next one can cancel it.
     ///
     /// `static`, and that is the whole point rather than an oversight: a

@@ -95,8 +95,13 @@ struct WidgetHaulData: Codable, Equatable {
     var monthSold: Int
 
     // v4 — added 1.4.0, before release
-    /// The sum of the condition-adjusted *midpoints* — the middle of the very
-    /// range `totalLow` and `totalHigh` describe.
+    /// The sum of the condition-adjusted *likely* values of the very items
+    /// `totalLow` and `totalHigh` describe — the figure the app's own
+    /// portfolio total and Most Valuable sort use. Until the model's expected
+    /// price reached the app this was the sum of their midpoints; it is now
+    /// the expected price wherever a find has one, which on a long-tailed
+    /// range usually sits below the middle. The writer computes it and the
+    /// widget only draws it, so the rule lives on the app side.
     ///
     /// The blob carried the two ends and nothing between them, so the one place
     /// a widget has room for a single number — the circular Lock Screen
@@ -254,10 +259,10 @@ extension WidgetHaulData {
 
     /// The one number, when there is room for one number.
     ///
-    /// The midpoint total when the writer had one — that is the figure the app
-    /// prints under "Your finds are worth", and a complication that disagrees
-    /// with the app by a third is worse than no complication. `totalHigh` only
-    /// for a blob from a build that did not write it.
+    /// The likely total when the writer had one — the figure the app prints
+    /// under "Your finds are worth", and a complication that disagrees with
+    /// the app by a third is worse than no complication. `totalHigh` only for
+    /// a blob from a build that did not write it.
     var compactTotal: String { Self.compactMoney(totalLikely ?? totalHigh) }
 
     var compactRange: String {
@@ -806,10 +811,12 @@ enum WidgetDataStore {
         let hi = NSDecimalNumber(decimal: ranges.reduce(Decimal.zero) {
             $0 + $1.high
         }).doubleValue
-        // The midpoint of the very range above — same items, same condition
-        // adjustment, `likely` instead of `low` and `high`. So the circular
-        // complication reads the middle of what the rectangular one shows,
-        // rather than its top. See `WidgetHaulData.totalLikely`.
+        // The likely value of the very items above — same items, same
+        // condition adjustment, `likely` instead of `low` and `high`: the
+        // model's expected price where a find has one, the midpoint where it
+        // does not (`ScanResult.baselineLikely`). So the circular complication
+        // reads the figure the app sorts and totals by, rather than the top of
+        // what the rectangular one shows. See `WidgetHaulData.totalLikely`.
         //
         // Summed over every result, like `lo` and `hi`, and *not* over
         // `HistoryViewModel.portfolioTotal`'s population, which is the unsold

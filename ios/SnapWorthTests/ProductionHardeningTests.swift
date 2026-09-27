@@ -1304,7 +1304,7 @@ final class ScanPersistenceFailureTests: XCTestCase {
                 .appendingPathComponent("SnapWorth/Services/ScanRepository.swift"),
             encoding: .utf8)
         let catches = source.components(separatedBy: "} catch {").dropFirst()
-        XCTAssertEqual(catches.count, 3, "save, delete, deleteAll")
+        XCTAssertEqual(catches.count, 4, "save, delete, deleteAll, applyPricingRulesIfNeeded")
         for (index, block) in catches.enumerated() {
             let body = String(block.prefix(400))
             XCTAssertTrue(body.contains("context.rollback()"),
@@ -7101,7 +7101,7 @@ final class PriceReadTests: XCTestCase {
             XCTAssertEqual(current.low, reference.low)
             XCTAssertEqual(current.likely, reference.likely)
             XCTAssertEqual(current.high, reference.high)
-            XCTAssertEqual(r.midpointValue, NSDecimalNumber(decimal: reference.likely).doubleValue)
+            XCTAssertEqual(r.likelyValue, NSDecimalNumber(decimal: reference.likely).doubleValue)
         }
     }
 
@@ -7136,9 +7136,9 @@ final class PriceReadTests: XCTestCase {
         let vm = HistoryViewModel()
         vm.sortOrder = .mostValuable
         let expected: [Double] = library
-            .sorted { $0.midpointValue > $1.midpointValue }
-            .map { $0.midpointValue }
-        XCTAssertEqual(vm.sorted(library).map { $0.midpointValue }, expected)
+            .sorted { $0.likelyValue > $1.likelyValue }
+            .map { $0.likelyValue }
+        XCTAssertEqual(vm.sorted(library).map { $0.likelyValue }, expected)
     }
 
     @MainActor
@@ -7598,5 +7598,272 @@ final class UsageAnalyticsTests: XCTestCase {
         XCTAssertEqual(WidgetInstallReport.bucket(3), "2-3")
         XCTAssertEqual(WidgetInstallReport.bucket(4), "4+")
         XCTAssertEqual(WidgetInstallReport.bucket(40), "4+")
+    }
+}
+
+// ── One "likely" figure, and it is the model's ──────────────────────────────
+//
+// `likely` was the midpoint of `valueLow` and `valueHigh`, written when those
+// were a typical range. v2 made them the worst and best case the next day and
+// asked the model for an expected price that is explicitly not their midpoint,
+// and the midpoint went on feeding the flip verdict, the listing ask, the
+// portfolio, the widgets and the Most Valuable sort — above what the item
+// most likely fetches, on a long-tailed range, while a subscriber saw the real
+// expected price on the ladder of the same find. The server now sends that
+// price to every tier (`likely_price_usd`), and a find keeps it in its blob.
+
+final class LikelyPriceTests: XCTestCase {
+
+    /// A find as the scan flows save one: the range, and the blob built from
+    /// the response. A free scan's blob holds the score, the grade and the
+    /// likely price; a Pro one's the ladder as well.
+    static func find(low: Double = 5, high: Double = 400, grade: String? = "good",
+                     likely: Double? = 90, expected: Double? = nil) -> ScanResult {
+        var detail = ValuationDetail()
+        detail.confidenceScore = 60
+        detail.conditionGrade = grade
+        detail.likely = likely
+        detail.expected = expected
+        return ScanResult(itemName: "Item", brand: "B", category: "clothing",
+                          conditionNotes: "Solid piece", valueLow: low, valueHigh: high,
+                          confidence: "Medium", soldListingsCount: 0,
+                          listingTitle: "T", listingDescription: "D",
+                          valuationDetailData: detail.encoded())
+    }
+
+    func test_theExpectedPriceIsTheLikelyNotTheMidpoint() {
+        let r = Self.find()
+        XCTAssertEqual(r.currentPriceRange.likely, 90)
+        XCTAssertNotEqual(r.currentPriceRange.likely, Decimal(202.5),
+                          "still the midpoint of the worst and the best case")
+        XCTAssertEqual(r.portfolioValue, 90)
+        XCTAssertEqual(r.likelyValue, 90)
+        // The range itself is untouched.
+        XCTAssertEqual(r.currentPriceRange.low, 5)
+        XCTAssertEqual(r.currentPriceRange.high, 400)
+    }
+
+    func test_aFindSavedBeforeTheFieldFallsBackToTheMidpoint() {
+        // A free find from before: a blob with the grade and no price in it.
+        XCTAssertEqual(Self.find(likely: nil).currentPriceRange.likely, Decimal(202.5))
+        // And one from before the blob existed at all.
+        let bare = ScanResult(itemName: "Item", brand: "B", category: "clothing",
+                              conditionNotes: "Good", valueLow: 40, valueHigh: 80,
+                              confidence: "High", soldListingsCount: 0,
+                              listingTitle: "T", listingDescription: "D")
+        XCTAssertEqual(bare.currentPriceRange.likely, 60)
+    }
+
+    func test_aProFindSavedBeforeTheFieldUsesItsLadder() {
+        // The expected price was already in the blob, under the ladder's name.
+        let r = Self.find(low: 38, high: 90, likely: nil, expected: 62)
+        XCTAssertEqual(r.currentPriceRange.likely, 62)
+    }
+
+    func test_theConditionScalesTheLikelyWithTheRange() {
+        let r = Self.find(low: 40, high: 100, likely: 55)
+        r.condition = .used
+        let factor = Condition.used.priceMultiplier / Condition.good.priceMultiplier
+        XCTAssertEqual(r.currentPriceRange.likely, Decimal(55) * factor)
+        XCTAssertEqual(r.currentPriceRange.low, Decimal(40) * factor)
+        XCTAssertEqual(r.currentPriceRange.high, Decimal(100) * factor)
+        XCTAssertEqual(r.priceRange(for: .used).likely, Decimal(55) * factor,
+                       "the two entry points must agree")
+        // Back to the model's grade: nothing compounded on the way.
+        r.condition = .good
+        XCTAssertEqual(r.currentPriceRange.likely, 55)
+    }
+
+    func test_aLikelyThisRangeWasNotBuiltWithIsRefused() {
+        // The server pins it inside [low, high]. Outside, it belongs to some
+        // other estimate — a blob kept across a re-read that sent none.
+        XCTAssertEqual(Self.find(low: 45, high: 90, likely: 500).currentPriceRange.likely, 67.5)
+        XCTAssertEqual(Self.find(low: 45, high: 90, likely: 10).currentPriceRange.likely, 67.5)
+        XCTAssertEqual(Self.find(low: 45, high: 90, likely: 0).currentPriceRange.likely, 67.5)
+        XCTAssertNil(ScanResult.baselineLikely(low: 45, high: 90, stored: .nan))
+        // Either end is inside.
+        XCTAssertEqual(Self.find(low: 45, high: 90, likely: 45).currentPriceRange.likely, 45)
+        XCTAssertEqual(Self.find(low: 45, high: 90, likely: 90).currentPriceRange.likely, 90)
+    }
+
+    func test_aFreeResponseCarriesTheLikelyWithoutCountingAsProDetail() throws {
+        let response = ScanAPIResponse(
+            itemName: "Item", brand: "B", category: "clothing", conditionNotes: "Good",
+            estValueLowUsd: 32, estValueHighUsd: 85, confidence: "Low",
+            listingTitle: "T", listingDescription: "D",
+            confidenceScore: 37, confidenceSummary: "Low confidence.",
+            likelyPriceUsd: 58, conditionGrade: "good")
+        let detail = try XCTUnwrap(ValuationDetail(response: response))
+        XCTAssertEqual(detail.likely, 58)
+        XCTAssertNil(detail.expected, "the ladder is still Pro")
+        XCTAssertTrue(detail.lacksProDetail,
+                      "a free find must still be offered the full breakdown")
+        XCTAssertTrue(detail.ladder.isEmpty, "nothing labelled Expected for a free user")
+    }
+
+    func test_theLikelyAloneIsNotAPanel() {
+        // Maths input, not panel content: a blob holding only this would
+        // render the "Why this price" card with nothing in it.
+        var detail = ValuationDetail()
+        detail.likely = 58
+        XCTAssertTrue(detail.isEmpty)
+    }
+
+    func test_aServerBeforeTheFieldStillGivesAProUserTheExpectedPrice() throws {
+        let response = ScanAPIResponse(
+            itemName: "Item", brand: "B", category: "clothing", conditionNotes: "Good",
+            estValueLowUsd: 38, estValueHighUsd: 90, confidence: "High",
+            listingTitle: "T", listingDescription: "D", confidenceScore: 70,
+            quickSalePriceUsd: 45, expectedPriceUsd: 62, bestCasePriceUsd: 90,
+            worstCasePriceUsd: 38)
+        XCTAssertEqual(try XCTUnwrap(ValuationDetail(response: response)).likely, 62)
+    }
+
+    func test_theContractFixturesCarryIt() throws {
+        let free = try JSONDecoder().decode(
+            ScanAPIResponse.self,
+            from: ScanContractTests.contractData("scan-response-free.json"))
+        XCTAssertEqual(free.likelyPriceUsd, 58)
+        XCTAssertNil(free.expectedPriceUsd)
+        let pro = try JSONDecoder().decode(
+            ScanAPIResponse.self, from: ScanContractTests.contractData())
+        XCTAssertEqual(pro.likelyPriceUsd, pro.expectedPriceUsd)
+    }
+
+    func test_aReReadReplacesTheLikely() throws {
+        let r = Self.find(likely: 90)
+        r.applySharpened(ScanAPIResponse(
+            itemName: "Item", brand: "B", category: "clothing", conditionNotes: "Good",
+            estValueLowUsd: 50, estValueHighUsd: 100, confidence: "High",
+            listingTitle: "T", listingDescription: "D", confidenceScore: 80,
+            likelyPriceUsd: 70, conditionGrade: "good"))
+        XCTAssertEqual(r.currentPriceRange.likely, 70)
+        XCTAssertEqual(try XCTUnwrap(r.portfolioValueRaw), 70, accuracy: 0.001,
+                       "the portfolio recorded the old read's figure")
+    }
+}
+
+/// Every surface the audit named, reading one item. A figure computed in two
+/// places will be computed two ways, and a user can see both of these at once.
+@MainActor
+final class OneLikelyFigureTests: XCTestCase {
+
+    func test_everySurfaceReadsTheSameFigure() throws {
+        // A Pro find, re-graded: the ladder has an Expected row to compare.
+        let r = LikelyPriceTests.find(low: 20, high: 120, likely: 45, expected: 45)
+        r.condition = .likeNew
+        let likely = r.currentPriceRange.likely
+        let midpoint = (r.currentPriceRange.low + r.currentPriceRange.high) / 2
+        XCTAssertNotEqual(likely, midpoint, "the test would pass against the bug")
+
+        // My Finds: the banner, the sort key, the weekly digest.
+        XCTAssertEqual(r.portfolioValue, likely)
+        XCTAssertEqual(HistoryViewModel.portfolioTotal(of: [r]), likely)
+        XCTAssertEqual(r.likelyValue, NSDecimalNumber(decimal: likely).doubleValue)
+        XCTAssertEqual(NotificationManager.digest(for: [r]).total, likely)
+        // Snap → Sell's ask, and the Thrift Flip resale seed.
+        XCTAssertEqual(ListingInput(result: r, condition: r.condition).likely, likely)
+        XCTAssertEqual(r.priceRange(for: r.condition).likely, likely)
+        // The Pro ladder's Expected row, scaled as `ValuationDetailView` does.
+        let detail = try XCTUnwrap(r.valuationDetail)
+        let expectedRow = try XCTUnwrap(detail.ladder.first { $0.isExpected })
+        XCTAssertEqual(Decimal(expectedRow.value) * r.conditionPriceFactor, likely)
+
+        // The widgets' one-number complication.
+        WidgetDataStore.writeHaul(results: [r])
+        let suite = try XCTUnwrap(UserDefaults(suiteName: WidgetDataStore.appGroupID))
+        let raw = try XCTUnwrap(suite.data(forKey: WidgetDataStore.haulKey))
+        let haul = try JSONDecoder().decode(WidgetHaulData.self, from: raw)
+        XCTAssertEqual(try XCTUnwrap(haul.totalLikely),
+                       NSDecimalNumber(decimal: likely).doubleValue, accuracy: 0.001)
+    }
+
+    func test_theMostValuableSortOrdersByTheLikely() {
+        // By midpoint the long-tailed find is worth more ($202.50 against
+        // $100); by what it will most likely fetch, it is worth less.
+        let longTail = LikelyPriceTests.find(low: 5, high: 400, likely: 40)
+        let steady = LikelyPriceTests.find(low: 80, high: 120, likely: 100)
+        let vm = HistoryViewModel()
+        vm.sortOrder = .mostValuable
+        XCTAssertEqual(vm.sorted([longTail, steady]).map(\.id), [steady.id, longTail.id])
+    }
+}
+
+// ── Re-expressing stored values when the pricing rules change ───────────────
+
+@MainActor
+final class PricingRulesTests: XCTestCase {
+
+    private func freshDefaults() -> UserDefaults {
+        let name = "pricing-rules-\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: name)!
+        defaults.removePersistentDomain(forName: name)
+        return defaults
+    }
+
+    func test_theRebaseEndsTheHistoryAtTodaysFigureWithoutAddingAPoint() throws {
+        // Entered under rules 1 at the midpoint ($202.50), then graded `.used`.
+        let r = LikelyPriceTests.find(low: 5, high: 400, likely: 90)
+        let t0 = Date(timeIntervalSince1970: 1_780_000_000)
+        r.valueHistoryData = try JSONEncoder().encode([
+            ScanResult.ValueSnapshot(date: t0, value: 202.5),
+            ScanResult.ValueSnapshot(date: t0.addingTimeInterval(86_400), value: 202.5 * 0.78),
+        ])
+        r.portfolioValueRaw = 202.5 * 0.78
+        r.condition = .used
+
+        r.rebaseStoredValue()
+
+        let today = NSDecimalNumber(decimal: r.currentPriceRange.likely).doubleValue
+        XCTAssertEqual(try XCTUnwrap(r.portfolioValueRaw), today, accuracy: 0.001)
+        XCTAssertEqual(r.valueHistory.count, 2, "a rules change recorded as a re-pricing")
+        XCTAssertEqual(try XCTUnwrap(r.valueHistory.last).value, today, accuracy: 0.001)
+        XCTAssertEqual(try XCTUnwrap(r.valueHistory.first).value, 90, accuracy: 0.001,
+                       "the entry point, under today's rules")
+        // Nothing left to record: the history already ends where the price is.
+        r.refreshPortfolioValue()
+        XCTAssertEqual(r.valueHistory.count, 2)
+    }
+
+    func test_aFindNeverPricedIntoThePortfolioIsLeftAlone() {
+        let r = LikelyPriceTests.find()
+        r.rebaseStoredValue()
+        XCTAssertNil(r.portfolioValueRaw)
+        XCTAssertNil(r.valueHistoryData, "a first snapshot would date its entry to today")
+    }
+
+    func test_thePassRunsOncePerRulesChange() throws {
+        let container = try ModelContainer(for: ScanResult.self,
+                                           configurations: ModelConfiguration(isStoredInMemoryOnly: true))
+        let context = ModelContext(container)
+        let r = LikelyPriceTests.find(likely: 90)
+        r.portfolioValueRaw = 202.5
+        context.insert(r)
+        try context.save()
+        let repo = ScanRepository(context: context)
+        let defaults = freshDefaults()
+
+        XCTAssertTrue(repo.applyPricingRulesIfNeeded(defaults: defaults))
+        XCTAssertEqual(try XCTUnwrap(r.portfolioValueRaw), 90, accuracy: 0.001)
+        XCTAssertEqual(defaults.integer(forKey: PricingRules.defaultsKey), PricingRules.current)
+
+        r.portfolioValueRaw = 1
+        XCTAssertFalse(repo.applyPricingRulesIfNeeded(defaults: defaults))
+        XCTAssertEqual(r.portfolioValueRaw, 1, "the pass ran a second time")
+    }
+
+    private struct NoStore: Error {}
+
+    func test_aFallbackLaunchDoesNotMarkTheRulesApplied() throws {
+        // That session's store is empty and in memory. Marking the rules
+        // applied there would skip the real library on every later launch.
+        defer { AppLaunchState.reset() }
+        AppLaunchState.recordPersistentStoreFallback(NoStore())
+        let container = try ModelContainer(for: ScanResult.self,
+                                           configurations: ModelConfiguration(isStoredInMemoryOnly: true))
+        let defaults = freshDefaults()
+        XCTAssertFalse(ScanRepository(context: ModelContext(container))
+            .applyPricingRulesIfNeeded(defaults: defaults))
+        XCTAssertEqual(defaults.integer(forKey: PricingRules.defaultsKey), 0)
     }
 }

@@ -83,6 +83,11 @@ struct ScanAPIResponse: Decodable {
     let expectedPriceUsd: Double?
     let bestCasePriceUsd: Double?
     let worstCasePriceUsd: Double?
+    /// The expected price after the server's bounds, sent on every tier —
+    /// unlike `expectedPriceUsd`, which is blanked for free users. What the
+    /// app's own maths use; see `ValuationDetail.likely`. Nil from a server
+    /// older than the field.
+    let likelyPriceUsd: Double?
     let valueDrivers: [String]
     let assumptions: [String]
     let uncertaintyFactors: [String]
@@ -117,6 +122,7 @@ struct ScanAPIResponse: Decodable {
         case expectedPriceUsd    = "expected_price_usd"
         case bestCasePriceUsd    = "best_case_price_usd"
         case worstCasePriceUsd   = "worst_case_price_usd"
+        case likelyPriceUsd      = "likely_price_usd"
         case valueDrivers        = "value_drivers"
         case assumptions
         case uncertaintyFactors  = "uncertainty_factors"
@@ -150,6 +156,7 @@ struct ScanAPIResponse: Decodable {
         expectedPriceUsd    = try c.decodeIfPresent(Double.self, forKey: .expectedPriceUsd)
         bestCasePriceUsd    = try c.decodeIfPresent(Double.self, forKey: .bestCasePriceUsd)
         worstCasePriceUsd   = try c.decodeIfPresent(Double.self, forKey: .worstCasePriceUsd)
+        likelyPriceUsd      = try c.decodeIfPresent(Double.self, forKey: .likelyPriceUsd)
         valueDrivers        = try c.decodeIfPresent([String].self, forKey: .valueDrivers) ?? []
         assumptions         = try c.decodeIfPresent([String].self, forKey: .assumptions) ?? []
         uncertaintyFactors  = try c.decodeIfPresent([String].self, forKey: .uncertaintyFactors) ?? []
@@ -176,7 +183,8 @@ struct ScanAPIResponse: Decodable {
          confidenceScore: Int? = nil, confidenceSummary: String? = nil,
          confidenceReasons: [String] = [], quickSalePriceUsd: Double? = nil,
          expectedPriceUsd: Double? = nil, bestCasePriceUsd: Double? = nil,
-         worstCasePriceUsd: Double? = nil, valueDrivers: [String] = [],
+         worstCasePriceUsd: Double? = nil, likelyPriceUsd: Double? = nil,
+         valueDrivers: [String] = [],
          assumptions: [String] = [], uncertaintyFactors: [String] = [],
          improveEstimate: [String] = [], authenticityAssessment: String? = nil,
          authenticityReasoning: String? = nil, demand: String? = nil, supply: String? = nil,
@@ -200,6 +208,7 @@ struct ScanAPIResponse: Decodable {
         self.expectedPriceUsd = expectedPriceUsd
         self.bestCasePriceUsd = bestCasePriceUsd
         self.worstCasePriceUsd = worstCasePriceUsd
+        self.likelyPriceUsd = likelyPriceUsd
         self.valueDrivers = valueDrivers
         self.assumptions = assumptions
         self.uncertaintyFactors = uncertaintyFactors
@@ -251,6 +260,18 @@ struct ValuationDetail: Codable, Equatable {
     /// it is provenance, not panel content. Read it through `source`.
     var valuationSource: ValuationSource?
 
+    /// The price the app's own maths start from: `likely_price_usd`, the
+    /// model's expected price after the server's bounds, at the condition the
+    /// model graded (`conditionGrade`) — the same basis as the scan's low and
+    /// high. Read through `ScanResult.currentPriceRange`, never directly.
+    ///
+    /// Stored for every tier, where `expected` is Pro-only on the wire and so
+    /// nil on a free scan. Not panel content: kept out of `isEmpty` (a blob
+    /// holding only this would render an empty panel) and out of
+    /// `lacksProDetail` (a free scan carries it, so counting it would call
+    /// every free blob full). Nil on every blob written before the field.
+    var likely: Double?
+
     var source: ValuationSource { valuationSource ?? .model }
 
     /// Nil when the response carried nothing beyond the v1 fields, so an old
@@ -263,6 +284,9 @@ struct ValuationDetail: Codable, Equatable {
         expected = r.expectedPriceUsd
         bestCase = r.bestCasePriceUsd
         worstCase = r.worstCasePriceUsd
+        // A server older than this field sent the same number only under
+        // its ladder name — and, since 44a107e, only to Pro.
+        likely = r.likelyPriceUsd ?? r.expectedPriceUsd
         valueDrivers = r.valueDrivers
         assumptions = r.assumptions
         uncertaintyFactors = r.uncertaintyFactors
@@ -647,6 +671,7 @@ actor ScanAPIClient {
                                 "Item photo clear enough to grade condition"],
             quickSalePriceUsd: base.quickSalePriceUsd, expectedPriceUsd: base.expectedPriceUsd,
             bestCasePriceUsd: base.bestCasePriceUsd, worstCasePriceUsd: base.worstCasePriceUsd,
+            likelyPriceUsd: base.likelyPriceUsd,
             valueDrivers: base.valueDrivers, assumptions: [],
             uncertaintyFactors: base.uncertaintyFactors,
             improveEstimate: [],

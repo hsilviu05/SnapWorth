@@ -73,40 +73,57 @@ final class ScanResult {
     /// This said "cheap, and only the result sheet asks for it". The second
     /// half stopped being true when `baselineCondition` began reading the
     /// grade out of it, which put a decode under every price read in the app —
-    /// see `storedGrade`, which is what the price path uses instead.
+    /// see `storedFacts`, which is what the price path uses instead.
     var valuationDetail: ValuationDetail? { ValuationDetail.decode(valuationDetailData) }
 
-    /// The grade the model returned, memoised by the bytes it came from.
+    /// The two things the price path needs from the detail blob — the grade
+    /// the model returned and its likely price — memoised by the bytes they
+    /// came from.
     ///
     /// `baselineCondition` is under every price read — the range on a card,
     /// the portfolio total, a Most Valuable comparison, the widget sums — and
     /// it decoded the whole `valuationDetailData` blob to find one field. A
     /// Most Valuable comparison read it eight times, and sorting 500 finds
     /// took 1.6 seconds on the main thread, again on every search keystroke.
+    /// The likely price is under the same reads, so it rides the same memo
+    /// rather than bringing the decode back.
     ///
     /// Keyed by content rather than by row, so there is nothing to invalidate:
-    /// the same bytes always hold the same grade, and a re-read
+    /// the same bytes always hold the same values, and a re-read
     /// (`applySharpened`) writes new bytes, which simply miss. Held outside
     /// the model on purpose — a memo stored on the `@Model` would be observed
     /// state written from inside a getter that SwiftUI calls while rendering.
-    private var storedGrade: Condition? {
-        guard let data = valuationDetailData else { return nil }
+    private var storedFacts: StoredFacts {
+        guard let data = valuationDetailData else { return .none }
         let key = data as NSData
-        if let hit = Self.gradeCache.object(forKey: key) { return hit.grade }
-        let grade = valuationDetail?.conditionGrade.flatMap(Condition.init(serverGrade:))
-        Self.gradeCache.setObject(GradeBox(grade), forKey: key)
-        return grade
+        if let hit = Self.factsCache.object(forKey: key) { return hit }
+        let detail = valuationDetail
+        let facts = StoredFacts(
+            grade: detail?.conditionGrade.flatMap(Condition.init(serverGrade:)),
+            // `expected` for a find saved before `likely` existed: the same
+            // number, under its ladder name. Every Pro find has it, and so
+            // does a free one scanned before the ladder was withheld from
+            // free responses (44a107e). One with neither prices from the
+            // midpoint, as it always did.
+            likely: detail?.likely ?? detail?.expected)
+        Self.factsCache.setObject(facts, forKey: key)
+        return facts
     }
 
-    private final class GradeBox {
+    private final class StoredFacts {
         let grade: Condition?
-        init(_ grade: Condition?) { self.grade = grade }
+        let likely: Double?
+        init(grade: Condition?, likely: Double?) {
+            self.grade = grade
+            self.likely = likely
+        }
+        static let none = StoredFacts(grade: nil, likely: nil)
     }
 
     /// `NSCache` is thread-safe and evicts under memory pressure; the bound
     /// is a few thousand small entries, more rows than a library holds.
-    private static let gradeCache: NSCache<NSData, GradeBox> = {
-        let cache = NSCache<NSData, GradeBox>()
+    private static let factsCache: NSCache<NSData, StoredFacts> = {
+        let cache = NSCache<NSData, StoredFacts>()
         cache.countLimit = 5_000
         return cache
     }()
@@ -258,11 +275,15 @@ final class ScanResult {
     /// value the model already handed us in a closed vocabulary was always the
     /// weaker path; it stays only because old records still need it.
     ///
-    /// One property, used by both `condition` and `priceRange`, deliberately.
+    /// One rule, used by both `condition` and `priceRange`, deliberately.
     /// They must agree: if the getter defaults to one baseline and the re-scale
     /// divides by another, an untouched record is silently mispriced.
-    var baselineCondition: Condition {
-        storedGrade ?? Condition.inferred(from: conditionNotes)
+    var baselineCondition: Condition { baseline(from: storedFacts) }
+
+    /// `baselineCondition` from facts already read, for the price path, which
+    /// needs the likely price out of the same memo lookup.
+    private func baseline(from facts: StoredFacts) -> Condition {
+        facts.grade ?? Condition.inferred(from: conditionNotes)
     }
 
     /// The resale condition driving the estimate. Reads the user's explicit
@@ -278,25 +299,55 @@ final class ScanResult {
     /// repeated selector changes never compound. Exact `Decimal` money; both
     /// features (listing price, flip resale) read from here.
     func priceRange(for condition: Condition) -> (low: Decimal, likely: Decimal, high: Decimal) {
-        priceRange(for: condition, baseline: baselineCondition)
+        let facts = storedFacts
+        return priceRange(for: condition, baseline: baseline(from: facts),
+                          storedLikely: facts.likely)
     }
 
-    /// `priceRange(for: condition)` with the baseline read once, not twice —
+    /// `priceRange(for: condition)` with the blob read once, not twice —
     /// `condition` falls back to `baselineCondition` itself. What every
     /// surface showing *this* find's current estimate should call.
     var currentPriceRange: (low: Decimal, likely: Decimal, high: Decimal) {
-        let baseline = baselineCondition
+        let facts = storedFacts
+        let baseline = self.baseline(from: facts)
         return priceRange(for: conditionRaw.flatMap(Condition.init(rawValue:)) ?? baseline,
-                          baseline: baseline)
+                          baseline: baseline, storedLikely: facts.likely)
     }
 
-    private func priceRange(for condition: Condition,
-                            baseline: Condition) -> (low: Decimal, likely: Decimal, high: Decimal) {
+    private func priceRange(for condition: Condition, baseline: Condition,
+                            storedLikely: Double?) -> (low: Decimal, likely: Decimal, high: Decimal) {
         guard valueLow.isFinite, valueHigh.isFinite else { return (0, 0, 0) }
         let factor = condition.priceMultiplier / baseline.priceMultiplier
         let low = Decimal(valueLow) * factor
         let high = Decimal(valueHigh) * factor
-        return (low, (low + high) / 2, high)
+        let likely = Self.baselineLikely(low: valueLow, high: valueHigh,
+                                         stored: storedLikely).map { $0 * factor }
+        return (low, likely ?? (low + high) / 2, high)
+    }
+
+    /// The model's likely price at the baseline condition, when there is one
+    /// this row can use — nil means "take the midpoint".
+    ///
+    /// `likely` was the midpoint of the range, written when low and high were
+    /// a typical spread. A day later v2 made them the worst and best case and
+    /// began asking for an expected price that is explicitly not their
+    /// midpoint (`prompts.py`). A resale range has a long upper tail, so the
+    /// midpoint sits above what the item most likely fetches: the flip
+    /// verdict, the listing ask, the portfolio total, the widgets and the
+    /// Most Valuable sort all inherited that bias, while a subscriber saw the
+    /// real expected price on the ladder of the same find.
+    ///
+    /// Scaled by the same condition factor as the range, so a chip change
+    /// moves all three together and never compounds. Refused unless it lies
+    /// inside `[low, high]`: the server pins it there, so a figure outside is
+    /// one this row's range was not built with — a blob kept across a re-read
+    /// that sent no detail — and a number from another estimate is worse
+    /// than the midpoint of this one.
+    static func baselineLikely(low: Double, high: Double, stored: Double?) -> Decimal? {
+        guard let stored, stored.isFinite, stored > 0,
+              stored >= min(low, high) - 0.005, stored <= max(low, high) + 0.005
+        else { return nil }
+        return Decimal(stored)
     }
 
     /// The factor `priceRange` applies, exposed so a view that renders the
@@ -340,7 +391,9 @@ final class ScanResult {
     }
 
     /// The condition-adjusted "likely" value, in Decimal — always the live
-    /// estimate, the same number the card, the widget and the sort read.
+    /// estimate, the same number the card, the widget and the sort read. The
+    /// model's expected price where the find has one (`baselineLikely`), the
+    /// midpoint of its range where it does not.
     ///
     /// It used to prefer the denormalised `portfolioValueRaw`, which is written
     /// only when a value is re-priced by hand (`refreshPortfolioValue`), and so
@@ -391,6 +444,33 @@ final class ScanResult {
         portfolioValueRaw = asDouble
     }
 
+    /// Re-expresses the stored value under the pricing rules now in force,
+    /// for `ScanRepository.applyPricingRulesIfNeeded`.
+    ///
+    /// `portfolioValueRaw` is set to today's figure, and the history is
+    /// scaled by one ratio so that it ends there: each point keeps its size
+    /// relative to its neighbours, which is the only thing a history of the
+    /// user's own re-pricings can honestly say. Appending a point instead, as
+    /// `refreshPortfolioValue` would, records a change in how the app prices
+    /// as a change in what the item is worth — the signal `WeeklyDigest` is
+    /// careful never to invent.
+    ///
+    /// A row never priced into the portfolio (nil value, empty history) is
+    /// left alone: it prices live like every other, and a first snapshot
+    /// written now would date its entry to today.
+    func rebaseStoredValue() {
+        guard portfolioValueRaw != nil || valueHistoryData != nil else { return }
+        let current = NSDecimalNumber(decimal: currentPriceRange.likely).doubleValue
+        guard current.isFinite else { return }
+        let history = valueHistory
+        if let last = history.last, last.value > 0, abs(last.value - current) >= 0.005 {
+            let ratio = current / last.value
+            let rebased = history.map { ValueSnapshot(date: $0.date, value: $0.value * ratio) }
+            valueHistoryData = try? JSONEncoder().encode(rebased)
+        }
+        portfolioValueRaw = current
+    }
+
     /// Decoded value history, oldest first. Never throws: a corrupt or
     /// truncated blob reads as "no history" rather than taking down the view.
     var valueHistory: [ValueSnapshot] {
@@ -408,10 +488,15 @@ final class ScanResult {
         return portfolioValue - Decimal(first.value)
     }
 
-    /// The middle of the displayed range — which is `likely`, by definition.
-    /// It went through `displayValueLow` and `displayValueHigh`, two full
-    /// price reads for one number, twice per Most Valuable comparison.
-    var midpointValue: Double {
+    /// `likely` as a `Double`, for the Most Valuable sort — the figure the
+    /// portfolio and the widgets sum, so the order and the totals agree.
+    ///
+    /// Renamed from `midpointValue` when `likely` stopped being the middle of
+    /// the range (`baselineLikely`): the old name told the next reader it
+    /// still was. It once went through `displayValueLow` and
+    /// `displayValueHigh`, two full price reads for one number, twice per
+    /// Most Valuable comparison.
+    var likelyValue: Double {
         NSDecimalNumber(decimal: currentPriceRange.likely).doubleValue
     }
 
@@ -437,6 +522,25 @@ final class ScanResult {
         guard let profit = realizedProfit, let paid = paidPrice, paid > 0 else { return nil }
         return profit / Decimal(paid)
     }
+}
+
+// MARK: - Pricing rules
+
+/// Which rules `ScanResult.priceRange` prices by, so that what was stored
+/// under older ones is re-expressed once rather than compared against
+/// (`ScanRepository.applyPricingRulesIfNeeded`).
+///
+/// Bump `current` for a change that moves the figure an *existing* find
+/// prices at, and only for that — a change to new scans alone stores nothing
+/// stale.
+enum PricingRules {
+    /// 1 — `likely` is the midpoint of the range, for every find.
+    /// 2 — the model's expected price, where the find has one
+    ///     (`ScanResult.baselineLikely`); the midpoint where it does not.
+    static let current = 2
+
+    /// Absent reads as 0, which is rules 1: nothing was recorded before 2.
+    static let defaultsKey = "snapworth_pricing_rules_version"
 }
 
 // MARK: - Resale condition
