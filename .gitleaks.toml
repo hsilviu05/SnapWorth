@@ -78,6 +78,12 @@ regexes = [
     # TestRedaction can assert observability.redact() strips JWTs.
     # gitleaks scores its entropy at 4.85 and flags it as a generic-api-key.
     '''eyJhbGciOiJFUzI1NiJ9\.abcdefghijklmnopqrst''',
+    # The SHA-256 of api.snapworth.eu's public key (its SPKI pin), as the TLS
+    # checkup test's SERVED_CHAIN records it. A public fingerprint anyone can
+    # read off the server, not a credential: gitleaks' generic-api-key rule
+    # fires because "api" and a 44-character base64 string share the line.
+    # By value, like the entry above, so the file stays scanned.
+    '''WZZfY6twA74KlhzS2606esJWy3y1qHe\+THHW8PJcrE4=''',
 ]
 
 # Deliberately NOT allowlisted, and worth recording why:
