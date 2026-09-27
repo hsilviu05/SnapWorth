@@ -102,7 +102,18 @@ enum Config {
     /// client. So this cannot be turned off from a server — switching it off
     /// takes a build. With it false no detection runs at all and a scan is
     /// exactly the scan it was before the easter egg existed.
+    ///
+    /// It ships dark until the owner picks the release it goes out in: on in
+    /// Debug, so a run from Xcode and the test suite exercise it, and off in
+    /// Release, which is every archive — TestFlight and the App Store alike.
+    /// Holding the merge back would not do the same job: a bump commit only
+    /// bounds which build a merge lands in (see CLAUDE.md). Turning it on for
+    /// users is replacing this `#if` with `true`, in a PR of its own.
+    #if DEBUG
     static let rareFindEasterEggEnabled = true
+    #else
+    static let rareFindEasterEggEnabled = false
+    #endif
 
     // ── Analytics ──────────────────────────────────────────────────────────────
     /// TelemetryDeck app ID (from the telemetrydeck.com dashboard). Analytics

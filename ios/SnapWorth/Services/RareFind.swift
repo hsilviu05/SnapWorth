@@ -20,7 +20,8 @@ import UIKit
 /// * **The humour is hype and rarity.** Nothing in `RareFindCopy`, in any
 ///   language, is about anything but the shirt's supposed value.
 ///
-/// Off switch: `Config.rareFindEasterEggEnabled`, which is compile-time.
+/// Off switch: `Config.rareFindEasterEggEnabled`, which is compile-time — and,
+/// for now, on only in Debug builds.
 enum RareFind {
     /// The shirt's line, verbatim, in every language: it is a quote printed on
     /// a garment, not interface copy — see `DELIBERATELY_ENGLISH` in

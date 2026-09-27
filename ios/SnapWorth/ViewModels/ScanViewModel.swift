@@ -237,8 +237,11 @@ final class ScanViewModel {
             // The request is back, if with an error, so the race is over here
             // too: the paywall path below awaits the photo's downscale, and a
             // match landing in that pause would put an appraisal under the
-            // paywall.
+            // paywall. One that has already landed goes now for the same
+            // reason, rather than in the defer after that pause — while the
+            // screen is still this scan's, as there.
             watch?.close()
+            if rareFindWatch === watch { rareFindAppraisal = nil }
             let appError = AppError.from(error)
 
             // A 402 is the paywall, not a failure. It reaches here whenever the
