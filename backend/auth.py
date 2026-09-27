@@ -37,7 +37,7 @@ import appattest
 import auditlog
 import notify
 import ratelimit
-from cache import KeyValueStore
+from cache import CacheUnavailable, ResilientCache
 from devicecheck import DeviceCheckClient
 from auditlog import AuditEvent
 from entitlements import EntitlementError, EntitlementService
@@ -105,7 +105,10 @@ class AuthDeps:
     # without a default so that is the type: reading one before startup now
     # raises AttributeError naming the field, instead of returning None and
     # failing later as "NoneType has no attribute" inside a handler.
-    cache: KeyValueStore
+    # `ResilientCache`, not the narrower `KeyValueStore`: `refresh` has to
+    # read `required`, to tell a key the server does not know from a store
+    # it could not ask.
+    cache: ResilientCache
     entitlements: EntitlementService
     quota: ScanQuota
 
@@ -356,7 +359,21 @@ async def refresh(req: AssertRequest, request: Request) -> TokenResponse:
         raise HTTPException(status_code=400, detail="Malformed assertion payload.") from None
 
     subject = key_id.hex()
-    raw_state = await deps.cache.get(_state_key(subject))
+    try:
+        # `required`, because the 401 below makes the client discard its key
+        # and attest a new one. A plain read on a configured Redis that fails
+        # answers from process memory, which has no state, so one failed GET
+        # minted a new subject. On hardware DeviceCheck marked this month that
+        # subject starts with today's scan spent, for a user who had not
+        # scanned. Could-not-look is a 503, which the client retries with the
+        # key it has.
+        raw_state = await deps.cache.get(_state_key(subject), required=True)
+    except CacheUnavailable:
+        log.error("attestation state unreadable on refresh")
+        raise HTTPException(
+            status_code=503,
+            detail="Sign-in is temporarily unavailable. Please try again shortly.",
+        ) from None
     if not raw_state:
         # Unknown key: the client must attest again.
         raise HTTPException(status_code=401, detail="Unknown key. Re-attestation required.")
@@ -553,9 +570,10 @@ async def reserve_quota(principal: Principal) -> QuotaStatus | None:
         # Marking only on refusal, as this used to, almost never fired. The
         # client stops at zero using the server's own count, so the request
         # that would be refused is never sent. A scan that fails after this
-        # and is refunded leaves the mark in place. The only cost is to a
-        # reinstall on this device in the same month, which loses that day's
-        # scan and the welcome.
+        # and is refunded leaves the mark in place. The cost falls on any new
+        # App Attest subject on this device in the same month, not only a
+        # reinstall: a re-attestation on the same phone loses that day's scan
+        # and the welcome too. See `ScanQuota.starting_balance`.
         #
         # In the background: this is a round trip to Apple on the scan path,
         # and the scan must not wait for it or fail because of it.

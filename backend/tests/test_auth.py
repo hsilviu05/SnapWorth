@@ -254,6 +254,46 @@ class TestChallenge:
         assert second.status_code == 400
 
 
+class _AttestStateDown(InMemoryCache):
+    """Redis that fails only on attestation state, so the challenge works."""
+
+    async def get(self, key):
+        if key.startswith("attest:"):
+            raise ConnectionError("redis GET timed out")
+        return await super().get(key)
+
+
+class TestRefreshWhenTheStoreCannotBeRead:
+    """A 401 on refresh makes the client discard its key and attest a new one.
+    It used to answer that when a failing Redis fell back to memory, so one
+    failed GET minted a new subject — and on hardware DeviceCheck marked this
+    month, that subject starts with today's scan spent."""
+
+    def teardown_method(self):
+        build_deps()
+
+    @staticmethod
+    def _refresh():
+        challenge = client.post("/auth/challenge").json()["challenge"]
+        return client.post("/auth/refresh", json={
+            "key_id": base64.b64encode(b"known-key").decode(),
+            "assertion": base64.b64encode(b"assertion").decode(),
+            "challenge": challenge,
+        })
+
+    def test_an_unreadable_store_is_a_503_not_a_reattestation(self):
+        build_deps()
+        auth.deps.cache = ResilientCache(
+            _AttestStateDown(), InMemoryCache(), configured=True)
+        r = self._refresh()
+        assert r.status_code == 503, (
+            "an unreadable store told the client to throw its key away")
+
+    def test_a_key_the_server_does_not_know_is_still_a_401(self):
+        build_deps()
+        assert self._refresh().status_code == 401
+
+
 # ── Enforcement on protected routes ──────────────────────────────────────────
 
 class TestEnforcement:
