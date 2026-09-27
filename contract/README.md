@@ -6,15 +6,29 @@ Responses the server really sends, read by both test suites.
 |---|---|
 | `scan-response.json` | A `/scan` 200 for a Pro user: every v1 field plus the full v2 valuation payload |
 | `scan-response-free.json` | The same scan for a free user — the common case. The Pro-only detail is blanked (`null` or `[]`), never removed, and `free_scans_remaining` is what is left after the day's scan |
-| `errors/scan-402-quota.json` | The free allowance is spent. Carries `X-Quota-Resets-At`, which the app does not read yet |
-| `errors/listing-402-pro.json` | `/listing` refusing a free caller |
-| `errors/scan-422-unusable-photo.json` | A safety block: the server looked at the photo and could not use it |
-| `errors/scan-429-rate-limited.json` | The per-device limit. Carries `Retry-After` in seconds |
+| `errors/scan-402-quota.json` | The free allowance is spent (`quota_exhausted`). Carries `X-Quota-Resets-At`, which the app does not read yet |
+| `errors/listing-402-pro.json` | `/listing` refusing a free caller (`pro_required`) |
+| `errors/scan-422-unusable-photo.json` | A safety block: the server looked at the photo and could not use it (`photo_unusable`) |
+| `errors/scan-422-not-resalable.json` | The model priced the photo at zero on purpose; `detail` carries its reason (`not_resalable`) |
+| `errors/scan-426-update-required.json` | Below the operator's minimum build, for a build that sent `X-SnapWorth-Build` (`update_required`) |
+| `errors/scan-429-rate-limited.json` | The per-device limit (`rate_limited`). Carries `Retry-After` in seconds |
+| `errors/scan-502-ai-unavailable.json` | The model could not be reached (`ai_unavailable`) |
 
 An error fixture records the status, the headers the server sends that a
 client may rely on, and the body. Of those headers the app reads only
 `Retry-After` today. Header values are whatever the server sent when the file
 was generated; what is fixed is that they are plain integers.
+
+Every error body is `{"detail": …, "code": …}`. `detail` is what it always
+was — a sentence, or FastAPI's validation list — and every installed build
+shows it. `code` is a stable token beside it (`backend/apierrors.py` lists
+them all) that a client can route on and translate. An error raised without a
+specific code gets a generic one from its status (`not_found`,
+`bad_request`…), which no client routes on.
+
+`/scan` bodies also carry `confidence_reason_codes`: one token per entry of
+`confidence_reasons`, same order (`backend/confidence.py`). Pro detail, like
+the reasons: blanked to `[]` on a free scan.
 
 ## Why it exists
 
@@ -60,11 +74,14 @@ JSON type of every value on each run.
    allowance was charged, so the user's retry is the paywall. Only
    `valuation_source` is read leniently. **New structure goes in a new
    field**; adding an optional field is safe.
-3. **The error wording is contract where the client routes on it.** The client
-   shows `detail` as written (a string, or FastAPI's validation list), reads
-   `Retry-After` on a 429, and sends a 402 to "Pro required" when `detail`
-   contains "pro feature" and to "allowance spent" otherwise
-   (`AppError.from`). The two 402 fixtures pin that distinction.
+3. **A `code` is contract; so is the wording an installed build routes on.**
+   A client routes on `code` and words it in its own language, so renaming a
+   code breaks every build that knows it — a new failure gets a new one, and
+   the value is asserted in `test_contract.py`, which the type comparison
+   alone would not. Builds before the codes show `detail` as written, read
+   `Retry-After` on a 429, and send a 402 to "Pro required" when `detail`
+   contains "pro feature" and to "allowance spent" otherwise; newer builds
+   still do that for a body without a code. The two 402 fixtures pin both.
 4. Changing these files runs **both** suites, whatever else the commit
    touched. There is no separate workflow: `backend.yml` and `ios.yml` each
    carry `contract/**` in their own `paths` filter, which is what makes a

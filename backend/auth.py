@@ -30,9 +30,10 @@ import os
 import secrets
 from dataclasses import dataclass
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Request
+from fastapi import APIRouter, Depends, Header, Request
 from pydantic import BaseModel, Field
 
+import apierrors
 import appattest
 import auditlog
 import metrics
@@ -40,6 +41,7 @@ import notify
 import ratelimit
 from cache import CacheUnavailable, ResilientCache
 from devicecheck import DeviceCheckClient
+from apierrors import APIError
 from auditlog import AuditEvent
 from entitlements import Entitlement, EntitlementError, EntitlementService
 from entitlements import EntitlementsUnavailable, is_bounded
@@ -255,9 +257,9 @@ async def _issue_token(subject: str, device_token: str | None) -> TokenResponse:
         # one — so minting "free" would bake a wrong tier in for the token's
         # whole lifetime. Refuse instead; the client already retries a mint.
         log.error("entitlement store unavailable while issuing a token")
-        raise HTTPException(
-            status_code=503,
-            detail="Subscription status is temporarily unavailable. Please try again shortly.",
+        raise APIError(
+            503, apierrors.SUBSCRIPTION_STATUS_UNAVAILABLE,
+            "Subscription status is temporarily unavailable. Please try again shortly.",
         ) from None
     token, claims = _mint(signer, subject, ent)
 
@@ -319,7 +321,7 @@ async def _consume_challenge(value: str) -> None:
     key = _challenge_key(value)
     present = await deps.cache.get(key)
     if not present:
-        raise HTTPException(status_code=400, detail="Challenge is unknown or expired.")
+        raise APIError(400, apierrors.CHALLENGE_INVALID, "Challenge is unknown or expired.")
     await deps.cache.delete(key)
 
 
@@ -328,7 +330,8 @@ async def attest(req: AttestRequest, request: Request) -> TokenResponse:
     await _limit_unauthenticated(request)
     cfg = deps.config
     if not cfg.is_configured:
-        raise HTTPException(status_code=503, detail="Attestation is not configured.")
+        raise APIError(503, apierrors.ATTESTATION_NOT_CONFIGURED,
+                       "Attestation is not configured.")
 
     await _consume_challenge(req.challenge)
 
@@ -337,7 +340,8 @@ async def attest(req: AttestRequest, request: Request) -> TokenResponse:
         attestation = base64.b64decode(req.attestation, validate=True)
     except Exception:
         auditlog.record(AuditEvent.ATTEST_FAILED, outcome="failure", reason="bad_encoding")
-        raise HTTPException(status_code=400, detail="Malformed attestation payload.") from None
+        raise APIError(400, apierrors.ATTESTATION_MALFORMED,
+                       "Malformed attestation payload.") from None
 
     try:
         result = appattest.verify_attestation(
@@ -349,7 +353,7 @@ async def attest(req: AttestRequest, request: Request) -> TokenResponse:
         )
     except appattest.AttestationError as exc:
         auditlog.record(AuditEvent.ATTEST_FAILED, outcome="failure", reason=str(exc))
-        raise HTTPException(status_code=401, detail=str(exc)) from None
+        raise APIError(401, apierrors.ATTESTATION_REJECTED, str(exc)) from None
 
     subject = key_id.hex()
     # Required: this is the only copy of the key the device will prove
@@ -370,9 +374,9 @@ async def attest(req: AttestRequest, request: Request) -> TokenResponse:
         }), ATTEST_STATE_TTL, required=True)
     except CacheUnavailable:
         log.error("attestation state could not be stored — cache unavailable")
-        raise HTTPException(
-            status_code=503,
-            detail="Sign-in is temporarily unavailable. Please try again shortly.",
+        raise APIError(
+            503, apierrors.SIGN_IN_UNAVAILABLE,
+            "Sign-in is temporarily unavailable. Please try again shortly.",
         ) from None
 
     # Retained so the quota layer can mark the *hardware* when the free
@@ -400,7 +404,8 @@ async def refresh(req: AssertRequest, request: Request) -> TokenResponse:
         key_id = base64.b64decode(req.key_id, validate=True)
         assertion = base64.b64decode(req.assertion, validate=True)
     except Exception:
-        raise HTTPException(status_code=400, detail="Malformed assertion payload.") from None
+        raise APIError(400, apierrors.ASSERTION_MALFORMED,
+                       "Malformed assertion payload.") from None
 
     subject = key_id.hex()
     try:
@@ -414,13 +419,13 @@ async def refresh(req: AssertRequest, request: Request) -> TokenResponse:
         raw_state = await deps.cache.get(_state_key(subject), required=True)
     except CacheUnavailable:
         log.error("attestation state unreadable on refresh")
-        raise HTTPException(
-            status_code=503,
-            detail="Sign-in is temporarily unavailable. Please try again shortly.",
+        raise APIError(
+            503, apierrors.SIGN_IN_UNAVAILABLE,
+            "Sign-in is temporarily unavailable. Please try again shortly.",
         ) from None
     if not raw_state:
         # Unknown key: the client must attest again.
-        raise HTTPException(status_code=401, detail="Unknown key. Re-attestation required.")
+        raise APIError(401, apierrors.KEY_UNKNOWN, "Unknown key. Re-attestation required.")
     state = json.loads(raw_state)
 
     try:
@@ -433,7 +438,7 @@ async def refresh(req: AssertRequest, request: Request) -> TokenResponse:
         )
     except appattest.AttestationError as exc:
         auditlog.record(AuditEvent.ATTEST_FAILED, subject, outcome="failure", reason=str(exc))
-        raise HTTPException(status_code=401, detail=str(exc)) from None
+        raise APIError(401, apierrors.ASSERTION_REJECTED, str(exc)) from None
 
     state["counter"] = new_counter
     # Not required, unlike the two above: the key is already stored and this
@@ -465,7 +470,7 @@ async def require_auth(
             claims = deps.signer.verify(token)
         except TokenError as exc:
             auditlog.record(AuditEvent.TOKEN_REJECTED, outcome="failure", reason=str(exc))
-            raise HTTPException(status_code=401, detail=str(exc)) from None
+            raise APIError(401, apierrors.TOKEN_INVALID, str(exc)) from None
 
         subject = claims["sub"]
         # Entitlement is re-read from the cache rather than trusted from the
@@ -496,9 +501,8 @@ async def require_auth(
 
     if cfg.enforce:
         auditlog.record(AuditEvent.TOKEN_REJECTED, outcome="failure", reason="missing_token")
-        raise HTTPException(
-            status_code=401,
-            detail="Authentication required.",
+        raise APIError(
+            401, apierrors.AUTH_REQUIRED, "Authentication required.",
             headers={"WWW-Authenticate": "Bearer"},
         )
 
@@ -546,15 +550,15 @@ async def record_entitlement(
                         outcome="failure", reason=str(exc))
         # So `/user` can say the purchase reached us and why it was refused.
         notify.entitlement_rejected(principal.subject, str(exc))
-        raise HTTPException(status_code=400, detail=str(exc)) from None
+        raise APIError(400, apierrors.ENTITLEMENT_REJECTED, str(exc)) from None
     except EntitlementsUnavailable:
         # Raised only on the bounded Sandbox path: its one-device claim is an
         # authorisation boundary and fails closed, where the Production
         # binding fails open. Retryable, so not the 400 above.
         log.error("entitlement store unavailable while recording a sandbox entitlement")
-        raise HTTPException(
-            status_code=503,
-            detail="Subscription status is temporarily unavailable. Please try again shortly.",
+        raise APIError(
+            503, apierrors.SUBSCRIPTION_STATUS_UNAVAILABLE,
+            "Subscription status is temporarily unavailable. Please try again shortly.",
         ) from None
 
     metrics.entitlement_operations.inc(outcome="recorded")
@@ -630,16 +634,15 @@ async def reserve_quota(principal: Principal) -> QuotaStatus | None:
         # Re-marked here too: a refusal also means the allowance is spent,
         # and a mark from last month is refreshed to this one.
         await _mark_device_exhausted(principal)
-        raise HTTPException(
-            status_code=402,
-            detail=exc.message,
+        raise APIError(
+            402, apierrors.QUOTA_EXHAUSTED, exc.message,
             headers={"X-Quota-Resets-At": str(exc.resets_at)},
         ) from None
     except QuotaUnavailable:
         # Durable state is the only source of truth for a paid resource.
-        raise HTTPException(
-            status_code=503,
-            detail="Scan quota is temporarily unavailable. Please try again shortly.",
+        raise APIError(
+            503, apierrors.QUOTA_UNAVAILABLE,
+            "Scan quota is temporarily unavailable. Please try again shortly.",
         ) from None
 
     if status.used >= status.limit:

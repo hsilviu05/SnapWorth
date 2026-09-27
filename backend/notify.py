@@ -2355,7 +2355,9 @@ def _lever_buttons(current: int | None) -> Buttons:
 # A bad client release could not be told to update: the server did not know
 # which build was calling, and had no switch to act on it if it had.
 # `main._refuse_outdated_build` reads this on /scan, /listing and /trends and
-# refuses a build below it with `UPDATE_REQUIRED_DETAIL`. Only /scan and
+# refuses a build below it with `UPDATE_REQUIRED_DETAIL` and the code
+# `update_required` — a 426 when the build said so in `X-SnapWorth-Build`,
+# a 422 when it was read from the User-Agent. Only /scan and
 # /listing show that text; the app fetches /trends with `try?`, so a refusal
 # there shows nothing. /auth is never gated, so an old build can still sign in
 # and record a purchase.
@@ -2429,7 +2431,10 @@ async def _minbuild_command(argument: str, rest: str) -> tuple[str, Buttons]:
                     f"silently and its Trending card just disappears.\n"
                     f"Only do this once build <b>{wanted}</b> is live on the "
                     f"App Store. Builds 7 and older cannot show this text and "
-                    f"will see \"Something went wrong\". Sign-in and purchases "
+                    f"will see \"Something went wrong\". A build that sends "
+                    f"<code>X-SnapWorth-Build</code> is refused with a 426 and "
+                    f"shows its own translation with an App Store button. "
+                    f"Sign-in and purchases "
                     f"stay open, and a request that does not say its build is "
                     f"always served. The access log's <code>build</code> field "
                     f"shows who is still on an older one, and "

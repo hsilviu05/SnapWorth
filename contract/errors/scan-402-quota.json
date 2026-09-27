@@ -1,9 +1,10 @@
 {
   "status": 402,
   "headers": {
-    "X-Quota-Resets-At": "1790467199"
+    "X-Quota-Resets-At": "1790553599"
   },
   "body": {
-    "detail": "You've used your free scan for today."
+    "detail": "You've used your free scan for today.",
+    "code": "quota_exhausted"
   }
 }
