@@ -3644,19 +3644,37 @@ async def _resolve_transaction_id(wanted: str) -> tuple[str | None, str | None]:
     # Apple's transaction ids are long decimal strings. Anything of that shape
     # is passed through untouched: the index may well not have it, which is
     # the whole point of asking Apple directly.
-    if wanted.isdigit() and len(wanted) >= 10:
+    #
+    # Except at sixteen characters, which is also a full pseudonym. It is hex,
+    # and about one device in 1,845 has one made only of digits; sent to Apple
+    # as a transaction id it came back "a typo", and the index — which does
+    # have it — was never asked. So a sixteen-digit id is looked for among the
+    # devices first, unless it is a transaction id the index already keys, and
+    # is Apple's only when no device matches.
+    #
+    # Matched whole, not by prefix. Nearly every real transaction id begins
+    # 200000 or 100000, so one older row holding a six-character device id of
+    # that shape would otherwise catch every unindexed transaction id pasted
+    # here and answer with that customer's subscription.
+    looks_like_transaction = wanted.isdigit() and len(wanted) >= 10
+    if looks_like_transaction and len(wanted) != 16:
         return wanted, None
 
     doc = await _read_index(SUBS_INDEX_KEY)
+    if looks_like_transaction and wanted in doc:
+        return wanted, None
     matches: dict[str, dict] = {}
     devices: set[str] = set()
     for otid, row in doc.items():
         if not isinstance(row, dict):
             continue
-        hits = [d for d in _row_devices(row) if _same_device(d, wanted)]
+        hits = [d for d in _row_devices(row)
+                if (d.lower() == wanted if looks_like_transaction else _same_device(d, wanted))]
         if hits:
             matches[otid] = row
             devices.update(d.lower() for d in hits)
+    if not matches and looks_like_transaction:
+        return wanted, None
     if not matches:
         return None, (f"💳 Nothing in the index has a device id starting "
                       f"<code>{html.escape(wanted)}</code>. If you have Apple's "

@@ -3754,6 +3754,40 @@ class TestSubCommandIdResolution:
         assert spy.called_with == ["otid-legacy"]
 
     @pytest.mark.asyncio
+    async def test_an_all_digit_device_id_is_a_device_first(
+            self, enabled_notify, cache, monkeypatch):
+        """A pseudonym is hex, so about one in 1,845 is all digits — the shape
+        of a transaction id. It went to Apple as one, came back "a typo", and
+        the index that holds it was never asked."""
+        digits = "4815162342108000"
+        await cache.set(notify.SUBS_INDEX_KEY, json.dumps({
+            "otid-digits": {"who": digits, "devices": [digits],
+                            "product": "com.snapworth.monthly",
+                            "env": "Production", "seen": int(time.time())}}), 600)
+        spy = _patch_lookup(monkeypatch, [_FakeStatus(sub("otid-digits"))])
+
+        await notify.handle_command(f"/sub {digits}")
+        await notify.handle_command(f"/sub Device {digits}")
+
+        assert spy.called_with == ["otid-digits", "otid-digits"]
+
+    @pytest.mark.asyncio
+    async def test_a_sixteen_digit_transaction_id_still_goes_to_apple(
+            self, enabled_notify, cache, monkeypatch):
+        """Only a whole device id wins. Real transaction ids nearly all begin
+        200000, so an older row holding six characters of that shape must not
+        catch every unindexed one pasted here."""
+        await cache.set(notify.SUBS_INDEX_KEY, json.dumps({
+            "2000000000000042": {"who": "200000", "product": "com.snapworth.monthly",
+                                 "env": "Production", "seen": int(time.time())}}), 600)
+        spy = _patch_lookup(monkeypatch, [_FakeStatus(sub("2000000000000099"))])
+
+        await notify.handle_command("/sub 2000000000000099")
+        await notify.handle_command("/sub 2000000000000042")
+
+        assert spy.called_with == ["2000000000000099", "2000000000000042"]
+
+    @pytest.mark.asyncio
     async def test_every_device_that_synced_stays_on_the_row(
             self, enabled_notify, cache, monkeypatch):
         """`who` was overwritten on every sync, so a family's first phone
