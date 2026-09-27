@@ -2903,25 +2903,90 @@ final class QuotaResetTests: XCTestCase {
     /// wrote the toggle and never asked would be the silent Settings bug over
     /// again (see `needsAuthorizationRequest`).
     func test_bothWaysInReportTheOptIn() throws {
-        func source(_ path: String) throws -> String {
-            try String(contentsOf: URL(fileURLWithPath: #filePath)
-                .deletingLastPathComponent()
-                .deletingLastPathComponent()
-                .appendingPathComponent(path), encoding: .utf8)
-        }
         let scan = try source("SnapWorth/Views/ScanView.swift")
         XCTAssertTrue(scan.contains("optInToFreeScanReminder(source: .scanSpent"))
         XCTAssertTrue(scan.contains("vm.freeScansRemaining == 0"),
                       "the row is for the spent state")
         let settings = try source("SnapWorth/Views/NotificationSettingsView.swift")
         XCTAssertTrue(settings.contains(".reminderOptIn(source: .settings)"))
-        let manager = try source("SnapWorth/Services/NotificationManager.swift")
-        guard let start = manager.range(of: "func optInToFreeScanReminder"),
-              let end = manager.range(of: "\n    }\n", range: start.upperBound..<manager.endIndex)
-        else { return XCTFail("could not locate optInToFreeScanReminder") }
-        let body = manager[start.upperBound..<end.lowerBound]
-        XCTAssertTrue(body.contains("setEnabled(.freeScan, true)"))
-        XCTAssertTrue(body.contains("requestAuthorizationIfNeeded()"))
+        let optIn = try body(of: "func optInToFreeScanReminder",
+                             in: source("SnapWorth/Services/NotificationManager.swift"))
+        XCTAssertTrue(optIn.contains("switchOnFreeScanReminder(source: source)"))
+        XCTAssertTrue(optIn.contains("requestAuthorizationIfNeeded()"))
+        let switchOn = try body(of: "func switchOnFreeScanReminder",
+                                in: source("SnapWorth/Services/NotificationManager.swift"))
+        XCTAssertTrue(switchOn.contains("setEnabled(.freeScan, true)"))
+    }
+
+    /// "Remind me" is offered with the toggle already on while iOS has never
+    /// been asked, which an install from before the toggle asked iOS can
+    /// carry. That tap asks iOS and switches nothing on, and
+    /// `reminder_opt_in` counts switching it on.
+    @MainActor
+    func test_anOptInThatFindsTheReminderOnIsNotCounted() {
+        let key = NotificationManager.Category.freeScan.toggleKey
+        let saved = UserDefaults.standard.object(forKey: key)
+        defer { UserDefaults.standard.set(saved, forKey: key) }
+        let spy = EventSpy()
+        Analytics.shared.configure(spy)
+        let manager = NotificationManager.shared
+        func optIns() -> [[String: String]] {
+            spy.events.filter { $0.name == "reminder_opt_in" }.map(\.parameters)
+        }
+
+        UserDefaults.standard.set(true, forKey: key)
+        manager.switchOnFreeScanReminder(source: .scanSpent)
+        XCTAssertEqual(optIns(), [], "already on: nothing was switched")
+        XCTAssertTrue(manager.isEnabled(.freeScan))
+
+        UserDefaults.standard.set(false, forKey: key)
+        manager.switchOnFreeScanReminder(source: .scanSpent)
+        XCTAssertEqual(optIns(), [["source": "scan_spent"]])
+        XCTAssertTrue(manager.isEnabled(.freeScan))
+
+        // Never set is off: the reminder is opt-in.
+        UserDefaults.standard.removeObject(forKey: key)
+        manager.switchOnFreeScanReminder(source: .scanSpent)
+        XCTAssertEqual(optIns().count, 2)
+    }
+
+    /// Source-inspected: iOS cannot be made to grant permission in a test.
+    /// The row reads the next fire straight back and names its day, so the
+    /// opt-in must first leave the schedule the foreground sync would —
+    /// everything eligible, not the ladder alone. After a first grant the
+    /// ladder alone could keep a Sunday rung the weekly digest takes a moment
+    /// later, and the row named a Sunday over a first reminder due Monday.
+    func test_theOptInSchedulesEverythingBeforeTheRowReadsItBack() throws {
+        let optIn = try body(of: "func optInToFreeScanReminder",
+                             in: source("SnapWorth/Services/NotificationManager.swift"))
+        let asked = try XCTUnwrap(optIn.range(of: "requestAuthorizationIfNeeded()"))
+        let synced = try XCTUnwrap(
+            optIn.range(of: "syncEligible(context: context, purchaseService: purchaseService)"),
+            "the ladder alone is built into an empty calendar after a first grant")
+        XCTAssertLessThan(asked.lowerBound, synced.lowerBound, "scheduling needs the grant")
+        XCTAssertFalse(optIn.contains("syncFreeScanReminder("))
+
+        let row = try body(of: "private func remindMe()",
+                           in: source("SnapWorth/Views/ScanView.swift"))
+        let opted = try XCTUnwrap(row.range(of: "optInToFreeScanReminder("))
+        let read = try XCTUnwrap(row.range(of: "pendingFreeScanReminder()"))
+        XCTAssertLessThan(opted.lowerBound, read.lowerBound)
+    }
+
+    private func source(_ path: String) throws -> String {
+        try String(contentsOf: URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent(path), encoding: .utf8)
+    }
+
+    /// A function's body, from its declaration to the first closing brace at
+    /// its indentation.
+    private func body(of declaration: String, in file: String) throws -> Substring {
+        let start = try XCTUnwrap(file.range(of: declaration), "could not locate \(declaration)")
+        let end = try XCTUnwrap(file.range(of: "\n    }\n", range: start.upperBound..<file.endIndex),
+                                "could not find the end of \(declaration)")
+        return file[start.upperBound..<end.lowerBound]
     }
 }
 

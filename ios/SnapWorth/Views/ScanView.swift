@@ -158,7 +158,8 @@ struct ScanView: View {
 
                 // The spent state's way back to tomorrow — see the row.
                 if !purchaseService.isSubscribed && vm.freeScansRemaining == 0 {
-                    FreeScanReturnRow(resetsAt: FreeScanCounter.nextReset())
+                    FreeScanReturnRow(resetsAt: FreeScanCounter.nextReset(),
+                                      purchaseService: purchaseService)
                         .padding(.horizontal, 20)
                         .padding(.top, 6)
                 }
@@ -786,8 +787,12 @@ private struct ThriftRunControl: View {
 /// expression near the type-checker's budget.
 private struct FreeScanReturnRow: View {
     let resetsAt: Date
+    /// With the model context, what the opt-in schedules everything else
+    /// from, so the reminder it reads back is one the daily cap leaves.
+    let purchaseService: any PurchaseService
 
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.modelContext) private var modelContext
     @State private var reminder: Reminder = .unknown
 
     enum Reminder: Equatable {
@@ -899,7 +904,8 @@ private struct FreeScanReturnRow: View {
     private func remindMe() async {
         reminder = .asking
         let manager = NotificationManager.shared
-        let allowed = await manager.optInToFreeScanReminder(source: .scanSpent, isPro: false)
+        let allowed = await manager.optInToFreeScanReminder(source: .scanSpent, context: modelContext,
+                                                            purchaseService: purchaseService)
         reminder = allowed ? .set(await manager.pendingFreeScanReminder()) : .blocked
     }
 }

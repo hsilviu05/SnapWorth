@@ -658,13 +658,36 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
     /// enough. Returns whether notifications can be delivered, so the caller
     /// can send a user who refused them at the system level to Settings
     /// rather than claim a reminder that cannot arrive.
-    func optInToFreeScanReminder(source: ReminderOptInSource, isPro: Bool) async -> Bool {
-        setEnabled(.freeScan, true)
-        Analytics.shared.track(.reminderOptIn(source: source))
+    ///
+    /// Then schedules everything eligible, as `enableFromPriming` does, not
+    /// the ladder alone. The caller reads the next fire straight back and
+    /// names its day, so the ladder must already be the one the daily cap
+    /// leaves. On a first grant nothing else has ever been scheduled — every
+    /// `add` returned at `isAuthorized` — so a ladder built on its own could
+    /// keep a Sunday rung that the weekly digest evicts moments later, when
+    /// the foreground sync the closing alert set off reaches it. That sync
+    /// waits on StoreKit first, so the read usually came before it, and the
+    /// row said "Reminder set for Sun" over a first reminder due on Monday.
+    func optInToFreeScanReminder(source: ReminderOptInSource, context: ModelContext,
+                                 purchaseService: any PurchaseService) async -> Bool {
+        switchOnFreeScanReminder(source: source)
         guard await requestAuthorizationIfNeeded() else { return false }
-        await syncFreeScanReminder(isPro: isPro, lastScan: ScanStreak.lastScan,
-                                   streak: ScanStreak.current())
+        await syncEligible(context: context, purchaseService: purchaseService)
         return true
+    }
+
+    /// The toggle half of the opt-in, reported only when it is the change.
+    ///
+    /// "Remind me" is offered while the toggle is on and iOS has never been
+    /// asked, which an install that switched it on before the toggle asked
+    /// iOS (4499251) can carry. The tap there asks iOS and switches nothing,
+    /// and `reminder_opt_in` means the reminder was switched on. Settings
+    /// reports from `onChange`, which is only ever a change. Internal, for
+    /// the tests: the rest of the opt-in asks iOS, which a test cannot answer.
+    func switchOnFreeScanReminder(source: ReminderOptInSource) {
+        let wasOn = isEnabled(.freeScan)
+        setEnabled(.freeScan, true)
+        if !wasOn { Analytics.shared.track(.reminderOptIn(source: source)) }
     }
 
     /// When the free-scan reminder will next fire, read back from what is
