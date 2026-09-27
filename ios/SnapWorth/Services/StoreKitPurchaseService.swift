@@ -532,7 +532,7 @@ enum EntitlementSyncFailure {
         case .network:                                  return "network"
         case .timeout:                                  return "timeout"
         case .rateLimit:                                return "rate_limited"
-        case .sessionExpired:                           return "attestation"
+        case .sessionExpired, .deviceUnsupported:       return "attestation"
         case .verificationUnavailable, .serverUnavailable: return "unavailable"
         default:                                        return "unknown"
         }

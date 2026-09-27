@@ -4731,9 +4731,12 @@ final class TokenMintFailureMappingTests: XCTestCase {
     }
 
     func test_anOutageIsNotAReasonToReinstall() {
+        // `.unknownSystemFailure` is one `requiresFreshKey` keeps the key
+        // for: a reinstall, which only replaces the key, cannot help.
         for error: Error in [AttestationError.challengeFailed,
                              AttestationError.unavailable,
-                             DCError(.serverUnavailable)] {
+                             DCError(.serverUnavailable),
+                             DCError(.unknownSystemFailure)] {
             XCTAssertEqual(AppError.from(error), .verificationUnavailable, "\(error)")
         }
         let message = AppError.verificationUnavailable.errorDescription ?? ""
@@ -4741,10 +4744,26 @@ final class TokenMintFailureMappingTests: XCTestCase {
         XCTAssertFalse(message.lowercased().contains("reinstall"), message)
     }
 
+    func test_aDeviceWithoutAppAttestIsToldSoRatherThanToReinstall() {
+        for error: Error in [AttestationError.unsupportedDevice,
+                             DCError(.featureUnsupported)] {
+            XCTAssertEqual(AppError.from(error), .deviceUnsupported, "\(error)")
+        }
+        let message = AppError.deviceUnsupported.errorDescription ?? ""
+        XCTAssertFalse(message.isEmpty)
+        XCTAssertFalse(message.lowercased().contains("reinstall"), message)
+        #if targetEnvironment(simulator)
+        // Where every mint ends here: the developer is told the real reason.
+        XCTAssertTrue(message.contains("real iPhone"), message)
+        #endif
+    }
+
     func test_aRealRejectionStillOffersTheReset() {
         for error: Error in [AttestationError.serverRejected("Attestation invalid."),
-                             AttestationError.unsupportedDevice,
-                             DCError(.invalidKey)] {
+                             AttestationError.reattestationRequired,
+                             DCError(.invalidKey),
+                             DCError(.invalidInput),
+                             ScanAPIError.serverError(401, "unauthorized")] {
             XCTAssertEqual(AppError.from(error), .sessionExpired, "\(error)")
         }
     }
@@ -4756,6 +4775,7 @@ final class TokenMintFailureMappingTests: XCTestCase {
 
     func test_noneOfThemOpensThePaywall() {
         XCTAssertFalse(AppError.verificationUnavailable.isPaywall)
+        XCTAssertFalse(AppError.deviceUnsupported.isPaywall)
     }
 }
 
@@ -5432,6 +5452,7 @@ final class FallbackStoreSaveTests: XCTestCase {
             .aiFailed("no price"),
             .sessionExpired,
             .verificationUnavailable,
+            .deviceUnsupported,
             .imageEncodingFailed,
             .unusablePhoto("too dark"),
             .purchaseCancelled,
@@ -5452,7 +5473,7 @@ final class FallbackStoreSaveTests: XCTestCase {
     func test_noTwoDifferentErrorsAreEqual() {
         let distinct: [AppError] = [
             .network, .timeout, .serverUnavailable, .sessionExpired,
-            .verificationUnavailable, .subscriptionUnconfirmed,
+            .verificationUnavailable, .deviceUnsupported, .subscriptionUnconfirmed,
             .imageEncodingFailed, .purchaseCancelled, .persistence,
             .storageUnavailable,
             .rateLimit(retryAfter: nil), .rateLimit(retryAfter: 90),

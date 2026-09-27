@@ -24,13 +24,16 @@ enum AppError: LocalizedError, Equatable {
     /// the service was down when they had photographed something unpriceable,
     /// inviting them to retry the identical photo and fail identically.
     case aiFailed(String)
-    /// The device's credential expired or attestation failed. Recoverable by
-    /// retrying — the client re-attests automatically on the next request.
+    /// The server refused this device: its credential, even freshly minted,
+    /// or its attestation. See the copy for why that is not transient.
     case sessionExpired
     /// The device could not be verified *right now*: our token service or
     /// Apple's App Attest answered with an outage. Not `sessionExpired`,
     /// whose copy suggests a reinstall — which cannot fix an outage.
     case verificationUnavailable
+    /// App Attest does not run here: hardware without it, or the Simulator.
+    /// Not `sessionExpired` either — a reinstall cannot add the feature.
+    case deviceUnsupported
     case imageEncodingFailed
     case unusablePhoto(String)
     case purchaseCancelled
@@ -82,10 +85,15 @@ enum AppError: LocalizedError, Equatable {
             // automatically" — was a promise the code did not keep: retrying
             // re-sent the same cached token and failed identically for up to an
             // hour. Now that URLRequest.sendRetryingAuth re-mints and retries
-            // once on its own, reaching this message means a *freshly minted*
-            // credential was also refused. So it is not transient, and the copy
-            // should offer the remedy that actually clears a bad credential
-            // rather than suggest the retry we already performed.
+            // once on its own, reaching this message means the server refused
+            // this device: a 401 on a request whose token was just re-minted,
+            // the token service rejecting the attestation or assertion itself,
+            // or a key the Secure Enclave cannot use. So it is not transient,
+            // and the copy should offer the remedy that actually clears a bad
+            // credential — a reinstall is a new key — rather than suggest the
+            // retry we already performed. A mint that failed for any other
+            // reason has a case of its own: `verificationUnavailable` for an
+            // outage, `deviceUnsupported` for a device without App Attest.
             #if targetEnvironment(simulator)
             // App Attest does not exist in the Simulator, and production
             // refuses unattested scans, so this failure is certain here and
@@ -97,6 +105,14 @@ enum AppError: LocalizedError, Equatable {
             #endif
         case .verificationUnavailable:
             return String(localized: "We couldn't verify this device just now. Please try again in a moment.")
+        case .deviceUnsupported:
+            #if targetEnvironment(simulator)
+            // The mint fails before any network here, so this — not
+            // `sessionExpired` — is what the developer meets in the Simulator.
+            return String(localized: "Scanning needs a real iPhone — device verification (App Attest) isn't available in the Simulator.")
+            #else
+            return String(localized: "This device doesn't support secure attestation.")
+            #endif
         case .imageEncodingFailed:
             return String(localized: "Could not process the photo. Please try a different image.")
         case .unusablePhoto(let msg):
@@ -232,19 +248,32 @@ enum AppError: LocalizedError, Equatable {
         }
 
         // Minting the token failed, so nothing was uploaded. Only a real
-        // verdict on the device reads as `sessionExpired`; an outage — ours
-        // or App Attest's — reads as one. Network failures and a 429 arrive
-        // as `URLError` and `ScanAPIError` and are mapped with the rest.
+        // verdict on the device reads as `sessionExpired`, whose copy says to
+        // reinstall; an outage — ours or App Attest's — reads as one, and a
+        // device App Attest does not run on is told that. Network failures
+        // and a 429 arrive as `URLError` and `ScanAPIError` and are mapped
+        // with the rest.
         if let attestation = error as? AttestationError {
             switch attestation {
             case .challengeFailed, .unavailable:
                 return .verificationUnavailable
-            case .unsupportedDevice, .reattestationRequired, .serverRejected:
+            case .unsupportedDevice:
+                return .deviceUnsupported
+            case .reattestationRequired, .serverRejected:
                 return .sessionExpired
             }
         }
         if let deviceCheck = error as? DCError {
-            return deviceCheck.code == .serverUnavailable ? .verificationUnavailable : .sessionExpired
+            switch deviceCheck.code {
+            // The stored key names nothing this Enclave can use. A new key is
+            // the only cure, and a reinstall is what makes one.
+            case .invalidKey, .invalidInput: return .sessionExpired
+            case .featureUnsupported:        return .deviceUnsupported
+            // `.serverUnavailable`, `.unknownSystemFailure`, anything newer:
+            // `requiresFreshKey` keeps the key for these, and a reinstall,
+            // which only replaces it, would not help either.
+            default:                         return .verificationUnavailable
+            }
         }
 
         if let purchaseErr = error as? PurchaseError {
