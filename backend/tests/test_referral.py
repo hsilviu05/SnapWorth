@@ -364,17 +364,20 @@ class TestBinding:
 
 
 class TestLimiter:
-    def test_both_routes_consult_the_limiter_with_route_subject_and_proxy_hop(self, monkeypatch):
+    def test_both_routes_consult_the_limiter_with_route_subject_and_client_ip(self, monkeypatch):
+        """The IP is `ratelimit.client_ip`'s: the first entry, which Railway
+        writes, not its edge after it."""
         seen = []
 
         async def recording(route, subject, ip):
             seen.append((route, subject, ip))
         monkeypatch.setattr(referral, "limiter", recording)
-        headers = {**bearer("subj-a"), "x-forwarded-for": "1.1.1.1, 203.0.113.9"}
+        headers = {**bearer("subj-a"), "x-forwarded-for": "198.51.100.23, 95.173.10.20"}
         client.post("/referral/status", json={"device_id": "dev-a"}, headers=headers)
         client.post("/referral/claim", json={"device_id": "dev-a", "code": "ZZZZZZ"},
                     headers=headers)
-        assert seen == [("status", "subj-a", "203.0.113.9"), ("claim", "subj-a", "203.0.113.9")]
+        assert seen == [("status", "subj-a", "198.51.100.23"),
+                        ("claim", "subj-a", "198.51.100.23")]
 
     @staticmethod
     def small_limits(monkeypatch):

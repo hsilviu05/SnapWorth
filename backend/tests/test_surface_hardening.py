@@ -203,16 +203,16 @@ class TestEntitlementRouteIsLimited:
             client.post("/auth/entitlement",
                         json={"signed_transaction": "not-a-jws"},
                         headers={"x-device-id": "limiter-probe",
-                                 "x-forwarded-for": "1.1.1.1, 203.0.113.9"})
+                                 "x-forwarded-for": "198.51.100.23, 95.173.10.20"})
         finally:
             auth.deps.entitlement_limiter = previous
 
         assert len(seen) == 1, f"the limiter was not consulted: {seen}"
         subject, ip = seen[0]
         assert "limiter-probe" in subject
-        assert ip == "203.0.113.9", (
-            "the limiter must key on the proxy's own hop, not the "
-            f"caller-supplied leftmost one; got {ip}")
+        assert ip == "198.51.100.23", (
+            "the limiter must key on the caller, the first entry Railway "
+            f"writes, not on Railway's edge after it; got {ip}")
 
     def test_the_bucket_is_not_the_scan_bucket(self):
         """A 429 here makes the server read a paying subscriber as free.
