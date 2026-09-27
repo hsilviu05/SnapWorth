@@ -88,15 +88,20 @@ jobs:
       # from the file's mtime, which a checkout resets, so it differed on every
       # run; nothing then noticed it going stale, and all 20 URLs said
       # 2026-09-12 two weeks and two homepage changes later. `lastmod` now
-      # comes from git (see build_seo.py's `lastmod`), so a clean checkout
-      # regenerates it byte for byte, and a page changed without regenerating
-      # it fails here like a stale page does.
+      # comes from each page's last non-merge commit (see build_seo.py's
+      # `lastmod`), so a clean checkout regenerates it byte for byte, and a
+      # page changed without regenerating it fails here like a stale page
+      # does. Merges are skipped because a page both sides edited would
+      # otherwise take the merge's own date, which neither side stamped. Two
+      # ways to trip this with no content change: committing on a later day
+      # than the run that stamped today, and regenerating in the middle of a
+      # merge. Running the generators again, after the commit, fixes both.
       - name: The committed generated pages are freshly generated
         run: |
           python3 website/seo/build_seo.py
           python3 website/seo/build_guess.py
           if ! git diff --quiet -- website/worth website/guess.html website/sitemap.xml; then
-            echo "::error::generated files are stale — run website/seo/build_guess.py, then website/seo/build_seo.py, and commit the result"
+            echo "::error::generated files are stale — run website/seo/build_guess.py, then website/seo/build_seo.py (after committing any merge in progress), and commit the result"
             git --no-pager diff -- website/sitemap.xml
             git --no-pager diff --stat -- website/worth website/guess.html
             exit 1

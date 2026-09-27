@@ -515,10 +515,21 @@ def lastmod(path: pathlib.Path) -> str:
     commit's author date. Author, not committer, date, because a rebase or an
     amend rewrites the committer date without changing the page.
 
-    That makes the sitemap a function of the committed tree, so CI can
+    That makes the sitemap a function of the committed history, so CI can
     regenerate it and fail when it is stale, the same as the pages.
     Committing on a later day than the run that stamped "today" leaves one
     URL a day behind; CI says so, and running this again fixes it.
+
+    Merge commits are skipped. When both sides of a merge changed a page, the
+    merge is not TREESAME to either parent, so plain `git log -1` names the
+    merge itself, dated the day it was merged rather than any day the page was
+    edited. If both sides had stamped the same day, their sitemap lines agree
+    and merge cleanly, so a "Merge pull request" commit on main, or the
+    synthetic merge a pull_request run checks out, would fail CI with no content
+    change. Without merges the page keeps the date of its newest edit. Sides
+    that stamped different days conflict on that sitemap line instead:
+    resolve it, commit the merge, then run this. Run mid-merge, it sees the
+    page staged and stamps today, which the committed merge never reproduces.
 
     The previous stamp was the file's mtime, which is not in git. A checkout
     sets every mtime to the checkout time, so the committed sitemap kept
@@ -529,7 +540,7 @@ def lastmod(path: pathlib.Path) -> str:
     try:
         if _git("status", "--porcelain", "--", rel):
             return TODAY
-        return _git("log", "-1", "--format=%as", "--", rel) or TODAY
+        return _git("log", "-1", "--no-merges", "--format=%as", "--", rel) or TODAY
     except (OSError, subprocess.CalledProcessError):
         # No git at all: an mtime is still better than one date for every URL.
         return datetime.date.fromtimestamp(path.stat().st_mtime).isoformat()
