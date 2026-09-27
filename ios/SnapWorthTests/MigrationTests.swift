@@ -771,8 +771,9 @@ final class PortfolioInsightsTests: XCTestCase {
 
 final class PortfolioDigestTests: XCTestCase {
 
-    private func scan(_ daysAgo: Int, low: Double = 40, high: Double = 60) -> ScanResult {
-        ScanResult(timestamp: Date().addingTimeInterval(TimeInterval(-daysAgo) * 86_400),
+    private func scan(_ daysAgo: Int, before now: Date = Date(),
+                      low: Double = 40, high: Double = 60) -> ScanResult {
+        ScanResult(timestamp: now.addingTimeInterval(TimeInterval(-daysAgo) * 86_400),
                    itemName: "Item", brand: "B", category: "clothing",
                    conditionNotes: "Good", valueLow: low, valueHigh: high,
                    confidence: "High", soldListingsCount: 0,
@@ -907,8 +908,18 @@ final class PortfolioDigestTests: XCTestCase {
         // A rung is read on its own Sunday. Nothing can be added while the app
         // is shut, so the later ones find nothing new and must not repeat
         // "You added 2 finds this week" a fortnight later.
-        let items = [scan(1), scan(2), scan(40)]
-        let dates = NotificationManager.digestDates(after: Date())
+        //
+        // The clock is pinned. Dated from the real one, whether the two recent
+        // scans fell inside the first rung's week depended on the weekday the
+        // suite ran: from Sunday 11:00 to Tuesday 11:00 the next Sunday is more
+        // than five days out, and this failed with no code change.
+        var cal = Calendar(identifier: .gregorian)
+        cal.timeZone = TimeZone(identifier: "UTC")!
+        // A Saturday afternoon, so the first rung is the next morning.
+        let now = try XCTUnwrap(cal.date(from: DateComponents(year: 2026, month: 10, day: 3, hour: 15)))
+        let items = [scan(1, before: now), scan(2, before: now), scan(40, before: now)]
+        let dates = NotificationManager.digestDates(after: now, calendar: cal)
+        XCTAssertEqual(dates.count, NotificationManager.portfolioLadderWeeks)
         let first = try XCTUnwrap(NotificationManager.digest(for: items, now: dates[0]).body)
         XCTAssertTrue(first.hasPrefix("You added 2 finds this week"), first)
         for date in dates.dropFirst() {
