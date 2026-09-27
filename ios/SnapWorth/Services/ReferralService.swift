@@ -94,8 +94,14 @@ actor ReferralAPIClient {
     /// Shared pinned session — see `ScanAPIClient`.
     private let session: URLSession = .snapWorthAPI
 
-    /// The Keychain id: it survives a reinstall where the attestation subject
-    /// does not, so a referrer keeps their code and their earned weeks.
+    /// The Keychain id. It survives a reinstall where the attestation subject
+    /// does not — but that does not keep a referrer's code or weeks across one.
+    /// The server ties a device to the first attested subject that presented
+    /// it (`referral._bind`), so a reinstall's new subject is refused this
+    /// device (403, which `status()` reads as `.disabled`) for as long as the
+    /// binding lives: the code, and any weeks parked for it, are out of reach
+    /// after a reinstall. RUNBOOK §18 lists that as an owner decision still
+    /// open; if the takeover alternative is chosen, this changes with it.
     private var deviceID: String { DeviceIdentity.shared.id }
 
     /// The caller's invite code and earned weeks, or `.disabled`. Never throws:

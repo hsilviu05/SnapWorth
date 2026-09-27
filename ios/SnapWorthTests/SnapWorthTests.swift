@@ -3,6 +3,7 @@ import AVFoundation
 import SwiftUI
 import XCTest
 import ImageIO
+import StoreKit
 import SwiftData
 import UIKit
 @testable import SnapWorth
@@ -3308,6 +3309,21 @@ final class ReferralTests: XCTestCase {
             transactionOfferIsFree: nil, isIntroductory: true, productIntroIsFree: false))
         XCTAssertFalse(StoreKitPurchaseService.isFreePeriod(
             transactionOfferIsFree: nil, isIntroductory: false, productIntroIsFree: true))
+    }
+
+    /// `Transaction.Offer.paymentMode` is optional. Compared as
+    /// `offer?.paymentMode == .freeTrial`, a missing mode was a plain false,
+    /// so the fallback the doc comment promises never ran on iOS 17.2+.
+    func test_aMissingPaymentModeFallsBackInsteadOfMeaningPaid() throws {
+        guard #available(iOS 17.2, *) else { throw XCTSkip("Transaction.Offer is iOS 17.2+") }
+        XCTAssertNil(StoreKitPurchaseService.offerIsFree(nil))
+        XCTAssertEqual(StoreKitPurchaseService.offerIsFree(.freeTrial), true)
+        XCTAssertEqual(StoreKitPurchaseService.offerIsFree(.payAsYouGo), false)
+        XCTAssertEqual(StoreKitPurchaseService.offerIsFree(.payUpFront), false)
+        // Nil reaches the fallback: a free intro trial keeps its reminder.
+        XCTAssertTrue(StoreKitPurchaseService.isFreePeriod(
+            transactionOfferIsFree: StoreKitPurchaseService.offerIsFree(nil),
+            isIntroductory: true, productIntroIsFree: true))
     }
 }
 

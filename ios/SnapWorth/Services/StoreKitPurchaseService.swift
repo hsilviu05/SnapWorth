@@ -423,7 +423,7 @@ final class StoreKitPurchaseService: PurchaseService, ObservableObject {
                 // subscriber they are on a trial.
                 var transactionOfferIsFree: Bool?
                 if #available(iOS 17.2, *) {
-                    transactionOfferIsFree = transaction.offer?.paymentMode == .freeTrial
+                    transactionOfferIsFree = Self.offerIsFree(transaction.offer?.paymentMode)
                 }
                 let productIntroIsFree = products
                     .first { $0.id == transaction.productID }
@@ -474,9 +474,10 @@ final class StoreKitPurchaseService: PurchaseService, ObservableObject {
     /// SnapWorth trial ends tomorrow" after paying.
     ///
     /// - Parameters:
-    ///   - transactionOfferIsFree: `transaction.offer?.paymentMode == .freeTrial`,
+    ///   - transactionOfferIsFree: `offerIsFree(transaction.offer?.paymentMode)`,
     ///     which covers introductory, promotional and offer-code periods alike;
-    ///     nil before iOS 17.2, where the transaction does not carry it.
+    ///     nil before iOS 17.2, and nil when the transaction carries no payment
+    ///     mode — no offer at all, or one without it.
     ///   - isIntroductory: `transaction.offerType == .introductory`, for the
     ///     fallback.
     ///   - productIntroIsFree: whether the product's introductory offer is a
@@ -490,6 +491,21 @@ final class StoreKitPurchaseService: PurchaseService, ObservableObject {
                                          productIntroIsFree: Bool) -> Bool {
         if let transactionOfferIsFree { return transactionOfferIsFree }
         return isIntroductory && productIntroIsFree
+    }
+
+    /// Whether the transaction's own offer is a free one, or nil when it does
+    /// not say — which sends `isFreePeriod` to its fallback.
+    ///
+    /// `Transaction.Offer.paymentMode` is optional, and the first version
+    /// compared the optional chain with `== .freeTrial`, which is a plain
+    /// `false` when the mode is missing: the fallback never ran on iOS 17.2
+    /// and later, and a free intro trial whose transaction came without a
+    /// mode lost the reminder it had before. With no offer at all this is nil
+    /// too, and the fallback still answers false: a plain renewal has no
+    /// introductory offer.
+    @available(iOS 17.2, *)
+    nonisolated static func offerIsFree(_ paymentMode: Transaction.Offer.PaymentMode?) -> Bool? {
+        paymentMode.map { $0 == .freeTrial }
     }
 
     private func listenForTransactions() -> Task<Void, Never> {
