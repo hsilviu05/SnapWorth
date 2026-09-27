@@ -2487,11 +2487,15 @@ async def _tally_top(day: str, category: str, brand: str | None,
     beside each category, brand and find (at most TRENDS_DEVICES_KEPT per
     entry) so `/trends` can count devices rather than scans — see
     `TRENDS_MIN_CATEGORY_DEVICES`. It stays as long as the document, STATS_TTL.
+
+    The write that gives a day its device maps also offers that day to
+    TRENDS_TAGGED_SINCE_KEY, which keeps the first: see `_tagged_since`.
     """
     key = _stat_key(day, "top")
     doc = await _read_index_for_update(key)
     if doc is None:
         return
+    first_tagged_write = not isinstance(doc.get("cat_devices"), dict)
     cats = c if isinstance(c := doc.get("cats"), dict) else {}
     brands = b if isinstance(b := doc.get("brands"), dict) else {}
     finds = f if isinstance(f := doc.get("finds"), list) else []
@@ -2509,6 +2513,13 @@ async def _tally_top(day: str, category: str, brand: str | None,
                                       "cat_devices": cat_devices,
                                       "brand_devices": brand_devices}),
                      STATS_TTL)
+    if first_tagged_write:
+        # A day's first write, or the first since an older build wrote the
+        # day back without its maps. `add`, so only the first ever stands.
+        try:
+            await _cache.add(TRENDS_TAGGED_SINCE_KEY, day)
+        except Exception as exc:
+            log.debug("trends tagged-since note failed: %s", type(exc).__name__)
 
 
 def _trend_device(subject: str | None) -> str | None:
@@ -3450,7 +3461,9 @@ async def _week_top(now: datetime | None = None) -> dict:
 # here promises it is fit to show anyone else.
 #
 # Days tallied before devices were recorded still count, by scans alone, for
-# the fortnight they stay in the window — see `_floored`.
+# the fortnight they stay in the window. A day an older build wrote back after
+# tags began has lost its devices rather than never had them, and is withheld
+# — see `_floored`.
 
 TRENDS_MIN_COUNT = 5          # below this a row says more about one user than a trend
 # Different devices behind a row or a find across the week, whatever the scan
@@ -3472,6 +3485,10 @@ TRENDS_PRO_ROWS = 6
 TRENDS_FINDS = 5
 TRENDS_CACHE_KEY = "opsstate:trends"
 TRENDS_CACHE_TTL = 15 * 60
+# The first day `_tally_top` gave a day document its device maps. Kept with no
+# expiry: it is one date, and the code before tags never writes it, so no
+# rollback can move or remove it. See `_tagged_since`.
+TRENDS_TAGGED_SINCE_KEY = "opsstate:trends_tagged_since"
 
 
 def _trend_rows(counts: list[tuple[str, int]], previous: dict[str, int],
@@ -3491,10 +3508,11 @@ def _trend_rows(counts: list[tuple[str, int]], previous: dict[str, int],
     return rows
 
 
-def _floored(docs: list[dict], counts_field: str, devices_field: str,
-             min_devices: int, clean: Callable[[str], str | None]) -> dict[str, int]:
-    """One table of `docs` — the days of one window — summed per name, from
-    the scans the device floor lets count.
+def _floored(docs: list[tuple[str, dict]], counts_field: str, devices_field: str,
+             min_devices: int, clean: Callable[[str], str | None],
+             tagged_since: str | None) -> dict[str, int]:
+    """One table of `docs` — `(day, document)` for the days of one window —
+    summed per name, from the scans the device floor lets count.
 
     A day tallied with device tags has `devices_field`, and its scans of a name
     count only once `min_devices` different devices stand behind that name
@@ -3504,22 +3522,35 @@ def _floored(docs: list[dict], counts_field: str, devices_field: str,
     alone; its names go through `clean` first, because the code that wrote
     them did not strip links.
 
+    But a missing field means "before tags" only for a day earlier than
+    `tagged_since`, the first day tagged code wrote. The code before tags
+    writes the whole document back without the maps, and a rollback is a
+    deploy — the runbook's first move — so a day it wrote on or after that
+    day has lost its devices, not never had them. Counted by scans, one
+    device's five scans of a brand were on every install for as long as that
+    day stayed in the window after the redeploy. It is withheld instead; a
+    tagged write landing on it again is judged by the devices that write
+    recorded, which is cautious, since the earlier ones are gone.
+
     In a window holding both, then, old scans always count and new scans only
     with their devices. One device on its own, however often it scans, can
     neither lift old scans that fell short of TRENDS_MIN_COUNT over it nor add
     to a row they made by themselves: from new data, a brand needs three.
-    Old days drop out of the fortnight `trends()` reads two weeks after deploy.
-    The deploy day itself, written by both, is judged by the devices it
-    recorded, which leaves its earlier scans with none: cautious, for one day.
+    Days before `tagged_since` leave the fortnight `trends()` reads two weeks
+    after it, and from then on nothing counts by scans alone. The deploy day
+    itself, written by both, is judged by the devices it recorded, which
+    leaves its earlier scans with none: cautious, for one day.
     """
     legacy: dict[str, int] = {}
     tagged: dict[str, int] = {}
     devices: dict[str, list[str]] = {}
-    for doc in docs:
+    for day, doc in docs:
         counts = doc.get(counts_field)
         counts = counts if isinstance(counts, dict) else {}
         table = doc.get(devices_field)
         if not isinstance(table, dict):
+            if tagged_since is not None and day >= tagged_since:
+                continue
             for name, n in counts.items():
                 name = clean(name)
                 if name is not None:
@@ -3537,25 +3568,52 @@ def _floored(docs: list[dict], counts_field: str, devices_field: str,
     return counted
 
 
-async def _tallies(days: list[str]) -> tuple[dict[str, int], dict[str, int], list[dict], int]:
-    """The days' category and brand counts, finds and scan total.
-
-    The counts are only what `_floored` lets count; everything else is left
-    out here, so no caller can forget the floor. Finds come back whole, and
-    `trends()` holds each back until TRENDS_MIN_FIND_DEVICES have scanned it."""
-    docs: list[dict] = []
-    scans = 0
+async def _top_docs(days: list[str]) -> list[tuple[str, dict]]:
+    """Each day's top document beside its day; {} when absent or unreadable."""
+    docs: list[tuple[str, dict]] = []
     for day in days:
         try:
             doc = json.loads(await _cache.get(_stat_key(day, "top")) or "{}")
         except Exception:
             doc = {}
-        docs.append(doc if isinstance(doc, dict) else {})
+        docs.append((day, doc if isinstance(doc, dict) else {}))
+    return docs
+
+
+async def _tagged_since(docs: list[tuple[str, dict]]) -> str | None:
+    """The first day tagged code wrote, or None if it never has — the line
+    `_floored` draws between a day from before tags and a day an older build
+    wrote back after them.
+
+    TRENDS_TAGGED_SINCE_KEY holds it, because the days themselves cannot:
+    after a rollback longer than the window, no tagged day is left in it to
+    say when tags began. The earliest tagged day in `docs` stands in when the
+    key cannot be read or was lost, and a lost key costs no more than that."""
+    try:
+        recorded = await _cache.get(TRENDS_TAGGED_SINCE_KEY)
+    except Exception:
+        recorded = None
+    days = [day for day, doc in docs if isinstance(doc.get("cat_devices"), dict)]
+    if recorded:
+        days.append(str(recorded))
+    return min(days) if days else None
+
+
+async def _tallies(docs: list[tuple[str, dict]], tagged_since: str | None
+                   ) -> tuple[dict[str, int], dict[str, int], list[dict], int]:
+    """The days' category and brand counts, finds and scan total.
+
+    The counts are only what `_floored` lets count; everything else is left
+    out here, so no caller can forget the floor. Finds come back whole, and
+    `trends()` holds each back until TRENDS_MIN_FIND_DEVICES have scanned it."""
+    scans = 0
+    for day, _ in docs:
         scans += await _read_stat(day, "scans_free") + await _read_stat(day, "scans_pro")
-    finds = [f for doc in docs for f in doc.get("finds") or [] if isinstance(f, dict)]
+    finds = [f for _, doc in docs for f in doc.get("finds") or [] if isinstance(f, dict)]
     return (_floored(docs, "cats", "cat_devices", TRENDS_MIN_CATEGORY_DEVICES,
-                     _normalise_category),
-            _floored(docs, "brands", "brand_devices", TRENDS_MIN_BRAND_DEVICES, _clean_brand),
+                     _normalise_category, tagged_since),
+            _floored(docs, "brands", "brand_devices", TRENDS_MIN_BRAND_DEVICES,
+                     _clean_brand, tagged_since),
             finds, scans)
 
 
@@ -3587,8 +3645,10 @@ async def trends(*, is_pro: bool, now: datetime | None = None) -> dict:
     end = now - timedelta(days=1)
     this_week = [_day(end - timedelta(days=i)) for i in range(7)]
     last_week = [_day(end - timedelta(days=i)) for i in range(7, 14)]
-    cats, brands, finds, scans = await _tallies(this_week)
-    prev_cats, prev_brands, _, _ = await _tallies(last_week)
+    current, previous = await _top_docs(this_week), await _top_docs(last_week)
+    since = await _tagged_since(current + previous)
+    cats, brands, finds, scans = await _tallies(current, since)
+    prev_cats, prev_brands, _, _ = await _tallies(previous, since)
 
     limit = TRENDS_PRO_ROWS if is_pro else TRENDS_FREE_ROWS
     payload: dict = {

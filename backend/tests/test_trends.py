@@ -37,18 +37,22 @@ DEVICES = ("dev-a", "dev-b", "dev-c")
 #
 # `devices=None` writes a day as the code before device tags did — no
 # `cat_devices`, no `brand_devices`, no `d` on a find.
+def day(days_ago: int) -> str:
+    return notify._day(datetime.now(timezone.utc) - timedelta(days=days_ago))
+
+
 async def seed(cache, days_ago: int, cats: dict, brands: dict, finds=(), scans: int = 0,
                devices=DEVICES):
-    day = notify._day(datetime.now(timezone.utc) - timedelta(days=days_ago))
+    stamp = day(days_ago)
     doc: dict = {"cats": cats, "brands": brands,
                  "finds": [f if devices is None else {**f, "d": list(devices)}
                            for f in finds]}
     if devices is not None:
         doc["cat_devices"] = {c: list(devices) for c in cats}
         doc["brand_devices"] = {b: list(devices) for b in brands}
-    await cache.set(notify._stat_key(day, "top"), json.dumps(doc), 600)
+    await cache.set(notify._stat_key(stamp, "top"), json.dumps(doc), 600)
     if scans:
-        await cache.set(notify._stat_key(day, "scans_free"), str(scans), 600)
+        await cache.set(notify._stat_key(stamp, "scans_free"), str(scans), 600)
 
 
 def find(name, category, lo, hi, brand=None):
@@ -271,6 +275,79 @@ class TestDaysRecordedBeforeDevices:
         await seed(cache, 8, {"clothing": 6}, {}, devices=None)
         (row,) = (await notify.trends(is_pro=False))["categories"]
         assert row["change_pct"] == 100
+
+
+class TestDaysAnOlderBuildWroteBack:
+    """A day with no device maps is not always a day from before tags. The
+    code before them writes the whole day document back as cats, brands and
+    finds, so after a rollback — RUNBOOK: "roll back first and diagnose
+    after" — a day it last wrote has lost its maps. Counted by scans, one
+    device's five scans of a brand were on every install for as long as that
+    day stayed in the window after the redeploy."""
+
+    @pytest.mark.asyncio
+    async def test_an_untagged_day_after_a_tagged_one_is_withheld(self, cache):
+        await seed(cache, 3, {"clothing": 1}, {"Nike": 1}, devices=["dev-a"])
+        await seed(cache, 1, {"clothing": 5}, {"Slurbrand": 5}, devices=None)
+        payload = await notify.trends(is_pro=False)
+        assert payload["categories"] == [] and payload["brands"] == []
+
+    @pytest.mark.asyncio
+    async def test_the_first_tagged_day_is_remembered_past_the_window(self, cache):
+        # A rollback longer than the fortnight: no tagged day left to compare
+        # against, only the record of when tags began.
+        await cache.add(notify.TRENDS_TAGGED_SINCE_KEY, day(20))
+        await seed(cache, 2, {"clothing": 6}, {"Slurbrand": 6}, devices=None)
+        payload = await notify.trends(is_pro=False)
+        assert payload["categories"] == [] and payload["brands"] == []
+
+    @pytest.mark.asyncio
+    async def test_days_before_tags_began_still_count_by_scans(self, cache):
+        await cache.add(notify.TRENDS_TAGGED_SINCE_KEY, day(3))
+        await seed(cache, 5, {"clothing": 6}, {"Nike": 6}, devices=None)
+        await seed(cache, 2, {"clothing": 6}, {"Slurbrand": 6}, devices=None)
+        payload = await notify.trends(is_pro=False)
+        assert [(r["name"], r["count"]) for r in payload["categories"]] == [("clothing", 6)]
+        assert [(r["name"], r["count"]) for r in payload["brands"]] == [("Nike", 6)]
+
+    @pytest.mark.asyncio
+    async def test_a_name_with_no_devices_recorded_counts_for_nothing(self, cache):
+        # A tagged day whose table misses a name the counts carry.
+        doc = {"cats": {"clothing": 9}, "brands": {"Nike": 9},
+               "cat_devices": {}, "brand_devices": {}, "finds": []}
+        await cache.set(notify._stat_key(day(1), "top"), json.dumps(doc), 600)
+        payload = await notify.trends(is_pro=False)
+        assert payload["categories"] == [] and payload["brands"] == []
+
+    @pytest.mark.asyncio
+    async def test_a_rollback_write_over_scan_completed_is_withheld(self, monkeypatch):
+        """Write through `scan_completed`, then write the day back the way the
+        code before tags did. The first tagged write records its day; the
+        rollback's write removes the maps and cannot remove that."""
+        monkeypatch.delenv("TELEGRAM_BOT_TOKEN", raising=False)
+        monkeypatch.delenv("TELEGRAM_CHAT_ID", raising=False)
+        c = ResilientCache(None, InMemoryCache())
+        notify.configure(c)
+        try:
+            for _ in range(4):
+                notify.scan_completed(
+                    tier="free", item_name="Slur tee", brand="Slurbrand",
+                    category="clothing", low=10, high=20, confidence="High",
+                    subject="one-device")
+            await asyncio.gather(*list(notify._tasks), return_exceptions=True)
+            assert await c.get(notify.TRENDS_TAGGED_SINCE_KEY) == day(0)
+
+            key = notify._stat_key(day(0), "top")
+            tagged = json.loads(await c.get(key))
+            await c.set(key, json.dumps({"cats": {"clothing": 5},
+                                         "brands": {"Slurbrand": 5},
+                                         "finds": tagged["finds"]}), 600)
+
+            tomorrow = datetime.now(timezone.utc) + timedelta(days=1)
+            payload = await notify.trends(is_pro=False, now=tomorrow)
+            assert payload["categories"] == [] and payload["brands"] == []
+        finally:
+            await notify.aclose()
 
 
 class TestTierSplit:

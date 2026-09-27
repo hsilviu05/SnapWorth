@@ -2658,7 +2658,8 @@ async def trends(
     average is withheld until three distinct finds support it. A find is
     still one item, so it is sent as brand, category and range, never the
     item name (see `notify.trends`). Days tallied before devices were
-    recorded count by scans alone while they are in the window. See
+    recorded count by scans alone while they are in the window; a day an
+    older build wrote back after that, as a rollback does, is withheld. See
     `notify.TRENDS_MIN_CATEGORY_DEVICES` and `notify._floored`.
 
     The free/Pro split is decided **here**, from the verified principal, never
