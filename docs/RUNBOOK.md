@@ -1196,6 +1196,27 @@ ran dry. Now:
 
 ### Switching on
 
+- [ ] **Not while installs still run a build without the app half.** 1.5.0
+      (build 20) already carries the referral UI — #97 (`6d133a5`) is an
+      ancestor of `435cba6` "chore: 1.5.0, build 20" — and none of `0074d2a`
+      or `4f1c591`. On those installs the referrer's "You earned a week"
+      alert and earned weeks say nothing about the week renewing, a referral
+      week gets no "trial ends tomorrow" reminder, and the events keep their
+      old names. They light up the moment `REFERRALS_ENABLED` does. Find the
+      first build whose archive holds `4f1c591` by its **Organizer archive
+      date** — the `chore:` bump is only a lower bound (CLAUDE.md) — and
+      switch on once the access log's `build` field shows installs have moved
+      to it. The alternative, `/referral/status` answering `enabled: false`
+      to older builds read from the User-Agent as `/minbuild` does, is an
+      additive server change and an owner decision not yet taken. (Unlike the
+      rest, `0074d2a`'s trial-reminder rule is live in that build whether
+      referrals are on or not: from iOS 17.2 any free promotional or
+      offer-code period gets the reminder.)
+- [ ] **Count both names of each event while 1.5.0 is installed.**
+      `referral_shared` is `referral_share_opened`; `referral_redeemed` is
+      `referral_code_accepted` — the server accepting a code, before Apple's
+      sheet, not a redemption; `referral_rewarded` is
+      `referral_reward_opened`. Conversions are the digest's server counters.
 - [ ] Two offers in App Store Connect, both 7 days free on the yearly plan,
       one-time-use codes: the friend offer (eligibility: new subscribers) and
       the reward offer.
