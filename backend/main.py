@@ -258,6 +258,7 @@ async def _lifespan(_app: FastAPI):
         raise RuntimeError(
             "REQUIRE_APP_ATTEST is on but APPLE_TEAM_ID/APPLE_BUNDLE_ID are unset"
         )
+    _warn_if_audit_salt_is_public()
     log.info("auth initialised", extra={
         "enforcing": cfg.enforce,
         "app_id": cfg.app_id if cfg.is_configured else "unconfigured",
@@ -514,6 +515,22 @@ async def _close_dependencies() -> None:
 def _is_production() -> bool:
     """Same test `tokens.signer_from_env` uses, so the two cannot disagree."""
     return os.environ.get("ENVIRONMENT", "").lower() in {"production", "prod"}
+
+
+def _warn_if_audit_salt_is_public() -> None:
+    """One ERROR at startup, in production, when AUDIT_SALT is no secret.
+
+    Unlike TOKEN_KEYS this does not refuse to boot. If production runs on the
+    default today, a refusal would take the API down at the next deploy, and
+    changing the salt has costs of its own (RUNBOOK §8.5): it is a decision
+    for a quiet hour, not something a deploy should force. Checkup says the
+    same for as long as it is true. The message is a fixed string: neither it
+    nor Checkup prints the salt or anything derived from it."""
+    if _is_production() and auditlog.salt_is_placeholder():
+        log.error("AUDIT_SALT is unset or a placeholder this repository publishes, "
+                  "so audit pseudonyms and /trends device tags can be recomputed "
+                  "from a device's key id. Set a long random AUDIT_SALT on Railway; "
+                  "RUNBOOK §8.5 says what changing it costs.")
 
 
 #: `None` also disables `/docs` and `/redoc`, which FastAPI derives from it.
