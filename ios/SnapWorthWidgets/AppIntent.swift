@@ -31,6 +31,6 @@ struct OpenScanIntent: AppIntent {
 
     func perform() async throws -> some IntentResult & OpensIntent {
         WidgetBridge.request(.scan)
-        return .result(opensIntent: OpenURLIntent(URL(string: "snapworth://scan")!))
+        return .result(opensIntent: OpenURLIntent(URL(string: "snapworth://scan?src=control")!))
     }
 }

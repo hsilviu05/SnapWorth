@@ -94,9 +94,11 @@ struct MainTabView: View {
         }
         // Every schedule in NotificationManager is idempotent, so rebuilding
         // them on each foreground is the simplest way to keep the daily
-        // free-scan reminder honest: it moves to tomorrow once today's scan
-        // happens, and disappears the moment the user goes Pro. Previously
-        // schedules were only rebuilt when notifications were first granted.
+        // free-scan reminder honest: after a scan it moves past the next UTC
+        // reset, when the allowance is actually back — east of UTC that can be
+        // the same evening, west of it the day after tomorrow — and it
+        // disappears the moment the user goes Pro. Previously schedules were
+        // only rebuilt when notifications were first granted.
         .onChange(of: scenePhase) { _, phase in
             guard phase == .active else { return }
             Task {

@@ -1,5 +1,6 @@
 import XCTest
 import SwiftData
+import UserNotifications
 @testable import SnapWorth
 
 // MARK: - SwiftData 1.1.x -> 1.2.x migration
@@ -330,10 +331,36 @@ final class PortfolioValueTests: XCTestCase {
         XCTAssertNotEqual(r.portfolioValue, 0, "nil must not read as zero")
     }
 
-    func test_storedValueIsPreferredOverRecomputing() {
+    func test_aStoredValueNeverOverridesTheLiveEstimate() {
+        // It used to be preferred. The column is written only when a value is
+        // re-priced by hand, so it kept the pricing rules of the day of that
+        // edit — and those rules have moved since, leaving the headline and
+        // the Sunday digest on one figure while the card and the widget, which
+        // read `priceRange`, showed another.
         let r = make(low: 40, high: 60)
         r.portfolioValueRaw = 123
-        XCTAssertEqual(r.portfolioValue, Decimal(123))
+        XCTAssertEqual(r.portfolioValue, r.priceRange(for: r.condition).likely)
+    }
+
+    func test_aValueStoredUnderOlderRulesAgreesWithTheCardAfterTheRulesMove() {
+        // The finding's case, rebuilt: a find whose chip was touched while the
+        // baseline was read from the notes. Its grade has since come from the
+        // model's own `condition_grade`, which re-bases the scale — the card
+        // follows, and the portfolio figure has to follow with it.
+        let r = make(low: 50, high: 100, notes: "Like new, tags attached")
+        r.condition = .good
+        r.refreshPortfolioValue()
+        let stored = r.portfolioValueRaw
+
+        var detail = ValuationDetail()
+        detail.conditionGrade = "used"
+        r.valuationDetailData = detail.encoded()
+        XCTAssertNotEqual(stored.map { Decimal($0) }, r.priceRange(for: r.condition).likely,
+                          "precondition: the rules moved under the stored figure")
+        XCTAssertEqual(r.portfolioValue, r.priceRange(for: r.condition).likely)
+        XCTAssertEqual(HistoryViewModel.portfolioTotal(of: [r]),
+                       r.priceRange(for: r.condition).likely,
+                       "the headline and the card are one number")
     }
 
     func test_nonFiniteStoredValueFallsBack() {
@@ -497,6 +524,50 @@ final class PortfolioTrendTests: XCTestCase {
         XCTAssertEqual(HistoryViewModel.trend(from: pairs, maxPoints: 40).count, 10)
     }
 
+    // ── A sale leaves the line ─────────────────────────────────────────────
+
+    private func find(day: Int, soldOn: Int? = nil, soldWithoutDate: Bool = false) -> ScanResult {
+        let r = ScanResult(timestamp: pair(day, 0).date, itemName: "I", brand: "B",
+                           category: "c", conditionNotes: "Good", valueLow: 40, valueHigh: 60,
+                           confidence: "High", soldListingsCount: 0,
+                           listingTitle: "T", listingDescription: "D")
+        if let soldOn {
+            r.status = .sold
+            r.soldDate = pair(soldOn, 0).date
+        } else if soldWithoutDate {
+            r.status = .sold
+        }
+        return r
+    }
+
+    @MainActor
+    func test_theLineEndsAtTheHeadlineAfterASale() {
+        // The line summed every row ever scanned while the headline became the
+        // held value, so after a sale it ended above "Your finds are worth"
+        // and could never fall.
+        let library = [find(day: 1), find(day: 2, soldOn: 5), find(day: 3)]
+        let points = HistoryViewModel().trendPoints(from: library)
+        XCTAssertEqual(points.last?.total, HistoryViewModel.portfolioTotal(of: library))
+        XCTAssertEqual(points.map(\.date).last, pair(5, 0).date, "the sale is the latest event")
+    }
+
+    @MainActor
+    func test_theLineRoseWhenTheSoldFindCameInAndFallsWhenItLeaves() {
+        let sold = find(day: 2, soldOn: 5)
+        let points = HistoryViewModel().trendPoints(from: [find(day: 1), sold])
+        let value = sold.portfolioValue
+        XCTAssertEqual(points.map(\.total), [value, value * 2, value])
+    }
+
+    func test_aSoldFindWithNoUsableSaleDateIsLeftOut() {
+        // Entering and leaving at one instant would draw a spike that is not
+        // there; leaving it out still lands the line on the headline.
+        let undated = find(day: 2, soldWithoutDate: true)
+        let backdated = find(day: 4, soldOn: 3)
+        let pairs = HistoryViewModel.trendPairs(for: [find(day: 1), undated, backdated])
+        XCTAssertEqual(pairs.count, 1)
+    }
+
     // ── VoiceOver ──────────────────────────────────────────────────────────
 
     func test_theSparklineIsSpokenAsItsTwoEnds() {
@@ -634,6 +705,18 @@ final class PortfolioInsightsTests: XCTestCase {
                        HistoryViewModel.portfolioTotal(of: mixed))
         XCTAssertEqual(NotificationManager.digest(for: mixed).body?.contains(expected), true,
                        "the figure in the notification must be the one in the app")
+        // And the count in front of it is the same rows. It counted every one,
+        // so this said "Your 2 finds are worth" about the value of one.
+        XCTAssertEqual(NotificationManager.digest(for: mixed).itemCount, 1)
+        XCTAssertEqual(NotificationManager.digest(for: mixed).body?.contains("Your 1 find is worth"), true,
+                       "got: \(NotificationManager.digest(for: mixed).body ?? "nil")")
+    }
+
+    func test_aLibraryWhoseEveryFindIsSoldSendsNoDigest() {
+        // "Your 2 finds are worth $0.00" — true of nothing the user holds.
+        let all = [item(.sold, paid: 10, sold: 50), item(.sold, paid: 20, sold: 90)]
+        XCTAssertEqual(NotificationManager.digest(for: all).itemCount, 0)
+        XCTAssertNil(NotificationManager.digest(for: all).body)
     }
 
     func test_aLibraryOfOnlySoldItemsReportsZeroHeld() {
@@ -699,8 +782,9 @@ final class PortfolioInsightsTests: XCTestCase {
 
 final class PortfolioDigestTests: XCTestCase {
 
-    private func scan(_ daysAgo: Int, low: Double = 40, high: Double = 60) -> ScanResult {
-        ScanResult(timestamp: Date().addingTimeInterval(TimeInterval(-daysAgo) * 86_400),
+    private func scan(_ daysAgo: Int, before now: Date = Date(),
+                      low: Double = 40, high: Double = 60) -> ScanResult {
+        ScanResult(timestamp: now.addingTimeInterval(TimeInterval(-daysAgo) * 86_400),
                    itemName: "Item", brand: "B", category: "clothing",
                    conditionNotes: "Good", valueLow: low, valueHigh: high,
                    confidence: "High", soldListingsCount: 0,
@@ -787,6 +871,74 @@ final class PortfolioDigestTests: XCTestCase {
         XCTAssertEqual(comps.hour, 11)
     }
 
+    // ── The weekly digest has to recur without the app ───────────────────────
+
+    func test_theDigestIsScheduledForMoreThanOneSunday() {
+        // One dated request, re-armed only by a foreground: the person who has
+        // stopped opening the app — the one this is for — got it once.
+        XCTAssertGreaterThan(NotificationManager.portfolioLadderWeeks, 1,
+                             "one Sunday is a one-shot, which is the bug")
+    }
+
+    func test_theLadderIsConsecutiveSundaysAtEleven() throws {
+        var cal = Calendar(identifier: .gregorian)
+        cal.timeZone = TimeZone(identifier: "Europe/Bucharest")!
+        let now = try XCTUnwrap(cal.date(from: DateComponents(year: 2026, month: 9, day: 23, hour: 15)))
+        let dates = NotificationManager.digestDates(after: now, calendar: cal)
+        XCTAssertEqual(dates.count, NotificationManager.portfolioLadderWeeks)
+        XCTAssertEqual(dates.first, NotificationManager.nextDigestDate(after: now, calendar: cal))
+        for (i, date) in dates.enumerated() {
+            let comps = cal.dateComponents([.weekday, .hour, .minute], from: date)
+            XCTAssertEqual(comps.weekday, 1, "rung \(i) is not a Sunday")
+            XCTAssertEqual(comps.hour, 11, "rung \(i)")
+            XCTAssertEqual(comps.minute, 0, "rung \(i)")
+            if i > 0 {
+                XCTAssertEqual(cal.dateComponents([.day], from: dates[i - 1], to: date).day, 7)
+            }
+        }
+    }
+
+    func test_everyDigestIdentifierResolvesToThePortfolioCategoryAndIsCancellable() {
+        // `category(fromID:)` takes the first dot-separated component; the cap
+        // and the deep link both rely on it. And `cancel(.portfolio)` clears
+        // by this list, so it must hold every rung plus the id a pre-ladder
+        // build left pending.
+        let ids = NotificationManager.portfolioIDs
+        XCTAssertTrue(ids.contains("portfolio.weekly"), "the legacy id must stay cancellable")
+        for rung in 0..<NotificationManager.portfolioLadderWeeks {
+            XCTAssertTrue(ids.contains(NotificationManager.portfolioID(rung: rung)), "rung \(rung)")
+        }
+        for id in ids {
+            XCTAssertEqual(NotificationManager.Category(
+                rawValue: id.components(separatedBy: ".")[0]), .portfolio, id)
+        }
+        XCTAssertEqual(Set(ids).count, ids.count, "no duplicate identifiers")
+    }
+
+    func test_laterRungsClaimOnlyWhatIsHeld() throws {
+        // A rung is read on its own Sunday. Nothing can be added while the app
+        // is shut, so the later ones find nothing new and must not repeat
+        // "You added 2 finds this week" a fortnight later.
+        //
+        // The clock is pinned. Dated from the real one, whether the two recent
+        // scans fell inside the first rung's week depended on the weekday the
+        // suite ran: from Sunday 11:00 to Tuesday 11:00 the next Sunday is more
+        // than five days out, and this failed with no code change.
+        var cal = Calendar(identifier: .gregorian)
+        cal.timeZone = TimeZone(identifier: "UTC")!
+        // A Saturday afternoon, so the first rung is the next morning.
+        let now = try XCTUnwrap(cal.date(from: DateComponents(year: 2026, month: 10, day: 3, hour: 15)))
+        let items = [scan(1, before: now), scan(2, before: now), scan(40, before: now)]
+        let dates = NotificationManager.digestDates(after: now, calendar: cal)
+        XCTAssertEqual(dates.count, NotificationManager.portfolioLadderWeeks)
+        let first = try XCTUnwrap(NotificationManager.digest(for: items, now: dates[0]).body)
+        XCTAssertTrue(first.hasPrefix("You added 2 finds this week"), first)
+        for date in dates.dropFirst() {
+            let body = try XCTUnwrap(NotificationManager.digest(for: items, now: date).body)
+            XCTAssertTrue(body.hasPrefix("Your 3 finds are worth"), body)
+        }
+    }
+
     func test_portfolioSitsBelowTimeCriticalCategoriesInTheCap() {
         // The daily cap drops the lower priority. A weekly habit nudge must
         // never displace a trial-ending warning.
@@ -846,13 +998,15 @@ final class PortfolioDigestTests: XCTestCase {
         formatter.calendar = Calendar.current
         formatter.dateFormat = "yyyyMMdd"
 
-        for offset in 0..<NotificationManager.freeScanLadderDays {
-            // The ladder starts at the *next* reminder, which is today or
-            // tomorrow, so a rung can land as far out as ladderDays inclusive.
-            guard let day = Calendar.current.date(byAdding: .day, value: offset + 1, to: now)
+        // The ladder starts at the first reminder after the UTC reset, which
+        // can be up to two local days out (west of UTC, after an evening
+        // scan), so a rung can land as far out as ladderDays + 1 — and the
+        // set keeps a day of margin past that for a clock or zone that moved.
+        for offset in 0...(NotificationManager.freeScanLadderDays + 2) {
+            guard let day = Calendar.current.date(byAdding: .day, value: offset, to: now)
             else { continue }
             XCTAssertTrue(ids.contains("freeScan.daily.\(formatter.string(from: day))"),
-                          "day +\(offset + 1) is schedulable but not cancellable")
+                          "day +\(offset) is schedulable but not cancellable")
         }
     }
 
@@ -919,10 +1073,26 @@ final class PortfolioDigestTests: XCTestCase {
             encoding: .utf8)) ?? ""
         XCTAssertTrue(view.contains("requestAuthorizationIfNeeded"),
                       "the toggle is the moment to ask")
-        XCTAssertTrue(view.contains(".notDetermined"),
-                      "the \"notifications are off\" banner must cover the " +
-                      "status a declined priming alert leaves behind, not only " +
-                      ".denied — which is never that user's status")
+    }
+
+    // ── The banner offers the fix that exists for the status ─────────────────
+
+    func test_aNeverAskedUserIsOfferedTheSystemAlertNotSettings() {
+        // "Not now" on the priming alert leaves `.notDetermined` for good, and
+        // iOS lists no Notifications switch for an app that has never asked.
+        // The banner sent exactly this user to Settings, to nothing.
+        XCTAssertEqual(NotificationSettingsView.PermissionBanner(status: .notDetermined), .ask)
+    }
+
+    func test_onlyADeclinedSystemAlertSendsTheUserToSettings() {
+        XCTAssertEqual(NotificationSettingsView.PermissionBanner(status: .denied), .openSettings)
+    }
+
+    func test_deliverableStatusesShowNoBanner() {
+        for status: UNAuthorizationStatus in [.authorized, .provisional, .ephemeral] {
+            XCTAssertEqual(NotificationSettingsView.PermissionBanner(status: status), .none,
+                           "status \(status.rawValue)")
+        }
     }
 }
 

@@ -143,11 +143,9 @@ final class ScanViewModel {
                 }
             }
 
-            // Ask for a rating on a high point — after the result is on screen.
-            Task {
-                try? await Task.sleep(for: .seconds(1.2))
-                ReviewPrompt.recordSuccessfulScan()
-            }
+            // Counted here; the rating request itself waits for the price to
+            // be revealed on the result sheet — see `ReviewPrompt`.
+            ReviewPrompt.recordSuccessfulScan()
 
             // Only scans schedule the monthly recap — never app launch — so a
             // quiet month fires nothing. Fires once this month reaches 3 scans.
@@ -275,7 +273,15 @@ enum ScanStreak {
                        calendar: Calendar = .current) -> Int {
         let count = defaults.integer(forKey: countKey)
         if let last = defaults.object(forKey: lastKey) as? Date {
-            if calendar.isDate(last, inSameDayAs: now) { return max(count, 1) }
+            if calendar.isDate(last, inSameDayAs: now) {
+                // The same streak day, but the latest instant. The free-scan
+                // reminder reads this as *when* the last scan was, to find the
+                // UTC reset after it, and the first scan of a local day can sit
+                // in an earlier UTC day than the last one. Every streak test is
+                // by local day, so moving it within the day changes none.
+                defaults.set(now, forKey: lastKey)
+                return max(count, 1)
+            }
             if isYesterday(last, relativeTo: now, calendar: calendar) {
                 defaults.set(count + 1, forKey: countKey)
                 defaults.set(now, forKey: lastKey)
@@ -298,21 +304,14 @@ enum ScanStreak {
         return 0
     }
 
-    /// The day the streak was last extended, for the widget blob.
+    /// When the last scan happened, for the widget blob and the free-scan
+    /// reminder.
     ///
     /// The widget cannot call `current()` — this store is in
     /// `UserDefaults.standard`, not the App Group — so it needs the date to
     /// apply the same today-or-yesterday test itself.
     static var lastScan: Date? {
         UserDefaults.standard.object(forKey: lastKey) as? Date
-    }
-
-    /// Whether a scan has been recorded today — any tier, so the reminder
-    /// logic does not depend on the free counter.
-    static func scannedToday(now: Date = Date(), defaults: UserDefaults = .standard,
-                             calendar: Calendar = .current) -> Bool {
-        guard let last = defaults.object(forKey: lastKey) as? Date else { return false }
-        return calendar.isDate(last, inSameDayAs: now)
     }
 
     /// Coarse buckets for analytics — never the exact count.
@@ -333,14 +332,14 @@ enum ScanStreak {
 
 extension ScanViewModel {
     /// Shared by the camera scan and Thrift Flip: advance the streak, report
-    /// its bucket, and move the free-scan reminder to tomorrow — today's
-    /// allowance is spent, so today's nudge would be a lie.
+    /// its bucket, and move the free-scan reminder past the next UTC reset —
+    /// the allowance is spent until then, so an earlier nudge would be a lie.
     static func noteScanForStreakAndReminder(isPro: Bool) {
         let streak = ScanStreak.record()
         Analytics.shared.track(.scanStreak(bucket: ScanStreak.bucket(streak)))
         Task {
             await NotificationManager.shared.syncFreeScanReminder(
-                isPro: isPro, scannedToday: true, streak: streak)
+                isPro: isPro, lastScan: ScanStreak.lastScan, streak: streak)
         }
     }
 }
