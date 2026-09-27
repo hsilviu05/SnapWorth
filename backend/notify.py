@@ -5251,6 +5251,22 @@ async def _budget_line() -> str:
     return f"Spend alert: above {_usd(budget)}/day · today ≈ {_usd(today)}"
 
 
+def _audit_salt_line() -> str:
+    """Whether AUDIT_SALT is a secret, and never what it is.
+
+    It keys the audit pseudonyms — the `/users` and `/subs` ids, the support id
+    in the app's support mail — and, since #190, the device tags /trends keeps
+    beside what was scanned. Both are unlinkable only while the salt is secret, and unset
+    it falls back to a literal in this public repository. Nothing said so: the
+    process booted on the default as quietly as on a real value. `main` logs
+    an ERROR at startup in production too, and like it this reports the
+    verdict alone, since a hash, prefix or length of a secret narrows it."""
+    if auditlog.salt_is_placeholder():
+        return ("Audit salt: ⚠️ placeholder — pseudonyms and trends tags can be "
+                "recomputed (RUNBOOK §8)")
+    return "Audit salt: set ✅"
+
+
 async def _checkup_text() -> str:
     lines = ["🩺 <b>Checkup</b>"]
 
@@ -5308,6 +5324,7 @@ async def _checkup_text() -> str:
             lines.append(await _device_check_line(bool(info["devicecheck"])))
         lines.append(f"Auth: {'enforcing' if info.get('auth_enforcing') else 'NOT enforcing'} · "
                      f"build <code>{html.escape(str(info.get('commit', '?')))}</code>")
+    lines.append(_audit_salt_line())
 
     # TLS on the public host.
     host = _public_host()
