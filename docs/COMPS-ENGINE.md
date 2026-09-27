@@ -194,16 +194,18 @@ typeahead, and BM25 ranking.
 
 It deliberately does **not** index user scans.
 
-`/privacy` states, and the App Store privacy disclosure repeats:
+`/privacy` states, under Data Retention:
 
-> Photos and scan results are processed in real time and are not retained on our
-> servers. Scan history is stored locally on your device.
+> Photos are not stored after the response is returned. Your scan history is
+> stored on your device and can be deleted at any time from the app's Settings.
 
-A server-side searchable index of previous scans would require retaining them
-server-side, contradicting that commitment. It would also convert an anonymous,
-device-keyed service into one holding per-user history — a materially different
-GDPR posture needing a new lawful basis, retention schedule and DSAR handling,
-none of which exists.
+What the server does keep of a scan is described in the same section: daily
+tallies and each day's highest-value scans, for 35 days, without the device
+identifier. A server-side searchable index of previous scans would need that
+identifier — it is a per-device scan history — so it contradicts the section. It
+would also convert an anonymous, device-keyed service into one holding per-user
+history — a materially different GDPR posture needing a new lawful basis,
+retention schedule and DSAR handling, none of which exists.
 
 **Scan search therefore belongs on-device**, and that is the better product
 answer anyway: the data is already local, so search is instant, works offline in
