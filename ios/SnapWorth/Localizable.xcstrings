@@ -17003,6 +17003,42 @@
         }
       }
     },
+    "SnapWorth couldn't verify its secure connection to the server. If you're on public or work Wi-Fi, try mobile data instead." : {
+      "comment" : "The phone refused the server's certificate (a failed chain or a pinned key that did not match). Deliberately not 'check your connection and try again': on an intercepting network the advice is to leave it.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SnapWorth konnte die sichere Verbindung zum Server nicht überprüfen. Wenn du in einem öffentlichen WLAN oder im Firmen-WLAN bist, versuch es stattdessen mit mobilen Daten."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SnapWorth couldn't verify its secure connection to the server. If you're on public or work Wi-Fi, try mobile data instead."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SnapWorth no pudo verificar su conexión segura con el servidor. Si estás en una red wifi pública o del trabajo, prueba con datos móviles."
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SnapWorth n-a putut verifica conexiunea securizată cu serverul. Dacă ești pe o rețea Wi-Fi publică sau de la birou, încearcă datele mobile."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SnapWorth 无法验证与服务器的安全连接。如果你连的是公共或公司 Wi-Fi，请改用移动数据。"
+          }
+        }
+      }
+    },
     "SnapWorth haul, %@ scanned, worth %@." : {
       "extractionState" : "manual",
       "localizations" : {

@@ -1715,6 +1715,9 @@ extension HaulSession {
     nonisolated static func signature(for error: AppError) -> HaulFailureSignature? {
         switch error {
         case .timeout:                return HaulFailureSignature(kind: "timeout", message: "")
+        // A refused connection refuses the next photo too; it tripped the
+        // breaker as `.unknown` before it had a case of its own, and should.
+        case .connectionNotTrusted:   return HaulFailureSignature(kind: "connectionNotTrusted", message: "")
         case .unusablePhoto(let msg): return HaulFailureSignature(kind: "unusablePhoto", message: msg)
         case .aiFailed(let msg):      return HaulFailureSignature(kind: "aiFailed", message: msg)
         case .unknown(let msg):       return HaulFailureSignature(kind: "unknown", message: msg)

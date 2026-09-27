@@ -281,6 +281,67 @@ final class APIErrorDetailTests: XCTestCase {
         // advice whose retry is the thing that would succeed.
         XCTAssertNotEqual(AppError.from(URLError(.secureConnectionFailed)), .network)
     }
+
+    func test_aRefusedCertificateHasCopyOfItsOwn() {
+        // They used to reach `.unknown` and "Something went wrong. Please try
+        // again." — the one piece of advice that is wrong for them.
+        for code in [URLError.Code.secureConnectionFailed,
+                     .serverCertificateUntrusted,
+                     .serverCertificateHasBadDate,
+                     .serverCertificateNotYetValid,
+                     .serverCertificateHasUnknownRoot] {
+            XCTAssertEqual(AppError.from(URLError(code)), .connectionNotTrusted,
+                           "\(code) is a certificate the phone refused")
+        }
+        let copy = AppError.connectionNotTrusted.errorDescription ?? ""
+        XCTAssertFalse(copy.localizedCaseInsensitiveContains("try again"),
+                       "retrying on an intercepting network is the wrong advice")
+    }
+}
+
+// MARK: - A refused pin arrives as a cancellation
+//
+// `CertificatePinningDelegate` refuses with `cancelAuthenticationChallenge`,
+// and URLSession ends that task with `URLError.cancelled` — not
+// `.secureConnectionFailed`, the code `AppError.from` had kept a carve-out
+// for. So with `pinningEnforced` on, a pin failure would have read "Something
+// went wrong. Please try again." `.cancelled` is also what a cancelled task
+// throws, which is why only a cancellation right after a recorded refusal
+// counts as one.
+
+final class TLSRefusalMappingTests: XCTestCase {
+
+    override func tearDown() {
+        // Process-wide state: leave nothing recent for the next test to find.
+        TLSRefusal.record(at: .distantPast)
+        super.tearDown()
+    }
+
+    func test_aCancellationRightAfterARefusalIsReportedAsTheRefusal() {
+        TLSRefusal.record()
+        XCTAssertEqual(AppError.from(URLError(.cancelled)), .connectionNotTrusted)
+    }
+
+    func test_aCancellationWithNoRefusalIsNotBlamedOnTheCertificate() {
+        TLSRefusal.record(at: .distantPast)
+        XCTAssertNotEqual(AppError.from(URLError(.cancelled)), .connectionNotTrusted)
+    }
+
+    func test_aRefusalOlderThanTheWindowNoLongerCounts() {
+        let now = Date()
+        TLSRefusal.record(at: now.addingTimeInterval(-TLSRefusal.window - 1))
+        XCTAssertFalse(TLSRefusal.isRecent(now: now))
+        XCTAssertNotEqual(AppError.from(URLError(.cancelled)), .connectionNotTrusted)
+
+        TLSRefusal.record(at: now.addingTimeInterval(-1))
+        XCTAssertTrue(TLSRefusal.isRecent(now: now))
+    }
+
+    func test_aRefusalDoesNotRelabelOtherTransportErrors() {
+        TLSRefusal.record()
+        XCTAssertEqual(AppError.from(URLError(.notConnectedToInternet)), .network)
+        XCTAssertEqual(AppError.from(URLError(.timedOut)), .timeout)
+    }
 }
 
 // MARK: - 402 routing
@@ -328,6 +389,7 @@ final class PaymentRequiredMappingTests: XCTestCase {
         // A paywall shown for a network blip would be worse than the dead end
         // it replaces: it asks for money over a problem money cannot fix.
         for error: AppError in [.network, .timeout, .rateLimit(retryAfter: nil), .serverUnavailable,
+                                .connectionNotTrusted,
                                 .sessionExpired, .imageEncodingFailed, .persistence,
                                 .aiFailed("couldn't price it"), .unusablePhoto("too blurry"),
                                 .unknown("?")] {
@@ -4622,8 +4684,9 @@ final class CertificatePinningSPKITests: XCTestCase {
     }
 
     func test_theRsaShapesTheChainActuallyServesStillWork() {
-        // ISRG Root X1 is RSA-4096 and the YR2 intermediate RSA-2048. A change
-        // to this table must not take out the pins that do fire today.
+        // ISRG Root X1 and Root YR are RSA-4096, and the YR intermediates
+        // RSA-2048. A change to this table must not take out the pins that do
+        // fire today.
         XCTAssertEqual(
             CertificatePinningDelegate.spkiHeader(keyType: rsa, sizeInBits: 2048)?.count, 24)
         XCTAssertEqual(
@@ -4667,6 +4730,172 @@ final class CertificatePinningSPKITests: XCTestCase {
         let spki = Data(header) + raw
         XCTAssertEqual(spki.count, 120, "openssl emits 120 bytes for a P-384 SPKI")
         XCTAssertEqual(Array(spki.prefix(4)), [0x30, 0x76, 0x30, 0x10])
+    }
+}
+
+// ── The pin set is the four ISRG root keys, and nothing else ─────────────────
+//
+// The set was `YR2 + Root YR + X1 + X2`, documented as "the served chain is
+// leaf → YR2 → Root YR → X1". The host was being served YR1, so the RSA side
+// only ever matched on a root; and the ECDSA chain's own root, Root YE, was
+// not in the set at all — a phone that trusts Root YE directly evaluates
+// `leaf → YE1-3 → Root YE` with no X2 in it. Report-only mode could not see
+// either: the RSA chain matched, and no ECDSA chain was served.
+//
+// These put Let's Encrypt's own published certificates through the delegate's
+// own hashing path, so they check two things at once: that `spkiHash` agrees
+// with openssl on real RSA-4096, RSA-2048 and P-384 keys, and that the pin set
+// is exactly the keys every Let's Encrypt chain is anchored in.
+
+final class CertificatePinSetTests: XCTestCase {
+
+    /// DER, base64, from https://letsencrypt.org/certificates/ — isrgrootx1.pem,
+    /// isrg-root-x2.pem, gen-y/root-yr.pem, gen-y/root-ye.pem and
+    /// gen-y/int-yr1.pem, all self-signed except YR1. SHA-256 fingerprints, to
+    /// check a copy against that page: X1 96:BC:EC:06…08:C6, X2 69:72:9B:8E…14:70,
+    /// Root YR E5:7B:7E:6F…A8:6F, Root YE E1:4F:FC:AD…56:66, YR1 13:94:96:34…8D:3F.
+    private enum Published {
+        static let isrgRootX1 = """
+            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
+            m+kXQ99b21/+jh5Xos1AnX5iItreGCc=
+            """
+        static let isrgRootX2 = """
+            MIICGzCCAaGgAwIBAgIQQdKd0XLq7qeAwSxs6S+HUjAKBggqhkjOPQQDAzBPMQswCQYDVQQGEwJV
+            UzEpMCcGA1UEChMgSW50ZXJuZXQgU2VjdXJpdHkgUmVzZWFyY2ggR3JvdXAxFTATBgNVBAMTDElT
+            UkcgUm9vdCBYMjAeFw0yMDA5MDQwMDAwMDBaFw00MDA5MTcxNjAwMDBaME8xCzAJBgNVBAYTAlVT
+            MSkwJwYDVQQKEyBJbnRlcm5ldCBTZWN1cml0eSBSZXNlYXJjaCBHcm91cDEVMBMGA1UEAxMMSVNS
+            RyBSb290IFgyMHYwEAYHKoZIzj0CAQYFK4EEACIDYgAEzZvVn4CDCuwJSvMWSj5cz3es3mcFDR0H
+            ttwW+1qLFNvicWDEukWVEYmO6gbf9yoWHKS5xcUy4APgHoIYOIvXRdgKam7mAHf7AlF9ItgKbppb
+            d9/w+kHsOdx1ymgHDB/qo0IwQDAOBgNVHQ8BAf8EBAMCAQYwDwYDVR0TAQH/BAUwAwEB/zAdBgNV
+            HQ4EFgQUfEKWrt5LSDv6kviejM9ti6lyN5UwCgYIKoZIzj0EAwMDaAAwZQIwe3lORlCEwkSHRhtF
+            cP9Ymd70/aTSVaYgLXTWNLxBo1BfASdWtL4ndQavEi51mI38AjEAi/V3bNTIZargCyzuFJ0nN6T5
+            U6VR5CmD1/iQMVtCnwr1/q4AaOeMSQ+2b1tbFfLn
+            """
+        static let rootYR = """
+            MIIFKTCCAxGgAwIBAgIRAOxGNJNgz0sP+KmC2Tqpyj0wDQYJKoZIhvcNAQELBQAwLjELMAkGA1UE
+            BhMCVVMxDTALBgNVBAoTBElTUkcxEDAOBgNVBAMTB1Jvb3QgWVIwHhcNMjUwOTAzMDAwMDAwWhcN
+            NDUwOTAyMjM1OTU5WjAuMQswCQYDVQQGEwJVUzENMAsGA1UEChMESVNSRzEQMA4GA1UEAxMHUm9v
+            dCBZUjCCAiIwDQYJKoZIhvcNAQEBBQADggIPADCCAgoCggIBANvGJnN78CTJdWL3+eGfsLN5TrNB
+            Js+VH9hRXqRbwxu9sGNiB0BD1fcOxbSUQCJIM1xE13Db+5Cw1w0s0EBYsvuIP/6joF0w8cuImbgR
+            1OGgYbSQ4OpzI+DG8SGuTlcE873OCS+kh3srlo6vl43M5OJg4Aeo1sfHp6kTJDoIiFBNJAY+OKfX
+            /FUvYKuhjT+no49lmqmupSBI5PkBQiqrEGtWU5uxU/cQWHGu8jSjFBznZqvbNPLMXMLFxCb3WTfr
+            JBXXjqvWG+v4bjzxjjeAtOlU7qarRDvNOyAuQYLln904M+faKx8hnLCpJ15ZqaEgcNlY+9MMWcC5
+            yvL2A2j3l9+2buggZX+dOE91zYmIdawTvSZuVvlbRrAlLxIB6pwMBjneXCjYQ8+3BCCjssbSNpZU
+            3hTcBDdhfAlEDlYr6pEatnMdmDT5BqnKC92bd0EhM1fbLHioLccLCuievT8ZkPhZrq7Mii7gNXAc
+            UEAR8+lzYal+9zTg7C5DALyVOeG/CqfRAMn1KSHCR0NSA6P8tn/mGRlnCct5rtVCLnVySVpU6H1q
+            Gg3DgTOuskf8eahTMiYbI5ezPJmO5ertalskQ1utp74+eDy92PI4ftHKTbq9IWhH4YZKh3WnJEIt
+            +oQvlYZbY8tpEroKrFB6PFGzrJIDRyts4HqvuH52RFj2zv/BAgMBAAGjQjBAMA4GA1UdDwEB/wQE
+            AwIBBjAPBgNVHRMBAf8EBTADAQH/MB0GA1UdDgQWBBTe51tg0CJtQCh9Pw0B/qS1UrRRlDANBgkq
+            hkiG9w0BAQsFAAOCAgEAWHnf713Bdkq7t5yN2dNIgQakUb94X9WuyhMEHHkgx4oDpSUlnG0w4g94
+            MoqaEUE31ZjRLU7L5LD1g9ujFHTQu8AD215AHMVQFbm6j8hQxdXHAzDajFNQnOlDJrLjzIx176oy
+            AjvUtejZx2NNmdb5fd0WGVGsCdoAJ3N8ozo7ajE8t6vfxStZb4BQ9WYJGHUDrv2Ni5tJF6CNiPnl
+            zs3BUfECRbE4JSk+jvy8+VoGiFE8qsH/j78x2fjgQhAQFV7P7ZxydBTZ1wEkNpZNW2qnaK1SKBLa
+            +xf6E06YRIq5uaI+HWH8SY1y5VbRgzq40EKg3yxP06fz+uYAUIFJoLNfhwRCc3Q6pQVuMX3yAjHA
+            es4gk4moGcLQ5p7HAh39yeylZc1J41sx/jKwLIkPE6Rr1Nf4pxdsxf9SA4yOEiAkDgq04DVxn8hg
+            YFdUtBCuiuVC2heAEiqVEa+8QZjuw8Gj0EbHXcRd1nInvGqRS1o9Is7YBdQN57X1AYveGBNNqjIC
+            Sb7cawuw1EawTDrs13VUlJVEsbQ0/O/1aaV73mCdOQ8azqL2KTv1Ewu1xbquE2S+kdQUTo9TUwat
+            3wUA6cwXh1EfpS/3fJ0aGah5hdpRyoCLDlsSn8tkrjMfFFX0viC+GxHcsI1ANRYvqSFC2X1VRZfD
+            g+wD6E21BccmifG4yWc=
+            """
+        static let rootYE = """
+            MIIB2TCCAWCgAwIBAgIRAKQCa6LvbHwg1AR+XmWmk4AwCgYIKoZIzj0EAwMwLjELMAkGA1UEBhMC
+            VVMxDTALBgNVBAoTBElTUkcxEDAOBgNVBAMTB1Jvb3QgWUUwHhcNMjUwOTAzMDAwMDAwWhcNNDUw
+            OTAyMjM1OTU5WjAuMQswCQYDVQQGEwJVUzENMAsGA1UEChMESVNSRzEQMA4GA1UEAxMHUm9vdCBZ
+            RTB2MBAGByqGSM49AgEGBSuBBAAiA2IABDwS/6vhrcVqcbBo+wgdI3fwn9x7DNJJOY/lTOti0vkw
+            uRN87RhEhTH17E7XyFjWsPYhIPt/wzOqxTd2b+4ZJNy9ID04YywF9U5zasDVyGSNErVNtz8uSGh5
+            izW87j77GaNCMEAwDgYDVR0PAQH/BAQDAgEGMA8GA1UdEwEB/wQFMAMBAf8wHQYDVR0OBBYEFKPI
+            JlqOoUzQNWP8myPIOq5W809WMAoGCCqGSM49BAMDA2cAMGQCMHhMr8N9LdL1VQKs9BdV81r76eXR
+            B6mtjuNjzk6/lBsPNToWLTDzGYgtQKO1jl63uAIwGV7monyF377c+MM1oqVNs17sgu7F9YKZwgLm
+            VbeOMDbKAXHtKMDLbiGllCcs8f47
+            """
+        static let intermediateYR1 = """
+            MIIE2zCCAsOgAwIBAgIRAKICU/FfJpHAXcHOE7m8yk4wDQYJKoZIhvcNAQELBQAwLjELMAkGA1UE
+            BhMCVVMxDTALBgNVBAoTBElTUkcxEDAOBgNVBAMTB1Jvb3QgWVIwHhcNMjUwOTAzMDAwMDAwWhcN
+            MjgwOTAyMjM1OTU5WjAzMQswCQYDVQQGEwJVUzEWMBQGA1UEChMNTGV0J3MgRW5jcnlwdDEMMAoG
+            A1UEAxMDWVIxMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAoVi8X2xCYgMXvJxNPKp/
+            oF13UMgmPABB07VCLNDtoXmt9luEZNJSBV10VyT1Pz6LD8Zq1d2gc43WNl1AdRrj4sEnazbOiz0n
+            PpmGBp2hui49oZtDIY6wdKeZAi5BbNU20CH6RSBBMLSQ9cXrH8dxdv4PAJ45ssGML68USE3BsjC2
+            a6cAN9L5CgXVIQi5tfNiTPoFZZ3S0OlXqLmmtdV95udWAb5b6e/F49DiCsH0Y00Ag72BVIb1hzyn
+            mKe+X0mERBTtsb3BwmpV9ipeBjMLoR/D9cHxHQCWoi5lTmXwY015J5rGelz1nZjJuxc2kioaX29X
+            JBnhMkP531rSdG5uMwIDAQABo4HuMIHrMA4GA1UdDwEB/wQEAwIBhjATBgNVHSUEDDAKBggrBgEF
+            BQcDATASBgNVHRMBAf8ECDAGAQH/AgEAMB0GA1UdDgQWBBQfLzW+RhSCzUCxrnksVXj699Ro+zAf
+            BgNVHSMEGDAWgBTe51tg0CJtQCh9Pw0B/qS1UrRRlDAyBggrBgEFBQcBAQQmMCQwIgYIKwYBBQUH
+            MAKGFmh0dHA6Ly95ci5pLmxlbmNyLm9yZy8wEwYDVR0gBAwwCjAIBgZngQwBAgEwJwYDVR0fBCAw
+            HjAcoBqgGIYWaHR0cDovL3lyLmMubGVuY3Iub3JnLzANBgkqhkiG9w0BAQsFAAOCAgEA0+zvMq3k
+            Hig1ddTmmm+RibTr9/RpX7k4buanMMRqbV/yIvP82zAHN3mvaw+cASuVsdpd0ikjhr4hnhJQLQOz
+            Op2ccKrsdGOAgo0vddeISFAqEWEV4lmUM3vFF796up+bSgmJ1u6RupDCMxDgF8M3eLvGuj6L0lu3
+            zkQ0KuQLnKxLtB0oQqn1Idg5CuuGpMvQzk29Pa3D/qHurc0EIM9SxukQuJqq63lxsYyRQFU8yMBO
+            hq1w5LbfaWNRrz1uklOfI/pYkAb2E2MTZrAMQkBIE2S8Jt1F8gRc96o/xOsrgvSka84AisX6xq1l
+            z1Z7jGvrnXc4TMcjxZTjiTaihcYI1JIXZiLtEMSCa5l3cu8YWd6zdLRQlqRdclVjuQfNHawRJ6GW
+            lkK0QJosivTKwdBw3KxEtzGo8yMHERbsy57gP1UXHOMcmZYQC0gtyR3SxfenIM/MxC3Ia2Ypab/k
+            Q/CTnlIn2KQ5JUC6NYrGCbhFN9bp5lKJStEwCUnLpntcrXk5XVDCNv/5RyWpRThkGOV7GetKkQ0q
+            AY8hCzWK6oqnAhDZcjlYVdWfqOw3DIOX6EDNBgAqHarRVxyF9QZdOaXSyPJ0ueD2BYJEBgaCGQ8r
+            AaU/Qc123V5LTXDZW4CcsPBDyhy4v+c8hClAyw/IkJlfBqxB9D+/wvIMHgECZ4ptP6o=
+            """
+    }
+
+    private func hash(_ base64: String, file: StaticString = #filePath,
+                      line: UInt = #line) throws -> String {
+        let der = try XCTUnwrap(Data(base64Encoded: base64, options: .ignoreUnknownCharacters),
+                                "fixture is not base64", file: file, line: line)
+        let certificate = try XCTUnwrap(SecCertificateCreateWithData(nil, der as CFData),
+                                        "fixture is not a certificate", file: file, line: line)
+        return try XCTUnwrap(CertificatePinningDelegate.spkiHash(of: certificate),
+                             "the delegate could not hash this key shape", file: file, line: line)
+    }
+
+    /// The values `openssl x509 -pubkey | openssl pkey -pubin -outform der |
+    /// openssl dgst -sha256 -binary | base64` prints for the same files. If the
+    /// Swift path ever disagrees with openssl, every pin is wrong at once.
+    func test_theDelegateHashesRealCertificatesExactlyAsOpensslDoes() throws {
+        XCTAssertEqual(try hash(Published.isrgRootX1), "C5+lpZ7tcVwmwQIMcRtPbsQtWLABXhQzejna0wHFr8M=")
+        XCTAssertEqual(try hash(Published.isrgRootX2), "diGVwiVYbubAI3RW4hB9xU8e/CH2GnkuvVFZE8zmgzI=")
+        XCTAssertEqual(try hash(Published.rootYR), "fk6IOKit1ild5647BH06ujSIq5XbCgqlbYl6ANhhi88=")
+        XCTAssertEqual(try hash(Published.rootYE), "sCkq5UWXjg+7mKu9lMhhYF5bGLsy7VI/UNW3tccdR7w=")
+        XCTAssertEqual(try hash(Published.intermediateYR1), "LoMHBotttiDko50Gi13uXW71eIy7LAttI+rYT8wXF4w=")
+    }
+
+    func test_thePinSetIsExactlyTheFourRootKeys() throws {
+        let roots: Set<String> = [
+            try hash(Published.isrgRootX1), try hash(Published.isrgRootX2),
+            try hash(Published.rootYR), try hash(Published.rootYE),
+        ]
+        XCTAssertEqual(Config.pinnedSPKIHashes, roots)
+    }
+
+    func test_theEcdsaChainIsCoveredWithoutX2() throws {
+        // The case the missing pin was: a phone that already trusts Root YE
+        // stops there, so the evaluated chain is YE1-3 and Root YE only.
+        XCTAssertTrue(Config.pinnedSPKIHashes.contains(try hash(Published.rootYE)))
+    }
+
+    func test_theServedIntermediateIsCoveredByItsRootRatherThanPinned() throws {
+        // YR1 is what the host serves today, and one of three Let's Encrypt
+        // picks between. Pinning it would record a day, not the chain.
+        XCTAssertFalse(Config.pinnedSPKIHashes.contains(try hash(Published.intermediateYR1)))
     }
 }
 
@@ -6194,6 +6423,7 @@ final class FallbackStoreSaveTests: XCTestCase {
         let every: [AppError] = [
             .network,
             .timeout,
+            .connectionNotTrusted,
             .rateLimit(retryAfter: nil),
             .rateLimit(retryAfter: 90),
             .quotaExceeded("spent"),
@@ -6223,7 +6453,7 @@ final class FallbackStoreSaveTests: XCTestCase {
     /// the reason changes, including between two messages of the same case.
     func test_noTwoDifferentErrorsAreEqual() {
         let distinct: [AppError] = [
-            .network, .timeout, .serverUnavailable, .sessionExpired,
+            .network, .timeout, .connectionNotTrusted, .serverUnavailable, .sessionExpired,
             .verificationUnavailable, .deviceUnsupported, .subscriptionUnconfirmed,
             .imageEncodingFailed, .purchaseCancelled, .persistence,
             .storageUnavailable,

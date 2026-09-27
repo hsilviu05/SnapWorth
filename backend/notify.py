@@ -4589,6 +4589,70 @@ async def _user_text(argument: str) -> str:
 
 # ── Checkup: every dependency on one screen ──────────────────────────────────
 
+# The SPKI pins the iOS app holds (`Config.pinnedSPKIHashes`), so /checkup can
+# say whether the chain this host serves would pass them. A copy, because the
+# app is Swift: `test_notify.py` reads Config.swift and fails when the two
+# differ, and backend.yml runs it on a pull request that changes that file.
+#
+# The app only *reports* a mismatch today (`pinningEnforced` is false), and
+# its telemetry can only see chains that are actually served — which is how
+# the set came to name an intermediate the host had stopped using and to miss
+# the ECDSA chain's root entirely. Hashing the live chain here is the check
+# that does not wait for a phone.
+PINNED_SPKI_HASHES: dict[str, str] = {
+    "fk6IOKit1ild5647BH06ujSIq5XbCgqlbYl6ANhhi88=": "ISRG Root YR",
+    "sCkq5UWXjg+7mKu9lMhhYF5bGLsy7VI/UNW3tccdR7w=": "ISRG Root YE",
+    "C5+lpZ7tcVwmwQIMcRtPbsQtWLABXhQzejna0wHFr8M=": "ISRG Root X1",
+    "diGVwiVYbubAI3RW4hB9xU8e/CH2GnkuvVFZE8zmgzI=": "ISRG Root X2",
+}
+
+
+def _tls_chain_keys(host: str, timeout: float = 5.0) -> list[tuple[str, str]]:
+    """(common name, SPKI pin) for each certificate in the host's chain.
+
+    The *verified* chain: what the host serves plus the trust anchor it
+    resolves to here, since a phone matches pins against its evaluated chain
+    and that always includes the anchor."""
+    import socket
+    import ssl
+    ctx = ssl.create_default_context()
+    with socket.create_connection((host, 443), timeout=timeout) as sock:
+        with ctx.wrap_socket(sock, server_hostname=host) as tls:
+            chain = tls.get_verified_chain()
+    return [_spki_pin(der) for der in chain]
+
+
+def _spki_pin(der: bytes) -> tuple[str, str]:
+    """A DER certificate's common name and pin: the base64 SHA-256 of its DER
+    SubjectPublicKeyInfo — the value the app's `spkiHash(of:)` and
+    `openssl pkey -pubin -outform der | openssl dgst -sha256 -binary | base64`
+    produce."""
+    import base64
+    import hashlib
+
+    from cryptography import x509
+    from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
+    from cryptography.x509.oid import NameOID
+
+    cert = x509.load_der_x509_certificate(der)
+    spki = cert.public_key().public_bytes(Encoding.DER, PublicFormat.SubjectPublicKeyInfo)
+    names = cert.subject.get_attributes_for_oid(NameOID.COMMON_NAME)
+    name = str(names[0].value) if names else cert.subject.rfc4514_string()
+    return name, base64.b64encode(hashlib.sha256(spki).digest()).decode()
+
+
+def _pin_line(host: str, keys: list[tuple[str, str]]) -> str:
+    """Whether any certificate the host serves carries a key the app pins."""
+    matched = [name for name, key in keys if key in PINNED_SPKI_HASHES]
+    if matched:
+        return (f"TLS pins: the app's pins match {html.escape(', '.join(matched))} "
+                f"in the {html.escape(host)} chain ✅")
+    chain = " → ".join(name for name, _ in keys) or "an empty chain"
+    return (f"⚠️ TLS pins: nothing in the {html.escape(host)} chain is pinned by the app "
+            f"({html.escape(chain)}). Harmless while the app only reports "
+            "mismatches; once it enforces pins, every request fails until an update ships.")
+
+
 def _tls_days_left(host: str, timeout: float = 5.0) -> int | None:
     """Days until the served leaf certificate expires, or None if unreachable."""
     import socket
@@ -4880,9 +4944,18 @@ async def _checkup_text() -> str:
         else:
             flag = " ⚠️" if days < 14 else ""
             lines.append(f"TLS {html.escape(host)}: leaf expires in {days} days{flag} "
-                         "(Let's Encrypt renews at 30; pinned intermediate to 2028-09-02)")
+                         "(Let's Encrypt renews at 30)")
     except Exception as exc:
         lines.append(f"TLS {html.escape(host)}: unreachable ({html.escape(type(exc).__name__)})")
+    # A second handshake rather than a wider `_tls_days_left`: that function
+    # is what every checkup test stubs, and one that also carried the chain
+    # would have to change all of them. Unreadable is its own line, not a ⚠️ —
+    # a chain nobody could fetch says nothing about the pins.
+    try:
+        keys = await asyncio.wait_for(asyncio.to_thread(_tls_chain_keys, host), 8)
+        lines.append(_pin_line(host, keys))
+    except Exception as exc:
+        lines.append(f"TLS pins: chain unreadable ({html.escape(type(exc).__name__)})")
 
     # App Store: can /sub ask Apple, and is Apple reaching the route that
     # withdraws refunds? Probed live, for the reason DeviceCheck is.

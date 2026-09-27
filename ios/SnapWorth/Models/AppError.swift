@@ -4,6 +4,11 @@ import Foundation
 enum AppError: LocalizedError, Equatable {
     case network
     case timeout
+    /// The phone refused the connection because the server's certificate did
+    /// not check out — a failed chain, a pin that did not match, or a TLS
+    /// handshake that failed. Not `.network`: "check your network and try
+    /// again" invites a retry on the very network that may be intercepting.
+    case connectionNotTrusted
     /// The per-hour request limit, with the real remaining wait when the
     /// server told us. See `rateLimitMessage`.
     case rateLimit(retryAfter: TimeInterval?)
@@ -66,6 +71,8 @@ enum AppError: LocalizedError, Equatable {
             return String(localized: "No internet connection. Check your network and try again.")
         case .timeout:
             return String(localized: "The request timed out. Please try again.")
+        case .connectionNotTrusted:
+            return String(localized: "SnapWorth couldn't verify its secure connection to the server. If you're on public or work Wi-Fi, try mobile data instead.")
         case .rateLimit(let retryAfter):
             return Self.rateLimitMessage(retryAfter: retryAfter)
         case .quotaExceeded(let msg), .proRequired(let msg):
@@ -301,11 +308,22 @@ enum AppError: LocalizedError, Equatable {
             return .network
         case .timedOut:
             return .timeout
-        // Deliberately NOT mapped here: `.secureConnectionFailed`. This app
-        // pins its certificate, so that code can mean an interception rather
-        // than an outage, and "check your network and try again" is the wrong
-        // advice for it — the retry would be the thing that succeeds. It keeps
-        // falling through to `.unknown` until it has copy of its own.
+        // Not `.network`: this app pins its certificate, so these can mean an
+        // interception rather than an outage, and "check your network and try
+        // again" is the wrong advice — the retry would be the thing that
+        // succeeds. They fell through to `.unknown` until they had copy of
+        // their own.
+        case .secureConnectionFailed, .serverCertificateUntrusted,
+             .serverCertificateHasBadDate, .serverCertificateNotYetValid,
+             .serverCertificateHasUnknownRoot:
+            return .connectionNotTrusted
+        // What a refusal by `CertificatePinningDelegate` actually produces:
+        // `cancelAuthenticationChallenge` ends the task as cancelled, not as
+        // `.secureConnectionFailed`, so the case above never saw a pin
+        // failure. A cancelled task produces the same code, which is why it
+        // counts only right after a recorded refusal — see `TLSRefusal`.
+        case .cancelled where TLSRefusal.isRecent():
+            return .connectionNotTrusted
         default:
             break
         }

@@ -19,6 +19,8 @@ on:
       - 'contract/**'
       # The in-app privacy policy: test_main.py checks its date against /privacy.
       - 'ios/SnapWorth/Views/LegalView.swift'
+      # The app's certificate pins: test_notify.py checks /checkup holds the same set.
+      - 'ios/SnapWorth/Config.swift'
       - 'pyrightconfig.json'
 
 jobs:
