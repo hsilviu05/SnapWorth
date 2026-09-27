@@ -755,7 +755,7 @@ private struct HaulCell: View {
     }
 
     /// Waiting its turn. A duplicate or a blurred shot can go before it is
-    /// sent: sending it would spend one of the hour's 20 requests, and save
+    /// sent: sending it would spend one of the hour's scan requests, and save
     /// a find and a scan to the stats only to be deleted. Not while it is
     /// being prepared — `HaulSession.remove` cannot stop that.
     private var isQueued: Bool {

@@ -13,8 +13,16 @@ import os
 //
 // Every photo is a normal scan — the same client call, quota, stats and
 // history save as the Scan tab. What this file adds is the part a single
-// scan never needed: a queue that respects a 20-requests-an-hour limit shared
-// with drafts and trends, and that never loses a photo to it.
+// scan never needed: a queue that respects the server's hourly limits, and
+// that never loses a photo to them.
+//
+// Scans and drafts each have a per-device bucket of their own (60 and 20 an
+// hour for Pro, `ratelimit.py`), but one per-address bucket (60) covers both
+// and trends too, and a 429 does not say which bucket refused. So any 429
+// pauses both queues: pausing only the lane that heard it could send the
+// other into a full address bucket for a second 429. Before the server
+// split them, scans, drafts and trends shared one device bucket of 20, which
+// is what this was written against; the policy holds for both.
 
 // MARK: - Scheduling
 
@@ -47,7 +55,7 @@ struct HaulQueue<ID: Hashable> {
     /// Bumped by every pause and hold, and stamped on each claim, so a
     /// success can say whether its request was sent after the latest one.
     ///
-    /// At the limit the usual order is: one request takes the 20th slot and
+    /// At the limit the usual order is: one request takes the last slot and
     /// spends seconds in the model, the other gets an immediate 429. The
     /// admitted one's success arrives *after* the 429 and says nothing about
     /// the budget now — ending the probe on it sends two into a window that
@@ -1497,7 +1505,7 @@ final class HaulSession {
     /// breaker's run and the offline streak end. What it says about the
     /// *budget* and the *entitlement* depends on when it was sent: a request
     /// claimed before the latest pause or hold — usually the one that took
-    /// the 20th slot while the other got the 429 — answers for the moment it
+    /// the last slot while the other got the 429 — answers for the moment it
     /// was admitted, not for now. Only a request sent since ends the probe,
     /// forgets the deadline (in memory and on disk) or confirms the
     /// subscription.

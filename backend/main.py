@@ -61,7 +61,10 @@ from observability import RequestContextMiddleware, configure_production_logging
 from quota import FREE_SCANS_PER_DAY, ScanQuota
 from ratelimit import (
     IP_RATE_MAX_REQUESTS,
+    LISTING_RATE_MAX_REQUESTS,
+    PRO_SCAN_RATE_MAX_REQUESTS,
     RATE_MAX_REQUESTS,
+    TRENDS_RATE_MAX_REQUESTS,
     # Unused in this module — re-exported so `from main import RATE_WINDOW_SECS`
     # keeps working for the rate-limit tests, which build stale entries relative
     # to the window. A linter reports it as an unused import; removing it breaks
@@ -807,19 +810,36 @@ def _client_ip(request: Request) -> str:
     return ratelimit.client_ip(request)
 
 
-def _check_rate_limit(device_id: str, ip: str | None = None) -> None:
+#: The per-device buckets other than the scan one, which has no name: it is
+#: keyed `dev:<subject>` in Redis and by the bare subject in process, as it
+#: was when it was the only bucket, so a deploy neither resets nor re-keys it.
+#: Sizes and the reason each route has its own are in `ratelimit`.
+LISTING_BUCKET = "listing"
+TRENDS_BUCKET = "trends"
+
+
+def _scan_rate_limit(principal: Principal) -> int:
+    """The scan bucket's size for this caller: Pro's fair-use ceiling, or the
+    free tier's cap. From the verified principal, like every tier decision."""
+    return PRO_SCAN_RATE_MAX_REQUESTS if principal.is_pro else RATE_MAX_REQUESTS
+
+
+def _check_rate_limit(device_id: str, ip: str | None = None, *,
+                      bucket: str | None = None, limit: int = RATE_MAX_REQUESTS) -> None:
     """Synchronous, in-process limit check.
 
     Retained as the direct-call entry point (and the Redis-less path). Endpoints
-    use `_enforce_limits`, which prefers the distributed limiter.
+    use `_enforce_limits`, which prefers the distributed limiter. `bucket`
+    None is the scan bucket.
     """
     device_id = device_id[:64]
+    key = device_id if bucket is None else f"{bucket}:{device_id}"
     try:
         # IP first — device id is client-supplied and trivially rotated per
         # request, so it can only ever be a secondary signal. Callers may omit it.
         if ip is not None:
             _ip_memory.check_sync(ip, IP_RATE_MAX_REQUESTS)
-        _device_memory.check_sync(device_id, RATE_MAX_REQUESTS)
+        _device_memory.check_sync(key, limit)
     except RateLimitExceeded as exc:
         raise HTTPException(status_code=429, detail=exc.message,
                             headers={"Retry-After": str(exc.retry_after)}) from None
@@ -886,16 +906,22 @@ async def _enforce_entitlement_limit(subject: str, ip: str | None) -> None:
                             headers={"Retry-After": str(exc.retry_after)}) from None
 
 
-async def _enforce_limits(device_id: str, ip: str | None) -> None:
-    """Distributed limit check used by the request path."""
+async def _enforce_limits(device_id: str, ip: str | None, *,
+                          bucket: str | None = None, limit: int = RATE_MAX_REQUESTS) -> None:
+    """Distributed limit check used by the request path.
+
+    The IP bucket is one for every route; the device bucket is the route's
+    own (`bucket`, None for scans) at `limit`.
+    """
     device_id = device_id[:64]
     if _device_limiter is None or _ip_limiter is None:
-        _check_rate_limit(device_id, ip)          # startup hook hasn't run
+        # Startup hook hasn't run.
+        _check_rate_limit(device_id, ip, bucket=bucket, limit=limit)
         return
     try:
         if ip is not None:
             await _ip_limiter.check(f"ip:{ip}", IP_RATE_MAX_REQUESTS)
-        await _device_limiter.check(f"dev:{device_id}", RATE_MAX_REQUESTS)
+        await _device_limiter.check(f"{bucket or 'dev'}:{device_id}", limit)
     except RateLimitExceeded as exc:
         raise HTTPException(status_code=429, detail=exc.message,
                             headers={"Retry-After": str(exc.retry_after)}) from None
@@ -1945,7 +1971,8 @@ async def scan(
                 log.info("tag photo rejected, scanning the item alone: %s", exc)
 
     # Gate on rate limit only after validation — bad requests don't burn quota
-    await _enforce_limits(principal.subject, _client_ip(request))
+    await _enforce_limits(principal.subject, _client_ip(request),
+                          limit=_scan_rate_limit(principal))
 
     # A device past the day's safety-block threshold is refused here, before
     # quota and before the model: nothing to bill, nothing to analyse.
@@ -2784,7 +2811,8 @@ async def trends(
     with counts and direction, Pro also gets the average estimate per category
     and the week's notable finds.
     """
-    await _enforce_limits(principal.subject, _client_ip(request))
+    await _enforce_limits(principal.subject, _client_ip(request),
+                          bucket=TRENDS_BUCKET, limit=TRENDS_RATE_MAX_REQUESTS)
     return TrendsResponse(**await notify.trends(is_pro=principal.is_pro))
 
 
@@ -2827,7 +2855,8 @@ async def listing(
             detail="Listing drafts are a SnapWorth Pro feature.",
         )
 
-    await _enforce_limits(principal.subject, _client_ip(request))
+    await _enforce_limits(principal.subject, _client_ip(request),
+                          bucket=LISTING_BUCKET, limit=LISTING_RATE_MAX_REQUESTS)
     auditlog.record(AuditEvent.LISTING_AUTHORISED, principal.subject,
                     marketplace=marketplace, tier=principal.tier)
 

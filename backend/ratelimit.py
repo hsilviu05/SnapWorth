@@ -92,10 +92,40 @@ RATE_WINDOW_SECS = 3600
 
 # Per client-supplied device id. Best-effort only — the header is trivially
 # rotated, so this shapes honest traffic rather than stopping abuse.
+#
+# One bucket per route, not one shared by all three. /scan, /listing and
+# /trends used to spend the same 20 an hour, so a reseller who scanned an item
+# and drafted its listing was stopped after about ten items — on a plan sold as
+# "Unlimited scans" — and every visit to My Finds that fetched /trends spent a
+# scan. `main._enforce_limits` names the bucket; these are the sizes.
+#
+# The scan bucket, for the free tier. Its daily allowance (quota.py) is what
+# actually bounds a free user; this bounds the requests around it.
 RATE_MAX_REQUESTS = int(os.environ.get("RATE_MAX_REQUESTS", "20"))
 
-# Per source IP — the real backstop. Set higher than the device cap so shared
-# egress (carrier NAT, office wifi) doesn't punish legitimate users.
+# The scan bucket for Pro — the fair-use ceiling on "Unlimited scans". Sized
+# against cost rather than usage: at ~$0.006 a scan (RUNBOOK §10) a full hour
+# is ~$0.36, while $39.99 a year is about $0.11 a day before Apple's cut. So
+# this does not make a heavy day pay for itself — the daily spend alert is
+# what watches that — it stops one device, or one leaked token, from running
+# up an unbounded bill in an hour. It is not above the per-IP cap below, which
+# every route shares: from one address, scans, drafts and the trends card
+# together stop at the IP cap first.
+PRO_SCAN_RATE_MAX_REQUESTS = int(os.environ.get("PRO_SCAN_RATE_MAX_REQUESTS", "60"))
+
+# /listing, which is Pro-only. A full model call like a scan, so it keeps the
+# 20 it always had; it just no longer spends the scans'.
+LISTING_RATE_MAX_REQUESTS = int(os.environ.get("LISTING_RATE_MAX_REQUESTS", "20"))
+
+# /trends costs no model call: it reads tallies the server caches for 15
+# minutes, and the app caches the answer for 30. So the per-device cap here is
+# only a loop-breaker for a misbehaving build, far above the two or so fetches
+# an hour the app makes. The IP cap still applies to it.
+TRENDS_RATE_MAX_REQUESTS = int(os.environ.get("TRENDS_RATE_MAX_REQUESTS", "60"))
+
+# Per source IP — the real backstop. Set higher than the free scan cap so
+# shared egress (carrier NAT, office wifi) doesn't punish legitimate users.
+# One bucket for every route that has a limit, authenticated or not.
 IP_RATE_MAX_REQUESTS = int(os.environ.get("IP_RATE_MAX_REQUESTS", "60"))
 
 

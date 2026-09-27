@@ -350,9 +350,28 @@ availability one.
    DNS record, Railway's CDN), change `client_ip` to take the hop a configured
    number of places from the right. Otherwise the rightmost hop is the CDN's
    address and one 60/hr bucket serves every user.
-3. Tighten via env; no deploy needed if the platform supports variable updates
+3. The IP bucket is one for every route with a limit — `/scan`, `/listing`,
+   `/trends`, `/auth/entitlement`, and the unauthenticated `/auth` routes and
+   `/apple/notifications` — so from one address they stop together. The
+   per-device buckets are one per route, per hour (`ratelimit.py`):
+
+   | Route | Bucket (Redis key) | Default | Env |
+   |---|---|---|---|
+   | `/scan`, free | `rl:dev:<subject>` | 20 | `RATE_MAX_REQUESTS` |
+   | `/scan`, Pro | `rl:dev:<subject>` | 60 — the fair-use ceiling on "Unlimited scans" | `PRO_SCAN_RATE_MAX_REQUESTS` |
+   | `/listing` (Pro only) | `rl:listing:<subject>` | 20 | `LISTING_RATE_MAX_REQUESTS` |
+   | `/trends` | `rl:trends:<subject>` | 60 — no model call; a loop-breaker | `TRENDS_RATE_MAX_REQUESTS` |
+   | `/auth/entitlement` | `rl:ent:<subject>` | 60 | `ENTITLEMENT_RATE_MAX_REQUESTS` |
+
+   `/scan`, `/listing` and `/trends` used to share `rl:dev:` at 20: a Pro
+   reseller who scanned and drafted each item stopped after about ten, and
+   each Trending card fetch spent a scan. The Pro scan cap equals the IP cap,
+   by default, so a Pro user who also drafts or opens My Finds from the same
+   address meets the IP cap first. Raising `IP_RATE_MAX_REQUESTS` lifts that, and
+   loosens the unauthenticated routes with it.
+4. Tighten via env; no deploy needed if the platform supports variable updates
    with a restart.
-4. Sustained abuse from one IP range needs a platform-level block; there is no
+5. Sustained abuse from one IP range needs a platform-level block; there is no
    application-level IP blocklist `[NOT IMPLEMENTED]`.
 
 ---
