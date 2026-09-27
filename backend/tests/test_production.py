@@ -286,7 +286,7 @@ class TestDeclaredMetricsAreIncremented:
 
         ent = Entitlement("pro", "com.snapworth.yearly", None, "otid-1", "Production")
 
-        async def record(subject, jws, device_id=None):
+        async def record(subject, jws, device_id=None, authenticated=False):
             if jws == "bad":
                 raise EntitlementError("signature did not verify")
             return ent
