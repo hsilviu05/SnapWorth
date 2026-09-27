@@ -15,6 +15,8 @@ What these pin, and why each matters more than the wording:
 * A reply that follows v2.1 serves exactly the shape installed clients decode.
 * The multiple-items rule gives way to the not-resalable one, and a decline
   shows the model's reason, never the multi-item flag that can share its list.
+* v2.1's prices sit lower in the reply, and a long reply cut off after them
+  still reaches them through the reformat fallback.
 """
 
 from __future__ import annotations
@@ -169,8 +171,12 @@ class TestOutputSchema:
 
 # ── Served ───────────────────────────────────────────────────────────────────
 
-def _scan(monkeypatch, payload: dict, *, pro: bool = True):
-    """POST /scan with `SCAN_PROMPT_VERSION=v2.1`; the response and model calls."""
+def _scan(monkeypatch, payload: dict | None = None, *, pro: bool = True,
+          answer=None):
+    """POST /scan with `SCAN_PROMPT_VERSION=v2.1`; the response and model calls.
+
+    The model replies with `payload` as JSON, or, given `answer`, with
+    whatever that async function returns for each call's contents."""
     monkeypatch.setattr(main, "SCAN_PROMPT_VERSION", "v2.1")
     _rate_store.clear()
     _ip_rate_store.clear()
@@ -180,7 +186,8 @@ def _scan(monkeypatch, payload: dict, *, pro: bool = True):
     if pro:
         headers |= _pro_headers("v21-contract-pro")
     with patch("main._model") as model:
-        model.generate_content_async = AsyncMock(return_value=reply)
+        model.generate_content_async = (AsyncMock(side_effect=answer) if answer
+                                        else AsyncMock(return_value=reply))
         result = _client.post(
             "/scan", headers=headers,
             files={"file": ("s.jpg", io.BytesIO(padded_image_bytes("JPEG", 1024)),
@@ -266,6 +273,55 @@ class TestServedAsV21:
         assert body["uncertainty_factors"][0] == prompts.MULTIPLE_ITEMS_FACTOR
         assert body["identification_certainty"] == "probable"
         assert body["item_name"].startswith("Patagonia Better Sweater")
+
+
+def _restate(shown: str) -> str:
+    """A stand-in for the reformat model: the whole fields it was shown, as
+    JSON, and nothing it was not. Drops the field the reply was cut off in."""
+    cuts = [i for i in range(len(shown)) if shown.startswith('\n  "', i)]
+    for cut in reversed(cuts):
+        try:
+            return json.dumps(json.loads(shown[:cut].rstrip(",") + "\n}"))
+        except json.JSONDecodeError:
+            continue
+    return "{}"
+
+
+class TestCutOffAfterThePrices:
+    """Under JSON mode a reply that will not parse is nearly always one cut off
+    at the output ceiling, and `_retry_as_json` shows the reformat only the
+    start of it. v2.1 asks for the prices after the evidence, so with long
+    entries they sat past the old 4000-character window: a scan v2 recovers
+    was a 502 under v2.1."""
+
+    def test_the_reformat_still_sees_the_prices(self, monkeypatch):
+        verbose = {**V21_PAYLOAD, **{
+            field: [f"{field} {n}: " + "x" * 160 for n in range(5)]
+            for field in ("visual_evidence", "assumptions", "value_drivers",
+                          "uncertainty_factors")}}
+        whole = json.dumps(verbose, indent=2)
+        # Cut inside `improve_estimate`, the first field after the prices.
+        raw = whole[:whole.index('"improve_estimate"') + 30]
+        # The setup is the case: the prices are past 4000 and the reply fits
+        # the window, so the reformat is shown all of it.
+        assert raw.index('"worst_case_price_usd"') > 4000
+        assert len(raw) <= main._REFORMAT_WINDOW_CHARS
+
+        async def answer(contents, **_):
+            reply = MagicMock()
+            if isinstance(contents, str):       # the text-only reformat
+                shown = contents.split("<untrusted_data>", 1)[1]
+                reply.text = _restate(shown.rsplit("</untrusted_data>", 1)[0])
+            else:                               # the scan, cut off
+                reply.text = raw
+            return reply
+
+        result, calls = _scan(monkeypatch, answer=answer)
+        assert len(calls) == 2
+        assert result.status_code == 200, result.json()
+        body = result.json()
+        assert (body["worst_case_price_usd"], body["expected_price_usd"],
+                body["best_case_price_usd"]) == (32, 58, 85)
 
 
 # ── Measurable before it is the default ──────────────────────────────────────

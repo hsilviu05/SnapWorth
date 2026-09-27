@@ -2705,6 +2705,22 @@ async def _generate_with_retry(
     raise aiconfig.ModelUnavailable(str(last_exc))
 
 
+#: How much of an unparseable reply `_retry_as_json` shows the model. It was
+#: 4000, set when v1's whole answer was a few hundred characters. Under JSON
+#: mode a reply that will not parse is nearly always one cut off at
+#: `aiconfig.MAX_OUTPUT_TOKENS`, and the reformat can only recover prices that
+#: sit inside this window. v2 asks for them first, about 600 characters in.
+#: v2.1 asks for every piece of evidence first, which puts the last price near
+#: 900 with short entries and past 4000 once each list holds five entries of
+#: 150 characters. Past the window the reformat returns JSON with no prices,
+#: and the scan becomes the 502 v2 would have recovered.
+#:
+#: 8000 holds v2.1's prices with entries of 300 characters. It is not the whole
+#: reply because the model has to write the window back out, within its own
+#: output ceiling and beside its own thinking.
+_REFORMAT_WINDOW_CHARS = 8000
+
+
 async def _retry_as_json(raw: str, *, deadline: float | None = None) -> dict | None:
     """Ask the model to restate an unparseable reply as bare JSON.
 
@@ -2716,7 +2732,7 @@ async def _retry_as_json(raw: str, *, deadline: float | None = None) -> dict | N
     prompt = (
         "Convert the following into a single valid JSON object with no markdown "
         "and no commentary. Preserve the values exactly; invent nothing.\n\n"
-        f"{promptsafety.fence(raw[:4000])}"
+        f"{promptsafety.fence(raw[:_REFORMAT_WINDOW_CHARS])}"
     )
     # Routed through `_generate_with_retry` like every other model call.
     # This used to call the model directly under a blanket `suppress`, which
