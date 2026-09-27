@@ -1070,6 +1070,126 @@ class TestAppleNotifications:
         asyncio.run(durable.delete("ent:outage-subject"))
         assert asyncio.run(store.current("outage-subject")).tier == "free"
 
+    class _Partial(InMemoryCache):
+        """Redis whose reads and `add`s land while its writes fail — the
+        failure between two calls of one request that the all-or-nothing
+        outage above cannot show."""
+        down = False
+
+        async def set(self, *a, **k):
+            if self.down:
+                raise ConnectionError("redis timed out")
+            return await super().set(*a, **k)
+
+        async def delete(self, *a, **k):
+            if self.down:
+                raise ConnectionError("redis timed out")
+            return await super().delete(*a, **k)
+
+    def _partial_store(self, monkeypatch):
+        import auth as _auth
+        redis = self._Partial()
+        durable = ResilientCache(redis, InMemoryCache(), configured=True)
+        store = _entitlements.EntitlementService(
+            durable, "eu.snapworth.app",
+            {"com.snapworth.yearly", "com.snapworth.monthly"})
+        monkeypatch.setattr(_auth.deps, "entitlements", store)
+        monkeypatch.setattr(main, "_cache", durable)
+        return redis, durable, store
+
+    def test_a_refund_whose_tombstone_write_fails_mid_request_is_retried(
+            self, pinned, monkeypatch):
+        """The idempotency marker used to be claimed first and handed back
+        with a plain `delete` on failure. On a Redis failing between calls,
+        that `delete` went to process memory without raising, the marker
+        stayed in Redis, and Apple's retry of the 503 was answered 200
+        "duplicate" — the refund never applied. The marker is now claimed only
+        once the tombstone is stored."""
+        from test_entitlements import make_jws, valid_payload
+        redis, durable, store = self._partial_store(monkeypatch)
+        leaf_key, chain = pinned
+        payload = valid_payload()
+        assert asyncio.run(store.record(
+            "partial-subject", make_jws(payload, leaf_key, chain))).tier == "pro"
+        uuid = "dddddddd-1111-2222-3333-555555555555"
+        refund = make_notification(
+            leaf_key, chain, notification_type="REFUND", uuid=uuid,
+            revocationDate=int(time.time() * 1000),
+            originalTransactionId=payload["originalTransactionId"])
+
+        redis.down = True
+        r = client.post("/apple/notifications", json={"signedPayload": refund})
+        assert r.status_code == 503
+        assert asyncio.run(redis.get(f"apns2:{uuid}")) is None, (
+            "a notification that changed nothing was marked handled")
+
+        redis.down = False
+        r = client.post("/apple/notifications", json={"signedPayload": refund})
+        assert r.status_code == 200
+        assert r.json()["status"] == "ok", "Apple's retry landed on the duplicate branch"
+
+        asyncio.run(durable.delete("ent:partial-subject"))
+        assert asyncio.run(store.current("partial-subject")).tier == "free"
+
+    def test_a_reversal_whose_delete_fails_mid_request_is_retried(
+            self, pinned, monkeypatch):
+        from test_entitlements import make_jws, valid_payload
+        redis, durable, store = self._partial_store(monkeypatch)
+        leaf_key, chain = pinned
+        payload = valid_payload()
+        jws = make_jws(payload, leaf_key, chain)
+        otid = payload["originalTransactionId"]
+        r = client.post("/apple/notifications", json={
+            "signedPayload": make_notification(
+                leaf_key, chain, notification_type="REFUND",
+                uuid="dddddddd-1111-2222-3333-666666666666",
+                revocationDate=int(time.time() * 1000),
+                originalTransactionId=otid)})
+        assert r.status_code == 200
+        reversal = make_notification(
+            leaf_key, chain, notification_type="REFUND_REVERSED",
+            uuid="dddddddd-1111-2222-3333-777777777777",
+            originalTransactionId=otid)
+
+        redis.down = True
+        r = client.post("/apple/notifications", json={"signedPayload": reversal})
+        assert r.status_code == 503
+
+        redis.down = False
+        r = client.post("/apple/notifications", json={"signedPayload": reversal})
+        assert r.json() == {"status": "ok", "type": "REFUND_REVERSED"}
+        assert asyncio.run(store.record("partial-subject", jws)).tier == "pro", (
+            "the reversal's retry did not lift the block")
+
+    def test_a_refund_redelivered_after_its_reversal_does_not_block_again(
+            self, pinned, entitlement_store):
+        """Apple redelivers a notification whose 2xx it did not receive. The
+        marker is written only after the change landed, so finding it means
+        the REFUND was applied once already — re-applying it after the
+        REFUND_REVERSED would deny a term that is paid for again."""
+        from test_entitlements import make_jws, valid_payload
+        leaf_key, chain = pinned
+        payload = valid_payload()
+        jws = make_jws(payload, leaf_key, chain)
+        otid = payload["originalTransactionId"]
+        refund = make_notification(
+            leaf_key, chain, notification_type="REFUND",
+            uuid="dddddddd-1111-2222-3333-888888888888",
+            revocationDate=int(time.time() * 1000),
+            originalTransactionId=otid)
+        assert client.post("/apple/notifications",
+                           json={"signedPayload": refund}).status_code == 200
+        r = client.post("/apple/notifications", json={
+            "signedPayload": make_notification(
+                leaf_key, chain, notification_type="REFUND_REVERSED",
+                uuid="dddddddd-1111-2222-3333-999999999999",
+                originalTransactionId=otid)})
+        assert r.status_code == 200
+
+        again = client.post("/apple/notifications", json={"signedPayload": refund})
+        assert again.json()["status"] == "duplicate"
+        assert asyncio.run(entitlement_store.record("redelivered", jws)).tier == "pro"
+
     def test_a_reversed_refund_gives_the_access_back(
             self, pinned, entitlement_store):
         """REFUND_REVERSED used to be acknowledged and ignored, and the

@@ -198,8 +198,11 @@ never a free scan.
    disabling the quota across every replica (see `cache.ResilientCache`).
 4. The client reconnects automatically once Redis returns; no deploy needed.
    A refund, revoke or refund-reversal notification that arrives during the
-   outage is answered 503, and Apple redelivers it; there is nothing to replay
-   by hand.
+   outage is answered 503, and Apple redelivers it. The webhook marks a
+   notification handled only after its change is stored, so a Redis that
+   fails halfway through a request leaves the retry a real second attempt.
+   There is nothing to replay by hand unless the outage outlasts Apple's three
+   days of retries; then apply them by hand as §16 describes.
 5. There is no variable that turns this 503 into something else. An earlier
    version of this step said `FREE_SCANS_PER_DAY=0` would show free users the
    paywall instead of an error. It did not: `ScanQuota.reserve` increments the
@@ -828,9 +831,10 @@ tombstone's.
    `redis-cli GET entrevoked:{originalTransactionId}`. The id is in the
    refund alert.
 3. If it is missing, the webhook answered 503 and Apple should have retried.
-   A 503 releases the `apns2:{uuid}` idempotency key on purpose, so the
-   redelivery gets a real second attempt rather than landing on the duplicate
-   branch. Check the logs for `could not apply REFUND to the entitlement`.
+   The `apns2:{uuid}` idempotency key is written only after the tombstone is
+   stored, so a 503 leaves no key behind and the redelivery gets a real second
+   attempt rather than landing on the duplicate branch. Check the logs for
+   `could not apply REFUND to the entitlement`.
 4. To revoke by hand, write the tombstone yourself:
    `redis-cli SET entrevoked:{otid} '{"revoked_at":<epoch>,"expires_at":<term expiry epoch>}' EX 34560000`
 5. Access goes away at the user's next request, or immediately if you also

@@ -1389,24 +1389,7 @@ async def apple_notifications(body: AppleNotification, request: Request) -> dict
         log.warning("rejected App Store notification: %s", exc)
         raise HTTPException(status_code=400, detail=str(exc)) from None
 
-    # Idempotency. Apple redelivers until it gets a 2xx, and a retry that
-    # re-ran the handler would push the operator a second "trial converted"
-    # for one conversion. Fail *open* if the cache is unreachable: a duplicate
-    # alert is a smaller problem than dropping a real notification, and the
-    # index write is itself idempotent.
-    try:
-        first = await _cache.add(f"apns2:{note.uuid}", "1", _NOTIFICATION_SEEN_TTL)
-    except Exception:
-        first = True
-    if not first:
-        return {"status": "duplicate"}
-
-    if note.is_test:
-        # Apple's own reachability check. Answered 200 and echoed to the
-        # operator's Telegram, so "did it arrive?" is answerable from a phone.
-        log.info("App Store test notification received (%s)", note.environment)
-        await notify.appstore_test_notification(note.environment)
-        return {"status": "test", "environment": note.environment}
+    seen_key = f"apns2:{note.uuid}"
 
     # A refund or a revoke is the only message Apple sends that has to change
     # entitlement state, and it is the one the server could not act on: the
@@ -1420,32 +1403,57 @@ async def apple_notifications(body: AppleNotification, request: Request) -> dict
     # A REFUND_REVERSED undoes exactly that, and needs the same care: left
     # unhandled, the tombstone went on denying a customer whose refund Apple
     # had reversed for up to 400 days. See `EntitlementService.reinstate`.
+    #
+    # And before the idempotency claim below. The claim used to come first,
+    # with a `delete` to hand it back if this failed. On a configured Redis
+    # that fails between two calls, that `delete` went to process memory
+    # without raising, so the marker stayed in Redis: Apple's retry of the
+    # 503 landed on the duplicate branch, was answered 200, and the refund
+    # was never applied. Claiming only once the change is stored leaves
+    # nothing to give back. The marker is then proof the change landed, which
+    # is why a redelivery that finds it does not re-apply: a REFUND retried
+    # after its REFUND_REVERSED must not put the block back.
     lifted: bool | None = None
     if ((note.is_refund or note.is_revoke or note.is_refund_reversal)
             and note.entitlement is not None):
+        try:
+            handled = (_cache is not None
+                       and await _cache.get(seen_key) is not None)
+        except Exception:
+            handled = False
+        if handled:
+            return {"status": "duplicate"}
         try:
             if note.is_refund_reversal:
                 lifted = await auth.deps.entitlements.reinstate(note.entitlement)
             else:
                 await auth.deps.entitlements.revoke(note.entitlement)
         except Exception as exc:
-            # Give the uuid back before failing. The idempotency claim above
-            # is made before any work is done, so answering 5xx while holding
-            # it would make Apple's redelivery land on the duplicate branch
-            # and return 200 without ever withdrawing the access — the same
-            # outcome as never having handled the refund. Releasing it means
-            # the retry gets a real second attempt.
             log.error("could not apply %s to the entitlement: %s",
                       note.notification_type, exc)
-            try:
-                await _cache.delete(f"apns2:{note.uuid}")
-            except Exception:
-                log.error("could not release the notification idempotency key; "
-                          "this %s will not be retried", note.notification_type)
             raise HTTPException(
                 status_code=503,
                 detail="Could not update the entitlement; please retry.",
             ) from None
+
+    # Idempotency. Apple redelivers until it gets a 2xx, and a retry that
+    # re-ran the handler would push the operator a second "trial converted"
+    # for one conversion. Fail *open* if the cache is unreachable: a duplicate
+    # alert is a smaller problem than dropping a real notification, and the
+    # index write is itself idempotent.
+    try:
+        first = await _cache.add(seen_key, "1", _NOTIFICATION_SEEN_TTL)
+    except Exception:
+        first = True
+    if not first:
+        return {"status": "duplicate"}
+
+    if note.is_test:
+        # Apple's own reachability check. Answered 200 and echoed to the
+        # operator's Telegram, so "did it arrive?" is answerable from a phone.
+        log.info("App Store test notification received (%s)", note.environment)
+        await notify.appstore_test_notification(note.environment)
+        return {"status": "test", "environment": note.environment}
 
     if not note.is_indexed:
         return {"status": "ignored", "type": note.notification_type}
