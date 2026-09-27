@@ -58,6 +58,7 @@ from dataclasses import dataclass
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 
+import auditlog
 import notify
 import ratelimit
 from auth import Principal, deps, require_auth
@@ -76,6 +77,12 @@ CODE_LENGTH = 6
 
 # A year and a bit: a referral relationship outlives the yearly cap window.
 RECORD_TTL = 60 * 60 * 24 * 400
+# How long a claim's or a reward's markers live until the step they guard has
+# finished and they are confirmed for RECORD_TTL. An attempt that a Redis
+# outage cuts off cannot be relied on to undo itself — the undo needs the Redis
+# that has just failed — so whatever it left behind expires on its own, and the
+# attempt can be made again. Far longer than any request stays in flight.
+PENDING_TTL = 60 * 10
 # Failed claims per subject per day, before claims are refused. Enumerating
 # 887M codes at ten a day is not a plan.
 MAX_FAILED_CLAIMS_PER_DAY = 10
@@ -91,11 +98,13 @@ POOLS = (POOL_FRIEND, POOL_REWARD)
 # every invite already answers "Invites are paused".
 POOL_LOW_AT = max(0, int(os.environ.get("REFERRAL_POOL_LOW_AT", "20") or 0))
 
-# Per-subject and per-IP limit for both routes, injected by `main._lifespan`
-# because the limiter lives in `main`, which imports this module. The router
-# was mounted with nothing in front of it, unlike every other authenticated
-# route. None only before startup and in tests that do not care.
-limiter: Callable[[str, str | None], Awaitable[None]] | None = None
+# Per-subject and per-IP limit, called as `limiter(route, subject, ip)` with
+# `route` "status" or "claim", each of which has buckets of its own. Injected
+# by `main._lifespan` because the limiter lives in `main`, which imports this
+# module. The router was mounted with nothing in front of it, unlike every
+# other authenticated route. None only before startup and in tests that do not
+# care.
+limiter: Callable[[str, str, str | None], Awaitable[None]] | None = None
 
 
 def _bool(name: str) -> bool:
@@ -253,15 +262,20 @@ def _warn_if_low(pool: str, remaining: int) -> None:
         notify.referral_pool_low(pool, remaining)
 
 
-async def pool_level(pool: str, cache: ResilientCache | None = None) -> tuple[int, int]:
+async def pool_level(pool: str, cache: ResilientCache | None = None,
+                     *, required: bool = False) -> tuple[int, int]:
     """(codes loaded, codes left) for `pool`.
 
     `cache` so the ops bot can read through its own handle; the two are the
-    same object in production.
+    same object in production. `required` for the checkup: not required, a
+    configured Redis that is failing is answered from empty process memory,
+    (0, 0), and the checkup said "no referral codes loaded — every invite is
+    refused" about pools that were intact, sending the operator to load a batch
+    nobody needed. Required, the outage raises and is reported as one.
     """
     cache = cache or deps.cache
-    size = int(await cache.get(pool_size_key(pool)) or 0)
-    used = int(await cache.get(pool_cursor_key(pool)) or 0)
+    size = int(await cache.get(pool_size_key(pool), required=required) or 0)
+    used = int(await cache.get(pool_cursor_key(pool), required=required) or 0)
     return size, max(0, size - used)
 
 
@@ -305,8 +319,8 @@ async def code_for(device: str) -> str:
     raise ReferralError(503, "Couldn't create an invite right now. Try again later.")
 
 
-async def rewards_for(device: str) -> list[dict]:
-    raw = await deps.cache.get(_rewards_key(device))
+async def rewards_for(device: str, *, required: bool = False) -> list[dict]:
+    raw = await deps.cache.get(_rewards_key(device), required=required)
     return json.loads(raw) if raw else []
 
 
@@ -338,7 +352,17 @@ async def _bind(subject: str, device: str) -> None:
 
 
 async def claim(subject: str, device: str, raw_code: str) -> str:
-    """Record the referral and return the friend's Apple offer code."""
+    """Record the referral and return the friend's Apple offer code.
+
+    The two markers, once per device and once per subject, are written for
+    `PENDING_TTL` and confirmed for `RECORD_TTL` only when the friend has a
+    code. They were written for 400 days up front and deleted if no code came,
+    and the delete needed the Redis that had just failed: a claim cut off after
+    its two writes left both behind with no code in them, and every retry for
+    400 days was told "This phone has already used an invite" by a friend who
+    had never been given one. What an interrupted claim leaves now expires, and
+    until it has, a retry is told that invites are paused.
+    """
     cache = deps.cache
     if int(await cache.get(_fail_key(subject)) or 0) >= MAX_FAILED_CLAIMS_PER_DAY:
         raise ReferralError(429, "Too many tries today. Try again tomorrow.")
@@ -352,31 +376,77 @@ async def claim(subject: str, device: str, raw_code: str) -> str:
         raise ReferralError(400, "That's your own invite code. Share it with a friend instead.")
 
     record = {"code": code, "referrer": referrer, "subject": subject, "claimed_at": int(time.time())}
-    # Once per device and once per subject: a reinstall is a new subject, a
-    # spoofed device_id is a new device, and neither alone gets a second week.
-    if not await cache.add(_claim_key(device), json.dumps(record), ttl=RECORD_TTL):
-        raise ReferralError(409, "This phone has already used an invite.")
-    if not await cache.add(_claim_subject_key(subject), device, ttl=RECORD_TTL):
-        await cache.delete(_claim_key(device))
-        raise ReferralError(409, "This phone has already used an invite.")
-
+    claim_key, subject_key = _claim_key(device), _claim_subject_key(subject)
+    taken: list[str] = []
     try:
+        # Once per device and once per subject: a reinstall is a new subject, a
+        # spoofed device_id is a new device, and neither alone gets a second
+        # week. `required`, as in `_bind`: a marker that only one replica's
+        # memory holds is no marker.
+        if not await cache.add(claim_key, json.dumps(record), ttl=PENDING_TTL, required=True):
+            held = json.loads(await cache.get(claim_key, required=True) or "{}")
+            raise _claim_refused(unfinished="friend_code" not in held
+                                 and held.get("subject", subject) == subject)
+        taken.append(claim_key)
+        if not await cache.add(subject_key, device, ttl=PENDING_TTL, required=True):
+            held_device = await cache.get(subject_key, required=True)
+            raise _claim_refused(unfinished=held_device in (None, device))
+        taken.append(subject_key)
         friend_code = await take_code(POOL_FRIEND)
-        unavailable = False
-    except CacheUnavailable:
-        friend_code, unavailable = None, True
-    if friend_code is None:
-        # Undo, so the friend can try again once the pool is topped up or
-        # Redis answers again.
-        await cache.delete(_claim_key(device))
-        await cache.delete(_claim_subject_key(subject))
-        if not unavailable:
+        if friend_code is None:
             log.error("referral friend pool is empty")
-        raise ReferralError(503, _UNAVAILABLE)
+            raise ReferralError(503, _UNAVAILABLE)
+    except (ReferralError, CacheUnavailable) as exc:
+        # Undone, so the friend can try again as soon as the pool is topped up
+        # or Redis answers — or, if the undo cannot reach Redis either, once
+        # the markers expire.
+        await _release(taken)
+        if isinstance(exc, CacheUnavailable):
+            raise ReferralError(503, _UNAVAILABLE) from None
+        raise
+
     record["friend_code"] = friend_code
-    await cache.set(_claim_key(device), json.dumps(record), ttl=RECORD_TTL)
+    try:
+        await cache.set(claim_key, json.dumps(record), ttl=RECORD_TTL, required=True)
+        await cache.set(subject_key, device, ttl=RECORD_TTL, required=True)
+    except CacheUnavailable:
+        # The code has left the pool for good and nobody else can be given it,
+        # so refusing now would burn it and send the friend back for another.
+        # They get it. The cost, chosen over that: the markers expire, and this
+        # device and install could then claim a second week; and a redemption
+        # synced after they expire finds no claim and rewards nobody.
+        log.error("referral claim not confirmed; its markers expire in %ds", PENDING_TTL,
+                  extra={"referrer": auditlog.pseudonymise(referrer)})
     notify.count_referral("claimed")
     return friend_code
+
+
+def _claim_refused(*, unfinished: bool) -> ReferralError:
+    """A claim marker that was already there: used for good, or not yet.
+
+    `unfinished` when the marker is this same caller's and holds no code: a
+    claim still running, or one an outage cut off, which expires in
+    `PENDING_TTL`. "Paused, try again later" is true of that; the 409 "already
+    used an invite" it used to get was not, to a friend who never had a code.
+    """
+    if unfinished:
+        return ReferralError(503, _UNAVAILABLE)
+    return ReferralError(409, "This phone has already used an invite.")
+
+
+async def _release(keys: list[str], **context: str) -> None:
+    """Delete markers an attempt wrote, so it can be made again. Never raises.
+
+    Best effort: it needs the Redis that may just have failed. A marker it
+    cannot delete was written for `PENDING_TTL` and expires on its own, which
+    is what makes the retry certain; this only makes it immediate.
+    """
+    for key in keys:
+        try:
+            await deps.cache.delete(key, required=True)
+        except Exception:  # noqa: BLE001 — an undo must not replace what it undoes
+            log.warning("referral marker left to expire in %ds", PENDING_TTL,
+                        extra={"marker": key.split(":")[1], **context})
 
 
 async def on_entitlement(subject: str, device: str | None, ent: Entitlement) -> bool:
@@ -428,45 +498,105 @@ async def _reward(referrer: str, device: str, otid: str) -> bool:
 
     `required` throughout, because each step decides whether a real Apple code
     leaves the pool, and a marker written to one replica's memory is not a
-    marker. Anything that fails after the markers are set hands them back, so
-    a later sync retries.
+    marker.
+
+    The two markers are written for `PENDING_TTL` and confirmed for
+    `RECORD_TTL` once the code is parked, or once the yearly cap has refused
+    it. They were written for 400 days up front, with an undo for whatever
+    failed after them — and the undo needed the Redis that had just failed, so
+    an outage between the markers and the parked code left both markers for
+    400 days and the referrer's week was lost for good. Now what an interrupted
+    attempt leaves expires, and a later sync of the same purchase tries again.
+    The undo still runs, best effort (`_hand_back`), so an emptied pool or a
+    blip is retried at the very next sync.
+
+    The trade-off, chosen: if the confirmation is what fails, the parked code
+    stays parked and the markers still expire, so a later sync of the purchase
+    can park a second week. A second week, still counted against the
+    referrer's yearly cap, over a week lost where nobody would see it.
     """
     cache = deps.cache
-    if not await cache.add(_rewarded_key(device), referrer, ttl=RECORD_TTL, required=True):
-        return False                     # this friend already paid out
-    if not await cache.add(_rewarded_txn_key(otid), "1", ttl=RECORD_TTL, required=True):
-        # This purchase already paid out through another claimed device.
-        await cache.delete(_rewarded_key(device), required=True)
-        log.warning("referral reward refused: transaction already rewarded")
-        return False
-    year = time.gmtime().tm_year
-    count_key = _count_key(referrer, year)
-
-    async def hand_back() -> None:
-        await cache.delete(_rewarded_key(device), required=True)
-        await cache.delete(_rewarded_txn_key(otid), required=True)
-        await cache.incr(count_key, ttl=RECORD_TTL, amount=-1, required=True)
-
+    # Pseudonyms, never the raw values: enough to match a log line against
+    # the store by hand (RUNBOOK §18) and nothing more.
+    who = {"purchase": auditlog.pseudonymise(otid), "referrer": auditlog.pseudonymise(referrer)}
+    markers = [(_rewarded_key(device), referrer)]
+    if not await cache.add(_rewarded_key(device), referrer, ttl=PENDING_TTL, required=True):
+        return False                     # this friend already paid out, or is being paid
+    count_key = _count_key(referrer, time.gmtime().tm_year)
+    counted = False
     try:
-        if await cache.incr(count_key, ttl=RECORD_TTL, required=True) > config.rewards_per_year:
-            log.info("referral reward capped", extra={"year": year})
+        if not await cache.add(_rewarded_txn_key(otid), "1", ttl=PENDING_TTL, required=True):
+            # This purchase already paid out through another claimed device.
+            log.warning("referral reward refused: transaction already rewarded", extra=who)
+            await _hand_back(markers, None, who)
+            return False
+        markers.append((_rewarded_txn_key(otid), "1"))
+        earned = await cache.incr(count_key, ttl=RECORD_TTL, required=True)
+        # Only now is there a count to give back. An INCR that raised may or
+        # may not have landed; giving back one that did not would let this
+        # referrer go one past the yearly cap, and keeping one that did costs
+        # them a slot, not a week.
+        counted = True
+        if earned > config.rewards_per_year:
+            log.info("referral reward capped", extra={"year": time.gmtime().tm_year, **who})
+            await _confirm(markers, who)    # an answer, not a failure: not retried
             return False
         reward = await take_code(POOL_REWARD)
         if reward is None:
-            log.error("referral reward pool is empty; reward owed but not issued")
+            log.error("referral reward pool is empty; reward owed but not issued", extra=who)
             # Let a later sync retry once the pool is refilled.
-            await hand_back()
+            await _hand_back(markers, count_key, who)
             return False
-        rewards = await rewards_for(referrer)
+        # Required too: read from empty process memory during a blip, the
+        # list written back below would drop every week already parked there.
+        rewards = await rewards_for(referrer, required=True)
         rewards.append({"code": reward, "earned_at": int(time.time())})
         await cache.set(_rewards_key(referrer), json.dumps(rewards), ttl=RECORD_TTL,
                         required=True)
     except CacheUnavailable:
-        log.error("referral reward not issued: cache unavailable; a later sync retries")
-        await hand_back()
+        log.error("referral reward not issued: cache unavailable; a later sync retries",
+                  extra=who)
+        await _hand_back(markers, count_key if counted else None, who)
         return False
+    await _confirm(markers, who)
+    log.info("referral reward parked", extra=who)
     notify.count_referral("rewarded")
     return True
+
+
+async def _hand_back(markers: list[tuple[str, str]], count_key: str | None,
+                     who: dict[str, str]) -> None:
+    """Undo a reward attempt so the next sync retries it. Never raises.
+
+    It used to raise from inside the outage it was undoing, and the caller's
+    catch-all swallowed it with both markers still set for 400 days. Now each
+    step that fails is logged and the rest still run: a marker left behind
+    expires in `PENDING_TTL`; a count that cannot be given back leaves the
+    referrer one slot short of their yearly cap.
+    """
+    await _release([key for key, _ in markers], **who)
+    if count_key is None:
+        return
+    try:
+        await deps.cache.incr(count_key, ttl=RECORD_TTL, amount=-1, required=True)
+    except Exception:  # noqa: BLE001 — an undo must not replace what it undoes
+        log.error("referral reward count not given back; the referrer's yearly cap "
+                  "is one lower", extra=who)
+
+
+async def _confirm(markers: list[tuple[str, str]], who: dict[str, str]) -> None:
+    """Keep a finished attempt's markers for `RECORD_TTL`. Never raises.
+
+    A marker that cannot be extended still expires in `PENDING_TTL`, after
+    which a sync of the same purchase is processed again: the second week
+    `_reward` chooses over a lost one. Logged, so it can be told apart.
+    """
+    for key, value in markers:
+        try:
+            await deps.cache.set(key, value, ttl=RECORD_TTL, required=True)
+        except Exception:  # noqa: BLE001 — the week is parked; this must not undo it
+            log.error("referral reward marker not confirmed; a later sync of this "
+                      "purchase may reward it again", extra={"marker": key.split(":")[1], **who})
 
 
 async def note_paid_period(ent: Entitlement) -> None:
@@ -529,20 +659,21 @@ class ClaimResponse(BaseModel):
 router = APIRouter(prefix="/referral", tags=["referral"])
 
 
-async def _admit(principal: Principal, device: str, request: Request) -> None:
+async def _admit(route: str, principal: Principal, device: str, request: Request) -> None:
     """What both routes check before touching anything, in this order.
 
     Attested first: the legacy principal's subject is `legacy:` plus a header
     the caller picks, so it can bind nothing and limit nothing. The installed
     client always sends a token here (`requireBearerToken`), so this refuses
-    only callers that are not the app. Then the limiter, then the binding —
-    which writes, so it comes after the two that are cheap to refuse.
+    only callers that are not the app. Then the limiter, for `route` ("status"
+    or "claim") alone, then the binding — which writes, so it comes after the
+    two that are cheap to refuse.
     """
     if not principal.authenticated:
         raise HTTPException(status_code=401, detail="Authentication required.",
                             headers={"WWW-Authenticate": "Bearer"})
     if limiter is not None:
-        await limiter(principal.subject, ratelimit.client_ip(request))
+        await limiter(route, principal.subject, ratelimit.client_ip(request))
     await _bind(principal.subject, device)
 
 
@@ -559,7 +690,7 @@ async def status(req: StatusRequest, request: Request,
     if not config.active:
         return StatusResponse(enabled=False)
     try:
-        await _admit(principal, req.device_id, request)
+        await _admit("status", principal, req.device_id, request)
         code = await code_for(req.device_id)
     except ReferralError as exc:
         raise HTTPException(status_code=exc.status, detail=str(exc)) from None
@@ -580,7 +711,7 @@ async def claim_route(req: ClaimRequest, request: Request,
     if not config.active:
         raise HTTPException(status_code=404, detail="Invites aren't available right now.")
     try:
-        await _admit(principal, req.device_id, request)
+        await _admit("claim", principal, req.device_id, request)
         code = await claim(principal.subject, req.device_id, req.code)
     except ReferralError as exc:
         raise HTTPException(status_code=exc.status, detail=str(exc)) from None

@@ -1166,10 +1166,23 @@ ran dry. Now:
   `originalTransactionId` (`ref:rewardedtxn:*`), so one redemption synced from
   several devices pays once.
 - Limits: `REFERRAL_RATE_MAX_REQUESTS` (60/h per subject) and
-  `REFERRAL_IP_RATE_MAX_REQUESTS` (120/h per IP), in their own buckets so the
-  app's status poll on every foreground cannot spend anyone's scan allowance.
+  `REFERRAL_IP_RATE_MAX_REQUESTS` (120/h per IP), with a pair of buckets per
+  route — `ref:`/`ref-ip:` for `/status`, `ref-claim:`/`ref-claim-ip:` for
+  `/claim`. Apart from the scan route's, so the app's status poll on every
+  foreground cannot spend anyone's scan allowance; apart from each other, so
+  it cannot spend a friend's claim either, which every installed build words
+  "Too many tries today. Try again tomorrow." A `/status` 429 hides the
+  referral surfaces for up to an hour (the app reads it as off); if that
+  happens to users behind one shared address, raise
+  `REFERRAL_IP_RATE_MAX_REQUESTS`.
 - Pool reads and the cursor increment require Redis: an outage is a 503
   ("Invites are paused"), never a code served from process memory.
+- A claim's and a reward's markers are written for 10 minutes
+  (`PENDING_TTL`) and kept for 400 days only once the code is handed out or
+  parked. An outage that cuts an attempt off usually takes its undo with it;
+  what it left then expires in those 10 minutes, where it used to stay for
+  400 days — a friend refused as "already used an invite" without ever
+  getting a code, a referrer's week lost.
 
 - [ ] **Decide the reinstall trade-off.** An App Attest key is per install, so
   a reinstall is a new subject presenting a device the old install owns, and
@@ -1234,8 +1247,31 @@ far each batch had got.
   `referral_code_accepted`, `referral_reward_opened`) are taps, not
   conversions.
 - **Checkup:** `Referrals: on · friend codes N of M left · reward codes N of M
-  left`, with ⚠️ at or below `REFERRAL_POOL_LOW_AT`.
+  left`, with ⚠️ at or below `REFERRAL_POOL_LOW_AT`. `pools unreadable
+  (CacheUnavailable)` is Redis not answering — the pools are not empty, and
+  there is nothing to load.
 - **Alert:** a pool reaching `REFERRAL_POOL_LOW_AT`, and again empty (§3). An
   empty friend pool answers every claim "Invites are paused"; an empty reward
   pool leaves the referrer owed a week, retried at the friend's next sync
   once refilled.
+- **A week lost to an outage.** A reward that Redis cut off is retried at
+  the friend's next sync of the same purchase — at once if the undo reached
+  Redis, otherwise once its markers expire. That sync has to come during the
+  free week: after it, the subscription's transaction no longer carries the
+  friend offer, and nothing is retried. The reward's log lines (`referral
+  reward not issued`, `referral marker left to expire`, `referral reward
+  count not given back`) carry `purchase` and `referrer`:
+  `auditlog.pseudonymise` of the friend's `originalTransactionId` and of the
+  referrer's device id. A later `referral reward parked` with the same
+  `purchase` means the retry worked. If none came, reissue by hand: the
+  referrer's device is the `ref:mine:<device>` key whose pseudonym is
+  `referrer` (under `railway run`, which has `AUDIT_SALT`); take a code with
+  `referral.take_code("reward")`, so the pool's cursor moves, and append
+  `{"code": …, "earned_at": <unix time>}` to the JSON list at
+  `ref:rewards:<device>`. `referral claim not confirmed`, with `referrer`, is
+  a friend who got a code whose claim was not kept: a redemption synced more
+  than 10 minutes later finds no claim and rewards nobody, so if no
+  `referral reward parked` for that `referrer` follows, reissue the same way.
+  `referral reward marker not confirmed` is the opposite — the week was
+  parked, a later sync may park a second one, counted against the referrer's
+  yearly cap — and needs nothing.

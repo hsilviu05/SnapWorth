@@ -1053,7 +1053,10 @@ async def _referral_line() -> str:
              "REFERRALS_ENABLED without REFERRAL_FRIEND_OFFER, so inert" if cfg.enabled
              else "off")
     try:
-        levels = {pool: await referral.pool_level(pool, _cache) for pool in referral.POOLS}
+        # Required, or a Redis outage reads as (0, 0) from process memory and
+        # is reported below as "no referral codes loaded" about intact pools.
+        levels = {pool: await referral.pool_level(pool, _cache, required=True)
+                  for pool in referral.POOLS}
     except Exception as exc:
         return f"Referrals: {state} · pools unreadable ({html.escape(type(exc).__name__)})"
     if not any(size for size, _ in levels.values()):

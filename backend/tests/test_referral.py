@@ -364,37 +364,58 @@ class TestBinding:
 
 
 class TestLimiter:
-    def test_both_routes_consult_the_limiter_with_subject_and_proxy_hop(self, monkeypatch):
+    def test_both_routes_consult_the_limiter_with_route_subject_and_proxy_hop(self, monkeypatch):
         seen = []
 
-        async def recording(subject, ip):
-            seen.append((subject, ip))
+        async def recording(route, subject, ip):
+            seen.append((route, subject, ip))
         monkeypatch.setattr(referral, "limiter", recording)
         headers = {**bearer("subj-a"), "x-forwarded-for": "1.1.1.1, 203.0.113.9"}
         client.post("/referral/status", json={"device_id": "dev-a"}, headers=headers)
         client.post("/referral/claim", json={"device_id": "dev-a", "code": "ZZZZZZ"},
                     headers=headers)
-        assert seen == [("subj-a", "203.0.113.9")] * 2
+        assert seen == [("status", "subj-a", "203.0.113.9"), ("claim", "subj-a", "203.0.113.9")]
 
-    def test_per_subject_then_per_ip(self, monkeypatch):
+    @staticmethod
+    def small_limits(monkeypatch):
         import main
         monkeypatch.setattr(referral, "limiter", main._enforce_referral_limit)
         monkeypatch.setattr(main, "_device_limiter", None)
         monkeypatch.setattr(main, "_ip_limiter", None)
         monkeypatch.setattr(main, "REFERRAL_RATE_MAX_REQUESTS", 2)
         monkeypatch.setattr(main, "REFERRAL_IP_RATE_MAX_REQUESTS", 3)
-        for key in ("ref:lim-1", "ref:lim-2", "ref-ip:198.51.100.7"):
-            main._device_memory.store.pop(key, None)
-            main._ip_memory.store.pop(key, None)
+        for prefix in ("ref", "ref-claim"):
+            for key in (f"{prefix}:lim-1", f"{prefix}:lim-2", f"{prefix}-ip:198.51.100.7"):
+                main._device_memory.store.pop(key, None)
+                main._ip_memory.store.pop(key, None)
+        return main
 
-        def post(subject):
-            return client.post("/referral/status", json={"device_id": f"dev-{subject}"},
-                               headers={**bearer(subject), "x-forwarded-for": "198.51.100.7"})
-        assert [post("lim-1").status_code for _ in range(3)] == [200, 200, 429]
+    @staticmethod
+    def post(path, subject, **body):
+        return client.post(path, json={"device_id": f"dev-{subject}", **body},
+                           headers={**bearer(subject), "x-forwarded-for": "198.51.100.7"})
+
+    def test_per_subject_then_per_ip(self, monkeypatch):
+        main = self.small_limits(monkeypatch)
+        status = "/referral/status"
+        assert [self.post(status, "lim-1").status_code for _ in range(3)] == [200, 200, 429]
         # A second install behind the same address: the IP bucket (3) is what
         # stops it, and it is not the scan route's `ip:` bucket.
-        assert [post("lim-2").status_code for _ in range(2)] == [429, 429]
+        assert [self.post(status, "lim-2").status_code for _ in range(2)] == [429, 429]
         assert "ip:198.51.100.7" not in main._ip_memory.store
+
+    def test_the_status_poll_cannot_spend_the_claim_allowance(self, monkeypatch):
+        """The app asks /status on every foreground. Sharing one pair of
+        buckets, those polls from everyone behind an address used up the
+        claim allowance, and every installed build words a claim's 429 "Too
+        many tries today. Try again tomorrow." — to a friend who had not
+        tried."""
+        self.small_limits(monkeypatch)
+        for subject in ("lim-1", "lim-2"):         # both status buckets spent
+            assert [self.post("/referral/status", subject).status_code
+                    for _ in range(4)][-1] == 429
+        r = self.post("/referral/claim", "lim-1", code="ZZZZZZ")
+        assert r.status_code == 404, r.status_code   # the claim itself, not a 429
 
     def test_startup_wires_it(self):
         import inspect
@@ -471,7 +492,8 @@ class TestPoolCursor:
         with pytest.raises(ReferralError) as exc:
             run(referral.claim("subj-f", "friend", referrer_code))
         assert exc.value.status == 503
-        # Undone, so the friend can claim once Redis answers.
+        # Undone at once, because this Redis still answers the deletes. One
+        # that does not is TestInterruptedClaim.
         assert run(redis.get(referral._claim_key("friend"))) is None
         assert run(redis.get(referral._claim_subject_key("subj-f"))) is None
 
@@ -485,6 +507,181 @@ class TestPoolCursor:
             await load(POOL_FRIEND, ["NEXT01"])
             return first, dry, await referral.take_code(POOL_FRIEND)
         assert run(go()) == ("FIRST1", [None, None, None], "NEXT01")
+
+
+class _Outage:
+    """A Redis that goes down and stays down, deletes included.
+
+    `_FlakyIncr` fails one kind of call and answers the rest, so every undo
+    in its tests reached Redis. A real outage takes the undo with it. `trip`
+    is the last call answered — (method, key prefix) — before every call
+    fails, until `recover()`. `fail_once` fails that one call and no other.
+    """
+
+    def __init__(self, store, trip=None, fail_once=None):
+        self.store = store
+        self.down = False
+        self.trip = trip
+        self.fail_once = fail_once
+
+    @staticmethod
+    def _matches(which, method, key):
+        return which is not None and which[0] == method and key.startswith(which[1])
+
+    async def _call(self, method, key, *args):
+        if self.down:
+            raise ConnectionError("Redis is down")
+        if self._matches(self.fail_once, method, key):
+            self.fail_once = None
+            raise ConnectionError(f"{method.upper()} timed out")
+        result = await getattr(self.store, method)(key, *args)
+        if self._matches(self.trip, method, key):
+            self.down = True
+        return result
+
+    def recover(self):
+        self.down, self.trip = False, None
+
+    async def get(self, key):
+        return await self._call("get", key)
+
+    async def set(self, key, value, ttl=None):
+        return await self._call("set", key, value, ttl)
+
+    async def add(self, key, value, ttl=None):
+        return await self._call("add", key, value, ttl)
+
+    async def incr(self, key, ttl=None, amount=1):
+        return await self._call("incr", key, ttl, amount)
+
+    async def delete(self, key):
+        return await self._call("delete", key)
+
+    async def ping(self):
+        return True
+
+
+def _outage(**kwargs):
+    """Redis (the store behind the fake) and the fake, wired in as the app's
+    configured cache."""
+    from cache import InMemoryCache, ResilientCache
+    redis = InMemoryCache()
+    fake = _Outage(redis, **kwargs)
+    auth.deps.cache = ResilientCache(fake, InMemoryCache(), configured=True)
+    return redis, fake
+
+
+def _later(monkeypatch, seconds):
+    """Move the clock, so what was written with a TTL can expire."""
+    import time
+    now = time.time()
+    monkeypatch.setattr(time, "time", lambda: now + seconds)
+
+
+class TestInterruptedClaim:
+    def setup(self, **kwargs):
+        redis, fake = _outage(**kwargs)
+        run(load(POOL_FRIEND, ["FRIEND1"]))
+        run(redis.set(referral._code_key("ABCDEF"), "referrer"))
+        return redis, fake
+
+    def test_a_claim_cut_off_after_its_two_writes_does_not_lock_the_friend_out(self, monkeypatch):
+        """Redis answered both markers and then went down, deletes included.
+        Written for 400 days, the markers outlived the failed undo, and every
+        retry was told "This phone has already used an invite" by a friend
+        who had never been given a code."""
+        redis, fake = self.setup(trip=("add", "ref:claimsubj:"))
+        with pytest.raises(ReferralError) as exc:
+            run(referral.claim("subj-f", "friend", "ABCDEF"))
+        assert exc.value.status == 503
+        fake.recover()
+        held = json.loads(run(redis.get(referral._claim_key("friend"))))
+        assert "friend_code" not in held               # the undo could not reach Redis
+        # Straight after, it is still there: "try again later", which is true.
+        with pytest.raises(ReferralError) as exc:
+            run(referral.claim("subj-f", "friend", "ABCDEF"))
+        assert exc.value.status == 503
+        _later(monkeypatch, referral.PENDING_TTL + 1)
+        assert run(referral.claim("subj-f", "friend", "ABCDEF")) == "FRIEND1"
+
+    def test_a_finished_claim_is_kept_past_the_pending_window(self, monkeypatch):
+        self.setup()
+        run(load(POOL_FRIEND, ["FRIEND2"]))
+        assert run(referral.claim("subj-f", "friend", "ABCDEF")) == "FRIEND1"
+        _later(monkeypatch, referral.PENDING_TTL + 1)
+        # Both markers were confirmed: the device, and the install on another.
+        for device in ("friend", "other-device"):
+            with pytest.raises(ReferralError) as exc:
+                run(referral.claim("subj-f", device, "ABCDEF"))
+            assert exc.value.status == 409
+        assert run(referral.pool_remaining(POOL_FRIEND)) == 1
+
+
+class TestInterruptedReward:
+    def setup(self, **kwargs):
+        redis, fake = _outage(**kwargs)
+        run(load(POOL_REWARD, ["REWARD1", "REWARD2"]))
+        run(redis.set(referral._claim_key("friend"),
+                      json.dumps({"referrer": "referrer", "friend_code": "F1"})))
+        return redis, fake
+
+    @staticmethod
+    def count(redis):
+        import time
+        return run(redis.get(referral._count_key("referrer", time.gmtime().tm_year)))
+
+    def test_an_outage_that_outlasts_the_hand_back_delays_the_week_instead_of_losing_it(
+            self, monkeypatch):
+        """Down right after both markers, and still down for the undo. The
+        undo raised inside the outage, the sync's catch-all swallowed it, and
+        both markers stayed for 400 days: the referrer's week, gone."""
+        redis, fake = self.setup(trip=("add", "ref:rewardedtxn:"))
+        assert run(referral.on_entitlement("subj-f", "friend", redeemed())) is False
+        fake.recover()
+        assert run(redis.get(referral._rewarded_key("friend"))) == "referrer"
+        _later(monkeypatch, referral.PENDING_TTL + 1)
+        assert run(referral.on_entitlement("subj-f", "friend", redeemed())) is True
+        assert [r["code"] for r in run(referral.rewards_for("referrer"))] == ["REWARD1"]
+        assert self.count(redis) == "1"
+
+    def test_a_second_marker_that_fails_hands_the_first_back(self):
+        """The second marker's write sat outside the undo, so the first was
+        never handed back."""
+        redis, _ = self.setup(fail_once=("add", "ref:rewardedtxn:"))
+        assert run(referral.on_entitlement("subj-f", "friend", redeemed())) is False
+        assert run(redis.get(referral._rewarded_key("friend"))) is None
+        assert run(referral.on_entitlement("subj-f", "friend", redeemed())) is True
+
+    def test_a_count_that_never_landed_is_not_given_back(self):
+        """Given back anyway, the count went to -1 and this referrer could be
+        paid one week past the yearly cap."""
+        redis, _ = self.setup(fail_once=("incr", "ref:count:"))
+        assert run(referral.on_entitlement("subj-f", "friend", redeemed())) is False
+        assert self.count(redis) is None
+        assert run(referral.on_entitlement("subj-f", "friend", redeemed())) is True
+        assert self.count(redis) == "1"
+
+    def test_a_parked_week_is_not_paid_again_after_the_pending_window(self, monkeypatch):
+        redis, _ = self.setup()
+        assert run(referral.on_entitlement("subj-f", "friend", redeemed())) is True
+        _later(monkeypatch, referral.PENDING_TTL + 1)
+        assert run(referral.on_entitlement("subj-f", "friend", redeemed())) is False
+        assert len(run(referral.rewards_for("referrer"))) == 1
+
+    def test_each_step_the_undo_could_not_take_is_logged_with_the_purchase(self, caplog):
+        """So a week that is lost after all — its free week over before a
+        retry could run — can be found and reissued by hand (RUNBOOK §18)."""
+        import logging
+        import auditlog
+        self.setup(trip=("incr", "ref:count:"))      # the count landed, then down
+        with caplog.at_level(logging.WARNING, logger="snapworth.referral"):
+            assert run(referral.on_entitlement("subj-f", "friend", redeemed())) is False
+        mine = [r for r in caplog.records
+                if getattr(r, "purchase", None) == auditlog.pseudonymise("otid-1")]
+        assert {getattr(r, "marker", None) for r in mine} >= {"rewarded", "rewardedtxn"}
+        assert any("count not given back" in r.getMessage() for r in mine)
+        assert all(getattr(r, "referrer") == auditlog.pseudonymise("referrer") for r in mine)
+        assert not any("otid-1" in r.getMessage() for r in caplog.records)
 
 
 class _FakeSyncRedis:
@@ -662,6 +859,16 @@ class TestPoolAlerts:
         line = asyncio.run(go())
         assert line.startswith("Referrals: on · friend codes 3 of 4 left · reward codes 2 of 2 left")
         assert "⚠️ reward pool at 2" in line and "⚠️ friend" not in line
+
+    def test_checkup_reports_an_outage_as_one_not_as_empty_pools(self, operator, monkeypatch):
+        """Not required, both reads were answered (0, 0) from process memory,
+        and the checkup said every invite was refused for want of codes."""
+        import notify
+        from cache import InMemoryCache, ResilientCache
+        down = ResilientCache(None, InMemoryCache(), configured=True)
+        monkeypatch.setattr(notify, "_cache", down)
+        line = asyncio.run(notify._referral_line())
+        assert line == "Referrals: on · pools unreadable (CacheUnavailable)"
 
     def test_checkup_when_off_is_one_quiet_line(self, operator, monkeypatch):
         import notify

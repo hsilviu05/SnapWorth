@@ -889,36 +889,43 @@ async def _enforce_entitlement_limit(subject: str, ip: str | None) -> None:
                             headers={"Retry-After": str(exc.retry_after)}) from None
 
 
-#: Per-subject and per-IP ceilings for `/referral/status` and `/referral/claim`.
+#: Per-subject and per-IP ceilings for `/referral/status` and `/referral/claim`,
+#: each route with a pair of buckets of its own.
 #:
-#: Their own buckets, `ref:` and `ref-ip:`, not the scan route's. The app asks
-#: `/referral/status` on every return to the foreground once referrals are on,
-#: so sharing `ip:` would spend the /scan allowance of everyone behind a carrier
-#: NAT on a poll they never see. 60 an hour per subject is well above a person
-#: switching apps; the IP ceiling is twice that, for shared egress. What these
-#: bound is scripted use from one install or one address — claims are already
-#: once per subject, and each new subject costs an attestation, which is
-#: IP-limited on its own.
+#: Not the scan route's `ip:`: the app asks `/referral/status` on every return
+#: to the foreground once referrals are on, so sharing it would spend the /scan
+#: allowance of everyone behind a carrier NAT on a poll they never see. And not
+#: one pair for both routes, which is what this was: the polls of everyone
+#: behind one address spent the claim allowance, and every installed build
+#: words any 429 from a claim "Too many tries today. Try again tomorrow." — to
+#: a friend who had not tried. Status uses `ref:`/`ref-ip:`, a claim
+#: `ref-claim:`/`ref-claim-ip:`, at the same two ceilings. 60 an hour per
+#: subject is well above a person switching apps; the IP ceiling is twice that,
+#: for shared egress. What these bound is scripted use from one install or one
+#: address — claims are already once per subject, and each new subject costs
+#: an attestation, which is IP-limited on its own.
 REFERRAL_RATE_MAX_REQUESTS = int(os.environ.get("REFERRAL_RATE_MAX_REQUESTS", "60"))
 REFERRAL_IP_RATE_MAX_REQUESTS = int(os.environ.get("REFERRAL_IP_RATE_MAX_REQUESTS", "120"))
 
 
-async def _enforce_referral_limit(subject: str, ip: str | None) -> None:
+async def _enforce_referral_limit(route: str, subject: str, ip: str | None) -> None:
     """Limit for the referral routes. Injected onto `referral.limiter`.
 
-    IP first, as in `_enforce_entitlement_limit`: a subject is one install's
-    key, and a reinstall mints another.
+    `route` is "status" or "claim" and picks the buckets. IP first, as in
+    `_enforce_entitlement_limit`: a subject is one install's key, and a
+    reinstall mints another.
     """
+    prefix = "ref-claim" if route == "claim" else "ref"
     try:
         if ip is not None:
             if _ip_limiter is None:
-                _ip_memory.check_sync(f"ref-ip:{ip}", REFERRAL_IP_RATE_MAX_REQUESTS)
+                _ip_memory.check_sync(f"{prefix}-ip:{ip}", REFERRAL_IP_RATE_MAX_REQUESTS)
             else:
-                await _ip_limiter.check(f"ref-ip:{ip}", REFERRAL_IP_RATE_MAX_REQUESTS)
+                await _ip_limiter.check(f"{prefix}-ip:{ip}", REFERRAL_IP_RATE_MAX_REQUESTS)
         if _device_limiter is None:
-            _device_memory.check_sync(f"ref:{subject[:64]}", REFERRAL_RATE_MAX_REQUESTS)
+            _device_memory.check_sync(f"{prefix}:{subject[:64]}", REFERRAL_RATE_MAX_REQUESTS)
         else:
-            await _device_limiter.check(f"ref:{subject[:64]}", REFERRAL_RATE_MAX_REQUESTS)
+            await _device_limiter.check(f"{prefix}:{subject[:64]}", REFERRAL_RATE_MAX_REQUESTS)
     except RateLimitExceeded as exc:
         raise HTTPException(status_code=429, detail=exc.message,
                             headers={"Retry-After": str(exc.retry_after)}) from None
