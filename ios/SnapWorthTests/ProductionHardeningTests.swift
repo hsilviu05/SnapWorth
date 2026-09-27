@@ -2059,15 +2059,38 @@ final class PaywallPitchTests: XCTestCase {
     private let paid = IntroOffer(kind: .payUpFront, displayPrice: "$9.99",
                                   unitCount: 3, unit: "month", periodCount: 1)
 
+    /// The pitch a paywall takes from its trigger: every paywall's, but for
+    /// one case of ResultView's (`FullDetailOfferTests`).
+    private func pitch(_ trigger: PaywallTrigger) -> PaywallCopy.Pitch? {
+        PaywallCopy.pitch(for: trigger)
+    }
+
+    /// Every caller but ResultView builds the paywall from its trigger alone,
+    /// and gets that trigger's pitch. A pitch handed in replaces it and
+    /// leaves the trigger, which is what the events report, as it was.
+    @MainActor
+    func test_aPaywallLeadsWithItsTriggersPitchUnlessHandedAnother() {
+        let store = MockPurchaseService()
+        for trigger in PaywallTrigger.allCases {
+            XCTAssertEqual(PaywallView(purchaseService: store, trigger: trigger).pitch,
+                           PaywallCopy.pitch(for: trigger), trigger.rawValue)
+        }
+        let generic = PaywallView(purchaseService: store, trigger: .valuationDetail, pitch: nil)
+        XCTAssertNil(generic.pitch)
+        XCTAssertEqual(generic.trigger, .valuationDetail)
+    }
+
     func test_theThreeNamedGatesLeadWithWhatTheyGate() {
         let cases: [(PaywallTrigger, String, String)] = [
             (.addTag, "Read the care tag", "care tag"),
             (.haul, "Scan a whole haul", "Haul mode"),
+            // A fresh result's. ResultView withholds it from a thin find
+            // reopened from My Finds or My Flips (`FullDetailOfferTests`).
             (.valuationDetail, "See why this price", "Why it's worth that"),
         ]
         for (trigger, headline, row) in cases {
-            XCTAssertEqual(PaywallCopy.headline(for: trigger, isYearly: true, offer: free3), headline)
-            let first = PaywallCopy.benefits(for: trigger).first?.text ?? ""
+            XCTAssertEqual(PaywallCopy.headline(pitch: pitch(trigger), isYearly: true, offer: free3), headline)
+            let first = PaywallCopy.benefits(pitch: pitch(trigger)).first?.text ?? ""
             XCTAssertTrue(first.contains(row), "\(trigger.rawValue) leads with \(first)")
         }
     }
@@ -2077,7 +2100,7 @@ final class PaywallPitchTests: XCTestCase {
             guard let pitch = PaywallCopy.pitch(for: trigger) else { continue }
             XCTAssertTrue(PaywallCopy.benefits.contains { $0.icon == pitch.leadIcon },
                           "\(trigger.rawValue) names a row the list does not have")
-            XCTAssertEqual(PaywallCopy.benefits(for: trigger).first?.icon, pitch.leadIcon)
+            XCTAssertEqual(PaywallCopy.benefits(pitch: pitch).first?.icon, pitch.leadIcon)
             XCTAssertFalse(pitch.headline.isEmpty)
         }
     }
@@ -2085,7 +2108,7 @@ final class PaywallPitchTests: XCTestCase {
     func test_reorderingNeverAddsOrDropsARow() {
         let all = PaywallCopy.benefits.map(\.text)
         for trigger in PaywallTrigger.allCases {
-            let shown = PaywallCopy.benefits(for: trigger).map(\.text)
+            let shown = PaywallCopy.benefits(pitch: pitch(trigger)).map(\.text)
             XCTAssertEqual(shown.sorted(), all.sorted(), trigger.rawValue)
             // Only the lead moves; the rest keep the order a user meets them.
             let lead = shown.first ?? ""
@@ -2096,11 +2119,11 @@ final class PaywallPitchTests: XCTestCase {
     func test_theIntroAndSettingsPaywallsKeepTodaysCopy() {
         for trigger in [PaywallTrigger.onboarding, .settings] {
             XCTAssertNil(PaywallCopy.pitch(for: trigger))
-            XCTAssertEqual(PaywallCopy.headline(for: trigger, isYearly: true, offer: free3),
+            XCTAssertEqual(PaywallCopy.headline(pitch: pitch(trigger), isYearly: true, offer: free3),
                            PaywallCopy.headline(isYearly: true, offer: free3))
-            XCTAssertEqual(PaywallCopy.subheadline(for: trigger, isYearly: true, price: "$39.99", offer: free3),
+            XCTAssertEqual(PaywallCopy.subheadline(pitch: pitch(trigger), isYearly: true, price: "$39.99", offer: free3),
                            "Then $39.99/year. Cancel anytime.")
-            XCTAssertEqual(PaywallCopy.benefits(for: trigger), PaywallCopy.benefits)
+            XCTAssertEqual(PaywallCopy.benefits(pitch: pitch(trigger)), PaywallCopy.benefits)
         }
     }
 
@@ -2118,21 +2141,21 @@ final class PaywallPitchTests: XCTestCase {
     func test_underAPitchTheFreeTrialIsStillStated() {
         for trigger in PaywallTrigger.allCases where PaywallCopy.pitch(for: trigger) != nil {
             XCTAssertEqual(
-                PaywallCopy.subheadline(for: trigger, isYearly: true, price: "$39.99", offer: free3),
+                PaywallCopy.subheadline(pitch: pitch(trigger), isYearly: true, price: "$39.99", offer: free3),
                 "Free for 3 days, then $39.99/year. Cancel anytime.", trigger.rawValue)
             // Every other case already spelled its offer out, and is unchanged.
             XCTAssertEqual(
-                PaywallCopy.subheadline(for: trigger, isYearly: true, price: "$39.99", offer: paid),
+                PaywallCopy.subheadline(pitch: pitch(trigger), isYearly: true, price: "$39.99", offer: paid),
                 PaywallCopy.subheadline(isYearly: true, price: "$39.99", offer: paid))
             XCTAssertEqual(
-                PaywallCopy.subheadline(for: trigger, isYearly: false, price: "$4.99", offer: free3),
+                PaywallCopy.subheadline(pitch: pitch(trigger), isYearly: false, price: "$4.99", offer: free3),
                 "$4.99/month. Cancel anytime.")
             XCTAssertEqual(
-                PaywallCopy.subheadline(for: trigger, isYearly: true, price: "—", offer: free3),
+                PaywallCopy.subheadline(pitch: pitch(trigger), isYearly: true, price: "—", offer: free3),
                 "Loading plans…")
         }
         // A paid offer never picks up the free sentence.
-        XCTAssertFalse(PaywallCopy.subheadline(for: .addTag, isYearly: true, price: "$39.99", offer: paid)
+        XCTAssertFalse(PaywallCopy.subheadline(pitch: pitch(.addTag), isYearly: true, price: "$39.99", offer: paid)
             .localizedCaseInsensitiveContains("free"))
     }
 
@@ -3684,6 +3707,80 @@ final class FullDetailOfferTests: XCTestCase {
         XCTAssertTrue(caption.contains("On new scans"), String(caption))
         XCTAssertTrue(caption.contains("This find keeps the summary it was saved with."),
                       "the same words the label uses once they have bought: \(caption)")
+    }
+
+    // ── The paywall that teaser opens ───────────────────────────────────────
+
+    private let free3 = IntroOffer(kind: .freeTrial, displayPrice: "",
+                                   unitCount: 3, unit: "day", periodCount: 1)
+
+    private func headline(_ sheet: ResultView, _ trigger: PaywallTrigger) -> String {
+        PaywallCopy.headline(pitch: sheet.paywallPitch(for: trigger), isYearly: true, offer: free3)
+    }
+
+    /// One tap after "This find keeps the summary it was saved with", the
+    /// paywall said "See why this price" and led with four price points and
+    /// what drives them: the promise the teaser was reworded to stop making,
+    /// on the screen that takes the money. It leads with the offer instead,
+    /// before the purchase and while the sheet is rebuilt after it.
+    func test_aReopenedThinFindsPaywallDoesNotPromiseItsBreakdown() async throws {
+        let generic = PaywallCopy.headline(isYearly: true, offer: free3)
+        // Built the way My Finds (`HistoryView`) and My Flips (`FlipsView`)
+        // build it.
+        for status in FlipStatus.allCases {
+            let sheet = ResultView(result: find(thin, status: status),
+                                   purchaseService: MockPurchaseService(), onDismiss: {})
+            XCTAssertEqual(sheet.fullDetailOffer, .teaserNewScansOnly, status.rawValue)
+            XCTAssertNil(sheet.paywallPitch(for: .valuationDetail), status.rawValue)
+            XCTAssertNotEqual(headline(sheet, .valuationDetail), "See why this price", status.rawValue)
+            XCTAssertEqual(headline(sheet, .valuationDetail), generic, status.rawValue)
+            XCTAssertEqual(PaywallCopy.benefits(pitch: sheet.paywallPitch(for: .valuationDetail)),
+                           PaywallCopy.benefits, "the list in its usual order")
+        }
+        let store = MockPurchaseService()
+        let sheet = ResultView(result: find(thin), purchaseService: store, onDismiss: {})
+        _ = try await store.purchase(productID: Config.yearlyProductID, trigger: .valuationDetail)
+        XCTAssertEqual(sheet.fullDetailOffer, .scannedBeforePro)
+        XCTAssertNil(sheet.paywallPitch(for: .valuationDetail),
+                     "the headline must not turn into the promise as the paywall closes")
+    }
+
+    /// Where buying does show the breakdown, the paywall keeps saying so: a
+    /// free user's fresh result, re-read once the purchase lands, and a
+    /// lapsed subscriber's full find.
+    func test_thePaywallStillLeadsWithTheBreakdownWhereBuyingShowsIt() {
+        let fresh = ResultView(result: find(thin), purchaseService: MockPurchaseService(),
+                               onDismiss: {}, didSave: true, coverPrice: true, isFreshScan: true)
+        XCTAssertEqual(fresh.fullDetailOffer, .none)
+        XCTAssertEqual(headline(fresh, .valuationDetail), "See why this price")
+        let lapsed = ResultView(result: find(full), purchaseService: MockPurchaseService(),
+                                onDismiss: {})
+        XCTAssertEqual(headline(lapsed, .valuationDetail), "See why this price")
+    }
+
+    /// Only the breakdown's pitch depends on the find. Every other paywall
+    /// this sheet opens leads with its own gate, reopened find or not.
+    func test_theSheetsOtherPaywallsKeepTheirPitch() {
+        let sheet = ResultView(result: find(thin), purchaseService: MockPurchaseService(),
+                               onDismiss: {})
+        XCTAssertEqual(sheet.fullDetailOffer, .teaserNewScansOnly)
+        for trigger in PaywallTrigger.allCases where trigger != .valuationDetail {
+            XCTAssertEqual(sheet.paywallPitch(for: trigger), PaywallCopy.pitch(for: trigger),
+                           trigger.rawValue)
+        }
+    }
+
+    /// Source-level: the sheet hands the paywall this answer, and keeps the
+    /// trigger, which is what the events report.
+    func test_theSheetsPaywallTakesThePitchFromTheFind() throws {
+        let file = try String(
+            contentsOf: URL(fileURLWithPath: #filePath)
+                .deletingLastPathComponent().deletingLastPathComponent()
+                .appendingPathComponent("SnapWorth/Views/ResultView.swift"),
+            encoding: .utf8)
+        let compact = file.filter { !$0.isWhitespace }
+        XCTAssertTrue(compact.contains(
+            "PaywallView(purchaseService:purchaseService,trigger:paywallTrigger,pitch:paywallPitch(for:paywallTrigger))"))
     }
 
     /// Source-level: which sheet is fresh is decided at its call site. Only the

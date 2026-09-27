@@ -12,7 +12,28 @@ struct PaywallView: View {
     let purchaseService: any PurchaseService
     /// What surfaced this paywall — attributed to `paywall_viewed`,
     /// `paywall_dismissed` and the three purchase events.
-    var trigger: PaywallTrigger = .upgradeButton
+    let trigger: PaywallTrigger
+    /// What the header and the top of the list lead with, or nil for the
+    /// offer as the headline over the list in its usual order.
+    ///
+    /// The trigger's own pitch (`PaywallCopy.pitch(for:)`) unless the caller
+    /// passes one. A caller does when the trigger's pitch would promise what
+    /// buying there does not deliver — see `ResultView.paywallPitch(for:)`.
+    /// The trigger is still what the events report, so a paywall that leads
+    /// with the offer is counted at the gate it opened from.
+    let pitch: PaywallCopy.Pitch?
+
+    init(purchaseService: any PurchaseService, trigger: PaywallTrigger = .upgradeButton) {
+        self.init(purchaseService: purchaseService, trigger: trigger,
+                  pitch: PaywallCopy.pitch(for: trigger))
+    }
+
+    init(purchaseService: any PurchaseService, trigger: PaywallTrigger,
+         pitch: PaywallCopy.Pitch?) {
+        self.purchaseService = purchaseService
+        self.trigger = trigger
+        self.pitch = pitch
+    }
 
     var body: some View {
         ZStack(alignment: .topTrailing) {
@@ -34,14 +55,14 @@ struct PaywallView: View {
                             .symbolRenderingMode(.hierarchical)
                             .padding(.top, 56)
 
-                        Text(PaywallCopy.headline(for: trigger, isYearly: isYearly, offer: offer))
+                        Text(PaywallCopy.headline(pitch: pitch, isYearly: isYearly, offer: offer))
                             .font(.fraunces(32, weight: .bold, relativeTo: .largeTitle))
                             .foregroundStyle(Color.snapEspresso)
                             .multilineTextAlignment(.center)
                             .snapAnimation(.easeInOut(duration: 0.2), value: isYearly)
                             .accessibilityAddTraits(.isHeader)
 
-                        Text(PaywallCopy.subheadline(for: trigger, isYearly: isYearly,
+                        Text(PaywallCopy.subheadline(pitch: pitch, isYearly: isYearly,
                                                      price: selected.displayPrice,
                                                      offer: offer))
                             .font(.snapCaption)
@@ -125,7 +146,7 @@ struct PaywallView: View {
                     // "Full scan history" used to head the list and is not
                     // gated at all: HistoryView's grid has no `isPro` check.
                     VStack(alignment: .leading, spacing: 14) {
-                        ForEach(PaywallCopy.benefits(for: trigger), id: \.text) { benefit in
+                        ForEach(PaywallCopy.benefits(pitch: pitch), id: \.text) { benefit in
                             BenefitRow(icon: benefit.icon, text: benefit.text)
                         }
                     }
@@ -529,7 +550,7 @@ enum PaywallCopy {
     ///
     /// None of these may say "free": the headline is shown whatever the offer
     /// is, and the word needs `IntroOffer.isFree` (see the type's comment).
-    /// The offer moves to the line under it — see `subheadline(for:…)`.
+    /// The offer moves to the line under it — see `subheadline(pitch:…)`.
     static func pitch(for trigger: PaywallTrigger) -> Pitch? {
         switch trigger {
         // Nobody reached for anything: the intro paywall after the first
@@ -546,6 +567,11 @@ enum PaywallCopy {
         case .haul:
             return Pitch(headline: String(localized: "Scan a whole haul"),
                          leadIcon: "square.stack.3d.up.fill")
+        // True where buying shows the find's breakdown: a fresh result,
+        // re-read once the purchase lands, or a full panel. Not on a free
+        // user's thin find reopened from My Finds or My Flips, which nothing
+        // re-reads; ResultView passes no pitch there
+        // (`ResultView.paywallPitch(for:)`).
         case .valuationDetail:
             return Pitch(headline: String(localized: "See why this price"),
                          leadIcon: "chart.line.uptrend.xyaxis")
@@ -565,17 +591,17 @@ enum PaywallCopy {
         }
     }
 
-    static func headline(for trigger: PaywallTrigger, isYearly: Bool, offer: IntroOffer?) -> String {
-        pitch(for: trigger)?.headline ?? headline(isYearly: isYearly, offer: offer)
+    static func headline(pitch: Pitch?, isYearly: Bool, offer: IntroOffer?) -> String {
+        pitch?.headline ?? headline(isYearly: isYearly, offer: offer)
     }
 
     /// Under a pitch, the headline no longer names the free trial, so this
     /// line must: "Then $39.99/year" would follow nothing, and the trial would
     /// be stated only by the button. Every other case already spells its
     /// offer out in full and is unchanged.
-    static func subheadline(for trigger: PaywallTrigger, isYearly: Bool, price: String,
+    static func subheadline(pitch: Pitch?, isYearly: Bool, price: String,
                             offer: IntroOffer?) -> String {
-        guard pitch(for: trigger) != nil, price != "—", isYearly, let offer, offer.isFree else {
+        guard pitch != nil, price != "—", isYearly, let offer, offer.isFree else {
             return subheadline(isYearly: isYearly, price: price, offer: offer)
         }
         let regular = String(localized: "\(price)/year")
@@ -583,8 +609,8 @@ enum PaywallCopy {
     }
 
     /// The pitch's row first, the rest in their usual order.
-    static func benefits(for trigger: PaywallTrigger) -> [Benefit] {
-        guard let icon = pitch(for: trigger)?.leadIcon,
+    static func benefits(pitch: Pitch?) -> [Benefit] {
+        guard let icon = pitch?.leadIcon,
               let lead = benefits.first(where: { $0.icon == icon }) else { return benefits }
         return [lead] + benefits.filter { $0 != lead }
     }
