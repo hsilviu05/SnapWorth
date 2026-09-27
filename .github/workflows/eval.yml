@@ -229,6 +229,8 @@ jobs:
         env:
           GEMINI_API_KEY: ci-placeholder-not-real
         run: |
-          # A removed or nulled field is a decode failure on installed clients
-          # that cannot be fixed without an App Store release.
+          # A removed, nulled or retyped field is a decode failure on installed
+          # clients that cannot be fixed without an App Store release.
+          # test_contract.py compares every key and type with contract/.
           pytest tests/test_ai_pipeline.py -k "Contract" -v --tb=short
+          pytest tests/test_contract.py -v --tb=short

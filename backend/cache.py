@@ -34,9 +34,10 @@ class KeyValueStore(Protocol):
 
     `Cache` describes a full backend (add/incr/ping included) and is the right
     type for something implementing one. Callers that only read and write —
-    auth, comps — should depend on this instead: `ResilientCache` deliberately
+    comps — should depend on this instead: `ResilientCache` deliberately
     does not implement `ping`, so requiring the full protocol rejects the very
-    object the application wires in.
+    object the application wires in. Auth holds a `ResilientCache` itself,
+    because it needs `required` reads, which this protocol does not offer.
     """
 
     async def get(self, key: str) -> str | None: ...

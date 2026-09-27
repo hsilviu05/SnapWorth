@@ -35,6 +35,8 @@ import math
 import statistics
 from dataclasses import dataclass, field
 
+from confidence import brand_is_known
+
 
 def ape(predicted: float, actual: float) -> float | None:
     """Absolute percentage error. None when `actual` is 0 (undefined)."""
@@ -200,7 +202,9 @@ def hallucination_rate(records: list[dict]) -> dict:
             issues.append("unsupported_model")
         truth_brand = (rec.get("expected_brand") or "").strip().lower()
         got_brand = (rec.get("brand") or "").strip().lower()
-        if truth_brand and got_brand not in {"", "unknown"} and got_brand != truth_brand:
+        # An abstention ("Unknown", "Generic", …) is not a contradiction.
+        # The list is the one confidence scores against — see UNKNOWN_BRANDS.
+        if truth_brand and brand_is_known(got_brand) and got_brand != truth_brand:
             issues.append("brand_mismatch")
         if rec.get("identification_certainty") == "certain" and not evidence:
             issues.append("evidence_missing")

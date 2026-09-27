@@ -416,6 +416,15 @@ async def _predict_one(model, item: EvalItem, prompt_text: str, version: str, ro
             return prediction
 
     val = valuation_module.normalise(data, image_quality=quality)
+    # `/scan` refuses a reply it cannot stand behind — 422 when the model
+    # priced it at zero on purpose, 502 `no_price` otherwise — so no user is
+    # served one. Scored here, a one-price reply counted as a prediction, with
+    # a range the server opened and a confidence score, and a zero-price reply
+    # was clamped to its category floor.
+    if not val.prices.servable:
+        prediction.error = ("not_resalable" if valuation_module.priced_as_unsellable(data)
+                            else "no_price")
+        return prediction
     # The same call `/scan` makes, not a paraphrase of it. This was a local
     # reimplementation that had drifted in two ways: it substituted `or 1.0` /
     # `or 5.0` for a response carrying no prices, a case production does not
@@ -430,6 +439,7 @@ async def _predict_one(model, item: EvalItem, prompt_text: str, version: str, ro
         value_low=low, value_high=high, image_quality=quality, was_clamped=clamped,
         model_field_count=valuation_module.count_present_fields(val),
         expected_field_count=len(valuation_module.EXPECTED_OPTIONAL_FIELDS),
+        range_synthesised=val.prices.single_price,
     )
 
     prediction.predicted_expected = val.prices.expected

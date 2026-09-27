@@ -183,11 +183,15 @@ def generation_config(
 # slow-but-working call still completes, bounded enough that a dead one fails
 # fast and hits the retry loop. Milliseconds, per the SDK's field.
 # 25s, not the previous 60s. The iOS client gives up at 30s request / 35s
-# resource (`CertificatePinning.swift:149,154`), and `_generate_with_retry`
-# will attempt this twice — so a 60s ceiling meant the *first* attempt could
-# still be running long after the only caller had stopped listening, and the
-# retry could only bill Gemini for a result nobody would receive. 25s leaves
-# room for one retry inside the client's own budget.
+# resource (`URLSession.snapWorthAPI` in CertificatePinning.swift), so a 60s
+# ceiling meant the *first* attempt could still be running long after the only
+# caller had stopped listening.
+#
+# This is per attempt, and it does not leave room for a retry after a timeout:
+# 25s, a backoff and a second 25s is about 50s. An earlier version of this
+# comment said it did. The overall bound is `main.CLIENT_DEADLINE_SECONDS`,
+# which `_generate_with_retry` enforces across attempts — a retry gets the time
+# that is left, or is skipped when too little is.
 REQUEST_TIMEOUT_MS = int(os.environ.get("GEMINI_TIMEOUT_MS", "25000"))
 
 # Cap on the model's internal reasoning tokens. Unset by default, which is
