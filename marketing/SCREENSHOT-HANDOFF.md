@@ -1,227 +1,320 @@
-# SnapWorth — screenshot designer handoff
+# SnapWorth — screenshot handoff, 1.5.1
 
-Condensed production sheet. Full rationale in `SCREENSHOT-SPEC.md`.
+The production sheet for #203: what to capture, on what, in which state, and
+how it becomes the uploaded set. The reasons, and the source line behind every
+fact, are in `SCREENSHOT-SPEC.md` §0.
 
----
-
-## 1. Screen inventory
-
-Eight screenshots. Column 2 is the **real app screen** to capture — never a
-redraw. Column 3–4 is the marketing copy composited above it.
-
-| # | App screen to capture | Headline (≤5 words) | Subhead (≤15 words) |
-|---|---|---|---|
-| 1 | `ResultView` — scrolled to value card | **Know before<br>you buy.** | An AI resale estimate from one photo. |
-| 2 | `ThriftFlipView` — verdict card visible | **Profit, after<br>fees.** | Shop price in. Marketplace fees out. A clear verdict. |
-| 3 | `ScanView` — viewfinder, item framed | **Four seconds,<br>in the aisle.** | Point, snap, decide. No account, no typing. |
-| 4 | `ResultView` ×2, overlapping cards | **It tells you<br>when it's unsure.** | Every estimate shows its confidence. No false precision. |
-| 5 | `ResultView` — Listing Draft + Snap → Sell | **Your listing,<br>already written.** | A title and description tailored to where you sell. |
-| 6 | `FlipsView` — sold / profit / ROI | **Every flip,<br>tracked.** | Paid, listed, sold. See what you actually made. |
-| 7 | `HistoryView` dimmed + privacy lockup | **Your photos<br>stay yours.** | Analysed, then discarded. Never stored on our servers. |
-| 8 | `PaywallView` — plan cards | **Three free scans,<br>every day.** | Go unlimited with Pro when you're ready. |
-
-### Required UI state per shot
-
-| # | Must be visible on device |
-|---|---|
-| 1 | `ESTIMATED RESALE VALUE` · `$45–$90` · `High confidence` badge · `AI estimate` label |
-| 2 | Shop price `$8` · marketplace `eBay` · verdict **`Worth flipping`** in sage |
-| 3 | Corner accents · "Center the item — tags & logos help" · `3 free scans left today` pill |
-| 4 | Front card `High confidence`; back card `Low confidence`, scaled 0.94, 60% opacity, +40px offset |
-| 5 | Marketplace chips **eBay · Vinted · Facebook · OLX** only · `PRO` badge visible |
-| 6 | Items sold · profit · ROI · last 6 months |
-| 7 | `lock.shield` glyph + 3 lines: Never stored on our servers / No account required / History stays on your device |
-| 8 | **Live StoreKit prices for the target storefront** |
-
-### Never show
-
-Sold listings · comps · "market data" · a listing count · a numeric confidence
-score · four price points · Depop / Poshmark / Mercari / StockX · any marketplace
-**logo** (plain text names only) · UI that does not exist in the build.
+**Owner steps:** the captures (§3–§5), compositing (§6) and the upload (§7),
+all before 1.5.1 is submitted. Screenshots belong to the version: once 1.5.1
+is in review they cannot change until 1.5.2.
 
 ---
 
-## 2. Device + canvas
+## 1. The set
 
-### Required uploads
+Eight frames at iPhone 6.9″, in gallery order. Column *Capture* is the file
+`build_screenshots.py` reads; *Output* is what it writes to
+`marketing/screenshots/v3/` and what gets uploaded.
 
-| Slot | Pixels | Device to capture on | Status |
-|---|---|---|---|
-| **iPhone 6.9″** | **1320 × 2868** | iPhone 17 Pro Max | **Required** — matches your existing assets |
-| iPhone 6.5″ | 1242 × 2688 | iPhone 11 Pro Max | Optional — Apple scales from 6.9″ if omitted |
-| **iPad 13″** | **2064 × 2752** | iPad Pro 13″ | **Required** — see blocker below |
-
-> **6.7″ (1290 × 2796) is no longer a separate upload.** It was the required
-> iPhone size before 6.9″ superseded it; Apple now scales 6.9″ down to cover it.
-> Do not produce it.
-
-> ### ⚠️ iPad blocker
-> `TARGETED_DEVICE_FAMILY = "1,2"` — the app **declares iPad support**, so App
-> Store Connect will require iPad screenshots before submission. You have none.
->
-> Two options, and this is a product decision, not a design one:
-> - **Produce iPad screenshots** — the app is portrait-locked and camera-first,
->   so it will look sparse on a 13″ canvas.
-> - **Drop iPad support** — set `TARGETED_DEVICE_FAMILY = 1`. Honest if iPad was
->   never a real target; removes the requirement entirely.
->
-> Recommend dropping it unless iPad is a deliberate market.
-
-### Canvas layout — 1320 × 2868
-
-```
-y=0     ┌─────────────────────────┐
-        │        160 px           │   top margin
-y=200   │   HEADLINE  (2 lines)   │
-y=470   │                         │
-y=500   │   subhead   (1–2 lines) │
-y=620   │                         │
-y=760   │   ┌─────────────────┐   │
-        │   │                 │   │   device: 940 px wide
-        │   │  DEVICE MOCKUP  │   │   centred on x
-        │   │   940 × 1900    │   │
-y=2660  │   └─────────────────┘   │   ← device baseline
-        │        120 px           │   bottom margin
-y=2868  └─────────────────────────┘
-```
-
-**Nothing below y=2660.** The current set wastes ~40% of the canvas under the
-device, and the App Store gallery crops the bottom — the device is half-lost in
-the preview grid.
-
-### Device frame
-
-- iPhone 17 Pro, **Natural Titanium**
-- Flat, front-on. No perspective, no tilt, no drop shadow
-- One identical frame across all eight
-- Screen content composited from a real 3× simulator capture
-
-### Safe areas (for capture, not composition)
-
-| | 6.9″ (440 × 956 pt) |
-|---|---|
-| Top inset | 59 pt (Dynamic Island) |
-| Bottom inset | 34 pt (home indicator) |
-| Status bar | Override to 9:41, 100% battery, full bars |
-
----
-
-## 3. Type system
-
-| Role | Font | Size | Weight | Tracking | Colour | Max |
+| # | Frame | Tier | Headline | Subhead | Capture | Output |
 |---|---|---|---|---|---|---|
-| Headline | **Fraunces** | 96–112 pt | Bold (700) | −2% | Espresso `#2B211C` | 2 lines |
-| Headline accent | Fraunces | same | Bold | −2% | Terracotta `#D96C47` | **1 word** |
-| Subhead | **DM Sans** | 40–44 pt | Regular (400) | 0 | Warm grey `#6E6055` | 2 lines |
+| 01 | Thrift Flip | Free | Profit, after *fees.* | Shop price in, fees out: a verdict before you buy. Free with your daily scan. | `raw_01_thrift-flip.png` | `en_69_01_profit-after-fees.png` |
+| 02 | Haul mode | **Pro** | Scan a whole *haul.* | With Pro: snap item after item while each is valued, with a running total. | `raw_02_haul.png` | `en_69_02_scan-a-whole-haul.png` |
+| 03 | Result | Free | Know before you *buy.* | An AI resale estimate from one photo, with its confidence level. | `raw_03_result.png` | `en_69_03_know-before-you-buy.png` |
+| 04 | Snap → Sell | **Pro** | Your listing, already *written.* | With Pro: a title and description tailored to where you sell, on nine marketplaces. | `raw_04_snap-sell.png` | `en_69_04_your-listing-already-written.png` |
+| 05 | My Flips | Free | Every flip, *tracked.* | What you paid, what it sold for, and what you made after fees. | `raw_05_my-flips.png` | `en_69_05_every-flip-tracked.png` |
+| 06 | Widgets | Free | Your finds, at a *glance.* | Home Screen and Lock Screen widgets: total value, recent finds, one-tap scan. | `raw_06_widgets.png` | `en_69_06_your-finds-at-a-glance.png` |
+| 07 | Privacy | Free | Your photos stay *yours.* | Never stored on our servers. No account. Your scan history stays on your device. | `raw_07_my-finds.png` | `en_69_07_your-photos-stay-yours.png` |
+| 08 | Plans | Free | One *free* scan, every day. | Then Pro, when you want more. Cancel anytime. | `raw_08_plans.png` | `en_69_08_one-free-scan-every-day.png` |
 
-- Line height: headline **1.05**, subhead **1.35**
-- Never a third typeface
-- Exactly one accent word per headline — the verb or the payoff
-- German: allow 3 headline lines at **88 pt** (runs 30–35% longer)
+The accent word is in *italics*. Frames 02 and 04 also get a **PRO** tag above
+the headline, in the app's own badge colours (Guideline 2.3.2). The captions
+live in `build_screenshots.py`; change them there, and `--check` holds them to
+the limits (five words, fifteen words, two lines each) and to the listing's
+do-not-claim list.
 
-Both fonts are in the repo: `ios/SnapWorth/Fonts/Fraunces-Variable.ttf`,
-`DMSans-Variable.ttf`.
-
----
-
-## 4. Colour + background
-
-From `DesignSystem.swift`. Do not invent values.
-
-| Token | Light | Dark | Use |
-|---|---|---|---|
-| Terracotta | `#D96C47` | `#E8845F` | Accent word, CTA |
-| Sage | `#6F8F6B` | `#8FB08A` | Money, profit, positive verdict |
-| Amber | `#EBB868` | `#E5BE7C` | Badges only — sparingly |
-| Espresso | `#2B211C` | `#F0E9E2` | Headline text |
-| Warm grey | `#6E6055` | `#B0A297` | Subhead text |
-| Cream | `#FBF7F2` | — | Light background |
-| Deep espresso | — | `#17120F` | Dark background |
-| Charcoal | `#1C1714` | `#1C1714` | Camera chrome, both themes |
-
-### Per-screenshot background
-
-| # | Background |
-|---|---|
-| 1 | Cream `#FBF7F2`, radial lift to `#FFFFFF` behind device centre |
-| 2 | Cream + sage wash `#6F8F6B` at **6%** across lower third |
-| 3 | **Deep espresso `#17120F`** — the only dark frame in the set |
-| 4 | Cream, flat |
-| 5 | Cream, flat |
-| 6 | Cream + faint sage tint, lower half |
-| 7 | Cream, flat — most whitespace of the set |
-| 8 | Cream → terracotta gradient at **≤6%**, base only |
-
-### Lighting
-
-- Backgrounds: **flat or a single soft radial**, ≤8% luminance variance
-- No photography behind the device
-- No confetti, no floating UI chips, no glow
-- Device screen at 100% opacity — never dimmed except screenshot 7's deliberate
-  scrim
-
-Screenshot 3's dark ground is deliberate: the tonal break makes it the visual
-anchor of the gallery strip.
+**Tier** is the tier the device must be on *when that frame is captured*.
+It is not a detail: a Pro screen under a free caption is a 2.3.2 problem, and
+a Pro capture of a free screen shows Pro-only things (the 0–100 number in
+*Why this price*, *All-time profit*, "∞ Unlimited scans" on the widget).
 
 ---
 
-## 5. Compliance, localisation, export
+## 2. Device, build and canvas
 
-### Compliance gate — check every frame before upload
+| | Required | Why |
+|---|---|---|
+| **Build** | **1.5.1 (21), installed from TestFlight** — the binary that is submitted | A TestFlight build is Release: no `#if DEBUG` code is compiled in, and it cannot receive `-mock-scans`, so every result is production output from `api.snapworth.eu` (`Config.swift:6-25`). Not an Xcode run, not a Debug build |
+| **Device** | **A physical 6.9″ iPhone** — iPhone 16 Pro Max or 17 Pro Max (or newer 6.9″); native screenshots are 1320 × 2868 | The Simulator cannot use App Attest, so every Simulator scan against production fails (`Config.swift:12-19`). `--check` refuses any capture that is not 1320 × 2868 |
+| **Backend** | Production, as is. A TestFlight purchase is Sandbox, which production honours on bounded terms: Pro on one device, for up to 24 hours per sync (`backend/entitlements.py:125-191`) | So the Pro frames work on the TestFlight build without a real subscription |
+| **Devices** | **iPhone only** (`TARGETED_DEVICE_FAMILY = 1`, `project.pbxproj:951`, `:983`) | App Store Connect asks for the iPhone set alone |
+| **Other iPhone sizes** | None. Apple scales the 6.9″ set down | — |
 
-- [ ] No "sold listings", "comps", "market data", or a listing count
-- [ ] Only **eBay · Vinted · Facebook · OLX** named; **no logos**, no brand colours
-- [ ] Screenshot 8 shows **live localised prices** per storefront (never hardcoded USD)
-- [ ] No trial badge in a storefront where the offer isn't configured
-- [ ] Privacy lines match `PrivacyInfo.xcprivacy` and the policy exactly
-- [ ] Every UI element exists in the shipping build
-- [ ] `AI estimate` label visible in at least one frame
+**Check the build contains what the frames show.** Thrift Flip's seeded
+*Expected resale* is R (#238, merged 2026-09-27 19:59 EEST) and the widgets
+are T (#240, merged 20:21 the same day). The `chore: 1.5.1, build 21` commit is
+not proof either way (see `CLAUDE.md`): open Xcode's Organizer and confirm the
+build-21 archive was created **after** both merges. If it was not, the frames
+must wait for an archive that is.
 
-Guidelines in play: **2.3.1 / 2.3.7** (accurate metadata — the blocker that
-already exists), **2.3.2** (pricing), **3.1.2** (subscription terms), **5.1.1**
-(privacy).
+**Canvas** 1320 × 2868; device 940 px wide, baseline y = 2660; PRO tag at
+y = 96, headline from y = 200, subhead from y = 500. All in
+`build_screenshots.py` — change geometry there, in one place.
 
-### Localisation
+---
 
-Six locales, adapted not translated. Full headline table in
-`SCREENSHOT-SPEC.md` §5.
+## 3. The shot list
 
-| Locale | Note |
-|---|---|
-| `en` | Master. Validate before localising anything |
-| `ro` | **Reorder screenshot 5 to put OLX chip first** — OLX dominates Romanian resale |
-| `de` | 30–35% longer; 3 lines at 88 pt; re-check every crop |
-| `fr` | *vous* throughout — *tu* reads cheap for a paid tool |
-| `es` | Neutral Latin-American; no *vosotros* |
-| `it` | "al netto" is the standard financial phrasing |
+Capture with the side button + volume up. AirDrop each PNG to the Mac as-is
+(no crop, no edit, no markup) and rename it to the *Capture* name in §1.
 
-**Do not localise until the English set has run.** Localising a losing variant
-six times multiplies the cost of being wrong.
+### 01 — Thrift Flip · free
 
-### Export
+- **Screen:** Scan tab → **Flip** (bottom right of the shutter) → *Scan item*
+  → photograph the sample → enter the shop price (or *Scan tag* on the price
+  tag) → *Done* on the keyboard.
+- **State:** the verdict card reads **Worth flipping**, in sage. **eBay**
+  selected (the default). *Expected resale* **as the app seeded it** — do not
+  type over it; that field is the model's likely price, and a hand-typed
+  figure would be a number the app never gave. *Shipping* empty. Keyboard
+  dismissed. The whole card in view: item header, *Where you'd sell*, *Shop
+  price*, *Expected resale*, the verdict, *Net profit*, *ROI* and the
+  Resale / − Fees / − Paid rows. No *Save to My Flips* tap needed.
+- **Sample item:** a real thrift find with a recognisable brand and its real
+  shelf price — e.g. a branded fleece, denim jacket or pair of trainers
+  bought for $8–$15. If the verdict comes back *Skip it*, that is the honest
+  answer for that item: choose another, do not change the numbers.
+- **Spends** the day's free scan. The find is saved to My Finds, which frame
+  03 uses.
+
+### 02 — Haul mode · **Pro**
+
+- **Screen:** Scan tab → the **Haul** pill above the shutter → Haul's camera.
+- **State:** 6–8 items photographed, **every cell valued** (a price under each
+  thumbnail, no spinner beside *Estimated total*, no failed cell), camera
+  pointed at the pile, **no banner** (no "You've hit the scan limit.", no
+  hold). The top bar reads *Estimated total*, the total, *N items*, *Finish*.
+  Do not tap Finish.
+- **Sample items:** a real, well-lit pile on a table — varied categories
+  (trainers, denim, a bag, a jacket, a camera, a record…). Eight at most:
+  Pro scans share an hourly cap, and a pause banner in frame is a reshoot.
+- **Tier:** Pro (TestFlight Sandbox subscription, §5).
+- **#187's DEBUG synthetic camera** may stand in for the device camera **only
+  if nothing DEBUG shows**. In practice it cannot: it exists only in a DEBUG
+  build on the Simulator with `-mock-scans` (`CameraManager.swift:266-279`),
+  so every thumbnail is a numbered colour card ("#1", "#2", …,
+  `:326-352`) and every value is a canned mock result — not the submitted
+  build, not production output. Use it to rehearse the framing; capture the
+  frame on the device.
+- **If Haul is not in 1.5.1** (#93's device checks, or P2 not deployed so a
+  haul pauses): skip this frame (§6) and add it in 1.5.2.
+
+### 03 — Result · free
+
+- **Screen:** My Finds → the frame-01 find (or a fresh scan from the Scan tab
+  on another day, with *Reveal* tapped and no guess typed). The sheet at the
+  top, not scrolled.
+- **State:** hero photo, item name, the **brand** and **condition grade**
+  chips (e.g. *Good*), *Estimated Resale Value*, the range, the confidence
+  band, and **AI estimate** beside it. Below: *Why this price* **locked**, with
+  its PRO badge. No guess verdict line.
+- **Check before keeping it:** the caption beside the band reads **AI
+  estimate** — if it reads "Based on recent sales", use another find. The
+  locked card's first line is blurred by the app; confirm no "out of 100"
+  is legible at full size.
+- **Sample item:** the frame-01 find — one item, from verdict to estimate.
+  Prefer a photo on a textured or darker ground: a white background leaves
+  the top third of the sheet empty.
+- **Tier:** free. On Pro, *Why this price* opens and prints "NN / 100
+  confidence" under the ladder — never capture this frame on Pro.
+
+### 04 — Snap → Sell · **Pro**
+
+- **Screen:** My Finds → a find from the frame-02 haul → scroll to *Snap →
+  Sell* → **eBay** selected → *Generate eBay listing* → wait for the listing.
+- **State:** scrolled so the card fills the screen from the *Snap → Sell*
+  header to *Open eBay*: chips, title, description, **Ask** and **Floor**,
+  Copy / Share, *Open eBay*, and "SnapWorth writes it — you paste & post. We
+  never post for you." **Nothing of *Why this price* in frame** — on Pro it
+  holds the 0–100 number.
+- **Sample item:** a haul find with a clear brand, so the title reads well.
+- **Tier:** Pro. The in-app PRO badge does not render for a subscriber; the
+  caption carries Pro.
+
+### 05 — My Flips · free
+
+- **Screen:** the **My Flips** tab, at the top.
+- **State:** *Profit this month* with a positive figure, the four stat cards
+  (Invested, Avg ROI, Best flip, Not sold yet), *Last 6 months* with more
+  than one bar if the ledger has them, the first rows below.
+- **Sample data:** the owner's own ledger — real flips, marked Sold, with
+  what was paid and what they sold for. Do not enter sales that did not
+  happen.
+- **Tier:** free. On Pro the header is *All-time profit*, a Pro feature.
+
+### 06 — Widgets · free
+
+- **Screen:** an otherwise empty Home Screen page, light appearance, a plain
+  light wallpaper, dock left as it is (Apple's own apps only).
+- **State:** *Haul Value* (medium) at the top, *Recent finds* (medium) below,
+  *Scans left* and *Quick Scan* (small) side by side. *Scans left* shows
+  **1 · free scan left today**.
+- **Before capturing:** after installing build 21, **remove and re-add every
+  SnapWorth widget** — iOS keeps drawing an extension's old snapshot across an
+  update (`CLAUDE.md`). Open the app once so the widgets have today's data.
+- **Order:** capture this **before** frame 01 on the same day: after the
+  scan, *Scans left* reads 0 · "Back tomorrow, or go Pro".
+- **Tier:** free. On Pro, *Scans left* reads "∞ Unlimited scans", which
+  breaks the fair-use rule in a picture.
+
+### 07 — Privacy (My Finds) · free
+
+- **Screen:** the **My Finds** tab.
+- **State:** scrolled so the two-column grid of the owner's own finds fills
+  the screen; *Trending at the thrift* above it out of frame. No search text,
+  not in Edit mode.
+- **Sample data:** eight or more real finds with varied, well-lit photos.
+- **Tier:** free (Pro adds value history to the header).
+
+### 08 — Plans
+
+- **Screen:** **Settings → Upgrade** (the paywall with no trigger pitch).
+  Wait for the close button to appear, and for both plan cards to show
+  prices (no grey placeholders).
+- **State:** headline **Unlock SnapWorth Pro**, "$39.99/year. Cancel
+  anytime.", Yearly selected: **$39.99 · $0.77 per week · SAVE 33%**, Monthly
+  **$4.99 · Flexible, cancel anytime**, the first benefits in view.
+- **No trial line.** The paywall names a trial only for an account StoreKit
+  says can take one, and the listing names no trial length. Capture from an
+  Apple Account that has **already used** SnapWorth's trial. If the headline
+  reads "Try SnapWorth free for …", it is the wrong account — capture later
+  (§5), not with the trial in frame.
+- **US storefront:** the prices must be the US ones above — the same figures
+  the en-US description names. Another currency means another storefront.
+- **Tier:** free (a subscriber has no Upgrade row).
+
+---
+
+## 4. Device setup — once, before any frame
 
 | Setting | Value |
 |---|---|
-| Format | **PNG**, no compression |
-| Colour space | **sRGB** (App Store Connect rejects Display P3) |
-| Bit depth | 8-bit |
-| Alpha | **None** — flatten to background |
-| Naming | `{locale}_{device}_{NN}_{slug}.png` → `en_69_01_know-before-you-buy.png` |
+| Language / Region | English (US) / United States |
+| Appearance | **Light** (Settings → Display & Brightness) |
+| Text Size, Bold Text | Default, off |
+| Display Zoom | Default |
+| SnapWorth → Settings → *Guess before the estimate* | Either — frame 03 comes from My Finds, which never covers the price; for a fresh scan, tap *Reveal* without typing a guess |
+| Thrift run | **Off** — its Live Activity would sit in the Dynamic Island |
 
-### Capture procedure
+**A clean status bar on a device.** `xcrun simctl status_bar … override`
+works only on the Simulator, and these captures cannot come from it. On the
+iPhone:
 
-```bash
-# 1. Config.mockMode = true
-# 2. Boot the simulator, then:
-xcrun simctl status_bar <UDID> override \
-  --time 9:41 --batteryLevel 100 --batteryState charged \
-  --cellularBars 4 --wifiBars 3
+- Battery **100%**, **unplugged** (no charging bolt), **Low Power Mode off**.
+- **Wi-Fi** connected at full strength; cellular on if the phone has it.
+- **Focus off**, no call, timer, music, screen recording, hotspot or
+  navigation running — each puts something in the status bar or the island.
+- **9:41** (optional, the convention): Settings → General → Date & Time →
+  *Set Automatically* off → 9:41, **same date**. Crossing midnight would move
+  the free-scan day. Turn *Set Automatically* back on afterwards.
+- iOS's green camera-in-use dot may appear on frame 02: it is system UI;
+  leave the capture as it is rather than editing it.
+
+**Nothing DEBUG, no mocks, in any frame.** No DEBUG build, no `-mock-scans`,
+no Simulator, no canned results, no synthetic photos, no mock paywall.
+The TestFlight build of 1.5.1 (21) makes this automatic.
+
+---
+
+## 5. Capture order
+
+The tiers force an order.
+
+1. **Free, same morning:** 06 Widgets (while *Scans left* is 1) → 01 Thrift
+   Flip (spends the scan) → 03 Result (the same find, from My Finds) → 07 My
+   Finds → 05 My Flips.
+2. **Subscribe** in the TestFlight build: Settings → Upgrade → Yearly. This is
+   Sandbox — no charge — and it uses up the trial for that account, which is
+   what frame 08 needs later. Wait until the Scan tab stops showing the
+   free-scan counter.
+3. **Pro:** 02 Haul → 04 Snap → Sell (a find from that haul).
+4. **Free again:** cancel the TestFlight subscription and wait for it to
+   lapse — until the Scan tab shows the free-scan counter again (Sandbox
+   renewals are accelerated; the server's bounded Sandbox Pro lasts at most
+   24 hours after the last sync). Then 08 Plans from Settings → Upgrade, with
+   no trial line.
+
+If a frame needs retaking on another day, retake it on the tier its row in §1
+names.
+
+---
+
+## 6. Compositing
+
+```sh
+# the eight captures, named as in §1, go here (git-ignored):
+mkdir -p marketing/screenshots/v3/captures
+
+python3 marketing/build_screenshots.py --check   # validates; writes nothing
+python3 marketing/build_screenshots.py           # writes marketing/screenshots/v3/en_69_*.png
 ```
 
-Capture at 3× from **iPhone 17 Pro Max**, light appearance — except screenshot
-3, which is dark appearance.
+`--check` fails, naming the file, for a capture that is missing, unreadable
+or not 1320 × 2868, and for a caption over its limits, missing "Pro" on a Pro
+frame, or saying anything on the do-not-claim list. The build runs the same
+checks first and writes nothing unless every one passes — no partial set.
 
-### Final legibility test
+**Haul fallback** (#203, *Notes*): `--skip 02` builds and checks the other
+seven. Upload them in the same order; the numbering gap is only in the file
+names.
 
-View the full set at **1/6 scale**. If a headline is unreadable, it fails — that
-is the size a user actually sees in the gallery strip.
+Then look at the whole set at **1/6 scale** — that is the size in the search
+results. A headline that does not read there fails. Commit the eight
+composites in `marketing/screenshots/v3/`; the captures stay out of git.
+
+---
+
+## 7. Upload — owner, before Submit
+
+1. App Store Connect → SnapWorth → **1.5.1** → **English (U.S.)** → *iPhone
+   6.9″ Display*: delete the four live panels, upload the eight composites
+   **in 01 → 08 order**.
+2. The localizations #202 adds (Romanian, German, Simplified Chinese, and
+   Spanish for Spain and Mexico) get no screenshots of their own in 1.5.1,
+   so App Store Connect shows them this English set. A German set captured in German can follow
+   in a later version (`SCREENSHOT-SPEC.md` §5).
+3. **iMessage App** section: if App Store Connect blocks the submission for
+   iMessage screenshots, see `RELEASE-NOTES-1.5.0.md:48-56` — the sticker
+   drawer is a separate upload, not one of these eight.
+4. After upload, point `README.md`'s screenshot row at `marketing/screenshots/v3/`
+   (it shows `store_1..4` today).
+5. Two and four weeks after release, compare tap-through with the baseline
+   week in `docs/GROWTH-DASHBOARD.md`.
+
+---
+
+## 8. Gate — every frame, before upload
+
+- [ ] Captured on the 1.5.1 (21) TestFlight build, on a 6.9″ iPhone, against
+      production — nothing DEBUG, no mock, no Simulator
+- [ ] Captured on the tier its row in §1 names
+- [ ] 02 and 04 carry the PRO tag and say Pro
+- [ ] No "sold listings", comps, market data, "Based on recent sales"
+- [ ] No numeric confidence score anywhere: no "/ 100", no "out of 100"
+- [ ] The result reads **AI estimate** and a confidence **band**
+- [ ] No trial line or trial length on 08; US prices
+- [ ] "Unlimited" appears nowhere without fair use (the Pro *Scans left*
+      widget is why 06 is free)
+- [ ] Marketplace names as plain chips, no logos
+- [ ] Status bar clean; no banner, spinner or keyboard left in frame
+- [ ] `python3 marketing/build_screenshots.py --check` passes
+- [ ] The set reads at 1/6 scale
+
+### Export (what the script writes)
+
+| Setting | Value |
+|---|---|
+| Size | 1320 × 2868 |
+| Format | PNG |
+| Colour | sRGB, 8-bit, no alpha. The captures are Display P3; the script converts them, so the app's own colours match the caption's |
+| Naming | `{locale}_{device}_{NN}_{slug}.png` → `en_69_01_profit-after-fees.png` |
