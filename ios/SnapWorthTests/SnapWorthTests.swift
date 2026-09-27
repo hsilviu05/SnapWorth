@@ -25,14 +25,14 @@ final class ScanResultTests: XCTestCase {
         XCTAssertFalse(result.formattedRange.contains("£"))
     }
 
-    func test_midpointValue() {
+    func test_likelyValue_isTheMidpointWithoutAnExpectedPrice() {
         let result = makeScanResult(low: 40, high: 80)
-        XCTAssertEqual(result.midpointValue, 60)
+        XCTAssertEqual(result.likelyValue, 60)
     }
 
-    func test_midpointValue_asymmetric() {
+    func test_likelyValue_isTheMidpointWithoutAnExpectedPrice_asymmetric() {
         let result = makeScanResult(low: 10, high: 90)
-        XCTAssertEqual(result.midpointValue, 50)
+        XCTAssertEqual(result.likelyValue, 50)
     }
 
     // MARK: Helpers
@@ -1009,15 +1009,15 @@ final class ScanResultEdgeTests: XCTestCase {
                        "Formatted range must not contain a minus sign")
     }
 
-    func test_midpointValue_neverNegative() {
+    func test_likelyValue_neverNegative() {
         let r = makeScanResult(low: 0, high: 0)
-        XCTAssertGreaterThanOrEqual(r.midpointValue, 0)
+        XCTAssertGreaterThanOrEqual(r.likelyValue, 0)
     }
 
-    func test_midpointValue_betweenLowAndHigh() {
+    func test_likelyValue_betweenLowAndHigh() {
         let r = makeScanResult(low: 20, high: 80)
-        XCTAssertGreaterThanOrEqual(r.midpointValue, 20)
-        XCTAssertLessThanOrEqual(r.midpointValue, 80)
+        XCTAssertGreaterThanOrEqual(r.likelyValue, 20)
+        XCTAssertLessThanOrEqual(r.likelyValue, 80)
     }
 
     func test_formattedRange_doesNotContainScriptTags() {

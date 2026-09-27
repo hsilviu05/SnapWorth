@@ -1075,6 +1075,24 @@ class ScanResponse(BaseModel):
     best_case_price_usd: float | None = Field(ge=0, default=None)
     worst_case_price_usd: float | None = Field(ge=0, default=None)
 
+    # The figure the app does its own maths with: the portfolio total, the
+    # Thrift Flip resale seed, the listing ask, the widgets and the Most
+    # Valuable sort. The same number as `expected_price_usd` — the model's
+    # point estimate after `apply_price_bounds` — but sent on every tier.
+    #
+    # Without it the app took the midpoint of `est_value_low_usd` and
+    # `est_value_high_usd`. Since v2 those are the worst and best case, and a
+    # resale range has a long upper tail, so the midpoint sits above the
+    # expected price and every figure above inherited the bias — while a Pro
+    # user saw the real expected price on the ladder beside it. A separate
+    # field rather than un-stripping `expected_price_usd`: the ladder stays
+    # Pro (44a107e, `_PRO_ONLY_DETAIL_FIELDS`). It is one number and never a
+    # ladder row, but it is not hidden from a free user: it is inside every
+    # total the app shows, and Thrift Flip seeds its editable "Expected
+    # resale" field with it, which at the graded condition is the Pro
+    # ladder's Expected price under that label.
+    likely_price_usd: float | None = Field(ge=0, default=None)
+
     # Identification detail.
     model_name: str | None = None
     variant: str | None = None
@@ -2376,6 +2394,8 @@ async def _analyse(image_bytes: bytes, content_type: str, *, subject: str,
         expected_price_usd=val.prices.expected or None,
         best_case_price_usd=val.prices.best or None,
         worst_case_price_usd=val.prices.worst or None,
+        # After the clamp, so it is always inside the range served above.
+        likely_price_usd=val.prices.expected or None,
         model_name=val.model,
         variant=val.variant,
         size=val.size,
@@ -2426,7 +2446,10 @@ async def _analyse(image_bytes: bytes, content_type: str, *, subject: str,
 # blurs, they keep the card (and the paywall) alive, and they are the least of
 # what a subscriber is paying for. Everything the panel actually sells — the
 # four-point price ladder, the drivers, the assumptions, the authenticity
-# read — is withheld.
+# read — is withheld. With one exception, by product decision: the ladder's
+# Expected point reaches every tier as `likely_price_usd`, the figure the
+# app's maths use, and Thrift Flip shows it to a free user as its "Expected
+# resale" seed. The other three points, and the ladder as a ladder, stay Pro.
 #
 # Including from the summary, which is rewritten rather than kept as built. A
 # likely replica caps the score (`confidence.REPLICA_CEILING`) and, as the
@@ -2459,6 +2482,11 @@ _PRO_ONLY_DETAIL_FIELDS = (
     "authenticity_assessment", "authenticity_reasoning",
     "visual_evidence", "assumptions", "uncertainty_factors",
     "improve_estimate", "value_drivers",
+    # `likely_price_usd` is deliberately NOT here either, though it carries
+    # the same value as `expected_price_usd`. It is what the app prices the
+    # portfolio, the flip verdict and the listing ask from, on every tier —
+    # a product decision, so that a free user's figures are not built on the
+    # midpoint of a worst and a best case. Stripping it puts them back there.
 )
 
 

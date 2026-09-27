@@ -95,8 +95,13 @@ struct WidgetHaulData: Codable, Equatable {
     var monthSold: Int
 
     // v4 — added 1.4.0, before release
-    /// The sum of the condition-adjusted *midpoints* — the middle of the very
-    /// range `totalLow` and `totalHigh` describe.
+    /// The sum of the condition-adjusted *likely* values of the very items
+    /// `totalLow` and `totalHigh` describe — the figure the app's own
+    /// portfolio total and Most Valuable sort use. Until the model's expected
+    /// price reached the app this was the sum of their midpoints; it is now
+    /// the expected price wherever a find has one, which on a long-tailed
+    /// range usually sits below the middle. The writer computes it and the
+    /// widget only draws it, so the rule lives on the app side.
     ///
     /// The blob carried the two ends and nothing between them, so the one place
     /// a widget has room for a single number — the circular Lock Screen
@@ -254,10 +259,10 @@ extension WidgetHaulData {
 
     /// The one number, when there is room for one number.
     ///
-    /// The midpoint total when the writer had one — that is the figure the app
-    /// prints under "Your finds are worth", and a complication that disagrees
-    /// with the app by a third is worse than no complication. `totalHigh` only
-    /// for a blob from a build that did not write it.
+    /// The likely total when the writer had one — the figure the app prints
+    /// under "Your finds are worth", and a complication that disagrees with
+    /// the app by a third is worse than no complication. `totalHigh` only for
+    /// a blob from a build that did not write it.
     var compactTotal: String { Self.compactMoney(totalLikely ?? totalHigh) }
 
     var compactRange: String {
@@ -716,8 +721,9 @@ enum WidgetDataStore {
     ///
     /// Split out because this is the rule the widget's three captions turn on
     /// and `writeHaul` itself cannot be tested — it writes to the App Group
-    /// and reloads timelines. Same rule `FlipsViewModel.monthlyBuckets` uses:
-    /// sold, with a sold date inside the month `now` falls in.
+    /// and reloads timelines. The rule itself is `LedgerMath`'s — the one My
+    /// Flips' header, its bars and its share card use — so the widget cannot
+    /// count a month the app does not.
     ///
     /// `flips` counts only the sales that could be priced — `realizedProfit`
     /// is nil without a paid price — because "$214 from 6 flips" has to be
@@ -728,18 +734,9 @@ enum WidgetDataStore {
     static func monthLedger(results: [ScanResult], now: Date = Date(),
                             calendar: Calendar = .current)
     -> (profit: Double, flips: Int, sold: Int) {
-        guard let month = calendar.dateInterval(of: .month, for: now) else {
-            return (0, 0, 0)
-        }
-        let soldThisMonth = results.filter { result in
-            guard result.status == .sold, let soldDate = result.soldDate
-            else { return false }
-            return month.contains(soldDate)
-        }
-        let profits: [Decimal] = soldThisMonth.compactMap(\.realizedProfit)
-        return (NSDecimalNumber(decimal: profits.reduce(Decimal.zero, +)).doubleValue,
-                profits.count,
-                soldThisMonth.count)
+        let sales = LedgerMath.sales(
+            LedgerMath.soldInMonth(results, containing: now, calendar: calendar))
+        return (NSDecimalNumber(decimal: sales.profit).doubleValue, sales.priced, sales.count)
     }
 
     /// Call this after any insert/delete of ScanResults in the main app.
@@ -800,16 +797,14 @@ enum WidgetDataStore {
         // actor at launch and after every save, and read each row's range
         // three times over.
         let ranges = results.map(\.currentPriceRange)
-        let lo = NSDecimalNumber(decimal: ranges.reduce(Decimal.zero) {
-            $0 + $1.low
-        }).doubleValue
-        let hi = NSDecimalNumber(decimal: ranges.reduce(Decimal.zero) {
-            $0 + $1.high
-        }).doubleValue
-        // The midpoint of the very range above — same items, same condition
-        // adjustment, `likely` instead of `low` and `high`. So the circular
-        // complication reads the middle of what the rectangular one shows,
-        // rather than its top. See `WidgetHaulData.totalLikely`.
+        let lo = NSDecimalNumber(decimal: LedgerMath.total(ranges.map { $0.low })).doubleValue
+        let hi = NSDecimalNumber(decimal: LedgerMath.total(ranges.map { $0.high })).doubleValue
+        // The likely value of the very items above — same items, same
+        // condition adjustment, `likely` instead of `low` and `high`: the
+        // model's expected price where a find has one, the midpoint where it
+        // does not (`ScanResult.baselineLikely`). So the circular complication
+        // reads the figure the app sorts and totals by, rather than the top of
+        // what the rectangular one shows. See `WidgetHaulData.totalLikely`.
         //
         // Summed over every result, like `lo` and `hi`, and *not* over
         // `HistoryViewModel.portfolioTotal`'s population, which is the unsold
@@ -818,9 +813,7 @@ enum WidgetDataStore {
         // different questions, and so are `totalLow`/`totalHigh` already. A
         // widget whose own three figures disagree with each other would be the
         // worse trade.
-        let likely = NSDecimalNumber(decimal: ranges.reduce(Decimal.zero) {
-            $0 + $1.likely
-        }).doubleValue
+        let likely = NSDecimalNumber(decimal: LedgerMath.total(ranges.map { $0.likely })).doubleValue
         let last = results.max(by: { $0.timestamp < $1.timestamp })
 
         let pro = isPro ?? StoreKitPurchaseService.cachedIsSubscribed

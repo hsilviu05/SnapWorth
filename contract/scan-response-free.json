@@ -16,6 +16,7 @@
   "expected_price_usd": null,
   "best_case_price_usd": null,
   "worst_case_price_usd": null,
+  "likely_price_usd": 58.0,
   "model_name": null,
   "variant": null,
   "size": null,

@@ -1341,6 +1341,79 @@ class TestProDetailGate:
             assert body[field] is not None, f"{field} missing from a free scan"
 
 
+class TestLikelyPriceForEveryTier:
+    """`likely_price_usd`: the one figure the app does its own maths with.
+
+    The app priced the portfolio, the flip verdict, the listing ask and the
+    widgets from the midpoint of `est_value_low_usd` and `est_value_high_usd`.
+    Since v2 those are the worst and best case, and the prompt asks for an
+    expected price that is explicitly not their midpoint — so on V2_PAYLOAD
+    the app said $58.50 where the model said $58, and on a long-tailed range
+    ($5-$400, expected $90) it said $202.50.
+    """
+
+    def test_a_free_scan_carries_it_while_the_ladder_stays_stripped(self):
+        body = _scan_with(V2_PAYLOAD).json()
+        assert body["likely_price_usd"] == 58
+        assert body["expected_price_usd"] is None, "the ladder is still Pro"
+
+    def test_it_is_the_expected_price_a_subscriber_sees(self):
+        """One number per item. A Pro user reads `expected_price_usd` on the
+        ladder, and the app's totals must not say something else."""
+        body = _scan_with(V2_PAYLOAD, pro=True).json()
+        assert body["likely_price_usd"] == body["expected_price_usd"] == 58
+
+    def test_it_is_not_the_midpoint_of_a_long_tailed_range(self):
+        payload = dict(V2_PAYLOAD, worst_case_price_usd=5, quick_sale_price_usd=20,
+                       expected_price_usd=90, best_case_price_usd=400,
+                       est_value_low_usd=5, est_value_high_usd=400)
+        body = _scan_with(payload).json()
+        assert body["likely_price_usd"] == 90
+        assert body["likely_price_usd"] != (body["est_value_low_usd"]
+                                            + body["est_value_high_usd"]) / 2
+
+    def test_it_follows_the_clamp_into_the_served_range(self):
+        """The same bounds as everything else, so it can never sit outside
+        the range printed beside it. 8000 in a band capped at 5000 is served
+        inside [low, high], not as the model wrote it."""
+        payload = dict(V2_PAYLOAD, category="books", worst_case_price_usd=6000,
+                       quick_sale_price_usd=7000, expected_price_usd=8000,
+                       best_case_price_usd=9000,
+                       est_value_low_usd=6000, est_value_high_usd=9000)
+        body = _scan_with(payload).json()
+        assert (body["est_value_low_usd"] <= body["likely_price_usd"]
+                <= body["est_value_high_usd"])
+        assert body["likely_price_usd"] != 8000
+
+    def test_a_floor_adjustment_keeps_the_models_point_estimate(self):
+        """See TestClampPreservesTheModelsPointEstimate: a $0.25 floor move
+        once rewrote the expected price to the midpoint, and this field is
+        built from the same value."""
+        payload = dict(V2_PAYLOAD, category="books", worst_case_price_usd=0.75,
+                       quick_sale_price_usd=2.0, expected_price_usd=4.0,
+                       best_case_price_usd=8.0,
+                       est_value_low_usd=0.75, est_value_high_usd=8.0)
+        assert _scan_with(payload).json()["likely_price_usd"] == 4.0
+
+    def test_a_v1_reply_falls_back_to_the_middle_of_its_range(self):
+        """A v1 reply has no point estimate, and v1's low/high were a typical
+        range, so its middle is the honest figure — the same one the app
+        would have computed for itself."""
+        body = _scan_with({
+            "item_name": "Levi's 501", "brand": "Levi's", "category": "clothing",
+            "condition_notes": "Good", "est_value_low_usd": 28,
+            "est_value_high_usd": 55, "confidence": "High",
+            "listing_title": "T", "listing_description": "D",
+        }).json()
+        assert body["likely_price_usd"] == 41.5
+
+    def test_it_is_not_on_the_pro_only_list(self):
+        """Adding it there would look like tidying and would put every free
+        user's figures back on the midpoint."""
+        import main
+        assert "likely_price_usd" not in main._PRO_ONLY_DETAIL_FIELDS
+
+
 class TestTokensOnATextlessReplyAreCounted:
     """A reply is billed whether or not it carries text.
 
