@@ -327,8 +327,10 @@ class TestLegalEndpoints:
         """Two copies of one document. When the text changes, both dates move,
         or a reader of either copy cannot tell it changed.
 
-        backend.yml runs this suite when LegalView.swift changes, so an edit to
-        either copy alone is caught.
+        backend.yml runs this suite on a pull request that changes
+        LegalView.swift, so moving the date in one copy and not the other is
+        caught before merge. Only the date: a body edit that leaves both dates
+        alone passes, and the phrase tests pin only the sentences they name.
         """
         import pathlib
         import re
