@@ -1162,8 +1162,9 @@ a:focus-visible, button:focus-visible, summary:focus-visible, label:focus-within
      it under a generic "AI resale estimate" pitch.
    * The fee rates on this page are the ones the app actually uses
      (MarketplaceFees.swift): Poshmark 20% — or a flat $2.95 under $15 —
-     Mercari 10%, Depop 3.3% + $0.45, eBay 13.25% + $0.40, and Vinted /
-     Facebook Marketplace / OLX take no seller fee. A calculator that
+     Mercari 10%, Depop 3.3% + $0.45, eBay 13.25% + $0.40; Vinted /
+     Facebook Marketplace / OLX / Kleinanzeigen take no seller fee, and
+     Xianyu none on an ordinary personal sale. A calculator that
      disagreed with the product would be worse than no calculator.
    ══════════════════════════════════════════════════════════════════════════ */
 
@@ -2011,9 +2012,10 @@ details[open] .faq-x::after { transform: rotate(90deg); }
        A live calculator, not a screenshot of one. Fee rates are the ones the
        app actually uses (MarketplaceFees.swift): Poshmark 20% (a flat $2.95
        under $15), Mercari 10%, Depop 3.3% + $0.45, eBay 13.25% + $0.40;
-       Vinted, Facebook Marketplace, OLX, Kleinanzeigen and Xianyu take no
-       seller fee. A calculator on the marketing site that disagreed with the
-       product would be worse than none.
+       Vinted, Facebook Marketplace, OLX and Kleinanzeigen take no seller fee,
+       and Xianyu none on an ordinary personal sale. A calculator on the
+       marketing site that disagreed with the product would be worse than
+       none.
 
        Rendered with real default values in the HTML, so with JavaScript off it
        still reads as a worked example rather than a set of empty boxes. -->
@@ -2108,7 +2110,7 @@ details[open] .faq-x::after { transform: rotate(90deg); }
           <a href="#pricing" class="tf-foot-cta">See pricing</a>
         </div>
         <div class="tf-foot-note">
-          Poshmark takes <strong>20%</strong>, or a flat <strong>$2.95</strong> on sales under $15. Mercari takes <strong>10%</strong>, Depop <strong>3.3% + $0.45</strong> and eBay <strong>13.25% + $0.40</strong>. Vinted, Facebook Marketplace, OLX, Kleinanzeigen and <span lang="zh-Hans">闲鱼</span> (Xianyu) take no seller fee, so the only costs are the shop price and shipping. Rates are approximate and reviewed against each marketplace&rsquo;s published schedule.
+          Poshmark takes <strong>20%</strong>, or a flat <strong>$2.95</strong> on sales under $15. Mercari takes <strong>10%</strong>, Depop <strong>3.3% + $0.45</strong> and eBay <strong>13.25% + $0.40</strong>. Vinted, Facebook Marketplace, OLX and Kleinanzeigen take no seller fee, and <span lang="zh-Hans">闲鱼</span> (Xianyu) takes none on an ordinary personal sale, so the only costs are the shop price and shipping. Rates are approximate and reviewed against each marketplace&rsquo;s published schedule.
         </div>
       </div>
     </div>
@@ -2668,7 +2670,11 @@ details[open] .faq-x::after { transform: rotate(90deg); }
  *   Mercari  10%
  *   Depop    3.3% + $0.45
  *   eBay     13.25% + $0.40
- *   Vinted / Facebook Marketplace / OLX / Kleinanzeigen / Xianyu — no seller fee
+ *   Vinted / Facebook Marketplace / OLX / Kleinanzeigen — no seller fee
+ *   Xianyu   no seller fee on an ordinary personal sale. The app's table
+ *            leaves out the service fee Xianyu charges accounts past a
+ *            volume threshold (no rate could be sourced), so its note says
+ *            which sale it is right about rather than using NO_FEE.
  * If those change in the app, change them here too. A marketing calculator
  * that disagrees with the product is worse than no calculator, so CI holds
  * this table to the app's (website/seo/check_fees.py).
@@ -2701,7 +2707,8 @@ details[open] .faq-x::after { transform: rotate(90deg); }
                 note: "Facebook Marketplace" + NO_FEE },
     olx:      { pct: 0, fixed: 0, name: "OLX",      note: "OLX" + NO_FEE },
     xianyu:   { pct: 0, fixed: 0, name: "\u95f2\u9c7c (Xianyu)",
-                note: "\u95f2\u9c7c (Xianyu)" + NO_FEE },
+                note: "\u95f2\u9c7c (Xianyu) takes no seller fee on an ordinary " +
+                      "personal sale, so the only cost is what you paid and shipping." },
     kleinanzeigen: { pct: 0, fixed: 0, name: "Kleinanzeigen",
                 note: "Kleinanzeigen" + NO_FEE }
   };
