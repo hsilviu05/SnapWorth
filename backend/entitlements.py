@@ -132,8 +132,21 @@ SANDBOX_ENVIRONMENT = "Sandbox"
 #     its next request. Replacing rather than refusing, because a reviewer
 #     moving from an iPhone to an iPad on one Sandbox account is exactly the
 #     case this exists for, and refusing would recreate the rejection;
-#   * outside every operator figure: no subscriber-index row, no new-sub count,
-#     no "New Pro" or trial alert, no referral reward (`is_bounded`).
+#   * outside every revenue figure: no subscriber-index row, no new-sub count,
+#     no "New Pro" or trial alert, no referral reward (`is_bounded`). Usage
+#     figures do count testers — scans, active users, `/users`'s Pro devices —
+#     because a tester's scan costs what anyone's does.
+#
+# What none of this bounds is who can be a tester. Nothing here tells App
+# Review apart from any other Sandbox buyer: every TestFlight build passes App
+# Attest, and its Sandbox purchases are free and can be bought again whenever
+# one ends. So under `bounded` anyone who can install a TestFlight build is Pro
+# in production, with unlimited scans at real AI cost, for as long as they keep
+# a Sandbox subscription going. The one-device rule stops a transaction being
+# shared, not a tester using their own. This is the part of the old bypass
+# that `bounded` reopens on purpose, and the size of the TestFlight audience is
+# the only thing limiting it: internal testers and small invite-only external
+# groups, never a public TestFlight link while this is `bounded` (RUNBOOK §17).
 #
 # `off` is the old behaviour: a Sandbox transaction is refused with a 400, and
 # any Sandbox entitlement already cached reads as free from its next request.

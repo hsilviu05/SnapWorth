@@ -585,8 +585,13 @@ work on does not.
 - [ ] `SANDBOX_ENTITLEMENTS` unset or `bounded` — **not** Production-only any
       more. App Review buys in Sandbox, and refusing it is the "purchased
       content not delivered" rejection. Bounded Sandbox is attested callers
-      only, 24h at most, no proof, one device, never counted (§17). `off`
-      restores the old refusal
+      only, 24h at most, no proof, one device, never in revenue figures (§17).
+      It is also every TestFlight tester, not just App Review: anyone who can
+      install a TestFlight build is Pro in production, with unlimited scans,
+      for as long as they keep a Sandbox subscription. Keep TestFlight to
+      internal testers and small invite-only external groups, and never
+      enable a public TestFlight link while this is `bounded`. `off` restores
+      the old refusal
 - [ ] App Store Connect *Sandbox Server URL* set to
       `https://api.snapworth.eu/apple/notifications/sandbox` (§14), so a
       Sandbox refund withdraws the bounded grant
@@ -913,6 +918,20 @@ Production now honours Sandbox, **bounded**. Two separate settings:
   holder's next request. Sandbox tombstones have their own namespace, so a
   tester's refund can never deny a Production subscriber whose id is the
   same.
+- **TestFlight's audience is the gate.** Nothing above tells App Review apart
+  from any other Sandbox buyer, and there is no allowlist. Every TestFlight
+  build passes App Attest, and its Sandbox purchases are free and can be
+  bought again whenever one ends. So anyone who can install a TestFlight
+  build is Pro in production, with unlimited scans that each cost real AI
+  money, for as long as they keep a Sandbox subscription going. The one-device
+  rule stops a transaction being shared. It does not stop a tester using
+  their own. The number of people who can install TestFlight builds
+  (internal testers, every external group, any public link) is therefore the
+  only limit on free production Pro. Keep TestFlight to internal testers and
+  small invite-only external groups. Never enable a public TestFlight link
+  while this is `bounded`. If one is ever needed, set
+  `SANDBOX_ENTITLEMENTS=off` for as long as it is live, and not while a build
+  is with App Review, which needs `bounded`.
 
 ### Turning it off
 

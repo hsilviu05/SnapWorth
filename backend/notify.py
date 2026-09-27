@@ -949,7 +949,8 @@ async def appstore_test_notification(environment: str) -> str:
         # The Sandbox route acts on refunds and revokes and nothing else, so
         # promising renewals here would describe a feed that does not exist.
         what = ("Sandbox refunds and revokes will now withdraw a tester's or "
-                "reviewer's Pro. Nothing from Sandbox is counted.")
+                "reviewer's Pro. Nothing from Sandbox reaches /subs or "
+                "the revenue figures.")
     else:
         what = ("Renewals, expiries and refunds will now arrive without "
                 "waiting for anyone to open the app.")
