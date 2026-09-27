@@ -36,6 +36,7 @@ import auth
 import cache as cache_module
 import confidence as confidence_module
 import devicecheck
+import entitlements
 import imagequality
 import imagevalidation
 import metrics
@@ -1706,6 +1707,111 @@ async def apple_notifications(body: AppleNotification, request: Request) -> dict
 
     await notify.subscription_event(note, reinstated=reinstated)
     return {"status": "ok", "type": note.notification_type}
+
+
+async def _withdraw_refunded(note: appstorenotify.Notification, seen_key: str) -> None:
+    """Revoke the term a REFUND or REVOKE names, or answer 503 so Apple retries.
+
+    Shared by both notification routes, because the failure handling is the
+    part that is easy to get wrong.
+    """
+    assert note.entitlement is not None
+    try:
+        await auth.deps.entitlements.revoke(note.entitlement)
+    except Exception as exc:
+        # Give the uuid back before failing. The idempotency claim is made
+        # before any work is done, so answering 5xx while holding it would make
+        # Apple's redelivery land on the duplicate branch and return 200
+        # without ever withdrawing the access — the same outcome as never
+        # having handled the refund. Releasing it means the retry gets a real
+        # second attempt.
+        log.error("could not revoke a refunded entitlement: %s", exc)
+        try:
+            if _cache is None:
+                raise RuntimeError("cache not initialised")
+            await _cache.delete(seen_key)
+        except Exception:
+            log.error("could not release the notification idempotency key; "
+                      "this refund will not be retried")
+        raise HTTPException(
+            status_code=503,
+            detail="Could not withdraw the entitlement; please retry.",
+        ) from None
+
+
+# Everything the Sandbox route will verify, and nothing else: a Production
+# notification sent there is refused, so a URL pasted into the wrong App Store
+# Connect field cannot feed anything twice.
+_SANDBOX_ONLY = frozenset({entitlements.SANDBOX_ENVIRONMENT})
+
+
+@app.post("/apple/notifications/sandbox", status_code=200)
+async def apple_notifications_sandbox(body: AppleNotification, request: Request) -> dict:
+    """Sandbox's App Store Server Notifications: refunds and revokes, only.
+
+    Production honours Sandbox purchases on bounded terms
+    (`entitlements.SANDBOX_ENTITLEMENTS`), so a Sandbox refund now has access
+    to withdraw. Apple sends Sandbox notifications to the separate *Sandbox
+    Server URL* in App Store Connect, which is this route. `/apple/notifications`
+    keeps refusing them, because everything it does after its refund branch
+    feeds the operator's revenue view.
+
+    So this does one thing with what it verifies: a REFUND or REVOKE revokes
+    the bounded entitlement — a tombstone in Sandbox's own namespace, and the
+    device claim dropped so the holder reads as free at their next request.
+    Every other type is acknowledged and ignored: no index row, no alert, no
+    count.
+
+    The same trust model as the production route — unauthenticated by
+    necessity, safe because the JWS chains to Apple's pinned root with our
+    bundle on both envelope and transaction — and less at stake: the most a
+    valid payload can do here is take away Sandbox access that Apple itself
+    signed as refunded.
+    """
+    await _enforce_ip_limit(_client_ip(request))
+
+    if entitlements.SANDBOX_ENTITLEMENTS != entitlements.SANDBOX_BOUNDED:
+        # Nothing from Sandbox is honoured, so there is nothing to withdraw,
+        # and no reason to walk a certificate chain for an anonymous caller.
+        raise HTTPException(status_code=404,
+                            detail="Sandbox entitlements are off on this deployment.")
+
+    if body.signedPayload is None:
+        if body.notification_type:
+            raise HTTPException(
+                status_code=400,
+                detail="Version 2 notifications required; this is a Version 1 body.")
+        raise HTTPException(status_code=400, detail="Missing signedPayload.")
+
+    try:
+        note = appstorenotify.parse_notification(
+            body.signedPayload, auth.deps.config.bundle_id, _PRODUCT_IDS,
+            allowed_environments=_SANDBOX_ONLY)
+    except EntitlementError as exc:
+        log.warning("rejected App Store sandbox notification: %s", exc)
+        raise HTTPException(status_code=400, detail=str(exc)) from None
+
+    # Apple redelivers until it gets a 2xx. Its own namespace, so the two
+    # routes can never answer "duplicate" for each other.
+    seen_key = f"apns2:sandbox:{note.uuid}"
+    try:
+        first = (True if _cache is None
+                 else await _cache.add(seen_key, "1", _NOTIFICATION_SEEN_TTL))
+    except Exception:
+        first = True
+    if not first:
+        return {"status": "duplicate"}
+
+    if note.is_test:
+        log.info("App Store test notification received (%s)", note.environment)
+        await notify.appstore_test_notification(note.environment)
+        return {"status": "test", "environment": note.environment}
+
+    if (note.is_refund or note.is_revoke) and note.entitlement is not None:
+        await _withdraw_refunded(note, seen_key)
+        return {"status": "revoked", "type": note.notification_type}
+
+    return {"status": "ignored", "type": note.notification_type}
 
 
 @app.get("/terms", response_class=HTMLResponse)

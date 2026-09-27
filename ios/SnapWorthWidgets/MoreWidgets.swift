@@ -159,7 +159,7 @@ struct RecentFindsWidget: Widget {
     var body: some WidgetConfiguration {
         StaticConfiguration(kind: kind, provider: HaulOnlyProvider()) { entry in
             RecentFindsView(haul: entry.haul)
-                .widgetURL(URL(string: "snapworth://history"))
+                .widgetURL(URL(string: "snapworth://history?src=recent_finds"))
                 .containerBackground(Color.wCharcoal, for: .widget)
         }
         .configurationDisplayName("Recent finds")
@@ -241,7 +241,7 @@ struct ScansLeftWidget: Widget {
     var body: some WidgetConfiguration {
         StaticConfiguration(kind: kind, provider: HaulOnlyProvider()) { entry in
             ScansLeftEntryView(entry: entry)
-                .widgetURL(URL(string: "snapworth://scan"))
+                .widgetURL(URL(string: "snapworth://scan?src=scans_left"))
         }
         .configurationDisplayName("Scans left")
         .description("How many free scans you have today.")
@@ -361,7 +361,7 @@ struct MonthProfitWidget: Widget {
     var body: some WidgetConfiguration {
         StaticConfiguration(kind: kind, provider: HaulOnlyProvider()) { entry in
             MonthProfitView(haul: entry.haul, now: entry.date)
-                .widgetURL(URL(string: "snapworth://flips"))
+                .widgetURL(URL(string: "snapworth://flips?src=month_profit"))
                 .containerBackground(Color.wCharcoal, for: .widget)
         }
         .configurationDisplayName("Profit this month")

@@ -260,14 +260,19 @@ def compute(
     # ── Market signal completeness ──────────────────────────────────────────
     # Whether the model produced usable demand/supply reads at all. Missing them
     # means it had nothing to say about the market, which is itself a signal.
+    #
+    # The explanation is shown to the user as a reason, so it says only what
+    # this measures: that the model answered. Both reads are its guess with no
+    # data behind them — SnapWorth has no market data — and "demand and supply
+    # are well understood" claimed exactly the knowledge it does not have.
     market_known = sum([
         (demand or "").strip().lower() in _DEMAND_KNOWN,
         (supply or "").strip().lower() in _SUPPLY_KNOWN,
     ]) / 2
     signals.append(ConfidenceSignal(
         "market", market_known, 0.06,
-        "demand and supply are well understood" if market_known == 1.0
-        else "limited read on current demand",
+        "the AI gave a read on demand and supply" if market_known == 1.0
+        else "the AI's read on demand and supply is incomplete",
     ))
 
     # ── Response completeness ───────────────────────────────────────────────

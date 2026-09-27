@@ -211,6 +211,7 @@ final class ResultViewModel {
     func copyGeneratedListing() {
         guard let listing = generatedListing else { return }
         UIPasteboard.general.string = listing.shareText
+        Analytics.shared.track(.listingCopied(marketplace: listing.marketplace.rawValue))
         withAnimation { didCopyGenerated = true }
 
         copyGeneratedResetTask?.cancel()
@@ -230,11 +231,8 @@ final class ResultViewModel {
     /// real app URL scheme (foregrounds the installed app), else the public
     /// "create listing" web page. Never auto-posts — see `Marketplace.webSellURL`.
     func openMarketplace(_ marketplace: Marketplace) {
-        if let scheme = marketplace.appURLScheme, UIApplication.shared.canOpenURL(scheme) {
-            UIApplication.shared.open(scheme)
-        } else {
-            UIApplication.shared.open(marketplace.webSellURL)
-        }
+        Analytics.shared.track(.marketplaceOpened(marketplace: marketplace.rawValue))
+        marketplace.openSellPage()
     }
 
     func copyListing(result: ScanResult) {
@@ -247,6 +245,7 @@ final class ResultViewModel {
         Condition: \(result.conditionNotes)
         """
         UIPasteboard.general.string = text
+        Analytics.shared.track(.listingCopied(marketplace: "draft"))
 
         withAnimation { didCopyListing = true }
 
@@ -255,6 +254,23 @@ final class ResultViewModel {
             try? await Task.sleep(for: .seconds(2))
             guard !Task.isCancelled else { return }
             withAnimation { didCopyListing = false }
+        }
+    }
+}
+
+extension Marketplace {
+    /// Opens the marketplace so the user can paste a copied listing. Prefers a
+    /// real app URL scheme (foregrounds the installed app), else the public
+    /// "create listing" web page. Never auto-posts — see `webSellURL`.
+    ///
+    /// Here rather than on `ResultViewModel` because the haul summary (#93)
+    /// opens the same page for a batch of drafts, with no result to hang it on.
+    @MainActor
+    func openSellPage() {
+        if let scheme = appURLScheme, UIApplication.shared.canOpenURL(scheme) {
+            UIApplication.shared.open(scheme)
+        } else {
+            UIApplication.shared.open(webSellURL)
         }
     }
 }

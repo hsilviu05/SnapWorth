@@ -430,7 +430,7 @@ KNOWN_ENDPOINTS = frozenset({
     "/scan", "/listing", "/trends", "/health", "/health/live", "/health/ready",
     "/metrics", "/privacy", "/terms",
     "/auth/challenge", "/auth/attest", "/auth/refresh", "/auth/entitlement",
-    "/apple/notifications", "/referral/status", "/referral/claim",
+    "/apple/notifications", "/apple/notifications/sandbox", "/referral/status", "/referral/claim",
     "/social/tiktok/callback",
 })
 

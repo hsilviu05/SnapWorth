@@ -91,7 +91,7 @@ struct QuickScanWidget: Widget {
         StaticConfiguration(kind: kind, provider: QuickScanProvider()) { entry in
             QuickScanWidgetView(entry: entry)
                 // Deep-links directly to the camera scan screen
-                .widgetURL(URL(string: "snapworth://scan"))
+                .widgetURL(URL(string: "snapworth://scan?src=quick_scan"))
                 // Terracotta at the *fill* values, and the labels above it
                 // at full cream. It was `wTerracotta -> #B84E2A` with the
                 // 10pt caption at 65% cream: 2.93:1, under even the 3:1 floor

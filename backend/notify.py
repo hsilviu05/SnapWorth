@@ -989,11 +989,19 @@ async def appstore_test_notification(environment: str) -> str:
     """
     if _notifier is None:
         return "no notifier configured"
+    if environment == "Sandbox":
+        # The Sandbox route acts on refunds and revokes and nothing else, so
+        # promising renewals here would describe a feed that does not exist.
+        what = ("Sandbox refunds and revokes will now withdraw a tester's or "
+                "reviewer's Pro. Nothing from Sandbox reaches /subs or "
+                "the revenue figures.")
+    else:
+        what = ("Renewals, expiries and refunds will now arrive without "
+                "waiting for anyone to open the app.")
     ok = await _notifier.send(
         "\u2705 <b>App Store Server Notifications are connected</b>\n"
         f"Apple delivered a test notification ({html.escape(environment)}). "
-        "Renewals, expiries and refunds will now arrive without waiting for "
-        "anyone to open the app.",
+        + what,
         _SUBS_BUTTONS)
     return "sent" if ok else "send failed"
 
@@ -1051,6 +1059,11 @@ async def subscription_event(note, *, reinstated=None) -> None:
         ent = note.entitlement
         otid = ent.original_transaction_id
         if not otid or not note.is_indexed:
+            return
+        if _is_bounded(ent):
+            # `/apple/notifications` refuses Sandbox and the Sandbox route
+            # never calls this, so nothing should reach here. If something
+            # does, it is a tester's renewal and not money.
             return
 
         before = await _index_subscription(None, ent, note.auto_renew,
@@ -1190,6 +1203,11 @@ async def entitlement_recorded(subject: str, ent) -> None:
     if _notifier is None or _cache is None:
         return
     _spawn(_note_sync(subject, "pro" if ent.tier == "pro" else "free"))
+    if _is_bounded(ent):
+        # App Review or a TestFlight tester, honoured on bounded terms. Pro
+        # for that device and nothing more: no row, no count, no "New Pro",
+        # and no "Subscription ended" when their transaction lapses.
+        return
     try:
         if ent.tier == "pro":
             otid = ent.original_transaction_id
@@ -2837,6 +2855,16 @@ def _device_argument(argument: str | None) -> str:
     return " ".join(parts)
 
 
+def _is_bounded(ent) -> bool:
+    """A Sandbox entitlement production honours on bounded terms: not a customer.
+
+    See `entitlements.SANDBOX_ENTITLEMENTS`. Imported here rather than at the
+    top for the same cycle `_sub_text` describes.
+    """
+    import entitlements
+    return entitlements.is_bounded(ent)
+
+
 def _acquisition(ent) -> str:
     """How a subscription was obtained, in the operator's words."""
     offer = getattr(ent, "offer_type", None)
@@ -2899,7 +2927,14 @@ async def _index_subscription(subject: str | None, ent,
     status lookup, or a REFUND_REVERSED — rather than a transaction that may
     have been signed before a refund and delivered after it. See the refund
     mark below.
+
+    A bounded Sandbox entitlement is never written, whoever calls. This is the
+    one writer every path shares, so the rule lives here as well as at each
+    caller: `/subs`, MRR and the digest's subscriber line all read this index,
+    and a tester in it is revenue that does not exist.
     """
+    if _is_bounded(ent):
+        return {}
     doc = await _read_index_for_update(SUBS_INDEX_KEY)
     if doc is None:
         # Nothing written, and nothing known about the row. `/sub` can repair

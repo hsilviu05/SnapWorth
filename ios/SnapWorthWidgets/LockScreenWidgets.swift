@@ -164,7 +164,7 @@ struct LockScreenHaulWidget: Widget {
     var body: some WidgetConfiguration {
         StaticConfiguration(kind: kind, provider: LockScreenProvider()) { entry in
             LockScreenHaulEntryView(entry: entry)
-                .widgetURL(URL(string: "snapworth://history"))
+                .widgetURL(URL(string: "snapworth://history?src=lock_haul"))
                 // Deliberately clear. An opaque background is what the Home
                 // Screen wants; on the Lock Screen it renders as a solid block
                 // over the wallpaper.
