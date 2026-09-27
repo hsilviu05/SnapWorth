@@ -254,6 +254,46 @@ class TestChallenge:
         assert second.status_code == 400
 
 
+class _AttestStateDown(InMemoryCache):
+    """Redis that fails only on attestation state, so the challenge works."""
+
+    async def get(self, key):
+        if key.startswith("attest:"):
+            raise ConnectionError("redis GET timed out")
+        return await super().get(key)
+
+
+class TestRefreshWhenTheStoreCannotBeRead:
+    """A 401 on refresh makes the client discard its key and attest a new one.
+    It used to answer that when a failing Redis fell back to memory, so one
+    failed GET minted a new subject — and on hardware DeviceCheck marked this
+    month, that subject starts with today's scan spent."""
+
+    def teardown_method(self):
+        build_deps()
+
+    @staticmethod
+    def _refresh():
+        challenge = client.post("/auth/challenge").json()["challenge"]
+        return client.post("/auth/refresh", json={
+            "key_id": base64.b64encode(b"known-key").decode(),
+            "assertion": base64.b64encode(b"assertion").decode(),
+            "challenge": challenge,
+        })
+
+    def test_an_unreadable_store_is_a_503_not_a_reattestation(self):
+        build_deps()
+        auth.deps.cache = ResilientCache(
+            _AttestStateDown(), InMemoryCache(), configured=True)
+        r = self._refresh()
+        assert r.status_code == 503, (
+            "an unreadable store told the client to throw its key away")
+
+    def test_a_key_the_server_does_not_know_is_still_a_401(self):
+        build_deps()
+        assert self._refresh().status_code == 401
+
+
 # ── Enforcement on protected routes ──────────────────────────────────────────
 
 class TestEnforcement:
@@ -781,6 +821,39 @@ class TestReinstallDefenceWiring:
                 await auth.reserve_quota(principal)
         asyncio.run(run())
         assert dc.updated and dc.bits["bit0"] is True
+
+    def test_taking_the_last_scan_marks_the_device(self):
+        """The client stops at zero using the server's own count, so the
+        refused request that used to be the only thing setting the bit is
+        never sent. The reservation that spends the last scan has to set it."""
+        dc = _FakeDeviceCheck()
+        cache = ResilientCache(None, InMemoryCache())
+        build_deps()
+        auth.deps.cache = cache
+        auth.deps.quota = ScanQuota(cache, dc, limit=1)
+        principal = auth.Principal(subject="subj", tier="free", authenticated=True,
+                                   device_token="device-token")
+
+        async def run():
+            await auth.reserve_quota(principal)          # the one and only scan
+            await asyncio.gather(*auth._background)
+        asyncio.run(run())
+        assert dc.updated and dc.bits["bit0"] is True
+
+    def test_a_scan_with_allowance_left_does_not_mark(self):
+        dc = _FakeDeviceCheck()
+        cache = ResilientCache(None, InMemoryCache())
+        build_deps()
+        auth.deps.cache = cache
+        auth.deps.quota = ScanQuota(cache, dc, limit=3)
+        principal = auth.Principal(subject="subj", tier="free", authenticated=True,
+                                   device_token="device-token")
+
+        async def run():
+            await auth.reserve_quota(principal)
+            await asyncio.gather(*auth._background)
+        asyncio.run(run())
+        assert not dc.updated
 
     def test_pro_users_never_touch_devicecheck(self):
         dc = _FakeDeviceCheck()

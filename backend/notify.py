@@ -955,7 +955,7 @@ async def appstore_test_notification(environment: str) -> str:
     return "sent" if ok else "send failed"
 
 
-async def subscription_event(note) -> None:
+async def subscription_event(note, *, reinstated=None) -> None:
     """Record one App Store Server Notification. Awaited, but never raises.
 
     This is the half of the picture the client cannot give us. `/auth/entitlement`
@@ -972,6 +972,11 @@ async def subscription_event(note) -> None:
     Nothing here grants access. The index and the alerts are an operator view;
     entitlement stays verified per request against the transaction the client
     presents.
+
+    `reinstated` is the `entitlements.Reinstatement` that
+    `EntitlementService.reinstate` answered for a REFUND_REVERSED — whether
+    the access path lifted a refund block on this term, held none, or kept one
+    that still denies it — and None for every other type.
     """
     if _notifier is None or _cache is None:
         return
@@ -981,7 +986,14 @@ async def subscription_event(note) -> None:
         if not otid or not note.is_indexed:
             return
 
-        before = await _index_subscription(None, ent, note.auto_renew)
+        before = await _index_subscription(None, ent, note.auto_renew,
+                                           current=note.is_refund_reversal)
+        # None: the index could not be read, so there is no previous row to
+        # judge a paid period against. It is then neither a conversion nor a
+        # new payer — an ordinary renewal would otherwise be announced, and
+        # counted, as "New paying subscriber".
+        known = before is not None
+        before = before or {}
         was = str(before.get("acq") or "") if before else ""
         now_acq = _acquisition(ent)
 
@@ -1002,15 +1014,42 @@ async def subscription_event(note) -> None:
             label = "Trial converted" if was == "trial" else f"{was.capitalize()} converted"
             lines = [f"🎉 <b>{label} — this is real money</b>", detail]
             await _count_new_subscription(otid)
-        elif note.is_paid_period and not before:
+        elif note.is_paid_period and known and not before:
             # A payer no device ever synced. Before Apple told us directly,
             # this subscription did not exist as far as the bot was concerned.
             lines = ["🎉 <b>New paying subscriber</b> (Apple reported it first)", detail]
             await _count_new_subscription(otid)
+        elif note.is_paid_period and not known:
+            # Money, with nothing to say which kind. Staying silent lost the
+            # conversion alert for good: the device's next sync rewrites the
+            # row as paid without a word, and the subscription was already
+            # seen as a trial. Not counted, because a renewal must not be.
+            lines = ["💵 <b>Paid period</b> (subscription index unreadable: "
+                     "a renewal, a conversion or a new payer)", detail,
+                     "Not counted in today's new subscribers."]
         elif note.is_refund:
             lines = ["↩️ <b>Refund</b>", detail]
         elif note.is_revoke:
             lines = ["🚫 <b>Subscription revoked</b>", detail]
+        elif note.is_refund_reversal:
+            # Apple took back a refund it had granted, so this term is paid
+            # for again. The handler has already acted on the access path;
+            # this says what it found there.
+            from entitlements import Reinstatement
+            lines = ["↪️ <b>Refund reversed by Apple</b>", detail]
+            if reinstated is Reinstatement.LIFTED:
+                lines.append("Refund block lifted: Pro comes back at the "
+                             "app's next sync, if not sooner.")
+            elif reinstated is Reinstatement.NOT_BLOCKED:
+                lines.append("The server held no refund block on this term.")
+            elif reinstated is Reinstatement.STILL_BLOCKED:
+                # Kept because it names a different term, but that term ends
+                # later, so the block still denies this one. Saying "no
+                # block" here gave the operator no reason to look.
+                lines.append(
+                    "⚠️ A refund block for a different term was kept, and it "
+                    f"still denies this one. <code>/sub {html.escape(otid)}</code> "
+                    "shows it next to Apple's live status and can lift it.")
         elif note.is_expiry:
             lines = ["📉 <b>Subscription ended</b>", f"{detail} · was {was or now_acq}"]
         elif note.is_cancellation:
@@ -1090,7 +1129,7 @@ async def entitlement_recorded(subject: str, ent) -> None:
                 return
             # The previous row is the only source of auto-renew here: the
             # client presents a signed transaction, which has no such field.
-            before = await _index_subscription(subject, ent)
+            before = await _index_subscription(subject, ent) or {}
             if not await _cache.add(f"opsseen:sub:{otid}", "1", SUB_SEEN_TTL):
                 return
             purchased = getattr(ent, "original_purchase_at", None)
@@ -1710,7 +1749,7 @@ async def handle_command_with_buttons(text: str) -> tuple[str, Buttons] | None:
     if command == "/subs":
         return await _subs_text(), await _buttons()
     if command == "/sub":
-        return await _sub_text(rest), await _buttons()
+        return await _sub_command(rest)
     if command == "/users":
         return await _users_text(), await _buttons()
     if command == "/costs":
@@ -1984,13 +2023,20 @@ def _daily_free_scans() -> int:
         return 1
 
 
-async def _levers() -> dict:
+async def _levers(*, required: bool = False) -> dict:
+    """The levers document. {} when unreadable, unless `required`, which
+    raises instead: see `_set_free_scan_lever`."""
     try:
-        raw = await _cache.get(LEVERS_KEY)
+        raw = await _cache.get(LEVERS_KEY, required=required)
+    except Exception:
+        if required:
+            raise
+        return {}
+    try:
         doc = json.loads(raw) if raw else {}
-        return doc if isinstance(doc, dict) else {}
     except Exception:
         return {}
+    return doc if isinstance(doc, dict) else {}
 
 
 async def free_scan_lever() -> int | None:
@@ -2003,14 +2049,22 @@ async def free_scan_lever() -> int | None:
     return int(value) if isinstance(value, (int, float)) else None
 
 
-async def _set_free_scan_lever(value: int | None) -> dict:
+async def _set_free_scan_lever(value: int | None) -> dict | None:
     """Set or clear the lever, and record the day it changed.
 
     The record is the point. A measurement window whose lever moved mid-flight
     and does not say so is worse than no window at all — the numbers look
     continuous and are not.
+
+    None, with nothing written, when the document could not be read. Read as
+    {} it was written back as just this change, and the record of every
+    earlier one was gone.
     """
-    doc = await _levers()
+    try:
+        doc = await _levers(required=True)
+    except Exception as exc:
+        log.warning("levers unreadable, not changing them: %s", type(exc).__name__)
+        return None
     before = doc.get("free_scans_first_day")
     if value is None:
         doc.pop("free_scans_first_day", None)
@@ -2027,6 +2081,11 @@ def _lever_label(value: int | None) -> str:
     if value is None:
         return "environment default"
     return f"{value} first-day scan{'s' if value != 1 else ''}"
+
+
+_LEVER_UNREADABLE = ("🎚 Nothing changed: the lever's stored state could not be "
+                     "read, and writing over it would lose its change history. "
+                     "Try again in a minute.")
 
 
 async def _lever_command(argument: str, rest: str) -> tuple[str, Buttons]:
@@ -2076,7 +2135,8 @@ async def _lever_command(argument: str, rest: str) -> tuple[str, Buttons]:
                     f"This spends money: every extra scan is a model call.",
                     [[("✅ Yes, arm it", f"lever arm {wanted} yes"),
                       ("Cancel", "experiment")]])
-        await _set_free_scan_lever(wanted)
+        if await _set_free_scan_lever(wanted) is None:
+            return _LEVER_UNREADABLE, _lever_buttons(current)
         return (f"🧪 Lever armed — <b>{_lever_label(wanted)}</b>.",
                 [[("🧪 Experiment", "experiment")]])
 
@@ -2088,7 +2148,8 @@ async def _lever_command(argument: str, rest: str) -> tuple[str, Buttons]:
                     "The window in /experiment keeps running; only the allowance stops.",
                     [[("✅ Yes, disarm it", "lever disarm yes"),
                       ("Cancel", "experiment")]])
-        await _set_free_scan_lever(0)
+        if await _set_free_scan_lever(0) is None:
+            return _LEVER_UNREADABLE, _lever_buttons(current)
         return ("🔕 Lever disarmed — new users get the daily limit.",
                 [[("🧪 Experiment", "experiment")]])
 
@@ -2098,7 +2159,8 @@ async def _lever_command(argument: str, rest: str) -> tuple[str, Buttons]:
                     f"FREE_SCANS_FIRST_DAY would decide again. Currently "
                     f"<b>{_lever_label(current)}</b>.",
                     [[("✅ Yes", "lever default yes"), ("Cancel", "experiment")]])
-        await _set_free_scan_lever(None)
+        if await _set_free_scan_lever(None) is None:
+            return _LEVER_UNREADABLE, _lever_buttons(current)
         return ("↩️ Lever cleared — the environment decides again.",
                 [[("🧪 Experiment", "experiment")]])
 
@@ -2263,13 +2325,14 @@ async def _tally_top(day: str, category: str, brand: str | None,
     One small JSON document rather than a key per brand, because the cache
     interface cannot enumerate keys and the report needs the whole table.
     A lost update between two replicas costs one count, which is fine for a
-    tally that exists to say "clothing 5 · Nike ×3".
+    tally that exists to say "clothing 5 · Nike ×3". A lost *read* is not:
+    see `_read_index_for_update`, which this shares a document shape with.
+    Losing this scan's count is the price of not resetting the day's.
     """
     key = _stat_key(day, "top")
-    try:
-        doc = json.loads(await _cache.get(key) or "{}")
-    except Exception:
-        doc = {}
+    doc = await _read_index_for_update(key)
+    if doc is None:
+        return
     cats = doc.get("cats") if isinstance(doc.get("cats"), dict) else {}
     brands = doc.get("brands") if isinstance(doc.get("brands"), dict) else {}
     finds = doc.get("finds") if isinstance(doc.get("finds"), list) else []
@@ -2417,6 +2480,31 @@ async def _read_index(key: str) -> dict:
     return doc if isinstance(doc, dict) else {}
 
 
+async def _read_index_for_update(key: str) -> dict | None:
+    """`_read_index` for a caller about to write the whole document back.
+
+    None means the store could not be read, and the caller must not write.
+    `_read_index` answers {} for that, which is right for a report and wrong
+    here: a plain `get` on a failing Redis falls back to memory and returns
+    None rather than raising, so the writer took the document as empty and,
+    once Redis answered again, overwrote it with the one row it had just
+    added. A 300-row subscription index became 1, and the auto-renew state
+    and history in those rows came back from nowhere. `required=True` makes
+    that read raise instead. A document that is present but unreadable is
+    still replaced, as before.
+    """
+    try:
+        raw = await _cache.get(key, required=True)
+    except Exception as exc:
+        log.warning("index %s unreadable, not rewriting it: %s", key, type(exc).__name__)
+        return None
+    try:
+        doc = json.loads(raw or "{}")
+    except Exception:
+        return {}
+    return doc if isinstance(doc, dict) else {}
+
+
 async def _write_index(key: str, doc: dict, cap: int, recency: str) -> None:
     if len(doc) > cap:
         # Drop the least recently seen until it fits.
@@ -2461,8 +2549,10 @@ def _via(acq: str | None) -> str:
 
 
 async def _index_subscription(subject: str | None, ent,
-                              auto_renew: bool | None = None) -> dict:
-    """Record what we now know about one subscription. Returns the previous row.
+                              auto_renew: bool | None = None, *,
+                              current: bool = False) -> dict | None:
+    """Record what we now know about one subscription. Returns the previous row,
+    or None when the index could not be read and nothing was written.
 
     `subject` is None when App Store Server Notifications told us rather than a
     device checking in. There is no pseudonymised device to attribute it to,
@@ -2480,8 +2570,17 @@ async def _index_subscription(subject: str | None, ent,
 
     The previous row is returned because a notification alone cannot say
     whether a paid period is a *conversion*. Only the row it replaces can.
+
+    `current` says `ent` is Apple's word on this term as of now — a live
+    status lookup, or a REFUND_REVERSED — rather than a transaction that may
+    have been signed before a refund and delivered after it. See the refund
+    mark below.
     """
-    doc = await _read_index(SUBS_INDEX_KEY)
+    doc = await _read_index_for_update(SUBS_INDEX_KEY)
+    if doc is None:
+        # Nothing written, and nothing known about the row. `/sub` can repair
+        # it once Redis is back.
+        return None
     otid = str(ent.original_transaction_id)
     before = doc.get(otid) if isinstance(doc.get(otid), dict) else {}
     entry = dict(before)
@@ -2511,6 +2610,11 @@ async def _index_subscription(subject: str | None, ent,
     # survives the tombstone. The operator's index gets the same rule, rather
     # than clearing on any non-revoked transaction — Apple can redeliver a
     # pre-refund renewal after the REFUND, and that must not resurrect the row.
+    #
+    # That rule alone left no way to clear the mark on the *same* term, which
+    # is exactly what a reversed refund needs: the row said `refund` for a
+    # customer paying for that term again, and `/sub` asking Apple could not
+    # fix it. A `current` transaction is not a redelivery, so it may.
     revoked = getattr(ent, "revoked_at", None)
     if revoked is not None:
         entry["revoked"] = revoked
@@ -2520,7 +2624,8 @@ async def _index_subscription(subject: str | None, ent,
         if (entry.get("revoked") is not None
                 and ent.expires_at is not None
                 and tombstoned is not None
-                and float(ent.expires_at) > float(tombstoned)):
+                and (float(ent.expires_at) >= float(tombstoned) if current
+                     else float(ent.expires_at) > float(tombstoned))):
             entry.pop("revoked", None)
             entry.pop("revoked_expires", None)
     doc[otid] = entry
@@ -2529,7 +2634,9 @@ async def _index_subscription(subject: str | None, ent,
 
 
 async def _index_user(who: str, *, tier: str, scanned: bool = False) -> None:
-    doc = await _read_index(USERS_INDEX_KEY)
+    doc = await _read_index_for_update(USERS_INDEX_KEY)
+    if doc is None:
+        return
     now = int(time.time())
     entry = doc.get(who) if isinstance(doc.get(who), dict) else {"first": now, "scans": 0}
     entry["last"] = now
@@ -3510,7 +3617,153 @@ def _status_lines(status) -> list[str]:
     return lines
 
 
-async def _sub_text(argument: str) -> str:
+async def _sub_command(rest: str) -> tuple[str, Buttons]:
+    """`/sub <id>`, and `/sub <otid> lift [yes]` for a stale refund block."""
+    parts = (rest or "").split()
+    if len(parts) >= 2 and parts[1].lower() == "lift":
+        confirmed = any(token.lower() == "yes" for token in parts[2:])
+        return await _lift_refund_block(parts[0], confirmed)
+    text, offers = await _sub_text(rest)
+    return text, offers + await _buttons()
+
+
+async def _ask_apple(transaction_id: str) -> tuple[list | None, str | None]:
+    """`appstorestatus.lookup`, with each failure in the operator's words.
+
+    Returns `(statuses, error_message)` — exactly one is not None.
+    """
+    import appstorestatus
+
+    try:
+        return await appstorestatus.lookup(transaction_id), None
+    except appstorestatus.SubscriberNotFound as exc:
+        return None, (f"💳 {html.escape(str(exc))}\n\nChecked Production and Sandbox. "
+                      "An id Apple does not recognise is usually a transactionId from "
+                      "a different app, or a typo.")
+    except appstorestatus.StatusNotConfigured as exc:
+        return None, (f"💳 {html.escape(str(exc))}\n\nThe rest of the bot is "
+                      "unaffected — /subs still reports what notifications have said.")
+    except appstorestatus.StatusRateLimited as exc:
+        return None, f"💳 {html.escape(str(exc))}"
+    except appstorestatus.StatusCredentialsRejected as exc:
+        return None, f"💳 <b>Credentials refused</b>\n{html.escape(str(exc))}"
+    except appstorestatus.StatusError as exc:
+        # StatusUnavailable and anything added later. Still named, still not
+        # silent — this branch exists so a new subclass cannot become a
+        # mystery empty reply.
+        return None, f"💳 <b>Could not ask Apple</b>\n{html.escape(str(exc))}"
+
+
+def _block_denies(tombstone: dict, ent) -> bool:
+    """Whether a refund block denies `ent`'s term — `_is_revoked`'s rule."""
+    blocked_until = tombstone.get("expires_at")
+    if ent.expires_at is None or not isinstance(blocked_until, (int, float)):
+        return True
+    return ent.expires_at <= blocked_until
+
+
+async def _refund_block_lines(statuses) -> tuple[list[str], Buttons]:
+    """The access path's refund blocks for these subscriptions, if any.
+
+    A REFUND writes `entrevoked:{originalTransactionId}`, and the access path
+    denies the term it names for up to 400 days. Nothing showed it: a customer
+    whose refund Apple had reversed read as free on every sync, this command
+    said they were paying, `/subs` said `refund`, and finding the cause took
+    `redis-cli` against production. The block is shown next to what Apple
+    says now, and when Apple says the term is not refunded, lifting it is
+    offered — as two taps, see `_lift_refund_block`.
+    """
+    import entitlements
+
+    lines: list[str] = []
+    offers: Buttons = []
+    latest: dict[str, object] = {}
+    for status in statuses:
+        otid = status.entitlement.original_transaction_id
+        if otid:
+            latest.setdefault(otid, status.entitlement)
+    for otid, ent in latest.items():
+        code = f"<code>{html.escape(otid)}</code>"
+        try:
+            tombstone = await entitlements.read_revocation(_cache, otid)
+        except Exception as exc:
+            lines.append(f"Refund block for {code}: could not read the store "
+                         f"({html.escape(type(exc).__name__)}).")
+            continue
+        if tombstone is None:
+            continue
+        until = tombstone.get("expires_at")
+        what = (f"denies terms ending by {_date(int(until))}"
+                if isinstance(until, (int, float)) else "denies every term")
+        lines.append(f"🚫 <b>Refund block</b> on {code}: {what}.")
+        if getattr(ent, "revoked_at", None) is not None:
+            lines.append("Apple still shows this term refunded, so the block is right.")
+        elif _block_denies(tombstone, ent):
+            lines.append("Apple shows this term <b>not</b> refunded, so the block "
+                         "is denying Pro to someone paying for it.")
+            offers.append([("🔓 Lift refund block", f"sub {otid} lift")])
+        else:
+            lines.append("It does not cover the current term.")
+    return lines, offers
+
+
+async def _lift_refund_block(otid: str, confirmed: bool) -> tuple[str, Buttons]:
+    """Delete one refund block — only once Apple says the refund is gone.
+
+    Two taps, like `/lever`: the first names the block, the second lifts it.
+    And the second asks Apple again rather than trusting the first. Lifting a
+    block on a term Apple still shows refunded would let the server re-derive
+    Pro from the pre-refund proof it holds, which is the bug the block exists
+    to stop.
+    """
+    import entitlements
+
+    otid = otid.strip()
+    code = f"<code>{html.escape(otid)}</code>"
+    if not (otid.isdigit() and len(otid) >= 10):
+        return ("Usage: /sub &lt;originalTransactionId&gt; lift — the full id "
+                "from /sub, not the short one.", await _buttons())
+    try:
+        tombstone = await entitlements.read_revocation(_cache, otid)
+    except Exception as exc:
+        return (f"🚫 Could not read the refund block for {code} "
+                f"({html.escape(type(exc).__name__)}). Nothing was changed.",
+                await _buttons())
+    if tombstone is None:
+        return f"🚫 No refund block is held for {code}.", await _buttons()
+
+    if not confirmed:
+        until = tombstone.get("expires_at")
+        what = (f"denies terms ending by {_date(int(until))}"
+                if isinstance(until, (int, float)) else "denies every term")
+        return (f"🔓 <b>Lift the refund block on {code}?</b>\n"
+                f"It {what}. Apple is asked again first, and it is lifted only "
+                "if Apple no longer shows the term refunded.",
+                [[("✅ Yes, lift it", f"sub {otid} lift yes"),
+                  ("Cancel", f"sub {otid}")]])
+
+    statuses, problem = await _ask_apple(otid)
+    if problem is not None:
+        return problem + "\n\nThe refund block was left in place.", await _buttons()
+    assert statuses is not None
+    mine = [st for st in statuses if st.entitlement.original_transaction_id == otid]
+    if not mine:
+        return (f"🚫 Apple returned nothing under {code}, so the block was left "
+                "in place.", await _buttons())
+    if any(getattr(st.entitlement, "revoked_at", None) is not None for st in mine):
+        return (f"🚫 Apple still shows {code} refunded. The block was left in "
+                "place: lifting it would let the server re-derive Pro from the "
+                "proof it holds.", await _buttons())
+    try:
+        await entitlements.clear_revocation(_cache, otid)
+    except Exception as exc:
+        return (f"🚫 Could not lift the block on {code} "
+                f"({html.escape(type(exc).__name__)}). Try again.", await _buttons())
+    return (f"🔓 Refund block lifted on {code}. Pro comes back at the app's "
+            "next sync, if not sooner.", await _buttons())
+
+
+async def _sub_text(argument: str) -> tuple[str, Buttons]:
     """Ask Apple what one subscription is doing, right now.
 
     Everything else the bot knows about subscriptions is a cache of what it was
@@ -3529,38 +3782,28 @@ async def _sub_text(argument: str) -> str:
     # imports `entitlements` — so either at the top of this file closes an
     # import cycle. The same reason `appstorenotify`'s header gives for
     # duck-typing the notification it is handed.
-    import appstorestatus
     import entitlements
 
     transaction_id, problem = await _resolve_transaction_id(argument or "")
     if problem is not None:
-        return problem
+        return problem, []
     assert transaction_id is not None
 
-    try:
-        statuses = await appstorestatus.lookup(transaction_id)
-    except appstorestatus.SubscriberNotFound as exc:
-        return (f"💳 {html.escape(str(exc))}\n\nChecked Production and Sandbox. "
-                "An id Apple does not recognise is usually a transactionId from "
-                "a different app, or a typo.")
-    except appstorestatus.StatusNotConfigured as exc:
-        return (f"💳 {html.escape(str(exc))}\n\nThe rest of the bot is "
-                "unaffected — /subs still reports what notifications have said.")
-    except appstorestatus.StatusRateLimited as exc:
-        return f"💳 {html.escape(str(exc))}"
-    except appstorestatus.StatusCredentialsRejected as exc:
-        return f"💳 <b>Credentials refused</b>\n{html.escape(str(exc))}"
-    except appstorestatus.StatusError as exc:
-        # StatusUnavailable and anything added later. Still named, still not
-        # silent — this branch exists so a new subclass cannot become a
-        # mystery empty reply.
-        return f"💳 <b>Could not ask Apple</b>\n{html.escape(str(exc))}"
+    statuses, problem = await _ask_apple(transaction_id)
+    if problem is not None:
+        return problem, []
+    assert statuses is not None
 
     lines = [f"💳 <b>Live from Apple</b> — {len(statuses)} subscription"
              f"{'s' if len(statuses) != 1 else ''}"]
     for status in statuses:
         lines.append("")
         lines.extend(_status_lines(status))
+
+    block_lines, offers = await _refund_block_lines(statuses)
+    if block_lines:
+        lines.append("")
+        lines.extend(block_lines)
 
     # Fold what Apple just said back into the index. This is the only writer
     # that can correct a row which drifted — a notification that never arrived
@@ -3578,8 +3821,13 @@ async def _sub_text(argument: str) -> str:
         if not status.entitlement.original_transaction_id:
             continue
         try:
-            await _index_subscription(None, status.entitlement, status.auto_renew)
-            indexed += 1
+            # None: the index could not be read, so nothing was written, and
+            # the line below must not say otherwise. `current`: this is
+            # Apple's word now, so a refund it no longer shows is cleared.
+            if await _index_subscription(
+                    None, status.entitlement, status.auto_renew,
+                    current=True) is not None:
+                indexed += 1
         except Exception:
             # The answer above is the point of the command; failing to cache it
             # must not lose it.
@@ -3588,7 +3836,7 @@ async def _sub_text(argument: str) -> str:
         lines.append("")
         lines.append(f"Index updated from this lookup ({indexed} row"
                      f"{'s' if indexed != 1 else ''}).")
-    return "\n".join(lines)
+    return "\n".join(lines), offers
 
 
 # ── One device, for a support email ──────────────────────────────────────────
@@ -3697,9 +3945,9 @@ async def _device_check_line(configured: bool) -> str:
     """Whether reinstall protection is actually working, not merely switched on.
 
     Three non-empty environment variables is what `is_configured` knows, and a
-    typo'd key looks identical to a healthy one from here: every DeviceCheck
-    failure degrades open by design, so a wrong key silently hands every
-    reinstall a fresh allowance. The probe asks Apple."""
+    typo'd key looks identical to a healthy one from here: a wrong key cannot
+    recognise a reinstall, so it silently hands every reinstall a fresh
+    allowance. The probe asks Apple."""
     if not configured:
         return "DeviceCheck: NOT configured — reinstalls get a fresh allowance"
     if _device_check_probe is None:
@@ -3914,7 +4162,10 @@ async def _remember_message(message_id: int, text: str | None = None) -> None:
     the bot's own messages, its text (so /clear can keep a copy)."""
     try:
         now = int(time.time())
-        raw = await _cache.get(MESSAGES_KEY)
+        # `required`, so an unreadable list raises into the `except` below and
+        # is left alone — read as empty, it was overwritten with one entry
+        # and /clear lost every id and archived text before it.
+        raw = await _cache.get(MESSAGES_KEY, required=True)
         entries = [e for e in (json.loads(raw) if raw else [])
                    if isinstance(e, list) and len(e) >= 2 and now - int(e[1]) < MESSAGES_TTL]
         entry = [int(message_id), now]
@@ -3926,20 +4177,30 @@ async def _remember_message(message_id: int, text: str | None = None) -> None:
         log.debug("message id note failed: %s", type(exc).__name__)
 
 
-async def _archive(entries: list[list]) -> int:
-    """Keep the text of the bot's messages that are about to be deleted."""
+async def _archive(entries: list[list]) -> int | None:
+    """Keep the text of the bot's messages that are about to be deleted.
+
+    The number kept, or None when they could not be kept — which `/clear`
+    must not take as "nothing to keep" and delete them anyway."""
     texts = [[int(e[1]), e[2]] for e in entries if len(e) >= 3 and e[2]]
     if not texts:
         return 0
     try:
-        raw = await _cache.get(ARCHIVE_KEY)
+        # `required` for the reason `_remember_message` gives: an archive read
+        # as empty is an archive about to be replaced by this one batch.
+        raw = await _cache.get(ARCHIVE_KEY, required=True)
         kept = [a for a in (json.loads(raw) if raw else []) if isinstance(a, list) and len(a) == 2]
         kept += texts
         await _cache.set(ARCHIVE_KEY, json.dumps(kept[-ARCHIVE_CAP:]), ARCHIVE_TTL)
     except Exception as exc:
         log.debug("archive write failed: %s", type(exc).__name__)
-        return 0
+        return None
     return len(texts)
+
+
+_CLEAR_REFUSED = ("🧹 Nothing was cleared: the bot's messages could not be copied "
+                  "to 🗂 History first, and deleting them uncopied would lose them. "
+                  "Try again in a minute.")
 
 
 async def _clear_chat() -> None:
@@ -3951,13 +4212,26 @@ async def _clear_chat() -> None:
     Nothing is lost: the bot's own messages are archived for /history first,
     and, when TELEGRAM_ARCHIVE_CHAT_ID names a second chat, everything is
     forwarded there — a real Telegram copy, photos included."""
+    if _notifier is None or _cache is None:
+        return
     try:
-        raw = await _cache.get(MESSAGES_KEY)
+        # `required`: read as empty, an unreadable list was deleted below
+        # without anything in it being archived.
+        raw = await _cache.get(MESSAGES_KEY, required=True)
+    except Exception as exc:
+        log.warning("message list unreadable, not clearing: %s", type(exc).__name__)
+        await _notifier.send(_CLEAR_REFUSED, await _buttons())
+        return
+    try:
         entries = [e for e in (json.loads(raw) if raw else []) if isinstance(e, list) and e]
     except Exception:
         entries = []
     known = sorted({int(e[0]) for e in entries})
     archived = await _archive(entries)
+    if archived is None:
+        # Deleting now would lose exactly the texts the archive exists to keep.
+        await _notifier.send(_CLEAR_REFUSED, await _buttons())
+        return
     archive_chat = os.environ.get(ARCHIVE_CHAT_ENV, "").strip()
     forwarded = await _notifier.forward_messages(archive_chat, known) if archive_chat and known else 0
     # Known ids first, then the sweep below the newest of them: private-chat

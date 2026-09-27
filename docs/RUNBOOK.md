@@ -198,9 +198,22 @@ never a free scan.
    single-instance mode where memory is treated as authoritative, silently
    disabling the quota across every replica (see `cache.ResilientCache`).
 4. The client reconnects automatically once Redis returns; no deploy needed.
-5. If the outage is prolonged and free-tier revenue leakage is preferable to a
-   full outage, that is a **deliberate, logged decision** — set
-   `FREE_SCANS_PER_DAY=0` to make everyone Pro-gated rather than erroring.
+   A refund, revoke or refund-reversal notification that arrives during the
+   outage is answered 503, and Apple redelivers it. The webhook marks a
+   notification handled only after its change is stored, so a Redis that
+   fails halfway through a request leaves the retry a real second attempt.
+   There is nothing to replay by hand unless the outage outlasts Apple's three
+   days of retries; then apply them by hand as §16 describes.
+5. There is no variable that turns this 503 into something else. An earlier
+   version of this step said `FREE_SCANS_PER_DAY=0` would show free users the
+   paywall instead of an error. It did not: `ScanQuota.reserve` increments the
+   Redis counter (`required=True`) *before* comparing it with the limit, so an
+   unreachable Redis is a 503 at any limit. The 503 is also the honest answer,
+   since those users have not used their scan and a paywall would say they had.
+   **If you set `FREE_SCANS_PER_DAY=0` during an earlier outage, set it back**
+   (the default is `1`). It is read at startup and nothing reverts it, and at
+   `0` there is no daily free scan: every free user gets the paywall on their
+   first scan of the day, unless an armed first-day welcome covers them.
 
 ### 5.4b Redis *misconfigured* (not unreachable)
 
@@ -250,7 +263,9 @@ gets free Pro out of it.
 
 - **DeviceCheck down** → reinstall protection degrades open. `quota.note_exhausted`
   and `starting_balance` both swallow failures deliberately: Apple's availability
-  must not gate our service. No action needed.
+  must not gate our service. No action needed. "Down" means unreachable or a
+  5xx. A 4xx is Apple refusing the token or our key, which is not an outage:
+  that install gets the daily limit and no first-day welcome.
 - **App Store server down** → `/auth/entitlement` verification is *offline* (the
   JWS is verified against a pinned Apple root CA locally), so existing Pro users
   are unaffected. Only brand-new purchases are impacted, and the client retries
@@ -411,8 +426,10 @@ body-only key, so the checkup names the shape instead:
 | `could not reach Apple (…)` | network, not credentials — nothing to change |
 
 **Then verify — do not trust "configured".** `is_configured` only means the
-three variables are non-empty, and *every* DeviceCheck failure degrades open
-(§5.6), so a typo'd key silently hands every reinstall a fresh allowance.
+three variables are non-empty, and a wrong key cannot recognise a reinstall, so
+a typo'd key silently hands every reinstall a fresh daily allowance. It also
+withholds the first-day welcome from every new install, since Apple refusing
+the key is not an outage (§5.6).
 Run `🩺 Checkup`:
 
 - `DeviceCheck: configured ✅ — credentials accepted by Apple` — Apple signed off.
@@ -425,15 +442,17 @@ while a `401` proves it does not. No device is involved.
 
 **`DEVICECHECK_SANDBOX`**: leave unset. Device tokens from an Xcode-run debug
 build belong to Apple's development environment and will be refused by the
-production host — expected, and harmless because the path degrades open. Set it
+production host. That is expected and harmless: the install still gets the daily
+limit, and only misses the first-day welcome. Set it
 only if you ever point a build at the sandbox deliberately; a stale `true` would
 break DeviceCheck for real App Store users, silently.
 
 ### 8.4 DeviceCheck key rotation
 
 **Add, verify, revoke — in that order.** Revoking first leaves DeviceCheck
-failing for as long as it takes to paste the replacement, and it fails *open*
-(§5.6): every reinstall in that window gets a fresh free allowance, silently.
+failing for as long as it takes to paste the replacement, and while it fails no
+reinstall is recognised: every reinstall in that window gets a fresh daily
+allowance, silently, and no new install gets the first-day welcome.
 
 1. Portal → Keys → **+**, tick **DeviceCheck**, Register, download the `.p8`.
 2. Railway: set `DEVICECHECK_KEY_ID` and `DEVICECHECK_PRIVATE_KEY` to the new
@@ -813,13 +832,38 @@ tombstone's.
    `redis-cli GET entrevoked:{originalTransactionId}`. The id is in the
    refund alert.
 3. If it is missing, the webhook answered 503 and Apple should have retried.
-   A 503 releases the `apns2:{uuid}` idempotency key on purpose, so the
-   redelivery gets a real second attempt rather than landing on the duplicate
-   branch. Check the logs for `could not revoke a refunded entitlement`.
+   The `apns2:{uuid}` idempotency key is written only after the tombstone is
+   stored, so a 503 leaves no key behind and the redelivery gets a real second
+   attempt rather than landing on the duplicate branch. Check the logs for
+   `could not apply REFUND to the entitlement`.
 4. To revoke by hand, write the tombstone yourself:
    `redis-cli SET entrevoked:{otid} '{"revoked_at":<epoch>,"expires_at":<term expiry epoch>}' EX 34560000`
 5. Access goes away at the user's next request, or immediately if you also
    `DEL ent:{subject}` — which needs the subject, so usually it is the former.
+
+### If Apple reverses a refund
+
+Apple sends `REFUND_REVERSED` when it takes a refund back after a dispute the
+customer raised, and the term is paid for again. The webhook lifts the
+tombstone for that term (`EntitlementService.reinstate`) and clears the `refund`
+mark on the `/subs` row. The operator Telegram gets `↪️ Refund reversed by
+Apple`, saying whether a block was lifted. Pro comes back at the app's next
+sync. A store failure is a 503 here too, and Apple redelivers.
+
+A reversal lifts a tombstone only when the tombstone is for the same term,
+meaning the same expiry. Apple keeps the renewal date when it reverses a
+refund. A tombstone for any other term is a different refund, and it stays.
+If the kept tombstone ends later than the reversed term, it still denies that
+term, and the alert says so and names the `/sub` command to run. That is what
+a reversal whose expiry is not the refunded term's would look like.
+
+**If a customer whose refund was reversed still reads as free**, run
+`/sub <originalTransactionId>`. It shows any refund block next to Apple's live
+answer, and the lookup clears a stale `refund` mark on the `/subs` row. When
+Apple shows the term not refunded, it offers **🔓 Lift refund block**. That
+takes two taps, and the second asks Apple again: it refuses while Apple still
+shows the refund, since lifting it then would let the stored pre-refund proof
+re-derive Pro. No `redis-cli` needed.
 
 ### What this does not do
 

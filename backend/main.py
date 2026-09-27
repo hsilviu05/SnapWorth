@@ -53,7 +53,7 @@ from comps.engine import build_engine as build_comps_engine
 from comps.shadow import ShadowRunner
 from auth import (Principal, record_quota_consumed, refund_quota,
                   require_auth, reserve_quota)
-from entitlements import EntitlementError, EntitlementService
+from entitlements import EntitlementError, EntitlementService, Reinstatement
 from fastapi import Depends
 import observability
 from observability import RequestContextMiddleware, configure_production_logging
@@ -1535,7 +1535,8 @@ async def apple_notifications(body: AppleNotification, request: Request) -> dict
     subscription index and the Telegram alerts; a caller who somehow produced a
     valid Apple signature for our bundle could tell us about a purchase, not
     create one. Entitlement remains verified per request against the
-    transaction the client presents.
+    transaction the client presents. The one entitlement change it makes is to
+    withdraw a refunded term, and to lift that again on a REFUND_REVERSED.
 
     Answers 200 for anything it understood, including a type it deliberately
     ignores — a non-2xx makes Apple redeliver the same notification for days.
@@ -1572,13 +1573,60 @@ async def apple_notifications(body: AppleNotification, request: Request) -> dict
         log.warning("rejected App Store notification: %s", exc)
         raise HTTPException(status_code=400, detail=str(exc)) from None
 
+    seen_key = f"apns2:{note.uuid}"
+
+    # A refund or a revoke is the only message Apple sends that has to change
+    # entitlement state, and it is the one the server could not act on: the
+    # stored proof carries the revocation state it was signed with, a refund
+    # does not move `expiresDate`, so the pre-refund JWS kept re-deriving Pro
+    # for the rest of the paid term. See `EntitlementService.revoke`.
+    #
+    # Before the index write, so an operator who sees the Telegram message
+    # knows the access was already withdrawn rather than merely reported.
+    #
+    # A REFUND_REVERSED undoes exactly that, and needs the same care: left
+    # unhandled, the tombstone went on denying a customer whose refund Apple
+    # had reversed for up to 400 days. See `EntitlementService.reinstate`.
+    #
+    # And before the idempotency claim below. The claim used to come first,
+    # with a `delete` to hand it back if this failed. On a configured Redis
+    # that fails between two calls, that `delete` went to process memory
+    # without raising, so the marker stayed in Redis: Apple's retry of the
+    # 503 landed on the duplicate branch, was answered 200, and the refund
+    # was never applied. Claiming only once the change is stored leaves
+    # nothing to give back. The marker is then proof the change landed, which
+    # is why a redelivery that finds it does not re-apply: a REFUND retried
+    # after its REFUND_REVERSED must not put the block back.
+    reinstated: Reinstatement | None = None
+    if ((note.is_refund or note.is_revoke or note.is_refund_reversal)
+            and note.entitlement is not None):
+        try:
+            handled = (_cache is not None
+                       and await _cache.get(seen_key) is not None)
+        except Exception:
+            handled = False
+        if handled:
+            return {"status": "duplicate"}
+        try:
+            if note.is_refund_reversal:
+                reinstated = await auth.deps.entitlements.reinstate(note.entitlement)
+            else:
+                await auth.deps.entitlements.revoke(note.entitlement)
+        except Exception as exc:
+            log.error("could not apply %s to the entitlement: %s",
+                      note.notification_type, exc)
+            raise HTTPException(
+                status_code=503,
+                detail="Could not update the entitlement; please retry.",
+            ) from None
+
     # Idempotency. Apple redelivers until it gets a 2xx, and a retry that
     # re-ran the handler would push the operator a second "trial converted"
     # for one conversion. Fail *open* if the cache is unreachable: a duplicate
     # alert is a smaller problem than dropping a real notification, and the
     # index write is itself idempotent.
     try:
-        first = await _cache.add(f"apns2:{note.uuid}", "1", _NOTIFICATION_SEEN_TTL)
+        first = await _cache.add(seen_key, "1", _NOTIFICATION_SEEN_TTL)
     except Exception:
         first = True
     if not first:
@@ -1591,39 +1639,10 @@ async def apple_notifications(body: AppleNotification, request: Request) -> dict
         await notify.appstore_test_notification(note.environment)
         return {"status": "test", "environment": note.environment}
 
-    # A refund or a revoke is the only message Apple sends that has to change
-    # entitlement state, and it is the one the server could not act on: the
-    # stored proof carries the revocation state it was signed with, a refund
-    # does not move `expiresDate`, so the pre-refund JWS kept re-deriving Pro
-    # for the rest of the paid term. See `EntitlementService.revoke`.
-    #
-    # Before the index write, so an operator who sees the Telegram message
-    # knows the access was already withdrawn rather than merely reported.
-    if (note.is_refund or note.is_revoke) and note.entitlement is not None:
-        try:
-            await auth.deps.entitlements.revoke(note.entitlement)
-        except Exception as exc:
-            # Give the uuid back before failing. The idempotency claim above
-            # is made before any work is done, so answering 5xx while holding
-            # it would make Apple's redelivery land on the duplicate branch
-            # and return 200 without ever withdrawing the access — the same
-            # outcome as never having handled the refund. Releasing it means
-            # the retry gets a real second attempt.
-            log.error("could not revoke a refunded entitlement: %s", exc)
-            try:
-                await _cache.delete(f"apns2:{note.uuid}")
-            except Exception:
-                log.error("could not release the notification idempotency key; "
-                          "this refund will not be retried")
-            raise HTTPException(
-                status_code=503,
-                detail="Could not withdraw the entitlement; please retry.",
-            ) from None
-
     if not note.is_indexed:
         return {"status": "ignored", "type": note.notification_type}
 
-    await notify.subscription_event(note)
+    await notify.subscription_event(note, reinstated=reinstated)
     return {"status": "ok", "type": note.notification_type}
 
 

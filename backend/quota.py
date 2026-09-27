@@ -24,14 +24,20 @@ charging for a failed scan is both unfair and a support burden.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import time
 from dataclasses import dataclass
 from datetime import datetime, timezone
 
 from cache import CacheUnavailable
+from devicecheck import DeviceCheckError
 
 log = logging.getLogger("snapworth.quota")
+
+# Holds a reference to each background DeviceCheck write until it finishes: an
+# un-awaited task is otherwise collectable mid-flight.
+_background: set[asyncio.Task] = set()
 
 # One per day, not three. At three, almost nobody exhausted the allowance, so
 # the paywall was never reached and download-to-paid sat at 1.43% while the
@@ -50,8 +56,9 @@ _COUNTER_TTL = 60 * 60 * 30
 # lets the habit form on day one and returns to the daily limit on day two.
 # It is an experiment lever, measured through the client's
 # free_scan_limit_hit → paywall_viewed → purchase_started funnel, not a
-# permanent widening of the free tier. Granted once per subject, ever; a
-# reinstall that DeviceCheck recognises gets nothing, exactly as today.
+# permanent widening of the free tier. Granted once per subject, ever, and at
+# most once a month per device: DeviceCheck's bit1 marks the hardware when it
+# is granted, so a reinstall on that device gets the daily limit instead.
 FREE_SCANS_FIRST_DAY = 0
 
 # The welcome grant outlives any counter, so a subject can never be welcomed
@@ -320,13 +327,18 @@ class ScanQuota:
         Apple stamps the write with a month, and `starting_balance` reads that
         stamp — so re-marking an already-marked device is not a no-op, it
         refreshes the month the mark belongs to.
+
+        bit1 is written True, not False. Apple only writes both bits at once,
+        and bit1 is the welcome mark: writing False here would wipe it from a
+        device that took the welcome and then spent its last scan. A device
+        that has spent its allowance has had its welcome anyway.
         """
         if not device_token or self._device_check is None:
             return
         if not self._device_check.is_configured:
             return
         try:
-            await self._device_check.update_bits(device_token, bit0=True, bit1=False)
+            await self._device_check.update_bits(device_token, bit0=True, bit1=True)
         except Exception as exc:
             log.warning("devicecheck update failed: %s", exc)
 
@@ -340,12 +352,36 @@ class ScanQuota:
         "This month" is Apple's `last_update_time`, which is the only period
         DeviceCheck can express. It used to say "until the next reset" while no
         reset existed anywhere: `note_exhausted` is the only writer of bit0 in
-        the repo and nothing ever cleared it. With `FREE_SCANS_PER_DAY = 1`
-        that bit is set on the second scan attempt of any day — i.e. for
-        essentially every engaged free user, within their first day — so it did
-        not distinguish abusers from users at all. It flagged almost the whole
-        free base, permanently, and then denied each of them the first-day
-        welcome on any future install of the app on that hardware.
+        the repo and nothing ever cleared it. A bit that is never cleared, set
+        for every free user who spends their scan, flags the whole free base
+        permanently and denies each of them the first-day welcome on any
+        future install of the app on that hardware.
+
+        That reading, and this docstring, used to assume the bit was set on the
+        second scan attempt of a day, i.e. on the server's refusal. It almost
+        never was. The client stops at zero using the server's own count, so
+        the refused request is never sent, and this check read a bit that
+        nothing set: delete-and-reinstall handed back a fresh allowance, and
+        the welcome with it. `auth.reserve_quota` now marks the device when a
+        reservation takes the *last* scan. That does flag nearly every engaged
+        free user, so the month scope above is what makes it tolerable.
+
+        The cost falls on any new subject on that hardware in the same month,
+        not only a reinstall. A re-attestation on the same phone is one too:
+        the server lost the key's state, a restore to the same device, or an
+        invalidated Secure Enclave key. Each loses that day's scan and the
+        welcome, but not the scans after.
+
+        bit1 is the welcome's own mark. Marking only on the last scan left the
+        welcome open: with it armed, the last scan is the first-day
+        allowance's, so a user who stopped one short and reinstalled was never
+        marked, and every reinstall was welcomed again. `_welcome` now marks
+        the hardware when it grants. A new subject on hardware marked only
+        this way this month, a re-attestation included, gets the daily limit
+        without the welcome.
+
+        Missing tokens, and tokens Apple refuses, get the daily limit and no
+        welcome. Only Apple being unreachable gets the benefit of the doubt.
         """
         try:
             # `_SEEN_TTL`, not `_COUNTER_TTL`. "Have I ever seen this subject"
@@ -369,19 +405,44 @@ class ScanQuota:
         if not first_time:
             return await self._limit_for(subject)   # already known, normal path
 
-        if not device_token or self._device_check is None:
+        if self._device_check is None or not self._device_check.is_configured:
             return await self._welcome(subject)
-        if not self._device_check.is_configured:
-            return await self._welcome(subject)
+        if not device_token:
+            # With DeviceCheck configured, a missing token is not "a device we
+            # know nothing about" but a check that did not happen. The token is
+            # optional on the wire and not covered by the attestation, so
+            # leaving it out used to be a way to skip the check and take the
+            # welcome on every reinstall. Without it the daily limit is still
+            # granted. The genuine app always sends one unless `DCDevice`
+            # fails, and in that rare case the user misses only the welcome.
+            log.info("no devicecheck token on a new subject — no welcome")
+            return await self._refuse_welcome(subject)
 
         try:
             bits = await self._device_check.query_bits(device_token)
+        except DeviceCheckError as exc:
+            if not exc.is_refusal:
+                # Unreachable, or a 5xx. Apple's availability must not gate
+                # our own service.
+                log.warning("devicecheck query failed, granting default: %s", exc)
+                # No `device_token`: the bits are unknown, and marking the
+                # welcome would overwrite a bit0 this query could not see.
+                return await self._welcome(subject)
+            # Apple answered and refused: a malformed or forged token (400),
+            # or credentials it will not accept (401). That is not an outage,
+            # and treating it as one handed the welcome to anyone who sent
+            # junk. No welcome, but the daily limit is still granted. A 401
+            # means our key is wrong, which `/checkup` reports.
+            log.warning("devicecheck refused the query — no welcome: %s", exc)
+            return await self._refuse_welcome(subject)
         except Exception as exc:
-            # Availability of Apple's API must not gate our own service.
-            log.warning("devicecheck query failed, granting default: %s", exc)
-            return await self._welcome(subject)
+            # Not Apple's availability. A key that cannot sign lands here,
+            # and `/checkup` names it. So could a bug. Neither is a reason to
+            # hand out the welcome.
+            log.error("devicecheck query could not be made — no welcome: %s", exc)
+            return await self._refuse_welcome(subject)
 
-        if bits and bits.get("bit0"):
+        if bits and (bits.get("bit0") or bits.get("bit1")):
             # The mark is only about the month it was written in. Apple returns
             # that month as `last_update_time`, and it was being discarded.
             stamp = str(bits.get("last_update_time") or "")[:7]
@@ -398,7 +459,15 @@ class ScanQuota:
                         device_token, bit0=False, bit1=False)
                 except Exception as exc:
                     log.warning("devicecheck reset failed: %s", exc)
-                return await self._welcome(subject)
+                return await self._welcome(subject, device_token)
+
+            if not bits.get("bit0"):
+                # The welcome was taken on this hardware this month, and its
+                # allowance not used up. Today's scans are not known to be
+                # spent, so the daily limit, but not a second welcome.
+                log.info("devicecheck: welcome already taken on this device "
+                         "this month — daily limit only")
+                return await self._refuse_welcome(subject)
 
             log.info("reinstall detected via devicecheck — no fresh free scans")
             try:
@@ -417,15 +486,19 @@ class ScanQuota:
             except CacheUnavailable:
                 pass
             return 0
-        return await self._welcome(subject)
+        return await self._welcome(subject, device_token)
 
-    async def _welcome(self, subject: str) -> int:
+    async def _welcome(self, subject: str, device_token: str | None = None) -> int:
         """Grant the first-day allowance to a genuinely new subject, once.
 
         The welcome marker outlives every counter, so the allowance is handed
         out exactly once per subject — including a subject first seen while the
         welcome was switched off, which is what the `_DENIED` write below is
         for.
+
+        `device_token` is passed only when DeviceCheck has just said this
+        hardware carries no mark this month. A grant then sets bit1, so the
+        next install on it this month is not welcomed again.
         """
         first_day = await self._first_day_limit()
         if not first_day:
@@ -448,16 +521,7 @@ class ScanQuota:
             # claiming the welcome — was closed by writing `_DENIED` on the
             # refusal path in `starting_balance`. This is the same fix for the
             # other way in.
-            try:
-                await self._cache.add(
-                    self._welcome_key(subject), _DENIED, _WELCOME_TTL, required=True)
-            except CacheUnavailable:
-                # Best-effort, like the reinstall refusal: failing a scan over a
-                # marker would be worse than the allowance it guards. `add` is a
-                # no-op when a marker already exists, so a genuinely new subject
-                # arriving after the lever is armed still reaches the grant.
-                pass
-            return self._limit
+            return await self._refuse_welcome(subject)
         try:
             granted = await self._cache.add(
                 self._welcome_key(subject), _utc_day(), _WELCOME_TTL, required=True)
@@ -465,5 +529,41 @@ class ScanQuota:
             raise QuotaUnavailable(str(exc)) from exc
         if granted:
             log.info("welcome allowance granted", extra={"scans": first_day})
+            if device_token:
+                self._mark_welcomed(device_token)
             return first_day
         return await self._limit_for(subject)
+
+    def _mark_welcomed(self, device_token: str) -> None:
+        """Set bit1 on this hardware, in the background.
+
+        A round trip to Apple on the attestation path, which must not wait for
+        it or fail because of it. bit0 is written False because the caller
+        has just read it unset for this month, and Apple writes both bits.
+        """
+        device_check = self._device_check
+        if device_check is None:
+            return
+
+        async def mark() -> None:
+            try:
+                await device_check.update_bits(device_token, bit0=False, bit1=True)
+            except Exception as exc:
+                log.warning("devicecheck welcome mark failed: %s", exc)
+
+        task = asyncio.get_running_loop().create_task(mark())
+        _background.add(task)
+        task.add_done_callback(_background.discard)
+
+    async def _refuse_welcome(self, subject: str) -> int:
+        """The daily limit, with the refusal recorded so it sticks."""
+        try:
+            await self._cache.add(
+                self._welcome_key(subject), _DENIED, _WELCOME_TTL, required=True)
+        except CacheUnavailable:
+            # Best-effort, like the reinstall refusal: failing a scan over a
+            # marker would be worse than the allowance it guards. `add` is a
+            # no-op when a marker already exists, so a genuinely new subject
+            # arriving after the lever is armed still reaches the grant.
+            pass
+        return self._limit
