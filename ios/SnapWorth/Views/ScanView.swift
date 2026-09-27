@@ -13,6 +13,12 @@ struct ScanView: View {
     @State private var showNotifPriming = false
     @State private var showThriftFlip = false
 
+    /// Haul mode (#93). The session is the process's one — see
+    /// `HaulSession.live` — created on first appearance and held here so the
+    /// entry pill can show what is still waiting from an earlier haul.
+    @State private var haul: HaulSession?
+    @State private var showHaul = false
+
     /// Value-first paywall: the intro paywall is deferred until the user has
     /// actually seen their first result. Shown once, then never again here.
     @AppStorage("hasSeenFirstResultPaywall") private var hasSeenFirstResultPaywall = false
@@ -57,9 +63,13 @@ struct ScanView: View {
     /// the same run-loop turn and there is no window at all.
     @State private var captureInFlight = false
 
+    /// A restricted camera has been counted for this screen — see the
+    /// `authStatus` handler.
+    @State private var restrictedCounted = false
+
     /// Anything presented on top of the camera. See the `onChange` below.
     private var isCameraObscured: Bool {
-        showResult || showThriftFlip || showNotifPriming || vm.showPaywall
+        showResult || showThriftFlip || showNotifPriming || vm.showPaywall || showHaul
     }
 
     var body: some View {
@@ -89,9 +99,9 @@ struct ScanView: View {
                 // The charcoal ground behind this ZStack is the whole screen.
                 EmptyView()
             case .restricted:
-                permissionPlaceholder(restricted: true)
+                CameraPermissionPlaceholder(restricted: true)
             default:
-                permissionPlaceholder(restricted: false)
+                CameraPermissionPlaceholder(restricted: false)
             }
 
             // ── Camera UI overlay ─────────────────────────────────────────
@@ -226,6 +236,18 @@ struct ScanView: View {
                     .padding(.top, 16)
 
                 Spacer()
+
+                HaulEntryPill(isPro: purchaseService.isSubscribed,
+                              waiting: (haul?.pendingCount ?? 0) + (haul?.failedCount ?? 0),
+                              isDisabled: vm.isAnalyzing || captureInFlight) {
+                    if purchaseService.isSubscribed {
+                        showHaul = true
+                    } else {
+                        vm.paywallTrigger = .haul
+                        vm.showPaywall = true
+                    }
+                }
+                .padding(.bottom, 16)
 
                 // Bottom controls
                 HStack(alignment: .center) {
@@ -373,13 +395,36 @@ struct ScanView: View {
             // itself. It did not: the cap lived only inside
             // `ThriftRunController.update`, reachable only when a scan is
             // written — so the abandoned run it exists for never met it.
+            //
+            // And a run still inside the cap is re-published. Ninety minutes
+            // without a scan turns the Activity stale, and the stale banner's
+            // one instruction is "open SnapWorth to refresh" — but its stale
+            // date moves only in `update(results:)`, reached from a scan
+            // mutation, so opening the app changed nothing and the banner
+            // stayed grey until the next scan. `refreshWidget` is the same
+            // debounced path a scan takes, run with nothing changed.
             Task {
-                if await ThriftRunController.endIfExpired() { isRunOn = false }
+                if await ThriftRunController.endIfExpired() {
+                    isRunOn = false
+                } else if ThriftRunController.isRunning {
+                    ScanRepository(context: modelContext).refreshWidget()
+                }
             }
         }
-        .onChange(of: cameraManager.authStatus) { _, status in
-            if status == .denied {
+        // A refusal is counted when it happens. `.restricted` never happens
+        // on screen — it is already the status when the manager is built, so
+        // there is no change to observe — and it used to be counted only
+        // because `CameraManager` rewrote it to `.denied`. `initial: true`
+        // sees it at first appearance instead, once per screen.
+        .onChange(of: cameraManager.authStatus, initial: true) { old, status in
+            switch status {
+            case .denied where old != .denied:
                 Analytics.shared.track(.scanFailed(reason: .permission, isFirst: ScanTally.isFirstScan()))
+            case .restricted where !restrictedCounted:
+                restrictedCounted = true
+                Analytics.shared.track(.scanFailed(reason: .permission, isFirst: ScanTally.isFirstScan()))
+            default:
+                break
             }
         }
         .onDisappear { cameraManager.stopSession() }
@@ -413,6 +458,10 @@ struct ScanView: View {
             showThriftFlip = false
             showNotifPriming = false
             vm.showPaywall = false
+            // `showHaul` is left alone: the Haul cover is already a live
+            // camera, and HaulView answers the same notification by going
+            // back to its own viewfinder. Closing it would stop a queue of
+            // photos to open a camera that values one at a time.
             vm.reset()
             cameraManager.capturedImage = nil
         }
@@ -445,16 +494,7 @@ struct ScanView: View {
         }) {
             resultSheet
         }
-        .sheet(isPresented: $vm.showPaywall, onDismiss: {
-            // A purchase from the scan-limit paywall finishes the scan it
-            // interrupted, rather than leaving a new subscriber in front of an
-            // empty viewfinder to shoot the same item again.
-            guard let photo = vm.takePhotoForResume(purchaseService: purchaseService),
-                  !captureInFlight else { return }
-            captureInFlight = true
-            vm.capturedImage = photo
-            Task { await triggerScan(image: photo, afterPurchase: true) }
-        }) {
+        .sheet(isPresented: $vm.showPaywall, onDismiss: paywallDismissed) {
             PaywallView(purchaseService: purchaseService, trigger: vm.paywallTrigger)
         }
         .subscriptionUnconfirmedAlert(isPresented: $vm.showSubscriptionUnconfirmed,
@@ -462,6 +502,9 @@ struct ScanView: View {
         .fullScreenCover(isPresented: $showThriftFlip) {
             ThriftFlipView(purchaseService: purchaseService)
         }
+        .modifier(HaulPresentation(isPresented: $showHaul, session: $haul,
+                                   purchaseService: purchaseService,
+                                   makeRepository: { ScanRepository(context: modelContext) }))
         .alert("Stay on top of your flips", isPresented: $showNotifPriming) {
             Button("Enable notifications") {
                 Task {
@@ -515,8 +558,35 @@ struct ScanView: View {
         }
     }
 
-    // MARK: - Permission Placeholder
-    private func permissionPlaceholder(restricted: Bool) -> some View {
+    /// A purchase made from the Haul entry lands in Haul, which is what the
+    /// user was trying to open.
+    ///
+    /// Otherwise, a purchase from the scan-limit paywall finishes the scan it
+    /// interrupted, rather than leaving a new subscriber in front of an empty
+    /// viewfinder to shoot the same item again.
+    private func paywallDismissed() {
+        if vm.paywallTrigger == .haul {
+            if purchaseService.isSubscribed { showHaul = true }
+            return
+        }
+        guard let photo = vm.takePhotoForResume(purchaseService: purchaseService),
+              !captureInFlight else { return }
+        captureInFlight = true
+        vm.capturedImage = photo
+        Task { await triggerScan(image: photo, afterPurchase: true) }
+    }
+
+}
+
+// MARK: - Permission placeholder
+
+/// What stands in for the viewfinder when the camera cannot be used. Shared by
+/// the scan screen and the tag camera (`TagCameraSheet`), so a refused or
+/// restricted camera reads the same wherever the user meets it.
+struct CameraPermissionPlaceholder: View {
+    let restricted: Bool
+
+    var body: some View {
         VStack(spacing: 20) {
             Image(systemName: "camera.slash")
                 .snapSymbol(48, weight: .light)
@@ -688,5 +758,97 @@ private struct ThriftRunControl: View {
         }
         .snapAnimation(.easeInOut(duration: 0.2), value: startRefused)
         .onAppear { isRunning = ThriftRunController.isRunning }
+    }
+}
+
+// MARK: - Haul mode (#93)
+
+/// The way into Haul mode, above the shutter.
+///
+/// One capsule rather than an "Item | Haul" switch: the "Item" half would
+/// never change anything on this screen and would have no counterpart inside
+/// Haul. Its own struct for the reason `resultSheet` is extracted — `body` is
+/// one expression near the type-checker's budget.
+private struct HaulEntryPill: View {
+    let isPro: Bool
+    /// Photos an earlier haul left waiting: to be valued, or — failed — for
+    /// the user's Try again or Remove, which are only offered inside.
+    let waiting: Int
+    let isDisabled: Bool
+    let action: () -> Void
+
+    @State private var showStorageAlert = false
+
+    var body: some View {
+        Button {
+            Haptics.selection()
+            // On a fallback-store launch nothing Haul values could be kept,
+            // and a dozen photos is a lot to lose at once.
+            if AppLaunchState.isRunningOnFallbackStore {
+                showStorageAlert = true
+            } else {
+                action()
+            }
+        } label: {
+            HStack(spacing: 6) {
+                Image(systemName: "square.stack.3d.up.fill")
+                    .snapSymbol(13, weight: .semibold, relativeTo: .footnote)
+                    .accessibilityHidden(true)
+                Text("Haul")
+                if !isPro {
+                    Text("PRO")
+                        .font(.dmSans(10, weight: .bold, relativeTo: .caption2))
+                        .foregroundStyle(Color.snapOnAmber)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(Color.snapAmber)
+                        .clipShape(Capsule())
+                }
+                if waiting > 0 {
+                    Text("\(waiting) waiting")
+                        .font(.snapCaption)
+                        .foregroundStyle(Color.snapOnCharcoal.opacity(0.85))
+                }
+            }
+            .font(.snapCaption.bold())
+            .foregroundStyle(Color.snapOnCharcoal.opacity(isDisabled ? 0.4 : 0.95))
+            .padding(.horizontal, 14)
+            .padding(.vertical, 6)
+            .background(Color.snapCharcoal.opacity(0.5))
+            .clipShape(Capsule())
+        }
+        .disabled(isDisabled)
+        .snapHitTarget()
+        .accessibilityElement(children: .combine)
+        .accessibilityHint("Scan a pile of items one after another, with a running total")
+        .alert("Haul", isPresented: $showStorageAlert) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(AppError.storageUnavailable.errorDescription ?? "")
+        }
+    }
+}
+
+/// The Haul session and its cover, as a modifier: two more presentations
+/// inline would push `ScanView.body` over the type-checker's budget.
+private struct HaulPresentation: ViewModifier {
+    @Binding var isPresented: Bool
+    @Binding var session: HaulSession?
+    let purchaseService: any PurchaseService
+    let makeRepository: () -> ScanRepository
+
+    func body(content: Content) -> some View {
+        content
+            .task {
+                if session == nil {
+                    session = HaulSession.live(purchaseService: purchaseService,
+                                               repository: makeRepository())
+                }
+            }
+            .fullScreenCover(isPresented: $isPresented) {
+                if let session {
+                    HaulView(session: session, purchaseService: purchaseService)
+                }
+            }
     }
 }

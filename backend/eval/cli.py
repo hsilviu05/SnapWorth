@@ -117,8 +117,17 @@ def cmd_gate(args) -> int:
         Path(args.json_out).write_text(json.dumps(report.to_dict(), indent=2))
 
     if report.status is gates_module.GateStatus.SKIPPED and args.require_measurement:
-        print("❌ --require-measurement was set but nothing was measured.",
-              file=sys.stderr)
+        if current.has_any_measurement and baseline is None:
+            # The first run on a new gold set lands here: real numbers, nothing
+            # to compare them with. Say how to arm the gate, not "nothing
+            # was measured", which would send someone hunting the wrong bug.
+            print("❌ this run measured, but there is no baseline to compare it "
+                  "with. A runner --json-out file is a valid baseline: commit "
+                  "one as eval/data/baseline.json (docs/EVALUATION.md).",
+                  file=sys.stderr)
+        else:
+            print("❌ --require-measurement was set but nothing was measured.",
+                  file=sys.stderr)
         return 1
     return report.exit_code
 

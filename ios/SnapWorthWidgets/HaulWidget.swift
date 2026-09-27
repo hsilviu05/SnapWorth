@@ -188,7 +188,7 @@ struct HaulWidgetMediumView: View {
                     // carry its own `Link`s, which is what this now is. The
                     // text beside it already says "Tap to scan your first
                     // find" — that promise is now kept by the chip.
-                    Link(destination: URL(string: "snapworth://scan")!) {
+                    Link(destination: URL(string: "snapworth://scan?src=haul_scan")!) {
                         Label("Scan", systemImage: "camera.fill")
                             .wFont(11, weight: .semibold)
                             .foregroundStyle(Color.wBackground)
@@ -239,7 +239,7 @@ struct HaulWidget: Widget {
     var body: some WidgetConfiguration {
         StaticConfiguration(kind: kind, provider: HaulProvider()) { entry in
             HaulWidgetEntryView(entry: entry)
-                .widgetURL(URL(string: "snapworth://history"))
+                .widgetURL(URL(string: "snapworth://history?src=haul"))
                 .containerBackground(Color.wCharcoal, for: .widget)
         }
         .configurationDisplayName("Haul Value")

@@ -32,6 +32,31 @@
 				<string>NSPrivacyCollectedDataTypePurposeAppFunctionality</string>
 			</array>
 		</dict>
+		<!-- A subscriber's signed StoreKit transaction, which the app uploads
+		     with the device ID on every status refresh (POST /auth/entitlement)
+		     and the server keeps for up to 400 days to re-derive Pro and to
+		     cap devices per subscription.
+
+		     Linked, where everything else here is not. The transaction carries
+		     Apple's originalTransactionId, which is the same on every device
+		     and every reinstall under one Apple ID, and the server stores it
+		     against the device ID precisely to join those devices together.
+		     That is data tied to the user through their account, which is
+		     Apple's definition of linked. The App Store Connect privacy label
+		     must say the same: Purchases > Purchase History, App
+		     Functionality, linked, not tracking. -->
+		<dict>
+			<key>NSPrivacyCollectedDataType</key>
+			<string>NSPrivacyCollectedDataTypePurchaseHistory</string>
+			<key>NSPrivacyCollectedDataTypeLinked</key>
+			<true/>
+			<key>NSPrivacyCollectedDataTypeTracking</key>
+			<false/>
+			<key>NSPrivacyCollectedDataTypePurposes</key>
+			<array>
+				<string>NSPrivacyCollectedDataTypePurposeAppFunctionality</string>
+			</array>
+		</dict>
 		<dict>
 			<key>NSPrivacyCollectedDataType</key>
 			<string>NSPrivacyCollectedDataTypeProductInteraction</string>

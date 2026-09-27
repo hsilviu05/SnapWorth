@@ -475,11 +475,18 @@ enum PaywallCopy {
     /// against the gates rather than drifting from them.
     static let benefits: [Benefit] = [
         Benefit(icon: "infinity", text: String(localized: "Unlimited scans")),
+        // Not "a whole pile in one go": scans share a 20-an-hour limit, and a
+        // pile of thirty pauses partway. What Haul does promise is that the
+        // camera never waits for a valuation, and that it keeps every photo.
+        Benefit(icon: "square.stack.3d.up.fill",
+                text: String(localized: "Haul mode — snap item after item while each is valued, with a running total")),
         Benefit(icon: "chart.line.uptrend.xyaxis",
                 text: String(localized: "Why it's worth that — four price points and what drives them")),
         Benefit(icon: "cart.fill", text: String(localized: "Snap → Sell marketplace listings")),
         Benefit(icon: "tag.fill", text: String(localized: "Read the care tag for a sharper estimate")),
-        Benefit(icon: "chart.pie.fill", text: String(localized: "Portfolio value, trend and thrift trends")),
+        // History, not the value: the portfolio total is on everyone's
+        // History tab. Only its trend (`.portfolioTrend`) and `.trends` are Pro.
+        Benefit(icon: "chart.pie.fill", text: String(localized: "Portfolio value history and thrift trends")),
         Benefit(icon: "square.and.arrow.up", text: String(localized: "Unlimited sold flips, and CSV export")),
     ]
 }

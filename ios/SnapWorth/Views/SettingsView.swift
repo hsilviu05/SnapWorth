@@ -101,8 +101,8 @@ struct SettingsView: View {
                         // ignored otherwise, with no error and no callback, and
                         // Apple's own guidance is not to call it from a user
                         // action for exactly this reason. `ReviewPrompt` already
-                        // spends the quota automatically on the third successful
-                        // scan of each version — so for every engaged user,
+                        // spends the quota automatically, after a revealed
+                        // estimate once three scans are in — so for every engaged user,
                         // which is the only kind who goes looking for this row,
                         // tapping it did nothing at all. Twice.
                         vm.openURL("\(Config.appStoreURL)?action=write-review")

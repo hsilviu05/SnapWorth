@@ -347,6 +347,9 @@ struct TrendRow: Decodable, Identifiable, Equatable {
     }
 }
 
+/// One of the week's highest-value scans. `name` is the brand, never the item
+/// name: each find is a single person's scan with no floor under it, so the
+/// server sends only brand, category and range (`notify.trends`).
 struct NotableFind: Decodable, Identifiable, Equatable {
     let name: String
     let category: String
@@ -356,8 +359,9 @@ struct NotableFind: Decodable, Identifiable, Equatable {
     var id: String { "\(name)-\(low)-\(high)" }
 }
 
-/// What the app shows on My Finds. Aggregates about everyone, never about a
-/// person: the server applies a floor before any of this is sent.
+/// What the app shows on My Finds. The category and brand rows are aggregates
+/// the server floors before sending. `notableFinds` are not aggregates — each
+/// is one scan — which is why they arrive as brand, category and range only.
 struct Trends: Decodable, Equatable {
     let days: Int
     let scans: Int
@@ -367,13 +371,15 @@ struct Trends: Decodable, Equatable {
 
     /// `notableFinds` with the repeats removed, first occurrence kept.
     ///
-    /// `NotableFind.id` is `name-low-high`, and the server builds this list by
-    /// appending each of the seven day-documents' find lists with no dedup,
-    /// emitting the truncated name and *rounded* bounds. An item that topped
-    /// the chart on two days therefore arrives twice with a byte-identical id —
-    /// and an ID-keyed `ForEach` over that is undefined: SwiftUI logs "the ID …
-    /// occurs multiple times within the collection" and renders the row
-    /// unreliably, so a Pro user sees the same find twice or one that flickers.
+    /// `NotableFind.id` is `name-low-high`, where `name` is the brand and the
+    /// bounds are *rounded*. So one item that topped the chart on two days, or
+    /// two different scans of one brand at the same rounded range, share an
+    /// id, and this merges them. The server skips such repeats now
+    /// (`notify.trends`), but it appended the seven day-documents' finds with
+    /// no dedup before that, and an ID-keyed `ForEach` over a repeat is
+    /// undefined: SwiftUI logs "the ID … occurs multiple times within the
+    /// collection" and renders the row unreliably, so a Pro user sees the same
+    /// find twice or one that flickers.
     ///
     /// Deduped rather than index-keyed, because "Notable finds" listing the
     /// same item twice is not a rendering artefact the user should have to
@@ -480,6 +486,6 @@ actor TrendsAPIClient {
         brands: [TrendRow(name: "Carhartt", count: 14, changePct: 40, averageEstimate: nil),
                  TrendRow(name: "Nike", count: 11, changePct: 5, averageEstimate: nil),
                  TrendRow(name: "Le Creuset", count: 7, changePct: nil, averageEstimate: nil)],
-        notableFinds: [NotableFind(name: "Le Creuset Dutch Oven 5.5qt", category: "home", low: 120, high: 220),
-                       NotableFind(name: "The North Face Nuptse 700", category: "clothing", low: 110, high: 200)])
+        notableFinds: [NotableFind(name: "Le Creuset", category: "home", low: 120, high: 220),
+                       NotableFind(name: "The North Face", category: "clothing", low: 110, high: 200)])
 }

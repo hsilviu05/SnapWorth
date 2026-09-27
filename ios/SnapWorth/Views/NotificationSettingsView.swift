@@ -1,5 +1,6 @@
 import SwiftUI
 import UIKit
+import UserNotifications
 
 /// Per-category opt-outs for local notifications. All ON by default; each can be
 /// disabled independently and is respected at schedule time by NotificationManager.
@@ -17,31 +18,37 @@ struct NotificationSettingsView: View {
         let t = NotificationManager.shared.freeScanReminderTime
         return Calendar.current.date(bySettingHour: t.hour, minute: t.minute, second: 0, of: Date()) ?? Date()
     }()
-    @State private var systemDenied = false
+    @State private var banner: PermissionBanner = .none
 
     var body: some View {
         List {
-            if systemDenied {
+            switch banner {
+            case .none:
+                EmptyView()
+            case .ask:
+                Section {
+                    Button {
+                        Task {
+                            let allowed = await NotificationManager.shared.requestAuthorizationIfNeeded()
+                            await refreshSystemState()
+                            if allowed, freeScanOn { resyncFreeScan() }
+                        }
+                    } label: {
+                        bannerLabel(icon: "bell.badge",
+                                    title: "Allow notifications",
+                                    detail: "None of these reminders can arrive until you do.")
+                    }
+                }
+            case .openSettings:
                 Section {
                     Button {
                         if let url = URL(string: UIApplication.openSettingsURLString) {
                             UIApplication.shared.open(url)
                         }
                     } label: {
-                        HStack(spacing: 14) {
-                            Image(systemName: "bell.slash")
-                                .snapSymbol(16, weight: .medium)
-                                .foregroundStyle(Color.snapTerracottaText)
-                                .frame(width: 24)
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text("Notifications are off")
-                                    .font(.snapBody)
-                                    .foregroundStyle(Color.snapEspresso)
-                                Text("Turn them on in iOS Settings to get these reminders.")
-                                    .font(.snapCaption)
-                                    .foregroundStyle(Color.snapWarmGray)
-                            }
-                        }
+                        bannerLabel(icon: "bell.slash",
+                                    title: "Notifications are off",
+                                    detail: "Turn them on in iOS Settings to get these reminders.")
                     }
                 }
             }
@@ -65,7 +72,10 @@ struct NotificationSettingsView: View {
                 } header: {
                     Text("Free scan")
                 } footer: {
-                    Text("Off by default. When on, one reminder at the time you pick — only on days you haven't scanned yet, and never once you're on Pro.")
+                    // Not "on days you haven't scanned": the allowance comes
+                    // back at UTC midnight, so east of UTC it can be back the
+                    // same evening as a morning scan, and the reminder says so.
+                    Text("Off by default. When on, one reminder at the time you pick — only once your free scan is back, and never once you're on Pro.")
                 }
             }
 
@@ -85,6 +95,24 @@ struct NotificationSettingsView: View {
         .navigationTitle("Notifications")
         .navigationBarTitleDisplayMode(.large)
         .task { await refreshSystemState() }
+    }
+
+    private func bannerLabel(icon: String, title: LocalizedStringKey,
+                             detail: LocalizedStringKey) -> some View {
+        HStack(spacing: 14) {
+            Image(systemName: icon)
+                .snapSymbol(16, weight: .medium)
+                .foregroundStyle(Color.snapTerracottaText)
+                .frame(width: 24)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.snapBody)
+                    .foregroundStyle(Color.snapEspresso)
+                Text(detail)
+                    .font(.snapCaption)
+                    .foregroundStyle(Color.snapWarmGray)
+            }
+        }
     }
 
     private func toggle(
@@ -121,18 +149,9 @@ struct NotificationSettingsView: View {
         }
     }
 
-    /// Whether to show the "notifications are off" banner.
-    ///
-    /// `.notDetermined` counts, not just `.denied`. A user who declined the
-    /// in-app priming alert sits at `.notDetermined` permanently, so the banner
-    /// gated on `.denied` alone never appeared for the one person who most
-    /// needed it — every toggle on this screen was inert and nothing said so.
-    /// Now the toggle itself asks iOS first, and this covers the case where the
-    /// user declines the system alert too.
     @MainActor
     private func refreshSystemState() async {
-        let status = await NotificationManager.shared.authorizationStatus()
-        systemDenied = status == .denied || status == .notDetermined
+        banner = PermissionBanner(status: await NotificationManager.shared.authorizationStatus())
     }
 
     /// Turning the reminder on, or moving its time, schedules the next one
@@ -140,7 +159,36 @@ struct NotificationSettingsView: View {
     private func resyncFreeScan() {
         Task {
             await NotificationManager.shared.syncFreeScanReminder(
-                isPro: isPro, scannedToday: ScanStreak.scannedToday(), streak: ScanStreak.current())
+                isPro: isPro, lastScan: ScanStreak.lastScan, streak: ScanStreak.current())
+        }
+    }
+}
+
+extension NotificationSettingsView {
+    /// What the top of the screen offers when notifications cannot arrive.
+    ///
+    /// Two different fixes for two different statuses. A user who tapped "Not
+    /// now" on the in-app priming alert was never shown the system one, so
+    /// the status stays `.notDetermined` for good — and iOS lists no
+    /// Notifications switch at all for an app that has never asked. The
+    /// banner sent exactly that user to Settings, to a page with nothing to
+    /// turn on, while every toggle here already read ON and so never fired the
+    /// request either. Only a declined *system* alert gives `.denied`, and
+    /// only then is there a switch in Settings to send anyone to.
+    enum PermissionBanner: Equatable {
+        case none
+        /// iOS has never been asked: ask it, here.
+        case ask
+        /// iOS was asked and said no: only Settings can change that.
+        case openSettings
+
+        init(status: UNAuthorizationStatus) {
+            switch status {
+            case .notDetermined: self = .ask
+            case .denied:        self = .openSettings
+            case .authorized, .provisional, .ephemeral: self = .none
+            @unknown default:    self = .none
+            }
         }
     }
 }

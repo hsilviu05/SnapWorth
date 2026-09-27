@@ -45,8 +45,16 @@ answers read as competent. Three counters are built in:
 
 from __future__ import annotations
 
+import categories
+
 # Bump on any change to SCAN_PROMPT_V2. The eval harness groups results by this.
 PROMPT_VERSION = "scan-v2.0.0"
+
+# The category line both prompts carry, from the one table in `categories`.
+# Interpolated rather than typed out so the list cannot drift from the bands,
+# weights and normaliser that read the model's answer; the resulting text is
+# byte-identical to the literal it replaced, so PROMPT_VERSION is unchanged.
+_CATEGORY_FIELD = f'"category": "One of: {categories.PROMPT_LIST}"'
 
 # Retained verbatim: still served when SCAN_PROMPT_VERSION=v1, and used by the
 # eval harness as the baseline to measure v2 against.
@@ -58,7 +66,7 @@ Required JSON schema:
 {
   "item_name": "Specific item name including brand, model, size if visible (e.g. 'Patagonia Better Sweater 1/4-Zip, Size M')",
   "brand": "Brand name, or 'Unknown' if not identifiable",
-  "category": "One of: clothing, shoes, accessories, electronics, books, furniture, home, sports, toys, collectibles, other",
+  """ + _CATEGORY_FIELD + """,
   "condition_notes": "Brief honest condition summary (e.g. 'Good — light pilling on cuffs, no stains')",
   "est_value_low_usd": 12.00,
   "est_value_high_usd": 45.00,
@@ -120,7 +128,7 @@ Return ONLY a JSON object. No markdown fences, no commentary.
   "size": "Size as printed on the label, else null",
   "material": "Primary material if stated on a label or clearly identifiable, else null",
   "era": "Approximate production period if determinable from tag design, logo era or construction, e.g. '1990s' or '2015-2020', else null",
-  "category": "One of: clothing, shoes, accessories, electronics, books, furniture, home, sports, toys, collectibles, other",
+  """ + _CATEGORY_FIELD + """,
   "condition_grade": "One of: new, likeNew, good, used",
   "condition_notes": "Specific and honest, citing what you can see, e.g. 'Light pilling at cuffs and collar; no stains or holes visible; reverse not shown'",
   "authenticity_assessment": "One of: no_concerns, minor_concerns, cannot_verify, likely_replica",

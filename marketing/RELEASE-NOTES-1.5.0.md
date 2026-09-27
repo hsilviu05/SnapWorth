@@ -117,7 +117,12 @@ too. See the first pre-submit item.
       automatic signing, the first archive registers
       `eu.snapworth.app.SnapWorthStickers`; the extension needs no capabilities.
 - [ ] Create version 1.5.0 in App Store Connect; all five locales carry over.
+      **They did not** — checked on the live 1.5.0 on 2026-09-26, every
+      storefront shows the English page, and the name is "SnapWorth: Resell
+      & Flip", which no file here has. For 1.5.1: see *Paste with 1.5.1*
+      in `app_store_listing.md`.
 - [ ] What's New pasted per locale, as above.
-- [ ] Description re-pasted per locale.
+- [ ] Description re-pasted per locale. The live English description is
+      older than this file's: seven marketplaces and no stickers line.
 - [ ] Phased release on: a seven-day rollout that can be paused.
 - [ ] App Privacy unchanged: the sticker pack has no code and collects nothing.

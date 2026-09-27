@@ -447,7 +447,8 @@ class AppStoreStatusClient:
         )
 
         raw_status = getattr(item, "rawStatus", None)
-        state = STATUS_WORDS.get(raw_status, f"unknown ({raw_status})")
+        state = (STATUS_WORDS.get(raw_status, f"unknown ({raw_status})")
+                 if isinstance(raw_status, int) else f"unknown ({raw_status})")
 
         auto_renew: bool | None = None
         offer_identifier = transaction.offerIdentifier

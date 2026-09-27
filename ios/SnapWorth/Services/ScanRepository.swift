@@ -116,7 +116,10 @@ final class ScanRepository {
         scheduleWidgetSync()
     }
 
-    func deleteAll(_ results: [ScanResult]) throws {
+    /// - Parameter pendingPhotos: where Haul mode keeps photos it has not
+    ///   valued yet. A parameter only so a test can pass a temporary directory.
+    func deleteAll(_ results: [ScanResult],
+                   pendingPhotos: HaulPhotoStore = .live) throws {
         results.forEach { context.delete($0) }
         do {
             try context.save()
@@ -124,6 +127,11 @@ final class ScanRepository {
             context.rollback()
             throw AppError.persistence
         }
+        // Haul photos still waiting for a valuation are finds-to-be. Left
+        // behind, the next Haul open would value them and put them straight
+        // back into the library the user has just emptied. A scan already in
+        // flight is not recalled: it lands, and saves, a moment later.
+        HaulSession.discardAllPending(store: pendingPhotos)
         NotificationManager.shared.cancelAllLedger()
         WidgetDataStore.writeHaul(results: [])
         // And the run, which is computed from the same array. Every other
@@ -143,10 +151,9 @@ final class ScanRepository {
     //
     // `HistoryView` lists scans with `@Query`, so every row is already resident
     // when the banner renders. A second fetch to sum them would be *additive*
-    // cost, not a saving. The reduce itself is cheap and got cheaper:
-    // `portfolioValue` reads the denormalised `portfolioValueRaw` column when
-    // present, so a touched library sums plain Decimals instead of running a
-    // condition-adjusted division per item per render.
+    // cost, not a saving. The reduce itself is cheap: `portfolioValue` is one
+    // condition-adjusted division per item, with the stored grade it needs
+    // memoised (`ScanResult.storedGrade`) rather than decoded per read.
     //
     // The aggregate becomes worth having the moment the list stops loading
     // everything — i.e. when it is paged. That is a larger change than this

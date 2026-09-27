@@ -10,9 +10,16 @@ is generated in German.
 
 Mirrors `app_store_listing.md`, including its accuracy rules: no claim of sold
 listings, comps or market data; the one-scan-a-day limit in every plan mention;
-Thrift Flip left out of the Pro list, because it is free in full (#128).
+Thrift Flip in the free list rather than the Pro one, because it is free in
+full (#128). The full list of claims it does not make is in the English file,
+under *Claims this listing does not make*.
 
 ## Read this before pasting
+
+**Not live yet (checked 2026-09-26).** The live 1.5.0 carries no German
+metadata: the `de` storefront shows the English page. Add this locale to
+1.5.1 and paste everything below — see *Paste with 1.5.1* in
+`app_store_listing.md`.
 
 **Adding a language is version-scoped.** Name, subtitle, keywords, description
 and What's New belong to a *version*, so `de` can only be added to a version
@@ -94,10 +101,12 @@ SO GEHT'S
 WAS DU BEKOMMST
 
 • Wiederverkaufswert sofort – eine geschätzte Spanne, von unten bis oben
-• Sicherheit – wie eindeutig die KI den Artikel erkennen konnte
+• Sicherheit – wie gut Foto und Erkennung die Schätzung stützen
 • Inserat von der KI – Titel und Beschreibung, fertig zum Einstellen, bei jedem Scan
+• Thrift Flip – scann den Artikel, gib den Ladenpreis ein und sieh vor dem Kauf, was nach den Plattformgebühren übrig bleibt
 • Verlauf – jeder Fund wird automatisch gespeichert, mit seinem Wert
 • Summe – was alles, was du gescannt hast, zusammen wert ist
+• Widgets – die Summe deiner Sammlung auf dem Sperrbildschirm; deine letzten Funde, die übrigen Scans und Scannen mit einem Tipp auf dem Home-Bildschirm
 • iMessage-Sticker – 20 Sticker mit Tag, unserem Maskottchen (vier animiert), um mit deinen Funden anzugeben
 
 --------------------------

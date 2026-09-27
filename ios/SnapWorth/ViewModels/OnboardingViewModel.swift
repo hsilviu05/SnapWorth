@@ -22,7 +22,10 @@ final class OnboardingViewModel {
         OnboardingSlide(
             hero: .thriftFlip,
             headline: "Buy smart.\nFlip for profit.",
-            body: "See your exact profit after marketplace fees, right there in the aisle.",
+            // "Estimated", not "exact": the resale side is an AI estimate
+            // and the fee table is approximate — Thrift Flip says both, one
+            // screen after this promise.
+            body: "See your estimated profit after marketplace fees, right there in the aisle.",
             accent: .snapAmber
         ),
         OnboardingSlide(
