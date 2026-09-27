@@ -988,6 +988,11 @@ struct ResultView: View {
     /// exactly as it was and says so — the first answer was paid for and must
     /// not be lost to a second attempt.
     private func rescan(withTag tagImage: UIImage) {
+        // The button checks this too, but the button is not the only caller:
+        // the tag sheet is. Two re-scans in flight would each spend a scan,
+        // the later answer would win, and the first to finish would clear
+        // "Re-reading…" while the other was still running.
+        guard !isRescanning else { return }
         guard let photo else {
             tagError = String(localized: "The original photo is no longer available for this find.")
             return
@@ -1677,11 +1682,30 @@ struct TagCameraSheet: View {
     @StateObject private var camera = CameraManager()
     @State private var pickedItem: PhotosPickerItem?
     @State private var pickFailed = false
+    @State private var delivered = false
 
     /// The guide and shutter only mean something while there is, or may soon
     /// be, a viewfinder behind them.
     private var cameraUsable: Bool {
         camera.authStatus == .authorized || camera.authStatus == .notDetermined
+    }
+
+    /// Non-nil from the pick until its load finishes, which for an iCloud-only
+    /// photo can be seconds.
+    private var isLoadingPick: Bool { pickedItem != nil }
+
+    /// The one way out of this sheet, and it opens once.
+    ///
+    /// Cancel, the shutter and a library pick all end the sheet, and each of
+    /// the last two is a paid re-scan. A pick that finished loading after
+    /// Cancel, or after a shutter capture, used to deliver a second image —
+    /// re-scanning an item the user had backed out of, or re-scanning it twice.
+    /// Cancelling the load is not enough on its own: the cover's task is only
+    /// cancelled when the view disappears, after the dismissal animation.
+    private func deliver(_ image: UIImage?) {
+        guard !delivered else { return }
+        delivered = true
+        onCapture(image)
     }
 
     var body: some View {
@@ -1704,7 +1728,7 @@ struct TagCameraSheet: View {
 
             VStack(spacing: 0) {
                 HStack {
-                    Button("Cancel") { onCapture(nil) }
+                    Button("Cancel") { deliver(nil) }
                         .font(.dmSans(15, weight: .semibold))
                         .foregroundStyle(Color.snapOnCharcoal)
                         .snapHitTarget()
@@ -1744,17 +1768,26 @@ struct TagCameraSheet: View {
                         RoundedRectangle(cornerRadius: 8, style: .continuous)
                             .fill(Color.snapOnCharcoal.opacity(0.2))
                             .frame(width: 52, height: 52)
-                            .overlay(
-                                Image(systemName: "photo.on.rectangle")
-                                    .snapSymbol(22, weight: .light)
-                                    .foregroundStyle(Color.snapOnCharcoal)
-                            )
+                            .overlay {
+                                // Something has to show while an iCloud photo
+                                // downloads, or the pick looks like it did nothing.
+                                if isLoadingPick {
+                                    ProgressView().tint(Color.snapOnCharcoal)
+                                } else {
+                                    Image(systemName: "photo.on.rectangle")
+                                        .snapSymbol(22, weight: .light)
+                                        .foregroundStyle(Color.snapOnCharcoal)
+                                }
+                            }
                     }
                     .snapHitTarget()
                     .accessibilityLabel("Choose the label photo from your library")
 
                     Spacer()
 
+                    // Not while a pick is loading: the two would race to be the
+                    // tag photo.
+                    let canShoot = camera.authStatus == .authorized && !isLoadingPick
                     Button {
                         Haptics.capture()
                         camera.capturePhoto()
@@ -1765,8 +1798,8 @@ struct TagCameraSheet: View {
                                 .frame(width: 94, height: 94)
                         }
                     }
-                    .disabled(camera.authStatus != .authorized)
-                    .opacity(camera.authStatus == .authorized ? 1 : 0.35)
+                    .disabled(!canShoot)
+                    .opacity(canShoot ? 1 : 0.35)
                     .accessibilityLabel("Take the label photo")
 
                     Spacer()
@@ -1787,19 +1820,21 @@ struct TagCameraSheet: View {
         .onDisappear { camera.stopSession() }
         .onChange(of: camera.capturedImage) { _, image in
             guard let image else { return }
-            onCapture(image)
+            deliver(image)
         }
-        .onChange(of: pickedItem) { _, item in
-            guard let item else { return }
-            Task {
-                if let data = try? await item.loadTransferable(type: Data.self),
-                   let image = UIImage(data: data) {
-                    onCapture(image)
-                } else {
-                    pickFailed = true
-                }
-                pickedItem = nil
+        // Tied to the pick, so a newer pick or the sheet going away cancels it.
+        .task(id: pickedItem) {
+            guard let item = pickedItem else { return }
+            let data = try? await item.loadTransferable(type: Data.self)
+            // Superseded, dismissed, or the sheet already answered: this load
+            // has nothing left to say — not even that it failed.
+            guard !Task.isCancelled, !delivered else { return }
+            if let data, let image = UIImage(data: data) {
+                deliver(image)
+            } else {
+                pickFailed = true
             }
+            pickedItem = nil
         }
         // The capture did not arrive: the session was not running, or the
         // photo could not be decoded. ScanView says so in the same words; here
