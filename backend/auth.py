@@ -296,7 +296,7 @@ async def _limit_unauthenticated(request: Request) -> None:
     # `ratelimit.client_ip`, not `request.client.host`.
     #
     # uvicorn runs with `--forwarded-allow-ips='*'`, so `request.client.host`
-    # is the leftmost `X-Forwarded-For` entry, verbatim. `client_ip` keys on
+    # comes from the leftmost `X-Forwarded-For` entry. `client_ip` keys on
     # that entry too, but it is the one place that knows why: Railway's edge
     # strips a client's own header. It keys IPv6 on its /64 and an entry
     # that is not an address on one fixed value, and it falls back to a walk

@@ -67,7 +67,9 @@ def client_ip(request: Any) -> str:
     a fresh 60/h bucket for every value, and nothing in the header tells
     that request from a real one. App Attest where it is required, the
     per-device buckets and the daily spend alert once it is set still apply
-    then; this limit does not. Stripping was
+    then; this limit does not. Nothing else bounds /auth/challenge,
+    /auth/attest or /auth/assert per caller: this limit is their only one.
+    Stripping was
     seen for callers connecting directly, and a request arriving from
     another CDN's addresses rests on the same assumption. RUNBOOK §5.8 has
     the probe that checks it, to run after any Railway networking change
@@ -85,8 +87,10 @@ def client_ip(request: Any) -> str:
     entry each are two entries. `request.client.host` only when the header
     is absent or holds no entry, where uvicorn leaves the socket peer in
     place; else "unknown". With a header present uvicorn
-    (`--forwarded-allow-ips='*'`) has rewritten that host to the leftmost
-    entry verbatim: not normalised, and not the walk's answer on three.
+    (`--forwarded-allow-ips='*'`) has rewritten that host from the leftmost
+    entry, dropping a port and IPv6 brackets, which this key does not: an
+    entry with a port keys `unparseable` here. Not the walk's answer on
+    three either.
     Truncated because the value reaches a cache key and is
     attacker-influenced.
 

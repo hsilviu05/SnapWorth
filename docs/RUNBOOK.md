@@ -356,8 +356,11 @@ availability one.
    address keys as the IPv4 one it carries. A first entry that is not an
    address keys as the one fixed value `unparseable`. With no header, or
    one with no entry in it, the key is the socket peer. For an IPv4 caller
-   the key is exactly the client address uvicorn's access log prints, which
-   is what the owner probe below reads.
+   whose entry is a bare address, the key is the client address uvicorn's
+   access log prints, which is what the owner probe below reads. uvicorn
+   drops a port or IPv6 brackets before printing, and the key does not: an
+   entry like `198.51.100.23:5678` prints as the address but keys
+   `unparseable`, which the probe's second check catches.
 
    *Why, from 2026-09-27.* Until that day the key was the rightmost entry,
    and then #250's walk: from the right, past Fastly's published ranges and
@@ -389,7 +392,10 @@ availability one.
    nothing. What still applies is App Attest where `REQUIRE_APP_ATTEST` is
    on, and with it the per-device buckets (item 3), which an unattested
    caller escapes by rotating its device id; and the daily spend alert once
-   `GEMINI_DAILY_BUDGET_USD` is set (§10). Stripping was observed for
+   `GEMINI_DAILY_BUDGET_USD` is set (§10). `/auth/challenge`, `/auth/attest`
+   and `/auth/assert` have no other per-caller bound: a challenge key in
+   Redis per call, and an x.509 chain walk per attest, unlimited. Stripping
+   was observed for
    callers connecting directly. A request that reaches Railway's edge from
    another CDN's addresses, a Fastly service of one's own say, rests on the
    same assumption and has not been probed on its own.
@@ -411,8 +417,21 @@ availability one.
    in Railway's deploy logs. The client address uvicorn prints is the
    leftmost entry. **It must be your own public address, the one you
    connected from, and never `203.0.113.7`, `198.51.100.9` or anything in
-   `192.0.2.0/24`.** The two requests spend two of your address's 60 an
-   hour.
+   `192.0.2.0/24`.** And the process's `x-forwarded-for carried …` INFO line
+   must say *the per-IP key is the first entry*, never *a fixed one*, which
+   would mean Railway started writing something that is not a bare address
+   (a port, say) and every caller now shares `unparseable`. The two
+   requests spend two of your address's 60 an hour.
+
+   *The CDN-source case this probe cannot see.* It is sent straight from
+   your network, so it says nothing about a request that reaches Railway's
+   edge from a CDN's addresses, which Railway might trust by source. To
+   check that once: put a CDN service of your own (a Fastly VCL or Compute
+   service, say) in front of `api.snapworth.eu`, have it **set** a
+   different `X-Forwarded-For` on every request, and send 61 `POST
+   /auth/challenge` through it. A 429 on the 61st means Railway replaced
+   the header; 61 answers of 200 mean a CDN customer can choose its key,
+   which is this section's residual risk made real.
 
    Runs: 2026-09-27, 18:39 and 20:35 UTC, pass.
 
