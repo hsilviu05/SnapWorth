@@ -1895,6 +1895,18 @@ def _help_text() -> str:
     return "\n".join(lines)
 
 
+def _replica_label(info: dict) -> str:
+    """` · replica <id>` for the build line, or nothing outside Railway.
+
+    What /status and Checkup describe from memory — provider health, the
+    alert throttle — is this replica's alone (RUNBOOK §11), so with two the
+    answer is only readable next to which one gave it. Eight characters tell
+    replicas apart.
+    """
+    replica = str(info.get("replica") or "").strip()
+    return f" · replica <code>{html.escape(replica[:8])}</code>" if replica else ""
+
+
 async def _status_text() -> str:
     now = datetime.now(timezone.utc)
     day = _day(now)
@@ -1938,7 +1950,8 @@ async def _status_text() -> str:
             auth = "enforcing" if info.get("auth_enforcing") else "NOT enforcing"
             lines.append(f"AI provider: {model}")
             lines.append(
-                f"Build <code>{html.escape(str(info.get('commit', '?')))}</code> · "
+                f"Build <code>{html.escape(str(info.get('commit', '?')))}</code>"
+                f"{_replica_label(info)} · "
                 f"cache {html.escape(str(info.get('cache', '?')))} · auth {auth}")
             lines.append(await _deploy_line(str(info.get("commit") or "")))
     return "\n".join(lines)
@@ -5323,7 +5336,8 @@ async def _checkup_text() -> str:
         if "devicecheck" in info:
             lines.append(await _device_check_line(bool(info["devicecheck"])))
         lines.append(f"Auth: {'enforcing' if info.get('auth_enforcing') else 'NOT enforcing'} · "
-                     f"build <code>{html.escape(str(info.get('commit', '?')))}</code>")
+                     f"build <code>{html.escape(str(info.get('commit', '?')))}</code>"
+                     f"{_replica_label(info)}")
     lines.append(_audit_salt_line())
 
     # TLS on the public host.

@@ -188,7 +188,14 @@ jobs:
           # The Dockerfile uses `exec` so uvicorn is PID 1 and receives the
           # signal. Without that the shell swallows it and in-flight scans are
           # killed on every deploy.
-          docker stop --timeout 25 snapworth-ci
+          #
+          # The same time to SIGKILL as RAILWAY_DEPLOYMENT_DRAINING_SECONDS
+          # (RUNBOOK §6): uvicorn's --timeout-graceful-shutdown plus the
+          # lifespan's DRAIN_TIMEOUT_SECONDS, which run one after the other,
+          # plus the close. tests/test_graceful_shutdown.py holds the two
+          # equal. An idle container stops in well under a second either way;
+          # that a request in flight at SIGTERM completes is that test's too.
+          docker stop --timeout 50 snapworth-ci
           if docker logs snapworth-ci 2>&1 | grep -q "shutdown complete"; then
             echo "graceful shutdown confirmed"
           else

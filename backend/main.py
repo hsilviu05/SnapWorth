@@ -176,6 +176,14 @@ def resolve_git_commit(
 API_VERSION = resolve_api_version(os.environ)
 GIT_COMMIT = resolve_git_commit(os.environ)
 
+# Which replica this process is, from the variable Railway documents for it
+# (`RAILWAY_REPLICA_ID`, docs.railway.com/variables/reference). Empty outside
+# Railway. There is one replica today (RUNBOOK §11); this is what tells two
+# apart in `/status` and `🩺 Checkup` if a second is ever added, since each
+# replica answers only for its own memory. Railway's log viewer already tags
+# every log line with its instance.
+REPLICA_ID = os.environ.get("RAILWAY_REPLICA_ID", "").strip()
+
 BUILD_INFO_FILE = Path(__file__).resolve().parent / "BUILD_INFO"
 
 
@@ -273,7 +281,11 @@ async def _lifespan(_app: FastAPI):
 
     global _ready
     _ready = True
-    log.info("startup complete — accepting traffic")
+    # The drain is in the message, not `extra`, because production logs as
+    # text, which prints no extras: after a deploy this line is where the
+    # owner reads the value actually in force (RUNBOOK §6).
+    log.info("startup complete — accepting traffic (replica %s, shutdown drain %gs)",
+             REPLICA_ID[:8] or "-", _DRAIN_TIMEOUT_SECONDS)
     notify.deployed(GIT_COMMIT, cache_backend=_cache.backend,
                     auth_enforcing=cfg.enforce, info=BUILD_INFO)
 
@@ -284,9 +296,18 @@ async def _lifespan(_app: FastAPI):
     # Redis connections open and in-flight scans killed mid-request. During a
     # rolling deploy that is a burst of user-visible 502s on every release.
     #
-    # Order matters. Readiness flips first so the load balancer stops sending
-    # new work, *then* we wait for in-flight requests to finish, and only then
-    # close connections. Closing first would fail the requests we are draining.
+    # uvicorn runs this *after* its own drain, not alongside it. On SIGTERM it
+    # stops accepting, waits up to `--timeout-graceful-shutdown` (Dockerfile)
+    # for the requests in flight, cancels any still running, and only then
+    # sends the lifespan its shutdown (`uvicorn.Server.shutdown`). So the
+    # graceful timeout is the window a request in flight gets, and the wait
+    # below is what comes after it: time for a cancelled request to run its
+    # cleanup — a scan hands its free scan back through Redis — before the
+    # connections close. Closing first would fail that refund. The two add up,
+    # and Railway's SIGKILL has to come after both (RUNBOOK §6).
+    #
+    # Readiness flips for completeness. By now the listener is closed, and
+    # Railway only asks the health path while a new deployment starts.
     _ready = False
     log.info("shutdown: readiness withdrawn, draining in-flight requests")
 
@@ -305,10 +326,26 @@ async def _lifespan(_app: FastAPI):
     log.info("shutdown complete")
 
 
-# Time allowed for in-flight requests to finish before connections are closed.
-# A scan can legitimately take ~6s, so a shorter drain would kill real work.
-# Must be below the platform's SIGKILL grace period — Railway's default is 30s.
-_DRAIN_TIMEOUT_SECONDS = float(os.environ.get("DRAIN_TIMEOUT_SECONDS", "15"))
+# How long the lifespan waits, after uvicorn's graceful window, for requests
+# uvicorn cancelled to finish their cleanup before connections close. Not the
+# window a scan gets: that is `--timeout-graceful-shutdown` (Dockerfile), which
+# outlasts the longest request anyone still waits for, CLIENT_DEADLINE_SECONDS
+# on the model and the phone's own timeout (RUNBOOK §6 has the measurements).
+#
+# The default assumes a healthy Redis, where the refund and the close after it
+# each take well under a second. Against a Redis that has stopped answering,
+# one call takes 4-8s (`cache.build_redis_client`: a 2s connect and a 2s read,
+# retried on timeout, behind a health-check PING), so the refund fails however
+# long this waits, and the close — `notify.aclose` hands back the Telegram poll
+# lock through the same Redis — can still be running when SIGKILL lands. That
+# is harmless: the refund was lost either way, and the poll lock expires on its
+# TTL. So this is not sized for a hung Redis.
+#
+# Railway's SIGKILL has to come after the graceful window and this wait
+# together, plus the close: RAILWAY_DEPLOYMENT_DRAINING_SECONDS, whose value is
+# in RUNBOOK §6 and held to these by tests/test_graceful_shutdown.py. Railway's
+# default is 0: SIGKILL straight after SIGTERM.
+_DRAIN_TIMEOUT_SECONDS = float(os.environ.get("DRAIN_TIMEOUT_SECONDS", "5"))
 
 # Readiness is separate from liveness: the process can be alive and healthy
 # while deliberately refusing new traffic (starting up, or draining).
@@ -476,6 +513,7 @@ def _status_snapshot() -> dict:
     """What the Telegram /status command reports about this process."""
     return {
         "commit": GIT_COMMIT,
+        "replica": REPLICA_ID,
         "cache": _cache.backend if _cache is not None else "unknown",
         "auth_enforcing": auth.deps.config.enforce,
         "model_healthy": _model_health.healthy,
@@ -1477,11 +1515,16 @@ async def liveness() -> dict:
 async def readiness() -> dict | JSONResponse:
     """Readiness probe: should this instance receive traffic?
 
-    Returns 503 while starting up, while draining on shutdown, or when a
-    configured cache cannot take a write — unreachable, or full and refusing
-    writes — so quota and entitlement checks would fail closed. In each case
-    the instance is alive but cannot serve correctly, and the load balancer
-    should route elsewhere.
+    Returns 503 when a configured cache cannot take a write — unreachable, or
+    full and refusing writes — so quota and entitlement checks would fail
+    closed. The instance is alive but cannot serve correctly, and the load
+    balancer should route elsewhere.
+
+    It also answers 503 while `_ready` is false, before the lifespan's startup
+    completes and once its shutdown begins, but under uvicorn nobody can ask
+    then: uvicorn opens its listener only after the startup, and closes it at
+    SIGTERM, before the shutdown (RUNBOOK §6). A deploy serves no 503 on the
+    way out; the old container stops answering.
     """
     payload: dict = {"status": "ready", "ready": _ready}
 

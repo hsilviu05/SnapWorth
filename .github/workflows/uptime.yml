@@ -39,9 +39,12 @@ jobs:
         env:
           READY_URL: ${{ vars.READY_URL || 'https://api.snapworth.eu/health/ready' }}
         run: |
-          # Three tries over a minute. A rolling deploy drains the old
-          # container with a 503 for a few seconds, by design, and one refused
-          # connection is not an outage.
+          # Three tries over a minute, because one failed probe is not an
+          # outage. A deploy can briefly route a probe to a container that is
+          # not listening: the old one closes its listener at SIGTERM (it
+          # never answers 503 on the way out), and until the health-check
+          # path is set (#207) the new one is routed to before it listens
+          # (RUNBOOK §6).
           code=000
           for attempt in 1 2 3; do
             # curl leaves an old body in place when nothing answers, and the
