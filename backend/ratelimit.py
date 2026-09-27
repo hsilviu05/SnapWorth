@@ -21,18 +21,22 @@ the limit by roughly the number of in-flight requests.
 
 from __future__ import annotations
 
+import ipaddress
 import logging
 import os
 import secrets
 import time
 from collections import defaultdict
-from typing import Any, Protocol
+from typing import Any, NamedTuple, Protocol
 
 
 def client_ip(request: Any) -> str:
     """Best-effort source IP used as the rate-limit backstop.
 
-    Always the **rightmost** `X-Forwarded-For` hop when the header is present.
+    The nearest `X-Forwarded-For` hop that is not a known proxy: walk the
+    header from the right, skip Fastly's edge addresses and internal ones
+    (`_KNOWN_PROXIES`), and key on the first hop that is neither — an IPv4
+    address as itself, an IPv6 one as its /64 (`_bucket_of`).
 
     The container runs uvicorn with `--forwarded-allow-ips='*'`, which makes
     `request.client.host` the *leftmost* — i.e. entirely client-supplied — hop.
@@ -40,18 +44,69 @@ def client_ip(request: Any) -> str:
     the usual worry; it hands the caller a fresh bucket per request, which is
     no limit at all.
 
-    The rightmost entry is the one appended by the proxy nearest to us, the
-    only hop a caller cannot forge by sending their own header. Truncated
-    because the value reaches a cache key and is attacker-influenced.
+    Each proxy appends on the right, so a caller can write only the left of
+    the header, and Railway appends the address it saw to the right of
+    whatever the caller sent. Walking from the right and stopping at the first
+    hop that is not a proxy therefore stops at that address, and never
+    reaches a forged one — provided that address is not itself one the walk
+    skips. When it is, it does, below.
 
-    That proxy is Railway's edge, and the address it appends is the client's
-    own: there is no CDN in front of it (checked 2026-09: the domain is a
-    plain CNAME to `*.up.railway.app`, and responses carry Railway's `server`
-    and `x-railway-edge` headers and nobody else's). So an ordinary request
-    carries exactly one hop, and it is the caller. Put a CDN or any other
-    proxy in front and the rightmost hop becomes *that proxy's* address — one
-    60/h bucket for every user. Before doing so, take the hop a configured
-    number of places from the right instead; RUNBOOK §5.8 says the same.
+    This took the rightmost hop until 2026-09-27, on the reading that an
+    ordinary request carries one hop and it is the caller. That had stopped
+    being true. Since Railway's CDN rollout (~Feb 2026), a request it routes
+    through Fastly arrives as "client, Fastly edge", and one it does not
+    arrives as "client"; Railway staff say both paths occur, and to take the
+    first entry:
+    https://station.railway.com/questions/which-header-should-i-rely-on-for-real-c-d78a6f96
+    Production agreed: `_note_hop_count` logged "carried 2 hop(s)" for app
+    traffic on /auth, /scan and /trends, for Apple's notification POSTs and
+    for a scanner, and never 1. Two probes of POST /auth/challenge on
+    2026-09-27 both arrived with two hops whose leftmost was the prober's own
+    address, and one of them had sent `X-Forwarded-For: 203.0.113.7`, which
+    Railway's edge dropped. So the key was a Fastly edge address, and every
+    user routed through one Fastly POP shared one 60/h bucket.
+
+    Not the leftmost hop, although that is what Railway suggests. It is the
+    caller only while Railway's edge strips a client-supplied header, which
+    was seen on the one path probed; were it ever passed through, the key
+    would be the caller's choice again (the fresh-bucket bug above). The walk
+    gives the same answer as the leftmost while stripping holds and the
+    Fastly list is current. An edge missing from the list is keyed on as a
+    client, which puts everyone behind it in one bucket again, as the
+    rightmost rule did. Not a fixed count from the right either: the two
+    paths carry different counts. Not `X-Real-IP`: on the CDN path it holds
+    Fastly's address (a Railway bug, per the same thread).
+
+    One case may be looser than the rightmost rule, and it is unprobed: a
+    caller connecting from an address the walk skips. The walk never reaches
+    a forged hop for a caller connecting from anywhere else, but one
+    connecting from a Fastly or internal address has that address skipped,
+    and is keyed on whatever it wrote to the left. Anyone can connect from a
+    Fastly address: Fastly's ranges are every Fastly customer's, so a Fastly
+    service or Compute app of one's own in front of this API is enough.
+    Railway's edge has to keep the header its own Fastly service writes,
+    which is how "client, edge" arrives; whether it keeps a Fastly
+    customer's has never been probed. If Railway's edge keeps a Fastly
+    customer's X-Forwarded-For, a caller routing through their own Fastly
+    service picks their key: "R, E" is keyed on R, a fresh bucket for every
+    value it writes and nothing else to bound it, where the rightmost rule
+    keyed E, which it cannot choose. The walk cannot tell that request from
+    a real one. RUNBOOK §5.8 has the probe that settles it, and what to
+    build if the header is kept. Not one bucket per Fastly edge: that was
+    tried and removed, because one caller with 100 keys (100 IPv6 /64s from
+    one /56, or 100 IPv4 addresses) filled it at 100 times the IP bucket and
+    locked everyone behind that edge out of every route sharing that bucket
+    for an hour, as often as it liked.
+
+    The walk passes only hops it recognises as proxies. The nearest hop that
+    is not one but is not an address either stops it, and every such request
+    shares the one key `_UNPARSEABLE`. Skipping it instead, as this did at
+    first, walked on into the caller's end of the header. If every hop is a
+    known proxy, the leftmost. If the header is absent or holds no entry,
+    `request.client.host`, else "unknown" — never with a header present:
+    uvicorn rewrites that host to the leftmost entry, the caller's own.
+    Truncated because the value reaches a cache key and is
+    attacker-influenced.
 
     It lives here, rather than in `main`, because `auth`'s unauthenticated
     routes need the same answer and cannot import `main`. They were keyed on
@@ -60,31 +115,176 @@ def client_ip(request: Any) -> str:
     one header, while `/scan`, `/trends` and `/listing` were keyed correctly.
     Two implementations was the whole bug.
     """
-    xff = request.headers.get("x-forwarded-for", "")
-    if xff:
-        hops = xff.split(",")
-        _note_hop_count(len(hops))
-        return hops[-1].strip()[:64] or "unknown"
-    return request.client.host if request.client else "unknown"
+    # Every line, joined in order: a header sent as several lines means their
+    # join (RFC 9110 §5.3), and uvicorn's proxy-header middleware reads it so.
+    # `headers.get` returns the first line alone, which let a caller's own
+    # line stand in for the whole header wherever a proxy adds its hop as a
+    # separate line.
+    xff = ",".join(request.headers.getlist("x-forwarded-for"))
+    hops = [hop.strip() for hop in xff.split(",") if hop.strip()]
+    if hops:
+        walk = _nearest_client_hop(hops)
+        _note_hop_count(len(hops), walk)
+        return walk.key[:64]
+    # No header, or one with no entry in it: nothing a caller wrote, and
+    # uvicorn leaves the socket peer in place for an empty header.
+    host = request.client.host if request.client else ""
+    return host[:64] or "unknown"
 
 
-_HOP_COUNTS_SEEN: set[int] = set()
+# Fastly's published edge ranges, which Railway's CDN appends after the
+# client. Fetched 2026-09-27 from https://api.fastly.com/public-ip-list
+# (`addresses`, then `ipv6_addresses`, verbatim). Fastly changes them rarely.
+# A range missing here is keyed on as a client, which puts the users behind
+# that edge in one bucket again, as the rightmost rule did. Two-hop traffic
+# then logs "skipped 0" and the edge's /16; RUNBOOK §5.8 has the refresh.
+# A range listed here is skipped whoever sends from it, and anyone can send
+# from these: if Railway's edge keeps a Fastly customer's header, a caller
+# behind its own Fastly service picks its key (`client_ip`). Another shared
+# proxy's ranges go beside these, with the same caveat.
+_FASTLY_EDGE_RANGES = (
+    "23.235.32.0/20", "43.249.72.0/22", "103.244.50.0/24", "103.245.222.0/23",
+    "103.245.224.0/24", "104.156.80.0/20", "140.248.64.0/18", "140.248.128.0/17",
+    "146.75.0.0/17", "151.101.0.0/16", "157.52.64.0/18", "167.82.0.0/17",
+    "167.82.128.0/20", "167.82.160.0/20", "167.82.224.0/20", "172.111.64.0/18",
+    "185.31.16.0/22", "199.27.72.0/21", "199.232.0.0/16",
+    "2a04:4e40::/32", "2a04:4e42::/32",
+)
+
+# Addresses no caller on the public internet connects from, so a hop holding
+# one was written by infrastructure: RFC 1918, CGNAT (RFC 6598), loopback and
+# link-local, and IPv6's loopback, unique-local and link-local. Listed rather
+# than read off `is_global`, which is false for the documentation ranges too
+# and whose exact set has changed between Python releases.
+_INTERNAL_RANGES = (
+    "10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16", "100.64.0.0/10",
+    "127.0.0.0/8", "169.254.0.0/16",
+    "::1/128", "fc00::/7", "fe80::/10",
+)
+
+_KNOWN_PROXIES = tuple(ipaddress.ip_network(r)
+                       for r in _FASTLY_EDGE_RANGES + _INTERNAL_RANGES)
+
+_Address = ipaddress.IPv4Address | ipaddress.IPv6Address
+_Network = ipaddress.IPv4Network | ipaddress.IPv6Network
 
 
-def _note_hop_count(hops: int) -> None:
-    """Log how many forwarded hops a request carried, once per count.
+# The key for every request whose nearest hop that is not a known proxy is
+# not an address. One value, so that a caller who can put such a hop there
+# shares a bucket with every other one instead of choosing a fresh one.
+_UNPARSEABLE = "unparseable"
 
-    The evidence for the paragraph above, from production rather than from a
-    header check: ordinary app traffic should read 1. Once per distinct count
-    rather than once, so a caller forging its own header on the first request
-    cannot be the only sample; bucketed at 4 so that is at most four lines per
-    process. The count only — never an address.
+
+def _parse_hop(hop: str) -> _Address | None:
+    try:
+        return ipaddress.ip_address(hop)
+    except ValueError:
+        return None
+
+
+def _is_known_proxy(addr: _Address) -> bool:
+    if isinstance(addr, ipaddress.IPv6Address) and addr.ipv4_mapped is not None:
+        addr = addr.ipv4_mapped
+    return any(addr in network for network in _KNOWN_PROXIES)
+
+
+def _bucket_of(addr: _Address) -> str:
+    """The key an address is limited under: IPv4 per address, IPv6 per /64.
+
+    A /64 is what one line is given — a home router's LAN, a phone on
+    cellular, a VPS — and any address in it is the holder's to use; iOS
+    rotates temporary addresses inside it on its own. Keyed per address, one
+    IPv6 line was 2^64 fresh buckets. Keying on the network also drops a scope
+    id, which `ipaddress` accepts at any length and which rotated the key too,
+    and an IPv4-mapped address keys with the IPv4 one it carries.
     """
-    bucket = min(hops, 4)
-    if bucket not in _HOP_COUNTS_SEEN:
-        _HOP_COUNTS_SEEN.add(bucket)
-        log.info("x-forwarded-for carried %s hop(s); the rightmost is the "
-                 "per-IP rate-limit key", f"{bucket}+" if bucket == 4 else bucket)
+    if isinstance(addr, ipaddress.IPv6Address):
+        if addr.ipv4_mapped is not None:
+            return str(addr.ipv4_mapped)
+        return str(ipaddress.IPv6Network((int(addr), 64), strict=False))
+    return str(addr)
+
+
+class _Walk(NamedTuple):
+    key: str
+    # How many known proxies were skipped.
+    skipped: int
+    # Where the key came from, in words with no address in them, for the note.
+    source: str
+    # The address the walk stopped at, when it stopped at one rather than
+    # falling back to the leftmost; the note gives its coarse prefix.
+    stop: _Address | None = None
+
+
+def _nearest_client_hop(hops: list[str]) -> _Walk:
+    """Walk `hops`, the header's non-empty entries, stripped, from the right.
+
+    The walk passes only hops it recognises as proxies: one that is not an
+    address stops it, and is keyed as `_UNPARSEABLE`, never skipped, since
+    everything to its left is further from us and so no more trustworthy."""
+    skipped = 0
+    addrs: list[_Address] = []
+    for hop in reversed(hops):
+        addr = _parse_hop(hop)
+        if addr is None:
+            return _Walk(_UNPARSEABLE, skipped,
+                         "a fixed one, as the nearest hop that is not one is not an address")
+        if not _is_known_proxy(addr):
+            return _Walk(_bucket_of(addr), skipped,
+                         "the nearest hop that is not one", addr)
+        skipped += 1
+        addrs.append(addr)
+    return _Walk(_bucket_of(addrs[-1]), skipped,
+                 "the leftmost address, as every address is one")
+
+
+def _coarse(addr: _Address) -> str:
+    """An address's /16, or /32 for IPv6, and whether it is global: enough to
+    check against a provider's published ranges, too coarse to name anyone."""
+    if isinstance(addr, ipaddress.IPv6Address) and addr.ipv4_mapped is not None:
+        addr = addr.ipv4_mapped
+    network: _Network
+    if isinstance(addr, ipaddress.IPv4Address):
+        network = ipaddress.IPv4Network((int(addr), 16), strict=False)
+    else:
+        network = ipaddress.IPv6Network((int(addr), 32), strict=False)
+    return f"{network} ({'global' if addr.is_global else 'not global'})"
+
+
+_HOP_COUNTS_SEEN: set[tuple[int, int]] = set()
+_HOP_NOTE_LIMIT = 6
+
+
+def _note_hop_count(hops: int, walk: _Walk) -> None:
+    """Log what the header carried and what the walk skipped, once per pair.
+
+    The evidence for `client_ip`, from production rather than from a probe.
+    CDN traffic should read "carried 2 hop(s), skipped 1" and the rest
+    "carried 1 hop(s), skipped 0". Whenever the hops outnumber the skipped
+    ones by two or more, entries sit left of the key, so the key is not the
+    leftmost: a proxy the list does not know, or a client header Railway
+    passed through. "carried 2 hop(s), skipped 0" is the plainest case, and
+    the count alone cannot say which, so the line then adds the key hop's
+    /16 or /32 and whether it is global (`_coarse`), to check against
+    Fastly's list and Railway's ranges. Once per distinct (hops, skipped)
+    pair, each bucketed at 4, rather than once, so a first request with an
+    odd header is not the only sample; at most `_HOP_NOTE_LIMIT` lines per
+    process. Counts, fixed words and at most that prefix — never an address.
+    """
+    pair = (min(hops, 4), min(walk.skipped, 4))
+    if pair in _HOP_COUNTS_SEEN or len(_HOP_COUNTS_SEEN) >= _HOP_NOTE_LIMIT:
+        return
+    _HOP_COUNTS_SEEN.add(pair)
+    hops_seen, skipped_seen = (f"{n}+" if n == 4 else str(n) for n in pair)
+    left = ""
+    if walk.stop is not None and hops - walk.skipped >= 2:
+        left = (f"; entries sit left of the key's hop, which is in "
+                f"{_coarse(walk.stop)} — a proxy missing from the list, or a "
+                f"header Railway passed through (RUNBOOK §5.8)")
+    log.info("x-forwarded-for carried %s hop(s), skipped %s known proxy "
+             "hop(s) (Fastly edge or internal); the per-IP key is %s%s",
+             hops_seen, skipped_seen, walk.source, left)
+
 
 log = logging.getLogger("snapworth.ratelimit")
 
@@ -243,8 +443,11 @@ class RedisRateLimiter:
         #
         # The most exposed key is the busiest `rl:ip:<addr>`, a carrier NAT's
         # shared egress. (This used to say every user shared one IP key
-        # because the rightmost forwarded hop was Railway's proxy. It is the
-        # client's own address — see `client_ip`.)
+        # because the rightmost forwarded hop was Railway's proxy, and was
+        # then corrected to say that hop was the client. Neither held: on
+        # Railway's CDN path the rightmost hop was a Fastly edge, one key for
+        # everyone routed through it, until `client_ip` began skipping known
+        # proxies on 2026-09-27.)
         self._nonce = secrets.token_hex(4)
 
     async def check(self, key: str, limit: int, window: int = RATE_WINDOW_SECS) -> None:
