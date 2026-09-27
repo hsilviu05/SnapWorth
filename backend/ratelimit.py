@@ -390,9 +390,13 @@ IP_RATE_MAX_REQUESTS = int(os.environ.get("IP_RATE_MAX_REQUESTS", "60"))
 # from a Fastly source — possible if Railway's edge keeps a Fastly
 # customer's header, which was never probed — gets this many times the
 # rightmost rule's allowance per edge address, not an unlimited one. And the
-# real users behind one edge share it: at 10, ten times the one bucket they
-# shared before the walk. RUNBOOK §5.8 has the trade.
-EDGE_RATE_MULTIPLIER = int(os.environ.get("EDGE_RATE_MULTIPLIER", "10"))
+# real users behind one edge share it — every CDN user a POP serves, which
+# for a one-country launch can be most of them. Sized for the second job:
+# at 10 it was 600/h, which 100 users making five requests in a peak hour
+# would reach, and a Haul session alone makes two dozen. The first job is a
+# bypass nobody has shown exists, and 100 still bounds it. RUNBOOK §5.8 has
+# the trade and the probe that would justify lowering it.
+EDGE_RATE_MULTIPLIER = int(os.environ.get("EDGE_RATE_MULTIPLIER", "100"))
 
 
 class RateLimitExceeded(Exception):

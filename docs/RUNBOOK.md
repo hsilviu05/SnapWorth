@@ -382,16 +382,20 @@ availability one.
    that request from a real one. So a request reached past a Fastly hop
    also spends a bucket keyed on the nearest one: `rl:edge:<edge>` beside
    `rl:ip:`, and `rl:ref-edge:` and `rl:ref-claim-edge:` beside the referral
-   routes' IP buckets, each at `EDGE_RATE_MULTIPLIER` (default 10) times
+   routes' IP buckets, each at `EDGE_RATE_MULTIPLIER` (default 100) times
    the IP bucket's size. It is charged after the IP bucket, so a caller
    over its own limit spends none of it. That caps a key-picking caller at
-   ten times what the rightmost rule allowed per edge address, and it is
-   also what the real users behind one edge share: 600/hr on the IP routes,
-   where the rightmost rule gave them 60 between them. The first refusal in
-   a process logs `a Fastly edge's rate-limit bucket refused a request`,
-   and its 429 reads `Rate limit: 600 requests/hour.`. If real traffic
-   reaches it, raise `EDGE_RATE_MULTIPLIER`, which loosens the cap on a
-   key-picking caller by the same factor.
+   a hundred times what the rightmost rule allowed per edge address, and it
+   is also what the real users behind one edge share: 6,000/hr on the IP
+   routes, where the rightmost rule gave them 60 between them. The default
+   is sized for them, not for the bypass. One POP can carry most of a
+   one-country launch, and at 10 (600/hr) a hundred users making five
+   requests in a peak hour would have reached it, before a Haul session's
+   two dozen. The first refusal in a process logs `a Fastly edge's
+   rate-limit bucket refused a request`, and its 429 reads
+   `Rate limit: 6000 requests/hour.`. If real traffic reaches it, raise
+   `EDGE_RATE_MULTIPLIER`; if the probe below shows a Fastly source can
+   pick its key, lower it as far as real traffic allows.
 
    *To probe, from outside Railway, and record the result here:* create a
    Fastly service (VCL or Compute) of your own with this API as its
