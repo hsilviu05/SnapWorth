@@ -4829,6 +4829,42 @@
         }
       }
     },
+    "Allow notifications" : {
+      "comment" : "Banner title in Notification settings when iOS has never been asked for permission. Tapping it shows the system permission alert.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mitteilungen erlauben"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Allow notifications"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Permitir notificaciones"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Permite notificările"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "允许通知"
+          }
+        }
+      }
+    },
     "Almost there…" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -12208,6 +12244,42 @@
         }
       }
     },
+    "None of these reminders can arrive until you do." : {
+      "comment" : "Under 'Allow notifications': until permission is given, none of the reminders listed below can be delivered.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bis dahin kann keine dieser Erinnerungen ankommen."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "None of these reminders can arrive until you do."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hasta entonces, ninguno de estos avisos puede llegarte."
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Până atunci, niciunul dintre aceste memento-uri nu poate ajunge la tine."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在此之前，这些提醒都无法送达。"
+          }
+        }
+      }
+    },
     "Not now" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -12490,37 +12562,37 @@
         }
       }
     },
-    "Off by default. When on, one reminder at the time you pick — only on days you haven't scanned yet, and never once you're on Pro." : {
+    "Off by default. When on, one reminder at the time you pick — only once your free scan is back, and never once you're on Pro." : {
       "extractionState" : "manual",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Standardmäßig aus. Wenn du es anschaltest, eine Erinnerung zur gewählten Zeit – nur an Tagen, an denen du noch nicht gescannt hast, und nie mehr, sobald du Pro hast."
+            "value" : "Standardmäßig aus. Wenn du es anschaltest, eine Erinnerung zur gewählten Zeit – nur wenn dein Gratis-Scan wieder da ist, und nie mehr, sobald du Pro hast."
           }
         },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Off by default. When on, one reminder at the time you pick — only on days you haven't scanned yet, and never once you're on Pro."
+            "value" : "Off by default. When on, one reminder at the time you pick — only once your free scan is back, and never once you're on Pro."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Desactivado por defecto. Si lo activas, un solo aviso a la hora que elijas, solo los días en que aún no hayas escaneado y nunca cuando tengas Pro."
+            "value" : "Desactivado por defecto. Si lo activas, un solo aviso a la hora que elijas, solo cuando vuelvas a tener tu escaneo gratis y nunca cuando tengas Pro."
           }
         },
         "ro" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Oprit implicit. Când e pornit, un singur memento la ora aleasă — doar în zilele în care n-ai scanat încă și niciodată după ce treci pe Pro."
+            "value" : "Oprit implicit. Când e pornit, un singur memento la ora aleasă — doar după ce ai iar scanarea gratuită și niciodată după ce treci pe Pro."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "默认关闭。开启后，只在你选的时间提醒一次，而且只在当天还没扫描过时；升级 Pro 后不再提醒。"
+            "value" : "默认关闭。开启后，只在你选的时间提醒一次，而且只在免费扫描恢复之后；升级 Pro 后不再提醒。"
           }
         }
       }
@@ -21313,6 +21385,42 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "你的 %lld 件好物价值"
+          }
+        }
+      }
+    },
+    "Your SnapWorth trial ends the day after tomorrow, at %@." : {
+      "comment" : "Notification. %@ is a time of day (e.g. 1:40 AM). Sent at 21:00 two calendar days before a trial that ends in the small hours.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Deine SnapWorth-Testphase endet übermorgen um %@."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Your SnapWorth trial ends the day after tomorrow, at %@."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tu prueba de SnapWorth acaba pasado mañana (%@)."
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Perioada gratuită SnapWorth se termină poimâine, la %@."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "你的 SnapWorth 试用将于后天 %@ 到期。"
           }
         }
       }

@@ -2531,11 +2531,16 @@ final class ScanStreakTests: XCTestCase {
         XCTAssertEqual(ScanStreak.record(now: day(4), defaults: defaults, calendar: cal), 1)
     }
 
-    func test_scannedTodayIsTierAgnostic() {
-        XCTAssertFalse(ScanStreak.scannedToday(now: day(1), defaults: defaults, calendar: cal))
-        ScanStreak.record(now: day(1), defaults: defaults, calendar: cal)
-        XCTAssertTrue(ScanStreak.scannedToday(now: day(1, hour: 23), defaults: defaults, calendar: cal))
-        XCTAssertFalse(ScanStreak.scannedToday(now: day(2), defaults: defaults, calendar: cal))
+    func test_aLaterScanTheSameDayMovesTheLastScanForward() {
+        // The free-scan reminder dates the UTC reset from this. Across local
+        // midnight-to-evening the first scan and the last can fall in
+        // different UTC days, and the later one is the one that spent today's
+        // allowance.
+        ScanStreak.record(now: day(1, hour: 8), defaults: defaults, calendar: cal)
+        XCTAssertEqual(ScanStreak.record(now: day(1, hour: 21), defaults: defaults, calendar: cal), 1)
+        XCTAssertEqual(defaults.object(forKey: ScanStreak.lastKey) as? Date, day(1, hour: 21))
+        XCTAssertEqual(ScanStreak.record(now: day(2), defaults: defaults, calendar: cal), 2,
+                       "moving it within the day must not change what the next day counts as")
     }
 
     func test_bucketsNeverLeakTheExactCount() {
@@ -2555,23 +2560,30 @@ final class FreeScanReminderTests: XCTestCase {
         cal.date(from: DateComponents(year: 2026, month: 9, day: day, hour: hour, minute: minute))!
     }
 
-    func test_todayAtTheChosenTimeWhenStillAheadAndUnscanned() {
+    func test_todayAtTheChosenTimeWhenStillAheadAndAvailable() {
         let fire = NotificationManager.nextFreeScanDate(after: at(3, 9), hour: 18, minute: 30,
-                                                        scannedToday: false, calendar: cal)
+                                                        notBefore: nil, calendar: cal)
         XCTAssertEqual(fire, at(3, 18, 30))
     }
 
     func test_tomorrowWhenTheTimeHasPassed() {
         let fire = NotificationManager.nextFreeScanDate(after: at(3, 19), hour: 18, minute: 0,
-                                                        scannedToday: false, calendar: cal)
+                                                        notBefore: nil, calendar: cal)
         XCTAssertEqual(fire, at(4, 18))
     }
 
-    func test_tomorrowWhenTodayIsAlreadyScanned() {
-        // 09:00, reminder at 18:00, but the free scan is spent: no nudge today.
+    func test_tomorrowWhenTheAllowanceIsBackOnlyAfterTodaysSlot() {
+        // 09:00, reminder at 18:00, but the free scan is spent until 20:00: no
+        // nudge today.
         let fire = NotificationManager.nextFreeScanDate(after: at(3, 9), hour: 18, minute: 0,
-                                                        scannedToday: true, calendar: cal)
+                                                        notBefore: at(3, 20), calendar: cal)
         XCTAssertEqual(fire, at(4, 18))
+    }
+
+    func test_todayWhenTheAllowanceIsBackBeforeTodaysSlot() {
+        let fire = NotificationManager.nextFreeScanDate(after: at(3, 9), hour: 18, minute: 0,
+                                                        notBefore: at(3, 10), calendar: cal)
+        XCTAssertEqual(fire, at(3, 18))
     }
 
     func test_copyNamesTheStreakOnlyWhenThereIsOne() {
@@ -2606,7 +2618,7 @@ final class FreeScanReminderTests: XCTestCase {
         // 09:00, unscanned, reminder at 18:00 — same day, nothing moves.
         let now = at(3, 9)
         let fire = NotificationManager.nextFreeScanDate(after: now, hour: 18, minute: 0,
-                                                        scannedToday: false, calendar: cal)!
+                                                        notBefore: nil, calendar: cal)!
         XCTAssertTrue(NotificationManager.streakOutlives(
             fireDate: fire, now: now, scannedToday: false, calendar: cal))
     }
@@ -2619,7 +2631,7 @@ final class FreeScanReminderTests: XCTestCase {
         // produce day 1.
         let now = at(3, 20)
         let fire = NotificationManager.nextFreeScanDate(after: now, hour: 18, minute: 0,
-                                                        scannedToday: false, calendar: cal)!
+                                                        notBefore: nil, calendar: cal)!
         XCTAssertEqual(fire, at(4, 18))
         XCTAssertFalse(NotificationManager.streakOutlives(
             fireDate: fire, now: now, scannedToday: false, calendar: cal))
@@ -2630,27 +2642,176 @@ final class FreeScanReminderTests: XCTestCase {
         // 18:00 it is still inside the window `ScanStreak.current()` allows.
         let now = at(3, 9)
         let fire = NotificationManager.nextFreeScanDate(after: now, hour: 18, minute: 0,
-                                                        scannedToday: true, calendar: cal)!
+                                                        notBefore: at(4, 0), calendar: cal)!
         XCTAssertEqual(fire, at(4, 18))
         XCTAssertTrue(NotificationManager.streakOutlives(
             fireDate: fire, now: now, scannedToday: true, calendar: cal))
     }
 
+    func test_aScanTodayNamesNoStreakOnAnyOtherDay() {
+        // Waiting for the UTC reset puts the first rung somewhere the local
+        // day never did. The same evening, east of UTC: today's streak day is
+        // already made, so "Day N is waiting" would be false. The day after
+        // tomorrow, west of UTC: the streak lapses tomorrow unless they scan.
+        let now = at(3, 9)
+        XCTAssertFalse(NotificationManager.streakOutlives(
+            fireDate: at(3, 18), now: now, scannedToday: true, calendar: cal))
+        XCTAssertFalse(NotificationManager.streakOutlives(
+            fireDate: at(5, 18), now: now, scannedToday: true, calendar: cal))
+    }
+
     func test_theFurtherOutTheRungTheLessThereIsToClaim() {
         // `syncFreeScanReminder` only ever asks about the first rung, and the
         // question is how far that rung is from now. With nothing scanned
-        // today there is nothing to carry, however far out it lands.
-        //
-        // Note the scanned-today case is deliberately *not* asserted here: the
-        // function's answer for it is yes at any distance, which is only ever
-        // correct because the caller asks solely about the first rung. The
-        // ladder's later rungs get `streak: 0` by construction, not by asking.
+        // today there is nothing to carry, however far out it lands; with a
+        // scan today, only tomorrow carries it.
         for day in 4...9 {
             XCTAssertFalse(
                 NotificationManager.streakOutlives(
                     fireDate: at(day, 18), now: at(3, 20),
                     scannedToday: false, calendar: cal),
                 "day \(day)")
+        }
+        for day in 5...9 {
+            XCTAssertFalse(
+                NotificationManager.streakOutlives(
+                    fireDate: at(day, 18), now: at(3, 20),
+                    scannedToday: true, calendar: cal),
+                "day \(day)")
+        }
+    }
+}
+
+// ── The free scan comes back at UTC midnight, not local midnight ─────────────
+//
+// `quota.py` counts UTC days, and so do `FreeScanCounter` and the Scans-left
+// widget. The reminder asked the local calendar: in New York an evening scan
+// was followed by "your free scan is back" at 18:00 the next day, two hours
+// before it was, and the tap opened the paywall. East of UTC it ran the other
+// way and skipped evenings on which the scan really was back.
+
+final class FreeScanReminderUTCTests: XCTestCase {
+
+    private func calendar(_ zone: String) -> Calendar {
+        var c = Calendar(identifier: .gregorian)
+        c.timeZone = TimeZone(identifier: zone)!
+        return c
+    }
+
+    private let utc: Calendar = {
+        var c = Calendar(identifier: .gregorian)
+        c.timeZone = TimeZone(secondsFromGMT: 0)!
+        return c
+    }()
+
+    private func at(_ cal: Calendar, _ day: Int, _ hour: Int, _ minute: Int = 0) -> Date {
+        cal.date(from: DateComponents(year: 2026, month: 9, day: day, hour: hour, minute: minute))!
+    }
+
+    /// The whole path `syncFreeScanReminder` takes to its first rung.
+    private func firstRung(lastScan: Date?, spentNow: Bool = false, now: Date,
+                           in cal: Calendar) -> Date? {
+        let returns = NotificationManager.freeScanReturns(
+            lastScan: lastScan, spentNow: spentNow, now: now, serverCalendar: utc)
+        return NotificationManager.nextFreeScanDate(after: now, hour: 18, minute: 0,
+                                                    notBefore: returns, calendar: cal)
+    }
+
+    func test_newYork_anEveningScanIsNotBackAtSixTheNextDay() {
+        // The defect. 21:00 EDT on the 3rd is 01:00 UTC on the 4th: that UTC
+        // day's scan is spent until 00:00 UTC on the 5th, which is 20:00 EDT
+        // on the 4th. 18:00 on the 4th would be a lie; 18:00 on the 5th is not.
+        let ny = calendar("America/New_York")
+        let scan = at(ny, 3, 21)
+        XCTAssertEqual(NotificationManager.freeScanReturns(
+            lastScan: scan, spentNow: true, now: scan, serverCalendar: utc), at(ny, 4, 20))
+        XCTAssertEqual(firstRung(lastScan: scan, spentNow: true, now: scan, in: ny), at(ny, 5, 18))
+    }
+
+    func test_aLadderThatStartsTwoDaysOutKeepsItsCancelMargin() throws {
+        // The same New York evening: the first rung is two local days out, so
+        // the seventh lands on the 11th, +8. `cancel(.freeScan)` clears by
+        // computed id, and the set promises a day of margin past the ladder for
+        // a clock or zone that moved; it stopped at +8, the last rung itself.
+        let ny = calendar("America/New_York")
+        let scan = at(ny, 3, 21)
+        let first = try XCTUnwrap(firstRung(lastScan: scan, spentNow: true, now: scan, in: ny))
+        let last = try XCTUnwrap(ny.date(byAdding: .day,
+                                         value: NotificationManager.freeScanLadderDays - 1, to: first))
+        XCTAssertEqual(last, at(ny, 11, 18))
+        func id(_ day: Date) -> String {
+            let p = ny.dateComponents([.year, .month, .day], from: day)
+            return String(format: "freeScan.daily.%04d%02d%02d", p.year!, p.month!, p.day!)
+        }
+        let ids = Set(NotificationManager.freeScanIDs(around: scan, calendar: ny))
+        XCTAssertTrue(ids.contains(id(last)), "the last rung cannot be cancelled")
+        XCTAssertTrue(ids.contains(id(at(ny, 12, 18))), "no margin past the last rung")
+    }
+
+    func test_newYork_aMorningScanIsBackOnlyAfterTheSixOClockSlot() {
+        // 09:00 EDT is 13:00 UTC; the reset is 20:00 EDT, after the 18:00
+        // slot, so the first honest reminder is tomorrow at 18:00.
+        let ny = calendar("America/New_York")
+        let scan = at(ny, 3, 9)
+        XCTAssertEqual(firstRung(lastScan: scan, spentNow: true, now: scan, in: ny), at(ny, 4, 18))
+    }
+
+    func test_utcPlusTen_aMorningScanIsBackBeforeTheEvening() {
+        // 08:00 in Brisbane (UTC+10, no daylight saving) is 22:00 UTC the day
+        // before, so the allowance it spent comes back at 10:00 local — and
+        // the 18:00 reminder the local calendar skipped is true.
+        let bne = calendar("Australia/Brisbane")
+        let scan = at(bne, 3, 8)
+        XCTAssertEqual(NotificationManager.freeScanReturns(
+            lastScan: scan, spentNow: true, now: scan, serverCalendar: utc), at(bne, 3, 10))
+        XCTAssertEqual(firstRung(lastScan: scan, spentNow: true, now: scan, in: bne), at(bne, 3, 18))
+    }
+
+    func test_utcPlusTen_anAfternoonScanWaitsForTomorrow() {
+        // 14:00 in Brisbane is 04:00 UTC, the same UTC day as the evening:
+        // the scan comes back at 10:00 tomorrow.
+        let bne = calendar("Australia/Brisbane")
+        let scan = at(bne, 3, 14)
+        XCTAssertEqual(firstRung(lastScan: scan, spentNow: true, now: scan, in: bne), at(bne, 4, 18))
+    }
+
+    func test_aResetThatHasPassedIsNoLongerAWait() {
+        let ny = calendar("America/New_York")
+        let now = at(ny, 5, 9)
+        XCTAssertNil(NotificationManager.freeScanReturns(
+            lastScan: at(ny, 3, 21), spentNow: false, now: now, serverCalendar: utc))
+        XCTAssertEqual(firstRung(lastScan: at(ny, 3, 21), now: now, in: ny), at(ny, 5, 18))
+    }
+
+    func test_aSpentAllowanceWithNoRecordedScanStillWaits() {
+        // A 402, or a reinstall whose allowance was withheld: the server says
+        // none are left and there is no scan here to date it by.
+        let ny = calendar("America/New_York")
+        let now = at(ny, 3, 9)
+        XCTAssertEqual(NotificationManager.freeScanReturns(
+            lastScan: nil, spentNow: true, now: now, serverCalendar: utc), at(ny, 3, 20))
+        XCTAssertNil(NotificationManager.freeScanReturns(
+            lastScan: nil, spentNow: false, now: now, serverCalendar: utc))
+    }
+
+    func test_neverBeforeTheReset_atAnyHourInEitherZone() {
+        // The property the reminder promises, swept across a day of scan
+        // times and every reminder hour.
+        for zone in ["America/New_York", "Australia/Brisbane", "Europe/Bucharest",
+                     "Pacific/Honolulu", "Asia/Kolkata"] {
+            let cal = calendar(zone)
+            for scanHour in 0..<24 {
+                let scan = at(cal, 10, scanHour, 30)
+                let returns = NotificationManager.freeScanReturns(
+                    lastScan: scan, spentNow: true, now: scan, serverCalendar: utc)!
+                for hour in 0..<24 {
+                    let fire = NotificationManager.nextFreeScanDate(
+                        after: scan, hour: hour, minute: 0, notBefore: returns, calendar: cal)!
+                    XCTAssertGreaterThanOrEqual(fire, returns, "\(zone) scan \(scanHour):30, slot \(hour):00")
+                    XCTAssertLessThan(fire.timeIntervalSince(returns), 86_400,
+                                      "\(zone) scan \(scanHour):30, slot \(hour):00 skipped a day")
+                }
+            }
         }
     }
 }
@@ -4848,9 +5009,10 @@ final class SettingsEntitlementObservationTests: XCTestCase {
     func test_theRateRowDoesNotSpendASystemPrompt() throws {
         // `requestReview()` asks the system to *maybe* show a prompt — roughly
         // three per year per app, ignored otherwise with no error and no
-        // callback — and `ReviewPrompt` already spends that quota on the third
-        // successful scan of each version. So for every engaged user, the only
-        // kind who goes looking for the row, tapping it did nothing.
+        // callback — and `ReviewPrompt` already spends that quota on its own,
+        // after a revealed estimate once three scans are in. So for every
+        // engaged user, the only kind who goes looking for the row, tapping it
+        // did nothing.
         let settings = try source("Views/SettingsView.swift")
         XCTAssertTrue(settings.contains("action=write-review"),
                       "the row must open the review composer")
@@ -5554,7 +5716,7 @@ final class ThriftFlipLibraryPersistenceTests: XCTestCase {
 // ── The retention funnel: is_first, the tally, and the events ────────────────
 //
 // The funnel had no way to answer "did this person ever get a valuation out of
-// us". `ScanStreak` counts days, `ReviewPrompt` counts per version and
+// us". `ScanStreak` counts days, `ReviewPrompt` counts towards a request and
 // `FreeScanCounter` counts today — none of them counts ever. `ScanTally` does,
 // and `is_first` on four events is what makes a Day-0 funnel one filter rather
 // than a parallel family of `first_*` names a later call site could forget.
@@ -5879,5 +6041,534 @@ final class HaulAnalyticsTests: XCTestCase {
         let between = String(source[card.upperBound..<track.lowerBound])
         XCTAssertTrue(between.contains("onComplete:"), "tracked on completion, not on presentation")
         XCTAssertLessThan(track.lowerBound, drafts.lowerBound, "the drafts share does not count")
+    }
+}
+
+// ── One price read per row ───────────────────────────────────────────────────
+//
+// `baselineCondition` decoded the whole valuation blob to find one field, and
+// every price read went through it — a Most Valuable comparison read it eight
+// times, and 500 finds took 1.6 s to sort, again on every search keystroke.
+
+final class PriceReadTests: XCTestCase {
+
+    private func item(_ name: String = "Item", low: Double = 45, high: Double = 90,
+                      grade: String? = "good", notes: String = "Some wear") -> ScanResult {
+        var detail = ValuationDetail()
+        detail.conditionGrade = grade
+        return ScanResult(itemName: name, brand: "B", category: "clothing", conditionNotes: notes,
+                          valueLow: low, valueHigh: high, confidence: "High", soldListingsCount: 0,
+                          listingTitle: "T", listingDescription: "D",
+                          valuationDetailData: grade == nil ? nil : detail.encoded())
+    }
+
+    func test_theOneReadAgreesWithTheTwoItReplaces() {
+        let untouched = item()
+        let regraded = item(); regraded.condition = .used
+        let prose = item(grade: nil, notes: "Heavy staining at the hem")
+        let proseRegraded = item(grade: nil, notes: "Like new"); proseRegraded.condition = .good
+        for r in [untouched, regraded, prose, proseRegraded] {
+            let current = r.currentPriceRange
+            let reference = r.priceRange(for: r.condition)
+            XCTAssertEqual(current.low, reference.low)
+            XCTAssertEqual(current.likely, reference.likely)
+            XCTAssertEqual(current.high, reference.high)
+            XCTAssertEqual(r.midpointValue, NSDecimalNumber(decimal: reference.likely).doubleValue)
+        }
+    }
+
+    func test_theMemoisedGradeFollowsNewBytes() {
+        // `applySharpened` re-reads the tag and writes a new blob. The memo is
+        // keyed by content, so the new grade has to take at once.
+        let r = item(grade: "good")
+        XCTAssertEqual(r.baselineCondition, .good)
+        var detail = ValuationDetail()
+        detail.conditionGrade = "used"
+        r.valuationDetailData = detail.encoded()
+        XCTAssertEqual(r.baselineCondition, .used)
+        r.valuationDetailData = nil
+        XCTAssertEqual(r.baselineCondition, Condition.inferred(from: r.conditionNotes))
+    }
+
+    func test_twoRowsWithTheSameBlobShareAGradeButNotAPrice() {
+        let a = item("A", low: 10, high: 20)
+        let b = item("B", low: 100, high: 200)
+        XCTAssertEqual(a.baselineCondition, b.baselineCondition)
+        XCTAssertNotEqual(a.portfolioValue, b.portfolioValue)
+    }
+
+    @MainActor
+    func test_mostValuableOrdersExactlyAsBefore() {
+        let grades: [String?] = ["good", "used", "likeNew", nil]
+        var library: [ScanResult] = []
+        for i in 1...30 {
+            let low = Double((i * 37) % 101)
+            library.append(item("Item \(i)", low: low, high: low + 20, grade: grades[i % 4]))
+        }
+        let vm = HistoryViewModel()
+        vm.sortOrder = .mostValuable
+        let expected: [Double] = library
+            .sorted { $0.midpointValue > $1.midpointValue }
+            .map { $0.midpointValue }
+        XCTAssertEqual(vm.sorted(library).map { $0.midpointValue }, expected)
+    }
+
+    @MainActor
+    func test_searchNarrowsThenSortsToTheSameList() {
+        let library = [item("Nike tee", low: 10, high: 20), item("Adidas", low: 90, high: 100),
+                       item("Nike jacket", low: 50, high: 60)]
+        let vm = HistoryViewModel()
+        vm.sortOrder = .mostValuable
+        vm.searchText = "nike"
+        XCTAssertEqual(vm.filtered(library).map(\.itemName), ["Nike jacket", "Nike tee"])
+    }
+}
+
+// ── The trial warning arrives in waking hours ────────────────────────────────
+//
+// It fired exactly 24 hours before the trial ended, to the second, and a trial
+// ends at the minute it began — so one started at 01:40 woke its owner at
+// 01:40 two nights later, with a sound, as the one category that also evicts
+// anything else due that day.
+
+final class TrialReminderTimingTests: XCTestCase {
+
+    private func calendar(_ zone: String) -> Calendar {
+        var c = Calendar(identifier: .gregorian)
+        c.timeZone = TimeZone(identifier: zone)!
+        return c
+    }
+
+    private func at(_ cal: Calendar, _ day: Int, _ hour: Int, _ minute: Int = 0) -> Date {
+        cal.date(from: DateComponents(year: 2026, month: 9, day: day, hour: hour, minute: minute))!
+    }
+
+    func test_aTrialStartedInTheSmallHoursIsWarnedTheEveningBefore() {
+        let cal = calendar("Europe/Bucharest")
+        let end = at(cal, 22, 1, 40)
+        let fire = NotificationManager.trialReminderDate(endDate: end, calendar: cal)
+        XCTAssertEqual(fire, at(cal, 20, 21), "not 01:40 on the 21st")
+
+        // Two calendar days out, so "tomorrow" would be wrong.
+        let body = NotificationManager.trialBody(fireDate: fire!, endDate: end, calendar: cal)
+        XCTAssertTrue(body.contains("day after tomorrow"), body)
+        XCTAssertTrue(body.contains("1:40"), "the time it ends: \(body)")
+    }
+
+    func test_aDaytimeDeadlineKeepsItsFullDay() {
+        let cal = calendar("America/New_York")
+        let end = at(cal, 22, 15)
+        let fire = NotificationManager.trialReminderDate(endDate: end, calendar: cal)
+        XCTAssertEqual(fire, at(cal, 21, 15))
+        XCTAssertEqual(NotificationManager.trialBody(fireDate: fire!, endDate: end, calendar: cal),
+                       "Your SnapWorth trial ends tomorrow.")
+    }
+
+    func test_aLateEveningDeadlineMovesToNineOClock() {
+        let cal = calendar("America/New_York")
+        let end = at(cal, 22, 23, 30)
+        let fire = NotificationManager.trialReminderDate(endDate: end, calendar: cal)
+        XCTAssertEqual(fire, at(cal, 21, 21))
+        XCTAssertEqual(NotificationManager.trialBody(fireDate: fire!, endDate: end, calendar: cal),
+                       "Your SnapWorth trial ends tomorrow.")
+    }
+
+    func test_theWindowEdgesAreKept() {
+        let cal = calendar("Europe/Bucharest")
+        XCTAssertEqual(NotificationManager.trialReminderDate(endDate: at(cal, 22, 9), calendar: cal),
+                       at(cal, 21, 9))
+        XCTAssertEqual(NotificationManager.trialReminderDate(endDate: at(cal, 22, 21), calendar: cal),
+                       at(cal, 21, 21))
+        XCTAssertEqual(NotificationManager.trialReminderDate(endDate: at(cal, 22, 8, 59), calendar: cal),
+                       at(cal, 20, 21))
+    }
+
+    func test_alwaysADayAheadAndNeverAtNight_atEveryMinuteOfTheDay() {
+        for zone in ["Europe/Bucharest", "America/Los_Angeles", "Asia/Tokyo", "Asia/Kolkata"] {
+            let cal = calendar(zone)
+            for minute in stride(from: 0, to: 24 * 60, by: 10) {
+                let end = at(cal, 22, minute / 60, minute % 60)
+                guard let fire = NotificationManager.trialReminderDate(endDate: end, calendar: cal) else {
+                    return XCTFail("\(zone) \(minute)")
+                }
+                XCTAssertGreaterThanOrEqual(end.timeIntervalSince(fire), 24 * 3600,
+                                            "\(zone) end \(minute / 60):\(minute % 60) — inside the last day")
+                XCTAssertLessThan(end.timeIntervalSince(fire), 36 * 3600,
+                                  "\(zone) end \(minute / 60):\(minute % 60) — needlessly early")
+                let c = cal.dateComponents([.hour, .minute], from: fire)
+                let minuteOfDay = (c.hour ?? 0) * 60 + (c.minute ?? 0)
+                XCTAssertTrue((9 * 60)...(21 * 60) ~= minuteOfDay,
+                              "\(zone) end \(minute / 60):\(minute % 60) fires at \(c.hour ?? -1):\(c.minute ?? -1)")
+            }
+        }
+    }
+
+    // ── A sync that arrives after the slot but before the mark ───────────────
+    //
+    // The slot moved the warning up to twelve hours earlier than the mark, and
+    // the scheduler still required the slot to be ahead — so a first sync in
+    // between (notifications allowed mid-trial, a restore, the first
+    // foreground after an update) scheduled nothing, and removed what an
+    // older build had pending.
+
+    func test_aSyncBetweenTheSlotAndTheMarkStillWarns() throws {
+        let cal = calendar("Europe/Bucharest")
+        let end = at(cal, 22, 1, 40)            // slot 21:00 on the 20th, mark 01:40 on the 21st
+        let now = at(cal, 20, 22)
+        let fire = try XCTUnwrap(
+            NotificationManager.trialReminderFireDate(endDate: end, now: now, calendar: cal),
+            "the slot has passed but a full day's notice can still be given")
+        XCTAssertGreaterThan(fire, now)
+        XCTAssertEqual(fire, at(cal, 21, 1, 40), "the mark itself, the same instant on every sync")
+        XCTAssertGreaterThanOrEqual(end.timeIntervalSince(fire), 24 * 3600)
+        XCTAssertEqual(NotificationManager.trialBody(fireDate: fire, endDate: end, calendar: cal),
+                       "Your SnapWorth trial ends tomorrow.")
+    }
+
+    func test_theSlotIsKeptWhileItIsAhead_andNothingOnceTheMarkHasPassed() {
+        let cal = calendar("Europe/Bucharest")
+        let end = at(cal, 22, 1, 40)
+        XCTAssertEqual(NotificationManager.trialReminderFireDate(endDate: end, now: at(cal, 20, 12),
+                                                                 calendar: cal),
+                       at(cal, 20, 21))
+        XCTAssertNil(NotificationManager.trialReminderFireDate(endDate: end, now: at(cal, 21, 1, 40),
+                                                               calendar: cal),
+                     "inside the last day a warning can no longer keep its promise")
+    }
+
+    func test_aDaytimeMarkLeavesNoGap() {
+        // The slot is the mark when the mark is in waking hours, so once it
+        // has passed there is nothing left to fall back to.
+        let cal = calendar("America/New_York")
+        let end = at(cal, 22, 15)
+        XCTAssertEqual(NotificationManager.trialReminderFireDate(endDate: end, now: at(cal, 21, 14, 59),
+                                                                 calendar: cal),
+                       at(cal, 21, 15))
+        XCTAssertNil(NotificationManager.trialReminderFireDate(endDate: end, now: at(cal, 21, 15),
+                                                               calendar: cal))
+    }
+}
+
+// ── The rating request waits for the number ──────────────────────────────────
+//
+// It fired 1.2 seconds after a fresh result opened — under the guess-first
+// cover, before the user had seen the price they scanned for — and "once per
+// version" re-armed it on every update. iOS allows three prompts a year.
+
+@MainActor
+final class ReviewPromptTimingTests: XCTestCase {
+
+    private var defaults: UserDefaults!
+    private let now = Date(timeIntervalSince1970: 1_790_000_000)
+
+    override func setUp() {
+        super.setUp()
+        defaults = UserDefaults(suiteName: "ReviewPromptTests-\(UUID().uuidString)")
+    }
+
+    func test_notBeforeTheThirdScan() {
+        XCTAssertFalse(ReviewPrompt.isDue(scanCount: 2, lastRequest: nil, now: now))
+        XCTAssertTrue(ReviewPrompt.isDue(scanCount: 3, lastRequest: nil, now: now))
+    }
+
+    func test_notAgainInsideTheGap_whateverTheVersion() {
+        XCTAssertGreaterThanOrEqual(ReviewPrompt.minimumGap, 60 * 86_400)
+        let gap = ReviewPrompt.minimumGap
+        XCTAssertFalse(ReviewPrompt.isDue(scanCount: 50, lastRequest: now.addingTimeInterval(-gap + 60),
+                                          now: now))
+        XCTAssertTrue(ReviewPrompt.isDue(scanCount: 50, lastRequest: now.addingTimeInterval(-gap),
+                                         now: now))
+    }
+
+    func test_aClockThatMovedBackwardsIsNotDue() {
+        XCTAssertFalse(ReviewPrompt.isDue(scanCount: 50, lastRequest: now.addingTimeInterval(3600),
+                                          now: now))
+    }
+
+    func test_onlyAConfidentEstimateIsAMomentToAsk() {
+        for c in ["High", "high", "Medium", "medium"] {
+            XCTAssertTrue(ReviewPrompt.isWorthAskingAbout(confidence: c), c)
+        }
+        for c in ["Low", "low", "", "unknown"] {
+            XCTAssertFalse(ReviewPrompt.isWorthAskingAbout(confidence: c), c)
+        }
+    }
+
+    func test_countingAScanNeverRequests() {
+        for _ in 0..<5 { ReviewPrompt.recordSuccessfulScan(defaults: defaults) }
+        XCTAssertEqual(defaults.integer(forKey: "snapworth_successful_scans"), 5)
+        XCTAssertNil(defaults.object(forKey: "snapworth_review_last_requested"),
+                     "the scan path must only count")
+    }
+
+    func test_anUpgradeFromThePerVersionRuleStartsTheGapRatherThanAsking() {
+        // An earlier build asked at some unknown moment — most likely during
+        // the run of updates just gone. Treating that as long ago would spend
+        // another of the three a year straight away.
+        let seeded = ReviewPrompt.effectiveLastRequest(stored: nil, promptedVersion: "1.4.1", now: now)
+        XCTAssertEqual(seeded, now)
+        XCTAssertFalse(ReviewPrompt.isDue(scanCount: 5, lastRequest: seeded, now: now),
+                       "an upgrader would be asked at once")
+        XCTAssertNil(ReviewPrompt.effectiveLastRequest(stored: nil, promptedVersion: nil, now: now),
+                     "a user never asked by any build is not made to wait")
+        let earlier = now.addingTimeInterval(-86_400)
+        XCTAssertEqual(ReviewPrompt.effectiveLastRequest(stored: earlier, promptedVersion: "1.4.1",
+                                                         now: now), earlier,
+                       "a recorded request is the one the gap runs from")
+
+        // Through the real entry point: the gap is seeded, and iOS is not
+        // asked. Asserting only the stored date could not tell the two apart —
+        // a request writes the same key with the same value.
+        let spy = FunnelSpy()
+        Analytics.shared.configure(spy)
+        UserDefaults.standard.removeObject(forKey: Analytics.enabledKey)
+        defaults.set(5, forKey: "snapworth_successful_scans")
+        defaults.set("1.4.1", forKey: "snapworth_review_prompted_version")
+        ReviewPrompt.requestIfDue(defaults: defaults, now: now)
+        XCTAssertEqual(defaults.object(forKey: "snapworth_review_last_requested") as? Date, now)
+        XCTAssertFalse(spy.events.map(\.name).contains("review_prompt_requested"),
+                       "asked for a review instead of starting the gap")
+    }
+
+    func test_theRequestIsMadeFromTheRevealedResult() throws {
+        func source(_ path: String) throws -> String {
+            try String(contentsOf: URL(fileURLWithPath: #filePath)
+                .deletingLastPathComponent()
+                .deletingLastPathComponent()
+                .appendingPathComponent("SnapWorth/\(path)"), encoding: .utf8)
+        }
+        let scan = try source("ViewModels/ScanViewModel.swift")
+        XCTAssertFalse(scan.contains("requestIfDue"), "the scan path asks before the price is seen")
+        XCTAssertFalse(scan.contains(".seconds(1.2)"), "the timer that raced the reveal is back")
+
+        let result = try source("Views/ResultView.swift")
+        guard let task = result.range(of: ".task(id: priceCovered)") else {
+            return XCTFail("the request is no longer keyed on the cover")
+        }
+        let body = String(result[task.upperBound...].prefix(500))
+        XCTAssertTrue(body.contains("!priceCovered"), "must wait for the reveal")
+        XCTAssertTrue(body.contains("isWorthAskingAbout"), "must skip a Low estimate")
+        XCTAssertTrue(body.contains("ReviewPrompt.requestIfDue()"))
+    }
+
+    func test_theRequestIsCounted() {
+        XCTAssertEqual(AnalyticsEvent.reviewPromptRequested.name, "review_prompt_requested")
+        XCTAssertEqual(AnalyticsEvent.reviewPromptRequested.parameters, [:])
+    }
+}
+
+// ── A URL-driven scan consumes the Control Centre request ────────────────────
+//
+// The intent writes an App Group request *and* opens `snapworth://scan`, and
+// says whichever arrives first consumes the request. The URL side never did,
+// so for five minutes the next inactive-to-active edge — a lock and unlock,
+// Notification Centre, the StoreKit sheet closing — drained it and reset the
+// Scan tab: a result sheet, a Thrift Flip with typed prices, or the paywall
+// mid-purchase, closed.
+
+@MainActor
+final class WidgetURLRoutingTests: XCTestCase {
+
+    private func url(_ s: String) -> URL { URL(string: s)! }
+
+    private func requireAppGroup() throws {
+        guard UserDefaults(suiteName: WidgetDataStore.appGroupID) != nil else {
+            throw XCTSkip("no App Group container in this host")
+        }
+    }
+
+    func test_aURLDrivenScanLeavesNothingPending() throws {
+        try requireAppGroup()
+        defer { _ = WidgetBridge.takePendingAction() }
+        WidgetBridge.request(.scan)
+        XCTAssertEqual(SnapWorthApp.route(url("snapworth://scan?src=control"), onboarded: true),
+                       .snapWidgetOpenScan)
+        XCTAssertNil(WidgetBridge.takePendingAction(),
+                     "left for the next foreground to drain — that is the defect")
+    }
+
+    func test_beforeOnboardingTheRequestIsKeptForTheDrain() throws {
+        // The drain holds it back until someone is listening; taking it here
+        // would destroy it for the same reason.
+        try requireAppGroup()
+        defer { _ = WidgetBridge.takePendingAction() }
+        WidgetBridge.request(.scan)
+        _ = SnapWorthApp.route(url("snapworth://scan?src=control"), onboarded: false)
+        XCTAssertEqual(WidgetBridge.takePendingAction(), .scan)
+    }
+
+    func test_otherRoutesAreUnchanged() {
+        XCTAssertEqual(SnapWorthApp.route(url("snapworth://history?src=haul"), onboarded: true),
+                       .snapWidgetOpenHistory)
+        XCTAssertEqual(SnapWorthApp.route(url("snapworth://flips"), onboarded: true), .snapOpenFlips)
+        XCTAssertNil(SnapWorthApp.route(url("snapworth://elsewhere"), onboarded: true))
+        XCTAssertNil(SnapWorthApp.route(url("https://snapworth.app/scan"), onboarded: true))
+    }
+}
+
+// ── "Open SnapWorth to refresh" has to refresh ───────────────────────────────
+//
+// The stale Live Activity's one instruction. Its stale date moved only in
+// `ThriftRunController.update(results:)`, reached from a scan mutation, so
+// opening the app changed nothing. ActivityKit cannot hand a test a live
+// Activity, so the two call sites are held by their source, as the other
+// ActivityKit paths are.
+
+final class StaleRunRefreshTests: XCTestCase {
+
+    private func source(_ path: String) throws -> String {
+        try String(contentsOf: URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("SnapWorth/\(path)"), encoding: .utf8)
+    }
+
+    func test_comingForwardRepublishesALiveRun() throws {
+        let view = try source("Views/ScanView.swift")
+        guard let handler = view.range(of: ".onChange(of: scenePhase)") else {
+            return XCTFail("the foreground handler moved")
+        }
+        let body = String(view[handler.upperBound...].prefix(2_500))
+        XCTAssertTrue(body.contains("ThriftRunController.isRunning"))
+        XCTAssertTrue(body.contains(".refreshWidget()"),
+                      "a warm open leaves a stale run grey until the next scan")
+    }
+
+    func test_aColdLaunchRepublishesALiveRun() throws {
+        let app = try source("SnapWorthApp.swift")
+        guard let seed = app.range(of: "private func seedWidgetData(") else {
+            return XCTFail("the launch seed moved")
+        }
+        let body = String(app[seed.upperBound...].prefix(2_000))
+        XCTAssertTrue(body.contains("ThriftRunController.update(results:"),
+                      "a launch from the stale Activity itself changes nothing")
+    }
+
+    func test_noPathCanZeroARunFromAFallbackStore() throws {
+        // A fallback launch's library is empty and in memory; the Activity is
+        // the earlier process's, counting scans that store cannot see. The
+        // guard was on the launch seed alone, so the foreground refresh — and
+        // the debounced sync and `deleteAll` behind it — published zero over
+        // a real run. It has to hold in `update`, before the Activity is read.
+        let controller = try source("Services/ThriftRunController.swift")
+        guard let update = controller.range(of: "static func update(results:") else {
+            return XCTFail("the run update moved")
+        }
+        let body = String(controller[update.upperBound...].prefix(1_200))
+        guard let guardAt = body.range(of: "guard !AppLaunchState.isRunningOnFallbackStore"),
+              let readAt = body.range(of: "guard let activity = current")
+        else { return XCTFail("the fallback guard is gone from `update`") }
+        XCTAssertLessThan(guardAt.lowerBound, readAt.lowerBound,
+                          "checked after the run is already being updated")
+
+        // And nothing else in the app publishes run content past it.
+        let app = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("SnapWorth")
+        let files = FileManager.default.enumerator(at: app, includingPropertiesForKeys: nil)?
+            .compactMap { $0 as? URL }
+            .filter { $0.pathExtension == "swift" } ?? []
+        XCTAssertFalse(files.isEmpty)
+        for file in files where file.lastPathComponent != "ThriftRunController.swift" {
+            let text = try String(contentsOf: file, encoding: .utf8)
+            XCTAssertFalse(text.contains("ActivityContent("),
+                           "\(file.lastPathComponent) updates the run around the guard")
+        }
+    }
+
+    @MainActor
+    func test_theRefreshIsTheSameDebouncedPathAScanTakes() throws {
+        // `refreshWidget` must go through the coalesced sync, which is what
+        // updates the run, rather than a second route to keep in step.
+        let config = ModelConfiguration(isStoredInMemoryOnly: true)
+        let container = try ModelContainer(for: ScanResult.self, configurations: config)
+        defer { ScanRepository.widgetSync?.cancel() }
+        ScanRepository(context: ModelContext(container)).refreshWidget()
+        XCTAssertNotNil(ScanRepository.widgetSync)
+    }
+}
+
+// ── Where the app was opened from ────────────────────────────────────────────
+//
+// Nothing recorded a widget opening the app, so whether the 1.4.0 widgets were
+// used at all was unknowable. The widgets now say where a tap came from, and
+// the app counts it — from a closed set, never the raw query.
+
+@MainActor
+final class WidgetSourceTests: XCTestCase {
+
+    private func url(_ s: String) -> URL { URL(string: s)! }
+
+    func test_aWidgetOpenIsCountedOnlyFromAKnownSource() {
+        // Any app or page can open this scheme; an arbitrary `src` has no
+        // business in the analytics payload.
+        let spy = FunnelSpy()
+        Analytics.shared.configure(spy)
+        UserDefaults.standard.removeObject(forKey: Analytics.enabledKey)
+
+        _ = SnapWorthApp.route(url("snapworth://history?src=recent_finds"), onboarded: true)
+        _ = SnapWorthApp.route(url("snapworth://history?src=%3Cscript%3E"), onboarded: true)
+        _ = SnapWorthApp.route(url("snapworth://history"), onboarded: true)
+
+        XCTAssertEqual(spy.events.map(\.name), ["widget_opened"])
+        XCTAssertEqual(spy.params(for: "widget_opened"), ["source": "recent_finds"])
+    }
+
+    func test_everySourceTheWidgetsSendIsOneTheAppKnows() throws {
+        // The extension cannot import `WidgetSource`, so its URLs spell the
+        // values by hand. This holds the two sides to each other.
+        let dir = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("SnapWorthWidgets")
+        let files = try FileManager.default.contentsOfDirectory(at: dir, includingPropertiesForKeys: nil)
+            .filter { $0.pathExtension == "swift" }
+        XCTAssertFalse(files.isEmpty)
+
+        let tagged = try NSRegularExpression(pattern: #""snapworth://[a-z]+\?src=([a-z_]+)""#)
+        let untagged = try NSRegularExpression(pattern: #""snapworth://[a-z]+""#)
+        var sent: Set<String> = []
+        for file in files {
+            let text = try String(contentsOf: file, encoding: .utf8)
+            let range = NSRange(text.startIndex..., in: text)
+            for m in tagged.matches(in: text, range: range) {
+                sent.insert(String(text[Range(m.range(at: 1), in: text)!]))
+            }
+            XCTAssertEqual(untagged.numberOfMatches(in: text, range: range), 0,
+                           "\(file.lastPathComponent) opens the app without saying from where")
+        }
+        XCTAssertEqual(sent, Set(WidgetSource.allCases.map(\.rawValue)))
+    }
+}
+
+// ── Whether the widgets and Snap → Sell are used at all ──────────────────────
+
+final class UsageAnalyticsTests: XCTestCase {
+
+    func test_theNewEventsHaveStableNamesAndBoundedParameters() {
+        let cases: [(AnalyticsEvent, String, [String: String])] = [
+            (.listingCopied(marketplace: "ebay"), "listing_copied", ["marketplace": "ebay"]),
+            (.listingCopied(marketplace: "draft"), "listing_copied", ["marketplace": "draft"]),
+            (.listingShared(marketplace: "vinted"), "listing_shared", ["marketplace": "vinted"]),
+            (.marketplaceOpened(marketplace: "depop"), "marketplace_opened", ["marketplace": "depop"]),
+            (.widgetOpened(source: "haul"), "widget_opened", ["source": "haul"]),
+            (.widgetsInstalled(count: "2-3", kinds: "A,B"), "widgets_installed",
+             ["count": "2-3", "kinds": "A,B"]),
+            (.ledgerItemMarkedListed, "ledger_item_marked_listed", [:]),
+        ]
+        for (event, name, params) in cases {
+            XCTAssertEqual(event.name, name)
+            XCTAssertEqual(event.parameters, params, name)
+        }
+    }
+
+    func test_theInstalledCountIsBucketed() {
+        XCTAssertEqual(WidgetInstallReport.bucket(0), "0")
+        XCTAssertEqual(WidgetInstallReport.bucket(1), "1")
+        XCTAssertEqual(WidgetInstallReport.bucket(2), "2-3")
+        XCTAssertEqual(WidgetInstallReport.bucket(3), "2-3")
+        XCTAssertEqual(WidgetInstallReport.bucket(4), "4+")
+        XCTAssertEqual(WidgetInstallReport.bucket(40), "4+")
     }
 }

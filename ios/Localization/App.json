@@ -1064,6 +1064,14 @@
       "de": "Gewinn insgesamt",
       "zh-Hans": "总利润"
     },
+    "Allow notifications": {
+      "comment": "Banner title in Notification settings when iOS has never been asked for permission. Tapping it shows the system permission alert.",
+      "en": "Allow notifications",
+      "ro": "Permite notificările",
+      "es": "Permitir notificaciones",
+      "de": "Mitteilungen erlauben",
+      "zh-Hans": "允许通知"
+    },
     "Almost there…": {
       "en": "Almost there…",
       "ro": "Aproape gata…",
@@ -2578,6 +2586,14 @@
       "de": "Keine Treffer für „%@“",
       "zh-Hans": "没有找到“%@”"
     },
+    "None of these reminders can arrive until you do.": {
+      "comment": "Under 'Allow notifications': until permission is given, none of the reminders listed below can be delivered.",
+      "en": "None of these reminders can arrive until you do.",
+      "ro": "Până atunci, niciunul dintre aceste memento-uri nu poate ajunge la tine.",
+      "es": "Hasta entonces, ninguno de estos avisos puede llegarte.",
+      "de": "Bis dahin kann keine dieser Erinnerungen ankommen.",
+      "zh-Hans": "在此之前，这些提醒都无法送达。"
+    },
     "Not now": {
       "en": "Not now",
       "ro": "Nu acum",
@@ -2636,12 +2652,12 @@
       "de": "Nur gelegentliche, nützliche Erinnerungen: der Monatsrückblick, ein Anstoß, dein Buch zu aktualisieren, und ein Hinweis, bevor eine Testphase endet. Werbemitteilungen schicken wir nie.",
       "zh-Hans": "只发有用的提醒，而且不多：月度回顾、提醒你更新账本，以及试用期结束前打个招呼。我们从不发推广通知。"
     },
-    "Off by default. When on, one reminder at the time you pick — only on days you haven't scanned yet, and never once you're on Pro.": {
-      "en": "Off by default. When on, one reminder at the time you pick — only on days you haven't scanned yet, and never once you're on Pro.",
-      "ro": "Oprit implicit. Când e pornit, un singur memento la ora aleasă — doar în zilele în care n-ai scanat încă și niciodată după ce treci pe Pro.",
-      "es": "Desactivado por defecto. Si lo activas, un solo aviso a la hora que elijas, solo los días en que aún no hayas escaneado y nunca cuando tengas Pro.",
-      "de": "Standardmäßig aus. Wenn du es anschaltest, eine Erinnerung zur gewählten Zeit – nur an Tagen, an denen du noch nicht gescannt hast, und nie mehr, sobald du Pro hast.",
-      "zh-Hans": "默认关闭。开启后，只在你选的时间提醒一次，而且只在当天还没扫描过时；升级 Pro 后不再提醒。"
+    "Off by default. When on, one reminder at the time you pick — only once your free scan is back, and never once you're on Pro.": {
+      "en": "Off by default. When on, one reminder at the time you pick — only once your free scan is back, and never once you're on Pro.",
+      "ro": "Oprit implicit. Când e pornit, un singur memento la ora aleasă — doar după ce ai iar scanarea gratuită și niciodată după ce treci pe Pro.",
+      "es": "Desactivado por defecto. Si lo activas, un solo aviso a la hora que elijas, solo cuando vuelvas a tener tu escaneo gratis y nunca cuando tengas Pro.",
+      "de": "Standardmäßig aus. Wenn du es anschaltest, eine Erinnerung zur gewählten Zeit – nur wenn dein Gratis-Scan wieder da ist, und nie mehr, sobald du Pro hast.",
+      "zh-Hans": "默认关闭。开启后，只在你选的时间提醒一次，而且只在免费扫描恢复之后；升级 Pro 后不再提醒。"
     },
     "One snap.\nA ready listing.": {
       "en": "One snap.\nA ready listing.",
@@ -4455,6 +4471,14 @@
         "other": "Deine %lld Funde sind wert"
       },
       "zh-Hans": "你的 %lld 件好物价值"
+    },
+    "Your SnapWorth trial ends the day after tomorrow, at %@.": {
+      "comment": "Notification. %@ is a time of day (e.g. 1:40 AM). Sent at 21:00 two calendar days before a trial that ends in the small hours.",
+      "en": "Your SnapWorth trial ends the day after tomorrow, at %@.",
+      "ro": "Perioada gratuită SnapWorth se termină poimâine, la %@.",
+      "es": "Tu prueba de SnapWorth acaba pasado mañana (%@).",
+      "de": "Deine SnapWorth-Testphase endet übermorgen um %@.",
+      "zh-Hans": "你的 SnapWorth 试用将于后天 %@ 到期。"
     },
     "Your SnapWorth trial ends tomorrow.": {
       "en": "Your SnapWorth trial ends tomorrow.",

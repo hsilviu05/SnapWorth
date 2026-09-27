@@ -565,7 +565,10 @@ final class HaulSession {
         /// Returns `end`, which is idempotent.
         var beginBackgroundTask: @MainActor (String) -> @MainActor () -> Void
         /// The haul summary was reached for the first time in an open.
-        var summaryReached: @MainActor () -> Void
+        /// `worthAskingForReview` is whether any valued photo is an estimate
+        /// the app stands behind (`ReviewPrompt.isWorthAskingAbout`), the same
+        /// rule the single-scan result uses before asking for a rating.
+        var summaryReached: @MainActor (_ worthAskingForReview: Bool) -> Void
         var sleep: @Sendable (Duration) async throws -> Void
         var now: () -> Date
         var defaults: UserDefaults
@@ -683,15 +686,22 @@ final class HaulSession {
                 let task = HaulBackgroundTask(name: name)
                 return { task.end() }
             },
-            summaryReached: {
+            summaryReached: { worthAskingForReview in
                 // Moved here from each scan: a haul is one sitting, and a
                 // rating sheet or a recap schedule per photo would interrupt
                 // the camera it is meant to celebrate.
                 let monthScans = repository.countScansThisMonth()
                 Task { await NotificationManager.shared.scheduleMonthlyRecap(monthScanCount: monthScans) }
+                // The summary's totals are the payoff on screen, so this is a
+                // moment of value in the sense `ReviewPrompt.requestIfDue`
+                // means, and it keeps that function's gap. Only when some
+                // estimate here is Medium or High, as for a single result.
+                // The pause lets the summary settle first; unlike the old
+                // single-scan timer, nothing is covered while it runs.
+                guard worthAskingForReview else { return }
                 Task {
                     try? await Task.sleep(for: .seconds(1.2))
-                    ReviewPrompt.promptIfDue()
+                    ReviewPrompt.requestIfDue()
                 }
             },
             sleep: { try await Task.sleep(for: $0) },
@@ -969,7 +979,9 @@ final class HaulSession {
         guard let reported = reportedSize else {
             reportedSize = count
             Analytics.shared.track(.haulCompleted(itemsBucket: bucket))
-            deps.summaryReached()
+            deps.summaryReached(valuedResults.contains {
+                ReviewPrompt.isWorthAskingAbout(confidence: $0.confidence)
+            })
             return
         }
         let previous = AnalyticsEvent.haulSizeBucket(reported)
@@ -1718,8 +1730,9 @@ extension HaulSession {
     /// in the same order — that function is the reference, and a change to
     /// one belongs in the other.
     ///
-    /// Two deliberate differences. The review prompt is counted but not asked
-    /// (`promptingIfDue: false`): Haul asks once, from its summary. And
+    /// Two deliberate differences. The scan is counted for the review prompt
+    /// and nothing is asked here — `recordSuccessfulScan` only counts, as it
+    /// does for every path; Haul asks once, from its summary. And
     /// there is no `Haptics.success()` here — Haul plays one when the queue
     /// empties.
     ///
@@ -1757,7 +1770,7 @@ extension HaulSession {
             Analytics.shared.track(.scanCountMilestone(count: milestone))
         }
         ScanViewModel.noteScanForStreakAndReminder(isPro: purchaseService.isSubscribed)
-        ReviewPrompt.recordSuccessfulScan(promptingIfDue: false)
+        ReviewPrompt.recordSuccessfulScan()
 
         let backup = result.detachedCopy()
         do {

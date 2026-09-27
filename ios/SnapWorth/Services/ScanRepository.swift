@@ -151,10 +151,9 @@ final class ScanRepository {
     //
     // `HistoryView` lists scans with `@Query`, so every row is already resident
     // when the banner renders. A second fetch to sum them would be *additive*
-    // cost, not a saving. The reduce itself is cheap and got cheaper:
-    // `portfolioValue` reads the denormalised `portfolioValueRaw` column when
-    // present, so a touched library sums plain Decimals instead of running a
-    // condition-adjusted division per item per render.
+    // cost, not a saving. The reduce itself is cheap: `portfolioValue` is one
+    // condition-adjusted division per item, with the stored grade it needs
+    // memoised (`ScanResult.storedGrade`) rather than decoded per read.
     //
     // The aggregate becomes worth having the moment the list stops loading
     // everything — i.e. when it is paged. That is a larger change than this

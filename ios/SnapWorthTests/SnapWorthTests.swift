@@ -3531,7 +3531,7 @@ final class HaulHarness {
             refreshEntitlements: { [self] in self.refreshCount += 1 },
             networkPath: { [self] in self.path },
             beginBackgroundTask: { name in background.begin(name) },
-            summaryReached: { [self] in self.summaryCount += 1 },
+            summaryReached: { [self] _ in self.summaryCount += 1 },
             sleep: { duration in try await sleeper.sleep(duration) },
             now: { clock.now },
             defaults: defaults,

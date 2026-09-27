@@ -22,8 +22,9 @@ extension Notification.Name {
 /// |----------|-------------------------------------------|-----------------------|
 /// | recap    | ≥3 scans this month → 1st of next mo 10:00 | `recap.monthly`       |
 /// | ledger   | item marked *listed* → +14 days 10:00      | `ledger.day.<yyyymmdd>` (coalesced per fire-day) |
-/// | trial    | ~24h before trial end                      | `trial.ending`        |
-/// | freeScan | opt-in; next day without a scan, at the user's hour | `freeScan.daily` |
+/// | portfolio | next 4 Sundays 11:00                      | `portfolio.weekly.<n>` (a ladder) |
+/// | trial    | ≥24h before trial end, 09:00–21:00 local   | `trial.ending`        |
+/// | freeScan | opt-in; the user's hour, once the UTC allowance is back | `freeScan.daily.<yyyymmdd>` (a ladder) |
 ///
 /// Recap/trial use fixed identifiers so re-scheduling replaces rather than
 /// duplicates. Ledger coalesces every follow-up landing on the same day into a
@@ -71,7 +72,7 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
     // MARK: - Identifiers
 
     private static let recapID = "recap.monthly"
-    private static let portfolioID = "portfolio.weekly"
+    // The weekly digest is a ladder too — see `portfolioIDs`.
     private static let trialID = "trial.ending"
     // Prefix == Category.freeScan.rawValue: `category(fromID:)` relies on it.
     //
@@ -139,10 +140,16 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
     /// it is called from `setEnabled`, which SwiftUI calls from a toggle. The
     /// range runs a day wider than the ladder at both ends so a device whose
     /// clock or timezone moved cannot orphan a request.
+    ///
+    /// The ladder can start two local days out, not one: it waits for the UTC
+    /// reset, and west of UTC an evening scan's allowance comes back only the
+    /// evening after next. Its last rung can then sit at +8, which is where
+    /// the far end of this range used to stop — no margin left for the move
+    /// the margin is there for.
     nonisolated static func freeScanIDs(around now: Date,
                                         calendar: Calendar = .current) -> [String] {
         var ids = [freeScanID]
-        for offset in -1...(freeScanLadderDays + 1) {
+        for offset in -1...(freeScanLadderDays + 2) {
             guard let day = calendar.date(byAdding: .day, value: offset, to: now) else { continue }
             ids.append(freeScanLadderID(forDay: day, calendar: calendar))
         }
@@ -418,14 +425,76 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
         let id = Self.trialID
         guard isEnabled(.trial),
               let endDate,
-              let fireDate = Calendar.current.date(byAdding: .hour, value: -24, to: endDate),
-              fireDate > Date()
+              let fireDate = Self.trialReminderFireDate(endDate: endDate, now: Date())
         else {
             center.removePendingNotificationRequests(withIdentifiers: [id])
             return
         }
         await add(id: id, category: .trial, fireDate: fireDate,
-                  body: String(localized: "Your SnapWorth trial ends tomorrow."))
+                  body: Self.trialBody(fireDate: fireDate, endDate: endDate))
+    }
+
+    /// The latest moment between 09:00 and 21:00 local that is still at least
+    /// 24 hours before the trial ends.
+    ///
+    /// It was exactly 24 hours before, to the second — and since a trial ends
+    /// at the minute it was started, a trial begun at 01:40 woke its owner
+    /// with a sound at 01:40 two nights later, as the one category that also
+    /// evicts anything else due that day. Later than the 24-hour mark is no
+    /// use (a renewal can be charged inside it), so the move is always
+    /// earlier: to 21:00 the same evening when the mark falls late at night,
+    /// and to 21:00 the evening before when it falls in the small hours.
+    ///
+    /// Pure, and takes its calendar, for the tests.
+    nonisolated static func trialReminderDate(endDate: Date,
+                                              calendar: Calendar = .current) -> Date? {
+        guard let deadline = calendar.date(byAdding: .hour, value: -24, to: endDate),
+              let morning = calendar.date(bySettingHour: 9, minute: 0, second: 0, of: deadline),
+              let evening = calendar.date(bySettingHour: 21, minute: 0, second: 0, of: deadline)
+        else { return nil }
+        if deadline < morning { return calendar.date(byAdding: .day, value: -1, to: evening) }
+        return min(deadline, evening)
+    }
+
+    /// What to schedule as of `now`: the waking-hours slot while it is still
+    /// ahead, else the 24-hour mark while that is, else nothing.
+    ///
+    /// The slot is earlier than the mark by up to twelve hours, and the first
+    /// sync can land in between — notifications allowed mid-trial, a restore
+    /// on a new device, the first foreground after an update from a build that
+    /// had the warning pending at the mark. Requiring the slot alone dropped
+    /// the warning there, and the update case removed one that was already
+    /// pending, while a full day's notice could still be given. The fallback
+    /// is the mark, which can be at night: a night warning beats none. It is
+    /// the same instant on every sync, so a foreground in the gap replaces the
+    /// request rather than firing it again — which "a minute from now" would
+    /// not, and inside the gap that is never in waking hours either.
+    ///
+    /// Pure, and takes its calendar, for the tests.
+    nonisolated static func trialReminderFireDate(endDate: Date, now: Date,
+                                                  calendar: Calendar = .current) -> Date? {
+        if let slot = trialReminderDate(endDate: endDate, calendar: calendar), slot > now {
+            return slot
+        }
+        guard let mark = calendar.date(byAdding: .hour, value: -24, to: endDate), mark > now
+        else { return nil }
+        return mark
+    }
+
+    /// "Ends tomorrow" is only true when it is. Moved to the evening before a
+    /// small-hours deadline, the trial ends the day after the next one — so
+    /// that case names the day and the time rather than saying "tomorrow".
+    nonisolated static func trialBody(fireDate: Date, endDate: Date,
+                                      calendar: Calendar = .current) -> String {
+        let days = calendar.dateComponents([.day], from: calendar.startOfDay(for: fireDate),
+                                           to: calendar.startOfDay(for: endDate)).day
+        if days == 1 {
+            return String(localized: "Your SnapWorth trial ends tomorrow.")
+        }
+        var style = Date.FormatStyle(date: .omitted, time: .shortened)
+        style.timeZone = calendar.timeZone
+        let time = endDate.formatted(style)
+        return String(localized: "Your SnapWorth trial ends the day after tomorrow, at \(time).")
     }
 
     // MARK: - 4) Daily free-scan reminder (opt-in)
@@ -451,12 +520,18 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
 
     /// Schedule the next "your free scan is back" — or cancel it.
     ///
-    /// Never for Pro (there is no free scan to come back), never for today if
-    /// the user has already scanned (the allowance is spent), and only when the
-    /// user opted in. Idempotent via the fixed identifier, so calling it after
-    /// every scan and every foreground is the intended use: the previous
-    /// request is simply replaced by the next correct one.
-    func syncFreeScanReminder(isPro: Bool, scannedToday: Bool, streak: Int = 0,
+    /// Never for Pro (there is no free scan to come back), never before the
+    /// allowance has actually come back, and only when the user opted in.
+    /// Idempotent via the fixed identifiers, so calling it after every scan
+    /// and every foreground is the intended use: the previous request is
+    /// simply replaced by the next correct one.
+    ///
+    /// `lastScan` is `ScanStreak.lastScan`, the instant of the most recent
+    /// scan on any tier. It answers two different questions on two different
+    /// clocks: whether today's streak day is already made (the local day, as
+    /// the streak is kept) and when the allowance comes back (the UTC day, as
+    /// the server counts it).
+    func syncFreeScanReminder(isPro: Bool, lastScan: Date?, streak: Int = 0,
                               now: Date = Date()) async {
         // Always clear the whole ladder first, including the legacy single id.
         // Every path below either rebuilds it or wants it gone, and a stale rung
@@ -466,9 +541,16 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
         guard isEnabled(.freeScan), !isPro else { return }
 
         let time = freeScanReminderTime
+        // `hasRemaining` as well as the last scan: the server can have refused
+        // today's scan without one being recorded here — a 402, or a reinstall
+        // whose allowance was withheld at mint.
+        let returns = Self.freeScanReturns(lastScan: lastScan,
+                                           spentNow: !FreeScanCounter.hasRemaining,
+                                           now: now)
         guard let first = Self.nextFreeScanDate(after: now, hour: time.hour, minute: time.minute,
-                                                scannedToday: scannedToday) else { return }
+                                                notBefore: returns) else { return }
         let calendar = Calendar.current
+        let scannedToday = lastScan.map { calendar.isDate($0, inSameDayAs: now) } ?? false
         // Only the first rung can even try to name the streak: beyond that the
         // user may have scanned, or lapsed, and either claim would be
         // invented. And it may only try — `streakOutlives` decides whether the
@@ -492,19 +574,51 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
         }
     }
 
-    /// Today at the chosen time if that is still ahead and no scan has happened
-    /// today; otherwise tomorrow at that time. Pure, for the tests.
-    nonisolated static func nextFreeScanDate(after now: Date, hour: Int, minute: Int,
-                                             scannedToday: Bool,
-                                             calendar: Calendar = .current) -> Date? {
-        var comps = calendar.dateComponents([.year, .month, .day], from: now)
-        comps.hour = hour; comps.minute = minute
-        guard let today = calendar.date(from: comps) else { return nil }
-        if !scannedToday && today > now { return today }
-        return calendar.date(byAdding: .day, value: 1, to: today)
+    /// When the free scan comes back, or nil when it is available now.
+    ///
+    /// The allowance is counted per UTC day — `quota.py`, and on this side
+    /// `FreeScanCounter.isServerToday` and the Scans-left widget — so it comes
+    /// back at the first UTC midnight after the last scan. The reminder asked
+    /// the local calendar instead, which is a different question everywhere
+    /// but UTC+0: a user in New York who scanned at 21:00 was told at 18:00
+    /// the next day that the scan was back, and the tap opened the paywall,
+    /// because it came back at 20:00. East of UTC it ran the other way — a
+    /// scan at 08:00 in Sydney is yesterday's allowance, back by 10:00, and
+    /// that evening's reminder was skipped.
+    ///
+    /// Pure, and takes its UTC calendar, for the tests.
+    nonisolated static func freeScanReturns(
+        lastScan: Date?, spentNow: Bool, now: Date,
+        serverCalendar: Calendar = WidgetHaulData.serverCalendar
+    ) -> Date? {
+        func nextReset(after date: Date) -> Date? {
+            serverCalendar.date(byAdding: .day, value: 1,
+                                to: serverCalendar.startOfDay(for: date))
+        }
+        var returns = lastScan.flatMap(nextReset(after:))
+        if spentNow, let reset = nextReset(after: now) {
+            returns = max(returns ?? reset, reset)
+        }
+        guard let returns, returns > now else { return nil }
+        return returns
     }
 
-    /// Whether the streak that is alive at `now` is still alive at `fireDate`.
+    /// The first time at the chosen hour and minute that is after `now` and
+    /// not before `notBefore` — the moment the allowance comes back. Today if
+    /// both allow it, otherwise the first day that does. Pure, for the tests.
+    nonisolated static func nextFreeScanDate(after now: Date, hour: Int, minute: Int,
+                                             notBefore: Date?,
+                                             calendar: Calendar = .current) -> Date? {
+        let earliest = max(now, notBefore ?? now)
+        var comps = calendar.dateComponents([.year, .month, .day], from: earliest)
+        comps.hour = hour; comps.minute = minute
+        guard let sameDay = calendar.date(from: comps) else { return nil }
+        if sameDay > now && sameDay >= earliest { return sameDay }
+        return calendar.date(byAdding: .day, value: 1, to: sameDay)
+    }
+
+    /// Whether the streak's next day is the day `fireDate` lands on — the only
+    /// day "Day N of your streak is waiting" is true.
     ///
     /// The body is frozen into the request when it is scheduled, and
     /// `ScanStreak.current()` counts a streak as alive while the last scan was
@@ -516,13 +630,19 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
     /// `freeScanBody` states for itself, that there is no guilt when the
     /// streak broke, it simply isn't mentioned.
     ///
-    /// Two cases survive. The rung fires today, so nothing has moved; or the
-    /// user scanned today, which makes today the streak's last day and the
-    /// fire date tomorrow, still inside the window.
+    /// Two cases survive. The user has not scanned today and the rung fires
+    /// today, so nothing has moved; or the user scanned today, which makes
+    /// today the streak's last day, and the rung fires tomorrow. Since the
+    /// reminder waits for the UTC reset, two more cases now arise and both
+    /// fail: a rung the same local day as today's scan (a scan now cannot
+    /// make a new streak day), and one the day after tomorrow (west of UTC,
+    /// an evening scan's allowance returns only on the following evening).
     nonisolated static func streakOutlives(fireDate: Date, now: Date,
                                            scannedToday: Bool,
                                            calendar: Calendar = .current) -> Bool {
-        scannedToday || calendar.isDate(fireDate, inSameDayAs: now)
+        guard scannedToday else { return calendar.isDate(fireDate, inSameDayAs: now) }
+        guard let tomorrow = calendar.date(byAdding: .day, value: 1, to: now) else { return false }
+        return calendar.isDate(fireDate, inSameDayAs: tomorrow)
     }
 
     /// The copy. A streak of two or more is worth naming — "day 5" is a reason
@@ -556,8 +676,8 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
 
         await syncTrialReminder(endDate: purchaseService.trialEndDate)
 
-        let scannedToday = all.contains { Calendar.current.isDateInToday($0.timestamp) }
-        await syncFreeScanReminder(isPro: purchaseService.isSubscribed, scannedToday: scannedToday,
+        await syncFreeScanReminder(isPro: purchaseService.isSubscribed,
+                                   lastScan: ScanStreak.lastScan,
                                    streak: ScanStreak.current())
     }
 
@@ -569,8 +689,9 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
     /// worth $40 more this week" — and it would be false here. An item's value
     /// only ever moves when the *user* acts — changing its condition
     /// (`ResultView`) or re-reading the care tag (`applySharpened`), both of
-    /// which call `refreshPortfolioValue`. Nothing re-values a saved item on
-    /// its own; `ScanAPIClient.scan` runs only for a photo the user supplied. Reporting
+    /// which call `refreshPortfolioValue` — or when an update corrects how the
+    /// app prices a grade. Nothing re-values a saved item from the market;
+    /// `ScanAPIClient.scan` runs only for a photo the user supplied. Reporting
     /// the user's own edit back to them as market movement would be inventing a
     /// signal, and detecting real movement needs background re-valuation — a
     /// larger feature with a per-user model cost.
@@ -602,11 +723,20 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
 
     /// Builds the digest from the library. Pure, so the copy rules are testable
     /// without a notification centre or a ModelContainer.
+    ///
+    /// `now` is the moment the sentence is read — the scheduler passes each
+    /// rung's fire date, so "this week" means the week before the Sunday it
+    /// lands on.
     nonisolated static func digest(for results: [ScanResult],
                                    now: Date = Date()) -> WeeklyDigest {
         let weekAgo = now.addingTimeInterval(-7 * 86_400)
         return WeeklyDigest(
-            itemCount: results.count,
+            // Held items only, the same rows the total below is made of. This
+            // counted every row while the total covered only what is still
+            // held, so a user who had sold 4 of 10 was told "Your 10 finds are
+            // worth $120" when the $120 was six of them — and one who had sold
+            // everything, "Your 10 finds are worth $0.00".
+            itemCount: results.filter { $0.status != .sold }.count,
             // `portfolioTotal`, the same "still held" figure the History
             // header shows. This summed every row including sold ones, so the
             // weekly push repeated the inflated total the header used to show
@@ -617,22 +747,67 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
         )
     }
 
-    /// Schedules the next weekly nudge.
+    /// How many Sundays of the digest are scheduled at a time.
+    ///
+    /// It was one dated request with `repeats: false`, and the only thing that
+    /// re-armed it was `syncEligible` — which runs when the app comes forward.
+    /// So the reminder meant for someone who has stopped opening the app
+    /// reached them once and then never again, the same defect the free-scan
+    /// ladder was built to fix. Four, not forever: a month of ignored Sundays
+    /// is an answer, and anyone still using the app refills the ladder on
+    /// every foreground and never reaches the end of it.
+    nonisolated static var portfolioLadderWeeks: Int { 4 }
+
+    /// Every identifier the digest can occupy: the rungs, plus the single id a
+    /// build before the ladder used, which an upgrading install can still have
+    /// pending and nothing else would clear.
+    nonisolated static var portfolioIDs: [String] {
+        ["portfolio.weekly"] + (0..<portfolioLadderWeeks).map(portfolioID(rung:))
+    }
+
+    /// Prefix == Category.portfolio.rawValue: `category(fromID:)` relies on it.
+    nonisolated static func portfolioID(rung: Int) -> String { "portfolio.weekly.\(rung)" }
+
+    /// The Sundays the ladder fires on, soonest first. Pure, for the tests.
+    nonisolated static func digestDates(after now: Date,
+                                        calendar: Calendar = .current) -> [Date] {
+        guard let first = nextDigestDate(after: now, calendar: calendar) else { return [] }
+        return (0..<portfolioLadderWeeks).compactMap {
+            calendar.date(byAdding: .weekOfYear, value: $0, to: first)
+        }
+    }
+
+    /// Schedules the next few weekly nudges.
     ///
     /// Re-scheduled on every eligible sync rather than repeating: the body has
     /// to be recomputed from the current library, and a `repeats: true` trigger
     /// would keep firing last month's numbers forever.
+    ///
+    /// Each rung's body is computed as of its own Sunday. Nothing can be added
+    /// without the app open, and opening it rebuilds the ladder, so the first
+    /// rung can say what was added in the week before it lands and the later
+    /// ones find nothing added and say only what is held — which stays true
+    /// for exactly as long as the user leaves the app shut. Nothing re-values a
+    /// saved item on its own (see `WeeklyDigest`).
     func schedulePortfolioDigest(results: [ScanResult], now: Date = Date()) async {
-        let digest = Self.digest(for: results, now: now)
-        guard let body = digest.body else {
-            // An empty portfolio has nothing to report. Clear any stale request
-            // so a user who deleted everything is not reminded about it.
-            cancel(.portfolio)
-            return
+        // Always clear the whole ladder first. Every path below either rebuilds
+        // it or wants it gone, and a rung left behind fires with its old body.
+        cancel(.portfolio)
+        guard isEnabled(.portfolio) else { return }
+
+        var scheduledAny = false
+        for (rung, fireDate) in Self.digestDates(after: now).enumerated() {
+            // An empty portfolio has nothing to report — nor does one whose
+            // every find has been sold — so nothing is scheduled at all.
+            guard let body = Self.digest(for: results, now: fireDate).body else { return }
+            let added = await add(id: Self.portfolioID(rung: rung), category: .portfolio,
+                                  fireDate: fireDate, body: body, track: false)
+            scheduledAny = scheduledAny || added
         }
-        guard let fireDate = Self.nextDigestDate(after: now) else { return }
-        await add(id: Self.portfolioID, category: .portfolio,
-                  fireDate: fireDate, body: body)
+        // One event for one logical reminder, as the free-scan ladder does.
+        if scheduledAny {
+            Analytics.shared.track(.notificationScheduled(category: Category.portfolio.rawValue))
+        }
     }
 
     /// Sunday at 11:00 local — a time people browse, not a weekday morning
@@ -652,7 +827,7 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
     private func cancel(_ category: Category) {
         switch category {
         case .recap: center.removePendingNotificationRequests(withIdentifiers: [Self.recapID])
-        case .portfolio: center.removePendingNotificationRequests(withIdentifiers: [Self.portfolioID])
+        case .portfolio: center.removePendingNotificationRequests(withIdentifiers: Self.portfolioIDs)
         case .trial: center.removePendingNotificationRequests(withIdentifiers: [Self.trialID])
         case .freeScan:
             center.removePendingNotificationRequests(
