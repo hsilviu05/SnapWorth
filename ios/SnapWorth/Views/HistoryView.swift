@@ -592,9 +592,9 @@ struct TrendingCard: View {
             }
 
             if isPro {
-                // Deduped — see `distinctNotableFinds`. The server appends
-                // each day's finds without dedup, so the same item on two days
-                // arrives twice with the same id.
+                // Deduped — see `distinctNotableFinds`. A find's id is its
+                // brand and rounded range, so the same brand at the same range
+                // is one row however many scans or days it came from.
                 let notable = trends.distinctNotableFinds
                 if !notable.isEmpty {
                     VStack(alignment: .leading, spacing: 6) {
@@ -635,7 +635,7 @@ struct TrendingCard: View {
                 .accessibilityHint("Opens subscription options")
             }
 
-            Text("Anonymous totals from everyone using SnapWorth. AI estimates.")
+            Text("Anonymous data from everyone using SnapWorth. AI estimates.")
                 .font(.snapCaption)
                 .foregroundStyle(Color.snapWarmGray)
         }

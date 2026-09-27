@@ -375,13 +375,15 @@ struct Trends: Decodable, Equatable {
 
     /// `notableFinds` with the repeats removed, first occurrence kept.
     ///
-    /// `NotableFind.id` is `name-low-high`, and the server builds this list by
-    /// appending each of the seven day-documents' find lists with no dedup,
-    /// emitting the truncated name and *rounded* bounds. An item that topped
-    /// the chart on two days therefore arrives twice with a byte-identical id —
-    /// and an ID-keyed `ForEach` over that is undefined: SwiftUI logs "the ID …
-    /// occurs multiple times within the collection" and renders the row
-    /// unreliably, so a Pro user sees the same find twice or one that flickers.
+    /// `NotableFind.id` is `name-low-high`, where `name` is the brand and the
+    /// bounds are *rounded*. So one item that topped the chart on two days, or
+    /// two different scans of one brand at the same rounded range, share an
+    /// id, and this merges them. The server skips such repeats now
+    /// (`notify.trends`), but it appended the seven day-documents' finds with
+    /// no dedup before that, and an ID-keyed `ForEach` over a repeat is
+    /// undefined: SwiftUI logs "the ID … occurs multiple times within the
+    /// collection" and renders the row unreliably, so a Pro user sees the same
+    /// find twice or one that flickers.
     ///
     /// Deduped rather than index-keyed, because "Notable finds" listing the
     /// same item twice is not a rendering artefact the user should have to

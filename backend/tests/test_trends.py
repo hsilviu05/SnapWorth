@@ -133,6 +133,22 @@ class TestNotableFindsAreNotSomeonesScan:
         payload = await notify.trends(is_pro=True)
         assert len(payload["notable_finds"]) == notify.TRENDS_FINDS
 
+    @pytest.mark.asyncio
+    async def test_one_brand_at_one_range_is_one_find(self, cache):
+        """With the brand as the name, two different scans can arrive with the
+        same `name-low-high`, which the app keys on and collapses to one row.
+        Sent twice, the repeat took a slot and a Pro user saw fewer finds."""
+        await seed(cache, 1, {"home": 9}, {},
+                   [find("Dutch oven 5.5qt", "home", 120, 220, "Le Creuset"),
+                    find("Braiser 3.5qt", "home", 120, 220, "Le Creuset"),
+                    find("Skillet 10in", "home", 60, 110, "Le Creuset")])
+        await seed(cache, 2, {"home": 9}, {},
+                   [find("Dutch oven 5.5qt", "home", 120, 220, "Le Creuset"),
+                    find("Pyrex set", "home", 40, 80, "Pyrex")])
+        payload = await notify.trends(is_pro=True)
+        assert [(f["name"], f["low"], f["high"]) for f in payload["notable_finds"]] == [
+            ("Le Creuset", 120, 220), ("Le Creuset", 60, 110), ("Pyrex", 40, 80)]
+
 
 class TestCaching:
     @pytest.mark.asyncio

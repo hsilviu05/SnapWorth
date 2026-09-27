@@ -933,12 +933,13 @@
       "de": "Artikel wird analysiert…",
       "zh-Hans": "正在分析物品…"
     },
-    "Anonymous totals from everyone using SnapWorth. AI estimates.": {
-      "en": "Anonymous totals from everyone using SnapWorth. AI estimates.",
-      "ro": "Totaluri anonime de la toți cei care folosesc SnapWorth. Estimări AI.",
-      "es": "Totales anónimos de toda la gente que usa SnapWorth. Estimaciones con IA.",
-      "de": "Anonyme Summen von allen, die SnapWorth nutzen. KI-Schätzungen.",
-      "zh-Hans": "来自所有 SnapWorth 用户的匿名汇总。均为 AI 估价。"
+    "Anonymous data from everyone using SnapWorth. AI estimates.": {
+      "comment": "Footer of the weekly trends card. Not 'totals': Pro's notable finds under it are single scans.",
+      "en": "Anonymous data from everyone using SnapWorth. AI estimates.",
+      "ro": "Date anonime de la toți cei care folosesc SnapWorth. Estimări AI.",
+      "es": "Datos anónimos de toda la gente que usa SnapWorth. Estimaciones con IA.",
+      "de": "Anonyme Daten von allen, die SnapWorth nutzen. KI-Schätzungen.",
+      "zh-Hans": "来自所有 SnapWorth 用户的匿名数据。均为 AI 估价。"
     },
     "Anonymous usage only — never your photos, item names, or prices": {
       "en": "Anonymous usage only — never your photos, item names, or prices",

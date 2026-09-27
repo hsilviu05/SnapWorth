@@ -2996,14 +2996,23 @@ async def trends(*, is_pro: bool, now: datetime | None = None) -> dict:
         # can carry anything it read off a label. `name` stays the field so
         # shipped clients decode it unchanged. A find with no brand has
         # nothing left worth showing and is skipped.
+        #
+        # So is a repeat. Clients key a find on `name-low-high` and drop
+        # duplicates (`Trends.distinctNotableFinds`), and with the brand as the
+        # name, two scans of one brand at the same rounded range are one row to
+        # them — sent twice, it would take a slot and show nothing.
         notable: list[dict] = []
+        shown: set[tuple[str, int, int]] = set()
         for f in sorted(finds, key=lambda f: -float(f.get("hi") or 0)):
             brand = _clean_brand(str(f.get("b") or ""))
             if brand is None or float(f.get("hi") or 0) <= 0:
                 continue
+            lo, hi = round(float(f.get("lo") or 0)), round(float(f.get("hi") or 0))
+            if (brand, lo, hi) in shown:
+                continue
+            shown.add((brand, lo, hi))
             notable.append({"name": brand, "category": str(f.get("c") or "other"),
-                            "low": round(float(f.get("lo") or 0)),
-                            "high": round(float(f.get("hi") or 0))})
+                            "low": lo, "high": hi})
             if len(notable) >= TRENDS_FINDS:
                 break
         payload["notable_finds"] = notable

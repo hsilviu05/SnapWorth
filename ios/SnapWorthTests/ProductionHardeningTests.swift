@@ -4759,12 +4759,13 @@ final class SettingsEntitlementObservationTests: XCTestCase {
 
 // ── The same find, twice, with the same ID ───────────────────────────────────
 //
-// `NotableFind.id` is `name-low-high`, and the server builds `notable_finds` by
-// appending each of the seven day-documents' find lists with no dedup, emitting
-// the truncated name and *rounded* bounds. An item that topped the chart on two
-// days therefore arrives twice, byte-identical — and an ID-keyed `ForEach` over
-// that is undefined: SwiftUI logs "the ID … occurs multiple times within the
-// collection" and renders the row unreliably.
+// `NotableFind.id` is `name-low-high`, where `name` is the brand and the bounds
+// are *rounded*. An item that topped the chart on two days, or two scans of one
+// brand at the same rounded range, share an id. The server skips such repeats
+// now, but it did not always, and an ID-keyed `ForEach` over one is undefined:
+// SwiftUI logs "the ID … occurs multiple times within the collection" and
+// renders the row unreliably. The fixtures below use item-like names; the
+// client dedups whatever `name` holds.
 
 final class NotableFindDedupTests: XCTestCase {
 
