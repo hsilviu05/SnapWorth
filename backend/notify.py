@@ -2245,8 +2245,15 @@ def _welcome_summary(setting: WelcomeSetting | None) -> tuple[bool, str, str]:
         why = "disarmed from chat" if chat else f"{env}, or unset"
     else:
         asked = f"the lever's {setting.configured}, set from chat," if chat else env
-        why = (f"{asked} is not above the daily limit of {setting.daily}, "
-               "so no first-day welcome")
+        if setting.configured > setting.daily:
+            # Above the daily limit as asked, so the cap is what took it away:
+            # clamped to a cap no higher than the daily limit. Saying the
+            # value is "not above the daily limit" would be false.
+            why = (f"{asked} is capped at {setting.cap}, which is not above the "
+                   f"daily limit of {setting.daily}, so no first-day welcome")
+        else:
+            why = (f"{asked} is not above the daily limit of {setting.daily}, "
+                   "so no first-day welcome")
     if chat and setting.environment != setting.override:
         # Worth printing: the environment is what ↩️ Use env hands back to.
         why += f" · env {env}"

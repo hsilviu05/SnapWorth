@@ -3711,6 +3711,39 @@ class TestLeverFloorAndSource:
         assert "daily limit 1" in lever, lever
 
     @pytest.mark.asyncio
+    async def test_a_value_the_cap_removes_is_not_blamed_on_the_daily_limit(
+            self, enabled_notify, monkeypatch):
+        """50 is above a daily limit of 10; the cap of 10 is not. Every screen
+        said "FREE_SCANS_FIRST_DAY=50 is not above the daily limit of 10",
+        which is false — the cap is why there is no welcome."""
+        cap = ScanQuota.MAX_FIRST_DAY_SCANS
+        wire_welcome(monkeypatch, daily=cap, env_first_day=50)
+        text = await notify.handle_command("/experiment")
+        assert (f"FREE_SCANS_FIRST_DAY=50 is capped at {cap}, which is not above "
+                f"the daily limit of {cap}, so no first-day welcome") in text, text
+        assert "=50 is not above" not in text, text
+
+        # One above the daily limit, and the cap is the daily limit: the same.
+        wire_welcome(monkeypatch, daily=cap, env_first_day=cap + 1)
+        assert f"is capped at {cap}" in await notify.handle_command("/lever")
+
+        # At or below the daily limit, the daily limit is the reason, and the
+        # cap has nothing to do with it.
+        wire_welcome(monkeypatch, daily=cap + 2, env_first_day=cap + 1)
+        text = await notify.handle_command("/experiment")
+        assert (f"FREE_SCANS_FIRST_DAY={cap + 1} is not above the daily limit of "
+                f"{cap + 2}, so no first-day welcome") in text, text
+        assert "capped" not in text, text
+
+    def test_a_capped_override_from_chat_names_the_cap_too(self):
+        from quota import WelcomeSetting
+        armed, head, why = notify._welcome_summary(
+            WelcomeSetting(daily=10, environment=0, override=12, cap=10))
+        assert (armed, head) == (False, "lever not armed")
+        assert why.startswith("the lever's 12, set from chat, is capped at 10, "
+                              "which is not above the daily limit of 10"), why
+
+    @pytest.mark.asyncio
     async def test_the_confirmations_say_what_is_granted_now(
             self, enabled_notify, monkeypatch):
         # "Currently 1 first-day scan" was the raw override; it has to be what
