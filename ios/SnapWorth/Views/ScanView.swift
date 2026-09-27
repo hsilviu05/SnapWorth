@@ -327,11 +327,11 @@ struct ScanView: View {
                         .ignoresSafeArea()
                         .transition(.opacity)
                 }
-                AnalyzingOverlay()
-                    .transition(.opacity)
+                analyzingOverlay
             }
         }
         .snapAnimation(.easeInOut(duration: 0.3), value: vm.isAnalyzing)
+        .snapAnimation(.easeInOut(duration: 0.3), value: vm.rareFindAppraisal != nil)
         .onChange(of: cameraManager.capturedImage) { _, image in
             guard let image else { return }
             vm.capturedImage = image
@@ -491,16 +491,48 @@ struct ScanView: View {
     @ViewBuilder
     private var resultSheet: some View {
         if let result = vm.scanResult {
-            ResultView(
-                result: result,
-                purchaseService: purchaseService,
-                onDismiss: { showResult = false },
-                didSave: !vm.saveFailed,
-                coverPrice: true,
-                isFreshScan: true
-            )
+            Group {
+                // The rare-find easter egg opens the sheet on its reveal, which
+                // hands on to the ordinary result — see `RareFind`.
+                if let reveal = vm.rareFindReveal, !vm.rareFindRevealDone {
+                    RareFindRevealView(reveal: reveal, result: result) {
+                        withAnimation(.easeInOut(duration: 0.3)) { vm.rareFindRevealDone = true }
+                    }
+                } else {
+                    // After a reveal, the estimate has already been on screen,
+                    // and that changes two things and only two. There is no
+                    // guess — it would be a game with the answer showing — so
+                    // the cover starts lifted; `coverPrice` stays true, because
+                    // it also offers "Sharpen this estimate", which every fresh
+                    // result has. And the reveal has already sent
+                    // `scan_result_shown` for this valuation, so this sheet
+                    // does not send it twice.
+                    ResultView(
+                        result: result,
+                        purchaseService: purchaseService,
+                        onDismiss: { showResult = false },
+                        didSave: !vm.saveFailed,
+                        coverPrice: true,
+                        priceAlreadyShown: vm.rareFindReveal != nil,
+                        isFreshScan: vm.rareFindReveal == nil
+                    )
+                }
+            }
             .presentationDetents([.large])
             .presentationDragIndicator(.visible)
+        }
+    }
+
+    /// The analysing overlay, or the rare-find appraisal that stands in for it
+    /// while one plays.
+    @ViewBuilder
+    private var analyzingOverlay: some View {
+        if let appraisal = vm.rareFindAppraisal {
+            RareFindAppraisalView(lines: appraisal.statusLines)
+                .transition(.opacity)
+        } else {
+            AnalyzingOverlay()
+                .transition(.opacity)
         }
     }
 

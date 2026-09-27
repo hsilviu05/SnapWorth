@@ -75,6 +75,13 @@ enum AnalyticsEvent {
     // ── Thrift Flip ──────────────────────────────────────────────────
     case thriftFlipCalculated(verdict: String)
 
+    // ── Easter eggs ──────────────────────────────────────────────────
+    /// The rare-find reveal was put on screen (see `RareFind`). Deliberately
+    /// no parameters: not the item, not the estimate, and not which of the
+    /// random lines were drawn. The detection that earned it ran on-device and
+    /// sent nothing anywhere.
+    case rareFindEasterEggShown
+
     // ── My Flips ledger ──────────────────────────────────────────────
     case ledgerItemMarkedSold
     case ledgerDashboardViewed
@@ -145,6 +152,7 @@ enum AnalyticsEvent {
         case .referralRedeemed:     return "referral_redeemed"
         case .referralRewarded:     return "referral_rewarded"
         case .thriftFlipCalculated: return "thrift_flip_calculated"
+        case .rareFindEasterEggShown: return "rare_find_easter_egg_shown"
         case .ledgerItemMarkedSold: return "ledger_item_marked_sold"
         case .ledgerDashboardViewed:return "ledger_dashboard_viewed"
         case .ledgerExportTapped:   return "ledger_export_tapped"

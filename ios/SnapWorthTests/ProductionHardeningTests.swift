@@ -5543,8 +5543,12 @@ final class RetentionFunnelTests: XCTestCase {
                 .appendingPathComponent(path), encoding: .utf8)
         }
 
-        XCTAssertTrue(try source("SnapWorth/Views/ScanView.swift").contains("isFreshScan: true"),
+        // Fresh except after a rare-find reveal, which has already put this
+        // valuation on screen and reported it — once, from the reveal.
+        XCTAssertTrue(try source("SnapWorth/Views/ScanView.swift").contains("isFreshScan: vm.rareFindReveal == nil"),
                       "the scan path no longer marks its own result as fresh")
+        XCTAssertTrue(try source("SnapWorth/Views/RareFindViews.swift").contains(".scanResultShown(isFirst:"),
+                      "a rare find's reveal shows the real estimate but does not report it")
         for browsing in ["SnapWorth/Views/HistoryView.swift",
                          "SnapWorth/Views/FlipsView.swift"] {
             XCTAssertFalse(try source(browsing).contains("isFreshScan"),

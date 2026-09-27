@@ -21,6 +21,10 @@ struct ResultView: View {
     /// moment — and the day someone decides a fresh scan should show its number
     /// straight away, the funnel would go quiet with nothing to say it had.
     /// One is what the screen does; this is what happened.
+    ///
+    /// The one fresh scan that passes false is a rare find's: its reveal has
+    /// already put this valuation on screen and reported it (see
+    /// `RareFindRevealView.play()`), and a second event would count it twice.
     var isFreshScan: Bool = false
 
 
@@ -78,11 +82,16 @@ struct ResultView: View {
     /// guess is a once-per-find moment, not a toll on every visit.
     private let coverPrice: Bool
 
+    /// - Parameter priceAlreadyShown: the user has seen this estimate before
+    ///   this sheet opened — the rare-find reveal shows it first. The guess
+    ///   cover then starts lifted, and nothing else `coverPrice` decides
+    ///   changes: "Sharpen this estimate" is still offered.
     init(result: ScanResult,
          purchaseService: any PurchaseService,
          onDismiss: @escaping () -> Void,
          didSave: Bool = true,
          coverPrice: Bool = false,
+         priceAlreadyShown: Bool = false,
          isFreshScan: Bool = false) {
         self.result = result
         self.purchaseService = purchaseService
@@ -90,6 +99,7 @@ struct ResultView: View {
         self.didSave = didSave
         self.coverPrice = coverPrice
         self.isFreshScan = isFreshScan
+        _priceRevealed = State(initialValue: priceAlreadyShown)
         _paidPriceText = State(initialValue: Self.moneyField(result.paidPrice))
         _soldPriceText = State(initialValue: Self.moneyField(result.soldPrice))
         _feesText      = State(initialValue: Self.moneyField(result.feesEstimate))

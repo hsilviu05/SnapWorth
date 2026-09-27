@@ -94,6 +94,16 @@ enum Config {
     /// Beyond this, the "My Flips" ledger routes to the paywall.
     static let ledgerFreeSoldCap = 10
 
+    // ── Easter eggs ──────────────────────────────────────────────────────────
+    /// The "rare find" appraisal for one particular shirt — see `RareFind`.
+    ///
+    /// Compile-time, like everything in this file: the app has no remote
+    /// config, and the backend's runtime switches are never read by the
+    /// client. So this cannot be turned off from a server — switching it off
+    /// takes a build. With it false no detection runs at all and a scan is
+    /// exactly the scan it was before the easter egg existed.
+    static let rareFindEasterEggEnabled = true
+
     // ── Analytics ──────────────────────────────────────────────────────────────
     /// TelemetryDeck app ID (from the telemetrydeck.com dashboard). Analytics
     /// stays a no-op until this is filled in — nothing is sent while empty.
