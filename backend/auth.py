@@ -331,8 +331,11 @@ async def attest(req: AttestRequest, request: Request) -> TokenResponse:
     # (or with Redis full and refusing writes), it was lost at the next deploy
     # or on the other replica; the device's next refresh then got 401, threw its
     # key away, attested again and came back as a new subject with a fresh free
-    # allowance. Failing the attest instead leaves the device on its old key to
-    # retry — the client treats a 503 here as an error, not as "re-attest".
+    # allowance. Failing the attest instead means the client never keeps a key
+    # the server did not: it stores the key id only after a 200
+    # (AttestationService.attestFresh), so it cannot later meet that 401. It
+    # has no older key to fall back on here — it attests again, with a new
+    # one, once Redis accepts writes.
     try:
         await deps.cache.set(_state_key(subject), json.dumps({
             "public_key": result.public_key_pem.decode(),
