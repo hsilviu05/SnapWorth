@@ -26,21 +26,25 @@ import campaigns
 
 HAND_WRITTEN = ("index.html", "invite.html")
 ANCHOR = re.compile(r"<a\b[^>]*>", re.IGNORECASE)
-HREF = re.compile(r"""\bhref\s*=\s*(?:"[^"]*"|'[^']*')""", re.IGNORECASE)
+HREF = re.compile(r"""\bhref\s*=\s*(?:"([^"]*)"|'([^']*)')""", re.IGNORECASE)
 DATA_CT = re.compile(r'\bdata-ct\s*=\s*"([^"]*)"', re.IGNORECASE)
-PRODUCT = re.compile(r"""\bhref\s*=\s*["']https?://(?:apps|itunes)\.apple\.com/(?!redeem\b)""",
-                     re.IGNORECASE)
 
 
-def rewrite(name: str) -> int:
-    path = campaigns.WEBSITE / name
-    text = path.read_text(encoding="utf-8")
+def rewrite(name: str) -> tuple[str, int]:
+    """`name`'s text with its App Store links set from data-ct, and how many."""
+    text = (campaigns.WEBSITE / name).read_text(encoding="utf-8")
     count = 0
 
     def one(tag: re.Match[str]) -> str:
         nonlocal count
         source = tag.group(0)
-        if not PRODUCT.search(source):
+        href = HREF.search(source)
+        if href is None:
+            return source
+        url = html.unescape(href.group(1) if href.group(1) is not None else href.group(2))
+        # The same test check_store_links.py applies: a product page, not the
+        # redeem sheet or Manage Subscriptions.
+        if not campaigns.is_product_link(url):
             return source
         ct = DATA_CT.search(source)
         if ct is None:
@@ -49,13 +53,10 @@ def rewrite(name: str) -> int:
                      "Give it a campaign row in website/README.md and a "
                      "data-ct attribute naming it, then run this again.")
         count += 1
-        href = f'href="{html.escape(campaigns.app_store(ct.group(1)))}"'
-        return HREF.sub(lambda _: href, source, count=1)
+        link = html.escape(campaigns.app_store(ct.group(1)))
+        return f'{source[:href.start()]}href="{link}"{source[href.end():]}'
 
-    updated = ANCHOR.sub(one, text)
-    if updated != text:
-        path.write_text(updated, encoding="utf-8")
-    return count
+    return ANCHOR.sub(one, text), count
 
 
 def run(script: str) -> None:
@@ -67,8 +68,14 @@ def main() -> int:
         campaigns.provider_token()
     except campaigns.MissingProviderToken as missing:
         sys.exit(str(missing))
-    for name in HAND_WRITTEN:
-        print(f"{name}: {rewrite(name)} App Store link(s) set from data-ct", flush=True)
+    # Both pages are rewritten in memory first, so a link with no data-ct in
+    # either stops the run before anything is written.
+    rewritten = {name: rewrite(name) for name in HAND_WRITTEN}
+    for name, (text, count) in rewritten.items():
+        path = campaigns.WEBSITE / name
+        if path.read_text(encoding="utf-8") != text:
+            path.write_text(text, encoding="utf-8")
+        print(f"{name}: {count} App Store link(s) set from data-ct", flush=True)
     run("build_guess.py")
     run("build_seo.py")
     result = subprocess.run([sys.executable,

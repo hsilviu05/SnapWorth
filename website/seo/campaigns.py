@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import pathlib
 import re
+import urllib.parse
 
 # TODO(owner): #204. The provider token from App Store Connect -> App Analytics
 # -> Campaigns -> generate any campaign link: the value after `pt=`. Set it here,
@@ -48,8 +49,24 @@ TABLE_END = "<!-- campaign-table:end -->"
 _ROW = re.compile(r"^\|\s*`([^`]+)`\s*\|\s*`([^`]+)`\s*\|")
 
 
+# A product page's path ends in its `id<digits>`: /app/apple-store/id…,
+# /us/app/<slug>/id…, /app/id…. Nothing else on Apple's store hosts is one or
+# can carry a campaign: the offer-code redeem sheet backend/referral.py builds
+# (/redeem?ctx=offercodes…), and Manage Subscriptions (/account/subscriptions),
+# which the app links to and support.html's "How do I cancel" could.
+STORE_HOSTS = ("apps.apple.com", "itunes.apple.com")
+PRODUCT_PATH = re.compile(r"/id\d+/?$")
+
+
 class MissingProviderToken(RuntimeError):
     pass
+
+
+def is_product_link(url: str) -> bool:
+    """Is `url` an App Store product page, the kind a campaign link is?"""
+    parts = urllib.parse.urlsplit(url)
+    return ((parts.hostname or "").lower() in STORE_HOSTS
+            and PRODUCT_PATH.search(parts.path) is not None)
 
 
 def provider_token() -> str:

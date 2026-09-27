@@ -73,10 +73,44 @@ has no link on its page. Change a row and the page together.
 | `invite_page` | `invite.html` | /i/[code], "Get SnapWorth". Never the invite code: the page masks `/i/[code]` in analytics, and a code in `ct` would publish it to ASC |
 <!-- campaign-table:end -->
 
-A new /worth guide needs its `worth_<slug>` row here; the check names the
-missing one. `worth_<slug>` is built in `build_seo.py`, `guess_web` in
-`build_guess.py`. The hand-written links carry their `ct` in a `data-ct`
-attribute, which is where `seo/apply_campaigns.py` reads it from.
+### Finishing it: one constant, one command
+
+<!-- TODO(owner): #204. Waiting for `pt`. Once it is set and the command below
+     has run, delete this comment and the paragraph under the heading. -->
+
+**Waiting for `pt`.** `PT` in `seo/campaigns.py` is `None` until the owner
+posts the provider token on #204. Until then `app_store()` refuses to build a
+link, so `build_seo.py` and `build_guess.py` exit with a message naming #204
+and write nothing, and `check_store_links.py` fails on every link. The pages
+still carry the old bare links; the hand-written ones already name their `ct`
+in a `data-ct` attribute.
+
+1. In App Store Connect → App Analytics → Campaigns, generate any campaign
+   link. The provider token is the value after `pt=`.
+2. Set `PT = "<that value>"` in `website/seo/campaigns.py`. It is the only
+   place `pt` is written.
+3. From the repository root, on a clean tree, run the one command:
+
+   ```sh
+   python3 website/seo/apply_campaigns.py
+   ```
+
+   It rewrites the eight links in `index.html` and the one in `invite.html`
+   from their `data-ct`, regenerates `/guess`, then the /worth guides, the hub
+   and the sitemap, and runs `check_store_links.py`. It commits nothing, and a
+   second run changes nothing.
+4. Review `git diff`, commit the same day (the sitemap stamps changed pages
+   with today's date, and CI regenerates it from the commit's date), push.
+
+Running `build_seo.py` and then `build_guess.py` again afterwards produces no
+diff; website.yml checks exactly that.
+
+### Adding or changing a campaign
+
+A new /worth guide needs its `worth_<slug>` row in the table; the check names
+the missing one. `worth_<slug>` is built in `build_seo.py`, `guess_web` in
+`build_guess.py`. A new hand-written link needs a row and a `data-ct`
+attribute naming it, which is where `seo/apply_campaigns.py` reads it from.
 
 **Off the site.** Not links on these pages, so the check does not read them,
 but they are campaigns the dashboard will see. The owner generates them in
@@ -92,33 +126,6 @@ The share-card QR codes get their own values in #221 (1.5.2).
 
 Excluded from all of this: the offer-code redeem URL `backend/referral.py`
 builds (`apps.apple.com/redeem?...`), which opens Apple's redeem sheet and
-cannot carry a campaign, and the Smart App Banner (`apple-itunes-app`), which
-has no campaign field.
-
-### Status: waiting for `pt`
-
-<!-- TODO(owner): #204. Post the provider token, then delete this section. -->
-
-`PT` is `None` until the owner posts it on #204. Until then `app_store()`
-refuses to build a link, so `build_seo.py` and `build_guess.py` exit with a
-message naming #204, and `check_store_links.py` fails on every link.
-
-### Finishing it: one constant, one command
-
-1. In App Store Connect → App Analytics → Campaigns, generate any campaign
-   link. The provider token is the value after `pt=`.
-2. Set `PT = "<that value>"` in `website/seo/campaigns.py`.
-3. From the repository root, on a clean tree:
-
-   ```sh
-   python3 website/seo/apply_campaigns.py
-   ```
-
-   It rewrites the eight links in `index.html` and the one in `invite.html`
-   from their `data-ct`, regenerates `/guess`, then the /worth guides, the hub
-   and the sitemap, and runs `check_store_links.py`. It commits nothing.
-4. Review `git diff`, commit the same day (the sitemap stamps changed pages
-   with today's date, and CI regenerates it from the commit's date), push.
-
-Running `build_seo.py` and then `build_guess.py` again afterwards produces no
-diff; website.yml checks exactly that.
+cannot carry a campaign; any other store URL that is not a product page,
+such as Manage Subscriptions (`apps.apple.com/account/subscriptions`); and the
+Smart App Banner (`apple-itunes-app`), which has no campaign field.

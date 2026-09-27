@@ -17,10 +17,13 @@ the growth dashboard reads names only campaigns that exist, and when a link's
 `data-ct` (how apply_campaigns.py finds the hand-written links) disagrees
 with its `ct`.
 
-Excluded: the offer-code redeem URL backend/referral.py builds,
-`https://apps.apple.com/redeem?ctx=offercodes&id=…&code=…`, which opens
-Apple's redeem sheet rather than the product page and cannot carry a
-campaign. The Smart App Banner's `apple-itunes-app` meta holds no URL.
+Only product links are held to this (`campaigns.is_product_link`: a path
+ending in `id<digits>`). Excluded, because it opens Apple's redeem sheet
+rather than the product page and cannot carry a campaign: the offer-code
+redeem URL backend/referral.py builds,
+`https://apps.apple.com/redeem?ctx=offercodes&id=…&code=…`. So is any other
+non-product store URL, such as Manage Subscriptions. The Smart App Banner's
+`apple-itunes-app` meta holds no URL.
 
 Run: python3 website/seo/check_store_links.py
 """
@@ -40,7 +43,6 @@ WEBSITE = campaigns.WEBSITE
 # at a quote, whitespace, `<`, `>` or a backslash, so a URL inside a JS string
 # inside an attribute ends where the attribute does.
 STORE_URL = re.compile(r"https?://(?:apps|itunes)\.apple\.com/[^\s\"'<>\\]*")
-REDEEM_PATH = "/redeem"
 STOREFRONT = re.compile(r"^/([a-z]{2})(?:/|$)")
 ANCHOR = re.compile(r"<a\b[^>]*>", re.IGNORECASE)
 ATTR = re.compile(r"""\b(href|data-ct)\s*=\s*(?:"([^"]*)"|'([^']*)')""", re.IGNORECASE)
@@ -107,8 +109,8 @@ def main() -> int:
         text = path.read_text(encoding="utf-8")
         for match in STORE_URL.finditer(text):
             url = html.unescape(match.group(0))
-            if urllib.parse.urlsplit(url).path.rstrip("/") == REDEEM_PATH:
-                continue
+            if not campaigns.is_product_link(url):
+                continue    # the redeem sheet, Manage Subscriptions
             checked += 1
             found, ct = problems_with(url, page, table)
             if ct is not None:
