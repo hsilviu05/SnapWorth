@@ -1026,7 +1026,7 @@ class TestModelCallDeadline:
             return real(request)
 
         async def fake(contents, *, label, max_tokens=None, record_health=True,
-                       deadline=None):
+                       deadline=None, thinking_budget=None):
             assert deadline is not None
             seen.append(deadline - time.monotonic())
             return json.dumps(V2_PAYLOAD), {}

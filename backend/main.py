@@ -2600,7 +2600,7 @@ def _record_usage(label: str, usage: dict) -> None:
 
 async def _generate_with_retry(
     contents, *, label: str, max_tokens: int | None = None, record_health: bool = True,
-    deadline: float | None = None,
+    deadline: float | None = None, thinking_budget: int | None = None,
 ) -> tuple[str, dict]:
     """Call the model with classified retries and jittered backoff.
 
@@ -2623,10 +2623,15 @@ async def _generate_with_retry(
     provider; a real provider failure whose retry the deadline skipped still
     is, because that attempt did fail at Gemini.
 
+    `thinking_budget` replaces the global one for this call; None keeps it.
+    The text-only calls pass `aiconfig.TEXT_THINKING_BUDGET`.
+
     Returns `(text, usage_dict)`.
     """
     last_exc: Exception | None = None
-    config = aiconfig.generation_config(max_output_tokens=max_tokens) if max_tokens else None
+    config = (aiconfig.generation_config(max_output_tokens=max_tokens,
+                                         thinking_budget=thinking_budget)
+              if max_tokens or thinking_budget is not None else None)
 
     for attempt in range(_RETRY_ATTEMPTS):
         remaining = None if deadline is None else deadline - time.monotonic()
@@ -2746,7 +2751,8 @@ async def _retry_as_json(raw: str, *, deadline: float | None = None) -> dict | N
     # call. Recording it twice would make one bad scan look like two.
     try:
         text, _usage = await _generate_with_retry(
-            prompt, label="reformat", record_health=False, deadline=deadline)
+            prompt, label="reformat", record_health=False, deadline=deadline,
+            thinking_budget=aiconfig.TEXT_THINKING_BUDGET)
     except aiconfig.ModelUnavailable:
         # A real outage, correctly classified. The caller's own 502 already
         # says "try again", which is the right advice for this.
@@ -2864,7 +2870,8 @@ async def listing(
     try:
         raw, _usage = await _generate_with_retry(
             prompt, label="listing", max_tokens=aiconfig.LISTING_MAX_OUTPUT_TOKENS,
-            deadline=_client_deadline(request))
+            deadline=_client_deadline(request),
+            thinking_budget=aiconfig.TEXT_THINKING_BUDGET)
     except aiconfig.ModelBlocked:
         # Listing copy is derived from the user's own valuation, so a block here
         # is recoverable — the deterministic fallback still produces a usable

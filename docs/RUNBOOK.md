@@ -704,6 +704,11 @@ work on does not.
    quality decision and belongs to `backend/eval/runner.py`, run at a candidate
    budget and compared, not to a number picked here. This is the highest-value
    *cost* lever in the list and the one most able to damage the product.
+   It is the scan's budget only. `/listing` and the reformat retry below run
+   with thinking off (`GEMINI_TEXT_THINKING_BUDGET`, default 0): neither
+   produces a valuation, so they are not that quality decision. Set it to
+   `-1` before pointing `GEMINI_MODEL` at a model that cannot run without
+   thinking — 2.5 Pro refuses 0, which would fail every listing.
 4. **Prompt length** — v2 is ~700 tokens of the ~960 input. Input is ~5% of
    per-scan cost, so trimming saves ~$85/mo at 1M users; not worth degrading
    output for. (The old model put this at ~$40/mo on prices 4× too low.)
