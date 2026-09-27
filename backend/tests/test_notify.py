@@ -2837,13 +2837,28 @@ class TestMinimumBuild:
         assert await notify.minimum_build() is None
 
     @pytest.mark.asyncio
+    async def test_it_does_not_claim_trends_users_are_told(self, enabled_notify):
+        """The only /trends caller is `try? await TrendsAPIClient…fetch`, so a
+        refused build is told nothing there; the Trending card disappears."""
+        unset, _ = await self._run("/minbuild")
+        await self._run("/minbuild 18 yes")
+        current, _ = await self._run("/minbuild")
+        for text in (unset, current):
+            assert "Trending card" in text
+            assert "/listing and /trends, telling" not in text
+            assert "update on /scan, /listing and /trends" not in text
+
+    @pytest.mark.asyncio
     async def test_setting_it_takes_two_taps_and_quotes_the_message(self, enabled_notify):
         text, buttons = await self._run("/minbuild 18")
         assert await notify.minimum_build() is None, "the first tap must not act"
         # The operator sees what refused users will read before it goes live,
-        # and that the oldest builds will read it as an outage instead.
+        # what the oldest builds see instead, and that /trends shows nothing:
+        # the app fetches it with `try?`, so nobody there is "told" anything.
         assert html.escape(notify.UPDATE_REQUIRED_DETAIL) in text
-        assert "outage" in text
+        assert "Something went wrong" in text
+        assert "outage" not in text
+        assert "disappears" in text
         confirm = next(d for d in self._datas(buttons) if d.endswith("yes"))
         text, _ = await self._run("/" + confirm)
         assert "18" in text

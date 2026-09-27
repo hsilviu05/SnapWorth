@@ -2121,8 +2121,10 @@ def _lever_buttons(current: int | None) -> Buttons:
 # A bad client release could not be told to update: the server did not know
 # which build was calling, and had no switch to act on it if it had.
 # `main._refuse_outdated_build` reads this on /scan, /listing and /trends and
-# refuses a build below it with `UPDATE_REQUIRED_DETAIL`. /auth is never
-# gated, so an old build can still sign in and record a purchase.
+# refuses a build below it with `UPDATE_REQUIRED_DETAIL`. Only /scan and
+# /listing show that text; the app fetches /trends with `try?`, so a refusal
+# there shows nothing. /auth is never gated, so an old build can still sign in
+# and record a purchase.
 #
 # Off until set, and fails open: an unreadable value serves everyone, because
 # a switch that locks out every user when Redis blinks is worse than none.
@@ -2187,14 +2189,18 @@ async def _minbuild_command(argument: str, rest: str) -> tuple[str, Buttons]:
             return f"📵 <b>{wanted}</b> is not a build number.", back
         if not confirmed:
             return (f"📵 <b>Refuse builds below {wanted}?</b>\n"
-                    f"On /scan, /listing and /trends they would be told: "
+                    f"On /scan and /listing they would be told: "
                     f"<i>{html.escape(UPDATE_REQUIRED_DETAIL)}</i>\n"
+                    f"/trends is refused too, but the app drops that error "
+                    f"silently and its Trending card just disappears.\n"
                     f"Only do this once build <b>{wanted}</b> is live on the "
-                    f"App Store. Builds 10 and older cannot show this text and "
-                    f"will read it as an outage. Sign-in and purchases stay "
-                    f"open, and a request that does not say its build is always "
-                    f"served. The access log's <code>build</code> field shows "
-                    f"who is still on an older one.\n"
+                    f"App Store. Builds 7 and older cannot show this text and "
+                    f"will see \"Something went wrong\". Sign-in and purchases "
+                    f"stay open, and a request that does not say its build is "
+                    f"always served. The access log's <code>build</code> field "
+                    f"shows who is still on an older one, and "
+                    f"<code>snapworth_outdated_build_refused_total</code> "
+                    f"counts refusals.\n"
                     f"Currently: <b>{current if current is not None else 'none'}</b>.",
                     [[(f"✅ Yes, require {wanted}", f"minbuild {wanted} yes"),
                       ("Cancel", "minbuild")]])
@@ -2206,11 +2212,13 @@ async def _minbuild_command(argument: str, rest: str) -> tuple[str, Buttons]:
     if current is None:
         return ("📵 <b>Minimum build</b>: none — every build is served.\n"
                 "<code>/minbuild &lt;n&gt;</code> refuses builds below n on "
-                "/scan, /listing and /trends, telling them to update.",
+                "/scan, /listing and /trends. /scan and /listing tell them to "
+                "update; on /trends the Trending card just disappears.",
                 await _buttons())
     return (f"📵 <b>Minimum build</b>: <b>{current}</b>\n"
-            f"Builds below it are told to update on /scan, /listing and "
-            f"/trends. Sign-in and purchases stay open.",
+            f"Builds below it are told to update on /scan and /listing, and "
+            f"lose the Trending card, since the app drops a /trends error "
+            f"silently. Sign-in and purchases stay open.",
             [[("↩️ Serve every build", "minbuild off")]] + await _buttons())
 
 

@@ -455,19 +455,29 @@ class TestOutdatedBuildsAreToldToUpdate:
             r = client.post("/scan", content=body,
                             headers=headers | {"User-Agent": _app_agent(17)})
             assert not model.generate_content_async.called, "the model was billed"
-        # 502 is the one status whose `detail` every build from 11 shows as
-        # written; a 426 would be shown as "Something went wrong".
-        assert r.status_code == 502, r.text
+        # 422 is the status whose `detail` every build from 8 shows as written
+        # (`.unusablePhoto`); a 426 would be shown as "Something went wrong",
+        # and a 502 as "Our AI is temporarily unavailable" on builds 8-10.
+        assert r.status_code == 422, r.text
         assert r.json()["detail"] == notify.UPDATE_REQUIRED_DETAIL
         assert "App Store" in r.json()["detail"]
         assert counted == [] and completed == []
+
+    def test_a_refusal_does_not_page(self):
+        """Turning `/minbuild` on must not look like a Gemini outage: a 5xx
+        here is a `DEPENDENCY` error, which pages and feeds the 5xx surge."""
+        self._require(18)
+        r = self._trends(_app_agent(12))
+        assert r.json()["detail"] == notify.UPDATE_REQUIRED_DETAIL
+        assert r.status_code < 500
+        assert not observability.classify_status(r.status_code).pages
 
     @pytest.mark.parametrize("method, path", [("GET", "/trends"), ("POST", "/listing")])
     def test_listing_and_trends_are_gated_too(self, method, path):
         self._require(18)
         r = client.request(method, path, json={} if method == "POST" else None,
                            headers={"User-Agent": _app_agent(12)})
-        assert r.status_code == 502, r.text
+        assert r.status_code == 422, r.text
         assert r.json()["detail"] == notify.UPDATE_REQUIRED_DETAIL
 
     def test_the_minimum_itself_and_newer_are_served(self):

@@ -369,13 +369,23 @@ async def _refuse_outdated_build(request: Request) -> None:
     On /scan, /listing and /trends only, and on the route rather than the app,
     so /auth is never gated: an old build can still sign in and record a
     purchase. Route-level, so it runs before `require_auth` — a refused build
-    is told to update rather than sent round a token refresh first.
+    is told to update rather than sent round a token refresh first. Only /scan
+    and /listing show the message: the app fetches /trends with `try?`
+    (HistoryView), so there a refusal just hides the Trending card.
 
-    502 because it is the one status whose `detail` every build from 1.3.4
-    (build 11) shows word for word (`AppError.from` → `.aiFailed`); 426 would
-    be the honest code, and every installed build shows it as "Something went
-    wrong". Builds 10 and older show fixed copy whatever the status, so to them
-    this reads as an outage — which `/minbuild` says before it is set.
+    422 because it is the status whose `detail` every build from 1.3.1
+    (build 8) shows word for word (`AppError.from` → `.unusablePhoto`, which no
+    view special-cases). 426 would be the honest code, and every installed
+    build shows it as "Something went wrong". Builds 7 and older show fixed
+    copy whatever the status — for 422, that same "Something went wrong" —
+    which `/minbuild` says before it is set.
+
+    Not 502, which this was first: that rested on 502 reaching every build
+    from 11 and nothing before 11 showing server text at all. Builds 8-10 map
+    502 to the fixed "Our AI is temporarily unavailable" — an outage, and a
+    retry, told to someone who needs an update — and a 502 is a paging
+    `DEPENDENCY` 5xx that lands in the "5xx surge" page and reads as Gemini
+    down. A 422 is a non-paging 4xx; `outdated_build_refused` counts it.
 
     A request whose build cannot be read is served: unknown is not old.
     """
@@ -388,7 +398,7 @@ async def _refuse_outdated_build(request: Request) -> None:
     metrics.outdated_build_refused.inc(endpoint=metrics.endpoint_label(request.url.path))
     log.info("outdated build told to update",
              extra={"build": build, "minimum": minimum})
-    raise HTTPException(status_code=502, detail=notify.UPDATE_REQUIRED_DETAIL)
+    raise HTTPException(status_code=422, detail=notify.UPDATE_REQUIRED_DETAIL)
 
 
 async def _bot_scan(image_bytes: bytes, declared_type: str) -> dict:
