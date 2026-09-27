@@ -57,8 +57,9 @@ jobs:
             if [ "$attempt" -lt 3 ]; then sleep 30; fi
           done
           # /health/ready names its reason: "durable cache configured but
-          # unreachable" is Redis (§5.4); "starting up or draining" is the
-          # process; 000 is nothing answering at all.
+          # not accepting writes" is Redis — down (§5.4) or full and refusing
+          # writes (§5.4c); "starting up or draining" is the process; 000 is
+          # nothing answering at all.
           reason=$(python3 -c 'import json; print(json.load(open("/tmp/ready.json")).get("reason", ""))' 2>/dev/null || true)
           echo "status=${code}" >> "$GITHUB_OUTPUT"
           echo "reason=${reason}" >> "$GITHUB_OUTPUT"
