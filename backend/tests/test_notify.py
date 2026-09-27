@@ -3847,10 +3847,9 @@ class TestExperimentExport:
         text = await notify._experiment_export(
             datetime(2026, 9, 30, 8, 0, tzinfo=timezone.utc))
         lines = self._csv(text)
-        assert lines[0].startswith("# SnapWorth free-scan experiment, 2026-09-10 to "
-                                   "2026-09-24; exported 2026-09-30 08:00 UTC")
-        assert "while the window was open" not in lines[0]
-        assert ("# welcome at export: lever armed — 3 first-day scans, "
+        assert lines[0] == ("# SnapWorth free-scan experiment · 2026-09-10 to "
+                            "2026-09-24 · exported 2026-09-30 08:00 UTC")
+        assert ("# welcome at export: lever armed — 3 first-day scans · "
                 "from FREE_SCANS_FIRST_DAY=3") in lines
         header = lines.index("day,active_users,scans_free,limit_hits,new_subs,note")
         rows = lines[header + 1:]
@@ -3880,6 +3879,42 @@ class TestExperimentExport:
         assert lines[0].endswith("while the window was open")
         assert [ln[:10] for ln in lines if ln.startswith("2026-")] == [
             "2026-09-10", "2026-09-11", "2026-09-12"]
+
+    @pytest.mark.asyncio
+    async def test_the_block_parses_as_csv_with_each_note_one_field(
+            self, cache, monkeypatch):
+        """CSV has no comments. The notes had commas in them — the welcome line
+        several, most with the lever set from chat and capped — so the block
+        saved as a .csv read as ragged rows ahead of its header."""
+        import csv
+
+        from quota import WelcomeSetting
+
+        async def capped():
+            return WelcomeSetting(daily=10, environment=3, override=12, cap=10)
+        monkeypatch.setattr(notify, "_describe_welcome", capped)
+        await cache.set(notify.LEVERS_KEY, json.dumps({
+            "free_scans_first_day": 12,
+            "changes": [["20260911", None, 12]]}))
+        await self._seed(cache, "20260910", active_users=6, scans_free=4, limit_hits=1)
+
+        lines = self._csv(await notify._experiment_export(
+            datetime(2026, 9, 30, 8, 0, tzinfo=timezone.utc)))
+        parsed = list(csv.reader(lines))
+        notes = [row for row in parsed if row and row[0].startswith("#")]
+        assert len(notes) == 3, notes
+        assert all(len(row) == 1 for row in notes), notes
+        assert "capped at 10" in notes[1][0] and "set from chat" in notes[1][0], notes
+        assert notes[2] == ["# lever changed 2026-09-11: environment default -> "
+                            "12 first-day scans"]
+        table = [row for row in parsed if row and not row[0].startswith("#")]
+        assert table[0] == ["day", *notify.EXPERIMENT_COUNTERS, "note"]
+        assert {len(row) for row in table} == {len(table[0])}, table
+        assert table[1] == ["2026-09-10", "6", "4", "1", "0",
+                            notify.EXPERIMENT_PARTIAL_NOTE]
+        # A reader that skips `#` lines gets the table and nothing else.
+        rows = list(csv.DictReader(ln for ln in lines if not ln.startswith("#")))
+        assert len(rows) == 15 and rows[0]["limit_hits"] == "1", rows[0]
 
     @pytest.mark.asyncio
     async def test_an_unreadable_cache_exports_nothing_rather_than_zeros(

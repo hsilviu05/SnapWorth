@@ -4186,6 +4186,20 @@ async def _experiment_text(now: datetime | None = None) -> str:
     return "\n".join([head, window, *rows, total, *notes])
 
 
+def _csv_comment(text: str) -> str:
+    """A `#` line for the export that a CSV parser reads as one field.
+
+    CSV has no comment syntax, so a comma in a note split it into cells — the
+    welcome line has several — and the block saved as a .csv read as ragged
+    rows ahead of its real header. The notes stay inside the block, because
+    the partial day and any lever move have to travel with the rows, and lose
+    their commas instead: to " · ", and semicolons too, which a spreadsheet
+    in a comma-decimal locale splits on. Not quoted: a quoted line starts with
+    `"`, and a reader told to skip `#` lines would no longer skip it.
+    """
+    return "# " + re.sub(r"\s*[,;]\s*", " · ", text)
+
+
 async def _experiment_export(now: datetime | None = None) -> str:
     """`/experiment export`: the window's table as CSV, to keep.
 
@@ -4248,13 +4262,15 @@ async def _experiment_export(now: datetime | None = None) -> str:
         # quota's `allowance`.
         setting = dataclasses.replace(setting, override=_lever_value(levers))
     _, head, why = _welcome_summary(setting)
-    lines = [f"# SnapWorth free-scan experiment, {start:%Y-%m-%d} to {end:%Y-%m-%d}; "
-             f"exported {now:%Y-%m-%d %H:%M} UTC"
-             + ("" if today > EXPERIMENT_END_DAY else " while the window was open"),
-             f"# welcome at export: {head} — {why}"]
+    lines = [_csv_comment(f"SnapWorth free-scan experiment · {start:%Y-%m-%d} to "
+                          f"{end:%Y-%m-%d} · exported {now:%Y-%m-%d %H:%M} UTC"
+                          + ("" if today > EXPERIMENT_END_DAY
+                             else " while the window was open")),
+             _csv_comment(f"welcome at export: {head} — {why}")]
     for day_changed, before, after in _lever_changes_in(shown, levers):
-        lines.append(f"# lever changed {day_changed[:4]}-{day_changed[4:6]}-"
-                     f"{day_changed[6:]}: {_lever_label(before)} -> {_lever_label(after)}")
+        lines.append(_csv_comment(
+            f"lever changed {day_changed[:4]}-{day_changed[4:6]}-{day_changed[6:]}: "
+            f"{_lever_label(before)} -> {_lever_label(after)}"))
     lines.extend(rows)
 
     kept = [d for d in shown if not _stat_expired(d, now)]
