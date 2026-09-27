@@ -37,6 +37,7 @@ from eval import metrics  # noqa: E402
 from eval import schema  # noqa: E402
 from eval import stats  # noqa: E402
 from eval.experiment import (  # noqa: E402
+    DEFAULT_GUARDRAILS,
     ArmResult,
     Guardrail,
     Verdict,
@@ -508,6 +509,23 @@ class TestExperiment:
         violation = g.check(None, Metric.measured("bias", 9.0, 10))
         assert violation and "ceiling" in violation
 
+    # Bias is signed, so a relative increase judged it backwards: -10 → -5,
+    # halfway to zero, blocked a candidate as "+50%".
+    def _bias_guardrail(self, baseline: float, candidate: float) -> str | None:
+        (g,) = [g for g in DEFAULT_GUARDRAILS if g.metric == "bias"]
+        return g.check(Metric.measured("bias", baseline, 40),
+                       Metric.measured("bias", candidate, 40))
+
+    def test_bias_moving_toward_zero_from_below_is_not_a_violation(self):
+        assert self._bias_guardrail(-10.0, -5.0) is None
+
+    def test_bias_from_a_zero_baseline_keeps_its_tolerance(self):
+        assert self._bias_guardrail(0.0, 0.5) is None
+
+    def test_bias_growing_on_the_over_valuation_side_is_a_violation(self):
+        violation = self._bias_guardrail(1.0, 6.0)
+        assert violation and "past zero" in violation
+
 
 # ═══ CI gates ═════════════════════════════════════════════════════════════════
 
@@ -582,6 +600,30 @@ class TestGates:
     def test_a_zero_baseline_respects_direction(self):
         report = gates.check(self._set(within_25pct=10.0),
                              self._set(within_25pct=0.0))
+        assert report.status is gates.GateStatus.PASSED
+
+    # Bias is signed, and positive (over-valuing) is the dangerous side. A
+    # relative change failed an improvement toward zero and passed a swing
+    # past it; a zero baseline left no tolerance at all.
+    def test_bias_improving_toward_zero_from_below_passes(self):
+        report = gates.check(self._set(bias=-5.0), self._set(bias=-10.0))
+        assert report.status is gates.GateStatus.PASSED
+
+    def test_bias_from_a_zero_baseline_is_within_tolerance(self):
+        report = gates.check(self._set(bias=0.5), self._set(bias=0.0))
+        assert report.status is gates.GateStatus.PASSED
+
+    def test_bias_growing_toward_over_valuation_fails(self):
+        report = gates.check(self._set(bias=5.0), self._set(bias=2.0))
+        assert report.status is gates.GateStatus.FAILED
+
+    def test_bias_swinging_from_under_to_over_valuation_fails(self):
+        report = gates.check(self._set(bias=3.0), self._set(bias=-10.0))
+        assert report.status is gates.GateStatus.FAILED
+
+    def test_bias_does_not_gate_the_under_valuation_side(self):
+        """+2 → -40 is MdAPE's to catch; bias gates over-valuation only."""
+        report = gates.check(self._set(bias=-40.0), self._set(bias=2.0))
         assert report.status is gates.GateStatus.PASSED
 
     def test_baseline_roundtrip(self, tmp_path):
