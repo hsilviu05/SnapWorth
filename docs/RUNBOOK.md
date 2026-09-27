@@ -842,6 +842,10 @@ tombstone's.
    A 503 releases the `apns2:{uuid}` idempotency key on purpose, so the
    redelivery gets a real second attempt rather than landing on the duplicate
    branch. Check the logs for `could not revoke a refunded entitlement`.
+   A Redis outage is a 503 too, because the tombstone is written with Redis
+   required. Before that it was not: the write fell back to one replica's
+   memory and Apple got a 200, so a refund that arrived during an earlier
+   outage may have no tombstone and no retry coming. Use step 4 for it.
 4. To revoke by hand, write the tombstone yourself:
    `redis-cli SET entrevoked:{otid} '{"revoked_at":<epoch>,"expires_at":<term expiry epoch>}' EX 34560000`
 5. Access goes away at the user's next request, or immediately if you also

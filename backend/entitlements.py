@@ -701,10 +701,19 @@ class EntitlementService:
         # caller has to know — this is the one write in the entitlement path
         # that must not be best-effort.
         #
+        # `required`, or they would not. `ResilientCache` sends a failed write
+        # that is not required to this replica's memory and returns as if it
+        # had landed, so for a whole Redis outage this wrote every tombstone to
+        # one process, returned True, and the route answered Apple 200 with
+        # nothing to retry. Once Redis was back `_is_revoked` read Redis, found
+        # nothing, and `_rederive` restored Pro from the pre-refund proof for
+        # the rest of the refunded term. The comment above was true only of a
+        # cache that raises.
+        #
         # At least as long as any proof it has to outlive: a proof's TTL is
         # capped at its own expiry plus grace, so this covers every one.
         await self._cache.set(self._tombstone_key(ent), payload,
-                              ENTITLEMENT_PROOF_TTL)
+                              ENTITLEMENT_PROOF_TTL, required=True)
         if ent.environment == SANDBOX_ENVIRONMENT:
             # A bounded entitlement has no proof for the tombstone to stop
             # re-deriving; what keeps it alive is the claim, which `current()`
@@ -712,7 +721,11 @@ class EntitlementService:
             # holder's next request rather than when their entry lapses. The
             # tombstone still matters: it refuses the pre-refund JWS if it is
             # presented again.
-            await self._cache.delete(self._sandbox_key(otid))
+            #
+            # `required` for the same reason as the tombstone: a delete that
+            # fell back to memory left the claim in Redis for the rest of its
+            # TTL, up to a day of Pro after a refund Apple was told we handled.
+            await self._cache.delete(self._sandbox_key(otid), required=True)
         log.info("subscription revoked by Apple",
                  extra={"product_id": ent.product_id,
                         "environment": ent.environment})

@@ -114,6 +114,42 @@ class RecordingCache(ResilientCache):
         return await super().set(key, value, ttl, **kw)
 
 
+class _Redis:
+    """A durable backend that can go down and come back.
+
+    Behind `ResilientCache(..., configured=True)` this is production's shape:
+    while `down`, a `required` call raises `CacheUnavailable` and every other
+    call is quietly served from process memory instead.
+    """
+
+    def __init__(self) -> None:
+        self.down = False
+        self._store = InMemoryCache()
+
+    def _up(self) -> InMemoryCache:
+        if self.down:
+            raise ConnectionError("redis is down")
+        return self._store
+
+    async def get(self, key: str) -> str | None:
+        return await self._up().get(key)
+
+    async def set(self, key: str, value: str, ttl: int | None = None) -> None:
+        await self._up().set(key, value, ttl)
+
+    async def add(self, key: str, value: str, ttl: int | None = None) -> bool:
+        return await self._up().add(key, value, ttl)
+
+    async def incr(self, key: str, ttl: int | None = None, amount: int = 1) -> int:
+        return await self._up().incr(key, ttl, amount)
+
+    async def delete(self, key: str) -> None:
+        await self._up().delete(key)
+
+    async def ping(self) -> bool:
+        return await self._up().ping()
+
+
 @pytest.fixture
 def cache() -> RecordingCache:
     return RecordingCache()
@@ -633,3 +669,49 @@ class TestSandboxNotificationRoute:
         again = client.post(route, json={"signedPayload": payload})
         assert again.status_code == 200
         assert again.json()["status"] != "duplicate"
+
+    @pytest.mark.parametrize("route, environment, seen", [
+        ("/apple/notifications/sandbox", "Sandbox", "apns2:sandbox:{uuid}"),
+        ("/apple/notifications", "Production", "apns2:{uuid}"),
+    ])
+    def test_a_redis_outage_is_a_503_not_a_revocation_in_memory(
+            self, pinned, monkeypatch, route, environment, seen):
+        """The test above makes `revoke` itself raise. A real outage never did:
+        on the cache production wires in, a write that is not `required` falls
+        back to this process's memory and returns normally. So the tombstone,
+        and for Sandbox the claim's removal, landed on one replica only, Apple
+        got a 200 and never retried, and once Redis was back the holder was
+        Pro again — from the proof for Production, from the claim still in
+        Redis for Sandbox."""
+        redis = _Redis()
+        cache = ResilientCache(redis, InMemoryCache(), configured=True)
+        store = EntitlementService(cache, BUNDLE_ID, PRODUCTS)
+        monkeypatch.setattr(auth.deps, "entitlements", store)
+        monkeypatch.setattr(main, "_cache", cache)
+
+        # The same term the refund below names, so its tombstone covers it.
+        jws = sandbox(pinned) if environment == "Sandbox" else production(pinned)
+        run(store.record("holder", jws, authenticated=True))
+        assert run(store.current("holder")).tier == "pro"
+
+        uuid = f"outage-{environment}"
+        payload = self._refund(pinned, uuid=uuid, environment=environment)
+        redis.down = True
+        r = client.post(route, json={"signedPayload": payload})
+        assert r.status_code == 503, (
+            "Apple was told the refund was handled while the revocation "
+            "existed only in one process's memory")
+        assert run(cache.get(seen.format(uuid=uuid))) is None
+
+        redis.down = False
+        again = client.post(route, json={"signedPayload": payload})
+        assert again.status_code == 200, again.text
+        assert again.json()["status"] != "duplicate"
+        if environment == "Production":
+            # The day-long entry lapses, as it does in production; the
+            # tombstone is what stops the proof re-deriving Pro.
+            run(cache.delete("ent:holder"))
+        else:
+            assert run(cache.get("ent:holder")) is not None, (
+                "precondition: the entry is still cached, so this measures the claim")
+        assert run(store.current("holder")).tier == "free"
