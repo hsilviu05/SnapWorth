@@ -134,7 +134,7 @@ GRATUIT ȘI PRO
 SnapWorth se folosește gratuit, fără cont. Primești o scanare gratuită în fiecare zi, pentru totdeauna. Fiecare găselniță se salvează pe telefonul tău cu valoarea ei, iar istoricul rămâne al tău, fie că plătești sau nu.
 
 Pro adaugă:
-• Scanări nelimitate
+• Scanări nelimitate (în limita utilizării rezonabile)
 • Anunțuri rescrise pentru platforma pe care o alegi — OLX, Vinted, eBay, Poshmark, Mercari, Depop sau Facebook Marketplace
 • „Why this price” — explicația completă din spatele estimării, inclusiv scara de prețuri și ce a cântărit
 • Citirea etichetei — fotografiază eticheta de întreținere pentru o estimare mai exactă

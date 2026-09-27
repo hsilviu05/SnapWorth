@@ -1470,3 +1470,85 @@ class TestTokensOnATextlessReplyAreCounted:
         usage, outcomes = self._run(self._reply(text="{}", finish="STOP"))
         assert usage.call_count == 1
         assert outcomes == ["success"]
+
+
+# ── Thinking is off for the text-only calls ──────────────────────────────────
+#
+# The thinking budget was global, so /listing and the reformat retry paid the
+# scan's reasoning tax for work it does not improve: a listing is copy around a
+# valuation it is handed, and the reformat restates a reply as bare JSON. The
+# scan itself must keep whatever GEMINI_THINKING_BUDGET says — capping that is
+# the quality decision `backend/eval/runner.py` exists to make.
+
+class TestThinkingIsOffForTextCalls:
+    @staticmethod
+    def _sent(model) -> list[Any]:
+        """The per-call config each model call carried, None for the default."""
+        return [c.kwargs.get("generation_config")
+                for c in model.generate_content_async.await_args_list]
+
+    def test_the_budget_parser(self):
+        assert aiconfig._budget("") is None
+        assert aiconfig._budget("  ") is None
+        assert aiconfig._budget("off") is None
+        assert aiconfig._budget("0") == 0
+        assert aiconfig._budget("-1") == -1
+        assert aiconfig._budget(" 512 ") == 512
+
+    def test_text_calls_default_to_no_thinking(self):
+        assert aiconfig.TEXT_THINKING_BUDGET == 0
+
+    def test_a_per_call_budget_is_sent_and_beats_the_global_one(self, monkeypatch):
+        monkeypatch.setattr(aiconfig, "THINKING_BUDGET", 512)
+        wire = aiconfig.generation_config(thinking_budget=0).model_dump(
+            exclude_none=True, mode="json")
+        assert wire["thinking_config"] == {"thinking_budget": 0}
+        assert aiconfig.generation_config().model_dump(
+            exclude_none=True, mode="json")["thinking_config"] == {"thinking_budget": 512}
+
+    def test_an_unset_global_budget_still_sends_nothing(self, monkeypatch):
+        monkeypatch.setattr(aiconfig, "THINKING_BUDGET", None)
+        wire = aiconfig.generation_config().model_dump(exclude_none=True, mode="json")
+        assert "thinking_config" not in wire
+
+    def test_a_listing_is_written_without_thinking(self):
+        from tests.test_main import MOCK_LISTING_JSON, _post_listing
+        _rate_store.clear()
+        _ip_rate_store.clear()
+        reply = MagicMock()
+        reply.text = _json.dumps(MOCK_LISTING_JSON)
+        with patch("main._model") as model:
+            model.generate_content_async = AsyncMock(return_value=reply)
+            assert _post_listing("no-thinking").status_code == 200
+        [config] = self._sent(model)
+        assert config.thinking_config.thinking_budget == 0
+        assert config.max_output_tokens == aiconfig.LISTING_MAX_OUTPUT_TOKENS
+
+    def test_the_reformat_is_asked_without_thinking(self):
+        import asyncio
+
+        import main
+        reply = MagicMock()
+        reply.text = '{"item_name": "Lamp"}'
+        with patch("main._model") as model:
+            model.generate_content_async = AsyncMock(return_value=reply)
+            assert asyncio.run(main._retry_as_json("Sure! The item is a lamp.")) == {
+                "item_name": "Lamp"}
+        [config] = self._sent(model)
+        assert config.thinking_config.thinking_budget == 0
+
+    def test_the_scan_keeps_the_models_own_config(self, monkeypatch):
+        """No per-call config at all, so the scan runs on the model's default
+        — which carries GEMINI_THINKING_BUDGET when one is set."""
+        monkeypatch.setattr(aiconfig, "THINKING_BUDGET", None)
+        _rate_store.clear()
+        _ip_rate_store.clear()
+        reply = MagicMock()
+        reply.text = _json.dumps(V2_PAYLOAD)
+        with patch("main._model") as model:
+            model.generate_content_async = AsyncMock(return_value=reply)
+            r = _client.post(
+                "/scan", headers={"x-device-id": "scan-thinks"},
+                files={"file": ("s.jpg", _io.BytesIO(_img("JPEG")), "image/jpeg")})
+        assert r.status_code == 200
+        assert self._sent(model) == [None]

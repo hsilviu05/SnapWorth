@@ -54,15 +54,17 @@ actually arrives:
 | Current state | `/status` | Build, cache backend, auth enforcement, last deploy ping, today's counters |
 | What it costs | `/costs` | Gemini spend by window, `$/scan`, free-tier giveaway, and the operator's own bot usage listed separately |
 | Subscribers | `/subs` | Active, paid, comped, and MRR |
-| Is the free-scan experiment working | `/experiment` | The whole window at once: limit hits against new subscriptions, day by day, with a running total |
-| Start or stop the free-scan experiment | `/lever` | Arms or disarms the first-day allowance without a Railway change or a redeploy. Two taps, clamped, and `/experiment` footnotes any day it moved |
+| Is the free-scan experiment working | `/experiment` | The whole window at once: limit hits against new subscriptions, day by day, with a running total, and whether a new user gets a first-day welcome right now — as the quota resolves it, so `FREE_SCANS_FIRST_DAY=1` at a daily limit of 1 reads "lever not armed" |
+| Keep the experiment's numbers | `/experiment export` (💾 under `/experiment`) | The same rows as CSV in a block to copy into `docs/`. The counters expire 35 days after each day, so the 2026-09-10 → 09-24 window starts disappearing on 2026-10-15. An expired day is exported empty, not as zeros, and an unreadable Redis exports nothing. The `#` lines above the header (the window, the welcome, any lever move) have no commas, so each parses as one CSV field, and a reader that skips `#` lines gets only the table |
+| Start or stop the free-scan experiment | `/lever` | Arms or disarms the first-day allowance without a Railway change or a redeploy. Two taps, clamped, and `/experiment` footnotes any day it moved. It checks a value against the running quota's own daily limit and cap, and refuses to arm when it cannot ask |
 | Make a bad or stranded build update | `/minbuild <n>` | /scan, /listing and /trends answer builds below `n` with a 422 telling them to update from the App Store; `/minbuild off` serves all again. Two taps. Set it only once build `n` is live. /scan and /listing show the message to builds 8 and up; builds 7 and older show fixed copy ("Something went wrong"). /trends is refused too, but the app drops that error silently and the Trending card disappears. /auth is never gated, and a request whose build is unreadable is served. A 422 is a non-paging 4xx: refusals are counted in `snapworth_outdated_build_refused_total`, by endpoint. The access log's `build` field (from the User-Agent) shows who is still on what |
 | Yesterday | The daily digest | Sent automatically at `TELEGRAM_DIGEST_UTC_HOUR` (default 06:00 UTC); a weekly report on Mondays |
 
 Unprompted alerts arrive the same way: a new subscription, a deploy ping per
 commit, the AI provider or Redis going down and coming back, a quiet-hours
-note when nothing has scanned during US daytime, a budget warning (off unless
-`GEMINI_DAILY_BUDGET_USD` is set), and a device-paused alert after repeated
+note when nothing has scanned during US daytime, a budget warning (off until
+`GEMINI_DAILY_BUDGET_USD` is set — production must set it, §12, and
+`🩺 Checkup` says so while it is not), and a device-paused alert after repeated
 unanalysable photos. One alert comes from outside the backend, because the bot
 cannot report its own container being gone: the Uptime workflow probes
 `/health/ready` every 10 minutes (§3).
@@ -108,8 +110,9 @@ failed every free scan with a 503 and the next digest read like a quiet day.
 | **Redis unreachable** / recovered | `notify.cache_state_changed`, fed by `ResilientCache`'s own down/up transitions | cache calls have failed for 60 s straight (`CACHE_ALERT_SETTLE_SECONDS`); the all-clear after 60 s of success | Telegram, at most once per 30 min | §5.4 |
 | **AI provider degraded** / recovered | `notify.model_unhealthy`, from `main._ModelHealth` | `MODEL_UNHEALTHY_AFTER` (2) consecutive terminal model failures; a quota stop on the first | Telegram, at most once per 30 min | §5.3 |
 | **Quiet** | `notify._quiet_check`, every 15 min | no successful scan for 6 h during 13:00–03:59 UTC | Telegram, once per window | `🩺 Checkup` |
-| **Over budget** | `notify._note_usage` | day's Gemini spend passes `GEMINI_DAILY_BUDGET_USD` — **off by default (0)** | Telegram, once per day | `/costs` |
+| **Over budget** | `notify._note_usage` | day's Gemini spend passes `GEMINI_DAILY_BUDGET_USD` — **off by default (0), and must be set in production (§12)**; `🩺 Checkup` reads *Spend alert: OFF ⚠️* until it is | Telegram, once per day | `/costs` |
 | **Device paused** | `notify._announce_safety_pause` | repeated blocked photos from one device | Telegram, once per device per day | none needed |
+| **Referral pool low** / empty | `notify.referral_pool_low`, from `referral.take_code` | a friend or reward pool reaches `REFERRAL_POOL_LOW_AT` (20) codes, and again at empty; only while referrals are on | Telegram, once per pool per state per UTC day | §18 |
 
 **Why two layers.** The Telegram alerts run *inside* the backend, so they
 cannot report the backend being gone: a crash-looping or unscheduled container
@@ -334,7 +337,8 @@ model change degraded identification. It is a **quality** incident, not an
 availability one.
 
 1. Compare `confidence_score` and `valuation_clamped_total` before and after.
-2. Roll back the prompt without a redeploy: `SCAN_PROMPT_VERSION=v1`.
+2. Roll back the prompt without a code deploy: `SCAN_PROMPT_VERSION=v2` if
+   v2.1 is serving, `v1` if v2 is (§6, *Changing the scan prompt*).
 3. Run the benchmark before shipping a fix (`docs/EVALUATION.md`).
 
 ### 5.8 Quota abuse
@@ -350,9 +354,49 @@ availability one.
    DNS record, Railway's CDN), change `client_ip` to take the hop a configured
    number of places from the right. Otherwise the rightmost hop is the CDN's
    address and one 60/hr bucket serves every user.
-3. Tighten via env; no deploy needed if the platform supports variable updates
+3. The IP bucket is one for every route with a limit — `/scan`, `/listing`,
+   `/trends`, `/auth/entitlement`, and the unauthenticated `/auth` routes and
+   `/apple/notifications` — so from one address they stop together. The
+   per-device buckets are one per route, per hour (`ratelimit.py`):
+
+   | Route | Bucket (Redis key) | Default | Env |
+   |---|---|---|---|
+   | `/scan`, free | `rl:dev:<subject>` | 20 | `RATE_MAX_REQUESTS` |
+   | `/scan`, Pro | `rl:dev:<subject>` | 60 — the fair-use ceiling on "Unlimited scans" | `PRO_SCAN_RATE_MAX_REQUESTS` |
+   | `/listing` (Pro only) | `rl:listing:<subject>` | 60, the IP cap; never below it (below) | `LISTING_RATE_MAX_REQUESTS` |
+   | `/trends` | `rl:trends:<subject>` | 60 — no model call; a loop-breaker | `TRENDS_RATE_MAX_REQUESTS` |
+   | `/auth/entitlement` | `rl:ent:<subject>` | 60 | `ENTITLEMENT_RATE_MAX_REQUESTS` |
+
+   `/scan`, `/listing` and `/trends` used to share `rl:dev:` at 20: a Pro
+   reseller who scanned and drafted each item stopped after about ten, and
+   each Trending card fetch spent a scan. By default the Pro scan cap and the
+   listing cap both equal the IP cap. So a Pro user who also drafts or opens
+   My Finds from the same address meets the IP cap first, and it refuses scans
+   and drafts together. A reseller who drafts every item gets about thirty an
+   hour. Raising `IP_RATE_MAX_REQUESTS` lifts that and loosens the
+   unauthenticated routes with it; raise `LISTING_RATE_MAX_REQUESTS` with it.
+
+   **Keep the listing cap at or above the IP cap.** Every build of the app
+   says "You've hit the scan limit." for any 429, a draft's included
+   (`AppError.rateLimitMessage`), and Haul pauses both of its queues on
+   either one's 429 (`HaulSession`). That is true only when the address
+   bucket refused. At 20, the size `/listing` had while it shared `rl:dev:`,
+   a Pro user's 21st draft of the hour was refused with scans to spare. The
+   Result screen said "scan limit", Haul stopped scanning for up to the rest
+   of the hour, and Haul's confirm still said "Drafts use the same hourly
+   limit as scans." Lowering `LISTING_RATE_MAX_REQUESTS`, or raising
+   `IP_RATE_MAX_REQUESTS` past it, brings all of that back for every
+   installed build, and the server cannot fix it there. Either fix needs a
+   new binary. One is app copy for a draft's 429 (new App.json keys). The
+   other is a response header naming the bucket that refused (additive;
+   nothing sends one yet), so Haul could pause only the full queue. One case
+   remains at 60: a device that changes address within the hour can fill its
+   own draft bucket first. The cost is unchanged per address, since the IP
+   cap bounds that at 60 requests an hour, whatever the mix. A device moving
+   between addresses can reach 60 scans and 60 drafts.
+4. Tighten via env; no deploy needed if the platform supports variable updates
    with a restart.
-4. Sustained abuse from one IP range needs a platform-level block; there is no
+5. Sustained abuse from one IP range needs a platform-level block; there is no
    application-level IP blocklist `[NOT IMPLEMENTED]`.
 
 ---
@@ -373,7 +417,7 @@ confident wrong number is the product being wrong, and users act on it.
    is the known cause: gemini-2.5-flash spends **reasoning** tokens out of
    `max_output_tokens`, measured at 1138–1777 per scan against a ~700-token
    payload. If the ceiling is squeezed, JSON truncates before the price fields,
-   which sit two-thirds down the v2 schema.
+   which sit two-thirds down the v2 schema and lower still in v2.1's.
 3. Do not lower `GEMINI_MAX_OUTPUT_TOKENS` below **4096** — 2048 shipped and
    produced exactly this bug. It is a cap, not a spend: unused headroom is not
    billed, while truncated answers are billed in full and thrown away.
@@ -395,6 +439,30 @@ after tests pass (`.github/workflows/backend.yml`).
 | Instant rollback | Railway redeploy of a previous build |
 | Migrations | **None exist.** No relational database; Redis holds durable state (§9) but has no schema to migrate |
 | Feature flags | Env-var based: `SCAN_PROMPT_VERSION`, `COMPS_ENABLED`, `COMPS_SHADOW_MODE`, `ALLOWED_STOREKIT_ENVIRONMENTS`, `SANDBOX_ENTITLEMENTS` |
+
+### Changing the scan prompt
+
+`SCAN_PROMPT_VERSION` picks the valuation prompt: `v1`, `v2` (the default) or
+`v2.1`. v2.1 is v2 with the multiple-items rule restored, the evidence asked
+for before the prices, the market named (US resale value, in USD), and the v1
+low/high pair left to the server; `backend/prompts.py` gives the reasons. The
+response has the same fields and types under all three.
+
+1. Compare on real photos first. It needs `GEMINI_API_KEY`, and costs one
+   vision call per photo, per arm, per repeat:
+   ```bash
+   cd backend && python -m eval.runner --photos <folder of real scans> \
+     --repeats 3 --compare v2 v2.1 --json-out runs/v2.1.json
+   ```
+   Without sale prices this says how far v2.1 moves prices, and its
+   consistency, latency and tokens, not whether it is more accurate
+   (`docs/EVALUATION.md`, *Without labels*).
+2. Set `SCAN_PROMPT_VERSION=v2.1` on the Railway service. It is read at
+   startup, so it applies once the service restarts with it.
+3. Send the Telegram bot a photo. The last line of its reply starts
+   `Prompt v2.1`. An unrecognised value serves the default without
+   complaint, so this is the check that the change took.
+4. To go back, set `v2` or remove the variable.
 
 ### Shutdown sequence (implemented in `main._lifespan`)
 
@@ -418,7 +486,8 @@ still-starting instances, and the graceful shutdown achieves nothing.
       names each commit as it goes live, `/status` shows the last one, and
       `GET /health` reports the running `commit`. (`snapworth_build_info` has
       the same fact, but nothing scrapes `/metrics` — §3.)
-- [ ] **Prompt-only regression?** Set `SCAN_PROMPT_VERSION=v1` — no redeploy
+- [ ] **Prompt-only regression?** Set `SCAN_PROMPT_VERSION` back one version
+      (`v2.1` → `v2`, `v2` → `v1`) — no code deploy
 - [ ] **Comps-related?** Set `COMPS_ENABLED=false` — no redeploy
 - [ ] Otherwise redeploy the previous Railway build
 - [ ] Verify `/health/ready` returns 200
@@ -497,7 +566,8 @@ body-only key, so the checkup names the shape instead:
 | `…is on a single line — its newlines were lost` | re-paste with real line breaks, or with a literal `\n` between them |
 | `…has no BEGIN/END lines` | paste the whole file, not just the base64 body |
 | `private key unreadable — …` | the envelope is right but the contents are not a P-256 key; check it is the unencrypted `.p8` Apple issued |
-| `could not reach Apple (…)` | network, not credentials — nothing to change |
+| `Apple unreachable just now (…)` | a timeout, a connection failure or a 5xx — not credentials. Nothing to change; run the checkup again |
+| `probe could not be sent (…)` | the request failed before any answer from Apple was read, for a reason that is not the network: a client or code fault, not the key. Look in the server log for `devicecheck probe could not be sent` and its traceback, not in the developer portal |
 
 **Then verify — do not trust "configured".** `is_configured` only means the
 three variables are non-empty, and a wrong key cannot recognise a reinstall, so
@@ -509,6 +579,13 @@ Run `🩺 Checkup`:
 - `DeviceCheck: configured ✅ — credentials accepted by Apple` — Apple signed off.
 - `DeviceCheck: configured but REJECTED — key rejected …` — one of the three
   variables is wrong, or the key lacks the DeviceCheck capability.
+- `DeviceCheck: configured · Apple unreachable just now (…)` — Apple did not
+  answer, so nothing is known about the key yet. Run it again. While it lasts,
+  reinstalls get a fresh allowance, as in any Apple outage (§5.6).
+- `DeviceCheck: configured · probe could not be sent (…)` — not a verdict on
+  the key either, but not transient: see the table above. Scans send the same
+  request, so until it is fixed reinstalls get a fresh allowance and new
+  installs no welcome, as with a rejected key.
 
 The probe sends a deliberately fake device token: Apple reads the
 Authorization header first, so a `400` about the token proves the key signs
@@ -578,8 +655,8 @@ Scan history still lives on-device, and nothing here can lose it.
 | `opsstate:levers` | the free-scan lever and its change log | none | **None** | The lever silently reverts to `FREE_SCANS_FIRST_DAY`, switching the experiment's arm mid-window, and `/experiment` loses the footnotes saying when it moved |
 | `opsidx:subs`, `opsidx:users` | the operator's subscriber and device tables | 400 d | Rebuilt slowly | `/subs` and `/users` start empty and refill as each subscriber syncs or Apple notifies — up to a year for yearly plans |
 | `opssocial:tiktok:tokens` | TikTok OAuth tokens | 400 d | **None** | `/social` loses TikTok until re-authorised |
-| `refpool:*`, `refpool:seen:*` | offer-code pools, cursor, and the loader's ledger of every code ever loaded | none | **None** | Unissued codes are gone; and without the ledger, reloading an old CSV hands out codes that were already given away |
-| `ref:*` | referral links, claims, earned and parked reward codes | 400 d | **None** | Referrers lose rewards they earned and have not redeemed |
+| `refpool:*`, `refpool:seen:*` | offer-code pools, cursor, and the loader's ledger of every code ever loaded | none | **None** | Every batch is burned: which of its codes were handed out is known only here. Reloading an old CSV — or a restore that rewinds the cursor — hands out codes friends were already given, which Apple refuses |
+| `ref:*` | referral links, device bindings, claims, reward and redemption markers, earned and parked reward codes | 400 d | **None** (the app log has each issued slot, `referral code issued`, never the code) | Referrers lose rewards they earned and have not redeemed; a reward can be issued twice for one purchase |
 | `dct:{keyId}` | DeviceCheck token from attestation | 400 d | Next attest | Reinstall marking waits for the device's next attestation |
 | `opsstats:*`, `opsstate:*` (other), `chal:*`, rate limits, `comps:*`, `safety:*` | counters, digests, challenges, limits, caches | ≤ 400 d | — | Digest history and today's limits; disposable |
 
@@ -613,14 +690,18 @@ restart would lose everything.
 ### If Redis's data is gone
 
 Restoring the volume, or any snapshot, comes first — a day-old snapshot loses
-a day; a fresh instance loses everything. Only if there is nothing to restore:
+a day; a fresh instance loses everything. **A restore still burns every
+referral batch:** the cursor goes back to the snapshot, and the codes handed
+out since would be handed out again. After any restore, run
+`load_referral_codes.py --retire friend` and `--retire reward`, then load a
+newly generated batch into each (§18). Only if there is nothing to restore:
 
 - [ ] **Refund tombstones.** Pull REFUND and REVOKE notifications from the App
       Store Server API's *Get Notification History* for as far back as Apple
       keeps them, and write each tombstone by hand (§16 step 4).
 - [ ] **Referral codes.** Do **not** reload an old code CSV: the ledger that
       stopped a code being loaded twice is gone, so already-issued codes would
-      be issued again. Load only a newly generated batch.
+      be issued again. Load only a newly generated batch (§18).
 - [ ] **Free-scan lever.** Re-arm it with `/lever` if it was armed, and note
       the date — `/experiment` no longer knows when it moved.
 - [ ] **TikTok.** Re-authorise from `/social`.
@@ -673,6 +754,28 @@ Optimisation effort belongs in what the model is asked to reason about, not in
 container efficiency. Margins stay healthy either way; the ranking of what to
 work on does not.
 
+### A Pro subscriber used hard
+
+The table above is an average, and averages hide the one case where a user
+costs more than they pay. Pro is sold as unlimited scans; what a day of it can
+cost, at the same ~$0.0059 a scan and assuming Apple's 15% commission (30%
+lowers both break-evens):
+
+| Plan | Net per day | Scans a day it pays for |
+|---|---|---|
+| Yearly, $39.99 | ~$0.093 | ~16 |
+| Monthly, $4.99 | ~$0.139 | ~24 |
+
+A reseller scanning 40 items a day costs ~$0.24 against ~$0.09 — a loss, not
+an outage. Drafts add to it: a listing is a text-only call and now runs
+without thinking (below), so it should cost well under a scan — unmeasured.
+The per-hour fair-use cap (§5.8, 60 scans) bounds a burst, not a day: a full
+hour costs ~$0.35. From one address, scans and drafts share 60 requests an
+hour, so drafts take the place of scans under that ceiling rather than adding
+to it. What watches a heavy *day* is the over-budget alert, which is why
+`GEMINI_DAILY_BUDGET_USD` is on the launch checklist (§12). None of this is
+measured per subscriber; `/costs` has no per-subscriber view.
+
 ### Optimisations, ranked by value
 
 1. **Result caching by image hash** `[NOT IMPLEMENTED]` — users re-scan the same
@@ -685,6 +788,14 @@ work on does not.
    quality decision and belongs to `backend/eval/runner.py`, run at a candidate
    budget and compared, not to a number picked here. This is the highest-value
    *cost* lever in the list and the one most able to damage the product.
+   Measure it on prompt v2.1 and set it only while v2.1 serves: the cap applies
+   to every scan whatever the prompt, and v2 asks for the prices before the
+   evidence (`docs/EVALUATION.md`, *Without labels*).
+   It is the scan's budget only. `/listing` and the reformat retry below run
+   with thinking off (`GEMINI_TEXT_THINKING_BUDGET`, default 0): neither
+   produces a valuation, so they are not that quality decision. Set it to
+   `-1` before pointing `GEMINI_MODEL` at a model that cannot run without
+   thinking — 2.5 Pro refuses 0, which would fail every listing.
 4. **Prompt length** — v2 is ~700 tokens of the ~960 input. Input is ~5% of
    per-scan cost, so trimming saves ~$85/mo at 1M users; not worth degrading
    output for. (The old model put this at ~$40/mo on prices 4× too low.)
@@ -733,6 +844,12 @@ work on does not.
       404-not-401 design below is hiding. Also publishes the
       `/apple/notifications` trust model and every request body's constraints.
 - [ ] `AUDIT_SALT` set to a real value
+- [ ] `GEMINI_DAILY_BUDGET_USD` set — **unset, the over-budget alert is off**
+      (0 disables it), and it is the only thing that notices a heavy day: Pro
+      is sold as unlimited scans and capped only per hour (§5.8, §10). Size it
+      at a few times a normal day's spend on `/costs`; crossing it sends one
+      💸 message and changes nothing else. `🩺 Checkup` reads *Spend alert:
+      OFF ⚠️* until it is set
 - [x] ~~`TRUSTED_PROXY=true`~~ — **no longer read.** `_client_ip` now always takes the
       rightmost `X-Forwarded-For` hop, so the per-IP limit no longer depends on this
       variable being remembered. The old note here was also wrong about the failure:
@@ -1137,3 +1254,157 @@ typo can only narrow access.
 - Logs: `sandbox entitlement recorded on bounded terms`.
 - `redis-cli GET entsandbox:{otid}` names the subject that holds it.
 
+---
+
+## 18. Referrals (#97) — before switching them on
+
+Off in production: `REFERRALS_ENABLED` is unset, and the feature is inert
+until `REFERRAL_FRIEND_OFFER` names the friend offer too. `backend/referral.py`
+has the design; this is what the operator does.
+
+### The hardening, and the decision it leaves open
+
+The 2026-09-26 audit found the routes would have taken any `device_id` from
+anyone once switched on, so a script could farm Apple codes until both pools
+ran dry. Now:
+
+- While on, both routes refuse a caller without an App Attest token (401).
+  The app always sends one; nothing else should be calling. Off, `/status`
+  still answers `enabled: false` to anyone and writes nothing.
+- A device answers to the first attested subject that presented it, and a
+  subject speaks for only the first device it presented (`ref:owner:*`,
+  `ref:subjdev:*`, 400 days). Anything else is a 403.
+- A reward is once per friend device **and** once per Apple
+  `originalTransactionId` (`ref:rewardedtxn:*`), so one redemption synced from
+  several devices pays once.
+- Limits: `REFERRAL_RATE_MAX_REQUESTS` (60/h per subject) and
+  `REFERRAL_IP_RATE_MAX_REQUESTS` (120/h per IP), with a pair of buckets per
+  route — `ref:`/`ref-ip:` for `/status`, `ref-claim:`/`ref-claim-ip:` for
+  `/claim`. Apart from the scan route's, so the app's status poll on every
+  foreground cannot spend anyone's scan allowance; apart from each other, so
+  it cannot spend a friend's claim either, which every installed build words
+  "Too many tries today. Try again tomorrow." A `/status` 429 hides the
+  referral surfaces for up to an hour (the app reads it as off); if that
+  happens to users behind one shared address, raise
+  `REFERRAL_IP_RATE_MAX_REQUESTS`.
+- Pool reads and the cursor increment require Redis: an outage is a 503
+  ("Invites are paused"), never a code served from process memory.
+- A claim's and a reward's markers are written for 10 minutes
+  (`PENDING_TTL`) and kept for 400 days only once the code is handed out or
+  parked. An outage that cuts an attempt off usually takes its undo with it;
+  what it left then expires in those 10 minutes, where it used to stay for
+  400 days — a friend refused as "already used an invite" without ever
+  getting a code, a referrer's week lost.
+
+- [ ] **Decide the reinstall trade-off.** An App Attest key is per install, so
+  a reinstall is a new subject presenting a device the old install owns, and
+  the binding refuses it for 400 days: that user's invite surfaces disappear,
+  and weeks their friends earn them are parked where they cannot collect
+  them. The alternative is to let a subject that has never presented any
+  device take over a bound device. That keeps reinstalls whole and still caps
+  one install to one device; what it gives up is protection against someone
+  who has learned another person's `device_id`, which the server never
+  discloses. Choose before enabling. The change is in `referral._bind`.
+
+### Switching on
+
+- [ ] **Not while installs still run a build without the app half.** 1.5.0
+      (build 20) already carries the referral UI — #97 (`6d133a5`) is an
+      ancestor of `435cba6` "chore: 1.5.0, build 20" — and none of `0074d2a`
+      or `4f1c591`. On those installs the referrer's "You earned a week"
+      alert and earned weeks say nothing about the week renewing, a referral
+      week gets no "trial ends tomorrow" reminder, and the events keep their
+      old names. They light up the moment `REFERRALS_ENABLED` does. Find the
+      first build whose archive holds `4f1c591` by its **Organizer archive
+      date** — the `chore:` bump is only a lower bound (CLAUDE.md) — and
+      switch on once the access log's `build` field shows installs have moved
+      to it. The alternative, `/referral/status` answering `enabled: false`
+      to older builds read from the User-Agent as `/minbuild` does, is an
+      additive server change and an owner decision not yet taken. (Unlike the
+      rest, `0074d2a`'s trial-reminder rule is live in that build whether
+      referrals are on or not: from iOS 17.2 any free promotional or
+      offer-code period gets the reminder.)
+- [ ] **Count both names of each event while 1.5.0 is installed.**
+      `referral_shared` is `referral_share_opened`; `referral_redeemed` is
+      `referral_code_accepted` — the server accepting a code, before Apple's
+      sheet, not a redemption; `referral_rewarded` is
+      `referral_reward_opened`. Conversions are the digest's server counters.
+- [ ] Two offers in App Store Connect, both 7 days free on the yearly plan,
+      one-time-use codes: the friend offer (eligibility: new subscribers) and
+      the reward offer.
+- [ ] Load both pools (below) and check `🩺 Checkup`'s Referrals line.
+- [ ] `REFERRAL_FRIEND_OFFER` = the friend offer's **reference name**, exactly;
+      `REFERRALS_ENABLED=1`. Read at startup: redeploy.
+- [ ] The website's `/i/<code>` page is live — every share link points
+      there. `python3 website/seo/check_live.py https://www.snapworth.eu`
+      must pass; on 2026-09-27 it did not (`/i/TEST1` answered 404).
+- [ ] **Check the privacy policy against what is kept.** Both copies say "If
+      you use Invite a friend, our server keeps the invite code made for your
+      device". But the app asks `/referral/status` on every return to the
+      foreground, and that mints a code — and now a device binding — for
+      every user on their first foreground once referrals are on, whether or
+      not they open Invite a friend. Reward and redemption markers are keyed
+      on Apple's `originalTransactionId`, which the policy lists under the
+      subscription record rather than under referrals. Either reword the
+      policy or have the app stop minting from the background poll; both are
+      owner decisions.
+
+### Loading codes
+
+```
+railway run python3 backend/tools/load_referral_codes.py friend codes.csv
+railway run python3 backend/tools/load_referral_codes.py reward codes.csv
+railway run python3 backend/tools/load_referral_codes.py --status
+```
+
+Loading appends and skips any code already loaded into either pool, so
+re-running a file against the same Redis is harmless. **After any loss of
+Redis's data — a fresh instance or a restore — every batch loaded before it is
+burned.** Nothing left can say which of its codes were handed out, and a code
+handed out twice is refused by Apple for the second friend, who cannot claim
+again. After a restore, `--retire friend` and `--retire reward` mark what is
+left as used; after a fresh instance there is nothing to retire. Then generate
+new batches and load only those. Reward codes earned but not yet redeemed live
+only in Redis and cannot be recovered; the app log records each issued slot
+(`referral code issued`, pool and slot, never the code) as the record of how
+far each batch had got.
+
+### What the operator sees
+
+- **Digest:** `Referrals: N claimed · N redeemed at Apple · N rewarded · N paid
+  after the free week`, on days with any. *Claimed* is a friend given an Apple
+  code; *redeemed* is the friend offer's transaction reaching the server;
+  *rewarded* is a week parked for a referrer; *paid* is that subscription's
+  first paid period, from the app's sync or Apple's renewal notice, whichever
+  comes first. The app's own events (`referral_share_opened`,
+  `referral_code_accepted`, `referral_reward_opened`) are taps, not
+  conversions.
+- **Checkup:** `Referrals: on · friend codes N of M left · reward codes N of M
+  left`, with ⚠️ at or below `REFERRAL_POOL_LOW_AT`. `pools unreadable
+  (CacheUnavailable)` is Redis not answering — the pools are not empty, and
+  there is nothing to load.
+- **Alert:** a pool reaching `REFERRAL_POOL_LOW_AT`, and again empty (§3). An
+  empty friend pool answers every claim "Invites are paused"; an empty reward
+  pool leaves the referrer owed a week, retried at the friend's next sync
+  once refilled.
+- **A week lost to an outage.** A reward that Redis cut off is retried at
+  the friend's next sync of the same purchase — at once if the undo reached
+  Redis, otherwise once its markers expire. That sync has to come during the
+  free week: after it, the subscription's transaction no longer carries the
+  friend offer, and nothing is retried. The reward's log lines (`referral
+  reward not issued`, `referral marker left to expire`, `referral reward
+  count not given back`) carry `purchase` and `referrer`:
+  `auditlog.pseudonymise` of the friend's `originalTransactionId` and of the
+  referrer's device id. A later `referral reward parked` with the same
+  `purchase` means the retry worked. If none came, reissue by hand: the
+  referrer's device is the `ref:mine:<device>` key whose pseudonym is
+  `referrer` (under `railway run`, which has `AUDIT_SALT`); take a code with
+  `referral.take_code("reward")`, so the pool's cursor moves, and append
+  `{"code": …, "earned_at": <unix time>}` to the JSON list at
+  `ref:rewards:<device>`. `referral claim not confirmed`, with `referrer`, is
+  a friend who got a code whose claim was not kept: a redemption synced more
+  than 10 minutes later finds no claim and rewards nobody, so if no
+  `referral reward parked` for that `referrer` follows, reissue the same way.
+  `referral reward marker not confirmed` is the opposite — the week was
+  parked, a later sync may park a second one, counted against the referrer's
+  yearly cap — and needs nothing.

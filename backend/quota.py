@@ -103,6 +103,60 @@ class QuotaStatus:
         return 2**31 if self.unlimited else max(0, self.limit - self.used)
 
 
+@dataclass(frozen=True)
+class WelcomeSetting:
+    """The first-day welcome as `ScanQuota` resolves it, for whoever has to
+    report it or change it.
+
+    The ops bot used to work this out for itself: its own default for
+    FREE_SCANS_PER_DAY, its own copy of the cap, and not the rule that a
+    first-day allowance no larger than the daily one is no welcome at all.
+    The missing rule is the copy that went wrong, twice: `/lever arm`
+    confirmed "1 first-day scan" that the quota discarded (fixed in 6cae388),
+    and `/experiment` printed `FREE_SCANS_FIRST_DAY=1` — nothing, at a daily
+    limit of 1 — as though the lever were armed. The default and the cap
+    still matched; each was one quota edit away from not matching. It now
+    asks the quota that grants the scans, and `allowance` is the only
+    statement of the rule.
+    """
+
+    daily: int
+    # FREE_SCANS_FIRST_DAY as this process was started with it. 0 when unset.
+    environment: int
+    # The operator's runtime value, or None to leave it to `environment`. An
+    # unreadable override is None too: the quota falls back the same way.
+    override: int | None
+    cap: int
+
+    @property
+    def configured(self) -> int:
+        """What was asked for, before the rule: the override if there is one."""
+        return self.environment if self.override is None else self.override
+
+    @property
+    def scans(self) -> int:
+        """First-day scans a new subject gets now. 0 is no welcome."""
+        return self.allowance()
+
+    def allowance(self, configured: int | None = None) -> int:
+        """What a new subject would get if `configured` were asked for — by
+        default, what is asked for now. 0 is no welcome.
+
+        Clamped to `cap`, because a lever reachable from a chat must not be
+        able to hand out an unbounded allowance; and then a value no larger
+        than the daily limit is not a welcome, so it is 0 rather than itself.
+        """
+        value = self.configured if configured is None else configured
+        value = max(0, min(value, self.cap))
+        return value if value > self.daily else 0
+
+    @property
+    def smallest(self) -> int | None:
+        """The smallest value that is a welcome, or None when the cap leaves
+        no room above the daily limit."""
+        return self.daily + 1 if self.daily + 1 <= self.cap else None
+
+
 def _utc_day() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%d")
 
@@ -119,10 +173,12 @@ def _utc_month() -> str:
 def _exhausted_message(limit: int) -> str:
     """User-facing copy for a spent allowance.
 
-    The message is echoed to the user verbatim by the client, so it has to read
-    correctly at every limit. The old f-string hardcoded the plural and, once
-    the free tier moved to one scan a day, told everybody "You've used all 1
-    free scans today."
+    The client shows it as written: in every language on a build from before
+    the error codes, in English on one that reads them (another language gets
+    the app's own sentence for `quota_exhausted`). So it has to read correctly
+    at every limit. The old f-string hardcoded the plural and, once the free
+    tier moved to one scan a day, told everybody "You've used all 1 free scans
+    today."
     """
     if limit == 1:
         return "You've used your free scan for today."
@@ -158,34 +214,41 @@ class ScanQuota:
     # real money against the Gemini bill.
     MAX_FIRST_DAY_SCANS = 10
 
-    async def _first_day_limit(self) -> int:
-        """Today's welcome allowance, or 0 when the welcome is off.
+    async def describe_welcome(self) -> WelcomeSetting:
+        """The welcome as this quota resolves it, for the ops bot.
+
+        Injected into the bot from main, the way `welcome_override` is
+        injected here, so the bot's confirmations and `/experiment` report what
+        a new subject is actually granted rather than a re-derivation of it.
 
         Resolved per call rather than captured at construction, because the
         override is settable at runtime. An unreadable override falls back to
         the environment value: it must never fail the scan, and it must never
         fail *open* to a larger allowance than was configured.
-
-        This costs one cache read per free scan where the old code short-
-        circuited for free when the welcome was off. At a few hundred scans a
-        month that is not worth optimising, and the accessor is only consulted
-        when one was injected.
         """
-        configured = self._env_first_day
+        override: int | None = None
         if self._welcome_override is not None:
             try:
                 value = await self._welcome_override()
             except Exception:                       # pragma: no cover - defensive
                 value = None
             if value is not None:
-                configured = value
-        try:
-            configured = int(configured)
-        except (TypeError, ValueError):
-            configured = self._env_first_day
-        configured = max(0, min(configured, self.MAX_FIRST_DAY_SCANS))
-        # A first-day limit no larger than the daily one is not a welcome.
-        return configured if configured > self._limit else 0
+                try:
+                    override = int(value)
+                except (TypeError, ValueError):
+                    override = None
+        return WelcomeSetting(daily=self._limit, environment=self._env_first_day,
+                              override=override, cap=self.MAX_FIRST_DAY_SCANS)
+
+    async def _first_day_limit(self) -> int:
+        """Today's welcome allowance, or 0 when the welcome is off.
+
+        This costs one cache read per free scan where the old code short-
+        circuited for free when the welcome was off. At a few hundred scans a
+        month that is not worth optimising, and the accessor is only consulted
+        when one was injected.
+        """
+        return (await self.describe_welcome()).scans
 
     @staticmethod
     def _counter_key(subject: str, day: str | None = None) -> str:

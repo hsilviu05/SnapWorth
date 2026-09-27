@@ -18,15 +18,21 @@ read the diff; a key that disappeared or changed type is a breaking change:
 
 from __future__ import annotations
 
+import asyncio
 import io
 import json
 import os
 import pathlib
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import pytest
+
 import aiconfig
+import apierrors
 import main
+import notify
 import quota
+from cache import InMemoryCache, ResilientCache
 from tests.conftest import build_deps
 from tests.images import padded_image_bytes
 from tests.test_ai_pipeline import V2_PAYLOAD, _client, _scan_with
@@ -146,6 +152,10 @@ class TestSuccessBodies:
         fixture = _check("scan-response.json", r.json())
         # Pro has no count; the client falls back to its own (I-3).
         assert fixture["free_scans_remaining"] is None
+        # One code per reason, in the same order: the client words reason n
+        # by code n, so a list of a different length is shown as sent.
+        assert fixture["confidence_reason_codes"]
+        assert len(fixture["confidence_reason_codes"]) == len(fixture["confidence_reasons"])
 
     def test_the_free_body(self):
         """The common case. Most of the detail is blanked (`_strip_pro_detail`)
@@ -157,6 +167,8 @@ class TestSuccessBodies:
         assert r.status_code == 200
         fixture = _check("scan-response-free.json", r.json())
         assert fixture["free_scans_remaining"] == quota.FREE_SCANS_PER_DAY - 1
+        # The codes are the reasons in another form, so they are Pro detail too.
+        assert fixture["confidence_reasons"] == fixture["confidence_reason_codes"] == []
 
     def test_free_and_pro_carry_the_same_keys(self):
         """The Pro split blanks values; it never drops a key, so one decoder
@@ -181,10 +193,14 @@ class TestSuccessBodies:
 
 # ── The error bodies ─────────────────────────────────────────────────────────
 #
-# The client reads `detail` (and FastAPI's validation list), `Retry-After` on a
-# 429, and routes a 402 to the paywall by its wording — `AppError.from` tests
-# whether `detail` contains "pro feature" to tell "Pro only" from "allowance
-# spent". So for the 402s the wording is contract too.
+# Every body carries `detail` and, beside it, a `code` (`apierrors`). A client
+# routes and translates on the code, so its *value* is contract, which the
+# type comparison above does not check — each test here asserts it.
+#
+# The wording is contract too, where an installed build routes on it: builds
+# before the codes send a 402 to "Pro required" when `detail` contains "pro
+# feature" and to "allowance spent" otherwise (`AppError.from`), and a newer
+# build still does when a body has no code.
 
 class TestErrorBodies:
     def test_the_quota_402(self):
@@ -194,22 +210,66 @@ class TestErrorBodies:
         assert r.status_code == 402
         fixture = _check_error("errors/scan-402-quota.json",
                                _error(r, "X-Quota-Resets-At"))
+        assert fixture["body"]["code"] == apierrors.QUOTA_EXHAUSTED
         assert "pro feature" not in fixture["body"]["detail"].lower(), (
-            "the client would route a spent allowance to the Pro-only message")
+            "an installed build would route a spent allowance to the Pro-only message")
 
     def test_the_listing_402(self):
         r = _post_listing(pro=False)
         assert r.status_code == 402
         fixture = _check_error("errors/listing-402-pro.json", _error(r))
+        assert fixture["body"]["code"] == apierrors.PRO_REQUIRED
         assert "pro feature" in fixture["body"]["detail"].lower(), (
-            "the client tells this 402 from a spent allowance by these words")
+            "installed builds tell this 402 from a spent allowance by these words")
 
     def test_the_unusable_photo_422(self):
         with patch("main._generate_with_retry",
                    AsyncMock(side_effect=aiconfig.ModelBlocked("SAFETY"))):
             r = _scan_with(V2_PAYLOAD)
         assert r.status_code == 422
-        _check_error("errors/scan-422-unusable-photo.json", _error(r))
+        fixture = _check_error("errors/scan-422-unusable-photo.json", _error(r))
+        assert fixture["body"]["code"] == apierrors.PHOTO_UNUSABLE
+
+    def test_the_not_resalable_422(self):
+        """The one message no fixed translation says in full: `detail` carries
+        the model's own reason."""
+        declined = {**V2_PAYLOAD, "category": "other",
+                    "est_value_low_usd": 0, "est_value_high_usd": 0,
+                    "worst_case_price_usd": 0, "quick_sale_price_usd": 0,
+                    "expected_price_usd": 0, "best_case_price_usd": 0,
+                    "uncertainty_factors": ["This is a photograph of food"]}
+        r = _scan_with(declined)
+        assert r.status_code == 422
+        fixture = _check_error("errors/scan-422-not-resalable.json", _error(r))
+        assert fixture["body"]["code"] == apierrors.NOT_RESALABLE
+        assert "photograph of food" in fixture["body"]["detail"]
+
+    def test_the_ai_unavailable_502(self):
+        with patch("main._generate_with_retry",
+                   AsyncMock(side_effect=aiconfig.ModelUnavailable("down"))):
+            r = _scan_with(V2_PAYLOAD)
+        assert r.status_code == 502
+        fixture = _check_error("errors/scan-502-ai-unavailable.json", _error(r))
+        assert fixture["body"]["code"] == apierrors.AI_UNAVAILABLE
+
+    def test_the_update_required_426(self, monkeypatch):
+        """What a build that sends `X-SnapWorth-Build` gets below `/minbuild`."""
+        store = ResilientCache(None, InMemoryCache())
+        monkeypatch.setattr(notify, "_cache", store)
+        asyncio.run(store.set(notify.MIN_BUILD_KEY, "30"))
+        main._rate_store.clear()
+        main._ip_rate_store.clear()
+        # Patched so a gate that let this through could not reach the model.
+        with patch("main._generate_with_retry", AsyncMock()) as model:
+            r = _client.post(
+                "/scan", headers={"x-device-id": "contract-426", "X-SnapWorth-Build": "29"},
+                files={"file": ("s.jpg", io.BytesIO(padded_image_bytes("JPEG", 1024)),
+                                "image/jpeg")})
+        assert not model.called
+        assert r.status_code == 426, r.text
+        fixture = _check_error("errors/scan-426-update-required.json", _error(r))
+        assert fixture["body"]["code"] == apierrors.UPDATE_REQUIRED
+        assert fixture["body"]["detail"] == notify.UPDATE_REQUIRED_DETAIL
 
     def test_the_rate_limit_429(self):
         # The real per-device limit, so the wording is production's.
@@ -219,7 +279,47 @@ class TestErrorBodies:
             assert _post_scan("contract-429").status_code == 200
         r = _post_scan("contract-429")
         assert r.status_code == 429
-        _check_error("errors/scan-429-rate-limited.json", _error(r, "Retry-After"))
+        fixture = _check_error("errors/scan-429-rate-limited.json",
+                               _error(r, "Retry-After"))
+        assert fixture["body"]["code"] == apierrors.RATE_LIMITED
+
+
+@pytest.mark.parametrize("name", sorted(
+    str(p.relative_to(CONTRACT)) for p in (CONTRACT / "errors").glob("*.json")))
+def test_every_error_fixture_carries_a_code(name):
+    """A body without one is a body a client can only read in English."""
+    body = json.loads((CONTRACT / name).read_text())["body"]
+    assert isinstance(body.get("code"), str) and body["code"], name
+    assert isinstance(body.get("detail"), str) and body["detail"], name
+
+
+# ── The codes a client words itself ─────────────────────────────────────────
+#
+# Lists, not responses, and generated from the server like everything here: the
+# Swift suite checks its `ServerErrorCode` and `ConfidenceReason` against them,
+# so a client that waits for a code the server never sends, or a reason code
+# the client cannot word, fails a test instead of printing English.
+
+def _check_list(name: str, served: list[str]) -> list[str]:
+    path = CONTRACT / name
+    if REGENERATE:
+        path.write_text(json.dumps(served, indent=2) + "\n")
+    fixture = json.loads(path.read_text())
+    assert fixture == served, (
+        f"contract/{name} is not what the server sends. A removed code breaks "
+        f"every build that knows it; if the change is additive, regenerate.")
+    return fixture
+
+
+def test_the_error_codes():
+    codes = sorted({v for k, v in vars(apierrors).items()
+                    if k.isupper() and isinstance(v, str)})
+    _check_list("error-codes.json", codes)
+
+
+def test_the_confidence_reason_codes():
+    import confidence
+    _check_list("confidence-reason-codes.json", sorted(confidence.REASON_CODES))
 
 
 def test_every_fixture_is_checked_here():

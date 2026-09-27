@@ -199,8 +199,16 @@ know about a cost cut, and the thinking budget (`GEMINI_THINKING_BUDGET`,
 
 ```bash
 python -m eval.runner --photos ~/scans --repeats 3 \
-  --compare v2 v2@512 --json-out runs/thinking-512.json
+  --compare v2.1 v2.1@512 --json-out runs/thinking-512.json
 ```
+
+Both arms are v2.1, not v2. v2 asks for the prices before the evidence, so with
+less thinking the evidence it writes after a price is a justification of it;
+v2.1 has the model write what it saw first. For the same reason, ship a lowered
+`GEMINI_THINKING_BUDGET` only while v2.1 is serving (`SCAN_PROMPT_VERSION=v2.1`,
+or once v2.1 is `DEFAULT_PROMPT_VERSION`). The budget applies to every scan
+whatever the prompt, so a cap measured on v2.1 and set while v2 serves cuts
+v2's thinking, which is the case this avoids.
 
 `--photos` takes a folder of JPEGs. An arm is a prompt version with an
 optional `@N` thinking cap, applied per call so the other arm is untouched.
@@ -211,6 +219,16 @@ per-item price shift between the arms. It never
 reports accuracy, bias, calibration or hallucination: with no truth to measure
 against those metrics are absent, not zero. A shift says the cap *changes*
 prices, never that it makes them better or worse — that needs the gold set.
+
+The same run is the check before a prompt version becomes the default. v2.1
+has not had one on real photos; the comment on `DEFAULT_PROMPT_VERSION` in
+`backend/prompts.py` quotes the condition for the switch and the two ways it
+reads:
+
+```bash
+python -m eval.runner --photos ~/scans --repeats 3 \
+  --compare v2 v2.1 --json-out runs/v2.1.json
+```
 
 ---
 

@@ -3,6 +3,7 @@ import AVFoundation
 import SwiftUI
 import XCTest
 import ImageIO
+import StoreKit
 import SwiftData
 import UIKit
 @testable import SnapWorth
@@ -923,6 +924,27 @@ final class ScanViewModelSecurityTests: XCTestCase {
         vm.errorMessage = "Leftover error from previous scan"
         vm.reset()
         XCTAssertNil(vm.errorMessage, "Stale error must be cleared on reset")
+    }
+
+    /// "Open App Store" belongs to the update message and to nothing else.
+    /// Kept as a flag of its own, it outlived the alert it was set for.
+    func test_theAppStoreButtonGoesWithTheUpdateMessageOnly() {
+        vm.failureAlert = ScanViewModel.FailureAlert(.updateRequired)
+        XCTAssertTrue(vm.errorOffersUpdate)
+        XCTAssertEqual(vm.errorMessage, AppError.updateRequired.errorDescription)
+
+        // OK, Open App Store, or the alert dismissed: all three set nil.
+        vm.errorMessage = nil
+        XCTAssertFalse(vm.errorOffersUpdate)
+
+        // A later, unrelated message — `loadSelectedPhoto`'s, for a library
+        // photo that would not load — does not bring the button back.
+        vm.failureAlert = ScanViewModel.FailureAlert(.updateRequired)
+        vm.errorMessage = "Couldn't load the selected photo. Please try another."
+        XCTAssertFalse(vm.errorOffersUpdate)
+
+        XCTAssertEqual(ScanViewModel.FailureAlert(.network)?.offersUpdate, false)
+        XCTAssertNil(ScanViewModel.FailureAlert(.purchaseCancelled), "nothing to say, so no alert")
     }
 
     func test_reset_setsIsAnalyzingToFalse() {
@@ -3256,6 +3278,74 @@ final class ReferralTests: XCTestCase {
         ReferralRewardNotice.markAnnounced([second], defaults: defaults)
         XCTAssertEqual(ReferralRewardNotice.unannounced([first, second], defaults: defaults), [])
     }
+
+    /// The server now answers 401 to a caller without a token and 403 to a
+    /// device bound to another install. Neither is the user's to fix, and
+    /// neither may be read as something they typed wrong.
+    func test_theHardenedRefusalsAreNotWordedAsTheUsersMistake() {
+        XCTAssertEqual(ReferralClaimError.from(status: 401), .other)
+        XCTAssertEqual(ReferralClaimError.from(status: 403), .other)
+    }
+
+    /// The friend's screen has said this since #97. The referrer redeems the
+    /// same kind of code, a free week on the yearly plan, and was told nothing
+    /// before Apple's sheet.
+    func test_theReferrerIsToldTheFreeWeekRenews() {
+        XCTAssertEqual(ReferralRewardNotice.renewalNote,
+                       String(localized: "After the free week, the subscription renews unless you cancel."))
+        XCTAssertTrue(ReferralRewardNotice.alertMessage.hasPrefix(
+            String(localized: "A friend used your invite. Redeem your free week with Apple.")))
+        XCTAssertTrue(ReferralRewardNotice.alertMessage.hasSuffix("\n\n" + ReferralRewardNotice.renewalNote))
+    }
+
+    /// Taps, named as taps. An offer-code redemption never passes through the
+    /// app, so none of these is a conversion; the server counts those.
+    func test_referralEventsAreNamedForWhatTheyMeasure() {
+        XCTAssertEqual(AnalyticsEvent.referralShareOpened.name, "referral_share_opened")
+        XCTAssertEqual(AnalyticsEvent.referralCodeAccepted.name, "referral_code_accepted")
+        XCTAssertEqual(AnalyticsEvent.referralRewardOpened(source: "alert").name, "referral_reward_opened")
+        XCTAssertEqual(AnalyticsEvent.referralRewardOpened(source: "invite_screen").parameters,
+                       ["source": "invite_screen"])
+        for event in [AnalyticsEvent.referralShareOpened, .referralCodeAccepted,
+                      .referralRewardOpened(source: "alert")] {
+            XCTAssertFalse(["referral_shared", "referral_redeemed", "referral_rewarded"].contains(event.name))
+        }
+    }
+
+    /// A referral week is an Apple offer code: 7 days free, then the yearly
+    /// price. Asking only for an introductory offer missed it, so the
+    /// trial-ending reminder was cancelled for exactly the people it is for.
+    func test_aFreeWeekFromAnOfferCodeGetsTheTrialReminder() {
+        // iOS 17.2 and later: the transaction's own payment mode decides, for
+        // any kind of offer — and it wins over the product's intro offer.
+        XCTAssertTrue(StoreKitPurchaseService.isFreePeriod(
+            transactionOfferIsFree: true, isIntroductory: false, productIntroIsFree: false))
+        XCTAssertFalse(StoreKitPurchaseService.isFreePeriod(
+            transactionOfferIsFree: false, isIntroductory: true, productIntroIsFree: true))
+        // Before 17.2 only a free introductory trial is recognisable; a paid
+        // intro offer is still not told it is on a trial.
+        XCTAssertTrue(StoreKitPurchaseService.isFreePeriod(
+            transactionOfferIsFree: nil, isIntroductory: true, productIntroIsFree: true))
+        XCTAssertFalse(StoreKitPurchaseService.isFreePeriod(
+            transactionOfferIsFree: nil, isIntroductory: true, productIntroIsFree: false))
+        XCTAssertFalse(StoreKitPurchaseService.isFreePeriod(
+            transactionOfferIsFree: nil, isIntroductory: false, productIntroIsFree: true))
+    }
+
+    /// `Transaction.Offer.paymentMode` is optional. Compared as
+    /// `offer?.paymentMode == .freeTrial`, a missing mode was a plain false,
+    /// so the fallback the doc comment promises never ran on iOS 17.2+.
+    func test_aMissingPaymentModeFallsBackInsteadOfMeaningPaid() throws {
+        guard #available(iOS 17.2, *) else { throw XCTSkip("Transaction.Offer is iOS 17.2+") }
+        XCTAssertNil(StoreKitPurchaseService.offerIsFree(nil))
+        XCTAssertEqual(StoreKitPurchaseService.offerIsFree(.freeTrial), true)
+        XCTAssertEqual(StoreKitPurchaseService.offerIsFree(.payAsYouGo), false)
+        XCTAssertEqual(StoreKitPurchaseService.offerIsFree(.payUpFront), false)
+        // Nil reaches the fallback: a free intro trial keeps its reminder.
+        XCTAssertTrue(StoreKitPurchaseService.isFreePeriod(
+            transactionOfferIsFree: StoreKitPurchaseService.offerIsFree(nil),
+            isIntroductory: true, productIntroIsFree: true))
+    }
 }
 
 // MARK: - Embedded extensions
@@ -3779,6 +3869,44 @@ final class HaulDispositionTests: XCTestCase {
         XCTAssertEqual(disposition(paused, last: HaulSession.signature(for: paused)), .failAndHalt)
     }
 
+    /// A not-resalable verdict is about one photo. In English two in a row
+    /// read differently, because the server's words open with the model's
+    /// reason; in any other language both are this build's one sentence for
+    /// the code, and compared by message the second halted the rest.
+    func test_twoNotResalablePhotosInARowNeverHalt() {
+        func verdict(_ reason: String, inEnglish: Bool) -> AppError {
+            AppError.from(ScanAPIError.serverError(
+                422, "\(reason) Try a photo of a single item you'd actually sell.",
+                code: "not_resalable"), inEnglish: inEnglish)
+        }
+        for inEnglish in [false, true] {
+            let meal = verdict("This is a photograph of a cooked meal.", inEnglish: inEnglish)
+            let screenshot = verdict("This is a screenshot.", inEnglish: inEnglish)
+            XCTAssertEqual(disposition(screenshot, last: HaulSession.signature(for: meal)), .fail,
+                           "inEnglish: \(inEnglish)")
+            XCTAssertEqual(disposition(meal, last: HaulSession.signature(for: meal)), .fail,
+                           "the same reason twice is still two photos (inEnglish: \(inEnglish))")
+        }
+    }
+
+    /// The codes whose server words are the same for every photo still trip
+    /// the breaker, translated or not.
+    func test_aSafetyBlockOrAPausedDeviceTwiceHaltsInEveryLanguage() {
+        let bodies = [
+            ("This photo couldn't be analysed. Try a clear photo of a single item.", "photo_unusable"),
+            ("Scanning from this device is paused for 24 hours after repeated photos that could not be analysed.",
+             "device_paused"),
+        ]
+        for inEnglish in [false, true] {
+            for (detail, code) in bodies {
+                let error = AppError.from(ScanAPIError.serverError(422, detail, code: code),
+                                          inEnglish: inEnglish)
+                XCTAssertEqual(disposition(error, last: HaulSession.signature(for: error)), .failAndHalt,
+                               "\(code), inEnglish: \(inEnglish)")
+            }
+        }
+    }
+
     /// Spoken, the 429 says what the banner says: the photos are kept and the
     /// queue resumes by itself — not "Try again in…", which asks the user to
     /// act.
@@ -4088,6 +4216,42 @@ final class HaulSessionTests: XCTestCase {
         XCTAssertEqual(session.items[0].failureMessage, "Try a clear photo of a single item.")
         XCTAssertEqual(h.store.pending(now: h.clock.now).map(\.state), [.failed],
                        "kept, and marked so a relaunch does not re-send it")
+    }
+
+    /// A not-resalable verdict is the model answering about one photo: it
+    /// neither trips the breaker nor carries a run across itself.
+    func test_notResalableVerdictsNeverHaltTheHaul() async {
+        let h = HaulHarness()
+        defer { h.tearDown() }
+        let session = h.makeSession()
+        session.open()
+        for _ in 0..<5 { session.add(HaulFixtures.photo()) }
+        await haulWait("two in flight") { h.scans.waiting == 2 }
+
+        // Identical, as two verdicts are in any language but English, and in
+        // English when the model gives no reason.
+        let declined = ScanAPIError.serverError(
+            422, "This doesn't look like something with a resale value. "
+                + "Try a photo of a single item you'd actually sell.",
+            code: "not_resalable")
+        let blocked = ScanAPIError.serverError(
+            422, "This photo couldn't be analysed. Try a clear photo of a single item.",
+            code: "photo_unusable")
+
+        h.scans.failOldest(declined)
+        await haulWait("first failed") { session.failedCount == 1 && h.scans.waiting == 2 }
+        h.scans.failOldest(declined)
+        await haulWait("second failed") { session.failedCount == 2 && h.scans.waiting == 2 }
+        XCTAssertNil(session.hold, "two verdicts on two photos")
+
+        // A safety block either side of a verdict is not two in a row.
+        h.scans.failOldest(blocked)
+        await haulWait("third failed") { session.failedCount == 3 && h.scans.waiting == 2 }
+        h.scans.failOldest(declined)
+        await haulWait("fourth failed") { session.failedCount == 4 && h.scans.waiting == 1 }
+        h.scans.failOldest(blocked)
+        await haulWait("fifth failed") { session.failedCount == 5 && session.scansInFlight == 0 }
+        XCTAssertNil(session.hold)
     }
 
     func test_breakerHaltsAfterTwoIdenticalFailures() async {

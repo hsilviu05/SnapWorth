@@ -13,8 +13,22 @@ import os
 //
 // Every photo is a normal scan — the same client call, quota, stats and
 // history save as the Scan tab. What this file adds is the part a single
-// scan never needed: a queue that respects a 20-requests-an-hour limit shared
-// with drafts and trends, and that never loses a photo to it.
+// scan never needed: a queue that respects the server's hourly limits, and
+// that never loses a photo to them.
+//
+// This was written when scans, drafts and trends shared one device bucket of
+// 20 an hour, so any 429 meant scanning was full too. That is why any 429
+// pauses both queues, and why the banner says "You've hit the scan limit." A
+// 429 does not say which bucket refused, so this still depends on that being
+// true. Scans and drafts now have a device bucket each (`ratelimit.py`). For
+// Pro, both are sized at the per-address bucket (60 an hour), which counts
+// scans, drafts and trends together. So from one address the address bucket
+// fills first, and it refuses both lanes. The server keeps it that way for
+// this code. A draft bucket smaller than the address bucket would refuse a
+// draft with scans to spare. This would then pause scanning that could go
+// on, under a banner blaming the scan limit (RUNBOOK §5.8). One case is left:
+// a device that changes address within the hour can fill its own draft
+// bucket first.
 
 // MARK: - Scheduling
 
@@ -47,7 +61,7 @@ struct HaulQueue<ID: Hashable> {
     /// Bumped by every pause and hold, and stamped on each claim, so a
     /// success can say whether its request was sent after the latest one.
     ///
-    /// At the limit the usual order is: one request takes the 20th slot and
+    /// At the limit the usual order is: one request takes the last slot and
     /// spends seconds in the model, the other gets an immediate 429. The
     /// admitted one's success arrives *after* the 429 and says nothing about
     /// the budget now — ending the probe on it sends two into a window that
@@ -1317,7 +1331,14 @@ final class HaulSession {
         Analytics.shared.track(.scanFailed(reason: ScanFailureReason(error),
                                            isFirst: firstFlags[id] ?? false))
         if firstClaim == id { firstClaim = nil }
-        if let signature = Self.signature(for: error) { lastFailure = signature }
+        if case .notResalable = error {
+            // The model read the photo and answered, so the run of identical
+            // failures is over, as after a success. Left in place, a safety
+            // block either side of this verdict would read as two in a row.
+            lastFailure = nil
+        } else if let signature = Self.signature(for: error) {
+            lastFailure = signature
+        }
         announce(String(localized: "Couldn't value this photo"))
     }
 
@@ -1497,7 +1518,7 @@ final class HaulSession {
     /// breaker's run and the offline streak end. What it says about the
     /// *budget* and the *entitlement* depends on when it was sent: a request
     /// claimed before the latest pause or hold — usually the one that took
-    /// the 20th slot while the other got the 429 — answers for the moment it
+    /// the last slot while the other got the 429 — answers for the moment it
     /// was admitted, not for now. Only a request sent since ends the probe,
     /// forgets the deadline (in memory and on disk) or confirms the
     /// subscription.
@@ -1654,7 +1675,8 @@ extension HaulSession {
     /// * **503** backs off like no connection, twice more — a 503 may use a
     ///   slot — and then halts: three in a row is an outage.
     /// * **An expired session** halts: the client already re-minted once, so
-    ///   every photo would fail the same way.
+    ///   every photo would fail the same way. So does **an unsupported build**
+    ///   (`updateRequired`): only an update changes the answer.
     /// * **A timeout** fails the photo and offers Try again. At 35 s the
     ///   server has usually finished and charged the slot and the model call;
     ///   a silent re-send doubles that.
@@ -1662,7 +1684,8 @@ extension HaulSession {
     ///   message fail the second photo too and halt the rest. It catches an
     ///   outage that arrives as `.aiFailed`, and the 24-hour "device paused"
     ///   422 — which, arriving for every photo, would otherwise turn the
-    ///   whole strip red.
+    ///   whole strip red. A not-resalable verdict never trips it, and ends a
+    ///   run the way a success does: the model answered, about one photo.
     /// * **A local encoding failure** fails the photo and never trips the
     ///   breaker: it used no slot and says nothing about the server.
     nonisolated static func disposition(for error: AppError,
@@ -1681,7 +1704,9 @@ extension HaulSession {
             return .offline(offlineBackoff(streak: offlineStreak))
         case .serverUnavailable:
             return offlineStreak < 3 ? .offline(offlineBackoff(streak: offlineStreak)) : .halt
-        case .sessionExpired:
+        // The server no longer serves this build: every photo would get the
+        // same answer, and each would cost an upload to hear it.
+        case .sessionExpired, .updateRequired:
             return .halt
         case .imageEncodingFailed:
             return .fail
@@ -1711,13 +1736,24 @@ extension HaulSession {
     }
 
     /// What the breaker compares, for a failure that came from the server.
-    /// Nil for anything local.
+    /// Nil for anything local, and for a not-resalable verdict.
+    ///
+    /// The message is the one shown, which outside English is this build's
+    /// sentence for a code it knows (`ServerCopy.text`), not the server's.
+    /// For a safety block, the paused device or an outage the server's words
+    /// are the same for every photo anyway, so nothing changes. A
+    /// not-resalable 422 is different: its words open with the model's
+    /// reason, so two in a row differed and each failed alone, while
+    /// translated they are one sentence — and compared, they halted the rest
+    /// outside English on a verdict about a single photo. It is never
+    /// compared.
     nonisolated static func signature(for error: AppError) -> HaulFailureSignature? {
         switch error {
         case .timeout:                return HaulFailureSignature(kind: "timeout", message: "")
         case .unusablePhoto(let msg): return HaulFailureSignature(kind: "unusablePhoto", message: msg)
         case .aiFailed(let msg):      return HaulFailureSignature(kind: "aiFailed", message: msg)
         case .unknown(let msg):       return HaulFailureSignature(kind: "unknown", message: msg)
+        case .notResalable:           return nil
         default:                      return nil
         }
     }

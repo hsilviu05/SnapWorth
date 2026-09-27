@@ -1,0 +1,8 @@
+{
+  "status": 422,
+  "headers": {},
+  "body": {
+    "detail": "This is a photograph of food. Try a photo of a single item you'd actually sell.",
+    "code": "not_resalable"
+  }
+}

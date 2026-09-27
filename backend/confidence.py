@@ -99,6 +99,27 @@ UNCERTAIN_ID_CEILING = HIGH_THRESHOLD - 1
 # the neutral one, and the free summary never carried the verdict.
 REPLICA_REASON = "the item may not be authentic"
 UNVERIFIED_AUTHENTICITY_REASON = "authenticity could not be verified from the photo"
+REPLICA_CODE = "likely_replica"
+UNVERIFIED_AUTHENTICITY_CODE = "authenticity_unverified"
+
+#: Every code `compute` can put in `reason_codes`, which the scan response
+#: sends as `confidence_reason_codes`. Written out so `contract/` can list them
+#: for the client, whose `ConfidenceReason` must know each one; the tests
+#: drive every branch of `compute` and require this to be exactly what they
+#: produce, so a code added below without being added here fails them.
+REASON_CODES = frozenset({
+    "brand_identified", "brand_unidentified",
+    "range_unusable", "range_tight", "range_very_wide", "range_moderately_wide",
+    "range_single_price",
+    "photo_soft", "photo_lighting_uneven", "photo_low_resolution", "photo_low_contrast",
+    "photo_clear", "photo_limits_confidence",
+    "category_established", "category_varied",
+    "item_recognised", "item_uncertain", "model_unconfirmed",
+    "authenticity_no_concerns", REPLICA_CODE, UNVERIFIED_AUTHENTICITY_CODE,
+    "market_read", "market_read_incomplete",
+    "analysis_complete", "analysis_partial",
+    "estimate_adjusted",
+})
 
 #: Brand values that mean "no brand was identified". One list, shared with the
 #: operator's brand tallies (`notify._clean_brand`) and the eval's
@@ -120,6 +141,12 @@ class ConfidenceSignal:
     value: float            # 0–1
     weight: float
     explanation: str
+    # The explanation as a stable token, sent beside it in
+    # `confidence_reason_codes` so a client can word it in its own language.
+    # One per distinct explanation; the two that name the category share a
+    # code per branch, and the client's wording leaves the name out. A code is
+    # contract once sent — reword `explanation` freely, never rename a code.
+    code: str
 
 
 @dataclass(frozen=True)
@@ -128,6 +155,7 @@ class ConfidenceResult:
     band: str                           # "High" | "Medium" | "Low"
     signals: list[ConfidenceSignal] = field(default_factory=list)
     reasons: list[str] = field(default_factory=list)
+    reason_codes: list[str] = field(default_factory=list)   # one per reason
 
     @property
     def as_legacy(self) -> str:
@@ -143,7 +171,7 @@ def _band(score: int) -> str:
     return "Low"
 
 
-def _range_tightness(low: float, high: float) -> tuple[float, str]:
+def _range_tightness(low: float, high: float) -> tuple[float, str, str]:
     """Score how actionable the price band is.
 
     A wide band is the model telling us it does not know, in the one channel it
@@ -151,14 +179,15 @@ def _range_tightness(low: float, high: float) -> tuple[float, str]:
     spread is self-evidently a guess.
     """
     if low <= 0 or high <= 0 or high < low:
-        return 0.0, "the price range is not usable"
+        return 0.0, "the price range is not usable", "range_unusable"
     ratio = high / max(low, 0.01)
     if ratio <= RANGE_RATIO_TIGHT:
-        return 1.0, "the price range is tight"
+        return 1.0, "the price range is tight", "range_tight"
     if ratio >= RANGE_RATIO_USELESS:
-        return 0.0, "the price range is very wide"
+        return 0.0, "the price range is very wide", "range_very_wide"
     span = RANGE_RATIO_USELESS - RANGE_RATIO_TIGHT
-    return max(0.0, 1.0 - (ratio - RANGE_RATIO_TIGHT) / span), "the price range is moderately wide"
+    return (max(0.0, 1.0 - (ratio - RANGE_RATIO_TIGHT) / span),
+            "the price range is moderately wide", "range_moderately_wide")
 
 
 def compute(
@@ -194,6 +223,7 @@ def compute(
     signals.append(ConfidenceSignal(
         "brand", 1.0 if brand_known else 0.0, 0.26,
         "the brand is identified" if brand_known else "the brand could not be identified",
+        "brand_identified" if brand_known else "brand_unidentified",
     ))
 
     # ── Price-range tightness ───────────────────────────────────────────────
@@ -202,20 +232,19 @@ def compute(
     # was being faked on its behalf. No credit: it says nothing about how
     # well the item is priced.
     if range_synthesised:
-        tightness, tightness_reason = 0.0, "the range was estimated from a single price"
+        tightness, tightness_reason, tightness_code = (
+            0.0, "the range was estimated from a single price", "range_single_price")
     else:
-        tightness, tightness_reason = _range_tightness(value_low, value_high)
-    signals.append(ConfidenceSignal("range", tightness, 0.20, tightness_reason))
+        tightness, tightness_reason, tightness_code = _range_tightness(value_low, value_high)
+    signals.append(ConfidenceSignal("range", tightness, 0.20, tightness_reason, tightness_code))
 
     # ── Image quality ───────────────────────────────────────────────────────
     if image_quality is not None and image_quality.measured:
         overall = image_quality.overall
         if overall is not None:
-            issues = image_quality.issues()
-            signals.append(ConfidenceSignal(
-                "image", overall, 0.18,
-                issues[0] if issues else "the photo is clear enough to work from",
-            ))
+            issue_code, issue = (image_quality.coded_issues() or [
+                ("photo_clear", "the photo is clear enough to work from")])[0]
+            signals.append(ConfidenceSignal("image", overall, 0.18, issue, issue_code))
 
     # ── Category familiarity ────────────────────────────────────────────────
     cat = (category or "other").strip().lower()
@@ -224,6 +253,7 @@ def compute(
         "category", familiarity, 0.12,
         f"{cat} has a well-established resale market" if familiarity >= 0.65
         else f"{cat} values vary a lot between individual items",
+        "category_established" if familiarity >= 0.65 else "category_varied",
     ))
 
     # ── Model's own identification certainty ────────────────────────────────
@@ -236,12 +266,13 @@ def compute(
         # "uncertain" is about what the item is, not which model it is, and it
         # now caps the score (UNCERTAIN_ID_CEILING) — so it names that.
         if certainty >= 0.9:
-            id_reason = "the item was recognised confidently"
+            id_reason, id_code = "the item was recognised confidently", "item_recognised"
         elif certainty_key == "uncertain":
-            id_reason = "the item could not be identified with certainty"
+            id_reason, id_code = ("the item could not be identified with certainty",
+                                  "item_uncertain")
         else:
-            id_reason = "the exact model could not be pinned down"
-        signals.append(ConfidenceSignal("identification", certainty, 0.10, id_reason))
+            id_reason, id_code = "the exact model could not be pinned down", "model_unconfirmed"
+        signals.append(ConfidenceSignal("identification", certainty, 0.10, id_reason, id_code))
 
     # ── Authenticity ────────────────────────────────────────────────────────
     auth_key = (authenticity or "").strip().lower()
@@ -250,12 +281,12 @@ def compute(
         # A likely replica is a finding, not a gap in the evidence, and read
         # the same as "cannot verify" until it had its own words.
         if auth >= 0.9:
-            auth_reason = "no authenticity concerns"
+            auth_reason, auth_code = "no authenticity concerns", "authenticity_no_concerns"
         elif auth_key == "likely_replica":
-            auth_reason = REPLICA_REASON
+            auth_reason, auth_code = REPLICA_REASON, REPLICA_CODE
         else:
-            auth_reason = UNVERIFIED_AUTHENTICITY_REASON
-        signals.append(ConfidenceSignal("authenticity", auth, 0.08, auth_reason))
+            auth_reason, auth_code = UNVERIFIED_AUTHENTICITY_REASON, UNVERIFIED_AUTHENTICITY_CODE
+        signals.append(ConfidenceSignal("authenticity", auth, 0.08, auth_reason, auth_code))
 
     # ── Market signal completeness ──────────────────────────────────────────
     # Whether the model produced usable demand/supply reads at all. Missing them
@@ -273,6 +304,7 @@ def compute(
         "market", market_known, 0.06,
         "the AI gave a read on demand and supply" if market_known == 1.0
         else "the AI's read on demand and supply is incomplete",
+        "market_read" if market_known == 1.0 else "market_read_incomplete",
     ))
 
     # ── Response completeness ───────────────────────────────────────────────
@@ -284,6 +316,7 @@ def compute(
             "completeness", completeness, 0.05,
             "the analysis is complete" if completeness >= 0.85
             else "the analysis came back partial",
+            "analysis_complete" if completeness >= 0.85 else "analysis_partial",
         ))
 
     total_weight = sum(s.weight for s in signals)
@@ -310,6 +343,7 @@ def compute(
                 signals.append(ConfidenceSignal(
                     "image_ceiling", overall, 0.0,
                     "the photo quality limits how confident this estimate can be",
+                    "photo_limits_confidence",
                 ))
 
     # ── Identification and authenticity ceilings ────────────────────────────
@@ -331,18 +365,19 @@ def compute(
         signals.append(ConfidenceSignal(
             "clamped", 0.0, 0.0,
             "the estimate was outside the plausible range for this category and was adjusted",
+            "estimate_adjusted",
         ))
 
     score = max(0, min(100, score))
 
     # Surface the weakest contributors — those are what the user can act on.
-    weak = sorted((s for s in signals if s.value < 0.6), key=lambda s: s.value)
-    reasons = [s.explanation for s in weak[:3]]
-    if not reasons:
-        strongest = sorted(signals, key=lambda s: -s.value)[:2]
-        reasons = [s.explanation for s in strongest]
+    shown = sorted((s for s in signals if s.value < 0.6), key=lambda s: s.value)[:3]
+    if not shown:
+        shown = sorted(signals, key=lambda s: -s.value)[:2]
 
-    return ConfidenceResult(score=score, band=_band(score), signals=signals, reasons=reasons)
+    return ConfidenceResult(score=score, band=_band(score), signals=signals,
+                            reasons=[s.explanation for s in shown],
+                            reason_codes=[s.code for s in shown])
 
 
 def summary_sentence(result: ConfidenceResult, *, withhold_authenticity: bool = False) -> str:

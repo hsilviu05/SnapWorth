@@ -14,6 +14,10 @@
     "the photo is soft or out of focus",
     "the photo quality limits how confident this estimate can be"
   ],
+  "confidence_reason_codes": [
+    "photo_soft",
+    "photo_limits_confidence"
+  ],
   "quick_sale_price_usd": 45.0,
   "expected_price_usd": 58.0,
   "best_case_price_usd": 85.0,

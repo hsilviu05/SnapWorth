@@ -16,6 +16,8 @@ from __future__ import annotations
 import io
 import logging
 
+import apierrors
+
 log = logging.getLogger("snapworth.imagevalidation")
 
 # Upper bound on total pixels. A 50 MP image is far beyond any phone camera
@@ -30,7 +32,15 @@ MIN_DIMENSION = 16
 
 
 class ImageValidationError(ValueError):
-    """Raised when an upload is not a usable image. Message is user-safe."""
+    """Raised when an upload is not a usable image. Message is user-safe.
+
+    `code` is what the 400 carries beside it (`apierrors`), so a client can
+    tell "too small" from "not an image" without reading the English.
+    """
+
+    def __init__(self, message: str, code: str) -> None:
+        super().__init__(message)
+        self.code = code
 
 
 def sniff_format(data: bytes) -> str | None:
@@ -82,18 +92,20 @@ def validate(data: bytes, declared_type: str) -> str:
     model, so a mislabelled-but-valid image is still processed correctly.
     """
     if not data:
-        raise ImageValidationError("Empty image file.")
+        raise ImageValidationError("Empty image file.", apierrors.IMAGE_EMPTY)
 
     declared = (declared_type or "").split(";")[0].strip().lower()
     if declared not in ALLOWED_DECLARED_TYPES:
         raise ImageValidationError(
-            f"Unsupported file type '{declared_type}'. Use JPEG, PNG, GIF, WebP, or HEIC."
+            f"Unsupported file type '{declared_type}'. Use JPEG, PNG, GIF, WebP, or HEIC.",
+            apierrors.IMAGE_TYPE_UNSUPPORTED,
         )
 
     sniffed = sniff_format(data)
     if sniffed is None:
         raise ImageValidationError(
-            "That file isn't a readable image. Try a JPEG or PNG photo."
+            "That file isn't a readable image. Try a JPEG or PNG photo.",
+            apierrors.IMAGE_UNREADABLE,
         )
 
     if sniffed not in _COMPATIBLE[declared]:
@@ -101,7 +113,8 @@ def validate(data: bytes, declared_type: str) -> str:
         # Worth logging: it is either a broken client or a probe.
         log.warning("upload type mismatch declared=%s sniffed=%s", declared, sniffed)
         raise ImageValidationError(
-            "That file isn't a readable image. Try a JPEG or PNG photo."
+            "That file isn't a readable image. Try a JPEG or PNG photo.",
+            apierrors.IMAGE_UNREADABLE,
         )
 
     _check_dimensions(data, sniffed)
@@ -130,17 +143,21 @@ def _check_dimensions(data: bytes, sniffed: str) -> None:
         with Image.open(io.BytesIO(data)) as img:
             width, height = img.size
     except Image.DecompressionBombError:
-        raise ImageValidationError("That image is too large to process.") from None
+        raise ImageValidationError("That image is too large to process.",
+                                   apierrors.IMAGE_TOO_LARGE) from None
     except Exception:
         # HEIC needs a plugin Pillow may not have. Don't fail a validly-sniffed
         # image just because we can't read its header.
         if sniffed == "image/heic":
             return
         raise ImageValidationError(
-            "That image couldn't be read. Try re-taking the photo."
+            "That image couldn't be read. Try re-taking the photo.",
+            apierrors.IMAGE_UNREADABLE,
         ) from None
 
     if width < MIN_DIMENSION or height < MIN_DIMENSION:
-        raise ImageValidationError("That image is too small to identify.")
+        raise ImageValidationError("That image is too small to identify.",
+                                   apierrors.IMAGE_TOO_SMALL)
     if width > MAX_DIMENSION or height > MAX_DIMENSION or width * height > MAX_PIXELS:
-        raise ImageValidationError("That image is too large to process.")
+        raise ImageValidationError("That image is too large to process.",
+                                   apierrors.IMAGE_TOO_LARGE)
