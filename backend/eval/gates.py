@@ -182,7 +182,8 @@ DEFAULT_THRESHOLDS = (
     Threshold("within_25pct", Direction.HIGHER_IS_BETTER, max_regression=0.05,
               description="share of usable estimates"),
     # Signed, in percentage points: 2 points of median over-valuation is $1 on
-    # a $50 item. Past that it is a systematic shift, not run-to-run noise.
+    # a $50 item. A starting value — the run-to-run spread of the first real
+    # baselines is what should set it, as with every tolerance here.
     Threshold("bias", Direction.LOWER_IS_BETTER, signed_tolerance=2.0,
               description="systematic over-valuation is the dangerous direction"),
     Threshold("calibration_ece", Direction.LOWER_IS_BETTER, max_regression=0.10,
