@@ -49,10 +49,15 @@ enum AnalyticsEvent {
     /// give a look-to-buy rate; a purchase closes it through
     /// `purchase_completed` instead and does not emit this.
     case paywallDismissed(trigger: PaywallTrigger)
-    case purchaseStarted(productID: String, isFirst: Bool)
+    /// The three purchase events carry the paywall's `trigger`, as
+    /// `paywall_viewed` and `paywall_dismissed` always have. Without it,
+    /// conversion could be read per entry point only by joining a purchase to
+    /// the view before it, and a user who opened two paywalls made the join a
+    /// guess.
+    case purchaseStarted(productID: String, isFirst: Bool, trigger: PaywallTrigger)
     /// Fires on the confirmed StoreKit transaction — never on a button tap.
-    case purchaseCompleted(productID: String, isFirst: Bool)
-    case purchaseFailed(productID: String, reason: String)
+    case purchaseCompleted(productID: String, isFirst: Bool, trigger: PaywallTrigger)
+    case purchaseFailed(productID: String, reason: String, trigger: PaywallTrigger)
     case restoreCompleted
     /// StoreKit shows a subscription the server would not honour, or the
     /// routine sync that tells the server failed. `reason` is a fixed bucket
@@ -246,10 +251,12 @@ enum AnalyticsEvent {
             return ["trigger": trigger.rawValue, "is_first": String(isFirst)]
         case let .ledgerPaywallHit(trigger), let .paywallDismissed(trigger):
             return ["trigger": trigger.rawValue]
-        case let .purchaseStarted(productID, isFirst), let .purchaseCompleted(productID, isFirst):
-            return ["product_id": productID, "is_first": String(isFirst)]
-        case let .purchaseFailed(productID, reason):
-            return ["product_id": productID, "reason": reason]
+        case let .purchaseStarted(productID, isFirst, trigger),
+             let .purchaseCompleted(productID, isFirst, trigger):
+            return ["product_id": productID, "is_first": String(isFirst),
+                    "trigger": trigger.rawValue]
+        case let .purchaseFailed(productID, reason, trigger):
+            return ["product_id": productID, "reason": reason, "trigger": trigger.rawValue]
         case let .entitlementSyncFailed(reason):
             return ["reason": reason]
         case let .shareCardShared(activityType):

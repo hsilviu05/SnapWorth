@@ -10,7 +10,8 @@ struct PaywallView: View {
     @State private var referralsEnabled = false
     @State private var showRedeemInvite = false
     let purchaseService: any PurchaseService
-    /// What surfaced this paywall — attributed to `paywall_viewed`.
+    /// What surfaced this paywall — attributed to `paywall_viewed`,
+    /// `paywall_dismissed` and the three purchase events.
     var trigger: PaywallTrigger = .upgradeButton
 
     var body: some View {
@@ -178,7 +179,7 @@ struct PaywallView: View {
                             title: LocalizedStringKey(PaywallCopy.ctaTitle(isYearly: isYearly, offer: offer)),
                             isLoading: vm.isPurchasing
                         ) {
-                            Task { await vm.purchase(service: purchaseService) }
+                            Task { await vm.purchase(service: purchaseService, trigger: trigger) }
                         }
                         // Never let a tap through before StoreKit has confirmed
                         // the product exists — that path produced the "purchase

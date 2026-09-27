@@ -1447,7 +1447,7 @@ final class PaywallReentrancyTests: XCTestCase {
         @Published private(set) var isSubscribed = false
         private(set) var purchaseCalls = 0
 
-        func purchase(productID: String) async throws -> PurchaseOutcome {
+        func purchase(productID: String, trigger: PaywallTrigger) async throws -> PurchaseOutcome {
             purchaseCalls += 1
             try await Task.sleep(for: .milliseconds(120))
             isSubscribed = true
@@ -1463,9 +1463,9 @@ final class PaywallReentrancyTests: XCTestCase {
 
         // Kick off the first purchase, let it start, then fire a second while
         // the first is still awaiting — the double-tap the guard exists for.
-        async let first: Void = vm.purchase(service: service)
+        async let first: Void = vm.purchase(service: service, trigger: .scanLimit)
         try? await Task.sleep(for: .milliseconds(20))
-        await vm.purchase(service: service)
+        await vm.purchase(service: service, trigger: .scanLimit)
         await first
 
         XCTAssertEqual(service.purchaseCalls, 1,
@@ -1476,7 +1476,7 @@ final class PaywallReentrancyTests: XCTestCase {
         let service = CountingPurchaseService()
         let vm = PaywallViewModel()
         vm.isRestoring = true
-        await vm.purchase(service: service)
+        await vm.purchase(service: service, trigger: .scanLimit)
         XCTAssertEqual(service.purchaseCalls, 0,
                        "purchase must not run during a restore")
     }
@@ -1484,7 +1484,7 @@ final class PaywallReentrancyTests: XCTestCase {
     func test_purchaseRunsNormallyWhenIdle() async {
         let service = CountingPurchaseService()
         let vm = PaywallViewModel()
-        await vm.purchase(service: service)
+        await vm.purchase(service: service, trigger: .scanLimit)
         XCTAssertEqual(service.purchaseCalls, 1)
         XCTAssertTrue(vm.isPurchaseComplete)
     }
@@ -3531,7 +3531,7 @@ final class FullDetailOfferTests: XCTestCase {
         let store = MockPurchaseService()
         let sheet = ResultView(result: find(thin), purchaseService: store, onDismiss: {})
         XCTAssertEqual(sheet.fullDetailOffer, .teaserNewScansOnly)
-        _ = try await store.purchase(productID: Config.yearlyProductID)
+        _ = try await store.purchase(productID: Config.yearlyProductID, trigger: .valuationDetail)
         XCTAssertEqual(sheet.fullDetailOffer, .scannedBeforePro)
     }
 
@@ -4927,7 +4927,7 @@ private final class RestoreStub: PurchaseService {
     var restoreError: Error?
     private(set) var restoreCalls = 0
 
-    func purchase(productID: String) async throws -> PurchaseOutcome { .completed }
+    func purchase(productID: String, trigger: PaywallTrigger) async throws -> PurchaseOutcome { .completed }
 
     func restorePurchases() async throws {
         restoreCalls += 1
@@ -5536,7 +5536,7 @@ private final class ResyncStub: PurchaseService {
         resyncResult = resync
     }
 
-    func purchase(productID: String) async throws -> PurchaseOutcome { .completed }
+    func purchase(productID: String, trigger: PaywallTrigger) async throws -> PurchaseOutcome { .completed }
     func restorePurchases() async throws {
         if let restoreError { throw restoreError }
     }
@@ -6986,8 +6986,8 @@ final class RetentionFunnelTests: XCTestCase {
             .scanResultShown(isFirst: true),
             .scanFailed(reason: .network, isFirst: true),
             .paywallViewed(trigger: .scanLimit, isFirst: true),
-            .purchaseStarted(productID: Config.yearlyProductID, isFirst: true),
-            .purchaseCompleted(productID: Config.yearlyProductID, isFirst: true),
+            .purchaseStarted(productID: Config.yearlyProductID, isFirst: true, trigger: .scanLimit),
+            .purchaseCompleted(productID: Config.yearlyProductID, isFirst: true, trigger: .scanLimit),
         ]
         for event in events {
             XCTAssertEqual(event.parameters["is_first"], "true",
@@ -7114,6 +7114,87 @@ final class RetentionFunnelTests: XCTestCase {
         XCTAssertEqual(spy.events.map(\.name), ["scan_result_shown", "onboarding_completed"])
         XCTAssertEqual(spy.params(for: "scan_result_shown")?["is_first"], "true")
         XCTAssertEqual(spy.params(for: "onboarding_completed")?["via"], "skipped")
+    }
+}
+
+// ── Which paywall a purchase came from ───────────────────────────────────────
+//
+// `paywall_viewed` and `paywall_dismissed` carried the trigger; the purchase
+// events did not, so conversion per entry point could only be read by joining
+// a purchase to the view before it — a guess for anyone who opened two.
+
+@MainActor
+private final class TriggerRecordingStore: PurchaseService {
+    var isSubscribed = false
+    private(set) var triggers: [PaywallTrigger] = []
+    func purchase(productID: String, trigger: PaywallTrigger) async throws -> PurchaseOutcome {
+        triggers.append(trigger)
+        return .completed
+    }
+    func restorePurchases() async throws {}
+}
+
+@MainActor
+final class PurchaseTriggerTests: XCTestCase {
+
+    private func source(_ path: String) throws -> String {
+        try String(contentsOf: URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent(path), encoding: .utf8)
+    }
+
+    func test_everyPurchaseEventCarriesItsTrigger() {
+        let yearly = Config.yearlyProductID
+        let events: [AnalyticsEvent] = [
+            .purchaseStarted(productID: yearly, isFirst: false, trigger: .addTag),
+            .purchaseCompleted(productID: yearly, isFirst: false, trigger: .addTag),
+            .purchaseFailed(productID: yearly, reason: "cancelled", trigger: .addTag),
+        ]
+        for event in events {
+            XCTAssertEqual(event.parameters["trigger"], "add_tag", "\(event.name) lost its trigger")
+            XCTAssertEqual(event.parameters["product_id"], yearly)
+        }
+        // The rest of each payload is unchanged: a dashboard reading the old
+        // parameters reads them where they were.
+        XCTAssertEqual(events[2].parameters["reason"], "cancelled")
+        XCTAssertEqual(events[0].parameters["is_first"], "false")
+    }
+
+    func test_aPurchaseStartedFromAPaywallReportsThatPaywall() async {
+        let spy = FunnelSpy()
+        Analytics.shared.configure(spy)
+        let store = TriggerRecordingStore()
+        let vm = PaywallViewModel()
+
+        await vm.purchase(service: store, trigger: .haul)
+
+        XCTAssertEqual(spy.params(for: "purchase_started")?["trigger"], "haul")
+        XCTAssertEqual(store.triggers, [.haul],
+                       "the service reports completed and failed, so it needs the trigger too")
+    }
+
+    /// Source-inspected: StoreKit cannot be driven from a unit test here, and
+    /// the compiler only proves *a* trigger is passed. Every outcome must pass
+    /// the one it was given, not a stand-in.
+    func test_theStoreKitServiceReportsEveryOutcomeWithTheTriggerItWasGiven() throws {
+        let file = try source("SnapWorth/Services/StoreKitPurchaseService.swift")
+        var calls = 0
+        for marker in [".purchaseCompleted(", ".purchaseFailed("] {
+            var from = file.startIndex
+            while let hit = file.range(of: marker, range: from..<file.endIndex) {
+                guard let close = file.range(of: "))", range: hit.upperBound..<file.endIndex)
+                else { return XCTFail("unterminated \(marker)") }
+                let call = file[hit.lowerBound..<close.upperBound]
+                XCTAssertTrue(call.contains("trigger: trigger"), "\(call) reports another trigger")
+                calls += 1
+                from = close.upperBound
+            }
+        }
+        XCTAssertEqual(calls, 5, "one completed and four failure reasons")
+        XCTAssertTrue(try source("SnapWorth/Views/PaywallView.swift")
+            .contains("vm.purchase(service: purchaseService, trigger: trigger)"),
+                      "the paywall must hand over the trigger it was opened with")
     }
 }
 
