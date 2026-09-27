@@ -2042,17 +2042,6 @@ final class PaywallBenefitsTests: XCTestCase {
         XCTAssertFalse(texts.contains(where: \.isEmpty))
         XCTAssertFalse(PaywallCopy.benefits.contains { $0.icon.isEmpty })
     }
-
-    /// Pro scans are capped per hour on the server, so "Unlimited scans"
-    /// carries a fair-use line — one that promises no more than the server
-    /// does: a 429's wait is what is left of the hour, never longer.
-    func test_unlimitedScansIsQualifiedByFairUse() {
-        XCTAssertTrue(PaywallCopy.benefits.contains { $0.text == String(localized: "Unlimited scans") })
-        XCTAssertTrue(PaywallCopy.fairUse.localizedCaseInsensitiveContains("fair use"))
-        XCTAssertTrue(PaywallCopy.fairUse.localizedCaseInsensitiveContains("up to an hour"))
-        XCTAssertFalse(PaywallCopy.fairUse.contains(where: \.isNumber),
-                       "the cap is server configuration; a number here goes stale")
-    }
 }
 
 // MARK: - EXIF / GPS on the upload path

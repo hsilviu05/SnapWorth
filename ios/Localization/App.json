@@ -4084,14 +4084,6 @@
       "de": "Unbegrenzte Scans",
       "zh-Hans": "无限扫描"
     },
-    "Unlimited scans are subject to fair use: very heavy use can pause scanning for up to an hour.": {
-      "comment": "Footnote under the paywall's list of what Pro includes. Qualifies the \"Unlimited scans\" row: Pro scans are capped per hour, and a device over the cap waits at most an hour.",
-      "en": "Unlimited scans are subject to fair use: very heavy use can pause scanning for up to an hour.",
-      "ro": "Scanările nelimitate sunt supuse utilizării rezonabile: la o folosire foarte intensă, scanarea se poate opri pentru cel mult o oră.",
-      "es": "Los escaneos ilimitados están sujetos a un uso razonable: con un uso muy intensivo, el escaneo puede pausarse hasta una hora.",
-      "de": "Unbegrenzte Scans unterliegen der fairen Nutzung: Bei sehr intensiver Nutzung kann das Scannen bis zu einer Stunde pausieren.",
-      "zh-Hans": "无限扫描适用合理使用原则：使用过于频繁时，扫描可能暂停，最长一小时。"
-    },
     "Unlimited scans · Active": {
       "en": "Unlimited scans · Active",
       "ro": "Scanări nelimitate · Activ",
