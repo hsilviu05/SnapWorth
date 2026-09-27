@@ -3091,6 +3091,14 @@
       "de": "SnapWorth-Sammlung, %@ gescannt, im Wert von %@.",
       "zh-Hans": "SnapWorth 收获，已扫描 %@，价值 %@。"
     },
+    "SnapWorth recognizes your subscription now. Please try again.": {
+      "comment": "Message under \"Subscription confirmed\". The request the server had refused is not re-run automatically, so the user is asked to repeat it.",
+      "en": "SnapWorth recognizes your subscription now. Please try again.",
+      "ro": "SnapWorth îți recunoaște acum abonamentul. Încearcă din nou.",
+      "es": "SnapWorth ya reconoce tu suscripción. Inténtalo de nuevo.",
+      "de": "SnapWorth erkennt dein Abo jetzt an. Versuch es noch einmal.",
+      "zh-Hans": "SnapWorth 现在已确认你的订阅。请再试一次。"
+    },
     "SnapWorth version %@": {
       "en": "SnapWorth version %@",
       "ro": "SnapWorth versiunea %@",
@@ -3248,6 +3256,14 @@
       "es": "La suscripción se renueva automáticamente salvo que la canceles al menos 24 horas antes de que acabe el periodo en curso. Se cobrará la renovación a tu cuenta de ID de Apple durante las 24 horas anteriores al fin del periodo en curso. Puedes gestionarla o cancelarla cuando quieras en los ajustes de tu cuenta de ID de Apple. La parte no usada de una prueba gratuita se pierde al comprar.",
       "de": "Das Abo verlängert sich automatisch, sofern es nicht mindestens 24 Stunden vor Ende des laufenden Zeitraums gekündigt wird. Die Verlängerung wird deiner Apple-ID innerhalb der letzten 24 Stunden des laufenden Zeitraums berechnet. Du kannst das Abo jederzeit in den Einstellungen deines Apple-ID-Accounts verwalten oder kündigen. Ein nicht genutzter Teil einer Testphase verfällt mit dem Kauf.",
       "zh-Hans": "订阅会自动续期，除非在当前周期结束前至少 24 小时取消。续期费用将在当前周期结束前 24 小时内从你的 Apple 账户扣除。你可以随时在 Apple 账户设置中管理或取消订阅。购买后，免费试用期中未使用的部分将作废。"
+    },
+    "Subscription confirmed": {
+      "comment": "Alert title after \"Restore purchase\" in the \"We couldn't confirm your subscription\" alert, once the server has accepted the subscription.",
+      "en": "Subscription confirmed",
+      "ro": "Abonament confirmat",
+      "es": "Suscripción confirmada",
+      "de": "Abo bestätigt",
+      "zh-Hans": "订阅已确认"
     },
     "Suggest a feature": {
       "en": "Suggest a feature",

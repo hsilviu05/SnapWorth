@@ -4790,6 +4790,8 @@ final class TokenMintFailureMappingTests: XCTestCase {
 private final class ResyncStub: PurchaseService {
     var isSubscribed: Bool
     var resyncResult: EntitlementResync
+    /// What `restorePurchases` throws, when it should fail.
+    var restoreError: Error?
     private(set) var resyncCalls = 0
 
     init(subscribed: Bool, resync: EntitlementResync) {
@@ -4798,7 +4800,9 @@ private final class ResyncStub: PurchaseService {
     }
 
     func purchase(productID: String) async throws -> PurchaseOutcome { .completed }
-    func restorePurchases() async throws {}
+    func restorePurchases() async throws {
+        if let restoreError { throw restoreError }
+    }
     func resyncEntitlement() async -> EntitlementResync {
         resyncCalls += 1
         if resyncResult == .notSubscribed { isSubscribed = false }
@@ -5012,6 +5016,79 @@ final class SubscriberPaywallTests: XCTestCase {
             }
             XCTAssertGreaterThan(found, 0, path)
         }
+    }
+}
+
+// ── The alert's Restore says what it found ───────────────────────────────────
+//
+// It was `try? await restorePurchases()` behind an alert that closes on the
+// tap, so nothing on screen changed whatever happened — on the one alert that
+// appears right after a sync has failed.
+
+@MainActor
+final class SubscriptionRestoreTests: XCTestCase {
+
+    private var spy = EventSpy()
+
+    override func setUp() {
+        super.setUp()
+        spy = EventSpy()
+        Analytics.shared.configure(spy)
+    }
+
+    private var syncFailures: [String] {
+        spy.events.compactMap {
+            guard $0.name == "entitlement_sync_failed" else { return nil }
+            return $0.parameters["reason"]
+        }
+    }
+
+    func test_aConfirmedSubscriptionIsSaidSo() async {
+        let stub = ResyncStub(subscribed: true, resync: .confirmed)
+        let outcome = await SubscriptionRestore.run(stub)
+        guard case .notice(let notice) = outcome else { return XCTFail("\(outcome)") }
+        XCTAssertEqual(notice.title, String(localized: "Subscription confirmed"))
+        XCTAssertEqual(stub.resyncCalls, 1, "the server's answer is awaited, not left to a detached push")
+    }
+
+    func test_aServerThatStillRefusesBringsTheAlertBack() async {
+        let stub = ResyncStub(subscribed: true, resync: .failed(reason: "rejected"))
+        let outcome = await SubscriptionRestore.run(stub)
+        XCTAssertEqual(outcome, .stillUnconfirmed, "with its way to support")
+        XCTAssertEqual(syncFailures, ["rejected"])
+    }
+
+    func test_anUnreachableServerIsReportedAsItself() async {
+        let stub = ResyncStub(subscribed: true, resync: .unreachable(reason: "network", error: .network))
+        let outcome = await SubscriptionRestore.run(stub)
+        guard case .notice(let notice) = outcome else { return XCTFail("\(outcome)") }
+        XCTAssertEqual(notice.message, AppError.network.errorDescription)
+        XCTAssertEqual(syncFailures, ["network"])
+    }
+
+    func test_noSubscriptionAfterAllIsSaidSo() async {
+        let stub = ResyncStub(subscribed: true, resync: .notSubscribed)
+        let outcome = await SubscriptionRestore.run(stub)
+        guard case .notice(let notice) = outcome else { return XCTFail("\(outcome)") }
+        XCTAssertEqual(notice.message, String(localized: "No active subscription found on this Apple ID."))
+        XCTAssertFalse(stub.isSubscribed, "so the next refusal reaches the paywall")
+    }
+
+    func test_aFailedRestoreShowsItsError() async {
+        let stub = ResyncStub(subscribed: true, resync: .confirmed)
+        stub.restoreError = PurchaseError.failed("Cannot connect to the App Store.")
+        let outcome = await SubscriptionRestore.run(stub)
+        guard case .notice(let notice) = outcome else { return XCTFail("\(outcome)") }
+        XCTAssertEqual(notice.message, "Cannot connect to the App Store.")
+        XCTAssertEqual(stub.resyncCalls, 0)
+    }
+
+    func test_aDismissedSignInIsNotAResult() async {
+        let stub = ResyncStub(subscribed: true, resync: .confirmed)
+        stub.restoreError = PurchaseError.cancelled
+        let outcome = await SubscriptionRestore.run(stub)
+        XCTAssertEqual(outcome, .cancelled)
+        XCTAssertEqual(stub.resyncCalls, 0)
     }
 }
 

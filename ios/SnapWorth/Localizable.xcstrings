@@ -14868,6 +14868,42 @@
         }
       }
     },
+    "SnapWorth recognizes your subscription now. Please try again." : {
+      "comment" : "Message under \"Subscription confirmed\". The request the server had refused is not re-run automatically, so the user is asked to repeat it.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SnapWorth erkennt dein Abo jetzt an. Versuch es noch einmal."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SnapWorth recognizes your subscription now. Please try again."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SnapWorth ya reconoce tu suscripción. Inténtalo de nuevo."
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SnapWorth îți recunoaște acum abonamentul. Încearcă din nou."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SnapWorth 现在已确认你的订阅。请再试一次。"
+          }
+        }
+      }
+    },
     "SnapWorth version %@" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -15638,6 +15674,42 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "订阅会自动续期，除非在当前周期结束前至少 24 小时取消。续期费用将在当前周期结束前 24 小时内从你的 Apple 账户扣除。你可以随时在 Apple 账户设置中管理或取消订阅。购买后，免费试用期中未使用的部分将作废。"
+          }
+        }
+      }
+    },
+    "Subscription confirmed" : {
+      "comment" : "Alert title after \"Restore purchase\" in the \"We couldn't confirm your subscription\" alert, once the server has accepted the subscription.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Abo bestätigt"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Subscription confirmed"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Suscripción confirmada"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Abonament confirmat"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "订阅已确认"
           }
         }
       }

@@ -492,26 +492,112 @@ extension View {
     /// "Subscribe Yearly" would sell them the plan they pay for and could
     /// start a crossgrade. See `PurchaseService.confirmingSubscription`.
     ///
-    /// Restore runs `AppStore.sync()` and, through the status refresh, sends
-    /// the subscription to the server again. Support opens a mail carrying the
-    /// device's support id, which is what lets the operator look it up.
+    /// Restore runs `AppStore.sync()`, sends the subscription to the server
+    /// and waits for its answer, then says what it found — see
+    /// `SubscriptionRestore`. Support opens a mail carrying the device's
+    /// support id, which is what lets the operator look it up.
     func subscriptionUnconfirmedAlert(isPresented: Binding<Bool>,
                                       purchaseService: any PurchaseService) -> some View {
-        alert("We couldn't confirm your subscription", isPresented: isPresented) {
-            Button("Restore purchase") {
-                Task { try? await purchaseService.restorePurchases() }
-            }
-            Button("Contact support") {
-                // English on purpose, like the feedback form's: support sorts
-                // mail on the subject line.
-                if let url = SupportMail.composeURL(subject: "SnapWorth Subscription not recognised",
-                                                    body: "\n\n\(SupportMail.diagnostics)") {
-                    UIApplication.shared.open(url)
+        modifier(SubscriptionUnconfirmedAlert(isPresented: isPresented,
+                                              purchaseService: purchaseService))
+    }
+}
+
+private struct SubscriptionUnconfirmedAlert: ViewModifier {
+    @Binding var isPresented: Bool
+    let purchaseService: any PurchaseService
+    /// What Restore found, shown once it is known.
+    @State private var notice: SubscriptionRestore.Notice?
+
+    func body(content: Content) -> some View {
+        content
+            .alert("We couldn't confirm your subscription", isPresented: $isPresented) {
+                Button("Restore purchase") {
+                    Task {
+                        switch await SubscriptionRestore.run(purchaseService) {
+                        case .cancelled:        break
+                        case .stillUnconfirmed: isPresented = true
+                        case .notice(let found): notice = found
+                        }
+                    }
                 }
+                Button("Contact support") {
+                    // English on purpose, like the feedback form's: support sorts
+                    // mail on the subject line.
+                    if let url = SupportMail.composeURL(subject: "SnapWorth Subscription not recognised",
+                                                        body: "\n\n\(SupportMail.diagnostics)") {
+                        UIApplication.shared.open(url)
+                    }
+                }
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text(AppError.subscriptionUnconfirmed.errorDescription ?? "")
             }
-            Button("OK", role: .cancel) {}
-        } message: {
-            Text(AppError.subscriptionUnconfirmed.errorDescription ?? "")
+            .alert(notice?.title ?? "",
+                   isPresented: Binding(get: { notice != nil },
+                                        set: { if !$0 { notice = nil } }),
+                   presenting: notice) { _ in
+                Button("OK", role: .cancel) {}
+            } message: { found in
+                Text(found.message)
+            }
+    }
+}
+
+/// What the unconfirmed-subscription alert's Restore established.
+///
+/// It was `Task { try? await restorePurchases() }`. The alert closed on the
+/// tap, the server push behind a restore is detached, and `isSubscribed` was
+/// already true — which is why the alert was up — so nothing on screen
+/// changed whether the restore worked, failed or was never going to: the
+/// "dead button" App Review cites under Guideline 2.1, on the one alert that
+/// appears right after a sync has failed. Now the server's answer is awaited
+/// and reported.
+enum SubscriptionRestore {
+    enum Outcome: Equatable {
+        /// Apple's sign-in was dismissed: the user's decision, not a result.
+        case cancelled
+        /// The server still will not honour it: the same alert again, with
+        /// its way to support.
+        case stillUnconfirmed
+        case notice(Notice)
+    }
+
+    struct Notice: Equatable {
+        let title: String
+        let message: String
+    }
+
+    @MainActor
+    static func run(_ service: any PurchaseService) async -> Outcome {
+        do {
+            try await service.restorePurchases()
+        } catch {
+            let appError = AppError.from(error)
+            guard appError != .purchaseCancelled else { return .cancelled }
+            return .notice(Notice(title: String(localized: "Restore purchases"),
+                                  message: appError.errorDescription ?? ""))
+        }
+        switch await service.resyncEntitlement() {
+        case .confirmed:
+            // The refused request is not re-run from here: the alert cannot
+            // tell which of a screen's requests it was, and a tag re-read's
+            // label photo is already gone.
+            return .notice(Notice(
+                title: String(localized: "Subscription confirmed"),
+                message: String(localized: "SnapWorth recognizes your subscription now. Please try again.")))
+        case .notSubscribed:
+            // StoreKit no longer shows one either, so the next refusal goes
+            // to the paywall, which is then the right answer.
+            return .notice(Notice(title: String(localized: "Restore purchases"),
+                                  message: String(localized: "No active subscription found on this Apple ID.")))
+        case .unreachable(let reason, let error):
+            Analytics.shared.track(.entitlementSyncFailed(reason: reason))
+            return .notice(Notice(title: String(localized: "We couldn't confirm your subscription"),
+                                  message: error.errorDescription ?? ""))
+        case .failed(let reason):
+            Analytics.shared.track(.entitlementSyncFailed(reason: reason))
+            return .stillUnconfirmed
         }
     }
 }
