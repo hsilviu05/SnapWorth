@@ -927,11 +927,12 @@ class TestRedisRefusingWrites:
                                 lambda **kw: type("R", (), {
                                     "public_key_pem": b"pem", "counter": 0,
                                     "environment": "production"})())
-            with pytest.raises(auth.HTTPException) as exc:
+            with pytest.raises(HTTPException) as exc:
                 asyncio.run(auth.attest(auth.AttestRequest(
                     challenge="c", key_id="AAAA", attestation="AAAA"),
                     _anonymous_request()))
             assert exc.value.status_code == 503
+            assert getattr(exc.value, "code", None) == "sign_in_unavailable"
         finally:
             build_deps()
 
@@ -944,11 +945,12 @@ class TestRedisRefusingWrites:
         try:
             auth.deps.cache = ResilientCache(_Down(), fallback)
             monkeypatch.setattr(auth.deps, "ip_limiter", None)
-            with pytest.raises(auth.HTTPException) as exc:
+            with pytest.raises(HTTPException) as exc:
                 asyncio.run(auth.refresh(auth.AssertRequest(
                     challenge="c", key_id="AAAA", assertion="AAAA"),
                     _anonymous_request()))
             assert exc.value.status_code == 503
+            assert getattr(exc.value, "code", None) == "sign_in_unavailable"
         finally:
             build_deps()
 

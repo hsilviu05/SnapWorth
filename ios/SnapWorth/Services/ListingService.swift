@@ -431,10 +431,12 @@ actor TrendsAPIClient {
     /// How long a fetched payload stays good.
     ///
     /// `/trends` is a 7-day rollup — it barely moves within an hour — but the
-    /// My Finds tab re-fetched it on *every* appearance, and `/trends` shares
-    /// the same 20-requests-per-hour device rate limiter as `/scan` with no Pro
+    /// My Finds tab re-fetched it on *every* appearance, and `/trends` shared
+    /// the 20-requests-per-hour device rate limiter with `/scan`, with no Pro
     /// exemption. So idly switching tabs spent the user's actual scan budget on
-    /// a card that hadn't changed.
+    /// a card that hadn't changed. The server has since given `/trends` a
+    /// device bucket of its own, but every fetch still spends a slot of the
+    /// per-address one that scans share, so the cache stays.
     private static let ttl: TimeInterval = 30 * 60
 
     /// Keyed on the tier it was fetched under, because `/trends` returns a

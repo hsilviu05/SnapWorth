@@ -69,6 +69,7 @@ pattern as a backstop.
 from __future__ import annotations
 
 import asyncio
+import dataclasses
 import html
 import json
 import logging
@@ -78,11 +79,19 @@ import secrets
 import time
 from collections.abc import Awaitable, Callable
 from datetime import datetime, timedelta, timezone
+from typing import TYPE_CHECKING
 
 import auditlog
 import categories
 import ideas
 from confidence import brand_is_known
+from devicecheck import PROBE_NOT_SENT
+
+if TYPE_CHECKING:
+    # For the annotation only. The value arrives through `configure`, from the
+    # one `ScanQuota` main builds, so the bot asks the quota what the welcome
+    # is instead of working it out again.
+    from quota import WelcomeSetting
 
 log = logging.getLogger("snapworth.notify")
 
@@ -283,7 +292,8 @@ COMMANDS: tuple[tuple[str, str], ...] = (
     ("sub", "/sub <id> — ask Apple for one subscriber's live status"),
     ("users", "Devices seen, 7-day and 30-day actives, most active"),
     ("costs", "Gemini spend: today, 7 and 30 days, per scan, vs MRR"),
-    ("experiment", "Free-scan experiment: limit hits vs subscriptions, whole window"),
+    ("experiment", "Free-scan experiment: limit hits vs subscriptions, whole window; "
+                   "/experiment export for a CSV to keep"),
     ("lever", "Arm or disarm the free-scan allowance without a redeploy"),
     ("minbuild", "Tell app builds below a number to update, without a redeploy"),
     ("social", "TikTok: followers, likes and the latest videos"),
@@ -698,8 +708,15 @@ _generator: Callable[..., Awaitable[str]] | None = None
 _scanner: Callable[..., Awaitable[dict]] | None = None
 
 # Asks Apple whether the DeviceCheck credentials actually sign, injected by
-# main. `async () -> (ok, detail)`; None when the app did not wire one.
-_device_check_probe: Callable[[], Awaitable[tuple[bool, str]]] | None = None
+# main. `async () -> (ok, detail)`, where `ok` is None when Apple could not be
+# asked (see `devicecheck.DeviceCheckClient.verify`); None when the app did
+# not wire one.
+_device_check_probe: Callable[[], Awaitable[tuple[bool | None, str]]] | None = None
+
+# What the first-day welcome is, from the `ScanQuota` that grants it: its
+# `describe_welcome`, injected by main. None when the app did not wire one,
+# and then the bot says so rather than guess — see `_welcome_setting`.
+_describe_welcome: Callable[[], Awaitable[WelcomeSetting]] | None = None
 
 # Identifies this replica as the poll-lock holder.
 _poll_token = secrets.token_hex(8)
@@ -719,7 +736,8 @@ def configure(cache, notifier: TelegramNotifier | None = None,
               status_provider: Callable[[], dict] | None = None,
               social=None, generator: Callable[..., Awaitable[str]] | None = None,
               scanner: Callable[..., Awaitable[dict]] | None = None,
-              device_check_probe: Callable[[], Awaitable[tuple[bool, str]]] | None = None) -> None:
+              device_check_probe: Callable[[], Awaitable[tuple[bool | None, str]]] | None = None,
+              welcome: Callable[[], Awaitable[WelcomeSetting]] | None = None) -> None:
     """Wire the notifier from the environment. Called once at startup.
 
     With the env vars unset this leaves everything disabled and every public
@@ -727,13 +745,14 @@ def configure(cache, notifier: TelegramNotifier | None = None,
     from `count_scan` and `scan_completed`'s tallies, which `/trends` reads.
     """
     global _notifier, _cache, _status_provider, _social, _generator, _scanner
-    global _device_check_probe
+    global _device_check_probe, _describe_welcome
     _cache = cache
     _status_provider = status_provider
     _social = social
     _generator = generator
     _scanner = scanner
     _device_check_probe = device_check_probe
+    _describe_welcome = welcome
 
     if notifier is not None:
         _notifier = notifier
@@ -977,6 +996,102 @@ def safety_blocked(subject: str, count: int, *, paused: bool) -> None:
         _spawn(_announce_safety_pause(auditlog.pseudonymise(subject), count))
 
 
+# ── Referrals (#97) ──────────────────────────────────────────────────────────
+
+# The server's half of the referral funnel, in order. The app's events fire on
+# taps — a code accepted, a redeem page opened — and an offer-code redemption
+# never passes through the app's purchase flow, so only the server sees what
+# Apple actually did. Worded as verbs after the number, so "1 claimed" and
+# "12 claimed" both read.
+REFERRAL_STEPS = (
+    ("claimed", "claimed"),                    # a friend was handed an Apple code
+    ("redeemed", "redeemed at Apple"),         # a friend-offer purchase arrived
+    ("rewarded", "rewarded"),                  # a week was parked for a referrer
+    ("paid", "paid after the free week"),      # that subscription was then paid for
+)
+
+
+def count_referral(step: str) -> None:
+    """Tally one step of the referral funnel for the digest. Fire-and-forget."""
+    if _notifier is None or step not in dict(REFERRAL_STEPS):
+        return
+    _spawn(_bump(f"referral_{step}"))
+
+
+async def _referral_digest_line(day: str) -> str:
+    """"Referrals: 3 claimed · 2 redeemed at Apple · …", or "" on a quiet day."""
+    counts = [(await _read_stat(day, f"referral_{step}"), label)
+              for step, label in REFERRAL_STEPS]
+    if not any(n for n, _ in counts):
+        return ""
+    return "Referrals: " + " · ".join(f"{n} {label}" for n, label in counts)
+
+
+def referral_pool_low(pool: str, remaining: int) -> None:
+    """A referral code pool is down to `remaining` codes. Fire-and-forget.
+
+    An empty pool used to be a log line and nothing else, while every claim
+    answered "Invites are paused" — or, for the reward pool, a referrer's week
+    went unissued. Said once per pool per UTC day at "low", and once more if it
+    reaches empty, because a new batch is an App Store Connect chore the
+    operator has to do by hand.
+    """
+    if _notifier is None or _cache is None:
+        return
+    _spawn(_announce_referral_pool(pool, remaining))
+
+
+async def _announce_referral_pool(pool: str, remaining: int) -> None:
+    state = "empty" if remaining <= 0 else "low"
+    try:
+        if not await _cache.add(f"opsseen:refpool:{pool}:{state}:{_day()}", "1", STATS_TTL):
+            return
+    except Exception:
+        return
+    name = html.escape(pool)
+    if pool == "friend":
+        effect = ("Every invite claim now answers “Invites are paused”." if state == "empty"
+                  else "When it runs out, every invite claim answers “Invites are paused”.")
+    else:
+        effect = ("A friend who redeems now earns their referrer nothing until it is "
+                  "refilled; that friend's next sync retries." if state == "empty"
+                  else "When it runs out, referrers stop receiving the weeks they earn.")
+    headline = (f"🎟 <b>Referral {name} pool is empty</b>" if state == "empty"
+                else f"🎟 <b>Referral {name} pool is low</b> — {remaining} left")
+    await _notifier.send(
+        f"{headline}\n{effect}\nGenerate a new batch of one-time codes for the "
+        f"{name} offer in App Store Connect and load it with "
+        "<code>backend/tools/load_referral_codes.py</code> (RUNBOOK §18).")
+
+
+async def _referral_line() -> str:
+    """The checkup's referral line: on or off, and what is left in each pool."""
+    import referral            # not at the top: referral imports auth, which imports this
+    cfg = referral.config
+    state = ("on" if cfg.active else
+             "REFERRALS_ENABLED without REFERRAL_FRIEND_OFFER, so inert" if cfg.enabled
+             else "off")
+    try:
+        # Required, or a Redis outage reads as (0, 0) from process memory and
+        # is reported below as "no referral codes loaded" about intact pools.
+        levels = {pool: await referral.pool_level(pool, _cache, required=True)
+                  for pool in referral.POOLS}
+    except Exception as exc:
+        return f"Referrals: {state} · pools unreadable ({html.escape(type(exc).__name__)})"
+    if not any(size for size, _ in levels.values()):
+        line = f"Referrals: {state}" + (" · no codes loaded" if cfg.enabled else "")
+        return line + ("\n⚠️ no referral codes loaded — every invite is refused"
+                       if cfg.active else "")
+    line = f"Referrals: {state} · " + " · ".join(
+        f"{pool} codes {left} of {size} left" for pool, (size, left) in levels.items())
+    if cfg.active:
+        for pool, (_, left) in levels.items():
+            if left <= referral.POOL_LOW_AT:
+                line += (f"\n⚠️ {pool} pool at {left} — load a new batch before it runs out"
+                         if left else f"\n⚠️ {pool} pool is empty")
+    return line
+
+
 # ── Subscription events ──────────────────────────────────────────────────────
 
 async def appstore_test_notification(environment: str) -> str:
@@ -1065,6 +1180,11 @@ async def subscription_event(note, *, reinstated=None) -> None:
             # never calls this, so nothing should reach here. If something
             # does, it is a tester's renewal and not money.
             return
+        if note.is_paid_period:
+            # A friend who took a referral week and then paid. Apple says so
+            # whether or not they open the app again, which the sync cannot.
+            import referral    # not at the top: referral imports auth, which imports this
+            await referral.note_paid_period(ent)
 
         before = await _index_subscription(None, ent, note.auto_renew,
                                            current=note.is_refund_reversal)
@@ -1639,6 +1759,9 @@ async def _digest_text(when: datetime) -> str:
         await _subscribers_line(),
         await _spend_line([day], free + pro),
     ]
+    referrals = await _referral_digest_line(day)
+    if referrals:
+        lines.append(referrals)
     top = await _top_text(day)
     if top:
         lines.append(top)
@@ -1899,9 +2022,12 @@ async def handle_command_with_buttons(text: str) -> tuple[str, Buttons] | None:
     if command == "/costs":
         return await _costs_text(), await _buttons()
     if command == "/experiment":
+        if argument == "export":
+            return await _experiment_export(), [[("🧪 Experiment", "experiment")]]
         current = (await _levers()).get("free_scans_first_day")
         return (await _experiment_text(),
-                _lever_buttons(current) + await _buttons())
+                _lever_buttons(current) + [[("💾 Export CSV", "experiment export")]]
+                + await _buttons())
     if command == "/lever":
         return await _lever_command(argument, rest)
     if command == "/minbuild":
@@ -2177,22 +2303,75 @@ def _clean_brand(brand: str | None) -> str | None:
 # to the environment when it returns None or raises, so an unreadable lever can
 # neither fail a scan nor grant an allowance nobody configured. The value is
 # clamped there too: this is a button that spends money.
+#
+# What a value resolves to — the cap, the daily floor, the environment's say —
+# is the quota's to answer, and `_welcome_setting` asks it. This module used to
+# keep its own copy of each rule. The missing floor is the copy that made
+# screens untrue — the lever's confirmation (fixed in 6cae388) and
+# /experiment's lever line — while the default and the cap still matched,
+# each one quota edit away from not matching.
 
 LEVERS_KEY = "opsstate:levers"
 LEVER_CHANGES_CAP = 40
 DEFAULT_ARMED_FIRST_DAY = 3
 
 
-def _daily_free_scans() -> int:
-    """FREE_SCANS_PER_DAY, read the way main.py reads it.
+async def _welcome_setting() -> WelcomeSetting | None:
+    """The welcome as the quota resolves it, or None when it cannot be asked.
 
-    The lever's floor depends on it: `ScanQuota` grants a first-day allowance
-    only when it exceeds the daily one.
+    None when main did not wire `describe_welcome` into this process. The bot
+    then says it does not know and will not arm: answering from its own copy
+    of the rules is what printed `FREE_SCANS_FIRST_DAY=1` — no welcome at a
+    daily limit of 1 — as though the lever were armed.
     """
+    if _describe_welcome is None:
+        return None
     try:
-        return int(os.environ.get("FREE_SCANS_PER_DAY", "1"))
-    except ValueError:
-        return 1
+        return await _describe_welcome()
+    except Exception as exc:                    # pragma: no cover - defensive
+        log.warning("welcome setting unreadable: %s", type(exc).__name__)
+        return None
+
+
+def _welcome_summary(setting: WelcomeSetting | None) -> tuple[bool, str, str]:
+    """(armed, head, why) — whether a new user gets a first-day welcome now.
+
+    Plain text, so the CSV export can carry it; `_welcome_html` marks it up.
+    It reports what the quota grants and then what was asked for, because the
+    two differ exactly when the operator most needs to know it: a value at or
+    below the daily limit is asked for and grants nothing.
+    """
+    if setting is None:
+        return False, "welcome unknown", "the quota is not wired into the bot in this process"
+    env = f"FREE_SCANS_FIRST_DAY={setting.environment}"
+    chat = setting.override is not None
+    if setting.scans:
+        why = (f"{setting.scans} first-day scan{'s' if setting.scans != 1 else ''}, "
+               + ("set from chat" if chat else f"from {env}"))
+        if setting.configured > setting.cap:
+            why += f" (asked for {setting.configured}, capped at {setting.cap})"
+    elif setting.configured <= 0:
+        why = "disarmed from chat" if chat else f"{env}, or unset"
+    else:
+        asked = f"the lever's {setting.configured}, set from chat," if chat else env
+        if setting.configured > setting.daily:
+            # Above the daily limit as asked, so the cap is what took it away:
+            # clamped to a cap no higher than the daily limit. Saying the
+            # value is "not above the daily limit" would be false.
+            why = (f"{asked} is capped at {setting.cap}, which is not above the "
+                   f"daily limit of {setting.daily}, so no first-day welcome")
+        else:
+            why = (f"{asked} is not above the daily limit of {setting.daily}, "
+                   "so no first-day welcome")
+    if chat and setting.environment != setting.override:
+        # Worth printing: the environment is what ↩️ Use env hands back to.
+        why += f" · env {env}"
+    return bool(setting.scans), "lever armed" if setting.scans else "lever not armed", why
+
+
+def _welcome_html(setting: WelcomeSetting | None) -> str:
+    armed, head, why = _welcome_summary(setting)
+    return f"{head if armed else f'<b>{head}</b>'} — {html.escape(why)}"
 
 
 async def _levers(*, required: bool = False) -> dict:
@@ -2211,14 +2390,19 @@ async def _levers(*, required: bool = False) -> dict:
     return doc if isinstance(doc, dict) else {}
 
 
+def _lever_value(doc: dict) -> int | None:
+    """The welcome allowance a levers document holds, or None for none."""
+    value = doc.get("free_scans_first_day")
+    return int(value) if isinstance(value, (int, float)) else None
+
+
 async def free_scan_lever() -> int | None:
     """The operator's welcome allowance, or None to use the environment.
 
     Injected into `ScanQuota` from main.py — quota must not import this module.
     Raises nothing: `_levers` swallows, and a missing key reads as None.
     """
-    value = (await _levers()).get("free_scans_first_day")
-    return int(value) if isinstance(value, (int, float)) else None
+    return _lever_value(await _levers())
 
 
 async def _set_free_scan_lever(value: int | None) -> dict | None:
@@ -2259,6 +2443,9 @@ _LEVER_UNREADABLE = ("🎚 Nothing changed: the lever's stored state could not b
                      "read, and writing over it would lose its change history. "
                      "Try again in a minute.")
 
+_LEVER_UNWIRED = ("🎚 Nothing changed: the bot cannot ask the quota in this process "
+                  "what an allowance would grant, and will not arm one blind.")
+
 
 async def _lever_command(argument: str, rest: str) -> tuple[str, Buttons]:
     """`/lever`, `/lever arm [n]`, `/lever disarm`, and their confirmations.
@@ -2276,34 +2463,39 @@ async def _lever_command(argument: str, rest: str) -> tuple[str, Buttons]:
     confirmed = any(token.lower() == "yes" for token in parts[1:])
     current = (await _levers()).get("free_scans_first_day")
 
+    setting = await _welcome_setting()
+
     if action == "arm":
+        if setting is None:
+            return _LEVER_UNWIRED, _lever_buttons(current)
         wanted = DEFAULT_ARMED_FIRST_DAY
         for token in parts[1:]:
             if token.isdigit():
                 wanted = int(token)
-        # `ScanQuota._first_day_limit` clamps the same way *and then* ends with
-        # `return configured if configured > self._limit else 0` — so anything
-        # at or below FREE_SCANS_PER_DAY resolves to no welcome allowance at
-        # all. This mirrored only the upper half, so arming with 0 or 1 replied
-        # "Lever armed — 1 first-day scan", `/lever` went on rendering that
-        # override on every later call, and the stored document has no TTL, so
-        # the false state survived redeploys. Refuse it where the operator can
-        # see it rather than clamp it silently.
-        wanted = max(0, min(wanted, 10))
-        daily = _daily_free_scans()
-        if wanted <= daily:
+        # The quota clamps to its cap *and then* discards anything at or below
+        # the daily limit. This used to mirror only the clamp, so arming with 0
+        # or 1 replied "Lever armed — 1 first-day scan" and `/lever` went on
+        # rendering that override, from a stored document with no TTL. Asked
+        # rather than restated now, and refused where the operator can see it
+        # rather than clamped silently.
+        wanted = min(wanted, setting.cap)
+        if not setting.allowance(wanted):
+            daily = setting.daily
+            smallest = setting.smallest
+            fix = (f"Arm <b>{smallest}</b> or more, or use 🔕 Disarm for no "
+                   "welcome at all." if smallest is not None else
+                   f"The cap is <b>{setting.cap}</b>, so no first-day allowance "
+                   "can be larger than that — there is no welcome to arm.")
             return (f"🧪 <b>That is not a welcome.</b>\n"
                     f"Every user already gets <b>{daily}</b> free scan"
                     f"{'s' if daily != 1 else ''} a day, and a first-day "
                     f"allowance is only an allowance above that — the quota "
-                    f"discards <b>{wanted}</b> and grants nothing.\n"
-                    f"Arm <b>{daily + 1}</b> or more, or use 🔕 Disarm for "
-                    f"no welcome at all.",
+                    f"discards <b>{wanted}</b> and grants nothing.\n{fix}",
                     _lever_buttons(current))
         if not confirmed:
             return (f"🧪 <b>Arm the free-scan lever?</b>\n"
                     f"New users would get <b>{wanted}</b> scan{'s' if wanted != 1 else ''} "
-                    f"on their first day. Currently <b>{_lever_label(current)}</b>.\n"
+                    f"on their first day. Currently {_welcome_html(setting)}.\n"
                     f"This spends money: every extra scan is a model call.",
                     [[("✅ Yes, arm it", f"lever arm {wanted} yes"),
                       ("Cancel", "experiment")]])
@@ -2316,7 +2508,7 @@ async def _lever_command(argument: str, rest: str) -> tuple[str, Buttons]:
         if not confirmed:
             return ("🔕 <b>Disarm the free-scan lever?</b>\n"
                     f"New users would fall back to the daily limit. Currently "
-                    f"<b>{_lever_label(current)}</b>.\n"
+                    f"{_welcome_html(setting)}.\n"
                     "The window in /experiment keeps running; only the allowance stops.",
                     [[("✅ Yes, disarm it", "lever disarm yes"),
                       ("Cancel", "experiment")]])
@@ -2327,19 +2519,29 @@ async def _lever_command(argument: str, rest: str) -> tuple[str, Buttons]:
 
     if action == "default":
         if not confirmed:
+            if setting is None:
+                then = "FREE_SCANS_FIRST_DAY would decide again"
+            else:
+                # What handing back would actually grant, since the variable's
+                # value alone does not say: 1 reads like a welcome and is none.
+                after = setting.allowance(setting.environment)
+                then = (f"FREE_SCANS_FIRST_DAY={setting.environment} would decide "
+                        "again — " + (f"<b>{_lever_label(after)}</b>" if after
+                                      else "<b>no first-day welcome</b>"))
             return ("↩️ <b>Hand the lever back to the environment?</b>\n"
-                    f"FREE_SCANS_FIRST_DAY would decide again. Currently "
-                    f"<b>{_lever_label(current)}</b>.",
+                    f"{then}. Currently {_welcome_html(setting)}.",
                     [[("✅ Yes", "lever default yes"), ("Cancel", "experiment")]])
         if await _set_free_scan_lever(None) is None:
             return _LEVER_UNREADABLE, _lever_buttons(current)
         return ("↩️ Lever cleared — the environment decides again.",
                 [[("🧪 Experiment", "experiment")]])
 
-    env = os.environ.get("FREE_SCANS_FIRST_DAY", "")
-    return (f"🎚 <b>Free-scan lever</b>\nOverride: <b>{_lever_label(current)}</b>\n"
-            f"Environment: <code>FREE_SCANS_FIRST_DAY={html.escape(env) or 'unset'}</code>",
-            _lever_buttons(current))
+    lines = [f"🎚 <b>Free-scan lever</b>\nNow: {_welcome_html(setting)}",
+             f"Override: <b>{_lever_label(current)}</b>"]
+    if setting is not None:
+        lines.append(f"Environment: <code>FREE_SCANS_FIRST_DAY={setting.environment}</code>"
+                     f" · daily limit {setting.daily}")
+    return "\n".join(lines), _lever_buttons(current)
 
 
 def _lever_buttons(current: int | None) -> Buttons:
@@ -2355,7 +2557,9 @@ def _lever_buttons(current: int | None) -> Buttons:
 # A bad client release could not be told to update: the server did not know
 # which build was calling, and had no switch to act on it if it had.
 # `main._refuse_outdated_build` reads this on /scan, /listing and /trends and
-# refuses a build below it with `UPDATE_REQUIRED_DETAIL`. Only /scan and
+# refuses a build below it with `UPDATE_REQUIRED_DETAIL` and the code
+# `update_required` — a 426 when the build said so in `X-SnapWorth-Build`,
+# a 422 when it was read from the User-Agent. Only /scan and
 # /listing show that text; the app fetches /trends with `try?`, so a refusal
 # there shows nothing. /auth is never gated, so an old build can still sign in
 # and record a purchase.
@@ -2429,7 +2633,11 @@ async def _minbuild_command(argument: str, rest: str) -> tuple[str, Buttons]:
                     f"silently and its Trending card just disappears.\n"
                     f"Only do this once build <b>{wanted}</b> is live on the "
                     f"App Store. Builds 7 and older cannot show this text and "
-                    f"will see \"Something went wrong\". Sign-in and purchases "
+                    f"will see \"Something went wrong\". A build that sends "
+                    f"<code>X-SnapWorth-Build</code> is refused with a 426 and "
+                    f"shows the app's own update message in the app's "
+                    f"language; only the Scan tab's alert adds an App Store "
+                    f"button. Sign-in and purchases "
                     f"stay open, and a request that does not say its build is "
                     f"always served. The access log's <code>build</code> field "
                     f"shows who is still on an older one, and "
@@ -3924,6 +4132,41 @@ def _day_span(start: datetime, end: datetime) -> list[str]:
     return out
 
 
+# The partial day's footnote, shared by the table and the export so the two
+# cannot disagree about what that row is.
+EXPERIMENT_PARTIAL_NOTE = ("limit hits counted from 18:29 UTC that day only — the "
+                           "counter shipped mid-day")
+
+# The counters `/experiment` shows, in its column order. The export's header
+# uses these names as they are, so a kept copy can be traced back to the code.
+EXPERIMENT_COUNTERS = ("active_users", "scans_free", "limit_hits", "new_subs")
+
+
+def _stat_expired(day: str, now: datetime) -> bool:
+    """Whether a day's counters are past STATS_TTL, so a 0 read for it is an
+    absence rather than a count."""
+    dt = _parse_day(day)
+    return dt is not None and (now - dt).days >= STATS_TTL // 86400
+
+
+def _stat_expires_on(day: str) -> datetime:
+    """When `_stat_expired` starts to hold for `day`, a YYYYMMDD from
+    `_day_span`."""
+    return (datetime.strptime(day, "%Y%m%d").replace(tzinfo=timezone.utc)
+            + timedelta(days=STATS_TTL // 86400))
+
+
+def _lever_changes_in(days: list[str], doc: dict) -> list[list]:
+    """The changes recorded in levers document `doc` that fall on one of
+    `days`, oldest first.
+
+    Handed the document rather than reading it, because the two callers read
+    it differently: the table best-effort, the export `required`.
+    """
+    return [c for c in (doc.get("changes") or [])
+            if isinstance(c, list) and len(c) == 3 and c[0] in days]
+
+
 async def _experiment_text(now: datetime | None = None) -> str:
     """The experiment's server-side half, whole window at once.
 
@@ -3967,9 +4210,8 @@ async def _experiment_text(now: datetime | None = None) -> str:
     hits = subs = free_scans = expired = 0
     partial = False
     for d in shown:
-        dt = _parse_day(d)
         label = f"{d[4:6]}-{d[6:]}"
-        if dt is not None and (now - dt).days >= ttl_days:
+        if _stat_expired(d, now):
             expired += 1
             rows.append(
                 f"<code>{label:<6}{'—':>6} {'—':>5} {'—':>5} {'—':>5}</code>")
@@ -3992,22 +4234,11 @@ async def _experiment_text(now: datetime | None = None) -> str:
     head = ("\U0001F9EA <b>Free-scan experiment</b> — "
             + (f"closed after {len(span)} days" if closed
                else f"day {len(shown)} of {len(span)}"))
-    # The runtime lever first, then the environment — the order `ScanQuota`
-    # resolves them in. This read the environment only, so the one line telling
-    # the operator whether the thing being measured is switched on consulted a
-    # source that `/lever` never writes: arming from chat left this saying
-    # "lever not armed" for the whole window.
-    override = await free_scan_lever()
-    env = os.environ.get("FREE_SCANS_FIRST_DAY", "")
-    if override is not None:
-        lever = f"lever {override} first-day scans (set from chat)"
-        if env and env != str(override):
-            # Worth printing: the environment is what a redeploy falls back to.
-            lever += f" · env FREE_SCANS_FIRST_DAY={html.escape(env)}"
-    elif env:
-        lever = f"FREE_SCANS_FIRST_DAY={html.escape(env)}"
-    else:
-        lever = "<b>lever not armed</b> — FREE_SCANS_FIRST_DAY is unset"
+    # What the quota grants a new user now, asked of the quota. This read the
+    # environment only, so arming from chat left it saying "lever not armed"
+    # for the whole window; then it read both and printed them raw, so
+    # FREE_SCANS_FIRST_DAY=1 — no welcome at a daily limit of 1 — read as armed.
+    lever = _welcome_html(await _welcome_setting())
     window = (f"{start:%d %b} → {end:%d %b}"
               + ("" if closed else f" · {left} day{'s' if left != 1 else ''} left")
               + f" · {lever}")
@@ -4044,22 +4275,123 @@ async def _experiment_text(now: datetime | None = None) -> str:
     notes = []
     # A window whose lever moved mid-flight and does not say so is worse than
     # no window: the numbers look continuous and are not.
-    moved = [c for c in ((await _levers()).get("changes") or [])
-             if isinstance(c, list) and len(c) == 3 and c[0] in shown]
-    for day_changed, before, after in moved[-4:]:
+    for day_changed, before, after in _lever_changes_in(shown, await _levers())[-4:]:
         notes.append(f"⚠️ lever changed on {day_changed[4:6]}-{day_changed[6:]}: "
                      f"{_lever_label(before)} → {_lever_label(after)}")
     if partial:
-        notes.append("* limit hits counted from 18:29 UTC that day only — the "
-                     "counter shipped mid-day. Every other column is a whole day.")
+        notes.append(f"* {EXPERIMENT_PARTIAL_NOTE}. Every other column is a whole day.")
     if hits:
         notes.append("% is subscriptions ÷ limit hits across the window — "
                      "coincidence, not attribution.")
     if expired:
         notes.append(f"— {expired} day{'s' if expired != 1 else ''} older than the "
                      f"{ttl_days}-day counter TTL: those figures are gone, not zero.")
+    if readable:
+        # The record deletes itself a day at a time; say when, while there is
+        # still something to keep.
+        oldest = next(d for d in shown if not _stat_expired(d, now))
+        gone = _stat_expires_on(oldest)
+        notes.append(f"💾 The {oldest[4:6]}-{oldest[6:]} counters expire on "
+                     f"{gone:%d %b} — /experiment export gives a copy to keep.")
 
     return "\n".join([head, window, *rows, total, *notes])
+
+
+def _csv_comment(text: str) -> str:
+    """A `#` line for the export that a CSV parser reads as one field.
+
+    CSV has no comment syntax, so a comma in a note split it into cells — the
+    welcome line has several — and the block saved as a .csv read as ragged
+    rows ahead of its real header. The notes stay inside the block, because
+    the partial day and any lever move have to travel with the rows, and lose
+    their commas instead: to " · ", and semicolons too, which a spreadsheet
+    in a comma-decimal locale splits on. Not quoted: a quoted line starts with
+    `"`, and a reader told to skip `#` lines would no longer skip it.
+    """
+    return "# " + re.sub(r"\s*[,;]\s*", " · ", text)
+
+
+async def _experiment_export(now: datetime | None = None) -> str:
+    """`/experiment export`: the window's table as CSV, to keep.
+
+    The counters behind `/experiment` carry STATS_TTL, so the server's record
+    of the window deletes itself a day at a time — for the default window,
+    20260910's row goes on 2026-10-15 and the rest over the fortnight after —
+    and the daily digests that reported it are one day each. This is the one
+    form of it that outlives the cache: a block to copy into `docs/`.
+
+    Read `required`, unlike the table: the counters and the lever's record
+    both. A zero in a kept copy is a claim that nothing happened, and so is a
+    copy with no lever move in it, so an unreadable cache refuses the export
+    rather than writing either. An expired day has empty cells, not zeros, for
+    the reason the table prints "—".
+    """
+    now = now or datetime.now(timezone.utc)
+    start, end = _parse_day(EXPERIMENT_START_DAY), _parse_day(EXPERIMENT_END_DAY)
+    if start is None or end is None or end < start:
+        return ("💾 Nothing exported — the window is misconfigured: "
+                "EXPERIMENT_START_DAY and EXPERIMENT_END_DAY must both be "
+                "YYYYMMDD, end on or after start.")
+    today = _day(now)
+    shown = [d for d in _day_span(start, end) if d <= today]
+    if not shown:
+        return f"💾 Nothing to export — the window opens {start:%d %b}."
+
+    ttl_days = STATS_TTL // 86400
+    rows = [",".join(["day", *EXPERIMENT_COUNTERS, "note"])]
+    try:
+        # The lever's record as well as the counters. `_levers()` on its own
+        # turns a failed read into {}, and a kept copy built from that shows no
+        # lever move: the window that `_set_free_scan_lever` records changes
+        # so as never to produce.
+        levers = await _levers(required=True)
+        for d in shown:
+            iso = f"{d[:4]}-{d[4:6]}-{d[6:]}"
+            if _stat_expired(d, now):
+                rows.append(iso + "," * len(EXPERIMENT_COUNTERS)
+                            + f",expired: past the {ttl_days}-day counter TTL")
+                continue
+            values = []
+            for name in EXPERIMENT_COUNTERS:
+                raw = await _cache.get(_stat_key(d, name), required=True)
+                values.append(str(int(raw or 0)))
+            note = EXPERIMENT_PARTIAL_NOTE if d == EXPERIMENT_PARTIAL_DAY else ""
+            rows.append(",".join([iso, *values, note]))
+    except Exception as exc:
+        return ("💾 <b>Nothing exported</b> — the counters or the lever's record "
+                f"could not be read ({html.escape(type(exc).__name__)}), and a "
+                "copy without them would say nothing happened. Try again in a "
+                "minute.")
+
+    setting = await _welcome_setting()
+    if setting is not None:
+        # The quota reads the lever best-effort, as a scan must, and an
+        # unreadable one reads as the environment's value. In a kept copy that
+        # would be the environment's welcome while the lever said otherwise.
+        # So the override is the one just read `required`, through the parse
+        # `free_scan_lever` hands the quota; what it grants is still the
+        # quota's `allowance`.
+        setting = dataclasses.replace(setting, override=_lever_value(levers))
+    _, head, why = _welcome_summary(setting)
+    lines = [_csv_comment(f"SnapWorth free-scan experiment · {start:%Y-%m-%d} to "
+                          f"{end:%Y-%m-%d} · exported {now:%Y-%m-%d %H:%M} UTC"
+                          + ("" if today > EXPERIMENT_END_DAY
+                             else " while the window was open")),
+             _csv_comment(f"welcome at export: {head} — {why}")]
+    for day_changed, before, after in _lever_changes_in(shown, levers):
+        lines.append(_csv_comment(
+            f"lever changed {day_changed[:4]}-{day_changed[4:6]}-{day_changed[6:]}: "
+            f"{_lever_label(before)} -> {_lever_label(after)}"))
+    lines.extend(rows)
+
+    kept = [d for d in shown if not _stat_expired(d, now)]
+    expiry = (f"The {kept[0][4:6]}-{kept[0][6:]} counters expire on "
+              f"{_stat_expires_on(kept[0]):%d %b}, the rest a day at a time after."
+              if kept else "Every day in it is already past the counter TTL.")
+    csv = html.escape("\n".join(lines))
+    return ("💾 <b>Free-scan experiment — export</b>\n"
+            f"Copy the block into <code>docs/</code> to keep it. {expiry}\n"
+            f"<pre>{csv}</pre>")
 
 
 # ── One subscription, live from Apple ────────────────────────────────────────
@@ -4719,6 +5051,25 @@ async def _device_check_line(configured: bool) -> str:
         return f"DeviceCheck: configured · probe failed ({type(exc).__name__})"
     if ok:
         return f"DeviceCheck: configured ✅ — {html.escape(detail)}"
+    if ok is None:
+        # Apple did not answer, so nothing is known about the key. This used
+        # to fall through to REJECTED, which is an instruction to go and fix
+        # the key. The quota treats the same failure as an outage and grants
+        # (`quota.starting_balance`), so the allowance claim holds for as long
+        # as the outage does, not until someone changes something.
+        return (f"DeviceCheck: configured · Apple unreachable just now "
+                f"({html.escape(detail)}) — reinstalls get a fresh allowance "
+                "while this lasts; run /checkup again")
+    if detail.startswith(PROBE_NOT_SENT):
+        # The request failed before any answer from Apple was read, so
+        # nothing was rejected, and REJECTED sends the operator to the
+        # developer portal. It is a False all the same — waiting will not cure
+        # it — and scans make the same request through the same client, so
+        # the allowance half holds as it does for a refused key.
+        return (f"DeviceCheck: configured · {html.escape(detail)} — not a verdict "
+                "on the key; the server log has the traceback. Scans send the "
+                "same request, so reinstalls get a fresh allowance until it is "
+                "fixed.")
     return (f"DeviceCheck: configured but REJECTED — {html.escape(detail)}. "
             "Reinstalls get a fresh allowance until this is fixed.")
 
@@ -4878,6 +5229,28 @@ def _redis_line(info: dict, now: float) -> str:
     return line + "".join(f"\n⚠️ {w}" for w in warnings)
 
 
+async def _budget_line() -> str:
+    """Whether a day's Gemini spend can page the operator at all.
+
+    `GEMINI_DAILY_BUDGET_USD` defaults to 0, which switches the alert off, and
+    it was never set — while RUNBOOK §3 listed "Over budget" among the alerts
+    that reach you. Pro is sold as unlimited scans, capped only per hour
+    (`ratelimit.PRO_SCAN_RATE_MAX_REQUESTS`), so this alert is the one thing
+    that would notice a heavy day. Its absence is said where the rest of the
+    unsafe configuration is.
+    """
+    budget = GEMINI_DAILY_BUDGET_USD
+    if budget <= 0:
+        return ("Spend alert: OFF ⚠️ — GEMINI_DAILY_BUDGET_USD is not set, so no "
+                "day's Gemini spend reaches you. Set it on Railway (RUNBOOK §12)")
+    try:
+        today = await _spend([_day()])
+    except Exception as exc:
+        return (f"Spend alert: above {_usd(budget)}/day · today's spend unreadable "
+                f"({html.escape(type(exc).__name__)})")
+    return f"Spend alert: above {_usd(budget)}/day · today ≈ {_usd(today)}"
+
+
 async def _checkup_text() -> str:
     lines = ["🩺 <b>Checkup</b>"]
 
@@ -4918,6 +5291,7 @@ async def _checkup_text() -> str:
         except Exception as exc:
             lines.append(f"Gemini: FAILED — {html.escape(_probe_reason(exc))} · a probe, "
                          "not counted against provider health")
+    lines.append(await _budget_line())
 
     # What the process itself knows.
     info: dict = {}
@@ -4961,6 +5335,7 @@ async def _checkup_text() -> str:
     # withdraws refunds? Probed live, for the reason DeviceCheck is.
     lines.append(await _appstore_api_line())
     lines.append(await _last_appstore_notification_line())
+    lines.append(await _referral_line())
 
     # The archive chat, if configured: does the id resolve, and to what?
     archive_chat = os.environ.get(ARCHIVE_CHAT_ENV, "").strip()

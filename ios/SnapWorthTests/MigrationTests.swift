@@ -224,7 +224,7 @@ final class SwiftDataMigrationTests: XCTestCase {
         XCTAssertEqual(sweater.status, .scanned,
                        "a row with no status should read as freshly scanned")
         XCTAssertFalse(sweater.formattedRange.isEmpty)
-        XCTAssertGreaterThan(sweater.midpointValue, 0)
+        XCTAssertGreaterThan(sweater.likelyValue, 0)
         // condition falls back to inference from the notes rather than trapping.
         XCTAssertNotNil(sweater.condition)
     }

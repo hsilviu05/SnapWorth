@@ -122,7 +122,11 @@ protocol PurchaseService: AnyObject {
 
     /// Initiates a purchase for the given product ID.
     /// Throws if the purchase fails or is cancelled.
-    func purchase(productID: String) async throws -> PurchaseOutcome
+    ///
+    /// `trigger` is the paywall the purchase was started from, for the
+    /// purchase events only: the outcome and the failure reason are known
+    /// here, and the surface is known only to the paywall.
+    func purchase(productID: String, trigger: PaywallTrigger) async throws -> PurchaseOutcome
 
     /// Restores previously-completed purchases.
     func restorePurchases() async throws

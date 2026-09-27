@@ -92,14 +92,19 @@ SEED = int(os.environ.get("GEMINI_SEED", "20260728"))
 # failure was then papered over downstream and users were shown "$1-5", a
 # number no model ever produced. Raising the ceiling is the actual fix.
 #
+# That was v2's schema. v2.1 asks for the prices after all the evidence, so
+# they sit lower still, and this ceiling matters more under it, not less.
+#
 # 8192 is a cap, not a spend: unused headroom is not billed, and the tokens
 # already being burned on truncated answers are pure waste. Sized so the
 # worst observed thinking (~1800) plus a full payload (~900) still leaves
 # room for a harder image, while keeping a pathological response bounded.
 MAX_OUTPUT_TOKENS = int(os.environ.get("GEMINI_MAX_OUTPUT_TOKENS", "8192"))
 
-# The listing endpoint returns far less prose, but pays the same thinking tax
-# out of the same ceiling — 800 did not cover the reasoning alone.
+# The listing endpoint returns far less prose, but paid the same thinking tax
+# out of the same ceiling — 800 did not cover the reasoning alone. Thinking is
+# off for listings now (TEXT_THINKING_BUDGET), so most of this is headroom;
+# it stays, because that knob can turn thinking back on.
 LISTING_MAX_OUTPUT_TOKENS = int(os.environ.get("GEMINI_LISTING_MAX_TOKENS", "4096"))
 
 # Set to "0" to fall back to prose parsing if a future model regresses on
@@ -141,7 +146,8 @@ def _safety_settings() -> list[types.SafetySetting]:
 
 
 def generation_config(
-    *, json_mode: bool = True, max_output_tokens: int | None = None
+    *, json_mode: bool = True, max_output_tokens: int | None = None,
+    thinking_budget: int | None = None,
 ) -> types.GenerateContentConfig:
     """Sampling parameters, plus the safety thresholds.
 
@@ -153,6 +159,9 @@ def generation_config(
 
     Safety settings live here rather than on the client because this SDK takes
     the whole configuration per call.
+
+    `thinking_budget` overrides `THINKING_BUDGET` for this call; None keeps
+    it. See `TEXT_THINKING_BUDGET` for the calls that pass one.
     """
     kwargs: dict[str, Any] = {
         "temperature": TEMPERATURE,
@@ -166,9 +175,9 @@ def generation_config(
         kwargs["response_mime_type"] = "application/json"
     # Only when explicitly configured — see THINKING_BUDGET. Passing the
     # field at all changes model behaviour, so an unset knob must not.
-    if THINKING_BUDGET is not None:
-        kwargs["thinking_config"] = types.ThinkingConfig(
-            thinking_budget=THINKING_BUDGET)
+    budget = THINKING_BUDGET if thinking_budget is None else thinking_budget
+    if budget is not None:
+        kwargs["thinking_config"] = types.ThinkingConfig(thinking_budget=budget)
     return types.GenerateContentConfig(**kwargs)
 
 
@@ -207,10 +216,43 @@ REQUEST_TIMEOUT_MS = int(os.environ.get("GEMINI_TIMEOUT_MS", "25000"))
 # `backend/eval/runner.py` at a candidate budget and compare, not to pick a
 # number here and ship it. `0` disables thinking entirely; the SDK also
 # accepts `-1` for "let the model decide", which is the current behaviour.
-_THINKING_BUDGET_RAW = os.environ.get("GEMINI_THINKING_BUDGET", "").strip()
-THINKING_BUDGET: int | None = (
-    int(_THINKING_BUDGET_RAW) if _THINKING_BUDGET_RAW.lstrip("-").isdigit() else None
-)
+#
+# Run that comparison on prompt v2.1 (`--compare v2.1 v2.1@512`), not v2. v2
+# asks for the prices before the evidence, and with less thinking the evidence
+# written after a price is a justification of it; v2.1 has the model write
+# what it saw first.
+#
+# And ship a lowered budget only while v2.1 is what serves: SCAN_PROMPT_VERSION
+# set to v2.1, or v2.1 the default (`prompts.DEFAULT_PROMPT_VERSION`, v2 as of
+# this writing). This setting is process-wide, whatever the prompt, so a cap
+# measured on v2.1 and set while v2 serves is exactly the case above.
+def _budget(raw: str) -> int | None:
+    """A thinking budget from the environment: an integer, or None when blank
+    or unreadable — which means "send no thinking config at all"."""
+    raw = raw.strip()
+    return int(raw) if raw.lstrip("-").isdigit() else None
+
+
+THINKING_BUDGET: int | None = _budget(os.environ.get("GEMINI_THINKING_BUDGET", ""))
+
+# Thinking for the two text-only calls — /listing and the reformat retry of an
+# unparseable scan reply. Off.
+#
+# The budget above is global, so both paid the scan's thinking tax, out of
+# their own token ceilings, for work reasoning does not improve. A listing is
+# copy written around a valuation it is handed, and its prices survive only
+# inside that valuation's band (`main._validate_listing` replaces them
+# outside it); the reformat restates a reply it is handed as bare JSON. That
+# is why this is not the quality decision THINKING_BUDGET is: no valuation
+# comes out of either call.
+#
+# `0` turns thinking off on 2.5 Flash, the configured model. A model that
+# cannot run without thinking refuses a zero budget with a 400 — 2.5 Pro
+# does — which would fail every listing and every reformat. So before
+# pointing GEMINI_MODEL at one, set GEMINI_TEXT_THINKING_BUDGET=-1 ("let the
+# model decide"), or blank to follow GEMINI_THINKING_BUDGET like scans do.
+TEXT_THINKING_BUDGET: int | None = _budget(
+    os.environ.get("GEMINI_TEXT_THINKING_BUDGET", "0"))
 
 
 @lru_cache(maxsize=1)

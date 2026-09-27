@@ -94,8 +94,14 @@ actor ReferralAPIClient {
     /// Shared pinned session — see `ScanAPIClient`.
     private let session: URLSession = .snapWorthAPI
 
-    /// The Keychain id: it survives a reinstall where the attestation subject
-    /// does not, so a referrer keeps their code and their earned weeks.
+    /// The Keychain id. It survives a reinstall where the attestation subject
+    /// does not — but that does not keep a referrer's code or weeks across one.
+    /// The server ties a device to the first attested subject that presented
+    /// it (`referral._bind`), so a reinstall's new subject is refused this
+    /// device (403, which `status()` reads as `.disabled`) for as long as the
+    /// binding lives: the code, and any weeks parked for it, are out of reach
+    /// after a reinstall. RUNBOOK §18 lists that as an owner decision still
+    /// open; if the takeover alternative is chosen, this changes with it.
     private var deviceID: String { DeviceIdentity.shared.id }
 
     /// The caller's invite code and earned weeks, or `.disabled`. Never throws:
@@ -148,6 +154,21 @@ actor ReferralAPIClient {
 /// the codes themselves stay listed under Invite a friend.
 enum ReferralRewardNotice {
     static let key = "referral.announcedRewardCodes"
+
+    /// Said wherever the referrer is offered Apple's redemption page. The
+    /// friend's screen has carried it since #97; the referrer redeems the same
+    /// kind of code — a free week on the yearly plan — and was told nothing.
+    /// Apple's sheet shows the terms, but only after the tap that opens it.
+    static var renewalNote: String {
+        String(localized: "After the free week, the subscription renews unless you cancel.")
+    }
+
+    /// The "You earned a week of Pro" alert's message, renewal note last and on
+    /// its own line.
+    static var alertMessage: String {
+        String(localized: "A friend used your invite. Redeem your free week with Apple.")
+            + "\n\n" + renewalNote
+    }
 
     static func unannounced(_ rewards: [ReferralStatus.Reward],
                             defaults: UserDefaults = .standard) -> [ReferralStatus.Reward] {

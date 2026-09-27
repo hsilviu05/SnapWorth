@@ -1341,6 +1341,79 @@ class TestProDetailGate:
             assert body[field] is not None, f"{field} missing from a free scan"
 
 
+class TestLikelyPriceForEveryTier:
+    """`likely_price_usd`: the one figure the app does its own maths with.
+
+    The app priced the portfolio, the flip verdict, the listing ask and the
+    widgets from the midpoint of `est_value_low_usd` and `est_value_high_usd`.
+    Since v2 those are the worst and best case, and the prompt asks for an
+    expected price that is explicitly not their midpoint — so on V2_PAYLOAD
+    the app said $58.50 where the model said $58, and on a long-tailed range
+    ($5-$400, expected $90) it said $202.50.
+    """
+
+    def test_a_free_scan_carries_it_while_the_ladder_stays_stripped(self):
+        body = _scan_with(V2_PAYLOAD).json()
+        assert body["likely_price_usd"] == 58
+        assert body["expected_price_usd"] is None, "the ladder is still Pro"
+
+    def test_it_is_the_expected_price_a_subscriber_sees(self):
+        """One number per item. A Pro user reads `expected_price_usd` on the
+        ladder, and the app's totals must not say something else."""
+        body = _scan_with(V2_PAYLOAD, pro=True).json()
+        assert body["likely_price_usd"] == body["expected_price_usd"] == 58
+
+    def test_it_is_not_the_midpoint_of_a_long_tailed_range(self):
+        payload = dict(V2_PAYLOAD, worst_case_price_usd=5, quick_sale_price_usd=20,
+                       expected_price_usd=90, best_case_price_usd=400,
+                       est_value_low_usd=5, est_value_high_usd=400)
+        body = _scan_with(payload).json()
+        assert body["likely_price_usd"] == 90
+        assert body["likely_price_usd"] != (body["est_value_low_usd"]
+                                            + body["est_value_high_usd"]) / 2
+
+    def test_it_follows_the_clamp_into_the_served_range(self):
+        """The same bounds as everything else, so it can never sit outside
+        the range printed beside it. 8000 in a band capped at 5000 is served
+        inside [low, high], not as the model wrote it."""
+        payload = dict(V2_PAYLOAD, category="books", worst_case_price_usd=6000,
+                       quick_sale_price_usd=7000, expected_price_usd=8000,
+                       best_case_price_usd=9000,
+                       est_value_low_usd=6000, est_value_high_usd=9000)
+        body = _scan_with(payload).json()
+        assert (body["est_value_low_usd"] <= body["likely_price_usd"]
+                <= body["est_value_high_usd"])
+        assert body["likely_price_usd"] != 8000
+
+    def test_a_floor_adjustment_keeps_the_models_point_estimate(self):
+        """See TestClampPreservesTheModelsPointEstimate: a $0.25 floor move
+        once rewrote the expected price to the midpoint, and this field is
+        built from the same value."""
+        payload = dict(V2_PAYLOAD, category="books", worst_case_price_usd=0.75,
+                       quick_sale_price_usd=2.0, expected_price_usd=4.0,
+                       best_case_price_usd=8.0,
+                       est_value_low_usd=0.75, est_value_high_usd=8.0)
+        assert _scan_with(payload).json()["likely_price_usd"] == 4.0
+
+    def test_a_v1_reply_falls_back_to_the_middle_of_its_range(self):
+        """A v1 reply has no point estimate, and v1's low/high were a typical
+        range, so its middle is the honest figure — the same one the app
+        would have computed for itself."""
+        body = _scan_with({
+            "item_name": "Levi's 501", "brand": "Levi's", "category": "clothing",
+            "condition_notes": "Good", "est_value_low_usd": 28,
+            "est_value_high_usd": 55, "confidence": "High",
+            "listing_title": "T", "listing_description": "D",
+        }).json()
+        assert body["likely_price_usd"] == 41.5
+
+    def test_it_is_not_on_the_pro_only_list(self):
+        """Adding it there would look like tidying and would put every free
+        user's figures back on the midpoint."""
+        import main
+        assert "likely_price_usd" not in main._PRO_ONLY_DETAIL_FIELDS
+
+
 class TestTokensOnATextlessReplyAreCounted:
     """A reply is billed whether or not it carries text.
 
@@ -1397,3 +1470,85 @@ class TestTokensOnATextlessReplyAreCounted:
         usage, outcomes = self._run(self._reply(text="{}", finish="STOP"))
         assert usage.call_count == 1
         assert outcomes == ["success"]
+
+
+# ── Thinking is off for the text-only calls ──────────────────────────────────
+#
+# The thinking budget was global, so /listing and the reformat retry paid the
+# scan's reasoning tax for work it does not improve: a listing is copy around a
+# valuation it is handed, and the reformat restates a reply as bare JSON. The
+# scan itself must keep whatever GEMINI_THINKING_BUDGET says — capping that is
+# the quality decision `backend/eval/runner.py` exists to make.
+
+class TestThinkingIsOffForTextCalls:
+    @staticmethod
+    def _sent(model) -> list[Any]:
+        """The per-call config each model call carried, None for the default."""
+        return [c.kwargs.get("generation_config")
+                for c in model.generate_content_async.await_args_list]
+
+    def test_the_budget_parser(self):
+        assert aiconfig._budget("") is None
+        assert aiconfig._budget("  ") is None
+        assert aiconfig._budget("off") is None
+        assert aiconfig._budget("0") == 0
+        assert aiconfig._budget("-1") == -1
+        assert aiconfig._budget(" 512 ") == 512
+
+    def test_text_calls_default_to_no_thinking(self):
+        assert aiconfig.TEXT_THINKING_BUDGET == 0
+
+    def test_a_per_call_budget_is_sent_and_beats_the_global_one(self, monkeypatch):
+        monkeypatch.setattr(aiconfig, "THINKING_BUDGET", 512)
+        wire = aiconfig.generation_config(thinking_budget=0).model_dump(
+            exclude_none=True, mode="json")
+        assert wire["thinking_config"] == {"thinking_budget": 0}
+        assert aiconfig.generation_config().model_dump(
+            exclude_none=True, mode="json")["thinking_config"] == {"thinking_budget": 512}
+
+    def test_an_unset_global_budget_still_sends_nothing(self, monkeypatch):
+        monkeypatch.setattr(aiconfig, "THINKING_BUDGET", None)
+        wire = aiconfig.generation_config().model_dump(exclude_none=True, mode="json")
+        assert "thinking_config" not in wire
+
+    def test_a_listing_is_written_without_thinking(self):
+        from tests.test_main import MOCK_LISTING_JSON, _post_listing
+        _rate_store.clear()
+        _ip_rate_store.clear()
+        reply = MagicMock()
+        reply.text = _json.dumps(MOCK_LISTING_JSON)
+        with patch("main._model") as model:
+            model.generate_content_async = AsyncMock(return_value=reply)
+            assert _post_listing("no-thinking").status_code == 200
+        [config] = self._sent(model)
+        assert config.thinking_config.thinking_budget == 0
+        assert config.max_output_tokens == aiconfig.LISTING_MAX_OUTPUT_TOKENS
+
+    def test_the_reformat_is_asked_without_thinking(self):
+        import asyncio
+
+        import main
+        reply = MagicMock()
+        reply.text = '{"item_name": "Lamp"}'
+        with patch("main._model") as model:
+            model.generate_content_async = AsyncMock(return_value=reply)
+            assert asyncio.run(main._retry_as_json("Sure! The item is a lamp.")) == {
+                "item_name": "Lamp"}
+        [config] = self._sent(model)
+        assert config.thinking_config.thinking_budget == 0
+
+    def test_the_scan_keeps_the_models_own_config(self, monkeypatch):
+        """No per-call config at all, so the scan runs on the model's default
+        — which carries GEMINI_THINKING_BUDGET when one is set."""
+        monkeypatch.setattr(aiconfig, "THINKING_BUDGET", None)
+        _rate_store.clear()
+        _ip_rate_store.clear()
+        reply = MagicMock()
+        reply.text = _json.dumps(V2_PAYLOAD)
+        with patch("main._model") as model:
+            model.generate_content_async = AsyncMock(return_value=reply)
+            r = _client.post(
+                "/scan", headers={"x-device-id": "scan-thinks"},
+                files={"file": ("s.jpg", _io.BytesIO(_img("JPEG")), "image/jpeg")})
+        assert r.status_code == 200
+        assert self._sent(model) == [None]

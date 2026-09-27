@@ -95,15 +95,25 @@ class ImageQuality:
         Phrased as what the *user* can do, not as a metric readout: "the photo is
         slightly out of focus" is actionable, "laplacian variance 38.2" is not.
         """
-        found: list[str] = []
+        return [text for _code, text in self.coded_issues()]
+
+    def coded_issues(self) -> list[tuple[str, str]]:
+        """`issues`, each with the stable code the scan response carries beside
+        it (`confidence_reason_codes`), so a client can word it in its own
+        language. A code is contract once sent; the text is not."""
+        found: list[tuple[str, str]] = []
         if self.sharpness is not None and self.sharpness < 0.35:
-            found.append("the photo is soft or out of focus")
+            found.append(("photo_soft", "the photo is soft or out of focus"))
         if self.exposure is not None and self.exposure < 0.4:
-            found.append("the lighting is uneven — too dark or blown out")
+            found.append(("photo_lighting_uneven",
+                          "the lighting is uneven — too dark or blown out"))
         if self.detail is not None and self.detail < 0.35:
-            found.append("the photo is low resolution, so small details like tags aren't legible")
+            found.append(("photo_low_resolution",
+                          "the photo is low resolution, so small details like tags "
+                          "aren't legible"))
         if self.contrast is not None and self.contrast < 0.3:
-            found.append("the item doesn't stand out clearly from the background")
+            found.append(("photo_low_contrast",
+                          "the item doesn't stand out clearly from the background"))
         return found
 
 

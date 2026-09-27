@@ -8,8 +8,10 @@ import StoreKit
 @MainActor
 final class StoreKitPurchaseService: PurchaseService, ObservableObject {
     @Published private(set) var isSubscribed: Bool
-    /// End of an active *free* introductory trial, when the user is in one.
-    /// Nil during a paid introductory offer — see `refreshSubscriptionStatus`.
+    /// End of the free period the user is in, if any: a free introductory
+    /// trial, or — from iOS 17.2, where the transaction says so — a free week
+    /// from an offer code, which is what a referral week is (#97). Nil during
+    /// a paid offer. See `isFreePeriod`.
     @Published private(set) var trialEndDate: Date?
     /// Localised pricing straight from StoreKit, keyed by product ID.
     @Published private(set) var pricing: [String: PlanPricing] = [:]
@@ -55,14 +57,15 @@ final class StoreKitPurchaseService: PurchaseService, ObservableObject {
 
     // MARK: - PurchaseService
 
-    func purchase(productID: String) async throws -> PurchaseOutcome {
+    func purchase(productID: String, trigger: PaywallTrigger) async throws -> PurchaseOutcome {
         let product = try await product(for: productID)
 
         let result: Product.PurchaseResult
         do {
             result = try await product.purchase()
         } catch {
-            Analytics.shared.track(.purchaseFailed(productID: productID, reason: "storekit_error"))
+            Analytics.shared.track(.purchaseFailed(productID: productID, reason: "storekit_error",
+                                                   trigger: trigger))
             throw PurchaseError.failed(error.localizedDescription)
         }
 
@@ -72,17 +75,20 @@ final class StoreKitPurchaseService: PurchaseService, ObservableObject {
             do {
                 transaction = try checkVerified(verification)
             } catch {
-                Analytics.shared.track(.purchaseFailed(productID: productID, reason: "unverified"))
+                Analytics.shared.track(.purchaseFailed(productID: productID, reason: "unverified",
+                                                       trigger: trigger))
                 throw error
             }
             await transaction.finish()
             await refreshSubscriptionStatus()
             // Fires on the confirmed StoreKit transaction — never on the tap.
             Analytics.shared.track(.purchaseCompleted(productID: transaction.productID,
-                                                      isFirst: ScanTally.isFirstRun()))
+                                                      isFirst: ScanTally.isFirstRun(),
+                                                      trigger: trigger))
             return .completed
         case .userCancelled:
-            Analytics.shared.track(.purchaseFailed(productID: productID, reason: "cancelled"))
+            Analytics.shared.track(.purchaseFailed(productID: productID, reason: "cancelled",
+                                                   trigger: trigger))
             throw PurchaseError.cancelled
         case .pending:
             // Deferred (e.g. Ask to Buy / SCA). Not a failure — leave state as-is.
@@ -90,7 +96,8 @@ final class StoreKitPurchaseService: PurchaseService, ObservableObject {
             // its own outcome so the paywall does not dismiss on it.
             return .pending
         @unknown default:
-            Analytics.shared.track(.purchaseFailed(productID: productID, reason: "unknown"))
+            Analytics.shared.track(.purchaseFailed(productID: productID, reason: "unknown",
+                                                   trigger: trigger))
             throw PurchaseError.failed(String(localized: "This purchase could not be completed."))
         }
     }
@@ -413,21 +420,24 @@ final class StoreKitPurchaseService: PurchaseService, ObservableObject {
                 // re-verifies it against Apple's root CA, so entitlement is
                 // never taken on the client's word.
                 activeJWS = result.jwsRepresentation
-                // `offerType == .introductory` says an introductory offer is
-                // running, not that it is free — a paid intro offer looks the
-                // same here, and would have scheduled "Your SnapWorth trial
-                // ends tomorrow" for someone who paid. The `Transaction` does
-                // not carry the payment mode, so ask the product. If the
-                // product fetch failed we have no answer and stay silent: the
-                // next status refresh retries, and a missed courtesy reminder
-                // is cheaper than telling a paying subscriber they are on a
-                // trial.
-                let isFreeTrial = products
+                // Before iOS 17.2 the `Transaction` does not carry the payment
+                // mode, so the fallback asks the product for its introductory
+                // offer's. If the product fetch failed that has no answer and
+                // stays silent: the next status refresh retries, and a missed
+                // courtesy reminder is cheaper than telling a paying
+                // subscriber they are on a trial.
+                var transactionOfferIsFree: Bool?
+                if #available(iOS 17.2, *) {
+                    transactionOfferIsFree = Self.offerIsFree(transaction.offer?.paymentMode)
+                }
+                let productIntroIsFree = products
                     .first { $0.id == transaction.productID }
                     .flatMap { $0.subscription?.introductoryOffer }
                     .map { $0.paymentMode == .freeTrial } ?? false
-                if transaction.offerType == .introductory, isFreeTrial,
-                   let exp = transaction.expirationDate {
+                if let exp = transaction.expirationDate,
+                   Self.isFreePeriod(transactionOfferIsFree: transactionOfferIsFree,
+                                     isIntroductory: transaction.offerType == .introductory,
+                                     productIntroIsFree: productIntroIsFree) {
                     trialEnd = exp
                 }
             }
@@ -456,6 +466,51 @@ final class StoreKitPurchaseService: PurchaseService, ObservableObject {
         // when in a trial, cancels the moment the state changes.
         await NotificationManager.shared.syncTrialReminder(endDate: trialEnd)
         return activeJWS
+    }
+
+    /// Whether the period a subscription transaction covers is free, so the
+    /// "trial ends tomorrow" reminder applies.
+    ///
+    /// It asked only `offerType == .introductory`, so a referral week — an
+    /// Apple offer code, 7 days free and then the yearly price — never got the
+    /// reminder, and both friend and referrer could be charged after a "free
+    /// week" with nothing from the app. `offerType` alone was never enough
+    /// either: a paid intro offer looks the same, and would be told "Your
+    /// SnapWorth trial ends tomorrow" after paying.
+    ///
+    /// - Parameters:
+    ///   - transactionOfferIsFree: `offerIsFree(transaction.offer?.paymentMode)`,
+    ///     which covers introductory, promotional and offer-code periods alike;
+    ///     nil before iOS 17.2, and nil when the transaction carries no payment
+    ///     mode — no offer at all, or one without it.
+    ///   - isIntroductory: `transaction.offerType == .introductory`, for the
+    ///     fallback.
+    ///   - productIntroIsFree: whether the product's introductory offer is a
+    ///     free trial, for the fallback. An offer code's week is not detectable
+    ///     there, so iOS 17.0 and 17.1 go without its reminder.
+    ///
+    /// `nonisolated` and on plain values so a test can check it without a
+    /// StoreKit `Transaction`.
+    nonisolated static func isFreePeriod(transactionOfferIsFree: Bool?,
+                                         isIntroductory: Bool,
+                                         productIntroIsFree: Bool) -> Bool {
+        if let transactionOfferIsFree { return transactionOfferIsFree }
+        return isIntroductory && productIntroIsFree
+    }
+
+    /// Whether the transaction's own offer is a free one, or nil when it does
+    /// not say — which sends `isFreePeriod` to its fallback.
+    ///
+    /// `Transaction.Offer.paymentMode` is optional, and the first version
+    /// compared the optional chain with `== .freeTrial`, which is a plain
+    /// `false` when the mode is missing: the fallback never ran on iOS 17.2
+    /// and later, and a free intro trial whose transaction came without a
+    /// mode lost the reminder it had before. With no offer at all this is nil
+    /// too, and the fallback still answers false: a plain renewal has no
+    /// introductory offer.
+    @available(iOS 17.2, *)
+    nonisolated static func offerIsFree(_ paymentMode: Transaction.Offer.PaymentMode?) -> Bool? {
+        paymentMode.map { $0 == .freeTrial }
     }
 
     private func listenForTransactions() -> Task<Void, Never> {

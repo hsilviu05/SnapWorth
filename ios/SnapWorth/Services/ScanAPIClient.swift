@@ -80,10 +80,19 @@ struct ScanAPIResponse: Decodable {
     let confidenceScore: Int?
     let confidenceSummary: String?
     let confidenceReasons: [String]
+    /// One token per entry of `confidenceReasons`, same order — see
+    /// `ConfidenceReason`. Empty from a server before the codes and on a free
+    /// scan, which is sent no reasons either.
+    let confidenceReasonCodes: [String]
     let quickSalePriceUsd: Double?
     let expectedPriceUsd: Double?
     let bestCasePriceUsd: Double?
     let worstCasePriceUsd: Double?
+    /// The expected price after the server's bounds, sent on every tier —
+    /// unlike `expectedPriceUsd`, which is blanked for free users. What the
+    /// app's own maths use; see `ValuationDetail.likely`. Nil from a server
+    /// older than the field.
+    let likelyPriceUsd: Double?
     let valueDrivers: [String]
     let assumptions: [String]
     let uncertaintyFactors: [String]
@@ -114,10 +123,12 @@ struct ScanAPIResponse: Decodable {
         case confidenceScore     = "confidence_score"
         case confidenceSummary   = "confidence_summary"
         case confidenceReasons   = "confidence_reasons"
+        case confidenceReasonCodes = "confidence_reason_codes"
         case quickSalePriceUsd   = "quick_sale_price_usd"
         case expectedPriceUsd    = "expected_price_usd"
         case bestCasePriceUsd    = "best_case_price_usd"
         case worstCasePriceUsd   = "worst_case_price_usd"
+        case likelyPriceUsd      = "likely_price_usd"
         case valueDrivers        = "value_drivers"
         case assumptions
         case uncertaintyFactors  = "uncertainty_factors"
@@ -147,10 +158,16 @@ struct ScanAPIResponse: Decodable {
         confidenceScore     = try c.decodeIfPresent(Int.self, forKey: .confidenceScore)
         confidenceSummary   = try c.decodeIfPresent(String.self, forKey: .confidenceSummary)
         confidenceReasons   = try c.decodeIfPresent([String].self, forKey: .confidenceReasons) ?? []
+        // `try?`, not `try`: these only choose the words for the reasons
+        // above, and a malformed list must not fail a scan the user has
+        // already been charged for. Like `valuationSource` below.
+        confidenceReasonCodes = (try? c.decodeIfPresent([String].self,
+                                                        forKey: .confidenceReasonCodes)) ?? []
         quickSalePriceUsd   = try c.decodeIfPresent(Double.self, forKey: .quickSalePriceUsd)
         expectedPriceUsd    = try c.decodeIfPresent(Double.self, forKey: .expectedPriceUsd)
         bestCasePriceUsd    = try c.decodeIfPresent(Double.self, forKey: .bestCasePriceUsd)
         worstCasePriceUsd   = try c.decodeIfPresent(Double.self, forKey: .worstCasePriceUsd)
+        likelyPriceUsd      = try c.decodeIfPresent(Double.self, forKey: .likelyPriceUsd)
         valueDrivers        = try c.decodeIfPresent([String].self, forKey: .valueDrivers) ?? []
         assumptions         = try c.decodeIfPresent([String].self, forKey: .assumptions) ?? []
         uncertaintyFactors  = try c.decodeIfPresent([String].self, forKey: .uncertaintyFactors) ?? []
@@ -175,9 +192,11 @@ struct ScanAPIResponse: Decodable {
          soldListingsCount: Int = 0, listingTitle: String, listingDescription: String,
          freeScansRemaining: Int? = nil,
          confidenceScore: Int? = nil, confidenceSummary: String? = nil,
-         confidenceReasons: [String] = [], quickSalePriceUsd: Double? = nil,
+         confidenceReasons: [String] = [], confidenceReasonCodes: [String] = [],
+         quickSalePriceUsd: Double? = nil,
          expectedPriceUsd: Double? = nil, bestCasePriceUsd: Double? = nil,
-         worstCasePriceUsd: Double? = nil, valueDrivers: [String] = [],
+         worstCasePriceUsd: Double? = nil, likelyPriceUsd: Double? = nil,
+         valueDrivers: [String] = [],
          assumptions: [String] = [], uncertaintyFactors: [String] = [],
          improveEstimate: [String] = [], authenticityAssessment: String? = nil,
          authenticityReasoning: String? = nil, demand: String? = nil, supply: String? = nil,
@@ -197,10 +216,12 @@ struct ScanAPIResponse: Decodable {
         self.confidenceScore = confidenceScore
         self.confidenceSummary = confidenceSummary
         self.confidenceReasons = confidenceReasons
+        self.confidenceReasonCodes = confidenceReasonCodes
         self.quickSalePriceUsd = quickSalePriceUsd
         self.expectedPriceUsd = expectedPriceUsd
         self.bestCasePriceUsd = bestCasePriceUsd
         self.worstCasePriceUsd = worstCasePriceUsd
+        self.likelyPriceUsd = likelyPriceUsd
         self.valueDrivers = valueDrivers
         self.assumptions = assumptions
         self.uncertaintyFactors = uncertaintyFactors
@@ -231,6 +252,12 @@ struct ValuationDetail: Codable, Equatable {
     var confidenceScore: Int?
     var confidenceSummary: String?
     var confidenceReasons: [String] = []
+    /// `confidenceReasons` as codes, by position. Optional, unlike the list
+    /// beside it: this blob is decoded with the synthesised `init(from:)`,
+    /// which requires every non-optional key, and every blob written before
+    /// the codes has none — a non-optional here would have made each of
+    /// those finds lose its panel. Read through `shownConfidenceReasons`.
+    var confidenceReasonCodes: [String]?
     var quickSale: Double?
     var expected: Double?
     var bestCase: Double?
@@ -252,6 +279,18 @@ struct ValuationDetail: Codable, Equatable {
     /// it is provenance, not panel content. Read it through `source`.
     var valuationSource: ValuationSource?
 
+    /// The price the app's own maths start from: `likely_price_usd`, the
+    /// model's expected price after the server's bounds, at the condition the
+    /// model graded (`conditionGrade`) — the same basis as the scan's low and
+    /// high. Read through `ScanResult.currentPriceRange`, never directly.
+    ///
+    /// Stored for every tier, where `expected` is Pro-only on the wire and so
+    /// nil on a free scan. Not panel content: kept out of `isEmpty` (a blob
+    /// holding only this would render an empty panel) and out of
+    /// `lacksProDetail` (a free scan carries it, so counting it would call
+    /// every free blob full). Nil on every blob written before the field.
+    var likely: Double?
+
     var source: ValuationSource { valuationSource ?? .model }
 
     /// Nil when the response carried nothing beyond the v1 fields, so an old
@@ -260,10 +299,14 @@ struct ValuationDetail: Codable, Equatable {
         confidenceScore = r.confidenceScore
         confidenceSummary = r.confidenceSummary
         confidenceReasons = r.confidenceReasons
+        confidenceReasonCodes = r.confidenceReasonCodes.isEmpty ? nil : r.confidenceReasonCodes
         quickSale = r.quickSalePriceUsd
         expected = r.expectedPriceUsd
         bestCase = r.bestCasePriceUsd
         worstCase = r.worstCasePriceUsd
+        // A server older than this field sent the same number only under
+        // its ladder name — and, since 44a107e, only to Pro.
+        likely = r.likelyPriceUsd ?? r.expectedPriceUsd
         valueDrivers = r.valueDrivers
         assumptions = r.assumptions
         uncertaintyFactors = r.uncertaintyFactors
@@ -341,6 +384,24 @@ struct ValuationDetail: Codable, Equatable {
     // Each is now worded by a client enum, and a token this build does not know
     // is dropped rather than shown.
 
+    /// The reasons for the confidence score, as the panel shows them: in the
+    /// app's language for each code this build knows, as the server wrote
+    /// them otherwise — a find saved before the codes, a code newer than this
+    /// build. See `ServerCopy.text` for why English keeps the server's words.
+    ///
+    /// Matched by position, and only when the two lists are the same length:
+    /// codes that do not line up with the reasons cannot be trusted to say
+    /// which reason is which, so the reasons are shown as sent.
+    func shownConfidenceReasons(inEnglish: Bool = ServerCopy.appIsInEnglish) -> [String] {
+        guard let codes = confidenceReasonCodes, codes.count == confidenceReasons.count else {
+            return confidenceReasons
+        }
+        return zip(confidenceReasons, codes).map { reason, code in
+            ServerCopy.text(server: reason, translated: ConfidenceReason(rawValue: code)?.label,
+                            inEnglish: inEnglish)
+        }
+    }
+
     /// `conditionGrade` as the condition picker words it.
     var gradeLabel: String? {
         conditionGrade.flatMap(Condition.init(serverGrade:))?.label
@@ -412,6 +473,108 @@ enum AuthenticityRead: String, CaseIterable {
         case .minorConcerns: return String(localized: "Minor concerns", comment: "Authenticity read")
         case .cannotVerify:  return String(localized: "Can't tell from this photo", comment: "Authenticity read")
         case .likelyReplica: return String(localized: "Likely a replica", comment: "Authenticity read")
+        }
+    }
+}
+
+/// `confidence_reason_codes` — `confidence.py`, one per reason the server
+/// sends in `confidence_reasons`.
+///
+/// Those reasons are English clauses the server builds from the signals it
+/// measured, and the Pro panel printed them as received in every language.
+/// Each is worded here instead; `ValuationDetail.shownConfidenceReasons`
+/// decides when. Written as the clauses they replace — lower case, no full
+/// stop — because that is how the panel sets them. The two category reasons
+/// leave the category out: the server names it in English, and a translated
+/// sentence around an English word reads worse than none.
+enum ConfidenceReason: String, CaseIterable {
+    case brandIdentified        = "brand_identified"
+    case brandUnidentified      = "brand_unidentified"
+    case rangeUnusable          = "range_unusable"
+    case rangeTight             = "range_tight"
+    case rangeVeryWide          = "range_very_wide"
+    case rangeModeratelyWide    = "range_moderately_wide"
+    case rangeSinglePrice       = "range_single_price"
+    case photoSoft              = "photo_soft"
+    case photoLightingUneven    = "photo_lighting_uneven"
+    case photoLowResolution     = "photo_low_resolution"
+    case photoLowContrast       = "photo_low_contrast"
+    case photoClear             = "photo_clear"
+    case photoLimitsConfidence  = "photo_limits_confidence"
+    case categoryEstablished    = "category_established"
+    case categoryVaried         = "category_varied"
+    case itemRecognised         = "item_recognised"
+    case itemUncertain          = "item_uncertain"
+    case modelUnconfirmed       = "model_unconfirmed"
+    case authenticityNoConcerns = "authenticity_no_concerns"
+    case likelyReplica          = "likely_replica"
+    case authenticityUnverified = "authenticity_unverified"
+    case marketRead             = "market_read"
+    case marketReadIncomplete   = "market_read_incomplete"
+    case analysisComplete       = "analysis_complete"
+    case analysisPartial        = "analysis_partial"
+    case estimateAdjusted       = "estimate_adjusted"
+
+    var label: String {
+        switch self {
+        case .brandIdentified:
+            return String(localized: "the brand is identified", comment: "Confidence reason")
+        case .brandUnidentified:
+            return String(localized: "the brand could not be identified", comment: "Confidence reason")
+        case .rangeUnusable:
+            return String(localized: "the price range is not usable", comment: "Confidence reason")
+        case .rangeTight:
+            return String(localized: "the price range is tight", comment: "Confidence reason")
+        case .rangeVeryWide:
+            return String(localized: "the price range is very wide", comment: "Confidence reason")
+        case .rangeModeratelyWide:
+            return String(localized: "the price range is moderately wide", comment: "Confidence reason")
+        case .rangeSinglePrice:
+            return String(localized: "the range was estimated from a single price", comment: "Confidence reason")
+        case .photoSoft:
+            return String(localized: "the photo is soft or out of focus", comment: "Confidence reason")
+        case .photoLightingUneven:
+            return String(localized: "the lighting is uneven — too dark or blown out", comment: "Confidence reason")
+        case .photoLowResolution:
+            return String(localized: "the photo is low resolution, so small details like tags aren't legible",
+                          comment: "Confidence reason")
+        case .photoLowContrast:
+            return String(localized: "the item doesn't stand out clearly from the background",
+                          comment: "Confidence reason")
+        case .photoClear:
+            return String(localized: "the photo is clear enough to work from", comment: "Confidence reason")
+        case .photoLimitsConfidence:
+            return String(localized: "the photo quality limits how confident this estimate can be",
+                          comment: "Confidence reason")
+        case .categoryEstablished:
+            return String(localized: "this category has a well-established resale market",
+                          comment: "Confidence reason")
+        case .categoryVaried:
+            return String(localized: "values in this category vary a lot between individual items",
+                          comment: "Confidence reason")
+        case .itemRecognised:
+            return String(localized: "the item was recognised confidently", comment: "Confidence reason")
+        case .itemUncertain:
+            return String(localized: "the item could not be identified with certainty", comment: "Confidence reason")
+        case .modelUnconfirmed:
+            return String(localized: "the exact model could not be pinned down", comment: "Confidence reason")
+        case .authenticityNoConcerns:
+            return String(localized: "no authenticity concerns", comment: "Confidence reason")
+        case .likelyReplica:
+            return String(localized: "the item may not be authentic", comment: "Confidence reason")
+        case .authenticityUnverified:
+            return String(localized: "authenticity could not be verified from the photo", comment: "Confidence reason")
+        case .marketRead:
+            return String(localized: "the AI gave a read on demand and supply", comment: "Confidence reason")
+        case .marketReadIncomplete:
+            return String(localized: "the AI's read on demand and supply is incomplete", comment: "Confidence reason")
+        case .analysisComplete:
+            return String(localized: "the analysis is complete", comment: "Confidence reason")
+        case .analysisPartial:
+            return String(localized: "the analysis came back partial", comment: "Confidence reason")
+        case .estimateAdjusted:
+            return String(localized: "the estimate was outside the plausible range for this category and was adjusted",
+                          comment: "Confidence reason")
         }
     }
 }
@@ -648,6 +811,7 @@ actor ScanAPIClient {
                                 "Item photo clear enough to grade condition"],
             quickSalePriceUsd: base.quickSalePriceUsd, expectedPriceUsd: base.expectedPriceUsd,
             bestCasePriceUsd: base.bestCasePriceUsd, worstCasePriceUsd: base.worstCasePriceUsd,
+            likelyPriceUsd: base.likelyPriceUsd,
             valueDrivers: base.valueDrivers, assumptions: [],
             uncertaintyFactors: base.uncertaintyFactors,
             improveEstimate: [],
@@ -915,10 +1079,25 @@ enum APIErrorDetail {
     }
 
     private static let fallback = "Something went wrong. Please try again."
+
+    /// The body's `code`: a stable token the server sends beside `detail`
+    /// (`backend/apierrors.py`), which `AppError.from` routes and translates
+    /// on. Nil when there is none — a server from before the codes, a body
+    /// that is not JSON — and the caller falls back to `detail`.
+    static func code(_ data: Data) -> String? {
+        guard !data.isEmpty,
+              let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let code = root["code"] as? String, !code.isEmpty
+        else { return nil }
+        return code
+    }
 }
 
 enum ScanAPIError: LocalizedError {
-    case serverError(Int, String)
+    /// Status, `detail`, and the body's `code` when it had one. Defaulted, so
+    /// a `serverError(402, "…")` built by hand is one from a server that sent
+    /// no code, which is what every test written before the codes meant.
+    case serverError(Int, String, code: String? = nil)
     /// A 429, kept apart from `serverError` because it is the one response
     /// that carries a number in a *header* rather than in `detail`.
     ///
@@ -945,18 +1124,36 @@ enum ScanAPIError: LocalizedError {
         return seconds
     }
 
+    /// `X-Quota-Resets-At` as an instant, or nil when absent or not a plain
+    /// number. `auth.reserve_quota` sends it on every quota 402, as Unix
+    /// seconds — `contract/errors/scan-402-quota.json` pins the shape.
+    static func quotaResetsAt(from response: HTTPURLResponse) -> Date? {
+        guard let raw = response.value(forHTTPHeaderField: "X-Quota-Resets-At")?
+            .trimmingCharacters(in: .whitespaces),
+              let seconds = Double(raw), seconds.isFinite, seconds > 0 else { return nil }
+        return Date(timeIntervalSince1970: seconds)
+    }
+
     /// The error for a non-2xx response, reading whatever that status carries.
+    ///
+    /// A quota 402's reset time is kept here rather than carried on the error:
+    /// every request that can be refused for quota comes through this one
+    /// function, and the spent state reads the time long after the error that
+    /// brought it has been handled. See `FreeScanCounter.nextReset`.
     static func from(_ response: HTTPURLResponse, data: Data) -> ScanAPIError {
+        if response.statusCode == 402, let resetsAt = quotaResetsAt(from: response) {
+            FreeScanCounter.serverResetsAt = resetsAt
+        }
         let detail = APIErrorDetail.parse(data)
         guard response.statusCode == 429 else {
-            return .serverError(response.statusCode, detail)
+            return .serverError(response.statusCode, detail, code: APIErrorDetail.code(data))
         }
         return .rateLimited(detail: detail, retryAfter: retryAfter(from: response))
     }
 
     var errorDescription: String? {
         switch self {
-        case .serverError(_, let detail):
+        case .serverError(_, let detail, _):
             // The status code is diagnostic noise to a user standing in a shop —
             // `detail` already carries a user-safe message from the backend.
             return detail
@@ -970,7 +1167,7 @@ enum ScanAPIError: LocalizedError {
     /// Status code, retained for analytics and paywall routing.
     var statusCode: Int? {
         switch self {
-        case .serverError(let code, _): return code
+        case .serverError(let status, _, _): return status
         case .rateLimited:              return 429
         case .imageEncodingFailed:      return nil
         }

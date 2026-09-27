@@ -115,7 +115,13 @@ struct SnapWorthApp: App {
             RootView(purchaseService: purchaseService,
                      isPro: purchaseService.isSubscribed)
                 .onOpenURL(perform: handleWidgetURL)
-                .task { seedWidgetData() }
+                .task {
+                    // A no-op except on the first launch after the pricing
+                    // rules change — see `PricingRules`.
+                    ScanRepository(context: sharedModelContainer.mainContext)
+                        .applyPricingRulesIfNeeded()
+                    seedWidgetData()
+                }
                 .task { drainPendingWidgetAction() }
                 .task { await WidgetInstallReport.sendIfDue() }
                 .onChange(of: scenePhase) { _, phase in

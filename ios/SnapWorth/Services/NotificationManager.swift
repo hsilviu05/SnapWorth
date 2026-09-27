@@ -645,6 +645,61 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
         return calendar.isDate(fireDate, inSameDayAs: tomorrow)
     }
 
+    /// "Remind me", from wherever the user asked.
+    ///
+    /// The reminder stays opt-in; this is the opt-in. It was reachable only
+    /// from Settings → Notifications, and the moment it is wanted — the free
+    /// scan just spent — is on the Scan tab, where the only thing on offer was
+    /// "Upgrade to Pro". Accepting the post-scan priming alert does not turn
+    /// it on either, and should not: that alert promises a recap and ledger
+    /// nudges, not a daily notification.
+    ///
+    /// Asks iOS if it has never been asked, which is what makes one tap
+    /// enough. Returns whether notifications can be delivered, so the caller
+    /// can send a user who refused them at the system level to Settings
+    /// rather than claim a reminder that cannot arrive.
+    ///
+    /// Then schedules everything eligible, as `enableFromPriming` does, not
+    /// the ladder alone. The caller reads the next fire straight back and
+    /// names its day, so the ladder must already be the one the daily cap
+    /// leaves. On a first grant nothing else has ever been scheduled — every
+    /// `add` returned at `isAuthorized` — so a ladder built on its own could
+    /// keep a Sunday rung that the weekly digest evicts moments later, when
+    /// the foreground sync the closing alert set off reaches it. That sync
+    /// waits on StoreKit first, so the read usually came before it, and the
+    /// row said "Reminder set for Sun" over a first reminder due on Monday.
+    func optInToFreeScanReminder(source: ReminderOptInSource, context: ModelContext,
+                                 purchaseService: any PurchaseService) async -> Bool {
+        switchOnFreeScanReminder(source: source)
+        guard await requestAuthorizationIfNeeded() else { return false }
+        await syncEligible(context: context, purchaseService: purchaseService)
+        return true
+    }
+
+    /// The toggle half of the opt-in, reported only when it is the change.
+    ///
+    /// "Remind me" is offered while the toggle is on and iOS has never been
+    /// asked, which an install that switched it on before the toggle asked
+    /// iOS (4499251) can carry. The tap there asks iOS and switches nothing,
+    /// and `reminder_opt_in` means the reminder was switched on. Settings
+    /// reports from `onChange`, which is only ever a change. Internal, for
+    /// the tests: the rest of the opt-in asks iOS, which a test cannot answer.
+    func switchOnFreeScanReminder(source: ReminderOptInSource) {
+        let wasOn = isEnabled(.freeScan)
+        setEnabled(.freeScan, true)
+        if !wasOn { Analytics.shared.track(.reminderOptIn(source: source)) }
+    }
+
+    /// When the free-scan reminder will next fire, read back from what is
+    /// actually pending rather than recomputed: the daily cap can move or
+    /// drop a rung, and the screen should name the one iOS holds.
+    func pendingFreeScanReminder() async -> Date? {
+        await center.pendingNotificationRequests()
+            .filter { Self.category(fromID: $0.identifier) == .freeScan }
+            .compactMap { ($0.trigger as? UNCalendarNotificationTrigger)?.nextTriggerDate() }
+            .min()
+    }
+
     /// The copy. A streak of two or more is worth naming — "day 5" is a reason
     /// to open the app that "your scan is back" is not. No guilt when it broke:
     /// the streak simply isn't mentioned.
@@ -736,13 +791,13 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
             // held, so a user who had sold 4 of 10 was told "Your 10 finds are
             // worth $120" when the $120 was six of them — and one who had sold
             // everything, "Your 10 finds are worth $0.00".
-            itemCount: results.filter { $0.status != .sold }.count,
-            // `portfolioTotal`, the same "still held" figure the History
+            itemCount: LedgerMath.held(results).count,
+            // `LedgerMath.heldValue`, the same "still held" figure the History
             // header shows. This summed every row including sold ones, so the
             // weekly push repeated the inflated total the header used to show
             // — two surfaces stating a number that matched neither the realised
             // profit nor the held value.
-            total: HistoryViewModel.portfolioTotal(of: results),
+            total: LedgerMath.heldValue(results),
             addedThisWeek: results.filter { $0.timestamp >= weekAgo }.count
         )
     }

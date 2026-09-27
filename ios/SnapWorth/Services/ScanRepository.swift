@@ -152,8 +152,9 @@ final class ScanRepository {
     // `HistoryView` lists scans with `@Query`, so every row is already resident
     // when the banner renders. A second fetch to sum them would be *additive*
     // cost, not a saving. The reduce itself is cheap: `portfolioValue` is one
-    // condition-adjusted division per item, with the stored grade it needs
-    // memoised (`ScanResult.storedGrade`) rather than decoded per read.
+    // condition-adjusted division per item, with the stored grade and likely
+    // price it needs memoised (`ScanResult.storedFacts`) rather than decoded
+    // per read.
     //
     // The aggregate becomes worth having the moment the list stops loading
     // everything — i.e. when it is paged. That is a larger change than this
@@ -184,13 +185,65 @@ final class ScanRepository {
     }
 
     /// Re-sync the widget after something other than an insert or a delete
-    /// changed a value.
-    ///
-    /// Changing an item's condition re-prices it — the only way a value moves
-    /// without a row being added or removed — and nothing told the widget, so
-    /// it kept showing the pre-correction total until the next scan.
+    /// changed what it shows — a ledger edit, or a run that needs repainting.
+    /// A change to a find's *valuation* goes through `valuationDidChange`,
+    /// which does this and more.
     func refreshWidget() {
         scheduleWidgetSync()
+    }
+
+    /// Everything the model layer owes a change to one find's valuation.
+    ///
+    /// Three paths move a saved find's value without inserting or deleting a
+    /// row — the condition chips, the tag re-read and the full-breakdown
+    /// re-read — and each owes the same things: a new point in the find's
+    /// value history, the Home Screen widgets' totals and the thrift run's
+    /// Live Activity. That list lived in `ResultView`, where the chip once
+    /// did four of them and the tag re-read one, and the next feature that
+    /// re-prices a find (#89, #93) would have had to find it there. Here it
+    /// is one call a caller cannot half-make.
+    ///
+    /// What stays with the caller is what only the screen holds: a rendered
+    /// share card and a generated listing, both written for the old number.
+    func valuationDidChange(_ result: ScanResult) {
+        // A no-op when the number did not actually move.
+        result.refreshPortfolioValue()
+        // The widgets aggregate every find's condition-adjusted value and the
+        // Live Activity totals the run; both listen for inserts and deletes,
+        // which this is neither.
+        scheduleWidgetSync()
+    }
+
+    // ── Pricing rules ────────────────────────────────────────────────────────
+
+    /// Re-expresses every find's stored value under the pricing rules now in
+    /// force, once per change to those rules. Returns whether it ran.
+    ///
+    /// Every figure on screen is computed live (`ScanResult.portfolioValue`),
+    /// so a rules change reaches the cards, totals and widgets by itself. What
+    /// does not is what was *stored* under the old rules — `portfolioValueRaw`
+    /// and the value history behind it — and the next re-price would compare
+    /// its new-rules figure against an old-rules history and record the rules
+    /// change as a move in the item's value. See `rebaseStoredValue`.
+    ///
+    /// Marked done only after a save that succeeded, and never on a fallback
+    /// launch: that session's store is an empty in-memory one, and marking the
+    /// rules applied there would skip the real library for good.
+    @discardableResult
+    func applyPricingRulesIfNeeded(defaults: UserDefaults = .standard) -> Bool {
+        guard !AppLaunchState.isRunningOnFallbackStore else { return false }
+        guard defaults.integer(forKey: PricingRules.defaultsKey) < PricingRules.current
+        else { return false }
+        guard let all = try? context.fetch(FetchDescriptor<ScanResult>()) else { return false }
+        all.forEach { $0.rebaseStoredValue() }
+        do {
+            try context.save()
+        } catch {
+            context.rollback()
+            return false
+        }
+        defaults.set(PricingRules.current, forKey: PricingRules.defaultsKey)
+        return true
     }
 
     /// The sync waiting to run, so the next one can cancel it.

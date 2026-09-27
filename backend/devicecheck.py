@@ -39,6 +39,11 @@ _HTTP_TIMEOUT = 5.0
 # which cares about the Authorization header Apple checks first.
 _PROBE_TOKEN = base64.b64encode(b"snapworth-devicecheck-probe").decode()
 
+# How `verify()`'s detail starts when the probe raised for a reason that is not
+# the network: a False, since waiting will not cure it, but not a verdict on
+# the key. /checkup keys on it so as not to call that "REJECTED".
+PROBE_NOT_SENT = "probe could not be sent"
+
 
 class DeviceCheckError(Exception):
     """DeviceCheck call failed. Never surfaced to the client verbatim.
@@ -174,7 +179,7 @@ class DeviceCheckClient:
                     "literal \\n between them")
         return None
 
-    async def verify(self) -> tuple[bool, str]:
+    async def verify(self) -> tuple[bool | None, str]:
         """Prove the credentials actually sign, without needing a real device.
 
         `is_configured` only says three environment variables are non-empty. It
@@ -190,7 +195,13 @@ class DeviceCheckClient:
           * **400** — the JWT was *accepted* and Apple got as far as rejecting
             the obviously-fake device token. That is the pass we are after.
 
-        Returns (ok, detail); never raises.
+        Returns (ok, detail); never raises. `ok` is True when the key signs and
+        False when something has to be fixed. It is None when Apple could not
+        be asked — unreachable, timed out, or a 5xx — and `detail` is then only
+        what happened ("ConnectTimeout", "HTTP 503"). That is a third answer,
+        not a kind of False: /checkup used to report a timeout as "REJECTED …
+        until this is fixed", which sends someone to the developer portal to
+        fix a key that works.
         """
         if not self.is_configured:
             return False, "not configured"
@@ -207,16 +218,31 @@ class DeviceCheckClient:
             return False, (f"private key unreadable — {str(exc)[:120]} "
                            "(it must be the unencrypted P-256 .p8 from the Keys page)")
 
+        # Unreachable is judged the way `DeviceCheckError.is_refusal` judges it
+        # for the quota: no answer, or a 5xx. Those are exactly the failures
+        # `quota.starting_balance` treats as an outage rather than a verdict,
+        # so this is the probe's None.
+        import httpx
         try:
             status, body = await self._post("/v1/query_two_bits", {
                 "device_token": _PROBE_TOKEN,
                 "transaction_id": str(uuid.uuid4()),
                 "timestamp": int(time.time() * 1000),
             })
-        except Exception as exc:                      # DNS, TLS, timeout
-            return False, f"could not reach Apple ({type(exc).__name__})"
+        except httpx.TransportError as exc:          # DNS, TLS, timeout
+            return None, type(exc).__name__
+        except Exception as exc:
+            # Not the network, so not something waiting will cure. Nor is it
+            # Apple's verdict on the key: no answer from Apple was read. A
+            # client or code fault, then, and the exception's name is all the
+            # checkup line has room for, so the traceback goes to the log.
+            log.warning("devicecheck probe could not be sent", exc_info=exc)
+            return False, f"{PROBE_NOT_SENT} ({type(exc).__name__})"
 
         note = body.strip()[:140]
+
+        if status >= 500:
+            return None, f"HTTP {status}" + (f": {note[:80]}" if note else "")
 
         if status == 401:
             # This probe rests on Apple answering a bad *device* token with 400

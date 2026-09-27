@@ -181,10 +181,11 @@ private let previewNow = Date(timeIntervalSince1970: 1_789_000_000)
 #Preview("Lock Screen · circular", as: .accessoryCircular) {
     LockScreenHaulWidget()
 } timeline: {
-    // Since 1.4.0 this is the midpoint of the range, not its top: $4,840, not
-    // $6,200. It should agree with "Your finds are worth" in the app.
+    // Since 1.4.0 this is the likely total (`totalLikely`), not the top of
+    // the range: $4,840, not $6,200. It should agree with "Your finds are
+    // worth" in the app.
     LockScreenEntry(date: previewNow, haul: .previewFree)
-    // A 1.3.x blob carries no midpoint, so it falls back to the top.
+    // A 1.3.x blob carries no likely total, so it falls back to the top.
     LockScreenEntry(date: previewNow, haul: .previewLegacyBlob)
     LockScreenEntry(date: previewNow, haul: .previewEmpty)
 }

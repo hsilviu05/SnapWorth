@@ -47,7 +47,8 @@ final class PaywallViewModel {
         closeButtonTask = nil
     }
 
-    func purchase(service: any PurchaseService) async {
+    /// - Parameter trigger: the paywall's own, carried on the purchase events.
+    func purchase(service: any PurchaseService, trigger: PaywallTrigger) async {
         // Matches the guard in ScanViewModel, ResultViewModel and
         // ThriftFlipViewModel. The View disables the button, but that relies on
         // a render cycle — and this is the payment path, so it should not be
@@ -58,9 +59,10 @@ final class PaywallViewModel {
         pendingMessage = nil
         defer { isPurchasing = false }
         Analytics.shared.track(.purchaseStarted(productID: selectedProductID,
-                                                isFirst: ScanTally.isFirstRun()))
+                                                isFirst: ScanTally.isFirstRun(),
+                                                trigger: trigger))
         do {
-            switch try await service.purchase(productID: selectedProductID) {
+            switch try await service.purchase(productID: selectedProductID, trigger: trigger) {
             case .completed:
                 isPurchaseComplete = true
             case .pending:

@@ -1,9 +1,10 @@
 {
   "status": 429,
   "headers": {
-    "Retry-After": "3598"
+    "Retry-After": "3599"
   },
   "body": {
-    "detail": "Rate limit: 20 requests/hour."
+    "detail": "Rate limit: 20 requests/hour.",
+    "code": "rate_limited"
   }
 }

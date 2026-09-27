@@ -1041,6 +1041,14 @@
       "de": "Zeigt auf der Karte, um das Wievielfache du deinen Einsatz rausholst",
       "zh-Hans": "在分享卡片上显示你翻了几倍"
     },
+    "After the free week, the subscription renews unless you cancel.": {
+      "comment": "Referrals (#97): the renewal terms, shown to the referrer under the weeks they earned and in the 'You earned a week of Pro' alert. The second half of the friend's 'Apple shows the offer…' sentence, translated the same way.",
+      "en": "After the free week, the subscription renews unless you cancel.",
+      "ro": "După săptămâna gratuită, abonamentul se reînnoiește dacă nu îl anulezi.",
+      "es": "Tras la semana gratis, la suscripción se renueva salvo que la canceles.",
+      "de": "Nach der Gratiswoche verlängert sich das Abo, wenn du nicht kündigst.",
+      "zh-Hans": "免费一周结束后，订阅会自动续订，除非你取消。"
+    },
     "All": {
       "comment": "Flip filter: every status.",
       "en": "All",
@@ -1071,6 +1079,14 @@
       "es": "Permitir notificaciones",
       "de": "Mitteilungen erlauben",
       "zh-Hans": "允许通知"
+    },
+    "Allow notifications in Settings": {
+      "comment": "Scan tab, when the free-scan reminder is on but iOS refuses notifications. Opens iOS Settings.",
+      "en": "Allow notifications in Settings",
+      "ro": "Permite notificările în Setări",
+      "es": "Permite las notificaciones en Ajustes",
+      "de": "Mitteilungen in den Einstellungen erlauben",
+      "zh-Hans": "在“设置”中允许通知"
     },
     "Almost there…": {
       "en": "Almost there…",
@@ -1912,6 +1928,14 @@
       "de": "CSV exportieren",
       "zh-Hans": "导出 CSV"
     },
+    "Export your flips": {
+      "comment": "Paywall headline when it opened from Export CSV in My Flips.",
+      "en": "Export your flips",
+      "ro": "Exportă-ți flipurile",
+      "es": "Exporta tus reventas",
+      "de": "Exportier deine Flips",
+      "zh-Hans": "导出你的转卖记录"
+    },
     "Feature Request": {
       "en": "Feature Request",
       "ro": "Propunere de funcție",
@@ -2027,6 +2051,14 @@
       "es": "Hallazgo gratis",
       "de": "Gratis-Fund",
       "zh-Hans": "白捡的"
+    },
+    "Free for %@, then %@. Cancel anytime.": {
+      "comment": "Paywall, under a headline that names what the user tapped rather than the trial. First %@ is the trial length ('3 days'), second the yearly price ('$39.99/year').",
+      "en": "Free for %@, then %@. Cancel anytime.",
+      "ro": "Gratuit %@, apoi %@. Anulezi oricând.",
+      "es": "Gratis %@, luego %@. Cancela cuando quieras.",
+      "de": "%@ gratis, danach %@. Jederzeit kündbar.",
+      "zh-Hans": "免费 %@，之后 %@。可随时取消。"
     },
     "Free scan": {
       "en": "Free scan",
@@ -2295,6 +2327,14 @@
       "de": "Weiter scannen",
       "zh-Hans": "继续扫描"
     },
+    "Keep scanning today": {
+      "comment": "Paywall headline when it opened because the day's free scans are spent.",
+      "en": "Keep scanning today",
+      "ro": "Scanează în continuare azi",
+      "es": "Sigue escaneando hoy",
+      "de": "Scann heute weiter",
+      "zh-Hans": "今天继续扫描"
+    },
     "Last 6 months": {
       "en": "Last 6 months",
       "ro": "Ultimele 6 luni",
@@ -2546,6 +2586,14 @@
       "de": "Weiter",
       "zh-Hans": "下一步"
     },
+    "Next free scan at %@": {
+      "comment": "Scan tab, once the day's free scans are spent. %@ is a time of day on the phone's clock, e.g. 8:00 PM — the allowance resets at UTC midnight, which is a different hour in every zone.",
+      "en": "Next free scan at %@",
+      "ro": "Următoarea scanare gratuită la %@",
+      "es": "Próximo escaneo gratis: %@",
+      "de": "Nächster Gratis-Scan um %@",
+      "zh-Hans": "下次免费扫描：%@"
+    },
     "No active subscription found on this Apple ID.": {
       "en": "No active subscription found on this Apple ID.",
       "ro": "Nu am găsit niciun abonament activ pe contul Apple ăsta.",
@@ -2706,6 +2754,14 @@
       "de": "%@ öffnen",
       "zh-Hans": "打开 %@"
     },
+    "Open App Store": {
+      "comment": "Button beside \"no longer supported\": opens SnapWorth's App Store page.",
+      "en": "Open App Store",
+      "ro": "Deschide App Store",
+      "es": "Abrir App Store",
+      "de": "App Store öffnen",
+      "zh-Hans": "打开 App Store"
+    },
     "Open Settings": {
       "en": "Open Settings",
       "ro": "Deschide Setările",
@@ -2740,6 +2796,13 @@
       "es": "Abre los Ajustes de iOS, donde se cambian las restricciones de Tiempo de uso",
       "de": "Öffnet die iOS-Einstellungen, wo die Bildschirmzeit-Beschränkungen geändert werden",
       "zh-Hans": "打开 iOS“设置”，屏幕使用时间的限制在那里修改"
+    },
+    "Opens iOS Settings, where notifications are allowed": {
+      "en": "Opens iOS Settings, where notifications are allowed",
+      "ro": "Deschide Setările iOS, de unde se permit notificările",
+      "es": "Abre los Ajustes de iOS, donde se permiten las notificaciones",
+      "de": "Öffnet die iOS-Einstellungen, wo Mitteilungen erlaubt werden",
+      "zh-Hans": "打开 iOS“设置”，通知在那里允许"
     },
     "Opens subscription options": {
       "en": "Opens subscription options",
@@ -3023,6 +3086,14 @@
       "de": "%@ gelesen – tippe, um zu korrigieren, falls das nicht stimmt.",
       "zh-Hans": "识别出 %@，不对的话点一下改。"
     },
+    "Read the care tag": {
+      "comment": "Paywall headline when it opened from 'Add the tag' on a result.",
+      "en": "Read the care tag",
+      "ro": "Citește eticheta",
+      "es": "Lee la etiqueta",
+      "de": "Lies das Pflegeetikett",
+      "zh-Hans": "读取洗标"
+    },
     "Read the care tag for a sharper estimate": {
       "en": "Read the care tag for a sharper estimate",
       "ro": "Citirea etichetei, pentru o estimare mai exactă",
@@ -3052,12 +3123,36 @@
       "de": "Neu schreiben",
       "zh-Hans": "重新生成"
     },
+    "Remind me": {
+      "comment": "Button beside the next free scan's time. Turns on the daily free-scan reminder.",
+      "en": "Remind me",
+      "ro": "Amintește-mi",
+      "es": "Avísame",
+      "de": "Erinnere mich",
+      "zh-Hans": "提醒我"
+    },
     "Remind me at": {
       "en": "Remind me at",
       "ro": "Amintește-mi la",
       "es": "Avísame a las",
       "de": "Erinnere mich um",
       "zh-Hans": "提醒时间"
+    },
+    "Reminder on": {
+      "comment": "After 'Remind me', when no fire time can be named.",
+      "en": "Reminder on",
+      "ro": "Memento pornit",
+      "es": "Aviso activado",
+      "de": "Erinnerung an",
+      "zh-Hans": "提醒已开启"
+    },
+    "Reminder set for %@": {
+      "comment": "After 'Remind me'. %@ is a short weekday and a time, e.g. Tue 6:00 PM: when the first reminder will fire.",
+      "en": "Reminder set for %@",
+      "ro": "Memento setat: %@",
+      "es": "Aviso programado: %@",
+      "de": "Erinnerung gestellt: %@",
+      "zh-Hans": "已设提醒：%@"
     },
     "Remove photo": {
       "en": "Remove photo",
@@ -3217,6 +3312,14 @@
       "de": "Scanne einen ganzen Stapel Artikel nacheinander, mit laufender Summe",
       "zh-Hans": "连续扫描一堆物品，并实时显示总额"
     },
+    "Scan a whole haul": {
+      "comment": "Paywall headline when it opened from Haul mode (Lot / Lote / Stapel / 批量 — the camera mode, not the widgets' library).",
+      "en": "Scan a whole haul",
+      "ro": "Scanează un lot întreg",
+      "es": "Escanea un lote entero",
+      "de": "Scann einen ganzen Stapel",
+      "zh-Hans": "整批好物都能扫"
+    },
     "Scan an item, then mark it Owned or Sold to start tracking your profit here.": {
       "en": "Scan an item, then mark it Owned or Sold to start tracking your profit here.",
       "ro": "Scanează un obiect, apoi marchează-l „În posesie” sau „Vândut” ca să îți urmărești profitul aici.",
@@ -3275,6 +3378,14 @@
       "de": "Vor Pro gescannt",
       "zh-Hans": "开通 Pro 前扫描"
     },
+    "Scanning from this device is paused for 24 hours after repeated photos that could not be analysed.": {
+      "comment": "An error the server sent with a code this build words itself (backend/apierrors.py). In English the server's own sentence is shown instead.",
+      "en": "Scanning from this device is paused for 24 hours after repeated photos that could not be analysed.",
+      "ro": "Scanarea de pe acest dispozitiv e oprită pentru 24 de ore după mai multe poze care nu au putut fi analizate.",
+      "es": "El escaneo desde este dispositivo está en pausa durante 24 horas tras varias fotos que no se pudieron analizar.",
+      "de": "Scannen ist auf diesem Gerät für 24 Stunden pausiert, nachdem mehrere Fotos nicht analysiert werden konnten.",
+      "zh-Hans": "由于多张照片无法分析，此设备的扫描已暂停 24 小时。"
+    },
     "Scanning needs a real iPhone — device verification (App Attest) isn't available in the Simulator.": {
       "en": "Scanning needs a real iPhone — device verification (App Attest) isn't available in the Simulator.",
       "ro": "Scanarea are nevoie de un iPhone real — verificarea dispozitivului (App Attest) nu există în Simulator.",
@@ -3311,6 +3422,30 @@
       "de": "Sieh die Durchschnittspreise und die besten Funde der Woche",
       "zh-Hans": "看看均价和本周最好的几件"
     },
+    "See every flip": {
+      "comment": "Paywall headline when it opened from 'Unlock N more + all-time totals' in My Flips.",
+      "en": "See every flip",
+      "ro": "Vezi toate flipurile",
+      "es": "Mira todas tus reventas",
+      "de": "Sieh alle deine Flips",
+      "zh-Hans": "查看全部转卖记录"
+    },
+    "See what's trending": {
+      "comment": "Paywall headline when it opened from the locked 'Trending at the thrift' card.",
+      "en": "See what's trending",
+      "ro": "Vezi ce se caută",
+      "es": "Mira lo que se busca",
+      "de": "Sieh, was gefragt ist",
+      "zh-Hans": "看看二手市场的风向"
+    },
+    "See why this price": {
+      "comment": "Paywall headline when it opened from the locked 'Why this price' panel on a result.",
+      "en": "See why this price",
+      "ro": "Află de ce prețul ăsta",
+      "es": "Descubre por qué este precio",
+      "de": "Sieh, warum dieser Preis",
+      "zh-Hans": "看看为什么是这个价"
+    },
     "See your estimated profit after marketplace fees, right there in the aisle.": {
       "comment": "Onboarding, Thrift Flip slide. 'Estimated', never 'exact': the resale side is an AI estimate and the fees are approximate, which Thrift Flip itself says.",
       "en": "See your estimated profit after marketplace fees, right there in the aisle.",
@@ -3325,6 +3460,14 @@
       "es": "Mira tus reventas del mes",
       "de": "Sieh deine Flips des Monats",
       "zh-Hans": "看看本月的转卖"
+    },
+    "See your value over time": {
+      "comment": "Paywall headline when it opened from the locked portfolio value history on My Finds.",
+      "en": "See your value over time",
+      "ro": "Vezi cum evoluează valoarea colecției",
+      "es": "Mira cómo evoluciona el valor de tu colección",
+      "de": "Sieh den Wertverlauf deiner Sammlung",
+      "zh-Hans": "查看收藏的价值走势"
     },
     "Selects the %@ plan": {
       "comment": "VoiceOver hint on a paywall plan card; %@ is the plan name, lowercased.",
@@ -3862,6 +4005,30 @@
       "de": "Das ist dein eigener Einladungscode. Teil ihn lieber mit jemandem.",
       "zh-Hans": "这是你自己的邀请码。把它分享给朋友吧。"
     },
+    "The AI couldn't price this item. Please try again.": {
+      "comment": "An error the server sent with a code this build words itself (backend/apierrors.py). In English the server's own sentence is shown instead.",
+      "en": "The AI couldn't price this item. Please try again.",
+      "ro": "AI-ul nu a putut estima un preț pentru acest obiect. Încearcă din nou.",
+      "es": "La IA no ha podido poner precio a este artículo. Inténtalo de nuevo.",
+      "de": "Die KI konnte für diesen Artikel keinen Preis ermitteln. Versuch es noch einmal.",
+      "zh-Hans": "AI 无法给这件物品估价，请再试一次。"
+    },
+    "The AI response couldn't be read. Please try again.": {
+      "comment": "An error the server sent with a code this build words itself (backend/apierrors.py). In English the server's own sentence is shown instead.",
+      "en": "The AI response couldn't be read. Please try again.",
+      "ro": "Răspunsul AI-ului nu a putut fi citit. Încearcă din nou.",
+      "es": "No se ha podido leer la respuesta de la IA. Inténtalo de nuevo.",
+      "de": "Die Antwort der KI konnte nicht gelesen werden. Versuch es noch einmal.",
+      "zh-Hans": "无法读取 AI 的回复，请再试一次。"
+    },
+    "The AI service is temporarily unavailable. Please try again.": {
+      "comment": "An error the server sent with a code this build words itself (backend/apierrors.py). In English the server's own sentence is shown instead.",
+      "en": "The AI service is temporarily unavailable. Please try again.",
+      "ro": "Serviciul AI e momentan indisponibil. Încearcă din nou.",
+      "es": "El servicio de IA no está disponible temporalmente. Inténtalo de nuevo.",
+      "de": "Der KI-Dienst ist vorübergehend nicht erreichbar. Versuch es noch einmal.",
+      "zh-Hans": "AI 服务暂时不可用，请再试一次。"
+    },
     "The full breakdown is only available for new scans. This find keeps the summary it was saved with.": {
       "comment": "Under \"Scanned before Pro\": a find reopened from My Finds or My Flips keeps the free part of \"Why this price\"; only a fresh scan offers the full panel.",
       "en": "The full breakdown is only available for new scans. This find keeps the summary it was saved with.",
@@ -3913,6 +4080,14 @@
       "de": "Dieses Gerät unterstützt die sichere Überprüfung nicht.",
       "zh-Hans": "这台设备不支持安全验证。"
     },
+    "This doesn't look like something with a resale value. Try a photo of a single item you'd actually sell.": {
+      "comment": "An error the server sent with a code this build words itself (backend/apierrors.py). In English the server's own sentence is shown instead. The server's English also gives the AI's reason, which is model text in English; this sentence is shown without it.",
+      "en": "This doesn't look like something with a resale value. Try a photo of a single item you'd actually sell.",
+      "ro": "Nu pare să fie ceva ce se poate revinde. Încearcă o poză cu un singur obiect pe care chiar l-ai vinde.",
+      "es": "Esto no parece algo con valor de reventa. Prueba con una foto de un solo artículo que de verdad venderías.",
+      "de": "Das sieht nicht nach etwas mit Wiederverkaufswert aus. Versuch es mit einem Foto von einem einzelnen Artikel, den du wirklich verkaufen würdest.",
+      "zh-Hans": "这看起来不像有转卖价值的东西。请拍一件你真的会卖的单件物品。"
+    },
     "This find was saved without its full breakdown. Re-read its photo to see the price points and what drives the value. The estimate, the item's name and details, and the listing draft may change.": {
       "comment": "Shown to a subscriber under \"Why this price\" when the find was saved with only the free part of the panel (usually scanned before they subscribed). A re-read replaces the estimate, name, brand, category, condition notes and listing draft, so all of them are named.",
       "en": "This find was saved without its full breakdown. Re-read its photo to see the price points and what drives the value. The estimate, the item's name and details, and the listing draft may change.",
@@ -3936,12 +4111,28 @@
       "de": "Auf diesem iPhone ist kein E-Mail-Account eingerichtet. Kopier deine Nachricht und schick sie von dort an %@, wo du Mail hast.",
       "zh-Hans": "这台 iPhone 没有设置邮件账户。复制你写的内容，用别的地方的邮箱发到 %@。"
     },
+    "This is a SnapWorth Pro feature.": {
+      "comment": "An error the server sent with a code this build words itself (backend/apierrors.py). In English the server's own sentence is shown instead.",
+      "en": "This is a SnapWorth Pro feature.",
+      "ro": "Aceasta este o funcție SnapWorth Pro.",
+      "es": "Esta es una función de SnapWorth Pro.",
+      "de": "Das ist eine SnapWorth-Pro-Funktion.",
+      "zh-Hans": "这是 SnapWorth Pro 功能。"
+    },
     "This phone has already used an invite.": {
       "en": "This phone has already used an invite.",
       "ro": "Telefonul ăsta a folosit deja o invitație.",
       "es": "Este móvil ya ha usado una invitación.",
       "de": "Dieses Handy hat schon eine Einladung genutzt.",
       "zh-Hans": "这部手机已经用过一次邀请了。"
+    },
+    "This photo couldn't be analysed. Try a clear photo of a single item.": {
+      "comment": "An error the server sent with a code this build words itself (backend/apierrors.py). In English the server's own sentence is shown instead.",
+      "en": "This photo couldn't be analysed. Try a clear photo of a single item.",
+      "ro": "Poza asta nu a putut fi analizată. Încearcă o poză clară cu un singur obiect.",
+      "es": "No se ha podido analizar esta foto. Prueba con una foto nítida de un solo artículo.",
+      "de": "Dieses Foto konnte nicht analysiert werden. Versuch es mit einem scharfen Foto von nur einem Artikel.",
+      "zh-Hans": "这张照片无法分析。请拍一张清晰的单件物品照片。"
     },
     "This purchase could not be completed.": {
       "en": "This purchase could not be completed.",
@@ -3956,6 +4147,14 @@
       "es": "Esta suscripción no está disponible ahora mismo. Inténtalo de nuevo.",
       "de": "Dieses Abo ist gerade nicht verfügbar. Versuch es noch einmal.",
       "zh-Hans": "这个订阅目前不可用。请再试一次。"
+    },
+    "This version of SnapWorth is no longer supported. Update SnapWorth from the App Store to keep using it.": {
+      "comment": "The server no longer serves this build. On the Scan tab it is shown with an Open App Store button; elsewhere it is shown alone.",
+      "en": "This version of SnapWorth is no longer supported. Update SnapWorth from the App Store to keep using it.",
+      "ro": "Această versiune de SnapWorth nu mai este acceptată. Actualizează SnapWorth din App Store ca să-l poți folosi în continuare.",
+      "es": "Esta versión de SnapWorth ya no es compatible. Actualiza SnapWorth desde el App Store para seguir usándolo.",
+      "de": "Diese Version von SnapWorth wird nicht mehr unterstützt. Aktualisiere SnapWorth im App Store, um es weiter zu nutzen.",
+      "zh-Hans": "此版本的 SnapWorth 已不再受支持。请前往 App Store 更新 SnapWorth 以继续使用。"
     },
     "This will permanently delete all %lld saved scans.": {
       "en": {
@@ -4064,6 +4263,14 @@
       "de": "Rest versuchen",
       "zh-Hans": "继续处理其余照片"
     },
+    "Turn finds into listings": {
+      "comment": "Paywall headline when it opened from the locked marketplace listings (Snap → Sell).",
+      "en": "Turn finds into listings",
+      "ro": "Transformă găselnițele în anunțuri",
+      "es": "Convierte tus hallazgos en anuncios",
+      "de": "Mach aus deinen Funden Inserate",
+      "zh-Hans": "把好物写成商品描述"
+    },
     "Turn them on in iOS Settings to get these reminders.": {
       "en": "Turn them on in iOS Settings to get these reminders.",
       "ro": "Pornește-le din Setările iOS ca să primești memento-urile astea.",
@@ -4078,6 +4285,14 @@
       "de": "Schaltet das Vibrieren beim Scannen und Auswählen aus",
       "zh-Hans": "关掉扫描和选择时的震动反馈"
     },
+    "Turns on a reminder for when your free scan is back": {
+      "comment": "VoiceOver hint for 'Remind me'.",
+      "en": "Turns on a reminder for when your free scan is back",
+      "ro": "Pornește un memento pentru când ai iar scanarea gratuită",
+      "es": "Activa un aviso para cuando vuelvas a tener tu escaneo gratis",
+      "de": "Schaltet eine Erinnerung ein, sobald dein Gratis-Scan wieder da ist",
+      "zh-Hans": "开启提醒，免费扫描恢复后通知你"
+    },
     "Unknown — add what you paid to calculate it": {
       "en": "Unknown — add what you paid to calculate it",
       "ro": "Necunoscut — adaugă cât ai dat ca să îl calculăm",
@@ -4091,6 +4306,14 @@
       "es": "Escaneos ilimitados",
       "de": "Unbegrenzte Scans",
       "zh-Hans": "无限扫描"
+    },
+    "Unlimited scans are subject to fair use: very heavy use can pause scanning for up to an hour.": {
+      "comment": "Footnote under the paywall's list of what Pro includes. Qualifies the \"Unlimited scans\" row: Pro scans are capped per hour, and a device over the cap waits at most an hour.",
+      "en": "Unlimited scans are subject to fair use: very heavy use can pause scanning for up to an hour.",
+      "ro": "Scanările nelimitate sunt supuse utilizării rezonabile: la o folosire foarte intensă, scanarea se poate opri pentru cel mult o oră.",
+      "es": "Los escaneos ilimitados están sujetos a un uso razonable: con un uso muy intensivo, el escaneo puede pausarse hasta una hora.",
+      "de": "Unbegrenzte Scans unterliegen der fairen Nutzung: Bei sehr intensiver Nutzung kann das Scannen bis zu einer Stunde pausieren.",
+      "zh-Hans": "无限扫描适用合理使用原则：使用过于频繁时，扫描可能暂停，最长一小时。"
     },
     "Unlimited scans · Active": {
       "en": "Unlimited scans · Active",
@@ -4539,6 +4762,14 @@
       "de": "Du hast das Scan-Limit erreicht.",
       "zh-Hans": "你已经达到扫描上限。"
     },
+    "You've used today's free scans.": {
+      "comment": "An error the server sent with a code this build words itself (backend/apierrors.py). In English the server's own sentence is shown instead. Count-neutral on purpose: the allowance is one scan a day by default, and more on the first day when the first-day allowance is switched on.",
+      "en": "You've used today's free scans.",
+      "ro": "Ai consumat scanările gratuite de azi.",
+      "es": "Has gastado los escaneos gratis de hoy.",
+      "de": "Du hast die Gratis-Scans von heute verbraucht.",
+      "zh-Hans": "今天的免费扫描用完了。"
+    },
     "You've used today's free scans. Opens subscription options.": {
       "en": "You've used today's free scans. Opens subscription options.",
       "ro": "Ai consumat scanările gratuite de azi. Deschide opțiunile de abonament.",
@@ -4691,6 +4922,14 @@
       "de": "nach Plattformgebühren",
       "zh-Hans": "扣掉平台手续费后"
     },
+    "authenticity could not be verified from the photo": {
+      "comment": "One reason under the confidence score in \"Why this price\": a lower-case clause, no full stop, shown as a bullet. In English the server's own clause is shown instead.",
+      "en": "authenticity could not be verified from the photo",
+      "ro": "autenticitatea nu a putut fi verificată din poză",
+      "es": "no se ha podido verificar la autenticidad a partir de la foto",
+      "de": "die Echtheit ließ sich anhand des Fotos nicht prüfen",
+      "zh-Hans": "无法从照片核实真伪"
+    },
     "average estimate %@": {
       "en": "average estimate %@",
       "ro": "estimare medie %@",
@@ -4842,6 +5081,14 @@
       "de": "netto diesen Monat",
       "zh-Hans": "本月净额"
     },
+    "no authenticity concerns": {
+      "comment": "One reason under the confidence score in \"Why this price\": a lower-case clause, no full stop, shown as a bullet. In English the server's own clause is shown instead.",
+      "en": "no authenticity concerns",
+      "ro": "nicio îndoială privind autenticitatea",
+      "es": "sin dudas sobre la autenticidad",
+      "de": "keine Zweifel an der Echtheit",
+      "zh-Hans": "真伪方面没有疑点"
+    },
     "nothing scanned yet": {
       "en": "nothing scanned yet",
       "ro": "nimic scanat încă",
@@ -4872,6 +5119,190 @@
       "de": "knappes Angebot",
       "zh-Hans": "货源稀少"
     },
+    "the AI gave a read on demand and supply": {
+      "comment": "One reason under the confidence score in \"Why this price\": a lower-case clause, no full stop, shown as a bullet. In English the server's own clause is shown instead.",
+      "en": "the AI gave a read on demand and supply",
+      "ro": "AI-ul a dat o estimare a cererii și ofertei",
+      "es": "la IA ha dado una lectura de la oferta y la demanda",
+      "de": "die KI hat Nachfrage und Angebot eingeschätzt",
+      "zh-Hans": "AI 给出了供需判断"
+    },
+    "the AI's read on demand and supply is incomplete": {
+      "comment": "One reason under the confidence score in \"Why this price\": a lower-case clause, no full stop, shown as a bullet. In English the server's own clause is shown instead.",
+      "en": "the AI's read on demand and supply is incomplete",
+      "ro": "estimarea AI-ului privind cererea și oferta e incompletă",
+      "es": "la lectura de la IA sobre la oferta y la demanda está incompleta",
+      "de": "die Einschätzung der KI zu Nachfrage und Angebot ist unvollständig",
+      "zh-Hans": "AI 的供需判断不完整"
+    },
+    "the analysis came back partial": {
+      "comment": "One reason under the confidence score in \"Why this price\": a lower-case clause, no full stop, shown as a bullet. In English the server's own clause is shown instead.",
+      "en": "the analysis came back partial",
+      "ro": "analiza a venit incompletă",
+      "es": "el análisis ha llegado incompleto",
+      "de": "die Analyse ist nur teilweise zurückgekommen",
+      "zh-Hans": "分析结果不完整"
+    },
+    "the analysis is complete": {
+      "comment": "One reason under the confidence score in \"Why this price\": a lower-case clause, no full stop, shown as a bullet. In English the server's own clause is shown instead.",
+      "en": "the analysis is complete",
+      "ro": "analiza e completă",
+      "es": "el análisis está completo",
+      "de": "die Analyse ist vollständig",
+      "zh-Hans": "分析完整"
+    },
+    "the brand could not be identified": {
+      "comment": "One reason under the confidence score in \"Why this price\": a lower-case clause, no full stop, shown as a bullet. In English the server's own clause is shown instead.",
+      "en": "the brand could not be identified",
+      "ro": "marca nu a putut fi identificată",
+      "es": "no se ha podido identificar la marca",
+      "de": "die Marke konnte nicht erkannt werden",
+      "zh-Hans": "无法识别品牌"
+    },
+    "the brand is identified": {
+      "comment": "One reason under the confidence score in \"Why this price\": a lower-case clause, no full stop, shown as a bullet. In English the server's own clause is shown instead.",
+      "en": "the brand is identified",
+      "ro": "marca este identificată",
+      "es": "la marca está identificada",
+      "de": "die Marke ist erkannt",
+      "zh-Hans": "品牌已识别"
+    },
+    "the estimate was outside the plausible range for this category and was adjusted": {
+      "comment": "One reason under the confidence score in \"Why this price\": a lower-case clause, no full stop, shown as a bullet. In English the server's own clause is shown instead.",
+      "en": "the estimate was outside the plausible range for this category and was adjusted",
+      "ro": "estimarea era în afara intervalului plauzibil pentru categoria asta și a fost ajustată",
+      "es": "la estimación estaba fuera del rango razonable para esta categoría y se ha ajustado",
+      "de": "die Schätzung lag außerhalb des plausiblen Bereichs für diese Kategorie und wurde angepasst",
+      "zh-Hans": "估价超出了该品类的合理范围，已做调整"
+    },
+    "the exact model could not be pinned down": {
+      "comment": "One reason under the confidence score in \"Why this price\": a lower-case clause, no full stop, shown as a bullet. In English the server's own clause is shown instead.",
+      "en": "the exact model could not be pinned down",
+      "ro": "modelul exact nu a putut fi stabilit",
+      "es": "no se ha podido precisar el modelo exacto",
+      "de": "das genaue Modell ließ sich nicht bestimmen",
+      "zh-Hans": "无法确定具体型号"
+    },
+    "the item could not be identified with certainty": {
+      "comment": "One reason under the confidence score in \"Why this price\": a lower-case clause, no full stop, shown as a bullet. In English the server's own clause is shown instead.",
+      "en": "the item could not be identified with certainty",
+      "ro": "obiectul nu a putut fi identificat cu certitudine",
+      "es": "no se ha podido identificar el artículo con certeza",
+      "de": "der Artikel konnte nicht sicher bestimmt werden",
+      "zh-Hans": "无法确定这是什么物品"
+    },
+    "the item doesn't stand out clearly from the background": {
+      "comment": "One reason under the confidence score in \"Why this price\": a lower-case clause, no full stop, shown as a bullet. In English the server's own clause is shown instead.",
+      "en": "the item doesn't stand out clearly from the background",
+      "ro": "obiectul nu se distinge clar de fundal",
+      "es": "el artículo no se distingue bien del fondo",
+      "de": "der Artikel hebt sich nicht klar vom Hintergrund ab",
+      "zh-Hans": "物品与背景区分不明显"
+    },
+    "the item may not be authentic": {
+      "comment": "One reason under the confidence score in \"Why this price\": a lower-case clause, no full stop, shown as a bullet. In English the server's own clause is shown instead.",
+      "en": "the item may not be authentic",
+      "ro": "este posibil ca obiectul să nu fie autentic",
+      "es": "puede que el artículo no sea auténtico",
+      "de": "der Artikel ist möglicherweise nicht echt",
+      "zh-Hans": "这件物品可能不是正品"
+    },
+    "the item was recognised confidently": {
+      "comment": "One reason under the confidence score in \"Why this price\": a lower-case clause, no full stop, shown as a bullet. In English the server's own clause is shown instead.",
+      "en": "the item was recognised confidently",
+      "ro": "obiectul a fost recunoscut cu încredere",
+      "es": "el artículo se ha reconocido con seguridad",
+      "de": "der Artikel wurde sicher erkannt",
+      "zh-Hans": "物品识别把握较大"
+    },
+    "the lighting is uneven — too dark or blown out": {
+      "comment": "One reason under the confidence score in \"Why this price\": a lower-case clause, no full stop, shown as a bullet. In English the server's own clause is shown instead.",
+      "en": "the lighting is uneven — too dark or blown out",
+      "ro": "lumina e inegală — prea întunecată sau supraexpusă",
+      "es": "la luz es irregular: demasiado oscura o quemada",
+      "de": "die Beleuchtung ist ungleichmäßig – zu dunkel oder überbelichtet",
+      "zh-Hans": "光线不均匀，过暗或过曝"
+    },
+    "the photo is clear enough to work from": {
+      "comment": "One reason under the confidence score in \"Why this price\": a lower-case clause, no full stop, shown as a bullet. In English the server's own clause is shown instead.",
+      "en": "the photo is clear enough to work from",
+      "ro": "poza e suficient de clară",
+      "es": "la foto es lo bastante nítida para trabajar con ella",
+      "de": "das Foto ist scharf genug",
+      "zh-Hans": "照片足够清晰"
+    },
+    "the photo is low resolution, so small details like tags aren't legible": {
+      "comment": "One reason under the confidence score in \"Why this price\": a lower-case clause, no full stop, shown as a bullet. In English the server's own clause is shown instead.",
+      "en": "the photo is low resolution, so small details like tags aren't legible",
+      "ro": "poza are rezoluție mică, așa că detaliile mici, ca etichetele, nu se pot citi",
+      "es": "la foto tiene poca resolución, así que los detalles pequeños como las etiquetas no se leen",
+      "de": "das Foto hat eine niedrige Auflösung, kleine Details wie Etiketten sind nicht lesbar",
+      "zh-Hans": "照片分辨率低，标签等小细节看不清"
+    },
+    "the photo is soft or out of focus": {
+      "comment": "One reason under the confidence score in \"Why this price\": a lower-case clause, no full stop, shown as a bullet. In English the server's own clause is shown instead.",
+      "en": "the photo is soft or out of focus",
+      "ro": "poza e neclară sau nefocalizată",
+      "es": "la foto está borrosa o desenfocada",
+      "de": "das Foto ist unscharf",
+      "zh-Hans": "照片模糊或失焦"
+    },
+    "the photo quality limits how confident this estimate can be": {
+      "comment": "One reason under the confidence score in \"Why this price\": a lower-case clause, no full stop, shown as a bullet. In English the server's own clause is shown instead.",
+      "en": "the photo quality limits how confident this estimate can be",
+      "ro": "calitatea pozei limitează cât de sigură poate fi estimarea",
+      "es": "la calidad de la foto limita la confianza de esta estimación",
+      "de": "die Fotoqualität begrenzt, wie sicher diese Schätzung sein kann",
+      "zh-Hans": "照片质量限制了这次估价的可信度"
+    },
+    "the price range is moderately wide": {
+      "comment": "One reason under the confidence score in \"Why this price\": a lower-case clause, no full stop, shown as a bullet. In English the server's own clause is shown instead.",
+      "en": "the price range is moderately wide",
+      "ro": "intervalul de preț e destul de larg",
+      "es": "el rango de precio es bastante amplio",
+      "de": "die Preisspanne ist recht breit",
+      "zh-Hans": "价格区间偏宽"
+    },
+    "the price range is not usable": {
+      "comment": "One reason under the confidence score in \"Why this price\": a lower-case clause, no full stop, shown as a bullet. In English the server's own clause is shown instead.",
+      "en": "the price range is not usable",
+      "ro": "intervalul de preț nu poate fi folosit",
+      "es": "el rango de precio no es utilizable",
+      "de": "die Preisspanne ist nicht brauchbar",
+      "zh-Hans": "价格区间无法使用"
+    },
+    "the price range is tight": {
+      "comment": "One reason under the confidence score in \"Why this price\": a lower-case clause, no full stop, shown as a bullet. In English the server's own clause is shown instead.",
+      "en": "the price range is tight",
+      "ro": "intervalul de preț e strâns",
+      "es": "el rango de precio es estrecho",
+      "de": "die Preisspanne ist eng",
+      "zh-Hans": "价格区间较窄"
+    },
+    "the price range is very wide": {
+      "comment": "One reason under the confidence score in \"Why this price\": a lower-case clause, no full stop, shown as a bullet. In English the server's own clause is shown instead.",
+      "en": "the price range is very wide",
+      "ro": "intervalul de preț e foarte larg",
+      "es": "el rango de precio es muy amplio",
+      "de": "die Preisspanne ist sehr breit",
+      "zh-Hans": "价格区间非常宽"
+    },
+    "the range was estimated from a single price": {
+      "comment": "One reason under the confidence score in \"Why this price\": a lower-case clause, no full stop, shown as a bullet. In English the server's own clause is shown instead.",
+      "en": "the range was estimated from a single price",
+      "ro": "intervalul a fost estimat pornind de la un singur preț",
+      "es": "el rango se estimó a partir de un solo precio",
+      "de": "die Spanne wurde aus einem einzigen Preis geschätzt",
+      "zh-Hans": "价格区间是根据单一价格估算的"
+    },
+    "this category has a well-established resale market": {
+      "comment": "One reason under the confidence score in \"Why this price\": a lower-case clause, no full stop, shown as a bullet. In English the server's own clause is shown instead. The server's English names the category; this one leaves it out.",
+      "en": "this category has a well-established resale market",
+      "ro": "categoria asta are o piață de revânzare bine stabilită",
+      "es": "esta categoría tiene un mercado de reventa consolidado",
+      "de": "diese Kategorie hat einen etablierten Wiederverkaufsmarkt",
+      "zh-Hans": "这个品类的转卖市场很成熟"
+    },
     "top find": {
       "comment": "Label for the most valuable item in a haul, on the summary and the share card. Lower case, like \"best flip\".",
       "en": "top find",
@@ -4900,6 +5331,14 @@
       "es": "usado, con desgaste visible",
       "de": "gebraucht, mit sichtbaren Spuren",
       "zh-Hans": "二手，有使用痕迹"
+    },
+    "values in this category vary a lot between individual items": {
+      "comment": "One reason under the confidence score in \"Why this price\": a lower-case clause, no full stop, shown as a bullet. In English the server's own clause is shown instead. The server's English names the category; this one leaves it out.",
+      "en": "values in this category vary a lot between individual items",
+      "ro": "în categoria asta, valorile diferă mult de la un obiect la altul",
+      "es": "en esta categoría, el valor varía mucho de un artículo a otro",
+      "de": "in dieser Kategorie schwanken die Werte stark von Artikel zu Artikel",
+      "zh-Hans": "这个品类的价格因物品而差异很大"
     },
     "week": {
       "comment": "One subscription period, no number.",
