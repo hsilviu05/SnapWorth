@@ -505,7 +505,7 @@ still-starting instances, and the graceful shutdown achieves nothing.
 | `TOKEN_KEYS` | Quarterly | §8.1 — zero-downtime by design |
 | `AUDIT_SALT` | Rarely | Rotating breaks historical correlation, deliberately |
 | `DEVICECHECK_PRIVATE_KEY` | On suspicion | Apple Developer portal |
-| `TELEGRAM_BOT_TOKEN` | On suspicion | §8.5 — was in production's logs until 2026-09-27 |
+| `TELEGRAM_BOT_TOKEN` | On suspicion | §8.6 — was in production's logs until 2026-09-27 |
 | TLS certificate | Automatic | Let's Encrypt, 90 days, platform-managed |
 
 ### 8.1 Token key rotation (zero downtime)
@@ -625,7 +625,7 @@ construction — a DeviceCheck key can read and write two bits per device and
 nothing else, no user data and no App Store Connect access — so this is
 housekeeping, not an incident, and step 3 matters more than speed.
 
-### 8.5 Telegram bot token rotation
+### 8.6 Telegram bot token rotation
 
 The Bot API puts the token in every request URL, so anything that logs a URL
 can leak it. Until 2026-09-27 httpx did exactly that on every `getUpdates`
