@@ -6094,8 +6094,39 @@ final class StaleRunRefreshTests: XCTestCase {
         let body = String(app[seed.upperBound...].prefix(2_000))
         XCTAssertTrue(body.contains("ThriftRunController.update(results:"),
                       "a launch from the stale Activity itself changes nothing")
-        XCTAssertTrue(body.contains("isRunningOnFallbackStore"),
-                      "a fallback launch's empty library would zero a real run")
+    }
+
+    func test_noPathCanZeroARunFromAFallbackStore() throws {
+        // A fallback launch's library is empty and in memory; the Activity is
+        // the earlier process's, counting scans that store cannot see. The
+        // guard was on the launch seed alone, so the foreground refresh — and
+        // the debounced sync and `deleteAll` behind it — published zero over
+        // a real run. It has to hold in `update`, before the Activity is read.
+        let controller = try source("Services/ThriftRunController.swift")
+        guard let update = controller.range(of: "static func update(results:") else {
+            return XCTFail("the run update moved")
+        }
+        let body = String(controller[update.upperBound...].prefix(1_200))
+        guard let guardAt = body.range(of: "guard !AppLaunchState.isRunningOnFallbackStore"),
+              let readAt = body.range(of: "guard let activity = current")
+        else { return XCTFail("the fallback guard is gone from `update`") }
+        XCTAssertLessThan(guardAt.lowerBound, readAt.lowerBound,
+                          "checked after the run is already being updated")
+
+        // And nothing else in the app publishes run content past it.
+        let app = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("SnapWorth")
+        let files = FileManager.default.enumerator(at: app, includingPropertiesForKeys: nil)?
+            .compactMap { $0 as? URL }
+            .filter { $0.pathExtension == "swift" } ?? []
+        XCTAssertFalse(files.isEmpty)
+        for file in files where file.lastPathComponent != "ThriftRunController.swift" {
+            let text = try String(contentsOf: file, encoding: .utf8)
+            XCTAssertFalse(text.contains("ActivityContent("),
+                           "\(file.lastPathComponent) updates the run around the guard")
+        }
     }
 
     @MainActor

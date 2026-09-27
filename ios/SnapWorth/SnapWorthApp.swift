@@ -247,9 +247,9 @@ struct SnapWorthApp: App {
         // The run too, for the launch the Activity itself asked for: a stale
         // one says "open SnapWorth to refresh", and a cold launch from it
         // reaches here, not `ScanView`'s foreground handler. A no-op without
-        // a live run, and skipped on a fallback launch for the reason
-        // `writeHaul` gives: its empty library would zero a real run.
-        guard !AppLaunchState.isRunningOnFallbackStore else { return }
+        // a live run, and on a fallback launch — `update` refuses that itself,
+        // for the reason `writeHaul` gives: its empty library would zero a
+        // real run.
         Task { await ThriftRunController.update(results: results) }
     }
 }

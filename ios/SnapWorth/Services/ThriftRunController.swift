@@ -137,6 +137,13 @@ enum ThriftRunController {
     /// "what have I found since I walked in", the one worth knowing while
     /// deciding whether to pick the next thing up.
     static func update(results: [ScanResult], now: Date = Date()) async {
+        // Never on a fallback launch. Its library is an in-memory store that
+        // starts empty, while the Activity was started by an earlier process
+        // and counts scans that store cannot see — so the launch seed, the
+        // foreground refresh, the debounced sync and `deleteAll` would each
+        // publish zero over a real run. Held here, as `writeHaul` holds its
+        // own, so that no caller can miss it.
+        guard !AppLaunchState.isRunningOnFallbackStore else { return }
         guard let activity = current else { return }
         let startedAt = activity.attributes.startedAt
 
