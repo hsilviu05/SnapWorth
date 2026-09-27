@@ -39,10 +39,9 @@ struct ThriftRunLiveActivity: Widget {
                 }
                 DynamicIslandExpandedRegion(.trailing) {
                     Text(context.state.formattedRange)
-                        .wFont(15, weight: .bold, design: .rounded)
+                        .wFont(15, weight: .bold, design: .rounded, minScale: 0.6)
                         .foregroundStyle(context.isStale ? Color.wWarmGray : Color.wSage)
                         .lineLimit(1)
-                        .minimumScaleFactor(0.6)
                         .accessibilityLabel(
                             WidgetHaulData.spoken(context.state.formattedRange))
                 }
@@ -113,11 +112,10 @@ struct ThriftRunLockScreenView: View {
                 Text(state.itemCount > 0
                      ? state.formattedRange
                      : String(localized: "Nothing yet"))
-                    .wFont(20, weight: .bold, design: .rounded)
+                    .wFont(20, weight: .bold, design: .rounded, minScale: 0.6)
                     .foregroundStyle(state.itemCount > 0 && !isStale
                                      ? Color.wSage : Color.wWarmGray)
                     .lineLimit(1)
-                    .minimumScaleFactor(0.6)
 
                 Text(subtitle)
                     .wFont(12)

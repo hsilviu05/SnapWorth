@@ -187,8 +187,7 @@ struct ScansLeftView: View {
                     Image(systemName: "camera.viewfinder")
                         .wFont(11, weight: .semibold)
                     Text(state.circularValue)
-                        .wFont(16, weight: .bold, design: .rounded)
-                        .minimumScaleFactor(0.5)
+                        .wFont(16, weight: .bold, design: .rounded, minScale: 0.5)
                         .lineLimit(1)
                 }
             }
@@ -209,9 +208,11 @@ struct ScansLeftView: View {
                     // "5-day streak" here and had to shrink to 18pt to fit it;
                     // the headline is a single glyph or a single digit now, so
                     // the free tier's size is the right one for all of them.
-                    .wFont(30, weight: .bold, design: .rounded)
+                    .wFont(30, weight: .bold, design: .rounded, minScale: 0.5)
                     .foregroundStyle(accentForRemaining)
-                    .minimumScaleFactor(0.5)
+                    // The figure is the tile; on a Tinted or Clear Home
+                    // Screen it takes the accent and the rest stays neutral.
+                    .widgetAccentable()
                     .lineLimit(1)
                 Text(state.subtitle)
                     .wFont(11, weight: .medium)
@@ -286,9 +287,9 @@ struct MonthProfitView: View {
             }
             Spacer()
             Text(value)
-                .wFont(24, weight: .bold, design: .rounded)
+                .wFont(24, weight: .bold, design: .rounded, minScale: 0.5)
                 .foregroundStyle(colour)
-                .minimumScaleFactor(0.5)
+                .widgetAccentable()
                 .lineLimit(1)
             Text(caption)
                 .wFont(11, weight: .medium)
@@ -393,11 +394,13 @@ struct WidgetScaledFont: ViewModifier {
     @ScaledMetric private var size: CGFloat
     private let weight: Font.Weight
     private let design: Font.Design
+    private let minScale: CGFloat
 
-    init(size: CGFloat, weight: Font.Weight, design: Font.Design) {
+    init(size: CGFloat, weight: Font.Weight, design: Font.Design, minScale: CGFloat) {
         _size = ScaledMetric(wrappedValue: size, relativeTo: Self.style(for: size))
         self.weight = weight
         self.design = design
+        self.minScale = minScale
     }
 
     /// The text style whose own default size is nearest the requested one, so
@@ -423,19 +426,32 @@ struct WidgetScaledFont: ViewModifier {
         content
             .font(.system(size: size, weight: weight, design: design))
             // Widgets have a hard size budget, so growth has to be allowed to
-            // give way rather than clip. Inert at the default size — nothing
-            // is constrained there — and it is the difference between a
-            // caption that shrinks to fit and one that truncates mid-word.
-            .minimumScaleFactor(0.7)
+            // give way rather than clip. Inert whenever the text already fits
+            // — which at the default size is nearly always — and it is the
+            // difference between a caption that shrinks to fit and one that
+            // truncates mid-word.
+            //
+            // The floor is a parameter because a call site cannot lower it
+            // afterwards. `minimumScaleFactor` is an environment value, and
+            // the one set closest to the `Text` wins — this one. So
+            // `.wFont(20).minimumScaleFactor(0.6)` was a 0.7 floor, and the
+            // haul tile cut "$8,400–$15,600" to "$8,400–$15,…" where 0.6
+            // would have fitted it. The comment that introduced this said a
+            // site's own factor "still wins"; it had it backwards.
+            .minimumScaleFactor(minScale)
     }
 }
 
 extension View {
     /// Use instead of `.font(.system(size:weight:design:))` anywhere in the
     /// widget extension. See `WidgetScaledFont`.
+    ///
+    /// - Parameter minScale: how far the text may shrink to fit. Pass it here;
+    ///   a `.minimumScaleFactor` written after this call has no effect.
     func wFont(_ size: CGFloat, weight: Font.Weight = .regular,
-               design: Font.Design = .default) -> some View {
-        modifier(WidgetScaledFont(size: size, weight: weight, design: design))
+               design: Font.Design = .default, minScale: CGFloat = 0.7) -> some View {
+        modifier(WidgetScaledFont(size: size, weight: weight, design: design,
+                                  minScale: minScale))
     }
 }
 
