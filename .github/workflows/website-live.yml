@@ -11,12 +11,19 @@ name: Website is live
 # live site. The invite links the app builds point at exactly that rewrite.
 #
 # So after every production deployment Vercel reports to GitHub, this asks the
-# live site whether it does what vercel.json says. website/seo/check_live.py
-# has the checks and reads its expectations from vercel.json.
+# live site whether it does what website/vercel.json says. website/seo/check_live.py
+# has the checks and reads its expectations from that file.
 #
-# It fails until production applies vercel.json's routes. That is the point:
-# a red run here is the signal that was missing. Referrals must not be switched
-# on while it is red.
+# The cause, found 2026-09-27: the Vercel project's Root Directory is
+# `website`, so Vercel reads website/vercel.json, and the config lived at the
+# repo root, where nothing ever read it. It now lives in website/, with
+# `outputDirectory: "."` (a vercel.json setting overrides the dashboard's
+# Output Directory of `website`, which under that root named a folder that
+# does not exist).
+#
+# It fails whenever production stops applying vercel.json's routes. That is
+# the point: a red run here is the signal that was missing. Referrals must not
+# be switched on while it is red.
 
 on:
   deployment_status:
