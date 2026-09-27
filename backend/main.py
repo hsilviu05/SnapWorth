@@ -1797,8 +1797,9 @@ async def _analyse(image_bytes: bytes, content_type: str, *, subject: str,
         # correct behaviour under the `no_price` failure metric, which is the
         # alarm for the real fault and was being drowned in it.
         if valuation_module.priced_as_unsellable(data):
+            # Category only, never the item name: see "scan ok" below.
             log.info("scan declined: not a resalable object",
-                     extra={"item": val.item_name, "category": val.category})
+                     extra={"category": val.category})
             metrics.model_calls.inc(operation="scan", outcome="not_resalable")
             # 422, not 502: nothing failed. The model read the photo and
             # answered. The client renders `detail` verbatim for any non-2xx
@@ -1810,8 +1811,7 @@ async def _analyse(image_bytes: bytes, content_type: str, *, subject: str,
             ) from None
 
         log.error("scan produced no usable price",
-                  extra={"item": val.item_name, "category": val.category,
-                         "keys": sorted(data)[:20]})
+                  extra={"category": val.category, "keys": sorted(data)[:20]})
         # `label`, not a hardcoded "scan": it is already bound above as
         # `scan`/`scan_with_tag`/`bot_scan`/`bot_scan_with_tag`, and every
         # sibling on this path is gated on `count`. Hardcoded, an operator
@@ -1855,10 +1855,15 @@ async def _analyse(image_bytes: bytes, content_type: str, *, subject: str,
         metrics.valuation_clamped.inc()
 
     elapsed = time.monotonic() - t0
+    # How the scan went, never what it found. This line carries the device's
+    # pseudonym, and so does "scan start", whose request id every other line
+    # of the request shares. An item name or an estimate on any of them is a
+    # per-device record of what someone scanned, which /privacy does not
+    # describe: it says scan content is kept in the day's tallies, without the
+    # device (notify._note_scan). The plain log format dropping `extra` is no
+    # cover: LOG_FORMAT=json, which prints it, is the recommended setting.
     log.info("scan ok", extra={
-        "device": device_short, "item": val.item_name,
-        "value_low": low, "value_high": high,
-        "expected": val.prices.expected,
+        "device": device_short,
         "confidence": conf.band, "confidence_score": conf.score,
         "clamped": was_clamped, "prompt_version": prompt_version,
         "image_quality": quality.overall, "elapsed_s": round(elapsed, 2),

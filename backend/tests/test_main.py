@@ -533,6 +533,38 @@ class TestScanEndpoint:
             )
         assert r.status_code == 200
 
+    def test_scan_logs_say_how_it_went_never_what_it_found(self, caplog):
+        """"scan ok" logged the item name and the estimate beside the device's
+        pseudonym on every scan, and the declined and no-price lines logged the
+        name under a request id that "scan start" ties to the device. /privacy
+        says scan content is kept in the day's tallies, without the device."""
+        found = {**MOCK_RESPONSE_JSON, "item_name": "Signed Jordan card to Maria"}
+        declined = {**MOCK_RESPONSE_JSON, "item_name": "Maria's birthday cake",
+                    "category": "other", "est_value_low_usd": 0,
+                    "est_value_high_usd": 0, "worst_case_price_usd": 0,
+                    "quick_sale_price_usd": 0, "expected_price_usd": 0,
+                    "best_case_price_usd": 0}
+        unpriced = {k: v for k, v in found.items() if not k.endswith("_usd")}
+        statuses = []
+        with caplog.at_level("INFO", logger="snapworth"):
+            for i, reply in enumerate((found, declined, unpriced)):
+                mock_response = MagicMock()
+                mock_response.text = json.dumps(reply)
+                with patch("main._model") as mock_model:
+                    mock_model.generate_content_async = AsyncMock(return_value=mock_response)
+                    statuses.append(_make_scan_request(device_id=f"log-test-{i}").status_code)
+        assert statuses == [200, 422, 502], "each path must actually run"
+
+        messages = {r.getMessage() for r in caplog.records}
+        assert {"scan ok", "scan declined: not a resalable object",
+                "scan produced no usable price"} <= messages
+        for record in caplog.records:
+            for field in ("item", "value_low", "value_high", "expected"):
+                assert not hasattr(record, field), (
+                    f"{record.getMessage()!r} logs {field}")
+            assert "Maria" not in str(record.__dict__), (
+                f"{record.getMessage()!r} logs what was scanned")
+
 
 # ── POST /listing (Snap → Sell) ───────────────────────────────────────────────
 
