@@ -58,7 +58,8 @@ def main() -> None:
     d.text((80, 386),
            "Snap a photo. Get an AI resale estimate in seconds —",
            font=sub, fill=MUTED)
-    d.text((80, 434), "a price range, a confidence score, a listing draft.",
+    # "Confidence level", as on every page: the app shows a band, not a number.
+    d.text((80, 434), "a price range, a confidence level, a listing draft.",
            font=sub, fill=MUTED)
 
     # Wordmark, bottom left.

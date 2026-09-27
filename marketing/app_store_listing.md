@@ -6,8 +6,59 @@ one — `app_store_listing.ro.md`, `.es.md`, `.de.md`, `.zh-Hans.md`. Those thre
 app that is translated; the listing and the interface ship together, because a
 localized store page that opens an English app is worse than neither.
 
+## The live store is not this file (checked 2026-09-26)
+
+Read with the iTunes lookup
+(`https://itunes.apple.com/lookup?id=6788521307&country=de`) on the `us`,
+`de`, `es`, `ro` and `cn` storefronts. Control apps return localized text by
+the same method — WhatsApp on `de`, `es` and `ro`, WeChat on `cn` — so the
+result is not the lookup's fault. `ro` defaults to English even for a
+localized app; add `&lang=ro_ro` there.
+
+* **Name** is "SnapWorth: Resell & Flip" on every storefront. That was set in
+  App Store Connect and recorded nowhere in git; this file said
+  "SnapWorth: Resale Value".
+* **No localized metadata.** Every storefront shows the English page, although
+  the binary has been in five languages since 1.4.2 (Apple lists EN, DE, RO,
+  ZH, ES). RELEASE-NOTES-1.5.0.md assumed the four translations carried over
+  to 1.5.0; they did not, or were never added.
+* **The English description is an older copy**: seven marketplaces rather
+  than nine (no Kleinanzeigen, no Xianyu), no iMessage stickers line on the
+  sticker release, and "accurate" still in the second paragraph.
+
+All of it is version-scoped, so it is fixed by the next submission and not
+before — see *Paste with 1.5.1* at the end of this file.
+
+## Claims this listing does not make
+
+Every locale follows these; the translated files point here.
+
+* **Sold listings, comps or market data.** SnapWorth has no such source. The
+  estimate is the model's.
+* **"Accurate", "exact" or "precise" about the estimate** — nor *exactă*,
+  *precisă*, *exacta*, *precisa*, *genau*, *exakt*, *准确*, *精准*. No accuracy
+  figure has ever been measured (`docs/EVALUATION.md`: "zero measurements
+  taken"). Until one is, the estimate is an AI estimate with a range and a
+  confidence score, and nothing stronger. "Accurate" sat in the description
+  from a26e321 until 1.5.1 and was live on the US store.
+* **Confidence as "how clearly the AI identified the item".** That was v1,
+  the model rating itself. The score since v2 (`backend/confidence.py`) weighs
+  whether the brand was read, how tight the range is, how clear the photo is,
+  the category, and — at low weight — the model's own certainty. Describe it
+  as how strongly the photo and the identification back the estimate.
+
+The care-tag line's comparative ("sharper"; *mai exactă*, *genauere*, *更准* in
+the translations) is also unmeasured. It stays as the app words it, because
+the listing mirrors the app: change "Read the care tag for a sharper estimate"
+in `ios/Localization/App.json` first if it changes.
+
 ## App name (30 chars max)
 SnapWorth: Resale Value
+
+**Live is "SnapWorth: Resell & Flip" (24 chars).** Decide which one 1.5.1
+carries, delete the other line, and pick the keyword line below that matches:
+`resale` and `value` are only safe to leave out of the keywords while they are
+in the name.
 
 ## Subtitle (30 chars max)
 Thrift Store Flip Scanner
@@ -51,7 +102,7 @@ or market data — SnapWorth has no such source.
 
 Ever picked up something at a thrift store and wondered if it's actually worth something? SnapWorth tells you instantly.
 
-Point your camera at any secondhand item — a jacket, a pair of sneakers, a vintage camera, a designer bag — and our AI identifies it and estimates an accurate resale value range in seconds.
+Point your camera at any secondhand item — a jacket, a pair of sneakers, a vintage camera, a designer bag — and our AI identifies it and estimates a resale value range in seconds.
 
 No more guessing. No more leaving $100 flips on the shelf.
 
@@ -69,10 +120,12 @@ HOW IT WORKS
 WHAT YOU GET
 
 • Instant resale value — an estimated low-to-high range for your item
-• Confidence score — see how clearly the AI could identify your item
+• Confidence score — how strongly the photo and the identification back the estimate
 • AI listing draft — a ready-to-post title and description with every scan
+• Thrift Flip — scan an item, add its shelf price, and see what you'd make after marketplace fees before you buy
 • Scan history — every find saved automatically with its value
 • Total haul tracker — see what your collection is worth at a glance
+• Widgets — your haul's total on the Lock Screen; recent finds, scans left and one-tap scan on the Home Screen
 • iMessage stickers — 20 stickers of Tag, our mascot (four animated), for bragging about a find
 
 --------------------------
@@ -121,11 +174,22 @@ snapworth.eu
 ## Keywords (100 chars max)
 reseller,secondhand,vintage,goodwill,poshmark,mercari,depop,ebay,thrifting,worth,price,profit,sell
 
-98 characters. Words already in the app name or subtitle (resale, value,
-thrift, store, flip, scanner) are indexed from there and were dropped to make
-room. Poshmark, Mercari and Depop are searched by exactly this audience and
-are honest claims from 1.3.4. Vinted was dropped as a keyword only; it is
-still supported and still named in the description.
+98 characters, for the name "SnapWorth: Resale Value". Words already in the
+app name or subtitle (resale, value, thrift, store, flip, scanner) are indexed
+from there and were dropped to make room. Poshmark, Mercari and Depop are
+searched by exactly this audience and are honest claims from 1.3.4. Vinted
+was dropped as a keyword only; it is still supported and still named in the
+description.
+
+**If the name stays "SnapWorth: Resell & Flip"**, `resale` and `value` — the
+category's two main search terms — are in neither the name nor the keywords
+on the live store. Use this line instead (97 characters):
+
+resale,value,secondhand,vintage,goodwill,poshmark,mercari,depop,ebay,thrifting,worth,price,profit
+
+It drops `reseller` and `sell`, the two nearest to the name's "Resell". That
+is a judgment, not a measurement: check Acquisition → Sources → Search terms
+a week after it goes live.
 
 ## Category
 Primary: Shopping
@@ -177,3 +241,34 @@ New: Share Cards & My Flips profit tracking
 • Plus performance improvements and bug fixes.
 
 Happy hunting! Got a feature request? Email her.silviu.i@gmail.com
+
+---
+
+## Paste with 1.5.1
+
+Metadata is per version and a version in review cannot be edited, so all of
+this goes onto 1.5.1 before it is submitted.
+
+- [ ] **Add the four localizations** — Romanian, Spanish, German, Simplified
+      Chinese — and paste each from its own file: name, subtitle, keywords,
+      description, promotional text. The 1.5.1 What's New per locale comes
+      from `RELEASE-NOTES-1.5.1.md` once it exists.
+- [ ] **App name**: decide (see *App name* above) and record the answer here.
+- [ ] **Keywords** (`en-US`): the line that matches the name.
+- [ ] **Description** (`en-US`): re-paste in full. Against the live
+      copy it names nine marketplaces rather than seven, and adds the
+      stickers, Thrift Flip and widgets lines, the new confidence wording,
+      and drops "accurate".
+- [ ] **Description** (other four locales): paste in full; each gained the
+      same Thrift Flip, widgets and confidence lines.
+- [ ] **App Privacy** (app-level, not per version, but it must match the
+      manifest in the 1.5.1 binary): add Purchases → Purchase History, used
+      for App Functionality, linked to the user, not used for tracking. The
+      reasoning is in `ios/SnapWorth/PrivacyInfo.xcprivacy`.
+- [ ] After release, open apps.apple.com/de/app/id6788521307 (and `/es`,
+      `/ro`, `/cn`) and confirm the page is in that language — or re-run the
+      iTunes lookup above per storefront.
+
+The new translated lines — confidence, Thrift Flip and widgets in each of the
+four files — were written without a native reader; have each read once
+before pasting.

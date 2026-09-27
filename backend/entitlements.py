@@ -28,6 +28,7 @@ import os
 import time
 from dataclasses import dataclass, replace
 from datetime import datetime, timezone
+from enum import Enum
 
 import jwt
 from cryptography import x509
@@ -223,6 +224,18 @@ class EntitlementsUnavailable(Exception):
     Distinct from a genuine miss, which means "this subject is free". Reading
     an outage as a miss downgraded every paying subscriber for its duration.
     """
+
+
+class Reinstatement(str, Enum):
+    """What `EntitlementService.reinstate` found on the access path.
+
+    Three answers, not a bool. "Nothing was lifted" covered both "no block on
+    this term" and "a block for another term was kept, and it still denies
+    this one", and the operator alert said the first when it was the second.
+    """
+    LIFTED = "lifted"                 # a block on this term, now gone
+    NOT_BLOCKED = "not_blocked"       # nothing held denies this term
+    STILL_BLOCKED = "still_blocked"   # a block for another term, kept, denies it
 
 
 @dataclass(frozen=True)
@@ -744,6 +757,60 @@ class EntitlementService:
                         "environment": ent.environment})
         return True
 
+    async def reinstate(self, ent: Entitlement) -> Reinstatement:
+        """Lift the tombstone `revoke` wrote, because Apple reversed the refund.
+
+        Without this a REFUND_REVERSED changed nothing: the tombstone kept
+        denying the term for its 400-day lifetime, so a customer whose refund
+        Apple had reversed read as free on every sync — `record` cached FREE
+        and deleted their proof each time. Nothing else cleared it: `/sub`
+        could not see it, and the only way out was `redis-cli` against
+        production.
+
+        Only the term Apple reinstated, which is the one whose expiry the
+        tombstone stored: Apple keeps the renewal date when it reverses a
+        refund. A tombstone for any other term is a different refund, which
+        this reversal says nothing about, so it stays. Grants nothing by
+        itself either: the term still has to be proven by a signed
+        transaction — at the device's next sync, or from the proof the server
+        still holds.
+
+        Raises, like `revoke`, when the store cannot be read or written, so the
+        webhook answers 5xx and Apple retries.
+
+        `STILL_BLOCKED` is the case to act on: the tombstone was kept because
+        its expiry differs, but it is later than this term's, so it goes on
+        denying the term Apple just reinstated. That is what a reversal whose
+        `expiresDate` is not the refunded term's would look like, and only
+        the operator can settle it, from `/sub`.
+        """
+        otid = ent.original_transaction_id
+        if not otid:
+            log.warning("a refund reversal carried no original transaction id")
+            return Reinstatement.NOT_BLOCKED
+        key = self._revoked_key(otid)
+        raw = await self._cache.get(key, required=True)
+        if not raw:
+            return Reinstatement.NOT_BLOCKED
+        try:
+            revoked_expiry = json.loads(raw).get("expires_at")
+        except Exception:
+            # Unparseable, but about this subscription, and Apple has just said
+            # the refund no longer stands.
+            revoked_expiry = None
+        if (revoked_expiry is not None and ent.expires_at is not None
+                and revoked_expiry != ent.expires_at):
+            log.info("refund reversal is for a different term than the "
+                     "tombstone; kept", extra={"product_id": ent.product_id})
+            # The same comparison `_is_revoked` makes.
+            return (Reinstatement.STILL_BLOCKED
+                    if ent.expires_at <= revoked_expiry
+                    else Reinstatement.NOT_BLOCKED)
+        await self._cache.delete(key, required=True)
+        log.info("refund reversed by Apple; term reinstated",
+                 extra={"product_id": ent.product_id})
+        return Reinstatement.LIFTED
+
     async def _is_revoked(self, ent: Entitlement) -> bool:
         """Whether Apple has since taken back the term this entitlement covers.
 
@@ -1081,7 +1148,12 @@ class EntitlementService:
             identity = f"dev:{device_id}"
         key = self._device_key(ent.original_transaction_id or "")
         try:
-            bindings = self._decode_bindings(await self._cache.get(key))
+            # `required`, or this branch cannot run: a plain `get` on a failing
+            # Redis falls back to memory and returns None instead of raising,
+            # and the write below then replaced every other device's binding
+            # with this one — resetting the cap and the sharing signal.
+            bindings = self._decode_bindings(
+                await self._cache.get(key, required=True))
         except Exception as exc:
             log.warning("device binding read failed, allowing: %s", exc)
             return
@@ -1249,3 +1321,38 @@ class EntitlementService:
         # The proof too, or `current()` re-derives Pro straight back and this
         # stops being a revocation.
         await self._cache.delete(self._proof_key(subject))
+
+
+# ── The operator's view of a tombstone ───────────────────────────────────────
+#
+# Module functions over the shared cache rather than service methods, because
+# the caller is `notify`, which holds that cache and must not import `auth`
+# to reach the service instance.
+
+async def read_revocation(cache, original_transaction_id: str) -> dict | None:
+    """The tombstone `revoke` stored for a subscription, or None.
+
+    `{"revoked_at": …, "expires_at": …}` — {} when present but unreadable,
+    which `_is_revoked` still treats as a revocation. Raises when the store
+    cannot answer: "no tombstone" and "could not look" must not read alike.
+    """
+    raw = await cache.get(
+        EntitlementService._revoked_key(original_transaction_id), required=True)
+    if not raw:
+        return None
+    try:
+        tombstone = json.loads(raw)
+    except Exception:
+        return {}
+    return tombstone if isinstance(tombstone, dict) else {}
+
+
+async def clear_revocation(cache, original_transaction_id: str) -> None:
+    """Delete a tombstone outright, whatever term it names.
+
+    The operator's lift from `/sub`, which calls this only once Apple's live
+    status no longer shows the subscription refunded.
+    """
+    await cache.delete(
+        EntitlementService._revoked_key(original_transaction_id), required=True)
+    log.warning("refund tombstone cleared by the operator")

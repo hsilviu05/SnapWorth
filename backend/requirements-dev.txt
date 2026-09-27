@@ -9,3 +9,7 @@ pytest==9.1.1
 # Moved with pytest: pytest-asyncio 0.24.x does not support pytest 9.
 pytest-asyncio==1.4.0
 httpx==0.28.1
+# Pinned so CI and a local run check with the same rules: a new pyright can
+# report new errors, and that belongs in a Dependabot PR, not in an unrelated
+# one. The pip package fetches the matching npm build on first run.
+pyright==1.1.411

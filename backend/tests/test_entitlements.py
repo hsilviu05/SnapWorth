@@ -480,6 +480,90 @@ class TestEntitlementService:
                                    make_jws(valid_payload(), leaf_key, chain))
         assert ent.tier == "pro", "a tombstone leaked onto another subscription"
 
+    # ── A refund Apple reverses ─────────────────────────────────────────────
+    #
+    # REFUND_REVERSED used to be ignored, so the tombstone went on denying the
+    # term for its 400-day life: every sync cached FREE and deleted the proof
+    # of a customer who was paying for that term again.
+
+    @staticmethod
+    def _term(payload, **overrides):
+        fields = dict(
+            tier="pro", product_id=payload["productId"],
+            expires_at=payload["expiresDate"] // 1000,
+            original_transaction_id=payload["originalTransactionId"],
+            environment="Production")
+        fields.update(overrides)
+        return entitlements.Entitlement(**fields)
+
+    @pytest.mark.asyncio
+    async def test_a_reversed_refund_gives_the_term_back(self, service, pinned_root):
+        leaf_key, chain = pinned_root
+        payload = valid_payload()
+        jws = make_jws(payload, leaf_key, chain)
+        await service.revoke(self._term(payload, revoked_at=int(time.time())))
+        assert (await service.record("subject-rev", jws)).tier == "free"
+
+        assert await service.reinstate(self._term(payload)) is entitlements.Reinstatement.LIFTED
+
+        assert (await service.record("subject-rev", jws)).tier == "pro", (
+            "the refund was reversed and the tombstone still denies the term")
+
+    @pytest.mark.asyncio
+    async def test_a_reversal_for_another_term_leaves_that_refund_alone(
+            self, service, pinned_root):
+        leaf_key, chain = pinned_root
+        earlier = valid_payload()
+        later = valid_payload(expiresDate=int((time.time() + 400 * 86_400) * 1000))
+        await service.revoke(self._term(later, revoked_at=int(time.time())))
+
+        assert await service.reinstate(self._term(earlier)) is entitlements.Reinstatement.STILL_BLOCKED
+
+        ent = await service.record("subject-later", make_jws(later, leaf_key, chain))
+        assert ent.tier == "free", "a reversal lifted a different term's refund"
+
+    @pytest.mark.asyncio
+    async def test_a_reversal_with_no_block_to_lift_says_so(self, service):
+        assert await service.reinstate(self._term(valid_payload())) is entitlements.Reinstatement.NOT_BLOCKED
+
+    @pytest.mark.asyncio
+    async def test_a_kept_block_says_whether_it_still_denies_the_term(
+            self, service, pinned_root):
+        """A reversal whose expiry is not the tombstone's keeps the block. It
+        used to answer False either way, the same as "no block at all", and
+        the operator alert said there was none. Kept and ending later, it
+        still denies the reinstated term; ending earlier, it does not."""
+        leaf_key, chain = pinned_root
+        refunded = valid_payload(expiresDate=int((time.time() + 30 * 86_400) * 1000))
+        reversed_ = valid_payload(expiresDate=int((time.time() + 29 * 86_400) * 1000))
+        await service.revoke(self._term(refunded, revoked_at=int(time.time())))
+
+        assert await service.reinstate(self._term(reversed_)) is entitlements.Reinstatement.STILL_BLOCKED
+        ent = await service.record("subject-kept", make_jws(reversed_, leaf_key, chain))
+        assert ent.tier == "free", "STILL_BLOCKED must mean the term is still denied"
+
+        later = valid_payload(expiresDate=int((time.time() + 60 * 86_400) * 1000))
+        assert await service.reinstate(self._term(later)) is entitlements.Reinstatement.NOT_BLOCKED
+        ent = await service.record("subject-later", make_jws(later, leaf_key, chain))
+        assert ent.tier == "pro", "NOT_BLOCKED must mean the term is not denied"
+
+    @pytest.mark.asyncio
+    async def test_a_reversal_that_cannot_reach_redis_raises(self):
+        """So the webhook answers 503 and Apple redelivers, as for a REFUND.
+        A plain read on a failing Redis would answer "no block" and the 200
+        would end Apple's retries with the block still in place."""
+        from cache import CacheUnavailable, InMemoryCache, ResilientCache
+
+        class _Down(InMemoryCache):
+            async def get(self, key):
+                raise ConnectionError("redis is down")
+
+        service = EntitlementService(
+            ResilientCache(_Down(), InMemoryCache(), configured=True),
+            BUNDLE_ID, PRODUCTS)
+        with pytest.raises(CacheUnavailable):
+            await service.reinstate(self._term(valid_payload()))
+
     @pytest.mark.asyncio
     async def test_expired_proof_reads_free(self, service, pinned_root):
         # Written straight to the cache: `record` refuses to store a proof it
@@ -786,6 +870,41 @@ class TestDeviceCap:
             "the least-recently-seen slot is the one to reuse — evicting an "
             "actively-used install just moves the lockout to another device")
         assert set(bindings) == {"device-middle", "device-newest", "device-new"}
+
+    @pytest.mark.asyncio
+    async def test_a_failed_read_leaves_the_bindings_alone(self, pinned_root):
+        """The "allowing" branch has to be reachable, and has to not write.
+
+        A plain `get` on a configured Redis that fails falls back to memory
+        and returns None, so the record read as empty and the write replaced
+        every other device's binding with this one.
+        """
+        from cache import InMemoryCache, ResilientCache
+
+        class _SlowGetRedis(InMemoryCache):
+            failing = False
+
+            async def get(self, key):
+                if self.failing:
+                    raise TimeoutError("redis GET timed out")
+                return await super().get(key)
+
+        redis = _SlowGetRedis()
+        service = EntitlementService(
+            ResilientCache(redis, InMemoryCache(), configured=True),
+            BUNDLE_ID, PRODUCTS, max_devices=3)
+        leaf_key, chain = pinned_root
+        jws = make_jws(valid_payload(), leaf_key, chain)
+        for name in ("device-a", "device-b"):
+            await service.record(name, jws)
+
+        redis.failing = True
+        assert (await service.record("device-c", jws)).tier == "pro", (
+            "the cap is anti-abuse; a Redis blip must not refuse a payer")
+        redis.failing = False
+
+        bindings = json.loads(await redis.get("txn:2000000000000001"))
+        assert set(bindings) == {"device-a", "device-b"}
 
     @pytest.mark.asyncio
     async def test_active_install_keeps_its_slot(self, service, pinned_root):

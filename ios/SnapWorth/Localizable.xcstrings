@@ -1066,6 +1066,42 @@
         }
       }
     },
+    "%@. %@" : {
+      "comment" : "VoiceOver: one sentence, then another after it (the portfolio total, then the insight line under it). Only the full stop changes between languages.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@. %@"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@. %@"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@. %@"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@. %@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@。%@"
+          }
+        }
+      }
+    },
     "%@. %@ AI estimate." : {
       "comment" : "VoiceOver value of the result card: the range, then the confidence phrase.",
       "extractionState" : "manual",
@@ -3847,6 +3883,78 @@
         }
       }
     },
+    "AI read: %@" : {
+      "comment" : "Why this price: something the AI read from the photo or guessed, attributed to it rather than stated as fact. The argument is a condition grade, or the AI's read of demand or supply.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Laut KI: %@"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AI read: %@"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Según la IA: %@"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "După AI: %@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AI 判断：%@"
+          }
+        }
+      }
+    },
+    "AI read: %@, %@" : {
+      "comment" : "Why this price: the AI's guess at demand, then at supply. SnapWorth has no market data, so this must always read as the AI's opinion.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Laut KI: %@, %@"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AI read: %@, %@"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Según la IA: %@, %@"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "După AI: %@, %@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AI 判断：%@，%@"
+          }
+        }
+      }
+    },
     "AI resale estimate" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -3878,6 +3986,42 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "AI 转卖估价"
+          }
+        }
+      }
+    },
+    "Accessories" : {
+      "comment" : "An item category (ScanCategory), as a label on its own: a row of 'Trending at the thrift', and the start of that row's VoiceOver sentence.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Accessoires"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Accessories"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Accesorios"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Accesorii"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "配饰"
           }
         }
       }
@@ -4164,6 +4308,42 @@
         }
       }
     },
+    "Allow notifications" : {
+      "comment" : "Banner title in Notification settings when iOS has never been asked for permission. Tapping it shows the system permission alert.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mitteilungen erlauben"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Allow notifications"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Permitir notificaciones"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Permite notificările"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "允许通知"
+          }
+        }
+      }
+    },
     "Almost there…" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -4269,37 +4449,38 @@
         }
       }
     },
-    "Anonymous totals from everyone using SnapWorth. AI estimates." : {
+    "Anonymous data from everyone using SnapWorth. AI estimates." : {
+      "comment" : "Footer of the weekly trends card. Not 'totals': Pro's notable finds under it are single scans.",
       "extractionState" : "manual",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Anonyme Summen von allen, die SnapWorth nutzen. KI-Schätzungen."
+            "value" : "Anonyme Daten von allen, die SnapWorth nutzen. KI-Schätzungen."
           }
         },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Anonymous totals from everyone using SnapWorth. AI estimates."
+            "value" : "Anonymous data from everyone using SnapWorth. AI estimates."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Totales anónimos de toda la gente que usa SnapWorth. Estimaciones con IA."
+            "value" : "Datos anónimos de toda la gente que usa SnapWorth. Estimaciones con IA."
           }
         },
         "ro" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Totaluri anonime de la toți cei care folosesc SnapWorth. Estimări AI."
+            "value" : "Date anonime de la toți cei care folosesc SnapWorth. Estimări AI."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "来自所有 SnapWorth 用户的匿名汇总。均为 AI 估价。"
+            "value" : "来自所有 SnapWorth 用户的匿名数据。均为 AI 估价。"
           }
         }
       }
@@ -4726,6 +4907,78 @@
         }
       }
     },
+    "Books" : {
+      "comment" : "An item category (ScanCategory), as a label on its own: a row of 'Trending at the thrift', and the start of that row's VoiceOver sentence.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bücher"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Books"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Libros"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cărți"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "图书"
+          }
+        }
+      }
+    },
+    "Brand %@" : {
+      "comment" : "VoiceOver, on the result photo: the item's brand as read by the AI.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Marke %@"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Brand %@"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Marca %@"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Marca %@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "品牌 %@"
+          }
+        }
+      }
+    },
     "Bug Report" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -5002,6 +5255,42 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "相机启动失败。请重新打开 App。"
+          }
+        }
+      }
+    },
+    "Can't tell from this photo" : {
+      "comment" : "Authenticity read, under 'What the photo suggests about authenticity'.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Auf diesem Foto nicht zu erkennen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Can't tell from this photo"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No se puede saber por esta foto"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nu se vede din poza asta"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这张照片看不出来"
           }
         }
       }
@@ -5321,6 +5610,42 @@
         }
       }
     },
+    "Choose the label photo from your library" : {
+      "comment" : "VoiceOver label for the library button on the tag camera ('Add the tag'): use a photo of the label that is already in Photos.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Etikettfoto aus der Mediathek wählen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choose the label photo from your library"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Elegir la foto de la etiqueta de la galería"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Alege poza etichetei din galerie"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "从相册选择标签照片"
+          }
+        }
+      }
+    },
     "Clean up photo" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -5601,6 +5926,78 @@
         }
       }
     },
+    "Clothing" : {
+      "comment" : "An item category (ScanCategory), as a label on its own: a row of 'Trending at the thrift', and the start of that row's VoiceOver sentence.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kleidung"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Clothing"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ropa"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Îmbrăcăminte"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "服装"
+          }
+        }
+      }
+    },
+    "Collectibles" : {
+      "comment" : "An item category (ScanCategory), as a label on its own: a row of 'Trending at the thrift', and the start of that row's VoiceOver sentence.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sammlerstücke"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Collectibles"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Coleccionables"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Obiecte de colecție"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "收藏品"
+          }
+        }
+      }
+    },
     "Condition" : {
       "comment" : "Section header above the condition chips.",
       "extractionState" : "manual",
@@ -5633,6 +6030,42 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "成色"
+          }
+        }
+      }
+    },
+    "Condition %@" : {
+      "comment" : "VoiceOver, on the result photo: the condition grade shown on its chip (New, Like New, Good, Used).",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zustand %@"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Condition %@"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Estado %@"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Stare %@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "成色 %@"
           }
         }
       }
@@ -6864,41 +7297,6 @@
         }
       }
     },
-    "Demand %@" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Nachfrage %@"
-          }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Demand %@"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Demanda %@"
-          }
-        },
-        "ro" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Cerere %@"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "需求 %@"
-          }
-        }
-      }
-    },
     "Did %@ sell? Update your ledger to keep your profit accurate." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -7105,6 +7503,42 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "编辑好物"
+          }
+        }
+      }
+    },
+    "Electronics" : {
+      "comment" : "An item category (ScanCategory), as a label on its own: a row of 'Trending at the thrift', and the start of that row's VoiceOver sentence.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Elektronik"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Electronics"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Electrónica"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Electronice"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "电子产品"
           }
         }
       }
@@ -8233,6 +8667,42 @@
         }
       }
     },
+    "Furniture" : {
+      "comment" : "An item category (ScanCategory), as a label on its own: a row of 'Trending at the thrift', and the start of that row's VoiceOver sentence.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Möbel"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Furniture"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Muebles"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mobilă"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "家具"
+          }
+        }
+      }
+    },
     "General Feedback" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -8850,6 +9320,42 @@
         }
       }
     },
+    "Home" : {
+      "comment" : "An item category (ScanCategory), as a label on its own: a row of 'Trending at the thrift', and the start of that row's VoiceOver sentence.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wohnen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Home"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hogar"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Casă"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "家居"
+          }
+        }
+      }
+    },
     "I want to…" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -9447,6 +9953,42 @@
         }
       }
     },
+    "Likely a replica" : {
+      "comment" : "Authenticity read, under 'What the photo suggests about authenticity'. Followed by 'From this photo only — not a certification.'",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wahrscheinlich eine Nachahmung"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Likely a replica"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Probablemente una réplica"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Probabil o imitație"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "很可能是仿品"
+          }
+        }
+      }
+    },
     "Listed" : {
       "comment" : "Flip status.",
       "extractionState" : "manual",
@@ -9865,6 +10407,42 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "置信度中等"
+          }
+        }
+      }
+    },
+    "Minor concerns" : {
+      "comment" : "Authenticity read, under 'What the photo suggests about authenticity'.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kleinere Zweifel"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Minor concerns"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Algunas dudas menores"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mici semne de întrebare"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "有少许疑点"
           }
         }
       }
@@ -10330,6 +10908,42 @@
         }
       }
     },
+    "No concerns" : {
+      "comment" : "Authenticity read, under 'What the photo suggests about authenticity'. An observation about one photo, never a verdict.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nichts Auffälliges"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No concerns"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nada sospechoso"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nimic suspect"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未见可疑之处"
+          }
+        }
+      }
+    },
     "No finds yet" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -10536,6 +11150,42 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "没有找到“%@”"
+          }
+        }
+      }
+    },
+    "None of these reminders can arrive until you do." : {
+      "comment" : "Under 'Allow notifications': until permission is given, none of the reminders listed below can be delivered.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bis dahin kann keine dieser Erinnerungen ankommen."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "None of these reminders can arrive until you do."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hasta entonces, ninguno de estos avisos puede llegarte."
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Până atunci, niciunul dintre aceste memento-uri nu poate ajunge la tine."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在此之前，这些提醒都无法送达。"
           }
         }
       }
@@ -10822,37 +11472,37 @@
         }
       }
     },
-    "Off by default. When on, one reminder at the time you pick — only on days you haven't scanned yet, and never once you're on Pro." : {
+    "Off by default. When on, one reminder at the time you pick — only once your free scan is back, and never once you're on Pro." : {
       "extractionState" : "manual",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Standardmäßig aus. Wenn du es anschaltest, eine Erinnerung zur gewählten Zeit – nur an Tagen, an denen du noch nicht gescannt hast, und nie mehr, sobald du Pro hast."
+            "value" : "Standardmäßig aus. Wenn du es anschaltest, eine Erinnerung zur gewählten Zeit – nur wenn dein Gratis-Scan wieder da ist, und nie mehr, sobald du Pro hast."
           }
         },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Off by default. When on, one reminder at the time you pick — only on days you haven't scanned yet, and never once you're on Pro."
+            "value" : "Off by default. When on, one reminder at the time you pick — only once your free scan is back, and never once you're on Pro."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Desactivado por defecto. Si lo activas, un solo aviso a la hora que elijas, solo los días en que aún no hayas escaneado y nunca cuando tengas Pro."
+            "value" : "Desactivado por defecto. Si lo activas, un solo aviso a la hora que elijas, solo cuando vuelvas a tener tu escaneo gratis y nunca cuando tengas Pro."
           }
         },
         "ro" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Oprit implicit. Când e pornit, un singur memento la ora aleasă — doar în zilele în care n-ai scanat încă și niciodată după ce treci pe Pro."
+            "value" : "Oprit implicit. Când e pornit, un singur memento la ora aleasă — doar după ce ai iar scanarea gratuită și niciodată după ce treci pe Pro."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "默认关闭。开启后，只在你选的时间提醒一次，而且只在当天还没扫描过时；升级 Pro 后不再提醒。"
+            "value" : "默认关闭。开启后，只在你选的时间提醒一次，而且只在免费扫描恢复之后；升级 Pro 后不再提醒。"
           }
         }
       }
@@ -11313,6 +11963,42 @@
         }
       }
     },
+    "Other" : {
+      "comment" : "An item category (ScanCategory), as a label on its own: a row of 'Trending at the thrift', and the start of that row's VoiceOver sentence.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sonstiges"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Other"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Otros"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Altele"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "其他"
+          }
+        }
+      }
+    },
     "Our AI is temporarily unavailable. Please try again in a moment." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -11667,37 +12353,38 @@
         }
       }
     },
-    "Portfolio value, trend and thrift trends" : {
+    "Portfolio value history and thrift trends" : {
+      "comment" : "Paywall benefit. The portfolio total is free for everyone; only its history (the trend behind 'Unlock value history') and the thrift trends are Pro.",
       "extractionState" : "manual",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Wert deiner Sammlung, ihre Entwicklung und die Trends"
+            "value" : "Wertverlauf deiner Sammlung und die Trends"
           }
         },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Portfolio value, trend and thrift trends"
+            "value" : "Portfolio value history and thrift trends"
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Valor de tu colección, su evolución y las tendencias"
+            "value" : "Historial del valor de tu colección y las tendencias"
           }
         },
         "ro" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Valoarea colecției, evoluția ei și trendurile"
+            "value" : "Istoricul valorii colecției și trendurile"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "收藏总值、走势，以及二手市场的风向"
+            "value" : "收藏的价值走势，以及二手市场的风向"
           }
         }
       }
@@ -13669,37 +14356,38 @@
         }
       }
     },
-    "See your exact profit after marketplace fees, right there in the aisle." : {
+    "See your estimated profit after marketplace fees, right there in the aisle." : {
+      "comment" : "Onboarding, Thrift Flip slide. 'Estimated', never 'exact': the resale side is an AI estimate and the fees are approximate, which Thrift Flip itself says.",
       "extractionState" : "manual",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Sieh deinen genauen Gewinn nach Plattformgebühren – direkt im Laden."
+            "value" : "Sieh deinen geschätzten Gewinn nach Plattformgebühren – direkt im Laden."
           }
         },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "See your exact profit after marketplace fees, right there in the aisle."
+            "value" : "See your estimated profit after marketplace fees, right there in the aisle."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Mira exactamente cuánto ganas tras las comisiones, allí mismo, en la tienda."
+            "value" : "Mira una estimación de tu ganancia tras las comisiones, allí mismo, en la tienda."
           }
         },
         "ro" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Vezi exact ce profit îți rămâne după comisioane, chiar acolo, în magazin."
+            "value" : "Vezi profitul estimat după comisioane, chiar acolo, în magazin."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "就站在货架前，看清扣掉平台手续费后到底赚多少。"
+            "value" : "就站在货架前，估算扣掉平台手续费后能赚多少。"
           }
         }
       }
@@ -14121,6 +14809,42 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "运费（选填）"
+          }
+        }
+      }
+    },
+    "Shoes" : {
+      "comment" : "An item category (ScanCategory), as a label on its own: a row of 'Trending at the thrift', and the start of that row's VoiceOver sentence.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Schuhe"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Shoes"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Calzado"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Încălțăminte"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "鞋靴"
           }
         }
       }
@@ -15146,6 +15870,42 @@
         }
       }
     },
+    "Sports" : {
+      "comment" : "An item category (ScanCategory), as a label on its own: a row of 'Trending at the thrift', and the start of that row's VoiceOver sentence.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sport"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sports"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Deportes"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sport"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "运动"
+          }
+        }
+      }
+    },
     "Spot on — your guess is inside the estimate." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -15317,6 +16077,42 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "开始扫描"
+          }
+        }
+      }
+    },
+    "Status %@" : {
+      "comment" : "VoiceOver announcement after a flip-status chip is tapped. The argument is the status (Scanned, Owned, Listed, Sold).",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Status %@"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Status %@"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Estado %@"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Stadiu %@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "状态 %@"
           }
         }
       }
@@ -16394,6 +17190,42 @@
         }
       }
     },
+    "Toys" : {
+      "comment" : "An item category (ScanCategory), as a label on its own: a row of 'Trending at the thrift', and the start of that row's VoiceOver sentence.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Spielzeug"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Toys"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Juguetes"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Jucării"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "玩具"
+          }
+        }
+      }
+    },
     "Trending at the thrift" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -17028,30 +17860,85 @@
       }
     },
     "Unlock %lld more + all-time totals" : {
+      "comment" : "My Flips, free tier: the button under the visible flips. The number is how many more flips Pro shows.",
       "extractionState" : "manual",
       "localizations" : {
         "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Schalt %lld weitere und die Gesamtsummen frei"
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Schalt einen weiteren und die Gesamtsummen frei"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Schalt %lld weitere und die Gesamtsummen frei"
+                }
+              }
+            }
           }
         },
         "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Unlock %lld more + all-time totals"
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Unlock %lld more + all-time totals"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Unlock %lld more + all-time totals"
+                }
+              }
+            }
           }
         },
         "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Desbloquea %lld más y los totales de siempre"
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Desbloquea %lld más y los totales de siempre"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Desbloquea %lld más y los totales de siempre"
+                }
+              }
+            }
           }
         },
         "ro" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Deblochează încă %lld + totalurile pe tot istoricul"
+          "variations" : {
+            "plural" : {
+              "few" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Deblochează încă %lld + totalurile pe tot istoricul"
+                }
+              },
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Deblochează încă unul + totalurile pe tot istoricul"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Deblochează încă %lld + totalurile pe tot istoricul"
+                }
+              }
+            }
           }
         },
         "zh-Hans" : {
@@ -17063,30 +17950,85 @@
       }
     },
     "Unlock %lld more flips and all-time totals" : {
+      "comment" : "VoiceOver label for the same button: how many more flips Pro shows.",
       "extractionState" : "manual",
       "localizations" : {
         "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Schalt %lld weitere Flips und die Gesamtsummen frei"
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Schalt einen weiteren Flip und die Gesamtsummen frei"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Schalt %lld weitere Flips und die Gesamtsummen frei"
+                }
+              }
+            }
           }
         },
         "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Unlock %lld more flips and all-time totals"
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Unlock %lld more flip and all-time totals"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Unlock %lld more flips and all-time totals"
+                }
+              }
+            }
           }
         },
         "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Desbloquea %lld reventas más y los totales de siempre"
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Desbloquea %lld reventa más y los totales de siempre"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Desbloquea %lld reventas más y los totales de siempre"
+                }
+              }
+            }
           }
         },
         "ro" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Deblochează încă %lld flipuri și totalurile pe tot istoricul"
+          "variations" : {
+            "plural" : {
+              "few" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Deblochează încă %lld flipuri și totalurile pe tot istoricul"
+                }
+              },
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Deblochează încă un flip și totalurile pe tot istoricul"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Deblochează încă %lld de flipuri și totalurile pe tot istoricul"
+                }
+              }
+            }
           }
         },
         "zh-Hans" : {
@@ -17304,6 +18246,42 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "有使用痕迹"
+          }
+        }
+      }
+    },
+    "Value history" : {
+      "comment" : "VoiceOver label for the portfolio sparkline on My Finds (Pro). Its value is the first and last total, e.g. '$45 to $1,240'.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wertverlauf"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Value history"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Historial de valor"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Istoricul valorii"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "价值走势"
           }
         }
       }
@@ -18717,6 +19695,42 @@
         }
       }
     },
+    "Your SnapWorth trial ends the day after tomorrow, at %@." : {
+      "comment" : "Notification. %@ is a time of day (e.g. 1:40 AM). Sent at 21:00 two calendar days before a trial that ends in the small hours.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Deine SnapWorth-Testphase endet übermorgen um %@."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Your SnapWorth trial ends the day after tomorrow, at %@."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tu prueba de SnapWorth acaba pasado mañana (%@)."
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Perioada gratuită SnapWorth se termină poimâine, la %@."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "你的 SnapWorth 试用将于后天 %@ 到期。"
+          }
+        }
+      }
+    },
     "Your SnapWorth trial ends tomorrow." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -19102,6 +20116,42 @@
         }
       }
     },
+    "abundant supply" : {
+      "comment" : "The AI's guess at how many comparable items are for sale. Placed inside 'AI read: %@, %@'.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "reichliches Angebot"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "abundant supply"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "oferta abundante"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ofertă abundentă"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "货源充足"
+          }
+        }
+      }
+    },
     "after marketplace fees" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -19454,6 +20504,42 @@
         }
       }
     },
+    "high demand" : {
+      "comment" : "The AI's guess at demand. Lower-case: it is placed inside 'AI read: %@, %@'.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "hohe Nachfrage"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "high demand"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "demanda alta"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "cerere mare"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "需求高"
+          }
+        }
+      }
+    },
     "item sold" : {
       "comment" : "Share card label under a count of 1.",
       "extractionState" : "manual",
@@ -19557,6 +20643,114 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "几乎全新，仅试用过"
+          }
+        }
+      }
+    },
+    "low demand" : {
+      "comment" : "The AI's guess at demand. Lower-case: it is placed inside 'AI read: %@, %@'.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "geringe Nachfrage"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "low demand"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "demanda baja"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "cerere mică"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "需求低"
+          }
+        }
+      }
+    },
+    "medium demand" : {
+      "comment" : "The AI's guess at demand. Lower-case: it is placed inside 'AI read: %@, %@'.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "mittlere Nachfrage"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "medium demand"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "demanda media"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "cerere medie"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "需求一般"
+          }
+        }
+      }
+    },
+    "moderate supply" : {
+      "comment" : "The AI's guess at how many comparable items are for sale. Placed inside 'AI read: %@, %@'.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "mittleres Angebot"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "moderate supply"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "oferta moderada"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ofertă moderată"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "货源适中"
           }
         }
       }
@@ -19738,37 +20932,38 @@
         }
       }
     },
-    "supply %@" : {
+    "scarce supply" : {
+      "comment" : "The AI's guess at how many comparable items are for sale. Placed inside 'AI read: %@, %@'.",
       "extractionState" : "manual",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Angebot %@"
+            "value" : "knappes Angebot"
           }
         },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "supply %@"
+            "value" : "scarce supply"
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "oferta %@"
+            "value" : "oferta escasa"
           }
         },
         "ro" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "ofertă %@"
+            "value" : "ofertă redusă"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "供给 %@"
+            "value" : "货源稀少"
           }
         }
       }
