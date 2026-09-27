@@ -110,6 +110,10 @@ struct PaywallView: View {
                         ForEach(PaywallCopy.benefits, id: \.text) { benefit in
                             BenefitRow(icon: benefit.icon, text: benefit.text)
                         }
+                        Text(PaywallCopy.fairUse)
+                            .font(.snapCaption)
+                            .foregroundStyle(Color.snapWarmGray)
+                            .fixedSize(horizontal: false, vertical: true)
                     }
                     .padding(20)
                     .snapCard()
@@ -490,6 +494,13 @@ enum PaywallCopy {
         Benefit(icon: "chart.pie.fill", text: String(localized: "Portfolio value history and thrift trends")),
         Benefit(icon: "square.and.arrow.up", text: String(localized: "Unlimited sold flips, and CSV export")),
     ]
+
+    /// What "Unlimited scans" means, said where it is sold. The server caps
+    /// each Pro device per hour (`ratelimit.PRO_SCAN_RATE_MAX_REQUESTS`) and
+    /// a 429's wait is what is left of that hour, so "up to an hour" is the
+    /// most it can be. No number: the cap is server configuration, and the
+    /// per-address cap drafts share can stop scanning sooner.
+    static let fairUse = String(localized: "Unlimited scans are subject to fair use: very heavy use can pause scanning for up to an hour.")
 }
 
 // MARK: - Subscription not recognised

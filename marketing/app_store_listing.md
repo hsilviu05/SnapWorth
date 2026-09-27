@@ -41,14 +41,11 @@ Every locale follows these; the translated files point here.
   taken"). Until one is, the estimate is an AI estimate with a range and a
   confidence score, and nothing stronger. "Accurate" sat in the description
   from a26e321 until 1.5.1 and was live on the US store.
-* **"Unlimited scans" without its fair-use qualifier, from the version after
-  1.5.1 on** — in every locale, in the same version as the paywall footnote
-  it mirrors. Pro scans are capped per device per hour on the server
-  (`PRO_SCAN_RATE_MAX_REQUESTS`, 60; RUNBOOK §5.8), and one address is capped
-  at 60 requests an hour across scans, drafts and trends. 1.5.1 still says
-  it without the qualifier, as every version before it did. The owner held
-  both the qualifier and the footnote out of 1.5.1 (see *After 1.5.1*).
-  Never a number: the caps are server configuration, and a figure here would
+* **"Unlimited scans" without its fair-use qualifier** — in every locale, and
+  in the paywall's footnote it mirrors. Pro scans are capped per device per
+  hour on the server (`PRO_SCAN_RATE_MAX_REQUESTS`, 60; RUNBOOK §5.8), and one
+  address is capped at 60 requests an hour across scans, drafts and trends.
+  Nor a number: the caps are server configuration, and a figure here would
   outlive a change to them.
 * **Confidence as "how clearly the AI identified the item".** That was v1,
   the model rating itself. The score since v2 (`backend/confidence.py`) weighs
@@ -153,7 +150,7 @@ FREE & PRO
 SnapWorth is free to try — no account needed. You get one free scan every day, forever. Every find is saved to your device with its value, and your history is yours whether you pay or not.
 
 Pro adds:
-• Unlimited scans
+• Unlimited scans (fair use applies)
 • Listing drafts rewritten for the marketplace you pick — eBay, Poshmark, Mercari, Depop, Facebook Marketplace, Vinted, OLX, Kleinanzeigen or Xianyu
 • Why this price — the full breakdown behind an estimate, including the price ladder and what drove the value
 • Read the care tag — photograph the label for a sharper estimate
@@ -270,12 +267,9 @@ this goes onto 1.5.1 before it is submitted.
       and drops "accurate".
 - [ ] **Description** (other four locales): paste in full; each gained the
       same Thrift Flip, widgets and confidence lines.
-- [ ] **Pro's first bullet stays "Unlimited scans"** in all five
-      descriptions, with no fair-use qualifier, as the files have it. The
-      qualifier is not for 1.5.1: it ships in the version after, together
-      with the paywall footnote it mirrors (*After 1.5.1*). The website says
-      "fair use" already, and that is fine; the site is not versioned with
-      the app.
+- [ ] **"Unlimited scans (fair use applies)"** is new in all five
+      descriptions. The cap it qualifies is the server's (RUNBOOK §5.8), not
+      the binary's, so the line is true whichever build is live.
 - [ ] **App Privacy** (app-level, not per version, but it must match the
       manifest in the 1.5.1 binary): add Purchases → Purchase History, used
       for App Functionality, linked to the user, not used for tracking. The
@@ -287,37 +281,3 @@ this goes onto 1.5.1 before it is submitted.
 The new translated lines — confidence, Thrift Flip and widgets in each of the
 four files — were written without a native reader; have each read once
 before pasting.
-
-## After 1.5.1
-
-Not for 1.5.1: the owner's word, 2026-09-27, was "not in 1.5.1". These go
-into the version after it, when its own paste list is written.
-
-**"Unlimited scans", with fair use.** Pro scans were capped per hour before
-this change too: 20 an hour, shared with drafts and trends, until the server
-gave each route its own bucket. The Pro scan cap is now 60 an hour (RUNBOOK
-§5.8). So the qualifier names a limit that already exists; it does not add
-one. It goes into the paywall and the store description in the same version:
-
-- [ ] **The paywall footnote**, in the binary: "Unlimited scans are subject
-      to fair use: very heavy use can pause scanning for up to an hour."
-      bd99107 added it, and c0ff396 took it back out so it would not ship in
-      1.5.1. Revert c0ff396 and regenerate the catalog to put it back.
-- [ ] **The Pro bullet in all five descriptions.** Don't edit the files
-      before that version's paste list is written, because each file's
-      description is what 1.5.1 pastes in full. With the qualifier, every
-      description stays under 4,000 characters: en 2,779, ro 3,133, es
-      3,172, de 3,269, zh-Hans 1,279.
-
-      | Locale | Bullet |
-      |---|---|
-      | en-US | • Unlimited scans (fair use applies) |
-      | ro | • Scanări nelimitate (în limita utilizării rezonabile) |
-      | es | • Escaneos ilimitados (sujetos a un uso razonable) |
-      | de | • Unbegrenzte Scans (im Rahmen fairer Nutzung) |
-      | zh-Hans | • 无限扫描（适用合理使用原则） |
-
-- [ ] **Have a native reader check** the four translated qualifiers above,
-      and the footnote's four translations in the reverted App.json key,
-      before either ships. Like the lines noted under *Paste with 1.5.1*,
-      they were written without one.
