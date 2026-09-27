@@ -3165,7 +3165,11 @@ async def _week_top(now: datetime | None = None) -> dict:
 TRENDS_MIN_COUNT = 5          # below this a row says more about one user than a trend
 # Different devices behind a row or a find, whatever the scan count. Day
 # documents written before devices were recorded carry none, so their rows are
-# withheld until a week of new tallies has built up — the safe direction.
+# withheld — the safe direction, and not a week's wait at most: at one to four
+# scans a day, three devices behind one category inside a week may take much
+# longer, and the app hides "Trending at the thrift" (sold to Pro) while both
+# lists are empty. Brands and finds are free text off a photo; categories are a
+# closed set, so their floor serves only "one user's afternoon is not a trend".
 TRENDS_MIN_DEVICES = 3
 TRENDS_FREE_ROWS = 3
 TRENDS_PRO_ROWS = 6

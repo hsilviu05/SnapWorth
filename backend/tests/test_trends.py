@@ -128,6 +128,20 @@ class TestDeviceFloor:
         assert payload["notable_finds"] == []
 
     @pytest.mark.asyncio
+    async def test_a_quiet_week_can_show_categories_and_no_brands(self, cache):
+        """What the floor means at one to four scans a day: a category is
+        shared by three devices long before any one brand is, so the week
+        shows categories alone — the card still shows, since the app hides it
+        only when both lists are empty — and one device's brand, however
+        often scanned, shows nowhere."""
+        for days_ago, device in ((1, "dev-a"), (3, "dev-b"), (5, "dev-c")):
+            await seed(cache, days_ago, {"clothing": 2}, {}, devices=[device])
+        await seed(cache, 2, {"clothing": 3}, {"Carhartt": 6}, devices=["dev-a"])
+        payload = await notify.trends(is_pro=False)
+        assert [(r["name"], r["count"]) for r in payload["categories"]] == [("clothing", 9)]
+        assert payload["brands"] == []
+
+    @pytest.mark.asyncio
     async def test_scan_completed_counts_devices_not_scans(self, monkeypatch):
         monkeypatch.delenv("TELEGRAM_BOT_TOKEN", raising=False)
         monkeypatch.delenv("TELEGRAM_CHAT_ID", raising=False)
