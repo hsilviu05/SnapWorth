@@ -43,9 +43,15 @@ async def load(pool: str, codes: list[str]) -> None:
     await cache.set(referral.pool_size_key(pool), str(size))
 
 
-def redeemed(offer_identifier=FRIEND_OFFER, offer_type=3) -> Entitlement:
-    return Entitlement("pro", "com.snapworth.yearly", None, "otid-1", "Production",
+def redeemed(offer_identifier=FRIEND_OFFER, offer_type=3, otid="otid-1") -> Entitlement:
+    return Entitlement("pro", "com.snapworth.yearly", None, otid, "Production",
                        offer_type=offer_type, offer_identifier=offer_identifier)
+
+
+def bearer(subject: str) -> dict:
+    """An App Attest principal, as the installed app always presents here."""
+    token, _ = auth.deps.signer.mint(subject)
+    return {"Authorization": f"Bearer {token}"}
 
 
 class TestPool:
@@ -242,21 +248,23 @@ class TestRoutes:
         assert client.post("/referral/status", json={"device_id": "d"}, headers=self.H).json()["enabled"] is False
 
     def test_status_returns_code_link_and_rewards(self):
-        r = client.post("/referral/status", json={"device_id": "dev-a"}, headers=self.H).json()
+        r = client.post("/referral/status", json={"device_id": "dev-a"}, headers=bearer("subj-a")).json()
         assert r["enabled"] is True
         assert r["share_url"] == "https://www.snapworth.eu/i/" + r["code"]
         assert r["rewards"] == [] and r["rewards_left_this_year"] == 5
 
     def test_claim_route_end_to_end(self):
-        code = client.post("/referral/status", json={"device_id": "dev-a"}, headers=self.H).json()["code"]
+        code = client.post("/referral/status", json={"device_id": "dev-a"},
+                           headers=bearer("subj-a")).json()["code"]
         run(load(POOL_FRIEND, ["APPLE1"]))
         r = client.post("/referral/claim", json={"device_id": "dev-b", "code": code},
-                        headers={"x-device-id": "friend-install"})
+                        headers=bearer("subj-b"))
         assert r.status_code == 200
         assert r.json()["redeem_url"].endswith("&code=APPLE1")
 
     def test_claim_errors_carry_the_users_message(self):
-        r = client.post("/referral/claim", json={"device_id": "dev-b", "code": "ZZZZZZ"}, headers=self.H)
+        r = client.post("/referral/claim", json={"device_id": "dev-b", "code": "ZZZZZZ"},
+                        headers=bearer("subj-b"))
         assert r.status_code == 404 and "doesn't match" in r.json()["detail"]
 
     def test_device_id_is_validated(self):
@@ -284,3 +292,378 @@ class TestEntitlementHook:
                         headers={"x-device-id": "friend-install"})
         assert r.status_code == 200
         assert seen == [("friend-dev", ent)]
+
+
+# ── Hardening before referrals are switched on (AUDIT-2026-09-26) ────────────
+#
+# Every test below fails on the module as it was: routes that took any
+# device_id from anyone, a reward deduped on that device_id alone, and a pool
+# cursor that fell back to process memory.
+
+class TestUnattestedCallersAreRefused:
+    def test_both_routes_refuse_a_legacy_principal(self):
+        """The legacy subject is `legacy:` plus a header the caller picks, so
+        it can be bound to nothing and limited by nothing."""
+        for path, body in (("/referral/status", {"device_id": "dev-a"}),
+                           ("/referral/claim", {"device_id": "dev-a", "code": "ABCDEF"})):
+            r = client.post(path, json=body, headers={"x-device-id": "any-string"})
+            assert r.status_code == 401, (path, r.status_code)
+            assert r.headers.get("WWW-Authenticate") == "Bearer"
+        assert run(auth.deps.cache.get("ref:mine:dev-a")) is None
+
+    def test_off_still_answers_everyone_and_writes_nothing(self, monkeypatch):
+        """The app polls this on every foreground; off must stay the one
+        cheap answer, for every build."""
+        monkeypatch.setattr(referral, "config", ReferralConfig(enabled=False))
+        r = client.post("/referral/status", json={"device_id": "dev-a"},
+                        headers={"x-device-id": "any-string"})
+        assert r.status_code == 200 and r.json()["enabled"] is False
+        assert run(auth.deps.cache.get(referral._owner_key("dev-a"))) is None
+
+
+class TestBinding:
+    @staticmethod
+    def status(subject, device):
+        return client.post("/referral/status", json={"device_id": device},
+                           headers=bearer(subject))
+
+    def test_one_install_cannot_mint_codes_for_invented_devices(self):
+        """The audit's farm: one attested install, a referral code per
+        made-up device, each a pair of 400-day keys and a fresh yearly cap."""
+        assert self.status("subj-a", "dev-a").status_code == 200
+        for n in range(5):
+            assert self.status("subj-a", f"invented-{n}").status_code == 403
+            assert run(auth.deps.cache.get(f"ref:mine:invented-{n}")) is None
+
+    def test_a_device_belongs_to_the_first_subject_that_presented_it(self):
+        mine = self.status("subj-a", "dev-a").json()["code"]
+        assert self.status("subj-b", "dev-a").status_code == 403
+        assert self.status("subj-a", "dev-a").json()["code"] == mine
+
+    def test_a_refused_subject_does_not_burn_the_device_it_named(self):
+        self.status("subj-a", "dev-a")
+        assert self.status("subj-a", "dev-b").status_code == 403
+        assert self.status("subj-b", "dev-b").status_code == 200
+
+    def test_a_claim_is_bound_the_same_way(self):
+        code = self.status("subj-a", "dev-a").json()["code"]
+        run(load(POOL_FRIEND, ["APPLE1", "APPLE2"]))
+        self.status("subj-b", "dev-b")
+        r = client.post("/referral/claim", json={"device_id": "dev-c", "code": code},
+                        headers=bearer("subj-b"))
+        assert r.status_code == 403
+        assert run(referral.pool_remaining(POOL_FRIEND)) == 2
+
+    def test_a_store_that_cannot_answer_is_a_503_not_a_binding_in_memory(self):
+        """Redis configured and down: the binding must fail closed, or each
+        replica keeps its own and the check is no check."""
+        from cache import InMemoryCache, ResilientCache
+        auth.deps.cache = ResilientCache(None, InMemoryCache(), configured=True)
+        r = self.status("subj-a", "dev-a")
+        assert r.status_code == 503 and "paused" in r.json()["detail"]
+
+
+class TestLimiter:
+    def test_both_routes_consult_the_limiter_with_subject_and_proxy_hop(self, monkeypatch):
+        seen = []
+
+        async def recording(subject, ip):
+            seen.append((subject, ip))
+        monkeypatch.setattr(referral, "limiter", recording)
+        headers = {**bearer("subj-a"), "x-forwarded-for": "1.1.1.1, 203.0.113.9"}
+        client.post("/referral/status", json={"device_id": "dev-a"}, headers=headers)
+        client.post("/referral/claim", json={"device_id": "dev-a", "code": "ZZZZZZ"},
+                    headers=headers)
+        assert seen == [("subj-a", "203.0.113.9")] * 2
+
+    def test_per_subject_then_per_ip(self, monkeypatch):
+        import main
+        monkeypatch.setattr(referral, "limiter", main._enforce_referral_limit)
+        monkeypatch.setattr(main, "_device_limiter", None)
+        monkeypatch.setattr(main, "_ip_limiter", None)
+        monkeypatch.setattr(main, "REFERRAL_RATE_MAX_REQUESTS", 2)
+        monkeypatch.setattr(main, "REFERRAL_IP_RATE_MAX_REQUESTS", 3)
+        for key in ("ref:lim-1", "ref:lim-2", "ref-ip:198.51.100.7"):
+            main._device_memory.store.pop(key, None)
+            main._ip_memory.store.pop(key, None)
+
+        def post(subject):
+            return client.post("/referral/status", json={"device_id": f"dev-{subject}"},
+                               headers={**bearer(subject), "x-forwarded-for": "198.51.100.7"})
+        assert [post("lim-1").status_code for _ in range(3)] == [200, 200, 429]
+        # A second install behind the same address: the IP bucket (3) is what
+        # stops it, and it is not the scan route's `ip:` bucket.
+        assert [post("lim-2").status_code for _ in range(2)] == [429, 429]
+        assert "ip:198.51.100.7" not in main._ip_memory.store
+
+    def test_startup_wires_it(self):
+        import inspect
+        import main
+        assert "referral.limiter = _enforce_referral_limit" in inspect.getsource(main._lifespan)
+
+
+class TestRewardDedupe:
+    def claim(self, subject, device, code):
+        return run(referral.claim(subject, device, code))
+
+    def test_one_apple_purchase_pays_out_once_whatever_device_it_is_synced_from(self):
+        """`device_id` on the sync is the client's word. One real redemption,
+        posted from three claimed devices, paid three rewards."""
+        code = run(referral.code_for("referrer"))
+        run(load(POOL_FRIEND, ["F1AAAA", "F2BBBB", "F3CCCC"]))
+        run(load(POOL_REWARD, ["R1AAAA", "R2BBBB", "R3CCCC"]))
+        for n in range(3):
+            self.claim(f"subj-{n}", f"friend-{n}", code)
+        paid = [run(referral.on_entitlement(f"subj-{n}", f"friend-{n}", redeemed()))
+                for n in range(3)]
+        assert paid == [True, False, False]
+        assert len(run(referral.rewards_for("referrer"))) == 1
+        # The refused devices were handed back: their own purchase still counts.
+        assert run(referral.on_entitlement("subj-1", "friend-1", redeemed(otid="otid-2"))) is True
+
+    def test_a_purchase_without_an_original_transaction_id_rewards_nothing(self):
+        code = run(referral.code_for("referrer"))
+        run(load(POOL_FRIEND, ["F1AAAA"]))
+        run(load(POOL_REWARD, ["R1AAAA"]))
+        self.claim("subj-f", "friend", code)
+        assert run(referral.on_entitlement("subj-f", "friend", redeemed(otid=None))) is False
+
+
+class _FlakyIncr:
+    """A Redis whose INCR fails and everything else answers."""
+
+    def __init__(self, store):
+        self.store = store
+
+    async def get(self, key):
+        return await self.store.get(key)
+
+    async def set(self, key, value, ttl=None):
+        await self.store.set(key, value, ttl)
+
+    async def add(self, key, value, ttl=None):
+        return await self.store.add(key, value, ttl)
+
+    async def incr(self, key, ttl=None, amount=1):
+        raise ConnectionError("INCR timed out")
+
+    async def delete(self, key):
+        await self.store.delete(key)
+
+    async def ping(self):
+        return True
+
+
+class TestPoolCursor:
+    def test_a_failed_increment_never_hands_out_an_issued_code(self):
+        """Not `required`, the INCR fell back to process memory and counted
+        from 1 while Redis still answered the item read: the next friend got
+        the code the first one had."""
+        from cache import InMemoryCache, ResilientCache
+        redis = InMemoryCache()
+        run(redis.set(referral.pool_size_key(POOL_FRIEND), "2"))
+        run(redis.set(referral.pool_item_key(POOL_FRIEND, 1), "ISSUED"))
+        run(redis.set(referral.pool_item_key(POOL_FRIEND, 2), "FRESH1"))
+        run(redis.set(referral.pool_cursor_key(POOL_FRIEND), "1"))
+        auth.deps.cache = ResilientCache(_FlakyIncr(redis), InMemoryCache(), configured=True)
+        referrer_code = "ABCDEF"
+        run(redis.set(referral._code_key(referrer_code), "referrer"))
+        with pytest.raises(ReferralError) as exc:
+            run(referral.claim("subj-f", "friend", referrer_code))
+        assert exc.value.status == 503
+        # Undone, so the friend can claim once Redis answers.
+        assert run(redis.get(referral._claim_key("friend"))) is None
+        assert run(redis.get(referral._claim_subject_key("subj-f"))) is None
+
+    def test_a_pool_that_ran_dry_does_not_skip_the_next_batch(self):
+        """Each refused take moved the cursor past `size`, and the next batch
+        is appended at `size + 1`: one code skipped per refusal."""
+        async def go():
+            await load(POOL_FRIEND, ["FIRST1"])
+            first = await referral.take_code(POOL_FRIEND)
+            dry = [await referral.take_code(POOL_FRIEND) for _ in range(3)]
+            await load(POOL_FRIEND, ["NEXT01"])
+            return first, dry, await referral.take_code(POOL_FRIEND)
+        assert run(go()) == ("FIRST1", [None, None, None], "NEXT01")
+
+
+class _FakeSyncRedis:
+    """The two calls the loader makes, on a dict."""
+
+    def __init__(self):
+        self.data = {}
+
+    def get(self, key):
+        return self.data.get(key)
+
+    def set(self, key, value, nx=False):
+        if nx and key in self.data:
+            return None
+        self.data[key] = str(value)
+        return True
+
+
+def _loader():
+    sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "tools"))
+    import load_referral_codes
+    return load_referral_codes
+
+
+class TestLoader:
+    def test_appends_after_the_cursor_when_it_ran_past_the_pool(self):
+        loader, r = _loader(), _FakeSyncRedis()
+        loader.load(r, POOL_FRIEND, ["AAAAAA", "BBBBBB"])
+        r.set(referral.pool_cursor_key(POOL_FRIEND), 4)     # two lost races
+        loader.load(r, POOL_FRIEND, ["CCCCCC"])
+        assert r.get(referral.pool_item_key(POOL_FRIEND, 5)) == "CCCCCC"
+        assert r.get(referral.pool_size_key(POOL_FRIEND)) == "5"
+
+    def test_retire_burns_what_is_left_and_the_next_batch_is_served(self):
+        loader, r = _loader(), _FakeSyncRedis()
+        loader.load(r, POOL_REWARD, ["AAAAAA", "BBBBBB", "CCCCCC"])
+        r.set(referral.pool_cursor_key(POOL_REWARD), 1)
+        assert loader.retire(r, POOL_REWARD) == 2
+        assert r.get(referral.pool_cursor_key(POOL_REWARD)) == "3"
+        loader.load(r, POOL_REWARD, ["DDDDDD"])
+        assert r.get(referral.pool_item_key(POOL_REWARD, 4)) == "DDDDDD"
+
+    def test_the_docstring_no_longer_calls_a_rerun_harmless_without_saying_when(self):
+        doc = _loader().__doc__
+        assert "A batch is burned by any loss of Redis's data" in doc
+        assert "--retire" in doc
+
+
+# ── What the operator is told ────────────────────────────────────────────────
+
+class _Sent:
+    def __init__(self):
+        self.texts: list[str] = []
+
+    def handler(self, request):
+        import httpx
+        if request.url.path.endswith("/sendMessage"):
+            self.texts.append(json.loads(request.content)["text"])
+        return httpx.Response(200, json={"ok": True, "result": []})
+
+
+@pytest.fixture
+def operator():
+    """notify wired to the same cache the referral module uses, with a bot
+    whose messages are captured."""
+    import httpx
+    import notify
+    sent = _Sent()
+    notifier = notify.TelegramNotifier(
+        "123456789:AAtest-token-abcdefghijklmnopqrstuvwx", "424242",
+        client=httpx.AsyncClient(transport=httpx.MockTransport(sent.handler)))
+    notify.configure(auth.deps.cache, notifier=notifier)
+    yield sent
+    asyncio.run(notify.aclose())
+
+
+async def _drain():
+    import notify
+    pending = [t for t in notify._tasks if not t.done()]
+    if pending:
+        await asyncio.gather(*pending, return_exceptions=True)
+
+
+def _paid(otid="otid-1"):
+    """The renewal after the free week: no offer, so Apple charged for it."""
+    return Entitlement("pro", "com.snapworth.yearly", None, otid, "Production",
+                       price=39.99, currency="USD")
+
+
+class TestFunnelCounters:
+    def test_claims_redemptions_rewards_and_paid_periods_reach_the_digest(self, operator):
+        import notify
+        from datetime import datetime, timedelta, timezone
+
+        async def go():
+            code = await referral.code_for("referrer")
+            await load(POOL_FRIEND, ["F1AAAA", "F2BBBB"])
+            await load(POOL_REWARD, ["R1AAAA"])
+            await referral.claim("subj-1", "friend-1", code)
+            await referral.claim("subj-2", "friend-2", code)
+            assert await referral.on_entitlement("subj-1", "friend-1", redeemed()) is True
+            # Re-syncs of the same purchase count nothing twice.
+            await referral.on_entitlement("subj-1", "friend-1", redeemed())
+            await referral.on_entitlement("subj-1", "friend-1", _paid())
+            await referral.on_entitlement("subj-1", "friend-1", _paid())
+            await _drain()
+            now = datetime.now(timezone.utc) + timedelta(days=1)
+            return await notify._digest_text(now - timedelta(days=1))
+        digest = asyncio.run(go())
+        assert ("Referrals: 2 claimed · 1 redeemed at Apple · 1 rewarded · "
+                "1 paid after the free week") in digest
+
+    def test_a_quiet_day_has_no_referral_line(self, operator):
+        import notify
+        from datetime import datetime, timezone
+        digest = asyncio.run(notify._digest_text(datetime.now(timezone.utc)))
+        assert "Referrals:" not in digest
+
+    def test_apples_renewal_notice_counts_a_friend_who_never_reopened_the_app(self, operator):
+        import appstorenotify
+        import notify
+
+        async def go():
+            await auth.deps.cache.set(referral._redeemed_key("otid-9"), "1")
+            note = appstorenotify.Notification(appstorenotify.DID_RENEW, None, "uuid-1",
+                                               _paid("otid-9"))
+            await notify.subscription_event(note)
+            await notify.subscription_event(note)          # Apple redelivers
+            await _drain()
+            return await notify._read_stat(notify._day(), "referral_paid")
+        assert asyncio.run(go()) == 1
+
+    def test_a_paid_period_on_a_subscription_that_was_not_a_referral_counts_nothing(self):
+        async def go():
+            await referral.note_paid_period(_paid("otid-plain"))
+            return await auth.deps.cache.get(referral._paid_key("otid-plain"))
+        assert asyncio.run(go()) is None
+
+
+class TestPoolAlerts:
+    def test_low_then_empty_each_said_once_a_day(self, operator, monkeypatch):
+        monkeypatch.setattr(referral, "POOL_LOW_AT", 1)
+
+        async def go():
+            await load(POOL_FRIEND, ["A1AAAA", "B2BBBB", "C3CCCC"])
+            for _ in range(5):
+                await referral.take_code(POOL_FRIEND)
+                await _drain()
+        asyncio.run(go())
+        low = [t for t in operator.texts if "pool is low" in t]
+        empty = [t for t in operator.texts if "pool is empty" in t]
+        assert len(low) == 1 and "1 left" in low[0]
+        assert len(empty) == 1 and "Invites are paused" in empty[0]
+
+    def test_a_redis_outage_is_not_reported_as_an_empty_pool(self, operator):
+        from cache import CacheUnavailable, InMemoryCache, ResilientCache
+        auth.deps.cache = ResilientCache(None, InMemoryCache(), configured=True)
+
+        async def go():
+            with pytest.raises(CacheUnavailable):
+                await referral.take_code(POOL_FRIEND)
+            await _drain()
+        asyncio.run(go())
+        assert not [t for t in operator.texts if "pool" in t]
+
+    def test_checkup_shows_the_pools_and_flags_a_low_one(self, operator, monkeypatch):
+        import notify
+        monkeypatch.setattr(referral, "POOL_LOW_AT", 2)
+
+        async def go():
+            await load(POOL_FRIEND, ["A1AAAA", "B2BBBB", "C3CCCC", "D4DDDD"])
+            await load(POOL_REWARD, ["R1AAAA", "R2BBBB"])
+            await referral.take_code(POOL_FRIEND)
+            return await notify._referral_line()
+        line = asyncio.run(go())
+        assert line.startswith("Referrals: on · friend codes 3 of 4 left · reward codes 2 of 2 left")
+        assert "⚠️ reward pool at 2" in line and "⚠️ friend" not in line
+
+    def test_checkup_when_off_is_one_quiet_line(self, operator, monkeypatch):
+        import notify
+        monkeypatch.setattr(referral, "config", ReferralConfig(enabled=False))
+        assert asyncio.run(notify._referral_line()) == "Referrals: off"

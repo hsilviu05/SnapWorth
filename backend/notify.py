@@ -977,6 +977,99 @@ def safety_blocked(subject: str, count: int, *, paused: bool) -> None:
         _spawn(_announce_safety_pause(auditlog.pseudonymise(subject), count))
 
 
+# ── Referrals (#97) ──────────────────────────────────────────────────────────
+
+# The server's half of the referral funnel, in order. The app's events fire on
+# taps — a code accepted, a redeem page opened — and an offer-code redemption
+# never passes through the app's purchase flow, so only the server sees what
+# Apple actually did. Worded as verbs after the number, so "1 claimed" and
+# "12 claimed" both read.
+REFERRAL_STEPS = (
+    ("claimed", "claimed"),                    # a friend was handed an Apple code
+    ("redeemed", "redeemed at Apple"),         # a friend-offer purchase arrived
+    ("rewarded", "rewarded"),                  # a week was parked for a referrer
+    ("paid", "paid after the free week"),      # that subscription was then paid for
+)
+
+
+def count_referral(step: str) -> None:
+    """Tally one step of the referral funnel for the digest. Fire-and-forget."""
+    if _notifier is None or step not in dict(REFERRAL_STEPS):
+        return
+    _spawn(_bump(f"referral_{step}"))
+
+
+async def _referral_digest_line(day: str) -> str:
+    """"Referrals: 3 claimed · 2 redeemed at Apple · …", or "" on a quiet day."""
+    counts = [(await _read_stat(day, f"referral_{step}"), label)
+              for step, label in REFERRAL_STEPS]
+    if not any(n for n, _ in counts):
+        return ""
+    return "Referrals: " + " · ".join(f"{n} {label}" for n, label in counts)
+
+
+def referral_pool_low(pool: str, remaining: int) -> None:
+    """A referral code pool is down to `remaining` codes. Fire-and-forget.
+
+    An empty pool used to be a log line and nothing else, while every claim
+    answered "Invites are paused" — or, for the reward pool, a referrer's week
+    went unissued. Said once per pool per UTC day at "low", and once more if it
+    reaches empty, because a new batch is an App Store Connect chore the
+    operator has to do by hand.
+    """
+    if _notifier is None or _cache is None:
+        return
+    _spawn(_announce_referral_pool(pool, remaining))
+
+
+async def _announce_referral_pool(pool: str, remaining: int) -> None:
+    state = "empty" if remaining <= 0 else "low"
+    try:
+        if not await _cache.add(f"opsseen:refpool:{pool}:{state}:{_day()}", "1", STATS_TTL):
+            return
+    except Exception:
+        return
+    name = html.escape(pool)
+    if pool == "friend":
+        effect = ("Every invite claim now answers “Invites are paused”." if state == "empty"
+                  else "When it runs out, every invite claim answers “Invites are paused”.")
+    else:
+        effect = ("A friend who redeems now earns their referrer nothing until it is "
+                  "refilled; that friend's next sync retries." if state == "empty"
+                  else "When it runs out, referrers stop receiving the weeks they earn.")
+    headline = (f"🎟 <b>Referral {name} pool is empty</b>" if state == "empty"
+                else f"🎟 <b>Referral {name} pool is low</b> — {remaining} left")
+    await _notifier.send(
+        f"{headline}\n{effect}\nGenerate a new batch of one-time codes for the "
+        f"{name} offer in App Store Connect and load it with "
+        "<code>backend/tools/load_referral_codes.py</code> (RUNBOOK §18).")
+
+
+async def _referral_line() -> str:
+    """The checkup's referral line: on or off, and what is left in each pool."""
+    import referral            # not at the top: referral imports auth, which imports this
+    cfg = referral.config
+    state = ("on" if cfg.active else
+             "REFERRALS_ENABLED without REFERRAL_FRIEND_OFFER, so inert" if cfg.enabled
+             else "off")
+    try:
+        levels = {pool: await referral.pool_level(pool, _cache) for pool in referral.POOLS}
+    except Exception as exc:
+        return f"Referrals: {state} · pools unreadable ({html.escape(type(exc).__name__)})"
+    if not any(size for size, _ in levels.values()):
+        line = f"Referrals: {state}" + (" · no codes loaded" if cfg.enabled else "")
+        return line + ("\n⚠️ no referral codes loaded — every invite is refused"
+                       if cfg.active else "")
+    line = f"Referrals: {state} · " + " · ".join(
+        f"{pool} codes {left} of {size} left" for pool, (size, left) in levels.items())
+    if cfg.active:
+        for pool, (_, left) in levels.items():
+            if left <= referral.POOL_LOW_AT:
+                line += (f"\n⚠️ {pool} pool at {left} — load a new batch before it runs out"
+                         if left else f"\n⚠️ {pool} pool is empty")
+    return line
+
+
 # ── Subscription events ──────────────────────────────────────────────────────
 
 async def appstore_test_notification(environment: str) -> str:
@@ -1065,6 +1158,11 @@ async def subscription_event(note, *, reinstated=None) -> None:
             # never calls this, so nothing should reach here. If something
             # does, it is a tester's renewal and not money.
             return
+        if note.is_paid_period:
+            # A friend who took a referral week and then paid. Apple says so
+            # whether or not they open the app again, which the sync cannot.
+            import referral    # not at the top: referral imports auth, which imports this
+            await referral.note_paid_period(ent)
 
         before = await _index_subscription(None, ent, note.auto_renew,
                                            current=note.is_refund_reversal)
@@ -1639,6 +1737,9 @@ async def _digest_text(when: datetime) -> str:
         await _subscribers_line(),
         await _spend_line([day], free + pro),
     ]
+    referrals = await _referral_digest_line(day)
+    if referrals:
+        lines.append(referrals)
     top = await _top_text(day)
     if top:
         lines.append(top)
@@ -4888,6 +4989,7 @@ async def _checkup_text() -> str:
     # withdraws refunds? Probed live, for the reason DeviceCheck is.
     lines.append(await _appstore_api_line())
     lines.append(await _last_appstore_notification_line())
+    lines.append(await _referral_line())
 
     # The archive chat, if configured: does the id resolve, and to what?
     archive_chat = os.environ.get(ARCHIVE_CHAT_ENV, "").strip()

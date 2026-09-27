@@ -220,6 +220,9 @@ async def _lifespan(_app: FastAPI):
     # above — and it had no limiter of its own either, which left a full x.509
     # chain verification unbounded per valid device.
     auth.deps.entitlement_limiter = _enforce_entitlement_limit
+    # `/referral/*` was mounted with no limiter at all. Injected for the same
+    # reason: `referral` cannot import this module.
+    referral.limiter = _enforce_referral_limit
     auth.deps.signer = tokens.signer_from_env()
     auth.deps.device_check = dc
     auth.deps.entitlements = EntitlementService(
@@ -881,6 +884,41 @@ async def _enforce_entitlement_limit(subject: str, ip: str | None) -> None:
         else:
             await _device_limiter.check(f"ent:{subject[:64]}",
                                        ENTITLEMENT_RATE_MAX_REQUESTS)
+    except RateLimitExceeded as exc:
+        raise HTTPException(status_code=429, detail=exc.message,
+                            headers={"Retry-After": str(exc.retry_after)}) from None
+
+
+#: Per-subject and per-IP ceilings for `/referral/status` and `/referral/claim`.
+#:
+#: Their own buckets, `ref:` and `ref-ip:`, not the scan route's. The app asks
+#: `/referral/status` on every return to the foreground once referrals are on,
+#: so sharing `ip:` would spend the /scan allowance of everyone behind a carrier
+#: NAT on a poll they never see. 60 an hour per subject is well above a person
+#: switching apps; the IP ceiling is twice that, for shared egress. What these
+#: bound is scripted use from one install or one address — claims are already
+#: once per subject, and each new subject costs an attestation, which is
+#: IP-limited on its own.
+REFERRAL_RATE_MAX_REQUESTS = int(os.environ.get("REFERRAL_RATE_MAX_REQUESTS", "60"))
+REFERRAL_IP_RATE_MAX_REQUESTS = int(os.environ.get("REFERRAL_IP_RATE_MAX_REQUESTS", "120"))
+
+
+async def _enforce_referral_limit(subject: str, ip: str | None) -> None:
+    """Limit for the referral routes. Injected onto `referral.limiter`.
+
+    IP first, as in `_enforce_entitlement_limit`: a subject is one install's
+    key, and a reinstall mints another.
+    """
+    try:
+        if ip is not None:
+            if _ip_limiter is None:
+                _ip_memory.check_sync(f"ref-ip:{ip}", REFERRAL_IP_RATE_MAX_REQUESTS)
+            else:
+                await _ip_limiter.check(f"ref-ip:{ip}", REFERRAL_IP_RATE_MAX_REQUESTS)
+        if _device_limiter is None:
+            _device_memory.check_sync(f"ref:{subject[:64]}", REFERRAL_RATE_MAX_REQUESTS)
+        else:
+            await _device_limiter.check(f"ref:{subject[:64]}", REFERRAL_RATE_MAX_REQUESTS)
     except RateLimitExceeded as exc:
         raise HTTPException(status_code=429, detail=exc.message,
                             headers={"Retry-After": str(exc.retry_after)}) from None
