@@ -26,7 +26,7 @@ import json
 import logging
 import os
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime, timezone
 from enum import Enum
 
@@ -99,18 +99,19 @@ PRO_ENTITLEMENT_CACHE_TTL = 86_400   # 24 h
 # proof stops being worth anything — see `_store_proof`.
 ENTITLEMENT_PROOF_TTL = 60 * 60 * 24 * 400
 
-# Which StoreKit environments this deployment accepts.
+# Which StoreKit environments this deployment trusts *fully*: Pro for as long
+# as the subscription runs, a stored proof to re-derive it from, six devices,
+# and a place in the operator's revenue view.
 #
 # Sandbox transactions are signed by the *same* Apple chain as production ones,
-# so every signature/bundle/product check below passes for a Sandbox JWS. Without
-# this gate a free Sandbox tester account grants production Pro indefinitely.
+# so every signature/bundle/product check below passes for a Sandbox JWS. Listed
+# here, a free Sandbox tester account would grant production Pro indefinitely.
 #
-# Comma-separated; defaults to Production only.
-#
-# OPERATIONAL NOTE: TestFlight builds receive *Sandbox* transactions. To exercise
-# the purchase flow end-to-end from TestFlight, point that build at a staging
-# deployment with ALLOWED_STOREKIT_ENVIRONMENTS="Sandbox" — do not widen
-# production, or you reopen the bypass for everyone.
+# Comma-separated; defaults to Production only, and production keeps it that
+# way. That no longer shuts Sandbox out: `SANDBOX_ENTITLEMENTS` below is the
+# separate, bounded treatment it gets instead. Listing Sandbox *here* is for a
+# staging deployment that wants TestFlight treated exactly like a customer —
+# never production, where it would hand every tester the unbounded version.
 def _parse_environments(raw: str) -> frozenset[str]:
     values = {v.strip() for v in raw.split(",") if v.strip()}
     return frozenset(values or {"Production"})
@@ -118,6 +119,76 @@ def _parse_environments(raw: str) -> frozenset[str]:
 
 ALLOWED_ENVIRONMENTS = _parse_environments(
     os.environ.get("ALLOWED_STOREKIT_ENVIRONMENTS", "Production"))
+
+SANDBOX_ENVIRONMENT = "Sandbox"
+
+# How a Sandbox transaction is treated when ALLOWED_ENVIRONMENTS does not trust
+# it fully. `bounded` (the default) or `off`.
+#
+# App Review buys in Sandbox, and so does every TestFlight build — against the
+# one backend the app has (Config.swift). With Production the only environment
+# accepted, a reviewer who bought Pro got a 400 here, then the paywall again,
+# a 402 on /listing and an empty "Why this price": Guideline 2.1 / 3.1.1,
+# "purchased content not delivered" (AUDIT-2026-09-26). It had not bitten only
+# because no reviewer had bought.
+#
+# `bounded` honours Sandbox on terms that make a tester's transaction worth
+# very little to anyone but the tester:
+#
+#   * only for a caller holding an App Attest-backed token — never the legacy
+#     unauthenticated path, whose subject is a header the caller chose;
+#   * for at most SANDBOX_ENTITLEMENT_TTL, and never past the transaction's own
+#     expiry plus the grace every entitlement gets;
+#   * with no stored proof, so nothing re-derives it once that entry lapses —
+#     the device has to present a live transaction again;
+#   * on one device per originalTransactionId at a time. The most recent device
+#     to present it takes it over, and the one it displaces reads as free from
+#     its next request. Replacing rather than refusing, because a reviewer
+#     moving from an iPhone to an iPad on one Sandbox account is exactly the
+#     case this exists for, and refusing would recreate the rejection;
+#   * outside every revenue figure: no subscriber-index row, no new-sub count,
+#     no "New Pro" or trial alert, no referral reward (`is_bounded`). Usage
+#     figures do count testers — scans, active users, `/users`'s Pro devices —
+#     because a tester's scan costs what anyone's does.
+#
+# What none of this bounds is who can be a tester. Nothing here tells App
+# Review apart from any other Sandbox buyer: every TestFlight build passes App
+# Attest, and its Sandbox purchases are free and can be bought again whenever
+# one ends. So under `bounded` anyone who can install a TestFlight build is Pro
+# in production, with unlimited scans at real AI cost, for as long as they keep
+# a Sandbox subscription going. The one-device rule stops a transaction being
+# shared, not a tester using their own. This is the part of the old bypass
+# that `bounded` reopens on purpose, and the size of the TestFlight audience is
+# the only thing limiting it: internal testers and small invite-only external
+# groups, never a public TestFlight link while this is `bounded` (RUNBOOK §17).
+#
+# `off` is the old behaviour: a Sandbox transaction is refused with a 400, and
+# any Sandbox entitlement already cached reads as free from its next request.
+# Anything else is read as `off`, loudly — a typo must not be what widens
+# access.
+SANDBOX_BOUNDED = "bounded"
+SANDBOX_OFF = "off"
+
+
+def _parse_sandbox_mode(raw: str | None) -> str:
+    value = (raw or "").strip().lower()
+    if value in ("", SANDBOX_BOUNDED):
+        return SANDBOX_BOUNDED
+    if value != SANDBOX_OFF:
+        log.warning("SANDBOX_ENTITLEMENTS=%r is neither %r nor %r; treating it as %r",
+                    raw, SANDBOX_BOUNDED, SANDBOX_OFF, SANDBOX_OFF)
+    return SANDBOX_OFF
+
+
+SANDBOX_ENTITLEMENTS = _parse_sandbox_mode(os.environ.get("SANDBOX_ENTITLEMENTS"))
+
+# The longest a bounded Sandbox entitlement lives without the device presenting
+# its transaction again. The same day a Pro entry gets, for the same reason —
+# only the client can refresh it, at cold launch, purchase, restore and
+# `Transaction.updates` — and it is the ceiling, not the usual case: Sandbox
+# renews a monthly plan every few minutes, so the transaction's own expiry is
+# almost always the shorter of the two.
+SANDBOX_ENTITLEMENT_TTL = 86_400
 
 # How many distinct attested devices one subscription may entitle.
 #
@@ -252,6 +323,24 @@ class Entitlement:
 
 
 FREE = Entitlement("free", None, None, None, "Production")
+
+
+def is_bounded(ent: Entitlement) -> bool:
+    """Whether `ent` is a Sandbox entitlement held on the bounded terms.
+
+    The question every consumer outside this module needs answered is "is this
+    a customer?", and for a bounded entitlement the answer is no: it is Pro for
+    the device holding it and nothing else. The operator's index, counts and
+    alerts and the referral reward all skip it.
+
+    Keyed on trust rather than on the word "Sandbox", so a staging deployment
+    that lists Sandbox in ALLOWED_STOREKIT_ENVIRONMENTS sees its testers exactly
+    as it always has. Covers the inactive `FREE` a bounded transaction
+    collapses to as well — see `verify_signed_transaction` — which is what
+    keeps an expired tester transaction from reading as a churned customer.
+    """
+    return (getattr(ent, "environment", None) == SANDBOX_ENVIRONMENT
+            and SANDBOX_ENVIRONMENT not in ALLOWED_ENVIRONMENTS)
 
 
 #: Apple sends leaf, intermediate, root — exactly three, which is what Apple's
@@ -496,6 +585,7 @@ def verify_signed_transaction(
     allowed_environments: frozenset[str] | None = None,
     *,
     allow_inactive: bool = False,
+    allow_bounded_sandbox: bool = False,
 ) -> Entitlement:
     """Verify a StoreKit 2 JWS and return the entitlement it proves.
 
@@ -506,6 +596,13 @@ def verify_signed_transaction(
     indistinguishable from one it never heard about. It must never be set on a
     path that grants access: `FREE` is what keeps an expired transaction from
     being Pro, and `Entitlement.is_active` is the check that replaces it.
+
+    `allow_bounded_sandbox` also admits a Sandbox transaction the environments
+    do not trust, when SANDBOX_ENTITLEMENTS is `bounded`. Nothing on the result
+    says "bounded" except its `environment`; `is_bounded` is how a caller tells.
+    Only `EntitlementService.record` passes it, and only for an App
+    Attest-authenticated caller, because that is where the bounds are applied —
+    any other path that admitted Sandbox would admit it unbounded.
     """
     payload = verify_apple_jws(jws_value)
 
@@ -517,7 +614,11 @@ def verify_signed_transaction(
     # the *only* thing separating a free tester account from paid Pro.
     environments = ALLOWED_ENVIRONMENTS if allowed_environments is None else allowed_environments
     environment = payload.get("environment", "Production")
-    if environment not in environments:
+    bounded = (environment not in environments
+               and allow_bounded_sandbox
+               and environment == SANDBOX_ENVIRONMENT
+               and SANDBOX_ENTITLEMENTS == SANDBOX_BOUNDED)
+    if environment not in environments and not bounded:
         log.warning("rejected transaction from disallowed environment",
                     extra={"environment": environment,
                            "allowed": sorted(environments)})
@@ -531,12 +632,17 @@ def verify_signed_transaction(
     revoked_at = ent.revoked_at
     if allow_inactive:
         return ent
+    # A bounded transaction that has ended still says which environment it came
+    # from. `FREE` claims Production, and `record` would take that as Apple's
+    # word on this subject — deleting a real subscriber's stored proof and
+    # alerting the operator to a churn — on the strength of a tester's expiry.
+    free = replace(FREE, environment=environment) if bounded else FREE
     if revoked_at is not None:
         log.info("signed transaction was revoked", extra={"product_id": product_id})
-        return FREE
+        return free
     if not ent.is_active:
         log.info("signed transaction has expired", extra={"product_id": product_id})
-        return FREE
+        return free
     return ent
 
 
@@ -565,6 +671,25 @@ class EntitlementService:
     @staticmethod
     def _revoked_key(original_transaction_id: str) -> str:
         return f"entrevoked:{original_transaction_id}"
+
+    @staticmethod
+    def _sandbox_key(original_transaction_id: str) -> str:
+        """The one device holding a bounded Sandbox transaction right now."""
+        return f"entsandbox:{original_transaction_id}"
+
+    @classmethod
+    def _tombstone_key(cls, ent: Entitlement) -> str:
+        """Where the revocation of `ent`'s term is recorded.
+
+        Sandbox gets a namespace of its own. Apple does not promise that a
+        Sandbox transaction id can never equal a Production one, and a tester
+        can have Apple sign a REFUND for their own Sandbox purchase whenever
+        they like — so an unscoped key would let one deny a paying customer.
+        """
+        otid = ent.original_transaction_id or ""
+        if ent.environment == SANDBOX_ENVIRONMENT:
+            return f"entrevoked:sandbox:{otid}"
+        return cls._revoked_key(otid)
 
     async def revoke(self, ent: Entitlement, revoked_at: int | None = None) -> bool:
         """Record that Apple has taken a subscription back.
@@ -615,20 +740,34 @@ class EntitlementService:
         # caller has to know — this is the one write in the entitlement path
         # that must not be best-effort.
         #
-        # `required=True` is what makes that sentence true. Without it a
-        # failing Redis did not raise at all: `ResilientCache` wrote the
-        # tombstone to this replica's memory and returned, the webhook
-        # answered Apple 200, and Apple does not redeliver a 2xx. `_is_revoked`
-        # reads Redis, so the tombstone was invisible from the first request
-        # after recovery and gone for good at the next deploy — and the
-        # pre-refund proof went on re-deriving Pro for the rest of the term.
+        # `required`, or they would not. `ResilientCache` sends a failed write
+        # that is not required to this replica's memory and returns as if it
+        # had landed, so for a whole Redis outage this wrote every tombstone to
+        # one process, returned True, and the route answered Apple 200 with
+        # nothing to retry. Once Redis was back `_is_revoked` read Redis, found
+        # nothing, and `_rederive` restored Pro from the pre-refund proof for
+        # the rest of the refunded term. The comment above was true only of a
+        # cache that raises.
         #
         # At least as long as any proof it has to outlive: a proof's TTL is
         # capped at its own expiry plus grace, so this covers every one.
-        await self._cache.set(self._revoked_key(otid), payload,
+        await self._cache.set(self._tombstone_key(ent), payload,
                               ENTITLEMENT_PROOF_TTL, required=True)
+        if ent.environment == SANDBOX_ENVIRONMENT:
+            # A bounded entitlement has no proof for the tombstone to stop
+            # re-deriving; what keeps it alive is the claim, which `current()`
+            # checks on every read. Dropping it withdraws the access at the
+            # holder's next request rather than when their entry lapses. The
+            # tombstone still matters: it refuses the pre-refund JWS if it is
+            # presented again.
+            #
+            # `required` for the same reason as the tombstone: a delete that
+            # fell back to memory left the claim in Redis for the rest of its
+            # TTL, up to a day of Pro after a refund Apple was told we handled.
+            await self._cache.delete(self._sandbox_key(otid), required=True)
         log.info("subscription revoked by Apple",
-                 extra={"product_id": ent.product_id})
+                 extra={"product_id": ent.product_id,
+                        "environment": ent.environment})
         return True
 
     async def reinstate(self, ent: Entitlement) -> Reinstatement:
@@ -695,7 +834,7 @@ class EntitlementService:
         if not otid:
             return False
         try:
-            raw = await self._cache.get(self._revoked_key(otid))
+            raw = await self._cache.get(self._tombstone_key(ent))
         except Exception as exc:
             # Fail open, loudly. Both callers have already read the proof or
             # the entry from this same cache, so a failure on this one key is
@@ -729,14 +868,25 @@ class EntitlementService:
         return ttl
 
     async def record(self, subject: str, jws_value: str,
-                     device_id: str | None = None) -> Entitlement:
+                     device_id: str | None = None, *,
+                     authenticated: bool = False) -> Entitlement:
         """Verify, device-bind, and cache. Raises `EntitlementError` if invalid.
 
         `device_id` is the client's stable per-device identifier (Keychain-
         backed from iOS 1.3.4). When present, the subscription is bound to it
         rather than to `subject`, so reinstalls on one phone occupy one slot.
+
+        `authenticated` is `Principal.authenticated`: the caller presented a
+        token this service minted after App Attest. It is the only thing that
+        admits a Sandbox transaction on the bounded terms (SANDBOX_ENTITLEMENTS)
+        and it defaults to False, so a caller that does not say is refused
+        Sandbox exactly as before. Raises `EntitlementsUnavailable` only on
+        that bounded path — see `_claim_sandbox`.
         """
-        ent = verify_signed_transaction(jws_value, self._bundle_id, self._allowed)
+        ent = verify_signed_transaction(jws_value, self._bundle_id, self._allowed,
+                                        allow_bounded_sandbox=authenticated)
+        if is_bounded(ent):
+            return await self._record_bounded(subject, ent, device_id)
 
         if ent.tier == "pro" and await self._is_revoked(ent):
             # Apple has taken this term back since the transaction was signed,
@@ -769,6 +919,148 @@ class EntitlementService:
         log.info("entitlement recorded",
                  extra={"tier": ent.tier, "product_id": ent.product_id})
         return ent
+
+    # ── Sandbox, on bounded terms ────────────────────────────────────────
+    #
+    # Everything below serves SANDBOX_ENTITLEMENTS. It shares the revocation
+    # tombstone with the path above and nothing else: no proof, no `txn:`
+    # device binding, no six-device allowance.
+
+    @staticmethod
+    def _bounded_ttl(ent: Entitlement) -> int:
+        """Lifetime of a bounded entitlement: SANDBOX_ENTITLEMENT_TTL, or less.
+
+        Capped at the transaction's expiry *plus the grace* `is_active` gives
+        every entitlement, unlike `_cache_ttl`. A Production entry can stop at
+        the bare expiry because the proof re-derives it through the grace
+        hour; a bounded one has no proof, and Sandbox renews a monthly plan
+        every few minutes. Stopping at the bare expiry would drop a reviewer to
+        the free tier in the gap between each renewal and the client
+        re-presenting it — the rejection this path exists to prevent.
+        """
+        ttl = SANDBOX_ENTITLEMENT_TTL
+        if ent.expires_at:
+            ttl = max(60, min(ttl, ent.expires_at + EXPIRY_GRACE_SECONDS
+                              - int(time.time())))
+        return ttl
+
+    async def _record_bounded(self, subject: str, ent: Entitlement,
+                              device_id: str | None) -> Entitlement:
+        """Record a Sandbox entitlement on the bounded terms.
+
+        Writes the short entitlement entry and the one-device claim, and never
+        a proof: when the entry lapses the device has to present a live
+        transaction again. See SANDBOX_ENTITLEMENTS for the whole rule set.
+        """
+        if ent.tier == "pro" and await self._is_revoked(ent):
+            log.info("refused a sandbox entitlement Apple has revoked",
+                     extra={"product_id": ent.product_id})
+            ent = replace(FREE, environment=ent.environment)
+
+        if ent.tier != "pro":
+            # Ends this subject's Sandbox access and nothing else. Unlike the
+            # Production path this leaves any stored proof alone: Sandbox never
+            # writes one, so a proof here is a real subscription, and a
+            # tester's expiry is not Apple's word on it. `current()` reads this
+            # entry as inactive and re-derives from that proof if there is one.
+            await self._cache.set(
+                self._key(subject), ent.to_json(), self._cache_ttl(ent))
+            return ent
+
+        otid = ent.original_transaction_id
+        if not otid:
+            # The one-device rule is keyed on it. Without one there is nothing
+            # to bound, and an unbounded Sandbox grant is the one thing this
+            # path must never produce.
+            raise EntitlementError(
+                "Sandbox transaction carries no original transaction id.")
+
+        ttl = self._bounded_ttl(ent)
+        await self._claim_sandbox(subject, otid, device_id, ttl)
+        await self._cache.set(self._key(subject), ent.to_json(), ttl)
+        log.info("sandbox entitlement recorded on bounded terms",
+                 extra={"product_id": ent.product_id, "ttl": ttl})
+        return ent
+
+    @staticmethod
+    def _decode_claim(raw: str | None) -> dict | None:
+        if not raw:
+            return None
+        try:
+            claim = json.loads(raw)
+        except Exception:
+            return None
+        return claim if isinstance(claim, dict) else None
+
+    async def _claim_sandbox(self, subject: str, otid: str,
+                             device_id: str | None, ttl: int) -> None:
+        """Make this device the one holder of a Sandbox transaction.
+
+        **The rule is replace, not refuse.** The most recent device to present
+        the transaction holds it, and `current()` reads every other subject's
+        entry for it as free. So at most one device is Pro on it at any
+        moment, and sharing one buys nothing but taking turns. Refusing would
+        instead lock the transaction to whichever device got there first for
+        up to a day, and the case this path exists for — App Review — is also
+        the one likeliest to move between an iPhone and an iPad on one
+        Sandbox account.
+
+        The identity compared is `device_id` when the client sends one, so a
+        reinstall on the same phone takes the claim over without it counting
+        as a move; the subject stored is what `current()` checks.
+
+        Unlike `_bind_device`, this is an authorisation boundary — the only
+        thing keeping one tester transaction from being Pro on any number of
+        phones — so it fails closed: an unreachable durable store raises
+        `EntitlementsUnavailable` rather than granting without a claim.
+        """
+        key = self._sandbox_key(otid)
+        identity = device_id or subject
+        try:
+            previous = self._decode_claim(await self._cache.get(key, required=True))
+            if previous is not None and previous.get("device") != identity:
+                # Two devices on one Sandbox account. Normal for a reviewer
+                # testing iPad layout; a steady stream of these is sharing.
+                log.info("sandbox entitlement moved to another device")
+            await self._cache.set(key, json.dumps({
+                "subject": subject, "device": identity, "at": int(time.time()),
+            }), ttl, required=True)
+        except CacheUnavailable as exc:
+            raise EntitlementsUnavailable(str(exc)) from exc
+
+    async def _holds_sandbox_claim(self, subject: str, ent: Entitlement) -> bool:
+        """Whether `subject` may still use the bounded entitlement it cached.
+
+        No, once SANDBOX_ENTITLEMENTS is `off`, once another device has taken
+        the transaction over, and once a Sandbox refund has dropped the claim.
+        Checked on every read of a bounded entry, which costs one cache read
+        for testers and reviewers only, and is what lets all three take effect
+        at the next request rather than when the entry lapses.
+
+        An unreachable store raises `EntitlementsUnavailable`, like every
+        required read in `current()`, and `require_auth` then falls back to the
+        tier in the caller's token. That fallback would have been the gap: a
+        token minted while this subject held the claim says "pro" for its
+        whole hour. So a token minted from a bounded entitlement is marked
+        (`auth._mint`) and the fallback reads it as free. Closed at the sync
+        and on the request path alike.
+        """
+        if SANDBOX_ENTITLEMENTS != SANDBOX_BOUNDED:
+            return False
+        otid = ent.original_transaction_id
+        if not otid:
+            return False
+        try:
+            raw = await self._cache.get(self._sandbox_key(otid), required=True)
+        except CacheUnavailable as exc:
+            raise EntitlementsUnavailable(str(exc)) from exc
+        except Exception as exc:
+            # Closed, unlike the tombstone read: this is the bound itself, and
+            # a subject that cannot show it holds the claim does not.
+            log.warning("sandbox claim read failed: %s", exc)
+            return False
+        claim = self._decode_claim(raw)
+        return claim is not None and claim.get("subject") == subject
 
     async def _store_proof(self, subject: str, ent: Entitlement, jws_value: str) -> None:
         """Keep the signed transaction so `current()` can re-derive this later.
@@ -969,7 +1261,13 @@ class EntitlementService:
             except Exception:
                 ent = None
             if ent is not None and ent.is_active:
-                return ent
+                if not is_bounded(ent):
+                    return ent
+                if await self._holds_sandbox_claim(subject, ent):
+                    return ent
+                # Displaced, refunded or switched off. Whatever else this
+                # subject holds — a real subscription's proof — is found the
+                # ordinary way; a bounded entitlement has no proof to find.
         return await self._rederive(subject)
 
     async def _rederive(self, subject: str) -> Entitlement:
@@ -991,6 +1289,9 @@ class EntitlementService:
             return FREE
 
         try:
+            # Never `allow_bounded_sandbox`: a bounded entitlement is not
+            # re-derived, by design, and a Sandbox proof left over from a
+            # deployment that trusted Sandbox fully must not become one.
             ent = verify_signed_transaction(jws_value, self._bundle_id, self._allowed)
         except EntitlementError as exc:
             # Covers a tampered proof, but also an operator narrowing
