@@ -365,31 +365,54 @@ private struct PortfolioBanner: View {
     /// "41 items scanned", inflected once, for both the card and VoiceOver.
     private var scannedPhrase: String { String(localized: "\(count) items scanned") }
 
+    /// The headline stop's value: the total, the count, and the insight line
+    /// when there is one — it is drawn inside the headline, so it is read
+    /// with it.
+    private var headlineValue: String {
+        let total = String(localized: "\(totalValue), from \(scannedPhrase)")
+        guard let insightLine else { return total }
+        return String(localized: "\(total). \(insightLine)",
+                      comment: "VoiceOver: the portfolio total sentence, then the insight line under it.")
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text("Your finds are worth")
-                .font(.snapCaption)
-                .foregroundStyle(Color.snapWarmGray)
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Your finds are worth")
+                    .font(.snapCaption)
+                    .foregroundStyle(Color.snapWarmGray)
 
-            Text(totalValue)
-                .font(.fraunces(36, weight: .bold))
-                .foregroundStyle(Color.snapSageText)
+                Text(totalValue)
+                    .font(.fraunces(36, weight: .bold))
+                    .foregroundStyle(Color.snapSageText)
 
-            Text(scannedPhrase)
-                .font(.snapCaption)
-                .foregroundStyle(Color.snapWarmGray)
+                Text(scannedPhrase)
+                    .font(.snapCaption)
+                    .foregroundStyle(Color.snapWarmGray)
 
-            // At most one line, and only when there is something to act on —
-            // see HistoryViewModel.insightLine.
-            if let insightLine {
-                Text(insightLine)
-                    .font(.snapCaption.weight(.medium))
-                    .foregroundStyle(Color.snapTerracottaText)
-                    .padding(.top, 2)
+                // At most one line, and only when there is something to act on —
+                // see HistoryViewModel.insightLine.
+                if let insightLine {
+                    Text(insightLine)
+                        .font(.snapCaption.weight(.medium))
+                        .foregroundStyle(Color.snapTerracottaText)
+                        .padding(.top, 2)
+                }
             }
+            // The screen's headline figure: one stop, read before the grid.
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("Your finds are worth")
+            .accessibilityValue(headlineValue)
+            .accessibilityAddTraits(.isSummaryElement)
 
             // Extracted: inlining this pushed the banner past what the
             // SwiftUI type-checker will infer in reasonable time.
+            //
+            // Outside the headline's `.ignore` on purpose. That modifier used
+            // to sit on the whole banner — from before the trend and the
+            // insight line existed — and swallowed both: the unlock button
+            // below is the only way into the `.portfolioTrend` paywall, and
+            // under VoiceOver it did not exist.
             TrendStrip(trend: trend, isPro: isPro, onUnlock: onUnlock)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -400,11 +423,7 @@ private struct PortfolioBanner: View {
             RoundedRectangle(cornerRadius: 20, style: .continuous)
                 .strokeBorder(Color.snapSage.opacity(0.2), lineWidth: 1)
         )
-        // The screen's headline figure: one stop, read before the grid.
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel("Your finds are worth")
-        .accessibilityValue(String(localized: "\(totalValue), from \(scannedPhrase)"))
-        .accessibilityAddTraits(.isSummaryElement)
+        .accessibilityElement(children: .contain)
         .accessibilitySortPriority(90)
     }
 }
@@ -484,6 +503,12 @@ private struct TrendStrip: View {
                     .frame(height: 44)
                     .padding(.top, 8)
                     .blur(radius: isPro ? 0 : 6)
+                    // What the line shows, in words: where it starts and where
+                    // it ends. A bare shape gives a Pro user nothing for the
+                    // feature they pay for.
+                    .accessibilityElement()
+                    .accessibilityLabel("Value history")
+                    .accessibilityValue(HistoryViewModel.trendSummary(trend) ?? "")
                     // Hidden from VoiceOver when blurred: announcing a shape
                     // the user cannot see is noise, and the unlock button
                     // carries the actionable information instead.
@@ -545,8 +570,10 @@ private struct Sparkline: Shape {
 // MARK: - Trending at the thrift (#96)
 // ═══════════════════════════════════════════════════════════════════
 
-/// What everyone scanned this week. Aggregates only — the server applies a
-/// floor before sending, so nothing here is about one person.
+/// What everyone scanned this week. The category and brand rows are
+/// aggregates the server floors before sending; the notable finds are single
+/// scans with no floor, which is why the server sends only their brand,
+/// category and range.
 ///
 /// Free sees the counts and which way each moved; Pro also sees the average
 /// estimate per category and the week's notable finds. Absent entirely when
@@ -555,12 +582,6 @@ struct TrendingCard: View {
     let trends: Trends
     let isPro: Bool
     var onUnlock: () -> Void = {}
-
-    private static let emoji = [
-        "clothing": "🧥", "shoes": "👟", "accessories": "👜", "electronics": "📱",
-        "books": "📚", "furniture": "🪑", "home": "🏠", "sports": "⚽",
-        "toys": "🧸", "collectibles": "🏺", "other": "📦",
-    ]
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
@@ -594,9 +615,9 @@ struct TrendingCard: View {
             }
 
             if isPro {
-                // Deduped — see `distinctNotableFinds`. The server appends
-                // each day's finds without dedup, so the same item on two days
-                // arrives twice with the same id.
+                // Deduped — see `distinctNotableFinds`. A find's id is its
+                // brand and rounded range, so the same brand at the same range
+                // is one row however many scans or days it came from.
                 let notable = trends.distinctNotableFinds
                 if !notable.isEmpty {
                     VStack(alignment: .leading, spacing: 6) {
@@ -605,7 +626,7 @@ struct TrendingCard: View {
                             .foregroundStyle(Color.snapWarmGray)
                         ForEach(notable.prefix(3)) { find in
                             HStack(spacing: 8) {
-                                Text(Self.emoji[find.category] ?? "📦")
+                                Text(ScanCategory(normalizing: find.category).emoji)
                                     .accessibilityHidden(true)
                                 Text(find.name)
                                     .font(.snapBody)
@@ -637,7 +658,7 @@ struct TrendingCard: View {
                 .accessibilityHint("Opens subscription options")
             }
 
-            Text("Anonymous totals from everyone using SnapWorth. AI estimates.")
+            Text("Anonymous data from everyone using SnapWorth. AI estimates.")
                 .font(.snapCaption)
                 .foregroundStyle(Color.snapWarmGray)
         }
@@ -649,9 +670,12 @@ struct TrendingCard: View {
 
     private func categoryRow(_ row: TrendRow) -> some View {
         HStack(spacing: 10) {
-            Text(Self.emoji[row.name] ?? "📦")
+            // The server's token, worded — it used to be printed capitalised,
+            // so "Clothing" sat in English under a translated heading.
+            let category = ScanCategory(normalizing: row.name)
+            Text(category.emoji)
                 .accessibilityHidden(true)
-            Text(row.name.capitalized)
+            Text(category.label)
                 .font(.snapBody)
                 .foregroundStyle(Color.snapEspresso)
             if let average = row.averageEstimate, isPro {
@@ -685,7 +709,8 @@ struct TrendingCard: View {
         // plural key agrees with one number, and this sentence has a category
         // name beside it.
         let scans = String(localized: "\(row.count) scans")
-        var parts = [String(localized: "\(row.name.capitalized), \(scans)")]
+        let category = ScanCategory(normalizing: row.name).label
+        var parts = [String(localized: "\(category), \(scans)")]
         if let average = row.averageEstimate, isPro {
             parts.append(String(localized: "average estimate \(money(average))"))
         }

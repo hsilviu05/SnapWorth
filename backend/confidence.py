@@ -45,6 +45,7 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass, field
 
+import categories
 from imagequality import ImageQuality
 
 log = logging.getLogger("snapworth.confidence")
@@ -64,21 +65,10 @@ _DEMAND_KNOWN = {"high", "medium", "low"}
 _SUPPLY_KNOWN = {"scarce", "moderate", "abundant"}
 
 # Categories whose secondhand markets are dense, well-documented and stable, so
-# a model-knowledge estimate is more likely to be close. Fine art or antiques
-# vary enormously by individual piece; a Nike sneaker does not.
-_CATEGORY_FAMILIARITY = {
-    "clothing": 0.90,
-    "shoes": 0.90,
-    "electronics": 0.80,
-    "accessories": 0.70,
-    "sports": 0.70,
-    "home": 0.65,
-    "books": 0.65,
-    "toys": 0.60,
-    "furniture": 0.50,
-    "collectibles": 0.35,   # value is dominated by rarity we cannot see
-    "other": 0.30,
-}
+# a model-knowledge estimate is more likely to be close. The weights live in
+# `categories`, the one table of categories; this is a view of it.
+_CATEGORY_FAMILIARITY = {c.name: c.familiarity for c in categories.CATEGORIES}
+_UNFAMILIAR = categories.BY_NAME[categories.OTHER].familiarity
 
 _AUTHENTICITY_SCORE = {
     "no_concerns": 1.0,
@@ -86,6 +76,42 @@ _AUTHENTICITY_SCORE = {
     "cannot_verify": 0.40,
     "likely_replica": 0.10,
 }
+
+# Two reads that cap the score rather than only feeding the average, for the
+# same reason a bad photo does: in a weighted sum they were worth 8 and 10
+# points of ~105, so a strong brand read and a tight range outvoted them. A
+# Louis Vuitton the model marked `likely_replica` scored 88 — "High confidence"
+# on the price of a genuine bag, for an item the model itself thinks is fake.
+#
+# A likely replica caps where a clamped valuation does: the price is for an
+# item the photo probably is not. An uncertain identification caps just below
+# High: the range may be fine, but "we are not sure what this is" cannot sit
+# under a High badge.
+REPLICA_CEILING = 30
+UNCERTAIN_ID_CEILING = HIGH_THRESHOLD - 1
+
+# A likely replica's own explanation, and the one every other doubtful
+# authenticity read gets. The first is the verdict, which is Pro detail
+# (`main._PRO_ONLY_DETAIL_FIELDS`); `confidence_summary` is not — it keeps the
+# free tier's locked "Why this price" teaser alive — so a free user's summary
+# is written with the second (`summary_sentence(withhold_authenticity=True)`).
+# Before the replica read had its own words, all three doubtful reads produced
+# the neutral one, and the free summary never carried the verdict.
+REPLICA_REASON = "the item may not be authentic"
+UNVERIFIED_AUTHENTICITY_REASON = "authenticity could not be verified from the photo"
+
+#: Brand values that mean "no brand was identified". One list, shared with the
+#: operator's brand tallies (`notify._clean_brand`) and the eval's
+#: hallucination check (`eval.metrics`). The three copies had drifted: notify
+#: dropped "Generic", this module scored it as an identified brand, so one
+#: wording choice by the model moved the score by about 25 points — "Generic"
+#: read 84 High where "Unknown" read 60.
+UNKNOWN_BRANDS = frozenset({"", "unknown", "unbranded", "generic", "n/a", "none", "null"})
+
+
+def brand_is_known(brand: str | None) -> bool:
+    """True when `brand` names an actual brand, not a way of saying none."""
+    return (brand or "").strip().lower() not in UNKNOWN_BRANDS
 
 
 @dataclass(frozen=True)
@@ -149,26 +175,36 @@ def compute(
     was_clamped: bool = False,
     model_field_count: int = 0,
     expected_field_count: int = 0,
+    range_synthesised: bool = False,
 ) -> ConfidenceResult:
     """Compute confidence from observable signals.
 
     Every argument is something we can check independently of the model's
     opinion, except `identification_certainty`, which is included at low weight.
+
+    `range_synthesised` means the model gave one price and the server opened
+    it into `value_low`–`value_high` (`valuation.PricePoints.single_price`).
     """
     signals: list[ConfidenceSignal] = []
 
     # ── Brand identification ────────────────────────────────────────────────
     # The single strongest predictor. Secondhand pricing is brand-anchored: an
     # identified brand collapses the plausible range enormously.
-    brand_clean = (brand or "").strip().lower()
-    brand_known = bool(brand_clean) and brand_clean not in {"unknown", "unbranded", "n/a", "none", "null"}
+    brand_known = brand_is_known(brand)
     signals.append(ConfidenceSignal(
         "brand", 1.0 if brand_known else 0.0, 0.26,
         "the brand is identified" if brand_known else "the brand could not be identified",
     ))
 
     # ── Price-range tightness ───────────────────────────────────────────────
-    tightness, tightness_reason = _range_tightness(value_low, value_high)
+    # A range the server opened from a single price is ×1.5 by construction,
+    # so it always measured "tight" — the one channel the model cannot fake
+    # was being faked on its behalf. No credit: it says nothing about how
+    # well the item is priced.
+    if range_synthesised:
+        tightness, tightness_reason = 0.0, "the range was estimated from a single price"
+    else:
+        tightness, tightness_reason = _range_tightness(value_low, value_high)
     signals.append(ConfidenceSignal("range", tightness, 0.20, tightness_reason))
 
     # ── Image quality ───────────────────────────────────────────────────────
@@ -183,7 +219,7 @@ def compute(
 
     # ── Category familiarity ────────────────────────────────────────────────
     cat = (category or "other").strip().lower()
-    familiarity = _CATEGORY_FAMILIARITY.get(cat, 0.30)
+    familiarity = _CATEGORY_FAMILIARITY.get(cat, _UNFAMILIAR)
     signals.append(ConfidenceSignal(
         "category", familiarity, 0.12,
         f"{cat} has a well-established resale market" if familiarity >= 0.65
@@ -194,34 +230,49 @@ def compute(
     # Included, but at low weight: it is self-reported and therefore the least
     # trustworthy input here. It is not zero-information — the model does know
     # whether it recognised something — it just must not dominate.
-    certainty = _CERTAINTY_SCORE.get((identification_certainty or "").strip().lower())
+    certainty_key = (identification_certainty or "").strip().lower()
+    certainty = _CERTAINTY_SCORE.get(certainty_key)
     if certainty is not None:
-        signals.append(ConfidenceSignal(
-            "identification", certainty, 0.10,
-            "the item was recognised confidently" if certainty >= 0.9
-            else "the exact model could not be pinned down",
-        ))
+        # "uncertain" is about what the item is, not which model it is, and it
+        # now caps the score (UNCERTAIN_ID_CEILING) — so it names that.
+        if certainty >= 0.9:
+            id_reason = "the item was recognised confidently"
+        elif certainty_key == "uncertain":
+            id_reason = "the item could not be identified with certainty"
+        else:
+            id_reason = "the exact model could not be pinned down"
+        signals.append(ConfidenceSignal("identification", certainty, 0.10, id_reason))
 
     # ── Authenticity ────────────────────────────────────────────────────────
-    auth = _AUTHENTICITY_SCORE.get((authenticity or "").strip().lower())
+    auth_key = (authenticity or "").strip().lower()
+    auth = _AUTHENTICITY_SCORE.get(auth_key)
     if auth is not None:
-        signals.append(ConfidenceSignal(
-            "authenticity", auth, 0.08,
-            "no authenticity concerns" if auth >= 0.9
-            else "authenticity could not be verified from the photo",
-        ))
+        # A likely replica is a finding, not a gap in the evidence, and read
+        # the same as "cannot verify" until it had its own words.
+        if auth >= 0.9:
+            auth_reason = "no authenticity concerns"
+        elif auth_key == "likely_replica":
+            auth_reason = REPLICA_REASON
+        else:
+            auth_reason = UNVERIFIED_AUTHENTICITY_REASON
+        signals.append(ConfidenceSignal("authenticity", auth, 0.08, auth_reason))
 
     # ── Market signal completeness ──────────────────────────────────────────
     # Whether the model produced usable demand/supply reads at all. Missing them
     # means it had nothing to say about the market, which is itself a signal.
+    #
+    # The explanation is shown to the user as a reason, so it says only what
+    # this measures: that the model answered. Both reads are its guess with no
+    # data behind them — SnapWorth has no market data — and "demand and supply
+    # are well understood" claimed exactly the knowledge it does not have.
     market_known = sum([
         (demand or "").strip().lower() in _DEMAND_KNOWN,
         (supply or "").strip().lower() in _SUPPLY_KNOWN,
     ]) / 2
     signals.append(ConfidenceSignal(
         "market", market_known, 0.06,
-        "demand and supply are well understood" if market_known == 1.0
-        else "limited read on current demand",
+        "the AI gave a read on demand and supply" if market_known == 1.0
+        else "the AI's read on demand and supply is incomplete",
     ))
 
     # ── Response completeness ───────────────────────────────────────────────
@@ -261,6 +312,15 @@ def compute(
                     "the photo quality limits how confident this estimate can be",
                 ))
 
+    # ── Identification and authenticity ceilings ────────────────────────────
+    # See REPLICA_CEILING. No extra signal is appended: the authenticity or
+    # identification signal above already carries the explanation, and at 0.10
+    # and 0.15 it is among the weakest, so it is what the summary names.
+    if certainty_key == "uncertain":
+        score = min(score, UNCERTAIN_ID_CEILING)
+    if auth_key == "likely_replica":
+        score = min(score, REPLICA_CEILING)
+
     # ── Hard override ───────────────────────────────────────────────────────
     # Clamping means the model produced a number outside the plausible band for
     # its own category — an order-of-magnitude error or an injected value. That
@@ -285,15 +345,23 @@ def compute(
     return ConfidenceResult(score=score, band=_band(score), signals=signals, reasons=reasons)
 
 
-def summary_sentence(result: ConfidenceResult) -> str:
+def summary_sentence(result: ConfidenceResult, *, withhold_authenticity: bool = False) -> str:
     """One plain-language sentence explaining the score.
 
     Deliberately not a metric readout: "72 out of 100" tells a reseller nothing
     they can act on, whereas naming the weak signal does.
+
+    `withhold_authenticity` writes a likely replica as "could not be verified"
+    — for a free user, who does not get the authenticity read (see
+    REPLICA_REASON). The score and band are unchanged: the cap still applies.
     """
-    if not result.reasons:
+    reasons = result.reasons
+    if withhold_authenticity:
+        reasons = [UNVERIFIED_AUTHENTICITY_REASON if r == REPLICA_REASON else r
+                   for r in reasons]
+    if not reasons:
         return f"{result.band} confidence."
-    joined = result.reasons[0]
-    if len(result.reasons) > 1:
-        joined = ", and ".join([result.reasons[0], result.reasons[1]])
+    joined = reasons[0]
+    if len(reasons) > 1:
+        joined = ", and ".join([reasons[0], reasons[1]])
     return f"{result.band} confidence — {joined}."

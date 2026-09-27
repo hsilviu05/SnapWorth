@@ -8,9 +8,16 @@ fresh 100-character keyword field, not a translation of the old one.
 
 Mirrors `app_store_listing.md`, including its accuracy rules: no claim of sold
 listings, comps or market data; the one-scan-a-day limit is stated wherever a
-plan is; Thrift Flip is free in full since #128, so it is not in the Pro list.
+plan is; Thrift Flip is free in full since #128, so it is in the free list,
+not the Pro one. The full list of claims it does not make is in the English
+file, under *Claims this listing does not make*.
 
 ## Read this before pasting
+
+**Not live yet (checked 2026-09-26).** The live 1.5.0 carries no Romanian
+metadata: the `ro` storefront shows the English page. Add this locale to
+1.5.1 and paste everything below — see *Paste with 1.5.1* in
+`app_store_listing.md`.
 
 **Adding a language is version-scoped.** Name, subtitle, keywords, description
 and What's New belong to a *version*, so Romanian can only be added to a
@@ -103,10 +110,12 @@ CUM FUNCȚIONEAZĂ
 CE PRIMEȘTI
 
 • Preț de revânzare pe loc — un interval estimat, de la minim la maxim
-• Scor de încredere — cât de clar a reușit AI-ul să identifice lucrul din poză
+• Scor de încredere — cât de bine e susținută estimarea de poză și de identificare
 • Anunț scris de AI — titlu și descriere gata de postat, la fiecare scanare
+• Thrift Flip — scanezi obiectul, adaugi prețul din magazin și vezi cât îți rămâne după comisioanele platformei, înainte să-l cumperi
 • Istoricul scanărilor — fiecare găselniță salvată automat, cu valoarea ei
 • Total — cât valorează tot ce ai scanat, dintr-o privire
+• Widgeturi — totalul găselnițelor pe ecranul de blocare; ultimele găselnițe, scanările rămase și scanarea dintr-o atingere pe ecranul principal
 • Stickere pentru iMessage — 20 de stickere cu Tag, mascota noastră (patru animate), ca să te lauzi cu ce ai găsit
 
 --------------------------

@@ -186,6 +186,73 @@ class TestAppAttest:
         with pytest.raises(appattest.AttestationError, match="not signed by Apple"):
             appattest.verify_attestation(blob, b"chal", b"k", TEST_APP_ID)
 
+    # CBOR decodes to any type the sender chose. Each of these used to escape
+    # as an AttributeError or TypeError — a 500 and a traceback — because
+    # `/auth/attest` catches only AttestationError.
+    @pytest.mark.parametrize("obj", [
+        [1, 2],
+        7,
+        "apple-appattest",
+        {"fmt": "apple-appattest", "attStmt": [1], "authData": b"\x00" * 60},
+        {"fmt": "apple-appattest", "attStmt": "x", "authData": b"\x00" * 60},
+        {"fmt": "apple-appattest", "attStmt": {"x5c": 5}, "authData": b"\x00" * 60},
+        {"fmt": "apple-appattest", "attStmt": {"x5c": ["not-der"]}, "authData": b"\x00" * 60},
+    ], ids=["list", "int", "string", "attStmt-list", "attStmt-string", "x5c-int",
+            "x5c-text"])
+    def test_a_malformed_body_is_an_attestation_error(self, obj):
+        with pytest.raises(appattest.AttestationError, match="malformed"):
+            appattest.verify_attestation(cbor2.dumps(obj), b"chal", b"k", TEST_APP_ID)
+
+    @staticmethod
+    def _chain_signed_by_a_test_root():
+        """A leaf and intermediate under a root this test controls, patched in
+        for Apple's: what an attacker replaying a genuine chain would send."""
+        from cryptography import x509
+        from cryptography.hazmat.primitives import hashes, serialization
+        from cryptography.hazmat.primitives.asymmetric import ec
+        from cryptography.x509.oid import NameOID
+        import datetime as dt
+
+        now = dt.datetime.now(dt.timezone.utc)
+
+        def issue(subject, issuer, issuer_key, public_key):
+            return (x509.CertificateBuilder()
+                    .subject_name(x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, subject)]))
+                    .issuer_name(x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, issuer)]))
+                    .public_key(public_key).serial_number(x509.random_serial_number())
+                    .not_valid_before(now - dt.timedelta(days=1))
+                    .not_valid_after(now + dt.timedelta(days=30))
+                    .sign(issuer_key, hashes.SHA256()))
+
+        root_key, inter_key, leaf_key = (ec.generate_private_key(ec.SECP256R1())
+                                         for _ in range(3))
+        root = issue("root", "root", root_key, root_key.public_key())
+        inter = issue("inter", "root", root_key, inter_key.public_key())
+        leaf = issue("leaf", "inter", inter_key, leaf_key.public_key())
+        der = [c.public_bytes(serialization.Encoding.DER) for c in (leaf, inter)]
+        return root, der
+
+    @pytest.mark.parametrize("field, value", [
+        ("authData", "abc"), ("authData", 12345), ("receipt", 5)])
+    def test_a_malformed_field_behind_a_valid_chain_is_an_attestation_error(
+            self, monkeypatch, field, value):
+        root, x5c = self._chain_signed_by_a_test_root()
+        monkeypatch.setattr(appattest, "_load_root", lambda: root)
+        stmt = {"x5c": x5c}
+        obj = {"fmt": "apple-appattest", "attStmt": stmt, "authData": b"\x00" * 60}
+        (stmt if field == "receipt" else obj)[field] = value
+        with pytest.raises(appattest.AttestationError, match="malformed"):
+            appattest.verify_attestation(cbor2.dumps(obj), b"chal", b"k", TEST_APP_ID)
+
+    def test_the_endpoint_answers_a_malformed_body_with_401_not_500(self):
+        challenge = client.post("/auth/challenge").json()["challenge"]
+        r = client.post("/auth/attest", json={
+            "key_id": base64.b64encode(b"k").decode(),
+            "attestation": base64.b64encode(cbor2.dumps([1, 2])).decode(),
+            "challenge": challenge})
+        assert r.status_code == 401
+        assert r.json()["detail"] == "Attestation object is malformed."
+
     def test_assertion_replay_rejected(self):
         """Counter must strictly advance — this is the anti-replay control."""
         from cryptography.hazmat.primitives import serialization
@@ -252,6 +319,46 @@ class TestChallenge:
         # the second must fail specifically because the nonce is gone.
         assert first.status_code in (400, 401)
         assert second.status_code == 400
+
+
+class _AttestStateDown(InMemoryCache):
+    """Redis that fails only on attestation state, so the challenge works."""
+
+    async def get(self, key):
+        if key.startswith("attest:"):
+            raise ConnectionError("redis GET timed out")
+        return await super().get(key)
+
+
+class TestRefreshWhenTheStoreCannotBeRead:
+    """A 401 on refresh makes the client discard its key and attest a new one.
+    It used to answer that when a failing Redis fell back to memory, so one
+    failed GET minted a new subject — and on hardware DeviceCheck marked this
+    month, that subject starts with today's scan spent."""
+
+    def teardown_method(self):
+        build_deps()
+
+    @staticmethod
+    def _refresh():
+        challenge = client.post("/auth/challenge").json()["challenge"]
+        return client.post("/auth/refresh", json={
+            "key_id": base64.b64encode(b"known-key").decode(),
+            "assertion": base64.b64encode(b"assertion").decode(),
+            "challenge": challenge,
+        })
+
+    def test_an_unreadable_store_is_a_503_not_a_reattestation(self):
+        build_deps()
+        auth.deps.cache = ResilientCache(
+            _AttestStateDown(), InMemoryCache(), configured=True)
+        r = self._refresh()
+        assert r.status_code == 503, (
+            "an unreadable store told the client to throw its key away")
+
+    def test_a_key_the_server_does_not_know_is_still_a_401(self):
+        build_deps()
+        assert self._refresh().status_code == 401
 
 
 # ── Enforcement on protected routes ──────────────────────────────────────────
@@ -489,11 +596,15 @@ class TestQuota:
         assert auth.deps.signer is not None   # set by the build_deps/conftest fixture
         token, _ = auth.deps.signer.mint("quota-subject")
         h = {"Authorization": f"Bearer {token}"}
+        import metrics
+        refused_before = metrics.quota_exhausted.value()
         assert _scan(headers=h).status_code == 200
         assert _scan(headers=h).status_code == 200
         third = _scan(headers=h)
         assert third.status_code == 402
         assert "X-Quota-Resets-At" in third.headers
+        # RUNBOOK §5.8 reads this counter; nothing used to increment it.
+        assert metrics.quota_exhausted.value() == refused_before + 1
         build_deps()
 
     def test_failed_scan_does_not_consume_quota(self):
@@ -740,6 +851,128 @@ class TestCacheFailurePolicy:
         assert health["healthy"] is False
         assert health["configured"] is True
 
+    def test_state_changes_are_reported_once_per_transition(self):
+        """The ops bot's only view of a Redis outage. Per transition, not per
+        call: an outage is hundreds of failing calls and one event."""
+        primary = _Switchable()
+        cache = ResilientCache(primary, InMemoryCache())
+        seen: list[bool] = []
+        cache.on_change = seen.append
+
+        async def run():
+            await cache.get("k")
+            primary.down = True
+            await cache.get("k")
+            await cache.set("k", "v")
+            await cache.health()
+            primary.down = False
+            await cache.get("k")
+            await cache.get("k")
+        asyncio.run(run())
+        assert seen == [True, False]
+
+    def test_a_broken_listener_cannot_fail_a_cache_call(self):
+        primary = _Switchable()
+        primary.down = True
+        cache = ResilientCache(primary, InMemoryCache())
+
+        def explode(_degraded: bool) -> None:
+            raise RuntimeError("listener bug")
+        cache.on_change = explode
+        with pytest.raises(CacheUnavailable):     # the real failure, not the bug
+            asyncio.run(cache.get("k", required=True))
+        assert asyncio.run(cache.get("k")) is None
+
+
+class _Full(InMemoryCache):
+    """`noeviction` at maxmemory: GET and PING answer, SET and INCR are OOM."""
+
+    async def set(self, *a, **k):
+        raise ConnectionError("OOM command not allowed when used memory > 'maxmemory'")
+    incr = add = set
+
+
+class _Down(InMemoryCache):
+    async def get(self, *a, **k):
+        raise ConnectionError("down")
+    set = delete = add = incr = get
+
+
+def _anonymous_request():
+    from starlette.requests import Request
+    return Request({"type": "http", "method": "POST", "path": "/auth",
+                    "headers": [], "client": ("203.0.113.9", 1)})
+
+
+class TestRedisRefusingWrites:
+    """The audit's simulated full Redis: scans 503'd, the attest write was
+    silently lost to process memory, and health still said healthy."""
+
+    def test_readiness_sees_it(self):
+        health = asyncio.run(ResilientCache(_Full(), InMemoryCache()).health())
+        assert health["healthy"] is False
+
+    def test_a_healthy_primary_is_still_healthy(self):
+        cache = ResilientCache(InMemoryCache(), InMemoryCache())
+        assert asyncio.run(cache.health())["healthy"] is True
+
+    def test_attest_fails_closed_instead_of_losing_the_key(self, monkeypatch):
+        primary = _Full()
+        asyncio.run(InMemoryCache.set(primary, auth._challenge_key("c"), "1", 60))
+        build_deps(enforce=True)
+        try:
+            auth.deps.cache = ResilientCache(primary, InMemoryCache())
+            monkeypatch.setattr(auth.deps, "ip_limiter", None)
+            monkeypatch.setattr(auth.appattest, "verify_attestation",
+                                lambda **kw: type("R", (), {
+                                    "public_key_pem": b"pem", "counter": 0,
+                                    "environment": "production"})())
+            with pytest.raises(auth.HTTPException) as exc:
+                asyncio.run(auth.attest(auth.AttestRequest(
+                    challenge="c", key_id="AAAA", attestation="AAAA"),
+                    _anonymous_request()))
+            assert exc.value.status_code == 503
+        finally:
+            build_deps()
+
+    def test_refresh_during_an_outage_is_503_not_unknown_key(self, monkeypatch):
+        """A 401 here tells the client to discard its key and come back as a
+        new subject with a fresh allowance (AttestationService.post)."""
+        fallback = InMemoryCache()
+        asyncio.run(fallback.set(auth._challenge_key("c"), "1", 60))
+        build_deps(enforce=True)
+        try:
+            auth.deps.cache = ResilientCache(_Down(), fallback)
+            monkeypatch.setattr(auth.deps, "ip_limiter", None)
+            with pytest.raises(auth.HTTPException) as exc:
+                asyncio.run(auth.refresh(auth.AssertRequest(
+                    challenge="c", key_id="AAAA", assertion="AAAA"),
+                    _anonymous_request()))
+            assert exc.value.status_code == 503
+        finally:
+            build_deps()
+
+
+class _Switchable(InMemoryCache):
+    """A primary that can be taken down and brought back."""
+
+    down = False
+
+    def _live(self, key: str) -> str | None:
+        if self.down:
+            raise ConnectionError("down")
+        return super()._live(key)
+
+    async def set(self, key: str, value: str, ttl: int | None = None) -> None:
+        if self.down:
+            raise ConnectionError("down")
+        await super().set(key, value, ttl)
+
+    async def ping(self) -> bool:
+        if self.down:
+            raise ConnectionError("down")
+        return True
+
 
 # ── DeviceCheck reinstall defence is actually armed ──────────────────────────
 # `note_exhausted` previously had no production caller, so `starting_balance`
@@ -781,6 +1014,39 @@ class TestReinstallDefenceWiring:
                 await auth.reserve_quota(principal)
         asyncio.run(run())
         assert dc.updated and dc.bits["bit0"] is True
+
+    def test_taking_the_last_scan_marks_the_device(self):
+        """The client stops at zero using the server's own count, so the
+        refused request that used to be the only thing setting the bit is
+        never sent. The reservation that spends the last scan has to set it."""
+        dc = _FakeDeviceCheck()
+        cache = ResilientCache(None, InMemoryCache())
+        build_deps()
+        auth.deps.cache = cache
+        auth.deps.quota = ScanQuota(cache, dc, limit=1)
+        principal = auth.Principal(subject="subj", tier="free", authenticated=True,
+                                   device_token="device-token")
+
+        async def run():
+            await auth.reserve_quota(principal)          # the one and only scan
+            await asyncio.gather(*auth._background)
+        asyncio.run(run())
+        assert dc.updated and dc.bits["bit0"] is True
+
+    def test_a_scan_with_allowance_left_does_not_mark(self):
+        dc = _FakeDeviceCheck()
+        cache = ResilientCache(None, InMemoryCache())
+        build_deps()
+        auth.deps.cache = cache
+        auth.deps.quota = ScanQuota(cache, dc, limit=3)
+        principal = auth.Principal(subject="subj", tier="free", authenticated=True,
+                                   device_token="device-token")
+
+        async def run():
+            await auth.reserve_quota(principal)
+            await asyncio.gather(*auth._background)
+        asyncio.run(run())
+        assert not dc.updated
 
     def test_pro_users_never_touch_devicecheck(self):
         dc = _FakeDeviceCheck()

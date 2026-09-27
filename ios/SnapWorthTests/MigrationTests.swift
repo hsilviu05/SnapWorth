@@ -568,6 +568,17 @@ final class PortfolioTrendTests: XCTestCase {
         XCTAssertEqual(pairs.count, 1)
     }
 
+    // ── VoiceOver ──────────────────────────────────────────────────────────
+
+    func test_theSparklineIsSpokenAsItsTwoEnds() {
+        // The line has no axes, so where it starts and where it ends is all
+        // it says — and all a Pro VoiceOver user got before was nothing.
+        let points = HistoryViewModel.trend(from: [pair(1, 45), pair(2, 1_195)])
+        XCTAssertEqual(HistoryViewModel.trendSummary(points), "$45 to $1,240")
+        XCTAssertNil(HistoryViewModel.trendSummary(Array(points.prefix(1))),
+                     "one point draws no line, so there is nothing to say")
+    }
+
     // ── Entitlement gating ─────────────────────────────────────────────────
 
     @MainActor

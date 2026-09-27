@@ -539,6 +539,81 @@ class TestConfidence:
         assert "brand" in sentence.lower()
         assert sentence.endswith(".")
 
+    def test_market_reason_attributes_the_read_to_the_ai(self):
+        """Demand and supply are the model's guess; the reason must say so.
+
+        The signal only measures whether the model filled both fields, and it
+        reaches the user as a confidence reason. It used to read "demand and
+        supply are well understood" — a claim about market knowledge SnapWorth
+        does not have.
+        """
+        for demand, supply in (("high", "moderate"), ("high", None), (None, None)):
+            signal = next(s for s in _compute(demand=demand, supply=supply).signals
+                          if s.name == "market")
+            assert "AI" in signal.explanation
+            assert "understood" not in signal.explanation
+
+    # ── Reads that cap rather than only contribute ─────────────────────────
+
+    def test_a_likely_replica_is_never_better_than_low(self):
+        """A Louis Vuitton the model marked `likely_replica` scored 88 High:
+        at 8% weight the authenticity read was outvoted by the brand and the
+        range. The price is for an item the photo probably is not."""
+        result = _compute(brand="Louis Vuitton", category="accessories",
+                          authenticity="likely_replica")
+        assert result.score <= confidence_module.REPLICA_CEILING
+        assert result.band == "Low"
+
+    def test_a_likely_replica_says_so_rather_than_cannot_verify(self):
+        result = _compute(authenticity="likely_replica")
+        assert "the item may not be authentic" in result.reasons
+        assert not any("could not be verified" in r for r in result.reasons)
+        cannot = _compute(authenticity="cannot_verify").signals
+        assert any(s.explanation == "authenticity could not be verified from the photo"
+                   for s in cannot)
+
+    def test_a_withheld_summary_reads_a_replica_as_unverified(self):
+        """The free tier's wording: the verdict is Pro detail, the cap is not."""
+        result = _compute(brand="Louis Vuitton", category="accessories",
+                          authenticity="likely_replica")
+        withheld = confidence_module.summary_sentence(result, withhold_authenticity=True)
+        assert "not be authentic" not in withheld
+        assert withheld.startswith("Low confidence — authenticity could not be verified")
+        assert "not be authentic" in confidence_module.summary_sentence(result)
+        # Nothing else changes: a read with no replica words is left alone.
+        plain = _compute(brand="Unknown")
+        assert (confidence_module.summary_sentence(plain, withhold_authenticity=True)
+                == confidence_module.summary_sentence(plain))
+
+    def test_an_uncertain_identification_is_never_high(self):
+        result = _compute(identification_certainty="uncertain")
+        assert result.score <= confidence_module.UNCERTAIN_ID_CEILING
+        assert result.band != "High"
+        assert "the item could not be identified with certainty" in result.reasons
+        # Probable is the model hedging on the exact model, not on what the
+        # item is, and is left to the weighted sum.
+        assert _compute(identification_certainty="probable").band == "High"
+
+    @pytest.mark.parametrize("spelling", ["Generic", "generic", " Unbranded ",
+                                          "N/A", "none", "null", ""])
+    def test_every_way_of_saying_no_brand_scores_as_no_brand(self, spelling):
+        """'Generic' scored 84 High where 'Unknown' scored 60 — one word of
+        model phrasing was worth about 25 points."""
+        assert _compute(brand=spelling).score == _compute(brand="Unknown").score
+
+    def test_one_unknown_brand_list_everywhere(self):
+        """notify tallied "Generic" as no brand and the eval's hallucination
+        check counted it as an asserted brand; both now read this list."""
+        import notify
+        from eval import metrics as eval_metrics
+
+        for spelling in confidence_module.UNKNOWN_BRANDS:
+            assert notify._clean_brand(spelling) is None
+            assert eval_metrics.hallucination_rate([
+                {"brand": spelling, "expected_brand": "Patagonia",
+                 "visual_evidence": ["tag"]}])["rate"] == 0.0
+        assert notify._clean_brand("Patagonia") == "Patagonia"
+
 
 # ── Image quality ────────────────────────────────────────────────────────────
 
@@ -1104,6 +1179,83 @@ class TestClampPreservesTheModelsPointEstimate:
         assert body["est_value_high_usd"] == 5_000.0
 
 
+class TestAPartialPriceReplyIsNotServed:
+    """One price is not a valuation.
+
+    With a single non-zero price, `reconcile_prices` set all four points to
+    it, the clamp widened the zero-width range by ×1.5, and confidence scored
+    that invented span as tight. Reproduced: a reply carrying only
+    `expected_price_usd: 60` was served as $60–$90 with a score of 82-92 —
+    "High confidence … the analysis came back partial". The same class as the
+    fixed "$1-5" bug: an incomplete reply presented as a considered answer.
+    """
+
+    _PRICE_KEYS = ("worst_case_price_usd", "quick_sale_price_usd",
+                   "expected_price_usd", "best_case_price_usd",
+                   "est_value_low_usd", "est_value_high_usd")
+
+    def _only(self, **prices):
+        payload = {k: v for k, v in V2_PAYLOAD.items() if k not in self._PRICE_KEYS}
+        payload.update(prices)
+        return payload
+
+    @pytest.mark.parametrize("key", ["expected_price_usd", "quick_sale_price_usd",
+                                     "worst_case_price_usd", "best_case_price_usd",
+                                     "est_value_high_usd"])
+    def test_a_reply_with_one_price_is_a_failed_scan(self, key):
+        r = _scan_with(self._only(**{key: 60}), pro=True)
+        assert r.status_code == 502
+        assert r.json()["detail"] == "The AI couldn't price this item. Please try again."
+
+    def test_two_different_prices_are_enough(self):
+        body = _scan_with(self._only(worst_case_price_usd=40,
+                                     expected_price_usd=60), pro=True).json()
+        assert (body["est_value_low_usd"], body["est_value_high_usd"]) == (40, 60)
+
+    def test_a_deliberate_point_estimate_is_still_served(self):
+        """Worst and best both written, and equal: the model committed to one
+        figure. That is still opened into a range (`clamp_valuation`), as it
+        always was — but the range is ours, so it earns no tightness credit."""
+        point = self._only(worst_case_price_usd=50, quick_sale_price_usd=50,
+                           expected_price_usd=50, best_case_price_usd=50)
+        body = _scan_with(point, pro=True).json()
+        assert body["est_value_low_usd"] == 50 and body["est_value_high_usd"] == 75
+        assert "the range was estimated from a single price" in body["confidence_reasons"]
+        # The score itself is compared in the unit test below: the fixture
+        # photo is soft enough that the image ceiling caps both of these.
+        given = _scan_with(self._only(worst_case_price_usd=50, quick_sale_price_usd=55,
+                                      expected_price_usd=60, best_case_price_usd=75),
+                           pro=True).json()
+        assert "the range was estimated from a single price" not in given["confidence_reasons"]
+
+    def test_what_the_model_supplied_is_counted_before_any_repair(self):
+        assert not reconcile_prices(worst=0, quick=0, expected=60, best=0).servable
+        assert reconcile_prices(worst=0, quick=0, expected=60, best=0).single_price
+        assert reconcile_prices(worst=50, quick=0, expected=0, best=50).servable
+        assert reconcile_prices(worst=50, quick=0, expected=0, best=50).single_price
+        assert reconcile_prices(worst=40, quick=0, expected=60, best=0).servable
+        assert not reconcile_prices(worst=0, quick=0, expected=0, best=0,
+                                    legacy_high=50).servable
+        assert reconcile_prices(worst=0, quick=0, expected=0, best=0,
+                                legacy_low=20, legacy_high=50).servable
+
+    def test_the_clamp_rebuild_does_not_launder_a_single_price(self):
+        """The rebuild is handed the clamped span — two numbers — and would
+        count them as the model's if the provenance were not carried over."""
+        val = normalise({"category": "clothing", "worst_case_price_usd": 50,
+                         "best_case_price_usd": 50})
+        low, high, _ = valuation_module.apply_price_bounds(val)
+        assert high > low, "opened into a range"
+        assert val.prices.single_price and val.prices.servable
+
+    def test_confidence_gives_a_synthesised_range_no_credit(self):
+        given = _compute(value_low=50, value_high=75)
+        made = _compute(value_low=50, value_high=75, range_synthesised=True)
+        assert made.score < given.score
+        range_signal = next(s for s in made.signals if s.name == "range")
+        assert range_signal.value == 0.0
+
+
 class TestProDetailGate:
     """The "Why this price" payload is Pro-only. Until now the gate was a
     `.blur()` in ResultView over data that had already left the server."""
@@ -1160,8 +1312,88 @@ class TestProDetailGate:
         assert body["confidence_score"] > 0
         assert body["confidence_summary"]
 
+    def test_the_replica_verdict_does_not_ride_the_free_summary(self):
+        """`confidence_summary` survives the strip, and a likely replica is the
+        first reason it names — so a free scan of a suspected fake carried the
+        authenticity verdict in its raw body, behind only the client's blur.
+
+        "Could not be verified" is not the leak: every doubtful authenticity
+        read produced it before the replica had its own words."""
+        replica = {**V2_PAYLOAD, "brand": "Louis Vuitton", "category": "accessories",
+                   "authenticity_assessment": "likely_replica"}
+        free = _scan_with(replica)
+        assert free.status_code == 200
+        assert "not be authentic" not in free.text
+        body = free.json()
+        assert "could not be verified" in body["confidence_summary"]
+        # The cap is kept: the badge a free user sees is still Low.
+        assert body["confidence"] == "Low"
+        assert body["confidence_score"] <= confidence_module.REPLICA_CEILING
+
+        pro = _scan_with(replica, pro=True).json()
+        assert "not be authentic" in pro["confidence_summary"]
+        assert confidence_module.REPLICA_REASON in pro["confidence_reasons"]
+
     def test_the_v1_contract_is_untouched_for_free_users(self):
         """Whatever else changes, an installed client must still decode."""
         body = _scan_with(V2_PAYLOAD).json()
         for field in TestScanResponseContract.V1_REQUIRED:
             assert body[field] is not None, f"{field} missing from a free scan"
+
+
+class TestTokensOnATextlessReplyAreCounted:
+    """A reply is billed whether or not it carries text.
+
+    Usage was recorded only after `extract_text` succeeded, so a safety block
+    or an empty reply — which is retried — left its tokens out of /costs,
+    $/scan and the budget alert. Up to MAX_OUTPUT_TOKENS per attempt.
+    """
+
+    class _Usage:
+        prompt_token_count = 1_300
+        candidates_token_count = 0
+        total_token_count = 9_492
+        thoughts_token_count = 8_192
+
+    def _reply(self, **kw):
+        resp = _Resp(**kw)
+        resp.usage_metadata = self._Usage()  # type: ignore[attr-defined]
+        return resp
+
+    def _run(self, *replies):
+        import asyncio
+        from unittest.mock import patch
+
+        import main
+
+        with patch("main._model") as model, \
+                patch("main._RETRY_BASE_DELAY", 0), \
+                patch.object(main, "_model_health", main._ModelHealth()), \
+                patch("main.notify.model_usage") as usage, \
+                patch("main.metrics.model_calls.inc") as calls:
+            model.generate_content_async = AsyncMock(side_effect=list(replies))
+            try:
+                asyncio.run(main._generate_with_retry("prompt", label="scan"))
+            except (aiconfig.ModelBlocked, aiconfig.ModelUnavailable):
+                pass
+        return usage, [c.kwargs.get("outcome") for c in calls.call_args_list]
+
+    def test_an_empty_reply_is_counted_on_every_attempt(self):
+        usage, outcomes = self._run(self._reply(text="", finish="STOP"),
+                                    self._reply(text="", finish="STOP"))
+        assert usage.call_count == 2
+        assert usage.call_args.args == ("scan", {
+            "prompt_tokens": 1_300, "output_tokens": 0,
+            "total_tokens": 9_492, "thoughts_tokens": 8_192})
+        assert outcomes.count("empty") == 2
+
+    def test_a_blocked_reply_is_counted(self):
+        usage, outcomes = self._run(self._reply(finish="SAFETY", raises=True))
+        assert usage.call_count == 1
+        assert usage.call_args.args[1]["thoughts_tokens"] == 8_192
+        assert "blocked" in outcomes
+
+    def test_a_good_reply_is_counted_once(self):
+        usage, outcomes = self._run(self._reply(text="{}", finish="STOP"))
+        assert usage.call_count == 1
+        assert outcomes == ["success"]

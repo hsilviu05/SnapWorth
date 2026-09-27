@@ -220,6 +220,14 @@ final class HistoryViewModel {
         return (0..<maxPoints).map { points[Int((Double($0) * stride).rounded())] }
     }
 
+    /// The sparkline in words, for VoiceOver: its first and last point. The
+    /// line has no axes, so those two are all it says. Nil below two points,
+    /// where no line is drawn.
+    nonisolated static func trendSummary(_ points: [TrendPoint]) -> String? {
+        guard points.count >= 2, let first = points.first, let last = points.last else { return nil }
+        return String(localized: "\(money(first.total)) to \(money(last.total))")
+    }
+
     func trendPoints(from results: [ScanResult]) -> [TrendPoint] {
         Self.trend(from: Self.trendPairs(for: results))
     }
