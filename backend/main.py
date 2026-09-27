@@ -906,8 +906,10 @@ async def _enforce_limits(device_id: str, ip: str | None) -> None:
 # of 1.0, i.e. full sampling randomness on a pricing task.
 _model = aiconfig.build_model()
 
-# Which prompt revision serves traffic. Env-switchable so a rollback to v1 is a
-# config change rather than a redeploy.
+# Which prompt revision serves traffic: v1, v2 or v2.1 (`prompts.PROMPTS`).
+# Env-switchable so moving between them, forward or back, is a config change
+# rather than a redeploy. An unknown value serves the default, so check a
+# scan's `prompt_version` after changing it.
 SCAN_PROMPT_VERSION = os.environ.get("SCAN_PROMPT_VERSION", prompts.DEFAULT_PROMPT_VERSION)
 
 

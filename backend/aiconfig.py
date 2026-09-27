@@ -92,6 +92,9 @@ SEED = int(os.environ.get("GEMINI_SEED", "20260728"))
 # failure was then papered over downstream and users were shown "$1-5", a
 # number no model ever produced. Raising the ceiling is the actual fix.
 #
+# That was v2's schema. v2.1 asks for the prices after all the evidence, so
+# they sit lower still, and this ceiling matters more under it, not less.
+#
 # 8192 is a cap, not a spend: unused headroom is not billed, and the tokens
 # already being burned on truncated answers are pure waste. Sized so the
 # worst observed thinking (~1800) plus a full payload (~900) still leaves
@@ -207,6 +210,11 @@ REQUEST_TIMEOUT_MS = int(os.environ.get("GEMINI_TIMEOUT_MS", "25000"))
 # `backend/eval/runner.py` at a candidate budget and compare, not to pick a
 # number here and ship it. `0` disables thinking entirely; the SDK also
 # accepts `-1` for "let the model decide", which is the current behaviour.
+#
+# Run that comparison on prompt v2.1 (`--compare v2.1 v2.1@512`), not v2. v2
+# asks for the prices before the evidence, and with less thinking the evidence
+# written after a price is a justification of it; v2.1 has the model write
+# what it saw first.
 _THINKING_BUDGET_RAW = os.environ.get("GEMINI_THINKING_BUDGET", "").strip()
 THINKING_BUDGET: int | None = (
     int(_THINKING_BUDGET_RAW) if _THINKING_BUDGET_RAW.lstrip("-").isdigit() else None

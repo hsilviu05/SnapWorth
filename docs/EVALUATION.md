@@ -212,6 +212,18 @@ reports accuracy, bias, calibration or hallucination: with no truth to measure
 against those metrics are absent, not zero. A shift says the cap *changes*
 prices, never that it makes them better or worse — that needs the gold set.
 
+The same run is the check before a prompt version becomes the default, and
+v2.1 is waiting on one (`DEFAULT_PROMPT_VERSION` in `backend/prompts.py`):
+
+```bash
+python -m eval.runner --photos ~/scans --repeats 3 \
+  --compare v2 v2.1 --json-out runs/v2.1.json
+```
+
+Measure a thinking cap on v2.1 (`--compare v2.1 v2.1@512`) rather than v2: v2.1
+asks for the evidence before the prices, so a smaller budget still has the
+model write what it saw before the number.
+
 ---
 
 ## Phase 4 — error analysis
