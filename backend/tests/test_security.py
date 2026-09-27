@@ -159,21 +159,34 @@ class TestFileUploadSecurity:
         is the *leftmost* — client-supplied — hop. Keying on it gave an attacker
         a fresh bucket per request. The key is the nearest hop that is not a
         known proxy, which is the address Railway appended.
+
+        Through uvicorn's own middleware, as deployed. A fake request whose
+        host is a socket peer let this pass while a header with no address in
+        it was keyed, in production, on the caller's leftmost entry.
         """
         import main
+        from starlette.applications import Starlette
+        from starlette.responses import PlainTextResponse
+        from starlette.routing import Route
+        from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 
-        class Req:
-            def __init__(self, xff=None, client="10.0.0.1"):
-                self.headers = Headers({"x-forwarded-for": xff} if xff else {})
-                self.client = type("C", (), {"host": client})() if client else None
+        async def echo(request):
+            return PlainTextResponse(main._client_ip(request))
+
+        deployed = TestClient(ProxyHeadersMiddleware(
+            Starlette(routes=[Route("/", echo)]), trusted_hosts="*"))
+
+        def key(xff=None):
+            return deployed.get("/", headers={"x-forwarded-for": xff} if xff else {}).text
 
         # Spoofed hops on the left are ignored; the hop Railway appended wins.
-        assert main._client_ip(Req("1.1.1.1, 2.2.2.2, 203.0.113.9")) == "203.0.113.9"
-        # Not an address, so never a key: request.client.host is the fallback.
-        assert main._client_ip(Req("evil")) == "10.0.0.1"
-        # No header at all: fall back to the socket peer.
-        assert main._client_ip(Req(None, client="198.51.100.4")) == "198.51.100.4"
-        assert main._client_ip(Req(None, client=None)) == "unknown"
+        assert key("1.1.1.1, 2.2.2.2, 203.0.113.9") == "203.0.113.9"
+        # Not an address, so never the caller's choice: one shared key, where
+        # request.client.host would be the leftmost entry, the caller's.
+        assert key("evil-a") == key("evil-b") == "unparseable"
+        assert key("evil-a, evil-b") == "unparseable"
+        # No header at all: the socket peer.
+        assert key() == "testclient"
 
     def test_client_ip_behind_railways_edge_is_the_caller(self):
         """What production sends on the path Railway does not route through
@@ -197,14 +210,15 @@ class TestFileUploadSecurity:
         import main
 
         class Req:
-            def __init__(self, xff: str, host: str | None = "10.0.0.1"):
-                self.headers = Headers({"x-forwarded-for": xff})
+            def __init__(self, xff: str | None, host: str | None = "10.0.0.1"):
+                self.headers = Headers({"x-forwarded-for": xff} if xff else {})
                 self.client = type("C", (), {"host": host})() if host else None
 
-        # Not an address, so the key is request.client.host, which uvicorn
-        # fills from the same header: it is truncated too.
-        assert len(main._client_ip(Req("x" * 500, host="x" * 500))) == 64
-        # An empty entry is skipped rather than keyed on as "unknown".
+        # Not an address: the one fixed key, whatever its length.
+        assert main._client_ip(Req("x" * 500, host="x" * 500)) == "unparseable"
+        # No header: the socket peer, truncated.
+        assert len(main._client_ip(Req(None, host="x" * 500))) == 64
+        # An empty entry is not a hop, rather than keyed on as "unknown".
         assert main._client_ip(Req("1.1.1.1,   ")) == "1.1.1.1"
         assert main._client_ip(Req(" ,   ", host=None)) == "unknown"
 

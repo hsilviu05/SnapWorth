@@ -18,10 +18,37 @@ import pytest
 from fastapi import HTTPException
 from starlette.datastructures import Headers
 
+from starlette.applications import Starlette
+from starlette.requests import Request
+from starlette.responses import PlainTextResponse
+from starlette.routing import Route
+from starlette.testclient import TestClient
+from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
+
 import auth
 import main
 import ratelimit
 from tests.test_main import client
+
+# The app as the container serves it: uvicorn runs with --proxy-headers and
+# --forwarded-allow-ips='*', so its middleware rewrites `request.client.host`
+# to the leftmost X-Forwarded-For entry before the app sees the request. A
+# fake request with a socket-peer host hides that.
+deployed = TestClient(ProxyHeadersMiddleware(main.app, trusted_hosts="*"))
+
+
+async def _echo_key(request: Request) -> PlainTextResponse:
+    return PlainTextResponse(ratelimit.client_ip(request))
+
+_echo = TestClient(ProxyHeadersMiddleware(
+    Starlette(routes=[Route("/", _echo_key)]), trusted_hosts="*"))
+
+
+def deployed_key(*lines: str) -> str:
+    """`client_ip` behind uvicorn's proxy-header middleware, as deployed."""
+    return _echo.get("/", headers=[("x-forwarded-for", line) for line in lines]).text
+
+UNPARSEABLE = "unparseable"
 
 CLIENT = "198.51.100.23"
 FORGED = "203.0.113.7"
@@ -184,23 +211,23 @@ class TestFallbacks:
         assert key(f"{FASTLY_V4}, {CGNAT}") == FASTLY_V4
         assert key(f"{CGNAT}, {FASTLY_V4}") == CGNAT
         assert key(FASTLY_V4) == FASTLY_V4
-        # The leftmost that parses, not the leftmost string.
-        assert key(f"junk, {CGNAT}, {FASTLY_V4}") == CGNAT
 
     @pytest.mark.parametrize("xff", [
         f" , {CLIENT} ,, {FASTLY_V4}",
-        f"{CLIENT}, not-an-ip, {FASTLY_V4}",
-        f"{CLIENT}, 999.1.1.1",
         f"{CLIENT}, ",
         f"{CLIENT},",
+        f",{CLIENT}",
     ])
-    def test_malformed_and_empty_entries_are_skipped(self, xff):
+    def test_empty_entries_are_not_hops(self, xff):
         assert key(xff) == CLIENT
 
-    @pytest.mark.parametrize("xff", ["evil", ",", " , ,", "   ", "999.1.1.1, x"])
-    def test_no_address_in_the_header_is_request_client_host(self, xff):
-        assert key(xff, host="192.0.2.4") == "192.0.2.4"
-        assert key(xff, host=None) == "unknown"
+    def test_no_entry_at_all_is_request_client_host(self):
+        """Nothing in the header to choose from, so nothing a caller chose:
+        uvicorn leaves the socket peer in place for an empty header."""
+        for xff in (",", " , ,", "   "):
+            assert key(xff, host="192.0.2.4") == "192.0.2.4"
+            assert key(xff, host=None) == "unknown"
+            assert deployed_key(xff) == "testclient"
 
     def test_no_header_is_request_client_host(self):
         assert key(None, host="192.0.2.4") == "192.0.2.4"
@@ -214,8 +241,48 @@ class TestFallbacks:
         scoped = "2001:db8::1%" + "z" * 200
         assert key(f"{scoped}, {FASTLY_V4}") == "2001:db8::/64"
         assert key("fe80::1%" + "z" * 200) == "fe80::/64"
-        assert key("junk", host="y" * 500) == "y" * 64
+        assert key("x" * 500, host="y" * 500) == UNPARSEABLE
         assert key(None, host="x" * 500) == "x" * 64
+
+
+class TestAHopThatIsNotAnAddress:
+    """The walk stops at the nearest hop it cannot vouch for, and keys every
+    request that stops there on one fixed value.
+
+    It used to skip such a hop and walk on to the left, and key on
+    `request.client.host` when nothing parsed. Deployed, that host is the
+    leftmost entry, written by the caller (`deployed`, above), so both ways
+    it reached the caller's end of the header: "evil-a, evil-b" was keyed on
+    evil-a where the rightmost rule had keyed evil-b, and were Railway ever
+    to append something that is not a bare address — an address with a port
+    — the key would be the caller's choice. The limit fails closed instead:
+    one bucket for everything that reads so, which no caller can multiply."""
+
+    def test_behind_uvicorn_no_address_is_one_bucket(self):
+        assert deployed_key("evil-a") == deployed_key("evil-b") == UNPARSEABLE
+        assert deployed_key("evil-a, evil-b") == UNPARSEABLE
+        assert deployed_key("r1, r2, junk") == UNPARSEABLE
+
+    def test_rotating_left_of_a_non_address_does_not_rotate_the_key(self):
+        keys = {deployed_key(f"evil-{n}, railway-token") for n in range(30)}
+        assert keys == {UNPARSEABLE}
+        keys = {deployed_key(f"203.0.113.{n}, {CLIENT}:5678") for n in range(1, 30)}
+        assert keys == {UNPARSEABLE}
+
+    @pytest.mark.parametrize("xff", [
+        f"{CLIENT}, not-an-ip, {FASTLY_V4}",
+        f"{CLIENT}, 999.1.1.1",
+        f"{CLIENT}:5678, {FASTLY_V4}",
+        f"junk, {CGNAT}, {FASTLY_V4}",
+        "evil", "999.1.1.1, x",
+    ])
+    def test_the_nearest_non_proxy_hop_decides(self, xff):
+        assert key(xff) == UNPARSEABLE
+        assert key(xff, host=None) == UNPARSEABLE
+
+    def test_a_non_address_left_of_the_client_is_never_reached(self):
+        assert key(f"evil, {CLIENT}, {FASTLY_V4}") == CLIENT
+        assert key(f"evil, {CLIENT}") == CLIENT
 
 
 class TestTheNote:
@@ -256,7 +323,8 @@ class TestTheNote:
     def test_the_fallbacks_say_which_they_were(self, caplog):
         lines = self.lines(caplog, [f"{FASTLY_V4}, {CGNAT}", "evil, junk"])
         assert lines[0].endswith("the leftmost address, as every address is one")
-        assert lines[1].endswith("request.client.host, as no hop is an address")
+        assert lines[1].endswith(
+            "a fixed one, as the nearest hop that is not one is not an address")
 
     def test_lines_are_capped_per_process(self, caplog):
         """Eleven distinct pairs, at most `_HOP_NOTE_LIMIT` lines."""
@@ -317,8 +385,9 @@ class TestEveryCallerUsesTheWalk:
 
 
 class TestTheRealLimiter:
-    """End to end: POST /auth/challenge through main's in-process IP bucket,
-    shrunk to `LIMIT` so a bypass shows as no 429 at all."""
+    """End to end: POST /auth/challenge behind uvicorn's proxy-header
+    middleware, as deployed, through main's in-process IP bucket shrunk to
+    `LIMIT`, so a bypass shows as no 429 at all."""
 
     LIMIT = 5
 
@@ -332,14 +401,14 @@ class TestTheRealLimiter:
         main._ip_rate_store.clear()
 
     def codes(self, xffs):
-        return [client.post("/auth/challenge", headers={"x-forwarded-for": x}).status_code
+        return [deployed.post("/auth/challenge", headers={"x-forwarded-for": x}).status_code
                 for x in xffs]
 
     def test_a_fixed_client_behind_fastly_is_refused_at_the_limit(self):
         assert self.codes([f"{CLIENT}, {FASTLY_V4}"] * 8) == [200] * 5 + [429] * 3
 
     def test_a_rotating_first_header_line_is_refused_at_the_limit(self):
-        codes = [client.post("/auth/challenge", headers=[
+        codes = [deployed.post("/auth/challenge", headers=[
                      ("x-forwarded-for", f"203.0.113.{n}"),
                      ("x-forwarded-for", f"{CLIENT}, {FASTLY_V4}")]).status_code
                  for n in range(1, 9)]
@@ -351,3 +420,9 @@ class TestTheRealLimiter:
             == [200] * 5 + [429] * 3
         main._ip_rate_store.clear()
         assert self.codes([str(net[n * 7919]) for n in range(1, 9)]) == [200] * 5 + [429] * 3
+
+    def test_rotating_a_header_that_is_not_an_address_is_refused_at_the_limit(self):
+        assert self.codes([f"evil-{n}" for n in range(8)]) == [200] * 5 + [429] * 3
+        main._ip_rate_store.clear()
+        assert self.codes([f"evil-{n}, railway-token" for n in range(8)]) \
+            == [200] * 5 + [429] * 3

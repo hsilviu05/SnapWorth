@@ -382,6 +382,13 @@ availability one.
    `ipv6_addresses`) and update the date beside it. Until then the users
    behind that edge share one bucket: too strict, never too loose.
 
+   The walk passes only hops it recognises. A hop that is not a bare address
+   (`unknown`, an address with a port) stops it, and every request that
+   stops there shares the one key `unparseable`. A note ending **`the
+   per-IP key is a fixed one, as the nearest hop that is not one is not an
+   address`** on app traffic means Railway changed the header's format and
+   everyone is in that one bucket: teach `_parse_hop` the new format.
+
    Don't switch to `X-Real-IP` (on the CDN path it holds Fastly's address),
    or to the leftmost hop alone. The leftmost is the caller only while
    Railway strips a client-supplied header, which was seen on the one path

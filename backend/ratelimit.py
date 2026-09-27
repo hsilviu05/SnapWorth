@@ -76,11 +76,13 @@ def client_ip(request: Any) -> str:
     counts. Not `X-Real-IP`: on the CDN path it holds Fastly's address (a
     Railway bug, per the same thread).
 
-    When no hop qualifies: if every hop is a known proxy, the leftmost that
-    parses. Only a caller connecting from a Fastly or internal address gets
-    there, and it could choose that hop only if Railway also stopped
-    stripping its header. If none parses, `request.client.host`; else
-    "unknown". A hop that is not an address is skipped, never keyed on.
+    The walk passes only hops it recognises as proxies. The nearest hop that
+    is not one but is not an address either stops it, and every such request
+    shares the one key `_UNPARSEABLE`. Skipping it instead, as this did at
+    first, walked on into the caller's end of the header. If every hop is a
+    known proxy, the leftmost. If the header is absent or holds no entry,
+    `request.client.host`, else "unknown" — never with a header present:
+    uvicorn rewrites that host to the leftmost entry, the caller's own.
     Truncated because the value reaches a cache key and is
     attacker-influenced.
 
@@ -97,12 +99,13 @@ def client_ip(request: Any) -> str:
     # line stand in for the whole header wherever a proxy adds its hop as a
     # separate line.
     xff = ",".join(request.headers.getlist("x-forwarded-for"))
-    if xff:
-        hops = xff.split(",")
+    hops = [hop.strip() for hop in xff.split(",") if hop.strip()]
+    if hops:
         key, skipped, source = _nearest_client_hop(hops)
         _note_hop_count(len(hops), skipped, source)
-        if key is not None:
-            return key[:64]
+        return key[:64]
+    # No header, or one with no entry in it: nothing a caller wrote, and
+    # uvicorn leaves the socket peer in place for an empty header.
     host = request.client.host if request.client else ""
     return host[:64] or "unknown"
 
@@ -139,9 +142,15 @@ _KNOWN_PROXIES = tuple(ipaddress.ip_network(r)
 _Address = ipaddress.IPv4Address | ipaddress.IPv6Address
 
 
+# The key for every request whose nearest hop that is not a known proxy is
+# not an address. One value, so that a caller who can put such a hop there
+# shares a bucket with every other one instead of choosing a fresh one.
+_UNPARSEABLE = "unparseable"
+
+
 def _parse_hop(hop: str) -> _Address | None:
     try:
-        return ipaddress.ip_address(hop.strip())
+        return ipaddress.ip_address(hop)
     except ValueError:
         return None
 
@@ -169,23 +178,26 @@ def _bucket_of(addr: _Address) -> str:
     return str(addr)
 
 
-def _nearest_client_hop(hops: list[str]) -> tuple[str | None, int, str]:
+def _nearest_client_hop(hops: list[str]) -> tuple[str, int, str]:
     """The key, how many known proxies were skipped to reach it, and where it
-    came from — the last in words with no address in them, for the note."""
+    came from — the last in words with no address in them, for the note.
+
+    `hops` are the header's non-empty entries, stripped. The walk passes only
+    hops it recognises as proxies: one that is not an address stops it, and
+    is keyed as `_UNPARSEABLE`, never skipped, since everything to its left
+    is further from us and so no more trustworthy."""
     skipped = 0
+    addrs: list[_Address] = []
     for hop in reversed(hops):
         addr = _parse_hop(hop)
         if addr is None:
-            continue
-        if _is_known_proxy(addr):
-            skipped += 1
-            continue
-        return _bucket_of(addr), skipped, "the nearest hop that is not one"
-    for hop in hops:
-        addr = _parse_hop(hop)
-        if addr is not None:
-            return _bucket_of(addr), skipped, "the leftmost address, as every address is one"
-    return None, skipped, "request.client.host, as no hop is an address"
+            return (_UNPARSEABLE, skipped,
+                    "a fixed one, as the nearest hop that is not one is not an address")
+        if not _is_known_proxy(addr):
+            return _bucket_of(addr), skipped, "the nearest hop that is not one"
+        skipped += 1
+        addrs.append(addr)
+    return _bucket_of(addrs[-1]), skipped, "the leftmost address, as every address is one"
 
 
 _HOP_COUNTS_SEEN: set[tuple[int, int]] = set()
