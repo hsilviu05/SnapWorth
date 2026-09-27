@@ -60,7 +60,6 @@ pattern as a backstop.
 from __future__ import annotations
 
 import asyncio
-import hashlib
 import html
 import json
 import logging
@@ -2243,9 +2242,10 @@ async def _tally_top(day: str, category: str, brand: str | None,
     A lost update between two replicas costs one count, which is fine for a
     tally that exists to say "clothing 5 · Nike ×3".
 
-    `device` is `_trend_device`'s tag for whoever scanned it, recorded beside
-    each category, brand and find so `/trends` can count devices rather than
-    scans — see `TRENDS_MIN_DEVICES`.
+    `device` is `_trend_device`'s keyed tag for whoever scanned it, recorded
+    beside each category, brand and find (at most TRENDS_MIN_DEVICES per
+    entry) so `/trends` can count devices rather than scans — see
+    `TRENDS_MIN_DEVICES`. It stays as long as the document, STATS_TTL.
     """
     key = _stat_key(day, "top")
     try:
@@ -2276,15 +2276,21 @@ async def _tally_top(day: str, category: str, brand: str | None,
 def _trend_device(subject: str | None) -> str | None:
     """A short tag meaning "a different device", for the `/trends` floor.
 
-    Derived from the audit pseudonym rather than being it, so the day's
-    tallies cannot be matched against `/users` or the audit log by eye. It is
-    no more anonymous than the pseudonym it comes from — anyone holding the
-    audit salt could recompute both — and it lives exactly as long as the day
-    document it sits in (STATS_TTL). None when the scan has no subject, which
-    counts toward nothing."""
+    Kept beside the categories, brands and finds a device scanned, for as
+    long as the day document (STATS_TTL, 35 days), and used for nothing but
+    counting distinct devices. So it must not be a join key. It was a plain
+    hash of the audit pseudonym, and the same cache holds every pseudonym in
+    full — `/users`'s index, each `/subs` row — so anyone who could read the
+    cache could recompute every tag and tie a device, and through its
+    subscription or a support mail a customer, to the items it scanned.
+
+    Now `auditlog.keyed_tag`: an HMAC under AUDIT_SALT, which lives in the
+    environment and never in the cache. Someone holding the salt and a
+    device's key id can still recompute its tag; nothing stored beside it
+    can. None when the scan has no subject, which counts toward nothing."""
     if not subject:
         return None
-    return hashlib.sha256(f"trends:{auditlog.pseudonymise(subject)}".encode()).hexdigest()[:8]
+    return auditlog.keyed_tag("trends", subject)
 
 
 def _add_device(devices, device: str | None) -> list[str]:
@@ -2337,8 +2343,12 @@ def _merge_finds(finds: list) -> list[dict]:
 
 def _find_record(*, item_name: str, brand: str | None, category: str,
                  low: float, high: float, tier: str) -> dict:
-    """What /finds keeps about a scan: the item and its price, nothing else.
-    The name is stripped of links and handles, as `_clean_brand` does."""
+    """A scan as /finds and /trends keep it: the item and its price. The name
+    is stripped of links and handles, as `_clean_brand` does.
+
+    Not quite all that is stored: `_tally_top` adds `d`, the keyed tags of the
+    devices behind the item (see `_trend_device`), so a find can be held back
+    until TRENDS_MIN_DEVICES have scanned it."""
     return {"n": _without_links(item_name)[:60] or "Unidentified item",
             "b": _clean_brand(brand), "c": _normalise_category(category),
             "lo": round(float(low)), "hi": round(float(high)),
@@ -2394,8 +2404,12 @@ def scan_completed(*, tier: str, item_name: str, brand: str | None, category: st
                    subject: str | None = None, elapsed_ms: int | None = None,
                    reread: bool = False) -> None:
     """A scan produced a valuation. Counts it, tallies what it was, and — when
-    the feed is on — tells the operator. Fire-and-forget; item and price only,
-    never who scanned it and never the photo.
+    the feed is on — tells the operator. Fire-and-forget; never the photo.
+
+    What the tallies keep is the item, its price, and `_trend_device`'s keyed
+    tag for the device, for STATS_TTL, only so `/trends` can count distinct
+    devices. The tag joins to nothing else the cache holds without AUDIT_SALT.
+    The feed message is item and price alone.
 
     Gated on the cache alone. The tallies are what `/trends` serves to the
     app, and this was their only writer: gated on Telegram as well, unsetting

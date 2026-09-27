@@ -826,6 +826,21 @@ class TestTopCategoriesAndBrands:
         pseudonym = notify.auditlog.pseudonymise(SUBJECT)
         assert pseudonym[:6] not in json.dumps(doc)
 
+    def test_the_tag_cannot_be_recomputed_from_what_the_cache_holds(self, monkeypatch):
+        """The same cache holds every pseudonym in full (/users, each /subs
+        row) and raw key ids (quota, entitlement keys). A tag that was a plain
+        hash of either could be recomputed from them, joining a device — and
+        its subscription — to what it scanned. It has to need the salt."""
+        import hashlib
+        pseudonym = notify.auditlog.pseudonymise(SUBJECT)
+        tag = notify._trend_device(SUBJECT)
+        unsalted = {hashlib.sha256(text.encode()).hexdigest()[:8]
+                    for text in (SUBJECT, pseudonym, f"trends:{SUBJECT}", f"trends:{pseudonym}")}
+        assert tag not in unsalted
+        assert notify._trend_device(SUBJECT) == tag      # stable, so it can count
+        monkeypatch.setattr(notify.auditlog, "_SALT", b"a-different-secret")
+        assert notify._trend_device(SUBJECT) != tag
+
     @pytest.mark.asyncio
     async def test_a_tag_reread_is_counted_but_not_tallied(self, enabled_notify, cache):
         scan()
