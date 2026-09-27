@@ -210,6 +210,14 @@
       "de": "%@, %@",
       "zh-Hans": "%@, %@"
     },
+    "%@, %@. Estimated total: %@": {
+      "comment": "Haul: VoiceOver announcement when the queue empties with some photos failed. First %@ is \"%lld photos valued\", second \"%lld photos couldn't be valued\", third a dollar amount. An estimate, never a sale.",
+      "en": "%@, %@. Estimated total: %@",
+      "ro": "%@, %@. Total estimat: %@",
+      "es": "%@, %@. Total estimado: %@",
+      "de": "%@, %@. Geschätzte Summe: %@",
+      "zh-Hans": "%@，%@。估计总额：%@"
+    },
     "%@, estimated %@": {
       "comment": "VoiceOver label for a history card: item name, then its value range.",
       "en": "%@, estimated %@",
@@ -506,6 +514,27 @@
       },
       "zh-Hans": "已售出 %lld 件"
     },
+    "%lld listings": {
+      "comment": "Inflected on its own and placed into \"Draft %@ for %@?\" — one plural key agrees with one number.",
+      "en": {
+        "one": "%lld listing",
+        "other": "%lld listings"
+      },
+      "ro": {
+        "one": "un anunț",
+        "few": "%lld anunțuri",
+        "other": "%lld de anunțuri"
+      },
+      "es": {
+        "one": "%lld anuncio",
+        "other": "%lld anuncios"
+      },
+      "de": {
+        "one": "%lld Inserat",
+        "other": "%lld Inserate"
+      },
+      "zh-Hans": "%lld 条商品描述"
+    },
     "%lld minutes": {
       "en": {
         "one": "%lld minute",
@@ -607,6 +636,68 @@
       },
       "zh-Hans": "%lld 件没填入手价"
     },
+    "%lld photos couldn't be valued": {
+      "comment": "Haul: photos the server refused or that failed. On the summary, in the total's VoiceOver value, and placed into \"%@, %@. Estimated total: %@\".",
+      "en": {
+        "one": "%lld photo couldn't be valued",
+        "other": "%lld photos couldn't be valued"
+      },
+      "ro": {
+        "one": "o fotografie nu a putut fi evaluată",
+        "few": "%lld fotografii nu au putut fi evaluate",
+        "other": "%lld de fotografii nu au putut fi evaluate"
+      },
+      "es": {
+        "one": "%lld foto no se pudo valorar",
+        "other": "%lld fotos no se pudieron valorar"
+      },
+      "de": {
+        "one": "%lld Foto konnte nicht bewertet werden",
+        "other": "%lld Fotos konnten nicht bewertet werden"
+      },
+      "zh-Hans": "%lld 张照片无法估价"
+    },
+    "%lld photos still being valued": {
+      "en": {
+        "one": "%lld photo still being valued",
+        "other": "%lld photos still being valued"
+      },
+      "ro": {
+        "one": "o fotografie încă în evaluare",
+        "few": "%lld fotografii încă în evaluare",
+        "other": "%lld de fotografii încă în evaluare"
+      },
+      "es": {
+        "one": "%lld foto aún en valoración",
+        "other": "%lld fotos aún en valoración"
+      },
+      "de": {
+        "one": "%lld Foto wird noch bewertet",
+        "other": "%lld Fotos werden noch bewertet"
+      },
+      "zh-Hans": "还有 %lld 张照片在估价"
+    },
+    "%lld photos valued": {
+      "comment": "Haul: VoiceOver announcement when the queue empties with some photos failed. Inflected on its own and placed into \"%@, %@. Estimated total: %@\".",
+      "en": {
+        "one": "%lld photo valued",
+        "other": "%lld photos valued"
+      },
+      "ro": {
+        "one": "o fotografie evaluată",
+        "few": "%lld fotografii evaluate",
+        "other": "%lld de fotografii evaluate"
+      },
+      "es": {
+        "one": "%lld foto valorada",
+        "other": "%lld fotos valoradas"
+      },
+      "de": {
+        "one": "%lld Foto bewertet",
+        "other": "%lld Fotos bewertet"
+      },
+      "zh-Hans": "%lld 张照片已估价"
+    },
     "%lld scans": {
       "comment": "Inflected on its own, then placed in the trending row's VoiceOver sentence.",
       "en": {
@@ -667,6 +758,27 @@
         "other": "%lld Sekunden"
       },
       "zh-Hans": "%lld 秒"
+    },
+    "%lld waiting": {
+      "comment": "Haul entry badge: photos from an earlier haul still waiting — to be valued, or, having failed, for Try again.",
+      "en": {
+        "one": "%lld waiting",
+        "other": "%lld waiting"
+      },
+      "ro": {
+        "one": "unul așteaptă",
+        "few": "%lld așteaptă",
+        "other": "%lld așteaptă"
+      },
+      "es": {
+        "one": "%lld pendiente",
+        "other": "%lld pendientes"
+      },
+      "de": {
+        "one": "%lld wartet",
+        "other": "%lld warten"
+      },
+      "zh-Hans": "%lld 张待估价"
     },
     "%lld weeks": {
       "en": {
@@ -937,6 +1049,14 @@
       "de": "Alle",
       "zh-Hans": "全部"
     },
+    "All photos valued. Estimated total: %@": {
+      "comment": "VoiceOver announcement. %@ is a dollar amount.",
+      "en": "All photos valued. Estimated total: %@",
+      "ro": "Toate fotografiile au fost evaluate. Total estimat: %@",
+      "es": "Todas las fotos valoradas. Total estimado: %@",
+      "de": "Alle Fotos bewertet. Geschätzte Summe: %@",
+      "zh-Hans": "所有照片已估价。估计总额：%@"
+    },
     "All-time profit": {
       "en": "All-time profit",
       "ro": "Profit total",
@@ -1196,6 +1316,14 @@
       "de": "Wird geprüft…",
       "zh-Hans": "正在验证…"
     },
+    "Choose a marketplace": {
+      "comment": "Empty choice of the Marketplace picker on the Haul summary.",
+      "en": "Choose a marketplace",
+      "ro": "Alege o platformă",
+      "es": "Elige una plataforma",
+      "de": "Marktplatz wählen",
+      "zh-Hans": "选择平台"
+    },
     "Choose from library": {
       "en": "Choose from library",
       "ro": "Alege din galerie",
@@ -1267,6 +1395,13 @@
       "de": "Schließen",
       "zh-Hans": "关闭"
     },
+    "Close now and they'll carry on the next time you open Haul.": {
+      "en": "Close now and they'll carry on the next time you open Haul.",
+      "ro": "Dacă închizi acum, continuăm data viitoare când deschizi modul Lot.",
+      "es": "Si cierras ahora, seguirán la próxima vez que abras el modo Lote.",
+      "de": "Wenn du jetzt schließt, geht es beim nächsten Öffnen des Stapel-Modus weiter.",
+      "zh-Hans": "现在关闭的话，下次打开批量模式时会继续。"
+    },
     "Closes this result and returns to the camera": {
       "en": "Closes this result and returns to the camera",
       "ro": "Închide rezultatul și te duce înapoi la cameră",
@@ -1320,6 +1455,13 @@
       "de": "Sicherheit %lld von 100",
       "zh-Hans": "置信度 %lld 分（满分 100）"
     },
+    "Confirming your subscription…": {
+      "en": "Confirming your subscription…",
+      "ro": "Confirmăm abonamentul…",
+      "es": "Confirmando tu suscripción…",
+      "de": "Dein Abo wird bestätigt …",
+      "zh-Hans": "正在确认你的订阅…"
+    },
     "Copied": {
       "en": "Copied",
       "ro": "Copiat",
@@ -1347,6 +1489,14 @@
       "es": "Copiar el borrador del anuncio",
       "de": "Inserat-Entwurf kopieren",
       "zh-Hans": "复制商品描述草稿"
+    },
+    "Copy listing for %@": {
+      "comment": "Haul summary: VoiceOver label of a draft's Copy button. %@ is the item's name.",
+      "en": "Copy listing for %@",
+      "ro": "Copiază anunțul pentru %@",
+      "es": "Copiar el anuncio de %@",
+      "de": "Inserat für %@ kopieren",
+      "zh-Hans": "复制“%@”的商品描述"
     },
     "Copy message and address": {
       "en": "Copy message and address",
@@ -1396,6 +1546,13 @@
       "es": "No se pudo borrar el historial",
       "de": "Der Verlauf konnte nicht gelöscht werden",
       "zh-Hans": "没能清空历史记录"
+    },
+    "Couldn't draft this one": {
+      "en": "Couldn't draft this one",
+      "ro": "Nu am putut scrie anunțul pentru acesta",
+      "es": "No se pudo redactar este",
+      "de": "Dafür konnte kein Entwurf erstellt werden",
+      "zh-Hans": "这件未能生成描述"
     },
     "Couldn't find a clear item in this photo, so it's left as it was.": {
       "en": "Couldn't find a clear item in this photo, so it's left as it was.",
@@ -1487,6 +1644,13 @@
       "es": "No empezó: revisa las Actividades en vivo en Ajustes",
       "de": "Nicht gestartet – prüf die Live-Aktivitäten in den Einstellungen",
       "zh-Hans": "没能开始，去“设置”里看看实时活动"
+    },
+    "Couldn't value this photo": {
+      "en": "Couldn't value this photo",
+      "ro": "Nu am putut evalua această fotografie",
+      "es": "No se pudo valorar esta foto",
+      "de": "Dieses Foto konnte nicht bewertet werden",
+      "zh-Hans": "无法为这张照片估价"
     },
     "Daily free scan": {
       "en": "Daily free scan",
@@ -1581,6 +1745,28 @@
       "de": "Bearbeiten beendet",
       "zh-Hans": "编辑完成"
     },
+    "Draft %@ for %@?": {
+      "comment": "Confirmation title. First %@ is \"%lld listings\", second is a marketplace name.",
+      "en": "Draft %@ for %@?",
+      "ro": "Scriem %@ pentru %@?",
+      "es": "¿Redactar %@ para %@?",
+      "de": "%@ für %@ entwerfen?",
+      "zh-Hans": "为 %2$@ 生成 %1$@？"
+    },
+    "Draft listings for all": {
+      "en": "Draft listings for all",
+      "ro": "Scrie anunțuri pentru toate",
+      "es": "Redactar anuncios para todos",
+      "de": "Inserate für alle entwerfen",
+      "zh-Hans": "为全部生成商品描述"
+    },
+    "Drafts use the same hourly limit as scans. Scanning may pause for up to an hour.": {
+      "en": "Drafts use the same hourly limit as scans. Scanning may pause for up to an hour.",
+      "ro": "Ciornele folosesc aceeași limită pe oră ca scanările. Scanarea se poate opri până la o oră.",
+      "es": "Los borradores usan el mismo límite por hora que los escaneos. El escaneo puede pausarse hasta una hora.",
+      "de": "Entwürfe nutzen dasselbe Stundenlimit wie Scans. Das Scannen kann bis zu einer Stunde pausieren.",
+      "zh-Hans": "商品描述与扫描共用每小时上限，扫描可能会暂停最多一小时。"
+    },
     "Edit": {
       "en": "Edit",
       "ro": "Editează",
@@ -1667,6 +1853,14 @@
       "de": "Geschätzter Wiederverkaufswert %@. Aus echten Verkäufen. %@.",
       "zh-Hans": "预计转卖价 %@。依据近期成交。%@。"
     },
+    "Estimated total": {
+      "comment": "Haul: caption over the running total of expected prices. An estimate, never a sale.",
+      "en": "Estimated total",
+      "ro": "Total estimat",
+      "es": "Total estimado",
+      "de": "Geschätzte Summe",
+      "zh-Hans": "估计总额"
+    },
     "Estimating resale value…": {
       "en": "Estimating resale value…",
       "ro": "Estimez prețul de revânzare…",
@@ -1751,6 +1945,14 @@
       "es": "Filtra por nombre de artículo o marca",
       "de": "Filtert nach Artikelname oder Marke",
       "zh-Hans": "按物品名称或品牌筛选"
+    },
+    "Finish": {
+      "comment": "Haul: ends capturing and opens the summary.",
+      "en": "Finish",
+      "ro": "Termină",
+      "es": "Terminar",
+      "de": "Abschließen",
+      "zh-Hans": "结束"
     },
     "Flexible, cancel anytime": {
       "en": "Flexible, cancel anytime",
@@ -1925,6 +2127,30 @@
       "de": "Haptisches Feedback",
       "zh-Hans": "触感反馈"
     },
+    "Haul": {
+      "comment": "Haul mode (#93): one session of scanning item after item, on the Scan tab's entry and alert title. Not the widget's \"haul\", which is the whole library (Colecție / Colección / Sammlung / 收获, in Widgets.json) — English uses one word for both; see ios/Localization/README.md.",
+      "en": "Haul",
+      "ro": "Lot",
+      "es": "Lote",
+      "de": "Stapel",
+      "zh-Hans": "批量"
+    },
+    "Haul mode is part of SnapWorth Pro. Your photos are kept for 14 days.": {
+      "comment": "14 is HaulPhotoStore.maxAge, in days; change both together.",
+      "en": "Haul mode is part of SnapWorth Pro. Your photos are kept for 14 days.",
+      "ro": "Modul Lot face parte din SnapWorth Pro. Fotografiile tale sunt păstrate 14 zile.",
+      "es": "El modo Lote forma parte de SnapWorth Pro. Tus fotos se conservan 14 días.",
+      "de": "Der Stapel-Modus gehört zu SnapWorth Pro. Deine Fotos bleiben 14 Tage erhalten.",
+      "zh-Hans": "批量模式属于 SnapWorth Pro。照片会保留 14 天。"
+    },
+    "Haul mode — snap item after item while each is valued, with a running total": {
+      "comment": "Paywall benefit row.",
+      "en": "Haul mode — snap item after item while each is valued, with a running total",
+      "ro": "Modul Lot — fotografiezi obiect după obiect și fiecare e evaluat pe loc, cu totalul la vedere",
+      "es": "Modo Lote: fotografía artículo tras artículo mientras se valora cada uno, con el total a la vista",
+      "de": "Stapel-Modus – Artikel für Artikel fotografieren, jeder wird nebenbei bewertet, mit laufender Summe",
+      "zh-Hans": "批量模式：一件接一件拍，边拍边估价，实时显示总额"
+    },
     "Have an invite code?": {
       "en": "Have an invite code?",
       "ro": "Ai un cod de invitație?",
@@ -2037,6 +2263,13 @@
       "es": "Las invitaciones están en pausa un momento. Inténtalo más tarde.",
       "de": "Einladungen sind kurz pausiert. Versuch es später noch einmal.",
       "zh-Hans": "邀请暂时停用了。请稍后再试。"
+    },
+    "Keep scanning": {
+      "en": "Keep scanning",
+      "ro": "Continuă scanarea",
+      "es": "Seguir escaneando",
+      "de": "Weiter scannen",
+      "zh-Hans": "继续扫描"
     },
     "Last 6 months": {
       "en": "Last 6 months",
@@ -2154,6 +2387,14 @@
       "es": "MIS REVENTAS · %@",
       "de": "MEINE FLIPS · %@",
       "zh-Hans": "我的转卖 · %@"
+    },
+    "MY HAUL": {
+      "comment": "Haul share card heading, set in capitals like \"MY FLIPS\".",
+      "en": "MY HAUL",
+      "ro": "LOTUL MEU",
+      "es": "MI LOTE",
+      "de": "MEIN STAPEL",
+      "zh-Hans": "我的这批"
     },
     "Manage subscription": {
       "en": "Manage subscription",
@@ -2578,6 +2819,14 @@
       "de": "Fotografier das Pflegeetikett, das Größenetikett oder die Sohlenprägung, und wir lesen den Artikel mit beiden Fotos neu.",
       "zh-Hans": "拍一下洗标、尺码标或鞋底钢印，我们会用两张照片重新识别这件物品。"
     },
+    "Photos in this haul": {
+      "comment": "VoiceOver label for Haul's strip of photos.",
+      "en": "Photos in this haul",
+      "ro": "Fotografiile din acest lot",
+      "es": "Fotos de este lote",
+      "de": "Fotos in diesem Stapel",
+      "zh-Hans": "本批照片"
+    },
     "Please wait for the current scan to finish": {
       "en": "Please wait for the current scan to finish",
       "ro": "Așteaptă să se termine scanarea curentă",
@@ -2778,6 +3027,13 @@
       "de": "Erinnere mich um",
       "zh-Hans": "提醒时间"
     },
+    "Remove photo": {
+      "en": "Remove photo",
+      "ro": "Elimină fotografia",
+      "es": "Eliminar la foto",
+      "de": "Foto entfernen",
+      "zh-Hans": "移除照片"
+    },
     "Removes the running total from your Lock Screen": {
       "en": "Removes the running total from your Lock Screen",
       "ro": "Scoate totalul turei de pe ecranul blocat",
@@ -2921,6 +3177,14 @@
       "de": "Scan fehlgeschlagen",
       "zh-Hans": "扫描失败"
     },
+    "Scan a pile of items one after another, with a running total": {
+      "comment": "VoiceOver hint for the Haul entry on the Scan tab.",
+      "en": "Scan a pile of items one after another, with a running total",
+      "ro": "Scanează un teanc de obiecte unul după altul, cu totalul la vedere",
+      "es": "Escanea un montón de artículos uno tras otro, con el total a la vista",
+      "de": "Scanne einen ganzen Stapel Artikel nacheinander, mit laufender Summe",
+      "zh-Hans": "连续扫描一堆物品，并实时显示总额"
+    },
     "Scan an item, then mark it Owned or Sold to start tracking your profit here.": {
       "en": "Scan an item, then mark it Owned or Sold to start tracking your profit here.",
       "ro": "Scanează un obiect, apoi marchează-l „În posesie” sau „Vândut” ca să îți urmărești profitul aici.",
@@ -2977,6 +3241,14 @@
       "es": "Escanear necesita un iPhone real: la verificación del dispositivo (App Attest) no existe en el simulador.",
       "de": "Scannen braucht ein echtes iPhone – die Geräteüberprüfung (App Attest) gibt es im Simulator nicht.",
       "zh-Hans": "扫描需要真机：模拟器上没有设备验证（App Attest）。"
+    },
+    "Scanning resumed": {
+      "comment": "VoiceOver announcement when a Haul pause ends.",
+      "en": "Scanning resumed",
+      "ro": "Scanarea a fost reluată",
+      "es": "Escaneo reanudado",
+      "de": "Scannen geht weiter",
+      "zh-Hans": "已恢复扫描"
     },
     "Search finds": {
       "en": "Search finds",
@@ -3043,6 +3315,13 @@
       "de": "Teilen",
       "zh-Hans": "分享"
     },
+    "Share all drafts": {
+      "en": "Share all drafts",
+      "ro": "Distribuie toate ciornele",
+      "es": "Compartir todos los borradores",
+      "de": "Alle Entwürfe teilen",
+      "zh-Hans": "分享全部商品描述"
+    },
     "Share anonymous analytics": {
       "en": "Share anonymous analytics",
       "ro": "Trimite statistici anonime",
@@ -3056,6 +3335,13 @@
       "es": "La tarjeta aún se está preparando",
       "de": "Die Karte wird noch vorbereitet",
       "zh-Hans": "分享卡片还在生成"
+    },
+    "Share haul": {
+      "en": "Share haul",
+      "ro": "Distribuie lotul",
+      "es": "Compartir el lote",
+      "de": "Stapel teilen",
+      "zh-Hans": "分享本批"
     },
     "Share invite": {
       "en": "Share invite",
@@ -3157,6 +3443,14 @@
       "de": "Überspringt die Einführung",
       "zh-Hans": "跳过介绍"
     },
+    "Snap each item — they're valued as you go.": {
+      "comment": "Haul: empty strip, before the first photo.",
+      "en": "Snap each item — they're valued as you go.",
+      "ro": "Fotografiază fiecare obiect — le evaluăm pe măsură ce avansezi.",
+      "es": "Fotografía cada artículo: los valoramos sobre la marcha.",
+      "de": "Fotografiere jeden Artikel – bewertet wird nebenbei.",
+      "zh-Hans": "逐件拍照，边拍边估价。"
+    },
     "Snap → Sell": {
       "comment": "Brand or feature name: the same in every language, deliberately (see DELIBERATELY_ENGLISH). In the catalog only so Xcode stops re-extracting it.",
       "en": "Snap → Sell",
@@ -3194,6 +3488,13 @@
       "es": "SnapWorth no puede añadir a tus fotos. Permítelo en Ajustes → SnapWorth → Fotos.",
       "de": "SnapWorth kann nichts zu deinen Fotos hinzufügen. Erlaube es unter Einstellungen → SnapWorth → Fotos.",
       "zh-Hans": "SnapWorth 无法添加到你的照片。请在“设置”→ SnapWorth →“照片”中允许。"
+    },
+    "SnapWorth couldn't confirm your Pro subscription yet, so the rest of this haul is on hold. Your photos are kept.": {
+      "en": "SnapWorth couldn't confirm your Pro subscription yet, so the rest of this haul is on hold. Your photos are kept.",
+      "ro": "SnapWorth nu a putut confirma încă abonamentul Pro, așa că restul lotului așteaptă. Fotografiile tale sunt păstrate.",
+      "es": "SnapWorth aún no ha podido confirmar tu suscripción Pro, así que el resto del lote queda en espera. Tus fotos se conservan.",
+      "de": "SnapWorth konnte dein Pro-Abo noch nicht bestätigen, deshalb wartet der Rest des Stapels. Deine Fotos bleiben erhalten.",
+      "zh-Hans": "SnapWorth 暂时无法确认你的 Pro 订阅，本批其余照片先暂缓。照片不会丢失。"
     },
     "SnapWorth couldn't open your library on this launch, so this find can't be saved to it. Reopening the app may fix it.": {
       "en": "SnapWorth couldn't open your library on this launch, so this find can't be saved to it. Reopening the app may fix it.",
@@ -3368,6 +3669,13 @@
       "de": "Behalt deine Flips im Blick",
       "zh-Hans": "别让转卖的事落下"
     },
+    "Stop drafting": {
+      "en": "Stop drafting",
+      "ro": "Oprește ciornele",
+      "es": "Dejar de redactar",
+      "de": "Entwürfe stoppen",
+      "zh-Hans": "停止生成"
+    },
     "Stops removing finds": {
       "en": "Stops removing finds",
       "ro": "Oprește ștergerea găselnițelor",
@@ -3468,6 +3776,13 @@
       "de": "Das hat nicht geklappt. Deine Schätzung bleibt unverändert.",
       "zh-Hans": "没成功，估价保持不变。"
     },
+    "That photo didn't take — try again.": {
+      "en": "That photo didn't take — try again.",
+      "ro": "Fotografia nu s-a făcut — încearcă din nou.",
+      "es": "La foto no se ha hecho: vuelve a intentarlo.",
+      "de": "Das Foto wurde nicht aufgenommen – versuch es noch einmal.",
+      "zh-Hans": "这张没拍成，请再拍一次。"
+    },
     "That's your own invite code. Share it with a friend instead.": {
       "en": "That's your own invite code. Share it with a friend instead.",
       "ro": "E propriul tău cod de invitație. Trimite-l unui prieten.",
@@ -3489,6 +3804,14 @@
       "de": "Die Anfrage hat zu lange gedauert. Versuch es noch einmal.",
       "zh-Hans": "请求超时。请再试一次。"
     },
+    "The rest are on hold so they don't run into the same problem.": {
+      "comment": "Haul: under the server's message when two photos in a row failed the same way.",
+      "en": "The rest are on hold so they don't run into the same problem.",
+      "ro": "Restul sunt puse în așteptare ca să nu dea de aceeași problemă.",
+      "es": "El resto queda en espera para que no se encuentre con el mismo problema.",
+      "de": "Der Rest wartet, damit er nicht auf dasselbe Problem stößt.",
+      "zh-Hans": "其余照片已暂缓，以免遇到同样的问题。"
+    },
     "Then %@. Cancel anytime.": {
       "en": "Then %@. Cancel anytime.",
       "ro": "Apoi %@. Anulezi oricând.",
@@ -3509,6 +3832,14 @@
       "es": "Este dispositivo no admite la verificación segura.",
       "de": "Dieses Gerät unterstützt die sichere Überprüfung nicht.",
       "zh-Hans": "这台设备不支持安全验证。"
+    },
+    "This haul": {
+      "comment": "Heading of the Haul summary.",
+      "en": "This haul",
+      "ro": "Acest lot",
+      "es": "Este lote",
+      "de": "Dieser Stapel",
+      "zh-Hans": "本批"
     },
     "This iPhone has no email account set up. Copy your message and send it to %@ from wherever you do have mail.": {
       "en": "This iPhone has no email account set up. Copy your message and send it to %@ from wherever you do have mail.",
@@ -3622,6 +3953,28 @@
       "es": "Inténtalo de nuevo",
       "de": "Noch einmal versuchen",
       "zh-Hans": "再试一次"
+    },
+    "Try again or remove it": {
+      "comment": "VoiceOver hint on a photo that could not be valued.",
+      "en": "Try again or remove it",
+      "ro": "Încearcă din nou sau elimin-o",
+      "es": "Vuelve a intentarlo o elimínala",
+      "de": "Versuch es noch einmal oder entferne es",
+      "zh-Hans": "重试或将其移除"
+    },
+    "Try all again": {
+      "en": "Try all again",
+      "ro": "Încearcă-le din nou pe toate",
+      "es": "Reintentar todas",
+      "de": "Alle erneut versuchen",
+      "zh-Hans": "全部重试"
+    },
+    "Try the rest": {
+      "en": "Try the rest",
+      "ro": "Încearcă-le pe celelalte",
+      "es": "Probar con el resto",
+      "de": "Rest versuchen",
+      "zh-Hans": "继续处理其余照片"
     },
     "Turn them on in iOS Settings to get these reminders.": {
       "en": "Turn them on in iOS Settings to get these reminders.",
@@ -3848,6 +4201,22 @@
       "es": "Esperando aprobación. Tu suscripción empieza en cuanto se apruebe: no hace falta que compres otra vez.",
       "de": "Warte auf die Freigabe. Dein Abo startet, sobald sie da ist – du musst nicht noch einmal kaufen.",
       "zh-Hans": "等待批准中。批准后订阅会立即生效，你不用再买一次。"
+    },
+    "Waiting to be drafted": {
+      "comment": "Haul summary: a valued item whose listing draft has not started yet.",
+      "en": "Waiting to be drafted",
+      "ro": "Așteaptă scrierea anunțului",
+      "es": "Pendiente de redactar",
+      "de": "Wartet auf Entwurf",
+      "zh-Hans": "等待生成商品描述"
+    },
+    "Waiting to be valued": {
+      "comment": "Haul: VoiceOver label of a photo not yet sent.",
+      "en": "Waiting to be valued",
+      "ro": "Așteaptă evaluarea",
+      "es": "Pendiente de valorar",
+      "de": "Wartet auf Bewertung",
+      "zh-Hans": "等待估价"
     },
     "We couldn't verify this device. Try again — if it keeps happening, reinstalling the app will reset it.": {
       "en": "We couldn't verify this device. Try again — if it keeps happening, reinstalling the app will reset it.",
@@ -4167,6 +4536,14 @@
       "de": "Deine Nachricht",
       "zh-Hans": "你的留言"
     },
+    "Your photos are kept — resuming in %@": {
+      "comment": "Haul pause banner. %@ is a live countdown (e.g. 12:40) on screen, and, spoken by VoiceOver, a duration from \"%lld minutes\" or \"%lld seconds\" (e.g. 12 minutes). The Chinese avoids 照片都已保存, which reads as saved to Photos.",
+      "en": "Your photos are kept — resuming in %@",
+      "ro": "Fotografiile tale sunt păstrate — reluăm peste %@",
+      "es": "Tus fotos se conservan: seguimos en %@",
+      "de": "Deine Fotos bleiben erhalten – weiter in %@",
+      "zh-Hans": "照片不会丢失，%@ 后继续"
+    },
     "Your purchase could not be verified.": {
       "en": "Your purchase could not be verified.",
       "ro": "Cumpărătura nu a putut fi verificată.",
@@ -4276,6 +4653,14 @@
       "de": "hohe Nachfrage",
       "zh-Hans": "需求高"
     },
+    "item scanned": {
+      "comment": "Haul share card, under the number 1. The number is drawn separately above it.",
+      "en": "item scanned",
+      "ro": "obiect scanat",
+      "es": "artículo escaneado",
+      "de": "Artikel gescannt",
+      "zh-Hans": "件已扫描"
+    },
     "item sold": {
       "comment": "Share card label under a count of 1.",
       "en": "item sold",
@@ -4283,6 +4668,14 @@
       "es": "artículo vendido",
       "de": "Artikel verkauft",
       "zh-Hans": "件已售出"
+    },
+    "items scanned": {
+      "comment": "Haul share card, under a number other than 1. The number is drawn separately above it.",
+      "en": "items scanned",
+      "ro": "obiecte scanate",
+      "es": "artículos escaneados",
+      "de": "Artikel gescannt",
+      "zh-Hans": "件已扫描"
     },
     "items sold": {
       "comment": "Share card label under a count.",
@@ -4367,6 +4760,14 @@
       "es": "oferta escasa",
       "de": "knappes Angebot",
       "zh-Hans": "货源稀少"
+    },
+    "top find": {
+      "comment": "Label for the most valuable item in a haul, on the summary and the share card. Lower case, like \"best flip\".",
+      "en": "top find",
+      "ro": "cea mai bună găselniță",
+      "es": "mejor hallazgo",
+      "de": "bester Fund",
+      "zh-Hans": "最值钱的一件"
     },
     "unchanged": {
       "en": "unchanged",

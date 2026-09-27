@@ -394,6 +394,130 @@ struct MonthShareCardView: View {
     }
 }
 
+// MARK: - Haul card (#93)
+
+/// The haul summary as a story: how many items, what they add up to, and the
+/// best of them. Same 540×960 canvas, fixed palette and QR footer as the
+/// cards above, rendered at `ResultViewModel.shareCardScale` to 1080×1920.
+///
+/// Takes finished values, like `MonthShareCardView`, so it never reaches
+/// into a live session while `ImageRenderer` is drawing it.
+///
+/// No photo. A haul is ten or more items, and a collage of phone snaps of a
+/// kitchen table is not a better story than the number. The total says
+/// "AI resale estimate" under it because that is exactly what it is.
+struct HaulShareCardView: View {
+    let itemCount: Int
+    let total: Decimal
+    let topFindName: String?
+    let topFindValue: Decimal?
+
+    static let cardWidth:  CGFloat = 540
+    static let cardHeight: CGFloat = 960
+    private let innerPad: CGFloat = 36
+
+    var body: some View {
+        VStack(spacing: 0) {
+            Spacer().frame(height: 104)
+
+            Text("MY HAUL")
+                .font(Font.dmSans(16, weight: .bold))
+                .tracking(2)
+                .foregroundStyle(Color(hex: "8B7D71"))
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, innerPad)
+
+            Text(verbatim: money(total))
+                .font(Font.fraunces(84, weight: .bold))
+                .foregroundStyle(Color(hex: "6F8F6B"))
+                .minimumScaleFactor(0.4)
+                .lineLimit(1)
+                .padding(.top, 24)
+                .padding(.horizontal, innerPad)
+
+            Text("AI resale estimate")
+                .font(Font.dmSans(18))
+                .foregroundStyle(Color(hex: "8B7D71"))
+                .padding(.top, 6)
+
+            Spacer().frame(height: 64)
+
+            HStack(alignment: .top, spacing: 0) {
+                // The bare noun, as on the month card: a plural key inflects a
+                // string containing the number, and the number here is the
+                // block's own value above it.
+                statBlock(value: "\(itemCount)",
+                          label: itemCount == 1 ? String(localized: "item scanned")
+                                                : String(localized: "items scanned"))
+                if let name = topFindName, let value = topFindValue {
+                    Rectangle().fill(Color(hex: "EFE6DC")).frame(width: 1, height: 72)
+                    statBlock(value: money(value), label: String(localized: "top find"), caption: name)
+                }
+            }
+            .padding(.horizontal, innerPad)
+
+            Spacer()
+
+            Rectangle()
+                .fill(Color(hex: "EFE6DC"))
+                .frame(height: 1)
+                .padding(.horizontal, innerPad)
+
+            HStack(spacing: 14) {
+                if let qr = snapShareCardQR() {
+                    Image(uiImage: qr)
+                        .interpolation(.none)
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 48, height: 48)
+                        .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                }
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("SnapWorth")
+                        .font(Font.fraunces(20, weight: .bold))
+                        .foregroundStyle(Color(hex: "2B211C"))
+                    Text("Get SnapWorth")
+                        .font(Font.dmSans(14))
+                        .foregroundStyle(Color(hex: "8B7D71"))
+                }
+                Spacer()
+            }
+            .padding(.horizontal, innerPad)
+            .padding(.top, 16)
+            .padding(.bottom, 44)
+        }
+        .frame(width: Self.cardWidth, height: Self.cardHeight)
+        .background(Color(hex: "FBF7F2"))
+    }
+
+    @ViewBuilder
+    private func statBlock(value: String, label: String, caption: String? = nil) -> some View {
+        VStack(spacing: 4) {
+            Text(verbatim: value)
+                .font(Font.fraunces(30, weight: .bold))
+                .foregroundStyle(Color(hex: "2B211C"))
+                .lineLimit(1)
+                .minimumScaleFactor(0.5)
+            Text(label)
+                .font(Font.dmSans(14))
+                .foregroundStyle(Color(hex: "8B7D71"))
+            if let caption {
+                Text(verbatim: caption)
+                    .font(Font.dmSans(12))
+                    .foregroundStyle(Color(hex: "8B7D71"))
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                    .padding(.horizontal, 10)
+            }
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    private func money(_ value: Decimal) -> String {
+        HistoryViewModel.money(value)
+    }
+}
+
 // MARK: - "Guess the price" (#95)
 
 /// The "guess before the estimate" preference: when on, a result opens with
@@ -686,4 +810,11 @@ struct GuessShareCardView: View {
         .scaleEffect(0.5, anchor: .top)
         .frame(width: 270, height: 480)
         .modelContainer(container)
+}
+
+#Preview("Haul — twelve items") {
+    HaulShareCardView(itemCount: 12, total: 486,
+                      topFindName: "Le Creuset Dutch Oven 5.5qt", topFindValue: 165)
+        .scaleEffect(0.5, anchor: .top)
+        .frame(width: 270, height: 480)
 }

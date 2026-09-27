@@ -91,6 +91,25 @@ enum AnalyticsEvent {
     // ── Thrift Flip ──────────────────────────────────────────────────
     case thriftFlipCalculated(verdict: String)
 
+    // ── Haul mode (#93) ──────────────────────────────────────────────
+    /// The haul summary was reached. `items` is a bucket from
+    /// `haulSizeBucket`, never the count — see there.
+    ///
+    /// Counts valued *and* still-pending photos: a haul whose last few are
+    /// waiting out a rate limit is still a haul of that size, and the pending
+    /// ones are valued, saved and counted as scans when they land. Counting
+    /// only the valued ones would shrink exactly the hauls big enough to hit
+    /// the limit.
+    ///
+    /// Once per haul at its first Finish, so a kill from the switcher does
+    /// not lose it. A haul that grows into a larger bucket after "Keep
+    /// scanning" reports again with `revised_from`, the bucket it replaces:
+    /// hauls are the events without it, and each revision moves one haul
+    /// from `revised_from` to `items`.
+    case haulCompleted(itemsBucket: String, revisedFrom: String? = nil)
+    /// The haul card left through the share sheet. Only a completed share.
+    case haulShared
+
     // ── My Flips ledger ──────────────────────────────────────────────
     case ledgerItemMarkedSold
     /// The step before a sale, which the funnel could not see: only `sold`
@@ -175,6 +194,8 @@ enum AnalyticsEvent {
         case .referralRedeemed:     return "referral_redeemed"
         case .referralRewarded:     return "referral_rewarded"
         case .thriftFlipCalculated: return "thrift_flip_calculated"
+        case .haulCompleted:        return "haul_completed"
+        case .haulShared:           return "haul_shared"
         case .ledgerItemMarkedSold: return "ledger_item_marked_sold"
         case .ledgerItemMarkedListed: return "ledger_item_marked_listed"
         case .ledgerDashboardViewed:return "ledger_dashboard_viewed"
@@ -237,6 +258,9 @@ enum AnalyticsEvent {
             return ["count": count, "kinds": kinds]
         case let .thriftFlipCalculated(verdict):
             return ["verdict": verdict]
+        case let .haulCompleted(bucket, revisedFrom):
+            guard let revisedFrom else { return ["items": bucket] }
+            return ["items": bucket, "revised_from": revisedFrom]
         case let .crashReported(signal, termination):
             return ["signal": signal, "termination": termination]
         case let .hangReported(bucket), let .launchTimeReported(bucket), let .scanStreak(bucket):
@@ -250,6 +274,23 @@ enum AnalyticsEvent {
             return ["enforced": String(enforced)]
         default:
             return [:]
+        }
+    }
+
+    /// Coarse buckets for `haul_completed` — never the exact count, for the
+    /// same reason `ScanStreak.bucket` exists: a closed set keeps the payload
+    /// bounded, and an exact number of items photographed in one sitting says
+    /// more about one person than a funnel needs to know.
+    ///
+    /// The edges follow what a haul is: one item is barely a haul, a bag from
+    /// one shop is a handful, and a sourcing trip is ten or more.
+    nonisolated static func haulSizeBucket(_ count: Int) -> String {
+        switch count {
+        case ..<2:   return "1"
+        case 2...4:  return "2-4"
+        case 5...9:  return "5-9"
+        case 10...14: return "10-14"
+        default:     return "15+"
         }
     }
 }
@@ -303,6 +344,10 @@ enum PaywallTrigger: String {
     case valuationDetail = "valuation_detail"
     case trends = "trends"
     case addTag = "add_tag"
+    /// The Haul entry on the Scan tab, and Haul's own "not included" banner
+    /// (#93). A quota 402 inside a haul is `.scanLimit`, and drafting from
+    /// the haul summary is `.snapSell` — each the funnel it already belongs to.
+    case haul = "haul"
 }
 
 // ═══════════════════════════════════════════════════════════════════

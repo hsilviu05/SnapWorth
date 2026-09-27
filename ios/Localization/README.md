@@ -175,6 +175,9 @@ language. Diacritics and sharp s are always written out.
   Activities), *Centru de control*, *Setări*.
 * The app's own nouns: a scan is a *scanare*, a find is a *găselniță*, the
   library is *Găselnițe*, the ledger is *Flipuri*, a flip stays a *flip*.
+* Haul (the camera mode, one session of scanning item after item) is a *Lot*,
+  and Haul mode is *Modul Lot*. The widgets' "haul" is the whole library and
+  is a *Colecție* — see "Two meanings of haul" below.
 * Quotation marks are the Romanian pair „ ", not " ".
 * *ș* and *ț* are written with the comma below (U+0219, U+021B), not the
   cedilla forms.
@@ -188,6 +191,8 @@ language. Diacritics and sharp s are always written out.
 * The app's own nouns: a scan is an *escaneo*, a find is a *hallazgo*, the
   library is *Mis hallazgos*, the ledger is *Mis reventas*, a flip is a
   *reventa*, and thrifting is *segunda mano*.
+* Haul (the camera mode, one session) is a *Lote* and Haul mode the *modo
+  Lote*; the widgets' "haul", the whole library, is a *Colección*.
 * Quotation marks are the Spanish angular pair « », not " ".
 * Opening ¿ and ¡ are always written.
 
@@ -200,6 +205,8 @@ language. Diacritics and sharp s are always written out.
 * The app's own nouns: a scan is a *Scan*, a find is a *Fund*, the library is
   *Meine Funde*, the ledger is *Meine Flips*, a flip stays a *Flip*, and
   thrifting is *Second Hand*.
+* Haul (the camera mode, one session) is a *Stapel* and Haul mode the
+  *Stapel-Modus*; the widgets' "haul", the whole library, is a *Sammlung*.
 * Quotation marks are the German pair „ ", not " ".
 * Compounds are written closed or hyphenated as German requires —
   *Wiederverkaufswert*, *Second-Hand-Tour*, *Gratis-Scan* — never spaced.
@@ -217,10 +224,23 @@ language. Diacritics and sharp s are always written out.
 * The app's own nouns: a scan is *扫描*, a find is *好物*, the library is
   *我的好物*, the ledger is *我的转卖*, a flip is *转卖*, a haul is *收获*, and
   thrifting is *淘货* / *二手*.
+* Haul the camera mode — one session — is *批量* and Haul mode *批量模式*.
+  *收获* above is the widgets' haul, the whole library.
 * Two arguments swap order more often here than in any other language — Chinese
   puts the period before the price in "前 3 个月 9.99 美元" — so several entries
   use positional specifiers (`%1$@`, `%2$@`). The builder checks that each one
   refers to an argument that exists and reads it as the right type.
+
+## Two meanings of haul
+
+English uses "haul" twice. The widgets call the whole library a haul —
+"Your haul", "Haul Value" — and Haul mode (#93) calls one session of
+scanning item after item a haul. The translations keep them apart, because
+the two are different things to a reader: *Colecție* / *Colección* /
+*Sammlung* / *收获* for the library, *Lot* / *Lote* / *Stapel* / *批量* for
+the session. The two catalogs are separate, so the key `Haul` holds one
+meaning in each: the library in `Widgets.json`, the camera mode in
+`App.json`. Whether the English should change too is the owner's call.
 
 ## Adding another language
 

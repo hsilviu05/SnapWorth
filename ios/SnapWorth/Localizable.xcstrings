@@ -994,6 +994,42 @@
         }
       }
     },
+    "%@, %@. Estimated total: %@" : {
+      "comment" : "Haul: VoiceOver announcement when the queue empties with some photos failed. First %@ is \"%lld photos valued\", second \"%lld photos couldn't be valued\", third a dollar amount. An estimate, never a sale.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@, %@. Geschätzte Summe: %@"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@, %@. Estimated total: %@"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@, %@. Total estimado: %@"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@, %@. Total estimat: %@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@，%@。估计总额：%@"
+          }
+        }
+      }
+    },
     "%@, estimated %@" : {
       "comment" : "VoiceOver label for a history card: item name, then its value range.",
       "extractionState" : "manual",
@@ -2316,6 +2352,96 @@
         }
       }
     },
+    "%lld listings" : {
+      "comment" : "Inflected on its own and placed into \"Draft %@ for %@?\" — one plural key agrees with one number.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld Inserat"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld Inserate"
+                }
+              }
+            }
+          }
+        },
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld listing"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld listings"
+                }
+              }
+            }
+          }
+        },
+        "es" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld anuncio"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld anuncios"
+                }
+              }
+            }
+          }
+        },
+        "ro" : {
+          "variations" : {
+            "plural" : {
+              "few" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld anunțuri"
+                }
+              },
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "un anunț"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld de anunțuri"
+                }
+              }
+            }
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld 条商品描述"
+          }
+        }
+      }
+    },
     "%lld minutes" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2762,6 +2888,275 @@
         }
       }
     },
+    "%lld photos couldn't be valued" : {
+      "comment" : "Haul: photos the server refused or that failed. On the summary, in the total's VoiceOver value, and placed into \"%@, %@. Estimated total: %@\".",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld Foto konnte nicht bewertet werden"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld Fotos konnten nicht bewertet werden"
+                }
+              }
+            }
+          }
+        },
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld photo couldn't be valued"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld photos couldn't be valued"
+                }
+              }
+            }
+          }
+        },
+        "es" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld foto no se pudo valorar"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld fotos no se pudieron valorar"
+                }
+              }
+            }
+          }
+        },
+        "ro" : {
+          "variations" : {
+            "plural" : {
+              "few" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld fotografii nu au putut fi evaluate"
+                }
+              },
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "o fotografie nu a putut fi evaluată"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld de fotografii nu au putut fi evaluate"
+                }
+              }
+            }
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld 张照片无法估价"
+          }
+        }
+      }
+    },
+    "%lld photos still being valued" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld Foto wird noch bewertet"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld Fotos werden noch bewertet"
+                }
+              }
+            }
+          }
+        },
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld photo still being valued"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld photos still being valued"
+                }
+              }
+            }
+          }
+        },
+        "es" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld foto aún en valoración"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld fotos aún en valoración"
+                }
+              }
+            }
+          }
+        },
+        "ro" : {
+          "variations" : {
+            "plural" : {
+              "few" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld fotografii încă în evaluare"
+                }
+              },
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "o fotografie încă în evaluare"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld de fotografii încă în evaluare"
+                }
+              }
+            }
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "还有 %lld 张照片在估价"
+          }
+        }
+      }
+    },
+    "%lld photos valued" : {
+      "comment" : "Haul: VoiceOver announcement when the queue empties with some photos failed. Inflected on its own and placed into \"%@, %@. Estimated total: %@\".",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld Foto bewertet"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld Fotos bewertet"
+                }
+              }
+            }
+          }
+        },
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld photo valued"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld photos valued"
+                }
+              }
+            }
+          }
+        },
+        "es" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld foto valorada"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld fotos valoradas"
+                }
+              }
+            }
+          }
+        },
+        "ro" : {
+          "variations" : {
+            "plural" : {
+              "few" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld fotografii evaluate"
+                }
+              },
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "o fotografie evaluată"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld de fotografii evaluate"
+                }
+              }
+            }
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld 张照片已估价"
+          }
+        }
+      }
+    },
     "%lld scans" : {
       "comment" : "Inflected on its own, then placed in the trending row's VoiceOver sentence.",
       "extractionState" : "manual",
@@ -3026,6 +3421,96 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%lld 秒"
+          }
+        }
+      }
+    },
+    "%lld waiting" : {
+      "comment" : "Haul entry badge: photos from an earlier haul still waiting — to be valued, or, having failed, for Try again.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld wartet"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld warten"
+                }
+              }
+            }
+          }
+        },
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld waiting"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld waiting"
+                }
+              }
+            }
+          }
+        },
+        "es" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld pendiente"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld pendientes"
+                }
+              }
+            }
+          }
+        },
+        "ro" : {
+          "variations" : {
+            "plural" : {
+              "few" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld așteaptă"
+                }
+              },
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "unul așteaptă"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld așteaptă"
+                }
+              }
+            }
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld 张待估价"
           }
         }
       }
@@ -4269,6 +4754,42 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "全部"
+          }
+        }
+      }
+    },
+    "All photos valued. Estimated total: %@" : {
+      "comment" : "VoiceOver announcement. %@ is a dollar amount.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Alle Fotos bewertet. Geschätzte Summe: %@"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "All photos valued. Estimated total: %@"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Todas las fotos valoradas. Total estimado: %@"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Toate fotografiile au fost evaluate. Total estimat: %@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "所有照片已估价。估计总额：%@"
           }
         }
       }
@@ -5540,6 +6061,42 @@
         }
       }
     },
+    "Choose a marketplace" : {
+      "comment" : "Empty choice of the Marketplace picker on the Haul summary.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Marktplatz wählen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choose a marketplace"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Elige una plataforma"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Alege o platformă"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "选择平台"
+          }
+        }
+      }
+    },
     "Choose from library" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -5891,6 +6448,41 @@
         }
       }
     },
+    "Close now and they'll carry on the next time you open Haul." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wenn du jetzt schließt, geht es beim nächsten Öffnen des Stapel-Modus weiter."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Close now and they'll carry on the next time you open Haul."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Si cierras ahora, seguirán la próxima vez que abras el modo Lote."
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dacă închizi acum, continuăm data viitoare când deschizi modul Lot."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "现在关闭的话，下次打开批量模式时会继续。"
+          }
+        }
+      }
+    },
     "Closes this result and returns to the camera" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -6140,6 +6732,41 @@
         }
       }
     },
+    "Confirming your subscription…" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dein Abo wird bestätigt …"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Confirming your subscription…"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Confirmando tu suscripción…"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Confirmăm abonamentul…"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在确认你的订阅…"
+          }
+        }
+      }
+    },
     "Copied" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -6276,6 +6903,42 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "复制商品描述草稿"
+          }
+        }
+      }
+    },
+    "Copy listing for %@" : {
+      "comment" : "Haul summary: VoiceOver label of a draft's Copy button. %@ is the item's name.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Inserat für %@ kopieren"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Copy listing for %@"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Copiar el anuncio de %@"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Copiază anunțul pentru %@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "复制“%@”的商品描述"
           }
         }
       }
@@ -6521,6 +7184,41 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "没能清空历史记录"
+          }
+        }
+      }
+    },
+    "Couldn't draft this one" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dafür konnte kein Entwurf erstellt werden"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couldn't draft this one"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No se pudo redactar este"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nu am putut scrie anunțul pentru acesta"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这件未能生成描述"
           }
         }
       }
@@ -6976,6 +7674,41 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "没能开始，去“设置”里看看实时活动"
+          }
+        }
+      }
+    },
+    "Couldn't value this photo" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dieses Foto konnte nicht bewertet werden"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couldn't value this photo"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No se pudo valorar esta foto"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nu am putut evalua această fotografie"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无法为这张照片估价"
           }
         }
       }
@@ -7437,6 +8170,112 @@
         }
       }
     },
+    "Draft %@ for %@?" : {
+      "comment" : "Confirmation title. First %@ is \"%lld listings\", second is a marketplace name.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ für %@ entwerfen?"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Draft %@ for %@?"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "¿Redactar %@ para %@?"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Scriem %@ pentru %@?"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "为 %2$@ 生成 %1$@？"
+          }
+        }
+      }
+    },
+    "Draft listings for all" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Inserate für alle entwerfen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Draft listings for all"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Redactar anuncios para todos"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Scrie anunțuri pentru toate"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "为全部生成商品描述"
+          }
+        }
+      }
+    },
+    "Drafts use the same hourly limit as scans. Scanning may pause for up to an hour." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Entwürfe nutzen dasselbe Stundenlimit wie Scans. Das Scannen kann bis zu einer Stunde pausieren."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Drafts use the same hourly limit as scans. Scanning may pause for up to an hour."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Los borradores usan el mismo límite por hora que los escaneos. El escaneo puede pausarse hasta una hora."
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ciornele folosesc aceeași limită pe oră ca scanările. Scanarea se poate opri până la o oră."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "商品描述与扫描共用每小时上限，扫描可能会暂停最多一小时。"
+          }
+        }
+      }
+    },
     "Edit" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -7859,6 +8698,42 @@
         }
       }
     },
+    "Estimated total" : {
+      "comment" : "Haul: caption over the running total of expected prices. An estimate, never a sale.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Geschätzte Summe"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Estimated total"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Total estimado"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Total estimat"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "估计总额"
+          }
+        }
+      }
+    },
     "Estimating resale value…" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -8276,6 +9151,42 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "按物品名称或品牌筛选"
+          }
+        }
+      }
+    },
+    "Finish" : {
+      "comment" : "Haul: ends capturing and opens the summary.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Abschließen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Finish"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Terminar"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Termină"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "结束"
           }
         }
       }
@@ -9125,6 +10036,114 @@
         }
       }
     },
+    "Haul" : {
+      "comment" : "Haul mode (#93): one session of scanning item after item, on the Scan tab's entry and alert title. Not the widget's \"haul\", which is the whole library (Colecție / Colección / Sammlung / 收获, in Widgets.json) — English uses one word for both; see ios/Localization/README.md.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Stapel"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Haul"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lote"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lot"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "批量"
+          }
+        }
+      }
+    },
+    "Haul mode is part of SnapWorth Pro. Your photos are kept for 14 days." : {
+      "comment" : "14 is HaulPhotoStore.maxAge, in days; change both together.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Der Stapel-Modus gehört zu SnapWorth Pro. Deine Fotos bleiben 14 Tage erhalten."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Haul mode is part of SnapWorth Pro. Your photos are kept for 14 days."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "El modo Lote forma parte de SnapWorth Pro. Tus fotos se conservan 14 días."
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Modul Lot face parte din SnapWorth Pro. Fotografiile tale sunt păstrate 14 zile."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "批量模式属于 SnapWorth Pro。照片会保留 14 天。"
+          }
+        }
+      }
+    },
+    "Haul mode — snap item after item while each is valued, with a running total" : {
+      "comment" : "Paywall benefit row.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Stapel-Modus – Artikel für Artikel fotografieren, jeder wird nebenbei bewertet, mit laufender Summe"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Haul mode — snap item after item while each is valued, with a running total"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Modo Lote: fotografía artículo tras artículo mientras se valora cada uno, con el total a la vista"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Modul Lot — fotografiezi obiect după obiect și fiecare e evaluat pe loc, cu totalul la vedere"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "批量模式：一件接一件拍，边拍边估价，实时显示总额"
+          }
+        }
+      }
+    },
     "Have an invite code?" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -9667,6 +10686,41 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "邀请暂时停用了。请稍后再试。"
+          }
+        }
+      }
+    },
+    "Keep scanning" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Weiter scannen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Keep scanning"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Seguir escaneando"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Continuă scanarea"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "继续扫描"
           }
         }
       }
@@ -10232,6 +11286,42 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "我的转卖 · %@"
+          }
+        }
+      }
+    },
+    "MY HAUL" : {
+      "comment" : "Haul share card heading, set in capitals like \"MY FLIPS\".",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "MEIN STAPEL"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "MY HAUL"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "MI LOTE"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "LOTUL MEU"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "我的这批"
           }
         }
       }
@@ -12283,6 +13373,42 @@
         }
       }
     },
+    "Photos in this haul" : {
+      "comment" : "VoiceOver label for Haul's strip of photos.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fotos in diesem Stapel"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Photos in this haul"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fotos de este lote"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fotografiile din acest lot"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "本批照片"
+          }
+        }
+      }
+    },
     "Please wait for the current scan to finish" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -13267,6 +14393,41 @@
         }
       }
     },
+    "Remove photo" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Foto entfernen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Remove photo"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Eliminar la foto"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Elimină fotografia"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "移除照片"
+          }
+        }
+      }
+    },
     "Removes the running total from your Lock Screen" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -13970,6 +15131,42 @@
         }
       }
     },
+    "Scan a pile of items one after another, with a running total" : {
+      "comment" : "VoiceOver hint for the Haul entry on the Scan tab.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Scanne einen ganzen Stapel Artikel nacheinander, mit laufender Summe"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Scan a pile of items one after another, with a running total"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Escanea un montón de artículos uno tras otro, con el total a la vista"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Scanează un teanc de obiecte unul după altul, cu totalul la vedere"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "连续扫描一堆物品，并实时显示总额"
+          }
+        }
+      }
+    },
     "Scan an item, then mark it Owned or Sold to start tracking your profit here." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -14247,6 +15444,42 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "扫描需要真机：模拟器上没有设备验证（App Attest）。"
+          }
+        }
+      }
+    },
+    "Scanning resumed" : {
+      "comment" : "VoiceOver announcement when a Haul pause ends.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Scannen geht weiter"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Scanning resumed"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Escaneo reanudado"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Scanarea a fost reluată"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已恢复扫描"
           }
         }
       }
@@ -14568,6 +15801,41 @@
         }
       }
     },
+    "Share all drafts" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Alle Entwürfe teilen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Share all drafts"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Compartir todos los borradores"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Distribuie toate ciornele"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "分享全部商品描述"
+          }
+        }
+      }
+    },
     "Share anonymous analytics" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -14634,6 +15902,41 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "分享卡片还在生成"
+          }
+        }
+      }
+    },
+    "Share haul" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Stapel teilen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Share haul"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Compartir el lote"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Distribuie lotul"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "分享本批"
           }
         }
       }
@@ -15130,6 +16433,42 @@
         }
       }
     },
+    "Snap each item — they're valued as you go." : {
+      "comment" : "Haul: empty strip, before the first photo.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fotografiere jeden Artikel – bewertet wird nebenbei."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Snap each item — they're valued as you go."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fotografía cada artículo: los valoramos sobre la marcha."
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fotografiază fiecare obiect — le evaluăm pe măsură ce avansezi."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "逐件拍照，边拍边估价。"
+          }
+        }
+      }
+    },
     "Snap → Sell" : {
       "comment" : "Brand or feature name: the same in every language, deliberately (see DELIBERATELY_ENGLISH). In the catalog only so Xcode stops re-extracting it.",
       "extractionState" : "manual",
@@ -15304,6 +16643,41 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "SnapWorth 无法添加到你的照片。请在“设置”→ SnapWorth →“照片”中允许。"
+          }
+        }
+      }
+    },
+    "SnapWorth couldn't confirm your Pro subscription yet, so the rest of this haul is on hold. Your photos are kept." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SnapWorth konnte dein Pro-Abo noch nicht bestätigen, deshalb wartet der Rest des Stapels. Deine Fotos bleiben erhalten."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SnapWorth couldn't confirm your Pro subscription yet, so the rest of this haul is on hold. Your photos are kept."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SnapWorth aún no ha podido confirmar tu suscripción Pro, así que el resto del lote queda en espera. Tus fotos se conservan."
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SnapWorth nu a putut confirma încă abonamentul Pro, așa că restul lotului așteaptă. Fotografiile tale sunt păstrate."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SnapWorth 暂时无法确认你的 Pro 订阅，本批其余照片先暂缓。照片不会丢失。"
           }
         }
       }
@@ -16153,6 +17527,41 @@
         }
       }
     },
+    "Stop drafting" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Entwürfe stoppen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Stop drafting"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dejar de redactar"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Oprește ciornele"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "停止生成"
+          }
+        }
+      }
+    },
     "Stops removing finds" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -16645,6 +18054,41 @@
         }
       }
     },
+    "That photo didn't take — try again." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Das Foto wurde nicht aufgenommen – versuch es noch einmal."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "That photo didn't take — try again."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La foto no se ha hecho: vuelve a intentarlo."
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fotografia nu s-a făcut — încearcă din nou."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这张没拍成，请再拍一次。"
+          }
+        }
+      }
+    },
     "That's your own invite code. Share it with a friend instead." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -16750,6 +18194,42 @@
         }
       }
     },
+    "The rest are on hold so they don't run into the same problem." : {
+      "comment" : "Haul: under the server's message when two photos in a row failed the same way.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Der Rest wartet, damit er nicht auf dasselbe Problem stößt."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The rest are on hold so they don't run into the same problem."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "El resto queda en espera para que no se encuentre con el mismo problema."
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Restul sunt puse în așteptare ca să nu dea de aceeași problemă."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "其余照片已暂缓，以免遇到同样的问题。"
+          }
+        }
+      }
+    },
     "Then %@. Cancel anytime." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -16851,6 +18331,42 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "这台设备不支持安全验证。"
+          }
+        }
+      }
+    },
+    "This haul" : {
+      "comment" : "Heading of the Haul summary.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dieser Stapel"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This haul"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Este lote"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Acest lot"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "本批"
           }
         }
       }
@@ -17397,6 +18913,112 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "再试一次"
+          }
+        }
+      }
+    },
+    "Try again or remove it" : {
+      "comment" : "VoiceOver hint on a photo that could not be valued.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Versuch es noch einmal oder entferne es"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Try again or remove it"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vuelve a intentarlo o elimínala"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Încearcă din nou sau elimin-o"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重试或将其移除"
+          }
+        }
+      }
+    },
+    "Try all again" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Alle erneut versuchen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Try all again"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reintentar todas"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Încearcă-le din nou pe toate"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "全部重试"
+          }
+        }
+      }
+    },
+    "Try the rest" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rest versuchen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Try the rest"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Probar con el resto"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Încearcă-le pe celelalte"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "继续处理其余照片"
           }
         }
       }
@@ -18459,6 +20081,78 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "等待批准中。批准后订阅会立即生效，你不用再买一次。"
+          }
+        }
+      }
+    },
+    "Waiting to be drafted" : {
+      "comment" : "Haul summary: a valued item whose listing draft has not started yet.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wartet auf Entwurf"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Waiting to be drafted"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pendiente de redactar"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Așteaptă scrierea anunțului"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "等待生成商品描述"
+          }
+        }
+      }
+    },
+    "Waiting to be valued" : {
+      "comment" : "Haul: VoiceOver label of a photo not yet sent.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wartet auf Bewertung"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Waiting to be valued"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pendiente de valorar"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Așteaptă evaluarea"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "等待估价"
           }
         }
       }
@@ -20011,6 +21705,42 @@
         }
       }
     },
+    "Your photos are kept — resuming in %@" : {
+      "comment" : "Haul pause banner. %@ is a live countdown (e.g. 12:40) on screen, and, spoken by VoiceOver, a duration from \"%lld minutes\" or \"%lld seconds\" (e.g. 12 minutes). The Chinese avoids 照片都已保存, which reads as saved to Photos.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Deine Fotos bleiben erhalten – weiter in %@"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Your photos are kept — resuming in %@"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tus fotos se conservan: seguimos en %@"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fotografiile tale sunt păstrate — reluăm peste %@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "照片不会丢失，%@ 后继续"
+          }
+        }
+      }
+    },
     "Your purchase could not be verified." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -20540,6 +22270,42 @@
         }
       }
     },
+    "item scanned" : {
+      "comment" : "Haul share card, under the number 1. The number is drawn separately above it.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Artikel gescannt"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "item scanned"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "artículo escaneado"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "obiect scanat"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "件已扫描"
+          }
+        }
+      }
+    },
     "item sold" : {
       "comment" : "Share card label under a count of 1.",
       "extractionState" : "manual",
@@ -20572,6 +22338,42 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "件已售出"
+          }
+        }
+      }
+    },
+    "items scanned" : {
+      "comment" : "Haul share card, under a number other than 1. The number is drawn separately above it.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Artikel gescannt"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "items scanned"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "artículos escaneados"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "obiecte scanate"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "件已扫描"
           }
         }
       }
@@ -20964,6 +22766,42 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "货源稀少"
+          }
+        }
+      }
+    },
+    "top find" : {
+      "comment" : "Label for the most valuable item in a haul, on the summary and the share card. Lower case, like \"best flip\".",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "bester Fund"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "top find"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "mejor hallazgo"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "cea mai bună găselniță"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "最值钱的一件"
           }
         }
       }

@@ -116,7 +116,10 @@ final class ScanRepository {
         scheduleWidgetSync()
     }
 
-    func deleteAll(_ results: [ScanResult]) throws {
+    /// - Parameter pendingPhotos: where Haul mode keeps photos it has not
+    ///   valued yet. A parameter only so a test can pass a temporary directory.
+    func deleteAll(_ results: [ScanResult],
+                   pendingPhotos: HaulPhotoStore = .live) throws {
         results.forEach { context.delete($0) }
         do {
             try context.save()
@@ -124,6 +127,11 @@ final class ScanRepository {
             context.rollback()
             throw AppError.persistence
         }
+        // Haul photos still waiting for a valuation are finds-to-be. Left
+        // behind, the next Haul open would value them and put them straight
+        // back into the library the user has just emptied. A scan already in
+        // flight is not recalled: it lands, and saves, a moment later.
+        HaulSession.discardAllPending(store: pendingPhotos)
         NotificationManager.shared.cancelAllLedger()
         WidgetDataStore.writeHaul(results: [])
         // And the run, which is computed from the same array. Every other
