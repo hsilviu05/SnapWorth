@@ -41,6 +41,12 @@ Every locale follows these; the translated files point here.
   taken"). Until one is, the estimate is an AI estimate with a range and a
   confidence score, and nothing stronger. "Accurate" sat in the description
   from a26e321 until 1.5.1 and was live on the US store.
+* **"Unlimited scans" without its fair-use qualifier** — in every locale, and
+  in the paywall's footnote it mirrors. Pro scans are capped per device per
+  hour on the server (`PRO_SCAN_RATE_MAX_REQUESTS`, 60; RUNBOOK §5.8), and one
+  address is capped at 60 requests an hour across scans, drafts and trends.
+  Nor a number: the caps are server configuration, and a figure here would
+  outlive a change to them.
 * **Confidence as "how clearly the AI identified the item".** That was v1,
   the model rating itself. The score since v2 (`backend/confidence.py`) weighs
   whether the brand was read, how tight the range is, how clear the photo is,
@@ -144,7 +150,7 @@ FREE & PRO
 SnapWorth is free to try — no account needed. You get one free scan every day, forever. Every find is saved to your device with its value, and your history is yours whether you pay or not.
 
 Pro adds:
-• Unlimited scans
+• Unlimited scans (fair use applies)
 • Listing drafts rewritten for the marketplace you pick — eBay, Poshmark, Mercari, Depop, Facebook Marketplace, Vinted, OLX, Kleinanzeigen or Xianyu
 • Why this price — the full breakdown behind an estimate, including the price ladder and what drove the value
 • Read the care tag — photograph the label for a sharper estimate
@@ -261,6 +267,9 @@ this goes onto 1.5.1 before it is submitted.
       and drops "accurate".
 - [ ] **Description** (other four locales): paste in full; each gained the
       same Thrift Flip, widgets and confidence lines.
+- [ ] **"Unlimited scans (fair use applies)"** is new in all five
+      descriptions. The cap it qualifies is the server's (RUNBOOK §5.8), not
+      the binary's, so the line is true whichever build is live.
 - [ ] **App Privacy** (app-level, not per version, but it must match the
       manifest in the 1.5.1 binary): add Purchases → Purchase History, used
       for App Functionality, linked to the user, not used for tracking. The

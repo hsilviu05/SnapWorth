@@ -61,7 +61,10 @@ from observability import RequestContextMiddleware, configure_production_logging
 from quota import FREE_SCANS_PER_DAY, ScanQuota
 from ratelimit import (
     IP_RATE_MAX_REQUESTS,
+    LISTING_RATE_MAX_REQUESTS,
+    PRO_SCAN_RATE_MAX_REQUESTS,
     RATE_MAX_REQUESTS,
+    TRENDS_RATE_MAX_REQUESTS,
     # Unused in this module — re-exported so `from main import RATE_WINDOW_SECS`
     # keeps working for the rate-limit tests, which build stale entries relative
     # to the window. A linter reports it as an unused import; removing it breaks
@@ -240,7 +243,10 @@ async def _lifespan(_app: FastAPI):
     notify.configure(_cache, status_provider=_status_snapshot,
                      social=social_readers if social_readers.configured else None,
                      generator=_bot_generate, scanner=_bot_scan,
-                     device_check_probe=dc.verify)
+                     device_check_probe=dc.verify,
+                     # The other direction of `welcome_override`: the bot asks
+                     # this quota what the welcome is instead of re-deriving it.
+                     welcome=auth.deps.quota.describe_welcome)
 
     cfg = auth.deps.config
     if cfg.enforce and not cfg.is_configured:
@@ -810,19 +816,36 @@ def _client_ip(request: Request) -> str:
     return ratelimit.client_ip(request)
 
 
-def _check_rate_limit(device_id: str, ip: str | None = None) -> None:
+#: The per-device buckets other than the scan one, which has no name: it is
+#: keyed `dev:<subject>` in Redis and by the bare subject in process, as it
+#: was when it was the only bucket, so a deploy neither resets nor re-keys it.
+#: Sizes and the reason each route has its own are in `ratelimit`.
+LISTING_BUCKET = "listing"
+TRENDS_BUCKET = "trends"
+
+
+def _scan_rate_limit(principal: Principal) -> int:
+    """The scan bucket's size for this caller: Pro's fair-use ceiling, or the
+    free tier's cap. From the verified principal, like every tier decision."""
+    return PRO_SCAN_RATE_MAX_REQUESTS if principal.is_pro else RATE_MAX_REQUESTS
+
+
+def _check_rate_limit(device_id: str, ip: str | None = None, *,
+                      bucket: str | None = None, limit: int = RATE_MAX_REQUESTS) -> None:
     """Synchronous, in-process limit check.
 
     Retained as the direct-call entry point (and the Redis-less path). Endpoints
-    use `_enforce_limits`, which prefers the distributed limiter.
+    use `_enforce_limits`, which prefers the distributed limiter. `bucket`
+    None is the scan bucket.
     """
     device_id = device_id[:64]
+    key = device_id if bucket is None else f"{bucket}:{device_id}"
     try:
         # IP first — device id is client-supplied and trivially rotated per
         # request, so it can only ever be a secondary signal. Callers may omit it.
         if ip is not None:
             _ip_memory.check_sync(ip, IP_RATE_MAX_REQUESTS)
-        _device_memory.check_sync(device_id, RATE_MAX_REQUESTS)
+        _device_memory.check_sync(key, limit)
     except RateLimitExceeded as exc:
         raise HTTPException(status_code=429, detail=exc.message,
                             headers={"Retry-After": str(exc.retry_after)}) from None
@@ -931,16 +954,22 @@ async def _enforce_referral_limit(route: str, subject: str, ip: str | None) -> N
                             headers={"Retry-After": str(exc.retry_after)}) from None
 
 
-async def _enforce_limits(device_id: str, ip: str | None) -> None:
-    """Distributed limit check used by the request path."""
+async def _enforce_limits(device_id: str, ip: str | None, *,
+                          bucket: str | None = None, limit: int = RATE_MAX_REQUESTS) -> None:
+    """Distributed limit check used by the request path.
+
+    The IP bucket is one for every route; the device bucket is the route's
+    own (`bucket`, None for scans) at `limit`.
+    """
     device_id = device_id[:64]
     if _device_limiter is None or _ip_limiter is None:
-        _check_rate_limit(device_id, ip)          # startup hook hasn't run
+        # Startup hook hasn't run.
+        _check_rate_limit(device_id, ip, bucket=bucket, limit=limit)
         return
     try:
         if ip is not None:
             await _ip_limiter.check(f"ip:{ip}", IP_RATE_MAX_REQUESTS)
-        await _device_limiter.check(f"dev:{device_id}", RATE_MAX_REQUESTS)
+        await _device_limiter.check(f"{bucket or 'dev'}:{device_id}", limit)
     except RateLimitExceeded as exc:
         raise HTTPException(status_code=429, detail=exc.message,
                             headers={"Retry-After": str(exc.retry_after)}) from None
@@ -951,8 +980,11 @@ async def _enforce_limits(device_id: str, ip: str | None) -> None:
 # of 1.0, i.e. full sampling randomness on a pricing task.
 _model = aiconfig.build_model()
 
-# Which prompt revision serves traffic. Env-switchable so a rollback to v1 is a
-# config change rather than a redeploy.
+# Which prompt revision serves traffic: v1, v2 or v2.1 (`prompts.PROMPTS`).
+# Env-switchable so moving between them, forward or back, is a config change
+# rather than a code deploy. Read once, here, at import, so a change applies
+# when the service restarts with it (RUNBOOK §6). An unknown value serves the
+# default, so check a scan's `prompt_version` after changing it.
 SCAN_PROMPT_VERSION = os.environ.get("SCAN_PROMPT_VERSION", prompts.DEFAULT_PROMPT_VERSION)
 
 
@@ -1990,7 +2022,8 @@ async def scan(
                 log.info("tag photo rejected, scanning the item alone: %s", exc)
 
     # Gate on rate limit only after validation — bad requests don't burn quota
-    await _enforce_limits(principal.subject, _client_ip(request))
+    await _enforce_limits(principal.subject, _client_ip(request),
+                          limit=_scan_rate_limit(principal))
 
     # A device past the day's safety-block threshold is refused here, before
     # quota and before the model: nothing to bill, nothing to analyse.
@@ -2076,8 +2109,17 @@ def _not_resalable_message(val: valuation_module.Valuation) -> str:
     `promptsafety.sanitize_text` and `_string_list` in `normalise` — the same
     path as every field this app displays on a successful scan. Bounded to one
     factor and one line because this is an error banner, not a result screen.
+
+    Prompt v2.1's multiple-items flag is never the reason. The same list
+    carries it, and a room or a table of food is often several prominent
+    things at once, so a model that applies both rules and lists the flag
+    first had the banner read "multiple items in frame. Try a photo…": in
+    lower case, and in place of the explanation this function exists to show.
+    Compared loosely because it is model output copied from the prompt.
     """
-    reason = next((f for f in val.uncertainty_factors if f), "")
+    reason = next((f for f in val.uncertainty_factors
+                   if f and f.strip().rstrip(".").casefold()
+                   != prompts.MULTIPLE_ITEMS_FACTOR), "")
     if not reason:
         return _NOT_RESALABLE_FALLBACK
     if len(reason) > 160:
@@ -2618,7 +2660,7 @@ def _record_usage(label: str, usage: dict) -> None:
 
 async def _generate_with_retry(
     contents, *, label: str, max_tokens: int | None = None, record_health: bool = True,
-    deadline: float | None = None,
+    deadline: float | None = None, thinking_budget: int | None = None,
 ) -> tuple[str, dict]:
     """Call the model with classified retries and jittered backoff.
 
@@ -2641,10 +2683,15 @@ async def _generate_with_retry(
     provider; a real provider failure whose retry the deadline skipped still
     is, because that attempt did fail at Gemini.
 
+    `thinking_budget` replaces the global one for this call; None keeps it.
+    The text-only calls pass `aiconfig.TEXT_THINKING_BUDGET`.
+
     Returns `(text, usage_dict)`.
     """
     last_exc: Exception | None = None
-    config = aiconfig.generation_config(max_output_tokens=max_tokens) if max_tokens else None
+    config = (aiconfig.generation_config(max_output_tokens=max_tokens,
+                                         thinking_budget=thinking_budget)
+              if max_tokens or thinking_budget is not None else None)
 
     for attempt in range(_RETRY_ATTEMPTS):
         remaining = None if deadline is None else deadline - time.monotonic()
@@ -2739,6 +2786,22 @@ async def _generate_with_retry(
     raise aiconfig.ModelUnavailable(str(last_exc))
 
 
+#: How much of an unparseable reply `_retry_as_json` shows the model. It was
+#: 4000, set when v1's whole answer was a few hundred characters. Under JSON
+#: mode a reply that will not parse is nearly always one cut off at
+#: `aiconfig.MAX_OUTPUT_TOKENS`, and the reformat can only recover prices that
+#: sit inside this window. v2 asks for them first, about 600 characters in.
+#: v2.1 asks for every piece of evidence first, which puts the last price near
+#: 900 with short entries and past 4000 once each list holds five entries of
+#: 150 characters. Past the window the reformat returns JSON with no prices,
+#: and the scan becomes the 502 v2 would have recovered.
+#:
+#: 8000 holds v2.1's prices with entries of 300 characters. It is not the whole
+#: reply because the model has to write the window back out, within its own
+#: output ceiling and beside its own thinking.
+_REFORMAT_WINDOW_CHARS = 8000
+
+
 async def _retry_as_json(raw: str, *, deadline: float | None = None) -> dict | None:
     """Ask the model to restate an unparseable reply as bare JSON.
 
@@ -2750,7 +2813,7 @@ async def _retry_as_json(raw: str, *, deadline: float | None = None) -> dict | N
     prompt = (
         "Convert the following into a single valid JSON object with no markdown "
         "and no commentary. Preserve the values exactly; invent nothing.\n\n"
-        f"{promptsafety.fence(raw[:4000])}"
+        f"{promptsafety.fence(raw[:_REFORMAT_WINDOW_CHARS])}"
     )
     # Routed through `_generate_with_retry` like every other model call.
     # This used to call the model directly under a blanket `suppress`, which
@@ -2764,7 +2827,8 @@ async def _retry_as_json(raw: str, *, deadline: float | None = None) -> dict | N
     # call. Recording it twice would make one bad scan look like two.
     try:
         text, _usage = await _generate_with_retry(
-            prompt, label="reformat", record_health=False, deadline=deadline)
+            prompt, label="reformat", record_health=False, deadline=deadline,
+            thinking_budget=aiconfig.TEXT_THINKING_BUDGET)
     except aiconfig.ModelUnavailable:
         # A real outage, correctly classified. The caller's own 502 already
         # says "try again", which is the right advice for this.
@@ -2829,7 +2893,8 @@ async def trends(
     with counts and direction, Pro also gets the average estimate per category
     and the week's notable finds.
     """
-    await _enforce_limits(principal.subject, _client_ip(request))
+    await _enforce_limits(principal.subject, _client_ip(request),
+                          bucket=TRENDS_BUCKET, limit=TRENDS_RATE_MAX_REQUESTS)
     return TrendsResponse(**await notify.trends(is_pro=principal.is_pro))
 
 
@@ -2872,7 +2937,8 @@ async def listing(
             detail="Listing drafts are a SnapWorth Pro feature.",
         )
 
-    await _enforce_limits(principal.subject, _client_ip(request))
+    await _enforce_limits(principal.subject, _client_ip(request),
+                          bucket=LISTING_BUCKET, limit=LISTING_RATE_MAX_REQUESTS)
     auditlog.record(AuditEvent.LISTING_AUTHORISED, principal.subject,
                     marketplace=marketplace, tier=principal.tier)
 
@@ -2880,7 +2946,8 @@ async def listing(
     try:
         raw, _usage = await _generate_with_retry(
             prompt, label="listing", max_tokens=aiconfig.LISTING_MAX_OUTPUT_TOKENS,
-            deadline=_client_deadline(request))
+            deadline=_client_deadline(request),
+            thinking_budget=aiconfig.TEXT_THINKING_BUDGET)
     except aiconfig.ModelBlocked:
         # Listing copy is derived from the user's own valuation, so a block here
         # is recoverable — the deterministic fallback still produces a usable

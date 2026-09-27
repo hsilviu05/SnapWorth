@@ -27,7 +27,9 @@ import urllib.error
 import urllib.request
 
 HERE = pathlib.Path(__file__).resolve().parent
-CONFIG = json.loads((HERE.parent.parent / "vercel.json").read_text(encoding="utf-8"))
+# website/vercel.json, not the repo root's: the Vercel project's Root Directory
+# is `website`, so that is the only copy the platform reads.
+CONFIG = json.loads((HERE.parent / "vercel.json").read_text(encoding="utf-8"))
 BASE = (sys.argv[1] if len(sys.argv) > 1 else "https://www.snapworth.eu").rstrip("/")
 
 # Invented, so it can never be a real person's code; the page only displays it.

@@ -54,15 +54,17 @@ actually arrives:
 | Current state | `/status` | Build, cache backend, auth enforcement, last deploy ping, today's counters |
 | What it costs | `/costs` | Gemini spend by window, `$/scan`, free-tier giveaway, and the operator's own bot usage listed separately |
 | Subscribers | `/subs` | Active, paid, comped, and MRR |
-| Is the free-scan experiment working | `/experiment` | The whole window at once: limit hits against new subscriptions, day by day, with a running total |
-| Start or stop the free-scan experiment | `/lever` | Arms or disarms the first-day allowance without a Railway change or a redeploy. Two taps, clamped, and `/experiment` footnotes any day it moved |
+| Is the free-scan experiment working | `/experiment` | The whole window at once: limit hits against new subscriptions, day by day, with a running total, and whether a new user gets a first-day welcome right now — as the quota resolves it, so `FREE_SCANS_FIRST_DAY=1` at a daily limit of 1 reads "lever not armed" |
+| Keep the experiment's numbers | `/experiment export` (💾 under `/experiment`) | The same rows as CSV in a block to copy into `docs/`. The counters expire 35 days after each day, so the 2026-09-10 → 09-24 window starts disappearing on 2026-10-15. An expired day is exported empty, not as zeros, and an unreadable Redis exports nothing. The `#` lines above the header (the window, the welcome, any lever move) have no commas, so each parses as one CSV field, and a reader that skips `#` lines gets only the table |
+| Start or stop the free-scan experiment | `/lever` | Arms or disarms the first-day allowance without a Railway change or a redeploy. Two taps, clamped, and `/experiment` footnotes any day it moved. It checks a value against the running quota's own daily limit and cap, and refuses to arm when it cannot ask |
 | Make a bad or stranded build update | `/minbuild <n>` | /scan, /listing and /trends answer builds below `n` with a 422 telling them to update from the App Store; `/minbuild off` serves all again. Two taps. Set it only once build `n` is live. /scan and /listing show the message to builds 8 and up; builds 7 and older show fixed copy ("Something went wrong"). /trends is refused too, but the app drops that error silently and the Trending card disappears. /auth is never gated, and a request whose build is unreadable is served. A 422 is a non-paging 4xx: refusals are counted in `snapworth_outdated_build_refused_total`, by endpoint. The access log's `build` field (from the User-Agent) shows who is still on what |
 | Yesterday | The daily digest | Sent automatically at `TELEGRAM_DIGEST_UTC_HOUR` (default 06:00 UTC); a weekly report on Mondays |
 
 Unprompted alerts arrive the same way: a new subscription, a deploy ping per
 commit, the AI provider or Redis going down and coming back, a quiet-hours
-note when nothing has scanned during US daytime, a budget warning (off unless
-`GEMINI_DAILY_BUDGET_USD` is set), and a device-paused alert after repeated
+note when nothing has scanned during US daytime, a budget warning (off until
+`GEMINI_DAILY_BUDGET_USD` is set — production must set it, §12, and
+`🩺 Checkup` says so while it is not), and a device-paused alert after repeated
 unanalysable photos. One alert comes from outside the backend, because the bot
 cannot report its own container being gone: the Uptime workflow probes
 `/health/ready` every 10 minutes (§3).
@@ -108,7 +110,7 @@ failed every free scan with a 503 and the next digest read like a quiet day.
 | **Redis unreachable** / recovered | `notify.cache_state_changed`, fed by `ResilientCache`'s own down/up transitions | cache calls have failed for 60 s straight (`CACHE_ALERT_SETTLE_SECONDS`); the all-clear after 60 s of success | Telegram, at most once per 30 min | §5.4 |
 | **AI provider degraded** / recovered | `notify.model_unhealthy`, from `main._ModelHealth` | `MODEL_UNHEALTHY_AFTER` (2) consecutive terminal model failures; a quota stop on the first | Telegram, at most once per 30 min | §5.3 |
 | **Quiet** | `notify._quiet_check`, every 15 min | no successful scan for 6 h during 13:00–03:59 UTC | Telegram, once per window | `🩺 Checkup` |
-| **Over budget** | `notify._note_usage` | day's Gemini spend passes `GEMINI_DAILY_BUDGET_USD` — **off by default (0)** | Telegram, once per day | `/costs` |
+| **Over budget** | `notify._note_usage` | day's Gemini spend passes `GEMINI_DAILY_BUDGET_USD` — **off by default (0), and must be set in production (§12)**; `🩺 Checkup` reads *Spend alert: OFF ⚠️* until it is | Telegram, once per day | `/costs` |
 | **Device paused** | `notify._announce_safety_pause` | repeated blocked photos from one device | Telegram, once per device per day | none needed |
 | **Referral pool low** / empty | `notify.referral_pool_low`, from `referral.take_code` | a friend or reward pool reaches `REFERRAL_POOL_LOW_AT` (20) codes, and again at empty; only while referrals are on | Telegram, once per pool per state per UTC day | §18 |
 
@@ -335,7 +337,8 @@ model change degraded identification. It is a **quality** incident, not an
 availability one.
 
 1. Compare `confidence_score` and `valuation_clamped_total` before and after.
-2. Roll back the prompt without a redeploy: `SCAN_PROMPT_VERSION=v1`.
+2. Roll back the prompt without a code deploy: `SCAN_PROMPT_VERSION=v2` if
+   v2.1 is serving, `v1` if v2 is (§6, *Changing the scan prompt*).
 3. Run the benchmark before shipping a fix (`docs/EVALUATION.md`).
 
 ### 5.8 Quota abuse
@@ -351,9 +354,49 @@ availability one.
    DNS record, Railway's CDN), change `client_ip` to take the hop a configured
    number of places from the right. Otherwise the rightmost hop is the CDN's
    address and one 60/hr bucket serves every user.
-3. Tighten via env; no deploy needed if the platform supports variable updates
+3. The IP bucket is one for every route with a limit — `/scan`, `/listing`,
+   `/trends`, `/auth/entitlement`, and the unauthenticated `/auth` routes and
+   `/apple/notifications` — so from one address they stop together. The
+   per-device buckets are one per route, per hour (`ratelimit.py`):
+
+   | Route | Bucket (Redis key) | Default | Env |
+   |---|---|---|---|
+   | `/scan`, free | `rl:dev:<subject>` | 20 | `RATE_MAX_REQUESTS` |
+   | `/scan`, Pro | `rl:dev:<subject>` | 60 — the fair-use ceiling on "Unlimited scans" | `PRO_SCAN_RATE_MAX_REQUESTS` |
+   | `/listing` (Pro only) | `rl:listing:<subject>` | 60, the IP cap; never below it (below) | `LISTING_RATE_MAX_REQUESTS` |
+   | `/trends` | `rl:trends:<subject>` | 60 — no model call; a loop-breaker | `TRENDS_RATE_MAX_REQUESTS` |
+   | `/auth/entitlement` | `rl:ent:<subject>` | 60 | `ENTITLEMENT_RATE_MAX_REQUESTS` |
+
+   `/scan`, `/listing` and `/trends` used to share `rl:dev:` at 20: a Pro
+   reseller who scanned and drafted each item stopped after about ten, and
+   each Trending card fetch spent a scan. By default the Pro scan cap and the
+   listing cap both equal the IP cap. So a Pro user who also drafts or opens
+   My Finds from the same address meets the IP cap first, and it refuses scans
+   and drafts together. A reseller who drafts every item gets about thirty an
+   hour. Raising `IP_RATE_MAX_REQUESTS` lifts that and loosens the
+   unauthenticated routes with it; raise `LISTING_RATE_MAX_REQUESTS` with it.
+
+   **Keep the listing cap at or above the IP cap.** Every build of the app
+   says "You've hit the scan limit." for any 429, a draft's included
+   (`AppError.rateLimitMessage`), and Haul pauses both of its queues on
+   either one's 429 (`HaulSession`). That is true only when the address
+   bucket refused. At 20, the size `/listing` had while it shared `rl:dev:`,
+   a Pro user's 21st draft of the hour was refused with scans to spare. The
+   Result screen said "scan limit", Haul stopped scanning for up to the rest
+   of the hour, and Haul's confirm still said "Drafts use the same hourly
+   limit as scans." Lowering `LISTING_RATE_MAX_REQUESTS`, or raising
+   `IP_RATE_MAX_REQUESTS` past it, brings all of that back for every
+   installed build, and the server cannot fix it there. Either fix needs a
+   new binary. One is app copy for a draft's 429 (new App.json keys). The
+   other is a response header naming the bucket that refused (additive;
+   nothing sends one yet), so Haul could pause only the full queue. One case
+   remains at 60: a device that changes address within the hour can fill its
+   own draft bucket first. The cost is unchanged per address, since the IP
+   cap bounds that at 60 requests an hour, whatever the mix. A device moving
+   between addresses can reach 60 scans and 60 drafts.
+4. Tighten via env; no deploy needed if the platform supports variable updates
    with a restart.
-4. Sustained abuse from one IP range needs a platform-level block; there is no
+5. Sustained abuse from one IP range needs a platform-level block; there is no
    application-level IP blocklist `[NOT IMPLEMENTED]`.
 
 ---
@@ -374,7 +417,7 @@ confident wrong number is the product being wrong, and users act on it.
    is the known cause: gemini-2.5-flash spends **reasoning** tokens out of
    `max_output_tokens`, measured at 1138–1777 per scan against a ~700-token
    payload. If the ceiling is squeezed, JSON truncates before the price fields,
-   which sit two-thirds down the v2 schema.
+   which sit two-thirds down the v2 schema and lower still in v2.1's.
 3. Do not lower `GEMINI_MAX_OUTPUT_TOKENS` below **4096** — 2048 shipped and
    produced exactly this bug. It is a cap, not a spend: unused headroom is not
    billed, while truncated answers are billed in full and thrown away.
@@ -396,6 +439,30 @@ after tests pass (`.github/workflows/backend.yml`).
 | Instant rollback | Railway redeploy of a previous build |
 | Migrations | **None exist.** No relational database; Redis holds durable state (§9) but has no schema to migrate |
 | Feature flags | Env-var based: `SCAN_PROMPT_VERSION`, `COMPS_ENABLED`, `COMPS_SHADOW_MODE`, `ALLOWED_STOREKIT_ENVIRONMENTS`, `SANDBOX_ENTITLEMENTS` |
+
+### Changing the scan prompt
+
+`SCAN_PROMPT_VERSION` picks the valuation prompt: `v1`, `v2` (the default) or
+`v2.1`. v2.1 is v2 with the multiple-items rule restored, the evidence asked
+for before the prices, the market named (US resale value, in USD), and the v1
+low/high pair left to the server; `backend/prompts.py` gives the reasons. The
+response has the same fields and types under all three.
+
+1. Compare on real photos first. It needs `GEMINI_API_KEY`, and costs one
+   vision call per photo, per arm, per repeat:
+   ```bash
+   cd backend && python -m eval.runner --photos <folder of real scans> \
+     --repeats 3 --compare v2 v2.1 --json-out runs/v2.1.json
+   ```
+   Without sale prices this says how far v2.1 moves prices, and its
+   consistency, latency and tokens, not whether it is more accurate
+   (`docs/EVALUATION.md`, *Without labels*).
+2. Set `SCAN_PROMPT_VERSION=v2.1` on the Railway service. It is read at
+   startup, so it applies once the service restarts with it.
+3. Send the Telegram bot a photo. The last line of its reply starts
+   `Prompt v2.1`. An unrecognised value serves the default without
+   complaint, so this is the check that the change took.
+4. To go back, set `v2` or remove the variable.
 
 ### Shutdown sequence (implemented in `main._lifespan`)
 
@@ -419,7 +486,8 @@ still-starting instances, and the graceful shutdown achieves nothing.
       names each commit as it goes live, `/status` shows the last one, and
       `GET /health` reports the running `commit`. (`snapworth_build_info` has
       the same fact, but nothing scrapes `/metrics` — §3.)
-- [ ] **Prompt-only regression?** Set `SCAN_PROMPT_VERSION=v1` — no redeploy
+- [ ] **Prompt-only regression?** Set `SCAN_PROMPT_VERSION` back one version
+      (`v2.1` → `v2`, `v2` → `v1`) — no code deploy
 - [ ] **Comps-related?** Set `COMPS_ENABLED=false` — no redeploy
 - [ ] Otherwise redeploy the previous Railway build
 - [ ] Verify `/health/ready` returns 200
@@ -498,7 +566,8 @@ body-only key, so the checkup names the shape instead:
 | `…is on a single line — its newlines were lost` | re-paste with real line breaks, or with a literal `\n` between them |
 | `…has no BEGIN/END lines` | paste the whole file, not just the base64 body |
 | `private key unreadable — …` | the envelope is right but the contents are not a P-256 key; check it is the unencrypted `.p8` Apple issued |
-| `could not reach Apple (…)` | network, not credentials — nothing to change |
+| `Apple unreachable just now (…)` | a timeout, a connection failure or a 5xx — not credentials. Nothing to change; run the checkup again |
+| `probe could not be sent (…)` | the request failed before any answer from Apple was read, for a reason that is not the network: a client or code fault, not the key. Look in the server log for `devicecheck probe could not be sent` and its traceback, not in the developer portal |
 
 **Then verify — do not trust "configured".** `is_configured` only means the
 three variables are non-empty, and a wrong key cannot recognise a reinstall, so
@@ -510,6 +579,13 @@ Run `🩺 Checkup`:
 - `DeviceCheck: configured ✅ — credentials accepted by Apple` — Apple signed off.
 - `DeviceCheck: configured but REJECTED — key rejected …` — one of the three
   variables is wrong, or the key lacks the DeviceCheck capability.
+- `DeviceCheck: configured · Apple unreachable just now (…)` — Apple did not
+  answer, so nothing is known about the key yet. Run it again. While it lasts,
+  reinstalls get a fresh allowance, as in any Apple outage (§5.6).
+- `DeviceCheck: configured · probe could not be sent (…)` — not a verdict on
+  the key either, but not transient: see the table above. Scans send the same
+  request, so until it is fixed reinstalls get a fresh allowance and new
+  installs no welcome, as with a rejected key.
 
 The probe sends a deliberately fake device token: Apple reads the
 Authorization header first, so a `400` about the token proves the key signs
@@ -678,6 +754,28 @@ Optimisation effort belongs in what the model is asked to reason about, not in
 container efficiency. Margins stay healthy either way; the ranking of what to
 work on does not.
 
+### A Pro subscriber used hard
+
+The table above is an average, and averages hide the one case where a user
+costs more than they pay. Pro is sold as unlimited scans; what a day of it can
+cost, at the same ~$0.0059 a scan and assuming Apple's 15% commission (30%
+lowers both break-evens):
+
+| Plan | Net per day | Scans a day it pays for |
+|---|---|---|
+| Yearly, $39.99 | ~$0.093 | ~16 |
+| Monthly, $4.99 | ~$0.139 | ~24 |
+
+A reseller scanning 40 items a day costs ~$0.24 against ~$0.09 — a loss, not
+an outage. Drafts add to it: a listing is a text-only call and now runs
+without thinking (below), so it should cost well under a scan — unmeasured.
+The per-hour fair-use cap (§5.8, 60 scans) bounds a burst, not a day: a full
+hour costs ~$0.35. From one address, scans and drafts share 60 requests an
+hour, so drafts take the place of scans under that ceiling rather than adding
+to it. What watches a heavy *day* is the over-budget alert, which is why
+`GEMINI_DAILY_BUDGET_USD` is on the launch checklist (§12). None of this is
+measured per subscriber; `/costs` has no per-subscriber view.
+
 ### Optimisations, ranked by value
 
 1. **Result caching by image hash** `[NOT IMPLEMENTED]` — users re-scan the same
@@ -690,6 +788,14 @@ work on does not.
    quality decision and belongs to `backend/eval/runner.py`, run at a candidate
    budget and compared, not to a number picked here. This is the highest-value
    *cost* lever in the list and the one most able to damage the product.
+   Measure it on prompt v2.1 and set it only while v2.1 serves: the cap applies
+   to every scan whatever the prompt, and v2 asks for the prices before the
+   evidence (`docs/EVALUATION.md`, *Without labels*).
+   It is the scan's budget only. `/listing` and the reformat retry below run
+   with thinking off (`GEMINI_TEXT_THINKING_BUDGET`, default 0): neither
+   produces a valuation, so they are not that quality decision. Set it to
+   `-1` before pointing `GEMINI_MODEL` at a model that cannot run without
+   thinking — 2.5 Pro refuses 0, which would fail every listing.
 4. **Prompt length** — v2 is ~700 tokens of the ~960 input. Input is ~5% of
    per-scan cost, so trimming saves ~$85/mo at 1M users; not worth degrading
    output for. (The old model put this at ~$40/mo on prices 4× too low.)
@@ -738,6 +844,12 @@ work on does not.
       404-not-401 design below is hiding. Also publishes the
       `/apple/notifications` trust model and every request body's constraints.
 - [ ] `AUDIT_SALT` set to a real value
+- [ ] `GEMINI_DAILY_BUDGET_USD` set — **unset, the over-budget alert is off**
+      (0 disables it), and it is the only thing that notices a heavy day: Pro
+      is sold as unlimited scans and capped only per hour (§5.8, §10). Size it
+      at a few times a normal day's spend on `/costs`; crossing it sends one
+      💸 message and changes nothing else. `🩺 Checkup` reads *Spend alert:
+      OFF ⚠️* until it is set
 - [x] ~~`TRUSTED_PROXY=true`~~ — **no longer read.** `_client_ip` now always takes the
       rightmost `X-Forwarded-For` hop, so the per-IP limit no longer depends on this
       variable being remembered. The old note here was also wrong about the failure:
