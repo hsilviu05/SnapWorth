@@ -39,6 +39,11 @@ _HTTP_TIMEOUT = 5.0
 # which cares about the Authorization header Apple checks first.
 _PROBE_TOKEN = base64.b64encode(b"snapworth-devicecheck-probe").decode()
 
+# How `verify()`'s detail starts when the probe raised for a reason that is not
+# the network: a False, since waiting will not cure it, but not a verdict on
+# the key. /checkup keys on it so as not to call that "REJECTED".
+PROBE_NOT_SENT = "probe could not be sent"
+
 
 class DeviceCheckError(Exception):
     """DeviceCheck call failed. Never surfaced to the client verbatim.
@@ -227,8 +232,12 @@ class DeviceCheckClient:
         except httpx.TransportError as exc:          # DNS, TLS, timeout
             return None, type(exc).__name__
         except Exception as exc:
-            # Not the network, so not something waiting will cure.
-            return False, f"probe could not be sent ({type(exc).__name__})"
+            # Not the network, so not something waiting will cure. Nor is it
+            # Apple's verdict on the key: no answer from Apple was read. A
+            # client or code fault, then, and the exception's name is all the
+            # checkup line has room for, so the traceback goes to the log.
+            log.warning("devicecheck probe could not be sent", exc_info=exc)
+            return False, f"{PROBE_NOT_SENT} ({type(exc).__name__})"
 
         note = body.strip()[:140]
 

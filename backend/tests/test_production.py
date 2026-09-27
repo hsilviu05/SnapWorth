@@ -734,6 +734,25 @@ class TestDeviceCheckVerify:
 
         assert self.run(slow) == (None, "ConnectTimeout")
 
+    def test_a_request_that_fails_for_another_reason_is_not_sent_not_refused(
+            self, caplog):
+        """Not the network, so a False — waiting will not cure it — but no
+        answer from Apple was read, so not a refusal either. The detail says
+        so in a form /checkup can tell apart, and the traceback, which the
+        checkup line has no room for, is logged."""
+        import httpx
+
+        def garbled(request):
+            raise httpx.DecodingError("Error -3 while decompressing data")
+
+        with caplog.at_level("WARNING", logger="snapworth.devicecheck"):
+            ok, detail = self.run(garbled)
+        assert ok is False
+        assert detail == f"{devicecheck.PROBE_NOT_SENT} (DecodingError)"
+        record = next(r for r in caplog.records
+                      if r.getMessage() == "devicecheck probe could not be sent")
+        assert record.exc_info and record.exc_info[0] is httpx.DecodingError
+
 
 # ═══ Container configuration ══════════════════════════════════════════════════
 

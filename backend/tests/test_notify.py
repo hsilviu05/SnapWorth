@@ -2671,6 +2671,22 @@ class TestDeviceCheckLine:
         assert line.endswith("Reinstalls get a fresh allowance until this is fixed.")
 
     @pytest.mark.asyncio
+    async def test_a_probe_that_was_never_sent_is_not_reported_as_rejected(
+            self, cache, monkeypatch):
+        """An exception from the request that is not the network — a response
+        that would not decode, a closed client — came back as False and read
+        "configured but REJECTED". Nothing was rejected: no answer from Apple
+        was read, and the developer portal is the wrong place to look."""
+        def apple(request):
+            raise httpx.DecodingError("Error -3 while decompressing data")
+        line = await self.line(cache, monkeypatch, True, self._real_probe(apple))
+        assert line == ("DeviceCheck: configured · probe could not be sent "
+                        "(DecodingError) — not a verdict on the key; the server "
+                        "log has the traceback. Scans send the same request, so "
+                        "reinstalls get a fresh allowance until it is fixed."), line
+        assert "REJECTED" not in line and "unreachable" not in line
+
+    @pytest.mark.asyncio
     async def test_a_probe_that_blows_up_does_not_take_the_checkup_with_it(
             self, cache, monkeypatch):
         async def probe():

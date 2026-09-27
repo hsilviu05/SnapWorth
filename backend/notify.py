@@ -85,6 +85,7 @@ import auditlog
 import categories
 import ideas
 from confidence import brand_is_known
+from devicecheck import PROBE_NOT_SENT
 
 if TYPE_CHECKING:
     # For the annotation only. The value arrives through `configure`, from the
@@ -4885,6 +4886,16 @@ async def _device_check_line(configured: bool) -> str:
         return (f"DeviceCheck: configured · Apple unreachable just now "
                 f"({html.escape(detail)}) — reinstalls get a fresh allowance "
                 "while this lasts; run /checkup again")
+    if detail.startswith(PROBE_NOT_SENT):
+        # The request failed before any answer from Apple was read, so
+        # nothing was rejected, and REJECTED sends the operator to the
+        # developer portal. It is a False all the same — waiting will not cure
+        # it — and scans make the same request through the same client, so
+        # the allowance half holds as it does for a refused key.
+        return (f"DeviceCheck: configured · {html.escape(detail)} — not a verdict "
+                "on the key; the server log has the traceback. Scans send the "
+                "same request, so reinstalls get a fresh allowance until it is "
+                "fixed.")
     return (f"DeviceCheck: configured but REJECTED — {html.escape(detail)}. "
             "Reinstalls get a fresh allowance until this is fixed.")
 
