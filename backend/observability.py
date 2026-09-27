@@ -67,8 +67,8 @@ class JSONFormatter(logging.Formatter):
             # `exc_text` is set by RedactionFilter and is already redacted.
             # The fallback covers a record that reached this formatter without
             # passing the filter, which must not be the unredacted path.
-            payload["exception"] = record.exc_text or redact(
-                self.formatException(record.exc_info))
+            payload["exception"] = record.exc_text or (
+                redact(self.formatException(record.exc_info)) if record.exc_info else "")
         return json.dumps(payload, default=str)
 
 

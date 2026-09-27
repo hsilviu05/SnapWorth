@@ -106,9 +106,12 @@ class AuthDeps:
     # without a default so that is the type: reading one before startup now
     # raises AttributeError naming the field, instead of returning None and
     # failing later as "NoneType has no attribute" inside a handler.
-    # `ResilientCache`, not the narrower `KeyValueStore`: `refresh` has to
-    # read `required`, to tell a key the server does not know from a store
-    # it could not ask.
+    #
+    # `cache` is the ResilientCache itself, not the narrow KeyValueStore it was
+    # typed as: attestation state must be able to fail closed (`required=`) —
+    # `refresh` has to tell a key the server does not know from a store it
+    # could not ask — and referral.py draws offer codes with `add`/`incr`,
+    # neither of which KeyValueStore declares.
     cache: ResilientCache
     entitlements: EntitlementService
     quota: ScanQuota
@@ -326,11 +329,28 @@ async def attest(req: AttestRequest, request: Request) -> TokenResponse:
         raise HTTPException(status_code=401, detail=str(exc)) from None
 
     subject = key_id.hex()
-    await deps.cache.set(_state_key(subject), json.dumps({
-        "public_key": result.public_key_pem.decode(),
-        "counter": result.counter,
-        "environment": result.environment,
-    }), ATTEST_STATE_TTL)
+    # Required: this is the only copy of the key the device will prove
+    # possession of. Written to the in-process fallback during a Redis outage
+    # (or with Redis full and refusing writes), it was lost at the next deploy
+    # or on the other replica; the device's next refresh then got 401, threw its
+    # key away, attested again and came back as a new subject with a fresh free
+    # allowance. Failing the attest instead means the client never keeps a key
+    # the server did not: it stores the key id only after a 200
+    # (AttestationService.attestFresh), so it cannot later meet that 401. It
+    # has no older key to fall back on here — it attests again, with a new
+    # one, once Redis accepts writes.
+    try:
+        await deps.cache.set(_state_key(subject), json.dumps({
+            "public_key": result.public_key_pem.decode(),
+            "counter": result.counter,
+            "environment": result.environment,
+        }), ATTEST_STATE_TTL, required=True)
+    except CacheUnavailable:
+        log.error("attestation state could not be stored — cache unavailable")
+        raise HTTPException(
+            status_code=503,
+            detail="Sign-in is temporarily unavailable. Please try again shortly.",
+        ) from None
 
     # Retained so the quota layer can mark the *hardware* when the free
     # allowance runs out — the per-install counter cannot survive a reinstall,
@@ -393,6 +413,9 @@ async def refresh(req: AssertRequest, request: Request) -> TokenResponse:
         raise HTTPException(status_code=401, detail=str(exc)) from None
 
     state["counter"] = new_counter
+    # Not required, unlike the two above: the key is already stored and this
+    # only advances its counter. A counter left behind admits nothing the
+    # single-use challenge consumed above does not already refuse.
     await deps.cache.set(_state_key(subject), json.dumps(state), ATTEST_STATE_TTL)
     return await _issue_token(subject, None)
 

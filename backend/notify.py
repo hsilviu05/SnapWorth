@@ -55,6 +55,15 @@ logged by exception class name only, and observability.py redacts the token
 pattern as a backstop.
 """
 
+# `_cache` and `_notifier` are module state set once by `configure`. Every
+# public entry point returns early while either is None, and the ~40 private
+# helpers below them run only past that guard — which pyright cannot see
+# across a call, so each `_cache.get` read as a possible None access: 78 of
+# this file's errors, none of them reachable. Scoped to this file and this one
+# rule; every other check, including Optional subscripts and arguments, stays
+# on here and everywhere else.
+# pyright: reportOptionalMemberAccess=false
+
 from __future__ import annotations
 
 import asyncio
@@ -360,8 +369,9 @@ class TelegramNotifier:
                 return False
             if self.on_sent is not None:
                 try:
-                    message_id = int(((resp.json() or {}).get("result") or {}).get("message_id"))
-                    await self.on_sent(message_id, text)
+                    message_id = ((resp.json() or {}).get("result") or {}).get("message_id")
+                    if isinstance(message_id, int):
+                        await self.on_sent(message_id, text)
                 except Exception:
                     pass
             return True
@@ -725,7 +735,7 @@ def configure(cache, notifier: TelegramNotifier | None = None,
 
 async def aclose() -> None:
     """Tear down background work. Alerts in flight at shutdown are dropped."""
-    global _notifier, _digest_task, _command_task, _watch_task
+    global _notifier, _digest_task, _command_task, _watch_task, _cache_settle_task
     if _digest_task is not None:
         _digest_task.cancel()
         _digest_task = None
@@ -738,6 +748,7 @@ async def aclose() -> None:
     for task in list(_tasks):
         task.cancel()
     _tasks.clear()
+    _cache_settle_task = None
     _alert_last_sent.clear()
     _alert_awaiting_recovery.clear()
     await _release_poll_lock()
@@ -746,21 +757,22 @@ async def aclose() -> None:
         await notifier.aclose()
 
 
-def _spawn(coro) -> None:
+def _spawn(coro) -> asyncio.Task | None:
     """Run `coro` in the background, holding a reference until it finishes.
 
     Without the reference set, an un-awaited task is garbage-collectable
     mid-flight. Outside a running loop (sync tests, tooling) the coroutine is
-    closed unrun rather than raising.
+    closed unrun rather than raising, and None is returned.
     """
     try:
         loop = asyncio.get_running_loop()
     except RuntimeError:
         coro.close()
-        return
+        return None
     task = loop.create_task(coro)
     _tasks.add(task)
     task.add_done_callback(_tasks.discard)
+    return task
 
 
 # ── Daily counters ───────────────────────────────────────────────────────────
@@ -1420,6 +1432,52 @@ def model_unhealthy(kind: str | None) -> None:
 def model_recovered() -> None:
     _recovered("model", "🟢 <b>AI provider recovered</b> — scans are succeeding again.",
                _HEALTH_BUTTONS)
+
+
+# How long Redis must stay down (or back up) before it is announced. The cache
+# reports every transition, and one timeout under load is a transition; so is
+# every request against a Redis that answers reads but refuses writes, which
+# flips down and up per call. A state that does not hold for this long says
+# nothing, rather than a siren of down/up pairs. The write-refusing case is
+# left to /health/ready and the outside uptime check that reads it
+# (RUNBOOK §3).
+CACHE_ALERT_SETTLE_SECONDS = 60.0
+_cache_state_generation = 0
+# The one settle still waiting. Each transition cancels it before starting the
+# next: left asleep, superseded settles piled up at transitions/s × 60 — about
+# 12,000 live tasks at 100 req/s against a write-refusing Redis, during the
+# very memory-pressure incident being announced.
+_cache_settle_task: asyncio.Task | None = None
+
+
+def cache_state_changed(degraded: bool) -> None:
+    """`ResilientCache.on_change`, wired by main: Redis stopped or started
+    answering. Schedules the announcement; never sends from inside the call."""
+    global _cache_state_generation, _cache_settle_task
+    if _notifier is None:
+        return
+    _cache_state_generation += 1
+    if _cache_settle_task is not None:
+        _cache_settle_task.cancel()       # a no-op once it has run
+    _cache_settle_task = _spawn(_settle_cache_state(_cache_state_generation, degraded))
+
+
+async def _settle_cache_state(generation: int, degraded: bool) -> None:
+    await asyncio.sleep(CACHE_ALERT_SETTLE_SECONDS)
+    if generation != _cache_state_generation:
+        return                            # it changed again inside the window
+    if degraded:
+        # Before this, a Redis outage announced nothing: the cache logged and
+        # fell back, free scans and token mints failed closed with a 503, no
+        # model call was made so the model alert never fired, and the quiet
+        # check read its timestamp from the empty fallback and stayed silent.
+        _alert("cache",
+               "🔴 <b>Redis unreachable</b>\nQuota and entitlement checks fail "
+               "closed: free scans and token mints return 503 until it answers. "
+               "RUNBOOK §5.4.", _HEALTH_BUTTONS)
+    else:
+        _recovered("cache", "🟢 <b>Redis recovered</b> — cache calls are succeeding again.",
+                   _HEALTH_BUTTONS)
 
 
 # ── Daily digest ─────────────────────────────────────────────────────────────
@@ -2335,9 +2393,9 @@ async def _tally_top(day: str, category: str, brand: str | None,
     doc = await _read_index_for_update(key)
     if doc is None:
         return
-    cats = doc.get("cats") if isinstance(doc.get("cats"), dict) else {}
-    brands = doc.get("brands") if isinstance(doc.get("brands"), dict) else {}
-    finds = doc.get("finds") if isinstance(doc.get("finds"), list) else []
+    cats = c if isinstance(c := doc.get("cats"), dict) else {}
+    brands = b if isinstance(b := doc.get("brands"), dict) else {}
+    finds = f if isinstance(f := doc.get("finds"), list) else []
     cats[category] = int(cats.get(category, 0)) + 1
     if brand is not None and (brand in brands or len(brands) < TOP_BRANDS_CAP):
         brands[brand] = int(brands.get(brand, 0)) + 1
@@ -2584,8 +2642,8 @@ async def _index_subscription(subject: str | None, ent,
         # it once Redis is back.
         return None
     otid = str(ent.original_transaction_id)
-    before = doc.get(otid) if isinstance(doc.get(otid), dict) else {}
-    entry = dict(before)
+    before: dict = row if isinstance(row := doc.get(otid), dict) else {}
+    entry: dict = dict(before)
     entry.update({
         "product": ent.product_id, "env": ent.environment,
         "first": getattr(ent, "original_purchase_at", None),
@@ -2640,7 +2698,7 @@ async def _index_user(who: str, *, tier: str, scanned: bool = False) -> None:
     if doc is None:
         return
     now = int(time.time())
-    entry = doc.get(who) if isinstance(doc.get(who), dict) else {"first": now, "scans": 0}
+    entry: dict = row if isinstance(row := doc.get(who), dict) else {"first": now, "scans": 0}
     entry["last"] = now
     entry["tier"] = "pro" if tier == "pro" else "free"
     if scanned:
@@ -3903,7 +3961,7 @@ def _tls_days_left(host: str, timeout: float = 5.0) -> int | None:
         with ctx.wrap_socket(sock, server_hostname=host) as tls:
             cert = tls.getpeercert()
     not_after = cert.get("notAfter") if cert else None
-    if not not_after:
+    if not isinstance(not_after, str) or not not_after:
         return None
     expires = datetime.strptime(not_after, "%b %d %H:%M:%S %Y %Z").replace(tzinfo=timezone.utc)
     return (expires - datetime.now(timezone.utc)).days
@@ -4004,6 +4062,79 @@ async def _archive_chat_line(chat_id: str) -> str:
     return f"Archive chat: {title} ({kind}) ✅ — /clear forwards here first"
 
 
+# Redis holds state nothing can rebuild (RUNBOOK §9), so how it behaves when
+# full and whether it survives a restart are operational facts, not tuning.
+# Nothing reported either until this line: the only probe was a PING.
+REDIS_MEMORY_WARN_FRACTION = 0.8
+REDIS_SNAPSHOT_STALE_SECONDS = 24 * 3600
+# How close to the boot time a "last save" must be to be read as the boot
+# stamp rather than a snapshot, where INFO has no `rdb_saves` (before Redis 7).
+REDIS_BOOT_STAMP_SLACK_SECONDS = 10
+
+
+def _redis_line(info: dict, now: float) -> str:
+    """One checkup line from Redis INFO, with a ⚠️ for each unsafe setting."""
+    def num(key: str) -> int:
+        try:
+            return int(info.get(key) or 0)
+        except (TypeError, ValueError):
+            return 0
+
+    used, limit = num("used_memory"), num("maxmemory")
+    policy = str(info.get("maxmemory_policy") or "unknown")
+    evicted = num("evicted_keys")
+    aof = num("aof_enabled") == 1
+    last_save, save_ok = num("rdb_last_save_time"), info.get("rdb_last_bgsave_status")
+    uptime = num("uptime_in_seconds")
+    # Redis stamps rdb_last_save_time with its start time at boot ("at startup
+    # we consider the DB saved"), with `save ""` and AOF off as much as with
+    # persistence on. Read as a snapshot, that hid the restart warning below
+    # for a day after every restart or redeploy — the moment the owner runs
+    # Checkup after changing Railway's settings. `rdb_saves` counts real
+    # snapshots since start; before Redis 7, a last save at boot is the stamp.
+    if "rdb_saves" in info:
+        saved = num("rdb_saves") > 0
+    elif uptime:
+        saved = last_save - (now - uptime) > REDIS_BOOT_STAMP_SLACK_SECONDS
+    else:
+        saved = bool(last_save)
+
+    mb = 1024 * 1024
+    memory = (f"{used / mb:.1f} MB of {limit / mb:.0f} MB ({used / limit:.0%})" if limit
+              else f"{used / mb:.1f} MB, no limit")
+    if saved:
+        snapshot = f"last snapshot {int((now - last_save) // 3600)}h ago"
+    elif uptime:
+        snapshot = f"no snapshot since start {uptime // 3600}h ago"
+    else:
+        snapshot = "no snapshot"
+    line = (f"Redis: {memory} · policy {html.escape(policy)} · evicted {evicted} · "
+            f"AOF {'on' if aof else 'off'} · {snapshot}")
+
+    warnings: list[str] = []
+    if policy != "noeviction":
+        # Any evicting policy drops keys to make room, and the keys here are
+        # quota counters, entitlement proofs, refund tombstones and attest
+        # state — a silent re-grant or a forced re-attestation.
+        warnings.append(f"policy {html.escape(policy)} evicts state nothing can "
+                        "rebuild — set noeviction")
+    if not limit:
+        warnings.append("no maxmemory — Redis grows until the container is killed")
+    elif used >= limit * REDIS_MEMORY_WARN_FRACTION:
+        warnings.append(f"above {REDIS_MEMORY_WARN_FRACTION:.0%} of maxmemory — "
+                        "under noeviction, writes fail and free scans 503 at 100%")
+    if evicted:
+        warnings.append(f"{evicted} keys evicted since restart")
+    if save_ok not in (None, "ok"):
+        warnings.append(f"last snapshot failed ({html.escape(str(save_ok))})")
+    if not aof and not saved:
+        warnings.append("no AOF and no snapshot since Redis started — a restart "
+                        "loses everything written since (RUNBOOK §9)")
+    elif not aof and now - last_save > REDIS_SNAPSHOT_STALE_SECONDS:
+        warnings.append("no AOF and no snapshot in 24h — a restart loses everything")
+    return line + "".join(f"\n⚠️ {w}" for w in warnings)
+
+
 async def _checkup_text() -> str:
     lines = ["🩺 <b>Checkup</b>"]
 
@@ -4021,6 +4152,15 @@ async def _checkup_text() -> str:
         lines.append(f"Cache ({backend}): {state} · {ms:.0f} ms")
     except Exception as exc:
         lines.append(f"Cache: error ({html.escape(type(exc).__name__)})")
+
+    # Redis itself: what it does when full, and whether a restart loses it.
+    redis_info = getattr(_cache, "redis_info", None)
+    try:
+        redis_stats = await redis_info() if redis_info is not None else None
+        if redis_stats:
+            lines.append(_redis_line(redis_stats, time.time()))
+    except Exception as exc:
+        lines.append(f"Redis INFO: error ({html.escape(type(exc).__name__)})")
 
     # Model: a one-token round trip, billed like everything else.
     if _generator is None:
@@ -4170,7 +4310,7 @@ async def _remember_message(message_id: int, text: str | None = None) -> None:
         raw = await _cache.get(MESSAGES_KEY, required=True)
         entries = [e for e in (json.loads(raw) if raw else [])
                    if isinstance(e, list) and len(e) >= 2 and now - int(e[1]) < MESSAGES_TTL]
-        entry = [int(message_id), now]
+        entry: list[int | str] = [int(message_id), now]
         if text:
             entry.append(text[:4096])
         entries.append(entry)

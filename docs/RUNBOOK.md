@@ -28,8 +28,8 @@ flowchart LR
 |---|---|
 | API container | `backend/Dockerfile`, python 3.13-slim, unprivileged uid 10001 |
 | Process model | 1 uvicorn worker per container; scale horizontally |
-| Durable state | Redis — quota, entitlements, rate limits, attestation |
-| System of record | **None.** Redis is a cache; scan history lives on-device |
+| Durable state | Redis — quota, entitlements and the signed proofs behind them, refund tombstones, App Attest keys, referral codes, the operator's indexes, TikTok tokens, the free-scan lever, rate limits |
+| System of record | Scan history: none, it lives on-device. **Several Redis key families have no other copy** (§9), so Redis is their system of record and has to be persisted like one |
 | Metrics | `/metrics`, Prometheus text format `[DESIGNED]` |
 | Collector | `[NOT IMPLEMENTED]` — and **not planned**; see below |
 | Monitoring surface | **The Telegram ops bot.** This is the real one |
@@ -60,8 +60,12 @@ actually arrives:
 | Yesterday | The daily digest | Sent automatically at `TELEGRAM_DIGEST_UTC_HOUR` (default 06:00 UTC); a weekly report on Mondays |
 
 Unprompted alerts arrive the same way: a new subscription, a deploy ping per
-commit, a quiet-hours note when nothing has scanned during US daytime, a
-budget warning, and a device-paused alert after repeated unanalysable photos.
+commit, the AI provider or Redis going down and coming back, a quiet-hours
+note when nothing has scanned during US daytime, a budget warning (off unless
+`GEMINI_DAILY_BUDGET_USD` is set), and a device-paused alert after repeated
+unanalysable photos. One alert comes from outside the backend, because the bot
+cannot report its own container being gone: the Uptime workflow probes
+`/health/ready` every 10 minutes (§3).
 
 **The decision on `/metrics` (previously tracked as A-7, open and unrecorded
 for five days): accept it as designed-but-unscraped.** One replica and a
@@ -77,7 +81,7 @@ monitoring today, and this table is what is.
 | Path | Purpose | Failure semantics |
 |---|---|---|
 | `/health/live` | Liveness | Checks nothing external — see below |
-| `/health/ready` | Readiness | 503 while starting, draining, or cache-unreachable |
+| `/health/ready` | Readiness | 503 while starting, draining, or when the cache cannot take a write (unreachable, or full) |
 | `/health` | Legacy | Retained for compatibility |
 | `/metrics` | Prometheus scrape | Requires `Authorization: Bearer $METRICS_TOKEN`; 404 without it |
 
@@ -90,36 +94,63 @@ readiness, where the consequence is "route elsewhere" rather than "kill it".
 
 ## 3. Alerts
 
-`[DESIGNED]` — thresholds below are starting points to be tuned against real
-baselines. Alerting on an unmeasured system produces noise, so treat the first
-fortnight as calibration.
+What actually reaches the operator. Until 2026-09-26 this section listed
+Prometheus rules — `up == 0`, `cache_degraded == 1` — as the pages for "API
+down" and "Cache unreachable". Nothing evaluates Prometheus rules here (§1: no
+collector, by decision), so neither condition reached anyone: a Redis outage
+failed every free scan with a 503 and the next digest read like a quiet day.
 
-### Page (wake someone)
+### What alerts today
+
+| Alert | Raised by | Fires when | Reaches you as | First action |
+|---|---|---|---|---|
+| **API not ready** | `.github/workflows/uptime.yml`, outside the backend | `/health/ready` is not 200 on three tries over a minute; checked every 10 min `[DESIGNED]` | Telegram, if `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID` are set as **GitHub repository secrets** (not only in Railway); always GitHub's failed-run email | §5.1 — or §5.4 when the message says *cache* |
+| **Redis unreachable** / recovered | `notify.cache_state_changed`, fed by `ResilientCache`'s own down/up transitions | cache calls have failed for 60 s straight (`CACHE_ALERT_SETTLE_SECONDS`); the all-clear after 60 s of success | Telegram, at most once per 30 min | §5.4 |
+| **AI provider degraded** / recovered | `notify.model_unhealthy`, from `main._ModelHealth` | `MODEL_UNHEALTHY_AFTER` (2) consecutive terminal model failures; a quota stop on the first | Telegram, at most once per 30 min | §5.3 |
+| **Quiet** | `notify._quiet_check`, every 15 min | no successful scan for 6 h during 13:00–03:59 UTC | Telegram, once per window | `🩺 Checkup` |
+| **Over budget** | `notify._note_usage` | day's Gemini spend passes `GEMINI_DAILY_BUDGET_USD` — **off by default (0)** | Telegram, once per day | `/costs` |
+| **Device paused** | `notify._announce_safety_pause` | repeated blocked photos from one device | Telegram, once per device per day | none needed |
+
+**Why two layers.** The Telegram alerts run *inside* the backend, so they
+cannot report the backend being gone: a crash-looping or unscheduled container
+sends nothing. The uptime workflow runs on GitHub and covers that, and it
+also catches a Redis that is full and refusing writes while still answering
+`PING` and `GET`, because `/health/ready` probes with a write. The in-process
+Redis alert is deliberately silent on that flapping state (§5.4c) and is
+minutes faster than a 10-minute schedule on a plain outage.
+
+**What the uptime check cannot promise.** GitHub starts scheduled runs late
+under load, and disables a public repository's schedules after 60 days without
+a commit. A free external monitor pointed at the same URL — UptimeRobot or
+Better Stack, 5-minute interval, alerting on anything but 200 — removes both
+gaps and is the cheapest upgrade here. It is an account only the owner can
+create.
+
+**Not alerted** `[NOT IMPLEMENTED]`: 5xx rate, latency, readiness flapping,
+429 or quota spikes, confidence collapse, clamp rate. Each needs a collector
+reading `/metrics`. The rules below are the design for if one ever exists;
+until then they are **not** monitoring, and `🩺 Checkup` plus the daily digest
+are how those questions get answered.
+
+### If a collector is ever added `[DESIGNED]`
 
 | Alert | Condition | First action |
 |---|---|---|
-| **API down** | `up == 0` for 2 min | §5.1 |
-| **5xx surge** | 5xx rate > 5% over 5 min | §5.2 |
-| **Model unavailable** | `model_calls_total{outcome="exhausted"}` > 10/min | §5.3 |
-| **Cache unreachable** | `cache_degraded == 1` for 3 min | §5.4 |
-| **Latency collapse** | p95 `/scan` > 20s for 5 min | §5.5 |
-| **Readiness flapping** | readiness toggles > 3× in 10 min | §5.1 |
-
-### Ticket (do not page)
-
-| Alert | Condition | Why not a page |
-|---|---|---|
-| 429 rate elevated | > 2% of requests | Rate limiting working as designed |
-| Quota exhaustion spike | 3× 7-day baseline | Expected under growth |
-| Entitlement failures | > 1% of `/auth/entitlement` | Often Apple-side, self-heals |
-| Confidence collapse | median `confidence_score` drops > 20 pts day-on-day | Signals a model or prompt regression |
-| Upload size drift | p50 `upload_bytes` > 1 MB | Client-side downscale regressed |
-| Clamp rate rising | `valuation_clamped_total` > 5% of scans | Model producing implausible numbers |
+| 5xx surge | 5xx rate > 5% over 5 min | §5.2 |
+| Latency collapse | p95 `/scan` > 20s for 5 min | §5.5 |
+| Readiness flapping | readiness toggles > 3× in 10 min | §5.1 |
+| 429 rate elevated | > 2% of requests | ticket — rate limiting working as designed |
+| Quota exhaustion spike | 3× 7-day baseline | ticket — expected under growth |
+| Entitlement failures | > 1% of `/auth/entitlement` | ticket — often Apple-side, self-heals |
+| Confidence collapse | median `confidence_score` drops > 20 pts day-on-day | ticket — model or prompt regression |
+| Upload size drift | p50 `upload_bytes` > 1 MB | ticket — client downscale regressed |
+| Clamp rate rising | `valuation_clamped_total` > 5% of scans | ticket — implausible model numbers |
 
 **4xx never pages.** `observability.classify_status` marks `CLIENT`,
 `CAPACITY` and `SECURITY` as non-paging: a scraper generating 404s, or rate
 limiting doing its job, is the system working correctly. Only `DEPENDENCY` and
-`INTERNAL` page.
+`INTERNAL` would page. That classifier has no production caller today — it is
+part of the collector design above.
 
 ---
 
@@ -150,8 +181,9 @@ Cache hit ratio · rate-limit rejections · quota exhaustion · dependency error
    `TOKEN_KEYS must be set in production` — both are deliberate startup refusals
    (`main._lifespan`, `tokens.signer_from_env`). Fix the variable; do not remove
    the guard.
-3. Check `/health/ready`. A 503 with `"durable cache configured but unreachable"`
-   means Redis, not the API → §5.4.
+3. Check `/health/ready`. A 503 with `"durable cache configured but not
+   accepting writes"` means Redis, not the API → §5.4, or §5.4c if Redis
+   still answers.
 4. If the container is crash-looping with no startup error, roll back (§7).
 
 ### 5.2 Elevated 5xx
@@ -253,6 +285,25 @@ because a degraded replica still serves `/scan` (quota goes per-process) while a
 crash-looping one serves nothing. `configured` stays true throughout, so nobody
 gets free Pro out of it.
 
+### 5.4c Redis full (answers, but refuses writes)
+
+*Signature:* `/health/ready` 503 with `"not accepting writes"` while
+`redis-cli PING` still answers; logs carry `OOM command not allowed when used
+memory > 'maxmemory'`; `🩺 Checkup`'s Redis line shows usage at or near
+`maxmemory`. Under `noeviction` — the policy this service needs (§11) — that
+is the designed failure: writes stop, nothing is silently dropped, free scans
+503 and new sign-ins fail.
+
+1. Raise `maxmemory` if the service has headroom (`CONFIG SET maxmemory …`
+   takes effect at once — then make it stick wherever the Redis service's
+   configuration lives, or a restart reverts it), or raise the service's
+   memory and `maxmemory` with it. No backend deploy is needed.
+2. Look for what grew. `redis-cli --bigkeys` and `INFO keyspace`; the
+   400-day families in §9 are the expected bulk.
+3. Do **not** switch to an evicting policy to get writes flowing. Every key
+   family here is either a paid-resource gate or state nothing can rebuild
+   (§9), and eviction drops them silently.
+
 ### 5.5 Latency collapse
 
 1. Check `model_duration_seconds` p95 first — the model dominates scan latency.
@@ -342,7 +393,7 @@ after tests pass (`.github/workflows/backend.yml`).
 | Blue/green | `[NOT IMPLEMENTED]` |
 | Canary | `[NOT IMPLEMENTED]` |
 | Instant rollback | Railway redeploy of a previous build |
-| Migrations | **None exist.** No relational database; Redis is a cache |
+| Migrations | **None exist.** No relational database; Redis holds durable state (§9) but has no schema to migrate |
 | Feature flags | Env-var based: `SCAN_PROMPT_VERSION`, `COMPS_ENABLED`, `COMPS_SHADOW_MODE`, `ALLOWED_STOREKIT_ENVIRONMENTS` |
 
 ### Shutdown sequence (implemented in `main._lifespan`)
@@ -363,14 +414,17 @@ still-starting instances, and the graceful shutdown achieves nothing.
 
 ## 7. Rollback checklist
 
-- [ ] Confirm the regression is deploy-correlated (compare against the previous
-      release in `snapworth_build_info`)
+- [ ] Confirm the regression is deploy-correlated: the Telegram deploy ping
+      names each commit as it goes live, `/status` shows the last one, and
+      `GET /health` reports the running `commit`. (`snapworth_build_info` has
+      the same fact, but nothing scrapes `/metrics` — §3.)
 - [ ] **Prompt-only regression?** Set `SCAN_PROMPT_VERSION=v1` — no redeploy
 - [ ] **Comps-related?** Set `COMPS_ENABLED=false` — no redeploy
 - [ ] Otherwise redeploy the previous Railway build
 - [ ] Verify `/health/ready` returns 200
 - [ ] Verify a real scan end-to-end
-- [ ] No data migration to reverse — Redis is a cache and the client holds history
+- [ ] No data migration to reverse. A rollback never touches Redis — do not
+      flush it as part of one; much of what it holds has no other copy (§9)
 
 ---
 
@@ -400,7 +454,14 @@ rotation needs no flag day:
 2. Update `GEMINI_API_KEY`, restart
 3. Verify `model_calls_total{outcome="success"}` recovers
 4. Revoke the old key
-5. CI already blocks committed keys (`.github/workflows/backend.yml`)
+5. CI does **not** block a committed key — it finds one after the push, when
+   the repository is public and the key is already published.
+   `.github/workflows/secrets.yml` scans the tree and every commit in history
+   with gitleaks, on every push to any branch and every pull request; only
+   GitHub push protection (Settings → Code security)
+   refuses the push itself. A key that reached a commit is compromised
+   whether or not a later commit deleted it: rotate it, then excuse the old
+   hit by fingerprint in `.gitleaksignore`
 
 ### 8.3 Provisioning DeviceCheck
 
@@ -490,23 +551,84 @@ housekeeping, not an incident, and step 3 matters more than speed.
 
 ## 9. Disaster recovery
 
-**RPO/RTO are shaped by an unusual property: there is no system of record.**
-Scan history lives on-device, and StoreKit transactions are re-verifiable
-offline. Redis holds only derived state.
+**Redis is not a cache.** This section used to say it was: "Redis holds only
+derived state", an acceptable RPO of "effectively total loss", and "document
+this rather than engineering Redis persistence". That was true when written
+(b189302, July). Since then state with no other copy has moved in — refund
+tombstones (90b16f5), stored entitlement proofs (541e552), the free-scan lever
+and its change log (20abdb1), TikTok tokens (567f695), the referral pools and
+their ledger (f772c5c) — while App Attest keys were there all along. A fresh
+Redis is no longer a recovery. It is a different service that re-grants free
+scans, forgets refunds and forgets who is signed in.
+
+Scan history still lives on-device, and nothing here can lose it.
+
+### What Redis holds, and what losing it costs
+
+| Keys | Holds | TTL | Other copy? | Losing it |
+|---|---|---|---|---|
+| `attest:{keyId}` | each device's App Attest public key and counter | 400 d | **None** | Every device's next token refresh answers 401 "unknown key"; the app discards its key, attests again and comes back as a **new subject** — a re-attestation wave, and a fresh free allowance for every device DeviceCheck does not recognise (its bits live at Apple and survive) |
+| `quota:{subject}:{day}` | today's free scans used | 30 h | None | Everyone's allowance resets for today |
+| `quota:seen:*`, `quota:welcome:*` | first sighting; welcome granted or refused | 400 d | None | Every subject looks new: DeviceCheck is re-queried for the whole base, and with the first-day lever armed, devices it does not recognise get the welcome allowance again |
+| `entproof:{subject}` | Apple's signed transaction behind a Pro tier | to the term's end | On the device | Pro users read as free until the app re-syncs (`/auth/entitlement`, on the next status refresh) |
+| `ent:{subject}` | derived entitlement | 15 min / 24 h | Derived | Nothing lasting |
+| `entrevoked:{otid}` | refund and revoke tombstones | 400 d | Apple's notification history | A refunded purchase's transaction grants Pro again until that term expires (§16) |
+| `txn:{otid}` | devices bound to one subscription | 400 d | None | The six-device sharing cap starts counting from zero |
+| `apns2:{uuid}` | App Store notifications already handled | 5 d | None | A redelivered notification is processed twice (a conversion counted twice) |
+| `opsstate:levers` | the free-scan lever and its change log | none | **None** | The lever silently reverts to `FREE_SCANS_FIRST_DAY`, switching the experiment's arm mid-window, and `/experiment` loses the footnotes saying when it moved |
+| `opsidx:subs`, `opsidx:users` | the operator's subscriber and device tables | 400 d | Rebuilt slowly | `/subs` and `/users` start empty and refill as each subscriber syncs or Apple notifies — up to a year for yearly plans |
+| `opssocial:tiktok:tokens` | TikTok OAuth tokens | 400 d | **None** | `/social` loses TikTok until re-authorised |
+| `refpool:*`, `refpool:seen:*` | offer-code pools, cursor, and the loader's ledger of every code ever loaded | none | **None** | Unissued codes are gone; and without the ledger, reloading an old CSV hands out codes that were already given away |
+| `ref:*` | referral links, claims, earned and parked reward codes | 400 d | **None** | Referrers lose rewards they earned and have not redeemed |
+| `dct:{keyId}` | DeviceCheck token from attestation | 400 d | Next attest | Reinstall marking waits for the device's next attestation |
+| `opsstats:*`, `opsstate:*` (other), `chal:*`, rate limits, `comps:*`, `safety:*` | counters, digests, challenges, limits, caches | ≤ 400 d | — | Digest history and today's limits; disposable |
+
+**RPO for Redis is therefore not "total loss is fine".** Target: no more than
+one second of writes (`appendonly yes`, `appendfsync everysec`) on a volume
+that survives a restart and a redeploy of the Redis service.
+`[NOT VERIFIED]` — nobody has checked what Railway's Redis does today. To
+check, against the production instance:
+
+```
+redis-cli CONFIG GET appendonly     # want: yes
+redis-cli CONFIG GET appendfsync    # want: everysec
+redis-cli CONFIG GET save           # RDB snapshots as well are fine
+redis-cli INFO persistence          # aof_last_write_status:ok, rdb_last_bgsave_status:ok
+```
+
+and confirm in Railway that the Redis service has a volume attached.
+`🩺 Checkup`'s Redis line shows AOF and the last snapshot, and warns when a
+restart would lose everything.
 
 | Failure | Impact | Recovery | RTO |
 |---|---|---|---|
-| Container loss | None — stateless | Platform restarts | seconds |
-| Total Redis loss | Quota resets; Pro users re-sync on next status refresh | Provision new instance, set `REDIS_URL` | ~15 min `[ESTIMATED]` |
+| Container loss | None — the API container is stateless | Platform restarts | seconds |
+| Redis restart, persistence on | ≤ 1 s of writes | Automatic replay of the AOF | ~1 min `[ESTIMATED]` |
+| Redis data lost | Every row of the table above | Restore the volume or a snapshot first; only then the rebuild checklist below | Restore: ~15 min `[ESTIMATED]`; rebuild: weeks for `/subs` |
 | Gemini outage | Scans fail; everything else works | Wait, or add a fallback provider | Provider-dependent |
-| Region failure | Full outage | Redeploy to another region | ~1 hour `[ESTIMATED]` |
+| Region failure | Full outage | Redeploy to another region, **with Redis's data** | ~1 hour `[ESTIMATED]` |
 | Certificate expiry | Full outage | Platform auto-renews; pinning is report-only so a mismatch cannot brick clients | — |
 | Key compromise | Sessions invalid | Rotate `TOKEN_KEYS`, drop old immediately | ~10 min |
 
-**Acceptable RPO for Redis is effectively total loss.** Quota resets to today's
-allowance (a small revenue leak, not a correctness failure) and entitlements
-re-derive from the client's signed transaction. Document this rather than
-engineering Redis persistence for it.
+### If Redis's data is gone
+
+Restoring the volume, or any snapshot, comes first — a day-old snapshot loses
+a day; a fresh instance loses everything. Only if there is nothing to restore:
+
+- [ ] **Refund tombstones.** Pull REFUND and REVOKE notifications from the App
+      Store Server API's *Get Notification History* for as far back as Apple
+      keeps them, and write each tombstone by hand (§16 step 4).
+- [ ] **Referral codes.** Do **not** reload an old code CSV: the ledger that
+      stopped a code being loaded twice is gone, so already-issued codes would
+      be issued again. Load only a newly generated batch.
+- [ ] **Free-scan lever.** Re-arm it with `/lever` if it was armed, and note
+      the date — `/experiment` no longer knows when it moved.
+- [ ] **TikTok.** Re-authorise from `/social`.
+- [ ] **Expect, and do not chase:** a wave of re-attestations as every
+      device's next refresh answers 401; free allowances re-granted to devices
+      DeviceCheck does not recognise; Pro users shown as free until their app
+      re-syncs; `/subs` refilling over a renewal cycle.
+- [ ] Nothing on-device is lost, and nothing needs announcing to users.
 
 ---
 
@@ -582,6 +704,7 @@ work on does not.
 |---|---|---|
 | Async correctness | ✅ | No blocking I/O on the event loop |
 | Redis pooling | ✅ | `max_connections=50`, bounded timeouts |
+| Redis memory | ⚠️ Unverified | Needs `maxmemory` at ~75% of the Redis service's memory and `maxmemory-policy noeviction`. Neither value is recorded anywhere or known to be set on Railway — check with `CONFIG GET maxmemory*`. `🩺 Checkup` prints usage, policy, evictions and persistence, and warns on each unsafe value. Growth ~50 MB per 10k users `[ESTIMATED]` |
 | DeviceCheck pooling | ✅ Fixed | Was a new TLS handshake per call |
 | Worker count | 1/container | Correct for I/O-bound work; scale by containers |
 | Rate limiting | ✅ | Redis-backed, Lua-atomic; degrades to per-process |
@@ -597,6 +720,10 @@ work on does not.
 **Blocking**
 
 - [ ] `REDIS_URL` set and reachable
+- [ ] Redis persists to disk and survives a restart: `appendonly yes`,
+      `appendfsync everysec`, a volume attached (§9)
+- [ ] Redis `maxmemory-policy noeviction` with `maxmemory` set (§11); `🩺
+      Checkup` shows no ⚠️ on its Redis line
 - [ ] `TOKEN_KEYS` + `TOKEN_CURRENT_KID` set
 - [ ] `ENVIRONMENT=production` — two effects, both wanted: strict startup
       checks (refuses to boot without `TOKEN_KEYS`), and **no `/openapi.json`,
@@ -630,7 +757,10 @@ work on does not.
       that ships the guard, or observability goes dark
 - [ ] Metrics collector scraping `/metrics` — must send
       `Authorization: Bearer $METRICS_TOKEN`
-- [ ] Alerts configured from §3
+- [ ] `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID` added as GitHub repository
+      secrets, so the Uptime workflow's alert reaches Telegram and not only
+      email (§3)
+- [ ] An external uptime monitor on `/health/ready` (§3)
 - [ ] On-call rota and escalation path
 - [ ] Load test at 10× expected peak
 - [ ] Gold dataset + recorded baseline (`docs/EVALUATION.md`)
@@ -641,7 +771,7 @@ work on does not.
 
 **Start of shift**
 - [ ] `/health/ready` returns 200
-- [ ] No firing alerts
+- [ ] No unresolved 🔴 in the ops chat, and the last Uptime run is green
 - [ ] Last deploy is green
 
 **During an incident**

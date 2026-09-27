@@ -259,6 +259,76 @@ class TestModelHealthAlerts:
         assert len(enabled_notify.texts) == 3
 
 
+class TestCacheAlerts:
+    """A Redis outage fails every free scan closed and used to announce
+    nothing. The cache reports transitions; notify announces the ones that
+    hold for CACHE_ALERT_SETTLE_SECONDS."""
+
+    @pytest.fixture(autouse=True)
+    def _fast_settle(self, monkeypatch):
+        monkeypatch.setattr(notify, "CACHE_ALERT_SETTLE_SECONDS", 0.01)
+
+    @pytest.mark.asyncio
+    async def test_an_outage_that_holds_is_announced_and_so_is_the_recovery(
+            self, enabled_notify):
+        notify.cache_state_changed(True)
+        await drain()
+        assert len(enabled_notify.texts) == 1
+        assert "Redis unreachable" in enabled_notify.texts[0]
+        assert "503" in enabled_notify.texts[0]
+
+        notify.cache_state_changed(False)
+        await drain()
+        assert len(enabled_notify.texts) == 2
+        assert "Redis recovered" in enabled_notify.texts[1]
+
+    @pytest.mark.asyncio
+    async def test_a_blip_that_recovers_inside_the_window_says_nothing(self, enabled_notify):
+        notify.cache_state_changed(True)
+        notify.cache_state_changed(False)
+        await drain()
+        assert enabled_notify.texts == []
+
+    @pytest.mark.asyncio
+    async def test_flapping_is_not_a_siren(self, enabled_notify):
+        """A Redis that answers reads and refuses writes flips per request."""
+        for _ in range(20):
+            notify.cache_state_changed(True)
+            notify.cache_state_changed(False)
+        notify.cache_state_changed(True)
+        await drain()
+        assert len(enabled_notify.texts) == 1
+
+    @pytest.mark.asyncio
+    async def test_flapping_keeps_one_settle_waiting_not_one_per_flip(self, enabled_notify):
+        """Superseded settles used to sleep out the whole window, so a
+        per-request flip held transitions/s × 60 tasks alive."""
+        for _ in range(20):
+            notify.cache_state_changed(True)
+            notify.cache_state_changed(False)
+        settles = [t for t in notify._tasks
+                   if getattr(t.get_coro(), "__name__", "") == "_settle_cache_state"]
+        await asyncio.sleep(0)
+        assert len(settles) == 40
+        assert sum(not t.done() for t in settles) == 1
+        await drain()
+        assert enabled_notify.texts == []          # it ended up, as it began
+
+    @pytest.mark.asyncio
+    async def test_wired_to_a_real_cache_end_to_end(self, enabled_notify):
+        class Down:
+            async def get(self, *a, **k): raise ConnectionError("down")
+
+        cache = ResilientCache(Down(), InMemoryCache())    # type: ignore[arg-type]
+        cache.on_change = notify.cache_state_changed
+        await cache.get("anything")
+        await drain()
+        assert any("Redis unreachable" in t for t in enabled_notify.texts)
+
+    def test_silent_when_the_bot_is_not_configured(self):
+        notify.cache_state_changed(True)           # no notifier, no loop: no-op
+
+
 # ── Deploy ping ──────────────────────────────────────────────────────────────
 
 class TestDeployPing:
@@ -1696,6 +1766,91 @@ class TestCheckup:
             assert "TLS api.snapworth.eu: unreachable (OSError)" in text
         finally:
             await notify.aclose()
+
+
+class TestRedisCheckupLine:
+    """What a full Redis does, and whether a restart keeps it, were reported
+    nowhere: the only probe was a PING."""
+
+    NOW = 1_790_000_000.0
+    SAFE = {"used_memory": 50 * 1024 * 1024, "maxmemory": 384 * 1024 * 1024,
+            "maxmemory_policy": "noeviction", "evicted_keys": 0, "aof_enabled": 1,
+            "rdb_last_save_time": int(NOW) - 3600, "rdb_last_bgsave_status": "ok"}
+
+    def test_a_safe_configuration_reads_clean(self):
+        line = notify._redis_line(self.SAFE, self.NOW)
+        assert line.startswith("Redis: 50.0 MB of 384 MB (13%) · policy noeviction · evicted 0")
+        assert "AOF on" in line and "last snapshot 1h ago" in line
+        assert "⚠️" not in line
+
+    @pytest.mark.parametrize("override, warning", [
+        ({"maxmemory_policy": "allkeys-lru"}, "evicts state nothing can rebuild"),
+        ({"maxmemory_policy": "volatile-ttl"}, "evicts state nothing can rebuild"),
+        ({"maxmemory": 0}, "no maxmemory"),
+        ({"used_memory": 330 * 1024 * 1024}, "above 80% of maxmemory"),
+        ({"evicted_keys": 12}, "12 keys evicted"),
+        ({"rdb_last_bgsave_status": "err"}, "last snapshot failed"),
+        ({"aof_enabled": 0, "rdb_last_save_time": int(NOW) - 3 * 86400},
+         "a restart loses everything"),
+    ])
+    def test_each_unsafe_setting_is_flagged(self, override, warning):
+        line = notify._redis_line(self.SAFE | override, self.NOW)
+        assert "⚠️" in line and warning in line
+
+    def test_snapshots_without_aof_are_enough(self):
+        line = notify._redis_line(self.SAFE | {"aof_enabled": 0}, self.NOW)
+        assert "⚠️" not in line
+
+    # Redis sets rdb_last_save_time to its start time at boot, with `save ""`
+    # and AOF off too. Read as a snapshot, a Redis with no persistence at all
+    # showed "last snapshot 0h ago" and no warning for a day after a restart.
+    BOOTED = {"aof_enabled": 0, "uptime_in_seconds": 600,
+              "rdb_last_save_time": int(NOW) - 600}
+
+    def test_the_boot_stamp_is_not_a_snapshot(self):
+        line = notify._redis_line(self.SAFE | self.BOOTED | {"rdb_saves": 0}, self.NOW)
+        assert "last snapshot" not in line and "no snapshot since start 0h ago" in line
+        assert "⚠️ no AOF and no snapshot since Redis started" in line
+
+    def test_the_boot_stamp_is_recognised_before_redis_7(self):
+        """No `rdb_saves` before Redis 7: a last save at the boot time is the stamp."""
+        line = notify._redis_line(self.SAFE | self.BOOTED, self.NOW)
+        assert "⚠️ no AOF and no snapshot since Redis started" in line
+
+    def test_a_snapshot_since_boot_is_one(self):
+        after_boot = {"rdb_last_save_time": int(self.NOW) - 60}
+        for extra in ({"rdb_saves": 1}, {}):
+            line = notify._redis_line(self.SAFE | self.BOOTED | after_boot | extra, self.NOW)
+            assert "last snapshot 0h ago" in line and "⚠️" not in line
+
+    def test_aof_covers_a_redis_that_has_not_snapshotted(self):
+        line = notify._redis_line(self.SAFE | self.BOOTED | {"aof_enabled": 1, "rdb_saves": 0},
+                                  self.NOW)
+        assert "no snapshot since start" in line and "⚠️" not in line
+
+    @pytest.mark.asyncio
+    async def test_checkup_carries_it_when_redis_answers_info(self, recorder, monkeypatch):
+        monkeypatch.setattr(notify, "_tls_days_left", lambda host, timeout=5.0: 61)
+        safe = self.SAFE
+
+        class Primary(InMemoryCache):
+            async def info(self) -> dict:
+                return dict(safe) | {"rdb_last_save_time": int(time.time())}
+
+        cache = ResilientCache(Primary(), InMemoryCache())
+        notifier = notify.TelegramNotifier(
+            FAKE_TOKEN, FAKE_CHAT,
+            client=httpx.AsyncClient(transport=httpx.MockTransport(recorder.handler)))
+        notify.configure(cache, notifier=notifier)
+        try:
+            text = await notify.handle_command("/checkup")
+            assert text is not None and "Redis: 50.0 MB of 384 MB" in text
+        finally:
+            await notify.aclose()
+
+    @pytest.mark.asyncio
+    async def test_no_redis_no_line(self, cache):
+        assert await cache.redis_info() is None
 
 
 class TestQuietAndSpike:
