@@ -1751,7 +1751,7 @@ extension HaulSession {
         }
 
         Analytics.shared.track(
-            .scanCompleted(success: true, category: ItemCategory(normalizing: response.category))
+            .scanCompleted(success: true, category: ScanCategory(normalizing: response.category))
         )
         if let milestone = ScanTally.record() {
             Analytics.shared.track(.scanCountMilestone(count: milestone))
