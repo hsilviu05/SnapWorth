@@ -9,10 +9,28 @@ final class ScanViewModel {
     var capturedImage: UIImage?
     var isAnalyzing: Bool = false
     var scanResult: ScanResult?
-    var errorMessage: String?
-    /// `errorMessage` says this build is no longer served, so the alert
-    /// offers the App Store beside OK. Set and cleared with it.
-    var errorOffersUpdate = false
+
+    /// What the "Scan Failed" alert says, and whether it offers the App Store
+    /// beside OK. One value, so the button cannot outlive its message: kept as
+    /// a flag of its own, it survived a dismissed update alert and came back
+    /// beside the next, unrelated error — a library photo that would not load.
+    struct FailureAlert: Equatable {
+        let message: String
+        /// The server no longer serves this build (`AppError.updateRequired`).
+        let offersUpdate: Bool
+    }
+    var failureAlert: FailureAlert?
+
+    /// The alert's text. Setting it replaces the whole alert, and nil
+    /// dismisses it, so a message set this way never carries the App Store
+    /// button.
+    var errorMessage: String? {
+        get { failureAlert?.message }
+        set { failureAlert = newValue.map { FailureAlert(message: $0, offersUpdate: false) } }
+    }
+
+    var errorOffersUpdate: Bool { failureAlert?.offersUpdate ?? false }
+
     var showPaywall: Bool = false
     var showImagePicker: Bool = false
     var selectedPhotoItem: PhotosPickerItem?
@@ -83,7 +101,6 @@ final class ScanViewModel {
         Analytics.shared.track(.scanStarted(isFirst: isFirst))
         isAnalyzing = true
         errorMessage = nil
-        errorOffersUpdate = false
         saveFailed = false
         defer { isAnalyzing = false }
         // The request and the save, if the phone locks mid-scan.
@@ -232,8 +249,7 @@ final class ScanViewModel {
                 showSubscriptionUnconfirmed = true
                 return
             }
-            errorOffersUpdate = appError == .updateRequired
-            errorMessage = appError.errorDescription
+            failureAlert = FailureAlert(appError)
         }
     }
 
@@ -276,9 +292,16 @@ final class ScanViewModel {
         capturedImage = nil
         scanResult = nil
         errorMessage = nil
-        errorOffersUpdate = false
         saveFailed = false
         isAnalyzing = false
+    }
+}
+
+extension ScanViewModel.FailureAlert {
+    /// What a failed scan shows, or nil for an error with nothing to say.
+    init?(_ error: AppError) {
+        guard let message = error.errorDescription else { return nil }
+        self.init(message: message, offersUpdate: error == .updateRequired)
     }
 }
 

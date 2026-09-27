@@ -925,6 +925,27 @@ final class ScanViewModelSecurityTests: XCTestCase {
         XCTAssertNil(vm.errorMessage, "Stale error must be cleared on reset")
     }
 
+    /// "Open App Store" belongs to the update message and to nothing else.
+    /// Kept as a flag of its own, it outlived the alert it was set for.
+    func test_theAppStoreButtonGoesWithTheUpdateMessageOnly() {
+        vm.failureAlert = ScanViewModel.FailureAlert(.updateRequired)
+        XCTAssertTrue(vm.errorOffersUpdate)
+        XCTAssertEqual(vm.errorMessage, AppError.updateRequired.errorDescription)
+
+        // OK, Open App Store, or the alert dismissed: all three set nil.
+        vm.errorMessage = nil
+        XCTAssertFalse(vm.errorOffersUpdate)
+
+        // A later, unrelated message — `loadSelectedPhoto`'s, for a library
+        // photo that would not load — does not bring the button back.
+        vm.failureAlert = ScanViewModel.FailureAlert(.updateRequired)
+        vm.errorMessage = "Couldn't load the selected photo. Please try another."
+        XCTAssertFalse(vm.errorOffersUpdate)
+
+        XCTAssertEqual(ScanViewModel.FailureAlert(.network)?.offersUpdate, false)
+        XCTAssertNil(ScanViewModel.FailureAlert(.purchaseCancelled), "nothing to say, so no alert")
+    }
+
     func test_reset_setsIsAnalyzingToFalse() {
         vm.isAnalyzing = true
         vm.reset()
