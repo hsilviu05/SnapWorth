@@ -617,8 +617,9 @@ still-starting instances, and the graceful shutdown achieves nothing.
 |---|---|---|
 | `GEMINI_API_KEY` | On suspicion | §8.2 |
 | `TOKEN_KEYS` | Quarterly | §8.1 — zero-downtime by design |
-| `AUDIT_SALT` | Rarely | Rotating breaks historical correlation, deliberately |
+| `AUDIT_SALT` | Rarely | §8.5 — rotating breaks historical correlation, deliberately |
 | `DEVICECHECK_PRIVATE_KEY` | On suspicion | Apple Developer portal |
+| `TELEGRAM_BOT_TOKEN` | On suspicion | §8.6 — was in production's logs until 2026-09-27 |
 | TLS certificate | Automatic | Let's Encrypt, 90 days, platform-managed |
 
 ### 8.1 Token key rotation (zero downtime)
@@ -737,6 +738,77 @@ Rotate when the key may have been exposed. The blast radius is small by
 construction — a DeviceCheck key can read and write two bits per device and
 nothing else, no user data and no App Store Connect access — so this is
 housekeeping, not an incident, and step 3 matters more than speed.
+
+### 8.5 AUDIT_SALT
+
+The salt keys two things, and each is private only while the salt is secret:
+
+- **Audit pseudonyms** (`auditlog.pseudonymise`): the subject of every audit
+  record, the ids in `/users` and `/subs` rows, the device id `/user` takes,
+  and the support id the app puts in a support mail.
+- **The /trends device tags** (`auditlog.keyed_tag`, since #190), kept beside
+  the categories, brands and finds each device scanned, for as long as the day
+  document (35 days).
+
+Unset, it falls back to `snapworth-audit-v1`, a literal in `auditlog.py`, and
+`.env.example` suggests `change-me-in-production`. Both are in this public
+repository, so with either one, anyone holding a device's key id can recompute
+its pseudonym and its trends tag.
+
+**How it is reported.** In production (`ENVIRONMENT=production`) startup logs
+one ERROR, *AUDIT_SALT is unset or a placeholder this repository publishes…*.
+`🩺 Checkup` reads *Audit salt: ⚠️ placeholder — pseudonyms and trends tags can
+be recomputed (RUNBOOK §8)* until the value is real, then *Audit salt: set ✅*.
+Neither shows the value or anything derived from it. The API still boots on a
+placeholder, unlike a missing `TOKEN_KEYS`: if production runs on the default,
+a refusal would take it down at the next deploy, and changing the salt is a
+decision with costs.
+
+**Setting it: once, deliberately, at a quiet hour.**
+
+1. Generate one: `python3 -c "import secrets;print(secrets.token_urlsafe(32))"`.
+   Paste it straight into Railway's `AUDIT_SALT`, and nowhere else: not a file,
+   a commit or a chat.
+2. After the redeploy, `🩺 Checkup` → *Audit salt: set ✅*, and the startup log
+   has no `AUDIT_SALT` ERROR.
+
+**What changing it costs**, now or at any later rotation:
+
+- Every pseudonym changes. `/users` and `/subs` keep the old ids, and a device
+  appears under its new one the next time it is seen or syncs, so `/users`
+  counts a device active on both sides twice until its old row leaves the
+  30-day window. `/sub` still finds a subscriber by transaction id, but a
+  support id quoted from before the change matches nothing.
+- /trends counts a device that scans on both sides of the change as two, until
+  its week-long window moves past the change.
+- Audit-log correlation across the change breaks, by design.
+- State kept per pseudonym starts over. A device paused for repeated blocked
+  photos (`safety:blocks:*`) is unpaused, and `/user`'s last-sync line is
+  empty until the device syncs again.
+
+### 8.6 Telegram bot token rotation
+
+The Bot API puts the token in every request URL, so anything that logs a URL
+can leak it. Until 2026-09-27 httpx did exactly that on every `getUpdates`
+poll, and `RedactionFilter` passed the URL through because it was not a `str`
+(`observability.RedactionFilter.filter`). Whoever could read the Railway logs,
+or a drain fed from them, could read the token. Rotate once that fix is
+deployed — before it, the new token would be written to the logs too.
+
+Telegram keeps one token per bot, so this is revoke-then-paste, and alerts are
+down for the minutes in between:
+
+1. Telegram → @BotFather → `/mybots` → the bot → **API Token** →
+   **Revoke current token**. The old token stops working immediately.
+2. Railway: set `TELEGRAM_BOT_TOKEN` to the new value (the API redeploys).
+3. GitHub → Settings → Secrets → Actions: set `TELEGRAM_BOT_TOKEN`, the Uptime
+   workflow's copy (§3) — if it has been added yet (#209); otherwise add the
+   new value there, never the old one.
+4. `🩺 Checkup` answers, and a `workflow_dispatch` Uptime run posts to the
+   chat. `TELEGRAM_CHAT_ID` does not change.
+
+Nothing else holds the token: no webhook is registered (the bot polls), and
+the app never sees it.
 
 ---
 
@@ -957,7 +1029,12 @@ measured per subscriber; `/costs` has no per-subscriber view.
       explaining that it fails closed, which is precisely the existence the
       404-not-401 design below is hiding. Also publishes the
       `/apple/notifications` trust model and every request body's constraints.
-- [ ] `AUDIT_SALT` set to a real value
+- [ ] `AUDIT_SALT` set to a real value — **unset or a placeholder, pseudonyms
+      and /trends device tags can be recomputed** by anyone with a key id
+      (§8.5). Production still boots, with one ERROR in the startup log, and
+      `🩺 Checkup` reads *Audit salt: ⚠️ placeholder — pseudonyms and trends
+      tags can be recomputed (RUNBOOK §8)* until it is set, then *Audit salt:
+      set ✅*. Read §8.5 before changing it: it has costs
 - [ ] `GEMINI_DAILY_BUDGET_USD` set — **unset, the over-budget alert is off**
       (0 disables it), and it is the only thing that notices a heavy day: Pro
       is sold as unlimited scans and capped only per hour (§5.8, §10). Size it

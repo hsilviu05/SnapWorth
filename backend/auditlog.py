@@ -26,7 +26,25 @@ audit_log = logging.getLogger("snapworth.audit")
 # Salt keeps subject hashes from being reversible via a precomputed table of
 # plausible key ids. Rotating it breaks historical correlation, which is the
 # intended trade for privacy.
-_SALT = os.environ.get("AUDIT_SALT", "snapworth-audit-v1").encode()
+_DEFAULT_SALT = "snapworth-audit-v1"
+_SALT = os.environ.get("AUDIT_SALT", _DEFAULT_SALT).encode()
+
+# Salts that are no secret: the default above, used when AUDIT_SALT is unset,
+# and the value `.env.example` suggests. Both are in this public repository,
+# so with either, anyone holding a device's key id can recompute its pseudonym
+# and its /trends tag, which is what the salt is there to prevent.
+_PUBLIC_SALTS = frozenset({_DEFAULT_SALT.encode(), b"change-me-in-production"})
+
+
+def salt_is_placeholder() -> bool:
+    """Whether the salt in use is public: AUDIT_SALT unset, blank, or one of
+    the two placeholders this repository publishes.
+
+    A yes or no, and nothing more. The callers are a startup log line and the
+    ops bot's Checkup, and a hash, prefix or length of a real salt would
+    narrow it down, so neither is given anything to print but the verdict."""
+    salt = _SALT.strip()
+    return not salt or salt in _PUBLIC_SALTS
 
 
 class AuditEvent(str, Enum):
