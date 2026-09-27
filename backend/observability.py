@@ -352,9 +352,11 @@ class RedactionFilter(logging.Filter):
 # installs have aged out". The build was on every request all along. URLSession
 # sends `<CFBundleName>/<CFBundleVersion> CFNetwork/… Darwin/…` by default, the
 # app sets no User-Agent of its own, and CFBundleVersion is the build number
-# (Info.plist: `$(CURRENT_PROJECT_VERSION)`). That number has only gone up
-# since 1.1.0 restarted it at 1 — 1.0 had reached 4 — so ordering by it holds
-# for every build a minimum would sensibly be set against.
+# (Info.plist: `$(CURRENT_PROJECT_VERSION)`). It does not order releases all
+# the way down: 1.0.0 reached build 7 in the project before 1.1.0 restarted
+# the count at 1, and 1.2.1 was build 6. It has only gone up from build 8
+# (1.3.1), so a minimum of 8 or more is safe; one below 8 can still serve a
+# 1.0.0 install while refusing a newer release.
 
 _CLIENT_BUILD = re.compile(r"SnapWorth/(\d{1,6})(?:\s|$)")
 
