@@ -536,3 +536,46 @@ class TestRuntimeOverride:
         async def same():
             return 1
         assert await self._quota(same, limit=1)._first_day_limit() == 0
+
+
+class TestDescribeWelcome:
+    """`describe_welcome` is what the ops bot reports and checks the lever
+    against, in place of its own copies of these rules — each of which went
+    wrong once. So it has to say what the quota *grants*, not what was asked
+    for, and answer for a value before anyone sets it."""
+
+    def _quota(self, override=None, *, env_first_day=0, limit=1):
+        async def lever():
+            return override
+        return ScanQuota(ResilientCache(None, InMemoryCache()), None,
+                         limit=limit, first_day_limit=env_first_day,
+                         welcome_override=lever)
+
+    @pytest.mark.asyncio
+    async def test_a_first_day_value_at_the_daily_limit_is_described_as_none(self):
+        # The live case: FREE_SCANS_FIRST_DAY=1 with one free scan a day. The
+        # bot printed the variable, which reads as armed.
+        q = self._quota(env_first_day=1, limit=1)
+        setting = await q.describe_welcome()
+        assert (setting.environment, setting.override, setting.configured) == (1, None, 1)
+        assert setting.scans == 0 == await q._first_day_limit()
+
+    @pytest.mark.asyncio
+    async def test_the_override_is_what_is_granted_and_the_environment_is_kept(self):
+        setting = await self._quota(3, env_first_day=5).describe_welcome()
+        assert (setting.override, setting.environment, setting.scans) == (3, 5, 3)
+
+    @pytest.mark.asyncio
+    async def test_an_unreadable_override_is_described_as_none(self):
+        setting = await self._quota("three", env_first_day=2).describe_welcome()
+        assert setting.override is None and setting.scans == 2
+
+    @pytest.mark.asyncio
+    async def test_it_answers_for_a_value_before_it_is_set(self):
+        setting = await self._quota(limit=1).describe_welcome()
+        assert [setting.allowance(v) for v in (-3, 0, 1, 2, 10, 9_999)] == \
+            [0, 0, 0, 2, 10, ScanQuota.MAX_FIRST_DAY_SCANS]
+        assert setting.smallest == 2
+        # The daily limit already at the cap leaves nothing to arm.
+        assert (await self._quota(limit=ScanQuota.MAX_FIRST_DAY_SCANS)
+                .describe_welcome()).smallest is None

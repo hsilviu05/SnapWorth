@@ -78,11 +78,18 @@ import secrets
 import time
 from collections.abc import Awaitable, Callable
 from datetime import datetime, timedelta, timezone
+from typing import TYPE_CHECKING
 
 import auditlog
 import categories
 import ideas
 from confidence import brand_is_known
+
+if TYPE_CHECKING:
+    # For the annotation only. The value arrives through `configure`, from the
+    # one `ScanQuota` main builds, so the bot asks the quota what the welcome
+    # is instead of working it out again.
+    from quota import WelcomeSetting
 
 log = logging.getLogger("snapworth.notify")
 
@@ -283,7 +290,8 @@ COMMANDS: tuple[tuple[str, str], ...] = (
     ("sub", "/sub <id> — ask Apple for one subscriber's live status"),
     ("users", "Devices seen, 7-day and 30-day actives, most active"),
     ("costs", "Gemini spend: today, 7 and 30 days, per scan, vs MRR"),
-    ("experiment", "Free-scan experiment: limit hits vs subscriptions, whole window"),
+    ("experiment", "Free-scan experiment: limit hits vs subscriptions, whole window; "
+                   "/experiment export for a CSV to keep"),
     ("lever", "Arm or disarm the free-scan allowance without a redeploy"),
     ("minbuild", "Tell app builds below a number to update, without a redeploy"),
     ("social", "TikTok: followers, likes and the latest videos"),
@@ -703,6 +711,11 @@ _scanner: Callable[..., Awaitable[dict]] | None = None
 # not wire one.
 _device_check_probe: Callable[[], Awaitable[tuple[bool | None, str]]] | None = None
 
+# What the first-day welcome is, from the `ScanQuota` that grants it: its
+# `describe_welcome`, injected by main. None when the app did not wire one,
+# and then the bot says so rather than guess — see `_welcome_setting`.
+_describe_welcome: Callable[[], Awaitable[WelcomeSetting]] | None = None
+
 # Identifies this replica as the poll-lock holder.
 _poll_token = secrets.token_hex(8)
 
@@ -721,7 +734,8 @@ def configure(cache, notifier: TelegramNotifier | None = None,
               status_provider: Callable[[], dict] | None = None,
               social=None, generator: Callable[..., Awaitable[str]] | None = None,
               scanner: Callable[..., Awaitable[dict]] | None = None,
-              device_check_probe: Callable[[], Awaitable[tuple[bool | None, str]]] | None = None) -> None:
+              device_check_probe: Callable[[], Awaitable[tuple[bool | None, str]]] | None = None,
+              welcome: Callable[[], Awaitable[WelcomeSetting]] | None = None) -> None:
     """Wire the notifier from the environment. Called once at startup.
 
     With the env vars unset this leaves everything disabled and every public
@@ -729,13 +743,14 @@ def configure(cache, notifier: TelegramNotifier | None = None,
     from `count_scan` and `scan_completed`'s tallies, which `/trends` reads.
     """
     global _notifier, _cache, _status_provider, _social, _generator, _scanner
-    global _device_check_probe
+    global _device_check_probe, _describe_welcome
     _cache = cache
     _status_provider = status_provider
     _social = social
     _generator = generator
     _scanner = scanner
     _device_check_probe = device_check_probe
+    _describe_welcome = welcome
 
     if notifier is not None:
         _notifier = notifier
@@ -1901,9 +1916,12 @@ async def handle_command_with_buttons(text: str) -> tuple[str, Buttons] | None:
     if command == "/costs":
         return await _costs_text(), await _buttons()
     if command == "/experiment":
+        if argument == "export":
+            return await _experiment_export(), [[("🧪 Experiment", "experiment")]]
         current = (await _levers()).get("free_scans_first_day")
         return (await _experiment_text(),
-                _lever_buttons(current) + await _buttons())
+                _lever_buttons(current) + [[("💾 Export CSV", "experiment export")]]
+                + await _buttons())
     if command == "/lever":
         return await _lever_command(argument, rest)
     if command == "/minbuild":
@@ -2179,22 +2197,65 @@ def _clean_brand(brand: str | None) -> str | None:
 # to the environment when it returns None or raises, so an unreadable lever can
 # neither fail a scan nor grant an allowance nobody configured. The value is
 # clamped there too: this is a button that spends money.
+#
+# What a value resolves to — the cap, the daily floor, the environment's say —
+# is the quota's to answer, and `_welcome_setting` asks it. This module used to
+# keep its own copy of each rule, and every copy was wrong once.
 
 LEVERS_KEY = "opsstate:levers"
 LEVER_CHANGES_CAP = 40
 DEFAULT_ARMED_FIRST_DAY = 3
 
 
-def _daily_free_scans() -> int:
-    """FREE_SCANS_PER_DAY, read the way main.py reads it.
+async def _welcome_setting() -> WelcomeSetting | None:
+    """The welcome as the quota resolves it, or None when it cannot be asked.
 
-    The lever's floor depends on it: `ScanQuota` grants a first-day allowance
-    only when it exceeds the daily one.
+    None when main did not wire `describe_welcome` into this process. The bot
+    then says it does not know and will not arm: answering from its own copy
+    of the rules is what printed `FREE_SCANS_FIRST_DAY=1` — no welcome at a
+    daily limit of 1 — as though the lever were armed.
     """
+    if _describe_welcome is None:
+        return None
     try:
-        return int(os.environ.get("FREE_SCANS_PER_DAY", "1"))
-    except ValueError:
-        return 1
+        return await _describe_welcome()
+    except Exception as exc:                    # pragma: no cover - defensive
+        log.warning("welcome setting unreadable: %s", type(exc).__name__)
+        return None
+
+
+def _welcome_summary(setting: WelcomeSetting | None) -> tuple[bool, str, str]:
+    """(armed, head, why) — whether a new user gets a first-day welcome now.
+
+    Plain text, so the CSV export can carry it; `_welcome_html` marks it up.
+    It reports what the quota grants and then what was asked for, because the
+    two differ exactly when the operator most needs to know it: a value at or
+    below the daily limit is asked for and grants nothing.
+    """
+    if setting is None:
+        return False, "welcome unknown", "the quota is not wired into the bot in this process"
+    env = f"FREE_SCANS_FIRST_DAY={setting.environment}"
+    chat = setting.override is not None
+    if setting.scans:
+        why = (f"{setting.scans} first-day scan{'s' if setting.scans != 1 else ''}, "
+               + ("set from chat" if chat else f"from {env}"))
+        if setting.configured > setting.cap:
+            why += f" (asked for {setting.configured}, capped at {setting.cap})"
+    elif setting.configured <= 0:
+        why = "disarmed from chat" if chat else f"{env}, or unset"
+    else:
+        asked = f"the lever's {setting.configured}, set from chat," if chat else env
+        why = (f"{asked} is not above the daily limit of {setting.daily}, "
+               "so no first-day welcome")
+    if chat and setting.environment != setting.override:
+        # Worth printing: the environment is what ↩️ Use env hands back to.
+        why += f" · env {env}"
+    return bool(setting.scans), "lever armed" if setting.scans else "lever not armed", why
+
+
+def _welcome_html(setting: WelcomeSetting | None) -> str:
+    armed, head, why = _welcome_summary(setting)
+    return f"{head if armed else f'<b>{head}</b>'} — {html.escape(why)}"
 
 
 async def _levers(*, required: bool = False) -> dict:
@@ -2261,6 +2322,9 @@ _LEVER_UNREADABLE = ("🎚 Nothing changed: the lever's stored state could not b
                      "read, and writing over it would lose its change history. "
                      "Try again in a minute.")
 
+_LEVER_UNWIRED = ("🎚 Nothing changed: the bot cannot ask the quota in this process "
+                  "what an allowance would grant, and will not arm one blind.")
+
 
 async def _lever_command(argument: str, rest: str) -> tuple[str, Buttons]:
     """`/lever`, `/lever arm [n]`, `/lever disarm`, and their confirmations.
@@ -2278,34 +2342,39 @@ async def _lever_command(argument: str, rest: str) -> tuple[str, Buttons]:
     confirmed = any(token.lower() == "yes" for token in parts[1:])
     current = (await _levers()).get("free_scans_first_day")
 
+    setting = await _welcome_setting()
+
     if action == "arm":
+        if setting is None:
+            return _LEVER_UNWIRED, _lever_buttons(current)
         wanted = DEFAULT_ARMED_FIRST_DAY
         for token in parts[1:]:
             if token.isdigit():
                 wanted = int(token)
-        # `ScanQuota._first_day_limit` clamps the same way *and then* ends with
-        # `return configured if configured > self._limit else 0` — so anything
-        # at or below FREE_SCANS_PER_DAY resolves to no welcome allowance at
-        # all. This mirrored only the upper half, so arming with 0 or 1 replied
-        # "Lever armed — 1 first-day scan", `/lever` went on rendering that
-        # override on every later call, and the stored document has no TTL, so
-        # the false state survived redeploys. Refuse it where the operator can
-        # see it rather than clamp it silently.
-        wanted = max(0, min(wanted, 10))
-        daily = _daily_free_scans()
-        if wanted <= daily:
+        # The quota clamps to its cap *and then* discards anything at or below
+        # the daily limit. This used to mirror only the clamp, so arming with 0
+        # or 1 replied "Lever armed — 1 first-day scan" and `/lever` went on
+        # rendering that override, from a stored document with no TTL. Asked
+        # rather than restated now, and refused where the operator can see it
+        # rather than clamped silently.
+        wanted = min(wanted, setting.cap)
+        if not setting.allowance(wanted):
+            daily = setting.daily
+            smallest = setting.smallest
+            fix = (f"Arm <b>{smallest}</b> or more, or use 🔕 Disarm for no "
+                   "welcome at all." if smallest is not None else
+                   f"The cap is <b>{setting.cap}</b>, so no first-day allowance "
+                   "can be larger than that — there is no welcome to arm.")
             return (f"🧪 <b>That is not a welcome.</b>\n"
                     f"Every user already gets <b>{daily}</b> free scan"
                     f"{'s' if daily != 1 else ''} a day, and a first-day "
                     f"allowance is only an allowance above that — the quota "
-                    f"discards <b>{wanted}</b> and grants nothing.\n"
-                    f"Arm <b>{daily + 1}</b> or more, or use 🔕 Disarm for "
-                    f"no welcome at all.",
+                    f"discards <b>{wanted}</b> and grants nothing.\n{fix}",
                     _lever_buttons(current))
         if not confirmed:
             return (f"🧪 <b>Arm the free-scan lever?</b>\n"
                     f"New users would get <b>{wanted}</b> scan{'s' if wanted != 1 else ''} "
-                    f"on their first day. Currently <b>{_lever_label(current)}</b>.\n"
+                    f"on their first day. Currently {_welcome_html(setting)}.\n"
                     f"This spends money: every extra scan is a model call.",
                     [[("✅ Yes, arm it", f"lever arm {wanted} yes"),
                       ("Cancel", "experiment")]])
@@ -2318,7 +2387,7 @@ async def _lever_command(argument: str, rest: str) -> tuple[str, Buttons]:
         if not confirmed:
             return ("🔕 <b>Disarm the free-scan lever?</b>\n"
                     f"New users would fall back to the daily limit. Currently "
-                    f"<b>{_lever_label(current)}</b>.\n"
+                    f"{_welcome_html(setting)}.\n"
                     "The window in /experiment keeps running; only the allowance stops.",
                     [[("✅ Yes, disarm it", "lever disarm yes"),
                       ("Cancel", "experiment")]])
@@ -2329,19 +2398,29 @@ async def _lever_command(argument: str, rest: str) -> tuple[str, Buttons]:
 
     if action == "default":
         if not confirmed:
+            if setting is None:
+                then = "FREE_SCANS_FIRST_DAY would decide again"
+            else:
+                # What handing back would actually grant, since the variable's
+                # value alone does not say: 1 reads like a welcome and is none.
+                after = setting.allowance(setting.environment)
+                then = (f"FREE_SCANS_FIRST_DAY={setting.environment} would decide "
+                        "again — " + (f"<b>{_lever_label(after)}</b>" if after
+                                      else "<b>no first-day welcome</b>"))
             return ("↩️ <b>Hand the lever back to the environment?</b>\n"
-                    f"FREE_SCANS_FIRST_DAY would decide again. Currently "
-                    f"<b>{_lever_label(current)}</b>.",
+                    f"{then}. Currently {_welcome_html(setting)}.",
                     [[("✅ Yes", "lever default yes"), ("Cancel", "experiment")]])
         if await _set_free_scan_lever(None) is None:
             return _LEVER_UNREADABLE, _lever_buttons(current)
         return ("↩️ Lever cleared — the environment decides again.",
                 [[("🧪 Experiment", "experiment")]])
 
-    env = os.environ.get("FREE_SCANS_FIRST_DAY", "")
-    return (f"🎚 <b>Free-scan lever</b>\nOverride: <b>{_lever_label(current)}</b>\n"
-            f"Environment: <code>FREE_SCANS_FIRST_DAY={html.escape(env) or 'unset'}</code>",
-            _lever_buttons(current))
+    lines = [f"🎚 <b>Free-scan lever</b>\nNow: {_welcome_html(setting)}",
+             f"Override: <b>{_lever_label(current)}</b>"]
+    if setting is not None:
+        lines.append(f"Environment: <code>FREE_SCANS_FIRST_DAY={setting.environment}</code>"
+                     f" · daily limit {setting.daily}")
+    return "\n".join(lines), _lever_buttons(current)
 
 
 def _lever_buttons(current: int | None) -> Buttons:
@@ -3926,6 +4005,36 @@ def _day_span(start: datetime, end: datetime) -> list[str]:
     return out
 
 
+# The partial day's footnote, shared by the table and the export so the two
+# cannot disagree about what that row is.
+EXPERIMENT_PARTIAL_NOTE = ("limit hits counted from 18:29 UTC that day only — the "
+                           "counter shipped mid-day")
+
+# The counters `/experiment` shows, in its column order. The export's header
+# uses these names as they are, so a kept copy can be traced back to the code.
+EXPERIMENT_COUNTERS = ("active_users", "scans_free", "limit_hits", "new_subs")
+
+
+def _stat_expired(day: str, now: datetime) -> bool:
+    """Whether a day's counters are past STATS_TTL, so a 0 read for it is an
+    absence rather than a count."""
+    dt = _parse_day(day)
+    return dt is not None and (now - dt).days >= STATS_TTL // 86400
+
+
+def _stat_expires_on(day: str) -> datetime:
+    """When `_stat_expired` starts to hold for `day`, a YYYYMMDD from
+    `_day_span`."""
+    return (datetime.strptime(day, "%Y%m%d").replace(tzinfo=timezone.utc)
+            + timedelta(days=STATS_TTL // 86400))
+
+
+async def _lever_changes_in(days: list[str]) -> list[list]:
+    """The lever's recorded changes that fall on one of `days`, oldest first."""
+    return [c for c in ((await _levers()).get("changes") or [])
+            if isinstance(c, list) and len(c) == 3 and c[0] in days]
+
+
 async def _experiment_text(now: datetime | None = None) -> str:
     """The experiment's server-side half, whole window at once.
 
@@ -3969,9 +4078,8 @@ async def _experiment_text(now: datetime | None = None) -> str:
     hits = subs = free_scans = expired = 0
     partial = False
     for d in shown:
-        dt = _parse_day(d)
         label = f"{d[4:6]}-{d[6:]}"
-        if dt is not None and (now - dt).days >= ttl_days:
+        if _stat_expired(d, now):
             expired += 1
             rows.append(
                 f"<code>{label:<6}{'—':>6} {'—':>5} {'—':>5} {'—':>5}</code>")
@@ -3994,22 +4102,11 @@ async def _experiment_text(now: datetime | None = None) -> str:
     head = ("\U0001F9EA <b>Free-scan experiment</b> — "
             + (f"closed after {len(span)} days" if closed
                else f"day {len(shown)} of {len(span)}"))
-    # The runtime lever first, then the environment — the order `ScanQuota`
-    # resolves them in. This read the environment only, so the one line telling
-    # the operator whether the thing being measured is switched on consulted a
-    # source that `/lever` never writes: arming from chat left this saying
-    # "lever not armed" for the whole window.
-    override = await free_scan_lever()
-    env = os.environ.get("FREE_SCANS_FIRST_DAY", "")
-    if override is not None:
-        lever = f"lever {override} first-day scans (set from chat)"
-        if env and env != str(override):
-            # Worth printing: the environment is what a redeploy falls back to.
-            lever += f" · env FREE_SCANS_FIRST_DAY={html.escape(env)}"
-    elif env:
-        lever = f"FREE_SCANS_FIRST_DAY={html.escape(env)}"
-    else:
-        lever = "<b>lever not armed</b> — FREE_SCANS_FIRST_DAY is unset"
+    # What the quota grants a new user now, asked of the quota. This read the
+    # environment only, so arming from chat left it saying "lever not armed"
+    # for the whole window; then it read both and printed them raw, so
+    # FREE_SCANS_FIRST_DAY=1 — no welcome at a daily limit of 1 — read as armed.
+    lever = _welcome_html(await _welcome_setting())
     window = (f"{start:%d %b} → {end:%d %b}"
               + ("" if closed else f" · {left} day{'s' if left != 1 else ''} left")
               + f" · {lever}")
@@ -4046,22 +4143,89 @@ async def _experiment_text(now: datetime | None = None) -> str:
     notes = []
     # A window whose lever moved mid-flight and does not say so is worse than
     # no window: the numbers look continuous and are not.
-    moved = [c for c in ((await _levers()).get("changes") or [])
-             if isinstance(c, list) and len(c) == 3 and c[0] in shown]
-    for day_changed, before, after in moved[-4:]:
+    for day_changed, before, after in (await _lever_changes_in(shown))[-4:]:
         notes.append(f"⚠️ lever changed on {day_changed[4:6]}-{day_changed[6:]}: "
                      f"{_lever_label(before)} → {_lever_label(after)}")
     if partial:
-        notes.append("* limit hits counted from 18:29 UTC that day only — the "
-                     "counter shipped mid-day. Every other column is a whole day.")
+        notes.append(f"* {EXPERIMENT_PARTIAL_NOTE}. Every other column is a whole day.")
     if hits:
         notes.append("% is subscriptions ÷ limit hits across the window — "
                      "coincidence, not attribution.")
     if expired:
         notes.append(f"— {expired} day{'s' if expired != 1 else ''} older than the "
                      f"{ttl_days}-day counter TTL: those figures are gone, not zero.")
+    if readable:
+        # The record deletes itself a day at a time; say when, while there is
+        # still something to keep.
+        oldest = next(d for d in shown if not _stat_expired(d, now))
+        gone = _stat_expires_on(oldest)
+        notes.append(f"💾 The {oldest[4:6]}-{oldest[6:]} counters expire on "
+                     f"{gone:%d %b} — /experiment export gives a copy to keep.")
 
     return "\n".join([head, window, *rows, total, *notes])
+
+
+async def _experiment_export(now: datetime | None = None) -> str:
+    """`/experiment export`: the window's table as CSV, to keep.
+
+    The counters behind `/experiment` carry STATS_TTL, so the server's record
+    of the window deletes itself a day at a time — for the default window,
+    20260910's row goes on 2026-10-15 and the rest over the fortnight after —
+    and the daily digests that reported it are one day each. This is the one
+    form of it that outlives the cache: a block to copy into `docs/`.
+
+    Read `required`, unlike the table. A zero in a kept copy is a claim that
+    nothing happened, so an unreadable cache refuses the export rather than
+    writing zeros into it. An expired day has empty cells, not zeros, for the
+    reason the table prints "—".
+    """
+    now = now or datetime.now(timezone.utc)
+    start, end = _parse_day(EXPERIMENT_START_DAY), _parse_day(EXPERIMENT_END_DAY)
+    if start is None or end is None or end < start:
+        return ("💾 Nothing exported — the window is misconfigured: "
+                "EXPERIMENT_START_DAY and EXPERIMENT_END_DAY must both be "
+                "YYYYMMDD, end on or after start.")
+    today = _day(now)
+    shown = [d for d in _day_span(start, end) if d <= today]
+    if not shown:
+        return f"💾 Nothing to export — the window opens {start:%d %b}."
+
+    _, head, why = _welcome_summary(await _welcome_setting())
+    ttl_days = STATS_TTL // 86400
+    lines = [f"# SnapWorth free-scan experiment, {start:%Y-%m-%d} to {end:%Y-%m-%d}; "
+             f"exported {now:%Y-%m-%d %H:%M} UTC"
+             + ("" if today > EXPERIMENT_END_DAY else " while the window was open"),
+             f"# welcome at export: {head} — {why}"]
+    for day_changed, before, after in await _lever_changes_in(shown):
+        lines.append(f"# lever changed {day_changed[:4]}-{day_changed[4:6]}-"
+                     f"{day_changed[6:]}: {_lever_label(before)} -> {_lever_label(after)}")
+    lines.append(",".join(["day", *EXPERIMENT_COUNTERS, "note"]))
+    try:
+        for d in shown:
+            iso = f"{d[:4]}-{d[4:6]}-{d[6:]}"
+            if _stat_expired(d, now):
+                lines.append(iso + "," * len(EXPERIMENT_COUNTERS)
+                             + f",expired: past the {ttl_days}-day counter TTL")
+                continue
+            values = []
+            for name in EXPERIMENT_COUNTERS:
+                raw = await _cache.get(_stat_key(d, name), required=True)
+                values.append(str(int(raw or 0)))
+            note = EXPERIMENT_PARTIAL_NOTE if d == EXPERIMENT_PARTIAL_DAY else ""
+            lines.append(",".join([iso, *values, note]))
+    except Exception as exc:
+        return ("💾 <b>Nothing exported</b> — the counters could not be read "
+                f"({html.escape(type(exc).__name__)}), and a copy with zeros in "
+                "their place would say nothing happened. Try again in a minute.")
+
+    kept = [d for d in shown if not _stat_expired(d, now)]
+    expiry = (f"The {kept[0][4:6]}-{kept[0][6:]} counters expire on "
+              f"{_stat_expires_on(kept[0]):%d %b}, the rest a day at a time after."
+              if kept else "Every day in it is already past the counter TTL.")
+    csv = html.escape("\n".join(lines))
+    return ("💾 <b>Free-scan experiment — export</b>\n"
+            f"Copy the block into <code>docs/</code> to keep it. {expiry}\n"
+            f"<pre>{csv}</pre>")
 
 
 # ── One subscription, live from Apple ────────────────────────────────────────
