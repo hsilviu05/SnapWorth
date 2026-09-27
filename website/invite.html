@@ -116,5 +116,16 @@
       });
     })();
   </script>
+  <!-- Vercel Web Analytics, as on every page: cookieless, no consent banner.
+       An invite code is one person's referral handle, so the path is
+       reported as /i/[code]. What is counted is visits to the invite page,
+       not whose link brought them. -->
+  <script>
+    window.va = window.va || function () { (window.vaq = window.vaq || []).push(arguments); };
+    window.va('beforeSend', function (event) {
+      return Object.assign({}, event, { url: event.url.replace(/\/i\/[^\/?#]+/, '/i/[code]') });
+    });
+  </script>
+  <script defer src="/_vercel/insights/script.js"></script>
 </body>
 </html>
