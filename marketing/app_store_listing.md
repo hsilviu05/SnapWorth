@@ -67,12 +67,12 @@ the listing mirrors the app: change "Read the care tag for a sharper estimate"
 in `ios/Localization/App.json` first if it changes.
 
 ## App name (30 chars max)
-SnapWorth: Resale Value
+SnapWorth: Resell & Flip
 
-23 characters. **Live is "SnapWorth: Resell & Flip" (24 chars).** Decide which
-one 1.5.1 carries, delete the other line, and pick the keyword line below that
-matches: `resale` and `value` are only safe to leave out of the keywords while
-they are in the name.
+24 characters. The live name, kept for 1.5.1 (owner, 2026-09-28). The
+alternative was "SnapWorth: Resale Value", which would have put `resale` and
+`value` in the name; with this name they have to be in the keywords, so the
+keyword line below carries them.
 
 ## Subtitle (30 chars max)
 Thrift Store Flip Scanner
@@ -189,24 +189,18 @@ snapworth.eu
 ---
 
 ## Keywords (100 chars max)
-reseller,secondhand,vintage,goodwill,poshmark,mercari,depop,ebay,thrifting,worth,price,profit,sell
-
-98 characters, for the name "SnapWorth: Resale Value". Words already in the
-app name or subtitle (resale, value, thrift, store, flip, scanner) are indexed
-from there and were dropped to make room. Poshmark, Mercari and Depop are
-searched by exactly this audience and are honest claims from 1.3.4. Vinted
-was dropped as a keyword only; it is still supported and still named in the
-description.
-
-**If the name stays "SnapWorth: Resell & Flip"**, `resale` and `value` — the
-category's two main search terms — are in neither the name nor the keywords
-on the live store. Use this line instead (97 characters):
-
 resale,value,secondhand,vintage,goodwill,poshmark,mercari,depop,ebay,thrifting,worth,price,profit
 
-It drops `reseller` and `sell`, the two nearest to the name's "Resell". That
-is a judgment, not a measurement: check Acquisition → Sources → Search terms
-a week after it goes live.
+97 characters, for the name "SnapWorth: Resell & Flip". `resale` and `value`,
+the category's two main search terms, are in neither the name nor the
+subtitle, so they lead here. Words already in the name or subtitle (resell,
+flip, thrift, store, scanner) are indexed from there and are not repeated.
+`reseller` and `sell` were dropped to make room: they are the two nearest to
+the name's "Resell". That is a judgment, not a measurement: check Acquisition
+→ Sources → Search terms a week after it goes live. Poshmark, Mercari and
+Depop are searched by exactly this audience and are honest claims from 1.3.4.
+Vinted was dropped as a keyword only; it is still supported and still named in
+the description.
 
 ## Category
 Primary: Shopping
@@ -292,8 +286,10 @@ this goes onto 1.5.1 before it is submitted.
       characters; every Latin-script line fits either way, and the Chinese
       one does not — see *Keywords* in `app_store_listing.zh-Hans.md` for
       what to paste if App Store Connect refuses it.
-- [ ] **App name**: decide (see *App name* above) and record the answer here.
-- [ ] **Keywords** (`en-US`): the line that matches the name.
+- [x] **App name**: decided 2026-09-28: keep "SnapWorth: Resell & Flip" (see
+      *App name* above). Nothing to change in App Store Connect.
+- [ ] **Keywords** (`en-US`): paste the one line under *Keywords* above,
+      which now matches the name.
 - [ ] **Description** (`en-US`): re-paste in full. Against the live
       copy it names nine marketplaces rather than seven, and adds the
       stickers, Thrift Flip and widgets lines, the new confidence wording,
