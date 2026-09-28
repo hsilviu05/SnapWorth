@@ -3,7 +3,7 @@
 ## Scope
 
 1.5.0 (20) is approved and live (iTunes lookup, 2026-09-26). 1.5.1 (21) is a
-patch release: it ships what merged on 09-26 and 09-27, and it is the version
+patch release: it ships what merged on 09-26, 09-27 and 09-28, and it is the version
 that carries the four localized store pages (#202). Cut Wed 2026-09-30,
 submit Fri 2026-10-02.
 
@@ -39,6 +39,10 @@ difference.
 | [#238](https://github.com/hsilviu05/SnapWorth/pull/238) | R: "likely" is the model's expected price, not the range midpoint, and one figure everywhere; `LedgerMath`; a one-time recompute of stored values on first launch | **Yes**, figures |
 | [#239](https://github.com/hsilviu05/SnapWorth/pull/239) | S: "Next free scan at …" and one-tap "Remind me"; the paywall headline matches what opened it | **Yes** |
 | [#240](https://github.com/hsilviu05/SnapWorth/pull/240) | T: five-figure totals fit the widget; tinted Home Screen; ISRG root pins (enforcement stays off); off-main photo decode; Xcode 27 CI | **Yes**, widgets |
+| [#255](https://github.com/hsilviu05/SnapWorth/pull/255) | The widget extension carries its own `PrivacyInfo.xcprivacy` (UserDefaults, 1C8F.1), found by #201's release check | Manifest |
+| [#256](https://github.com/hsilviu05/SnapWorth/pull/256) | #218, app half: the sync right after a paywall purchase tells the server which paywall sold it; no other sync does | No |
+| [#257](https://github.com/hsilviu05/SnapWorth/pull/257) | #223: the widget model is one file, `ios/Shared/WidgetModel.swift`, compiled into both the app and the extension | No, if nothing regressed |
+| [#259](https://github.com/hsilviu05/SnapWorth/pull/259) | #222: each optional `/scan` field decodes on its own, so one mistyped field costs that field instead of a paid scan. 21 is the first lenient build | No |
 
 ### Server-side (deployed on merge; already serving 1.5.0 (20))
 
@@ -67,6 +71,8 @@ difference.
 | [#243](https://github.com/hsilviu05/SnapWorth/pull/243) | #210: startup and Checkup say when `AUDIT_SALT` is a published placeholder; the Sandbox notification route gets the notification body cap |
 | [#244](https://github.com/hsilviu05/SnapWorth/pull/244) | The Telegram bot token no longer reaches the logs (httpx URLs were not redacted). Rotate it: RUNBOOK §8.6 |
 | [#250](https://github.com/hsilviu05/SnapWorth/pull/250), [#254](https://github.com/hsilviu05/SnapWorth/pull/254) | Per-IP limits keyed on the caller, not on Railway's edge, which every user behind one edge shared. #250 alone still keyed on the edge; #254 keys on the first `X-Forwarded-For` entry. **#254 must be live before 21 is released** (pre-submit list) |
+| [#258](https://github.com/hsilviu05/SnapWorth/pull/258) | #219: model spend split by tier; a Pro block in `/costs` (spend and revenue per Pro device, heaviest devices) |
+| [#260](https://github.com/hsilviu05/SnapWorth/pull/260) | #218, server half: trial starts, trial conversions and direct purchases counted apart; `paywall_trigger` accepted; `/paywall` |
 
 ### Repository only (no user or server effect)
 
@@ -317,6 +323,26 @@ the failure that names the build the fix needs.
       "Scan a whole haul". "Unlock why this price" on a fresh result gives "See
       why this price". A find reopened from My Finds does **not** say "See why
       this price". Check one of these in a second language.
+
+### Added 09-28 — widget model, lenient decoding, paywall trigger ([#255](https://github.com/hsilviu05/SnapWorth/pull/255), [#256](https://github.com/hsilviu05/SnapWorth/pull/256), [#257](https://github.com/hsilviu05/SnapWorth/pull/257), [#259](https://github.com/hsilviu05/SnapWorth/pull/259))
+
+The owner put these in 21 on 09-28, before the archive. #257 moves the code
+every widget and the thrift-run Live Activity run on; the simulator suite
+passes, but a mismatch between app and extension fails silently on a device.
+
+- [ ] Remove and re-add every widget first. Each family (small, medium,
+      Lock Screen, the Haul widgets) shows real data, not a placeholder.
+- [ ] A thrift run's Live Activity starts, updates its total after a scan,
+      and ends, on the Lock Screen and in the Dynamic Island if the phone has
+      one.
+- [ ] A Control Centre control tap still lands in the app where it did on 20
+      (`WidgetBridge`'s pending-action hand-off lives in the moved model).
+- [ ] Buying from a paywall in Sandbox, then `/paywall` in the ops bot: the
+      purchase appears under that paywall's trigger, once, however many times
+      the app is reopened afterwards.
+- [ ] A normal scan, free and Pro, shows every section it showed on 20
+      (lenient decoding must change nothing when the server sends the right
+      types).
 
 ### T — widgets, pins, off-main decode, Xcode 27 ([#240](https://github.com/hsilviu05/SnapWorth/pull/240))
 
