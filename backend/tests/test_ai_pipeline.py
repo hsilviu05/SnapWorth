@@ -1472,6 +1472,66 @@ class TestTokensOnATextlessReplyAreCounted:
         assert outcomes == ["success"]
 
 
+class TestModelCallsCarryTheCallersTier:
+    """#219: spend is split by tier, so every model call a user's request makes
+    has to say whose it was. The label names the operation — `scan` is the
+    same operation for both tiers — so the scan handler passes the tier, and
+    the reformat retry is handed the tier of the scan it serves."""
+
+    @staticmethod
+    def _tiers(usage) -> list[tuple[str, str | None]]:
+        return [(c.args[0], c.kwargs.get("tier")) for c in usage.call_args_list]
+
+    def test_a_pro_scan_is_tallied_as_pro(self):
+        with patch("main.notify.model_usage") as usage:
+            assert _scan_with(V2_PAYLOAD, pro=True).status_code == 200
+        assert self._tiers(usage) == [("scan", "pro")]
+
+    def test_a_free_scan_is_tallied_as_free(self):
+        with patch("main.notify.model_usage") as usage:
+            assert _scan_with(V2_PAYLOAD).status_code == 200
+        assert self._tiers(usage) == [("scan", "free")]
+
+    def test_the_reformat_is_charged_to_the_scan_it_served(self):
+        _rate_store.clear()
+        _ip_rate_store.clear()
+        garbled, fixed = MagicMock(), MagicMock()
+        garbled.text = "Sure! Here is the valuation you asked for."
+        fixed.text = _json.dumps(V2_PAYLOAD)
+        headers = {"x-device-id": "v2-contract"} | _pro_headers("reformat-pro")
+        with patch("main._model") as m, patch("main.notify.model_usage") as usage:
+            m.generate_content_async = AsyncMock(side_effect=[garbled, fixed])
+            r = _client.post(
+                "/scan", files={"file": ("s.jpg", _io.BytesIO(_img("JPEG")), "image/jpeg")},
+                headers=headers)
+        assert r.status_code == 200
+        assert self._tiers(usage) == [("scan", "pro"), ("reformat", "pro")]
+
+    def test_the_operators_bot_scan_and_its_reformat_belong_to_no_tier(self):
+        import asyncio
+        import main
+        garbled, fixed = MagicMock(), MagicMock()
+        garbled.text = "Sure! Here is the valuation you asked for."
+        fixed.text = _json.dumps(V2_PAYLOAD)
+        with patch("main._model") as m, patch("main.notify.model_usage") as usage:
+            m.generate_content_async = AsyncMock(side_effect=[garbled, fixed])
+            asyncio.run(main._bot_scan(_img("JPEG"), "image/jpeg"))
+        assert self._tiers(usage) == [("bot_scan", None), ("bot_reformat", None)]
+
+    def test_a_listing_is_labelled_listing(self):
+        """`notify._usage_tier` charges the label to Pro; the endpoint 402s
+        anyone else, so it needs no tier of its own."""
+        from tests.test_main import MOCK_LISTING_JSON, _post_listing
+        _rate_store.clear()
+        _ip_rate_store.clear()
+        reply = MagicMock()
+        reply.text = _json.dumps(MOCK_LISTING_JSON)
+        with patch("main._model") as m, patch("main.notify.model_usage") as usage:
+            m.generate_content_async = AsyncMock(return_value=reply)
+            assert _post_listing("tier-219").status_code == 200
+        assert [c.args[0] for c in usage.call_args_list] == ["listing"]
+
+
 # ── Thinking is off for the text-only calls ──────────────────────────────────
 #
 # The thinking budget was global, so /listing and the reformat retry paid the

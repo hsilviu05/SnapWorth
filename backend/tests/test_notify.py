@@ -1350,14 +1350,21 @@ class TestSpend:
         assert "$0.000/scan" in await notify.handle_command("/status")
 
     @pytest.mark.asyncio
-    async def test_free_tier_share_of_spend(self, enabled_notify):
-        notify.model_usage("scan", {"prompt_tokens": 1_000_000, "output_tokens": 0})  # $0.30
-        scan(tier="free")
-        scan(tier="pro")
-        scan(tier="pro")
+    async def test_free_tier_is_its_own_spend_per_active_device_day(self, enabled_notify):
+        """It was the users' bill split by share of scans, which charged the
+        free tier for Pro's listings and reformats. Now it is the free tier's
+        own tokens over the free devices that scanned, per day."""
+        notify.model_usage("scan", {"prompt_tokens": 100_000}, tier="free")   # $0.03
+        notify.model_usage("scan", {"prompt_tokens": 1_000_000}, tier="pro")  # not free
+        scan(tier="free", subject="f" * 64)
+        scan(tier="free", subject="f" * 64)   # same device, same day: one device-day
+        scan(tier="free", subject="g" * 64)
+        scan(tier="pro", subject="p" * 64)    # Pro scans are no free device-day
         await drain()
-        assert "Free tier, 30 days: 1 of 3 scans ≈ $0.10 given away" in \
-            await notify.handle_command("/costs")
+        text = await notify.handle_command("/costs")
+        assert ("Free tier, 30 days: $0.03 ≈ $0.015 per active free device-day "
+                "(n=2 device-days with a scan)") in text
+        assert "given away" not in text
 
     @pytest.mark.asyncio
     async def test_budget_alerts_once_per_day(self, enabled_notify, monkeypatch):
@@ -1380,15 +1387,209 @@ class TestSpend:
         assert "Gemini spend: $0.30 new" in text
 
     @pytest.mark.asyncio
-    async def test_disabled_is_a_no_op(self, cache, monkeypatch):
+    async def test_tallied_with_telegram_unset(self, cache, monkeypatch):
+        """#219: spend is tallied whenever there is a cache, as `count_scan`
+        is. It returned without the bot, so a deploy with Telegram unset
+        counted scans and no spend, and the first /costs after turning the
+        bot on divided a month of scans by the days since. The budget alert
+        still needs the bot, and its absence must not break the tally."""
         monkeypatch.delenv("TELEGRAM_BOT_TOKEN", raising=False)
         monkeypatch.delenv("TELEGRAM_CHAT_ID", raising=False)
+        monkeypatch.setattr(notify, "GEMINI_DAILY_BUDGET_USD", 0.0001)
         notify.configure(cache)
         try:
-            notify.model_usage("scan", {"prompt_tokens": 5})
+            assert not notify.enabled()
+            notify.model_usage("scan", {"prompt_tokens": 5_000, "output_tokens": 200}, tier="pro")
+            notify.model_usage("scan", {"prompt_tokens": 3_000}, tier="free")
+            await drain()
+            day = notify._day()
+            assert await cache.get(notify._stat_key(day, "tok_in")) == "8000"
+            assert await cache.get(notify._stat_key(day, "tok_in_tier_pro")) == "5000"
+            assert await cache.get(notify._stat_key(day, "tok_out_tier_pro")) == "200"
+            assert await cache.get(notify._stat_key(day, "tok_in_tier_free")) == "3000"
+        finally:
+            await notify.aclose()
+
+    @pytest.mark.asyncio
+    async def test_no_cache_is_a_no_op(self, monkeypatch):
+        monkeypatch.delenv("TELEGRAM_BOT_TOKEN", raising=False)
+        monkeypatch.delenv("TELEGRAM_CHAT_ID", raising=False)
+        notify.configure(None)
+        try:
+            notify.model_usage("scan", {"prompt_tokens": 5}, tier="pro")
             assert notify._tasks == set()
         finally:
             await notify.aclose()
+
+
+class TestCostPerPro:
+    """#219: what a subscriber costs, against what one pays.
+
+    Labels name the operation and a `scan` is the same operation for both
+    tiers, so tokens are split by the caller's tier; the users index kept a
+    lifetime scan count and only the *current* tier, so a subscriber's free
+    history read as Pro usage."""
+
+    @pytest.fixture(autouse=True)
+    def prices(self, monkeypatch):
+        monkeypatch.setattr(notify, "GEMINI_PRICE_INPUT_PER_M", 0.30)
+        monkeypatch.setattr(notify, "GEMINI_PRICE_OUTPUT_PER_M", 2.50)
+        monkeypatch.setattr(notify, "GEMINI_DAILY_BUDGET_USD", 0.0)
+        monkeypatch.setattr(notify, "APPLE_COMMISSION", 0.15)
+
+    async def _tier_tokens(self, cache, tier: str) -> int:
+        return int(await cache.get(notify._stat_key(notify._day(), f"tok_in_tier_{tier}")) or 0)
+
+    @pytest.mark.asyncio
+    async def test_pro_tokens_go_to_pro_and_free_tokens_to_free(self, enabled_notify, cache):
+        notify.model_usage("scan", {"prompt_tokens": 1_000}, tier="pro")
+        notify.model_usage("scan", {"prompt_tokens": 200}, tier="free")
+        # The reformat is charged to the tier of the scan it served.
+        notify.model_usage("reformat", {"prompt_tokens": 30}, tier="pro")
+        notify.model_usage("reformat", {"prompt_tokens": 4}, tier="free")
+        await drain()
+        assert await self._tier_tokens(cache, "pro") == 1_030
+        assert await self._tier_tokens(cache, "free") == 204
+
+    @pytest.mark.asyncio
+    async def test_listing_and_tag_rereads_count_as_pro(self, enabled_notify, cache):
+        # No tier passed, or a wrong one: the label settles it, because the
+        # endpoint 402s anyone who is not Pro and a tag is only read for Pro.
+        notify.model_usage("listing", {"prompt_tokens": 500})
+        notify.model_usage("scan_with_tag", {"prompt_tokens": 70}, tier="free")
+        await drain()
+        assert await self._tier_tokens(cache, "pro") == 570
+        assert await self._tier_tokens(cache, "free") == 0
+
+    @pytest.mark.asyncio
+    async def test_operator_calls_and_untiered_calls_belong_to_no_tier(self, enabled_notify, cache):
+        for label in ("ideas", "probe", "bot_scan", "bot_scan_with_tag", "bot_reformat"):
+            notify.model_usage(label, {"prompt_tokens": 100}, tier="pro")
+        notify.model_usage("scan", {"prompt_tokens": 100})  # a caller that named none
+        await drain()
+        assert await self._tier_tokens(cache, "pro") == 0
+        assert await self._tier_tokens(cache, "free") == 0
+        # Still on the bill.
+        assert await cache.get(notify._stat_key(notify._day(), "tok_in")) == "600"
+
+    @pytest.mark.asyncio
+    async def test_free_then_pro_counts_only_pro_era_scans(self, enabled_notify, cache):
+        subject = "u" * 64
+        who = auditlog.pseudonymise(subject)
+        notify.saw_user(subject, tier="free")
+        await drain()
+        for _ in range(3):
+            scan(tier="free", subject=subject)
+        await drain()
+        row = json.loads(await cache.get(notify.USERS_INDEX_KEY))[who]
+        assert row["scans"] == 3 and "pro_scans" not in row and "pro_since" not in row
+
+        for _ in range(2):
+            scan(tier="pro", subject=subject)
+        await drain()
+        row = json.loads(await cache.get(notify.USERS_INDEX_KEY))[who]
+        assert row["scans"] == 5
+        assert row["pro_scans"] == 2
+        assert row["pro_days"] == {notify._day(): 2}
+        since = row["pro_since"]
+        assert "pro_until" not in row
+
+        # Lapsed: the span closes and free scans stop counting as Pro.
+        scan(tier="free", subject=subject)
+        await drain()
+        row = json.loads(await cache.get(notify.USERS_INDEX_KEY))[who]
+        assert row["pro_scans"] == 2 and row["pro_until"] >= since
+
+        # Back: a new span opens.
+        await notify._index_user(who, tier="pro", scanned=True)
+        row = json.loads(await cache.get(notify.USERS_INDEX_KEY))[who]
+        assert row["pro_scans"] == 3 and "pro_until" not in row
+
+    @pytest.mark.asyncio
+    async def test_pro_days_keep_only_the_window(self, enabled_notify, cache):
+        old = notify._day(datetime.now(timezone.utc) - timedelta(days=notify.PRO_DAYS_KEPT))
+        now = int(time.time())
+        await cache.set(notify.USERS_INDEX_KEY, json.dumps({"dev": {
+            "first": now, "last": now, "scans": 9, "tier": "pro", "pro_since": now - 90 * 86400,
+            "pro_scans": 9, "pro_days": {old: 9}}}), 600)
+        await notify._index_user("dev", tier="pro", scanned=True)
+        row = json.loads(await cache.get(notify.USERS_INDEX_KEY))["dev"]
+        assert row["pro_days"] == {notify._day(): 1} and row["pro_scans"] == 10
+
+    async def _seed(self, cache) -> None:
+        """Three Pro devices and two paid subscriptions.
+
+        A: Pro for the last 15 days, 20 scans today. B: Pro all month, 4 today
+        and 6 three days ago. C: Pro from 20 to 5 days ago, no scans. $0.30 of
+        Pro tokens over 30 Pro scans is $0.010 a scan."""
+        now = int(time.time())
+        today = notify._day()
+        three_ago = notify._day(datetime.now(timezone.utc) - timedelta(days=3))
+        await cache.set(notify.USERS_INDEX_KEY, json.dumps({
+            "devA00000000abcd": {"first": now - 40 * 86400, "last": now, "scans": 60,
+                                 "tier": "pro", "pro_since": now - 15 * 86400, "pro_scans": 20,
+                                 "pro_days": {today: 20}},
+            "devB00000000abcd": {"first": now - 90 * 86400, "last": now, "scans": 10,
+                                 "tier": "pro", "pro_since": now - 60 * 86400, "pro_scans": 10,
+                                 "pro_days": {today: 4, three_ago: 6}},
+            "devC00000000abcd": {"first": now - 90 * 86400, "last": now - 5 * 86400, "scans": 1,
+                                 "tier": "free", "pro_since": now - 20 * 86400,
+                                 "pro_until": now - 5 * 86400, "pro_scans": 0},
+            "devF00000000abcd": {"first": now, "last": now, "scans": 3, "tier": "free"},
+        }), 600)
+        await cache.set(notify.SUBS_INDEX_KEY, json.dumps({
+            "otid-a": {"product": "com.snapworth.yearly", "acq": "paid", "price": 39.99,
+                       "currency": "EUR", "expires": now + 300 * 86400, "seen": now,
+                       "devices": ["devA00000000abcd"], "who": "devA00000000abcd"},
+            "otid-b": {"product": "com.snapworth.monthly", "acq": "paid", "price": 4.99,
+                       "currency": "EUR", "expires": now + 20 * 86400, "seen": now,
+                       "devices": ["devB00000000abcd"], "who": "devB00000000abcd"},
+            "otid-c": {"product": "com.snapworth.monthly", "acq": "trial", "price": 0,
+                       "currency": "EUR", "expires": now + 5 * 86400, "seen": now,
+                       "devices": ["devC00000000abcd"], "who": "devC00000000abcd"},
+        }), 600)
+        await cache.incr(notify._stat_key(today, "scans_pro"), notify.STATS_TTL, 30)
+        notify.model_usage("scan", {"prompt_tokens": 1_000_000}, tier="pro")  # $0.30
+        await drain()
+
+    @pytest.mark.asyncio
+    async def test_costs_shows_the_pro_block_with_n_beside_every_figure(
+            self, enabled_notify, cache):
+        await self._seed(cache)
+        text = await notify.handle_command("/costs")
+        block = text[text.index("<b>Pro, last 30 days</b>"):text.index("Free tier")]
+        lines = block.strip().splitlines()[1:]
+        assert lines == [
+            "Paying Pro devices: 2 (n=2 paid subscriptions)",
+            # Device-months: 15 + 30 + 15 days = 2.0; C's lapsed span counts.
+            "Pro model spend: $0.30 (n=30 Pro scans, $0.010/scan) · "
+            "$0.15 per Pro device-month (n=2.0 device-months, 3 devices)",
+            # (39.99 / 12 + 4.99) / 2 × 0.85
+            "Net revenue per paying month: €3.54 (n=2) after 15% Apple commission",
+            "Pro scans per device-day: p50 6 · p90 20 · max 20 (n=3 device-days)",
+            "Heaviest by $/day (n=2 devices with Pro scans): "
+            "devA00 $0.013/day (20 scans / 15.0d) · devB00 $0.003/day (10 scans / 30.0d)",
+        ]
+        for line in lines:
+            assert "(n=" in line, line
+        assert "devA00000000abcd" not in text, "short pseudonyms, as /users shows them"
+
+    @pytest.mark.asyncio
+    async def test_commission_is_configurable(self, enabled_notify, cache, monkeypatch):
+        monkeypatch.setattr(notify, "APPLE_COMMISSION", 0.30)
+        await self._seed(cache)
+        assert ("Net revenue per paying month: €2.91 (n=2) after 30% Apple commission"
+                in await notify.handle_command("/costs"))
+
+    @pytest.mark.asyncio
+    async def test_an_empty_pro_block_says_n_is_zero(self, enabled_notify):
+        text = await notify.handle_command("/costs")
+        block = text[text.index("<b>Pro, last 30 days</b>"):text.index("Free tier")]
+        lines = block.strip().splitlines()[1:]
+        assert len(lines) == 5
+        for line in lines:
+            assert "n=0" in line, line
+        assert "Free tier, 30 days: $0.00 ≈ n/a per active free device-day (n=0" in text
 
 
 class TestRenewalsDue:
