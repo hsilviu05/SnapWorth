@@ -3384,6 +3384,21 @@ final class ExtensionBundleTests: XCTestCase {
         XCTAssertEqual(Set(contexts ?? []), ["MSMessagesAppPresentationContextMessages",
                                              "MSMessagesAppPresentationContextMedia"])
     }
+
+    /// The manifest counts only if it is in the built extension: App Store
+    /// Connect reads it from the `.appex`, not from the source folder.
+    /// `SnapWorthWidgets` is a synchronised folder, so the file is a resource
+    /// by being there, and a membership exception would drop it silently.
+    /// What it declares is `WidgetPrivacyManifestTests`'.
+    func test_widgetExtension_carriesItsOwnPrivacyManifest() throws {
+        let ext = try embedded("SnapWorthWidgetsExtension.appex")
+        let url = try XCTUnwrap(ext.url(forResource: "PrivacyInfo", withExtension: "xcprivacy"),
+                                "the widget extension was built without its privacy manifest")
+        let plist = try XCTUnwrap(PropertyListSerialization.propertyList(
+            from: Data(contentsOf: url), format: nil) as? [String: Any])
+        XCTAssertEqual(plist["NSPrivacyTracking"] as? Bool, false)
+        XCTAssertNotNil(plist["NSPrivacyAccessedAPITypes"])
+    }
 }
 
 // MARK: - Haul mode (#93)
