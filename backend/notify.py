@@ -74,6 +74,7 @@ import dataclasses
 import html
 import json
 import logging
+import math
 import os
 import re
 import secrets
@@ -112,6 +113,11 @@ GEMINI_PRICE_INPUT_PER_M = float(os.environ.get("GEMINI_PRICE_INPUT_PER_M", "0.3
 GEMINI_PRICE_OUTPUT_PER_M = float(os.environ.get("GEMINI_PRICE_OUTPUT_PER_M", "2.50"))
 # A daily spend ceiling that pages once when crossed. 0 disables it.
 GEMINI_DAILY_BUDGET_USD = float(os.environ.get("GEMINI_DAILY_BUDGET_USD", "0"))
+# Apple's cut of a subscription, for `/costs`' net revenue per paying month.
+# 0.15 is the Small Business Program rate and the second-year rate; 0.30 is
+# the standard first-year rate. Which one applies is an account fact the repo
+# does not record, so it is the operator's to set.
+APPLE_COMMISSION = float(os.environ.get("APPLE_COMMISSION", "0.15"))
 
 # The live scan feed: one message per successful scan, item and price only.
 # Persisted in the cache so the toggle survives deploys. On by default — the
@@ -3029,6 +3035,13 @@ async def _note_scan(*, tier: str, item_name: str, brand: str | None,
         # run with or without Telegram. Everything after them is the
         # operator's alone.
         await _bump("scans_pro" if tier == "pro" else "scans_free")
+        if tier != "pro" and subject:
+            # Distinct free devices that scanned today: the denominator of
+            # `/costs`' cost per active free device-day. Beside the spend
+            # tally it divides, so it is written whenever that is.
+            who = auditlog.pseudonymise(subject)
+            if await _cache.add(f"opsseen:fd:{_day()}:{who}", "1", STATS_TTL):
+                await _bump("free_device_days")
         if not reread:
             await _tally_top(_day(), _normalise_category(category), _clean_brand(brand),
                              _find_record(item_name=item_name, brand=brand, category=category,
@@ -3403,16 +3416,46 @@ async def _index_subscription(subject: str | None, ent,
     return before
 
 
+#: Days of per-device Pro scan counts a users-index row keeps: `/costs`' window.
+PRO_DAYS_KEPT = 30
+
+
 async def _index_user(who: str, *, tier: str, scanned: bool = False) -> None:
+    """Upsert one device's row in the users index.
+
+    `scans` is lifetime and `tier` is only the current one, so neither can say
+    what a subscriber costs: a device that scanned 200 times free and then
+    subscribed would read as 200 Pro scans. `pro_since` opens a Pro span when
+    the device is first seen Pro, `pro_until` closes it when it is next seen
+    free, and only scans inside a span count toward `pro_scans` and
+    `pro_days` (Pro scans per UTC day, the last PRO_DAYS_KEPT days). A new
+    span replaces a closed one: `/costs` looks back 30 days, not further.
+    Rows from before these fields existed start their span at the first
+    sighting after the deploy, since what came earlier cannot be split.
+    """
     doc = await _read_index_for_update(USERS_INDEX_KEY)
     if doc is None:
         return
     now = int(time.time())
     entry: dict = row if isinstance(row := doc.get(who), dict) else {"first": now, "scans": 0}
     entry["last"] = now
-    entry["tier"] = "pro" if tier == "pro" else "free"
+    pro = tier == "pro"
+    entry["tier"] = "pro" if pro else "free"
+    if pro and (not entry.get("pro_since") or entry.get("pro_until")):
+        entry["pro_since"] = now
+        entry.pop("pro_until", None)
+    elif not pro and entry.get("pro_since") and not entry.get("pro_until"):
+        entry["pro_until"] = now
     if scanned:
         entry["scans"] = int(entry.get("scans", 0)) + 1
+        if pro:
+            entry["pro_scans"] = int(entry.get("pro_scans", 0)) + 1
+            today = _day()
+            oldest = _day(datetime.now(timezone.utc) - timedelta(days=PRO_DAYS_KEPT - 1))
+            days = entry.get("pro_days") if isinstance(entry.get("pro_days"), dict) else {}
+            days = {d: n for d, n in days.items() if d >= oldest}
+            days[today] = int(days.get(today, 0)) + 1
+            entry["pro_days"] = days
     doc[who] = entry
     await _write_index(USERS_INDEX_KEY, doc, USERS_INDEX_CAP, "last")
 
@@ -3637,7 +3680,28 @@ async def _spend_line(days: list[str], scans: int) -> str:
     return " · ".join(parts)
 
 
-async def _note_usage(label: str, usage: dict) -> None:
+#: Labels that are Pro by construction, whatever tier the caller passed:
+#: `/listing` answers 402 to anyone else, and a tag photo is only read for Pro.
+_PRO_LABELS = ("listing", "scan_with_tag")
+
+
+def _usage_tier(label: str, tier: str | None) -> str | None:
+    """Which tier a model call is charged to, or None for neither.
+
+    The operator's own calls belong to no tier. Otherwise the label decides
+    when it can, and the caller's tier when it cannot: a `scan` or its
+    `reformat` retry is Pro or free according to who scanned. A call that
+    names no tier is left out of both, rather than guessed into one."""
+    if label in _OPERATOR_LABELS:
+        return None
+    if label in _PRO_LABELS:
+        return "pro"
+    if tier is None:
+        return None
+    return "pro" if tier == "pro" else "free"
+
+
+async def _note_usage(label: str, usage: dict, tier: str | None = None) -> None:
     try:
         day = _day()
         tok_in = int(usage.get("prompt_tokens") or 0)
@@ -3655,9 +3719,17 @@ async def _note_usage(label: str, usage: dict) -> None:
             await _cache.incr(_stat_key(day, f"tok_in_{label}"), STATS_TTL, tok_in)
         if tok_out:
             await _cache.incr(_stat_key(day, f"tok_out_{label}"), STATS_TTL, tok_out)
+        # Per-tier tokens, so /costs can say what a subscriber costs. Labels
+        # name the operation, and a `scan` is the same operation for both.
+        charged = _usage_tier(label, tier)
+        if charged is not None:
+            if tok_in:
+                await _cache.incr(_stat_key(day, f"tok_in_tier_{charged}"), STATS_TTL, tok_in)
+            if tok_out:
+                await _cache.incr(_stat_key(day, f"tok_out_tier_{charged}"), STATS_TTL, tok_out)
 
         budget = GEMINI_DAILY_BUDGET_USD
-        if budget > 0:
+        if budget > 0 and _notifier is not None:
             spend = await _spend([day])
             if spend > budget and await _cache.add(f"opsseen:budget:{day}", "1", STATS_TTL):
                 await _notifier.send(
@@ -3669,11 +3741,19 @@ async def _note_usage(label: str, usage: dict) -> None:
         log.debug("usage note failed: %s", type(exc).__name__)
 
 
-def model_usage(label: str, usage: dict | None) -> None:
-    """Tally one model call's tokens. Fire-and-forget; free when alerts are off."""
-    if _notifier is None or _cache is None:
+def model_usage(label: str, usage: dict | None, *, tier: str | None = None) -> None:
+    """Tally one model call's tokens. Fire-and-forget.
+
+    Runs whenever there is a cache, as `count_scan` does. It used to return
+    without the Telegram notifier too, so a deploy with the bot unset tallied
+    scans and no spend, and the first `/costs` after turning the bot on
+    divided a month of scans by the days since.
+
+    `tier` is the caller's, for the calls whose label does not settle it:
+    see `_usage_tier`."""
+    if _cache is None:
         return
-    _spawn(_note_usage(label, dict(usage or {})))
+    _spawn(_note_usage(label, dict(usage or {}), tier))
 
 
 def _days_ending_today(n: int, now: datetime | None = None) -> list[str]:
@@ -3682,16 +3762,145 @@ def _days_ending_today(n: int, now: datetime | None = None) -> list[str]:
 
 
 # Model calls the operator makes through the bot: /post ideas, the /checkup
-# one-token probe, and a photo sent to the bot as a test scan. They are billed
-# like any other call and belong in the total — but not in "$/scan" or in what
-# the free tier is "given away", both of which are statements about users.
-_OPERATOR_LABELS = ("ideas", "probe", "bot_scan", "bot_scan_with_tag")
+# one-token probe, and a photo sent to the bot as a test scan (with its
+# reformat retry, which was filed as a user's `reformat` until #219). They are
+# billed like any other call and belong in the total — but not in "$/scan" or
+# in either tier's spend, which are statements about users.
+_OPERATOR_LABELS = ("ideas", "probe", "bot_scan", "bot_scan_with_tag", "bot_reformat")
 
 
 async def _operator_spend(days: list[str]) -> float:
     tok_in = sum([await _sum_stat(days, f"tok_in_{label}") for label in _OPERATOR_LABELS])
     tok_out = sum([await _sum_stat(days, f"tok_out_{label}") for label in _OPERATOR_LABELS])
     return _cost_usd(tok_in, tok_out)
+
+
+async def _tier_spend(days: list[str], tier: str) -> float:
+    """Model spend charged to one tier (see `_usage_tier`)."""
+    return _cost_usd(await _sum_stat(days, f"tok_in_tier_{tier}"),
+                     await _sum_stat(days, f"tok_out_tier_{tier}"))
+
+
+def _percentile(sorted_values: list[int], p: float) -> int:
+    """Nearest-rank percentile of an ascending list; the list is non-empty."""
+    return sorted_values[max(1, math.ceil(len(sorted_values) * p)) - 1]
+
+
+def _paid_by_currency(doc: dict, now: float) -> dict[str, tuple[float, int]]:
+    """{currency: (monthly revenue, paid subscriptions)} over live paid rows.
+
+    MRR alone cannot be divided by the paid count `_subs_summary` returns: that
+    count spans currencies, and a row with no price adds a subscriber and no
+    revenue. Both halves come from the same priced rows here."""
+    out: dict[str, tuple[float, int]] = {}
+    for e in doc.values():
+        if not isinstance(e, dict) or e.get("acq") != "paid" or not _sub_is_alive(e, now):
+            continue
+        price, cur = e.get("price"), e.get("currency") or "?"
+        if not isinstance(price, (int, float)) or price <= 0:
+            continue
+        monthly = price / 12 if "yearly" in _plan(e.get("product")) else price
+        total, n = out.get(cur, (0.0, 0))
+        out[cur] = (total + monthly, n + 1)
+    return out
+
+
+def _pro_span_days(row: dict, start: float, now: float) -> float:
+    """Days of `row`'s current or last Pro span inside [start, now]."""
+    since = row.get("pro_since")
+    if not isinstance(since, (int, float)):
+        return 0.0
+    until = row.get("pro_until")
+    end = float(until) if isinstance(until, (int, float)) else now
+    return max(0.0, min(end, now) - max(float(since), start)) / 86400
+
+
+async def _pro_block(month: list[str]) -> list[str]:
+    """What a subscriber costs against what one pays, over `month`.
+
+    Every figure carries its n: at launch there are a handful of subscribers,
+    and a mean over three devices is a claim about three devices. The tail
+    (p90, max, the heaviest three) is shown for the same reason — Pro is sold
+    as unlimited, and the price question is decided by the heaviest users, not
+    the average one.
+
+    Per-device dollars are estimates: tokens are tallied per tier, not per
+    device, so a device's spend is its Pro scans times the tier's all-in cost
+    per Pro scan (listings and reformats included)."""
+    now = time.time()
+    start = now - len(month) * 86400
+    users = await _read_index(USERS_INDEX_KEY)
+    subs = await _read_index(SUBS_INDEX_KEY)
+    lines = [f"<b>Pro, last {len(month)} days</b>"]
+
+    paid_rows = [e for e in subs.values() if isinstance(e, dict)
+                 and e.get("acq") == "paid" and _sub_is_alive(e, now)]
+    paying = {d for e in paid_rows for d in _row_devices(e)}
+    lines.append(f"Paying Pro devices: {len(paying)} "
+                 f"(n={len(paid_rows)} paid subscriptions)")
+
+    spend = await _tier_spend(month, "pro")
+    scans = await _sum_stat(month, "scans_pro")
+    pro_rows = {who: e for who, e in users.items()
+                if isinstance(e, dict) and _pro_span_days(e, start, now) > 0}
+    device_months = sum(_pro_span_days(e, start, now) for e in pro_rows.values()) / 30
+    per_month = (f"{_usd_fine(spend / device_months)} per Pro device-month"
+                 if device_months > 0 else "n/a per Pro device-month")
+    per_scan = spend / scans if scans else None
+    lines.append(
+        f"Pro model spend: {_usd(spend)} (n={scans} Pro scans"
+        + (f", {_usd_fine(per_scan)}/scan" if per_scan is not None else "")
+        + f") · {per_month} (n={device_months:.1f} device-months, "
+        f"{len(pro_rows)} devices)")
+
+    by_currency = _paid_by_currency(subs, now)
+    keep = 1 - APPLE_COMMISSION
+    if by_currency:
+        net = " + ".join(f"{_money(total / n * keep, cur)} (n={n})"
+                         for cur, (total, n) in sorted(by_currency.items()))
+    else:
+        net = "n/a (n=0 priced paid plans)"
+    lines.append(f"Net revenue per paying month: {net} "
+                 f"after {APPLE_COMMISSION:.0%} Apple commission")
+
+    oldest = month[-1]
+    daily = sorted(int(n) for e in pro_rows.values()
+                   for d, n in (e.get("pro_days") or {}).items()
+                   if d >= oldest and isinstance(n, (int, float)) and n > 0)
+    if daily:
+        lines.append(f"Pro scans per device-day: p50 {_percentile(daily, 0.5)} · "
+                     f"p90 {_percentile(daily, 0.9)} · max {daily[-1]} "
+                     f"(n={len(daily)} device-days)")
+    else:
+        lines.append("Pro scans per device-day: n/a (n=0 device-days)")
+
+    heaviest = []
+    if per_scan is not None:
+        for who, e in pro_rows.items():
+            count = sum(int(n) for d, n in (e.get("pro_days") or {}).items()
+                        if d >= oldest and isinstance(n, (int, float)))
+            if count:
+                days = max(1.0, _pro_span_days(e, start, now))
+                heaviest.append((count * per_scan / days, who, count, days))
+        heaviest.sort(reverse=True)
+    if heaviest:
+        lines.append(f"Heaviest by $/day (n={len(heaviest)} devices with Pro scans): " + " · ".join(
+            f"{who[:6]} {_usd_fine(rate)}/day ({count} scans / {days:.1f}d)"
+            for rate, who, count, days in heaviest[:3]))
+    else:
+        lines.append("Heaviest by $/day: n/a (n=0 devices with Pro scans)")
+    return lines
+
+
+async def _free_line(month: list[str]) -> str:
+    """Cost per free device-day that scanned: what the free tier costs per
+    person who used it, rather than a share of the bill split by scan count."""
+    spend = await _tier_spend(month, "free")
+    device_days = await _sum_stat(month, "free_device_days")
+    rate = (f"≈ {_usd_fine(spend / device_days)} per active free device-day"
+            if device_days else "≈ n/a per active free device-day")
+    return (f"Free tier, {len(month)} days: {_usd(spend)} {rate} "
+            f"(n={device_days} device-days with a scan)")
 
 
 async def _costs_text() -> str:
@@ -3717,16 +3926,12 @@ async def _costs_text() -> str:
         lines.append(" · ".join(parts))
 
     month = _days_ending_today(30)
-    free = await _sum_stat(month, "scans_free")
-    total = free + await _sum_stat(month, "scans_pro")
-    if total:
-        users = max((await _spend(month)) - (await _operator_spend(month)), 0.0)
-        given = users * free / total
-        lines.append(f"Free tier, 30 days: {free} of {total} scans ≈ {_usd(given)} given away")
+    lines.extend(await _pro_block(month))
+    lines.append(await _free_line(month))
     mine_month = await _operator_spend(month)
     if mine_month > 0:
         lines.append(f"My own bot usage, 30 days: ≈ {_usd(mine_month)} "
-                     f"(/post, /checkup — excluded from the two figures above)")
+                     f"(/post, /checkup — excluded from $/scan and both tiers)")
 
     _, _, _, _, mrr = _subs_summary(await _read_index(SUBS_INDEX_KEY))
     lines.append("vs MRR ≈ " + (" + ".join(_money(v, c) for c, v in sorted(mrr.items()))

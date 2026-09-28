@@ -2152,7 +2152,8 @@ async def scan(
         response, elapsed = await _analyse(image_bytes, content_type,
                                            subject=principal.subject, device_short=device_short,
                                            tag_bytes=tag_bytes, tag_type=tag_type,
-                                           deadline=_client_deadline(request))
+                                           deadline=_client_deadline(request),
+                                           tier=principal.tier)
     except BaseException:
         # `quota_status` carries the UTC day the reservation was counted
         # against. Recomputing the day here refunded the wrong counter for a
@@ -2242,7 +2243,8 @@ def _not_resalable_message(val: valuation_module.Valuation) -> str:
 async def _analyse(image_bytes: bytes, content_type: str, *, subject: str,
                    device_short: str, tag_bytes: bytes | None = None,
                    tag_type: str = "", count: bool = True,
-                   deadline: float | None = None) -> tuple[ScanResponse, float]:
+                   deadline: float | None = None,
+                   tier: str | None = None) -> tuple[ScanResponse, float]:
     """The scan itself: model call, parse, normalise, clamp, score.
 
     Everything between "the upload is valid and allowed" and "charge for it":
@@ -2251,7 +2253,9 @@ async def _analyse(image_bytes: bytes, content_type: str, *, subject: str,
     nothing else, or a green test scan would prove nothing about /scan.
     Returns the response (with `free_scans_remaining` unset) and the elapsed
     seconds. Raises HTTPException exactly as the endpoint would. `deadline` is
-    `_generate_with_retry`'s, for both model calls a scan can make.
+    `_generate_with_retry`'s, for both model calls a scan can make, and so is
+    `tier`: the caller's, so `/costs` can charge the scan and its reformat to
+    Pro or free. The bot's own scans pass none and are the operator's.
     """
 
     t0 = time.monotonic()
@@ -2281,13 +2285,14 @@ async def _analyse(image_bytes: bytes, content_type: str, *, subject: str,
     try:
         # `count=False` is the operator testing the service through the bot, so
         # it is labelled as such: the cost is real and belongs in the total, but
-        # not in the "$/scan" and "given away" figures, which are statements
+        # not in "$/scan" or either tier's spend, which are statements
         # about users. At 1-4 real scans a day one test photo moved both.
         if count:
             label = "scan_with_tag" if tag_bytes else "scan"
         else:
             label = "bot_scan_with_tag" if tag_bytes else "bot_scan"
-        raw, usage = await _generate_with_retry(contents, label=label, deadline=deadline)
+        raw, usage = await _generate_with_retry(contents, label=label, deadline=deadline,
+                                                tier=tier if count else None)
     except aiconfig.ModelBlocked as exc:
         # A safety block is not an outage. Thrift inventory includes penknives,
         # lighters and vintage militaria; telling the user the service is down
@@ -2324,7 +2329,9 @@ async def _analyse(image_bytes: bytes, content_type: str, *, subject: str,
         # an explicit reformat instruction before giving up — mirrors /listing,
         # which already degrades gracefully rather than 500-ing.
         log.warning("json parse error, attempting reformat", extra={"error": str(exc)})
-        data = await _retry_as_json(raw, deadline=deadline)
+        data = await _retry_as_json(
+            raw, deadline=deadline, tier=tier if count else None,
+            label="reformat" if count else "bot_reformat")
         if data is None:
             log.error("scan unparseable after reformat", extra={"raw_prefix": raw[:200]})
             if count:
@@ -2774,9 +2781,9 @@ class _ModelHealth:
 _model_health = _ModelHealth()
 
 
-def _record_usage(label: str, usage: dict) -> None:
+def _record_usage(label: str, usage: dict, tier: str | None = None) -> None:
     """Count one reply's tokens toward spend (`notify`) and the token metric."""
-    notify.model_usage(label, usage)
+    notify.model_usage(label, usage, tier=tier)
     for kind, key in (("prompt", "prompt_tokens"), ("output", "output_tokens"),
                       ("thoughts", "thoughts_tokens")):
         if key in usage:
@@ -2786,6 +2793,7 @@ def _record_usage(label: str, usage: dict) -> None:
 async def _generate_with_retry(
     contents, *, label: str, max_tokens: int | None = None, record_health: bool = True,
     deadline: float | None = None, thinking_budget: int | None = None,
+    tier: str | None = None,
 ) -> tuple[str, dict]:
     """Call the model with classified retries and jittered backoff.
 
@@ -2854,7 +2862,7 @@ async def _generate_with_retry(
             # MAX_OUTPUT_TOKENS that /costs, $/scan and the budget alert never
             # saw. Its outcome is labelled `blocked` or `empty` below.
             usage = aiconfig.usage_of(response)
-            _record_usage(label, usage)
+            _record_usage(label, usage, tier)
             try:
                 text = aiconfig.extract_text(response)
             except aiconfig.ModelUnavailable:
@@ -2927,11 +2935,16 @@ async def _generate_with_retry(
 _REFORMAT_WINDOW_CHARS = 8000
 
 
-async def _retry_as_json(raw: str, *, deadline: float | None = None) -> dict | None:
+async def _retry_as_json(raw: str, *, deadline: float | None = None,
+                         tier: str | None = None, label: str = "reformat") -> dict | None:
     """Ask the model to restate an unparseable reply as bare JSON.
 
     Cheap (text-only, no image) and recovers the common failure where the model
     wraps valid content in prose. Returns None if it still can't be parsed.
+
+    `tier` is the tier of the scan this retry serves, and `label` is
+    "bot_reformat" when that scan is the operator's: the retry is billed to
+    whoever the reply it restates was for, not to a tier of its own.
     """
     if not raw.strip():
         return None
@@ -2952,8 +2965,8 @@ async def _retry_as_json(raw: str, *, deadline: float | None = None) -> dict | N
     # call. Recording it twice would make one bad scan look like two.
     try:
         text, _usage = await _generate_with_retry(
-            prompt, label="reformat", record_health=False, deadline=deadline,
-            thinking_budget=aiconfig.TEXT_THINKING_BUDGET)
+            prompt, label=label, record_health=False, deadline=deadline,
+            thinking_budget=aiconfig.TEXT_THINKING_BUDGET, tier=tier)
     except aiconfig.ModelUnavailable:
         # A real outage, correctly classified. The caller's own 502 already
         # says "try again", which is the right advice for this.
