@@ -76,10 +76,11 @@ and the English literal is shown, and nothing says so — which is what
 
 A widget extension cannot read the app's resources: `String(localized:)`
 resolves against `Bundle.main`, which is the app in one target and the
-extension in the other. The shared widget model — the ~700 lines duplicated
-between `WidgetDataStore.swift` and `SnapWorthWidgets.swift`, see the root
-`CLAUDE.md` — is compiled into both, so **every string it uses must be in both
-catalogs**. Seventeen strings are in both for that reason, which is most of
+extension in the other. The widget model, `ios/Shared/WidgetModel.swift` (see
+the root `CLAUDE.md`), is one file compiled into both, so **every string it
+uses must be in both catalogs**. `tools/check_localization.py` checks
+`ios/Shared` against both and names the catalog an entry is missing from.
+Seventeen strings are in both for that reason, which is most of
 what the two catalogs have in common — the other three ("Scan", "No finds
 yet", "Profit this month") are separate strings that happen to read the same
 in the app and in a widget.

@@ -5,26 +5,20 @@ Everything else — structure, past fixes, why a line reads the way it does — 
 in the files and in `git log`, where this repo's commit messages deliberately
 put it.
 
-## The shared widget model is duplicated, and CI checks it byte-for-byte
+## The widget model is one file compiled into two targets
 
-A block of ~700 lines exists twice, verbatim, in
-`ios/SnapWorth/Services/WidgetDataStore.swift` (app) and
-`ios/SnapWorthWidgets/SnapWorthWidgets.swift` (extension). A widget extension
-cannot import the app's module, and the app target uses explicit file
-references while `SnapWorthWidgets` is a synchronised folder — so one file
-cannot cheaply belong to both.
+`ios/Shared/WidgetModel.swift` holds what the app writes and the widget
+extension reads, plus the Live Activity's attributes. A widget extension cannot
+import the app's module, so both targets compile this one source file: it has
+an explicit PBXBuildFile in the app's Sources phase and another in the
+extension's, whose phase is otherwise empty because the extension builds its
+synchronised `SnapWorthWidgets` folder.
 
-**Editing one copy and not the other breaks the build.** The `Widget model is
-in sync` step in `.github/workflows/ios.yml` diffs the two
-`BEGIN/END SHARED WIDGET MODEL` regions and fails on any difference. Patch
-both, then prove it:
+It lives outside that folder on purpose. Inside it, the extension would pick it
+up implicitly and the app not at all. A new file both targets need goes in
+`ios/Shared` with the same two build-file entries.
 
-```sh
-diff <(sed -n '/BEGIN SHARED WIDGET MODEL/,/END SHARED WIDGET MODEL/p' ios/SnapWorth/Services/WidgetDataStore.swift) \
-     <(sed -n '/BEGIN SHARED WIDGET MODEL/,/END SHARED WIDGET MODEL/p' ios/SnapWorthWidgets/SnapWorthWidgets.swift)
-```
-
-Nothing in the block may reference a symbol that exists in only one target.
+Nothing in it may reference a symbol that exists in only one target.
 
 ## A bug reported from the phone may already be fixed
 
@@ -74,10 +68,11 @@ English on purpose goes in that file's `DELIBERATELY_ENGLISH` with a reason,
 not left out.
 
 Two catalogs because a widget extension cannot read the app's resources —
-`String(localized:)` resolves against `Bundle.main`. The shared widget model
-above is compiled into both targets, so **a string it uses needs an entry in
-both**. `ios/Localization/README.md` has the rest, including why money, listing
-copy and the legal documents stay English.
+`String(localized:)` resolves against `Bundle.main`. The widget model above is
+compiled into both targets, so **a string it uses needs an entry in both**;
+`check_localization.py` checks `ios/Shared` against both catalogs.
+`ios/Localization/README.md` has the rest, including why money, listing copy
+and the legal documents stay English.
 
 **The `.xcstrings` are tracked, and never to be gitignored.** They go dirty
 after every build — `SWIFT_EMIT_LOC_STRINGS = YES` makes Xcode write extracted
