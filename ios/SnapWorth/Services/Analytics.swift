@@ -190,6 +190,13 @@ enum AnalyticsEvent {
     /// from a healthy one — the failure only surfaces later, as a review.
     case persistentStoreFallback(reason: String)
 
+    // ── Response contract ────────────────────────────────────────────
+    /// An optional `/scan` field arrived with a type the app could not read
+    /// and was dropped rather than failing the scan (#222). `field` is the
+    /// wire key, one of the fixed `ScanAPIResponse.CodingKeys`, never the
+    /// value — so server-side type drift shows here before a user reports it.
+    case scanFieldUndecodable(field: String)
+
     /// The wire name sent off-device.
     var name: String {
         switch self {
@@ -240,6 +247,7 @@ enum AnalyticsEvent {
         case .reviewPromptRequested: return "review_prompt_requested"
         case .persistentStoreFallback: return "persistent_store_fallback"
         case .certificatePinMismatch: return "certificate_pin_mismatch"
+        case .scanFieldUndecodable: return "scan_field_undecodable"
         case .crashReported:        return "crash_reported"
         case .hangReported:         return "hang_reported"
         case .launchTimeReported:   return "launch_time_reported"
@@ -311,6 +319,8 @@ enum AnalyticsEvent {
             return ["reason": reason]
         case let .certificatePinMismatch(enforced):
             return ["enforced": String(enforced)]
+        case let .scanFieldUndecodable(field):
+            return ["field": field]
         default:
             return [:]
         }
