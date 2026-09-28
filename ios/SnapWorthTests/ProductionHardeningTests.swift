@@ -772,6 +772,204 @@ final class ScanContractTests: XCTestCase {
     }
 }
 
+// MARK: - Lenient optional fields (#222)
+//
+// Every optional field used to be read with `try decodeIfPresent`, which
+// throws on a wrong type, and one throw failed a scan the user had already
+// been charged for. Each is now read on its own. These start from the real
+// fixtures, break one key at a time, and require that only that key is lost.
+// Driven by `CodingKeys.allCases`, so a field added later is covered without
+// anyone remembering to add it here — and `shown` must name it to compile.
+
+private final class ScanFieldEventSpy: AnalyticsService {
+    var events: [AnalyticsEvent] = []
+    func track(_ event: AnalyticsEvent) { events.append(event) }
+}
+
+final class LenientScanFieldTests: XCTestCase {
+    typealias Key = ScanAPIResponse.CodingKeys
+
+    /// Without these there is no result to show, so they stay strict.
+    private static let required: Set<Key> = [
+        .itemName, .brand, .category, .conditionNotes, .estValueLowUsd,
+        .estValueHighUsd, .confidence, .listingTitle, .listingDescription,
+    ]
+    private static var optional: [Key] { Key.allCases.filter { !required.contains($0) } }
+
+    /// What an absent field decodes to, where that is not nil or `[]`.
+    private static let defaults: [Key: Shown] = [
+        .soldListingsCount: .scalar("0"),
+        .valuationSource: .scalar("model"),
+    ]
+
+    private enum Shown: Equatable {
+        case scalar(String?)
+        case list([String])
+    }
+
+    /// One field of a decoded response, comparable across decodes.
+    private static func shown(_ r: ScanAPIResponse, _ key: Key) -> Shown {
+        func s<T>(_ value: T?) -> Shown { .scalar(value.map { "\($0)" }) }
+        switch key {
+        case .itemName:              return s(r.itemName)
+        case .brand:                 return s(r.brand)
+        case .category:              return s(r.category)
+        case .conditionNotes:        return s(r.conditionNotes)
+        case .estValueLowUsd:        return s(r.estValueLowUsd)
+        case .estValueHighUsd:       return s(r.estValueHighUsd)
+        case .confidence:            return s(r.confidence)
+        case .soldListingsCount:     return s(r.soldListingsCount)
+        case .listingTitle:          return s(r.listingTitle)
+        case .listingDescription:    return s(r.listingDescription)
+        case .freeScansRemaining:    return s(r.freeScansRemaining)
+        case .confidenceScore:       return s(r.confidenceScore)
+        case .confidenceSummary:     return s(r.confidenceSummary)
+        case .confidenceReasons:     return .list(r.confidenceReasons)
+        case .confidenceReasonCodes: return .list(r.confidenceReasonCodes)
+        case .quickSalePriceUsd:     return s(r.quickSalePriceUsd)
+        case .expectedPriceUsd:      return s(r.expectedPriceUsd)
+        case .bestCasePriceUsd:      return s(r.bestCasePriceUsd)
+        case .worstCasePriceUsd:     return s(r.worstCasePriceUsd)
+        case .likelyPriceUsd:        return s(r.likelyPriceUsd)
+        case .valueDrivers:          return .list(r.valueDrivers)
+        case .assumptions:           return .list(r.assumptions)
+        case .uncertaintyFactors:    return .list(r.uncertaintyFactors)
+        case .improveEstimate:       return .list(r.improveEstimate)
+        case .authenticityAssessment: return s(r.authenticityAssessment)
+        case .authenticityReasoning: return s(r.authenticityReasoning)
+        case .demand:                return s(r.demand)
+        case .supply:                return s(r.supply)
+        case .conditionGrade:        return s(r.conditionGrade)
+        case .size:                  return s(r.size)
+        case .era:                   return s(r.era)
+        case .material:              return s(r.material)
+        case .valuationSource:       return s(r.valuationSource.rawValue)
+        }
+    }
+
+    /// The wrong types #222 names: an object for a string or number, a list
+    /// of objects for a string list, and a fractional `confidence_score`.
+    private static func wrongType(for key: Key, in r: ScanAPIResponse) -> Any {
+        if key == .confidenceScore { return 37.5 }
+        if case .list = shown(r, key) { return [["unexpected": "object"]] }
+        return ["unexpected": "object"]
+    }
+
+    private static func body(_ fixture: String) throws -> [String: Any] {
+        let data = try ScanContractTests.contractData(fixture)
+        return try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+    }
+
+    private static func decode(_ body: [String: Any]) throws -> ScanAPIResponse {
+        try JSONDecoder().decode(
+            ScanAPIResponse.self, from: JSONSerialization.data(withJSONObject: body))
+    }
+
+    private var spy = ScanFieldEventSpy()
+
+    override func setUp() {
+        super.setUp()
+        spy = ScanFieldEventSpy()
+        Analytics.shared.configure(spy)
+    }
+
+    private var reportedFields: [String?] {
+        spy.events.filter { $0.name == "scan_field_undecodable" }.map { $0.parameters["field"] }
+    }
+
+    private func assertEachOptionalFieldFailsAlone(in fixture: String) throws {
+        let body = try Self.body(fixture)
+        let original = try JSONDecoder().decode(
+            ScanAPIResponse.self, from: ScanContractTests.contractData(fixture))
+        XCTAssertFalse(Self.optional.isEmpty)
+        for key in Self.optional {
+            var broken = body
+            broken[key.rawValue] = Self.wrongType(for: key, in: original)
+            spy.events.removeAll()
+            let decoded: ScanAPIResponse
+            do {
+                decoded = try Self.decode(broken)
+            } catch {
+                XCTFail("\(fixture): a wrong type for \(key.rawValue) failed the whole scan: \(error)")
+                continue
+            }
+            let absent = Self.defaults[key] ?? Self.empty(like: Self.shown(original, key))
+            XCTAssertEqual(Self.shown(decoded, key), absent,
+                           "\(fixture): \(key.rawValue) with a wrong type must read as absent")
+            for other in Key.allCases where other != key {
+                XCTAssertEqual(Self.shown(decoded, other), Self.shown(original, other),
+                               "\(fixture): a wrong type for \(key.rawValue) changed \(other.rawValue)")
+            }
+            XCTAssertEqual(reportedFields, [key.rawValue],
+                           "\(fixture): \(key.rawValue) must be reported once, by key")
+        }
+    }
+
+    /// nil for a scalar, `[]` for a list.
+    private static func empty(like shown: Shown) -> Shown {
+        if case .list = shown { return .list([]) }
+        return .scalar(nil)
+    }
+
+    func test_eachOptionalFieldFailsAlone_pro() throws {
+        try assertEachOptionalFieldFailsAlone(in: "scan-response.json")
+    }
+
+    func test_eachOptionalFieldFailsAlone_free() throws {
+        try assertEachOptionalFieldFailsAlone(in: "scan-response-free.json")
+    }
+
+    /// Null and absence are the normal case, not drift, and are not reported.
+    func test_theFixturesReportNothing() throws {
+        for fixture in ["scan-response.json", "scan-response-free.json"] {
+            _ = try JSONDecoder().decode(
+                ScanAPIResponse.self, from: ScanContractTests.contractData(fixture))
+        }
+        XCTAssertEqual(reportedFields, [])
+    }
+
+    /// A whole-number double is still a score; the fixture's `37` must not
+    /// be the only spelling that works.
+    func test_aWholeNumberDoubleIsAConfidenceScore() throws {
+        let text = try XCTUnwrap(String(
+            data: ScanContractTests.contractData(), encoding: .utf8))
+        let asDouble = text.replacingOccurrences(of: #""confidence_score": 37,"#,
+                                                 with: #""confidence_score": 37.0,"#)
+        XCTAssertNotEqual(asDouble, text, "the fixture's score is no longer 37")
+        let decoded = try JSONDecoder().decode(ScanAPIResponse.self, from: Data(asDouble.utf8))
+        XCTAssertEqual(decoded.confidenceScore, 37)
+        XCTAssertEqual(reportedFields, [])
+    }
+
+    func test_aMissingRequiredFieldStillFails() throws {
+        for fixture in ["scan-response.json", "scan-response-free.json"] {
+            let body = try Self.body(fixture)
+            for key in Self.required {
+                var trimmed = body
+                trimmed[key.rawValue] = nil
+                XCTAssertThrowsError(try Self.decode(trimmed),
+                                     "\(fixture): a scan without \(key.rawValue) decoded")
+            }
+        }
+    }
+
+    func test_aMistypedRequiredFieldStillFails() throws {
+        let body = try Self.body("scan-response.json")
+        for key in Self.required {
+            var broken = body
+            broken[key.rawValue] = ["unexpected": "object"]
+            XCTAssertThrowsError(try Self.decode(broken),
+                                 "a scan with an object for \(key.rawValue) decoded")
+        }
+    }
+
+    func test_theUndecodableEventCarriesOnlyTheKey() {
+        let event = AnalyticsEvent.scanFieldUndecodable(field: "confidence_score")
+        XCTAssertEqual(event.name, "scan_field_undecodable")
+        XCTAssertEqual(event.parameters, ["field": "confidence_score"])
+    }
+}
+
 // MARK: - Legacy response compatibility
 
 final class ScanAPIResponseDecodingTests: XCTestCase {
@@ -2027,6 +2225,128 @@ final class PrivacyManifestTests: XCTestCase {
         let declared = try reasons(for: "NSPrivacyAccessedAPICategoryFileTimestamp")
         XCTAssertEqual(declared, ["C617.1"],
                        "0A2A.1 is the third-party-SDK-wrapper reason; this app reads its own container")
+    }
+}
+
+/// The widget extension is a bundle of its own, and the app's manifest does
+/// not speak for code that runs in it. It had no manifest while it read the
+/// App Group through `UserDefaults(suiteName:)`, a required-reason API.
+///
+/// Source-scanned, like the app's "what the code actually sends" tests: every
+/// required-reason API the extension's Swift names must be declared, and
+/// nothing it does not name may be, so the manifest can neither fall behind
+/// the code nor claim more than it does. That the file reaches the built
+/// `.appex` is `ExtensionBundleTests`'.
+final class WidgetPrivacyManifestTests: XCTestCase {
+
+    private let ios = URL(fileURLWithPath: #filePath)
+        .deletingLastPathComponent()
+        .deletingLastPathComponent()
+
+    private func manifest() throws -> [String: Any] {
+        let data = try Data(contentsOf: ios.appendingPathComponent(
+            "SnapWorthWidgets/PrivacyInfo.xcprivacy"))
+        return try XCTUnwrap(PropertyListSerialization.propertyList(
+            from: data, format: nil) as? [String: Any])
+    }
+
+    private func declaredReasons() throws -> [String: [String]] {
+        let accessed = try manifest()["NSPrivacyAccessedAPITypes"] as? [[String: Any]] ?? []
+        var reasons: [String: [String]] = [:]
+        for entry in accessed {
+            guard let type = entry["NSPrivacyAccessedAPIType"] as? String else { continue }
+            reasons[type] = entry["NSPrivacyAccessedAPITypeReasons"] as? [String] ?? []
+        }
+        return reasons
+    }
+
+    /// Every Swift file the extension compiles, with comments removed: the
+    /// shared model has a comment naming `UserDefaults.standard` to explain why
+    /// the extension does *not* read it, and that is not a call.
+    private func extensionCode() throws -> String {
+        let files = try FileManager.default
+            .contentsOfDirectory(at: ios.appendingPathComponent("SnapWorthWidgets"),
+                                 includingPropertiesForKeys: nil)
+            .filter { $0.pathExtension == "swift" }
+        XCTAssertFalse(files.isEmpty, "the extension's sources moved")
+        return try files
+            .map { try String(contentsOf: $0, encoding: .utf8) }
+            .joined(separator: "\n")
+            .split(separator: "\n", omittingEmptySubsequences: false)
+            .map { line -> Substring in
+                if line.drop(while: { $0 == " " || $0 == "\t" }).hasPrefix("//") { return "" }
+                if let comment = line.range(of: " //") { return line[..<comment.lowerBound] }
+                return line
+            }
+            .joined(separator: "\n")
+    }
+
+    /// Apple's required-reason APIs, by category, as a Swift call would spell
+    /// them (developer.apple.com, "Describing use of required reason API").
+    private static let requiredReasonAPIs: [String: [String]] = [
+        "NSPrivacyAccessedAPICategoryUserDefaults": [
+            #"\bUserDefaults\b"#, #"\bNSUserDefaults\b"#, #"@AppStorage\b"#],
+        "NSPrivacyAccessedAPICategoryFileTimestamp": [
+            #"\bcreationDate(Key)?\b"#, #"\b(file|content)?[mM]odificationDate(Key)?\b"#,
+            #"\battributesOfItem\b"#, #"\bf?getattrlist(bulk|at)?\s*\("#, #"\b[fl]?stat(at)?\s*\("#],
+        "NSPrivacyAccessedAPICategorySystemBootTime": [
+            #"\bsystemUptime\b"#, #"\bmach_absolute_time\b"#],
+        "NSPrivacyAccessedAPICategoryDiskSpace": [
+            #"\bvolume(Available|Total)Capacity"#, #"\bsystem(Free)?Size\b"#,
+            #"\bf?statv?fs\s*\("#, #"\battributesOfFileSystem\b"#],
+        "NSPrivacyAccessedAPICategoryActiveKeyboards": [#"\bactiveInputModes\b"#],
+    ]
+
+    func test_theManifestDeclaresExactlyTheCategoriesTheExtensionUses() throws {
+        let code = try extensionCode()
+        let used = Set(Self.requiredReasonAPIs.compactMap { category, patterns in
+            patterns.contains { code.range(of: $0, options: .regularExpression) != nil }
+                ? category : nil
+        })
+        XCTAssertEqual(used, ["NSPrivacyAccessedAPICategoryUserDefaults"],
+                       "the extension's required-reason APIs changed; declare the new ones")
+        XCTAssertEqual(Set(try declaredReasons().keys), used,
+                       "declared and used must be the same set")
+    }
+
+    /// 1C8F.1 alone: the extension reads and writes the App Group suite and
+    /// never `UserDefaults.standard`, which is what CA92.1 (the app's other
+    /// reason) is for.
+    func test_userDefaultsIsDeclaredForTheAppGroupOnly() throws {
+        let code = try extensionCode()
+        XCTAssertTrue(code.contains("UserDefaults(suiteName: appGroupID)"),
+                      "the extension no longer reads the App Group; revisit 1C8F.1")
+        let appPrivate = code.range(of: #"UserDefaults\.standard|UserDefaults\(\)|@AppStorage\b"#,
+                                    options: .regularExpression) != nil
+        XCTAssertEqual(try declaredReasons()["NSPrivacyAccessedAPICategoryUserDefaults"]?.sorted(),
+                       appPrivate ? ["1C8F.1", "CA92.1"] : ["1C8F.1"],
+                       appPrivate ? "the extension now reads its own defaults; add CA92.1"
+                                  : "CA92.1 claims defaults the extension never reads")
+    }
+
+    /// Nothing leaves the device from the extension, so it declares no
+    /// collected data. A network call or an analytics SDK in it would change
+    /// that, and this is where that would be noticed.
+    func test_theExtensionCollectsNothingAndDoesNotTrack() throws {
+        let plist = try manifest()
+        XCTAssertEqual(plist["NSPrivacyTracking"] as? Bool, false)
+        XCTAssertEqual((plist["NSPrivacyTrackingDomains"] as? [Any])?.count, 0)
+        XCTAssertEqual((plist["NSPrivacyCollectedDataTypes"] as? [Any])?.count, 0)
+        XCTAssertNil(try extensionCode().range(of: #"\bURLSession\b|\bimport\s+TelemetryDeck\b"#,
+                                               options: .regularExpression),
+                     "the extension now sends something; declare what it collects")
+    }
+
+    /// The sticker pack is images and an Info.plist. With no code it calls no
+    /// required-reason API and collects nothing, so it needs no manifest. Code
+    /// added to it needs this question asked again.
+    func test_theStickerPackHasNoCodeAndSoNeedsNoManifest() throws {
+        let root = ios.appendingPathComponent("SnapWorthStickers")
+        let entries = try XCTUnwrap(FileManager.default.enumerator(atPath: root.path))
+        let code = entries.compactMap { $0 as? String }.filter {
+            ["swift", "m", "mm", "c", "cpp"].contains(URL(fileURLWithPath: $0).pathExtension)
+        }
+        XCTAssertEqual(code, [], "the sticker pack has code now; does it need a PrivacyInfo.xcprivacy?")
     }
 }
 

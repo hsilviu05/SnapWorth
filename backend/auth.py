@@ -31,7 +31,7 @@ import secrets
 from dataclasses import dataclass
 
 from fastapi import APIRouter, Depends, Header, Request
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 import apierrors
 import appattest
@@ -186,6 +186,18 @@ class EntitlementRequest(BaseModel):
     # older clients omit it and are bound by subject, as before.
     device_id: str | None = Field(
         default=None, min_length=1, max_length=64, pattern=r"^[A-Za-z0-9._-]+$")
+    # The paywall a purchase was made from, sent by 1.5.2+ on the one sync
+    # right after it (#218). Only `notify.PAYWALL_TRIGGERS` is kept; anything
+    # else — absent, unknown, the wrong type, too long — reads as None rather
+    # than a 422, because a purchase sync must never fail over an analytics
+    # field, and an older or newer build must sync exactly as before. Counted
+    # once per originalTransactionId and never stored with the subscription.
+    paywall_trigger: str | None = None
+
+    @field_validator("paywall_trigger", mode="before")
+    @classmethod
+    def _known_trigger_or_none(cls, value: object) -> str | None:
+        return value if isinstance(value, str) and value in notify.PAYWALL_TRIGGERS else None
 
 
 class EntitlementResponse(BaseModel):
@@ -572,7 +584,8 @@ async def record_entitlement(
     # Operator ping: first sighting of a subscription, or a proven downgrade.
     # Deduped and throttled inside; never raises, so it cannot fail the sync.
     # Silent for a bounded Sandbox entitlement — a tester is not a customer.
-    await notify.entitlement_recorded(principal.subject, ent)
+    await notify.entitlement_recorded(principal.subject, ent,
+                                      paywall_trigger=req.paywall_trigger)
     # A referred friend redeeming the friend offer earns their referrer a week.
     # Imported here, not at the top: `referral` imports this module for
     # `deps` and `require_auth`. Never raises, and never rewards Sandbox.

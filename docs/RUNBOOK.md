@@ -52,10 +52,11 @@ actually arrives:
 |---|---|---|
 | Is anything broken right now | `🩺 Checkup` | Probes the model, Redis, DeviceCheck and the App Store build in one message |
 | Current state | `/status` | Build, cache backend, auth enforcement, last deploy ping, today's counters |
-| What it costs | `/costs` | Gemini spend by window, `$/scan`, free-tier giveaway, and the operator's own bot usage listed separately |
+| What it costs | `/costs` | Gemini spend by window, `$/scan`, a Pro block over 30 days (paying devices, Pro spend per device-month, net revenue per paying month, Pro scans per device-day p50/p90/max, the three heaviest devices by $/day, each with its n), the free tier's cost per active device-day, and the operator's own bot usage listed separately |
 | Subscribers | `/subs` | Active, paid, comped, and MRR |
-| Is the free-scan experiment working | `/experiment` | The whole window at once: limit hits against new subscriptions, day by day, with a running total, and whether a new user gets a first-day welcome right now — as the quota resolves it, so `FREE_SCANS_FIRST_DAY=1` at a daily limit of 1 reads "lever not armed" |
+| Is the free-scan experiment working | `/experiment` | The whole window at once: limit hits against trial starts and paid (converted trials plus direct purchases), day by day, with a running total, and whether a new user gets a first-day welcome right now — as the quota resolves it, so `FREE_SCANS_FIRST_DAY=1` at a daily limit of 1 reads "lever not armed" |
 | Keep the experiment's numbers | `/experiment export` (💾 under `/experiment`) | The same rows as CSV in a block to copy into `docs/`. The counters expire 35 days after each day, so the 2026-09-10 → 09-24 window starts disappearing on 2026-10-15. An expired day is exported empty, not as zeros, and an unreadable Redis exports nothing. The `#` lines above the header (the window, the welcome, any lever move) have no commas, so each parses as one CSV field, and a reader that skips `#` lines gets only the table |
+| Which paywall sells | `/paywall` | The last 28 days: trial starts and direct purchases per paywall trigger (from 1.5.2, which sends the trigger on the sync after a purchase; anything else is "no trigger"), and trial → paid over the trials whose free period ended in the window, with its n. Counts, not significance. Per trigger is counts only: the trigger is never stored with the subscription, so trial → paid by trigger is not readable here (#218) |
 | Start or stop the free-scan experiment | `/lever` | Arms or disarms the first-day allowance without a Railway change or a redeploy. Two taps, clamped, and `/experiment` footnotes any day it moved. It checks a value against the running quota's own daily limit and cap, and refuses to arm when it cannot ask |
 | Make a bad or stranded build update | `/minbuild <n>` | /scan, /listing and /trends answer builds below `n` with a 422 telling them to update from the App Store; `/minbuild off` serves all again. Two taps. Set it only once build `n` is live. /scan and /listing show the message to builds 8 and up; builds 7 and older show fixed copy ("Something went wrong"). /trends is refused too, but the app drops that error silently and the Trending card disappears. /auth is never gated, and a request whose build is unreadable is served. A 422 is a non-paging 4xx: refusals are counted in `snapworth_outdated_build_refused_total`, by endpoint. The access log's `build` field (from the User-Agent) shows who is still on what |
 | Yesterday | The daily digest | Sent automatically at `TELEGRAM_DIGEST_UTC_HOUR` (default 06:00 UTC); a weekly report on Mondays |
@@ -1164,8 +1165,11 @@ The per-hour fair-use cap (§5.8, 60 scans) bounds a burst, not a day: a full
 hour costs ~$0.35. From one address, scans and drafts share 60 requests an
 hour, so drafts take the place of scans under that ceiling rather than adding
 to it. What watches a heavy *day* is the over-budget alert, which is why
-`GEMINI_DAILY_BUDGET_USD` is on the launch checklist (§12). None of this is
-measured per subscriber; `/costs` has no per-subscriber view.
+`GEMINI_DAILY_BUDGET_USD` is on the launch checklist (§12). The table above
+is an estimate. `/costs`' Pro block (#219) measures it: spend split by tier,
+Pro scans per device-day and the three heaviest devices, with net revenue at
+`APPLE_COMMISSION` (default 0.15). A measured row belongs here once it has
+weeks of production data behind it.
 
 ### Optimisations, ranked by value
 
@@ -1677,8 +1681,8 @@ Production now honours Sandbox, **bounded**. Two separate settings:
   from iPhone to iPad on one Sandbox account is the case this exists for. A
   reinstall on the same phone (same `device_id`) takes it over silently. Each
   move logs `sandbox entitlement moved to another device`.
-- **Not a customer.** No `/subs` row, no MRR, no `new_subs` count in the
-  digest or `/status`, no "New Pro" / trial / "Subscription ended" alert, no
+- **Not a customer.** No `/subs` row, no MRR, no trial-start or paid count in
+  the digest or `/status`, no "New Pro" / trial / "Subscription ended" alert, no
   referral reward. It shows in the logs instead: the audit event
   `entitlement.recorded` with `environment=Sandbox`, and `sandbox entitlement
   recorded on bounded terms`. Usage figures — scans, active users, the Pro

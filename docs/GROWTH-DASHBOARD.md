@@ -78,7 +78,7 @@ and *Campaign*. These are store metrics, so no app build gates them; what
 | First-time downloads by source type | *First-time downloads*, split by *Source type*: App Store Search, App Store Browse, Web Referrer, App Referrer, and whatever else ASC lists. snapworth.eu is a web referrer until its links carry a campaign | Always | View *Source* |
 | First-time downloads by territory | Split by territory: **US**; **DE + AT + CH** (one `de` listing, `app_store_listing.de.md`); **ES + the Latin American storefronts**, summed (one `es` listing covers about twenty, `app_store_listing.es.md`); **RO**; **CN** (mainland, already distributed, `app_store_listing.zh-Hans.md`) | Always. Localized listings arrive with 1.5.1 (#202); on 1.5.0 every storefront showed the English page (checked 2026-09-26, `RELEASE-NOTES-1.5.0.md`) | View *Territory* |
 | First-time downloads by campaign | Sources → campaigns, one row per `ct` in the [campaign table](#campaigns) | **Pending `pt`:** from the day PR #242 (#204) deploys. Before that no link on the site carries a campaign | View *Campaign* |
-| Trials and paid conversions | ASC's subscription figures for the yearly plan, the only one with the 3-day free trial: trials started, and trials converted to paid | Always | ASC subscription reports; cross-check with `/week`'s *New subscriptions* |
+| Trials and paid conversions | ASC's subscription figures for the yearly plan, the only one with the 3-day free trial: trials started, and trials converted to paid | Always | ASC subscription reports; cross-check with `/week`'s *Trial starts* and *Paid* (converted trials · direct), and `/paywall`'s trial → paid |
 
 ## Web — Vercel Web Analytics
 
@@ -169,7 +169,7 @@ growth: `review_prompt_requested` (`1947a79`, #193) and
 
 | Metric | Source and filter | First available | Read it in |
 |---|---|---|---|
-| `/week` as it is | Scans (free · Pro), Failed, Active user-days, New subscriptions and Gemini spend, each against the week before. It covers the seven UTC days ending yesterday (`_weekly_text`, `backend/notify.py:2926`). *New subscriptions* counts each Apple `originalTransactionId` once, whichever of the client sync or Apple's notification sees it first | Server, deployed | Telegram: the report sent with Monday's digest (`WEEKLY_REPORT_WEEKDAY = 0`), or `/week` |
+| `/week` as it is | Scans (free · Pro), Failed, Active user-days, Trial starts, Paid (converted trials · direct) and Gemini spend, each against the week before. It covers the seven UTC days ending yesterday (`_weekly_text`, `backend/notify.py:2926`). *Trial starts* and the direct half of *Paid* count each Apple `originalTransactionId` once, whichever of the client sync or Apple's notification sees it first; a converted trial counts once more, on the day of its first paid period (#218). Until #218 this line was *New subscriptions*, trial starts and direct purchases together, with conversions in neither | Server, deployed | Telegram: the report sent with Monday's digest (`WEEKLY_REPORT_WEEKDAY = 0`), or `/week` |
 | Gemini spend per paid subscription | **No counter yet.** Spend is not split by tier; that is #219. Leave the column empty until it lands | Not available | — |
 | Referral conversions | The daily digest's *Referrals:* line: claimed, redeemed at Apple, rewarded, paid after the free week (`REFERRAL_STEPS`, `notify.py:1006`). It is not in `/week`, so sum the seven digests | Server; silent until referrals are switched on | Telegram, daily digest |
 
