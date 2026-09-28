@@ -772,6 +772,204 @@ final class ScanContractTests: XCTestCase {
     }
 }
 
+// MARK: - Lenient optional fields (#222)
+//
+// Every optional field used to be read with `try decodeIfPresent`, which
+// throws on a wrong type, and one throw failed a scan the user had already
+// been charged for. Each is now read on its own. These start from the real
+// fixtures, break one key at a time, and require that only that key is lost.
+// Driven by `CodingKeys.allCases`, so a field added later is covered without
+// anyone remembering to add it here — and `shown` must name it to compile.
+
+private final class ScanFieldEventSpy: AnalyticsService {
+    var events: [AnalyticsEvent] = []
+    func track(_ event: AnalyticsEvent) { events.append(event) }
+}
+
+final class LenientScanFieldTests: XCTestCase {
+    typealias Key = ScanAPIResponse.CodingKeys
+
+    /// Without these there is no result to show, so they stay strict.
+    private static let required: Set<Key> = [
+        .itemName, .brand, .category, .conditionNotes, .estValueLowUsd,
+        .estValueHighUsd, .confidence, .listingTitle, .listingDescription,
+    ]
+    private static var optional: [Key] { Key.allCases.filter { !required.contains($0) } }
+
+    /// What an absent field decodes to, where that is not nil or `[]`.
+    private static let defaults: [Key: Shown] = [
+        .soldListingsCount: .scalar("0"),
+        .valuationSource: .scalar("model"),
+    ]
+
+    private enum Shown: Equatable {
+        case scalar(String?)
+        case list([String])
+    }
+
+    /// One field of a decoded response, comparable across decodes.
+    private static func shown(_ r: ScanAPIResponse, _ key: Key) -> Shown {
+        func s<T>(_ value: T?) -> Shown { .scalar(value.map { "\($0)" }) }
+        switch key {
+        case .itemName:              return s(r.itemName)
+        case .brand:                 return s(r.brand)
+        case .category:              return s(r.category)
+        case .conditionNotes:        return s(r.conditionNotes)
+        case .estValueLowUsd:        return s(r.estValueLowUsd)
+        case .estValueHighUsd:       return s(r.estValueHighUsd)
+        case .confidence:            return s(r.confidence)
+        case .soldListingsCount:     return s(r.soldListingsCount)
+        case .listingTitle:          return s(r.listingTitle)
+        case .listingDescription:    return s(r.listingDescription)
+        case .freeScansRemaining:    return s(r.freeScansRemaining)
+        case .confidenceScore:       return s(r.confidenceScore)
+        case .confidenceSummary:     return s(r.confidenceSummary)
+        case .confidenceReasons:     return .list(r.confidenceReasons)
+        case .confidenceReasonCodes: return .list(r.confidenceReasonCodes)
+        case .quickSalePriceUsd:     return s(r.quickSalePriceUsd)
+        case .expectedPriceUsd:      return s(r.expectedPriceUsd)
+        case .bestCasePriceUsd:      return s(r.bestCasePriceUsd)
+        case .worstCasePriceUsd:     return s(r.worstCasePriceUsd)
+        case .likelyPriceUsd:        return s(r.likelyPriceUsd)
+        case .valueDrivers:          return .list(r.valueDrivers)
+        case .assumptions:           return .list(r.assumptions)
+        case .uncertaintyFactors:    return .list(r.uncertaintyFactors)
+        case .improveEstimate:       return .list(r.improveEstimate)
+        case .authenticityAssessment: return s(r.authenticityAssessment)
+        case .authenticityReasoning: return s(r.authenticityReasoning)
+        case .demand:                return s(r.demand)
+        case .supply:                return s(r.supply)
+        case .conditionGrade:        return s(r.conditionGrade)
+        case .size:                  return s(r.size)
+        case .era:                   return s(r.era)
+        case .material:              return s(r.material)
+        case .valuationSource:       return s(r.valuationSource.rawValue)
+        }
+    }
+
+    /// The wrong types #222 names: an object for a string or number, a list
+    /// of objects for a string list, and a fractional `confidence_score`.
+    private static func wrongType(for key: Key, in r: ScanAPIResponse) -> Any {
+        if key == .confidenceScore { return 37.5 }
+        if case .list = shown(r, key) { return [["unexpected": "object"]] }
+        return ["unexpected": "object"]
+    }
+
+    private static func body(_ fixture: String) throws -> [String: Any] {
+        let data = try ScanContractTests.contractData(fixture)
+        return try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+    }
+
+    private static func decode(_ body: [String: Any]) throws -> ScanAPIResponse {
+        try JSONDecoder().decode(
+            ScanAPIResponse.self, from: JSONSerialization.data(withJSONObject: body))
+    }
+
+    private var spy = ScanFieldEventSpy()
+
+    override func setUp() {
+        super.setUp()
+        spy = ScanFieldEventSpy()
+        Analytics.shared.configure(spy)
+    }
+
+    private var reportedFields: [String?] {
+        spy.events.filter { $0.name == "scan_field_undecodable" }.map { $0.parameters["field"] }
+    }
+
+    private func assertEachOptionalFieldFailsAlone(in fixture: String) throws {
+        let body = try Self.body(fixture)
+        let original = try JSONDecoder().decode(
+            ScanAPIResponse.self, from: ScanContractTests.contractData(fixture))
+        XCTAssertFalse(Self.optional.isEmpty)
+        for key in Self.optional {
+            var broken = body
+            broken[key.rawValue] = Self.wrongType(for: key, in: original)
+            spy.events.removeAll()
+            let decoded: ScanAPIResponse
+            do {
+                decoded = try Self.decode(broken)
+            } catch {
+                XCTFail("\(fixture): a wrong type for \(key.rawValue) failed the whole scan: \(error)")
+                continue
+            }
+            let absent = Self.defaults[key] ?? Self.empty(like: Self.shown(original, key))
+            XCTAssertEqual(Self.shown(decoded, key), absent,
+                           "\(fixture): \(key.rawValue) with a wrong type must read as absent")
+            for other in Key.allCases where other != key {
+                XCTAssertEqual(Self.shown(decoded, other), Self.shown(original, other),
+                               "\(fixture): a wrong type for \(key.rawValue) changed \(other.rawValue)")
+            }
+            XCTAssertEqual(reportedFields, [key.rawValue],
+                           "\(fixture): \(key.rawValue) must be reported once, by key")
+        }
+    }
+
+    /// nil for a scalar, `[]` for a list.
+    private static func empty(like shown: Shown) -> Shown {
+        if case .list = shown { return .list([]) }
+        return .scalar(nil)
+    }
+
+    func test_eachOptionalFieldFailsAlone_pro() throws {
+        try assertEachOptionalFieldFailsAlone(in: "scan-response.json")
+    }
+
+    func test_eachOptionalFieldFailsAlone_free() throws {
+        try assertEachOptionalFieldFailsAlone(in: "scan-response-free.json")
+    }
+
+    /// Null and absence are the normal case, not drift, and are not reported.
+    func test_theFixturesReportNothing() throws {
+        for fixture in ["scan-response.json", "scan-response-free.json"] {
+            _ = try JSONDecoder().decode(
+                ScanAPIResponse.self, from: ScanContractTests.contractData(fixture))
+        }
+        XCTAssertEqual(reportedFields, [])
+    }
+
+    /// A whole-number double is still a score; the fixture's `37` must not
+    /// be the only spelling that works.
+    func test_aWholeNumberDoubleIsAConfidenceScore() throws {
+        let text = try XCTUnwrap(String(
+            data: ScanContractTests.contractData(), encoding: .utf8))
+        let asDouble = text.replacingOccurrences(of: #""confidence_score": 37,"#,
+                                                 with: #""confidence_score": 37.0,"#)
+        XCTAssertNotEqual(asDouble, text, "the fixture's score is no longer 37")
+        let decoded = try JSONDecoder().decode(ScanAPIResponse.self, from: Data(asDouble.utf8))
+        XCTAssertEqual(decoded.confidenceScore, 37)
+        XCTAssertEqual(reportedFields, [])
+    }
+
+    func test_aMissingRequiredFieldStillFails() throws {
+        for fixture in ["scan-response.json", "scan-response-free.json"] {
+            let body = try Self.body(fixture)
+            for key in Self.required {
+                var trimmed = body
+                trimmed[key.rawValue] = nil
+                XCTAssertThrowsError(try Self.decode(trimmed),
+                                     "\(fixture): a scan without \(key.rawValue) decoded")
+            }
+        }
+    }
+
+    func test_aMistypedRequiredFieldStillFails() throws {
+        let body = try Self.body("scan-response.json")
+        for key in Self.required {
+            var broken = body
+            broken[key.rawValue] = ["unexpected": "object"]
+            XCTAssertThrowsError(try Self.decode(broken),
+                                 "a scan with an object for \(key.rawValue) decoded")
+        }
+    }
+
+    func test_theUndecodableEventCarriesOnlyTheKey() {
+        let event = AnalyticsEvent.scanFieldUndecodable(field: "confidence_score")
+        XCTAssertEqual(event.name, "scan_field_undecodable")
+        XCTAssertEqual(event.parameters, ["field": "confidence_score"])
+    }
+}
+
 // MARK: - Legacy response compatibility
 
 final class ScanAPIResponseDecodingTests: XCTestCase {
@@ -6088,7 +6286,7 @@ final class BearerRetryStructureTests: XCTestCase {
     func test_submitEntitlementRetriesOnAnExpiredToken() throws {
         let file = try source("Services/AttestationService.swift")
         let method = try body(
-            of: "func submitEntitlement(signedTransaction: String) async throws -> String {",
+            of: "paywallTrigger: PaywallTrigger? = nil) async throws -> String {",
             in: file)
 
         XCTAssertTrue(method.contains("sendRetryingAuth(on: session)"),
@@ -6768,8 +6966,10 @@ final class EntitlementSyncMemoryTests: XCTestCase {
             encoding: .utf8)
         // Cold launch and the foreground refresh.
         XCTAssertEqual(file.components(separatedBy: "refreshSubscriptionStatus(serverSync: .ifStale)").count - 1, 2)
-        // Purchase, restore and `Transaction.updates` keep the default.
-        XCTAssertEqual(file.components(separatedBy: "await refreshSubscriptionStatus()").count - 1, 2)
+        // Purchase always sends, with its trigger; restore and
+        // `Transaction.updates` keep the default.
+        XCTAssertEqual(file.components(separatedBy: "await refreshSubscriptionStatus(serverSync: .afterPurchase(trigger))").count - 1, 1)
+        XCTAssertEqual(file.components(separatedBy: "await refreshSubscriptionStatus()").count - 1, 1)
         XCTAssertEqual(file.components(separatedBy: "await self.refreshSubscriptionStatus()").count - 1, 1)
         XCTAssertTrue(file.contains("private func refreshSubscriptionStatus(serverSync: ServerSync = .always)"))
         // And the skip is decided after the token, not when the refresh ran.
@@ -6790,6 +6990,88 @@ final class EntitlementSyncMemoryTests: XCTestCase {
         let root = try XCTUnwrap(app.range(of: "struct RootView: View {"))
         XCTAssertTrue(app[root.upperBound...].contains(".task { await AttestationService.prewarm() }"),
                       "RootView hosts onboarding too, so the token is ready by the first scan")
+    }
+}
+
+// ── Which paywall sold the subscription (#218) ───────────────────────────────
+//
+// The server counts trial starts and direct purchases per paywall trigger, and
+// learns the trigger only from `paywall_trigger` on /auth/entitlement. It must
+// ride the one sync that follows a paywall purchase: a launch re-sync, a
+// restore or a `Transaction.updates` delivery that carried it would count a
+// paywall for a sale it did not make. The body is checked by encoding it; which
+// sync passes which `ServerSync` is source-level, like
+// `test_onlyTheRoutineRefreshesMaySkip`, because StoreKit cannot be driven
+// from a unit test.
+
+final class EntitlementPaywallTriggerTests: XCTestCase {
+
+    private typealias ServerSync = StoreKitPurchaseService.ServerSync
+
+    private func body(for sync: ServerSync) throws -> [String: Any] {
+        let data = try JSONEncoder().encode(EntitlementBody(
+            signedTransaction: "jws-a", deviceID: "device-1",
+            paywallTrigger: sync.paywallTrigger))
+        return try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+    }
+
+    private func purchaseServiceSource() throws -> String {
+        try String(
+            contentsOf: URL(fileURLWithPath: #filePath)
+                .deletingLastPathComponent().deletingLastPathComponent()
+                .appendingPathComponent("SnapWorth/Services/StoreKitPurchaseService.swift"),
+            encoding: .utf8)
+    }
+
+    func test_theSyncAfterAPaywallPurchaseCarriesItsTrigger() throws {
+        for trigger in PaywallTrigger.allCases {
+            let sent = try body(for: .afterPurchase(trigger))
+            XCTAssertEqual(sent["paywall_trigger"] as? String, trigger.rawValue)
+            XCTAssertEqual(sent["signed_transaction"] as? String, "jws-a")
+            XCTAssertEqual(sent["device_id"] as? String, "device-1")
+        }
+    }
+
+    func test_noOtherSyncSendsATrigger() throws {
+        // `.ifStale` is the launch and foreground re-sync, `.always` restore
+        // and `Transaction.updates`, `.never` the 402 resync, whose own send
+        // passes no trigger either (checked below).
+        for sync: ServerSync in [.ifStale, .always, .never] {
+            let sent = try body(for: sync)
+            XCTAssertNil(sent["paywall_trigger"], "\(sync) sent a trigger")
+            XCTAssertEqual(Set(sent.keys), ["signed_transaction", "device_id"],
+                           "absent, not null: the key is omitted")
+        }
+    }
+
+    func test_onlyThePurchasePathPassesTheTrigger() throws {
+        let file = try purchaseServiceSource()
+        // The purchase path, and only it, builds `.afterPurchase`.
+        XCTAssertEqual(file.components(separatedBy: "serverSync: .afterPurchase(").count - 1, 1)
+        let purchase = try XCTUnwrap(file.range(
+            of: "func purchase(productID: String, trigger: PaywallTrigger) async throws -> PurchaseOutcome {"))
+        let restore = try XCTUnwrap(file.range(of: "private func performRestore() async throws {"))
+        XCTAssertTrue(file[purchase.upperBound..<restore.lowerBound]
+            .contains("await refreshSubscriptionStatus(serverSync: .afterPurchase(trigger))"))
+        // Restore keeps the default, which carries no trigger.
+        let privateMark = try XCTUnwrap(file.range(of: "// MARK: - Private"))
+        XCTAssertTrue(file[restore.upperBound..<privateMark.lowerBound]
+            .contains("await refreshSubscriptionStatus()"))
+        // `Transaction.updates` keeps the default too.
+        let updates = try XCTUnwrap(file.range(of: "for await result in Transaction.updates {"))
+        XCTAssertTrue(file[updates.upperBound...].prefix(400)
+            .contains("await self.refreshSubscriptionStatus()"))
+        // Launch and foreground re-syncs are `.ifStale`.
+        XCTAssertEqual(file.components(separatedBy: "refreshSubscriptionStatus(serverSync: .ifStale)").count - 1, 2)
+        // The default is `.always`, not a trigger.
+        XCTAssertTrue(file.contains("private func refreshSubscriptionStatus(serverSync: ServerSync = .always)"))
+        // The 402 resync sends for itself, without one.
+        XCTAssertTrue(file.contains(
+            "try await AttestationService.shared.submitEntitlement(signedTransaction: jws)\n"))
+        // And the background send takes the trigger from the sync, never from
+        // anything the service keeps.
+        XCTAssertTrue(file.contains("let paywallTrigger = serverSync.paywallTrigger"))
+        XCTAssertTrue(file.contains("signedTransaction: jws, paywallTrigger: paywallTrigger)"))
     }
 }
 

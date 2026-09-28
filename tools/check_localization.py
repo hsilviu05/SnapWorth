@@ -42,9 +42,16 @@ import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
+APP_CATALOG = os.path.join("ios", "Localization", "App.json")
+WIDGETS_CATALOG = os.path.join("ios", "Localization", "Widgets.json")
+
+# Each source folder, and every catalog a string in it must be in. `ios/Shared`
+# is compiled into the app and the widget extension, and a lookup resolves
+# against whichever bundle is running, so its strings need both.
 TARGETS = [
-    (os.path.join("ios", "SnapWorth"), os.path.join("ios", "Localization", "App.json")),
-    (os.path.join("ios", "SnapWorthWidgets"), os.path.join("ios", "Localization", "Widgets.json")),
+    (os.path.join("ios", "SnapWorth"), [APP_CATALOG]),
+    (os.path.join("ios", "SnapWorthWidgets"), [WIDGETS_CATALOG]),
+    (os.path.join("ios", "Shared"), [APP_CATALOG, WIDGETS_CATALOG]),
 ]
 
 # Initialisers and modifiers whose first argument is a `LocalizedStringKey`,
@@ -257,9 +264,11 @@ def main():
     problems = []
     # (path, line, what, why): positions no catalog entry can fix.
     verbatim = []
-    for target, catalog in TARGETS:
-        with open(os.path.join(ROOT, catalog), encoding="utf-8") as f:
-            known = set(json.load(f)["strings"])
+    for target, catalogs in TARGETS:
+        known = {}
+        for catalog in catalogs:
+            with open(os.path.join(ROOT, catalog), encoding="utf-8") as f:
+                known[catalog] = set(json.load(f)["strings"])
         for dirpath, _, files in os.walk(os.path.join(ROOT, target)):
             for name in sorted(files):
                 if not name.endswith(".swift"):
@@ -283,10 +292,13 @@ def main():
                     key = unescape(lit.text)
                     if not HAS_WORD.search(key):
                         continue
-                    if key in DELIBERATELY_ENGLISH or key in known:
+                    if key in DELIBERATELY_ENGLISH:
                         continue
                     line = src.count("\n", 0, lit.start) + 1
-                    problems.append((os.path.relpath(path, ROOT), line, key, catalog))
+                    for catalog in catalogs:
+                        if key not in known[catalog]:
+                            problems.append((os.path.relpath(path, ROOT), line,
+                                             key, catalog))
                 for m in RAW_VALUE_SPOKEN.finditer(code):
                     line = src.count("\n", 0, m.start()) + 1
                     verbatim.append((os.path.relpath(path, ROOT), line, m.group(1),

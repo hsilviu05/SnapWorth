@@ -82,25 +82,6 @@ jobs:
       - name: Every user-facing string is in a catalog
         run: python3 tools/check_localization.py
 
-      - name: Widget model is in sync
-        run: |
-          app=ios/SnapWorth/Services/WidgetDataStore.swift
-          ext=ios/SnapWorthWidgets/SnapWorthWidgets.swift
-          extract() {
-            awk '/BEGIN SHARED WIDGET MODEL/,/END SHARED WIDGET MODEL/' "$1"
-          }
-          for f in "$app" "$ext"; do
-            if [ "$(extract "$f" | wc -l)" -eq 0 ]; then
-              echo "::error file=$f::the shared widget model block is missing"
-              exit 1
-            fi
-          done
-          if ! diff -u <(extract "$app") <(extract "$ext"); then
-            echo "::error::the shared widget model has drifted between the app and the widget extension — the diff above is what differs"
-            exit 1
-          fi
-          echo "shared widget model identical in both targets ($(extract "$app" | wc -l) lines)"
-
       - name: Select the newest released Xcode, no older than .xcode-version
         run: |
           # Was pinned to Xcode_16.*, which validated the app against a
