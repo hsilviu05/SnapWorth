@@ -430,7 +430,8 @@ class TestDigest:
         assert "3 ok" in digest
         assert "1 free · 2 Pro" in digest
         assert "1 failed" in digest
-        assert "New subscriptions: 0" in digest
+        assert "Trial starts: 0 · paid: 0" in digest
+        assert "New subscriptions" not in digest
 
     @pytest.mark.asyncio
     async def test_free_limit_hits_are_reported_against_subscriptions(
@@ -446,8 +447,7 @@ class TestDigest:
 
         await notify.send_digest(now=now + timedelta(days=1))
         digest = enabled_notify.texts[-1]
-        assert "Free limit reached: 3" in digest
-        assert "nobody subscribed" in digest
+        assert "Free limit reached: 3 · no trial starts or purchases" in digest
 
     @pytest.mark.asyncio
     async def test_a_limit_hit_is_not_a_scan_failure(self, enabled_notify, cache):
@@ -790,7 +790,7 @@ class TestPolling:
             (menu,) = bot.command_menus
             assert [c["command"] for c in menu] == [
                 "status", "subs", "sub", "users", "costs", "experiment", "lever",
-                "minbuild", "social", "finds",
+                "paywall", "minbuild", "social", "finds",
                 "post", "calendar",
                 "caption", "hooks", "reply", "price", "trend", "user", "checkup", "clear",
                 "history", "feed", "digest", "week", "help"]
@@ -1007,13 +1007,18 @@ class TestWeeklyReport:
         await self.seed(cache, now, "scans_pro", [3] * 7, [2] * 7)      # 21 vs 14
         await self.seed(cache, now, "scans_free", [1] * 7, [2] * 7)     # 7 vs 14
         await self.seed(cache, now, "active_users", [2] * 7, [2] * 7)   # 14 vs 14
-        await self.seed(cache, now, "new_subs", [0] * 6 + [1], [0] * 7) # 1 vs 0
+        await self.seed(cache, now, "trial_starts", [0] * 5 + [1, 1], [1] + [0] * 6)  # 2 vs 1
+        await self.seed(cache, now, "trial_conversions", [0] * 6 + [1], [0] * 7)      # 1 vs 0
+        await self.seed(cache, now, "paid_direct", [0] * 7, [0] * 7)
         text = await notify._weekly_text(now)
         assert text.startswith("📈 <b>Week 31 Aug – 06 Sep</b>")
         assert "Scans: 28 (7 free · 21 Pro) ＝" in text          # 28 vs 28
         assert "Active user-days: 14 ＝" in text
-        assert "New subscriptions: 1 new" in text
-        assert "vs 28 scans · 14 user-days · 0 subs · $0.00 the week before" in text
+        assert "Trial starts: 2 ▲ 100%" in text
+        assert "Paid: 1 (1 converted trial · 0 direct) new" in text
+        assert "New subscriptions" not in text
+        assert ("vs 28 scans · 14 user-days · 1 trial starts · 0 paid · "
+                "$0.00 the week before") in text
 
     def test_trend_arrows(self):
         assert notify._trend(15, 10) == "▲ 50%"
@@ -3153,9 +3158,16 @@ class TestExperimentCommand:
         monkeypatch.setattr(notify, "EXPERIMENT_PARTIAL_DAY", partial)
         wire_welcome(monkeypatch, env_first_day=3)
 
-    async def _seed(self, cache, day: str, *, act=0, free=0, hits=0, subs=0) -> None:
+    async def _seed(self, cache, day: str, *, act=0, free=0, hits=0, subs=0,
+                    trials=0, conversions=0, direct=0) -> None:
+        # `subs` alone is a day from before #218: `new_subs` with nothing
+        # splitting it. Since, `new_subs` is written beside the split, so a
+        # seed of the split writes it too.
+        subs = subs + trials + direct
         for name, value in (("active_users", act), ("scans_free", free),
-                            ("limit_hits", hits), ("new_subs", subs)):
+                            ("limit_hits", hits), ("new_subs", subs),
+                            ("trial_starts", trials), ("trial_conversions", conversions),
+                            ("paid_direct", direct)):
             if value:
                 await cache.set(notify._stat_key(day, name), str(value))
 
@@ -3165,12 +3177,43 @@ class TestExperimentCommand:
         self._window(monkeypatch)
         await self._seed(cache, "20260910", act=6, free=4, hits=1)
         await self._seed(cache, "20260911", act=8, free=7, hits=3)
-        await self._seed(cache, "20260912", act=9, free=8, hits=2, subs=1)
+        await self._seed(cache, "20260912", act=9, free=8, hits=2, trials=1)
         text = await notify._experiment_text(
             datetime(2026, 9, 12, 20, 0, tzinfo=timezone.utc))
         assert "day 3 of 15" in text
-        assert "6 limit hits · 1 new subscription (17%)" in text
+        assert "6 limit hits · 1 trial start · 0 paid (17%)" in text
+        assert "subscription" not in text
         assert "12 days left" in text
+
+    @pytest.mark.asyncio
+    async def test_trial_starts_and_paid_have_columns_of_their_own(
+            self, enabled_notify, cache, monkeypatch):
+        """#218: the `sub` column was trial starts and direct purchases
+        together, and a trial converting was in neither."""
+        self._window(monkeypatch)
+        await self._seed(cache, "20260911", act=8, free=7, hits=4, trials=2)
+        await self._seed(cache, "20260914", act=5, free=3, conversions=1, direct=1)
+        text = await notify._experiment_text(
+            datetime(2026, 9, 14, 20, 0, tzinfo=timezone.utc))
+        assert "trial  paid" in text
+        assert "<code>09-11      8     7     4     2     0</code>" in text
+        assert "<code>09-14      5     3     0     0     2</code>" in text
+        # Hits against the ways to act on a paywall: 2 trials + 1 direct.
+        assert "4 limit hits · 2 trial starts · 2 paid (75%)" in text
+        assert "†" not in text
+
+    @pytest.mark.asyncio
+    async def test_a_day_from_before_the_split_is_marked_not_dropped(
+            self, enabled_notify, cache, monkeypatch):
+        """The free-scan window's days have only `new_subs`. Reading them as
+        no trial starts and no purchases would erase them."""
+        self._window(monkeypatch)
+        await self._seed(cache, "20260912", act=9, free=8, hits=2, subs=1)
+        text = await notify._experiment_text(
+            datetime(2026, 9, 12, 20, 0, tzinfo=timezone.utc))
+        assert "<code>09-12      9     8     2     0     0</code> †" in text
+        assert "2 limit hits · 0 trial starts · 0 paid (50%)" in text
+        assert "† 1 trial start or purchase from before the server split them" in text
 
     @pytest.mark.asyncio
     async def test_the_half_counted_first_day_is_marked(
@@ -3751,11 +3794,15 @@ class TestSubscriptionNotifications:
 
     @pytest.mark.asyncio
     async def test_a_conversion_apple_reported_first_counts_too(self, enabled_notify):
-        # The figure the whole trial experiment is judged on.
+        # The figure the whole trial experiment is judged on. Counted as a
+        # conversion, not as a new subscription (#218): the trial is the
+        # subscription, and whoever saw it start counted it then.
         await notify._index_subscription("device-a", _trial())
         await notify.subscription_event(
             FakeNotification(_paid(), paid_period=True))
-        assert await self._new_subs() == 1
+        assert await self._new_subs() == 0
+        raw = await notify._cache.get(notify._stat_key(notify._day(), "trial_conversions"))
+        assert raw == "1"
 
     @pytest.mark.asyncio
     async def test_one_subscription_is_counted_once_across_both_paths(
@@ -4097,12 +4144,14 @@ class TestExperimentExport:
                             "2026-09-24 · exported 2026-09-30 08:00 UTC")
         assert ("# welcome at export: lever armed — 3 first-day scans · "
                 "from FREE_SCANS_FIRST_DAY=3") in lines
-        header = lines.index("day,active_users,scans_free,limit_hits,new_subs,note")
+        header = lines.index("day,active_users,scans_free,limit_hits,trial_starts,"
+                             "trial_conversions,paid_direct,new_subs,note")
         rows = lines[header + 1:]
         assert len(rows) == 15, rows
-        assert rows[0] == f"2026-09-10,6,4,1,0,{notify.EXPERIMENT_PARTIAL_NOTE}"
-        assert rows[1] == "2026-09-11,0,0,0,0,", "a readable day with no counts is a zero"
-        assert rows[2] == "2026-09-12,9,8,2,1,"
+        assert rows[0] == f"2026-09-10,6,4,1,0,0,0,0,{notify.EXPERIMENT_PARTIAL_NOTE}"
+        assert rows[1] == "2026-09-11,0,0,0,0,0,0,0,", "a readable day with no counts is a zero"
+        # A day from before #218 keeps the one figure it has.
+        assert rows[2] == "2026-09-12,9,8,2,0,0,0,1,"
         assert rows[-1].startswith("2026-09-24,")
         assert "The 09-10 counters expire on 15 Oct" in text, text
 
@@ -4113,8 +4162,8 @@ class TestExperimentExport:
         text = await notify._experiment_export(
             datetime(2026, 10, 15, 8, 0, tzinfo=timezone.utc))
         lines = self._csv(text)
-        assert "2026-09-10,,,,,expired: past the 35-day counter TTL" in lines, lines
-        assert "2026-09-11,8,7,3,0," in lines
+        assert "2026-09-10,,,,,,,,expired: past the 35-day counter TTL" in lines, lines
+        assert "2026-09-11,8,7,3,0,0,0,0," in lines
         assert "The 09-11 counters expire on 16 Oct" in text, text
 
     @pytest.mark.asyncio
@@ -4156,7 +4205,7 @@ class TestExperimentExport:
         table = [row for row in parsed if row and not row[0].startswith("#")]
         assert table[0] == ["day", *notify.EXPERIMENT_COUNTERS, "note"]
         assert {len(row) for row in table} == {len(table[0])}, table
-        assert table[1] == ["2026-09-10", "6", "4", "1", "0",
+        assert table[1] == ["2026-09-10", "6", "4", "1", "0", "0", "0", "0",
                             notify.EXPERIMENT_PARTIAL_NOTE]
         # A reader that skips `#` lines gets the table and nothing else.
         rows = list(csv.DictReader(ln for ln in lines if not ln.startswith("#")))
