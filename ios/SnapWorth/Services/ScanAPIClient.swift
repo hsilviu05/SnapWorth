@@ -248,8 +248,8 @@ struct ScanAPIResponse: Decodable {
 ///
 /// `decodeIfPresent` accepts `null` or absence but throws on a wrong type, and
 /// one throw used to fail the whole scan — after the free allowance was
-/// charged, so the retry was the paywall. Builds up to and including 1.5.1
-/// still decode that way, which is why `contract/README.md` rule 2 still binds
+/// charged, so the retry was the paywall. Builds up to and including 1.5.0
+/// (build 20) still decode that way, which is why `contract/README.md` rule 2 still binds
 /// the server; this only keeps later builds from being among them.
 ///
 /// Reported by **key**, never value: the value is model output about the

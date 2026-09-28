@@ -87,9 +87,10 @@ JSON type of every value on each run.
    decodes them with `decodeIfPresent`, which accepts `null` or absence but
    throws on a wrong type, and one throw fails the whole scan — after the free
    allowance was charged, so the user's retry is the paywall. Every build up
-   to and including 1.5.1 (build 21) decodes that way, reading only
+   to and including 1.5.0 (build 20) decodes that way, reading only
    `valuation_source` and, from the build that added it,
-   `confidence_reason_codes` leniently. **1.5.2 is the first lenient build**
+   `confidence_reason_codes` leniently. **1.5.1 (build 21) is the first
+   lenient build**
    (#222): it reads each optional field on its own, so a wrong type costs
    that field — nil, or `[]` for a list — and is logged and reported as
    `scan_field_undecodable` by key. The rule does not relax with it: the
