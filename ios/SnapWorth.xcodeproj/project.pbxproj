@@ -7,6 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		5A4ED0000000000000000003 /* WidgetModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A4ED0000000000000000002 /* WidgetModel.swift */; };
+		5A4ED0000000000000000004 /* WidgetModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A4ED0000000000000000002 /* WidgetModel.swift */; };
 		1DF043BB3003EE710072D4A8 /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 1DF043BA3003EE700072D4A8 /* WidgetKit.framework */; };
 		1DF043BD3003EE710072D4A8 /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 1DF043BC3003EE710072D4A8 /* SwiftUI.framework */; };
 		1DF043CE3003EE710072D4A8 /* SnapWorthWidgetsExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 1DF043B83003EE700072D4A8 /* SnapWorthWidgetsExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
@@ -119,6 +121,7 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		5A4ED0000000000000000002 /* WidgetModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetModel.swift; sourceTree = "<group>"; };
 		1DF043B83003EE700072D4A8 /* SnapWorthWidgetsExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = SnapWorthWidgetsExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		1DF043BA3003EE700072D4A8 /* WidgetKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WidgetKit.framework; path = System/Library/Frameworks/WidgetKit.framework; sourceTree = SDKROOT; };
 		1DF043BC3003EE710072D4A8 /* SwiftUI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SwiftUI.framework; path = System/Library/Frameworks/SwiftUI.framework; sourceTree = SDKROOT; };
@@ -245,6 +248,14 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		5A4ED0000000000000000001 /* Shared */ = {
+			isa = PBXGroup;
+			children = (
+				5A4ED0000000000000000002 /* WidgetModel.swift */,
+			);
+			path = Shared;
+			sourceTree = "<group>";
+		};
 		1DF043B93003EE700072D4A8 /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
@@ -390,6 +401,7 @@
 				AA0000000000000000000103 /* SnapWorthTests */,
 				1DF043BE3003EE710072D4A8 /* SnapWorthWidgets */,
 				5C1C4E000000000000000003 /* SnapWorthStickers */,
+				5A4ED0000000000000000001 /* Shared */,
 				1DF043B93003EE700072D4A8 /* Frameworks */,
 				AA00000000000000000000AC /* Products */,
 			);
@@ -597,6 +609,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				5A4ED0000000000000000004 /* WidgetModel.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -604,6 +617,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				5A4ED0000000000000000003 /* WidgetModel.swift in Sources */,
 				AA00000000000000000000C1 /* SnapWorthApp.swift in Sources */,
 				AA00000000000000000000C3 /* Config.swift in Sources */,
 				AA00000000000000000000C5 /* DesignSystem.swift in Sources */,
