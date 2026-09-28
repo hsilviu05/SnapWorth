@@ -430,7 +430,8 @@ class TestDigest:
         assert "3 ok" in digest
         assert "1 free · 2 Pro" in digest
         assert "1 failed" in digest
-        assert "New subscriptions: 0" in digest
+        assert "Trial starts: 0 · paid: 0" in digest
+        assert "New subscriptions" not in digest
 
     @pytest.mark.asyncio
     async def test_free_limit_hits_are_reported_against_subscriptions(
@@ -446,8 +447,7 @@ class TestDigest:
 
         await notify.send_digest(now=now + timedelta(days=1))
         digest = enabled_notify.texts[-1]
-        assert "Free limit reached: 3" in digest
-        assert "nobody subscribed" in digest
+        assert "Free limit reached: 3 · no trial starts or purchases" in digest
 
     @pytest.mark.asyncio
     async def test_a_limit_hit_is_not_a_scan_failure(self, enabled_notify, cache):
@@ -790,7 +790,7 @@ class TestPolling:
             (menu,) = bot.command_menus
             assert [c["command"] for c in menu] == [
                 "status", "subs", "sub", "users", "costs", "experiment", "lever",
-                "minbuild", "social", "finds",
+                "paywall", "minbuild", "social", "finds",
                 "post", "calendar",
                 "caption", "hooks", "reply", "price", "trend", "user", "checkup", "clear",
                 "history", "feed", "digest", "week", "help"]
@@ -1007,13 +1007,18 @@ class TestWeeklyReport:
         await self.seed(cache, now, "scans_pro", [3] * 7, [2] * 7)      # 21 vs 14
         await self.seed(cache, now, "scans_free", [1] * 7, [2] * 7)     # 7 vs 14
         await self.seed(cache, now, "active_users", [2] * 7, [2] * 7)   # 14 vs 14
-        await self.seed(cache, now, "new_subs", [0] * 6 + [1], [0] * 7) # 1 vs 0
+        await self.seed(cache, now, "trial_starts", [0] * 5 + [1, 1], [1] + [0] * 6)  # 2 vs 1
+        await self.seed(cache, now, "trial_conversions", [0] * 6 + [1], [0] * 7)      # 1 vs 0
+        await self.seed(cache, now, "paid_direct", [0] * 7, [0] * 7)
         text = await notify._weekly_text(now)
         assert text.startswith("📈 <b>Week 31 Aug – 06 Sep</b>")
         assert "Scans: 28 (7 free · 21 Pro) ＝" in text          # 28 vs 28
         assert "Active user-days: 14 ＝" in text
-        assert "New subscriptions: 1 new" in text
-        assert "vs 28 scans · 14 user-days · 0 subs · $0.00 the week before" in text
+        assert "Trial starts: 2 ▲ 100%" in text
+        assert "Paid: 1 (1 converted trial · 0 direct) new" in text
+        assert "New subscriptions" not in text
+        assert ("vs 28 scans · 14 user-days · 1 trial starts · 0 paid · "
+                "$0.00 the week before") in text
 
     def test_trend_arrows(self):
         assert notify._trend(15, 10) == "▲ 50%"
@@ -1350,14 +1355,21 @@ class TestSpend:
         assert "$0.000/scan" in await notify.handle_command("/status")
 
     @pytest.mark.asyncio
-    async def test_free_tier_share_of_spend(self, enabled_notify):
-        notify.model_usage("scan", {"prompt_tokens": 1_000_000, "output_tokens": 0})  # $0.30
-        scan(tier="free")
-        scan(tier="pro")
-        scan(tier="pro")
+    async def test_free_tier_is_its_own_spend_per_active_device_day(self, enabled_notify):
+        """It was the users' bill split by share of scans, which charged the
+        free tier for Pro's listings and reformats. Now it is the free tier's
+        own tokens over the free devices that scanned, per day."""
+        notify.model_usage("scan", {"prompt_tokens": 100_000}, tier="free")   # $0.03
+        notify.model_usage("scan", {"prompt_tokens": 1_000_000}, tier="pro")  # not free
+        scan(tier="free", subject="f" * 64)
+        scan(tier="free", subject="f" * 64)   # same device, same day: one device-day
+        scan(tier="free", subject="g" * 64)
+        scan(tier="pro", subject="p" * 64)    # Pro scans are no free device-day
         await drain()
-        assert "Free tier, 30 days: 1 of 3 scans ≈ $0.10 given away" in \
-            await notify.handle_command("/costs")
+        text = await notify.handle_command("/costs")
+        assert ("Free tier, 30 days: $0.03 ≈ $0.015 per active free device-day "
+                "(n=2 device-days with a scan)") in text
+        assert "given away" not in text
 
     @pytest.mark.asyncio
     async def test_budget_alerts_once_per_day(self, enabled_notify, monkeypatch):
@@ -1380,15 +1392,209 @@ class TestSpend:
         assert "Gemini spend: $0.30 new" in text
 
     @pytest.mark.asyncio
-    async def test_disabled_is_a_no_op(self, cache, monkeypatch):
+    async def test_tallied_with_telegram_unset(self, cache, monkeypatch):
+        """#219: spend is tallied whenever there is a cache, as `count_scan`
+        is. It returned without the bot, so a deploy with Telegram unset
+        counted scans and no spend, and the first /costs after turning the
+        bot on divided a month of scans by the days since. The budget alert
+        still needs the bot, and its absence must not break the tally."""
         monkeypatch.delenv("TELEGRAM_BOT_TOKEN", raising=False)
         monkeypatch.delenv("TELEGRAM_CHAT_ID", raising=False)
+        monkeypatch.setattr(notify, "GEMINI_DAILY_BUDGET_USD", 0.0001)
         notify.configure(cache)
         try:
-            notify.model_usage("scan", {"prompt_tokens": 5})
+            assert not notify.enabled()
+            notify.model_usage("scan", {"prompt_tokens": 5_000, "output_tokens": 200}, tier="pro")
+            notify.model_usage("scan", {"prompt_tokens": 3_000}, tier="free")
+            await drain()
+            day = notify._day()
+            assert await cache.get(notify._stat_key(day, "tok_in")) == "8000"
+            assert await cache.get(notify._stat_key(day, "tok_in_tier_pro")) == "5000"
+            assert await cache.get(notify._stat_key(day, "tok_out_tier_pro")) == "200"
+            assert await cache.get(notify._stat_key(day, "tok_in_tier_free")) == "3000"
+        finally:
+            await notify.aclose()
+
+    @pytest.mark.asyncio
+    async def test_no_cache_is_a_no_op(self, monkeypatch):
+        monkeypatch.delenv("TELEGRAM_BOT_TOKEN", raising=False)
+        monkeypatch.delenv("TELEGRAM_CHAT_ID", raising=False)
+        notify.configure(None)
+        try:
+            notify.model_usage("scan", {"prompt_tokens": 5}, tier="pro")
             assert notify._tasks == set()
         finally:
             await notify.aclose()
+
+
+class TestCostPerPro:
+    """#219: what a subscriber costs, against what one pays.
+
+    Labels name the operation and a `scan` is the same operation for both
+    tiers, so tokens are split by the caller's tier; the users index kept a
+    lifetime scan count and only the *current* tier, so a subscriber's free
+    history read as Pro usage."""
+
+    @pytest.fixture(autouse=True)
+    def prices(self, monkeypatch):
+        monkeypatch.setattr(notify, "GEMINI_PRICE_INPUT_PER_M", 0.30)
+        monkeypatch.setattr(notify, "GEMINI_PRICE_OUTPUT_PER_M", 2.50)
+        monkeypatch.setattr(notify, "GEMINI_DAILY_BUDGET_USD", 0.0)
+        monkeypatch.setattr(notify, "APPLE_COMMISSION", 0.15)
+
+    async def _tier_tokens(self, cache, tier: str) -> int:
+        return int(await cache.get(notify._stat_key(notify._day(), f"tok_in_tier_{tier}")) or 0)
+
+    @pytest.mark.asyncio
+    async def test_pro_tokens_go_to_pro_and_free_tokens_to_free(self, enabled_notify, cache):
+        notify.model_usage("scan", {"prompt_tokens": 1_000}, tier="pro")
+        notify.model_usage("scan", {"prompt_tokens": 200}, tier="free")
+        # The reformat is charged to the tier of the scan it served.
+        notify.model_usage("reformat", {"prompt_tokens": 30}, tier="pro")
+        notify.model_usage("reformat", {"prompt_tokens": 4}, tier="free")
+        await drain()
+        assert await self._tier_tokens(cache, "pro") == 1_030
+        assert await self._tier_tokens(cache, "free") == 204
+
+    @pytest.mark.asyncio
+    async def test_listing_and_tag_rereads_count_as_pro(self, enabled_notify, cache):
+        # No tier passed, or a wrong one: the label settles it, because the
+        # endpoint 402s anyone who is not Pro and a tag is only read for Pro.
+        notify.model_usage("listing", {"prompt_tokens": 500})
+        notify.model_usage("scan_with_tag", {"prompt_tokens": 70}, tier="free")
+        await drain()
+        assert await self._tier_tokens(cache, "pro") == 570
+        assert await self._tier_tokens(cache, "free") == 0
+
+    @pytest.mark.asyncio
+    async def test_operator_calls_and_untiered_calls_belong_to_no_tier(self, enabled_notify, cache):
+        for label in ("ideas", "probe", "bot_scan", "bot_scan_with_tag", "bot_reformat"):
+            notify.model_usage(label, {"prompt_tokens": 100}, tier="pro")
+        notify.model_usage("scan", {"prompt_tokens": 100})  # a caller that named none
+        await drain()
+        assert await self._tier_tokens(cache, "pro") == 0
+        assert await self._tier_tokens(cache, "free") == 0
+        # Still on the bill.
+        assert await cache.get(notify._stat_key(notify._day(), "tok_in")) == "600"
+
+    @pytest.mark.asyncio
+    async def test_free_then_pro_counts_only_pro_era_scans(self, enabled_notify, cache):
+        subject = "u" * 64
+        who = auditlog.pseudonymise(subject)
+        notify.saw_user(subject, tier="free")
+        await drain()
+        for _ in range(3):
+            scan(tier="free", subject=subject)
+        await drain()
+        row = json.loads(await cache.get(notify.USERS_INDEX_KEY))[who]
+        assert row["scans"] == 3 and "pro_scans" not in row and "pro_since" not in row
+
+        for _ in range(2):
+            scan(tier="pro", subject=subject)
+        await drain()
+        row = json.loads(await cache.get(notify.USERS_INDEX_KEY))[who]
+        assert row["scans"] == 5
+        assert row["pro_scans"] == 2
+        assert row["pro_days"] == {notify._day(): 2}
+        since = row["pro_since"]
+        assert "pro_until" not in row
+
+        # Lapsed: the span closes and free scans stop counting as Pro.
+        scan(tier="free", subject=subject)
+        await drain()
+        row = json.loads(await cache.get(notify.USERS_INDEX_KEY))[who]
+        assert row["pro_scans"] == 2 and row["pro_until"] >= since
+
+        # Back: a new span opens.
+        await notify._index_user(who, tier="pro", scanned=True)
+        row = json.loads(await cache.get(notify.USERS_INDEX_KEY))[who]
+        assert row["pro_scans"] == 3 and "pro_until" not in row
+
+    @pytest.mark.asyncio
+    async def test_pro_days_keep_only_the_window(self, enabled_notify, cache):
+        old = notify._day(datetime.now(timezone.utc) - timedelta(days=notify.PRO_DAYS_KEPT))
+        now = int(time.time())
+        await cache.set(notify.USERS_INDEX_KEY, json.dumps({"dev": {
+            "first": now, "last": now, "scans": 9, "tier": "pro", "pro_since": now - 90 * 86400,
+            "pro_scans": 9, "pro_days": {old: 9}}}), 600)
+        await notify._index_user("dev", tier="pro", scanned=True)
+        row = json.loads(await cache.get(notify.USERS_INDEX_KEY))["dev"]
+        assert row["pro_days"] == {notify._day(): 1} and row["pro_scans"] == 10
+
+    async def _seed(self, cache) -> None:
+        """Three Pro devices and two paid subscriptions.
+
+        A: Pro for the last 15 days, 20 scans today. B: Pro all month, 4 today
+        and 6 three days ago. C: Pro from 20 to 5 days ago, no scans. $0.30 of
+        Pro tokens over 30 Pro scans is $0.010 a scan."""
+        now = int(time.time())
+        today = notify._day()
+        three_ago = notify._day(datetime.now(timezone.utc) - timedelta(days=3))
+        await cache.set(notify.USERS_INDEX_KEY, json.dumps({
+            "devA00000000abcd": {"first": now - 40 * 86400, "last": now, "scans": 60,
+                                 "tier": "pro", "pro_since": now - 15 * 86400, "pro_scans": 20,
+                                 "pro_days": {today: 20}},
+            "devB00000000abcd": {"first": now - 90 * 86400, "last": now, "scans": 10,
+                                 "tier": "pro", "pro_since": now - 60 * 86400, "pro_scans": 10,
+                                 "pro_days": {today: 4, three_ago: 6}},
+            "devC00000000abcd": {"first": now - 90 * 86400, "last": now - 5 * 86400, "scans": 1,
+                                 "tier": "free", "pro_since": now - 20 * 86400,
+                                 "pro_until": now - 5 * 86400, "pro_scans": 0},
+            "devF00000000abcd": {"first": now, "last": now, "scans": 3, "tier": "free"},
+        }), 600)
+        await cache.set(notify.SUBS_INDEX_KEY, json.dumps({
+            "otid-a": {"product": "com.snapworth.yearly", "acq": "paid", "price": 39.99,
+                       "currency": "EUR", "expires": now + 300 * 86400, "seen": now,
+                       "devices": ["devA00000000abcd"], "who": "devA00000000abcd"},
+            "otid-b": {"product": "com.snapworth.monthly", "acq": "paid", "price": 4.99,
+                       "currency": "EUR", "expires": now + 20 * 86400, "seen": now,
+                       "devices": ["devB00000000abcd"], "who": "devB00000000abcd"},
+            "otid-c": {"product": "com.snapworth.monthly", "acq": "trial", "price": 0,
+                       "currency": "EUR", "expires": now + 5 * 86400, "seen": now,
+                       "devices": ["devC00000000abcd"], "who": "devC00000000abcd"},
+        }), 600)
+        await cache.incr(notify._stat_key(today, "scans_pro"), notify.STATS_TTL, 30)
+        notify.model_usage("scan", {"prompt_tokens": 1_000_000}, tier="pro")  # $0.30
+        await drain()
+
+    @pytest.mark.asyncio
+    async def test_costs_shows_the_pro_block_with_n_beside_every_figure(
+            self, enabled_notify, cache):
+        await self._seed(cache)
+        text = await notify.handle_command("/costs")
+        block = text[text.index("<b>Pro, last 30 days</b>"):text.index("Free tier")]
+        lines = block.strip().splitlines()[1:]
+        assert lines == [
+            "Paying Pro devices: 2 (n=2 paid subscriptions)",
+            # Device-months: 15 + 30 + 15 days = 2.0; C's lapsed span counts.
+            "Pro model spend: $0.30 (n=30 Pro scans, $0.010/scan) · "
+            "$0.15 per Pro device-month (n=2.0 device-months, 3 devices)",
+            # (39.99 / 12 + 4.99) / 2 × 0.85
+            "Net revenue per paying month: €3.54 (n=2) after 15% Apple commission",
+            "Pro scans per device-day: p50 6 · p90 20 · max 20 (n=3 device-days)",
+            "Heaviest by $/day (n=2 devices with Pro scans): "
+            "devA00 $0.013/day (20 scans / 15.0d) · devB00 $0.003/day (10 scans / 30.0d)",
+        ]
+        for line in lines:
+            assert "(n=" in line, line
+        assert "devA00000000abcd" not in text, "short pseudonyms, as /users shows them"
+
+    @pytest.mark.asyncio
+    async def test_commission_is_configurable(self, enabled_notify, cache, monkeypatch):
+        monkeypatch.setattr(notify, "APPLE_COMMISSION", 0.30)
+        await self._seed(cache)
+        assert ("Net revenue per paying month: €2.91 (n=2) after 30% Apple commission"
+                in await notify.handle_command("/costs"))
+
+    @pytest.mark.asyncio
+    async def test_an_empty_pro_block_says_n_is_zero(self, enabled_notify):
+        text = await notify.handle_command("/costs")
+        block = text[text.index("<b>Pro, last 30 days</b>"):text.index("Free tier")]
+        lines = block.strip().splitlines()[1:]
+        assert len(lines) == 5
+        for line in lines:
+            assert "n=0" in line, line
+        assert "Free tier, 30 days: $0.00 ≈ n/a per active free device-day (n=0" in text
 
 
 class TestRenewalsDue:
@@ -3153,9 +3359,16 @@ class TestExperimentCommand:
         monkeypatch.setattr(notify, "EXPERIMENT_PARTIAL_DAY", partial)
         wire_welcome(monkeypatch, env_first_day=3)
 
-    async def _seed(self, cache, day: str, *, act=0, free=0, hits=0, subs=0) -> None:
+    async def _seed(self, cache, day: str, *, act=0, free=0, hits=0, subs=0,
+                    trials=0, conversions=0, direct=0) -> None:
+        # `subs` alone is a day from before #218: `new_subs` with nothing
+        # splitting it. Since, `new_subs` is written beside the split, so a
+        # seed of the split writes it too.
+        subs = subs + trials + direct
         for name, value in (("active_users", act), ("scans_free", free),
-                            ("limit_hits", hits), ("new_subs", subs)):
+                            ("limit_hits", hits), ("new_subs", subs),
+                            ("trial_starts", trials), ("trial_conversions", conversions),
+                            ("paid_direct", direct)):
             if value:
                 await cache.set(notify._stat_key(day, name), str(value))
 
@@ -3165,12 +3378,43 @@ class TestExperimentCommand:
         self._window(monkeypatch)
         await self._seed(cache, "20260910", act=6, free=4, hits=1)
         await self._seed(cache, "20260911", act=8, free=7, hits=3)
-        await self._seed(cache, "20260912", act=9, free=8, hits=2, subs=1)
+        await self._seed(cache, "20260912", act=9, free=8, hits=2, trials=1)
         text = await notify._experiment_text(
             datetime(2026, 9, 12, 20, 0, tzinfo=timezone.utc))
         assert "day 3 of 15" in text
-        assert "6 limit hits · 1 new subscription (17%)" in text
+        assert "6 limit hits · 1 trial start · 0 paid (17%)" in text
+        assert "subscription" not in text
         assert "12 days left" in text
+
+    @pytest.mark.asyncio
+    async def test_trial_starts_and_paid_have_columns_of_their_own(
+            self, enabled_notify, cache, monkeypatch):
+        """#218: the `sub` column was trial starts and direct purchases
+        together, and a trial converting was in neither."""
+        self._window(monkeypatch)
+        await self._seed(cache, "20260911", act=8, free=7, hits=4, trials=2)
+        await self._seed(cache, "20260914", act=5, free=3, conversions=1, direct=1)
+        text = await notify._experiment_text(
+            datetime(2026, 9, 14, 20, 0, tzinfo=timezone.utc))
+        assert "trial  paid" in text
+        assert "<code>09-11      8     7     4     2     0</code>" in text
+        assert "<code>09-14      5     3     0     0     2</code>" in text
+        # Hits against the ways to act on a paywall: 2 trials + 1 direct.
+        assert "4 limit hits · 2 trial starts · 2 paid (75%)" in text
+        assert "†" not in text
+
+    @pytest.mark.asyncio
+    async def test_a_day_from_before_the_split_is_marked_not_dropped(
+            self, enabled_notify, cache, monkeypatch):
+        """The free-scan window's days have only `new_subs`. Reading them as
+        no trial starts and no purchases would erase them."""
+        self._window(monkeypatch)
+        await self._seed(cache, "20260912", act=9, free=8, hits=2, subs=1)
+        text = await notify._experiment_text(
+            datetime(2026, 9, 12, 20, 0, tzinfo=timezone.utc))
+        assert "<code>09-12      9     8     2     0     0</code> †" in text
+        assert "2 limit hits · 0 trial starts · 0 paid (50%)" in text
+        assert "† 1 trial start or purchase from before the server split them" in text
 
     @pytest.mark.asyncio
     async def test_the_half_counted_first_day_is_marked(
@@ -3751,11 +3995,15 @@ class TestSubscriptionNotifications:
 
     @pytest.mark.asyncio
     async def test_a_conversion_apple_reported_first_counts_too(self, enabled_notify):
-        # The figure the whole trial experiment is judged on.
+        # The figure the whole trial experiment is judged on. Counted as a
+        # conversion, not as a new subscription (#218): the trial is the
+        # subscription, and whoever saw it start counted it then.
         await notify._index_subscription("device-a", _trial())
         await notify.subscription_event(
             FakeNotification(_paid(), paid_period=True))
-        assert await self._new_subs() == 1
+        assert await self._new_subs() == 0
+        raw = await notify._cache.get(notify._stat_key(notify._day(), "trial_conversions"))
+        assert raw == "1"
 
     @pytest.mark.asyncio
     async def test_one_subscription_is_counted_once_across_both_paths(
@@ -4097,12 +4345,14 @@ class TestExperimentExport:
                             "2026-09-24 · exported 2026-09-30 08:00 UTC")
         assert ("# welcome at export: lever armed — 3 first-day scans · "
                 "from FREE_SCANS_FIRST_DAY=3") in lines
-        header = lines.index("day,active_users,scans_free,limit_hits,new_subs,note")
+        header = lines.index("day,active_users,scans_free,limit_hits,trial_starts,"
+                             "trial_conversions,paid_direct,new_subs,note")
         rows = lines[header + 1:]
         assert len(rows) == 15, rows
-        assert rows[0] == f"2026-09-10,6,4,1,0,{notify.EXPERIMENT_PARTIAL_NOTE}"
-        assert rows[1] == "2026-09-11,0,0,0,0,", "a readable day with no counts is a zero"
-        assert rows[2] == "2026-09-12,9,8,2,1,"
+        assert rows[0] == f"2026-09-10,6,4,1,0,0,0,0,{notify.EXPERIMENT_PARTIAL_NOTE}"
+        assert rows[1] == "2026-09-11,0,0,0,0,0,0,0,", "a readable day with no counts is a zero"
+        # A day from before #218 keeps the one figure it has.
+        assert rows[2] == "2026-09-12,9,8,2,0,0,0,1,"
         assert rows[-1].startswith("2026-09-24,")
         assert "The 09-10 counters expire on 15 Oct" in text, text
 
@@ -4113,8 +4363,8 @@ class TestExperimentExport:
         text = await notify._experiment_export(
             datetime(2026, 10, 15, 8, 0, tzinfo=timezone.utc))
         lines = self._csv(text)
-        assert "2026-09-10,,,,,expired: past the 35-day counter TTL" in lines, lines
-        assert "2026-09-11,8,7,3,0," in lines
+        assert "2026-09-10,,,,,,,,expired: past the 35-day counter TTL" in lines, lines
+        assert "2026-09-11,8,7,3,0,0,0,0," in lines
         assert "The 09-11 counters expire on 16 Oct" in text, text
 
     @pytest.mark.asyncio
@@ -4156,7 +4406,7 @@ class TestExperimentExport:
         table = [row for row in parsed if row and not row[0].startswith("#")]
         assert table[0] == ["day", *notify.EXPERIMENT_COUNTERS, "note"]
         assert {len(row) for row in table} == {len(table[0])}, table
-        assert table[1] == ["2026-09-10", "6", "4", "1", "0",
+        assert table[1] == ["2026-09-10", "6", "4", "1", "0", "0", "0", "0",
                             notify.EXPERIMENT_PARTIAL_NOTE]
         # A reader that skips `#` lines gets the table and nothing else.
         rows = list(csv.DictReader(ln for ln in lines if not ln.startswith("#")))

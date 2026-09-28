@@ -75,10 +75,13 @@ actor AttestationService {
 
     /// Exchanges a StoreKit signed transaction for a Pro entitlement server-side.
     /// The server is the authority on subscription state from here on.
+    /// - Parameter paywallTrigger: the paywall a purchase was just made on,
+    ///   sent only on the sync that follows it; nil omits the field.
     /// - Returns: the tier the server recorded — "free" for a transaction it
     ///   verified and found expired or revoked.
     @discardableResult
-    func submitEntitlement(signedTransaction: String) async throws -> String {
+    func submitEntitlement(signedTransaction: String,
+                           paywallTrigger: PaywallTrigger? = nil) async throws -> String {
         let token = try await accessToken()
         var request = URLRequest(url: baseURL.appendingPathComponent("auth/entitlement"))
         request.httpMethod = "POST"
@@ -90,7 +93,8 @@ actor AttestationService {
         // phone sharing the plan.
         request.httpBody = try JSONEncoder().encode(EntitlementBody(
             signedTransaction: signedTransaction,
-            deviceID: DeviceIdentity.shared.id))
+            deviceID: DeviceIdentity.shared.id,
+            paywallTrigger: paywallTrigger))
 
         // Through the retry wrapper, like every other bearer-carrying request
         // in the app. This one sent itself with a bare `session.data(for:)`,
@@ -393,13 +397,29 @@ private struct TokenResponse: Decodable {
     }
 }
 
-private struct EntitlementBody: Encodable {
+/// The `/auth/entitlement` request body. Internal so a test can encode it.
+///
+/// `paywall_trigger` is a `PaywallTrigger` raw value, present only on the sync
+/// right after a paywall purchase, and absent — not null — otherwise:
+/// synthesised `Encodable` skips a nil optional. The server counts trial
+/// starts and direct purchases per trigger from it (#218) and ignores a
+/// missing or unknown value. Aggregate Product Interaction, not stored on the
+/// subscription row, so the privacy manifest is unchanged.
+struct EntitlementBody: Encodable {
     let signedTransaction: String
     let deviceID: String
+    let paywallTrigger: String?
+
+    init(signedTransaction: String, deviceID: String, paywallTrigger: PaywallTrigger?) {
+        self.signedTransaction = signedTransaction
+        self.deviceID = deviceID
+        self.paywallTrigger = paywallTrigger?.rawValue
+    }
 
     enum CodingKeys: String, CodingKey {
         case signedTransaction = "signed_transaction"
         case deviceID = "device_id"
+        case paywallTrigger = "paywall_trigger"
     }
 }
 
