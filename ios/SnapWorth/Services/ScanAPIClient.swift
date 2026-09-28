@@ -1,5 +1,6 @@
 import Foundation
 import ImageIO
+import os
 import UIKit
 
 // ── Where the number came from (#40) ─────────────────────────────────────────
@@ -108,7 +109,9 @@ struct ScanAPIResponse: Decodable {
     /// `.model` unless the server said, exactly, "comps". See `ValuationSource`.
     let valuationSource: ValuationSource
 
-    enum CodingKeys: String, CodingKey {
+    /// `CaseIterable` so the lenient-decoding tests (#222) cover every key,
+    /// including one added after them.
+    enum CodingKeys: String, CodingKey, CaseIterable {
         case itemName            = "item_name"
         case brand
         case category
@@ -150,40 +153,41 @@ struct ScanAPIResponse: Decodable {
         estValueLowUsd      = try c.decode(Double.self, forKey: .estValueLowUsd)
         estValueHighUsd     = try c.decode(Double.self, forKey: .estValueHighUsd)
         confidence          = try c.decode(String.self, forKey: .confidence)
-        soldListingsCount   = try c.decodeIfPresent(Int.self, forKey: .soldListingsCount) ?? 0
-        freeScansRemaining  = try c.decodeIfPresent(Int.self, forKey: .freeScansRemaining)
         listingTitle        = try c.decode(String.self, forKey: .listingTitle)
         listingDescription  = try c.decode(String.self, forKey: .listingDescription)
 
-        confidenceScore     = try c.decodeIfPresent(Int.self, forKey: .confidenceScore)
-        confidenceSummary   = try c.decodeIfPresent(String.self, forKey: .confidenceSummary)
-        confidenceReasons   = try c.decodeIfPresent([String].self, forKey: .confidenceReasons) ?? []
-        // `try?`, not `try`: these only choose the words for the reasons
-        // above, and a malformed list must not fail a scan the user has
-        // already been charged for. Like `valuationSource` below.
-        confidenceReasonCodes = (try? c.decodeIfPresent([String].self,
-                                                        forKey: .confidenceReasonCodes)) ?? []
-        quickSalePriceUsd   = try c.decodeIfPresent(Double.self, forKey: .quickSalePriceUsd)
-        expectedPriceUsd    = try c.decodeIfPresent(Double.self, forKey: .expectedPriceUsd)
-        bestCasePriceUsd    = try c.decodeIfPresent(Double.self, forKey: .bestCasePriceUsd)
-        worstCasePriceUsd   = try c.decodeIfPresent(Double.self, forKey: .worstCasePriceUsd)
-        likelyPriceUsd      = try c.decodeIfPresent(Double.self, forKey: .likelyPriceUsd)
-        valueDrivers        = try c.decodeIfPresent([String].self, forKey: .valueDrivers) ?? []
-        assumptions         = try c.decodeIfPresent([String].self, forKey: .assumptions) ?? []
-        uncertaintyFactors  = try c.decodeIfPresent([String].self, forKey: .uncertaintyFactors) ?? []
-        improveEstimate     = try c.decodeIfPresent([String].self, forKey: .improveEstimate) ?? []
-        authenticityAssessment = try c.decodeIfPresent(String.self, forKey: .authenticityAssessment)
-        authenticityReasoning  = try c.decodeIfPresent(String.self, forKey: .authenticityReasoning)
-        demand              = try c.decodeIfPresent(String.self, forKey: .demand)
-        supply              = try c.decodeIfPresent(String.self, forKey: .supply)
-        conditionGrade      = try c.decodeIfPresent(String.self, forKey: .conditionGrade)
-        size                = try c.decodeIfPresent(String.self, forKey: .size)
-        era                 = try c.decodeIfPresent(String.self, forKey: .era)
-        material            = try c.decodeIfPresent(String.self, forKey: .material)
+        // Everything below is optional, and each field is read on its own
+        // (#222): a wrong type costs that one field, logged by key, instead
+        // of failing a scan the user has already been charged for. A list
+        // falls back to `[]` and anything else to its absent value — what a
+        // server that omits the field produces.
+        soldListingsCount   = c.lenient(Int.self, forKey: .soldListingsCount) ?? 0
+        freeScansRemaining  = c.lenient(Int.self, forKey: .freeScansRemaining)
+        confidenceScore     = c.lenientWholeNumber(forKey: .confidenceScore)
+        confidenceSummary   = c.lenient(String.self, forKey: .confidenceSummary)
+        confidenceReasons   = c.lenient([String].self, forKey: .confidenceReasons) ?? []
+        confidenceReasonCodes = c.lenient([String].self, forKey: .confidenceReasonCodes) ?? []
+        quickSalePriceUsd   = c.lenient(Double.self, forKey: .quickSalePriceUsd)
+        expectedPriceUsd    = c.lenient(Double.self, forKey: .expectedPriceUsd)
+        bestCasePriceUsd    = c.lenient(Double.self, forKey: .bestCasePriceUsd)
+        worstCasePriceUsd   = c.lenient(Double.self, forKey: .worstCasePriceUsd)
+        likelyPriceUsd      = c.lenient(Double.self, forKey: .likelyPriceUsd)
+        valueDrivers        = c.lenient([String].self, forKey: .valueDrivers) ?? []
+        assumptions         = c.lenient([String].self, forKey: .assumptions) ?? []
+        uncertaintyFactors  = c.lenient([String].self, forKey: .uncertaintyFactors) ?? []
+        improveEstimate     = c.lenient([String].self, forKey: .improveEstimate) ?? []
+        authenticityAssessment = c.lenient(String.self, forKey: .authenticityAssessment)
+        authenticityReasoning  = c.lenient(String.self, forKey: .authenticityReasoning)
+        demand              = c.lenient(String.self, forKey: .demand)
+        supply              = c.lenient(String.self, forKey: .supply)
+        conditionGrade      = c.lenient(String.self, forKey: .conditionGrade)
+        size                = c.lenient(String.self, forKey: .size)
+        era                 = c.lenient(String.self, forKey: .era)
+        material            = c.lenient(String.self, forKey: .material)
         // Decoded as a string and mapped, so an unknown value degrades to
-        // `.model` instead of failing the whole scan.
+        // `.model` just as a mistyped one does.
         valuationSource     = ValuationSource(serverValue:
-            try? c.decodeIfPresent(String.self, forKey: .valuationSource))
+            c.lenient(String.self, forKey: .valuationSource))
     }
 
     /// Memberwise init retained for mocks and previews.
@@ -235,6 +239,51 @@ struct ScanAPIResponse: Decodable {
         self.era = era
         self.material = material
         self.valuationSource = valuationSource
+    }
+}
+
+// MARK: - Lenient optional fields (#222)
+
+/// Where an optional `/scan` field that did not decode is reported.
+///
+/// `decodeIfPresent` accepts `null` or absence but throws on a wrong type, and
+/// one throw used to fail the whole scan — after the free allowance was
+/// charged, so the retry was the paywall. Builds up to and including 1.5.1
+/// still decode that way, which is why `contract/README.md` rule 2 still binds
+/// the server; this only keeps later builds from being among them.
+///
+/// Reported by **key**, never value: the value is model output about the
+/// user's item, and the key is one of a fixed set.
+enum ScanFieldDecoding {
+    private static let log = Logger(subsystem: "eu.snapworth.app", category: "scan")
+
+    static func reportUndecodable(_ key: CodingKey) {
+        log.error("scan field \(key.stringValue, privacy: .public) has the wrong type; read as absent")
+        Analytics.shared.track(.scanFieldUndecodable(field: key.stringValue))
+    }
+}
+
+extension KeyedDecodingContainer {
+    /// `try? decodeIfPresent`, plus a report when the key was there with a
+    /// type that did not decode. `null` and absence are not reported.
+    func lenient<T: Decodable>(_ type: T.Type, forKey key: Key) -> T? {
+        do {
+            return try decodeIfPresent(type, forKey: key)
+        } catch {
+            ScanFieldDecoding.reportUndecodable(key)
+            return nil
+        }
+    }
+
+    /// An integer the server may also write as a whole-number double
+    /// (`37.0`). A fractional one (`37.5`) is a wrong type, like a string.
+    func lenientWholeNumber(forKey key: Key) -> Int? {
+        guard let number = lenient(Double.self, forKey: key) else { return nil }
+        guard let whole = Int(exactly: number) else {
+            ScanFieldDecoding.reportUndecodable(key)
+            return nil
+        }
+        return whole
     }
 }
 

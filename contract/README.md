@@ -86,9 +86,16 @@ JSON type of every value on each run.
    This holds for the v2 fields as much as the v1 ones: since #87 the client
    decodes them with `decodeIfPresent`, which accepts `null` or absence but
    throws on a wrong type, and one throw fails the whole scan — after the free
-   allowance was charged, so the user's retry is the paywall. Only
-   `valuation_source` is read leniently. **New structure goes in a new
-   field**; adding an optional field is safe.
+   allowance was charged, so the user's retry is the paywall. Every build up
+   to and including 1.5.1 (build 21) decodes that way, reading only
+   `valuation_source` and, from the build that added it,
+   `confidence_reason_codes` leniently. **1.5.2 is the first lenient build**
+   (#222): it reads each optional field on its own, so a wrong type costs
+   that field — nil, or `[]` for a list — and is logged and reported as
+   `scan_field_undecodable` by key. The rule does not relax with it: the
+   strict builds stay installed for good, and a required v1 field is strict
+   in every build. **New structure goes in a new field**; adding an optional
+   field is safe.
 3. **A `code` is contract; so is the wording an installed build routes on.**
    A client routes on `code` and words it in its own language, so renaming a
    code breaks every build that knows it — a new failure gets a new one, and
@@ -105,7 +112,9 @@ JSON type of every value on each run.
    `.github/workflows/contract.yml`, which has never existed — the path
    filters are and always were the mechanism.)
 
-The Swift suite decodes the two 200 bodies (`ScanContractTests`), reads the
+The Swift suite decodes the two 200 bodies (`ScanContractTests`), breaks
+each optional key of both in turn and requires that only that field is lost
+(`LenientScanFieldTests`), reads the
 quota 402's reset header (`QuotaResetTests`), runs every error fixture through
 `ScanAPIError.from` and `AppError.from` (`ErrorContractTests`), and checks its
 `ServerErrorCode` and `ConfidenceReason` against the two code lists, so a code
