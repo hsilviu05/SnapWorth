@@ -80,7 +80,8 @@ final class StoreKitPurchaseService: PurchaseService, ObservableObject {
                 throw error
             }
             await transaction.finish()
-            await refreshSubscriptionStatus()
+            // The one sync that says which paywall sold it (#218).
+            await refreshSubscriptionStatus(serverSync: .afterPurchase(trigger))
             // Fires on the confirmed StoreKit transaction — never on the tap.
             Analytics.shared.track(.purchaseCompleted(productID: transaction.productID,
                                                       isFirst: ScanTally.isFirstRun(),
@@ -391,8 +392,20 @@ final class StoreKitPurchaseService: PurchaseService, ObservableObject {
     }
 
     /// When a status refresh also pushes the active transaction to the server.
-    private enum ServerSync {
-        /// Purchase, restore and `Transaction.updates`: something changed.
+    ///
+    /// Internal rather than private so a test can hold `paywallTrigger` to
+    /// its one case.
+    enum ServerSync: Equatable {
+        /// A purchase just completed on a paywall, carrying that paywall's
+        /// trigger. Sent like `.always`, and the only sync that tells the
+        /// server which paywall sold the subscription, so it can count trial
+        /// starts and direct purchases per trigger (#218). It rides this call
+        /// rather than state kept on the service, so nothing is left behind
+        /// for a later sync to pick up.
+        case afterPurchase(PaywallTrigger)
+        /// Restore and `Transaction.updates`: something changed, but not in
+        /// front of a paywall — a restore buys nothing, and an update is a
+        /// renewal, an Ask-to-Buy approval or a purchase on another device.
         case always
         /// Cold launch and every return to the foreground: only when the
         /// server has not had this transaction recently, which is decided
@@ -400,6 +413,12 @@ final class StoreKitPurchaseService: PurchaseService, ObservableObject {
         case ifStale
         /// `resyncEntitlement`, which sends it itself and waits for the answer.
         case never
+
+        /// The `paywall_trigger` this sync sends: set only after a purchase.
+        var paywallTrigger: PaywallTrigger? {
+            if case .afterPurchase(let trigger) = self { return trigger }
+            return nil
+        }
     }
 
     /// Re-reads `Transaction.currentEntitlements` and publishes the result.
@@ -458,8 +477,10 @@ final class StoreKitPurchaseService: PurchaseService, ObservableObject {
             // already active, and every later status refresh retries, so the
             // user must never wait on it to see their purchase complete.
             let onlyIfStale = serverSync == .ifStale
+            let paywallTrigger = serverSync.paywallTrigger
             Task.detached { [weak self] in
-                await self?.syncEntitlementToServer(activeJWS, onlyIfStale: onlyIfStale)
+                await self?.syncEntitlementToServer(activeJWS, onlyIfStale: onlyIfStale,
+                                                    paywallTrigger: paywallTrigger)
             }
         }
         // Keep the courtesy "trial ends tomorrow" reminder in sync — schedules
@@ -537,7 +558,10 @@ final class StoreKitPurchaseService: PurchaseService, ObservableObject {
     /// - Parameter onlyIfStale: a routine refresh, which skips a transaction
     ///   the server has had recently — decided here, after the token, and
     ///   not when the refresh ran. See `EntitlementSyncMemory.needsSending`.
-    private func syncEntitlementToServer(_ jws: String, onlyIfStale: Bool = false) async {
+    /// - Parameter paywallTrigger: `ServerSync.paywallTrigger` — the paywall a
+    ///   purchase was just made on, nil for every other sync.
+    private func syncEntitlementToServer(_ jws: String, onlyIfStale: Bool = false,
+                                         paywallTrigger: PaywallTrigger? = nil) async {
         guard Config.useAttestation else { return }
         do {
             if onlyIfStale {
@@ -546,7 +570,8 @@ final class StoreKitPurchaseService: PurchaseService, ObservableObject {
                 }
                 guard due else { return }
             }
-            let tier = try await AttestationService.shared.submitEntitlement(signedTransaction: jws)
+            let tier = try await AttestationService.shared.submitEntitlement(
+                signedTransaction: jws, paywallTrigger: paywallTrigger)
             if tier == "pro" {
                 EntitlementSyncMemory.record(jws)
             } else {

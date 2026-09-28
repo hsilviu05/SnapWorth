@@ -6286,7 +6286,7 @@ final class BearerRetryStructureTests: XCTestCase {
     func test_submitEntitlementRetriesOnAnExpiredToken() throws {
         let file = try source("Services/AttestationService.swift")
         let method = try body(
-            of: "func submitEntitlement(signedTransaction: String) async throws -> String {",
+            of: "paywallTrigger: PaywallTrigger? = nil) async throws -> String {",
             in: file)
 
         XCTAssertTrue(method.contains("sendRetryingAuth(on: session)"),
@@ -6966,8 +6966,10 @@ final class EntitlementSyncMemoryTests: XCTestCase {
             encoding: .utf8)
         // Cold launch and the foreground refresh.
         XCTAssertEqual(file.components(separatedBy: "refreshSubscriptionStatus(serverSync: .ifStale)").count - 1, 2)
-        // Purchase, restore and `Transaction.updates` keep the default.
-        XCTAssertEqual(file.components(separatedBy: "await refreshSubscriptionStatus()").count - 1, 2)
+        // Purchase always sends, with its trigger; restore and
+        // `Transaction.updates` keep the default.
+        XCTAssertEqual(file.components(separatedBy: "await refreshSubscriptionStatus(serverSync: .afterPurchase(trigger))").count - 1, 1)
+        XCTAssertEqual(file.components(separatedBy: "await refreshSubscriptionStatus()").count - 1, 1)
         XCTAssertEqual(file.components(separatedBy: "await self.refreshSubscriptionStatus()").count - 1, 1)
         XCTAssertTrue(file.contains("private func refreshSubscriptionStatus(serverSync: ServerSync = .always)"))
         // And the skip is decided after the token, not when the refresh ran.
@@ -6988,6 +6990,88 @@ final class EntitlementSyncMemoryTests: XCTestCase {
         let root = try XCTUnwrap(app.range(of: "struct RootView: View {"))
         XCTAssertTrue(app[root.upperBound...].contains(".task { await AttestationService.prewarm() }"),
                       "RootView hosts onboarding too, so the token is ready by the first scan")
+    }
+}
+
+// ── Which paywall sold the subscription (#218) ───────────────────────────────
+//
+// The server counts trial starts and direct purchases per paywall trigger, and
+// learns the trigger only from `paywall_trigger` on /auth/entitlement. It must
+// ride the one sync that follows a paywall purchase: a launch re-sync, a
+// restore or a `Transaction.updates` delivery that carried it would count a
+// paywall for a sale it did not make. The body is checked by encoding it; which
+// sync passes which `ServerSync` is source-level, like
+// `test_onlyTheRoutineRefreshesMaySkip`, because StoreKit cannot be driven
+// from a unit test.
+
+final class EntitlementPaywallTriggerTests: XCTestCase {
+
+    private typealias ServerSync = StoreKitPurchaseService.ServerSync
+
+    private func body(for sync: ServerSync) throws -> [String: Any] {
+        let data = try JSONEncoder().encode(EntitlementBody(
+            signedTransaction: "jws-a", deviceID: "device-1",
+            paywallTrigger: sync.paywallTrigger))
+        return try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+    }
+
+    private func purchaseServiceSource() throws -> String {
+        try String(
+            contentsOf: URL(fileURLWithPath: #filePath)
+                .deletingLastPathComponent().deletingLastPathComponent()
+                .appendingPathComponent("SnapWorth/Services/StoreKitPurchaseService.swift"),
+            encoding: .utf8)
+    }
+
+    func test_theSyncAfterAPaywallPurchaseCarriesItsTrigger() throws {
+        for trigger in PaywallTrigger.allCases {
+            let sent = try body(for: .afterPurchase(trigger))
+            XCTAssertEqual(sent["paywall_trigger"] as? String, trigger.rawValue)
+            XCTAssertEqual(sent["signed_transaction"] as? String, "jws-a")
+            XCTAssertEqual(sent["device_id"] as? String, "device-1")
+        }
+    }
+
+    func test_noOtherSyncSendsATrigger() throws {
+        // `.ifStale` is the launch and foreground re-sync, `.always` restore
+        // and `Transaction.updates`, `.never` the 402 resync, whose own send
+        // passes no trigger either (checked below).
+        for sync: ServerSync in [.ifStale, .always, .never] {
+            let sent = try body(for: sync)
+            XCTAssertNil(sent["paywall_trigger"], "\(sync) sent a trigger")
+            XCTAssertEqual(Set(sent.keys), ["signed_transaction", "device_id"],
+                           "absent, not null: the key is omitted")
+        }
+    }
+
+    func test_onlyThePurchasePathPassesTheTrigger() throws {
+        let file = try purchaseServiceSource()
+        // The purchase path, and only it, builds `.afterPurchase`.
+        XCTAssertEqual(file.components(separatedBy: "serverSync: .afterPurchase(").count - 1, 1)
+        let purchase = try XCTUnwrap(file.range(
+            of: "func purchase(productID: String, trigger: PaywallTrigger) async throws -> PurchaseOutcome {"))
+        let restore = try XCTUnwrap(file.range(of: "private func performRestore() async throws {"))
+        XCTAssertTrue(file[purchase.upperBound..<restore.lowerBound]
+            .contains("await refreshSubscriptionStatus(serverSync: .afterPurchase(trigger))"))
+        // Restore keeps the default, which carries no trigger.
+        let privateMark = try XCTUnwrap(file.range(of: "// MARK: - Private"))
+        XCTAssertTrue(file[restore.upperBound..<privateMark.lowerBound]
+            .contains("await refreshSubscriptionStatus()"))
+        // `Transaction.updates` keeps the default too.
+        let updates = try XCTUnwrap(file.range(of: "for await result in Transaction.updates {"))
+        XCTAssertTrue(file[updates.upperBound...].prefix(400)
+            .contains("await self.refreshSubscriptionStatus()"))
+        // Launch and foreground re-syncs are `.ifStale`.
+        XCTAssertEqual(file.components(separatedBy: "refreshSubscriptionStatus(serverSync: .ifStale)").count - 1, 2)
+        // The default is `.always`, not a trigger.
+        XCTAssertTrue(file.contains("private func refreshSubscriptionStatus(serverSync: ServerSync = .always)"))
+        // The 402 resync sends for itself, without one.
+        XCTAssertTrue(file.contains(
+            "try await AttestationService.shared.submitEntitlement(signedTransaction: jws)\n"))
+        // And the background send takes the trigger from the sync, never from
+        // anything the service keeps.
+        XCTAssertTrue(file.contains("let paywallTrigger = serverSync.paywallTrigger"))
+        XCTAssertTrue(file.contains("signedTransaction: jws, paywallTrigger: paywallTrigger)"))
     }
 }
 
