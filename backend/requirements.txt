@@ -20,7 +20,7 @@ fastapi==0.141.1
 # Note for anyone sizing uploads from here: `max_part_size` guards non-file
 # parts only. File parts spool unbounded, which is why /scan does its own
 # chunked read with a hard ceiling rather than trusting this.
-starlette==1.6.0
+starlette==1.7.0
 uvicorn[standard]==0.54.0
 # Migrated off google-generativeai, which reached end-of-life at 0.8.6 and said
 # so on every import. That SDK is also where two silent production failures came
