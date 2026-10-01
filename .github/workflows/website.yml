@@ -86,6 +86,15 @@ jobs:
       - name: Tag's SVG is freshly generated
         run: python3 website/seo/build_tag.py --check
 
+      # A bare App Store link is credited in App Store Connect to the domain
+      # and nothing finer, so no page, button or guide could be told apart
+      # (#204). Every product link must carry PT from seo/campaigns.py and a
+      # `ct` from the campaign table in website/README.md, on the page the
+      # table names, and pin no storefront (/us/). Every row must be in use.
+      # The offer-code redeem URL backend/referral.py builds is excluded.
+      - name: Every App Store link carries its campaign
+        run: python3 website/seo/check_store_links.py
+
       # sitemap.xml too. It used to be left out because each `lastmod` came
       # from the file's mtime, which a checkout resets, so it differed on every
       # run; nothing then noticed it going stale, and all 20 URLs said
