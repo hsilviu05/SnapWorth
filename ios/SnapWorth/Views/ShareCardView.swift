@@ -21,17 +21,33 @@ struct ShareableImage: Transferable {
 
 private enum ShareCardError: Error { case renderFailed }
 
-/// QR code for the App Store link, shared by every branded card so the footer
-/// is identical everywhere.
+/// The four branded cards with a QR code, each counted as its own App Store
+/// campaign (#221). The raw value is the path segment under `/get/`, so it
+/// must match the redirects in `website/vercel.json`.
+enum ShareCardKind: String, CaseIterable {
+    case result
+    case month
+    case haul
+    case guess
+}
+
+/// QR code for a card's link, shared by every branded card so the footer is
+/// identical everywhere.
 ///
 /// Both the `CIContext` and the finished image are cached. This is called from
-/// three card bodies, each of which re-renders on every keystroke behind the
-/// share-card debounce and on every condition tap — and it was building a fresh
+/// card bodies that re-render on every keystroke behind the share-card
+/// debounce and on every condition tap — and it was building a fresh
 /// `CIContext` each time. A `CIContext` allocates a Metal command queue and its
 /// backing caches; it is explicitly the object Core Image documents as
-/// expensive to create and intended to be reused. The QR itself encodes a
-/// constant URL, so it never needed re-rendering at all.
-func snapShareCardQR(_ urlString: String = Config.appStoreURL) -> UIImage? {
+/// expensive to create and intended to be reused. Each card's URL is constant
+/// (`Config.shareCardURL`), so each code is rendered once and kept.
+///
+/// No default: a new card has to say which campaign its installs count under.
+func snapShareCardQR(for kind: ShareCardKind) -> UIImage? {
+    snapShareCardQR(Config.shareCardURL(for: kind))
+}
+
+private func snapShareCardQR(_ urlString: String) -> UIImage? {
     if let cached = QRCache.cached(urlString) { return cached }
     guard let data = urlString.data(using: .utf8),
           let filter = CIFilter(name: "CIQRCodeGenerator") else { return nil }
@@ -52,7 +68,7 @@ private enum QRCache {
     static let context = CIContext()
 
     private static let lock = NSLock()
-    /// Keyed by URL; in practice one entry, for `Config.appStoreURL`.
+    /// Keyed by URL: one entry per `ShareCardKind`.
     nonisolated(unsafe) private static var images: [String: UIImage] = [:]
 
     static func cached(_ key: String) -> UIImage? {
@@ -242,7 +258,7 @@ struct ShareCardView: View {
         value.rounded(.toNearestOrEven)
     }
 
-    private var qrImage: UIImage? { snapShareCardQR() }
+    private var qrImage: UIImage? { snapShareCardQR(for: .result) }
 
     // MARK: - Photo section
 
@@ -339,7 +355,7 @@ struct MonthShareCardView: View {
                 .padding(.horizontal, innerPad)
 
             HStack(spacing: 14) {
-                if let qr = snapShareCardQR() {
+                if let qr = snapShareCardQR(for: .month) {
                     Image(uiImage: qr)
                         .interpolation(.none)
                         .resizable()
@@ -464,7 +480,7 @@ struct HaulShareCardView: View {
                 .padding(.horizontal, innerPad)
 
             HStack(spacing: 14) {
-                if let qr = snapShareCardQR() {
+                if let qr = snapShareCardQR(for: .haul) {
                     Image(uiImage: qr)
                         .interpolation(.none)
                         .resizable()
@@ -682,7 +698,7 @@ struct GuessShareCardView: View {
             HStack(spacing: 14) {
                 // The QR only on the reveal: the question card is the hook,
                 // and a download prompt on it gives the game away.
-                if style == .reveal, let qr = snapShareCardQR() {
+                if style == .reveal, let qr = snapShareCardQR(for: .guess) {
                     Image(uiImage: qr)
                         .interpolation(.none)
                         .resizable()

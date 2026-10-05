@@ -89,9 +89,23 @@ enum Config {
     static let yearlyProductID  = "com.snapworth.yearly"
 
     // ── App Store ────────────────────────────────────────────────────────────
-    /// The app's App Store page: the share-card QR code, the review link, and
-    /// the button beside "no longer supported" (`AppError.updateRequired`).
+    /// The app's App Store page: the review link (`SettingsView` appends
+    /// `?action=write-review`, so this stays a bare product URL) and the
+    /// button beside "no longer supported" (`AppError.updateRequired`).
     static let appStoreURL = "https://apps.apple.com/app/id6788521307"
+
+    /// What a share card's QR code opens: a short path on the website, one per
+    /// card, which `website/vercel.json` redirects to that card's App Store
+    /// campaign link (`ct=share_<kind>`, #221). A bare product URL credited
+    /// every install from a shared image to one undivided "web" number.
+    ///
+    /// The redirect, not the campaign link itself, because a shared image can
+    /// never be changed: the site can retarget `/get/haul` without a release,
+    /// and the shorter URL keeps the code sparse enough to scan off a story.
+    /// `ShareCardURLTests` holds each kind to a redirect in vercel.json.
+    static func shareCardURL(for kind: ShareCardKind) -> String {
+        "https://www.snapworth.eu/get/\(kind.rawValue)"
+    }
 
     // ── Which build is calling ───────────────────────────────────────────────
     /// Sent on every API request (`URLSession.snapWorthAPI`), so the server
