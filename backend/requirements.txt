@@ -110,7 +110,7 @@ PyJWT==2.15.0
 # directly exploitable here; the upgrade is taken because the primitives
 # underneath are load-bearing and 50.0.0 is the single version clearing all
 # three. The pin sits one patch release above that floor.
-cryptography==50.0.1
+cryptography==50.0.2
 # DeviceCheck API calls.
 httpx==0.28.1
 # Apple's own App Store Server API client and JWS verifier. MIT, from
