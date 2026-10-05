@@ -14,6 +14,7 @@ import pytest
 from fastapi import HTTPException
 from unittest.mock import AsyncMock, MagicMock, patch
 from fastapi.testclient import TestClient
+from starlette.datastructures import Headers
 
 import sys
 import os
@@ -151,75 +152,81 @@ class TestFileUploadSecurity:
         assert r.status_code == 400
         assert "10 MB" in r.json()["detail"]
 
-    def test_client_ip_takes_the_rightmost_forwarded_hop(self):
+    def test_client_ip_never_keys_on_a_hop_the_caller_wrote(self):
         """B-14: the rate-limit key must not be one the caller picks.
 
         uvicorn runs with `--forwarded-allow-ips='*'`, so `request.client.host`
-        is the *leftmost* — client-supplied — hop. Keying on it gave an attacker
-        a fresh bucket per request. The rightmost hop is the one our own proxy
-        appended.
+        is the *leftmost* hop. While a caller's own header reached the app,
+        keying on it gave an attacker a fresh bucket per request. Railway's
+        edge now writes the whole header and drops a client's (forged probes,
+        2026-09-27), so the key is the first entry, and a header longer than
+        Railway writes, whose left may be the caller's own, falls back to the
+        walk from the right.
+
+        Through uvicorn's own middleware, as deployed. A fake request whose
+        host is a socket peer let this pass while a header with no address in
+        it was keyed, in production, on the caller's leftmost entry.
         """
         import main
+        from starlette.applications import Starlette
+        from starlette.responses import PlainTextResponse
+        from starlette.routing import Route
+        from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 
-        class Req:
-            def __init__(self, xff=None, client="10.0.0.1"):
-                self.headers = {"x-forwarded-for": xff} if xff else {}
-                self.client = type("C", (), {"host": client})() if client else None
+        async def echo(request):
+            return PlainTextResponse(main._client_ip(request))
 
-        # Spoofed hops on the left are ignored; the proxy's own hop wins.
-        assert main._client_ip(Req("1.1.1.1, 2.2.2.2, 203.0.113.9")) == "203.0.113.9"
-        # A single forged header cannot promote itself past the proxy either.
-        assert main._client_ip(Req("evil")) == "evil"      # only hop there is
-        # No header at all: fall back to the socket peer.
-        assert main._client_ip(Req(None, client="198.51.100.4")) == "198.51.100.4"
-        assert main._client_ip(Req(None, client=None)) == "unknown"
+        deployed = TestClient(ProxyHeadersMiddleware(
+            Starlette(routes=[Route("/", echo)]), trusted_hosts="*"))
+
+        def key(xff=None):
+            return deployed.get("/", headers={"x-forwarded-for": xff} if xff else {}).text
+
+        # Railway's shape: the first entry, not its edge after it.
+        assert key("198.51.100.23, 95.173.10.20") == "198.51.100.23"
+        # More entries than Railway writes: the walk, which never reaches the
+        # left while an address it does not know is on the right.
+        assert key("1.1.1.1, 2.2.2.2, 203.0.113.9") == "203.0.113.9"
+        # Not an address, so never the caller's choice: one shared key, where
+        # request.client.host would be the leftmost entry, the caller's.
+        assert key("evil-a") == key("evil-b") == "unparseable"
+        assert key("evil-a, evil-b") == "unparseable"
+        # No header at all: the socket peer.
+        assert key() == "testclient"
 
     def test_client_ip_behind_railways_edge_is_the_caller(self):
-        """What production actually sends: Railway's edge appends the
-        connecting address, and the app sends no header of its own, so the
-        header holds one entry and it is the caller — not the proxy, as a
-        comment in ratelimit.py used to say (which would have meant one 60/h
-        bucket for every user)."""
+        """What production sends: Railway's edge writes the connecting
+        address, and on every request of 2026-09-27 its own address after it,
+        in 95.173.0.0/16. The key is the first entry, never the edge: keying
+        on the edge is one 60/h bucket for everyone behind it, which is what
+        the rightmost rule and #250's walk both did
+        (tests/test_client_ip.py)."""
         import main
-
-        class Req:
-            headers = {"x-forwarded-for": "203.0.113.9"}
-            client = type("C", (), {"host": "100.64.0.2"})()   # Railway's hop
-
-        assert main._client_ip(Req()) == "203.0.113.9"  # type: ignore[arg-type]
-
-    def test_the_hop_count_is_logged_once_per_count_and_never_the_address(
-            self, caplog, monkeypatch):
-        import logging
-
-        import ratelimit
-
-        monkeypatch.setattr(ratelimit, "_HOP_COUNTS_SEEN", set())
 
         class Req:
             def __init__(self, xff):
-                self.headers = {"x-forwarded-for": xff}
-                self.client = None
+                self.headers = Headers({"x-forwarded-for": xff})
+                self.client = type("C", (), {"host": "100.64.0.2"})()
 
-        with caplog.at_level(logging.INFO, logger="snapworth.ratelimit"):
-            for xff in ("203.0.113.9", "198.51.100.7", "1.1.1.1, 203.0.113.9",
-                        "1, 2, 3, 4", "1, 2, 3, 4, 5, 6"):
-                ratelimit.client_ip(Req(xff))
-        lines = [r.getMessage() for r in caplog.records if "hop(s)" in r.getMessage()]
-        assert [line.split()[2] for line in lines] == ["1", "2", "4+"]
-        assert not any("203.0.113.9" in line or "198.51" in line for line in lines)
+        assert main._client_ip(Req("203.0.113.9")) == "203.0.113.9"  # type: ignore[arg-type]
+        assert main._client_ip(Req("203.0.113.9, 95.173.10.20")) == "203.0.113.9"  # type: ignore[arg-type]
 
     def test_client_ip_is_truncated_and_never_empty(self):
         """It reaches a cache key and is attacker-influenced."""
         import main
 
         class Req:
-            def __init__(self, xff):
-                self.headers = {"x-forwarded-for": xff}
-                self.client = type("C", (), {"host": "10.0.0.1"})()
+            def __init__(self, xff: str | None, host: str | None = "10.0.0.1"):
+                self.headers = Headers({"x-forwarded-for": xff} if xff else {})
+                self.client = type("C", (), {"host": host})() if host else None
 
-        assert len(main._client_ip(Req("x" * 500))) == 64
-        assert main._client_ip(Req("1.1.1.1,   ")) == "unknown"
+        # Not an address: the one fixed key, whatever its length.
+        assert main._client_ip(Req("x" * 500, host="x" * 500)) == "unparseable"
+        # No header: the socket peer, truncated.
+        assert len(main._client_ip(Req(None, host="x" * 500))) == 64
+        # An empty entry is not a hop, rather than keyed on as "unknown".
+        assert main._client_ip(Req("1.1.1.1,   ")) == "1.1.1.1"
+        assert main._client_ip(Req(" ,   ", host=None)) == "unknown"
 
     def test_unauthenticated_routes_key_on_the_same_hop(self):
         """The half of B-14 that was missed.
@@ -238,7 +245,7 @@ class TestFileUploadSecurity:
 
         class Req:
             def __init__(self, xff):
-                self.headers = {"x-forwarded-for": xff}
+                self.headers = Headers({"x-forwarded-for": xff})
                 self.client = type("C", (), {"host": "1.1.1.1"})()
 
         seen = []
@@ -249,14 +256,14 @@ class TestFileUploadSecurity:
         previous = auth.deps.ip_limiter
         auth.deps.ip_limiter = recording_limiter
         try:
-            xff = "1.1.1.1, 2.2.2.2, 203.0.113.9"
+            xff = "198.51.100.23, 95.173.10.20"
             asyncio.run(auth._limit_unauthenticated(Req(xff)))
         finally:
             auth.deps.ip_limiter = previous
 
-        assert seen == ["203.0.113.9"], (
-            "the unauthenticated limiter must key on the proxy's own hop, not "
-            f"the caller-supplied leftmost one; got {seen}")
+        assert seen == ["198.51.100.23"], (
+            "the unauthenticated limiter must key on the first entry, which "
+            f"Railway writes, not on its edge; got {seen}")
         assert seen[0] == main._client_ip(Req(xff)), (
             "one resolver, or the two drift apart again")
 

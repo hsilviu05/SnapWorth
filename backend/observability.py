@@ -311,15 +311,28 @@ class RedactionFilter(logging.Filter):
 
     def filter(self, record: logging.LogRecord) -> bool:
         try:
-            if isinstance(record.msg, str):
-                record.msg = redact(record.msg)
-            elif not record.args:
-                # `log.error(exc)` parks the exception object here and
-                # `getMessage()` str()s it on the way out, unredacted. Only
-                # safe to fold when there is nothing left to interpolate.
-                record.msg = redact(str(record.msg))
             if record.args:
-                if isinstance(record.args, dict):
+                # Redact the line as it will be printed, not its parts.
+                #
+                # Redacting only the arguments that were `str` left every other
+                # type to be str()'d by `getMessage` after this filter had run.
+                # httpx logs `request.url` as an `httpx.URL`, and the Bot API
+                # puts the token in the URL, so every getUpdates poll wrote the
+                # Telegram bot token to production's logs verbatim (found
+                # 2026-09-27). Folding the arguments in first covers any type.
+                # Emptying `args` afterwards is what stops a `%` the arguments
+                # brought in from being read as a format specifier a second time.
+                try:
+                    formatted: str | None = record.getMessage()
+                except Exception:
+                    # A record whose arguments do not fit its format string.
+                    # Logging reports that itself at emit time; leave it to, and
+                    # redact the parts that can be redacted without formatting.
+                    formatted = None
+                if formatted is not None:
+                    record.msg = redact(formatted)
+                    record.args = ()
+                elif isinstance(record.args, dict):
                     record.args = {
                         k: redact(v) if isinstance(v, str) else v
                         for k, v in record.args.items()
@@ -327,6 +340,12 @@ class RedactionFilter(logging.Filter):
                 elif isinstance(record.args, tuple):
                     record.args = tuple(
                         redact(a) if isinstance(a, str) else a for a in record.args)
+            elif isinstance(record.msg, str):
+                record.msg = redact(record.msg)
+            else:
+                # `log.error(exc)` parks the exception object here and
+                # `getMessage()` str()s it on the way out, unredacted.
+                record.msg = redact(str(record.msg))
             for key, value in list(record.__dict__.items()):
                 if key in self._SKIP or key in self._OPAQUE or key.startswith("_"):
                     continue
@@ -553,6 +572,14 @@ def configure_production_logging(
         for handler in list(logger.handlers):
             logger.removeHandler(handler)
         logger.propagate = True
+
+    # httpx writes one INFO line per request, URL included. The Telegram poller
+    # makes a request every ~25 s, so on 2026-09-27 those lines were 169 of the
+    # 199 the latest deploy had written — and the Bot API's URLs carry the token.
+    # `RedactionFilter` masks it now, but a line whose only content is a
+    # credential and a 200 is better not written at all. WARNING keeps httpx's
+    # own warnings and errors; our code logs the failures that matter itself.
+    logging.getLogger("httpx").setLevel(logging.WARNING)
 
     if access_sample_rate < 1.0:
         logging.getLogger("snapworth.access").addFilter(

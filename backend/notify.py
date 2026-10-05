@@ -7,7 +7,8 @@ message to a private chat is push-delivered.
 
 Everything here is OFF unless both ``TELEGRAM_BOT_TOKEN`` and
 ``TELEGRAM_CHAT_ID`` are set — except the scan count and the category, brand
-and finds tallies, which `/trends` serves to the app and which therefore run
+and finds tallies, which `/trends` serves to the app, and the subscription
+index with its trial and paid counters (#218), all of which therefore run
 whenever there is a cache — and every path is best-effort by construction:
 an alert *about* production must never be able to degrade production. No user
 request ever waits on Telegram — sends run as background tasks — and the one
@@ -73,6 +74,7 @@ import dataclasses
 import html
 import json
 import logging
+import math
 import os
 import re
 import secrets
@@ -111,6 +113,11 @@ GEMINI_PRICE_INPUT_PER_M = float(os.environ.get("GEMINI_PRICE_INPUT_PER_M", "0.3
 GEMINI_PRICE_OUTPUT_PER_M = float(os.environ.get("GEMINI_PRICE_OUTPUT_PER_M", "2.50"))
 # A daily spend ceiling that pages once when crossed. 0 disables it.
 GEMINI_DAILY_BUDGET_USD = float(os.environ.get("GEMINI_DAILY_BUDGET_USD", "0"))
+# Apple's cut of a subscription, for `/costs`' net revenue per paying month.
+# 0.15 is the Small Business Program rate and the second-year rate; 0.30 is
+# the standard first-year rate. Which one applies is an account fact the repo
+# does not record, so it is the operator's to set.
+APPLE_COMMISSION = float(os.environ.get("APPLE_COMMISSION", "0.15"))
 
 # The live scan feed: one message per successful scan, item and price only.
 # Persisted in the cache so the toggle survives deploys. On by default — the
@@ -130,6 +137,29 @@ WEEKLY_REPORT_WEEKDAY = 0
 # First-sighting record for an originalTransactionId. Matches the proof and
 # device-binding horizon: past it the subscription itself is the bound.
 SUB_SEEN_TTL = 60 * 60 * 24 * 400
+
+# The day counters a subscription's first sighting and its first paid period
+# feed (#218). `new_subs` is every first sighting, one per
+# originalTransactionId, and is exactly `trial_starts + paid_direct +
+# offer_starts`; `trial_conversions` is not a new subscription and is not in
+# it. See `_count_new_subscription`.
+START_COUNTERS = {"trial": "trial_starts", "paid": "paid_direct"}
+OFFER_STARTS = "offer_starts"
+TRIAL_CONVERSIONS = "trial_conversions"
+
+# Every place the app can show a paywall: `PaywallTrigger`'s raw values in
+# ios/SnapWorth/Services/Analytics.swift, copied exactly. `thrift_flip` is not
+# here: it retired with #128, before any build sent a trigger. The set is
+# closed because each value becomes a counter key; anything else a client
+# sends is ignored, never stored.
+PAYWALL_TRIGGERS: tuple[str, ...] = (
+    "onboarding", "scan_limit", "upgrade_button", "settings", "ledger_history",
+    "ledger_export", "snap_sell", "portfolio_trend", "valuation_detail",
+    "trends", "add_tag", "haul",
+)
+
+# `/paywall`'s window. Inside STATS_TTL, so every day in it is still readable.
+PAYWALL_WINDOW_DAYS = 28
 
 # A lapsed install re-POSTs its expired transaction on every cold launch; one
 # "subscription ended" note per subject per day is signal, more is noise.
@@ -295,6 +325,7 @@ COMMANDS: tuple[tuple[str, str], ...] = (
     ("experiment", "Free-scan experiment: limit hits vs subscriptions, whole window; "
                    "/experiment export for a CSV to keep"),
     ("lever", "Arm or disarm the free-scan allowance without a redeploy"),
+    ("paywall", "28 days: trial starts and direct purchases per paywall, trial → paid"),
     ("minbuild", "Tell app builds below a number to update, without a redeploy"),
     ("social", "TikTok: followers, likes and the latest videos"),
     ("finds", "Best finds this week: the most valuable scans"),
@@ -742,7 +773,9 @@ def configure(cache, notifier: TelegramNotifier | None = None,
 
     With the env vars unset this leaves everything disabled and every public
     function a no-op — the feature costs nothing until it is turned on — apart
-    from `count_scan` and `scan_completed`'s tallies, which `/trends` reads.
+    from `count_scan` and `scan_completed`'s tallies, which `/trends` reads,
+    and the subscription row and counters `entitlement_recorded` and
+    `subscription_event` write.
     """
     global _notifier, _cache, _status_provider, _social, _generator, _scanner
     global _device_check_probe, _describe_welcome
@@ -1167,8 +1200,12 @@ async def subscription_event(note, *, reinstated=None) -> None:
     `EntitlementService.reinstate` answered for a REFUND_REVERSED — whether
     the access path lifted a refund block on this term, held none, or kept one
     that still denies it — and None for every other type.
+
+    Gated on the cache, not on Telegram: the row and the trial and paid
+    counters are written either way (#218), and only the alert waits for the
+    bot.
     """
-    if _notifier is None or _cache is None:
+    if _cache is None:
         return
     try:
         ent = note.entitlement
@@ -1180,7 +1217,11 @@ async def subscription_event(note, *, reinstated=None) -> None:
             # never calls this, so nothing should reach here. If something
             # does, it is a tester's renewal and not money.
             return
-        if note.is_paid_period:
+        if note.is_paid_period and _notifier is not None:
+            # Still behind the bot, as it was: `referral.note_paid_period`
+            # spends its once-per-transaction key even when `count_referral`
+            # then counts nothing, so running it with Telegram off would lose
+            # the friend's payment for good rather than wait for the bot.
             # A friend who took a referral week and then paid. Apple says so
             # whether or not they open the app again, which the sync cannot.
             import referral    # not at the top: referral imports auth, which imports this
@@ -1206,6 +1247,12 @@ async def subscription_event(note, *, reinstated=None) -> None:
 
         lines: list[str] | None = None
 
+        if note.is_paid_period and _started_as(before) == "trial":
+            # Whichever half sees the first paid period counts it, once. The
+            # device may have synced the paid transaction before Apple's
+            # notification arrived, so `was` can already read "paid" here.
+            await _count_trial_conversion(otid)
+
         if note.is_paid_period and was and was != "paid":
             # The headline event. We knew this subscription as a trial or a
             # comp; Apple has just charged for it. `was` is what makes this a
@@ -1213,12 +1260,11 @@ async def subscription_event(note, *, reinstated=None) -> None:
             # itself cannot tell those apart, because they are identical.
             label = "Trial converted" if was == "trial" else f"{was.capitalize()} converted"
             lines = [f"🎉 <b>{label} — this is real money</b>", detail]
-            await _count_new_subscription(otid)
         elif note.is_paid_period and known and not before:
             # A payer no device ever synced. Before Apple told us directly,
             # this subscription did not exist as far as the bot was concerned.
             lines = ["🎉 <b>New paying subscriber</b> (Apple reported it first)", detail]
-            await _count_new_subscription(otid)
+            await _count_new_subscription(otid, "paid")
         elif note.is_paid_period and not known:
             # Money, with nothing to say which kind. Staying silent lost the
             # conversion alert for good: the device's next sync rewrites the
@@ -1226,7 +1272,7 @@ async def subscription_event(note, *, reinstated=None) -> None:
             # seen as a trial. Not counted, because a renewal must not be.
             lines = ["💵 <b>Paid period</b> (subscription index unreadable: "
                      "a renewal, a conversion or a new payer)", detail,
-                     "Not counted in today's new subscribers."]
+                     "Not counted in today's paid or trial conversions."]
         elif note.is_refund:
             lines = ["↩️ <b>Refund</b>", detail]
         elif note.is_revoke:
@@ -1261,7 +1307,7 @@ async def subscription_event(note, *, reinstated=None) -> None:
             lines = ["💳 <b>Renewal payment failed</b>",
                      f"{detail} · Apple is retrying"]
 
-        if lines is None:
+        if lines is None or _notifier is None:
             return
         if ent.expires_at and not note.is_loss:
             # `note.auto_renew` is what this notification's own renewal info
@@ -1280,37 +1326,104 @@ async def subscription_event(note, *, reinstated=None) -> None:
         log.exception("subscription notification handling failed")
 
 
-async def _count_new_subscription(otid: str) -> None:
-    """Count one new paying subscription, once, whichever half found out first.
+def _started_as(row: dict | None) -> str | None:
+    """How the subscription in `row` began: `_acquisition`'s word for its
+    first sighting.
+
+    A row written before `started_as` existed has only `acq`, the latest
+    transaction's. That is still how it started as long as it has not been
+    overwritten by a later kind, which is exactly the case this is asked
+    about: a trial row about to see its first paid period.
+    """
+    if not row:
+        return None
+    return row.get("started_as") or row.get("acq") or None
+
+
+async def _count_new_subscription(otid: str, acq: str) -> None:
+    """Count one new subscription, once, whichever half found out first.
 
     There are two ways a subscription first becomes known: the client posts its
     signed transaction to `/auth/entitlement`, or Apple posts a notification to
-    `/apple/notifications`. Only the first incremented `new_subs`, so a payer
-    whose device never synced before Apple told us — the case
+    `/apple/notifications`. Only the first incremented the day's count, so a
+    payer whose device never synced before Apple told us — the case
     `subscription_event` alerts on by name, "New paying subscriber (Apple
-    reported it first)" — never appeared in the number the operator reads as
-    "how many people paid me today". Trial conversions arriving by notification
-    were missing from it too, which is the one figure the whole trial
-    experiment is judged on.
+    reported it first)" — never appeared in it.
+
+    `acq` is `_acquisition`'s word for the first transaction, and picks the
+    counter: a free trial is `trial_starts`, a purchase with no offer
+    `paid_direct`, and an intro, promo or offer-code start `offer_starts`.
+    `new_subs` is still written, as their sum: one per customer, the meaning
+    it always had in practice, so the days before the split and kept exports
+    of them still compare. A trial *converting* is not a new subscription and
+    is counted by `_count_trial_conversion` instead. This used to claim it
+    counted conversions too; it never did in the real order, because the
+    device syncs the trial first and spends the guard below (#218).
 
     `opsseen:subcount:{otid}` is the guard, and it is deliberately the *same*
     key both callers use: whichever path learns of a subscription first counts
-    it, and the other finds the key already set and counts nothing. So the fix
-    cannot double-count the common case where Apple reports a conversion and
-    the client syncs the same transaction minutes later.
+    it, and the other finds the key already set and counts nothing.
 
     Never raises. A counter is not worth failing an alert or a scan over.
     """
     if not otid or _cache is None:
         return
+    counter = START_COUNTERS.get(acq, OFFER_STARTS)
     try:
         if await _cache.add(f"opsseen:subcount:{otid}", "1", SUB_SEEN_TTL):
-            await _cache.incr(_stat_key(_day(), "new_subs"), STATS_TTL)
+            day = _day()
+            await _cache.incr(_stat_key(day, "new_subs"), STATS_TTL)
+            await _cache.incr(_stat_key(day, counter), STATS_TTL)
     except Exception as exc:                      # pragma: no cover - defensive
-        log.warning("new_subs counter failed for %s: %s", otid, exc)
+        log.warning("%s counter failed for %s: %s", counter, otid, exc)
 
 
-async def entitlement_recorded(subject: str, ent) -> None:
+async def _count_paywall_trigger(otid: str, started_as: str | None,
+                                 trigger: str | None) -> None:
+    """Count the paywall a new subscription was bought from, once. Never raises.
+
+    `trigger` is what `/auth/entitlement` accepted: one of `PAYWALL_TRIGGERS`,
+    or None, which counts nothing and spends nothing. The first sync that
+    carries a valid one counts it, under a guard of its own rather than
+    `_count_new_subscription`'s, because the sync carrying it is often not the
+    first sighting: dismissing the purchase sheet re-activates the app, whose
+    foreground sync sends no trigger and can reach the server first, and
+    Apple can report a direct purchase before either. On the shared guard
+    that purchase's trigger would always be lost.
+
+    `started_as` picks `trial_starts:<trigger>` or `paid_direct:<trigger>`: the
+    row's, when an earlier sync wrote one, else the transaction's own. An
+    offer-code or intro start counts under neither. Only the count is kept;
+    the trigger never reaches the row, which would link it to Purchase
+    History (#218, Notes).
+    """
+    counter = START_COUNTERS.get(started_as or "")
+    if not otid or _cache is None or trigger not in PAYWALL_TRIGGERS or counter is None:
+        return
+    try:
+        if await _cache.add(f"opsseen:subtrigger:{otid}", "1", SUB_SEEN_TTL):
+            await _cache.incr(_stat_key(_day(), f"{counter}:{trigger}"), STATS_TTL)
+    except Exception as exc:                      # pragma: no cover - defensive
+        log.warning("paywall trigger counter failed for %s: %s", otid, exc)
+
+
+async def _count_trial_conversion(otid: str) -> None:
+    """Count a trial's first paid period, once. Never raises.
+
+    Called by whichever half sees it: Apple's DID_RENEW, or the device syncing
+    the paid transaction first. Its own guard, not `_count_new_subscription`'s,
+    which the trial's start has already spent."""
+    if not otid or _cache is None:
+        return
+    try:
+        if await _cache.add(f"opsseen:subconv:{otid}", "1", SUB_SEEN_TTL):
+            await _cache.incr(_stat_key(_day(), TRIAL_CONVERSIONS), STATS_TTL)
+    except Exception as exc:                      # pragma: no cover - defensive
+        log.warning("trial_conversions counter failed for %s: %s", otid, exc)
+
+
+async def entitlement_recorded(subject: str, ent, *,
+                               paywall_trigger: str | None = None) -> None:
     """Note a verified StoreKit transaction. Awaited, but never raises.
 
     Called from /auth/entitlement, which fires at cold launch, purchase,
@@ -1319,10 +1432,20 @@ async def entitlement_recorded(subject: str, ent) -> None:
     alerts on the first sighting of its originalTransactionId (renewals and
     re-syncs share it), and a not-Pro result — a refund, revocation or expiry
     the client just proved — alerts at most once per subject per day.
+
+    The row and the trial and paid counters are written whenever there is a
+    cache. They returned early with Telegram unset, as `/trends`' tallies did
+    before #190, so switching the bot off would have stopped the count the
+    trial experiment is read on without a word (#218). Everything that is a
+    message still waits for the bot.
+
+    `paywall_trigger` is what `/auth/entitlement` accepted from the app: one
+    of `PAYWALL_TRIGGERS`, or None.
     """
-    if _notifier is None or _cache is None:
+    if _cache is None:
         return
-    _spawn(_note_sync(subject, "pro" if ent.tier == "pro" else "free"))
+    if _notifier is not None:
+        _spawn(_note_sync(subject, "pro" if ent.tier == "pro" else "free"))
     if _is_bounded(ent):
         # App Review or a TestFlight tester, honoured on bounded terms. Pro
         # for that device and nothing more: no row, no count, no "New Pro",
@@ -1335,34 +1458,46 @@ async def entitlement_recorded(subject: str, ent) -> None:
                 return
             # The previous row is the only source of auto-renew here: the
             # client presents a signed transaction, which has no such field.
-            before = await _index_subscription(subject, ent) or {}
-            if not await _cache.add(f"opsseen:sub:{otid}", "1", SUB_SEEN_TTL):
-                return
+            # None when the index could not be read: then there is no row to
+            # say this was a trial, and no conversion is counted.
+            previous = await _index_subscription(subject, ent)
+            before = previous or {}
             purchased = getattr(ent, "original_purchase_at", None)
             # Unknown purchase date reads as new: Apple always supplies it, so
             # its absence is a test fixture, not a customer.
             is_new = (purchased is None
                       or time.time() - purchased < NEW_SUBSCRIPTION_WINDOW_SECONDS)
+            acq = _acquisition(ent)
             if is_new:
-                # A second key, and this one is never handed back.
+                # Counted before, and apart from, the alert's guard below.
                 #
-                # The guard above gates both the alert and this counter, and
-                # the alert's failure path releases it — so a Telegram outage
-                # left the increment on the counter and let the next
-                # `/auth/entitlement` for the same transaction add another.
-                # That path is not rare: the client calls it at cold launch,
-                # purchase, restore and every `Transaction.updates`, so
-                # re-entry inside the 24-hour `is_new` window is the normal
-                # case. One sale could be counted several times, in the figure
-                # the operator reads as "how many people paid me today".
-                await _count_new_subscription(otid)
+                # That guard is handed back when the alert fails to send, so a
+                # counter behind it would count one sale again at every
+                # re-sync inside the 24-hour window; and the sync carrying the
+                # trigger is often not the first (see
+                # `_count_paywall_trigger`). Each counter has its own
+                # once-per-transaction key. The trigger is only counted for a
+                # new subscription, as the totals are, so the per-trigger
+                # rows never add up to more than they do.
+                await _count_new_subscription(otid, acq)
+                await _count_paywall_trigger(
+                    otid, _started_as(previous) or acq, paywall_trigger)
+            if acq == "paid" and _started_as(previous) == "trial":
+                # The device synced the first paid period before Apple's
+                # notification arrived, or instead of it.
+                await _count_trial_conversion(otid)
+            if _notifier is None:
+                return
+            if not await _cache.add(f"opsseen:sub:{otid}", "1", SUB_SEEN_TTL):
+                return
+            if is_new:
                 headline = "🎉 <b>New Pro subscription</b>"
             else:
                 headline = ("👋 <b>Existing Pro subscriber checked in</b> "
                             "(first time this bot has seen them)")
             product = html.escape(ent.product_id or "unknown product")
             environment = html.escape(ent.environment)
-            lines = [headline, f"{product} ({environment}) · {_acquisition(ent)}"]
+            lines = [headline, f"{product} ({environment}) · {acq}"]
             if purchased is not None:
                 lines.append(f"first purchased {_date(purchased)}")
             if ent.expires_at:
@@ -1383,6 +1518,8 @@ async def entitlement_recorded(subject: str, ent) -> None:
                 except Exception:
                     pass
         else:
+            if _notifier is None:
+                return
             if not await _cache.add(
                     f"opsseen:down:{subject}", "1", DOWNGRADE_THROTTLE_TTL):
                 return
@@ -1711,6 +1848,30 @@ async def _read_stat(day: str, name: str) -> int:
         return 0
 
 
+async def _sub_counts(days: list[str]) -> tuple[int, int, int]:
+    """(trial starts, trial conversions, direct purchases), summed over `days`."""
+    trials = conversions = direct = 0
+    for day in days:
+        trials += await _read_stat(day, START_COUNTERS["trial"])
+        conversions += await _read_stat(day, TRIAL_CONVERSIONS)
+        direct += await _read_stat(day, START_COUNTERS["paid"])
+    return trials, conversions, direct
+
+
+def _subs_label(trials: int, conversions: int, direct: int) -> str:
+    """"Trial starts: 2 · paid: 1 (1 converted trial · 0 direct)".
+
+    Never "new subscriptions" (#218). That figure was trial starts plus
+    direct purchases, and a trial converting — the one number a trial
+    experiment is judged on — was in neither half of it. "Paid" is money:
+    trials that converted and purchases with no trial."""
+    paid = conversions + direct
+    text = f"Trial starts: {trials} · paid: {paid}"
+    if paid:
+        text += f" ({conversions} converted trial{'s' if conversions != 1 else ''} · {direct} direct)"
+    return text
+
+
 async def send_digest(now: datetime | None = None) -> bool:
     """Send yesterday's digest. Returns whether this replica sent it.
 
@@ -1740,7 +1901,7 @@ async def _digest_text(when: datetime) -> str:
     failed = await _read_stat(day, "scans_failed")
     why = await _failure_breakdown(day) if failed else ""
     blocked = await _read_stat(day, "scans_blocked")
-    subs = await _read_stat(day, "new_subs")
+    trials, conversions, direct = await _sub_counts([day])
     users = await _read_stat(day, "active_users")
     limits = await _read_stat(day, "limit_hits")
     lines = [
@@ -1749,13 +1910,17 @@ async def _digest_text(when: datetime) -> str:
         f"Scans: {free + pro} ok ({free} free · {pro} Pro) · {failed} failed"
         + (f" ({why})" if why else "")
         + (f" · {blocked} blocked by the safety filter" if blocked else ""),
-        # The line the free-scan experiment is read on. Against new_subs it is
-        # the first server-side answer to "does hitting the limit move anyone".
-        # Omitted entirely on a day with none, so a quiet day stays quiet.
+        # The line the free-scan experiment is read on. Against the day's
+        # trial starts and direct purchases — the two ways to act on a paywall
+        # — it is the first server-side answer to "does hitting the limit
+        # move anyone". Omitted entirely on a day with none, so a quiet day
+        # stays quiet.
         *([f"Free limit reached: {limits}"
-           + (f" · {subs} subscribed" if subs else " · nobody subscribed")]
+           + (f" · {trials} trial start{'s' if trials != 1 else ''}"
+              f" · {direct} paid directly" if trials or direct
+              else " · no trial starts or purchases")]
           if limits else []),
-        f"New subscriptions: {subs}",
+        _subs_label(trials, conversions, direct),
         await _subscribers_line(),
         await _spend_line([day], free + pro),
     ]
@@ -1895,6 +2060,18 @@ def _help_text() -> str:
     return "\n".join(lines)
 
 
+def _replica_label(info: dict) -> str:
+    """` · replica <id>` for the build line, or nothing outside Railway.
+
+    What /status and Checkup describe from memory — provider health, the
+    alert throttle — is this replica's alone (RUNBOOK §11), so with two the
+    answer is only readable next to which one gave it. Eight characters tell
+    replicas apart.
+    """
+    replica = str(info.get("replica") or "").strip()
+    return f" · replica <code>{html.escape(replica[:8])}</code>" if replica else ""
+
+
 async def _status_text() -> str:
     now = datetime.now(timezone.utc)
     day = _day(now)
@@ -1906,7 +2083,7 @@ async def _status_text() -> str:
     failed = await _read_stat(day, "scans_failed")
     why = await _failure_breakdown(day) if failed else ""
     blocked = await _read_stat(day, "scans_blocked")
-    subs = await _read_stat(day, "new_subs")
+    trials, conversions, direct = await _sub_counts([day])
     limits = await _read_stat(day, "limit_hits")
 
     lines = [
@@ -1917,7 +2094,7 @@ async def _status_text() -> str:
         + (f" ({why})" if why else "")
         + (f" · {blocked} blocked" if blocked else ""),
         *([f"Free limit reached: {limits} today"] if limits else []),
-        f"New subscriptions today: {subs}",
+        _subs_label(trials, conversions, direct) + " today",
         await _subscribers_line(),
         await _spend_line([day], free + pro),
     ]
@@ -1938,7 +2115,8 @@ async def _status_text() -> str:
             auth = "enforcing" if info.get("auth_enforcing") else "NOT enforcing"
             lines.append(f"AI provider: {model}")
             lines.append(
-                f"Build <code>{html.escape(str(info.get('commit', '?')))}</code> · "
+                f"Build <code>{html.escape(str(info.get('commit', '?')))}</code>"
+                f"{_replica_label(info)} · "
                 f"cache {html.escape(str(info.get('cache', '?')))} · auth {auth}")
             lines.append(await _deploy_line(str(info.get("commit") or "")))
     return "\n".join(lines)
@@ -2030,6 +2208,8 @@ async def handle_command_with_buttons(text: str) -> tuple[str, Buttons] | None:
                 + await _buttons())
     if command == "/lever":
         return await _lever_command(argument, rest)
+    if command == "/paywall":
+        return await _paywall_text(), await _buttons()
     if command == "/minbuild":
         return await _minbuild_command(argument, rest)
     if command == "/social":
@@ -2855,6 +3035,13 @@ async def _note_scan(*, tier: str, item_name: str, brand: str | None,
         # run with or without Telegram. Everything after them is the
         # operator's alone.
         await _bump("scans_pro" if tier == "pro" else "scans_free")
+        if tier != "pro" and subject:
+            # Distinct free devices that scanned today: the denominator of
+            # `/costs`' cost per active free device-day. Beside the spend
+            # tally it divides, so it is written whenever that is.
+            who = auditlog.pseudonymise(subject)
+            if await _cache.add(f"opsseen:fd:{_day()}:{who}", "1", STATS_TTL):
+                await _bump("free_device_days")
         if not reread:
             await _tally_top(_day(), _normalise_category(category), _clean_brand(brand),
                              _find_record(item_name=item_name, brand=brand, category=category,
@@ -2938,7 +3125,9 @@ async def _weekly_text(now: datetime) -> str:
     pro_now, pro_prev = await pair("scans_pro")
     failed_now, failed_prev = await pair("scans_failed")
     users_now, users_prev = await pair("active_users")
-    subs_now, subs_prev = await pair("new_subs")
+    (trials_now, conv_now, direct_now), (trials_prev, conv_prev, direct_prev) = (
+        await _sub_counts(this_week), await _sub_counts(last_week))
+    paid_now, paid_prev = conv_now + direct_now, conv_prev + direct_prev
     scans_now, scans_prev = free_now + pro_now, free_prev + pro_prev
     spend_now = await _spend(this_week)
     spend_prev = await _spend(last_week)
@@ -2949,9 +3138,12 @@ async def _weekly_text(now: datetime) -> str:
         f"Scans: {scans_now} ({free_now} free · {pro_now} Pro) {_trend(scans_now, scans_prev)}",
         f"Failed: {failed_now} {_trend(failed_now, failed_prev)}",
         f"Active user-days: {users_now} {_trend(users_now, users_prev)}",
-        f"New subscriptions: {subs_now} {_trend(subs_now, subs_prev)}",
+        f"Trial starts: {trials_now} {_trend(trials_now, trials_prev)}",
+        f"Paid: {paid_now} ({conv_now} converted trial{'s' if conv_now != 1 else ''} · "
+        f"{direct_now} direct) {_trend(paid_now, paid_prev)}",
         f"Gemini spend: {_usd(spend_now)} {_trend(round(spend_now * 100), round(spend_prev * 100))}",
-        f"vs {scans_prev} scans · {users_prev} user-days · {subs_prev} subs · "
+        f"vs {scans_prev} scans · {users_prev} user-days · {trials_prev} trial starts · "
+        f"{paid_prev} paid · "
         f"{_usd(spend_prev)} the week before",
     ])
 
@@ -3159,6 +3351,20 @@ async def _index_subscription(subject: str | None, ent,
         "price": getattr(ent, "price", None), "currency": getattr(ent, "currency", None),
         "seen": int(time.time()),
     })
+    # Write-once, because `acq` above is not: it is the current transaction's,
+    # so a converted trial reads "paid" exactly like a direct purchase and the
+    # row alone could not say a trial had converted (#218). A row from before
+    # this field takes its last `acq`, which is how it started unless a later
+    # kind has already overwritten it.
+    if not before.get("started_as"):
+        entry["started_as"] = before.get("acq") or entry["acq"]
+        if entry["started_as"] == "trial" and "trial_ends" not in before:
+            # When the free period runs out, so `/paywall` can ask of the
+            # trials that ended in its window how many paid. Only knowable
+            # from the trial's own transaction: the next one is the paid
+            # period's. None for an older row that has already converted.
+            entry["trial_ends"] = (ent.expires_at if entry["acq"] == "trial"
+                                   else None)
     if subject is not None:
         # The full pseudonym, and every device that has synced this
         # subscription, not just the last. `who` used to be the first six
@@ -3210,16 +3416,46 @@ async def _index_subscription(subject: str | None, ent,
     return before
 
 
+#: Days of per-device Pro scan counts a users-index row keeps: `/costs`' window.
+PRO_DAYS_KEPT = 30
+
+
 async def _index_user(who: str, *, tier: str, scanned: bool = False) -> None:
+    """Upsert one device's row in the users index.
+
+    `scans` is lifetime and `tier` is only the current one, so neither can say
+    what a subscriber costs: a device that scanned 200 times free and then
+    subscribed would read as 200 Pro scans. `pro_since` opens a Pro span when
+    the device is first seen Pro, `pro_until` closes it when it is next seen
+    free, and only scans inside a span count toward `pro_scans` and
+    `pro_days` (Pro scans per UTC day, the last PRO_DAYS_KEPT days). A new
+    span replaces a closed one: `/costs` looks back 30 days, not further.
+    Rows from before these fields existed start their span at the first
+    sighting after the deploy, since what came earlier cannot be split.
+    """
     doc = await _read_index_for_update(USERS_INDEX_KEY)
     if doc is None:
         return
     now = int(time.time())
     entry: dict = row if isinstance(row := doc.get(who), dict) else {"first": now, "scans": 0}
     entry["last"] = now
-    entry["tier"] = "pro" if tier == "pro" else "free"
+    pro = tier == "pro"
+    entry["tier"] = "pro" if pro else "free"
+    if pro and (not entry.get("pro_since") or entry.get("pro_until")):
+        entry["pro_since"] = now
+        entry.pop("pro_until", None)
+    elif not pro and entry.get("pro_since") and not entry.get("pro_until"):
+        entry["pro_until"] = now
     if scanned:
         entry["scans"] = int(entry.get("scans", 0)) + 1
+        if pro:
+            entry["pro_scans"] = int(entry.get("pro_scans", 0)) + 1
+            today = _day()
+            oldest = _day(datetime.now(timezone.utc) - timedelta(days=PRO_DAYS_KEPT - 1))
+            days = entry.get("pro_days") if isinstance(entry.get("pro_days"), dict) else {}
+            days = {d: n for d, n in days.items() if d >= oldest}
+            days[today] = int(days.get(today, 0)) + 1
+            entry["pro_days"] = days
     doc[who] = entry
     await _write_index(USERS_INDEX_KEY, doc, USERS_INDEX_CAP, "last")
 
@@ -3444,7 +3680,28 @@ async def _spend_line(days: list[str], scans: int) -> str:
     return " · ".join(parts)
 
 
-async def _note_usage(label: str, usage: dict) -> None:
+#: Labels that are Pro by construction, whatever tier the caller passed:
+#: `/listing` answers 402 to anyone else, and a tag photo is only read for Pro.
+_PRO_LABELS = ("listing", "scan_with_tag")
+
+
+def _usage_tier(label: str, tier: str | None) -> str | None:
+    """Which tier a model call is charged to, or None for neither.
+
+    The operator's own calls belong to no tier. Otherwise the label decides
+    when it can, and the caller's tier when it cannot: a `scan` or its
+    `reformat` retry is Pro or free according to who scanned. A call that
+    names no tier is left out of both, rather than guessed into one."""
+    if label in _OPERATOR_LABELS:
+        return None
+    if label in _PRO_LABELS:
+        return "pro"
+    if tier is None:
+        return None
+    return "pro" if tier == "pro" else "free"
+
+
+async def _note_usage(label: str, usage: dict, tier: str | None = None) -> None:
     try:
         day = _day()
         tok_in = int(usage.get("prompt_tokens") or 0)
@@ -3462,9 +3719,17 @@ async def _note_usage(label: str, usage: dict) -> None:
             await _cache.incr(_stat_key(day, f"tok_in_{label}"), STATS_TTL, tok_in)
         if tok_out:
             await _cache.incr(_stat_key(day, f"tok_out_{label}"), STATS_TTL, tok_out)
+        # Per-tier tokens, so /costs can say what a subscriber costs. Labels
+        # name the operation, and a `scan` is the same operation for both.
+        charged = _usage_tier(label, tier)
+        if charged is not None:
+            if tok_in:
+                await _cache.incr(_stat_key(day, f"tok_in_tier_{charged}"), STATS_TTL, tok_in)
+            if tok_out:
+                await _cache.incr(_stat_key(day, f"tok_out_tier_{charged}"), STATS_TTL, tok_out)
 
         budget = GEMINI_DAILY_BUDGET_USD
-        if budget > 0:
+        if budget > 0 and _notifier is not None:
             spend = await _spend([day])
             if spend > budget and await _cache.add(f"opsseen:budget:{day}", "1", STATS_TTL):
                 await _notifier.send(
@@ -3476,11 +3741,19 @@ async def _note_usage(label: str, usage: dict) -> None:
         log.debug("usage note failed: %s", type(exc).__name__)
 
 
-def model_usage(label: str, usage: dict | None) -> None:
-    """Tally one model call's tokens. Fire-and-forget; free when alerts are off."""
-    if _notifier is None or _cache is None:
+def model_usage(label: str, usage: dict | None, *, tier: str | None = None) -> None:
+    """Tally one model call's tokens. Fire-and-forget.
+
+    Runs whenever there is a cache, as `count_scan` does. It used to return
+    without the Telegram notifier too, so a deploy with the bot unset tallied
+    scans and no spend, and the first `/costs` after turning the bot on
+    divided a month of scans by the days since.
+
+    `tier` is the caller's, for the calls whose label does not settle it:
+    see `_usage_tier`."""
+    if _cache is None:
         return
-    _spawn(_note_usage(label, dict(usage or {})))
+    _spawn(_note_usage(label, dict(usage or {}), tier))
 
 
 def _days_ending_today(n: int, now: datetime | None = None) -> list[str]:
@@ -3489,16 +3762,145 @@ def _days_ending_today(n: int, now: datetime | None = None) -> list[str]:
 
 
 # Model calls the operator makes through the bot: /post ideas, the /checkup
-# one-token probe, and a photo sent to the bot as a test scan. They are billed
-# like any other call and belong in the total — but not in "$/scan" or in what
-# the free tier is "given away", both of which are statements about users.
-_OPERATOR_LABELS = ("ideas", "probe", "bot_scan", "bot_scan_with_tag")
+# one-token probe, and a photo sent to the bot as a test scan (with its
+# reformat retry, which was filed as a user's `reformat` until #219). They are
+# billed like any other call and belong in the total — but not in "$/scan" or
+# in either tier's spend, which are statements about users.
+_OPERATOR_LABELS = ("ideas", "probe", "bot_scan", "bot_scan_with_tag", "bot_reformat")
 
 
 async def _operator_spend(days: list[str]) -> float:
     tok_in = sum([await _sum_stat(days, f"tok_in_{label}") for label in _OPERATOR_LABELS])
     tok_out = sum([await _sum_stat(days, f"tok_out_{label}") for label in _OPERATOR_LABELS])
     return _cost_usd(tok_in, tok_out)
+
+
+async def _tier_spend(days: list[str], tier: str) -> float:
+    """Model spend charged to one tier (see `_usage_tier`)."""
+    return _cost_usd(await _sum_stat(days, f"tok_in_tier_{tier}"),
+                     await _sum_stat(days, f"tok_out_tier_{tier}"))
+
+
+def _percentile(sorted_values: list[int], p: float) -> int:
+    """Nearest-rank percentile of an ascending list; the list is non-empty."""
+    return sorted_values[max(1, math.ceil(len(sorted_values) * p)) - 1]
+
+
+def _paid_by_currency(doc: dict, now: float) -> dict[str, tuple[float, int]]:
+    """{currency: (monthly revenue, paid subscriptions)} over live paid rows.
+
+    MRR alone cannot be divided by the paid count `_subs_summary` returns: that
+    count spans currencies, and a row with no price adds a subscriber and no
+    revenue. Both halves come from the same priced rows here."""
+    out: dict[str, tuple[float, int]] = {}
+    for e in doc.values():
+        if not isinstance(e, dict) or e.get("acq") != "paid" or not _sub_is_alive(e, now):
+            continue
+        price, cur = e.get("price"), e.get("currency") or "?"
+        if not isinstance(price, (int, float)) or price <= 0:
+            continue
+        monthly = price / 12 if "yearly" in _plan(e.get("product")) else price
+        total, n = out.get(cur, (0.0, 0))
+        out[cur] = (total + monthly, n + 1)
+    return out
+
+
+def _pro_span_days(row: dict, start: float, now: float) -> float:
+    """Days of `row`'s current or last Pro span inside [start, now]."""
+    since = row.get("pro_since")
+    if not isinstance(since, (int, float)):
+        return 0.0
+    until = row.get("pro_until")
+    end = float(until) if isinstance(until, (int, float)) else now
+    return max(0.0, min(end, now) - max(float(since), start)) / 86400
+
+
+async def _pro_block(month: list[str]) -> list[str]:
+    """What a subscriber costs against what one pays, over `month`.
+
+    Every figure carries its n: at launch there are a handful of subscribers,
+    and a mean over three devices is a claim about three devices. The tail
+    (p90, max, the heaviest three) is shown for the same reason — Pro is sold
+    as unlimited, and the price question is decided by the heaviest users, not
+    the average one.
+
+    Per-device dollars are estimates: tokens are tallied per tier, not per
+    device, so a device's spend is its Pro scans times the tier's all-in cost
+    per Pro scan (listings and reformats included)."""
+    now = time.time()
+    start = now - len(month) * 86400
+    users = await _read_index(USERS_INDEX_KEY)
+    subs = await _read_index(SUBS_INDEX_KEY)
+    lines = [f"<b>Pro, last {len(month)} days</b>"]
+
+    paid_rows = [e for e in subs.values() if isinstance(e, dict)
+                 and e.get("acq") == "paid" and _sub_is_alive(e, now)]
+    paying = {d for e in paid_rows for d in _row_devices(e)}
+    lines.append(f"Paying Pro devices: {len(paying)} "
+                 f"(n={len(paid_rows)} paid subscriptions)")
+
+    spend = await _tier_spend(month, "pro")
+    scans = await _sum_stat(month, "scans_pro")
+    pro_rows = {who: e for who, e in users.items()
+                if isinstance(e, dict) and _pro_span_days(e, start, now) > 0}
+    device_months = sum(_pro_span_days(e, start, now) for e in pro_rows.values()) / 30
+    per_month = (f"{_usd_fine(spend / device_months)} per Pro device-month"
+                 if device_months > 0 else "n/a per Pro device-month")
+    per_scan = spend / scans if scans else None
+    lines.append(
+        f"Pro model spend: {_usd(spend)} (n={scans} Pro scans"
+        + (f", {_usd_fine(per_scan)}/scan" if per_scan is not None else "")
+        + f") · {per_month} (n={device_months:.1f} device-months, "
+        f"{len(pro_rows)} devices)")
+
+    by_currency = _paid_by_currency(subs, now)
+    keep = 1 - APPLE_COMMISSION
+    if by_currency:
+        net = " + ".join(f"{_money(total / n * keep, cur)} (n={n})"
+                         for cur, (total, n) in sorted(by_currency.items()))
+    else:
+        net = "n/a (n=0 priced paid plans)"
+    lines.append(f"Net revenue per paying month: {net} "
+                 f"after {APPLE_COMMISSION:.0%} Apple commission")
+
+    oldest = month[-1]
+    daily = sorted(int(n) for e in pro_rows.values()
+                   for d, n in (e.get("pro_days") or {}).items()
+                   if d >= oldest and isinstance(n, (int, float)) and n > 0)
+    if daily:
+        lines.append(f"Pro scans per device-day: p50 {_percentile(daily, 0.5)} · "
+                     f"p90 {_percentile(daily, 0.9)} · max {daily[-1]} "
+                     f"(n={len(daily)} device-days)")
+    else:
+        lines.append("Pro scans per device-day: n/a (n=0 device-days)")
+
+    heaviest = []
+    if per_scan is not None:
+        for who, e in pro_rows.items():
+            count = sum(int(n) for d, n in (e.get("pro_days") or {}).items()
+                        if d >= oldest and isinstance(n, (int, float)))
+            if count:
+                days = max(1.0, _pro_span_days(e, start, now))
+                heaviest.append((count * per_scan / days, who, count, days))
+        heaviest.sort(reverse=True)
+    if heaviest:
+        lines.append(f"Heaviest by $/day (n={len(heaviest)} devices with Pro scans): " + " · ".join(
+            f"{who[:6]} {_usd_fine(rate)}/day ({count} scans / {days:.1f}d)"
+            for rate, who, count, days in heaviest[:3]))
+    else:
+        lines.append("Heaviest by $/day: n/a (n=0 devices with Pro scans)")
+    return lines
+
+
+async def _free_line(month: list[str]) -> str:
+    """Cost per free device-day that scanned: what the free tier costs per
+    person who used it, rather than a share of the bill split by scan count."""
+    spend = await _tier_spend(month, "free")
+    device_days = await _sum_stat(month, "free_device_days")
+    rate = (f"≈ {_usd_fine(spend / device_days)} per active free device-day"
+            if device_days else "≈ n/a per active free device-day")
+    return (f"Free tier, {len(month)} days: {_usd(spend)} {rate} "
+            f"(n={device_days} device-days with a scan)")
 
 
 async def _costs_text() -> str:
@@ -3524,16 +3926,12 @@ async def _costs_text() -> str:
         lines.append(" · ".join(parts))
 
     month = _days_ending_today(30)
-    free = await _sum_stat(month, "scans_free")
-    total = free + await _sum_stat(month, "scans_pro")
-    if total:
-        users = max((await _spend(month)) - (await _operator_spend(month)), 0.0)
-        given = users * free / total
-        lines.append(f"Free tier, 30 days: {free} of {total} scans ≈ {_usd(given)} given away")
+    lines.extend(await _pro_block(month))
+    lines.append(await _free_line(month))
     mine_month = await _operator_spend(month)
     if mine_month > 0:
         lines.append(f"My own bot usage, 30 days: ≈ {_usd(mine_month)} "
-                     f"(/post, /checkup — excluded from the two figures above)")
+                     f"(/post, /checkup — excluded from $/scan and both tiers)")
 
     _, _, _, _, mrr = _subs_summary(await _read_index(SUBS_INDEX_KEY))
     lines.append("vs MRR ≈ " + (" + ".join(_money(v, c) for c, v in sorted(mrr.items()))
@@ -4139,7 +4537,12 @@ EXPERIMENT_PARTIAL_NOTE = ("limit hits counted from 18:29 UTC that day only — 
 
 # The counters `/experiment` shows, in its column order. The export's header
 # uses these names as they are, so a kept copy can be traced back to the code.
-EXPERIMENT_COUNTERS = ("active_users", "scans_free", "limit_hits", "new_subs")
+#
+# `new_subs` stays beside the three that split it (#218): before the split it
+# is the only record of a day's subscriptions, and a kept copy without it
+# would read those days as none.
+EXPERIMENT_COUNTERS = ("active_users", "scans_free", "limit_hits",
+                       "trial_starts", "trial_conversions", "paid_direct", "new_subs")
 
 
 def _stat_expired(day: str, now: datetime) -> bool:
@@ -4177,8 +4580,8 @@ async def _experiment_text(now: datetime | None = None) -> str:
     read of the experiment: the client's half is a dashboard someone has to
     remember to open.
 
-    Deliberately not a conversion claim. `new_subs` beside `limit_hits` is a
-    coincidence within a window, not an attribution — nothing here knows whether
+    Deliberately not a conversion claim. Trial starts and purchases beside
+    `limit_hits` are a coincidence within a window, not an attribution — nothing here knows whether
     the person who subscribed is the one who hit the limit. TelemetryDeck holds
     the per-user path. These are the totals, and the value of two instruments is
     that they can disagree.
@@ -4206,28 +4609,39 @@ async def _experiment_text(now: datetime | None = None) -> str:
     # Literal spaces between the columns, not just field widths: a number wider
     # than its column would otherwise run into its neighbour and the row would
     # be unreadable without anything reporting a problem.
-    rows = [f"<code>{'day':<6}{'act':>6} {'free':>5} {'hit':>5} {'sub':>5}</code>"]
-    hits = subs = free_scans = expired = 0
+    rows = [f"<code>{'day':<6}{'act':>6} {'free':>5} {'hit':>5} "
+            f"{'trial':>5} {'paid':>5}</code>"]
+    hits = trials = paid = started = unsplit = free_scans = expired = 0
     partial = False
     for d in shown:
         label = f"{d[4:6]}-{d[6:]}"
         if _stat_expired(d, now):
             expired += 1
             rows.append(
-                f"<code>{label:<6}{'—':>6} {'—':>5} {'—':>5} {'—':>5}</code>")
+                f"<code>{label:<6}{'—':>6} {'—':>5} {'—':>5} {'—':>5} {'—':>5}</code>")
             continue
         act = await _read_stat(d, "active_users")
         fr = await _read_stat(d, "scans_free")
         hi = await _read_stat(d, "limit_hits")
-        sb = await _read_stat(d, "new_subs")
+        tr, cv, dr = await _sub_counts([d])
+        # A day from before #218 has `new_subs` and nothing splitting it, so
+        # its subscriptions are in neither column. `new_subs` is every first
+        # sighting since, so any excess over its parts is that day's.
+        rest = max(0, await _read_stat(d, "new_subs") - tr - dr
+                   - await _read_stat(d, OFFER_STARTS))
         hits += hi
-        subs += sb
+        trials += tr
+        paid += cv + dr
+        started += tr + dr + rest
+        unsplit += rest
         free_scans += fr
         mark = ""
         if d == EXPERIMENT_PARTIAL_DAY:
             partial, mark = True, " *"
+        if rest:
+            mark += " †"
         rows.append(
-            f"<code>{label:<6}{act:>6} {fr:>5} {hi:>5} {sb:>5}</code>{mark}")
+            f"<code>{label:<6}{act:>6} {fr:>5} {hi:>5} {tr:>5} {cv + dr:>5}</code>{mark}")
 
     closed = today > EXPERIMENT_END_DAY
     left = max(0, (end.date() - now.date()).days)
@@ -4251,9 +4665,9 @@ async def _experiment_text(now: datetime | None = None) -> str:
     scope = (f" across {readable} readable day{'s' if readable != 1 else ''}"
              if expired else "")
     if hits:
-        total = (f"<b>{hits} limit hit{'s' if hits != 1 else ''} · {subs} "
-                 f"new subscription{'s' if subs != 1 else ''} "
-                 f"({100.0 * subs / hits:.0f}%)</b>{scope}")
+        total = (f"<b>{hits} limit hit{'s' if hits != 1 else ''} · {trials} "
+                 f"trial start{'s' if trials != 1 else ''} · {paid} paid "
+                 f"({100.0 * started / hits:.0f}%)</b>{scope}")
     elif not readable:
         total = ("<b>Nothing readable</b> — every day in the window is past the "
                  f"{ttl_days}-day counter TTL.")
@@ -4280,9 +4694,13 @@ async def _experiment_text(now: datetime | None = None) -> str:
                      f"{_lever_label(before)} → {_lever_label(after)}")
     if partial:
         notes.append(f"* {EXPERIMENT_PARTIAL_NOTE}. Every other column is a whole day.")
+    if unsplit:
+        notes.append(f"† {unsplit} trial start{'s' if unsplit != 1 else ''} or "
+                     "purchase" + ("s" if unsplit != 1 else "") + " from before "
+                     "the server split them (#218): in neither column, and in the %.")
     if hits:
-        notes.append("% is subscriptions ÷ limit hits across the window — "
-                     "coincidence, not attribution.")
+        notes.append("% is trial starts and direct purchases ÷ limit hits "
+                     "across the window — coincidence, not attribution.")
     if expired:
         notes.append(f"— {expired} day{'s' if expired != 1 else ''} older than the "
                      f"{ttl_days}-day counter TTL: those figures are gone, not zero.")
@@ -4392,6 +4810,73 @@ async def _experiment_export(now: datetime | None = None) -> str:
     return ("💾 <b>Free-scan experiment — export</b>\n"
             f"Copy the block into <code>docs/</code> to keep it. {expiry}\n"
             f"<pre>{csv}</pre>")
+
+
+# ── Paywall readout ──────────────────────────────────────────────────────────
+
+async def _paywall_text(now: datetime | None = None) -> str:
+    """`/paywall`: the server's half of reading which paywall sells (#218).
+
+    Trial starts and direct purchases per trigger over PAYWALL_WINDOW_DAYS,
+    and the trial-to-paid rate for the trials whose free period ended in that
+    window. Per trigger is counts only: the trigger is never on the row, so
+    trial-to-paid *by trigger* cannot be read here (#218, Notes).
+
+    Counts, not significance: at a few scans a day every figure here is small,
+    which is why each rate carries its n. TelemetryDeck's
+    `paywall_viewed → purchase_started → purchase_completed` is the other
+    instrument, and it has the views this cannot see.
+    """
+    now = now or datetime.now(timezone.utc)
+    days = [_day(now - timedelta(days=i)) for i in range(PAYWALL_WINDOW_DAYS)]
+    trials, conversions, direct = await _sub_counts(days)
+
+    per: list[tuple[str, int, int]] = []
+    for trigger in PAYWALL_TRIGGERS:
+        t = await _sum_stat(days, f"{START_COUNTERS['trial']}:{trigger}")
+        p = await _sum_stat(days, f"{START_COUNTERS['paid']}:{trigger}")
+        if t or p:
+            per.append((trigger, t, p))
+    per.sort(key=lambda row: (-(row[1] + row[2]), row[0]))
+
+    lines = [f"💳 <b>Paywall — last {PAYWALL_WINDOW_DAYS} days</b>",
+             f"Trial starts: {trials} · direct purchases: {direct} · "
+             f"converted trials: {conversions}"]
+    if per:
+        lines.append(f"<code>{'trigger':<17}{'trial':>6}{'direct':>7}</code>")
+        lines += [f"<code>{html.escape(t):<17}{ts:>6}{pd:>7}</code>"
+                  for t, ts, pd in per]
+    untagged_t = max(0, trials - sum(r[1] for r in per))
+    untagged_p = max(0, direct - sum(r[2] for r in per))
+    if untagged_t or untagged_p:
+        lines.append(f"<code>{'no trigger':<17}{untagged_t:>6}{untagged_p:>7}</code>")
+        lines.append("No trigger: a build before 1.5.2, a sync that was not the "
+                     "one after the paywall, or Apple reported it first.")
+    elif not per:
+        lines.append("No trial starts or direct purchases in the window.")
+
+    # The rate is read off the subscription index rather than the counters:
+    # a trial that ends in the window may have started before it, and only
+    # its row says when its free period ran out and whether it paid.
+    start = (now - timedelta(days=PAYWALL_WINDOW_DAYS)).timestamp()
+    ended = converted = 0
+    for row in (await _read_index(SUBS_INDEX_KEY)).values():
+        if not isinstance(row, dict) or row.get("started_as") != "trial":
+            continue
+        ends = row.get("trial_ends")
+        if not isinstance(ends, (int, float)) or not start <= ends < now.timestamp():
+            continue
+        ended += 1
+        if row.get("acq") == "paid":
+            converted += 1
+    if ended:
+        lines.append(f"Trial → paid: {converted} of {ended} trials that ended "
+                     f"({100.0 * converted / ended:.0f}%, n={ended})")
+        lines.append("A trial that ended in the last day or two may still be in "
+                     "Apple's billing retry.")
+    else:
+        lines.append("Trial → paid: no trial ended in the window (n=0)")
+    return "\n".join(lines)
 
 
 # ── One subscription, live from Apple ────────────────────────────────────────
@@ -5251,6 +5736,22 @@ async def _budget_line() -> str:
     return f"Spend alert: above {_usd(budget)}/day · today ≈ {_usd(today)}"
 
 
+def _audit_salt_line() -> str:
+    """Whether AUDIT_SALT is a secret, and never what it is.
+
+    It keys the audit pseudonyms — the `/users` and `/subs` ids, the support id
+    in the app's support mail — and, since #190, the device tags /trends keeps
+    beside what was scanned. Both are unlinkable only while the salt is secret, and unset
+    it falls back to a literal in this public repository. Nothing said so: the
+    process booted on the default as quietly as on a real value. `main` logs
+    an ERROR at startup in production too, and like it this reports the
+    verdict alone, since a hash, prefix or length of a secret narrows it."""
+    if auditlog.salt_is_placeholder():
+        return ("Audit salt: ⚠️ placeholder — pseudonyms and trends tags can be "
+                "recomputed (RUNBOOK §8)")
+    return "Audit salt: set ✅"
+
+
 async def _checkup_text() -> str:
     lines = ["🩺 <b>Checkup</b>"]
 
@@ -5307,7 +5808,9 @@ async def _checkup_text() -> str:
         if "devicecheck" in info:
             lines.append(await _device_check_line(bool(info["devicecheck"])))
         lines.append(f"Auth: {'enforcing' if info.get('auth_enforcing') else 'NOT enforcing'} · "
-                     f"build <code>{html.escape(str(info.get('commit', '?')))}</code>")
+                     f"build <code>{html.escape(str(info.get('commit', '?')))}</code>"
+                     f"{_replica_label(info)}")
+    lines.append(_audit_salt_line())
 
     # TLS on the public host.
     host = _public_host()

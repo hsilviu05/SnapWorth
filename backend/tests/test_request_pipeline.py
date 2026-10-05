@@ -15,12 +15,14 @@ import json
 import logging
 import os
 import sys
+import typing
 from collections.abc import Iterator
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import httpx
 import pytest
 from annotated_types import MaxLen
+from fastapi.routing import APIRoute
 from fastapi.testclient import TestClient
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.types import Message
@@ -28,6 +30,7 @@ from starlette.types import Message
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import auth  # noqa: E402
+import entitlements  # noqa: E402
 import main  # noqa: E402
 import metrics  # noqa: E402
 import notify  # noqa: E402
@@ -122,6 +125,7 @@ def repeated(chunk: bytes, times: int) -> Iterator[bytes]:
 # chunked body: the old guard read only the declared `content-length`.
 JSON_ROUTES = [
     "/apple/notifications",
+    "/apple/notifications/sandbox",
     "/auth/attest",
     "/auth/refresh",
     "/auth/entitlement",
@@ -216,6 +220,7 @@ class TestChunkedBodiesAreCapped:
         ("/auth/refresh", auth.AssertRequest),
         ("/auth/entitlement", auth.EntitlementRequest),
         ("/apple/notifications", main.AppleNotification),
+        ("/apple/notifications/sandbox", main.AppleNotification),
     ])
     def test_the_caps_sit_above_what_the_schemas_allow(self, path, model):
         """A cap below the largest body a schema accepts refuses a real client.
@@ -243,6 +248,60 @@ class TestChunkedBodiesAreCapped:
         assert r.status == 413
         assert r.headers.get("x-content-type-options") == "nosniff"
         assert count() == before + 1
+
+
+# ── Both notification routes get the notification cap ────────────────────────
+
+NOTIFICATION_ROUTES = ["/apple/notifications", "/apple/notifications/sandbox"]
+
+
+class TestNotificationRoutesShareTheCap:
+    """The Sandbox route (#198) arrived after the per-route caps (#188), and
+    `_body_limit` named the Production path exactly. So Sandbox fell to the
+    64 KiB default, below its own schema's 64 KiB `signedPayload` plus keys,
+    and a Version 1 body — which carries the whole receipt — stopped as a bare
+    413 before the handler could say which App Store Connect setting is wrong.
+    """
+
+    @pytest.mark.parametrize("path", NOTIFICATION_ROUTES)
+    def test_each_gets_the_notification_cap(self, path):
+        assert main._body_limit(path) == main.MAX_NOTIFICATION_BODY_BYTES
+
+    def test_every_route_that_takes_a_notification_is_listed(self):
+        """A third route taking `AppleNotification` would repeat the Sandbox
+        route's gap; this names it instead of waiting for a V1 body to."""
+        taking = sorted(
+            route.path for route in main.app.routes
+            if isinstance(route, APIRoute)
+            and main.AppleNotification in typing.get_type_hints(route.endpoint).values())
+        assert taking == NOTIFICATION_ROUTES
+        assert all(main._body_limit(path) == main.MAX_NOTIFICATION_BODY_BYTES
+                   for path in taking)
+
+    @pytest.mark.parametrize("path", NOTIFICATION_ROUTES)
+    def test_a_large_version_1_body_reaches_the_handler_s_error(self, path, monkeypatch):
+        """Apple's V1 body carries `unified_receipt.latest_receipt`, the whole
+        base64 receipt, which grows with a subscriber's history. Above 64 KiB,
+        Sandbox answered 413 where Production named the mistake."""
+        monkeypatch.setattr(entitlements, "SANDBOX_ENTITLEMENTS", entitlements.SANDBOX_BOUNDED)
+        main._ip_rate_store.clear()
+        body = json.dumps({
+            "notification_type": "DID_RENEW",
+            "environment": "Sandbox",
+            "unified_receipt": {
+                "status": 0,
+                "environment": "Sandbox",
+                "latest_receipt": "A" * (main.MAX_JSON_BODY_BYTES + 8 * 1024),
+                "latest_receipt_info": [],
+            },
+        }).encode()
+        assert main.MAX_JSON_BODY_BYTES < len(body) < main.MAX_NOTIFICATION_BODY_BYTES
+
+        r = client.post(path, content=body, headers={"content-type": "application/json"})
+
+        assert r.status_code == 400, (r.status_code, r.text[:200])
+        assert r.json()["detail"] == (
+            "Version 2 notifications required; this is a Version 1 body.")
 
 
 # ── The disconnect check sees a real disconnect ──────────────────────────────

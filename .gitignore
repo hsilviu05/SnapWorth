@@ -28,6 +28,11 @@ DerivedData/
 .DS_Store
 .vercel
 
+# Raw device captures for the App Store screenshots. Eight full-resolution
+# PNGs per set, read by marketing/build_screenshots.py; only the composites
+# it writes are committed.
+marketing/screenshots/*/captures/
+
 # Written by CI immediately before deploy so /health can report the live
 # commit. Generated per-deploy — never committed.
 backend/BUILD_COMMIT

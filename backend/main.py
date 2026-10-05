@@ -176,6 +176,14 @@ def resolve_git_commit(
 API_VERSION = resolve_api_version(os.environ)
 GIT_COMMIT = resolve_git_commit(os.environ)
 
+# Which replica this process is, from the variable Railway documents for it
+# (`RAILWAY_REPLICA_ID`, docs.railway.com/variables/reference). Empty outside
+# Railway. There is one replica today (RUNBOOK §11); this is what tells two
+# apart in `/status` and `🩺 Checkup` if a second is ever added, since each
+# replica answers only for its own memory. Railway's log viewer already tags
+# every log line with its instance.
+REPLICA_ID = os.environ.get("RAILWAY_REPLICA_ID", "").strip()
+
 BUILD_INFO_FILE = Path(__file__).resolve().parent / "BUILD_INFO"
 
 
@@ -258,6 +266,7 @@ async def _lifespan(_app: FastAPI):
         raise RuntimeError(
             "REQUIRE_APP_ATTEST is on but APPLE_TEAM_ID/APPLE_BUNDLE_ID are unset"
         )
+    _warn_if_audit_salt_is_public()
     log.info("auth initialised", extra={
         "enforcing": cfg.enforce,
         "app_id": cfg.app_id if cfg.is_configured else "unconfigured",
@@ -272,7 +281,11 @@ async def _lifespan(_app: FastAPI):
 
     global _ready
     _ready = True
-    log.info("startup complete — accepting traffic")
+    # The drain is in the message, not `extra`, because production logs as
+    # text, which prints no extras: after a deploy this line is where the
+    # owner reads the value actually in force (RUNBOOK §6).
+    log.info("startup complete — accepting traffic (replica %s, shutdown drain %gs)",
+             REPLICA_ID[:8] or "-", _DRAIN_TIMEOUT_SECONDS)
     notify.deployed(GIT_COMMIT, cache_backend=_cache.backend,
                     auth_enforcing=cfg.enforce, info=BUILD_INFO)
 
@@ -283,9 +296,18 @@ async def _lifespan(_app: FastAPI):
     # Redis connections open and in-flight scans killed mid-request. During a
     # rolling deploy that is a burst of user-visible 502s on every release.
     #
-    # Order matters. Readiness flips first so the load balancer stops sending
-    # new work, *then* we wait for in-flight requests to finish, and only then
-    # close connections. Closing first would fail the requests we are draining.
+    # uvicorn runs this *after* its own drain, not alongside it. On SIGTERM it
+    # stops accepting, waits up to `--timeout-graceful-shutdown` (Dockerfile)
+    # for the requests in flight, cancels any still running, and only then
+    # sends the lifespan its shutdown (`uvicorn.Server.shutdown`). So the
+    # graceful timeout is the window a request in flight gets, and the wait
+    # below is what comes after it: time for a cancelled request to run its
+    # cleanup — a scan hands its free scan back through Redis — before the
+    # connections close. Closing first would fail that refund. The two add up,
+    # and Railway's SIGKILL has to come after both (RUNBOOK §6).
+    #
+    # Readiness flips for completeness. By now the listener is closed, and
+    # Railway only asks the health path while a new deployment starts.
     _ready = False
     log.info("shutdown: readiness withdrawn, draining in-flight requests")
 
@@ -304,10 +326,26 @@ async def _lifespan(_app: FastAPI):
     log.info("shutdown complete")
 
 
-# Time allowed for in-flight requests to finish before connections are closed.
-# A scan can legitimately take ~6s, so a shorter drain would kill real work.
-# Must be below the platform's SIGKILL grace period — Railway's default is 30s.
-_DRAIN_TIMEOUT_SECONDS = float(os.environ.get("DRAIN_TIMEOUT_SECONDS", "15"))
+# How long the lifespan waits, after uvicorn's graceful window, for requests
+# uvicorn cancelled to finish their cleanup before connections close. Not the
+# window a scan gets: that is `--timeout-graceful-shutdown` (Dockerfile), which
+# outlasts the longest request anyone still waits for, CLIENT_DEADLINE_SECONDS
+# on the model and the phone's own timeout (RUNBOOK §6 has the measurements).
+#
+# The default assumes a healthy Redis, where the refund and the close after it
+# each take well under a second. Against a Redis that has stopped answering,
+# one call takes 4-8s (`cache.build_redis_client`: a 2s connect and a 2s read,
+# retried on timeout, behind a health-check PING), so the refund fails however
+# long this waits, and the close — `notify.aclose` hands back the Telegram poll
+# lock through the same Redis — can still be running when SIGKILL lands. That
+# is harmless: the refund was lost either way, and the poll lock expires on its
+# TTL. So this is not sized for a hung Redis.
+#
+# Railway's SIGKILL has to come after the graceful window and this wait
+# together, plus the close: RAILWAY_DEPLOYMENT_DRAINING_SECONDS, whose value is
+# in RUNBOOK §6 and held to these by tests/test_graceful_shutdown.py. Railway's
+# default is 0: SIGKILL straight after SIGTERM.
+_DRAIN_TIMEOUT_SECONDS = float(os.environ.get("DRAIN_TIMEOUT_SECONDS", "5"))
 
 # Readiness is separate from liveness: the process can be alive and healthy
 # while deliberately refusing new traffic (starting up, or draining).
@@ -475,6 +513,7 @@ def _status_snapshot() -> dict:
     """What the Telegram /status command reports about this process."""
     return {
         "commit": GIT_COMMIT,
+        "replica": REPLICA_ID,
         "cache": _cache.backend if _cache is not None else "unknown",
         "auth_enforcing": auth.deps.config.enforce,
         "model_healthy": _model_health.healthy,
@@ -514,6 +553,22 @@ async def _close_dependencies() -> None:
 def _is_production() -> bool:
     """Same test `tokens.signer_from_env` uses, so the two cannot disagree."""
     return os.environ.get("ENVIRONMENT", "").lower() in {"production", "prod"}
+
+
+def _warn_if_audit_salt_is_public() -> None:
+    """One ERROR at startup, in production, when AUDIT_SALT is no secret.
+
+    Unlike TOKEN_KEYS this does not refuse to boot. If production runs on the
+    default today, a refusal would take the API down at the next deploy, and
+    changing the salt has costs of its own (RUNBOOK §8.5): it is a decision
+    for a quiet hour, not something a deploy should force. Checkup says the
+    same for as long as it is true. The message is a fixed string: neither it
+    nor Checkup prints the salt or anything derived from it."""
+    if _is_production() and auditlog.salt_is_placeholder():
+        log.error("AUDIT_SALT is unset or a placeholder this repository publishes, "
+                  "so audit pseudonyms and /trends device tags can be recomputed "
+                  "from a device's key id. Set a long random AUDIT_SALT on Railway; "
+                  "RUNBOOK §8.5 says what changing it costs.")
 
 
 #: `None` also disables `/docs` and `/redoc`, which FastAPI derives from it.
@@ -578,11 +633,19 @@ MAX_REQUEST_BYTES = int(os.environ.get("MAX_REQUEST_BYTES", str(20 * 1024 * 1024
 #: in its first test rather than shipping uncapped.
 MAX_JSON_BODY_BYTES = 64 * 1024
 
+#: The cap on both routes Apple posts notifications to, `/apple/notifications`
+#: and `/apple/notifications/sandbox`, which take the same `AppleNotification`.
 #: A V2 notification is one `signedPayload`, which the model bounds at 64 KiB.
 #: The rest is headroom for a Version 1 body — it carries the whole receipt —
-#: so that misconfiguration still reaches the handler's error naming it,
+#: so that misconfiguration still reaches either handler's error naming it,
 #: rather than stopping here as a bare 413 (see `AppleNotification`).
 MAX_NOTIFICATION_BODY_BYTES = 256 * 1024
+
+#: Every route that takes an `AppleNotification`. The Sandbox route (#198)
+#: came after the per-route caps (#188) and was left out, which capped it at
+#: 64 KiB, below its own schema's bound. `test_request_pipeline` finds the
+#: routes that take the model and fails when one is missing here.
+_NOTIFICATION_PATHS = frozenset({"/apple/notifications", "/apple/notifications/sandbox"})
 
 
 def _body_limit(path: str) -> int:
@@ -590,7 +653,7 @@ def _body_limit(path: str) -> int:
     the `MAX_REQUEST_BYTES` override see the current values."""
     if path == "/scan":
         return MAX_REQUEST_BYTES
-    if path == "/apple/notifications":
+    if path in _NOTIFICATION_PATHS:
         return MAX_NOTIFICATION_BODY_BYTES
     return MAX_JSON_BODY_BYTES
 
@@ -814,10 +877,6 @@ _ip_rate_store = _ip_memory.store
 # Populated on startup; None until then (and in tests that never trigger it).
 _device_limiter: ratelimit.ResilientRateLimiter | None = None
 _ip_limiter: ratelimit.ResilientRateLimiter | None = None
-
-# X-Forwarded-For is client-spoofable, so we only consult it when explicitly told
-# we sit behind a trusted proxy/CDN — and then take the RIGHTMOST entry, which is
-# the hop our own proxy appended and a client cannot forge.
 
 
 async def _init_rate_limiters() -> None:
@@ -1456,11 +1515,16 @@ async def liveness() -> dict:
 async def readiness() -> dict | JSONResponse:
     """Readiness probe: should this instance receive traffic?
 
-    Returns 503 while starting up, while draining on shutdown, or when a
-    configured cache cannot take a write — unreachable, or full and refusing
-    writes — so quota and entitlement checks would fail closed. In each case
-    the instance is alive but cannot serve correctly, and the load balancer
-    should route elsewhere.
+    Returns 503 when a configured cache cannot take a write — unreachable, or
+    full and refusing writes — so quota and entitlement checks would fail
+    closed. The instance is alive but cannot serve correctly, and the load
+    balancer should route elsewhere.
+
+    It also answers 503 while `_ready` is false, before the lifespan's startup
+    completes and once its shutdown begins, but under uvicorn nobody can ask
+    then: uvicorn opens its listener only after the startup, and closes it at
+    SIGTERM, before the shutdown (RUNBOOK §6). A deploy serves no 503 on the
+    way out; the old container stops answering.
     """
     payload: dict = {"status": "ready", "ready": _ready}
 
@@ -2088,7 +2152,8 @@ async def scan(
         response, elapsed = await _analyse(image_bytes, content_type,
                                            subject=principal.subject, device_short=device_short,
                                            tag_bytes=tag_bytes, tag_type=tag_type,
-                                           deadline=_client_deadline(request))
+                                           deadline=_client_deadline(request),
+                                           tier=principal.tier)
     except BaseException:
         # `quota_status` carries the UTC day the reservation was counted
         # against. Recomputing the day here refunded the wrong counter for a
@@ -2178,7 +2243,8 @@ def _not_resalable_message(val: valuation_module.Valuation) -> str:
 async def _analyse(image_bytes: bytes, content_type: str, *, subject: str,
                    device_short: str, tag_bytes: bytes | None = None,
                    tag_type: str = "", count: bool = True,
-                   deadline: float | None = None) -> tuple[ScanResponse, float]:
+                   deadline: float | None = None,
+                   tier: str | None = None) -> tuple[ScanResponse, float]:
     """The scan itself: model call, parse, normalise, clamp, score.
 
     Everything between "the upload is valid and allowed" and "charge for it":
@@ -2187,7 +2253,9 @@ async def _analyse(image_bytes: bytes, content_type: str, *, subject: str,
     nothing else, or a green test scan would prove nothing about /scan.
     Returns the response (with `free_scans_remaining` unset) and the elapsed
     seconds. Raises HTTPException exactly as the endpoint would. `deadline` is
-    `_generate_with_retry`'s, for both model calls a scan can make.
+    `_generate_with_retry`'s, for both model calls a scan can make, and so is
+    `tier`: the caller's, so `/costs` can charge the scan and its reformat to
+    Pro or free. The bot's own scans pass none and are the operator's.
     """
 
     t0 = time.monotonic()
@@ -2217,13 +2285,14 @@ async def _analyse(image_bytes: bytes, content_type: str, *, subject: str,
     try:
         # `count=False` is the operator testing the service through the bot, so
         # it is labelled as such: the cost is real and belongs in the total, but
-        # not in the "$/scan" and "given away" figures, which are statements
+        # not in "$/scan" or either tier's spend, which are statements
         # about users. At 1-4 real scans a day one test photo moved both.
         if count:
             label = "scan_with_tag" if tag_bytes else "scan"
         else:
             label = "bot_scan_with_tag" if tag_bytes else "bot_scan"
-        raw, usage = await _generate_with_retry(contents, label=label, deadline=deadline)
+        raw, usage = await _generate_with_retry(contents, label=label, deadline=deadline,
+                                                tier=tier if count else None)
     except aiconfig.ModelBlocked as exc:
         # A safety block is not an outage. Thrift inventory includes penknives,
         # lighters and vintage militaria; telling the user the service is down
@@ -2260,7 +2329,9 @@ async def _analyse(image_bytes: bytes, content_type: str, *, subject: str,
         # an explicit reformat instruction before giving up — mirrors /listing,
         # which already degrades gracefully rather than 500-ing.
         log.warning("json parse error, attempting reformat", extra={"error": str(exc)})
-        data = await _retry_as_json(raw, deadline=deadline)
+        data = await _retry_as_json(
+            raw, deadline=deadline, tier=tier if count else None,
+            label="reformat" if count else "bot_reformat")
         if data is None:
             log.error("scan unparseable after reformat", extra={"raw_prefix": raw[:200]})
             if count:
@@ -2710,9 +2781,9 @@ class _ModelHealth:
 _model_health = _ModelHealth()
 
 
-def _record_usage(label: str, usage: dict) -> None:
+def _record_usage(label: str, usage: dict, tier: str | None = None) -> None:
     """Count one reply's tokens toward spend (`notify`) and the token metric."""
-    notify.model_usage(label, usage)
+    notify.model_usage(label, usage, tier=tier)
     for kind, key in (("prompt", "prompt_tokens"), ("output", "output_tokens"),
                       ("thoughts", "thoughts_tokens")):
         if key in usage:
@@ -2722,6 +2793,7 @@ def _record_usage(label: str, usage: dict) -> None:
 async def _generate_with_retry(
     contents, *, label: str, max_tokens: int | None = None, record_health: bool = True,
     deadline: float | None = None, thinking_budget: int | None = None,
+    tier: str | None = None,
 ) -> tuple[str, dict]:
     """Call the model with classified retries and jittered backoff.
 
@@ -2790,7 +2862,7 @@ async def _generate_with_retry(
             # MAX_OUTPUT_TOKENS that /costs, $/scan and the budget alert never
             # saw. Its outcome is labelled `blocked` or `empty` below.
             usage = aiconfig.usage_of(response)
-            _record_usage(label, usage)
+            _record_usage(label, usage, tier)
             try:
                 text = aiconfig.extract_text(response)
             except aiconfig.ModelUnavailable:
@@ -2863,11 +2935,16 @@ async def _generate_with_retry(
 _REFORMAT_WINDOW_CHARS = 8000
 
 
-async def _retry_as_json(raw: str, *, deadline: float | None = None) -> dict | None:
+async def _retry_as_json(raw: str, *, deadline: float | None = None,
+                         tier: str | None = None, label: str = "reformat") -> dict | None:
     """Ask the model to restate an unparseable reply as bare JSON.
 
     Cheap (text-only, no image) and recovers the common failure where the model
     wraps valid content in prose. Returns None if it still can't be parsed.
+
+    `tier` is the tier of the scan this retry serves, and `label` is
+    "bot_reformat" when that scan is the operator's: the retry is billed to
+    whoever the reply it restates was for, not to a tier of its own.
     """
     if not raw.strip():
         return None
@@ -2888,8 +2965,8 @@ async def _retry_as_json(raw: str, *, deadline: float | None = None) -> dict | N
     # call. Recording it twice would make one bad scan look like two.
     try:
         text, _usage = await _generate_with_retry(
-            prompt, label="reformat", record_health=False, deadline=deadline,
-            thinking_budget=aiconfig.TEXT_THINKING_BUDGET)
+            prompt, label=label, record_health=False, deadline=deadline,
+            thinking_budget=aiconfig.TEXT_THINKING_BUDGET, tier=tier)
     except aiconfig.ModelUnavailable:
         # A real outage, correctly classified. The caller's own 502 already
         # says "try again", which is the right advice for this.

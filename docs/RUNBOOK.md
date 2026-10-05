@@ -6,8 +6,8 @@ region, Docker).
 **Every number in this document is labelled.** `[MEASURED]` comes from this
 repository or a benchmark; `[ESTIMATED]` is modelled from public pricing and
 stated assumptions; `[DESIGNED]` is implemented but never exercised in
-production; `[NOT IMPLEMENTED]` is absent. Nothing here is drawn from
-observed production traffic, because none has been observed.
+production; `[NOT IMPLEMENTED]` is absent. A figure drawn from production
+traffic says so and names its source and dates.
 
 ---
 
@@ -27,7 +27,7 @@ flowchart LR
 | Component | State |
 |---|---|
 | API container | `backend/Dockerfile`, python 3.13-slim, unprivileged uid 10001 |
-| Process model | 1 uvicorn worker per container; scale horizontally |
+| Process model | 1 uvicorn worker × 1 replica, by decision (§11) |
 | Durable state | Redis — quota, entitlements and the signed proofs behind them, refund tombstones, App Attest keys, referral codes, the operator's indexes, TikTok tokens, the free-scan lever, rate limits |
 | System of record | Scan history: none, it lives on-device. **Several Redis key families have no other copy** (§9), so Redis is their system of record and has to be persisted like one |
 | Metrics | `/metrics`, Prometheus text format `[DESIGNED]` |
@@ -52,10 +52,11 @@ actually arrives:
 |---|---|---|
 | Is anything broken right now | `🩺 Checkup` | Probes the model, Redis, DeviceCheck and the App Store build in one message |
 | Current state | `/status` | Build, cache backend, auth enforcement, last deploy ping, today's counters |
-| What it costs | `/costs` | Gemini spend by window, `$/scan`, free-tier giveaway, and the operator's own bot usage listed separately |
+| What it costs | `/costs` | Gemini spend by window, `$/scan`, a Pro block over 30 days (paying devices, Pro spend per device-month, net revenue per paying month, Pro scans per device-day p50/p90/max, the three heaviest devices by $/day, each with its n), the free tier's cost per active device-day, and the operator's own bot usage listed separately |
 | Subscribers | `/subs` | Active, paid, comped, and MRR |
-| Is the free-scan experiment working | `/experiment` | The whole window at once: limit hits against new subscriptions, day by day, with a running total, and whether a new user gets a first-day welcome right now — as the quota resolves it, so `FREE_SCANS_FIRST_DAY=1` at a daily limit of 1 reads "lever not armed" |
+| Is the free-scan experiment working | `/experiment` | The whole window at once: limit hits against trial starts and paid (converted trials plus direct purchases), day by day, with a running total, and whether a new user gets a first-day welcome right now — as the quota resolves it, so `FREE_SCANS_FIRST_DAY=1` at a daily limit of 1 reads "lever not armed" |
 | Keep the experiment's numbers | `/experiment export` (💾 under `/experiment`) | The same rows as CSV in a block to copy into `docs/`. The counters expire 35 days after each day, so the 2026-09-10 → 09-24 window starts disappearing on 2026-10-15. An expired day is exported empty, not as zeros, and an unreadable Redis exports nothing. The `#` lines above the header (the window, the welcome, any lever move) have no commas, so each parses as one CSV field, and a reader that skips `#` lines gets only the table |
+| Which paywall sells | `/paywall` | The last 28 days: trial starts and direct purchases per paywall trigger (from 1.5.2, which sends the trigger on the sync after a purchase; anything else is "no trigger"), and trial → paid over the trials whose free period ended in the window, with its n. Counts, not significance. Per trigger is counts only: the trigger is never stored with the subscription, so trial → paid by trigger is not readable here (#218) |
 | Start or stop the free-scan experiment | `/lever` | Arms or disarms the first-day allowance without a Railway change or a redeploy. Two taps, clamped, and `/experiment` footnotes any day it moved. It checks a value against the running quota's own daily limit and cap, and refuses to arm when it cannot ask |
 | Make a bad or stranded build update | `/minbuild <n>` | /scan, /listing and /trends answer builds below `n` with a 422 telling them to update from the App Store; `/minbuild off` serves all again. Two taps. Set it only once build `n` is live. /scan and /listing show the message to builds 8 and up; builds 7 and older show fixed copy ("Something went wrong"). /trends is refused too, but the app drops that error silently and the Trending card disappears. /auth is never gated, and a request whose build is unreadable is served. A 422 is a non-paging 4xx: refusals are counted in `snapworth_outdated_build_refused_total`, by endpoint. The access log's `build` field (from the User-Agent) shows who is still on what |
 | Yesterday | The daily digest | Sent automatically at `TELEGRAM_DIGEST_UTC_HOUR` (default 06:00 UTC); a weekly report on Mondays |
@@ -83,7 +84,7 @@ monitoring today, and this table is what is.
 | Path | Purpose | Failure semantics |
 |---|---|---|
 | `/health/live` | Liveness | Checks nothing external — see below |
-| `/health/ready` | Readiness | 503 while starting, draining, or when the cache cannot take a write (unreachable, or full) |
+| `/health/ready` | Readiness | 503 when the cache cannot take a write (unreachable, or full). It would also say 503 before startup completes and after shutdown begins, but uvicorn serves nothing then: it opens the listener after startup and closes it at SIGTERM, so a deploying instance refuses connections instead (§6) |
 | `/health` | Legacy | Retained for compatibility |
 | `/metrics` | Prometheus scrape | Requires `Authorization: Bearer $METRICS_TOKEN`; 404 without it |
 
@@ -346,14 +347,145 @@ availability one.
 1. Check `rate_limited_total` and `quota_exhausted_total`.
 2. Device id is client-supplied and trivially rotated — the real backstop is the
    per-IP limit (`IP_RATE_MAX_REQUESTS`, default 60/hr).
-   It keys on the rightmost `X-Forwarded-For` hop (`ratelimit.client_ip`),
-   which is the caller's own address only while Railway's edge is the one proxy
-   in front of the container. Each process logs `x-forwarded-for carried N
-   hop(s)` the first time it sees each count; app traffic should read 1.
-   **Before putting a CDN or any other proxy in front of Railway** (a proxied
-   DNS record, Railway's CDN), change `client_ip` to take the hop a configured
-   number of places from the right. Otherwise the rightmost hop is the CDN's
-   address and one 60/hr bucket serves every user.
+   **It keys on the first `X-Forwarded-For` entry** (`ratelimit.client_ip`),
+   because Railway's edge writes the whole header: it drops whatever the
+   client sent and writes `client` or `client, edge`. Every line of the
+   header is joined in order, as uvicorn does, so two lines of one entry
+   each are two entries. An IPv4 address keys as itself. An IPv6 one keys
+   as its /64 with any zone id dropped: a /64 is one line's allocation, and
+   keyed per address one IPv6 line was 2^64 buckets. An IPv4-mapped IPv6
+   address keys as the IPv4 one it carries. A first entry that is not an
+   address keys as the one fixed value `unparseable`. With no header, or
+   one with no entry in it, the key is the socket peer. For an IPv4 caller
+   whose entry is a bare address, the key is the client address uvicorn's
+   access log prints, which is what the owner probe below reads. uvicorn
+   drops a port or IPv6 brackets before printing, and the key does not: an
+   entry like `198.51.100.23:5678` prints as the address but keys
+   `unparseable`, which the probe's second check catches.
+
+   *Why, from 2026-09-27.* Until that day the key was the rightmost entry,
+   and then #250's walk: from the right, past Fastly's published ranges and
+   internal addresses, to the first hop that is neither. Both keyed on
+   Railway's edge. With #250 deployed (20:23 UTC), a probe of `POST
+   /auth/challenge` logged `carried 2 hop(s), skipped 0` with the key's hop
+   in `95.173.0.0/16 (global)`, while uvicorn's access log, which prints
+   the leftmost entry, showed the prober's own address. So the second entry
+   is Railway's edge or POP address, not Fastly's, and every user served by
+   that POP shared one 60/hr bucket, which a launch would trip.
+   `95.173.0.0/16` is split among many holders (CDN77, Speedbone and
+   others), so it cannot go on the proxy list either. Forged probes at
+   18:39 and 20:35 UTC, a single `X-Forwarded-For: 203.0.113.7` and a
+   multi-entry `198.51.100.9, 203.0.113.8` sent with `Forwarded:
+   for=192.0.2.60` and `X-Real-IP: 192.0.2.61`, all arrived with the
+   prober's real address leftmost; no forged value was ever leftmost. Every
+   production request that day, from the app, Apple and bots, carried
+   exactly two entries, and no 1- or 3-entry note was logged. The service's
+   `*.up.railway.app` domain answers 404, so no public path skips the
+   stripping edge. [Railway staff](https://station.railway.com/questions/which-header-should-i-rely-on-for-real-c-d78a6f96)
+   give the same rule: take the first `X-Forwarded-For` entry. Not
+   `X-Real-IP`: on the CDN path it holds the CDN's address.
+
+   **The residual risk.** The first entry is the caller only while Railway
+   strips. If Railway ever stops stripping while still sending exactly two
+   entries, the first is whatever the caller wrote: a caller chooses its
+   key, gets a fresh 60/hr bucket for every value, and nothing in the
+   header tells that request from a real one. This limit then bounds
+   nothing. What still applies is App Attest where `REQUIRE_APP_ATTEST` is
+   on, and with it the per-device buckets (item 3), which an unattested
+   caller escapes by rotating its device id; and the daily spend alert once
+   `GEMINI_DAILY_BUDGET_USD` is set (§10). `/auth/challenge`, `/auth/attest`
+   and `/auth/assert` have no other per-caller bound: a challenge key in
+   Redis per call, and an x.509 chain walk per attest, unlimited. Stripping
+   was observed for
+   callers connecting directly. A request that reaches Railway's edge from
+   another CDN's addresses, a Fastly service of one's own say, rests on the
+   same assumption and has not been probed on its own.
+
+   **The owner probe. Run it after any Railway networking change (domains,
+   CDN, regions, a proxied DNS record) and monthly, and record the date and
+   result here.** From outside Railway, on a network whose public address
+   you know:
+
+   ```sh
+   curl -s -o /dev/null -w '%{http_code}\n' -X POST https://api.snapworth.eu/auth/challenge \
+     -H 'X-Forwarded-For: 203.0.113.7'
+   curl -s -o /dev/null -w '%{http_code}\n' -X POST https://api.snapworth.eu/auth/challenge \
+     -H 'X-Forwarded-For: 198.51.100.9, 203.0.113.8' \
+     -H 'Forwarded: for=192.0.2.60' -H 'X-Real-IP: 192.0.2.61'
+   ```
+
+   Then find those two `POST /auth/challenge` lines in uvicorn's access log,
+   in Railway's deploy logs. The client address uvicorn prints is the
+   leftmost entry. **It must be your own public address, the one you
+   connected from, and never `203.0.113.7`, `198.51.100.9` or anything in
+   `192.0.2.0/24`.** And the process's `x-forwarded-for carried …` INFO line
+   must say *the per-IP key is the first entry*, never *a fixed one*, which
+   would mean Railway started writing something that is not a bare address
+   (a port, say) and every caller now shares `unparseable`. The two
+   requests spend two of your address's 60 an hour.
+
+   *The CDN-source case this probe cannot see.* It is sent straight from
+   your network, so it says nothing about a request that reaches Railway's
+   edge from a CDN's addresses, which Railway might trust by source. To
+   check that once: put a CDN service of your own (a Fastly VCL or Compute
+   service, say) in front of `api.snapworth.eu`, have it **set** a
+   different `X-Forwarded-For` on every request, and send 61 `POST
+   /auth/challenge` through it. A 429 on the 61st means Railway replaced
+   the header; 61 answers of 200 mean a CDN customer can choose its key,
+   which is this section's residual risk made real.
+
+   Runs: 2026-09-27, 18:39 and 20:35 UTC, pass.
+
+   *If a forged value is leftmost*, Railway has stopped stripping and the
+   per-IP key is the caller's choice: treat it as an incident. The 3-entry
+   warning below need not have fired, since stripping can fail with two
+   entries. A shared bucket is better than one the caller picks: the first
+   can trip on a busy hour, the second bounds nothing. Find the new shape
+   without logging addresses here (a throwaway Railway service that echoes
+   its request headers, never this one), key `client_ip` on the entry
+   Railway itself writes, counted from the right, and ask Railway what
+   changed. Not a bucket per edge on top: one was tried in #250 and removed
+   before merge, because one caller with 100 addresses could fill it and
+   lock everyone behind that edge out of every limited route for an hour.
+
+   **The 3-entry warning.** A WARNING reading `x-forwarded-for carried <n>
+   hop(s), more than the 2 Railway writes: its stripping failed or the
+   topology changed. …` means Railway's shape broke. No caller can cause it
+   while stripping holds, so it is never a scanner's noise. It is logged
+   once per process, for the first such request, with counts and fixed
+   words only. Those requests are keyed by #250's walk from the right,
+   which skips Fastly's published ranges and internal addresses
+   (`_FASTLY_EDGE_RANGES`, `_INTERNAL_RANGES` in `ratelimit.py`). Railway's
+   edge is on neither list, so on Railway's current shape the walk keys on
+   the edge: everyone on that path shares one 60/hr bucket, but no caller
+   picks its key. What to do: run the owner probe at once. If it fails, the
+   paragraph above. If it passes, something now adds an entry: a proxied
+   DNS record, another CDN, or a Railway change. Remove it, or teach
+   `client_ip` the new shape. Don't raise `_RAILWAY_MAX_HOPS` to quiet the
+   warning: that keys on the leftmost of three, which may be the caller's
+   own.
+
+   **After a deploy, read the log.** Each process logs one INFO line per
+   distinct (entry count, whether the first entry is an address), for the
+   first request that has it, at most four: counts and fixed words, never
+   an address. Production traffic should read
+
+   `x-forwarded-for carried 2 hop(s); the per-IP key is the first entry (Railway strips client values)`
+
+   `carried 1 hop(s)` with the same ending is the same rule on a path that
+   adds no edge entry. App traffic usually logs the line before you do: a
+   `POST /auth/challenge` of your own adds one only if its pair is still
+   new to the process that served it. A line ending **`the per-IP key is a
+   fixed one, as the first entry is not an address`** on app traffic means
+   Railway changed the header's format and everyone shares the one
+   `unparseable` bucket: teach `_parse_hop` the new format.
+
+   **Before putting any other proxy in front of Railway** (a proxied DNS
+   record, another CDN): Railway will see that proxy as the caller and
+   write its address first, so everyone behind one of its POPs shares one
+   bucket; or, if Railway keeps that proxy's header, the 3-entry warning
+   fires. Change `client_ip` for the new shape first, then run the owner
+   probe through the proxy.
 3. The IP bucket is one for every route with a limit — `/scan`, `/listing`,
    `/trends`, `/auth/entitlement`, and the unauthenticated `/auth` routes and
    `/apple/notifications` — so from one address they stop together. The
@@ -432,13 +564,127 @@ after tests pass (`.github/workflows/backend.yml`).
 | Capability | State |
 |---|---|
 | Rolling deploy | Platform-provided |
-| Graceful shutdown | `[DESIGNED]` — implemented, never exercised in production |
+| Graceful shutdown | `[DESIGNED]` — idle shutdowns complete in production; none has yet caught a request in flight, and Railway still SIGKILLs at once (below) |
 | Readiness gating | `[DESIGNED]` — `/health/ready` exists; must be configured as the platform's health path |
 | Blue/green | `[NOT IMPLEMENTED]` |
 | Canary | `[NOT IMPLEMENTED]` |
 | Instant rollback | Railway redeploy of a previous build |
 | Migrations | **None exist.** No relational database; Redis holds durable state (§9) but has no schema to migrate |
 | Feature flags | Env-var based: `SCAN_PROMPT_VERSION`, `COMPS_ENABLED`, `COMPS_SHADOW_MODE`, `ALLOWED_STOREKIT_ENVIRONMENTS`, `SANDBOX_ENTITLEMENTS` |
+
+### Merging
+
+A merge to main is a deploy: `backend.yml` ships every push to main that
+touches `backend/**`, and on 2026-09-27 ten merges redeployed production ten
+times in 80 minutes (#209). So main takes changes through a pull request whose
+checks have passed, and nothing else.
+
+**What is required: two checks on the PR's head commit.**
+
+| Check | Workflow | Why this one |
+|---|---|---|
+| `No secrets in source` | `secrets.yml` | No `paths:`; runs on every PR and every push |
+| `All required checks` | `required.yml` | No `paths:`; passes only when every other check on the head commit passed or was skipped |
+
+`backend.yml`, `ios.yml`, `website.yml` and `eval.yml` are path-filtered, and
+a required check that never starts leaves a PR waiting forever (requiring
+`Build & Test` would block every website-only PR). So none of their jobs is
+required by name; `All required checks` stands in for whichever of them ran.
+It ignores itself, `SwiftLint (report only)`, and anything skipped or neutral
+(`Deploy → Railway` and `Accuracy regression gate` on a PR, `Production does
+what vercel.json says` after a preview deployment). It does not read commit
+statuses, so Vercel's preview status is not a gate. It fails as soon as any
+other check fails, is cancelled, times out or waits for approval, or a
+workflow fails to start, and names it. It passes once `No secrets in source`
+has passed and nothing has been queued or running for 60 s `[DESIGNED]`,
+which is what gives a path-filtered workflow time to register. It gives up
+after 27 min `[DESIGNED]`; `Build & Test` took 5–13 min across 12 runs on
+2026-09-27, not counting any wait for a macOS runner `[MEASURED]`. Its log,
+and its run's summary page, end with a table of every check it saw and the
+verdict on each.
+
+The ruleset that makes the two required is the owner's (#209, step 3):
+ruleset **main** on the default branch, restrict deletions, block force
+pushes, require a pull request with 0 approvals, require both checks (with
+GitHub Actions as their source, so no other app's check of the same name
+counts), no bypass actors. **Until it exists nothing is enforced**, and this
+section is a convention. `gh api repos/hsilviu05/SnapWorth/rulesets` says
+whether it does. "Require branches to be up to date" stays off: with bursts
+of parallel PRs it forces a serial rebase of each one.
+
+**How to merge.**
+
+```bash
+gh pr merge <n> --merge --auto
+```
+
+`--auto` queues the merge and GitHub makes it when the ruleset's required
+checks pass, so nobody has to sit and wait for them. Two things have to be
+true first, both the owner's:
+
+- **Allow auto-merge** is on (Settings → General → Pull Requests). It was
+  off on 2026-09-27, and until it is on `--auto` is refused.
+- The ruleset exists. `--auto` waits for what the ruleset requires and
+  nothing else, so without one there is nothing to wait for.
+
+Until both are true, watch the checks and merge by hand:
+
+```bash
+gh pr checks <n> --watch --fail-fast
+gh pr merge <n> --merge        # only once both checks are green
+```
+
+Claude sessions that merge PRs use `--auto` and never merge around a red or
+pending check. A release bump (`chore: <version>, build <n>`) goes through a
+PR like anything else; some past bumps, e.g. `a84d1d9`, were pushed straight
+to main, which the ruleset refuses.
+
+**A check failed and was re-run green, and `All required checks` is still
+red.** It decides once, so re-run it as well: *Re-run failed jobs* on its run
+in the PR's Checks tab, or
+
+```bash
+gh run list --workflow required.yml --branch <branch> --limit 1   # the run id
+gh run rerun <run-id> --failed
+```
+
+The newest run of each check is the one it counts, so the re-run's pass
+replaces the failure it saw. Do the same when it gave up at 27 min because a
+macOS runner was slow to start. A workflow that failed to start (`no job
+started` in its table) has nothing to re-run: its run in the Actions tab says
+why, usually the workflow file itself, and the fix is a new commit.
+
+A pull request runs its own copy of `required.yml`, so a PR that edits it is
+judged by its edit. Read that diff before merging it.
+
+**In a genuine emergency**, disable the ruleset: production is down and the
+fix cannot wait for the PR's checks (up to ~13 min when the change runs the
+iOS job), or a required check cannot pass for a reason outside the
+repository (GitHub Actions or the gitleaks download is down). Don't delete
+the ruleset: a disabled one keeps its configuration.
+
+1. Settings → Rules → Rulesets → **main** → Enforcement status **Disabled** →
+   Save. Or from a terminal:
+   ```bash
+   gh api repos/hsilviu05/SnapWorth/rulesets --jq '.[] | [.id, .name, .enforcement] | @tsv'
+   gh api -X PUT repos/hsilviu05/SnapWorth/rulesets/<id> -f enforcement=disabled
+   ```
+2. Land the fix, and **say so in its commit message**: that the ruleset was
+   disabled, why, and which checks did not run, so the reason sits in
+   `git log` beside the change it let through.
+3. Re-enable it at once, on the same screen or with `-f enforcement=active`,
+   and confirm with
+   `gh api repos/hsilviu05/SnapWorth/rulesets/<id> --jq '{enforcement, rules: [.rules[].type]}'`
+   that it is `active` and still lists its rules.
+4. The workflows also run on the push to main; read them, and fix what the
+   skipped PR checks would have caught.
+
+Disabling the ruleset does not skip the backend's own deploy gate: on the push
+to main, `Deploy → Railway` still waits for `Test`, `Container builds` and
+`No known-vulnerable dependencies`. With GitHub Actions down nothing reaches
+Railway at all, and the way back is §7's redeploy of a previous build, not a
+merge. A flaky test is not an emergency (re-run it), and neither is a slow
+macOS runner (wait, or re-run).
 
 ### Changing the scan prompt
 
@@ -464,19 +710,93 @@ response has the same fields and types under all three.
    complaint, so this is the check that the change took.
 4. To go back, set `v2` or remove the variable.
 
-### Shutdown sequence (implemented in `main._lifespan`)
+### Shutdown sequence (uvicorn, then `main._lifespan`)
 
-1. SIGTERM reaches uvicorn as PID 1 — this only works because the Dockerfile
-   uses `exec`; without it the shell swallows the signal.
-2. Readiness flips to false → the load balancer stops sending new requests.
-3. In-flight requests drain, up to `DRAIN_TIMEOUT_SECONDS` (default 15s).
-4. DeviceCheck and Redis connections close.
-5. `--timeout-graceful-shutdown 20` gives uvicorn room beyond the drain, and
-   stays under Railway's 30s SIGKILL.
+What a deploy does to the old container, in order.
+`tests/test_graceful_shutdown.py` runs it against the Dockerfile's own
+command line.
+
+1. **SIGTERM** reaches uvicorn as PID 1. This only works because the
+   Dockerfile uses `exec`; without it the shell swallows the signal.
+2. **uvicorn drains the requests in flight.** It closes the listener and idle
+   keep-alive connections, waits up to `--timeout-graceful-shutdown 40` for
+   requests in flight to finish, then cancels any still running.
+3. **Then the lifespan shutdown** (`main._lifespan`). Readiness flips, which
+   nothing reads by now: the listener is closed, and Railway asks the health
+   path only while a new deployment starts. It waits up to
+   `DRAIN_TIMEOUT_SECONDS=5` for the requests uvicorn cancelled to run their
+   cleanup (a cancelled scan hands its free scan back through Redis), then
+   closes the ops bot, DeviceCheck, App Store and Redis clients.
+4. **SIGKILL**, `RAILWAY_DEPLOYMENT_DRAINING_SECONDS` after SIGTERM.
+
+Steps 2 and 3 run one after the other, not side by side (`uvicorn.Server.shutdown`
+sends the lifespan its shutdown only after its own wait), so SIGKILL has to
+come after their sum: 40 + 5, plus under a second to close, so
+**`RAILWAY_DEPLOYMENT_DRAINING_SECONDS=50`**. Until 2026-09-27 this section and
+the Dockerfile described the drain as running inside uvicorn's window, and
+assumed a 30 s Railway grace that is really 0.
+
+That budget assumes a healthy Redis, where the refund and the close each take
+well under a second. Against a Redis that has stopped answering, one call
+takes 4-8 s (`cache.build_redis_client`: a 2 s connect and a 2 s read, retried
+on timeout, behind a health-check PING). The refund then fails however long
+the drain is, and the close, where `notify.aclose` hands back the Telegram
+poll lock through the same Redis, can still be running when SIGKILL lands.
+That is harmless: the refund was lost either way, and the poll lock expires
+on its TTL (`POLL_LOCK_TTL`). The numbers are not sized for a hung Redis.
+
+**Why 40 s.** It outlasts every request someone is still waiting for. The app
+stops waiting on the model 33 s after a request arrives
+(`CLIENT_DEADLINE_SECONDS`), and the phone gives up at 35 s. Measured
+`[MEASURED — production, Railway HTTP logs, 2026-09-20 19:01 → 09-27 18:58 UTC,
+30 deployments]`, edge to edge (`totalDuration`, upload included):
+
+| Route | Requests | p50 | p95 | max | Over 20 s |
+|---|---|---|---|---|---|
+| `POST /scan`, all statuses | 48 | 13.5 s | 18.9 s | 21.6 s | 2 |
+| `POST /scan`, 200 only | 37 | 14.5 s | 19.8 s | 21.6 s | 2 |
+| `POST /listing` | 6 | 4.6 s | 5.5 s | 5.7 s | 0 |
+
+The old window, 20 s, was already shorter than 2 of the 48 scans. At most 2
+scans were in flight at once. The sample is small: five days of the seven had
+fewer than five scans, and 09-26 alone had 25. Re-measure when §11's triggers
+are reviewed.
+
+**Railway settings — owner, dashboard (#207)**
+
+| Setting | Now | Needed |
+|---|---|---|
+| Draining (SIGTERM → SIGKILL) | unset, so Railway's default: **0 s** | **TODO(owner):** `RAILWAY_DEPLOYMENT_DRAINING_SECONDS=50`, as a service variable or the service's Teardown setting |
+| Overlap | unset, so the default: 0 s | Leave at 0. With no overlap, the old deployment gets SIGTERM when the new one goes Active. Overlap would only delay that SIGTERM, and the draining above already covers the longest request in flight |
+| Health-check path | unset | **TODO(owner):** `/health/ready` (#207) |
+| Replicas | 1, region `sfo` | 1 (§11) |
+| `DRAIN_TIMEOUT_SECONDS` | not read here | **TODO(owner):** unset, so the default 5 applies. The startup line prints the value in force: `startup complete — accepting traffic (replica …, shutdown drain 5s)` |
+
+"Now" is from the current deployment's service manifest (`railway deployment
+list --json`, 2026-09-27: `drainingSeconds`, `overlapSeconds` and
+`healthcheckPath` null, `numReplicas` 1). The defaults are Railway's
+documented ones (docs.railway.com/variables/reference: "its default value is
+0" for both; /deployments/reference: "By default, it is given 0 seconds to
+gracefully shutdown before being forcefully stopped with a SIGKILL"). There is
+no `railway.toml` or `railway.json`, and none should be added for this:
+Railway has deprecated config-as-code, which works for existing services
+until 2026-12-01.
+
+**Until draining is set, a deploy is no worse than before.** At 0 s SIGKILL
+follows SIGTERM whatever the app's windows are, so a request in flight is cut
+off now exactly as it was under 15/20. In the 7 days above, 28 of 29 replaced
+deployments logged a complete shutdown, each in under half a second, and none
+logged `Waiting for connections to close`: no deploy caught a request in
+flight, so what 0 s does to one has not been observed. After the owner sets
+it, the next deploy that does catch one logs `Waiting for connections to
+close`, then `shutdown complete` with no `still in flight` warning.
 
 **Required platform configuration:** set the health-check path to
-`/health/ready`. Without it the platform routes traffic to draining and
-still-starting instances, and the graceful shutdown achieves nothing.
+`/health/ready` (#207). Railway calls it only while a new deployment starts,
+and makes that deployment Active, and the old one inactive, once it answers
+2xx. Without it the new container is Active as soon as it starts, before
+uvicorn listens. It is not polled afterwards, so it does not take a draining
+or degraded instance out of rotation.
 
 ---
 
@@ -503,8 +823,9 @@ still-starting instances, and the graceful shutdown achieves nothing.
 |---|---|---|
 | `GEMINI_API_KEY` | On suspicion | §8.2 |
 | `TOKEN_KEYS` | Quarterly | §8.1 — zero-downtime by design |
-| `AUDIT_SALT` | Rarely | Rotating breaks historical correlation, deliberately |
+| `AUDIT_SALT` | Rarely | §8.5 — rotating breaks historical correlation, deliberately |
 | `DEVICECHECK_PRIVATE_KEY` | On suspicion | Apple Developer portal |
+| `TELEGRAM_BOT_TOKEN` | On suspicion | §8.6 — was in production's logs until 2026-09-27 |
 | TLS certificate | Automatic | Let's Encrypt, 90 days, platform-managed |
 
 ### 8.1 Token key rotation (zero downtime)
@@ -623,6 +944,77 @@ Rotate when the key may have been exposed. The blast radius is small by
 construction — a DeviceCheck key can read and write two bits per device and
 nothing else, no user data and no App Store Connect access — so this is
 housekeeping, not an incident, and step 3 matters more than speed.
+
+### 8.5 AUDIT_SALT
+
+The salt keys two things, and each is private only while the salt is secret:
+
+- **Audit pseudonyms** (`auditlog.pseudonymise`): the subject of every audit
+  record, the ids in `/users` and `/subs` rows, the device id `/user` takes,
+  and the support id the app puts in a support mail.
+- **The /trends device tags** (`auditlog.keyed_tag`, since #190), kept beside
+  the categories, brands and finds each device scanned, for as long as the day
+  document (35 days).
+
+Unset, it falls back to `snapworth-audit-v1`, a literal in `auditlog.py`, and
+`.env.example` suggests `change-me-in-production`. Both are in this public
+repository, so with either one, anyone holding a device's key id can recompute
+its pseudonym and its trends tag.
+
+**How it is reported.** In production (`ENVIRONMENT=production`) startup logs
+one ERROR, *AUDIT_SALT is unset or a placeholder this repository publishes…*.
+`🩺 Checkup` reads *Audit salt: ⚠️ placeholder — pseudonyms and trends tags can
+be recomputed (RUNBOOK §8)* until the value is real, then *Audit salt: set ✅*.
+Neither shows the value or anything derived from it. The API still boots on a
+placeholder, unlike a missing `TOKEN_KEYS`: if production runs on the default,
+a refusal would take it down at the next deploy, and changing the salt is a
+decision with costs.
+
+**Setting it: once, deliberately, at a quiet hour.**
+
+1. Generate one: `python3 -c "import secrets;print(secrets.token_urlsafe(32))"`.
+   Paste it straight into Railway's `AUDIT_SALT`, and nowhere else: not a file,
+   a commit or a chat.
+2. After the redeploy, `🩺 Checkup` → *Audit salt: set ✅*, and the startup log
+   has no `AUDIT_SALT` ERROR.
+
+**What changing it costs**, now or at any later rotation:
+
+- Every pseudonym changes. `/users` and `/subs` keep the old ids, and a device
+  appears under its new one the next time it is seen or syncs, so `/users`
+  counts a device active on both sides twice until its old row leaves the
+  30-day window. `/sub` still finds a subscriber by transaction id, but a
+  support id quoted from before the change matches nothing.
+- /trends counts a device that scans on both sides of the change as two, until
+  its week-long window moves past the change.
+- Audit-log correlation across the change breaks, by design.
+- State kept per pseudonym starts over. A device paused for repeated blocked
+  photos (`safety:blocks:*`) is unpaused, and `/user`'s last-sync line is
+  empty until the device syncs again.
+
+### 8.6 Telegram bot token rotation
+
+The Bot API puts the token in every request URL, so anything that logs a URL
+can leak it. Until 2026-09-27 httpx did exactly that on every `getUpdates`
+poll, and `RedactionFilter` passed the URL through because it was not a `str`
+(`observability.RedactionFilter.filter`). Whoever could read the Railway logs,
+or a drain fed from them, could read the token. Rotate once that fix is
+deployed — before it, the new token would be written to the logs too.
+
+Telegram keeps one token per bot, so this is revoke-then-paste, and alerts are
+down for the minutes in between:
+
+1. Telegram → @BotFather → `/mybots` → the bot → **API Token** →
+   **Revoke current token**. The old token stops working immediately.
+2. Railway: set `TELEGRAM_BOT_TOKEN` to the new value (the API redeploys).
+3. GitHub → Settings → Secrets → Actions: set `TELEGRAM_BOT_TOKEN`, the Uptime
+   workflow's copy (§3) — if it has been added yet (#209); otherwise add the
+   new value there, never the old one.
+4. `🩺 Checkup` answers, and a `workflow_dispatch` Uptime run posts to the
+   chat. `TELEGRAM_CHAT_ID` does not change.
+
+Nothing else holds the token: no webhook is registered (the bot polls), and
+the app never sees it.
 
 ---
 
@@ -773,8 +1165,11 @@ The per-hour fair-use cap (§5.8, 60 scans) bounds a burst, not a day: a full
 hour costs ~$0.35. From one address, scans and drafts share 60 requests an
 hour, so drafts take the place of scans under that ceiling rather than adding
 to it. What watches a heavy *day* is the over-budget alert, which is why
-`GEMINI_DAILY_BUDGET_USD` is on the launch checklist (§12). None of this is
-measured per subscriber; `/costs` has no per-subscriber view.
+`GEMINI_DAILY_BUDGET_USD` is on the launch checklist (§12). The table above
+is an estimate. `/costs`' Pro block (#219) measures it: spend split by tier,
+Pro scans per device-day and the three heaviest devices, with net revenue at
+`APPLE_COMMISSION` (default 0.15). A measured row belongs here once it has
+weeks of production data behind it.
 
 ### Optimisations, ranked by value
 
@@ -811,18 +1206,97 @@ measured per subscriber; `/costs` has no per-subscriber view.
 
 ## 11. Scaling audit
 
+### Decision: one worker, one replica (2026-09-27, #211)
+
+One uvicorn worker (`backend/Dockerfile`, `--workers 1`) in one Railway
+replica (`numReplicas: 1`, from the deployment manifest, §6). Traffic is
+nowhere near needing more: 48 scans in 7 days, at most 2 at once
+`[MEASURED]` (§6). A scan spends its time waiting on the model, and one event
+loop waits on any number at once. A second replica would add nothing, and
+would bring the per-process state listed below into play.
+
+Revisit on one of these, not before. The thresholds are judgements
+`[ESTIMATED]`, not measurements:
+
+| Trigger | Where to read it | Threshold |
+|---|---|---|
+| Requests queue | `duration_ms` on `/scan` in the access log (printed with `LOG_FORMAT=json`), or `totalDuration` in Railway's HTTP logs (`railway logs --http`) | p95 above 25 s over a day. Rule out the model first: a slow provider makes every scan slow, and a replica does not help with that |
+| CPU or memory | Railway's service metrics | CPU at the replica's limit, or memory above 75% of it, for 15 minutes |
+| Requests in flight | `snapworth_http_in_flight` on `/metrics` (needs `METRICS_TOKEN`; nothing scrapes it, §1b) | Above 20 whenever it is sampled during busy hours. Each in-flight `/scan` can hold a 20 MB body |
+
+Do not add a replica to absorb Haul bursts: the rate-limit bucket, not
+concurrency, is what limits a haul (#187, *Known limits*).
+
+A second **worker** (`--workers 2`) is a second process in the same
+container. Everything in the checklist below applies to it exactly as to a
+second replica, and Railway cannot see it.
+
 | Area | State | Note |
 |---|---|---|
 | Async correctness | ✅ | No blocking I/O on the event loop |
-| Redis pooling | ✅ | `max_connections=50`, bounded timeouts |
+| Redis pooling | ✅ | `max_connections=50` per process, bounded timeouts |
 | Redis memory | ⚠️ Unverified | Needs `maxmemory` at ~75% of the Redis service's memory and `maxmemory-policy noeviction`. Neither value is recorded anywhere or known to be set on Railway — check with `CONFIG GET maxmemory*`. `🩺 Checkup` prints usage, policy, evictions and persistence, and warns on each unsafe value. Growth ~50 MB per 10k users `[ESTIMATED]` |
 | DeviceCheck pooling | ✅ Fixed | Was a new TLS handshake per call |
-| Worker count | 1/container | Correct for I/O-bound work; scale by containers |
+| Worker count | 1 worker × 1 replica | By decision, above |
 | Rate limiting | ✅ | Redis-backed, Lua-atomic; degrades to per-process |
 | Cold start | ~2-3s `[ESTIMATED]` | Dominated by imports |
 | Backpressure | ⚠️ Partial | Rate limits only; no queue-depth shedding |
-| Autoscaling | Platform | Scale on **p95 latency, not CPU** — the service is I/O-bound, so CPU stays flat while requests queue |
-| Thread safety | ✅ | Metrics under lock; no shared mutable state elsewhere |
+| Autoscaling | None, by decision | Railway runs the replica count it is given; nothing scales it. A second replica is a manual change, made after a trigger above and the checklist below. When it is made, watch **p95 latency, not CPU**: the service is I/O-bound, so CPU stays flat while requests queue |
+| Thread safety | ✅ | Metrics under lock. Other module state is touched only from the one event loop. It is per-process, which is the checklist below |
+
+### Before a second replica or worker
+
+Line numbers are at the commit that wrote this list; the symbol names are what
+to search for after they drift.
+
+**Already safe with two:**
+
+- **Durable state fails closed.** A `required` cache call on a configured
+  Redis that is failing raises rather than trust this process's memory
+  (`ResilientCache._call`, `cache.py:230-242`), so no replica grants quota or
+  entitlements from its own copy.
+- **Tokens verify anywhere.** Production refuses to start without
+  `TOKEN_KEYS` (`tokens.py:170-178`), so a token one replica signs, another
+  accepts.
+- **Rate limits are shared.** A Redis sliding window whose members carry a
+  per-instance nonce (`RedisRateLimiter`, `ratelimit.py:248`, `:257`), so two
+  replicas cannot overwrite each other's entries. `/health` reports
+  `rate_limiter.distributed`.
+- **One Telegram poller.** An NX lock, `opslock:tgpoll`, TTL 90 s
+  (`notify.py:163-168`), taken and renewed by `_hold_poll_lock`
+  (`notify.py:2077`) before each poll (`notify.py:2227`), and released at
+  shutdown (`_release_poll_lock`, `notify.py:2091`). Checkup says whether this
+  replica holds it (`notify.py:5379`).
+- **Once-a-day messages go once.** Digest, weekly report, budget alert and
+  quiet note each claim a cache key with `add` before sending
+  (`notify.py:1727`, `:2978`, `:3482`, `:5419`). Every replica runs the digest
+  and watch loops (`notify.py:1841`, `:5449`); the claim is what stops the
+  second.
+- **Counters add up.** The daily tallies behind `/status`, `/costs` and the
+  digest are Redis `incr`s (`_bump`, `notify.py:891`), as is the safety-block
+  count (`_safety_key`, `main.py:378`).
+
+**Per-process, and what to do about each:**
+
+| Item | Code | With two | Decision |
+|---|---|---|---|
+| Model health | `_ModelHealth`, `main.py:2716-2778`; read by `/health` (`main.py:1461`) and `/status`/Checkup via `_status_snapshot` (`main.py:512`) | Each replica knows only the scans it served. `/health` depends on which replica answers, and `/status` shows the poller's | **Accept.** Both call the same provider, so both go degraded within `MODEL_UNHEALTHY_AFTER` (2) failures of a real outage, and Checkup probes Gemini live. `/status` and Checkup name the replica (`REPLICA_ID`, `main.py:185`) |
+| Alert throttle | `_alert_last_sent`, `_alert_awaiting_recovery`, `notify.py:724-728` | Each replica alerts once: one message per replica | **Accept.** Chosen there, to keep a cache round trip off the failure path |
+| Redis down/up announcements | `_cache_state_generation`, `cache_state_changed`, `notify.py:1650-1667` | Each replica announces its own view | **Accept**, for the same reason |
+| Rate-limit fallback | `_device_memory`, `_ip_memory`, `main.py:869-870`, wired in `_init_rate_limiters` (`main.py:886`); `ResilientRateLimiter` degrades at `ratelimit.py:271-306` | While Redis is down each replica keeps its own window: N× the limit | **Accept.** Bounded, logged at ERROR, and `/health` reads degraded. New buckets must be Redis-backed like these, or a second replica silently doubles them |
+| Cache fallback for non-`required` calls | `ResilientCache._call` falls through to the in-process store, `cache.py:247` | While Redis is down, dedupe claims and counters split per replica: a digest can go twice | **Accept.** Only during an outage, which is announced |
+| Poll lock under cache errors | `_hold_poll_lock` returns True on an exception, `notify.py:2087-2088` | While Redis is down both replicas poll; Telegram answers each with a share of the updates | **Accept.** Chosen there: a duplicated reply beats a bot that never answers |
+| Metrics | `metrics.registry`, `metrics.py:283`, including `http_in_flight` (`metrics.py:312`) | Each scrape reads one replica | **Accept.** Nothing scrapes it (§1b). Read the in-flight trigger on each replica |
+| Background tasks | `notify._tasks` (`notify.py:690`: alert sends, counter bumps), `auth._background` (`auth.py:605`, the DeviceCheck exhausted mark), `quota._background` (`quota.py:40`, the welcome mark) | Per-process by nature. None is in `http_in_flight`, so the shutdown drain does not wait for them, and `notify.aclose` cancels its own (`notify.py:781`). The comps shadow, off in production, gets its own 1 s drain (`comps/shadow.py:188`) | **Accept.** A per-deploy loss, not a per-replica one: a deploy landing inside one loses that write, each a round trip of under a second |
+| Redis connections | `DEFAULT_REDIS_MAX_CONNECTIONS = 50` for the cache (`cache.py:306`), plus a client per rate limiter with redis-py's default pool (`ratelimit.py:331`; two limiters, `main.py:886`) | Three pools per process | **Accept.** Check Redis's `maxclients` against processes × pools when the count changes |
+| Outbound HTTP clients | DeviceCheck (`devicecheck.py:307`), App Store status (`appstorestatus.py:617`), Gemini (`aiconfig.py:258`) | A pool each per process | **Accept** |
+| Request bodies | `MAX_REQUEST_BYTES`, 20 MB, `main.py:626` | Held in the process serving the request | **Accept.** Size memory per process; it is the memory trigger above |
+| Log-once set | `_HOP_COUNTS_SEEN`, `ratelimit.py:71` | Each replica logs its own first sighting | **Accept** |
+| Readiness | `_ready`, `main.py:352` | Per process by nature | Nothing to do |
+
+Nothing in the list has to move to a cache key first. Each per-process item
+either duplicates a message or is bounded while Redis is down, and none of
+them grants anything.
 
 ---
 
@@ -843,15 +1317,20 @@ measured per subscriber; `/costs` has no per-subscriber view.
       explaining that it fails closed, which is precisely the existence the
       404-not-401 design below is hiding. Also publishes the
       `/apple/notifications` trust model and every request body's constraints.
-- [ ] `AUDIT_SALT` set to a real value
+- [ ] `AUDIT_SALT` set to a real value — **unset or a placeholder, pseudonyms
+      and /trends device tags can be recomputed** by anyone with a key id
+      (§8.5). Production still boots, with one ERROR in the startup log, and
+      `🩺 Checkup` reads *Audit salt: ⚠️ placeholder — pseudonyms and trends
+      tags can be recomputed (RUNBOOK §8)* until it is set, then *Audit salt:
+      set ✅*. Read §8.5 before changing it: it has costs
 - [ ] `GEMINI_DAILY_BUDGET_USD` set — **unset, the over-budget alert is off**
       (0 disables it), and it is the only thing that notices a heavy day: Pro
       is sold as unlimited scans and capped only per hour (§5.8, §10). Size it
       at a few times a normal day's spend on `/costs`; crossing it sends one
       💸 message and changes nothing else. `🩺 Checkup` reads *Spend alert:
       OFF ⚠️* until it is set
-- [x] ~~`TRUSTED_PROXY=true`~~ — **no longer read.** `_client_ip` now always takes the
-      rightmost `X-Forwarded-For` hop, so the per-IP limit no longer depends on this
+- [x] ~~`TRUSTED_PROXY=true`~~ — **no longer read.** `_client_ip` always reads
+      `X-Forwarded-For` the same way (§5.8), so the per-IP limit no longer depends on this
       variable being remembered. The old note here was also wrong about the failure:
       unset did not collapse everyone into one bucket, it gave each caller a bucket of
       their own choosing (uvicorn runs with `--forwarded-allow-ips='*'`, which makes
@@ -1202,8 +1681,8 @@ Production now honours Sandbox, **bounded**. Two separate settings:
   from iPhone to iPad on one Sandbox account is the case this exists for. A
   reinstall on the same phone (same `device_id`) takes it over silently. Each
   move logs `sandbox entitlement moved to another device`.
-- **Not a customer.** No `/subs` row, no MRR, no `new_subs` count in the
-  digest or `/status`, no "New Pro" / trial / "Subscription ended" alert, no
+- **Not a customer.** No `/subs` row, no MRR, no trial-start or paid count in
+  the digest or `/status`, no "New Pro" / trial / "Subscription ended" alert, no
   referral reward. It shows in the logs instead: the audit event
   `entitlement.recorded` with `environment=Sandbox`, and `sandbox entitlement
   recorded on bounded terms`. Usage figures — scans, active users, the Pro

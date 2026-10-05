@@ -2,7 +2,7 @@
 
 English (`en-US`), the primary storefront. The app also ships in Romanian,
 Spanish, German and Simplified Chinese, each with its own listing beside this
-one — `app_store_listing.ro.md`, `.es.md`, `.de.md`, `.zh-Hans.md`. Those three are metadata for an
+one — `app_store_listing.ro.md`, `.es.md`, `.de.md`, `.zh-Hans.md`. Those four are metadata for an
 app that is translated; the listing and the interface ship together, because a
 localized store page that opens an English app is worse than neither.
 
@@ -39,7 +39,7 @@ Every locale follows these; the translated files point here.
   *precisă*, *exacta*, *precisa*, *genau*, *exakt*, *准确*, *精准*. No accuracy
   figure has ever been measured (`docs/EVALUATION.md`: "zero measurements
   taken"). Until one is, the estimate is an AI estimate with a range and a
-  confidence score, and nothing stronger. "Accurate" sat in the description
+  confidence level, and nothing stronger. "Accurate" sat in the description
   from a26e321 until 1.5.1 and was live on the US store.
 * **"Unlimited scans" without its fair-use qualifier** — in every locale, and
   in the paywall's footnote it mirrors. Pro scans are capped per device per
@@ -52,6 +52,14 @@ Every locale follows these; the translated files point here.
   whether the brand was read, how tight the range is, how clear the photo is,
   the category, and — at low weight — the model's own certainty. Describe it
   as how strongly the photo and the identification back the estimate.
+* **Confidence as a score or a number.** A result shows a band — High,
+  Medium or Low confidence (`snapConfidencePhrase`) — and the site says
+  "confidence level" (`website/seo/build_seo.py`). The 0–100 figure behind the
+  band is Pro detail inside *Why this price*. Every locale names the band:
+  *Confidence level*, *Nivel de încredere*, *Nivel de confianza*,
+  *Sicherheit (hoch, mittel oder gering)*, *置信度（高、中等、低）* — the last
+  two in the app's own band words (`High confidence` in `App.json`). Never
+  *score*, *scor*, *puntuación*, *Punktzahl* or *分数*.
 
 The care-tag line's comparative ("sharper"; *mai exactă*, *genauere*, *更准* in
 the translations) is also unmeasured. It stays as the app words it, because
@@ -59,15 +67,17 @@ the listing mirrors the app: change "Read the care tag for a sharper estimate"
 in `ios/Localization/App.json` first if it changes.
 
 ## App name (30 chars max)
-SnapWorth: Resale Value
+SnapWorth: Resell & Flip
 
-**Live is "SnapWorth: Resell & Flip" (24 chars).** Decide which one 1.5.1
-carries, delete the other line, and pick the keyword line below that matches:
-`resale` and `value` are only safe to leave out of the keywords while they are
-in the name.
+24 characters. The live name, kept for 1.5.1 (owner, 2026-09-28). The
+alternative was "SnapWorth: Resale Value", which would have put `resale` and
+`value` in the name; with this name they have to be in the keywords, so the
+keyword line below carries them.
 
 ## Subtitle (30 chars max)
 Thrift Store Flip Scanner
+
+25 characters.
 
 The previous subtitle, "Resale Value in Seconds", repeated the two words
 already in the app name — the one field Apple both indexes for search *and*
@@ -104,7 +114,7 @@ or market data — SnapWorth has no such source.
 
 ---
 
-## Description
+## Description (4000 chars max; 2,894 with line breaks)
 
 Ever picked up something at a thrift store and wondered if it's actually worth something? SnapWorth tells you instantly.
 
@@ -126,7 +136,7 @@ HOW IT WORKS
 WHAT YOU GET
 
 • Instant resale value — an estimated low-to-high range for your item
-• Confidence score — how strongly the photo and the identification back the estimate
+• Confidence level — how strongly the photo and the identification back the estimate
 • AI listing draft — a ready-to-post title and description with every scan
 • Thrift Flip — scan an item, add its shelf price, and see what you'd make after marketplace fees before you buy
 • Scan history — every find saved automatically with its value
@@ -151,14 +161,15 @@ SnapWorth is free to try — no account needed. You get one free scan every day,
 
 Pro adds:
 • Unlimited scans (fair use applies)
+• Haul mode — snap item after item while each is valued, with a running total
 • Listing drafts rewritten for the marketplace you pick — eBay, Poshmark, Mercari, Depop, Facebook Marketplace, Vinted, OLX, Kleinanzeigen or Xianyu
 • Why this price — the full breakdown behind an estimate, including the price ladder and what drove the value
 • Read the care tag — photograph the label for a sharper estimate
-• Portfolio value, trend and thrift trends
+• Portfolio value history and thrift trends
 • Your profit ledger — what you paid, what it sold for, and what you actually made after fees, with CSV export
 
 • Monthly: $4.99/month
-• Yearly: $39.99/year (3-day free trial included)
+• Yearly: $39.99/year — includes a free trial; its length is shown before you subscribe
 
 Cancel anytime from your iPhone settings.
 
@@ -178,24 +189,18 @@ snapworth.eu
 ---
 
 ## Keywords (100 chars max)
-reseller,secondhand,vintage,goodwill,poshmark,mercari,depop,ebay,thrifting,worth,price,profit,sell
-
-98 characters, for the name "SnapWorth: Resale Value". Words already in the
-app name or subtitle (resale, value, thrift, store, flip, scanner) are indexed
-from there and were dropped to make room. Poshmark, Mercari and Depop are
-searched by exactly this audience and are honest claims from 1.3.4. Vinted
-was dropped as a keyword only; it is still supported and still named in the
-description.
-
-**If the name stays "SnapWorth: Resell & Flip"**, `resale` and `value` — the
-category's two main search terms — are in neither the name nor the keywords
-on the live store. Use this line instead (97 characters):
-
 resale,value,secondhand,vintage,goodwill,poshmark,mercari,depop,ebay,thrifting,worth,price,profit
 
-It drops `reseller` and `sell`, the two nearest to the name's "Resell". That
-is a judgment, not a measurement: check Acquisition → Sources → Search terms
-a week after it goes live.
+97 characters, for the name "SnapWorth: Resell & Flip". `resale` and `value`,
+the category's two main search terms, are in neither the name nor the
+subtitle, so they lead here. Words already in the name or subtitle (resell,
+flip, thrift, store, scanner) are indexed from there and are not repeated.
+`reseller` and `sell` were dropped to make room: they are the two nearest to
+the name's "Resell". That is a judgment, not a measurement: check Acquisition
+→ Sources → Search terms a week after it goes live. Poshmark, Mercari and
+Depop are searched by exactly this audience and are honest claims from 1.3.4.
+Vinted was dropped as a keyword only; it is still supported and still named in
+the description.
 
 ## Category
 Primary: Shopping
@@ -255,29 +260,68 @@ Happy hunting! Got a feature request? Email her.silviu.i@gmail.com
 Metadata is per version and a version in review cannot be edited, so all of
 this goes onto 1.5.1 before it is submitted.
 
-- [ ] **Add the four localizations** — Romanian, Spanish, German, Simplified
-      Chinese — and paste each from its own file: name, subtitle, keywords,
-      description, promotional text. The 1.5.1 What's New per locale comes
-      from `RELEASE-NOTES-1.5.1.md` once it exists.
-- [ ] **App name**: decide (see *App name* above) and record the answer here.
-- [ ] **Keywords** (`en-US`): the line that matches the name.
+- [ ] **TODO(owner): before overwriting anything, record the live subtitle
+      and keywords** — on #202 and in *The live store is not this file*
+      above. The 2026-09-26 check read only the name and the description;
+      once 1.5.1 is pasted, the old values are gone.
+- [ ] **Add five localizations** and paste each from its own file: name,
+      subtitle, keywords, description, promotional text.
+      * Romanian — `app_store_listing.ro.md`
+      * German — `app_store_listing.de.md`
+      * Simplified Chinese — `app_store_listing.zh-Hans.md`
+      * Spanish (Spain) — `app_store_listing.es.md`
+      * **Spanish (Mexico)** — `app_store_listing.es.md` again, with the
+        *offer-led* promotional text instead of the primary (which names
+        euros). Spanish (Spain) reaches the Spain storefront only. Spanish
+        (Mexico) is the default language of Mexico and fifteen other Latin
+        American storefronts, and a supported one in Belize, Uruguay and the
+        US; without it, none of them searches the Spanish keywords. Reasons
+        and Apple's sources are in the Spanish file, *Spanish (Spain) and
+        Spanish (Mexico)*.
+
+      The 1.5.1 What's New per locale comes from `RELEASE-NOTES-1.5.1.md`;
+      Spanish (Mexico) takes the Spanish one.
+- [ ] **Keywords are pasted as written**: ASCII commas with no spaces.
+      Apple's reference gives the keyword limit as 100 *bytes*, not
+      characters; every Latin-script line fits either way, and the Chinese
+      one does not — see *Keywords* in `app_store_listing.zh-Hans.md` for
+      what to paste if App Store Connect refuses it.
+- [x] **App name**: decided 2026-09-28: keep "SnapWorth: Resell & Flip" (see
+      *App name* above). Nothing to change in App Store Connect.
+- [ ] **Keywords** (`en-US`): paste the one line under *Keywords* above,
+      which now matches the name.
 - [ ] **Description** (`en-US`): re-paste in full. Against the live
       copy it names nine marketplaces rather than seven, and adds the
       stickers, Thrift Flip and widgets lines, the new confidence wording,
       and drops "accurate".
-- [ ] **Description** (other four locales): paste in full; each gained the
+- [ ] **Description** (other locales): paste in full; each gained the
       same Thrift Flip, widgets and confidence lines.
-- [ ] **"Unlimited scans (fair use applies)"** is new in all five
-      descriptions. The cap it qualifies is the server's (RUNBOOK §5.8), not
-      the binary's, so the line is true whichever build is live.
+- [ ] **The Pro list changed in all five for 1.5.1**, each line in the
+      locale's own paywall wording (`ios/Localization/App.json`):
+      * *Haul mode* is new. **If #93's device checks hold Haul back, delete
+        the Haul line from every locale before pasting** (and the Haul frame
+        from the screenshots).
+      * The portfolio line is now *Portfolio value history and thrift
+        trends*: the total is free on everyone's History tab; only its
+        history and the trends are Pro.
+      * "Unlimited scans (fair use applies)" mirrors the paywall's fair-use
+        footnote. The cap it qualifies is the server's (RUNBOOK §5.8), not
+        the binary's, so the line is true whichever build is live.
+- [ ] **The trial line names no length**, in any locale. The paywall shows
+      the trial StoreKit returns, so its length is purely an App Store
+      Connect setting now: changing it no longer leaves the store page
+      wrong until the next version.
+- [ ] **"Confidence level"**, not "score", in English; each translation uses
+      a band word (see *Claims this listing does not make*).
 - [ ] **App Privacy** (app-level, not per version, but it must match the
       manifest in the 1.5.1 binary): add Purchases → Purchase History, used
       for App Functionality, linked to the user, not used for tracking. The
       reasoning is in `ios/SnapWorth/PrivacyInfo.xcprivacy`.
 - [ ] After release, open apps.apple.com/de/app/id6788521307 (and `/es`,
-      `/ro`, `/cn`) and confirm the page is in that language — or re-run the
-      iTunes lookup above per storefront.
+      `/mx`, `/ro`, `/cn`) and confirm the page is in that language — or
+      re-run the iTunes lookup above per storefront, adding `mx`.
 
 The new translated lines — confidence, Thrift Flip and widgets in each of the
-four files — were written without a native reader; have each read once
-before pasting.
+four files, and the 1.5.1 lines each file lists under *Native reader* — were
+written without a native reader; have each read once before pasting.
+**TODO(owner):** record the reader, or "no native reader", in each file.

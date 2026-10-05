@@ -118,6 +118,13 @@ enum AnalyticsEvent {
     // ── Thrift Flip ──────────────────────────────────────────────────
     case thriftFlipCalculated(verdict: String)
 
+    // ── Easter eggs ──────────────────────────────────────────────────
+    /// The rare-find reveal was put on screen (see `RareFind`). Deliberately
+    /// no parameters: not the item, not the estimate, and not which of the
+    /// random lines were drawn. The detection that earned it ran on-device and
+    /// sent nothing anywhere.
+    case rareFindEasterEggShown
+
     // ── Haul mode (#93) ──────────────────────────────────────────────
     /// The haul summary was reached. `items` is a bucket from
     /// `haulSizeBucket`, never the count — see there.
@@ -190,6 +197,13 @@ enum AnalyticsEvent {
     /// from a healthy one — the failure only surfaces later, as a review.
     case persistentStoreFallback(reason: String)
 
+    // ── Response contract ────────────────────────────────────────────
+    /// An optional `/scan` field arrived with a type the app could not read
+    /// and was dropped rather than failing the scan (#222). `field` is the
+    /// wire key, one of the fixed `ScanAPIResponse.CodingKeys`, never the
+    /// value — so server-side type drift shows here before a user reports it.
+    case scanFieldUndecodable(field: String)
+
     /// The wire name sent off-device.
     var name: String {
         switch self {
@@ -226,6 +240,7 @@ enum AnalyticsEvent {
         case .referralCodeAccepted: return "referral_code_accepted"
         case .referralRewardOpened: return "referral_reward_opened"
         case .thriftFlipCalculated: return "thrift_flip_calculated"
+        case .rareFindEasterEggShown: return "rare_find_easter_egg_shown"
         case .haulCompleted:        return "haul_completed"
         case .haulShared:           return "haul_shared"
         case .ledgerItemMarkedSold: return "ledger_item_marked_sold"
@@ -240,6 +255,7 @@ enum AnalyticsEvent {
         case .reviewPromptRequested: return "review_prompt_requested"
         case .persistentStoreFallback: return "persistent_store_fallback"
         case .certificatePinMismatch: return "certificate_pin_mismatch"
+        case .scanFieldUndecodable: return "scan_field_undecodable"
         case .crashReported:        return "crash_reported"
         case .hangReported:         return "hang_reported"
         case .launchTimeReported:   return "launch_time_reported"
@@ -311,6 +327,8 @@ enum AnalyticsEvent {
             return ["reason": reason]
         case let .certificatePinMismatch(enforced):
             return ["enforced": String(enforced)]
+        case let .scanFieldUndecodable(field):
+            return ["field": field]
         default:
             return [:]
         }

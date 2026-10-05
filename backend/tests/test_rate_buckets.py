@@ -30,7 +30,7 @@ _addresses = count(1)
 def _fresh_ip() -> dict:
     """A caller address no other request in this run has used.
 
-    `client_ip` keys the IP bucket on the rightmost forwarded hop, so this
+    `client_ip` keys the IP bucket on the forwarded client address, so this
     keeps the shared IP cap out of a test that is about a device bucket."""
     n = next(_addresses)
     return {"x-forwarded-for": f"198.51.{n // 250}.{n % 250 + 1}"}

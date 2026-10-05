@@ -7,6 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		5A4ED0000000000000000003 /* WidgetModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A4ED0000000000000000002 /* WidgetModel.swift */; };
+		5A4ED0000000000000000004 /* WidgetModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A4ED0000000000000000002 /* WidgetModel.swift */; };
 		1DF043BB3003EE710072D4A8 /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 1DF043BA3003EE700072D4A8 /* WidgetKit.framework */; };
 		1DF043BD3003EE710072D4A8 /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 1DF043BC3003EE710072D4A8 /* SwiftUI.framework */; };
 		1DF043CE3003EE710072D4A8 /* SnapWorthWidgetsExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 1DF043B83003EE700072D4A8 /* SnapWorthWidgetsExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
@@ -28,6 +30,10 @@
 		FEED000000000000000000B3 /* MarketplaceFees.swift in Sources */ = {isa = PBXBuildFile; fileRef = FEED000000000000000000A3 /* MarketplaceFees.swift */; };
 		1ED6E4000000000000000001 /* LedgerMath.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1ED6E4000000000000000002 /* LedgerMath.swift */; };
 		FEED000000000000000000B2 /* PriceTagOCR.swift in Sources */ = {isa = PBXBuildFile; fileRef = FEED000000000000000000A2 /* PriceTagOCR.swift */; };
+		EA57E0000000000000000B01 /* RareFind.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA57E0000000000000000A01 /* RareFind.swift */; };
+		EA57E0000000000000000B02 /* RareFindViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA57E0000000000000000A02 /* RareFindViews.swift */; };
+		EA57E0000000000000000B03 /* RareFindTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA57E0000000000000000A03 /* RareFindTests.swift */; };
+		EA57E0000000000000000B04 /* rare-find-reference-shirt.png in Resources */ = {isa = PBXBuildFile; fileRef = EA57E0000000000000000A04 /* rare-find-reference-shirt.png */; };
 		FEED000000000000000097B1 /* ReferralService.swift in Sources */ = {isa = PBXBuildFile; fileRef = FEED000000000000000097A1 /* ReferralService.swift */; };
 		FEED000000000000000091B1 /* ListingPhotoCleanup.swift in Sources */ = {isa = PBXBuildFile; fileRef = FEED000000000000000091A1 /* ListingPhotoCleanup.swift */; };
 		FEED000000000000000000B1 /* ListingService.swift in Sources */ = {isa = PBXBuildFile; fileRef = FEED000000000000000000A1 /* ListingService.swift */; };
@@ -119,6 +125,7 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		5A4ED0000000000000000002 /* WidgetModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetModel.swift; sourceTree = "<group>"; };
 		1DF043B83003EE700072D4A8 /* SnapWorthWidgetsExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = SnapWorthWidgetsExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		1DF043BA3003EE700072D4A8 /* WidgetKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WidgetKit.framework; path = System/Library/Frameworks/WidgetKit.framework; sourceTree = SDKROOT; };
 		1DF043BC3003EE710072D4A8 /* SwiftUI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SwiftUI.framework; path = System/Library/Frameworks/SwiftUI.framework; sourceTree = SDKROOT; };
@@ -141,6 +148,10 @@
 		FEED000000000000000000A3 /* MarketplaceFees.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarketplaceFees.swift; sourceTree = "<group>"; };
 		1ED6E4000000000000000002 /* LedgerMath.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LedgerMath.swift; sourceTree = "<group>"; };
 		FEED000000000000000000A2 /* PriceTagOCR.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PriceTagOCR.swift; sourceTree = "<group>"; };
+		EA57E0000000000000000A01 /* RareFind.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RareFind.swift; sourceTree = "<group>"; };
+		EA57E0000000000000000A02 /* RareFindViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RareFindViews.swift; sourceTree = "<group>"; };
+		EA57E0000000000000000A03 /* RareFindTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RareFindTests.swift; sourceTree = "<group>"; };
+		EA57E0000000000000000A04 /* rare-find-reference-shirt.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "rare-find-reference-shirt.png"; sourceTree = "<group>"; };
 		FEED000000000000000097A1 /* ReferralService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReferralService.swift; sourceTree = "<group>"; };
 		FEED000000000000000091A1 /* ListingPhotoCleanup.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ListingPhotoCleanup.swift; sourceTree = "<group>"; };
 		FEED000000000000000000A1 /* ListingService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ListingService.swift; sourceTree = "<group>"; };
@@ -245,6 +256,14 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		5A4ED0000000000000000001 /* Shared */ = {
+			isa = PBXGroup;
+			children = (
+				5A4ED0000000000000000002 /* WidgetModel.swift */,
+			);
+			path = Shared;
+			sourceTree = "<group>";
+		};
 		1DF043B93003EE700072D4A8 /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
@@ -317,6 +336,7 @@
 				AA00000000000000000000CE /* ScanAPIClient.swift */,
 				AA0000000000000000000112 /* ScanRepository.swift */,
 				FEED000000000000000000A2 /* PriceTagOCR.swift */,
+				EA57E0000000000000000A01 /* RareFind.swift */,
 				FEED000000000000000097A1 /* ReferralService.swift */,
 				FEED000000000000000091A1 /* ListingPhotoCleanup.swift */,
 				FEED000000000000000000A1 /* ListingService.swift */,
@@ -378,6 +398,7 @@
 				ADD1EC0000000000000000B9 /* FlipsView.swift */,
 				FEED000000000000000000A5 /* ThriftFlipView.swift */,
 				FEED000000000000000097A2 /* ReferralViews.swift */,
+				EA57E0000000000000000A02 /* RareFindViews.swift */,
 				FEED000000000000000093A2 /* HaulView.swift */,
 			);
 			path = Views;
@@ -390,6 +411,7 @@
 				AA0000000000000000000103 /* SnapWorthTests */,
 				1DF043BE3003EE710072D4A8 /* SnapWorthWidgets */,
 				5C1C4E000000000000000003 /* SnapWorthStickers */,
+				5A4ED0000000000000000001 /* Shared */,
 				1DF043B93003EE700072D4A8 /* Frameworks */,
 				AA00000000000000000000AC /* Products */,
 			);
@@ -410,7 +432,9 @@
 				AA0000000000000000000102 /* SnapWorthTests.swift */,
 				BB0000000000000000000A02 /* ProductionHardeningTests.swift */,
 				BB0000000000000000000F02 /* MigrationTests.swift */,
+				EA57E0000000000000000A03 /* RareFindTests.swift */,
 				FEED000000000000000091A2 /* ListingPhotos */,
+				EA57E0000000000000000A04 /* rare-find-reference-shirt.png */,
 			);
 			path = SnapWorthTests;
 			sourceTree = "<group>";
@@ -587,6 +611,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				FEED000000000000000091B2 /* ListingPhotos in Resources */,
+				EA57E0000000000000000B04 /* rare-find-reference-shirt.png in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -597,6 +622,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				5A4ED0000000000000000004 /* WidgetModel.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -604,6 +630,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				5A4ED0000000000000000003 /* WidgetModel.swift in Sources */,
 				AA00000000000000000000C1 /* SnapWorthApp.swift in Sources */,
 				AA00000000000000000000C3 /* Config.swift in Sources */,
 				AA00000000000000000000C5 /* DesignSystem.swift in Sources */,
@@ -631,6 +658,7 @@
 				FEED000000000000000000B3 /* MarketplaceFees.swift in Sources */,
 				1ED6E4000000000000000001 /* LedgerMath.swift in Sources */,
 				FEED000000000000000000B2 /* PriceTagOCR.swift in Sources */,
+				EA57E0000000000000000B01 /* RareFind.swift in Sources */,
 				FEED000000000000000097B1 /* ReferralService.swift in Sources */,
 				FEED000000000000000091B1 /* ListingPhotoCleanup.swift in Sources */,
 				FEED000000000000000000B1 /* ListingService.swift in Sources */,
@@ -659,6 +687,7 @@
 				AA000000000000000000010F /* AppError.swift in Sources */,
 				AA0000000000000000000111 /* ScanRepository.swift in Sources */,
 				AA0000000000000000000114 /* ShareCardView.swift in Sources */,
+				EA57E0000000000000000B02 /* RareFindViews.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -669,6 +698,7 @@
 				AA0000000000000000000100 /* SnapWorthTests.swift in Sources */,
 				BB0000000000000000000A01 /* ProductionHardeningTests.swift in Sources */,
 				BB0000000000000000000F01 /* MigrationTests.swift in Sources */,
+				EA57E0000000000000000B03 /* RareFindTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -700,7 +730,7 @@
 				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
 				CODE_SIGN_ENTITLEMENTS = SnapWorthWidgets/SnapWorthWidgets.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 20;
+				CURRENT_PROJECT_VERSION = 21;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = SnapWorthWidgets/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = SnapWorthWidgets;
@@ -711,7 +741,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 1.5.0;
+				MARKETING_VERSION = 1.5.1;
 				PRODUCT_BUNDLE_IDENTIFIER = eu.snapworth.app.SnapWorthWidgets;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
@@ -732,7 +762,7 @@
 				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
 				CODE_SIGN_ENTITLEMENTS = SnapWorthWidgets/SnapWorthWidgets.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 20;
+				CURRENT_PROJECT_VERSION = 21;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = SnapWorthWidgets/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = SnapWorthWidgets;
@@ -743,7 +773,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 1.5.0;
+				MARKETING_VERSION = 1.5.1;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				PRODUCT_BUNDLE_IDENTIFIER = eu.snapworth.app.SnapWorthWidgets;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -762,14 +792,14 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = "iMessage App Icon";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 20;
+				CURRENT_PROJECT_VERSION = 21;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = SnapWorthStickers/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = SnapWorth;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				INFOPLIST_KEY_NSStickerSharingLevel = OS;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
-				MARKETING_VERSION = 1.5.0;
+				MARKETING_VERSION = 1.5.1;
 				PRODUCT_BUNDLE_IDENTIFIER = eu.snapworth.app.SnapWorthStickers;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
@@ -782,14 +812,14 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = "iMessage App Icon";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 20;
+				CURRENT_PROJECT_VERSION = 21;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = SnapWorthStickers/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = SnapWorth;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				INFOPLIST_KEY_NSStickerSharingLevel = OS;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
-				MARKETING_VERSION = 1.5.0;
+				MARKETING_VERSION = 1.5.1;
 				PRODUCT_BUNDLE_IDENTIFIER = eu.snapworth.app.SnapWorthStickers;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
@@ -928,7 +958,7 @@
 				CODE_SIGN_ENTITLEMENTS = SnapWorth/SnapWorth.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 20;
+				CURRENT_PROJECT_VERSION = 21;
 				DEVELOPMENT_ASSET_PATHS = "";
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = NO;
@@ -939,7 +969,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.5.0;
+				MARKETING_VERSION = 1.5.1;
 				PRODUCT_BUNDLE_IDENTIFIER = eu.snapworth.app;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
@@ -960,7 +990,7 @@
 				CODE_SIGN_ENTITLEMENTS = SnapWorth/SnapWorth.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 20;
+				CURRENT_PROJECT_VERSION = 21;
 				DEVELOPMENT_ASSET_PATHS = "";
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = NO;
@@ -971,7 +1001,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.5.0;
+				MARKETING_VERSION = 1.5.1;
 				PRODUCT_BUNDLE_IDENTIFIER = eu.snapworth.app;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
