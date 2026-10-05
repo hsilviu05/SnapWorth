@@ -7800,6 +7800,42 @@
         }
       }
     },
+    "Couldn't create the export" : {
+      "comment" : "Alert title when the My Flips ZIP export could not be written.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Export konnte nicht erstellt werden"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couldn't create the export"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No se pudo crear la exportación"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Exportul nu a putut fi creat"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无法创建导出文件"
+          }
+        }
+      }
+    },
     "Couldn't draft this one" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -9913,6 +9949,42 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "导出 CSV"
+          }
+        }
+      }
+    },
+    "Export photos and estimates (ZIP)" : {
+      "comment" : "My Flips menu item: a ZIP of every sold flip's photo and its scan-time estimate.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fotos und Schätzungen exportieren (ZIP)"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Export photos and estimates (ZIP)"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Exportar fotos y estimaciones (ZIP)"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Exportă fotografii și estimări (ZIP)"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "导出照片和估价（ZIP）"
           }
         }
       }
@@ -14185,6 +14257,42 @@
         }
       }
     },
+    "Nothing was shared. Try again in a moment." : {
+      "comment" : "Alert message when the My Flips ZIP export could not be written.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Es wurde nichts geteilt. Versuch es gleich noch einmal."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nothing was shared. Try again in a moment."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No se compartió nada. Inténtalo de nuevo en un momento."
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nu s-a distribuit nimic. Încearcă din nou în câteva momente."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未分享任何内容。请稍后再试。"
+          }
+        }
+      }
+    },
     "Notifications" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -15490,6 +15598,42 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "收藏的价值走势，以及二手市场的风向"
+          }
+        }
+      }
+    },
+    "Preparing your export…" : {
+      "comment" : "Shown while the My Flips ZIP export is being built.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Export wird vorbereitet…"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Preparing your export…"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Preparando la exportación…"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Se pregătește exportul…"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在准备导出…"
           }
         }
       }
@@ -20011,6 +20155,41 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "排序、分享本月，或导出 CSV"
+          }
+        }
+      }
+    },
+    "Sort, share the month, or export your flips" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sortieren, den Monat teilen oder deine Flips exportieren"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sort, share the month, or export your flips"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ordena, comparte el mes o exporta tus reventas"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sortează, distribuie luna sau exportă-ți flipurile"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "排序、分享本月，或导出你的转卖记录"
           }
         }
       }

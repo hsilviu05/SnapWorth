@@ -262,6 +262,11 @@ final class FlipsViewModel {
 
     // ── CSV export ──────────────────────────────────────────────────────────────
 
+    /// Whether there is anything for an export to hold.
+    func hasSoldItems(_ all: [ScanResult]) -> Bool {
+        all.contains { $0.status == .sold }
+    }
+
     /// Plain UTF-8 CSV of sold flips for the user's bookkeeping. RFC-4180 quoting.
     /// Columns: Date, Item, Paid, Sold, Fees, Profit, ROI.
     func csv(_ all: [ScanResult]) -> String {
@@ -444,4 +449,147 @@ final class FlipsViewModel {
         }
         return "\"'" + field.replacingOccurrences(of: "\"", with: "\"\"") + "\""
     }
+}
+
+// MARK: - Photos and estimates export (#214)
+
+/// Sold flips as a ZIP, for the gold set: per flip, the stored photo and a JSON
+/// record of what the scan estimated beside what the item sold for.
+///
+/// The CSV is bookkeeping and has neither. A sale is only a gold record with
+/// the photo the model saw and the estimate it gave at the time, and that pair
+/// lives only on the phone. This is the user's own file handed to the share
+/// sheet; nothing is uploaded, so no privacy answer changes.
+///
+/// Built from a background `ModelContext` of the app's container, never from
+/// the view's rows: a `@Model` belongs to the context that fetched it, and two
+/// hundred photos read and written on the main actor would freeze the ledger.
+enum FlipsArchive {
+    /// Bumped when a key is renamed or changes meaning. The intake reads it.
+    static let schemaVersion = 1
+
+    /// Every key each record carries; a key with nothing to say is `null`,
+    /// never absent, so the intake can tell "unknown" from "not exported".
+    /// Pinned by a test, because the gold-set intake reads these names.
+    static let recordKeys: Set<String> = [
+        "schema", "id", "item_name", "scanned_at",
+        "photo", "photo_source",
+        "estimate_low", "estimate_high", "estimate_likely", "estimate_expected",
+        "likely_source", "confidence_score", "confidence_band",
+        "category", "brand", "condition_grade", "prompt_version",
+        "paid_price", "sold_price", "sold_date", "listed_date",
+        "currency_assumed",
+    ]
+
+    /// One flip's record, as JSON-ready values. `photo` names the file beside
+    /// it, or is null when the scan kept no image.
+    static func record(for r: ScanResult, photo: String?) -> [String: Any] {
+        let detail = r.valuationDetail
+        // The same fallback `ScanResult.storedFacts` prices from: `expected`
+        // is the likely price under its ladder name on a find saved before
+        // `likely` existed. A find with neither was priced from the midpoint,
+        // and the record says so rather than pass the midpoint off as the
+        // model's number.
+        let modelLikely = detail?.likely ?? detail?.expected
+        let likely = modelLikely ?? (r.valueLow + r.valueHigh) / 2
+        let values: [String: Any?] = [
+            "schema": schemaVersion,
+            "id": r.id.uuidString,
+            "item_name": r.itemName,
+            "scanned_at": timestamp.string(from: r.timestamp),
+            "photo": photo,
+            // The 1024 px copy the app keeps, not the 1568 px it uploaded;
+            // the intake reports these records apart.
+            "photo_source": photo == nil ? nil : "stored_1024",
+            "estimate_low": r.valueLow,
+            "estimate_high": r.valueHigh,
+            "estimate_likely": likely,
+            "estimate_expected": detail?.expected,
+            "likely_source": modelLikely == nil ? "midpoint" : "model",
+            "confidence_score": detail?.confidenceScore,
+            "confidence_band": r.confidence,
+            "category": r.category,
+            "brand": r.brand,
+            "condition_grade": detail?.conditionGrade,
+            "prompt_version": detail?.promptVersion ?? "unknown",
+            "paid_price": r.paidPrice,
+            "sold_price": r.soldPrice,
+            "sold_date": r.soldDate.map(day.string(from:)),
+            "listed_date": r.listedDate.map(day.string(from:)),
+            // The app never asks which currency a sale was in: "Sold for"
+            // sits beside a fixed "$". The owner corrects it at intake.
+            "currency_assumed": "USD",
+        ]
+        return values.mapValues { $0 ?? NSNull() }
+    }
+
+    /// The ZIP's URL in the temporary directory, built off the main actor.
+    /// Nil when there are no sold flips or a file could not be written.
+    static func makeArchive(container: ModelContainer, now: Date = Date()) async -> URL? {
+        await Task.detached(priority: .userInitiated) {
+            try? build(container: container, now: now)
+        }.value
+    }
+
+    /// The synchronous body of `makeArchive`. Call it off the main actor.
+    static func build(container: ModelContainer, now: Date) throws -> URL? {
+        let context = ModelContext(container)
+        // Same rule and order as the CSV.
+        let sold = try context.fetch(FetchDescriptor<ScanResult>())
+            .filter { $0.status == .sold }
+            .sorted { ($0.soldDate ?? $0.timestamp) < ($1.soldDate ?? $1.timestamp) }
+        guard !sold.isEmpty else { return nil }
+
+        let fm = FileManager.default
+        let name = "SnapWorth-Flips-\(day.string(from: now))"
+        let work = fm.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let folder = work.appendingPathComponent(name)
+        try fm.createDirectory(at: folder, withIntermediateDirectories: true)
+        defer { try? fm.removeItem(at: work) }
+
+        let json: JSONSerialization.WritingOptions =
+            [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
+        for (index, r) in sold.enumerated() {
+            // Position and id, never the item name: a name is model text and
+            // can hold a "/" or be the same as another's.
+            let stem = String(format: "%03d-", index + 1)
+                + r.id.uuidString.prefix(8).lowercased()
+            try autoreleasepool {
+                var photo: String?
+                if let image = r.imageData, !image.isEmpty {
+                    photo = stem + ".jpg"
+                    try image.write(to: folder.appendingPathComponent(stem + ".jpg"))
+                }
+                let data = try JSONSerialization.data(
+                    withJSONObject: record(for: r, photo: photo), options: json)
+                try data.write(to: folder.appendingPathComponent(stem + ".json"))
+            }
+        }
+
+        // `.forUploading` hands the block a ZIP of the folder, deleted when
+        // the block returns, so it is copied out inside it.
+        let zip = fm.temporaryDirectory.appendingPathComponent(name + ".zip")
+        try? fm.removeItem(at: zip)
+        var coordinationError: NSError?
+        var copyError: Error?
+        NSFileCoordinator().coordinate(readingItemAt: folder, options: .forUploading,
+                                       error: &coordinationError) { zipped in
+            do { try fm.copyItem(at: zipped, to: zip) } catch { copyError = error }
+        }
+        if let error = coordinationError ?? copyError { throw error }
+        return zip
+    }
+
+    /// A local-calendar day, as the CSV writes it (see `FlipsViewModel.csv`).
+    private static let day: DateFormatter = {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "en_US_POSIX")
+        f.calendar = Calendar.current
+        f.dateFormat = "yyyy-MM-dd"
+        return f
+    }()
+
+    /// The scan's instant, in UTC: it orders a record against prompt changes,
+    /// which are logged in UTC, not against the user's calendar.
+    private static let timestamp: ISO8601DateFormatter = ISO8601DateFormatter()
 }

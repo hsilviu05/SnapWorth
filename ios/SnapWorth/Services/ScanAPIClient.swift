@@ -108,6 +108,11 @@ struct ScanAPIResponse: Decodable {
     let material: String?
     /// `.model` unless the server said, exactly, "comps". See `ValuationSource`.
     let valuationSource: ValuationSource
+    /// Which scan prompt priced this item (`v2`, `v2.1`, …). Nil from a
+    /// server older than the field, and when it sent an empty string. Kept in
+    /// `ValuationDetail.promptVersion`, so that an exported sale can be scored
+    /// against the prompt that made its estimate (#214).
+    let promptVersion: String?
 
     /// `CaseIterable` so the lenient-decoding tests (#222) cover every key,
     /// including one added after them.
@@ -142,6 +147,7 @@ struct ScanAPIResponse: Decodable {
         case conditionGrade      = "condition_grade"
         case size, era, material
         case valuationSource     = "valuation_source"
+        case promptVersion       = "prompt_version"
     }
 
     init(from decoder: Decoder) throws {
@@ -188,6 +194,8 @@ struct ScanAPIResponse: Decodable {
         // `.model` just as a mistyped one does.
         valuationSource     = ValuationSource(serverValue:
             c.lenient(String.self, forKey: .valuationSource))
+        promptVersion       = c.lenient(String.self, forKey: .promptVersion)
+            .flatMap { $0.isEmpty ? nil : $0 }
     }
 
     /// Memberwise init retained for mocks and previews.
@@ -205,7 +213,8 @@ struct ScanAPIResponse: Decodable {
          improveEstimate: [String] = [], authenticityAssessment: String? = nil,
          authenticityReasoning: String? = nil, demand: String? = nil, supply: String? = nil,
          conditionGrade: String? = nil, size: String? = nil, era: String? = nil,
-         material: String? = nil, valuationSource: ValuationSource = .model) {
+         material: String? = nil, valuationSource: ValuationSource = .model,
+         promptVersion: String? = nil) {
         self.itemName = itemName
         self.brand = brand
         self.category = category
@@ -239,6 +248,7 @@ struct ScanAPIResponse: Decodable {
         self.era = era
         self.material = material
         self.valuationSource = valuationSource
+        self.promptVersion = promptVersion
     }
 }
 
@@ -327,6 +337,12 @@ struct ValuationDetail: Codable, Equatable {
     /// every blob written before #40. Kept out of `isEmpty` for that reason —
     /// it is provenance, not panel content. Read it through `source`.
     var valuationSource: ValuationSource?
+    /// The scan prompt behind this estimate, as the server named it. Nil on
+    /// every blob written before the field (#214), which the flips export
+    /// writes as `unknown`. Provenance, like `valuationSource`: kept out of
+    /// `isEmpty` and `lacksProDetail`. A re-read replaces the blob, so this
+    /// always names the prompt behind the estimate on screen.
+    var promptVersion: String?
 
     /// The price the app's own maths start from: `likely_price_usd`, the
     /// model's expected price after the server's bounds, at the condition the
@@ -369,6 +385,7 @@ struct ValuationDetail: Codable, Equatable {
         era = r.era
         material = r.material
         valuationSource = r.valuationSource == .comps ? .comps : nil
+        promptVersion = r.promptVersion
         guard !isEmpty else { return nil }
     }
 

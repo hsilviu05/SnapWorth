@@ -1683,6 +1683,14 @@
       "de": "Der Verlauf konnte nicht gelöscht werden",
       "zh-Hans": "没能清空历史记录"
     },
+    "Couldn't create the export": {
+      "comment": "Alert title when the My Flips ZIP export could not be written.",
+      "en": "Couldn't create the export",
+      "ro": "Exportul nu a putut fi creat",
+      "es": "No se pudo crear la exportación",
+      "de": "Export konnte nicht erstellt werden",
+      "zh-Hans": "无法创建导出文件"
+    },
     "Couldn't draft this one": {
       "en": "Couldn't draft this one",
       "ro": "Nu am putut scrie anunțul pentru acesta",
@@ -2119,6 +2127,14 @@
       "es": "Exportar CSV",
       "de": "CSV exportieren",
       "zh-Hans": "导出 CSV"
+    },
+    "Export photos and estimates (ZIP)": {
+      "comment": "My Flips menu item: a ZIP of every sold flip's photo and its scan-time estimate.",
+      "en": "Export photos and estimates (ZIP)",
+      "ro": "Exportă fotografii și estimări (ZIP)",
+      "es": "Exportar fotos y estimaciones (ZIP)",
+      "de": "Fotos und Schätzungen exportieren (ZIP)",
+      "zh-Hans": "导出照片和估价（ZIP）"
     },
     "Export your flips": {
       "comment": "Paywall headline when it opened from Export CSV in My Flips.",
@@ -3015,6 +3031,14 @@
       "de": "Bemerkenswerte Funde",
       "zh-Hans": "值得一提的好物"
     },
+    "Nothing was shared. Try again in a moment.": {
+      "comment": "Alert message when the My Flips ZIP export could not be written.",
+      "en": "Nothing was shared. Try again in a moment.",
+      "ro": "Nu s-a distribuit nimic. Încearcă din nou în câteva momente.",
+      "es": "No se compartió nada. Inténtalo de nuevo en un momento.",
+      "de": "Es wurde nichts geteilt. Versuch es gleich noch einmal.",
+      "zh-Hans": "未分享任何内容。请稍后再试。"
+    },
     "Notifications": {
       "en": "Notifications",
       "ro": "Notificări",
@@ -3287,6 +3311,14 @@
       "es": "Historial del valor de tu colección y las tendencias",
       "de": "Wertverlauf deiner Sammlung und die Trends",
       "zh-Hans": "收藏的价值走势，以及二手市场的风向"
+    },
+    "Preparing your export…": {
+      "comment": "Shown while the My Flips ZIP export is being built.",
+      "en": "Preparing your export…",
+      "ro": "Se pregătește exportul…",
+      "es": "Preparando la exportación…",
+      "de": "Export wird vorbereitet…",
+      "zh-Hans": "正在准备导出…"
     },
     "Price points": {
       "en": "Price points",
@@ -4218,12 +4250,12 @@
       "de": "Sortieren",
       "zh-Hans": "排序"
     },
-    "Sort, share the month, or export a CSV": {
-      "en": "Sort, share the month, or export a CSV",
-      "ro": "Sortează, distribuie luna sau exportă un CSV",
-      "es": "Ordena, comparte el mes o exporta un CSV",
-      "de": "Sortieren, den Monat teilen oder als CSV exportieren",
-      "zh-Hans": "排序、分享本月，或导出 CSV"
+    "Sort, share the month, or export your flips": {
+      "en": "Sort, share the month, or export your flips",
+      "ro": "Sortează, distribuie luna sau exportă-ți flipurile",
+      "es": "Ordena, comparte el mes o exporta tus reventas",
+      "de": "Sortieren, den Monat teilen oder deine Flips exportieren",
+      "zh-Hans": "排序、分享本月，或导出你的转卖记录"
     },
     "Sports": {
       "comment": "An item category (ScanCategory), as a label on its own: a row of 'Trending at the thrift', and the start of that row's VoiceOver sentence.",
