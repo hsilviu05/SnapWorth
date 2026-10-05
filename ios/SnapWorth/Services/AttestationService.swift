@@ -328,6 +328,7 @@ actor AttestationService {
         if let id = decoded.supportID, !id.isEmpty {
             SupportMail.supportID = id
         }
+        PaywallDefaultPlan.store(serverValue: decoded.paywallDefaultPlan)
         return token.value
     }
 
@@ -388,12 +389,28 @@ private struct TokenResponse: Decodable {
     /// than failing the mint that carries the access token.
     let supportID: String?
 
+    /// The paywall's default plan, from the operator's `/lever plan` (#220).
+    /// Absent while the lever is unset. Read with `try?`: a value of the wrong
+    /// type costs the default plan, never the mint that carries the token.
+    let paywallDefaultPlan: String?
+
     enum CodingKeys: String, CodingKey {
         case accessToken = "access_token"
         case expiresIn = "expires_in"
         case tier
         case freeScansRemaining = "free_scans_remaining"
         case supportID = "support_id"
+        case paywallDefaultPlan = "paywall_default_plan"
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        accessToken = try c.decode(String.self, forKey: .accessToken)
+        expiresIn = try c.decode(Int.self, forKey: .expiresIn)
+        tier = try c.decode(String.self, forKey: .tier)
+        freeScansRemaining = try c.decodeIfPresent(Int.self, forKey: .freeScansRemaining)
+        supportID = try c.decodeIfPresent(String.self, forKey: .supportID)
+        paywallDefaultPlan = try? c.decodeIfPresent(String.self, forKey: .paywallDefaultPlan)
     }
 }
 

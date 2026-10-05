@@ -1343,6 +1343,72 @@ final class PaywallSelectionTests: XCTestCase {
         vm.reconcileSelection(with: MockPurchaseService.samplePricing)
         XCTAssertEqual(vm.selectedProductID, Config.monthlyProductID)
     }
+
+    // ── The operator's default plan (#220) ──
+
+    func test_theDefaultPlanPreselectsMonthlyOnceBothLoaded() {
+        let vm = PaywallViewModel()
+        vm.reconcileSelection(with: [:], defaultPlan: .monthly)
+        XCTAssertEqual(vm.selectedProductID, Config.yearlyProductID, "nothing loaded yet")
+        vm.reconcileSelection(with: MockPurchaseService.samplePricing, defaultPlan: .monthly)
+        XCTAssertEqual(vm.selectedProductID, Config.monthlyProductID)
+    }
+
+    func test_theDefaultPlanNeverUndoesTheUsersTap() {
+        let vm = PaywallViewModel()
+        vm.selectedProductID = Config.yearlyProductID    // the yearly card, tapped
+        vm.reconcileSelection(with: MockPurchaseService.samplePricing, defaultPlan: .monthly)
+        XCTAssertEqual(vm.selectedProductID, Config.yearlyProductID)
+    }
+
+    func test_theDefaultPlanIsAppliedOnlyOnce() {
+        let vm = PaywallViewModel()
+        vm.reconcileSelection(with: MockPurchaseService.samplePricing, defaultPlan: .monthly)
+        vm.selectedProductID = Config.yearlyProductID
+        vm.reconcileSelection(with: MockPurchaseService.samplePricing, defaultPlan: .monthly)
+        XCTAssertEqual(vm.selectedProductID, Config.yearlyProductID,
+                       "a later pricing refresh must not move it back")
+    }
+
+    func test_withOnlyOnePlanLoadedTheFallbackDecides() {
+        let vm = PaywallViewModel()
+        vm.reconcileSelection(with: pricing(Config.yearlyProductID), defaultPlan: .monthly)
+        XCTAssertEqual(vm.selectedProductID, Config.yearlyProductID)
+    }
+
+    func test_anUnsetLeverIsYearly() {
+        defer { PaywallDefaultPlan.store(serverValue: nil) }
+        PaywallDefaultPlan.store(serverValue: nil)
+        XCTAssertEqual(PaywallDefaultPlan.current, .yearly)
+        let vm = PaywallViewModel()
+        vm.reconcileSelection(with: MockPurchaseService.samplePricing)
+        XCTAssertEqual(vm.selectedProductID, Config.yearlyProductID, "exactly as before #220")
+    }
+
+    func test_theStoredPlanFollowsTheLastToken() {
+        defer { PaywallDefaultPlan.store(serverValue: nil) }
+        PaywallDefaultPlan.store(serverValue: "monthly")
+        XCTAssertEqual(PaywallDefaultPlan.current, .monthly)
+        PaywallDefaultPlan.store(serverValue: "weekly")
+        XCTAssertEqual(PaywallDefaultPlan.current, .yearly, "an unknown value clears it")
+        PaywallDefaultPlan.store(serverValue: "monthly")
+        PaywallDefaultPlan.store(serverValue: nil)
+        XCTAssertEqual(PaywallDefaultPlan.current, .yearly, "the lever was unset: the arm ended")
+    }
+
+    func test_paywallAndPurchaseEventsCarryTheDefaultPlan() {
+        defer { PaywallDefaultPlan.store(serverValue: nil) }
+        PaywallDefaultPlan.store(serverValue: "monthly")
+        let events: [AnalyticsEvent] = [
+            .paywallViewed(trigger: .scanLimit, isFirst: true),
+            .purchaseStarted(productID: Config.monthlyProductID, isFirst: true, trigger: .scanLimit),
+            .purchaseCompleted(productID: Config.monthlyProductID, isFirst: true, trigger: .scanLimit),
+            .purchaseFailed(productID: Config.monthlyProductID, reason: "cancelled", trigger: .scanLimit),
+        ]
+        for event in events {
+            XCTAssertEqual(event.parameters["default_plan"], "monthly", event.name)
+        }
+    }
 }
 
 // MARK: - Paywall pricing

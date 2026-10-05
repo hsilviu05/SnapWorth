@@ -29,6 +29,7 @@ import logging
 import os
 import secrets
 from dataclasses import dataclass
+from typing import Literal
 
 from fastapi import APIRouter, Depends, Header, Request
 from pydantic import BaseModel, Field, field_validator
@@ -177,6 +178,11 @@ class TokenResponse(BaseModel):
     # Not a secret and not a credential: a salted truncated hash of a subject
     # the client already holds, which authenticates nothing on its own.
     support_id: str
+    # Which plan the paywall preselects, from the operator's `/lever plan`
+    # (#220). Absent, not null, while the lever is unset: the routes that
+    # return this model exclude None, so the response is byte-for-byte what
+    # it was before the field, and a build before 1.5.2 ignores it anyway.
+    paywall_default_plan: Literal["yearly", "monthly"] | None = None
 
 
 class EntitlementRequest(BaseModel):
@@ -291,6 +297,7 @@ async def _issue_token(subject: str, device_token: str | None) -> TokenResponse:
         tier=ent.tier,
         free_scans_remaining=min(remaining, 10_000),
         support_id=auditlog.pseudonymise(subject),
+        paywall_default_plan=await notify.paywall_default_plan(),
     )
 
 
@@ -339,7 +346,7 @@ async def _consume_challenge(value: str) -> None:
     await deps.cache.delete(key)
 
 
-@router.post("/attest", response_model=TokenResponse)
+@router.post("/attest", response_model=TokenResponse, response_model_exclude_none=True)
 async def attest(req: AttestRequest, request: Request) -> TokenResponse:
     await _limit_unauthenticated(request)
     cfg = deps.config
@@ -407,7 +414,7 @@ async def attest(req: AttestRequest, request: Request) -> TokenResponse:
     return await _issue_token(subject, req.device_token)
 
 
-@router.post("/refresh", response_model=TokenResponse)
+@router.post("/refresh", response_model=TokenResponse, response_model_exclude_none=True)
 async def refresh(req: AssertRequest, request: Request) -> TokenResponse:
     """Re-issue a token by proving possession of the attested key."""
     await _limit_unauthenticated(request)

@@ -30,6 +30,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import appattest  # noqa: E402
 import auditlog  # noqa: E402
 import auth  # noqa: E402
+import notify  # noqa: E402
 from cache import CacheUnavailable, InMemoryCache, ResilientCache  # noqa: E402
 from main import app  # noqa: E402
 from quota import QuotaExceeded, QuotaUnavailable, ScanQuota  # noqa: E402
@@ -754,6 +755,44 @@ class TestEntitlementOutageIsNotADowngrade:
             assert exc.value.status_code == 503
         finally:
             build_deps()
+
+
+class TestPaywallDefaultPlan:
+    """`paywall_default_plan` on the token response (#220): absent while the
+    lever is unset, so the response is what it was before the field."""
+
+    def test_unset_lever_leaves_the_field_out(self, monkeypatch):
+        async def unset():
+            return None
+        monkeypatch.setattr(notify, "paywall_default_plan", unset)
+        build_deps(enforce=True)
+        try:
+            response = asyncio.run(auth._issue_token("subj", None))
+        finally:
+            build_deps()
+        assert response.paywall_default_plan is None
+        assert "paywall_default_plan" not in response.model_dump(exclude_none=True)
+
+    def test_a_set_lever_is_sent(self, monkeypatch):
+        async def monthly():
+            return "monthly"
+        monkeypatch.setattr(notify, "paywall_default_plan", monthly)
+        build_deps(enforce=True)
+        try:
+            response = asyncio.run(auth._issue_token("subj", None))
+        finally:
+            build_deps()
+        assert response.paywall_default_plan == "monthly"
+
+    def test_both_mint_routes_drop_nulls(self):
+        """Excluding None is what keeps an unset lever off the wire."""
+        from fastapi.routing import APIRoute
+        routes = {r.path: r for r in auth.router.routes if isinstance(r, APIRoute)}
+        attest = [r for p, r in routes.items() if p.endswith("/attest")]
+        refresh = [r for p, r in routes.items() if p.endswith("/refresh")]
+        assert attest and refresh
+        for route in attest + refresh:
+            assert route.response_model_exclude_none, route.path
 
 
 class TestSupportID:

@@ -1,9 +1,50 @@
 import SwiftUI
 
+/// The plan the paywall preselects, as the operator's `/lever plan` set it
+/// (#220). The server sends it on every token as `paywall_default_plan`, and
+/// leaves it out while the lever is unset, which reads as yearly: what every
+/// build before 1.5.2 preselects. It exists to run the monthly-default arm of
+/// the trial experiment without a release, and to end it the same way.
+enum PaywallDefaultPlan: String {
+    case yearly
+    case monthly
+
+    var productID: String {
+        switch self {
+        case .yearly:  return Config.yearlyProductID
+        case .monthly: return Config.monthlyProductID
+        }
+    }
+
+    private static let key = "paywallDefaultPlan"
+
+    /// The last value a token carried; yearly when none did.
+    static var current: PaywallDefaultPlan {
+        UserDefaults.standard.string(forKey: key).flatMap(Self.init(rawValue:)) ?? .yearly
+    }
+
+    /// From each token response. Absent or unknown clears it: the lever's
+    /// "unset" is the absent field, so keeping an old value would leave a
+    /// device on monthly after the arm ended.
+    static func store(serverValue: String?) {
+        if let plan = serverValue.flatMap(Self.init(rawValue:)) {
+            UserDefaults.standard.set(plan.rawValue, forKey: key)
+        } else {
+            UserDefaults.standard.removeObject(forKey: key)
+        }
+    }
+}
+
 @MainActor
 @Observable
 final class PaywallViewModel {
-    var selectedProductID: String = Config.yearlyProductID
+    var selectedProductID: String = Config.yearlyProductID {
+        didSet { selectionSettled = true }
+    }
+    /// Whether the selection has been chosen, by the user's tap or by
+    /// `reconcileSelection`. The default plan is applied only before then, so
+    /// it never undoes a card the user picked.
+    private var selectionSettled = false
     var isPurchasing: Bool = false
     var isRestoring: Bool = false
     var errorMessage: String?
@@ -33,7 +74,17 @@ final class PaywallViewModel {
     /// Does nothing while pricing is empty (still loading, or a total
     /// failure): there is nothing better to move to, and moving the selection
     /// would change what the user sees for no gain.
-    func reconcileSelection(with pricing: [String: PlanPricing]) {
+    ///
+    /// The operator's default plan (#220) is applied here too, once, when both
+    /// plans have loaded and nothing has chosen one yet. With only one plan
+    /// loaded, the fallback below is what decides.
+    func reconcileSelection(with pricing: [String: PlanPricing],
+                            defaultPlan: PaywallDefaultPlan = .current) {
+        if !selectionSettled,
+           pricing[Config.yearlyProductID] != nil, pricing[Config.monthlyProductID] != nil {
+            selectedProductID = defaultPlan.productID
+            return
+        }
         guard !pricing.isEmpty, pricing[selectedProductID] == nil else { return }
         // Same order the cards appear in, so the fallback is the one the user
         // would have reached for.

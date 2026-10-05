@@ -3687,6 +3687,65 @@ class TestUnsolicitedPushesAreActionable:
         assert data == "user ab&cd1"
 
 
+class TestPaywallPlanLever:
+    """The paywall's default plan, from chat (#220).
+
+    Sent to 1.5.2+ in the token response; unset means yearly, which is what
+    every earlier build does. It is an experiment arm, so it takes two taps
+    like the free-scan lever, and its record must not land in the free-scan
+    lever's `changes`, which /experiment's export reads.
+    """
+
+    async def _run(self, cmd: str) -> tuple[str, list]:
+        reply = await notify.handle_command_with_buttons(cmd)
+        assert reply is not None
+        return reply[0], reply[1]
+
+    @pytest.mark.asyncio
+    async def test_unset_is_none(self, enabled_notify):
+        assert await notify.paywall_default_plan() is None
+
+    @pytest.mark.asyncio
+    async def test_changing_it_takes_two_taps(self, enabled_notify):
+        text, buttons = await self._run("/lever plan monthly")
+        assert "Change the paywall's default plan?" in text
+        assert await notify.paywall_default_plan() is None, "the first tap must not act"
+        confirm = next(d for row in buttons for _, d in row if d.endswith("yes"))
+        text, _ = await self._run("/" + confirm)
+        assert "monthly" in text
+        assert await notify.paywall_default_plan() == "monthly"
+
+    @pytest.mark.asyncio
+    async def test_default_hands_it_back_to_the_app(self, enabled_notify):
+        await self._run("/lever plan monthly yes")
+        await self._run("/lever plan default yes")
+        assert await notify.paywall_default_plan() is None
+
+    @pytest.mark.asyncio
+    async def test_its_record_stays_out_of_the_free_scan_history(self, enabled_notify, cache):
+        await self._run("/lever plan monthly yes")
+        doc = json.loads(await cache.get(notify.LEVERS_KEY))
+        assert doc["plan_changes"][-1][1:] == [None, "monthly"]
+        assert "changes" not in doc
+        assert await notify.free_scan_lever() is None
+
+    @pytest.mark.asyncio
+    async def test_an_unknown_value_shows_the_state_and_changes_nothing(self, enabled_notify):
+        text, _ = await self._run("/lever plan weekly yes")
+        assert "Paywall default plan" in text and "yearly (app default)" in text
+        assert await notify.paywall_default_plan() is None
+
+    @pytest.mark.asyncio
+    async def test_an_unreadable_document_reads_as_unset(self, enabled_notify, cache):
+        await cache.set(notify.LEVERS_KEY, "{not json")
+        assert await notify.paywall_default_plan() is None
+
+    @pytest.mark.asyncio
+    async def test_a_stored_value_that_is_not_a_plan_reads_as_unset(self, enabled_notify, cache):
+        await cache.set(notify.LEVERS_KEY, json.dumps({"paywall_default_plan": "weekly"}))
+        assert await notify.paywall_default_plan() is None
+
+
 class TestFreeScanLever:
     """`/experiment` could say the lever was not armed and do nothing about it.
 
