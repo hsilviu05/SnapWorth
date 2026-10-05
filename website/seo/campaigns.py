@@ -31,7 +31,7 @@ import urllib.parse
 # TODO(owner): #204. The provider token from App Store Connect -> App Analytics
 # -> Campaigns -> generate any campaign link: the value after `pt=`. Set it here,
 # as a string, then run `python3 website/seo/apply_campaigns.py`.
-PT: str | None = None
+PT: str | None = "129137132"
 
 APP_ID = "6788521307"
 
