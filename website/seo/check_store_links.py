@@ -49,8 +49,11 @@ ATTR = re.compile(r"""\b(href|data-ct)\s*=\s*(?:"([^"]*)"|'([^']*)')""", re.IGNO
 
 
 def pages() -> list[pathlib.Path]:
-    return sorted(p for pattern in ("*.html", "*.js")
-                  for p in WEBSITE.rglob(pattern) if p.is_file())
+    # vercel.json too: the share-card QR redirects (#221) end at campaign
+    # links, and the table names it as their page.
+    return sorted([p for pattern in ("*.html", "*.js")
+                   for p in WEBSITE.rglob(pattern) if p.is_file()]
+                  + [WEBSITE / "vercel.json"])
 
 
 def line_of(text: str, offset: int) -> int:

@@ -9592,3 +9592,69 @@ final class ConfidenceReasonCodeTests: XCTestCase {
         XCTAssertNil(ValuationDetail(response: decoded)?.confidenceReasonCodes)
     }
 }
+
+// ── Share-card QR campaigns (#221) ───────────────────────────────────────────
+//
+// Each branded card's QR opens its own /get/<kind> path, and the website
+// redirects that path to the card's App Store campaign. The two halves live in
+// different directories and ship on different schedules, so this reads the
+// site's vercel.json and fails when a card's path would 404 there.
+
+final class ShareCardURLTests: XCTestCase {
+
+    private struct Redirect: Decodable {
+        let source: String
+        let destination: String
+        let permanent: Bool?
+    }
+
+    private struct VercelConfig: Decodable {
+        let redirects: [Redirect]?
+    }
+
+    private func redirects() throws -> [String: Redirect] {
+        let url = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()   // SnapWorthTests
+            .deletingLastPathComponent()   // ios
+            .deletingLastPathComponent()   // repo root
+            .appendingPathComponent("website/vercel.json")
+        let config = try JSONDecoder().decode(VercelConfig.self, from: Data(contentsOf: url))
+        return Dictionary((config.redirects ?? []).map { ($0.source, $0) },
+                          uniquingKeysWith: { first, _ in first })
+    }
+
+    func test_eachCardHasItsOwnURL() throws {
+        let urls = ShareCardKind.allCases.map(Config.shareCardURL(for:))
+        XCTAssertEqual(Set(urls).count, ShareCardKind.allCases.count)
+        for kind in ShareCardKind.allCases {
+            let url = try XCTUnwrap(URLComponents(string: Config.shareCardURL(for: kind)))
+            XCTAssertEqual(url.scheme, "https")
+            XCTAssertEqual(url.host, "www.snapworth.eu")
+            XCTAssertEqual(url.path, "/get/\(kind.rawValue)")
+        }
+    }
+
+    func test_eachCardPathRedirectsToItsCampaign() throws {
+        let table = try redirects()
+        for kind in ShareCardKind.allCases {
+            let path = "/get/\(kind.rawValue)"
+            let rule = try XCTUnwrap(table[path], "\(path) has no redirect in website/vercel.json")
+            // Not permanent: a 308 is cached by browsers, and the point of the
+            // redirect is that the site can retarget it.
+            XCTAssertEqual(rule.permanent, false, path)
+            let destination = try XCTUnwrap(URLComponents(string: rule.destination))
+            XCTAssertEqual(destination.host, "apps.apple.com", path)
+            XCTAssertTrue(destination.path.hasSuffix("/id6788521307"), path)
+            let query = Dictionary(uniqueKeysWithValues:
+                (destination.queryItems ?? []).map { ($0.name, $0.value ?? "") })
+            XCTAssertEqual(query["ct"], "share_\(kind.rawValue)", path)
+            XCTAssertFalse(query["pt", default: ""].isEmpty, path)
+        }
+    }
+
+    func test_theReviewLinkIsStillTheBareProductPage() {
+        // SettingsView appends `?action=write-review`, which only works on the
+        // plain product URL.
+        XCTAssertEqual(Config.appStoreURL, "https://apps.apple.com/app/id6788521307")
+    }
+}

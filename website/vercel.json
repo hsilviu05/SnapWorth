@@ -27,6 +27,12 @@
       ]
     }
   ],
+  "redirects": [
+    { "source": "/get/result", "destination": "https://apps.apple.com/app/apple-store/id6788521307?pt=129137132&ct=share_result&mt=8", "permanent": false },
+    { "source": "/get/month", "destination": "https://apps.apple.com/app/apple-store/id6788521307?pt=129137132&ct=share_month&mt=8", "permanent": false },
+    { "source": "/get/haul", "destination": "https://apps.apple.com/app/apple-store/id6788521307?pt=129137132&ct=share_haul&mt=8", "permanent": false },
+    { "source": "/get/guess", "destination": "https://apps.apple.com/app/apple-store/id6788521307?pt=129137132&ct=share_guess&mt=8", "permanent": false }
+  ],
   "rewrites": [
     { "source": "/i/:code", "destination": "/invite" }
   ]

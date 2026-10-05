@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """Does the live site do what vercel.json says?
 
-vercel.json declares the /i/<code> invite rewrite, four security headers, a
-year's caching for /fonts, clean URLs, no trailing slashes and (through
-404.html) a branded not-found page. None of that is visible in the files
+vercel.json declares the /i/<code> invite rewrite, the /get/* share-card
+redirects, four security headers, a year's caching for /fonts, clean URLs, no
+trailing slashes and (through 404.html) a branded not-found page. None of that is visible in the files
 themselves, and on 2026-09-26 production applied none of it: /i/<code> was a
 plain-text 404, no security header was sent, fonts went out with max-age=0,
 and /support.html was a 404 instead of a redirect. The clean paths themselves
@@ -113,6 +113,16 @@ def run() -> list[str]:
         expect(status in (301, 308) and headers.get("location", "").endswith("/support"),
                f"/support/: {status} {headers.get('location')!r}, "
                "expected a redirect to /support")
+
+    # Redirects: the share-card QR paths (#221). A shared image encodes its
+    # path forever, so a redirect that stopped answering would strand every
+    # card that carries it. Each must answer with exactly its destination.
+    for rule in CONFIG.get("redirects", []):
+        status, headers, _ = fetch(rule["source"])
+        expected = (308, 301) if rule.get("permanent", True) else (307, 302)
+        expect(status in expected and headers.get("location") == rule["destination"],
+               f"{rule['source']}: {status} {headers.get('location')!r}, "
+               f"vercel.json says {expected[0]} to {rule['destination']!r}")
 
     return problems
 

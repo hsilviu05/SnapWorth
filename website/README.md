@@ -71,39 +71,35 @@ has no link on its page. Change a row and the page together.
 | `worth_vintage-band-t-shirt` | `worth/vintage-band-t-shirt.html` | /worth guide: top bar and closing CTA |
 | `guess_web` | `guess.html` | /guess result card, "Get it on the App Store" |
 | `invite_page` | `invite.html` | /i/[code], "Get SnapWorth". Never the invite code: the page masks `/i/[code]` in analytics, and a code in `ct` would publish it to ASC |
+| `share_result` | `vercel.json` | QR on the result share card, through `/get/result` |
+| `share_month` | `vercel.json` | QR on the My Flips month card, through `/get/month` |
+| `share_haul` | `vercel.json` | QR on the Haul summary card, through `/get/haul` |
+| `share_guess` | `vercel.json` | QR on the Guess-the-price reveal card, through `/get/guess` |
 <!-- campaign-table:end -->
 
-### Finishing it: one constant, one command
+### The provider token, and running the generators
 
-<!-- TODO(owner): #204. Waiting for `pt`. Once it is set and the command below
-     has run, delete this comment and the paragraph under the heading. -->
+`PT` in `seo/campaigns.py` is the provider token, set on 2026-10-05 from the
+owner's App Store Connect campaign link (#204). It is public: every campaign
+link a visitor clicks carries it. It is the only place `pt` is written.
 
-**Waiting for `pt`.** `PT` in `seo/campaigns.py` is `None` until the owner
-posts the provider token on #204. Until then `app_store()` refuses to build a
-link, so `build_seo.py` and `build_guess.py` exit with a message naming #204
-and write nothing, and `check_store_links.py` fails on every link. The pages
-still carry the old bare links; the hand-written ones already name their `ct`
-in a `data-ct` attribute.
+`python3 website/seo/apply_campaigns.py`, from the repository root on a clean
+tree, rewrites the hand-written links in `index.html` and `invite.html` from
+their `data-ct`, regenerates `/guess`, then the /worth guides, the hub and the
+sitemap, and runs `check_store_links.py`. A second run changes nothing.
+Commit the same day: the sitemap stamps changed pages with today's date.
 
-1. In App Store Connect → App Analytics → Campaigns, generate any campaign
-   link. The provider token is the value after `pt=`.
-2. Set `PT = "<that value>"` in `website/seo/campaigns.py`. It is the only
-   place `pt` is written.
-3. From the repository root, on a clean tree, run the one command:
+### The share-card QR codes (#221)
 
-   ```sh
-   python3 website/seo/apply_campaigns.py
-   ```
-
-   It rewrites the eight links in `index.html` and the one in `invite.html`
-   from their `data-ct`, regenerates `/guess`, then the /worth guides, the hub
-   and the sitemap, and runs `check_store_links.py`. It commits nothing, and a
-   second run changes nothing.
-4. Review `git diff`, commit the same day (the sitemap stamps changed pages
-   with today's date, and CI regenerates it from the commit's date), push.
-
-Running `build_seo.py` and then `build_guess.py` again afterwards produces no
-diff; website.yml checks exactly that.
+The app's four branded share cards each encode `https://www.snapworth.eu/get/<kind>`
+(`Config.shareCardURL` in the iOS app). `vercel.json` answers each with a
+non-permanent redirect to that card's campaign link, which is why those rows
+name `vercel.json` as their page. The app is never asked: a shared image can't
+change, but a redirect can, so retargeting a card is a site deploy, not a
+release. Keep the four paths: images already shared encode them forever.
+`check_store_links.py` holds the destinations to the table like any other
+link, `check_live.py` asks the live site for each redirect, and the iOS test
+`ShareCardURLTests` fails if a card's path has no redirect here.
 
 ### Adding or changing a campaign
 
