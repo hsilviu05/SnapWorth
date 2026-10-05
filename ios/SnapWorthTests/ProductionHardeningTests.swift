@@ -8248,12 +8248,19 @@ final class RetentionFunnelTests: XCTestCase {
 
         XCTAssertTrue(try source("SnapWorth/Views/ScanView.swift").contains("isFreshScan: true"),
                       "the scan path no longer marks its own result as fresh")
+        // A rare find's reveal has already put this valuation on screen and
+        // reported it — once, from the reveal — and the full result after it
+        // is told so, rather than told it is not fresh.
+        XCTAssertTrue(try source("SnapWorth/Views/ScanView.swift").contains("priceAlreadyShown: vm.rareFindReveal != nil"),
+                      "the full result after a reveal would report the valuation a second time")
+        XCTAssertTrue(try source("SnapWorth/Views/RareFindViews.swift").contains(".scanResultShown(isFirst:"),
+                      "a rare find's reveal shows the real estimate but does not report it")
         for browsing in ["SnapWorth/Views/HistoryView.swift",
                          "SnapWorth/Views/FlipsView.swift"] {
             XCTAssertFalse(try source(browsing).contains("isFreshScan"),
                            "\(browsing) reopens saved finds — it must not report them as scans")
         }
-        XCTAssertTrue(try source("SnapWorth/Views/ResultView.swift").contains("if isFreshScan {"),
+        XCTAssertTrue(try source("SnapWorth/Views/ResultView.swift").contains("if isFreshScan, !priceAlreadyShown {"),
                       "the event is no longer gated")
     }
 

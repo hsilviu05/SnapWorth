@@ -91,6 +91,10 @@ DELIBERATELY_ENGLISH = {
     "Information We Collect", "How We Use Your Information", "Service Providers",
     "Data Retention", "Children's Privacy", "Changes to This Policy", "Contact",
     "Use of Service", "Subscriptions", "Prohibited Use", "Disclaimer",
+    # The rare-find easter egg's tagline (`RareFind.tagline`): a line printed on
+    # the one shirt the easter egg recognises, quoted as the shirt prints it.
+    # Translated, it would describe a shirt that does not exist.
+    "You met me at a very Chinese time in my life.",
     # Xcode preview titles: `#if DEBUG`, never in a shipped binary.
     "Recent finds — medium", "Profit this month — small", "Scans left — small",
     "Haul — small", "Lock Screen — rectangular",

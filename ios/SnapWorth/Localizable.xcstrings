@@ -1387,6 +1387,42 @@
         }
       }
     },
+    "%@: %@." : {
+      "comment" : "Rare-find easter egg (RareFind.swift). The joke is hype and rarity only — keep it that way in translation. Read aloud: a stat's label, then its value (“Hype level: 9,001.”).",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@: %@."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@: %@."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@: %@."
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@: %@."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@：%@。"
+          }
+        }
+      }
+    },
     "%@–%@" : {
       "comment" : "Punctuation or a format with no words: identical in every language. In the catalog only so Xcode stops re-extracting it.",
       "extractionState" : "manual",
@@ -2888,6 +2924,42 @@
         }
       }
     },
+    "%lld out of %lld" : {
+      "comment" : "Rare-find easter egg (RareFind.swift). The joke is hype and rarity only — keep it that way in translation. A score read aloud: “11 out of 10”. On screen it is printed 11/10.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld von %lld"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld out of %lld"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld de %lld"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld din %lld"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld 分（满分 %lld 分）"
+          }
+        }
+      }
+    },
     "%lld photos couldn't be valued" : {
       "comment" : "Haul: photos the server refused or that failed. On the summary, in the total's VoiceOver value, and placed into \"%@, %@. Estimated total: %@\".",
       "extractionState" : "manual",
@@ -4228,6 +4300,42 @@
         }
       }
     },
+    "1 of 1 (allegedly)" : {
+      "comment" : "Rare-find easter egg (RareFind.swift). The joke is hype and rarity only — keep it that way in translation.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "1 von 1 (angeblich)"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "1 of 1 (allegedly)"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "1 de 1 (supuestamente)"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "1 din 1 (se pare)"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "独一无二（据说）"
+          }
+        }
+      }
+    },
     "A friend used your invite. Redeem your free week with Apple." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -4758,6 +4866,42 @@
         }
       }
     },
+    "Alerting every auction house…" : {
+      "comment" : "Rare-find easter egg (RareFind.swift). The joke is hype and rarity only — keep it that way in translation.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Alle Auktionshäuser werden alarmiert…"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Alerting every auction house…"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Avisando a todas las casas de subastas…"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Anunț toate casele de licitații…"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在通知所有拍卖行…"
+          }
+        }
+      }
+    },
     "All" : {
       "comment" : "Flip filter: every status.",
       "extractionState" : "manual",
@@ -5255,6 +5399,78 @@
         }
       }
     },
+    "Authenticating stitching…" : {
+      "comment" : "Rare-find easter egg (RareFind.swift). The joke is hype and rarity only — keep it that way in translation.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nähte werden authentifiziert…"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Authenticating stitching…"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Autenticando las costuras…"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Autentific cusăturile…"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在鉴定缝线…"
+          }
+        }
+      }
+    },
+    "Authenticity" : {
+      "comment" : "Rare-find easter egg (RareFind.swift). The joke is hype and rarity only — keep it that way in translation.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Echtheit"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Authenticity"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Autenticidad"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Autenticitate"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "真品度"
+          }
+        }
+      }
+    },
     "Avg ROI" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -5536,6 +5752,42 @@
         }
       }
     },
+    "Beyond legendary" : {
+      "comment" : "Rare-find easter egg (RareFind.swift). The joke is hype and rarity only — keep it that way in translation.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Jenseits von legendär"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Beyond legendary"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Más allá de legendario"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Peste legendar"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "超越传说"
+          }
+        }
+      }
+    },
     "Books" : {
       "comment" : "An item category (ScanCategory), as a label on its own: a row of 'Trending at the thrift', and the start of that row's VoiceOver sentence.",
       "extractionState" : "manual",
@@ -5709,6 +5961,42 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "按 %@ 的费率计算"
+          }
+        }
+      }
+    },
+    "Calling a museum curator…" : {
+      "comment" : "Rare-find easter egg (RareFind.swift). The joke is hype and rarity only — keep it that way in translation.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ein Museumskurator wird angerufen…"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Calling a museum curator…"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Llamando a un conservador de museo…"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sun un curator de muzeu…"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在联系博物馆策展人…"
           }
         }
       }
@@ -6134,6 +6422,42 @@
         }
       }
     },
+    "Checking the collar for provenance…" : {
+      "comment" : "Rare-find easter egg (RareFind.swift). The joke is hype and rarity only — keep it that way in translation.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kragen wird auf Herkunft geprüft…"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Checking the collar for provenance…"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Revisando la procedencia del cuello…"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Verific proveniența gulerului…"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在查验领口来历…"
+          }
+        }
+      }
+    },
     "Checking…" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -6307,6 +6631,42 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "从相册选择标签照片"
+          }
+        }
+      }
+    },
+    "Classified." : {
+      "comment" : "Rare-find easter egg (RareFind.swift). The joke is hype and rarity only — keep it that way in translation. Replaces the figure once the ticker lands.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Streng geheim."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Classified."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Clasificado."
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Strict secret."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "机密。"
           }
         }
       }
@@ -6698,6 +7058,78 @@
         }
       }
     },
+    "Collectors alerted" : {
+      "comment" : "Rare-find easter egg (RareFind.swift). The joke is hype and rarity only — keep it that way in translation.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Alarmierte Sammler"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Collectors alerted"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Coleccionistas avisados"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Colecționari alertați"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已惊动的藏家"
+          }
+        }
+      }
+    },
+    "Collectors will write songs about this." : {
+      "comment" : "Rare-find easter egg (RareFind.swift). The joke is hype and rarity only — keep it that way in translation.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sammler werden Lieder darüber schreiben."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Collectors will write songs about this."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Los coleccionistas le compondrán canciones."
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Colecționarii vor compune cântece despre asta."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "藏家们会为它写歌。"
+          }
+        }
+      }
+    },
     "Condition" : {
       "comment" : "Section header above the condition chips.",
       "extractionState" : "manual",
@@ -6871,6 +7303,42 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "正在确认你的订阅…"
+          }
+        }
+      }
+    },
+    "Consulting three fashion historians…" : {
+      "comment" : "Rare-find easter egg (RareFind.swift). The joke is hype and rarity only — keep it that way in translation.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Drei Modehistoriker werden befragt…"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Consulting three fashion historians…"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Consultando a tres historiadores de la moda…"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Consult trei istorici ai modei…"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在请教三位时尚史学家…"
           }
         }
       }
@@ -7893,6 +8361,78 @@
         }
       }
     },
+    "Counting threads. Lost count…" : {
+      "comment" : "Rare-find easter egg (RareFind.swift). The joke is hype and rarity only — keep it that way in translation.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fäden werden gezählt. Verzählt…"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Counting threads. Lost count…"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Contando hilos. Perdimos la cuenta…"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Număr firele. Am pierdut șirul…"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在数线头。数乱了…"
+          }
+        }
+      }
+    },
+    "Cross-referencing auction records…" : {
+      "comment" : "Rare-find easter egg (RareFind.swift). The joke is hype and rarity only — keep it that way in translation.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Auktionsarchive werden abgeglichen…"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cross-referencing auction records…"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cotejando registros de subastas…"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Compar cu arhivele licitațiilor…"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在比对拍卖记录…"
+          }
+        }
+      }
+    },
     "Daily free scan" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -8280,6 +8820,42 @@
         }
       }
     },
+    "Do not machine wash. Do not even look at it too hard." : {
+      "comment" : "Rare-find easter egg (RareFind.swift). The joke is hype and rarity only — keep it that way in translation.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nicht in die Maschine. Nicht mal zu lange anschauen."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Do not machine wash. Do not even look at it too hard."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No la metas en la lavadora. Ni la mires demasiado."
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nu-l spăla la mașină. Nici nu te uita prea insistent la el."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "切勿机洗。连盯久了都不行。"
+          }
+        }
+      }
+    },
     "Done" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -8452,6 +9028,222 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "商品描述与扫描共用每小时上限，扫描可能会暂停最多一小时。"
+          }
+        }
+      }
+    },
+    "Dragon detected. Recalibrating…" : {
+      "comment" : "Rare-find easter egg (RareFind.swift). The joke is hype and rarity only — keep it that way in translation. The dragon is the shirt's own print.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Drache erkannt. Neukalibrierung…"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dragon detected. Recalibrating…"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dragón detectado. Recalibrando…"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dragon detectat. Recalibrez…"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "检测到龙纹。正在重新校准…"
+          }
+        }
+      }
+    },
+    "Drip" : {
+      "comment" : "Rare-find easter egg (RareFind.swift). The joke is hype and rarity only — keep it that way in translation. Slang for style; kept as the anglicism where it is used as one.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Drip"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Drip"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Drip"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Drip"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "潮度"
+          }
+        }
+      }
+    },
+    "EXTREMELY RARE FIND" : {
+      "comment" : "Rare-find easter egg (RareFind.swift). The joke is hype and rarity only — keep it that way in translation. The rubber stamp on the card; capitals on purpose.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "EXTREM SELTENER FUND"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "EXTREMELY RARE FIND"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "HALLAZGO EXTREMADAMENTE RARO"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "GĂSELNIȚĂ EXTREM DE RARĂ"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "极其罕见的好物"
+          }
+        }
+      }
+    },
+    "Easter egg" : {
+      "comment" : "Rare-find easter egg (RareFind.swift). The joke is hype and rarity only — keep it that way in translation. The label at the top of the card, so nobody mistakes it for a valuation. Shown in capitals.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Easter Egg"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Easter egg"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Huevo de Pascua"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Surpriză ascunsă"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "彩蛋"
+          }
+        }
+      }
+    },
+    "Easter egg, just for fun. Not a real valuation." : {
+      "comment" : "Rare-find easter egg (RareFind.swift). The joke is hype and rarity only — keep it that way in translation. First sentence of the card's VoiceOver label.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Easter Egg, nur zum Spaß. Keine echte Bewertung."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Easter egg, just for fun. Not a real valuation."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Huevo de Pascua, solo por diversión. No es una valoración real."
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Surpriză ascunsă, doar în glumă. Nu e o evaluare reală."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "彩蛋，仅供娱乐。并非真实估价。"
+          }
+        }
+      }
+    },
+    "Easter egg: an extremely rare find. Your real estimate is below." : {
+      "comment" : "Rare-find easter egg (RareFind.swift). The joke is hype and rarity only — keep it that way in translation. VoiceOver announcement when the card appears.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Easter Egg: ein extrem seltener Fund. Deine echte Schätzung steht darunter."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Easter egg: an extremely rare find. Your real estimate is below."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Huevo de Pascua: un hallazgo extremadamente raro. Tu estimación real está debajo."
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Surpriză ascunsă: o găselniță extrem de rară. Estimarea reală e mai jos."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "彩蛋：极其罕见的好物。真实估价在下方。"
           }
         }
       }
@@ -8737,6 +9529,42 @@
         }
       }
     },
+    "Est. value" : {
+      "comment" : "Rare-find easter egg (RareFind.swift). The joke is hype and rarity only — keep it that way in translation. Small heading over the joke figure.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Geschätzter Wert"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Est. value"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Valor estimado"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Valoare estimată"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "估值"
+          }
+        }
+      }
+    },
     "Estimated Resale Value" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -8910,6 +9738,42 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "估计总额"
+          }
+        }
+      }
+    },
+    "Estimated value: %@, %@." : {
+      "comment" : "Rare-find easter egg (RareFind.swift). The joke is hype and rarity only — keep it that way in translation. Read aloud. The first %@ is the joke figure or word (“$48,000”, “Priceless”), the second its punchline.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Geschätzter Wert: %@, %@."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Estimated value: %@, %@."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Valor estimado: %@, %@."
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Valoare estimată: %@, %@."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "估值：%@，%@。"
           }
         }
       }
@@ -9157,6 +10021,42 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "导出你的转卖记录"
+          }
+        }
+      }
+    },
+    "Extremely rare find." : {
+      "comment" : "Rare-find easter egg (RareFind.swift). The joke is hype and rarity only — keep it that way in translation. The stamp, read aloud.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Extrem seltener Fund."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Extremely rare find."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hallazgo extremadamente raro."
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Găselniță extrem de rară."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "极其罕见的好物。"
           }
         }
       }
@@ -10185,6 +11085,78 @@
         }
       }
     },
+    "Grail" : {
+      "comment" : "Rare-find easter egg (RareFind.swift). The joke is hype and rarity only — keep it that way in translation.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gral"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Grail"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Grial"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Graal"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "圣杯级"
+          }
+        }
+      }
+    },
+    "Grail status: confirmed." : {
+      "comment" : "Rare-find easter egg (RareFind.swift). The joke is hype and rarity only — keep it that way in translation.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gral-Status: bestätigt."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Grail status: confirmed."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Estatus de grial: confirmado."
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Statut de Graal: confirmat."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "圣杯地位：已确认。"
+          }
+        }
+      }
+    },
     "Guess before the estimate" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -10663,6 +11635,42 @@
         }
       }
     },
+    "Historians consulted" : {
+      "comment" : "Rare-find easter egg (RareFind.swift). The joke is hype and rarity only — keep it that way in translation.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Befragte Historiker"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Historians consulted"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Historiadores consultados"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Istorici consultați"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "请教的史学家"
+          }
+        }
+      }
+    },
     "Home" : {
       "comment" : "An item category (ScanCategory), as a label on its own: a row of 'Trending at the thrift', and the start of that row's VoiceOver sentence.",
       "extractionState" : "manual",
@@ -10695,6 +11703,42 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "家居"
+          }
+        }
+      }
+    },
+    "Hype level" : {
+      "comment" : "Rare-find easter egg (RareFind.swift). The joke is hype and rarity only — keep it that way in translation.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hype-Level"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hype level"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nivel de hype"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nivel de hype"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "热度"
           }
         }
       }
@@ -10874,6 +11918,42 @@
         }
       }
     },
+    "Insure it before you wear it." : {
+      "comment" : "Rare-find easter egg (RareFind.swift). The joke is hype and rarity only — keep it that way in translation.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Versichere es, bevor du es trägst."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Insure it before you wear it."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Asegúrala antes de ponértela."
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Asigură-l înainte să-l porți."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "穿之前先上保险。"
+          }
+        }
+      }
+    },
     "Invested (all-time)" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -11010,6 +12090,78 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "邀请暂时停用了。请稍后再试。"
+          }
+        }
+      }
+    },
+    "Just for fun — not a real valuation" : {
+      "comment" : "Rare-find easter egg (RareFind.swift). The joke is hype and rarity only — keep it that way in translation. Under the easter-egg label on the card.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nur zum Spaß – keine echte Bewertung"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Just for fun — not a real valuation"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Solo por diversión: no es una valoración real"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Doar în glumă — nu e o evaluare reală"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "仅供娱乐——并非真实估价"
+          }
+        }
+      }
+    },
+    "Keep it out of the sun. It has been through enough." : {
+      "comment" : "Rare-find easter egg (RareFind.swift). The joke is hype and rarity only — keep it that way in translation.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Halt es von der Sonne fern. Es hat genug durchgemacht."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Keep it out of the sun. It has been through enough."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mantenla lejos del sol. Ya ha pasado por bastante."
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ține-l departe de soare. A trecut prin destule."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "别再晒太阳了，它已经受够了。"
           }
         }
       }
@@ -11292,6 +12444,78 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "法律条款"
+          }
+        }
+      }
+    },
+    "Legendary+" : {
+      "comment" : "Rare-find easter egg (RareFind.swift). The joke is hype and rarity only — keep it that way in translation.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Legendär+"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Legendary+"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Legendario+"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Legendar+"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "传说级+"
+          }
+        }
+      }
+    },
+    "Legends have been made of less." : {
+      "comment" : "Rare-find easter egg (RareFind.swift). The joke is hype and rarity only — keep it that way in translation.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aus weniger wurden schon Legenden."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Legends have been made of less."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Con menos se han hecho leyendas."
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Și din mai puțin s-au născut legende."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "比这更普通的都成了传奇。"
           }
         }
       }
@@ -11826,6 +13050,42 @@
         }
       }
     },
+    "Measuring the sun fade…" : {
+      "comment" : "Rare-find easter egg (RareFind.swift). The joke is hype and rarity only — keep it that way in translation.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sonnenverblassung wird vermessen…"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Measuring the sun fade…"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Midiendo la decoloración del sol…"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Măsor decolorarea de la soare…"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在测量日晒褪色…"
+          }
+        }
+      }
+    },
     "Medium confidence" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -12038,6 +13298,42 @@
         }
       }
     },
+    "Museums will be jealous." : {
+      "comment" : "Rare-find easter egg (RareFind.swift). The joke is hype and rarity only — keep it that way in translation.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Museen werden neidisch sein."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Museums will be jealous."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Los museos se pondrán celosos."
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Muzeele vor fi geloase."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "博物馆都会眼红。"
+          }
+        }
+      }
+    },
     "My Finds" : {
       "comment" : "Tab bar item: the saved scan library.",
       "extractionState" : "manual",
@@ -12106,6 +13402,78 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "我的转卖"
+          }
+        }
+      }
+    },
+    "Mythic" : {
+      "comment" : "Rare-find easter egg (RareFind.swift). The joke is hype and rarity only — keep it that way in translation.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mythisch"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mythic"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mítico"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mitic"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "神话级"
+          }
+        }
+      }
+    },
+    "Need-to-know basis." : {
+      "comment" : "Rare-find easter egg (RareFind.swift). The joke is hype and rarity only — keep it that way in translation.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nur für Eingeweihte."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Need-to-know basis."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Solo para quien necesite saberlo."
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Doar pentru cine trebuie să știe."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "仅限知情人。"
           }
         }
       }
@@ -12212,6 +13580,42 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "换一件"
+          }
+        }
+      }
+    },
+    "New scale ordered. Also exceeded." : {
+      "comment" : "Rare-find easter egg (RareFind.swift). The joke is hype and rarity only — keep it that way in translation.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Neue Skala bestellt. Auch gesprengt."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "New scale ordered. Also exceeded."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pedimos una escala nueva. También superada."
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Am comandat o scală nouă. Depășită și ea."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已订购新量表。也超了。"
           }
         }
       }
@@ -12676,6 +14080,42 @@
         }
       }
     },
+    "Not a shirt. An heirloom." : {
+      "comment" : "Rare-find easter egg (RareFind.swift). The joke is hype and rarity only — keep it that way in translation.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kein Shirt. Ein Erbstück."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Not a shirt. An heirloom."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No es una camiseta. Es una reliquia familiar."
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nu e un tricou. E o moștenire de familie."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这不是衣服，是传家宝。"
+          }
+        }
+      }
+    },
     "Not now" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -13025,6 +14465,78 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "默认关闭。开启后，只在你选的时间提醒一次，而且只在免费扫描恢复之后；升级 Pro 后不再提醒。"
+          }
+        }
+      }
+    },
+    "Off the charts." : {
+      "comment" : "Rare-find easter egg (RareFind.swift). The joke is hype and rarity only — keep it that way in translation. Replaces the figure once the ticker lands.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Jenseits jeder Skala."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Off the charts."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fuera de escala."
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "În afara oricărui grafic."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "爆表了。"
+          }
+        }
+      }
+    },
+    "Okay, seriously:" : {
+      "comment" : "Rare-find easter egg (RareFind.swift). The joke is hype and rarity only — keep it that way in translation. Heading over the real estimate, right under the joke card.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Okay, jetzt im Ernst:"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Okay, seriously:"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vale, ahora en serio:"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bine, acum serios:"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "好了，说正经的："
           }
         }
       }
@@ -13448,6 +14960,42 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "打开订阅选项，解锁无限扫描"
+          }
+        }
+      }
+    },
+    "Opens the full result for this item" : {
+      "comment" : "Rare-find easter egg (RareFind.swift). The joke is hype and rarity only — keep it that way in translation. VoiceOver hint.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Öffnet das vollständige Ergebnis für diesen Artikel"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Opens the full result for this item"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Abre el resultado completo de este artículo"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Deschide rezultatul complet pentru acest obiect"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "打开此物品的完整结果"
           }
         }
       }
@@ -14161,6 +15709,42 @@
         }
       }
     },
+    "Priceless." : {
+      "comment" : "Rare-find easter egg (RareFind.swift). The joke is hype and rarity only — keep it that way in translation. Replaces the figure once the ticker lands.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Unbezahlbar."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Priceless."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No tiene precio."
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Neprețuit."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无价之宝。"
+          }
+        }
+      }
+    },
     "Privacy" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -14578,6 +16162,114 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "回报率"
+          }
+        }
+      }
+    },
+    "Rarity index climbing…" : {
+      "comment" : "Rare-find easter egg (RareFind.swift). The joke is hype and rarity only — keep it that way in translation.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Seltenheitsindex steigt…"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rarity index climbing…"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "El índice de rareza se dispara…"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Indicele de raritate crește…"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "稀有指数飙升中…"
+          }
+        }
+      }
+    },
+    "Rarity tier" : {
+      "comment" : "Rare-find easter egg (RareFind.swift). The joke is hype and rarity only — keep it that way in translation. Small heading over the tier (Mythic, Grail…).",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Seltenheitsstufe"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rarity tier"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nivel de rareza"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nivel de raritate"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "稀有等级"
+          }
+        }
+      }
+    },
+    "Rarity tier: %@." : {
+      "comment" : "Rare-find easter egg (RareFind.swift). The joke is hype and rarity only — keep it that way in translation. Read aloud. %@ is a tier such as “Mythic”.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Seltenheitsstufe: %@."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rarity tier: %@."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nivel de rareza: %@."
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nivel de raritate: %@."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "稀有等级：%@。"
           }
         }
       }
@@ -16452,6 +18144,42 @@
         }
       }
     },
+    "See the full result" : {
+      "comment" : "Rare-find easter egg (RareFind.swift). The joke is hype and rarity only — keep it that way in translation. Button from the reveal to the normal result.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vollständiges Ergebnis ansehen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "See the full result"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ver el resultado completo"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vezi rezultatul complet"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "查看完整结果"
+          }
+        }
+      }
+    },
     "See what's trending" : {
       "comment" : "Paywall headline when it opened from the locked 'Trending at the thrift' card.",
       "extractionState" : "manual",
@@ -16947,6 +18675,42 @@
         }
       }
     },
+    "Share the card" : {
+      "comment" : "Rare-find easter egg (RareFind.swift). The joke is hype and rarity only — keep it that way in translation. Button that shares the joke card as an image.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Karte teilen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Share the card"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Compartir la tarjeta"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Distribuie cardul"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "分享卡片"
+          }
+        }
+      }
+    },
     "Share this find as a card, or as a guess-the-price story" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -17013,6 +18777,42 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "分享本月"
+          }
+        }
+      }
+    },
+    "Shares the easter egg card as an image" : {
+      "comment" : "Rare-find easter egg (RareFind.swift). The joke is hype and rarity only — keep it that way in translation. VoiceOver hint.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Teilt die Easter-Egg-Karte als Bild"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Shares the easter egg card as an image"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Comparte la tarjeta del huevo de Pascua como imagen"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Distribuie cardul surpriză ca imagine"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "以图片形式分享彩蛋卡片"
           }
         }
       }
@@ -17295,6 +19095,42 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "显示你的收藏这段时间的变化。需要 SnapWorth Pro。"
+          }
+        }
+      }
+    },
+    "Sightings in the wild" : {
+      "comment" : "Rare-find easter egg (RareFind.swift). The joke is hype and rarity only — keep it that way in translation.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sichtungen in freier Wildbahn"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sightings in the wild"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Avistamientos en libertad"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apariții în libertate"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "野外目击次数"
           }
         }
       }
@@ -18888,6 +20724,42 @@
         }
       }
     },
+    "Sun-fade rating" : {
+      "comment" : "Rare-find easter egg (RareFind.swift). The joke is hype and rarity only — keep it that way in translation.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sonnenverblassungs-Note"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sun-fade rating"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nota de decoloración"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nota decolorării"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "日晒褪色评分"
+          }
+        }
+      }
+    },
     "Support" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -19382,6 +21254,78 @@
         }
       }
     },
+    "The appraiser needs a moment…" : {
+      "comment" : "Rare-find easter egg (RareFind.swift). The joke is hype and rarity only — keep it that way in translation.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Der Gutachter braucht einen Moment…"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The appraiser needs a moment…"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "El tasador necesita un momento…"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Evaluatorul are nevoie de un moment…"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "估价师需要缓一缓…"
+          }
+        }
+      }
+    },
+    "The calculator quit." : {
+      "comment" : "Rare-find easter egg (RareFind.swift). The joke is hype and rarity only — keep it that way in translation.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Der Taschenrechner hat gekündigt."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The calculator quit."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La calculadora se rindió."
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Calculatorul a renunțat."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "计算器罢工了。"
+          }
+        }
+      }
+    },
     "The full breakdown is only available for new scans. This find keeps the summary it was saved with." : {
       "comment" : "Under \"Scanned before Pro\": a find reopened from My Finds or My Flips keeps the free part of \"Why this price\"; only a fresh scan offers the full panel.",
       "extractionState" : "manual",
@@ -19418,6 +21362,42 @@
         }
       }
     },
+    "The historians are arguing…" : {
+      "comment" : "Rare-find easter egg (RareFind.swift). The joke is hype and rarity only — keep it that way in translation.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die Historiker streiten sich…"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The historians are arguing…"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Los historiadores están discutiendo…"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Istoricii se ceartă…"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "史学家们吵起来了…"
+          }
+        }
+      }
+    },
     "The original photo is no longer available for this find." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -19449,6 +21429,42 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "这件好物的原始照片已经不在了。"
+          }
+        }
+      }
+    },
+    "The rarest thing we have ever scanned. Allegedly." : {
+      "comment" : "Rare-find easter egg (RareFind.swift). The joke is hype and rarity only — keep it that way in translation.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Das Seltenste, was wir je gescannt haben. Angeblich."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The rarest thing we have ever scanned. Allegedly."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lo más raro que hemos escaneado nunca. Supuestamente."
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cel mai rar lucru scanat vreodată. Se pare."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "我们扫描过的最稀有的东西。据说。"
           }
         }
       }
@@ -19520,6 +21536,42 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "其余照片已暂缓，以免遇到同样的问题。"
+          }
+        }
+      }
+    },
+    "The shirt reads:" : {
+      "comment" : "Rare-find easter egg (RareFind.swift). The joke is hype and rarity only — keep it that way in translation. Read aloud, last in the card's summary; VoiceOver then reads the shirt's printed line, in English, as the next element.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Auf dem Shirt steht:"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The shirt reads:"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La camiseta dice:"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pe tricou scrie:"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "衣服上印着："
           }
         }
       }
@@ -19697,6 +21749,42 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "这件好物保存时没有完整分析。重新识别它的照片，就能看到价格档位和什么在抬高价值。估价、物品名称和细节，以及商品描述草稿都可能随之改变。"
+          }
+        }
+      }
+    },
+    "This has never happened before…" : {
+      "comment" : "Rare-find easter egg (RareFind.swift). The joke is hype and rarity only — keep it that way in translation.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Das ist noch nie passiert…"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This has never happened before…"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Esto nunca había pasado…"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Așa ceva nu s-a mai întâmplat…"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "前所未有…"
           }
         }
       }
@@ -21631,6 +23719,42 @@
         }
       }
     },
+    "WARNING: value exceeds scale" : {
+      "comment" : "Rare-find easter egg (RareFind.swift). The joke is hype and rarity only — keep it that way in translation.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "WARNUNG: Wert sprengt die Skala"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "WARNING: value exceeds scale"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AVISO: el valor supera la escala"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ATENȚIE: valoarea depășește scala"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "警告：价值超出量程"
+          }
+        }
+      }
+    },
     "Waiting for approval. Your subscription starts as soon as it's approved — you don't need to buy again." : {
       "comment" : "Ask to Buy: a parent has to approve the purchase.",
       "extractionState" : "manual",
@@ -21735,6 +23859,42 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "等待估价"
+          }
+        }
+      }
+    },
+    "We checked. Twice." : {
+      "comment" : "Rare-find easter egg (RareFind.swift). The joke is hype and rarity only — keep it that way in translation.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wir haben nachgeprüft. Zweimal."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "We checked. Twice."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lo comprobamos. Dos veces."
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Am verificat. De două ori."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "我们核对过了。两次。"
           }
         }
       }
@@ -21912,6 +24072,42 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "月度回顾做好了我们会通知你，也会提醒你更新账本。只发有用的，不会骚扰，随时可以在“设置”里关掉。"
+          }
+        }
+      }
+    },
+    "Wear it once. Then straight to the vault." : {
+      "comment" : "Rare-find easter egg (RareFind.swift). The joke is hype and rarity only — keep it that way in translation.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Einmal tragen. Dann ab in den Tresor."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wear it once. Then straight to the vault."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Póntela una vez. Luego, directa a la cámara acorazada."
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Poartă-l o dată. Apoi direct în seif."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "穿一次，然后直接锁进保险库。"
           }
         }
       }
@@ -23642,6 +25838,78 @@
         }
       }
     },
+    "and climbing" : {
+      "comment" : "Rare-find easter egg (RareFind.swift). The joke is hype and rarity only — keep it that way in translation.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tendenz steigend"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "and climbing"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "y subiendo"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "și tot crește"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "还在涨"
+          }
+        }
+      }
+    },
+    "auction houses are calling" : {
+      "comment" : "Rare-find easter egg (RareFind.swift). The joke is hype and rarity only — keep it that way in translation.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "die Auktionshäuser rufen schon an"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "auction houses are calling"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "las casas de subastas ya llaman"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "casele de licitații sună deja"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "拍卖行已经打来电话"
+          }
+        }
+      }
+    },
     "authenticity could not be verified from the photo" : {
       "comment" : "One reason under the confidence score in \"Why this price\": a lower-case clause, no full stop, shown as a bullet. In English the server's own clause is shown instead.",
       "extractionState" : "manual",
@@ -23748,6 +26016,42 @@
         }
       }
     },
+    "before the bidding war" : {
+      "comment" : "Rare-find easter egg (RareFind.swift). The joke is hype and rarity only — keep it that way in translation.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "vor dem Bieterkrieg"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "before the bidding war"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "antes de la guerra de pujas"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "înainte de războiul licitațiilor"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "竞价大战之前"
+          }
+        }
+      }
+    },
     "best flip" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -23814,6 +26118,42 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "全新未使用"
+          }
+        }
+      }
+    },
+    "conservatively" : {
+      "comment" : "Rare-find easter egg (RareFind.swift). The joke is hype and rarity only — keep it that way in translation.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "vorsichtig geschätzt"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "conservatively"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "siendo conservadores"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "estimat cu prudență"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "保守估计"
           }
         }
       }
@@ -23956,6 +26296,42 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "次免费扫描（今天）"
+          }
+        }
+      }
+    },
+    "give or take" : {
+      "comment" : "Rare-find easter egg (RareFind.swift). The joke is hype and rarity only — keep it that way in translation.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "plus/minus"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "give or take"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "más o menos"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "plus-minus"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "上下浮动"
           }
         }
       }
@@ -24246,6 +26622,42 @@
         }
       }
     },
+    "market rate: unhinged" : {
+      "comment" : "Rare-find easter egg (RareFind.swift). The joke is hype and rarity only — keep it that way in translation.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Marktpreis: völlig durchgedreht"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "market rate: unhinged"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "precio de mercado: desquiciado"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "prețul pieței: nebunesc"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "市场行情：失控"
+          }
+        }
+      }
+    },
     "medium demand" : {
       "comment" : "The AI's guess at demand. Lower-case: it is placed inside 'AI read: %@, %@'.",
       "extractionState" : "manual",
@@ -24350,6 +26762,42 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "月"
+          }
+        }
+      }
+    },
+    "museums are circling" : {
+      "comment" : "Rare-find easter egg (RareFind.swift). The joke is hype and rarity only — keep it that way in translation.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "die Museen kreisen schon"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "museums are circling"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "los museos están al acecho"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "muzeele dau târcoale"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "博物馆虎视眈眈"
           }
         }
       }
@@ -24496,6 +26944,42 @@
         }
       }
     },
+    "per sleeve" : {
+      "comment" : "Rare-find easter egg (RareFind.swift). The joke is hype and rarity only — keep it that way in translation.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "pro Ärmel"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "per sleeve"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "por manga"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "per mânecă"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "每只袖子"
+          }
+        }
+      }
+    },
     "profit this month" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -24563,6 +27047,78 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "货源稀少"
+          }
+        }
+      }
+    },
+    "shipping not included" : {
+      "comment" : "Rare-find easter egg (RareFind.swift). The joke is hype and rarity only — keep it that way in translation.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "zzgl. Versand"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "shipping not included"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "envío no incluido"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "transportul nu e inclus"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "不含运费"
+          }
+        }
+      }
+    },
+    "suspiciously specific" : {
+      "comment" : "Rare-find easter egg (RareFind.swift). The joke is hype and rarity only — keep it that way in translation.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "verdächtig genau"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "suspiciously specific"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "sospechosamente exacto"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "suspect de precis"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "精确得可疑"
           }
         }
       }
@@ -25359,6 +27915,42 @@
         }
       }
     },
+    "the scale maxed out" : {
+      "comment" : "Rare-find easter egg (RareFind.swift). The joke is hype and rarity only — keep it that way in translation.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "die Skala ist am Anschlag"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "the scale maxed out"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "la escala no da más"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "scala s-a terminat"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "量表已爆表"
+          }
+        }
+      }
+    },
     "this category has a well-established resale market" : {
       "comment" : "One reason under the confidence score in \"Why this price\": a lower-case clause, no full stop, shown as a bullet. In English the server's own clause is shown instead. The server's English names the category; this one leaves it out.",
       "extractionState" : "manual",
@@ -25568,6 +28160,42 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "这个品类的价格因物品而差异很大"
+          }
+        }
+      }
+    },
+    "vibes not included" : {
+      "comment" : "Rare-find easter egg (RareFind.swift). The joke is hype and rarity only — keep it that way in translation.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vibes nicht inbegriffen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "vibes not included"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "el rollo no está incluido"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "vibe-ul nu e inclus"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "气场另算"
           }
         }
       }

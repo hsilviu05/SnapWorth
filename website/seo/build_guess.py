@@ -32,11 +32,12 @@ import html
 import json
 import pathlib
 import re
+import sys
 
-from build_seo import ANALYTICS, APP_STORE, ITEMS, SITE, STYLE
+from build_seo import ANALYTICS, ITEMS, SITE, STYLE
+from campaigns import APP_ID, MissingProviderToken, app_store
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
-APP_ID = "6788521307"
 
 
 def rounds() -> list[dict]:
@@ -393,7 +394,10 @@ def build() -> None:
     assert len(data) >= 10, f"only {len(data)} rounds available"
     page = PAGE.format(
         site=SITE,
-        app_store=APP_STORE,
+        # A campaign link (#204, campaigns.py), escaped for the href it is
+        # written into; the browser unescapes it when the result card's
+        # HTML is parsed.
+        app_store=html.escape(app_store("guess_web")),
         app_id=APP_ID,
         style=STYLE,
         analytics=ANALYTICS,
@@ -405,4 +409,8 @@ def build() -> None:
 
 
 if __name__ == "__main__":
-    build()
+    try:
+        build()
+    except MissingProviderToken as missing:
+        # Before any page is written: the first link it builds raises.
+        sys.exit(str(missing))
