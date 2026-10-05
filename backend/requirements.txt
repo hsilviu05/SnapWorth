@@ -64,7 +64,7 @@ redis==8.1.0
 # The parser above this is not the only defence: `appattest.py` type-checks
 # every field it reads out of the decoded map, because CBOR decodes to whatever
 # the sender encoded and a bare int top-level used to reach `.get` as a 500.
-cbor2==6.1.4
+cbor2==6.1.5
 # StoreKit 2 signed transactions are ES256 JWS. 2.13.0 closes six advisories,
 # including PYSEC-2026-176, a verifier-side algorithm allow-list bypass that
 # would in principle be an entitlement-forgery path to free Pro. That one is
