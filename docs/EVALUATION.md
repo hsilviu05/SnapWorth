@@ -3,7 +3,11 @@
 **Status: infrastructure complete, zero measurements taken.**
 
 There is no gold dataset in this repository, so nothing here has produced a
-measured accuracy figure for SnapWorth, and none is claimed anywhere. Run
+measured accuracy figure for SnapWorth, and none is claimed anywhere. The
+intake that builds one exists (`python -m eval.intake`, below); the sales it
+needs are being gathered (#213). When `gold.jsonl` lands, this line names its
+frozen version (`schema.freeze`) and record count, and still quotes no
+accuracy until a baseline is recorded. Run
 `python -m eval.cli status` for the current answer to "what can we measure?" —
 today it is "nothing", and the platform says so rather than printing zeros.
 
@@ -119,11 +123,52 @@ something.
 
 ### Building it
 
+Records come in through the intake, never by hand-copying the template
+(`backend/eval/intake.py`, #213). From `backend/`:
+
 ```bash
-cp backend/eval/data/gold.template.jsonl backend/eval/data/gold.jsonl
-# replace the TEMPLATE records with verified sales
+# Sold flips from the app: My Flips → ⋯ → Export photos and estimates (ZIP)
+python -m eval.intake zip ~/Downloads/SnapWorth-Flips-2026-10-05.zip
+# Sales that never went through the app: a CSV, one photo per row
+python -m eval.intake csv sales.csv --photos ~/Pictures/sold
 python -m eval.cli dataset --path eval/data/gold.jsonl
 ```
+
+Each sale becomes a **draft** with the next id (`G-0001`, …), appended to
+`eval/data/gold.jsonl`, and its photo goes to `eval/data/images/<id>-front.jpg`
+with its `sha256` in the record. `--dry-run` checks every row and writes
+nothing. A draft counts toward nothing until a reviewer sets its evidence and
+label confidence and approves it (`review_state: approved`, `reviewed_by`).
+
+**What lives where.** The repository is public. `gold.jsonl` holds labels only
+— price, currency, category, brand, condition, date, region, difficulty, tags,
+image paths and hashes — and is in git, because the drift check reads it from
+git history. Photos, receipts and screenshots live in a private repository
+mounted at `backend/eval/data/images/`, which `.gitignore` keeps out. Evidence
+is written as `evidence_note: "private:<ref>"`, naming a file in that store.
+The intake refuses a web address as evidence, and `eval.yml`'s
+`data-integrity` job fails if an image is committed under `backend/eval/data/`
+(even with `git add -f`) or a record holds an evidence link.
+
+**What the intake enforces.**
+- **Production's input.** A photo larger than the app's 1568 px upload, or not
+  a JPEG, is converted with macOS `sips` to a JPEG with a 1568 px long edge at
+  quality 80. A JPEG already within that is copied unchanged. The app's
+  export holds its 1024 px stored copy, so those records are tagged
+  `stored_1024`.
+- **Evidence for certainty.** `certain` and `high` need a `private:` reference.
+- **Real currencies.** A My Flips sale is assumed USD, because the app never
+  asks, and tagged `currency_assumed` for the reviewer to confirm. A CSV sale
+  keeps its own currency and must name its region (RO, DE, …). Nothing is
+  converted: the runner scores USD only, and the per-region work adds FX.
+- **All or nothing.** If any row is refused, nothing is written and every
+  problem is listed.
+- **No duplicates.** A photo already in the set, by hash, is skipped, so
+  re-importing a later export adds only the new sales.
+
+CSV columns: `photo`, `price`, `currency`, `category` (required); `brand`,
+`model`, `condition`, `sold_date`, `marketplace`, `region`,
+`label_confidence`, `evidence`, `difficulty`, `tags` (`;`-separated), `notes`.
 
 Fastest honest sources, in order: your own completed sales (evidence in hand),
 captured eBay completed listings, then a partner reseller's records. ~50 records
@@ -376,6 +421,7 @@ if any shipped sample record ever becomes scoreable again.
 | Error taxonomy | ✅ Implemented and tested |
 | CLI wrapper (`eval/cli.py`) | ✅ Implemented and tested |
 | Calibration fitting | ✅ Implemented, ⚠️ never fitted on real data |
+| Gold-set intake (`eval/intake.py`) | ✅ Implemented and tested, no records yet |
 | CI gates | ✅ Wired, ⏭️ skip until a gold set exists |
 | Dashboard models | ✅ Implemented, no frontend |
 | **Gold dataset** | ❌ **Does not exist** |

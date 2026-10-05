@@ -36,3 +36,7 @@ marketing/screenshots/*/captures/
 # Written by CI immediately before deploy so /health can report the live
 # commit. Generated per-deploy — never committed.
 backend/BUILD_COMMIT
+
+# Gold-set photos, receipts and screenshots (#213): the private store is
+# mounted here. The repo is public; only labels live in git.
+backend/eval/data/images/

@@ -53,7 +53,7 @@ jobs:
       - name: Test the evaluation platform
         env:
           GEMINI_API_KEY: ci-placeholder-not-real
-        run: pytest tests/test_eval_platform.py tests/test_eval.py -v --tb=short
+        run: pytest tests/test_eval_platform.py tests/test_eval.py tests/test_eval_intake.py -v --tb=short
 
   # ── Guards against fabricated benchmark data ──────────────────────────────
   data-integrity:
@@ -96,6 +96,41 @@ jobs:
                     'reported metric. Add real records to eval/data/gold.jsonl.')
               sys.exit(1)
           print(f'ok: {len(v1)} sample + {len(gold)} template records, none scoreable')
+          PY
+
+      # The repo is public (#213). Labels go in git; photos, receipts and
+      # screenshots go in the private store mounted at eval/data/images/, which
+      # .gitignore keeps out, and evidence is a `private:<ref>`, never a web
+      # address. `git add -f` gets past .gitignore, so this asks git itself.
+      - name: No photos or evidence links in the public repo
+        run: |
+          set -euo pipefail
+          tracked=$(git ls-files eval/data | grep -iE '\.(jpe?g|png|heic|heif|webp|gif|tiff?|pdf)$' || true)
+          if [ -n "$tracked" ]; then
+            echo "::error::Images are committed under backend/eval/data/. They belong in the private gold store:"
+            echo "$tracked"
+            exit 1
+          fi
+          python - <<'PY'
+          import json, pathlib, re, sys
+          path = pathlib.Path('eval/data/gold.jsonl')
+          if not path.exists():
+              print('no gold set yet'); sys.exit(0)
+          web = re.compile(r'(https?://|www\.)', re.I)
+          bad = []
+          for n, line in enumerate(path.read_text(encoding='utf-8').splitlines(), 1):
+              line = line.strip()
+              if not line or line.startswith('#'):
+                  continue
+              record = json.loads(line)
+              if record.get('evidence_url'):
+                  bad.append(f'line {n} ({record.get("id")}): evidence_url is set')
+              if web.search(record.get('evidence_note') or ''):
+                  bad.append(f'line {n} ({record.get("id")}): evidence_note holds a web address')
+          if bad:
+              print('::error::Evidence must be a private:<ref> (eval/intake.py):')
+              print('\n'.join(bad)); sys.exit(1)
+          print('ok: no evidence links in gold.jsonl')
           PY
 
       - name: Gold set label drift
