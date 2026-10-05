@@ -81,7 +81,7 @@ import secrets
 import time
 from collections.abc import Awaitable, Callable
 from datetime import datetime, timedelta, timezone
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 
 import auditlog
 import categories
@@ -2628,7 +2628,8 @@ _LEVER_UNWIRED = ("🎚 Nothing changed: the bot cannot ask the quota in this pr
 
 
 async def _lever_command(argument: str, rest: str) -> tuple[str, Buttons]:
-    """`/lever`, `/lever arm [n]`, `/lever disarm`, and their confirmations.
+    """`/lever`, `/lever arm [n]`, `/lever disarm`, and their confirmations;
+    `/lever plan …` is the paywall's default plan (`_plan_command`).
 
     Two taps, never one. The first names what is about to change and what it
     currently is; the second does it. A single-tap lever on a phone, in a chat
@@ -2637,6 +2638,8 @@ async def _lever_command(argument: str, rest: str) -> tuple[str, Buttons]:
     """
     parts = (rest or "").split()
     action = parts[0].lower() if parts else ""
+    if action == "plan":
+        return await _plan_command(parts)
     # Anywhere after the action, not at a fixed index: the arm button carries
     # the value it is confirming ("lever arm 3 yes"), so checking parts[1]
     # silently re-showed the confirmation instead of acting on it.
@@ -2722,6 +2725,105 @@ async def _lever_command(argument: str, rest: str) -> tuple[str, Buttons]:
         lines.append(f"Environment: <code>FREE_SCANS_FIRST_DAY={setting.environment}</code>"
                      f" · daily limit {setting.daily}")
     return "\n".join(lines), _lever_buttons(current)
+
+
+# ── The paywall's default plan (#220) ──────────────────────────────────────
+#
+# Which plan the paywall preselects, sent to 1.5.2+ in the token response as
+# `paywall_default_plan`. Unset means yearly, exactly as every build before
+# the field behaves, so the lever exists to run the monthly-default arm
+# without a release, and to end it the same way. Kept in the levers document
+# beside the free-scan lever, with its own change record: `changes` is the
+# free-scan lever's history, which /experiment's export reads, and a plan
+# move written there would read as a free-scan change.
+
+PaywallPlan = Literal["yearly", "monthly"]
+PAYWALL_PLANS: tuple[PaywallPlan, ...] = ("yearly", "monthly")
+
+
+def _plan_value(doc: dict) -> PaywallPlan | None:
+    value = doc.get("paywall_default_plan")
+    for plan in PAYWALL_PLANS:
+        if value == plan:
+            return plan
+    return None
+
+
+async def paywall_default_plan() -> PaywallPlan | None:
+    """The plan the operator set, or None for the app's own default (yearly).
+
+    Read on every token mint. Raises nothing: an unreadable levers document is
+    None, which is what every user saw before the lever existed."""
+    return _plan_value(await _levers())
+
+
+async def _set_paywall_default_plan(value: PaywallPlan | None) -> dict | None:
+    """Set or clear the plan lever, recording the day. None, with nothing
+    written, when the document could not be read — as `_set_free_scan_lever`."""
+    try:
+        doc = await _levers(required=True)
+    except Exception as exc:
+        log.warning("levers unreadable, not changing the plan: %s", type(exc).__name__)
+        return None
+    before = _plan_value(doc)
+    if value is None:
+        doc.pop("paywall_default_plan", None)
+    else:
+        doc["paywall_default_plan"] = value
+    changes = [c for c in (doc.get("plan_changes") or [])
+               if isinstance(c, list) and len(c) == 3]
+    changes.append([_day(), before, value])
+    doc["plan_changes"] = changes[-LEVER_CHANGES_CAP:]
+    await _cache.set(LEVERS_KEY, json.dumps(doc))
+    return doc
+
+
+def _plan_label(value: str | None) -> str:
+    return f"{value}" if value else "yearly (app default)"
+
+
+async def _plan_command(parts: list[str]) -> tuple[str, Buttons]:
+    """`/lever plan`, `/lever plan yearly|monthly|default [yes]`.
+
+    Two taps, like the free-scan lever. It reaches each device at its next
+    token mint, within the hour, and only builds that read the field: 1.5.2
+    and later."""
+    wanted_raw = parts[1].lower() if len(parts) > 1 else ""
+    confirmed = any(token.lower() == "yes" for token in parts[2:])
+    doc = await _levers()
+    current = _plan_value(doc)
+    history = [c for c in (doc.get("plan_changes") or []) if isinstance(c, list) and len(c) == 3]
+    buttons: Buttons = [[("📅 Yearly", "lever plan yearly"),
+                         ("🗓 Monthly", "lever plan monthly"),
+                         ("↩️ App default", "lever plan default")]]
+
+    if wanted_raw not in (*PAYWALL_PLANS, "default"):
+        lines = ["💳 <b>Paywall default plan</b>",
+                 f"Now: <b>{_plan_label(current)}</b>",
+                 "Preselected on the paywall by builds 1.5.2 and later, from "
+                 "their next token (within an hour). Older builds always "
+                 "preselect yearly."]
+        if history:
+            day, before, after = history[-1]
+            lines.append(f"Last change: {day[:4]}-{day[4:6]}-{day[6:]}, "
+                         f"{_plan_label(before)} → {_plan_label(after)}")
+        return "\n".join(lines), buttons
+
+    # None for "default", the plan itself otherwise (checked just above).
+    wanted = _plan_value({"paywall_default_plan": wanted_raw})
+    if wanted == current:
+        return f"💳 Nothing changed: the default is already <b>{_plan_label(current)}</b>.", buttons
+    if not confirmed:
+        return (f"💳 <b>Change the paywall's default plan?</b>\n"
+                f"<b>{_plan_label(current)}</b> → <b>{_plan_label(wanted)}</b>.\n"
+                "This is an experiment arm (#220): change it only at an arm "
+                "boundary, and log the date in the growth log.",
+                [[("✅ Yes, change it", f"lever plan {wanted_raw} yes"),
+                  ("Cancel", "lever plan")]])
+    if await _set_paywall_default_plan(wanted) is None:
+        return _LEVER_UNREADABLE, buttons
+    return (f"💳 Paywall default plan — <b>{_plan_label(wanted)}</b>, "
+            "from each 1.5.2+ device's next token.", buttons)
 
 
 def _lever_buttons(current: int | None) -> Buttons:

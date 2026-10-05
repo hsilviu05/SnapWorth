@@ -58,6 +58,7 @@ actually arrives:
 | Keep the experiment's numbers | `/experiment export` (💾 under `/experiment`) | The same rows as CSV in a block to copy into `docs/`. The counters expire 35 days after each day, so the 2026-09-10 → 09-24 window starts disappearing on 2026-10-15. An expired day is exported empty, not as zeros, and an unreadable Redis exports nothing. The `#` lines above the header (the window, the welcome, any lever move) have no commas, so each parses as one CSV field, and a reader that skips `#` lines gets only the table |
 | Which paywall sells | `/paywall` | The last 28 days: trial starts and direct purchases per paywall trigger (from 1.5.2, which sends the trigger on the sync after a purchase; anything else is "no trigger"), and trial → paid over the trials whose free period ended in the window, with its n. Counts, not significance. Per trigger is counts only: the trigger is never stored with the subscription, so trial → paid by trigger is not readable here (#218) |
 | Start or stop the free-scan experiment | `/lever` | Arms or disarms the first-day allowance without a Railway change or a redeploy. Two taps, clamped, and `/experiment` footnotes any day it moved. It checks a value against the running quota's own daily limit and cap, and refuses to arm when it cannot ask |
+| Which plan the paywall preselects | `/lever plan` | `yearly`, `monthly` or `default` (the app's own, yearly), two taps. Sent on every token as `paywall_default_plan`, so a 1.5.2+ device follows within the hour; older builds always preselect yearly. An experiment arm (#220): change it only at an arm boundary and log the date in the growth log. `paywall_viewed` and the `purchase_*` events carry `default_plan` |
 | Make a bad or stranded build update | `/minbuild <n>` | /scan, /listing and /trends answer builds below `n` with a 422 telling them to update from the App Store; `/minbuild off` serves all again. Two taps. Set it only once build `n` is live. /scan and /listing show the message to builds 8 and up; builds 7 and older show fixed copy ("Something went wrong"). /trends is refused too, but the app drops that error silently and the Trending card disappears. /auth is never gated, and a request whose build is unreadable is served. A 422 is a non-paging 4xx: refusals are counted in `snapworth_outdated_build_refused_total`, by endpoint. The access log's `build` field (from the User-Agent) shows who is still on what |
 | Yesterday | The daily digest | Sent automatically at `TELEGRAM_DIGEST_UTC_HOUR` (default 06:00 UTC); a weekly report on Mondays |
 
@@ -1538,23 +1539,22 @@ Two surfaces read the live offer from StoreKit and need nothing:
 - the **"trial ends tomorrow" reminder** — suppressed unless the product's
   offer is genuinely `freeTrial`
 
-Two surfaces deliberately state the *rule* rather than the offer, and are
-guarded by tests that fail if a concrete duration reappears:
+These surfaces deliberately state the *rule* rather than the offer ("a free
+trial; its length is shown before you subscribe"), so the trial length is
+purely an App Store Connect setting:
 
-- in-app Terms of Service (`TermsCopy.subscriptions`)
-- `GET /terms` (`backend/main.py`)
+- in-app Terms of Service (`TermsCopy.subscriptions`) and `GET /terms`
+  (`backend/main.py`), guarded by tests that fail if a duration reappears
+- `website/index.html` (plan cadence, Pro list, the FAQ and its JSON-LD copy)
+  and `website/support.html`, duration-free since #220
+- `marketing/app_store_listing*.md`, duration-free since the 1.5.1 listing work
 
-Everything below hardcodes today's offer on purpose — marketing copy is
-expected to name the current deal — and is **yours to update by hand** the
-same day you change it in App Store Connect:
+So a change of **length** needs nothing here. A change of **kind** still does:
+if the new offer is **paid** (`payUpFront` or `payAsYouGo`), every "free
+trial" below is wrong, and is yours to update the same day:
 
-- [ ] `website/index.html` — plan cadence line, Pro feature list, the "Is it
-      really free?" FAQ answer, **and the same answer again in the JSON-LD
-      `FAQPage` block** (it is duplicated; search for the trial phrase and
-      expect more than one hit)
-- [ ] `website/support.html` — the cancellation paragraph
-- [ ] `marketing/app_store_listing.md` — the yearly plan line
-- [ ] App Store Connect listing description itself
+- [ ] `website/index.html` and `website/support.html`
+- [ ] `marketing/app_store_listing*.md` and the App Store Connect description
 
 Check with:
 

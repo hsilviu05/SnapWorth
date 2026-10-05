@@ -278,16 +278,21 @@ enum AnalyticsEvent {
             return ["count": String(count)]
         case let .onboardingCompleted(via):
             return ["via": via.rawValue]
+        // `default_plan` (#220): which plan the paywall preselected, so each
+        // arm of the trial experiment can be read from these events alone.
         case let .paywallViewed(trigger, isFirst):
-            return ["trigger": trigger.rawValue, "is_first": String(isFirst)]
+            return ["trigger": trigger.rawValue, "is_first": String(isFirst),
+                    "default_plan": PaywallDefaultPlan.current.rawValue]
         case let .ledgerPaywallHit(trigger), let .paywallDismissed(trigger):
             return ["trigger": trigger.rawValue]
         case let .purchaseStarted(productID, isFirst, trigger),
              let .purchaseCompleted(productID, isFirst, trigger):
             return ["product_id": productID, "is_first": String(isFirst),
-                    "trigger": trigger.rawValue]
+                    "trigger": trigger.rawValue,
+                    "default_plan": PaywallDefaultPlan.current.rawValue]
         case let .purchaseFailed(productID, reason, trigger):
-            return ["product_id": productID, "reason": reason, "trigger": trigger.rawValue]
+            return ["product_id": productID, "reason": reason, "trigger": trigger.rawValue,
+                    "default_plan": PaywallDefaultPlan.current.rawValue]
         case let .entitlementSyncFailed(reason):
             return ["reason": reason]
         case let .shareCardShared(activityType):
