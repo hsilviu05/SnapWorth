@@ -10,13 +10,17 @@ Run:  python3 website/seo/build_seo.py
 """
 import html, pathlib, datetime, re, subprocess, sys
 
+from campaigns import APP_ID, MissingProviderToken, app_store
+
 ROOT = pathlib.Path(__file__).resolve().parents[1]          # website/
 OUT = ROOT / "worth"
 OUT.mkdir(parents=True, exist_ok=True)
 
 SITE = "https://www.snapworth.eu"
-APP_STORE = "https://apps.apple.com/us/app/snapworth-resale-scanner/id6788521307"
-APP_ID = "6788521307"
+# Every App Store link here is a campaign link, `app_store(ct)` from
+# campaigns.py (#204): `worth_<slug>` on a guide, `worth_hub` on the hub, one
+# value per page for both its links. The values and their pages are the
+# campaign table in website/README.md, which check_store_links.py enforces.
 # Smart App Banner. The product is iPhone-only and every CTA on every page is
 # "download it from the App Store", so on iOS Safari this is the shortest path
 # from a search result to an install — and it was on none of the 19 pages.
@@ -276,10 +280,10 @@ footer.site a{color:var(--warm-gray);margin-right:16px;}
 @media(max-width:600px){h1{font-size:32px;}.grid{grid-template-columns:1fr;}}
 """
 
-def header():
+def header(ct):
     return (f'<header class="site"><div class="wrap">'
             f'<a class="logo" href="/">SnapWorth</a>'
-            f'<a class="nav-cta" href="{APP_STORE}">Get the app</a>'
+            f'<a class="nav-cta" href="{html.escape(app_store(ct))}">Get the app</a>'
             f'</div></header>')
 
 def footer():
@@ -290,7 +294,7 @@ def footer():
             '<div style="margin-top:12px">© ' + str(YEAR) + ' SnapWorth</div>'
             '</div></footer>')
 
-def cta(name):
+def cta(name, ct):
     # Wording is deliberately a *range*, not an "exact value".
     #
     # This previously read "Know your exact value in seconds". The app does not
@@ -306,7 +310,7 @@ def cta(name):
     # missed this generator, so every /worth page kept saying "score".
     return (f'<div class="cta"><h3>Check your own item in seconds</h3>'
             f'<p>Typical ranges only go so far. Snap a photo of your {html.escape(name)} and SnapWorth\'s AI estimates a resale range for your item and its condition, with a confidence level.</p>'
-            f'<a href="{APP_STORE}">Download SnapWorth — free</a></div>')
+            f'<a href="{html.escape(app_store(ct))}">Download SnapWorth — free</a></div>')
 
 def page_html(item, related):
     RANGE_LOW, RANGE_HIGH = condition_bounds(item)
@@ -325,6 +329,7 @@ def page_html(item, related):
     # result shows disagreed with the page behind it on 13 of the 16 items.
     desc = f"{name} resale value is typically ${RANGE_LOW}–${RANGE_HIGH} depending on condition. See what affects the price, where to sell, and how to check your own item."
     url = f"{SITE}/worth/{item['slug']}"
+    ct = f"worth_{item['slug']}"
 
     rows = "".join(f"<tr><td>{e(c)}</td><td class='val'>{e(v)}</td></tr>" for c, v in item["conditions"])
     factors = "".join(f"<li>{e(f)}</li>" for f in item["factors"])
@@ -404,7 +409,7 @@ def page_html(item, related):
 <style>{STYLE}</style>
 <script type="application/ld+json">{faq_json}</script>
 </head><body>
-{header()}
+{header(ct)}
 <main><div class="wrap">
 <nav class="crumbs" aria-label="Breadcrumb"><a href="/">Home</a> › <a href="/worth">Resale Values</a> › {e(name)}</nav>
 <h1>{e(question(item))}</h1>
@@ -422,7 +427,7 @@ def page_html(item, related):
 <h2>Best places to sell {e(obj(item))}</h2>
 <ul>{plats}</ul>
 
-{cta(base(name))}
+{cta(base(name), ct)}
 
 <h2>Frequently asked questions</h2>
 {faqs_html}
@@ -490,14 +495,14 @@ def hub_html():
 <link rel="icon" href="/favicon-32.png" sizes="32x32">
 <style>{STYLE}</style>
 <script type="application/ld+json">{hub_ld}</script></head><body>
-{header()}
+{header('worth_hub')}
 <main><div class="wrap">
 <nav class="crumbs" aria-label="Breadcrumb"><a href="/">Home</a> › Resale Values</nav>
 <h1>What are your thrift finds worth?</h1>
 <p class="lede">Typical secondhand resale values for popular items, plus what drives the price and where to sell. Want a range for your own item and its condition? Snap a photo with SnapWorth.</p>
 <p class="hub-game">Or find out how good your eye already is &mdash; <a href="/guess">guess the price on ten of these</a>.</p>
 {blocks}
-{cta('thrift find')}
+{cta('thrift find', 'worth_hub')}
 </div></main>
 {footer()}
 {ANALYTICS}</body></html>"""
@@ -588,4 +593,8 @@ def build():
     print(f"Built {len(ITEMS)} pages + hub + sitemap ({len(pages)} urls) + robots.txt -> {OUT}")
 
 if __name__ == "__main__":
-    build()
+    try:
+        build()
+    except MissingProviderToken as missing:
+        # Before any page is written: the first link it builds raises.
+        sys.exit(str(missing))
