@@ -8,6 +8,7 @@ struct FlipsView: View {
     let purchaseService: any PurchaseService
 
     @Query private var allResults: [ScanResult]
+    @Environment(\.modelContext) private var modelContext
     @State private var vm = FlipsViewModel()
 
     @State private var selectedItem: ScanResult?
@@ -16,6 +17,8 @@ struct FlipsView: View {
     @State private var shareItems: [Any]?
     @State private var shareOnComplete: ((String?) -> Void)?
     @State private var showShare = false
+    @State private var exportingArchive = false
+    @State private var archiveFailed = false
 
     private var isPro: Bool { purchaseService.isSubscribed }
     private var scope: FlipsViewModel.Scope { isPro ? .allTime : .month }
@@ -46,6 +49,18 @@ struct FlipsView: View {
             if let items = shareItems {
                 ActivityShareSheet(items: items, onComplete: shareOnComplete)
             }
+        }
+        .overlay {
+            if exportingArchive {
+                ProgressView("Preparing your export…")
+                    .padding(20)
+                    .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14))
+            }
+        }
+        .alert("Couldn't create the export", isPresented: $archiveFailed) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text("Nothing was shared. Try again in a moment.")
         }
     }
 
@@ -447,6 +462,10 @@ struct FlipsView: View {
                     Button { exportCSV() } label: {
                         Label("Export CSV", systemImage: "tablecells")
                     }
+                    Button { exportArchive() } label: {
+                        Label("Export photos and estimates (ZIP)", systemImage: "doc.zipper")
+                    }
+                    .disabled(exportingArchive || !vm.hasSoldItems(allResults))
                 } label: {
                     Image(systemName: "ellipsis.circle").foregroundStyle(Color.snapTerracottaText)
                 }
@@ -456,7 +475,7 @@ struct FlipsView: View {
                 // identical control properly one file away.
                 .accessibilityLabel("Flip options")
                 .accessibilityValue(vm.sort.label)
-                .accessibilityHint("Sort, share the month, or export a CSV")
+                .accessibilityHint("Sort, share the month, or export your flips")
             }
         }
     }
@@ -470,6 +489,25 @@ struct FlipsView: View {
         shareOnComplete = nil
         shareItems = [url]
         showShare = true
+    }
+
+    /// Sold flips with their photos and scan-time estimates (#214), for the
+    /// gold set. Pro, like the CSV it sits beside.
+    private func exportArchive() {
+        guard isPro else { routeToPaywall(.ledgerExport); return }
+        exportingArchive = true
+        // The archive reads a background context, which sees only what is
+        // saved; a sale marked a moment ago may still be waiting on autosave.
+        try? modelContext.save()
+        let container = modelContext.container
+        Task {
+            let url = await FlipsArchive.makeArchive(container: container)
+            exportingArchive = false
+            guard let url else { archiveFailed = true; return }
+            shareOnComplete = nil
+            shareItems = [url]
+            showShare = true
+        }
     }
 
     private func shareMonth() {

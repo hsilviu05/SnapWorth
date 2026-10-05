@@ -844,6 +844,7 @@ final class LenientScanFieldTests: XCTestCase {
         case .era:                   return s(r.era)
         case .material:              return s(r.material)
         case .valuationSource:       return s(r.valuationSource.rawValue)
+        case .promptVersion:         return s(r.promptVersion)
         }
     }
 
@@ -5473,6 +5474,123 @@ final class FlipsCSVExportTests: XCTestCase {
         let line = FlipsViewModel().csv([sold("Nike, Air Max", paid: 10, price: 30)])
             .components(separatedBy: "\r\n")[1]
         XCTAssertTrue(line.contains("\"Nike, Air Max\""))
+    }
+}
+
+// ── Photos and estimates export (#214) ───────────────────────────────────────
+//
+// The gold-set intake reads these files, so the record's keys are pinned here
+// by name, and the provenance a record carries — which prompt, and whether
+// "likely" was the model's number — is checked for old rows as well as new.
+
+final class FlipsArchiveTests: XCTestCase {
+
+    private func sold(_ name: String = "Item", detail: ValuationDetail? = nil,
+                      image: Data? = nil) -> ScanResult {
+        let r = ScanResult(itemName: name, brand: "B", category: "clothing",
+                           conditionNotes: "Good", valueLow: 40, valueHigh: 60,
+                           confidence: "High", soldListingsCount: 0,
+                           listingTitle: "T", listingDescription: "D")
+        r.paidPrice = 8
+        r.soldPrice = 55
+        r.soldDate = Calendar.current.date(from: DateComponents(year: 2026, month: 9, day: 14))
+        r.status = .sold
+        r.imageData = image
+        r.valuationDetailData = detail.flatMap { try? JSONEncoder().encode($0) }
+        return r
+    }
+
+    private func scannedDetail() throws -> ValuationDetail {
+        let response = try JSONDecoder().decode(
+            ScanAPIResponse.self, from: ScanContractTests.contractData())
+        return try XCTUnwrap(ValuationDetail(response: response))
+    }
+
+    func test_theRecordKeysArePinned() {
+        let expected: Set<String> = [
+            "schema", "id", "item_name", "scanned_at", "photo", "photo_source",
+            "estimate_low", "estimate_high", "estimate_likely", "estimate_expected",
+            "likely_source", "confidence_score", "confidence_band", "category",
+            "brand", "condition_grade", "prompt_version", "paid_price",
+            "sold_price", "sold_date", "listed_date", "currency_assumed",
+        ]
+        XCTAssertEqual(FlipsArchive.recordKeys, expected)
+        // Every key is present even when it has nothing to say.
+        let bare = FlipsArchive.record(for: sold(), photo: nil)
+        XCTAssertEqual(Set(bare.keys), expected)
+        XCTAssertTrue(bare["listed_date"] is NSNull)
+        XCTAssertTrue(bare["photo_source"] is NSNull)
+        XCTAssertEqual(bare["currency_assumed"] as? String, "USD")
+        XCTAssertEqual(bare["sold_date"] as? String, "2026-09-14")
+    }
+
+    func test_aNewScanKeepsItsPromptVersion() throws {
+        let detail = try scannedDetail()
+        XCTAssertEqual(detail.promptVersion, "v2", "contract/scan-response.json sends v2")
+        let stored = try XCTUnwrap(ValuationDetail.decode(JSONEncoder().encode(detail)))
+        XCTAssertEqual(stored.promptVersion, "v2")
+        let record = FlipsArchive.record(for: sold(detail: detail), photo: "001-x.jpg")
+        XCTAssertEqual(record["prompt_version"] as? String, "v2")
+        XCTAssertEqual(record["likely_source"] as? String, "model")
+        XCTAssertEqual(record["photo_source"] as? String, "stored_1024")
+    }
+
+    func test_anOlderBlobExportsUnknown() throws {
+        // A blob written before the field: the same JSON with the key removed.
+        var json = try XCTUnwrap(JSONSerialization.jsonObject(
+            with: JSONEncoder().encode(scannedDetail())) as? [String: Any])
+        json["promptVersion"] = nil
+        let old = try XCTUnwrap(ValuationDetail.decode(
+            JSONSerialization.data(withJSONObject: json)))
+        XCTAssertNil(old.promptVersion)
+        let record = FlipsArchive.record(for: sold(detail: old), photo: nil)
+        XCTAssertEqual(record["prompt_version"] as? String, "unknown")
+    }
+
+    func test_aFindWithNoDetailSaysItsLikelyIsTheMidpoint() {
+        let record = FlipsArchive.record(for: sold(), photo: nil)
+        XCTAssertEqual(record["prompt_version"] as? String, "unknown")
+        XCTAssertEqual(record["likely_source"] as? String, "midpoint")
+        XCTAssertEqual(record["estimate_likely"] as? Double, 50)
+        XCTAssertTrue(record["confidence_score"] is NSNull)
+    }
+
+    func test_twoHundredSoldFlipsZipOffTheMainActor() async throws {
+        let config = ModelConfiguration(isStoredInMemoryOnly: true)
+        let container = try ModelContainer(for: ScanResult.self, configurations: config)
+        let jpeg = try XCTUnwrap(UIGraphicsImageRenderer(size: CGSize(width: 64, height: 64))
+            .image { ctx in UIColor.red.setFill(); ctx.fill(CGRect(x: 0, y: 0, width: 64, height: 64)) }
+            .jpegData(compressionQuality: 0.8))
+        try await MainActor.run {
+            let context = container.mainContext
+            for i in 0..<200 { context.insert(sold("Item \(i)", image: jpeg)) }
+            let unsold = sold("Still on the rack")
+            unsold.status = .listed
+            context.insert(unsold)
+            try context.save()
+        }
+
+        let made = await FlipsArchive.makeArchive(container: container)
+        let url = try XCTUnwrap(made)
+        defer { try? FileManager.default.removeItem(at: url) }
+        let zip = try Data(contentsOf: url)
+        XCTAssertEqual(Array(zip.prefix(4)), [0x50, 0x4B, 0x03, 0x04], "a ZIP local header")
+
+        // The end-of-central-directory record holds the entry count: one JPEG
+        // and one JSON per sold flip, plus any directory entries the archiver
+        // writes. The listed item is not among them.
+        let eocd = try XCTUnwrap(zip.lastRange(of: Data([0x50, 0x4B, 0x05, 0x06])))
+        let at = eocd.lowerBound + 10
+        let entries = Int(zip[at]) | Int(zip[at + 1]) << 8
+        XCTAssertGreaterThanOrEqual(entries, 400)
+        XCTAssertLessThanOrEqual(entries, 402)
+    }
+
+    func test_nothingSoldMakesNoArchive() async throws {
+        let config = ModelConfiguration(isStoredInMemoryOnly: true)
+        let container = try ModelContainer(for: ScanResult.self, configurations: config)
+        let url = await FlipsArchive.makeArchive(container: container)
+        XCTAssertNil(url)
     }
 }
 
