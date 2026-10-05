@@ -273,4 +273,4 @@ ES+LatAm / RO / CN. **Web** is visitors to `/` · `/worth/*` · `/guess` · `/i/
 
 | Week | Logged | Build live | Impr. | Views | TT | Conv. | DL | DL by source | DL by territory | Trials / paid | Campaigns (top 3) | Web | Day-0 | Limit | D1 | `/week` | Notes |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| 2026-09-28 → 10-04 (baseline) | 2026-10-05 | 1.5.0 (20) | | | | | | | | | | | | | | | |
+| 2026-09-28 → 10-04 (baseline) | 2026-10-05 | 1.5.0 (20); 1.5.1 (21) from 10-02 23:05 UTC | | | | | | | | | | | | | | | 1.5.1 went live (iTunes lookup, `currentVersionReleaseDate`) with two days of the week left. New installs on 10-03 and 10-04 got 21, and phased release only paces updates. So for Day-0 and D1, also read 09-28 → 10-02 alone and log it here as the clean 1.5.0 figure. Every storefront still served the English listing on 10-05. |
