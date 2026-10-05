@@ -23,7 +23,7 @@ enum PriceTagOCR {
     /// price-like is found so the caller can fall back to manual entry.
     static func detectPrice(in image: UIImage) async throws -> Decimal {
         guard let cg = image.cgImage else { throw OCRError.noImage }
-        let observations = try await recognizeText(
+        let observations = try await OnDeviceText.recognize(
             cg, orientation: CGImagePropertyOrientation(image.imageOrientation))
 
         // Prefer the most prominent (tallest) line that parses to a price — on a
@@ -47,51 +47,6 @@ enum PriceTagOCR {
             throw OCRError.noPriceFound
         }
         return best.match.value
-    }
-
-    // ── Vision ──────────────────────────────────────────────────────────────
-    private static func recognizeText(
-        _ cg: CGImage, orientation: CGImagePropertyOrientation
-    ) async throws -> [(text: String, height: CGFloat)] {
-        // No completion handler. There used to be one, and it made two
-        // independent paths resume the same continuation: Vision reports a
-        // failed request through *both* channels — it invokes the request's
-        // `completionHandler` with the error and then throws that same error
-        // out of `perform`. The handler runs synchronously inside `perform`, so
-        // the order was resume-with-error, then throw, then a second resume of
-        // an already-resumed `CheckedContinuation`, which is a hard trap
-        // (`SWIFT TASK CONTINUATION MISUSE`) and not a catchable error.
-        //
-        // So any Vision failure on a tag photo took the app down instead of
-        // reaching `readPriceTag`'s "Couldn't read the tag — enter the price
-        // manually" — the fallback the whole feature rests on, unreachable on
-        // the one path it exists for.
-        //
-        // `request.results` is populated by the time `perform` returns, so
-        // reading it afterwards needs no handler and leaves exactly one resume
-        // per outcome. The continuation itself is kept so the threading is
-        // unchanged: the body ran synchronously on the caller before too.
-        try await withCheckedThrowingContinuation { continuation in
-            let request = VNRecognizeTextRequest()
-            request.recognitionLevel = .accurate
-            request.usesLanguageCorrection = false
-
-            let handler = VNImageRequestHandler(
-                cgImage: cg, orientation: orientation, options: [:])
-            do {
-                try handler.perform([request])
-                // `results` on a `VNRecognizeTextRequest` is already
-                // `[VNRecognizedTextObservation]?`, so the conditional
-                // downcast did nothing but emit a warning.
-                let observations = request.results ?? []
-                continuation.resume(returning: observations.compactMap { obs -> (String, CGFloat)? in
-                    guard let text = obs.topCandidates(1).first?.string else { return nil }
-                    return (text, obs.boundingBox.height)
-                })
-            } catch {
-                continuation.resume(throwing: error)
-            }
-        }
     }
 
     // ── Parsing (pure + testable) ─────────────────────────────────────────────
@@ -246,6 +201,59 @@ enum PriceTagOCR {
     }
 }
 
+/// The one Vision text-recognition call in the app, shared by `PriceTagOCR`
+/// and `RareFind`. It was `PriceTagOCR`'s private `recognizeText`, moved out
+/// unchanged so the easter egg reads text with exactly the request the tag
+/// reader was already tested against rather than a second, drifting copy.
+///
+/// It runs on the caller's executor, as it always did. `PriceTagOCR` keeps
+/// that; `RareFind.detect` calls it from a detached task, because it runs
+/// beside a scan and must stay off the main actor.
+enum OnDeviceText {
+    static func recognize(
+        _ cg: CGImage, orientation: CGImagePropertyOrientation
+    ) async throws -> [(text: String, height: CGFloat)] {
+        // No completion handler. There used to be one, and it made two
+        // independent paths resume the same continuation: Vision reports a
+        // failed request through *both* channels — it invokes the request's
+        // `completionHandler` with the error and then throws that same error
+        // out of `perform`. The handler runs synchronously inside `perform`, so
+        // the order was resume-with-error, then throw, then a second resume of
+        // an already-resumed `CheckedContinuation`, which is a hard trap
+        // (`SWIFT TASK CONTINUATION MISUSE`) and not a catchable error.
+        //
+        // So any Vision failure on a tag photo took the app down instead of
+        // reaching `readPriceTag`'s "Couldn't read the tag — enter the price
+        // manually" — the fallback the whole feature rests on, unreachable on
+        // the one path it exists for.
+        //
+        // `request.results` is populated by the time `perform` returns, so
+        // reading it afterwards needs no handler and leaves exactly one resume
+        // per outcome. The continuation itself is kept so the threading is
+        // unchanged: the body ran synchronously on the caller before too.
+        try await withCheckedThrowingContinuation { continuation in
+            let request = VNRecognizeTextRequest()
+            request.recognitionLevel = .accurate
+            request.usesLanguageCorrection = false
+
+            let handler = VNImageRequestHandler(
+                cgImage: cg, orientation: orientation, options: [:])
+            do {
+                try handler.perform([request])
+                // `results` on a `VNRecognizeTextRequest` is already
+                // `[VNRecognizedTextObservation]?`, so the conditional
+                // downcast did nothing but emit a warning.
+                let observations = request.results ?? []
+                continuation.resume(returning: observations.compactMap { obs -> (String, CGFloat)? in
+                    guard let text = obs.topCandidates(1).first?.string else { return nil }
+                    return (text, obs.boundingBox.height)
+                })
+            } catch {
+                continuation.resume(throwing: error)
+            }
+        }
+    }
+}
 
 /// Vision reads a `CGImage`, which is the raw sensor bitmap. `UIImage` keeps the
 /// camera's rotation in `imageOrientation` and never turns the pixels, so the
