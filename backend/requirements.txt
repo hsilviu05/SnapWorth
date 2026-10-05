@@ -7,7 +7,7 @@
 # This comment used to argue for staying on 0.133.0 while the line beneath it
 # read 0.141.1. A rationale that contradicts its own pin is worse than none:
 # the next reader can't tell which of the two is the mistake.
-fastapi==0.141.1
+fastapi==0.142.2
 # Pinned explicitly rather than left transitive. It was only ever pulled in via
 # FastAPI, which is precisely why seven advisories against it went unnoticed —
 # an indirect dependency has no line in this file to review. 1.3.1 closes all
