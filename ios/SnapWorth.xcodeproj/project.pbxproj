@@ -52,6 +52,7 @@
 		AA00000000000000000000E3 /* MainTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000000E2 /* MainTabView.swift */; };
 		AA00000000000000000000E5 /* ScanView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000000E4 /* ScanView.swift */; };
 		AA00000000000000000000E7 /* ResultView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000000E6 /* ResultView.swift */; };
+		AA0000000000000000229A0D /* RereadCards.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000229A0E /* RereadCards.swift */; };
 		AA0000000000000000229A0B /* ResultValueSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000229A0C /* ResultValueSection.swift */; };
 		AA0000000000000000229A09 /* FlipLedgerSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000229A0A /* FlipLedgerSection.swift */; };
 		AA0000000000000000229A07 /* SnapSellSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000229A08 /* SnapSellSection.swift */; };
@@ -176,6 +177,7 @@
 		AA00000000000000000000E2 /* MainTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainTabView.swift; sourceTree = "<group>"; };
 		AA00000000000000000000E4 /* ScanView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanView.swift; sourceTree = "<group>"; };
 		AA00000000000000000000E6 /* ResultView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ResultView.swift; sourceTree = "<group>"; };
+		AA0000000000000000229A0E /* RereadCards.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RereadCards.swift; sourceTree = "<group>"; };
 		AA0000000000000000229A0C /* ResultValueSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ResultValueSection.swift; sourceTree = "<group>"; };
 		AA0000000000000000229A0A /* FlipLedgerSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FlipLedgerSection.swift; sourceTree = "<group>"; };
 		AA0000000000000000229A08 /* SnapSellSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SnapSellSection.swift; sourceTree = "<group>"; };
@@ -400,6 +402,7 @@
 				AA00000000000000000000E2 /* MainTabView.swift */,
 				AA00000000000000000000E4 /* ScanView.swift */,
 				AA00000000000000000000E6 /* ResultView.swift */,
+				AA0000000000000000229A0E /* RereadCards.swift */,
 				AA0000000000000000229A0C /* ResultValueSection.swift */,
 				AA0000000000000000229A0A /* FlipLedgerSection.swift */,
 				AA0000000000000000229A08 /* SnapSellSection.swift */,
@@ -697,6 +700,7 @@
 				AA00000000000000000000E3 /* MainTabView.swift in Sources */,
 				AA00000000000000000000E5 /* ScanView.swift in Sources */,
 				AA00000000000000000000E7 /* ResultView.swift in Sources */,
+				AA0000000000000000229A0D /* RereadCards.swift in Sources */,
 				AA0000000000000000229A0B /* ResultValueSection.swift in Sources */,
 				AA0000000000000000229A09 /* FlipLedgerSection.swift in Sources */,
 				AA0000000000000000229A07 /* SnapSellSection.swift in Sources */,
