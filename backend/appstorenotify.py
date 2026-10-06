@@ -109,7 +109,7 @@ class Notification:
 
         An absent `offerType` is what separates money from an introductory
         offer, a promo offer or an offer code — the same rule
-        `notify._acquisition` applies.
+        `opsindex.acquisition` applies.
 
         Deliberately *not* called "conversion": the first paid renewal after a
         trial and the tenth ordinary renewal look identical here, because they

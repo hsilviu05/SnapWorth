@@ -29,6 +29,7 @@ import pytest_asyncio
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import notify  # noqa: E402
+import opsindex  # noqa: E402
 import opsstats  # noqa: E402
 from cache import InMemoryCache, ResilientCache  # noqa: E402
 from entitlements import Entitlement  # noqa: E402
@@ -87,7 +88,7 @@ async def counts(day: str) -> dict[str, int]:
 
 
 async def row(otid: str) -> dict:
-    return (await notify._read_index(notify.SUBS_INDEX_KEY))[otid]
+    return (await opsindex.read_index(opsindex.SUBS_INDEX_KEY))[otid]
 
 
 async def drain() -> None:
@@ -195,7 +196,7 @@ class TestTheRealOrder:
     async def test_a_row_from_before_the_field_takes_its_last_acq(self, with_bot):
         """A trial row written by the previous build has no `started_as`. Its
         first paid period still has to count as a conversion."""
-        await notify._cache.set(notify.SUBS_INDEX_KEY, json.dumps({"otid-trial": {
+        await notify._cache.set(opsindex.SUBS_INDEX_KEY, json.dumps({"otid-trial": {
             "product": "com.snapworth.yearly", "env": "Production",
             "acq": "trial", "expires": int(time.time()) - 60, "seen": 1}}))
         await notify.subscription_event(
@@ -246,7 +247,7 @@ class TestWhatCountsAsWhat:
         await notify.entitlement_recorded(SUBJECT, tester, paywall_trigger="scan_limit")
         assert await counts(opsstats.day()) == ZERO
         assert await stat(opsstats.day(), "trial_starts:scan_limit") == 0
-        assert await notify._read_index(notify.SUBS_INDEX_KEY) == {}
+        assert await opsindex.read_index(opsindex.SUBS_INDEX_KEY) == {}
 
     @pytest.mark.asyncio
     async def test_an_offer_code_is_neither_a_trial_nor_a_purchase(self, with_bot):
@@ -358,7 +359,7 @@ class TestPaywallTrigger:
         """Per-trigger counts are aggregate Product Interaction. On the row the
         trigger would be linked to Purchase History (#218, Notes)."""
         await notify.entitlement_recorded(SUBJECT, trial(), paywall_trigger="valuation_detail")
-        raw = await notify._cache.get(notify.SUBS_INDEX_KEY)
+        raw = await notify._cache.get(opsindex.SUBS_INDEX_KEY)
         assert "valuation_detail" not in raw
         assert await stat(opsstats.day(), "trial_starts:valuation_detail") == 1
 
@@ -443,7 +444,7 @@ class TestPaywallReadout:
         await notify._cache.set(opsstats.stat_key(day, name), str(value))
 
     async def _rows(self, rows: dict) -> None:
-        await notify._cache.set(notify.SUBS_INDEX_KEY, json.dumps(rows))
+        await notify._cache.set(opsindex.SUBS_INDEX_KEY, json.dumps(rows))
 
     @pytest.mark.asyncio
     async def test_starts_and_purchases_per_trigger_over_28_days(self, with_bot):

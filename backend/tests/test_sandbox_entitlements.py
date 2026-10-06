@@ -31,6 +31,7 @@ import auth  # noqa: E402
 import entitlements  # noqa: E402
 import main  # noqa: E402
 import notify  # noqa: E402
+import opsindex  # noqa: E402
 import opsstats  # noqa: E402
 from appstorenotify import Notification  # noqa: E402
 from cache import InMemoryCache, ResilientCache  # noqa: E402
@@ -504,6 +505,9 @@ def operator(monkeypatch):
     sends = _Sends()
     monkeypatch.setattr(notify, "_notifier", sends)
     monkeypatch.setattr(notify, "_cache", auth.deps.cache)
+    # The index lives in opsindex and reads through opsstats (#230).
+    monkeypatch.setattr(opsindex, "_cache", auth.deps.cache)
+    monkeypatch.setattr(opsstats, "_cache", auth.deps.cache)
     # Activity tracking spawns background work on the request's loop; it is
     # not what these tests measure.
     monkeypatch.setattr(notify, "saw_user", lambda *a, **k: None)
@@ -515,7 +519,7 @@ def _new_subs() -> str | None:
 
 
 def _index() -> dict:
-    return json.loads(run(auth.deps.cache.get(notify.SUBS_INDEX_KEY)) or "{}")
+    return json.loads(run(auth.deps.cache.get(opsindex.SUBS_INDEX_KEY)) or "{}")
 
 
 def _post(jws: str, subject: str = "attested-subject"):
@@ -552,7 +556,7 @@ class TestNotCounted:
         """Every writer shares `_index_subscription`, so the rule is there too."""
         tester = entitlements.Entitlement(
             "pro", "com.snapworth.yearly", int(time.time()) + 3600, OTID, "Sandbox")
-        assert run(notify._index_subscription("someone", tester)) == {}
+        assert run(opsindex.index_subscription("someone", tester)) == {}
         assert _index() == {}
 
     def test_a_sandbox_notification_that_reaches_the_feed_is_dropped(self, operator):
