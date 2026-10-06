@@ -52,6 +52,9 @@
 		AA00000000000000000000E3 /* MainTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000000E2 /* MainTabView.swift */; };
 		AA00000000000000000000E5 /* ScanView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000000E4 /* ScanView.swift */; };
 		AA00000000000000000000E7 /* ResultView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000000E6 /* ResultView.swift */; };
+		AA0000000000000000229A05 /* TagCameraSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000229A06 /* TagCameraSheet.swift */; };
+		AA0000000000000000229A03 /* ValuationDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000229A04 /* ValuationDetailView.swift */; };
+		AA0000000000000000229A01 /* FullDetailOffer.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000229A02 /* FullDetailOffer.swift */; };
 		AA00000000000000000000E9 /* HistoryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000000E8 /* HistoryView.swift */; };
 		AA00000000000000000000EB /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000000EA /* SettingsView.swift */; };
 		AA00000000000000000000ED /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000000EC /* Assets.xcassets */; };
@@ -170,6 +173,9 @@
 		AA00000000000000000000E2 /* MainTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainTabView.swift; sourceTree = "<group>"; };
 		AA00000000000000000000E4 /* ScanView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanView.swift; sourceTree = "<group>"; };
 		AA00000000000000000000E6 /* ResultView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ResultView.swift; sourceTree = "<group>"; };
+		AA0000000000000000229A06 /* TagCameraSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TagCameraSheet.swift; sourceTree = "<group>"; };
+		AA0000000000000000229A04 /* ValuationDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ValuationDetailView.swift; sourceTree = "<group>"; };
+		AA0000000000000000229A02 /* FullDetailOffer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FullDetailOffer.swift; sourceTree = "<group>"; };
 		AA00000000000000000000E8 /* HistoryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryView.swift; sourceTree = "<group>"; };
 		AA00000000000000000000EA /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		AA00000000000000000000EC /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
@@ -388,6 +394,9 @@
 				AA00000000000000000000E2 /* MainTabView.swift */,
 				AA00000000000000000000E4 /* ScanView.swift */,
 				AA00000000000000000000E6 /* ResultView.swift */,
+				AA0000000000000000229A06 /* TagCameraSheet.swift */,
+				AA0000000000000000229A04 /* ValuationDetailView.swift */,
+				AA0000000000000000229A02 /* FullDetailOffer.swift */,
 				AA00000000000000000000E8 /* HistoryView.swift */,
 				AA00000000000000000000EA /* SettingsView.swift */,
 				ADD1EC0000000000000000F5 /* NotificationSettingsView.swift */,
@@ -679,6 +688,9 @@
 				AA00000000000000000000E3 /* MainTabView.swift in Sources */,
 				AA00000000000000000000E5 /* ScanView.swift in Sources */,
 				AA00000000000000000000E7 /* ResultView.swift in Sources */,
+				AA0000000000000000229A05 /* TagCameraSheet.swift in Sources */,
+				AA0000000000000000229A03 /* ValuationDetailView.swift in Sources */,
+				AA0000000000000000229A01 /* FullDetailOffer.swift in Sources */,
 				AA00000000000000000000E9 /* HistoryView.swift in Sources */,
 				AA00000000000000000000EB /* SettingsView.swift in Sources */,
 				ADD1EC0000000000000000F6 /* NotificationSettingsView.swift in Sources */,
