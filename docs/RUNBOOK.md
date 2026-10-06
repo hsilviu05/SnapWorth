@@ -1075,8 +1075,15 @@ Scan history still lives on-device, and nothing here can lose it.
 **RPO for Redis is therefore not "total loss is fine".** Target: no more than
 one second of writes (`appendonly yes`, `appendfsync everysec`) on a volume
 that survives a restart and a redeploy of the Redis service.
-`[NOT VERIFIED]` — nobody has checked what Railway's Redis does today. To
-check, against the production instance:
+**Verified 2026-10-06.** Railway's Redis (Redis 8, volume mounted at `/data`,
+`--dir /data`) runs with `appendonly yes`, `appendfsync everysec` and RDB
+`save 60 1`. AOF was switched on live with `CONFIG SET` first, then made
+permanent in the service's start command, which keeps its
+`/bin/sh -c "exec docker-entrypoint.sh redis-server …"` wrapper: the shell is
+what expands `$REDIS_PASSWORD`, and the entrypoint drops to the `redis` user.
+Never replace it with a bare `redis-server …`. Checkup read `AOF on` after the
+restart, with the key count unchanged. To re-check, against the production
+instance:
 
 ```
 redis-cli CONFIG GET appendonly     # want: yes
@@ -1262,7 +1269,7 @@ second replica, and Railway cannot see it.
 |---|---|---|
 | Async correctness | ✅ | No blocking I/O on the event loop |
 | Redis pooling | ✅ | `max_connections=50` per process, bounded timeouts |
-| Redis memory | ⚠️ Unverified | Needs `maxmemory` at ~75% of the Redis service's memory and `maxmemory-policy noeviction`. Neither value is recorded anywhere or known to be set on Railway — check with `CONFIG GET maxmemory*`. `🩺 Checkup` prints usage, policy, evictions and persistence, and warns on each unsafe value. Growth ~50 MB per 10k users `[ESTIMATED]` |
+| Redis memory | ⚠️ Policy right, limit too high | `maxmemory-policy noeviction` and `maxmemory 768mb` are set (checked 2026-10-06), but the service's memory limit is also 768 MB, so a full Redis is killed by the container before `noeviction` can refuse writes. Needs `maxmemory` at ~75% of the service's memory: `576mb` at today's size, or raise the service to 1 GB. Used ~3 MB on 2026-10-06. `🩺 Checkup` prints usage, policy, evictions and persistence, and warns on each unsafe value. Growth ~50 MB per 10k users `[ESTIMATED]` |
 | DeviceCheck pooling | ✅ Fixed | Was a new TLS handshake per call |
 | Worker count | 1 worker × 1 replica | By decision, above |
 | Rate limiting | ✅ | Redis-backed, Lua-atomic; degrades to per-process |
