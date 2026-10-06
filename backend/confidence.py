@@ -35,6 +35,10 @@ confidence vs. actual hit rate) so these become empirical rather than assumed.
 Until that runs against a real dataset, treat the absolute numbers as ordinal:
 the ranking is meaningful, the exact value is not yet.
 
+Once a calibrator has been fitted on the gold set, CONFIDENCE_CALIBRATION maps
+the weighted score through it before the caps (see `calibrator`). It is off by
+default, and in shadow until switched on.
+
 Deliberately conservative: the cost of overstating confidence (a user buys a
 $40 item that resells for $12) is much higher than understating it (a user
 double-checks a good estimate).
@@ -43,10 +47,15 @@ double-checks a good estimate).
 from __future__ import annotations
 
 import logging
+import os
 from dataclasses import dataclass, field
+from typing import TYPE_CHECKING
 
 import categories
 from imagequality import ImageQuality
+
+if TYPE_CHECKING:
+    from eval.calibration import CalibrationModel
 
 log = logging.getLogger("snapworth.confidence")
 
@@ -156,6 +165,11 @@ class ConfidenceResult:
     signals: list[ConfidenceSignal] = field(default_factory=list)
     reasons: list[str] = field(default_factory=list)
     reason_codes: list[str] = field(default_factory=list)   # one per reason
+    # Before the caps: the weighted score, and what the configured calibrator
+    # made of it (None when there is none). Logged, never sent — see
+    # `calibrator`.
+    weighted_score: int | None = None
+    calibrated_score: int | None = None
 
     @property
     def as_legacy(self) -> str:
@@ -322,6 +336,21 @@ def compute(
     total_weight = sum(s.weight for s in signals)
     raw = sum(s.value * s.weight for s in signals) / total_weight if total_weight else 0.0
     score = int(round(raw * 100))
+    weighted_score = score
+
+    # ── Calibration ─────────────────────────────────────────────────────────
+    # Before the caps, so they bind whatever the calibrator says. See
+    # `calibrator`.
+    calibrated_score: int | None = None
+    configured = calibrator()
+    if configured is not None:
+        try:
+            calibrated_score = max(0, min(100, configured.model.to_confidence_score(
+                {s.name: s.value for s in signals}, raw)))
+        except Exception as exc:
+            log.warning("confidence calibration failed: %s", type(exc).__name__)
+        if calibrated_score is not None and configured.mode == "on":
+            score = calibrated_score
 
     # ── Image-quality ceiling ───────────────────────────────────────────────
     # A weighted sum alone lets a strong brand read plus a tight range outvote a
@@ -377,7 +406,78 @@ def compute(
 
     return ConfidenceResult(score=score, band=_band(score), signals=signals,
                             reasons=[s.explanation for s in shown],
-                            reason_codes=[s.code for s in shown])
+                            reason_codes=[s.code for s in shown],
+                            weighted_score=weighted_score,
+                            calibrated_score=calibrated_score)
+
+
+# ── Calibration (#226) ───────────────────────────────────────────────────────
+#
+# Off unless CONFIDENCE_CALIBRATION names a model file `eval.cli calibrate
+# --out` wrote, fitted on the gold set and so tagged MEASURED with its dataset
+# version. CONFIDENCE_CALIBRATION_MODE decides what it does: `shadow` (the
+# default) computes the calibrated score and logs it beside the weighted one
+# without serving it; `on` serves it. Either way the caps below the weighted
+# sum still apply after it, so a likely replica, an unidentified item and a
+# clamped estimate stay capped, and the response keeps its shape.
+
+CALIBRATION_ENV = "CONFIDENCE_CALIBRATION"
+CALIBRATION_MODE_ENV = "CONFIDENCE_CALIBRATION_MODE"
+CALIBRATION_MODES = ("shadow", "on")
+
+
+@dataclass(frozen=True)
+class Calibrator:
+    model: CalibrationModel
+    mode: str               # "shadow" | "on"
+
+
+_UNSET = object()
+_calibrator: Calibrator | None | object = _UNSET
+
+
+def calibrator() -> Calibrator | None:
+    """The configured calibrator, read once; None when off or unusable.
+
+    A file that is missing, unreadable or not MEASURED is refused with an
+    error in the log rather than failing startup: confidence falls back to the
+    weighted score it has always served.
+    """
+    global _calibrator
+    if _calibrator is not _UNSET:
+        return _calibrator if isinstance(_calibrator, Calibrator) else None
+    _calibrator = None
+    path = os.environ.get(CALIBRATION_ENV, "").strip()
+    if not path:
+        return None
+    mode = os.environ.get(CALIBRATION_MODE_ENV, "shadow").strip().lower() or "shadow"
+    if mode not in CALIBRATION_MODES:
+        log.error("%s=%r is not one of %s; using shadow",
+                  CALIBRATION_MODE_ENV, mode, ", ".join(CALIBRATION_MODES))
+        mode = "shadow"
+    try:
+        from eval import calibration
+        from eval.provenance import Provenance
+        model = calibration.load(path)
+    except Exception as exc:
+        log.error("confidence calibration %s not loaded (%s); serving the weighted score",
+                  path, type(exc).__name__)
+        return None
+    if model.provenance is not Provenance.MEASURED:
+        log.error("confidence calibration %s is %s, not measured; serving the weighted score",
+                  path, model.provenance.value)
+        return None
+    _calibrator = Calibrator(model=model, mode=mode)
+    log.info("confidence calibration loaded", extra={
+        "method": model.method, "mode": mode, "dataset_version": model.dataset_version})
+    return _calibrator
+
+
+def reset_calibrator() -> None:
+    """Forget the loaded calibrator, so the next score reads the environment
+    again. For tests and for a changed variable without a restart."""
+    global _calibrator
+    _calibrator = _UNSET
 
 
 def summary_sentence(result: ConfidenceResult, *, withhold_authenticity: bool = False) -> str:
