@@ -169,7 +169,8 @@ struct ResultView: View {
                             // 8pt bottom padding in the revealed branch.
                             .padding(.top, priceCovered ? -8 : 12)
 
-                        PaidPriceCard(text: $paidPriceText, focus: $focusedField)
+                        PaidPriceCard(text: $paidPriceText, focus: $focusedField,
+                                      currencySymbol: SaleCurrency.symbol(SaleCurrency.of(result)))
                             .padding(.horizontal, 20)
                             .padding(.top, 12)
 
@@ -271,6 +272,12 @@ struct ResultView: View {
                         .foregroundStyle(Color.snapTerracottaText)
                 }
             }
+        }
+        // Shared sale outcomes (#224): once, as the sheet closes, when the
+        // user has opted in. Off, `sync` does nothing at all.
+        .onDisappear {
+            let result = result
+            Task { await SaleSharing.shared.sync(result) }
         }
         .task(id: result.id) {
             // Keyed on `result.id`, so this is once per valuation shown rather
