@@ -22,12 +22,15 @@ from main import app  # noqa: E402
 from referral import POOL_FRIEND, POOL_REWARD, ReferralConfig, ReferralError  # noqa: E402
 
 FRIEND_OFFER = "referral-friend-7d"
-client = TestClient(app)
+MIN_BUILD = 23
+# A build at the minimum, as 1.5.3 and later send it (#227).
+client = TestClient(app, headers={"X-SnapWorth-Build": str(MIN_BUILD)})
 
 
 @pytest.fixture(autouse=True)
 def active(monkeypatch):
-    monkeypatch.setattr(referral, "config", ReferralConfig(enabled=True, friend_offer=FRIEND_OFFER))
+    monkeypatch.setattr(referral, "config", ReferralConfig(
+        enabled=True, friend_offer=FRIEND_OFFER, min_build=MIN_BUILD))
 
 
 def run(coro):
@@ -861,7 +864,7 @@ class TestPoolAlerts:
             await referral.take_code(POOL_FRIEND)
             return await notify._referral_line()
         line = asyncio.run(go())
-        assert line.startswith("Referrals: on · friend codes 3 of 4 left · reward codes 2 of 2 left")
+        assert line.startswith("Referrals: on for build 23+ · friend codes 3 of 4 left · reward codes 2 of 2 left")
         assert "⚠️ reward pool at 2" in line and "⚠️ friend" not in line
 
     def test_checkup_reports_an_outage_as_one_not_as_empty_pools(self, operator, monkeypatch):
@@ -872,9 +875,93 @@ class TestPoolAlerts:
         down = ResilientCache(None, InMemoryCache(), configured=True)
         monkeypatch.setattr(notify, "_cache", down)
         line = asyncio.run(notify._referral_line())
-        assert line == "Referrals: on · pools unreadable (CacheUnavailable)"
+        assert line == "Referrals: on for build 23+ · pools unreadable (CacheUnavailable)"
 
     def test_checkup_when_off_is_one_quiet_line(self, operator, monkeypatch):
         import notify
         monkeypatch.setattr(referral, "config", ReferralConfig(enabled=False))
-        assert asyncio.run(notify._referral_line()) == "Referrals: off"
+        assert asyncio.run(notify._referral_line()).startswith("Referrals: off")
+
+
+# ── The minimum build and the runtime switch (#227) ──────────────────────────
+
+GATED = "Invites aren't available right now."
+
+
+class TestLaunchGate:
+    """1.5.0 to 1.5.2 show referrals on a bare `enabled=true`, without the
+    renewal sentence or the offer-code reminder; the minimum keeps them out,
+    and `/referrals off` hides the feature without a restart."""
+
+    def status(self, build: str | None, device: str = "dev-a"):
+        headers = dict(bearer("subj-a"))
+        headers["X-SnapWorth-Build"] = build or ""
+        if build is None:
+            headers["User-Agent"] = "python-httpx"
+        return client.post("/referral/status", json={"device_id": device}, headers=headers)
+
+    def claim(self, build: str | None):
+        headers = dict(bearer("subj-b"))
+        headers["X-SnapWorth-Build"] = build or ""
+        if build is None:
+            headers["User-Agent"] = "python-httpx"
+        return client.post("/referral/claim", json={"device_id": "dev-b", "code": "ABCDEFGH"},
+                           headers=headers)
+
+    @pytest.mark.parametrize("build", ["22", None])
+    def test_below_the_minimum_or_unreadable_is_hidden(self, build):
+        assert self.status(build).json()["enabled"] is False
+        assert self.claim(build).status_code == 404
+        assert self.claim(build).json()["detail"] == GATED
+
+    @pytest.mark.parametrize("build", [str(MIN_BUILD), "40"])
+    def test_the_minimum_and_above_are_shown(self, build):
+        assert self.status(build).json()["enabled"] is True
+        # Past the gate: refused for the made-up code, not as unavailable.
+        assert self.claim(build).json().get("detail") != GATED
+
+    def test_no_minimum_shows_nobody(self, monkeypatch):
+        monkeypatch.setattr(referral, "config", ReferralConfig(enabled=True, friend_offer=FRIEND_OFFER))
+        assert self.status("99").json()["enabled"] is False
+        assert "shown to nobody" in run(referral.describe())
+
+    def test_the_bots_minimum_wins_over_the_environment(self):
+        run(auth.deps.cache.set(referral.MIN_BUILD_KEY, "30"))
+        assert self.status(str(MIN_BUILD)).json()["enabled"] is False
+        assert self.status("30").json()["enabled"] is True
+
+    def test_off_from_the_bot_hides_it_without_a_restart(self):
+        assert self.status("30").json()["enabled"] is True
+        text, buttons = run(referral.bot_command("off", "off"))
+        assert "Turn referrals off?" in text and self.status("30").json()["enabled"] is True
+        run(referral.bot_command("off", "off yes"))
+        assert self.status("30").json()["enabled"] is False
+        assert self.claim("30").status_code == 404
+        self.claimed_friend_is_not_rewarded()
+        run(referral.bot_command("on", "on yes"))
+        assert self.status("30").json()["enabled"] is True
+
+    def claimed_friend_is_not_rewarded(self):
+        assert run(referral.on_entitlement("subj-f", "friend", redeemed())) is False
+
+    def test_on_from_the_bot_overrides_an_env_off(self, monkeypatch):
+        monkeypatch.setattr(referral, "config", ReferralConfig(
+            enabled=False, friend_offer=FRIEND_OFFER, min_build=MIN_BUILD))
+        assert self.status("30").json()["enabled"] is False
+        run(referral.bot_command("on", "on yes"))
+        assert self.status("30").json()["enabled"] is True
+
+    def test_on_needs_the_friend_offer(self, monkeypatch):
+        monkeypatch.setattr(referral, "config", ReferralConfig(enabled=True, min_build=MIN_BUILD))
+        text, _ = run(referral.bot_command("on", "on yes"))
+        assert "REFERRAL_FRIEND_OFFER" in text
+        assert self.status("30").json()["enabled"] is False
+
+    def test_the_bot_sets_and_clears_the_minimum(self):
+        text, _ = run(referral.bot_command("build", "build 31"))
+        assert "build 31 and newer" in text and run(referral.minimum_build()) == MIN_BUILD
+        run(referral.bot_command("build", "build 31 yes"))
+        assert run(referral.minimum_build()) == 31
+        run(referral.bot_command("build", "build clear"))
+        assert run(referral.minimum_build()) == MIN_BUILD
+

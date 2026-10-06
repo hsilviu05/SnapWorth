@@ -468,10 +468,12 @@ class TestEveryCallerUsesIt:
             seen.append((route, ip))
         monkeypatch.setattr(referral, "config",
                             referral.ReferralConfig(enabled=True,
-                                                    friend_offer="referral-friend-7d"))
+                                                    friend_offer="referral-friend-7d",
+                                                    min_build=1))
         monkeypatch.setattr(referral, "limiter", recording)
         token, _ = auth.deps.signer.mint("subj-client-ip")
-        headers = {"Authorization": f"Bearer {token}", "x-forwarded-for": xff}
+        headers = {"Authorization": f"Bearer {token}", "x-forwarded-for": xff,
+                   "X-SnapWorth-Build": "30"}
         client.post("/referral/status", json={"device_id": "dev-a"}, headers=headers)
         client.post("/referral/claim", json={"device_id": "dev-a", "code": "ZZZZZZ"},
                     headers=headers)

@@ -1813,33 +1813,36 @@ ran dry. Now:
 
 ### Switching on
 
-- [ ] **Not while installs still run a build without the app half.** 1.5.0
-      (build 20) already carries the referral UI — #97 (`6d133a5`) is an
-      ancestor of `435cba6` "chore: 1.5.0, build 20" — and none of `0074d2a`
-      or `4f1c591`. On those installs the referrer's "You earned a week"
-      alert and earned weeks say nothing about the week renewing, a referral
-      week gets no "trial ends tomorrow" reminder, and the events keep their
-      old names. They light up the moment `REFERRALS_ENABLED` does. Find the
-      first build whose archive holds `4f1c591` by its **Organizer archive
-      date** — the `chore:` bump is only a lower bound (CLAUDE.md) — and
-      switch on once the access log's `build` field shows installs have moved
-      to it. The alternative, `/referral/status` answering `enabled: false`
-      to older builds read from the User-Agent as `/minbuild` does, is an
-      additive server change and an owner decision not yet taken. (Unlike the
-      rest, `0074d2a`'s trial-reminder rule is live in that build whether
-      referrals are on or not: from iOS 17.2 any free promotional or
-      offer-code period gets the reminder.)
+- [ ] **Only for builds with the app half (#227).** 1.5.0 (build 20)
+      already carries the referral UI but none of `0074d2a` or `4f1c591`: on
+      it the referrer's "You earned a week" says nothing about the week
+      renewing, and a referral week gets no "trial ends tomorrow" reminder.
+      So the server shows referrals only to builds at or above a **minimum**
+      (`/referrals build <n>`, else `REFERRAL_MIN_BUILD`), read from
+      `X-SnapWorth-Build` or the User-Agent. Below it, or unreadable,
+      `/referral/status` answers `enabled: false` and `/referral/claim` 404s.
+      **With no minimum set, nobody is shown referrals** even when switched
+      on — Checkup says "on, but no minimum build — shown to nobody". Set it
+      to the first build whose archive holds `4f1c591`, by its **Organizer
+      archive date** (the `chore:` bump is only a lower bound, CLAUDE.md):
+      1.5.3's build at the earliest. (`0074d2a`'s trial-reminder rule is live
+      in that build whether referrals are on or not: from iOS 17.2 any free
+      promotional or offer-code period gets the reminder.)
 - [ ] **Count both names of each event while 1.5.0 is installed.**
       `referral_shared` is `referral_share_opened`; `referral_redeemed` is
       `referral_code_accepted` — the server accepting a code, before Apple's
       sheet, not a redemption; `referral_rewarded` is
       `referral_reward_opened`. Conversions are the digest's server counters.
 - [ ] Two offers in App Store Connect, both 7 days free on the yearly plan,
-      one-time-use codes: the friend offer (eligibility: new subscribers) and
-      the reward offer.
+      one-time-use codes: the **friend** offer (eligibility: new subscribers)
+      and the **reward** offer (eligibility must include **current and lapsed**
+      subscribers: the reward goes to a referrer who may already pay). Confirm
+      how Apple applies a code redeemed by an active subscriber, and record
+      each batch's expiry date.
 - [ ] Load both pools (below) and check `🩺 Checkup`'s Referrals line.
-- [ ] `REFERRAL_FRIEND_OFFER` = the friend offer's **reference name**, exactly;
-      `REFERRALS_ENABLED=1`. Read at startup: redeploy.
+- [ ] `REFERRAL_FRIEND_OFFER` = the friend offer's **reference name**, exactly,
+      and `REFERRAL_MIN_BUILD` = 1.5.3's build. Read at startup: redeploy.
+      Then switch on from the bot (below); `REFERRALS_ENABLED` can stay unset.
 - [ ] The website's `/i/<code>` page is live — every share link points
       there. `python3 website/seo/check_live.py https://www.snapworth.eu`
       must pass; on 2026-09-27 it did not (`/i/TEST1` answered 404).
@@ -1853,6 +1856,41 @@ ran dry. Now:
       subscription record rather than under referrals. Either reword the
       policy or have the app stop minting from the background poll; both are
       owner decisions.
+
+### Turn on, watch, turn off (#227)
+
+The bot's runtime store holds the switch and the minimum, beside
+`/minbuild`, so neither needs a redeploy. Set, they win over
+`REFERRALS_ENABLED` and `REFERRAL_MIN_BUILD`; cleared, those decide. Without
+`REFERRAL_FRIEND_OFFER` nothing can be switched on.
+
+- `/referrals` — the state, as Checkup shows it: `off`, `on for build N+`,
+  or `on, but no minimum build — shown to nobody`.
+- `/referrals build <n>` — the oldest build shown referrals (two taps);
+  `/referrals build clear` falls back to `REFERRAL_MIN_BUILD`.
+- `/referrals on` / `/referrals off` — two taps each. Off takes effect on the
+  next request: the app hides Invite a friend at its next status check, a
+  claim 404s, and no new reward is parked. Codes already handed out stay
+  valid at Apple.
+
+**Launch with 1.5.3:** set the minimum to its build, switch on once App
+Review has the build, and put "Settings → Invite a friend" and a test invite
+code in the review notes. Soft launch: no announcement for 7 days after
+approval, then socials with their own campaign values. Don't move the
+free-scan lever or a trial arm in the launch window.
+
+**Watch** daily for two weeks, then weekly: the digest's Referrals line
+(claimed, redeemed at Apple, rewarded, paid after the free week), Checkup's
+pools, refused claims in the log, `referral_shared` and `referral_redeemed`
+(at claim, not redemption), offer-code subscriptions in `/subs` and renewals
+after the free week.
+
+**Stop rules:**
+- A pool below 20% → generate and load a new batch (never reload an old
+  file: *Loading codes* below).
+- One referrer repeatedly at the yearly cap (`REFERRAL_REWARDS_PER_YEAR`) →
+  inspect the log before anything else.
+- Any sign of farming → `/referrals off`, then investigate.
 
 ### Loading codes
 

@@ -319,6 +319,7 @@ COMMANDS: tuple[tuple[str, str], ...] = (
     ("lever", "Arm or disarm the free-scan allowance without a redeploy"),
     ("paywall", "28 days: trial starts and direct purchases per paywall, trial → paid"),
     ("minbuild", "Tell app builds below a number to update, without a redeploy"),
+    ("referrals", "Referrals on or off, and the oldest build shown them"),
     ("social", "TikTok: followers, likes and the latest videos"),
     ("finds", "Best finds this week: the most valuable scans"),
     ("post", "Three TikTok post ideas from what people scanned; add a topic"),
@@ -1032,10 +1033,8 @@ async def _announce_referral_pool(pool: str, remaining: int) -> None:
 async def _referral_line() -> str:
     """The checkup's referral line: on or off, and what is left in each pool."""
     import referral            # not at the top: referral imports auth, which imports this
-    cfg = referral.config
-    state = ("on" if cfg.active else
-             "REFERRALS_ENABLED without REFERRAL_FRIEND_OFFER, so inert" if cfg.enabled
-             else "off")
+    state = await referral.describe()
+    live = await referral.switched_on()
     try:
         # Required, or a Redis outage reads as (0, 0) from process memory and
         # is reported below as "no referral codes loaded" about intact pools.
@@ -1044,12 +1043,12 @@ async def _referral_line() -> str:
     except Exception as exc:
         return f"Referrals: {state} · pools unreadable ({html.escape(type(exc).__name__)})"
     if not any(size for size, _ in levels.values()):
-        line = f"Referrals: {state}" + (" · no codes loaded" if cfg.enabled else "")
+        line = f"Referrals: {state}" + (" · no codes loaded" if live else "")
         return line + ("\n⚠️ no referral codes loaded — every invite is refused"
-                       if cfg.active else "")
+                       if live else "")
     line = f"Referrals: {state} · " + " · ".join(
         f"{pool} codes {left} of {size} left" for pool, (size, left) in levels.items())
-    if cfg.active:
+    if live:
         for pool, (_, left) in levels.items():
             if left <= referral.POOL_LOW_AT:
                 line += (f"\n⚠️ {pool} pool at {left} — load a new batch before it runs out"
@@ -2136,6 +2135,9 @@ async def handle_command_with_buttons(text: str) -> tuple[str, Buttons] | None:
         return await _paywall_text(), await _buttons()
     if command == "/minbuild":
         return await _minbuild_command(argument, rest)
+    if command == "/referrals":
+        import referral        # not at the top: referral imports auth, which imports this
+        return await referral.bot_command(argument, rest)
     if command == "/social":
         return await _social_text(), await _buttons()
     if command == "/finds":
