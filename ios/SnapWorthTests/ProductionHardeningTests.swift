@@ -679,7 +679,8 @@ final class PrivacyPolicyDisclosureTests: XCTestCase {
         // in either copy of the policy.
         XCTAssertTrue(policy.contains("Apple's signed record of your subscription purchase"))
         XCTAssertTrue(policy.contains("for up to 400 days after the app last sends it"))
-        XCTAssertTrue(policy.contains("If you use Invite a friend"))
+        XCTAssertTrue(policy.contains("Once Invite a friend is available in the app"))
+        XCTAssertTrue(policy.contains("whether or not you open it"))
     }
 
     func test_aSubscribersDeviceIdIsNotCalledUnlinked() {

@@ -1888,7 +1888,9 @@ ran dry. Now:
       on Apple's `originalTransactionId`, which the policy lists under the
       subscription record rather than under referrals. Either reword the
       policy or have the app stop minting from the background poll; both are
-      owner decisions.
+      owner decisions. **Reworded 2026-10-06 (#306):** both copies now say a
+      code is made for every device once Invite a friend is available,
+      whether or not it is opened.
 
 ### Turn on, watch, turn off (#227)
 

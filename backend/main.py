@@ -1675,10 +1675,11 @@ country, and Apple's identifiers for the purchase. It does not contain your
 name, email address, Apple ID or payment details. Apple may also tell our
 server when a subscription renews, lapses or is refunded, and we may ask Apple
 for a subscription's current status to answer a support request.</p>
-<p>If you use Invite a friend, our server keeps the invite code made for your
-device and, when someone claims an invite, a record linking the two devices:
-their identifiers, the code, when it was claimed, and the Apple offer codes
-handed out. It is kept for up to 400 days, so that each invite is rewarded once
+<p>Once Invite a friend is available in the app, our server makes and keeps an
+invite code for your device, whether or not you open it, and, when someone
+claims an invite, a record linking the two devices: their identifiers, the code,
+when it was claimed, and the Apple offer codes handed out. These are kept for up
+to 400 days, so that each invite is rewarded once
 and rewards stay within the yearly limit.</p>
 <p>If you turn on Share sale prices to improve estimates (Settings &rarr;
 Privacy; it is off by default), the app sends our server a record for each flip

@@ -340,7 +340,8 @@ class TestLegalEndpoints:
         """A claimed invite links two devices for a year and more."""
         import referral
         body = _prose(client.get("/privacy").text)
-        assert "If you use Invite a friend" in body
+        assert "Once Invite a friend is available in the app" in body
+        assert "whether or not you open it" in body
         assert f"up to {referral.RECORD_TTL // 86_400} days, so that each invite" in body
 
     def test_privacy_discloses_shared_sales(self):
