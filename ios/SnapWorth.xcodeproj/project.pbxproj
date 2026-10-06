@@ -35,6 +35,7 @@
 		EA57E0000000000000000B03 /* RareFindTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA57E0000000000000000A03 /* RareFindTests.swift */; };
 		EA57E0000000000000000B04 /* rare-find-reference-shirt.png in Resources */ = {isa = PBXBuildFile; fileRef = EA57E0000000000000000A04 /* rare-find-reference-shirt.png */; };
 		FEED000000000000000097B1 /* ReferralService.swift in Sources */ = {isa = PBXBuildFile; fileRef = FEED000000000000000097A1 /* ReferralService.swift */; };
+		FEED00000000000000224AB1 /* SaleSharing.swift in Sources */ = {isa = PBXBuildFile; fileRef = FEED00000000000000224AA1 /* SaleSharing.swift */; };
 		FEED000000000000000091B1 /* ListingPhotoCleanup.swift in Sources */ = {isa = PBXBuildFile; fileRef = FEED000000000000000091A1 /* ListingPhotoCleanup.swift */; };
 		FEED000000000000000000B1 /* ListingService.swift in Sources */ = {isa = PBXBuildFile; fileRef = FEED000000000000000000A1 /* ListingService.swift */; };
 		FEED0000000000000000D30 /* CertificatePinning.swift in Sources */ = {isa = PBXBuildFile; fileRef = FEED0000000000000000C30 /* CertificatePinning.swift */; };
@@ -160,6 +161,7 @@
 		EA57E0000000000000000A03 /* RareFindTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RareFindTests.swift; sourceTree = "<group>"; };
 		EA57E0000000000000000A04 /* rare-find-reference-shirt.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "rare-find-reference-shirt.png"; sourceTree = "<group>"; };
 		FEED000000000000000097A1 /* ReferralService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReferralService.swift; sourceTree = "<group>"; };
+		FEED00000000000000224AA1 /* SaleSharing.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SaleSharing.swift; sourceTree = "<group>"; };
 		FEED000000000000000091A1 /* ListingPhotoCleanup.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ListingPhotoCleanup.swift; sourceTree = "<group>"; };
 		FEED000000000000000000A1 /* ListingService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ListingService.swift; sourceTree = "<group>"; };
 		FEED0000000000000000C30 /* CertificatePinning.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CertificatePinning.swift; sourceTree = "<group>"; };
@@ -352,6 +354,7 @@
 				FEED000000000000000000A2 /* PriceTagOCR.swift */,
 				EA57E0000000000000000A01 /* RareFind.swift */,
 				FEED000000000000000097A1 /* ReferralService.swift */,
+				FEED00000000000000224AA1 /* SaleSharing.swift */,
 				FEED000000000000000091A1 /* ListingPhotoCleanup.swift */,
 				FEED000000000000000000A1 /* ListingService.swift */,
 				FEED0000000000000000C30 /* CertificatePinning.swift */,
@@ -681,6 +684,7 @@
 				FEED000000000000000000B2 /* PriceTagOCR.swift in Sources */,
 				EA57E0000000000000000B01 /* RareFind.swift in Sources */,
 				FEED000000000000000097B1 /* ReferralService.swift in Sources */,
+				FEED00000000000000224AB1 /* SaleSharing.swift in Sources */,
 				FEED000000000000000091B1 /* ListingPhotoCleanup.swift in Sources */,
 				FEED000000000000000000B1 /* ListingService.swift in Sources */,
 				FEED0000000000000000D30 /* CertificatePinning.swift in Sources */,

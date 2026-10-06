@@ -21,6 +21,10 @@ struct SettingsView: View {
     @State private var referral = ReferralStatus.disabled
     @State private var showInvite = false
     @AppStorage(Analytics.enabledKey) private var analyticsEnabled = true
+    @AppStorage(SaleSharing.enabledKey) private var shareSalePrices = false
+    @AppStorage(SaleSharing.askedKey) private var askedAboutSales = false
+    @State private var showDeleteSharedAlert = false
+    @State private var sharedSalesMessage: String?
     @AppStorage(Haptics.preferenceKey) private var hapticsEnabled = true
     @AppStorage(GuessFirst.key) private var guessFirst = GuessFirst.defaultOn
 
@@ -195,11 +199,39 @@ struct SettingsView: View {
                     }
                     .accessibilityLabel("Share anonymous analytics")
                     .accessibilityHint("Anonymous usage only — never your photos, item names, or prices")
+
+                    // Shared sale outcomes (#224): off by default.
+                    Toggle(isOn: $shareSalePrices) {
+                        HStack(spacing: 14) {
+                            Image(systemName: "tag")
+                                .snapSymbol(16, weight: .medium)
+                                .foregroundStyle(Color.snapTerracottaText)
+                                .frame(minWidth: 24)
+                                .accessibilityHidden(true)
+                            Text("Share sale prices to improve estimates")
+                                .font(.snapBody)
+                                .foregroundStyle(Color.snapEspresso)
+                        }
+                        .frame(minHeight: 44)
+                    }
+                    .tint(Color.snapTerracotta)
+                    // Choosing here answers the one-time card too.
+                    .onChange(of: shareSalePrices) { _, _ in askedAboutSales = true }
+                    .accessibilityLabel("Share sale prices to improve estimates")
+
+                    if SaleSharing.shared.hasShared {
+                        SettingsRow(icon: "trash", label: "Delete my shared sales", destructive: true) {
+                            showDeleteSharedAlert = true
+                        }
+                    }
                 } header: {
                     Text("Privacy")
                 } footer: {
-                    Text("Helps us improve SnapWorth. Anonymous usage only — never your photos, item names, or prices.")
-                        .fixedSize(horizontal: false, vertical: true)
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Helps us improve SnapWorth. Anonymous usage only — never your photos, item names, or prices.")
+                        Text(SaleSharingCopy.explanation)
+                    }
+                    .fixedSize(horizontal: false, vertical: true)
                 }
 
                 // App version
@@ -232,6 +264,26 @@ struct SettingsView: View {
             Button("OK", role: .cancel) {}
         } message: {
             Text(vm.noticeMessage)
+        }
+        .alert("Delete your shared sales?", isPresented: $showDeleteSharedAlert) {
+            Button("Delete", role: .destructive) {
+                Task {
+                    do {
+                        try await SaleSharing.shared.deleteAll()
+                        sharedSalesMessage = String(localized: "Your shared sales were deleted.")
+                    } catch {
+                        sharedSalesMessage = String(localized: "Couldn't delete them right now. Try again later.")
+                    }
+                }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Every sale price you've shared from this iPhone is deleted from SnapWorth's server.")
+        }
+        .alert(sharedSalesMessage ?? "", isPresented: Binding(
+            get: { sharedSalesMessage != nil },
+            set: { if !$0 { sharedSalesMessage = nil } })) {
+            Button("OK", role: .cancel) {}
         }
         .alert("Clear history?", isPresented: $showDeleteAlert) {
             Button("Delete all", role: .destructive) {

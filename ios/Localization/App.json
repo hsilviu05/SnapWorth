@@ -1104,6 +1104,14 @@
       "de": "Gewinn insgesamt",
       "zh-Hans": "总利润"
     },
+    "Allow": {
+      "comment": "Button on the share-sale-prices card: turns sharing on.",
+      "en": "Allow",
+      "ro": "Permite",
+      "es": "Permitir",
+      "de": "Erlauben",
+      "zh-Hans": "允许"
+    },
     "Allow notifications": {
       "comment": "Banner title in Notification settings when iOS has never been asked for permission. Tapping it shows the system permission alert.",
       "en": "Allow notifications",
@@ -1691,6 +1699,14 @@
       "de": "Export konnte nicht erstellt werden",
       "zh-Hans": "无法创建导出文件"
     },
+    "Couldn't delete them right now. Try again later.": {
+      "comment": "After deleting shared sale outcomes failed.",
+      "en": "Couldn't delete them right now. Try again later.",
+      "ro": "Nu le-am putut șterge acum. Încearcă mai târziu.",
+      "es": "No se pudieron eliminar ahora. Inténtalo más tarde.",
+      "de": "Sie konnten gerade nicht gelöscht werden. Versuch es später noch einmal.",
+      "zh-Hans": "暂时无法删除，请稍后再试。"
+    },
     "Couldn't draft this one": {
       "en": "Couldn't draft this one",
       "ro": "Nu am putut scrie anunțul pentru acesta",
@@ -1812,6 +1828,14 @@
       "de": "Auktionsarchive werden abgeglichen…",
       "zh-Hans": "正在比对拍卖记录…"
     },
+    "Currency": {
+      "comment": "Ledger row: the currency the flip's amounts were typed in (#224).",
+      "en": "Currency",
+      "ro": "Monedă",
+      "es": "Moneda",
+      "de": "Währung",
+      "zh-Hans": "币种"
+    },
     "Daily free scan": {
       "en": "Daily free scan",
       "ro": "Scanarea gratuită zilnică",
@@ -1870,12 +1894,28 @@
       "de": "Alle löschen",
       "zh-Hans": "全部删除"
     },
+    "Delete my shared sales": {
+      "comment": "Settings row: deletes every shared sale outcome of this install (#224).",
+      "en": "Delete my shared sales",
+      "ro": "Șterge vânzările trimise",
+      "es": "Eliminar mis ventas compartidas",
+      "de": "Meine geteilten Verkäufe löschen",
+      "zh-Hans": "删除我分享的售出记录"
+    },
     "Delete this find?": {
       "en": "Delete this find?",
       "ro": "Ștergi găselnița asta?",
       "es": "¿Eliminar este hallazgo?",
       "de": "Diesen Fund löschen?",
       "zh-Hans": "删除这件好物？"
+    },
+    "Delete your shared sales?": {
+      "comment": "Confirmation title before deleting shared sale outcomes.",
+      "en": "Delete your shared sales?",
+      "ro": "Ștergi vânzările trimise?",
+      "es": "¿Eliminar tus ventas compartidas?",
+      "de": "Geteilte Verkäufe löschen?",
+      "zh-Hans": "删除你分享的售出记录？"
     },
     "Did %@ sell? Update your ledger to keep your profit accurate.": {
       "en": "Did %@ sell? Update your ledger to keep your profit accurate.",
@@ -2106,6 +2146,14 @@
       "es": "Todos tus hallazgos,\nen un solo sitio.",
       "de": "Alle Funde,\nan einem Ort.",
       "zh-Hans": "所有好物，\n都在一处。"
+    },
+    "Every sale price you've shared from this iPhone is deleted from SnapWorth's server.": {
+      "comment": "Confirmation message before deleting shared sale outcomes.",
+      "en": "Every sale price you've shared from this iPhone is deleted from SnapWorth's server.",
+      "ro": "Fiecare preț de vânzare trimis de pe acest iPhone este șters de pe serverul SnapWorth.",
+      "es": "Se eliminan del servidor de SnapWorth todos los precios de venta que compartiste desde este iPhone.",
+      "de": "Jeder Verkaufspreis, den du von diesem iPhone geteilt hast, wird vom Server von SnapWorth gelöscht.",
+      "zh-Hans": "你从这台 iPhone 分享的所有售价都会从 SnapWorth 的服务器上删除。"
     },
     "Expected": {
       "en": "Expected",
@@ -2465,6 +2513,14 @@
         "other": "Seit %lld Tagen im Bestand"
       },
       "zh-Hans": "已持有 %lld 天"
+    },
+    "Help improve estimates?": {
+      "comment": "Title of the one-time card asking to share sale prices (#224).",
+      "en": "Help improve estimates?",
+      "ro": "Ne ajuți să îmbunătățim estimările?",
+      "es": "¿Nos ayudas a mejorar las estimaciones?",
+      "de": "Hilfst du, die Schätzungen zu verbessern?",
+      "zh-Hans": "帮助改进估价？"
     },
     "Helps us improve SnapWorth. Anonymous usage only — never your photos, item names, or prices.": {
       "en": "Helps us improve SnapWorth. Anonymous usage only — never your photos, item names, or prices.",
@@ -3949,6 +4005,14 @@
       "de": "Einladung teilen",
       "zh-Hans": "分享邀请"
     },
+    "Share sale prices to improve estimates": {
+      "comment": "Settings toggle for sharing sale outcomes (#224). Off by default.",
+      "en": "Share sale prices to improve estimates",
+      "ro": "Trimite prețurile de vânzare pentru estimări mai bune",
+      "es": "Compartir precios de venta para mejorar las estimaciones",
+      "de": "Verkaufspreise teilen, um Schätzungen zu verbessern",
+      "zh-Hans": "分享售价以改进估价"
+    },
     "Share the card": {
       "comment": "Rare-find easter egg (RareFind.swift). The joke is hype and rarity only — keep it that way in translation. Button that shares the joke card as an image.",
       "en": "Share the card",
@@ -5163,6 +5227,14 @@
       "de": "Wenn aktiviert, ist der Preis bei jedem Ergebnis verdeckt, bis du auf „Schätzung zeigen“ tippst",
       "zh-Hans": "开启后，每条结果都会先盖住价格，直到你点“看估价”"
     },
+    "When you mark a find sold, SnapWorth can send its sale price, its currency and the estimate you saw, to measure how close estimates are. Never the photo, the item's name, your notes or what you paid. Off unless you allow it, and you can delete what you've shared in Settings.": {
+      "comment": "What sharing sale prices sends (#224), on the consent card and under the Settings toggle. Must stay accurate to SaleOutcomePayload.",
+      "en": "When you mark a find sold, SnapWorth can send its sale price, its currency and the estimate you saw, to measure how close estimates are. Never the photo, the item's name, your notes or what you paid. Off unless you allow it, and you can delete what you've shared in Settings.",
+      "ro": "Când marchezi o găselniță ca vândută, SnapWorth poate trimite prețul de vânzare, moneda și estimarea pe care ai văzut-o, ca să măsoare cât de apropiate sunt estimările. Niciodată fotografia, numele obiectului, notițele tale sau cât ai plătit. Dezactivat dacă nu permiți, iar ce ai trimis poți șterge din Setări.",
+      "es": "Cuando marcas un hallazgo como vendido, SnapWorth puede enviar su precio de venta, la moneda y la estimación que viste, para medir cuánto se acercan las estimaciones. Nunca la foto, el nombre del artículo, tus notas ni lo que pagaste. Desactivado salvo que lo permitas, y puedes eliminar lo que hayas compartido en Ajustes.",
+      "de": "Wenn du einen Fund als verkauft markierst, kann SnapWorth den Verkaufspreis, die Währung und die Schätzung senden, die du gesehen hast, um zu messen, wie nah die Schätzungen liegen. Nie das Foto, den Namen des Artikels, deine Notizen oder was du bezahlt hast. Aus, solange du es nicht erlaubst, und was du geteilt hast, kannst du in den Einstellungen löschen.",
+      "zh-Hans": "当你把一件好物标记为已售出时，SnapWorth 可以发送它的售价、币种和你看到的估价，用来衡量估价有多准。绝不发送照片、物品名称、你的备注或你的买入价。除非你允许，否则保持关闭；已分享的内容可以在“设置”中删除。"
+    },
     "Where you'd sell": {
       "en": "Where you'd sell",
       "ro": "Unde ai vinde",
@@ -5419,6 +5491,14 @@
       "es": "Tus escaneos se guardan en tu colección para que veas cómo se acumula el valor con el tiempo.",
       "de": "Deine Scans landen in deiner Sammlung, damit du siehst, wie sich der Wert mit der Zeit summiert.",
       "zh-Hans": "扫描都会存进你的收藏，让你看着这些藏着的价值一点点累积起来。"
+    },
+    "Your shared sales were deleted.": {
+      "comment": "After deleting shared sale outcomes succeeded.",
+      "en": "Your shared sales were deleted.",
+      "ro": "Vânzările trimise au fost șterse.",
+      "es": "Se eliminaron tus ventas compartidas.",
+      "de": "Deine geteilten Verkäufe wurden gelöscht.",
+      "zh-Hans": "你分享的售出记录已删除。"
     },
     "Your subscription has been restored.": {
       "en": "Your subscription has been restored.",

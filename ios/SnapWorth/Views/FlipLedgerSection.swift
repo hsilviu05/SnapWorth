@@ -9,13 +9,15 @@ import SwiftUI
 struct PaidPriceCard: View {
     @Binding var text: String
     let focus: FocusState<ResultView.Field?>.Binding
+    /// The flip's currency, as the ledger shows it (`SaleCurrency`, #224).
+    var currencySymbol: String = "$"
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("What did you pay?")
                 .snapSectionHeader()
             HStack(spacing: 4) {
-                Text("$")
+                Text(currencySymbol)
                     .font(.dmSans(17, weight: .medium))
                     .foregroundStyle(Color.snapWarmGray)
                     .accessibilityHidden(true)
@@ -72,6 +74,7 @@ struct FlipStatusCard: View {
                 soldFields
                 Divider()
                 profitRow
+                SaleSharingConsentCard(result: result)
             }
         }
         .padding(20)
@@ -111,6 +114,7 @@ struct FlipStatusCard: View {
 
     @ViewBuilder
     private var soldFields: some View {
+        currencyMenu
         moneyRow(title: "Sold for", text: $soldPriceText, field: .sold)
         moneyRow(title: "Fees (optional)", text: $feesText, field: .fees)
         DatePicker("Sold date", selection: soldDateBinding, in: ...Date(), displayedComponents: .date)
@@ -128,7 +132,7 @@ struct FlipStatusCard: View {
                 // noise for VoiceOver.
                 .accessibilityHidden(true)
             Spacer()
-            Text("$")
+            Text(SaleCurrency.symbol(SaleCurrency.of(result)))
                 .foregroundStyle(Color.snapWarmGray)
                 .accessibilityHidden(true)
             TextField("0", text: text)
@@ -156,7 +160,7 @@ struct FlipStatusCard: View {
                 // Sign and an explicit arrow carry the outcome, so profit/loss
                 // is distinguishable without relying on green vs terracotta.
                 Label {
-                    Text(Self.signedProfit(profit))
+                    Text(signedProfit(profit))
                 } icon: {
                     Image(systemName: profit < 0 ? "arrow.down.right" : "arrow.up.right")
                         .snapSymbol(13, weight: .bold)
@@ -180,7 +184,7 @@ struct FlipStatusCard: View {
         guard let profit = result.realizedProfit else {
             return String(localized: "Unknown — add what you paid to calculate it")
         }
-        let amount = Self.signedProfit(profit)
+        let amount = signedProfit(profit)
         return profit < 0
             ? String(localized: "Loss of \(amount)")
             : String(localized: "Profit of \(amount)")
@@ -231,8 +235,87 @@ struct FlipStatusCard: View {
         onLedgerChange()
     }
 
-    private static func signedProfit(_ d: Decimal) -> String {
-        let money = NumberFormatter.snapCurrency.string(from: NSDecimalNumber(decimal: abs(d))) ?? "$0"
+    /// Which currency this flip's amounts are in (#224). Defaults to the
+    /// phone's region; a sale shared from here keeps it, never relabelled USD.
+    private var currencyMenu: some View {
+        HStack {
+            Text("Currency")
+                .font(.dmSans(14, weight: .medium))
+                .foregroundStyle(Color.snapWarmGray)
+            Spacer()
+            Menu {
+                ForEach(SaleCurrency.all, id: \.self) { code in
+                    Button(code) { result.saleCurrency = code }
+                }
+            } label: {
+                Text(SaleCurrency.of(result))
+                    .font(.dmSans(15, weight: .semibold))
+                    .foregroundStyle(Color.snapTerracottaText)
+                    .frame(minHeight: 44)
+            }
+            .accessibilityLabel("Currency")
+            .accessibilityValue(SaleCurrency.of(result))
+        }
+    }
+
+    private func signedProfit(_ d: Decimal) -> String {
+        let f = NumberFormatter()
+        f.numberStyle = .currency
+        f.currencyCode = SaleCurrency.of(result)
+        f.maximumFractionDigits = 0
+        let money = f.string(from: NSDecimalNumber(decimal: abs(d))) ?? "0"
         return d < 0 ? "−\(money)" : "+\(money)"
     }
 }
+
+/// The one-time ask (#224): shown under a sold flip's profit the first time a
+/// sold price is saved, while sharing is off and has never been asked about.
+/// "Allow" turns sharing on, and the sale is sent when the sheet closes;
+/// "Not now" is final — it is never asked again, and Settings is the way in.
+struct SaleSharingConsentCard: View {
+    let result: ScanResult
+    @AppStorage(SaleSharing.enabledKey) private var enabled = false
+    @AppStorage(SaleSharing.askedKey) private var asked = false
+
+    var body: some View {
+        if !enabled, !asked, (result.soldPrice ?? 0) > 0 {
+            VStack(alignment: .leading, spacing: 10) {
+                Text("Help improve estimates?")
+                    .font(.dmSans(15, weight: .semibold))
+                    .foregroundStyle(Color.snapEspresso)
+                Text(SaleSharingCopy.explanation)
+                    .font(.snapCaption)
+                    .foregroundStyle(Color.snapWarmGray)
+                    .fixedSize(horizontal: false, vertical: true)
+                HStack(spacing: 10) {
+                    Button("Not now") { asked = true }
+                        .font(.dmSans(14, weight: .semibold))
+                        .foregroundStyle(Color.snapWarmGray)
+                        .frame(maxWidth: .infinity, minHeight: 44)
+                    Button("Allow") {
+                        asked = true
+                        enabled = true
+                    }
+                    .font(.dmSans(14, weight: .semibold))
+                    .foregroundStyle(Color.snapOnAccent)
+                    .frame(maxWidth: .infinity, minHeight: 44)
+                    .background(Color.snapTerracottaFill)
+                    .clipShape(Capsule())
+                }
+            }
+            .padding(14)
+            .background(Color.snapBackground)
+            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .accessibilityElement(children: .contain)
+        }
+    }
+}
+
+/// The words around sharing, in one place, so the card and Settings say
+/// the same thing and a test can read them.
+enum SaleSharingCopy {
+    static var explanation: String {
+        String(localized: "When you mark a find sold, SnapWorth can send its sale price, its currency and the estimate you saw, to measure how close estimates are. Never the photo, the item's name, your notes or what you paid. Off unless you allow it, and you can delete what you've shared in Settings.")
+    }
+}
+
