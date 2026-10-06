@@ -398,10 +398,10 @@ async def _sub_text(argument: str) -> tuple[str, opsformat.Buttons]:
     alike, because one sends you to App Store Connect and the other to the
     hosting panel.
     """
-    # Imported here, not at module scope. `entitlements` imports *this* module
-    # (entitlements.py:38) to report what it verifies, and `appstorestatus`
-    # imports `entitlements` — so either at the top of this file closes an
-    # import cycle. The same reason `appstorenotify`'s header gives for
+    # Imported here, not at module scope. `entitlements` imports notify to
+    # report what it verifies, notify imports this module, and
+    # `appstorestatus` imports `entitlements` — so either at the top of this
+    # file closes an import cycle. The same reason `appstorenotify`'s header gives for
     # duck-typing the notification it is handed.
     import entitlements
 
@@ -535,7 +535,7 @@ async def user_text(argument: str) -> str:
     subs = [(otid, s) for otid, s in (await opsindex.read_index(opsindex.SUBS_INDEX_KEY)).items()
             if isinstance(s, dict) and any(opsindex.same_device(d, who) for d in opsindex.row_devices(s))]
     for otid, s in subs:
-        # `_sub_is_alive`, like the two readers of this same index in `/subs`.
+        # `opsformat.sub_is_alive`, like the two readers of this same index in `/subs`.
         # This one tested expiry alone, so a refunded subscription — which
         # keeps its expiry — read "renews 12 Mar 2027" here while `/subs`
         # showed the same row as `refund`.
