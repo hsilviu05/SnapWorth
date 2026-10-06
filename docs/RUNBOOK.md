@@ -1075,8 +1075,40 @@ Scan history still lives on-device, and nothing here can lose it.
 **RPO for Redis is therefore not "total loss is fine".** Target: no more than
 one second of writes (`appendonly yes`, `appendfsync everysec`) on a volume
 that survives a restart and a redeploy of the Redis service.
-`[NOT VERIFIED]` — nobody has checked what Railway's Redis does today. To
-check, against the production instance:
+
+**Today: AOF every second plus RDB every minute** `[MEASURED]`, set on
+2026-10-06 (#207). The Redis service (`redis:8.10.1`) runs with this Custom
+Start Command, on a volume mounted at `/data`:
+
+```
+/bin/sh -c "exec docker-entrypoint.sh redis-server --requirepass $REDIS_PASSWORD --dir /data --maxmemory 768mb --maxmemory-policy noeviction --save 60 1 --appendonly yes --appendfsync everysec"
+```
+
+AOF was switched on live with `CONFIG SET` first, in the order below, and the
+start command changed only after `INFO persistence` showed `aof_enabled:1`.
+After the redeploy, `🩺 Checkup` read `3.0 MB of 768 MB · policy noeviction ·
+AOF on` with the key count unchanged. Two things about that command, both
+learned the hard way that night:
+
+- **The `/bin/sh -c` wrapper is required.** Railway does not run the start
+  command through a shell, so a bare `--requirepass "$REDIS_PASSWORD"` sets
+  the password to the literal text `$REDIS_PASSWORD`; the API is refused and
+  `🩺 Checkup` reads `Cache (redis-degraded): NOT answering`.
+- **Never turn AOF on by start command on a Redis that holds data.** With
+  `appendonly yes` and no AOF file yet, Redis 8 starts **empty** and ignores
+  `dump.rdb`. It did, twice, and the data came back only by restoring the
+  volume backup (Redis → Backups) with `--appendonly no`. The safe order,
+  from a shell on the Redis service (Console tab): `redis-cli -a
+  "$REDIS_PASSWORD" CONFIG SET appendonly yes`, wait until `INFO persistence`
+  shows `aof_enabled:1` and `aof_rewrite_in_progress:0`, and only then change
+  the start command to `--appendonly yes --appendfsync everysec` and
+  redeploy. That is how AOF was turned on, and it is the order to repeat
+  after any restore that comes back with `--appendonly no`.
+
+Railway takes no scheduled volume backups on this plan (Pro only); it did take
+one automatically before a volume resize, which is what the restore used.
+
+To check, against the production instance:
 
 ```
 redis-cli CONFIG GET appendonly     # want: yes
@@ -1262,7 +1294,7 @@ second replica, and Railway cannot see it.
 |---|---|---|
 | Async correctness | ✅ | No blocking I/O on the event loop |
 | Redis pooling | ✅ | `max_connections=50` per process, bounded timeouts |
-| Redis memory | ⚠️ Unverified | Needs `maxmemory` at ~75% of the Redis service's memory and `maxmemory-policy noeviction`. Neither value is recorded anywhere or known to be set on Railway — check with `CONFIG GET maxmemory*`. `🩺 Checkup` prints usage, policy, evictions and persistence, and warns on each unsafe value. Growth ~50 MB per 10k users `[ESTIMATED]` |
+| Redis memory | ✅ Set 2026-10-06 | `maxmemory 768mb` (75% of the service's 1024 MB limit) and `maxmemory-policy noeviction`, in the Redis service's start command (§9). Check with `CONFIG GET maxmemory*`. `🩺 Checkup` prints usage, policy, evictions and persistence, and warns on each unsafe value. Growth ~50 MB per 10k users `[ESTIMATED]` |
 | DeviceCheck pooling | ✅ Fixed | Was a new TLS handshake per call |
 | Worker count | 1 worker × 1 replica | By decision, above |
 | Rate limiting | ✅ | Redis-backed, Lua-atomic; degrades to per-process |
@@ -1332,10 +1364,11 @@ them grants anything.
 **Blocking**
 
 - [ ] `REDIS_URL` set and reachable
-- [ ] Redis persists to disk and survives a restart: `appendonly yes`,
-      `appendfsync everysec`, a volume attached (§9)
-- [ ] Redis `maxmemory-policy noeviction` with `maxmemory` set (§11); `🩺
-      Checkup` shows no ⚠️ on its Redis line
+- [x] Redis persists to disk and survives a restart: `appendonly yes`,
+      `appendfsync everysec` and RDB every 60 s, on a volume at `/data`,
+      2026-10-06 (§9)
+- [x] Redis `maxmemory-policy noeviction` with `maxmemory 768mb` (§11);
+      `🩺 Checkup` shows no ⚠️ on its Redis line, 2026-10-06
 - [ ] `TOKEN_KEYS` + `TOKEN_CURRENT_KID` set
 - [ ] `ENVIRONMENT=production` — two effects, both wanted: strict startup
       checks (refuses to boot without `TOKEN_KEYS`), and **no `/openapi.json`,
