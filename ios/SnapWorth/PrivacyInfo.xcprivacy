@@ -57,6 +57,26 @@
 				<string>NSPrivacyCollectedDataTypePurposeAppFunctionality</string>
 			</array>
 		</dict>
+		<!-- Shared sale outcomes (#224), only when the user turns on "Share sale
+		     prices to improve estimates" (off by default): a sold flip's price,
+		     currency and day, beside the estimate it was given. Sent to our own
+		     server, keyed by a random per-flip id and a random per-install
+		     token used only for deletion; no device identifier, item name,
+		     photo or note. Not linked, not tracking, Analytics. The App Store
+		     Connect label must say the same: Financial Info > Other Financial
+		     Info, Analytics, not linked, not tracking. -->
+		<dict>
+			<key>NSPrivacyCollectedDataType</key>
+			<string>NSPrivacyCollectedDataTypeOtherFinancialInfo</string>
+			<key>NSPrivacyCollectedDataTypeLinked</key>
+			<false/>
+			<key>NSPrivacyCollectedDataTypeTracking</key>
+			<false/>
+			<key>NSPrivacyCollectedDataTypePurposes</key>
+			<array>
+				<string>NSPrivacyCollectedDataTypePurposeAnalytics</string>
+			</array>
+		</dict>
 		<dict>
 			<key>NSPrivacyCollectedDataType</key>
 			<string>NSPrivacyCollectedDataTypeProductInteraction</string>

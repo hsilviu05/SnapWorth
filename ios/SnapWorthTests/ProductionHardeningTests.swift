@@ -2249,6 +2249,18 @@ final class PrivacyManifestTests: XCTestCase {
                        ["NSPrivacyCollectedDataTypePurposeAppFunctionality"])
     }
 
+    func test_sharedSalePricesAreDeclaredAsOtherFinancialInfo() throws {
+        // #224: opt-in sale outcomes. Not linked, not tracking, Analytics; the
+        // App Store Connect label must say the same.
+        let collected = try manifest()["NSPrivacyCollectedDataTypes"] as? [[String: Any]] ?? []
+        let entry = collected.first { $0["NSPrivacyCollectedDataType"] as? String
+                                      == "NSPrivacyCollectedDataTypeOtherFinancialInfo" }
+        XCTAssertNotNil(entry, "shared sale prices are collected and undeclared")
+        XCTAssertEqual(entry?["NSPrivacyCollectedDataTypePurposes"] as? [String],
+                       ["NSPrivacyCollectedDataTypePurposeAnalytics"])
+        XCTAssertEqual(entry?["NSPrivacyCollectedDataTypeLinked"] as? Bool, false)
+    }
+
     func test_onlyPurchaseHistoryIsLinked_andNothingIsUsedForTracking() throws {
         // Purchase History is linked: its originalTransactionId is the same on
         // every device under one Apple ID, and the server stores it against the
@@ -9954,3 +9966,156 @@ final class ShareCardURLTests: XCTestCase {
         XCTAssertEqual(Config.appStoreURL, "https://apps.apple.com/app/id6788521307")
     }
 }
+
+// ── Shared sale outcomes (#224) ──────────────────────────────────────────────
+//
+// Off by default and silent when off; exactly the documented fields when on;
+// a sale keeps the currency it was typed in; an edit replaces the record and
+// an unchanged one is not re-sent; un-marking a sale deletes it.
+
+@MainActor
+final class SaleSharingTests: XCTestCase {
+
+    private var defaults: UserDefaults!
+    private var sent: [SaleOutcomeRequest] = []
+
+    override func setUp() {
+        super.setUp()
+        defaults = UserDefaults(suiteName: "SaleSharingTests-\(UUID().uuidString)")
+        sent = []
+    }
+
+    private func service(enabled: Bool) -> SaleSharing {
+        let sharing = SaleSharing()
+        sharing.defaults = defaults
+        sharing.isEnabled = enabled
+        sharing.build = "23"
+        sharing.storefront = { "USA" }
+        sharing.send = { [unowned self] request in sent.append(request) }
+        return sharing
+    }
+
+    private func soldFind(price: Double? = 35, currency: String? = nil) -> ScanResult {
+        let item = ScanResult(itemName: "Patagonia Better Sweater", brand: "Patagonia",
+                              category: "clothing", conditionNotes: "Good",
+                              valueLow: 20, valueHigh: 40, confidence: "Medium",
+                              soldListingsCount: 0, listingTitle: "T", listingDescription: "D")
+        item.paidPrice = 5
+        item.notes = "bought at the Goodwill on 5th"
+        item.status = .sold
+        item.soldPrice = price
+        item.soldDate = Date()
+        item.saleCurrency = currency
+        return item
+    }
+
+    func test_offByDefault_andOffSendsNothing() async {
+        let fresh = SaleSharing()
+        fresh.defaults = defaults
+        XCTAssertFalse(fresh.isEnabled, "a fresh install shares nothing")
+        let sharing = service(enabled: false)
+        let find = soldFind()
+        await sharing.sync(find)
+        XCTAssertTrue(sent.isEmpty)
+        XCTAssertNil(find.outcomeID)
+    }
+
+    func test_thePayloadIsExactlyTheDocumentedFields() throws {
+        let payload = try XCTUnwrap(SaleOutcomePayload.make(
+            for: soldFind(), contributionID: UUID().uuidString, token: String(repeating: "a", count: 43),
+            build: "23", storefront: "USA"))
+        let json = try XCTUnwrap(JSONSerialization.jsonObject(
+            with: JSONEncoder().encode(payload)) as? [String: Any])
+        let allowed = Set(SaleOutcomePayload.CodingKeys.allCases.map(\.rawValue))
+        XCTAssertTrue(Set(json.keys).isSubset(of: allowed))
+        XCTAssertEqual(allowed, [
+            "contribution_id", "contributor_token", "build", "storefront", "scan_day",
+            "prompt_version", "valuation_source", "category", "brand_identified",
+            "condition_grade", "condition_chosen", "confidence_score", "confidence_band",
+            "estimate_low", "estimate_high", "likely", "expected", "sold_price",
+            "currency", "sold_day", "days_listed_to_sold"])
+        let text = String(decoding: try JSONEncoder().encode(payload), as: UTF8.self)
+        for never in ["Patagonia", "Goodwill", "paid", "image", "photo", "device"] {
+            XCTAssertFalse(text.contains(never), never)
+        }
+        XCTAssertEqual(json["brand_identified"] as? Bool, true)
+    }
+
+    func test_aSaleKeepsTheCurrencyItWasTypedIn() throws {
+        let payload = try XCTUnwrap(SaleOutcomePayload.make(
+            for: soldFind(price: 120, currency: "RON"), contributionID: UUID().uuidString,
+            token: String(repeating: "a", count: 43), build: "23", storefront: "ROU"))
+        XCTAssertEqual(payload.currency, "RON")
+        XCTAssertEqual(payload.soldPrice, 120)
+    }
+
+    func test_theCurrencyDefaultsToTheRegion() {
+        XCTAssertEqual(SaleCurrency.regionDefault(locale: Locale(identifier: "ro_RO")), "RON")
+        XCTAssertEqual(SaleCurrency.regionDefault(locale: Locale(identifier: "de_DE")), "EUR")
+        XCTAssertEqual(SaleCurrency.regionDefault(locale: Locale(identifier: "en_US")), "USD")
+        XCTAssertEqual(SaleCurrency.regionDefault(locale: Locale(identifier: "ja_JP")), "USD",
+                       "a currency the server does not take falls back to dollars")
+    }
+
+    func test_onSendsOnce_anEditReplaces_andUnmarkingDeletes() async throws {
+        let sharing = service(enabled: true)
+        let find = soldFind()
+        await sharing.sync(find)
+        let id = try XCTUnwrap(find.outcomeID)
+        XCTAssertEqual(sent.count, 1)
+
+        await sharing.sync(find)
+        XCTAssertEqual(sent.count, 1, "an unchanged sale is not re-sent")
+
+        find.soldPrice = 42
+        await sharing.sync(find)
+        guard case .share(let edited) = sent.last else { return XCTFail("expected a share") }
+        XCTAssertEqual(edited.contributionID, id, "an edit replaces the same record")
+        XCTAssertEqual(edited.soldPrice, 42)
+
+        find.status = .listed
+        await sharing.sync(find)
+        XCTAssertEqual(sent.last, .delete(contributionID: id, token: sharing.contributorToken))
+        XCTAssertNil(find.outcomeID)
+    }
+
+    func test_aFailedSendIsTriedAgainNextTime() async {
+        let sharing = service(enabled: true)
+        var fail = true
+        sharing.send = { [unowned self] request in
+            if fail { throw URLError(.notConnectedToInternet) }
+            sent.append(request)
+        }
+        let find = soldFind()
+        await sharing.sync(find)
+        XCTAssertNil(find.outcomeID)
+        fail = false
+        await sharing.sync(find)
+        XCTAssertNotNil(find.outcomeID)
+        XCTAssertEqual(sent.count, 1)
+    }
+
+    func test_deleteAllSendsTheInstallsToken() async throws {
+        let sharing = service(enabled: true)
+        await sharing.sync(soldFind())
+        try await sharing.deleteAll()
+        XCTAssertEqual(sent.last, .delete(contributionID: nil, token: sharing.contributorToken))
+    }
+
+    func test_theConsentCardIsShownOnceForASoldPrice() {
+        let sharing = service(enabled: false)
+        XCTAssertTrue(sharing.needsConsent(for: soldFind()))
+        XCTAssertFalse(sharing.needsConsent(for: soldFind(price: nil)))
+        sharing.hasAsked = true
+        XCTAssertFalse(sharing.needsConsent(for: soldFind()))
+    }
+
+    func test_theExplanationMatchesWhatIsSent() {
+        let copy = SaleSharingCopy.explanation
+        for said in ["sale price", "currency", "estimate", "Never the photo",
+                     "the item's name", "your notes", "what you paid", "delete"] {
+            XCTAssertTrue(copy.contains(said), said)
+        }
+    }
+}
+

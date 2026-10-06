@@ -5009,6 +5009,42 @@
         }
       }
     },
+    "Allow" : {
+      "comment" : "Button on the share-sale-prices card: turns sharing on.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Erlauben"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Allow"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Permitir"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Permite"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "允许"
+          }
+        }
+      }
+    },
     "Allow notifications" : {
       "comment" : "Banner title in Notification settings when iOS has never been asked for permission. Tapping it shows the system permission alert.",
       "extractionState" : "manual",
@@ -7836,6 +7872,42 @@
         }
       }
     },
+    "Couldn't delete them right now. Try again later." : {
+      "comment" : "After deleting shared sale outcomes failed.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sie konnten gerade nicht gelöscht werden. Versuch es später noch einmal."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couldn't delete them right now. Try again later."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No se pudieron eliminar ahora. Inténtalo más tarde."
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nu le-am putut șterge acum. Încearcă mai târziu."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "暂时无法删除，请稍后再试。"
+          }
+        }
+      }
+    },
     "Couldn't draft this one" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -8433,6 +8505,42 @@
         }
       }
     },
+    "Currency" : {
+      "comment" : "Ledger row: the currency the flip's amounts were typed in (#224).",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Währung"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Currency"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Moneda"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Monedă"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "币种"
+          }
+        }
+      }
+    },
     "Daily free scan" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -8715,6 +8823,42 @@
         }
       }
     },
+    "Delete my shared sales" : {
+      "comment" : "Settings row: deletes every shared sale outcome of this install (#224).",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Meine geteilten Verkäufe löschen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Delete my shared sales"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Eliminar mis ventas compartidas"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Șterge vânzările trimise"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "删除我分享的售出记录"
+          }
+        }
+      }
+    },
     "Delete this find?" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -8746,6 +8890,42 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "删除这件好物？"
+          }
+        }
+      }
+    },
+    "Delete your shared sales?" : {
+      "comment" : "Confirmation title before deleting shared sale outcomes.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Geteilte Verkäufe löschen?"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Delete your shared sales?"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "¿Eliminar tus ventas compartidas?"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ștergi vânzările trimise?"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "删除你分享的售出记录？"
           }
         }
       }
@@ -9844,6 +10024,42 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "所有好物，\n都在一处。"
+          }
+        }
+      }
+    },
+    "Every sale price you've shared from this iPhone is deleted from SnapWorth's server." : {
+      "comment" : "Confirmation message before deleting shared sale outcomes.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Jeder Verkaufspreis, den du von diesem iPhone geteilt hast, wird vom Server von SnapWorth gelöscht."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Every sale price you've shared from this iPhone is deleted from SnapWorth's server."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Se eliminan del servidor de SnapWorth todos los precios de venta que compartiste desde este iPhone."
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fiecare preț de vânzare trimis de pe acest iPhone este șters de pe serverul SnapWorth."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "你从这台 iPhone 分享的所有售价都会从 SnapWorth 的服务器上删除。"
           }
         }
       }
@@ -11560,6 +11776,42 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "已持有 %lld 天"
+          }
+        }
+      }
+    },
+    "Help improve estimates?" : {
+      "comment" : "Title of the one-time card asking to share sale prices (#224).",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hilfst du, die Schätzungen zu verbessern?"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Help improve estimates?"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "¿Nos ayudas a mejorar las estimaciones?"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ne ajuți să îmbunătățim estimările?"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "帮助改进估价？"
           }
         }
       }
@@ -18675,6 +18927,42 @@
         }
       }
     },
+    "Share sale prices to improve estimates" : {
+      "comment" : "Settings toggle for sharing sale outcomes (#224). Off by default.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Verkaufspreise teilen, um Schätzungen zu verbessern"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Share sale prices to improve estimates"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Compartir precios de venta para mejorar las estimaciones"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Trimite prețurile de vânzare pentru estimări mai bune"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "分享售价以改进估价"
+          }
+        }
+      }
+    },
     "Share the card" : {
       "comment" : "Rare-find easter egg (RareFind.swift). The joke is hype and rarity only — keep it that way in translation. Button that shares the joke card as an image.",
       "extractionState" : "manual",
@@ -24497,6 +24785,42 @@
         }
       }
     },
+    "When you mark a find sold, SnapWorth can send its sale price, its currency and the estimate you saw, to measure how close estimates are. Never the photo, the item's name, your notes or what you paid. Off unless you allow it, and you can delete what you've shared in Settings." : {
+      "comment" : "What sharing sale prices sends (#224), on the consent card and under the Settings toggle. Must stay accurate to SaleOutcomePayload.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wenn du einen Fund als verkauft markierst, kann SnapWorth den Verkaufspreis, die Währung und die Schätzung senden, die du gesehen hast, um zu messen, wie nah die Schätzungen liegen. Nie das Foto, den Namen des Artikels, deine Notizen oder was du bezahlt hast. Aus, solange du es nicht erlaubst, und was du geteilt hast, kannst du in den Einstellungen löschen."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "When you mark a find sold, SnapWorth can send its sale price, its currency and the estimate you saw, to measure how close estimates are. Never the photo, the item's name, your notes or what you paid. Off unless you allow it, and you can delete what you've shared in Settings."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cuando marcas un hallazgo como vendido, SnapWorth puede enviar su precio de venta, la moneda y la estimación que viste, para medir cuánto se acercan las estimaciones. Nunca la foto, el nombre del artículo, tus notas ni lo que pagaste. Desactivado salvo que lo permitas, y puedes eliminar lo que hayas compartido en Ajustes."
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Când marchezi o găselniță ca vândută, SnapWorth poate trimite prețul de vânzare, moneda și estimarea pe care ai văzut-o, ca să măsoare cât de apropiate sunt estimările. Niciodată fotografia, numele obiectului, notițele tale sau cât ai plătit. Dezactivat dacă nu permiți, iar ce ai trimis poți șterge din Setări."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "当你把一件好物标记为已售出时，SnapWorth 可以发送它的售价、币种和你看到的估价，用来衡量估价有多准。绝不发送照片、物品名称、你的备注或你的买入价。除非你允许，否则保持关闭；已分享的内容可以在“设置”中删除。"
+          }
+        }
+      }
+    },
     "Where you'd sell" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -25728,6 +26052,42 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "扫描都会存进你的收藏，让你看着这些藏着的价值一点点累积起来。"
+          }
+        }
+      }
+    },
+    "Your shared sales were deleted." : {
+      "comment" : "After deleting shared sale outcomes succeeded.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Deine geteilten Verkäufe wurden gelöscht."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Your shared sales were deleted."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Se eliminaron tus ventas compartidas."
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vânzările trimise au fost șterse."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "你分享的售出记录已删除。"
           }
         }
       }
