@@ -687,6 +687,24 @@ Railway at all, and the way back is §7's redeploy of a previous build, not a
 merge. A flaky test is not an emergency (re-run it), and neither is a slow
 macOS runner (wait, or re-run).
 
+### After every deploy
+
+Tests passing is not the same as production working: on 2026-09-27 ten
+deploys went out green and nothing exercised them from a phone until the
+smoke test that evening (#206). After each backend deploy reaches Railway:
+
+1. **Confirm it is the build you meant.** The Telegram deploy ping names the
+   commit as it goes live; `GET /health` reports the running `commit`.
+2. **🩺 Checkup** in the bot: no ⚠️, `FAILED`, `NOT` or `REJECTED` on any
+   line. A line that was already amber before the deploy and is tracked in an
+   issue is not new; anything else is.
+3. **One real scan** from a phone on the current App Store build. It returns
+   a result, and `/costs` counts it.
+
+Anything red: §7, redeploy the previous build first and diagnose second.
+Several merges in a burst need one pass after the last of them goes live,
+not one per merge.
+
 ### Changing the scan prompt
 
 `SCAN_PROMPT_VERSION` picks the valuation prompt: `v1`, `v2` (the default) or
