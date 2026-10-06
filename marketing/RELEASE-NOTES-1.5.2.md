@@ -232,8 +232,12 @@ The `chore: 1.5.2, build 22` commit is a lower bound for what 22 contains,
 not the build (CLAUDE.md). This record is the build.
 
 - **Archive commit** (`git rev-parse HEAD` in the checkout, at archive time):
-  **TODO(owner):** ______
-- **Organizer creation date:** **TODO(owner):** ______
+  `bfcef96f758f83c3867c95f82bed1731480778d2` (`main` after #280). Checked at archive time: the bump
+  (#274, `ca398b1`) is an ancestor, the checkout's `ios/` is identical to
+  `main`, and no app file had uncommitted changes.
+- **Organizer creation date:** 2026-10-06. **TODO(owner):** confirm the
+  time in Organizer.
+- **Tagged** `build-22`.
 - **Tag** it:
 
   ```sh
