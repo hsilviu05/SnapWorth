@@ -46,12 +46,6 @@ struct ResultView: View {
     @State private var showShareSheet = false
     @State private var showShareChoice = false
     @State private var showTagCamera = false
-    @State private var isRescanning = false
-    @State private var tagError: String?
-    /// Success counterpart to `tagError` — see `rescan(withTag:)`.
-    @State private var tagSuccess: String?
-    /// Why the full-breakdown re-read failed — see `rereadForFullDetail()`.
-    @State private var fullDetailError: String?
     /// What the share sheet carries: the result card, or the guess story pair.
     @State private var shareItems: [Any] = []
     @State private var showPaywall = false
@@ -286,7 +280,7 @@ struct ResultView: View {
             //
             // Not after a rare-find reveal, which sent it when it put this
             // valuation on screen (`priceAlreadyShown`).
-            if isFreshScan, !priceAlreadyShown {
+            if reportsScanResultShown {
                 Analytics.shared.track(.scanResultShown(isFirst: ScanTally.isFirstRun()))
             }
             if let data = result.imageData {
@@ -301,8 +295,8 @@ struct ResultView: View {
         // at the reveal; a sheet dismissed inside the pause cancels it rather
         // than prompting over the camera.
         .task(id: priceCovered) {
-            guard isFreshScan, !priceCovered,
-                  ReviewPrompt.isWorthAskingAbout(confidence: result.confidence) else { return }
+            guard Self.asksForReview(isFreshScan: isFreshScan, priceCovered: priceCovered,
+                                     confidence: result.confidence) else { return }
             try? await Task.sleep(for: .seconds(2))
             guard !Task.isCancelled else { return }
             ReviewPrompt.requestIfDue()
@@ -355,7 +349,8 @@ struct ResultView: View {
             // find reopened from My Finds or My Flips is not re-read after a
             // purchase either; its teaser said so, and its panel says why
             // (`FullDetailOffer`).
-            if paywallTrigger == .valuationDetail, fullDetailOffer == .reread {
+            if ResultViewModel.rereadsAfterPaywall(trigger: paywallTrigger,
+                                                   offer: fullDetailOffer) {
                 rereadForFullDetail()
             }
         }) {
@@ -945,7 +940,7 @@ struct ResultView: View {
     /// whether the valuation is new — see `isFreshScan`.
     @ViewBuilder
     private var addTagCard: some View {
-        if isFreshScan {
+        if offersTagReread {
             VStack(alignment: .leading, spacing: 10) {
                 HStack {
                     Text("Sharpen this estimate")
@@ -958,31 +953,31 @@ struct ResultView: View {
                     .foregroundStyle(Color.snapWarmGray)
                     .fixedSize(horizontal: false, vertical: true)
 
-                if let tagError {
+                if let tagError = vm.tagError {
                     Text(tagError)
                         .font(.snapCaption)
                         .foregroundStyle(Color.snapTerracottaText)
                         .fixedSize(horizontal: false, vertical: true)
                 }
 
-                if let tagSuccess {
+                if let tagSuccess = vm.tagSuccess {
                     Label(tagSuccess, systemImage: "checkmark.circle.fill")
                         .font(.snapCaption)
                         .foregroundStyle(Color.snapSageText)
                         .fixedSize(horizontal: false, vertical: true)
                 }
 
-                PrimaryButton(title: isRescanning ? "Re-reading…" : "Add the tag") {
-                    guard !isRescanning else { return }
+                PrimaryButton(title: vm.isRescanning ? "Re-reading…" : "Add the tag") {
+                    guard !vm.isRescanning else { return }
                     if isPro {
-                        tagError = nil
+                        vm.tagError = nil
                         showTagCamera = true
                     } else {
                         paywallTrigger = .addTag
                         showPaywall = true
                     }
                 }
-                .disabled(isRescanning)
+                .disabled(vm.isRescanning)
             }
             .padding(20)
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -1040,56 +1035,14 @@ struct ResultView: View {
         ScanRepository(context: modelContext).refreshWidget()
     }
 
-    /// Re-scan with both photos and replace the estimate in place.
-    ///
-    /// The item photo is the one already stored on the result, so the user
-    /// photographs the label only. A failure leaves the original estimate
-    /// exactly as it was and says so — the first answer was paid for and must
-    /// not be lost to a second attempt.
+    /// The tag re-read; the work and its rules are
+    /// `ResultViewModel.rescanWithTag` (#229).
     private func rescan(withTag tagImage: UIImage) {
-        // The button checks this too, but the button is not the only caller:
-        // the tag sheet is. Two re-scans in flight would each spend a scan,
-        // the later answer would win, and the first to finish would clear
-        // "Re-reading…" while the other was still running.
-        guard !isRescanning else { return }
-        guard let photo else {
-            tagError = String(localized: "The original photo is no longer available for this find.")
-            return
-        }
-        isRescanning = true
-        tagError = nil
-        tagSuccess = nil
         Task {
-            defer { isRescanning = false }
-            // A paid model call, like any scan — see `BackgroundScanActivity`.
-            let background = BackgroundScanActivity.begin("Tag re-read")
-            defer { background.end() }
-            do {
-                let response = try await purchaseService.confirmingSubscription {
-                    try await ScanAPIClient.shared.scan(image: photo, tagImage: tagImage)
-                }
-                result.applySharpened(response)
+            await vm.rescanWithTag(tagImage, photo: photo, result: result,
+                                   purchaseService: purchaseService) {
                 valuationDidChange()
                 priceRevealed = true          // the user has seen the first number already
-                Haptics.success()
-                // A haptic is the whole of the feedback a sighted user gets, and
-                // the estimate may not visibly move at all — so on success this
-                // said nothing, and said nothing at all to VoiceOver. Both are
-                // fixed here: a line that persists, and an announcement.
-                tagSuccess = String(localized: "Re-read with the tag. Estimate updated.")
-                UIAccessibility.post(notification: .announcement, argument: tagSuccess ?? "")
-                Analytics.shared.track(.tagPhotoAdded(succeeded: true))
-            } catch {
-                Haptics.failure()
-                Analytics.shared.track(.tagPhotoAdded(succeeded: false))
-                // A subscriber the server would not recognise: the alert, with
-                // Restore and support, rather than a line under a Pro card.
-                if AppError.from(error) == .subscriptionUnconfirmed {
-                    vm.showSubscriptionUnconfirmed = true
-                    return
-                }
-                tagError = AppError.from(error).errorDescription
-                    ?? String(localized: "That didn't work. Your estimate is unchanged.")
             }
         }
     }
@@ -1141,6 +1094,23 @@ struct ResultView: View {
                         detail: result.valuationDetail)
     }
 
+    /// Whether this sheet reports `scan_result_shown`: a fresh scan, whose
+    /// price nothing has reported already (a rare find's reveal shows it and
+    /// reports it first). Browsing My Finds or My Flips is not a scan.
+    var reportsScanResultShown: Bool { isFreshScan && !priceAlreadyShown }
+
+    /// The tag re-read is offered on a fresh result only, on the same signal
+    /// as the full-breakdown re-read (`FullDetailOffer`), so the two cannot
+    /// come apart the day either changes.
+    var offersTagReread: Bool { isFreshScan }
+
+    /// Whether to ask for a rating once this result is on screen: a fresh
+    /// scan, after the price has been uncovered (never while a guess is
+    /// still hiding it), and not on an estimate too weak to be pleased by.
+    static func asksForReview(isFreshScan: Bool, priceCovered: Bool, confidence: String) -> Bool {
+        isFreshScan && !priceCovered && ReviewPrompt.isWorthAskingAbout(confidence: confidence)
+    }
+
     /// What the paywall opened from this result leads with.
     ///
     /// The trigger's pitch, except "See why this price" on a thin find
@@ -1178,20 +1148,20 @@ struct ResultView: View {
     /// rewrites its details and listing draft.
     private var fullDetailPrompt: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("This find was saved without its full breakdown. Re-read its photo to see the price points and what drives the value. The estimate, the item's name and details, and the listing draft may change.")
+            Text(FullDetailOffer.rereadPrompt)
                 .font(.snapCaption)
                 .foregroundStyle(Color.snapWarmGray)
                 .fixedSize(horizontal: false, vertical: true)
-            if let fullDetailError {
+            if let fullDetailError = vm.fullDetailError {
                 Text(fullDetailError)
                     .font(.snapCaption)
                     .foregroundStyle(Color.snapTerracottaText)
                     .fixedSize(horizontal: false, vertical: true)
             }
-            PrimaryButton(title: isRescanning ? "Re-reading…" : "Show the full breakdown") {
+            PrimaryButton(title: vm.isRescanning ? "Re-reading…" : "Show the full breakdown") {
                 rereadForFullDetail()
             }
-            .disabled(isRescanning)
+            .disabled(vm.isRescanning)
         }
     }
 
@@ -1217,82 +1187,14 @@ struct ResultView: View {
         .accessibilityElement(children: .combine)
     }
 
-    /// Re-reads the stored photo so a subscriber gets the panel a free scan
-    /// was never sent — see `ValuationDetail.lacksProDetail`.
-    ///
-    /// A fresh result only, like the tag re-read. `FullDetailOffer` decides,
-    /// and it is checked here as well as at the button and the paywall's
-    /// dismissal, so no path re-prices a find reopened from My Finds or My
-    /// Flips.
-    ///
-    /// The same machinery as the tag re-read, and like it this replaces the
-    /// estimate: the ladder has to explain the number beside it, so taking the
-    /// new detail and keeping the old range would show a breakdown of a price
-    /// the app no longer states.
+    /// The full-breakdown re-read; the work and its rules are
+    /// `ResultViewModel.rereadForFullDetail` (#229).
     private func rereadForFullDetail() {
-        guard !isRescanning, fullDetailOffer == .reread else { return }
-        guard let photo else {
-            fullDetailError = String(localized: "The original photo is no longer available for this find.")
-            return
-        }
-        isRescanning = true
-        fullDetailError = nil
         Task {
-            defer { isRescanning = false }
-            let background = BackgroundScanActivity.begin("Full breakdown")
-            defer { background.end() }
-            // A server that still reads this device as free does not refuse
-            // the scan — it answers it, off the free allowance, stripped of
-            // exactly what this is for. Right after a purchase it usually
-            // does: the purchase tells the server in a detached task. So wait
-            // for the server to agree first, and do not scan if it will not.
-            if !Config.mockScans {
-                switch await purchaseService.resyncEntitlement() {
-                case .confirmed:
-                    break
-                case .notSubscribed:
-                    return                  // the panel is back to the teaser
-                case .unreachable(let reason, let error):
-                    // Offline, timed out, rate-limited or down. Unlike a 402's
-                    // resync, nothing here has shown the network works, and
-                    // telling someone on a train that Apple and SnapWorth
-                    // disagree about their subscription is not what happened.
-                    Analytics.shared.track(.entitlementSyncFailed(reason: reason))
-                    Haptics.failure()
-                    fullDetailError = error.errorDescription
-                        ?? String(localized: "We couldn't load the full breakdown. Your estimate is unchanged.")
-                    return
-                case .failed(let reason):
-                    Analytics.shared.track(.entitlementSyncFailed(reason: reason))
-                    vm.showSubscriptionUnconfirmed = true
-                    return
-                }
-            }
-            do {
-                let response = try await purchaseService.confirmingSubscription {
-                    try await ScanAPIClient.shared.scan(image: photo)
-                }
-                // Still stripped: applying it would move the estimate and
-                // leave the panel as thin as before.
-                guard let detail = ValuationDetail(response: response), !detail.lacksProDetail else {
-                    Haptics.failure()
-                    fullDetailError = String(localized: "We couldn't load the full breakdown. Your estimate is unchanged.")
-                    return
-                }
-                result.applySharpened(response)
+            await vm.rereadForFullDetail(offer: fullDetailOffer, photo: photo, result: result,
+                                         purchaseService: purchaseService) {
                 valuationDidChange()
                 priceRevealed = true
-                Haptics.success()
-                UIAccessibility.post(notification: .announcement,
-                                     argument: String(localized: "Full breakdown loaded."))
-            } catch {
-                Haptics.failure()
-                if AppError.from(error) == .subscriptionUnconfirmed {
-                    vm.showSubscriptionUnconfirmed = true
-                    return
-                }
-                fullDetailError = AppError.from(error).errorDescription
-                    ?? String(localized: "We couldn't load the full breakdown. Your estimate is unchanged.")
             }
         }
     }
@@ -1337,13 +1239,7 @@ struct ResultView: View {
                     paywallTrigger = .valuationDetail
                     showPaywall = true
                 }
-                Group {
-                    if newScansOnly {
-                        Text("On new scans, Pro shows four price points, what drives the value, and how to sharpen the estimate. This find keeps the summary it was saved with.")
-                    } else {
-                        Text("Four price points, what drives the value, and how to sharpen the estimate.")
-                    }
-                }
+                Text(FullDetailOffer.teaserCaption(newScansOnly: newScansOnly))
                 .font(.snapCaption)
                 .foregroundStyle(Color.snapWarmGray)
                 .multilineTextAlignment(.center)

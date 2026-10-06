@@ -4082,51 +4082,24 @@ final class ValuationDetailTests: XCTestCase {
         }
     }
 
-    /// Source-level: the re-read goes through `ScanAPIClient.shared`, which a
-    /// unit test cannot drive. Whether it is offered at all is
-    /// `FullDetailOffer`, tested in `FullDetailOfferTests`; this pins that
-    /// every way into the re-read asks it.
-    func test_buyingFromThePanelReReadsTheFind() throws {
-        let file = try String(
-            contentsOf: URL(fileURLWithPath: #filePath)
-                .deletingLastPathComponent().deletingLastPathComponent()
-                .appendingPathComponent("SnapWorth/Views/ResultView.swift"),
-            encoding: .utf8)
-        XCTAssertTrue(file.contains("if paywallTrigger == .valuationDetail, fullDetailOffer == .reread {"),
-                      "a purchase from this panel must hand back what it sold, on a fresh result only")
-        XCTAssertTrue(file.contains("case .reread:           fullDetailPrompt"),
-                      "the button is shown where the re-read is offered")
-        XCTAssertTrue(file.contains("case .scannedBeforePro: scannedBeforeProNote"),
-                      "a reopened thin find says why, rather than offering a re-read")
-        let body = try XCTUnwrap(file.range(of: "private func rereadForFullDetail()"))
-        let rest = file[body.upperBound...]
-        // It checks for itself, before any work starts, so no future caller
-        // can re-price a find reopened from My Finds or My Flips.
-        let own = try XCTUnwrap(rest.range(of: "guard !isRescanning, fullDetailOffer == .reread else { return }"))
-        let work = try XCTUnwrap(rest.range(of: "Task {"))
-        XCTAssertLessThan(own.lowerBound, work.lowerBound)
-        // The server is asked first: a device it still reads as free is not
-        // refused, it is answered — off the free allowance, stripped again.
-        let resync = try XCTUnwrap(rest.range(of: "await purchaseService.resyncEntitlement()"))
-        let scan = try XCTUnwrap(rest.range(of: "ScanAPIClient.shared.scan("))
-        XCTAssertLessThan(resync.lowerBound, scan.lowerBound)
+    /// A purchase from this panel hands back what it sold, on a fresh result
+    /// only: `rereadsAfterPaywall` is what the paywall's dismissal asks.
+    func test_buyingFromThePanelReReadsTheFind() {
+        for offer in [FullDetailOffer.none, .reread, .teaserNewScansOnly, .scannedBeforePro] {
+            for trigger in PaywallTrigger.allCases {
+                XCTAssertEqual(ResultViewModel.rereadsAfterPaywall(trigger: trigger, offer: offer),
+                               trigger == .valuationDetail && offer == .reread,
+                               "\(trigger.rawValue), \(offer)")
+            }
+        }
     }
 
-    /// Source-level, for the same reason. `applySharpened` replaces the name,
-    /// the details and the listing draft as well as the estimate, and the
-    /// prompt said only that "the estimate may change".
-    func test_theReReadPromptSaysEverythingItMayChange() throws {
-        let file = try String(
-            contentsOf: URL(fileURLWithPath: #filePath)
-                .deletingLastPathComponent().deletingLastPathComponent()
-                .appendingPathComponent("SnapWorth/Views/ResultView.swift"),
-            encoding: .utf8)
-        let view = try XCTUnwrap(file.range(of: "private var fullDetailPrompt: some View {"))
-        let open = try XCTUnwrap(file.range(of: "Text(\"", range: view.upperBound..<file.endIndex))
-        let close = try XCTUnwrap(file.range(of: "\")", range: open.upperBound..<file.endIndex))
-        let prompt = file[open.upperBound..<close.lowerBound]
+    /// `applySharpened` replaces the name, the details and the listing draft
+    /// as well as the estimate, and the prompt said only that "the estimate
+    /// may change".
+    func test_theReReadPromptSaysEverythingItMayChange() {
         for part in ["estimate", "name", "details", "listing draft"] {
-            XCTAssertTrue(prompt.contains(part), "\(part): \(prompt)")
+            XCTAssertTrue(FullDetailOffer.rereadPrompt.contains(part), part)
         }
     }
 
@@ -4315,28 +4288,14 @@ final class FullDetailOfferTests: XCTestCase {
         XCTAssertEqual(sheet.fullDetailOffer, .none)
     }
 
-    /// Source-level: a view's copy cannot be read in a unit test. On
-    /// `.teaserNewScansOnly` the button must not offer to unlock "this price",
-    /// and the caption must say the breakdown comes with new scans.
-    func test_theNewScansOnlyTeaserDoesNotSellThisFindsBreakdown() throws {
-        let file = try String(
-            contentsOf: URL(fileURLWithPath: #filePath)
-                .deletingLastPathComponent().deletingLastPathComponent()
-                .appendingPathComponent("SnapWorth/Views/ResultView.swift"),
-            encoding: .utf8)
-        XCTAssertTrue(file.contains("newScansOnly: fullDetailOffer == .teaserNewScansOnly)"),
-                      "the card hands the teaser the offer's answer")
-        let teaser = try XCTUnwrap(file.range(of: "private func lockedDetailTeaser("))
-        let body = file[teaser.upperBound...]
-        XCTAssertTrue(body.contains(
-            #"PrimaryButton(title: newScansOnly ? "Upgrade to Pro" : "Unlock why this price")"#))
-        let branch = try XCTUnwrap(body.range(of: "if newScansOnly {"))
-        let open = try XCTUnwrap(body.range(of: "Text(\"", range: branch.upperBound..<body.endIndex))
-        let close = try XCTUnwrap(body.range(of: "\")", range: open.upperBound..<body.endIndex))
-        let caption = body[open.upperBound..<close.lowerBound]
-        XCTAssertTrue(caption.contains("On new scans"), String(caption))
-        XCTAssertTrue(caption.contains("This find keeps the summary it was saved with."),
-                      "the same words the label uses once they have bought: \(caption)")
+    /// On `.teaserNewScansOnly` the caption says the breakdown comes with new
+    /// scans, in the words the "Scanned before Pro" label uses once bought.
+    func test_theNewScansOnlyTeaserDoesNotSellThisFindsBreakdown() {
+        let caption = FullDetailOffer.teaserCaption(newScansOnly: true)
+        XCTAssertTrue(caption.contains("On new scans"), caption)
+        XCTAssertTrue(caption.contains("This find keeps the summary it was saved with."), caption)
+        XCTAssertFalse(FullDetailOffer.teaserCaption(newScansOnly: false)
+                        .contains("This find keeps"))
     }
 
     // ── The paywall that teaser opens ───────────────────────────────────────
@@ -4400,18 +4359,6 @@ final class FullDetailOfferTests: XCTestCase {
         }
     }
 
-    /// Source-level: the sheet hands the paywall this answer, and keeps the
-    /// trigger, which is what the events report.
-    func test_theSheetsPaywallTakesThePitchFromTheFind() throws {
-        let file = try String(
-            contentsOf: URL(fileURLWithPath: #filePath)
-                .deletingLastPathComponent().deletingLastPathComponent()
-                .appendingPathComponent("SnapWorth/Views/ResultView.swift"),
-            encoding: .utf8)
-        let compact = file.filter { !$0.isWhitespace }
-        XCTAssertTrue(compact.contains(
-            "PaywallView(purchaseService:purchaseService,trigger:paywallTrigger,pitch:paywallPitch(for:paywallTrigger))"))
-    }
 
     /// Source-level: which sheet is fresh is decided at its call site. Only the
     /// scan sheet may say so. My Finds and My Flips, whose items include
@@ -4431,17 +4378,14 @@ final class FullDetailOfferTests: XCTestCase {
         }
     }
 
-    /// Source-level: the tag re-read keeps the same rule on the same signal, so
-    /// the two cannot come apart the day the cover changes.
-    func test_theTagReReadIsGatedOnTheSameSignal() throws {
-        let file = try String(
-            contentsOf: URL(fileURLWithPath: #filePath)
-                .deletingLastPathComponent().deletingLastPathComponent()
-                .appendingPathComponent("SnapWorth/Views/ResultView.swift"),
-            encoding: .utf8)
-        let card = try XCTUnwrap(file.range(of: "private var addTagCard: some View {"))
-        let gate = try XCTUnwrap(file.range(of: "if ", range: card.upperBound..<file.endIndex))
-        XCTAssertTrue(file[gate.lowerBound...].hasPrefix("if isFreshScan {"))
+    /// The tag re-read keeps the full-breakdown re-read's rule on the same
+    /// signal, so the two cannot come apart the day the cover changes.
+    func test_theTagReReadIsGatedOnTheSameSignal() {
+        let fresh = ResultView(result: find(full), purchaseService: pro, onDismiss: {},
+                               isFreshScan: true)
+        let reopened = ResultView(result: find(full), purchaseService: pro, onDismiss: {})
+        XCTAssertTrue(fresh.offersTagReread)
+        XCTAssertFalse(reopened.offersTagReread)
     }
 }
 
@@ -6559,13 +6503,15 @@ final class BackgroundScanActivityTests: XCTestCase {
         let root = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent().deletingLastPathComponent()
             .appendingPathComponent("SnapWorth")
-        for path in ["ViewModels/ScanViewModel.swift",
-                     "ViewModels/ThriftFlipViewModel.swift",
-                     "Views/ResultView.swift"] {
+        // ResultView's two re-reads live in ResultViewModel since #229, behind
+        // its injectable `scanner`.
+        for (path, scanCall) in [("ViewModels/ScanViewModel.swift", "ScanAPIClient.shared.scan("),
+                                 ("ViewModels/ThriftFlipViewModel.swift", "ScanAPIClient.shared.scan("),
+                                 ("ViewModels/ResultViewModel.swift", "try await scanner(")] {
             let file = try String(contentsOf: root.appendingPathComponent(path), encoding: .utf8)
             var searchFrom = file.startIndex
             var found = 0
-            while let call = file.range(of: "ScanAPIClient.shared.scan(",
+            while let call = file.range(of: scanCall,
                                         range: searchFrom..<file.endIndex) {
                 let before = file[file.startIndex..<call.lowerBound]
                 let begin = try XCTUnwrap(before.range(of: "BackgroundScanActivity.begin(",
@@ -6839,22 +6785,21 @@ final class SubscriberPaywallTests: XCTestCase {
         XCTAssertEqual(syncFailures, ["timeout"])
     }
 
-    /// Source-level: the re-read is a view method over `ScanAPIClient.shared`.
-    func test_theFullBreakdownReReadShowsAnUnreachableServerInline() throws {
-        let file = try String(
-            contentsOf: URL(fileURLWithPath: #filePath)
-                .deletingLastPathComponent().deletingLastPathComponent()
-                .appendingPathComponent("SnapWorth/Views/ResultView.swift"),
-            encoding: .utf8)
-        let body = try XCTUnwrap(file.range(of: "private func rereadForFullDetail()"))
-        let arm = try XCTUnwrap(file.range(of: "case .unreachable(let reason, let error):",
-                                           range: body.upperBound..<file.endIndex))
-        let next = try XCTUnwrap(file.range(of: "case .failed(let reason):",
-                                            range: arm.upperBound..<file.endIndex))
-        let branch = file[arm.upperBound..<next.lowerBound]
-        XCTAssertTrue(branch.contains("fullDetailError = error.errorDescription"))
-        XCTAssertFalse(branch.contains("showSubscriptionUnconfirmed"),
+    /// An offline subscriber is told the server could not be reached, inline,
+    /// and nothing is scanned: not "we couldn't confirm your subscription".
+    func test_theFullBreakdownReReadShowsAnUnreachableServerInline() async {
+        let store = ResyncStub(subscribed: true,
+                               resync: .unreachable(reason: "offline", error: .network))
+        let vm = ResultViewModel()
+        var scans = 0
+        vm.scanner = { _, _ in scans += 1; throw AppError.network }
+        await vm.rereadForFullDetail(offer: .reread, photo: UIImage(), result: Self.thinFind(),
+                                     purchaseService: store) {}
+        XCTAssertEqual(vm.fullDetailError, AppError.network.errorDescription)
+        XCTAssertFalse(vm.showSubscriptionUnconfirmed,
                        "an offline subscriber is not told their subscription is in question")
+        XCTAssertEqual(scans, 0)
+        XCTAssertEqual(syncFailures, ["offline"])
     }
 
     /// Source-level: these go through `ScanAPIClient.shared` and
@@ -6866,7 +6811,7 @@ final class SubscriberPaywallTests: XCTestCase {
             .appendingPathComponent("SnapWorth")
         let calls = [("ViewModels/ScanViewModel.swift", "ScanAPIClient.shared.scan("),
                      ("ViewModels/ThriftFlipViewModel.swift", "ScanAPIClient.shared.scan("),
-                     ("Views/ResultView.swift", "ScanAPIClient.shared.scan("),
+                     ("ViewModels/ResultViewModel.swift", "try await scanner("),
                      ("ViewModels/ResultViewModel.swift", "ListingAPIClient.shared.generate(")]
         for (path, call) in calls {
             let file = try String(contentsOf: root.appendingPathComponent(path), encoding: .utf8)
@@ -6891,6 +6836,161 @@ final class SubscriberPaywallTests: XCTestCase {
 // It was `try? await restorePurchases()` behind an alert that closes on the
 // tap, so nothing on screen changed whatever happened — on the one alert that
 // appears right after a sync has failed.
+
+extension SubscriberPaywallTests {
+    /// A fresh scan saved with only the free part of the panel.
+    static func thinFind() -> ScanResult {
+        var detail = ValuationDetail()
+        detail.confidenceScore = 72
+        detail.confidenceSummary = "Brand and model are legible."
+        detail.conditionGrade = "good"
+        return ScanResult(itemName: "Patagonia Better Sweater", brand: "Patagonia",
+                          category: "clothing", conditionNotes: "Good",
+                          valueLow: 45, valueHigh: 90, confidence: "High",
+                          soldListingsCount: 0, listingTitle: "T", listingDescription: "D",
+                          valuationDetailData: detail.encoded())
+    }
+}
+
+// ── The sheet's two paid re-reads, run (#229) ───────────────────────────────
+//
+// `rereadForFullDetail` and the tag re-read lived in `ResultView` and were
+// tested by reading its source. They are `ResultViewModel` methods now, with
+// the scan injected, so each rule is run: what is checked before any work,
+// that the server is asked before the scan, what is applied, and what is left
+// alone on a failure.
+
+@MainActor
+final class ResultRereadTests: XCTestCase {
+
+    private func response(_ fixture: String) throws -> ScanAPIResponse {
+        try JSONDecoder().decode(ScanAPIResponse.self,
+                                 from: ScanContractTests.contractData(fixture))
+    }
+
+    func test_theReReadChecksItsOwnOfferBeforeAnyWork() async {
+        for offer in [FullDetailOffer.none, .teaserNewScansOnly, .scannedBeforePro] {
+            let store = ResyncStub(subscribed: true, resync: .confirmed)
+            let vm = ResultViewModel()
+            var scans = 0
+            vm.scanner = { _, _ in scans += 1; throw AppError.network }
+            await vm.rereadForFullDetail(offer: offer, photo: UIImage(),
+                                         result: SubscriberPaywallTests.thinFind(),
+                                         purchaseService: store) { XCTFail("applied") }
+            XCTAssertEqual(scans, 0, "\(offer)")
+            XCTAssertEqual(store.resyncCalls, 0, "\(offer): no work starts")
+        }
+    }
+
+    func test_aReReadInFlightRefusesASecond() async {
+        let vm = ResultViewModel()
+        vm.isRescanning = true
+        var scans = 0
+        vm.scanner = { _, _ in scans += 1; throw AppError.network }
+        let store = ResyncStub(subscribed: true, resync: .confirmed)
+        await vm.rereadForFullDetail(offer: .reread, photo: UIImage(),
+                                     result: SubscriberPaywallTests.thinFind(),
+                                     purchaseService: store) {}
+        await vm.rescanWithTag(UIImage(), photo: UIImage(),
+                               result: SubscriberPaywallTests.thinFind(),
+                               purchaseService: store) {}
+        XCTAssertEqual(scans, 0)
+    }
+
+    func test_theServerIsAskedBeforeTheScanAndTheFullAnswerIsApplied() async throws {
+        let store = ResyncStub(subscribed: true, resync: .confirmed)
+        let vm = ResultViewModel()
+        let full = try response("scan-response.json")
+        var resyncsSeenAtScan = -1
+        vm.scanner = { _, tag in
+            resyncsSeenAtScan = store.resyncCalls
+            XCTAssertNil(tag, "the full-breakdown re-read sends the item photo only")
+            return full
+        }
+        let find = SubscriberPaywallTests.thinFind()
+        var applied = 0
+        await vm.rereadForFullDetail(offer: .reread, photo: UIImage(), result: find,
+                                     purchaseService: store) { applied += 1 }
+        XCTAssertEqual(resyncsSeenAtScan, 1, "the server agrees before the scan is made")
+        XCTAssertEqual(applied, 1)
+        XCTAssertEqual(find.itemName, full.itemName)
+        XCTAssertFalse(try XCTUnwrap(find.valuationDetail).lacksProDetail)
+        XCTAssertNil(vm.fullDetailError)
+        XCTAssertFalse(vm.isRescanning)
+    }
+
+    func test_aStillThinAnswerLeavesTheFindAlone() async throws {
+        let store = ResyncStub(subscribed: true, resync: .confirmed)
+        let vm = ResultViewModel()
+        let free = try response("scan-response-free.json")
+        vm.scanner = { _, _ in free }
+        let find = SubscriberPaywallTests.thinFind()
+        await vm.rereadForFullDetail(offer: .reread, photo: UIImage(), result: find,
+                                     purchaseService: store) { XCTFail("applied") }
+        XCTAssertEqual(find.itemName, "Patagonia Better Sweater")
+        XCTAssertEqual(find.valueLow, 45)
+        XCTAssertNotNil(vm.fullDetailError)
+    }
+
+    func test_aServerThatCannotConfirmShowsTheAlertAndScansNothing() async {
+        let store = ResyncStub(subscribed: true, resync: .failed(reason: "refused"))
+        let vm = ResultViewModel()
+        var scans = 0
+        vm.scanner = { _, _ in scans += 1; throw AppError.network }
+        await vm.rereadForFullDetail(offer: .reread, photo: UIImage(),
+                                     result: SubscriberPaywallTests.thinFind(),
+                                     purchaseService: store) {}
+        XCTAssertTrue(vm.showSubscriptionUnconfirmed)
+        XCTAssertEqual(scans, 0)
+    }
+
+    func test_aMissingPhotoSaysSoWithoutScanning() async {
+        let vm = ResultViewModel()
+        var scans = 0
+        vm.scanner = { _, _ in scans += 1; throw AppError.network }
+        let store = ResyncStub(subscribed: true, resync: .confirmed)
+        await vm.rereadForFullDetail(offer: .reread, photo: nil,
+                                     result: SubscriberPaywallTests.thinFind(),
+                                     purchaseService: store) {}
+        await vm.rescanWithTag(UIImage(), photo: nil, result: SubscriberPaywallTests.thinFind(),
+                               purchaseService: store) {}
+        XCTAssertNotNil(vm.fullDetailError)
+        XCTAssertNotNil(vm.tagError)
+        XCTAssertEqual(scans, 0)
+    }
+
+    func test_theTagReReadSendsBothPhotosAndAppliesTheAnswer() async throws {
+        let vm = ResultViewModel()
+        let answer = try response("scan-response.json")
+        var sentTag = false
+        vm.scanner = { _, tag in sentTag = tag != nil; return answer }
+        let find = SubscriberPaywallTests.thinFind()
+        var applied = 0
+        await vm.rescanWithTag(UIImage(), photo: UIImage(), result: find,
+                               purchaseService: MockPurchaseService(forcedSubscribed: true)) {
+            applied += 1
+        }
+        XCTAssertTrue(sentTag)
+        XCTAssertEqual(applied, 1)
+        XCTAssertEqual(find.itemName, answer.itemName)
+        XCTAssertNotNil(vm.tagSuccess)
+        XCTAssertNil(vm.tagError)
+        XCTAssertFalse(vm.isRescanning)
+    }
+
+    func test_aFailedTagReReadKeepsThePaidForEstimate() async {
+        let vm = ResultViewModel()
+        vm.scanner = { _, _ in throw AppError.network }
+        let find = SubscriberPaywallTests.thinFind()
+        await vm.rescanWithTag(UIImage(), photo: UIImage(), result: find,
+                               purchaseService: MockPurchaseService(forcedSubscribed: true)) {
+            XCTFail("applied")
+        }
+        XCTAssertEqual(find.valueLow, 45)
+        XCTAssertEqual(vm.tagError, AppError.network.errorDescription)
+        XCTAssertNil(vm.tagSuccess)
+    }
+}
 
 @MainActor
 final class SubscriptionRestoreTests: XCTestCase {
@@ -8304,7 +8404,7 @@ final class RetentionFunnelTests: XCTestCase {
     /// `ResultView` serves three call sites: a fresh scan, My Finds, and the
     /// ledger. Only the first is a funnel event — left ungated, browsing your
     /// own library would inflate `scan_result_shown` without limit.
-    func test_onlyAFreshScanReportsItsResultAsShown() throws {
+    @MainActor func test_onlyAFreshScanReportsItsResultAsShown() throws {
         func source(_ path: String) throws -> String {
             try String(contentsOf: URL(fileURLWithPath: #filePath)
                 .deletingLastPathComponent()
@@ -8326,8 +8426,18 @@ final class RetentionFunnelTests: XCTestCase {
             XCTAssertFalse(try source(browsing).contains("isFreshScan"),
                            "\(browsing) reopens saved finds — it must not report them as scans")
         }
-        XCTAssertTrue(try source("SnapWorth/Views/ResultView.swift").contains("if isFreshScan, !priceAlreadyShown {"),
-                      "the event is no longer gated")
+        let result = ScanResult(itemName: "Item", brand: "B", category: "clothing",
+                                conditionNotes: "Good", valueLow: 40, valueHigh: 60,
+                                confidence: "High", soldListingsCount: 0,
+                                listingTitle: "T", listingDescription: "D")
+        let store = MockPurchaseService()
+        XCTAssertTrue(ResultView(result: result, purchaseService: store, onDismiss: {},
+                                 isFreshScan: true).reportsScanResultShown)
+        XCTAssertFalse(ResultView(result: result, purchaseService: store, onDismiss: {},
+                                  priceAlreadyShown: true, isFreshScan: true).reportsScanResultShown,
+                       "a rare find's reveal has already reported it")
+        XCTAssertFalse(ResultView(result: result, purchaseService: store, onDismiss: {})
+                        .reportsScanResultShown, "a reopened find is not a scan")
     }
 
     /// The spy proves the envelope: name and parameters reach a backend intact.
@@ -8845,14 +8955,16 @@ final class ReviewPromptTimingTests: XCTestCase {
         XCTAssertFalse(scan.contains("requestIfDue"), "the scan path asks before the price is seen")
         XCTAssertFalse(scan.contains(".seconds(1.2)"), "the timer that raced the reveal is back")
 
-        let result = try source("Views/ResultView.swift")
-        guard let task = result.range(of: ".task(id: priceCovered)") else {
-            return XCTFail("the request is no longer keyed on the cover")
-        }
-        let body = String(result[task.upperBound...].prefix(500))
-        XCTAssertTrue(body.contains("!priceCovered"), "must wait for the reveal")
-        XCTAssertTrue(body.contains("isWorthAskingAbout"), "must skip a Low estimate")
-        XCTAssertTrue(body.contains("ReviewPrompt.requestIfDue()"))
+        // The sheet asks on a fresh scan, after the reveal, on an estimate
+        // worth being pleased by (`ResultView.asksForReview`).
+        XCTAssertTrue(ResultView.asksForReview(isFreshScan: true, priceCovered: false,
+                                               confidence: "High"))
+        XCTAssertFalse(ResultView.asksForReview(isFreshScan: true, priceCovered: true,
+                                                confidence: "High"), "must wait for the reveal")
+        XCTAssertFalse(ResultView.asksForReview(isFreshScan: true, priceCovered: false,
+                                                confidence: "Low"), "must skip a Low estimate")
+        XCTAssertFalse(ResultView.asksForReview(isFreshScan: false, priceCovered: false,
+                                                confidence: "High"), "a reopened find")
     }
 
     func test_theRequestIsCounted() {
