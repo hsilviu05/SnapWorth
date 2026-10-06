@@ -66,20 +66,12 @@ struct ResultView: View {
 
     // ── Guess before the estimate ─────────────────────────────────────────────
     @AppStorage(GuessFirst.key) private var guessFirst = GuessFirst.defaultOn
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.modelContext) private var modelContext
     /// Per result: a fresh sheet starts covered when the preference is on.
     @State private var priceRevealed = false
     @State private var quickGuessText = ""
-    /// The range the guess was scored against, captured at the reveal.
-    ///
-    /// The estimate goes on moving afterwards — the condition chips re-price
-    /// it, the tag re-read replaces it outright — but the guess was entered
-    /// once, against the number as it stood then, and the field it was typed
-    /// into goes away with the cover. Scoring the live range meant a condition
-    /// correction silently re-graded a verdict the user had already been given
-    /// and could no longer answer: "spot on" could become "$12 under the low
-    /// end" because they told the app the jacket was more worn than it looked.
+    /// The range the guess was scored against, captured at the reveal — see
+    /// `ResultValueCard.revealedRange`.
     @State private var revealedRange: (low: Double, high: Double)?
 
     private var isPro: Bool { purchaseService.isSubscribed }
@@ -131,9 +123,11 @@ struct ResultView: View {
             GeometryReader { geo in
                 ScrollView {
                     VStack(spacing: 0) {
-                        heroPhoto(width: geo.size.width)
+                        ResultHeroPhoto(result: result, photo: photo, width: geo.size.width)
 
-                        valueCard
+                        ResultValueCard(result: result, covered: priceCovered,
+                                        revealed: $priceRevealed, guessText: $quickGuessText,
+                                        revealedRange: $revealedRange, focus: $focusedField)
                             .padding(.horizontal, 20)
                             .offset(y: -28)
 
@@ -156,7 +150,7 @@ struct ResultView: View {
                         conditionCard
                             .padding(.horizontal, 20)
                             // Padding, not `offset`. This carried
-                            // `.offset(y: -28)`, copied from `valueCard`'s
+                            // `.offset(y: -28)`, copied from `ResultValueCard`'s
                             // hero overlap above — but offset moves pixels and
                             // not the layout frame, so the VStack went on
                             // reserving the original slot: 28pt came off the
@@ -169,8 +163,8 @@ struct ResultView: View {
                             // it was absorbing is real in one branch. With the
                             // price hidden, `whyThisPriceCard` and
                             // `addTagCard` are both absent and this card
-                            // follows `valueCard`, whose own -28 offset leaves
-                            // 28pt of phantom space; -8 there gives the same
+                            // follows `ResultValueCard`, whose own -28 offset
+                            // leaves 28pt of phantom space; -8 there gives the same
                             // 20pt gap that 12 gives against `addTagCard`'s
                             // 8pt bottom padding in the revealed branch.
                             .padding(.top, priceCovered ? -8 : 12)
@@ -435,104 +429,6 @@ struct ResultView: View {
         .accessibilityAddTraits(selected ? [.isButton, .isSelected] : .isButton)
     }
 
-    /// The result's confidence as a phrase, for the two places that speak it.
-    private var confidencePhrase: String { snapConfidencePhrase(result.confidence) }
-
-    // MARK: - Hero Photo
-
-    private func heroPhoto(width: CGFloat) -> some View {
-        ZStack(alignment: .bottomLeading) {
-            Group {
-                if let img = photo {
-                    Image(uiImage: img)
-                        .resizable()
-                        .scaledToFill()
-                        .frame(width: width, height: 360)
-                        .clipped()
-                } else {
-                    Rectangle()
-                        .fill(Color.snapBorder)
-                        .frame(width: width, height: 360)
-                        .overlay(
-                            Image(systemName: "photo")
-                                .snapSymbol(48)
-                                .foregroundStyle(Color.snapWarmGray)
-                        )
-                }
-            }
-
-            LinearGradient(
-                stops: [
-                    .init(color: .clear, location: 0.4),
-                    .init(color: Color.black.opacity(0.65), location: 1.0)
-                ],
-                startPoint: .top,
-                endPoint: .bottom
-            )
-            .frame(width: width, height: 360)
-
-            VStack(alignment: .leading, spacing: 8) {
-                Text(result.itemName)
-                    .font(.fraunces(24, weight: .bold))
-                    .foregroundStyle(.white)
-                    .shadow(color: .black.opacity(0.3), radius: 4, x: 0, y: 2)
-                    .lineLimit(2)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .frame(width: max(0, width - 40), alignment: .leading)
-
-                HStack(spacing: 8) {
-                    if !result.brand.isEmpty && result.brand != "Unknown" {
-                        photoChip(result.brand)
-                    }
-                    // The grade itself, as the Condition chips below word it.
-                    // This used to be cut out of `conditionNotes` — split on
-                    // dashes and full stops, first 22 characters — which fit
-                    // v1's "Good — light pilling" notes. v2 writes prose, so
-                    // the chip read "Well", "Pre" or "Moderate fading throug",
-                    // in English in every language, and could contradict the
-                    // grade the user had picked. The notes stay whole in the
-                    // Condition card further down.
-                    photoChip(result.condition.label)
-                }
-            }
-            .padding(.horizontal, 20)
-            .padding(.bottom, 44)
-            .frame(width: width, alignment: .leading)
-        }
-        .frame(width: width, height: 360)
-        .ignoresSafeArea(edges: .top)
-        // The photo is decoration; the item name and its chips are the content.
-        // Combining them gives one clear stop instead of an image plus three
-        // orphaned fragments.
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(heroAccessibilityLabel)
-        .accessibilityAddTraits(.isHeader)
-        .accessibilitySortPriority(90)
-    }
-
-    /// What the hero's chips say, spoken — so the grade, as on the chip. The
-    /// full notes are read in the Condition card below.
-    private var heroAccessibilityLabel: String {
-        var parts = [result.itemName]
-        if !result.brand.isEmpty, result.brand != "Unknown" {
-            parts.append(String(localized: "Brand \(result.brand)"))
-        }
-        parts.append(String(localized: "Condition \(result.condition.label)"))
-        return parts.joined(separator: ". ")
-    }
-
-    private func photoChip(_ label: String) -> some View {
-        Text(label)
-            .font(.snapLabel)
-            .foregroundStyle(.white)
-            .lineLimit(1)
-            .padding(.horizontal, 12)
-            .padding(.vertical, 6)
-            .background(Color.white.opacity(0.2))
-            .background(.ultraThinMaterial)
-            .clipShape(Capsule())
-    }
-
     private func circleButton(icon: String) -> some View {
         Image(systemName: icon)
             .snapSymbol(14, weight: .semibold)
@@ -546,172 +442,10 @@ struct ResultView: View {
             .snapHitTarget()
     }
 
-    // MARK: - Value Card
+    // MARK: - Guess cover
 
     /// Whether the value is still under its cover.
     private var priceCovered: Bool { coverPrice && guessFirst && !priceRevealed }
-
-    private var quickGuess: Double? { GuessScoring.parse(quickGuessText) }
-
-    private var quickVerdict: String? {
-        guard priceRevealed, let quickGuess else { return nil }
-        // Scored against the range as it stood at the reveal — see
-        // `revealedRange`. The fallback covers the reveal itself, where the
-        // frozen range and the live one are the same number anyway.
-        let scored = revealedRange
-            ?? (low: result.displayValueLow, high: result.displayValueHigh)
-        return GuessScoring.verdict(guess: quickGuess, low: scored.low,
-                                    high: scored.high)
-    }
-
-    @ViewBuilder
-    private var valueCard: some View {
-        if priceCovered {
-            coveredValueCard
-        } else {
-            revealedValueCard
-        }
-    }
-
-    /// The moment before the number. The range is under a solid cover with an
-    /// optional guess; one tap on Reveal springs it in with a haptic.
-    private var coveredValueCard: some View {
-        VStack(spacing: 14) {
-            Text("What do you think it could resell for?")
-                .font(.snapCaption)
-                .foregroundStyle(Color.snapWarmGray)
-
-            ZStack {
-                ValueRangeView(low: result.displayValueLow, high: result.displayValueHigh)
-                    .blur(radius: 18)
-                    .opacity(0.25)
-                    .accessibilityHidden(true)
-                Text("$ ? ? ?")
-                    .font(.fraunces(34, weight: .bold, relativeTo: .largeTitle))
-                    .foregroundStyle(Color.snapWarmGray)
-                    .accessibilityHidden(true)
-            }
-            .frame(maxWidth: .infinity)
-
-            HStack(spacing: 6) {
-                Text("$")
-                    .font(.dmSans(17, weight: .medium))
-                    .foregroundStyle(Color.snapWarmGray)
-                    .accessibilityHidden(true)
-                TextField("Your guess (optional)", text: $quickGuessText)
-                    .keyboardType(.decimalPad)
-                    .font(.dmSans(17, weight: .medium))
-                    .foregroundStyle(Color.snapEspresso)
-                    .focused($focusedField, equals: .guess)
-                    .accessibilityLabel("Your guess in dollars, optional")
-            }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 10)
-            .background(Color.snapBackground)
-            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-
-            PrimaryButton(title: "Reveal the estimate") { revealPrice() }
-        }
-        .padding(20)
-        .frame(maxWidth: .infinity)
-        .background(Color.snapCard)
-        .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
-        .shadow(color: Color.snapCardShadow.opacity(0.12), radius: 24, x: 0, y: 8)
-        .accessibilitySortPriority(100)
-    }
-
-    private var revealedValueCard: some View {
-        VStack(spacing: 16) {
-            VStack(spacing: 6) {
-                Text("Estimated Resale Value")
-                    .font(.snapCaption)
-                    .foregroundStyle(Color.snapWarmGray)
-
-                ValueRangeView(low: result.displayValueLow, high: result.displayValueHigh)
-            }
-
-            if let quickVerdict {
-                Text(quickVerdict)
-                    .font(.dmSans(15, weight: .semibold))
-                    .foregroundStyle(Color.snapEspresso)
-                    .multilineTextAlignment(.center)
-                    .transition(.opacity)
-            }
-
-            Divider()
-
-            HStack(spacing: 10) {
-                ConfidenceBadge(confidence: result.confidence)
-
-                // "AI estimate" unless real sales backed the number (#40).
-                Text(result.valuationSource.caption)
-                    .font(.snapCaption)
-                    .foregroundStyle(Color.snapWarmGray)
-                    .lineLimit(1)
-
-                Spacer()
-            }
-        }
-        .padding(20)
-        .frame(maxWidth: .infinity)
-        .background(Color.snapCard)
-        .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
-        .shadow(color: Color.snapCardShadow.opacity(0.12), radius: 24, x: 0, y: 8)
-        // The headline result: one VoiceOver stop that states the value, its
-        // confidence, and that it's an estimate — rather than four fragments.
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel("Estimated resale value")
-        .accessibilityValue(
-            result.valuationSource.spokenSummary(
-                range: result.formattedRange, confidence: confidencePhrase)
-            + (quickVerdict.map { " \($0)" } ?? "")
-        )
-        // Read first when the sheet opens — it is why the user is here.
-        .accessibilitySortPriority(100)
-        .accessibilityAddTraits(.isSummaryElement)
-    }
-
-    // `@MainActor` explicitly: this mutates view state, runs an animation and
-    // posts an accessibility announcement, and the SDK's isolation on
-    // `UIAccessibility.post` has moved between Xcode versions. The only caller
-    // is the reveal button's action, formed in `body`, so it is already on the
-    // main actor — the annotation just says so where the compiler can check it.
-    @MainActor
-    private func revealPrice() {
-        guard !priceRevealed else { return }
-        focusedField = nil
-        // Freeze what the verdict is scored against before the range is free
-        // to move again — see `revealedRange`.
-        revealedRange = (low: result.displayValueLow, high: result.displayValueHigh)
-        withAnimation(reduceMotion ? .easeInOut(duration: 0.2)
-                                   : .spring(response: 0.45, dampingFraction: 0.62)) {
-            priceRevealed = true
-        }
-        Haptics.success()
-        // The number the whole flow exists for, spoken.
-        //
-        // The button the user just activated lives inside the card that
-        // disappears, so VoiceOver focus is destroyed and nothing is
-        // announced. `.isSummaryElement` and `.accessibilitySortPriority`
-        // above affect ordering and screen summaries, not announcements — the
-        // card reads correctly if you navigate to it, and a VoiceOver user is
-        // given no reason to think there is anything to navigate to.
-        //
-        // `GuessFirst.defaultOn` is true, so this is the default path on every
-        // fresh scan: a VoiceOver user meets it on their first result. Every
-        // other state change in this file already announces — the condition
-        // chip, the status chip, and the tag re-read, that last one added
-        // because "a haptic is the whole of the feedback... and said nothing
-        // at all to VoiceOver". The same wording as the card's own
-        // `accessibilityValue`, so the announcement and the element agree.
-        UIAccessibility.post(
-            notification: .announcement,
-            argument: result.valuationSource.revealAnnouncement(
-                range: result.formattedRange, confidence: confidencePhrase)
-                + (quickVerdict.map { " \($0)" } ?? "")
-        )
-        Analytics.shared.track(.guessRevealed(withGuess: quickGuess != nil))
-    }
 
     // MARK: - Add the tag (#88)
 
