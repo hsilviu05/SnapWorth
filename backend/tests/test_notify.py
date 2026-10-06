@@ -25,8 +25,10 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import auditlog  # noqa: E402
 import notify  # noqa: E402
+import opsformat  # noqa: E402
 import opsindex  # noqa: E402
 import opsstats  # noqa: E402
+import opssupport  # noqa: E402
 import trends  # noqa: E402
 import observability  # noqa: E402
 from cache import InMemoryCache, ResilientCache  # noqa: E402
@@ -588,7 +590,7 @@ class TestNewVersusExisting:
         assert len(enabled_notify.texts) == 1
 
     def test_dates_render_unambiguously(self):
-        assert notify._date(1_788_220_800) == "01 Sep 2026"
+        assert opsformat.date(1_788_220_800) == "01 Sep 2026"
 
 
 # ── Activity and the /status command ─────────────────────────────────────────
@@ -1185,8 +1187,8 @@ class TestSubscriptionsTable:
         there has ever been. `since` has no lower bound and `seen` is bounded
         only by the 400-day index TTL, so both could be over a year old and
         print identically to today."""
-        assert notify._short_date(1_757_000_000) == "04Sep25"
-        assert len(notify._short_date(1_757_000_000)) == 7
+        assert opsformat.short_date(1_757_000_000) == "04Sep25"
+        assert len(opsformat.short_date(1_757_000_000)) == 7
 
         await notify.entitlement_recorded(
             "e" * 64, sub("dated-1", "com.snapworth.yearly",
@@ -4736,17 +4738,17 @@ class TestSaleCountingAndResubscribe:
 class TestRenewalPhrase:
 
     def test_a_known_cancellation_drops_the_hedge(self):
-        assert notify._renewal_phrase(1_800_000_000, False) == "expires 15 Jan 2027"
+        assert opsformat.renewal_phrase(1_800_000_000, False) == "expires 15 Jan 2027"
 
     def test_an_unknown_auto_renew_keeps_the_hedge(self):
         """The distinction that matters. An unknown must not be reported as a
         cancellation — that turns "we did not ask" into "they are leaving"."""
-        assert notify._renewal_phrase(1_800_000_000, None).startswith("renews or expires")
+        assert opsformat.renewal_phrase(1_800_000_000, None).startswith("renews or expires")
 
     def test_a_live_renewal_keeps_the_hedge_too(self):
         """`renews or expires` is still right for auto-renew ON: the date is
         when it renews, and a card can still fail. Only False narrows it."""
-        assert notify._renewal_phrase(1_800_000_000, True).startswith("renews or expires")
+        assert opsformat.renewal_phrase(1_800_000_000, True).startswith("renews or expires")
 
 
 class TestAutoRenewInTheDigest:
@@ -5116,11 +5118,11 @@ class TestSubCommandIdResolution:
         assert spy.called_with == []
 
     def test_what_is_read_as_an_order_id(self):
-        assert notify._apple_order_id("MK5TTTV8JH") == "MK5TTTV8JH"
+        assert opssupport.apple_order_id("MK5TTTV8JH") == "MK5TTTV8JH"
         # Not a transaction id, not a device id, not a short typo.
         for other in ("2000000000000001", "3f2a9b1c0d4e5f60", "3F2A9B1C",
                       "zzzzzz", "Device 3f2a9b1c0d4e5f60", ""):
-            assert notify._apple_order_id(other) is None, other
+            assert opssupport.apple_order_id(other) is None, other
 
     @pytest.mark.asyncio
     async def test_no_argument_explains_itself(self, enabled_notify):

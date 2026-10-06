@@ -33,6 +33,7 @@ import main  # noqa: E402
 import notify  # noqa: E402
 import opsindex  # noqa: E402
 import opsstats  # noqa: E402
+import opssupport  # noqa: E402
 from appstorenotify import Notification  # noqa: E402
 from cache import InMemoryCache, ResilientCache  # noqa: E402
 from tests.conftest import not_none  # noqa: E402
@@ -505,9 +506,11 @@ def operator(monkeypatch):
     sends = _Sends()
     monkeypatch.setattr(notify, "_notifier", sends)
     monkeypatch.setattr(notify, "_cache", auth.deps.cache)
-    # The index lives in opsindex and reads through opsstats (#230).
+    # The index lives in opsindex and reads through opsstats; /sub and /user
+    # read through opssupport (#230).
     monkeypatch.setattr(opsindex, "_cache", auth.deps.cache)
     monkeypatch.setattr(opsstats, "_cache", auth.deps.cache)
+    monkeypatch.setattr(opssupport, "_cache", auth.deps.cache)
     # Activity tracking spawns background work on the request's loop; it is
     # not what these tests measure.
     monkeypatch.setattr(notify, "saw_user", lambda *a, **k: None)
