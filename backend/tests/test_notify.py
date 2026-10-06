@@ -24,6 +24,7 @@ import pytest_asyncio
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import auditlog  # noqa: E402
+import checkup  # noqa: E402
 import notify  # noqa: E402
 import opsformat  # noqa: E402
 import opsindex  # noqa: E402
@@ -92,7 +93,7 @@ def _no_live_tls_chain(monkeypatch):
     """Every /checkup opens a second handshake for the pin check; no test
     should reach production for it. The checkup tests that stub
     `_tls_days_left` predate that handshake and say nothing about it."""
-    monkeypatch.setattr(notify, "_tls_chain_keys", lambda host, timeout=5.0: SERVED_CHAIN)
+    monkeypatch.setattr(checkup, "_tls_chain_keys", lambda host, timeout=5.0: SERVED_CHAIN)
 
 
 @pytest.fixture
@@ -2136,7 +2137,7 @@ class TestOneDevice:
 class TestCheckup:
     @pytest.mark.asyncio
     async def test_one_screen_of_dependencies(self, cache, recorder, monkeypatch):
-        monkeypatch.setattr(notify, "_tls_days_left", lambda host, timeout=5.0: 61)
+        monkeypatch.setattr(checkup, "_tls_days_left", lambda host, timeout=5.0: 61)
         # A healthy production configuration has the spend alert on and a
         # secret audit salt; without either the checkup carries a ⚠️
         # (TestCheckupSpendAlert, TestCheckupAuditSalt).
@@ -2163,7 +2164,7 @@ class TestCheckup:
             assert "Gemini: ok ·" in text
             # Marked as a probe so main keeps it out of provider health, and
             # given room to think — see the PROBE_* constants.
-            assert calls == [{"prompt": notify.PROBE_PROMPT, "max_tokens": notify.PROBE_MAX_TOKENS,
+            assert calls == [{"prompt": checkup.PROBE_PROMPT, "max_tokens": checkup.PROBE_MAX_TOKENS,
                               "probe": True}]
             assert "DeviceCheck: NOT configured" in text
             assert "Spend alert: above $2.00/day · today ≈ $0.00" in text
@@ -2178,7 +2179,7 @@ class TestCheckup:
     async def test_checkup_survives_every_probe_failing(self, cache, recorder, monkeypatch):
         def unreachable(host, timeout=5.0):
             raise OSError("no route")
-        monkeypatch.setattr(notify, "_tls_days_left", unreachable)
+        monkeypatch.setattr(checkup, "_tls_days_left", unreachable)
         notifier = notify.TelegramNotifier(
             FAKE_TOKEN, FAKE_CHAT,
             client=httpx.AsyncClient(transport=httpx.MockTransport(recorder.handler)))
@@ -2189,10 +2190,10 @@ class TestCheckup:
         try:
             text = await notify.handle_command("/checkup")
             assert "Gemini: FAILED — rate limited (429)" in text and "not counted against provider health" in text
-            assert notify._probe_reason(Exception("model returned empty text (finish_reason=MAX_TOKENS)")) \
+            assert checkup._probe_reason(Exception("model returned empty text (finish_reason=MAX_TOKENS)")) \
                 .startswith("empty reply")
-            assert notify._probe_reason(Exception("prepayment credits depleted")).startswith("quota or billing")
-            assert notify._probe_reason(ValueError("weird")) == "ValueError"
+            assert checkup._probe_reason(Exception("prepayment credits depleted")).startswith("quota or billing")
+            assert checkup._probe_reason(ValueError("weird")) == "ValueError"
             assert "TLS api.snapworth.eu: unreachable (OSError)" in text
         finally:
             await notify.aclose()
@@ -2228,44 +2229,44 @@ class TestCheckupPins:
         assert block, "Config.pinnedSPKIHashes moved; update this test"
         app = set(re.findall(r'"([A-Za-z0-9+/]{43}=)"', block.group(1)))
         assert len(app) == 4
-        assert set(notify.PINNED_SPKI_HASHES) == app
+        assert set(checkup.PINNED_SPKI_HASHES) == app
 
     def test_a_certificate_hashes_to_the_value_openssl_and_the_app_produce(self):
         import base64
-        name, pin = notify._spki_pin(base64.b64decode(self.ROOT_YE_DER))
+        name, pin = checkup._spki_pin(base64.b64decode(self.ROOT_YE_DER))
         assert name == "Root YE"
         assert pin == "sCkq5UWXjg+7mKu9lMhhYF5bGLsy7VI/UNW3tccdR7w="
-        assert pin in notify.PINNED_SPKI_HASHES
+        assert pin in checkup.PINNED_SPKI_HASHES
 
     def test_a_served_chain_that_reaches_a_pinned_root_passes(self):
-        line = notify._pin_line("api.snapworth.eu", SERVED_CHAIN)
+        line = checkup._pin_line("api.snapworth.eu", SERVED_CHAIN)
         assert line.endswith("✅") and "Root YR, ISRG Root X1" in line
         assert "⚠️" not in line
 
     def test_a_chain_with_no_pinned_key_is_a_warning_naming_the_chain(self):
         other_ca = [("api.snapworth.eu", "A" * 43 + "="), ("Some Other CA", "B" * 43 + "=")]
-        line = notify._pin_line("api.snapworth.eu", other_ca)
+        line = checkup._pin_line("api.snapworth.eu", other_ca)
         assert line.startswith("⚠️ TLS pins: nothing in the api.snapworth.eu chain is pinned")
         assert "api.snapworth.eu → Some Other CA" in line
 
     @pytest.mark.asyncio
     async def test_checkup_carries_the_pin_line(self, enabled_notify, monkeypatch):
-        monkeypatch.setattr(notify, "_tls_days_left", lambda host, timeout=5.0: 60)
+        monkeypatch.setattr(checkup, "_tls_days_left", lambda host, timeout=5.0: 60)
         text = await notify.handle_command("/checkup")
         assert "TLS pins: the app's pins match Root YR, ISRG Root X1" in text
 
-        monkeypatch.setattr(notify, "_tls_chain_keys",
+        monkeypatch.setattr(checkup, "_tls_chain_keys",
                             lambda host, timeout=5.0: [("api.snapworth.eu", "A" * 43 + "=")])
         text = await notify.handle_command("/checkup")
         assert "⚠️ TLS pins: nothing in the api.snapworth.eu chain is pinned" in text
 
     @pytest.mark.asyncio
     async def test_an_unreadable_chain_is_not_reported_as_unpinned(self, enabled_notify, monkeypatch):
-        monkeypatch.setattr(notify, "_tls_days_left", lambda host, timeout=5.0: 60)
+        monkeypatch.setattr(checkup, "_tls_days_left", lambda host, timeout=5.0: 60)
 
         def unreachable(host, timeout=5.0):
             raise OSError("no route")
-        monkeypatch.setattr(notify, "_tls_chain_keys", unreachable)
+        monkeypatch.setattr(checkup, "_tls_chain_keys", unreachable)
         text = await notify.handle_command("/checkup")
         assert "TLS pins: chain unreadable (OSError)" in text
         assert "nothing in the" not in text
@@ -2290,7 +2291,7 @@ class TestCheckupAppStore:
     @pytest.mark.asyncio
     async def test_the_key_and_the_webhook_each_get_a_line(
             self, enabled_notify, monkeypatch):
-        monkeypatch.setattr(notify, "_tls_days_left", lambda host, timeout=5.0: 60)
+        monkeypatch.setattr(checkup, "_tls_days_left", lambda host, timeout=5.0: 60)
         self._probe(monkeypatch, (0, False))
 
         text = await notify.handle_command("/checkup")
@@ -2305,7 +2306,7 @@ class TestCheckupAppStore:
     @pytest.mark.asyncio
     async def test_undelivered_notifications_are_flagged(self, enabled_notify, monkeypatch):
         self._probe(monkeypatch, (3, True))
-        line = await notify._appstore_api_line()
+        line = await checkup._appstore_api_line()
         assert "⚠️ Apple could not deliver 3+ notifications here in 24h" in line
         assert "refund" in line
 
@@ -2313,18 +2314,19 @@ class TestCheckupAppStore:
     async def test_a_missing_or_refused_key_is_named(self, enabled_notify, monkeypatch):
         import appstorestatus
         self._probe(monkeypatch, appstorestatus.StatusNotConfigured("No credentials."))
-        assert (await notify._appstore_api_line()).startswith(
+        assert (await checkup._appstore_api_line()).startswith(
             "App Store API: NOT configured — /sub cannot ask Apple.")
         self._probe(monkeypatch, appstorestatus.StatusCredentialsRejected("401 from Apple"))
-        assert "key REJECTED — 401 from Apple" in await notify._appstore_api_line()
+        assert "key REJECTED — 401 from Apple" in await checkup._appstore_api_line()
         self._probe(monkeypatch, TimeoutError())
-        assert "probe failed — TimeoutError" in await notify._appstore_api_line()
+        assert "probe failed — TimeoutError" in await checkup._appstore_api_line()
 
     @pytest.mark.asyncio
     async def test_age_reads_in_days_once_it_is_old(self, enabled_notify, cache):
         await cache.set(notify.LAST_APPSTORE_NOTIFICATION_KEY,
                         json.dumps([int(time.time()) - 5 * 86400, "Production", "REFUND"]))
-        assert "5d ago (Production, REFUND)" in await notify._last_appstore_notification_line()
+        assert "5d ago (Production, REFUND)" in await checkup._last_appstore_notification_line(
+            cache, notify.LAST_APPSTORE_NOTIFICATION_KEY)
 
 
 class TestRedisCheckupLine:
@@ -2337,7 +2339,7 @@ class TestRedisCheckupLine:
             "rdb_last_save_time": int(NOW) - 3600, "rdb_last_bgsave_status": "ok"}
 
     def test_a_safe_configuration_reads_clean(self):
-        line = notify._redis_line(self.SAFE, self.NOW)
+        line = checkup._redis_line(self.SAFE, self.NOW)
         assert line.startswith("Redis: 50.0 MB of 384 MB (13%) · policy noeviction · evicted 0")
         assert "AOF on" in line and "last snapshot 1h ago" in line
         assert "⚠️" not in line
@@ -2353,11 +2355,11 @@ class TestRedisCheckupLine:
          "a restart loses everything"),
     ])
     def test_each_unsafe_setting_is_flagged(self, override, warning):
-        line = notify._redis_line(self.SAFE | override, self.NOW)
+        line = checkup._redis_line(self.SAFE | override, self.NOW)
         assert "⚠️" in line and warning in line
 
     def test_snapshots_without_aof_are_enough(self):
-        line = notify._redis_line(self.SAFE | {"aof_enabled": 0}, self.NOW)
+        line = checkup._redis_line(self.SAFE | {"aof_enabled": 0}, self.NOW)
         assert "⚠️" not in line
 
     # Redis sets rdb_last_save_time to its start time at boot, with `save ""`
@@ -2367,29 +2369,29 @@ class TestRedisCheckupLine:
               "rdb_last_save_time": int(NOW) - 600}
 
     def test_the_boot_stamp_is_not_a_snapshot(self):
-        line = notify._redis_line(self.SAFE | self.BOOTED | {"rdb_saves": 0}, self.NOW)
+        line = checkup._redis_line(self.SAFE | self.BOOTED | {"rdb_saves": 0}, self.NOW)
         assert "last snapshot" not in line and "no snapshot since start 0h ago" in line
         assert "⚠️ no AOF and no snapshot since Redis started" in line
 
     def test_the_boot_stamp_is_recognised_before_redis_7(self):
         """No `rdb_saves` before Redis 7: a last save at the boot time is the stamp."""
-        line = notify._redis_line(self.SAFE | self.BOOTED, self.NOW)
+        line = checkup._redis_line(self.SAFE | self.BOOTED, self.NOW)
         assert "⚠️ no AOF and no snapshot since Redis started" in line
 
     def test_a_snapshot_since_boot_is_one(self):
         after_boot = {"rdb_last_save_time": int(self.NOW) - 60}
         for extra in ({"rdb_saves": 1}, {}):
-            line = notify._redis_line(self.SAFE | self.BOOTED | after_boot | extra, self.NOW)
+            line = checkup._redis_line(self.SAFE | self.BOOTED | after_boot | extra, self.NOW)
             assert "last snapshot 0h ago" in line and "⚠️" not in line
 
     def test_aof_covers_a_redis_that_has_not_snapshotted(self):
-        line = notify._redis_line(self.SAFE | self.BOOTED | {"aof_enabled": 1, "rdb_saves": 0},
+        line = checkup._redis_line(self.SAFE | self.BOOTED | {"aof_enabled": 1, "rdb_saves": 0},
                                   self.NOW)
         assert "no snapshot since start" in line and "⚠️" not in line
 
     @pytest.mark.asyncio
     async def test_checkup_carries_it_when_redis_answers_info(self, recorder, monkeypatch):
-        monkeypatch.setattr(notify, "_tls_days_left", lambda host, timeout=5.0: 61)
+        monkeypatch.setattr(checkup, "_tls_days_left", lambda host, timeout=5.0: 61)
         safe = self.SAFE
 
         class Primary(InMemoryCache):
@@ -2425,7 +2427,7 @@ class TestCheckupSpendAlert:
     @pytest.mark.asyncio
     async def test_an_unset_budget_is_a_warning_on_the_checkup(
             self, enabled_notify, monkeypatch):
-        monkeypatch.setattr(notify, "_tls_days_left", lambda host, timeout=5.0: 61)
+        monkeypatch.setattr(checkup, "_tls_days_left", lambda host, timeout=5.0: 61)
         monkeypatch.setattr(notify, "GEMINI_DAILY_BUDGET_USD", 0.0)
         text = await notify.handle_command("/checkup")
         line = [ln for ln in text.split("\n") if ln.startswith("Spend alert")]
@@ -2467,7 +2469,7 @@ class TestCheckupAuditSalt:
         whole text and every log record it wrote."""
         monkeypatch.setenv("ENVIRONMENT", "production")
         monkeypatch.setattr(auditlog, "_SALT", salt.encode())
-        monkeypatch.setattr(notify, "_tls_days_left", lambda host, timeout=5.0: 61)
+        monkeypatch.setattr(checkup, "_tls_days_left", lambda host, timeout=5.0: 61)
         with caplog.at_level(logging.DEBUG):
             text = await notify.handle_command("/checkup") or ""
         [line] = [ln for ln in text.split("\n") if ln.startswith("Audit salt")]
@@ -3037,7 +3039,7 @@ class TestDeviceCheckLine:
     every reinstall gets a fresh allowance."""
 
     async def line(self, cache, monkeypatch, configured, probe):
-        monkeypatch.setattr(notify, "_tls_days_left", lambda host, timeout=5.0: 60)
+        monkeypatch.setattr(checkup, "_tls_days_left", lambda host, timeout=5.0: 60)
         bot = TestPolling.Bot([])
         notifier = notify.TelegramNotifier(
             FAKE_TOKEN, FAKE_CHAT,
@@ -3047,10 +3049,10 @@ class TestDeviceCheckLine:
                                                   "commit": "abc123"},
                          device_check_probe=probe)
         try:
-            checkup = await notify.handle_command("/checkup")
+            text = await notify.handle_command("/checkup")
         finally:
             await notify.aclose()
-        return [ln for ln in checkup.split("\n") if ln.startswith("DeviceCheck")][0]
+        return [ln for ln in text.split("\n") if ln.startswith("DeviceCheck")][0]
 
     @pytest.mark.asyncio
     async def test_working_credentials_say_so(self, cache, monkeypatch):
@@ -3211,7 +3213,8 @@ class TestArchiveChatCheck:
             client=httpx.AsyncClient(transport=httpx.MockTransport(bot.handler)))
         notify.configure(cache, notifier=notifier)
         try:
-            return await notify._archive_chat_line(value)
+            return await checkup._archive_chat_line(value, notifier.get_chat,
+                                                    notify.ARCHIVE_CHAT_ENV)
         finally:
             await notify.aclose()
 
@@ -3256,7 +3259,7 @@ class TestArchiveChatCheck:
 
     @pytest.mark.asyncio
     async def test_checkup_shows_it_only_when_configured(self, cache, monkeypatch, recorder):
-        monkeypatch.setattr(notify, "_tls_days_left", lambda host, timeout=5.0: 60)
+        monkeypatch.setattr(checkup, "_tls_days_left", lambda host, timeout=5.0: 60)
         monkeypatch.setenv(notify.ARCHIVE_CHAT_ENV, "5401463470")
         bot = TestPolling.Bot([])
         notifier = notify.TelegramNotifier(
