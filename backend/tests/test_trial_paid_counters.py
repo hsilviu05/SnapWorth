@@ -29,6 +29,7 @@ import pytest_asyncio
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import notify  # noqa: E402
+import telegram  # noqa: E402
 import opsindex  # noqa: E402
 import opsstats  # noqa: E402
 from cache import InMemoryCache, ResilientCache  # noqa: E402
@@ -105,7 +106,7 @@ def cache() -> ResilientCache:
 @pytest_asyncio.fixture
 async def with_bot(cache):
     recorder = Recorder()
-    notifier = notify.TelegramNotifier(
+    notifier = telegram.TelegramNotifier(
         FAKE_TOKEN, FAKE_CHAT,
         client=httpx.AsyncClient(transport=httpx.MockTransport(recorder.handler)))
     notify.configure(cache, notifier=notifier)

@@ -17,6 +17,7 @@ from fastapi.testclient import TestClient
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import notify  # noqa: E402
+import telegram  # noqa: E402
 import opsstats  # noqa: E402
 import social  # noqa: E402
 from cache import InMemoryCache, ResilientCache  # noqa: E402
@@ -144,7 +145,7 @@ class TestSocialInBot:
     @pytest_asyncio.fixture
     async def bot(self, cache, platforms):
         recorder = Recorder()
-        notifier = notify.TelegramNotifier(
+        notifier = telegram.TelegramNotifier(
             FAKE_TOKEN, FAKE_CHAT,
             client=httpx.AsyncClient(transport=httpx.MockTransport(recorder.handler)))
         notify.configure(cache, notifier=notifier, social=make_social(cache, platforms))
@@ -185,7 +186,7 @@ class TestSocialInBot:
     @pytest.mark.asyncio
     async def test_unconfigured_social_is_quiet_in_digest_and_explains_in_command(self, cache):
         recorder = Recorder()
-        notifier = notify.TelegramNotifier(
+        notifier = telegram.TelegramNotifier(
             FAKE_TOKEN, FAKE_CHAT,
             client=httpx.AsyncClient(transport=httpx.MockTransport(recorder.handler)))
         notify.configure(cache, notifier=notifier)

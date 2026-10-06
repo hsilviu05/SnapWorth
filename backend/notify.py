@@ -86,12 +86,14 @@ from typing import TYPE_CHECKING, Literal
 import auditlog
 import background
 import categories
+import chatlog
 import checkup
 import ideas
 import opsformat
 import opsindex
 import opsstats
 import opssupport
+import telegram
 import trends
 from opsstats import STATS_TTL
 
@@ -102,10 +104,6 @@ if TYPE_CHECKING:
     from quota import WelcomeSetting
 
 log = logging.getLogger("snapworth.notify")
-
-TELEGRAM_API = "https://api.telegram.org"
-
-SEND_TIMEOUT_SECONDS = 10.0
 
 # What the model costs, per million tokens, so spend can be derived from the
 # token counts every call already reports. Defaults are Gemini 2.5 Flash's
@@ -181,9 +179,6 @@ NEW_SUBSCRIPTION_WINDOW_SECONDS = 24 * 3600
 # short enough to mean "right now" and long enough to catch a scan session.
 ACTIVE_WINDOW_SECONDS = 15 * 60
 
-# Bot API long-poll. Telegram holds the request open until a message arrives
-# or the timeout passes, so an idle loop costs one HTTP request per timeout.
-POLL_TIMEOUT_SECONDS = 25
 
 # Only one replica may poll getUpdates — Telegram rejects concurrent pollers
 # and would hand each replica a random subset of messages. The lock is a
@@ -253,47 +248,6 @@ ASKS: dict[str, tuple[str, str]] = {
 }
 _ASK_QUOTE = re.compile(r"^✍️ /(\w+) —")
 
-# Every message id in the operator's chat — the bot's and the operator's — so
-# 🧹 Clear can delete them. Telegram refuses anything older than 48 hours, so
-# the list is pruned to that and capped; a longer memory would buy nothing.
-MESSAGES_KEY = "opsstate:tgmsgs"
-MESSAGES_CAP = 400
-MESSAGES_TTL = 48 * 3600
-# What 🧹 Clear says when the list is empty. The list is in the cache, not the
-# process, so it survives restarts — "since this process started" was wrong
-# both ways. It is empty when nothing was tracked in 48 hours, or, for the
-# prompt, when the read failed, which `_tracked_messages` cannot tell apart
-# from that (`_clear_chat` reads `required` and refuses instead); and never
-# right after a clear, whose own confirmation is tracked.
-CLEAR_NOTHING_TRACKED = ("🧹 Nothing to clear — the bot has no record of a message "
-                         "in this chat from the last 48 hours.")
-
-# What 🧹 Clear removed, kept so it is not lost: the text of the bot's own
-# messages (the operator's are one-word commands and are not worth keeping),
-# shown back by /history. A month, a few hundred entries.
-ARCHIVE_KEY = "opsstate:tgarchive"
-ARCHIVE_CAP = 300
-ARCHIVE_TTL = 30 * 24 * 3600
-HISTORY_DEFAULT = 8
-HISTORY_MAX = 25
-HISTORY_SNIPPET_CHARS = 220
-HISTORY_SNIPPET_LINES = 4
-# Optionally, a second chat — a private channel with the bot as admin — that
-# /clear forwards everything to before deleting, so the copy is a real
-# Telegram copy, photos included. Off when unset.
-ARCHIVE_CHAT_ENV = "TELEGRAM_ARCHIVE_CHAT_ID"
-# Message ids in a private chat are sequential, so /clear also sweeps the gaps
-# between the oldest and newest ids it knows — at most this many ids. Those are
-# messages inside the span being cleared that the bot lost track of (the
-# tracked list is an unlocked read-modify-write, so two sends at once can drop
-# one). Telegram skips ids it cannot delete. It used to sweep 600 ids below the
-# newest whatever the tracked span, reaching past it into messages the bot had
-# no copy of and had never been asked to clear.
-CLEAR_SWEEP_IDS = 600
-# Upper bound on deleteMessages calls per /clear, however the batches split.
-DELETE_MAX_CALLS = 60
-FORWARD_MAX_CALLS = 60
-
 # What happened to the last deploy ping, so /status can answer "did it go
 # out?" without anyone reading Railway logs.
 LAST_DEPLOY_KEY = "opsstate:lastdeploy"
@@ -339,347 +293,8 @@ TABLE_ROWS = 20
 
 
 
-class TelegramNotifier:
-    """Thin sendMessage client over the shared httpx stack."""
-
-    def __init__(self, bot_token: str, chat_id: str, client=None) -> None:
-        self._token = bot_token
-        self._chat_id = chat_id
-        # Why the last forward batch was refused, for /clear to show.
-        self.last_forward_refusal: str | None = None
-        # The id Telegram redirected the archive to, if the chat moved.
-        self.last_forward_migrated_to: str | None = None
-        self._client = client          # injectable for tests
-        # Consecutive-identical-failure tracking, so an outage is logged with
-        # decreasing frequency rather than every ~2s. See `_note_failure`.
-        self._last_failure: str = ""
-        self._failure_streak: int = 0
-        # Told the message_id of every message this notifier sends, so /clear
-        # can take them back. Set by `configure`; None is "don't bother".
-        self.on_sent: Callable[[int, str], Awaitable[None]] | None = None
-
-    async def _http(self):
-        if self._client is None:
-            import httpx
-
-            self._client = httpx.AsyncClient(timeout=SEND_TIMEOUT_SECONDS)
-        return self._client
-
-    async def send(self, text: str, buttons: opsformat.Buttons | None = None, *,
-                   ask: str | None = None) -> bool:
-        """Deliver one message. Returns success; never raises.
-
-        `ask` turns the message into a question: Telegram opens the reply box
-        on it with that placeholder, so a button can stand in for a command
-        that needs typed input — the operator taps, types, sends.
-
-        Failures log the exception *class* only: httpx error messages quote the
-        request URL, and the URL carries the bot token.
-        """
-        try:
-            client = await self._http()
-            payload: dict = {
-                "chat_id": self._chat_id,
-                "text": text,
-                "parse_mode": "HTML",
-                "disable_web_page_preview": True,
-            }
-            if ask is not None:
-                payload["reply_markup"] = {"force_reply": True, "selective": True,
-                                           "input_field_placeholder": ask[:64]}
-            elif buttons:
-                payload["reply_markup"] = {"inline_keyboard": [
-                    [{"text": label, "callback_data": data} for label, data in row]
-                    for row in buttons]}
-            resp = await client.post(
-                f"{TELEGRAM_API}/bot{self._token}/sendMessage", json=payload)
-            if resp.status_code != 200:
-                # Telegram's own reason ("can't parse entities: …") names the
-                # bug; the bare status code never did. It carries no token.
-                log.warning("telegram send failed: HTTP %s %s",
-                            resp.status_code, self._description(resp))
-                return False
-            if self.on_sent is not None:
-                try:
-                    message_id = ((resp.json() or {}).get("result") or {}).get("message_id")
-                    if isinstance(message_id, int):
-                        await self.on_sent(message_id, text)
-                except Exception:
-                    pass
-            return True
-        except Exception as exc:
-            self._note_failure("send", type(exc).__name__)
-            return False
-
-    @staticmethod
-    def _description(resp) -> str:
-        try:
-            return str((resp.json() or {}).get("description") or "")[:200]
-        except Exception:
-            return ""
-
-    @staticmethod
-    def _migrate_to(resp) -> str | None:
-        """The id Telegram hands back when a chat has moved.
-
-        Promoting a bot to administrator turns a basic group into a supergroup,
-        and the supergroup gets a different id. Telegram says so in the error's
-        `parameters.migrate_to_chat_id` rather than making anyone derive it —
-        so read it instead of guessing a -100 prefix."""
-        try:
-            new = ((resp.json() or {}).get("parameters") or {}).get("migrate_to_chat_id")
-            return str(new) if new is not None else None
-        except Exception:
-            return None
-
-    @property
-    def chat_id(self) -> str:
-        return self._chat_id
-
-    def _note_failure(self, what: str, detail: str) -> None:
-        """Log a transport failure without flooding.
-
-        `SamplingFilter` never samples WARNING and above — deliberately, since
-        a dropped error is an incident you cannot investigate — so the poll
-        loop's one WARNING every ~2s during a Telegram outage or a revoked
-        token became ~43k identical lines a day, burying the signal it was
-        supposed to be. Consecutive identical failures are now logged on the
-        1st, 2nd, 4th, 8th... occurrence, so an outage is still visible and
-        still timestamped at both ends, at a fraction of the volume.
-        """
-        key = f"{what}:{detail}"
-        if key == self._last_failure:
-            self._failure_streak += 1
-        else:
-            self._last_failure, self._failure_streak = key, 1
-        streak = self._failure_streak
-        if streak & (streak - 1) == 0:            # 1, 2, 4, 8, 16, ...
-            suffix = f" (x{streak})" if streak > 1 else ""
-            log.warning("telegram %s failed: %s%s", what, detail, suffix)
-
-    def _note_success(self, what: str) -> None:
-        if self._failure_streak:
-            log.info("telegram %s recovered after %d failures", what, self._failure_streak)
-        self._last_failure, self._failure_streak = "", 0
-
-    async def get_updates(self, offset: int | None) -> list[dict]:
-        """Long-poll for incoming messages. Returns [] on any failure."""
-        params: dict = {"timeout": POLL_TIMEOUT_SECONDS,
-                        "allowed_updates": '["message","callback_query"]'}
-        if offset is not None:
-            params["offset"] = offset
-        try:
-            client = await self._http()
-            resp = await client.get(
-                f"{TELEGRAM_API}/bot{self._token}/getUpdates",
-                params=params, timeout=POLL_TIMEOUT_SECONDS + 10)
-            if resp.status_code != 200:
-                self._note_failure("poll", f"HTTP {resp.status_code}")
-                return []
-            body = resp.json()
-            self._note_success("poll")
-            return list(body.get("result") or []) if body.get("ok") else []
-        except Exception as exc:
-            self._note_failure("poll", type(exc).__name__)
-            return []
-
-    async def delete_messages(self, message_ids: list[int]) -> int:
-        """Delete the bot's own (and, in a private chat, the operator's)
-        messages, up to 100 per call. Returns how many ids Telegram accepted.
-        Messages older than 48 hours cannot be deleted by any bot — that is
-        Telegram's rule, and the operator clears those from the chat menu."""
-        # Telegram answers a batch as a whole: one id it will not delete — a
-        # message past the 48-hour limit, say — refuses the entire call, and
-        # the sweep below the newest known id spans days of them. So a refused
-        # batch is split in half and retried, down to single ids, which
-        # isolates the undeletable ones at a cost of O(k log n) calls instead
-        # of one call per id. A hard cap keeps a pathological chat from
-        # turning /clear into hundreds of requests.
-        deleted = 0
-        calls = 0
-        try:
-            client = await self._http()
-            pending = [message_ids[i:i + 100] for i in range(0, len(message_ids), 100)]
-            while pending and calls < DELETE_MAX_CALLS:
-                chunk = pending.pop()
-                calls += 1
-                resp = await client.post(
-                    f"{TELEGRAM_API}/bot{self._token}/deleteMessages",
-                    json={"chat_id": self._chat_id, "message_ids": chunk})
-                if resp.status_code == 200 and (resp.json() or {}).get("ok"):
-                    deleted += len(chunk)
-                elif len(chunk) > 1:
-                    half = len(chunk) // 2
-                    pending += [chunk[:half], chunk[half:]]
-                else:
-                    log.debug("telegram deleteMessages refused id %s: %s",
-                              chunk[0], self._description(resp))
-        except Exception as exc:
-            log.warning("telegram deleteMessages failed: %s", type(exc).__name__)
-        return deleted
-
-    async def forward_messages(self, to_chat_id: str, message_ids: list[int]) -> int:
-        """Copy messages to another chat — the archive — before /clear deletes
-        them here. Returns how many were forwarded.
-
-        Telegram answers a forward batch as a whole, exactly as it does a
-        delete batch: one id it will not forward — a service message ("X
-        created the group"), a message already gone, one whose content is
-        protected — refuses the entire call, and the tracked list mixes the
-        bot's own messages with everything it saw the operator send. Sending
-        all of them in one call therefore archives *nothing* the moment a
-        single id is unforwardable, which is how a healthy chat reports
-        "0 forwarded". So a refused batch is halved and retried down to single
-        ids, isolating the unforwardable ones, under the same call cap as
-        delete."""
-        forwarded = 0
-        calls = 0
-        self.last_forward_refusal = None
-        self.last_forward_migrated_to = None
-        try:
-            client = await self._http()
-            # Strictly increasing ids are required by forwardMessages, and
-            # halving a sorted list keeps every chunk sorted.
-            ordered = sorted(set(message_ids))
-            pending = [ordered[i:i + 100] for i in range(0, len(ordered), 100)]
-            while pending and calls < FORWARD_MAX_CALLS:
-                chunk = pending.pop()
-                calls += 1
-                resp = await client.post(
-                    f"{TELEGRAM_API}/bot{self._token}/forwardMessages",
-                    json={"chat_id": to_chat_id, "from_chat_id": self._chat_id,
-                          "message_ids": chunk, "disable_notification": True})
-                if resp.status_code == 200 and (resp.json() or {}).get("ok"):
-                    forwarded += len((resp.json() or {}).get("result") or chunk)
-                    continue
-
-                # The chat moved: follow it once, put the batch back, and
-                # remember the new id so /clear can name it. Archiving to a
-                # chat that has merely been upgraded should not need a redeploy
-                # to succeed — only to stop needing this hop.
-                moved = self._migrate_to(resp)
-                if moved and moved != to_chat_id and self.last_forward_migrated_to is None:
-                    log.info("archive chat %s migrated to %s", to_chat_id, moved)
-                    self.last_forward_migrated_to = moved
-                    to_chat_id = moved
-                    pending.append(chunk)
-                    continue
-
-                if len(chunk) > 1:
-                    half = len(chunk) // 2
-                    pending += [chunk[:half], chunk[half:]]
-                else:
-                    # The last one standing explains the whole batch: keep it
-                    # for /clear to show, so "0 forwarded" is never mute.
-                    self.last_forward_refusal = self._description(resp)
-                    log.info("telegram forwardMessages refused id %s: %s",
-                             chunk[0], self.last_forward_refusal)
-        except Exception as exc:
-            self.last_forward_refusal = type(exc).__name__
-            log.warning("telegram forwardMessages failed: %s", type(exc).__name__)
-        return forwarded
-
-    async def get_chat(self, chat_id: str) -> dict | None:
-        """What Telegram knows about a chat id — title and type — or None if
-        the bot cannot see it. Used to verify the archive chat."""
-        try:
-            client = await self._http()
-            resp = await client.get(f"{TELEGRAM_API}/bot{self._token}/getChat",
-                                    params={"chat_id": chat_id})
-            if resp.status_code != 200:
-                return None
-            return (resp.json() or {}).get("result") or None
-        except Exception as exc:
-            log.debug("telegram getChat failed: %s", type(exc).__name__)
-            return None
-
-    async def download_photo(self, file_id: str, max_bytes: int = 10 * 1024 * 1024) -> bytes | None:
-        """Fetch a photo the operator sent, via getFile. None on any failure."""
-        try:
-            client = await self._http()
-            meta = await client.get(f"{TELEGRAM_API}/bot{self._token}/getFile",
-                                    params={"file_id": file_id})
-            path = ((meta.json() or {}).get("result") or {}).get("file_path") if meta.status_code == 200 else None
-            if not path:
-                log.warning("telegram getFile failed: HTTP %s %s", meta.status_code, self._description(meta))
-                return None
-            resp = await client.get(f"{TELEGRAM_API}/file/bot{self._token}/{path}",
-                                    timeout=SEND_TIMEOUT_SECONDS * 3)
-            if resp.status_code != 200 or len(resp.content) > max_bytes:
-                log.warning("telegram file download failed: HTTP %s, %d bytes",
-                            resp.status_code, len(resp.content))
-                return None
-            return resp.content
-        except Exception as exc:
-            log.warning("telegram file download failed: %s", type(exc).__name__)
-            return None
-
-    async def answer_callback(self, callback_id: str) -> None:
-        """Stop the button's spinner. Best-effort; the reply is sent regardless."""
-        try:
-            client = await self._http()
-            await client.post(
-                f"{TELEGRAM_API}/bot{self._token}/answerCallbackQuery",
-                json={"callback_query_id": callback_id})
-        except Exception as exc:
-            log.debug("telegram answerCallbackQuery failed: %s", type(exc).__name__)
-
-    async def clear_default_commands(self) -> bool:
-        """Withdraw any command menu published at the default scope.
-
-        A chat-scoped list does not replace a default-scoped one, so publishing
-        the operator menu to the right chat is not enough on its own — what is
-        already live has to be taken down.
-        """
-        try:
-            client = await self._http()
-            resp = await client.post(
-                f"{TELEGRAM_API}/bot{self._token}/deleteMyCommands",
-                json={"scope": {"type": "default"}})
-            return resp.status_code == 200
-        except Exception as exc:
-            log.warning("telegram deleteMyCommands failed: %s",
-                        type(exc).__name__)
-            return False
-
-    async def set_commands(self, commands=COMMANDS) -> bool:
-        """Publish the command menu Telegram shows behind the "/" button.
-
-        Scoped to the operator's chat. Omitting `scope` defaults it to
-        `BotCommandScopeDefault`, which covers every private chat, group and
-        supergroup — so all 23 entries were what any Telegram user saw behind
-        the Menu button on opening the bot, descriptions included: "lever —
-        Arm or disarm the free-scan allowance without a redeploy", "subs —
-        Every subscription seen: plan, how obtained, renews", "costs — Gemini
-        spend: today, 7 and 30 days, per scan, vs MRR".
-
-        No access leaked — the chat gate drops every update from another
-        chat — but the shape of the operation did, along with an invitation to
-        try. A published menu is documentation.
-        """
-        try:
-            client = await self._http()
-            resp = await client.post(
-                f"{TELEGRAM_API}/bot{self._token}/setMyCommands",
-                json={"commands": [{"command": c, "description": d}
-                                   for c, d in commands],
-                      "scope": {"type": "chat", "chat_id": self._chat_id}})
-            return resp.status_code == 200
-        except Exception as exc:
-            log.warning("telegram setMyCommands failed: %s", type(exc).__name__)
-            return False
-
-    async def aclose(self) -> None:
-        if self._client is not None:
-            client, self._client = self._client, None
-            try:
-                await client.aclose()
-            except Exception:
-                pass
-
-
 # ── Module state, wired by `configure` from the app lifespan ─────────────────
-_notifier: TelegramNotifier | None = None
+_notifier: telegram.TelegramNotifier | None = None
 _cache = None                                   # ResilientCache once configured
 _digest_task: asyncio.Task | None = None
 _command_task: asyncio.Task | None = None
@@ -730,7 +345,7 @@ def enabled() -> bool:
     return _notifier is not None
 
 
-def configure(cache, notifier: TelegramNotifier | None = None,
+def configure(cache, notifier: telegram.TelegramNotifier | None = None,
               status_provider: Callable[[], dict] | None = None,
               social=None, generator: Callable[..., Awaitable[str]] | None = None,
               scanner: Callable[..., Awaitable[dict]] | None = None,
@@ -768,7 +383,7 @@ def configure(cache, notifier: TelegramNotifier | None = None,
             _notifier = None
             log.info("telegram alerts disabled — TELEGRAM_BOT_TOKEN/TELEGRAM_CHAT_ID unset")
             return
-        _notifier = TelegramNotifier(token, chat_id)
+        _notifier = telegram.TelegramNotifier(token, chat_id)
         _notifier.on_sent = _remember_message
 
     _start_digest()
@@ -778,7 +393,7 @@ def configure(cache, notifier: TelegramNotifier | None = None,
     # a chat scope does not replace a default scope, so without this the list
     # already live stays live for everyone.
     _spawn(_notifier.clear_default_commands())
-    _spawn(_notifier.set_commands())
+    _spawn(_notifier.set_commands(COMMANDS))
     log.info("telegram alerts enabled", extra={"digest_utc_hour": _digest_hour()})
 
 
@@ -4157,7 +3772,7 @@ def _checkup_wiring() -> checkup.Wiring:
         replica_label=_replica_label, read_int=_read_int, poll_token=_poll_token,
         poll_lock_key=POLL_LOCK_KEY, last_scan_key=LAST_SCAN_KEY,
         last_appstore_notification_key=LAST_APPSTORE_NOTIFICATION_KEY,
-        archive_chat_env=ARCHIVE_CHAT_ENV)
+        archive_chat_env=chatlog.ARCHIVE_CHAT_ENV)
 
 
 # ── Anomalies: a quiet day, a spike ──────────────────────────────────────────
@@ -4231,212 +3846,30 @@ async def _spike_line(when: datetime, scans: int) -> str:
     return f"🔥 {scans / baseline:.1f}× the trailing week's daily average ({baseline:.1f}/day)"
 
 
-# ── Clear: take back the last two days of the chat ──────────────────────────
+# ── Clear and History: chatlog.py's, bound to this module's state ───────────
 
 async def _remember_message(message_id: int, text: str | None = None) -> None:
-    """Note a message in the chat: its id (so /clear can delete it) and, for
-    the bot's own messages, its text (so /clear can keep a copy)."""
-    try:
-        now = int(time.time())
-        # `required`, so an unreadable list raises into the `except` below and
-        # is left alone — read as empty, it was overwritten with one entry
-        # and /clear lost every id and archived text before it.
-        raw = await _cache.get(MESSAGES_KEY, required=True)
-        entries = [e for e in (json.loads(raw) if raw else [])
-                   if isinstance(e, list) and len(e) >= 2 and now - int(e[1]) < MESSAGES_TTL]
-        entry: list[int | str] = [int(message_id), now]
-        if text:
-            entry.append(text[:4096])
-        entries.append(entry)
-        await _cache.set(MESSAGES_KEY, json.dumps(entries[-MESSAGES_CAP:]), MESSAGES_TTL)
-    except Exception as exc:
-        log.debug("message id note failed: %s", type(exc).__name__)
-
-
-async def _archive(entries: list[list]) -> int | None:
-    """Keep the text of the bot's messages that are about to be deleted.
-
-    The number kept, or None when they could not be kept — which `/clear`
-    must not take as "nothing to keep" and delete them anyway."""
-    texts = [[int(e[1]), e[2]] for e in entries if len(e) >= 3 and e[2]]
-    if not texts:
-        return 0
-    try:
-        # `required` for the reason `_remember_message` gives: an archive read
-        # as empty is an archive about to be replaced by this one batch.
-        raw = await _cache.get(ARCHIVE_KEY, required=True)
-        kept = [a for a in (json.loads(raw) if raw else []) if isinstance(a, list) and len(a) == 2]
-        kept += texts
-        await _cache.set(ARCHIVE_KEY, json.dumps(kept[-ARCHIVE_CAP:]), ARCHIVE_TTL)
-    except Exception as exc:
-        log.debug("archive write failed: %s", type(exc).__name__)
-        return None
-    return len(texts)
-
-
-async def _tracked_messages() -> list[list]:
-    """The chat's tracked messages: `[id, when]`, plus the text for the bot's."""
-    try:
-        raw = await _cache.get(MESSAGES_KEY) if _cache is not None else None
-        return [e for e in (json.loads(raw) if raw else []) if isinstance(e, list) and e]
-    except Exception:
-        return []
+    """`chatlog.remember_message` against the configured cache: the notifier's
+    `on_sent`, and the poll loop's note of each operator message."""
+    if _cache is not None:
+        await chatlog.remember_message(_cache, message_id, text)
 
 
 async def _clear_prompt() -> tuple[str, opsformat.Buttons]:
-    """What 🧹 Clear is about to delete and what survives it, before it does.
-
-    The button runs on one tap no longer. It sits beside 🗂 History on every
-    keyboard, and it takes up to two days of alerts and /sub answers with it —
-    and what it keeps is less than "everything": the text of the bot's own
-    messages, of which /history shows the first lines, and nothing of the
-    operator's or of any photo unless an archive chat is configured."""
-    known = {int(e[0]) for e in await _tracked_messages()}
-    if not known:
-        return (CLEAR_NOTHING_TRACKED, await _buttons())
-    if os.environ.get(ARCHIVE_CHAT_ENV, "").strip():
-        kept = ("Kept: everything tracked is forwarded to the archive chat first, "
-                "photos included, and the text of the bot's own messages stays in "
-                "/history for 30 days.")
-    else:
-        kept = ("Kept: the text of the bot's own messages, for 30 days; /history "
-                "shows the first lines of each. Your messages and photos are not kept.")
-    return ("🧹 <b>Clear the chat?</b>\n"
-            f"Deletes the {len(known)} message{'s' if len(known) != 1 else ''} the bot "
-            "tracked here in the last 48 hours — yours and its own — and any it "
-            "lost track of between them.\n" + kept,
-            [[("🧹 Yes, clear it", "clear yes"), ("Cancel", "status")]])
-
-
-_CLEAR_REFUSED = ("🧹 Nothing was cleared: the bot's messages could not be copied "
-                  "to 🗂 History first, and deleting them uncopied would lose them. "
-                  "Try again in a minute.")
+    assert _cache is not None
+    text, offers, menu = await chatlog.clear_prompt(_cache)
+    return text, offers + (await _buttons() if menu else [])
 
 
 async def _clear_chat() -> None:
-    """Delete every message the bot remembers in this chat, then post a fresh
-    status so the keyboard is still there. Only the last 48 hours can go —
-    Telegram's limit for bots, not ours — and only what was tracked.
-
-    What survives is the text of the bot's own messages, archived for /history
-    first, and, when TELEGRAM_ARCHIVE_CHAT_ID names a second chat, everything
-    tracked, forwarded there — a real Telegram copy, photos included. The
-    operator's own messages and photos are not otherwise kept; `_clear_prompt`
-    says so before this runs."""
     if _notifier is None or _cache is None:
         return
-    try:
-        # `required`: read as empty, an unreadable list was deleted below
-        # without anything in it being archived. `_tracked_messages` reads
-        # leniently, which is right for the prompt and wrong here.
-        raw = await _cache.get(MESSAGES_KEY, required=True)
-    except Exception as exc:
-        log.warning("message list unreadable, not clearing: %s", type(exc).__name__)
-        await _notifier.send(_CLEAR_REFUSED, await _buttons())
-        return
-    try:
-        entries = [e for e in (json.loads(raw) if raw else []) if isinstance(e, list) and e]
-    except Exception:
-        entries = []
-    known = sorted({int(e[0]) for e in entries})
-    archived = await _archive(entries)
-    if archived is None:
-        # Deleting now would lose exactly the texts the archive exists to keep.
-        await _notifier.send(_CLEAR_REFUSED, await _buttons())
-        return
-    archive_chat = os.environ.get(ARCHIVE_CHAT_ENV, "").strip()
-    forwarded = await _notifier.forward_messages(archive_chat, known) if archive_chat and known else 0
-    # Known ids first, then the gaps between them: private-chat ids are
-    # sequential, and Telegram silently skips what it cannot delete. Only
-    # *between* the oldest and newest known — see CLEAR_SWEEP_IDS.
-    sweep: list[int] = []
-    if known:
-        oldest, newest = known[0], known[-1]
-        tracked = set(known)
-        sweep = [i for i in range(max(oldest, newest - CLEAR_SWEEP_IDS), newest + 1)
-                 if i not in tracked]
-    deleted = await _notifier.delete_messages(known) if known else 0
-    try:
-        await _cache.delete(MESSAGES_KEY)
-    except Exception:
-        pass
-    swept = await _notifier.delete_messages(sweep) if sweep else 0
-    if known:
-        # Report the tracked deletions, which are a real count, and describe
-        # the sweep as a sweep. These used to be added together and presented
-        # as "Cleared N" — but Telegram answers `deleteMessages` with ok for
-        # ids it silently skips (a message that never existed, or one past the
-        # 48-hour limit), so every id in the blind sweep counted as a deletion
-        # and N was really just the sweep's range size. It read as a precise
-        # figure and was not one.
-        note = f"🧹 Cleared {deleted} tracked message{'s' if deleted != 1 else ''}."
-        if swept:
-            note += (f" Also swept {swept} untracked id"
-                     f"{'s' if swept != 1 else ''} between them — Telegram "
-                     "does not say how many of those existed.")
-        if archived:
-            note += f" {archived} of the bot's kept — 🗂 History shows them."
-        if archive_chat:
-            note += f" {forwarded} forwarded to the archive chat."
-            moved = getattr(_notifier, "last_forward_migrated_to", None)
-            if moved:
-                note += (f"\n⚠️ That chat is now a supergroup — set "
-                         f"{ARCHIVE_CHAT_ENV} to <code>{html.escape(str(moved))}</code>; "
-                         "this run followed the move.")
-            elif not forwarded:
-                why = getattr(_notifier, "last_forward_refusal", None)
-                note += (f" (Telegram refused: {html.escape(str(why))})" if why else
-                         " (nothing in the tracked list could be forwarded)")
-    else:
-        note = CLEAR_NOTHING_TRACKED
-    note += ("\nTelegram lets a bot delete only the last 48 hours; anything older is "
-             "chat menu → Clear History.")
-    await _notifier.send(note + "\n\n" + await _status_text(), await _buttons())
-
-
-def _snippet(text: str, limit: int = HISTORY_SNIPPET_CHARS) -> str:
-    """A message as it was sent, shortened. The text is the bot's own Telegram
-    HTML, so tags are stripped rather than re-escaped — cutting mid-tag would
-    make the whole history message unparseable."""
-    plain = re.sub(r"<[^>]+>", "", text)
-    plain = html.unescape(plain)
-    lines = [line for line in plain.split("\n") if line.strip()]
-    clipped = len(lines) > HISTORY_SNIPPET_LINES
-    plain = "\n".join(lines[:HISTORY_SNIPPET_LINES])
-    if len(plain) > limit:
-        plain = plain[:limit].rstrip()
-        clipped = True
-    return html.escape(plain) + ("…" if clipped else "")
+    await chatlog.clear_chat(_notifier, _cache, _buttons, _status_text)
 
 
 async def _history_text(argument: str) -> str:
-    try:
-        count = min(HISTORY_MAX, max(1, int(argument))) if argument else HISTORY_DEFAULT
-    except ValueError:
-        count = HISTORY_DEFAULT
-    try:
-        raw = await _cache.get(ARCHIVE_KEY)
-        entries = [a for a in (json.loads(raw) if raw else []) if isinstance(a, list) and len(a) == 2]
-    except Exception:
-        entries = []
-    if not entries:
-        return ("🗂 <b>History</b>\nNothing archived yet. 🧹 Clear keeps a copy of what the bot "
-                "said; it shows up here.")
-    shown = entries[-count:]
-    lines = [f"🗂 <b>History</b> — last {len(shown)} of {len(entries)} kept messages"]
-    budget = 3800
-    blocks = []
-    for at, text in reversed(shown):
-        when = datetime.fromtimestamp(int(at), timezone.utc).strftime("%d %b %H:%M")
-        block = f"<b>{when} UTC</b>\n{_snippet(str(text))}"
-        if budget - len(block) < 0:
-            blocks.append("…")
-            break
-        budget -= len(block)
-        blocks.append(block)
-    lines.append("\n\n".join(blocks))
-    lines.append("/history 25 for more. Kept 30 days.")
-    return "\n\n".join(lines)
+    assert _cache is not None
+    return await chatlog.history_text(_cache, argument)
 
 
 # ── Test scan: a photo sent to the bot goes through the real pipeline ────────
