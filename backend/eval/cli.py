@@ -103,11 +103,42 @@ def cmd_drift(args) -> int:
               "be reviewed explicitly — this is how a benchmark quietly becomes "
               "a mirror of the model.", file=sys.stderr)
         return 1
-    return 0 if report.is_clean else 2
+    # Composition moves as the set grows, which is the point of growing it.
+    # A warning to read, not a failure (#215): failing here pushed the set
+    # toward never changing shape. In Actions each becomes an annotation.
+    for warning in report.warnings:
+        print(f"::warning::gold set composition: {warning}")
+    return 0
+
+
+def _config_mismatch(current: dict, baseline: dict) -> str | None:
+    """Why two runs can't be compared, or None (#215). A run recorded under a
+    config, against a baseline under another or under none, measures the
+    config change, not the PR."""
+    ours, theirs = current.get("config"), baseline.get("config")
+    if not ours:
+        return None
+    if not theirs:
+        return ("the baseline records no config, so it can't be known to match "
+                f"this run's {ours}. Re-record eval/data/baseline.json under "
+                "eval/data/production.json")
+    keys = ("prompt_version", "model", "thinking_budget")
+    differs = [k for k in keys if ours.get(k) != theirs.get(k)]
+    if differs:
+        detail = ", ".join(f"{k} {theirs.get(k)!r} → {ours.get(k)!r}" for k in differs)
+        return (f"this run and the baseline ran under different configs ({detail}). "
+                "Re-record eval/data/baseline.json under the new config in the same PR")
+    return None
 
 
 def cmd_gate(args) -> int:
-    current = _metric_set_from(_load_json(args.current), "current")
+    raw_current = _load_json(args.current)
+    if args.baseline and Path(args.baseline).exists():
+        mismatch = _config_mismatch(raw_current, _load_json(args.baseline))
+        if mismatch:
+            print(f"❌ {mismatch}.", file=sys.stderr)
+            return 1
+    current = _metric_set_from(raw_current, "current")
     baseline = (gates_module.load_baseline(args.baseline) if args.baseline else None)
     report = gates_module.check(current, baseline,
                                 baseline_ref=args.baseline or "",
@@ -248,6 +279,40 @@ def cmd_calibrate(args) -> int:
     return 0
 
 
+def cmd_images(args) -> int:
+    """Every gold record's photos are in the store, as the intake wrote them
+    (#213, #215): present, a JPEG within the app's upload size, and the
+    sha256 the record carries. A missing or altered photo fails, because the
+    gate would otherwise score a different image than the label describes."""
+    from eval import intake
+    gold = Path(args.path)
+    root = gold.parent
+    problems: list[str] = []
+    checked = 0
+    for item in schema.load_gold(gold):
+        for image in item.images:
+            path = root / image.path
+            checked += 1
+            if not path.is_file():
+                problems.append(f"{item.id}: {image.path} is not in the store")
+                continue
+            data = path.read_bytes()
+            size = intake.jpeg_size(data)
+            if size is None:
+                problems.append(f"{item.id}: {image.path} is not a JPEG")
+            elif max(size) > intake.MAX_EDGE:
+                problems.append(f"{item.id}: {image.path} is {size[0]}×{size[1]}, "
+                                f"over the {intake.MAX_EDGE} px the app sends")
+            if image.sha256 and intake.hashlib.sha256(data).hexdigest() != image.sha256:
+                problems.append(f"{item.id}: {image.path} does not match its sha256")
+            elif not image.sha256:
+                problems.append(f"{item.id}: {image.path} has no sha256 in the record")
+    for problem in problems:
+        print(f"::error::{problem}" if args.annotate else problem)
+    print(f"{checked} image(s) checked, {len(problems)} problem(s)")
+    return 1 if problems else 0
+
+
 def cmd_status(args) -> int:
     """What can and cannot currently be measured."""
     gold_path = Path(args.gold) if args.gold else None
@@ -326,6 +391,11 @@ def main(argv=None) -> int:
     p.add_argument("--dataset-version", default="")
     p.add_argument("--out")
     p.set_defaults(func=cmd_calibrate)
+
+    p = sub.add_parser("images", help="check the gold photos against their records")
+    p.add_argument("--path", default="eval/data/gold.jsonl")
+    p.add_argument("--annotate", action="store_true", help="print GitHub Actions errors")
+    p.set_defaults(func=cmd_images)
 
     p = sub.add_parser("status", help="what can currently be measured")
     p.add_argument("--gold", default="eval/data/gold.jsonl")

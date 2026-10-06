@@ -1,0 +1,6 @@
+{
+  "_comment": "What production scans with, pinned for the accuracy gate (#215). The CI run uses exactly this, run.json records it, and eval.cli gate refuses to compare a run against a baseline recorded under anything else. Keep it in step with Railway: SCAN_PROMPT_VERSION (unset = prompts.DEFAULT_PROMPT_VERSION), GEMINI_MODEL (unset = aiconfig's default) and GEMINI_THINKING_BUDGET (unset = null). Checked against Railway on 2026-10-06. Changing any value means re-recording eval/data/baseline.json in the same PR.",
+  "prompt_version": "v2",
+  "model": "gemini-2.5-flash",
+  "thinking_budget": null
+}

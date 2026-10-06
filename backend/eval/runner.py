@@ -241,6 +241,11 @@ def evaluate(predictions: list[Prediction]) -> dict:
     labelled = [(p, p.expected_price) for p in usable if p.expected_price is not None]
 
     point_pairs = [(p.predicted_expected, actual) for p, actual in labelled]
+    # The middle of the range, beside the expected price (#215): the number
+    # the app showed as "likely" before R (#238), and the cheapest fallback
+    # to compare the model's own point against.
+    midpoint_pairs = [((p.predicted_low + p.predicted_high) / 2, actual)
+                      for p, actual in labelled]
     range_triples = [(p.predicted_low, p.predicted_high, actual) for p, actual in labelled]
     scored = [(p.confidence_score, p.predicted_expected, actual) for p, actual in labelled]
 
@@ -282,6 +287,10 @@ def evaluate(predictions: list[Prediction]) -> dict:
             "within_10pct": metrics.within_tolerance(point_pairs, 10.0),
             "within_25pct": metrics.within_tolerance(point_pairs, 25.0),
             "within_50pct": metrics.within_tolerance(point_pairs, 50.0),
+        },
+        "accuracy_midpoint": {
+            "mdape": metrics.mdape(midpoint_pairs),
+            "bias": metrics.bias(midpoint_pairs),
         },
         "range": {
             "coverage": metrics.range_coverage(range_triples),
@@ -363,6 +372,47 @@ def arm_result(label: str, repeats: list[list[Prediction]], config: dict | None 
                      config=config or {}, extra=extra)
 
 
+def median_predictions(repeats: list[list[Prediction]]) -> list[Prediction]:
+    """One prediction per item: the median of its priced repeats (#215).
+
+    `--aggregate median` scores these instead of the first repeat, so one
+    unlucky call cannot move a gated figure. An item with no priced repeat
+    keeps its first, failed, prediction, so it still counts against
+    `scored_fraction`."""
+    by_item: dict[str, list[Prediction]] = {}
+    for batch in repeats:
+        for prediction in batch:
+            by_item.setdefault(prediction.item_id, []).append(prediction)
+    out: list[Prediction] = []
+    for runs in by_item.values():
+        ok = [p for p in runs if p.ok]
+        if not ok:
+            out.append(runs[0])
+            continue
+        first = ok[0]
+        out.append(Prediction(
+            item_id=first.item_id, category=first.category,
+            expected_price=first.expected_price, expected_brand=first.expected_brand,
+            predicted_expected=statistics.median(p.predicted_expected for p in ok),
+            predicted_low=statistics.median(p.predicted_low for p in ok),
+            predicted_high=statistics.median(p.predicted_high for p in ok),
+            confidence_score=round(statistics.median(p.confidence_score for p in ok)),
+            brand=first.brand, model_name=first.model_name,
+            identification_certainty=first.identification_certainty,
+            visual_evidence=first.visual_evidence,
+            latency_ms=statistics.median(p.latency_ms for p in ok),
+            output_tokens=first.output_tokens, thoughts_tokens=first.thoughts_tokens,
+            prompt_version=first.prompt_version))
+    return out
+
+
+def load_config(path: Path) -> dict:
+    """A pinned config (`eval/data/production.json`): prompt version, model and
+    thinking budget. Keys starting with `_` are comments."""
+    raw = json.loads(path.read_text(encoding="utf-8"))
+    return {k: v for k, v in raw.items() if not k.startswith("_")}
+
+
 def arm_config(version: str, budget: int | None) -> dict:
     """What an arm ran under, recorded with it so two runs made under
     different settings are never compared as if they were alike."""
@@ -429,6 +479,10 @@ def metric_set(report: dict, label: str) -> MetricSet:
     within = acc.get("within_25pct")
     add("within_25pct", within * 100 if within is not None else None, n_labelled, "%")
     add("calibration_ece", (report.get("calibration") or {}).get("ece"), n_labelled)
+    # Reported, never gated: no threshold in gates.py names them.
+    midpoint = report.get("accuracy_midpoint") or {}
+    add("mdape_midpoint", midpoint.get("mdape"), n_labelled, "%")
+    add("bias_midpoint", midpoint.get("bias"), n_labelled, "%")
     # Only against labels (`evaluate` computes it over labelled items): the
     # brand-mismatch rule needs a true brand.
     hall = report.get("hallucination") or {}
@@ -595,6 +649,8 @@ def _format(report: dict) -> str:
             f"  within 10%            {pct(acc['within_10pct'])}",
             f"  within 25%            {pct(acc['within_25pct'])}",
             f"  within 50%            {pct(acc['within_50pct'])}",
+            f"  midpoint of range     MdAPE {num((report.get('accuracy_midpoint') or {}).get('mdape'))}%"
+            f"  bias {num((report.get('accuracy_midpoint') or {}).get('bias'))}%",
             "",
             "Range",
             f"  coverage              {pct(rng['coverage'])}   (target ~80%)",
@@ -654,7 +710,9 @@ def json_out(arms: list[str], reports: dict[str, dict], arm_results: dict[str, A
     if len(arms) > 1:
         return {"compare": arms, "price_shift": shift, "arms": payloads,
                 "source": source, "labelled": labelled}
-    return payloads[arms[0]] | {"source": source, "labelled": labelled}
+    # The config at the top level too, where `eval.cli gate` looks for it.
+    return payloads[arms[0]] | {"source": source, "labelled": labelled,
+                                "config": arm_results[arms[0]].config}
 
 
 def main(argv=None) -> int:
@@ -672,6 +730,12 @@ def main(argv=None) -> int:
                         help="run two arms (e.g. v2.1 v2.1@512) and print both reports")
     parser.add_argument("--repeats", type=int, default=1,
                         help="runs per item; >1 enables the consistency metric")
+    parser.add_argument("--aggregate", choices=("first", "median"), default="first",
+                        help="with --repeats: score the first repeat, or each item's "
+                             "median over its repeats")
+    parser.add_argument("--config",
+                        help="a pinned config to run under, e.g. eval/data/production.json; "
+                             "its prompt and budget become the arm, and the model must match")
     parser.add_argument("--limit", type=int, help="evaluate only the first N items")
     parser.add_argument("--categories", help="comma-separated category filter")
     parser.add_argument("--concurrency", type=int, default=4)
@@ -682,6 +746,17 @@ def main(argv=None) -> int:
                         help="report dataset composition and exit — no model calls")
     args = parser.parse_args(argv)
 
+    if args.config:
+        if args.compare:
+            parser.error("--config pins one arm; it cannot be combined with --compare")
+        import aiconfig
+        pinned = load_config(Path(args.config))
+        if pinned.get("model") and pinned["model"] != aiconfig.MODEL_NAME:
+            parser.error(f"{args.config} pins model {pinned['model']!r}, but this run "
+                         f"would use {aiconfig.MODEL_NAME!r} (GEMINI_MODEL)")
+        budget = pinned.get("thinking_budget")
+        args.prompt_version = (f"{pinned['prompt_version']}@{budget}" if budget is not None
+                               else pinned["prompt_version"])
     arms: list[str] = list(args.compare) if args.compare else [args.prompt_version]
     try:
         parsed = [parse_arm(arm) for arm in arms]
@@ -734,7 +809,8 @@ def main(argv=None) -> int:
             batches.append(batch)
             for prediction in batch:
                 all_runs.setdefault(prediction.item_id, []).append(prediction.predicted_expected)
-        predictions = batches[0]
+        predictions = (median_predictions(batches) if args.aggregate == "median"
+                       else batches[0])
         # Negative controls: one pass, scored only on whether they are declined.
         control_predictions = (asyncio.run(run_live(controls, version, root,
                                                     args.concurrency, budget))
