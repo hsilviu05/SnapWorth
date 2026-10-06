@@ -1108,6 +1108,13 @@ newly generated batch into each (§18). Only if there is nothing to restore:
 
 ## 10. Cost model `[ESTIMATED]`
 
+> **Free tier, decided 2026-10-06 (#212):** 1 scan a day, plus a 3-scan first
+> day (`FREE_SCANS_FIRST_DAY=3` on Railway; the code default is 0). Kept on
+> cost and product grounds, because the window's data couldn't decide it
+> (`docs/experiments/free-scans-2026-09.md`). Leave it unchanged during
+> another experiment's window. The `/lever` buttons override it from chat and
+> `/experiment` footnotes any move.
+
 > **Corrected 2026-09-09.** The previous version of this section was ~19×
 > too low per scan and its headline conclusion was backwards. Two errors:
 > it used $0.075/1M input and $0.30/1M output, against the $0.30/$2.50 this

@@ -59,6 +59,16 @@ _COUNTER_TTL = 60 * 60 * 30
 # permanent widening of the free tier. Granted once per subject, ever, and at
 # most once a month per device: DeviceCheck's bit1 marks the hardware when it
 # is granted, so a reinstall on that device gets the daily limit instead.
+#
+# Decided 2026-10-06 (#212): production keeps FREE_SCANS_FIRST_DAY=3. The
+# 09-10 → 09-24 window could not settle it on data: 100 free scans in 34
+# days, 9 device-days with the lever off, and the server cannot count limit
+# hits, because the app stops a spent user before /scan
+# (docs/experiments/free-scans-2026-09.md). So it was kept on cost (a few
+# cents a month at this volume) and product grounds (two looks at the value
+# before the paywall). Revisit with TelemetryDeck's funnel once volume allows,
+# and never inside another experiment's window (roadmap calendar). The code
+# default stays 0, so an unset variable means no welcome.
 FREE_SCANS_FIRST_DAY = 0
 
 # The welcome grant outlives any counter, so a subject can never be welcomed
