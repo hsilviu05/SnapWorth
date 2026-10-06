@@ -40,8 +40,9 @@ as the binding lives. A referrer who reinstalls loses sight of their code and
 of any weeks parked for it. RUNBOOK §18 records that as a decision to confirm
 before `REFERRALS_ENABLED` goes on.
 
-Off unless `REFERRALS_ENABLED` is set, and inert until the friend offer's
-reference name is configured. Nothing here can fail an entitlement sync:
+Off unless switched on (`REFERRALS_ENABLED`, or the bot's `/referrals on`),
+inert until the friend offer's reference name is configured, and shown only
+to builds at or above a minimum (`serves`, #227). Nothing here can fail an entitlement sync:
 `on_entitlement` never raises.
 """
 
@@ -60,6 +61,7 @@ from pydantic import BaseModel, Field
 
 import auditlog
 import notify
+import observability
 import ratelimit
 from auth import Principal, deps, require_auth
 from cache import CacheUnavailable, ResilientCache
@@ -118,6 +120,11 @@ class ReferralConfig:
     # A redemption is recognised by this, since it is all Apple reports.
     friend_offer: str = ""
     rewards_per_year: int = 5
+    # The oldest build shown the feature (#227), unless the bot set one.
+    # None means no build is: 1.5.0 to 1.5.2 show referrals on a bare
+    # `enabled=true` without the renewal sentence or the offer-code reminder,
+    # so the switch serves nobody until a minimum names a build that has them.
+    min_build: int | None = None
     app_apple_id: str = "6788521307"
     share_base: str = "https://www.snapworth.eu/i/"
 
@@ -134,7 +141,10 @@ def config_from_env() -> ReferralConfig:
         cap = int(os.environ.get("REFERRAL_REWARDS_PER_YEAR", "5"))
     except ValueError:
         cap = 5
+    raw_min = os.environ.get("REFERRAL_MIN_BUILD", "").strip()
+    min_build = int(raw_min) if raw_min.isdigit() and 0 < int(raw_min) <= 100_000 else None
     return ReferralConfig(
+        min_build=min_build,
         enabled=_bool("REFERRALS_ENABLED"),
         friend_offer=os.environ.get("REFERRAL_FRIEND_OFFER", "").strip(),
         rewards_per_year=max(0, cap),
@@ -143,6 +153,66 @@ def config_from_env() -> ReferralConfig:
 
 
 config = config_from_env()
+
+
+# ── The runtime switch and the minimum build (#227) ─────────────────────────
+#
+# Both live beside `/minbuild` in the bot's runtime store, so `/referrals off`
+# hides the feature on the next request, without a redeploy. Set, they win
+# over `REFERRALS_ENABLED` and `REFERRAL_MIN_BUILD`; cleared, those decide.
+# The friend offer is still required either way: without its reference name
+# a redemption cannot be recognised, so there is nothing to switch on.
+
+SWITCH_KEY = "opsstate:referrals"
+MIN_BUILD_KEY = "opsstate:referral-minbuild"
+
+
+async def _stored(key: str) -> str | None:
+    try:
+        raw = await deps.cache.get(key)
+    except Exception:
+        return None                      # unreadable: the environment decides
+    return raw if isinstance(raw, str) and raw else None
+
+
+async def switched_on() -> bool:
+    """The switch, before any build is considered. Never raises."""
+    if not config.friend_offer:
+        return False
+    stored = await _stored(SWITCH_KEY)
+    return stored == "on" if stored in ("on", "off") else config.enabled
+
+
+async def minimum_build() -> int | None:
+    """The oldest build shown referrals, or None for none. Never raises."""
+    stored = await _stored(MIN_BUILD_KEY)
+    if stored and stored.isdigit() and 0 < int(stored) <= 100_000:
+        return int(stored)
+    return config.min_build
+
+
+async def serves(request: Request) -> bool:
+    """Whether this caller is shown referrals: switched on, a minimum set,
+    and a build that says it is at least that. An unreadable build is
+    hidden, never assumed new."""
+    if not await switched_on():
+        return False
+    minimum = await minimum_build()
+    build, _ = observability.client_build(request.headers)
+    return minimum is not None and build is not None and build >= minimum
+
+
+async def describe() -> str:
+    """One phrase for Checkup and the bot: on for which builds, or why not."""
+    if not config.friend_offer:
+        return "off (no REFERRAL_FRIEND_OFFER)"
+    on = await switched_on()
+    minimum = await minimum_build()
+    if not on:
+        return "off"
+    if minimum is None:
+        return "on, but no minimum build — shown to nobody"
+    return f"on for build {minimum}+"
 
 
 # ── Keys ────────────────────────────────────────────────────────────────────
@@ -456,7 +526,7 @@ async def on_entitlement(subject: str, device: str | None, ent: Entitlement) -> 
     tests; never raises, so a referral problem cannot fail an entitlement sync.
     """
     try:
-        if not config.active:
+        if not await switched_on():
             return False
         if is_bounded(ent):
             # A Sandbox redemption — a tester or App Review — is not a friend
@@ -687,7 +757,7 @@ async def status(req: StatusRequest, request: Request,
     caller and writes nothing, and the app asks on every return to the
     foreground.
     """
-    if not config.active:
+    if not await serves(request):
         return StatusResponse(enabled=False)
     try:
         await _admit("status", principal, req.device_id, request)
@@ -708,7 +778,7 @@ async def status(req: StatusRequest, request: Request,
 @router.post("/claim", response_model=ClaimResponse)
 async def claim_route(req: ClaimRequest, request: Request,
                       principal: Principal = Depends(require_auth)) -> ClaimResponse:
-    if not config.active:
+    if not await serves(request):
         raise HTTPException(status_code=404, detail="Invites aren't available right now.")
     try:
         await _admit("claim", principal, req.device_id, request)
@@ -718,3 +788,62 @@ async def claim_route(req: ClaimRequest, request: Request,
     except CacheUnavailable:
         raise HTTPException(status_code=503, detail=_UNAVAILABLE) from None
     return ClaimResponse(friend_code=code, redeem_url=config.redeem_url(code))
+
+
+# ── /referrals in the bot (#227) ─────────────────────────────────────────────
+
+async def bot_command(argument: str, rest: str) -> tuple[str, list[list[tuple[str, str]]]]:
+    """`/referrals`, `/referrals on|off`, `/referrals build <n>|clear`, each
+    change behind a second tap like `/minbuild`. Buttons' data is the command
+    without its slash."""
+    parts = (rest or "").split()
+    confirmed = any(token.lower() == "yes" for token in parts[1:])
+    back = [[("🎁 Referrals", "referrals")]]
+    cache = deps.cache
+    state = await describe()
+
+    if argument in ("on", "off"):
+        if argument == "on" and not config.friend_offer:
+            return ("🎁 Set <code>REFERRAL_FRIEND_OFFER</code> first: without the "
+                    "friend offer's reference name no redemption is recognised.", back)
+        if not confirmed:
+            if argument == "on":
+                minimum = await minimum_build()
+                who = (f"builds <b>{minimum}</b> and newer" if minimum is not None
+                       else "<b>nobody yet</b> — set <code>/referrals build &lt;n&gt;</code>")
+                text = (f"🎁 <b>Turn referrals on?</b>\nShown to {who}. Check the "
+                        f"pools in Checkup first; an empty pool refuses every invite.")
+            else:
+                text = ("🎁 <b>Turn referrals off?</b>\nThe app hides Invite a friend "
+                        "on its next status check. Codes already handed out stay "
+                        "valid at Apple, and no new reward is parked.")
+            return text + f"\nNow: {state}.", [[(f"✅ Yes, {argument}", f"referrals {argument} yes"),
+                                                   ("Cancel", "referrals")]]
+        await cache.set(SWITCH_KEY, argument, required=True)
+        log.warning("referrals switched from chat", extra={"to": argument, "was": state})
+        return f"🎁 Referrals {argument}. Now: {await describe()}.", back
+
+    if argument == "build":
+        wanted = parts[1] if len(parts) > 1 else ""
+        if wanted == "clear":
+            await cache.delete(MIN_BUILD_KEY, required=True)
+            return f"🎁 Minimum build cleared. Now: {await describe()}.", back
+        if not wanted.isdigit() or not 0 < int(wanted) <= 100_000:
+            return "🎁 <code>/referrals build &lt;n&gt;</code> takes a build number.", back
+        if not confirmed:
+            return (f"🎁 <b>Show referrals to build {wanted} and newer?</b>\n"
+                    f"Only a build that says the reward week renews and reminds "
+                    f"before it does: 1.5.3's or later. Now: {state}.",
+                    [[(f"✅ Yes, {wanted}+", f"referrals build {wanted} yes"),
+                      ("Cancel", "referrals")]])
+        await cache.set(MIN_BUILD_KEY, wanted, required=True)
+        log.warning("referral minimum build set from chat", extra={"minimum": int(wanted)})
+        return f"🎁 Referral minimum build set. Now: {await describe()}.", back
+
+    return (f"🎁 <b>Referrals</b>: {state}.\n"
+            "<code>/referrals on</code> or <code>off</code> switches them without a "
+            "redeploy; <code>/referrals build &lt;n&gt;</code> sets the oldest build "
+            "shown them (<code>clear</code> falls back to "
+            "<code>REFERRAL_MIN_BUILD</code>). RUNBOOK §18.",
+            [[("✅ On", "referrals on"), ("⛔ Off", "referrals off")]])
+
