@@ -279,6 +279,18 @@ def cmd_calibrate(args) -> int:
     return 0
 
 
+def cmd_field(args) -> int:
+    """User-reported sale outcomes against their estimates (#224). Reported,
+    never gated."""
+    from eval import field
+    rows, currencies = field.load(args.outcomes)
+    rep = field.report(rows, currencies)
+    print(field.render(rep), end="")
+    if args.json_out:
+        Path(args.json_out).write_text(json.dumps(rep, indent=2, default=str))
+    return 0
+
+
 def cmd_images(args) -> int:
     """Every gold record's photos are in the store, as the intake wrote them
     (#213, #215): present, a JPEG within the app's upload size, and the
@@ -391,6 +403,11 @@ def main(argv=None) -> int:
     p.add_argument("--dataset-version", default="")
     p.add_argument("--out")
     p.set_defaults(func=cmd_calibrate)
+
+    p = sub.add_parser("field", help="user-reported sale outcomes (never a gate input)")
+    p.add_argument("--outcomes", required=True, help="the /outcomes export, JSONL")
+    p.add_argument("--json-out")
+    p.set_defaults(func=cmd_field)
 
     p = sub.add_parser("images", help="check the gold photos against their records")
     p.add_argument("--path", default="eval/data/gold.jsonl")
